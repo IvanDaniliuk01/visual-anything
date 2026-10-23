@@ -25,7 +25,10 @@ describe('parseFile', () => {
   });
 
   it('ignores a byte order mark at the start of the file', () => {
-    const result = parseFile('project', '﻿{ "schemaVersion": 1, "name": "A", "packages": [] }');
+    const result = parseFile(
+      'project',
+      '\uFEFF{ "schemaVersion": 1, "name": "A", "packages": [] }',
+    );
     expect(result).toEqual({ ok: true, value: { schemaVersion: 1, name: 'A', packages: [] } });
   });
 

@@ -284,8 +284,8 @@ describe('loadProject', () => {
     expect(errorsOf(await loadProject(folder))).toEqual([
       {
         file: 'project.vaproject',
-        pointer: '/packages/1',
-        message: 'The package "systems" is listed more than once.',
+        pointer: '/packages',
+        message: 'must not have duplicate items (items 0 and 1 are the same)',
       },
     ]);
   });

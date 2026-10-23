@@ -263,7 +263,10 @@ function requireUniqueIds(
   }
 }
 
-/** The packages the project lists, in its order; reports listed packages that have no file. */
+/**
+ * The packages the project lists, in its order; reports listed packages that have no file. The schema
+ * already refuses a package listed twice.
+ */
 function findListedPackages(
   project: Read<'project'>,
   packages: Read<'package'>[],
@@ -274,19 +277,17 @@ function findListedPackages(
     if (!packageWithId.has(value.id)) packageWithId.set(value.id, value);
   }
   const listed: PackageFile[] = [];
-  const seen = new Set<string>();
   project.value.packages.forEach((id, index) => {
-    const report = (message: string) =>
-      problems.add('project', { file: project.file, pointer: `/packages/${index}`, message });
     const found = packageWithId.get(id);
-    if (seen.has(id)) {
-      report(`The package "${id}" is listed more than once.`);
-    } else if (found === undefined) {
-      report(`The package "${id}" is listed, but no file in packages/ holds it.`);
+    if (found === undefined) {
+      problems.add('project', {
+        file: project.file,
+        pointer: `/packages/${index}`,
+        message: `The package "${id}" is listed, but no file in packages/ holds it.`,
+      });
     } else {
       listed.push(found);
     }
-    seen.add(id);
   });
   return listed;
 }
