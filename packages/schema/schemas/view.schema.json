@@ -1,0 +1,248 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:visual-anything:schema:view",
+  "title": "Visual Anything view file",
+  "description": "The contents of a `.vaview` file: a projection of the model onto the canvas, with its own positions.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "$ref": "#/definitions/Id"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "perspective": {
+      "$ref": "#/definitions/Perspective"
+    },
+    "nestingRelationTypes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Id"
+      },
+      "description": "The nesting relation types that arrange this view.",
+      "uniqueItems": true
+    },
+    "positions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ShapePosition"
+      },
+      "description": "The positions of anchored shapes, set by layout or pinned by hand. A shape without a position is placed by layout."
+    },
+    "freeShapes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/FreeShape"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "perspective",
+    "nestingRelationTypes",
+    "positions",
+    "freeShapes"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "Id": {
+      "type": "string",
+      "description": "An identifier, generated once and never reused. Files refer to each other only by id. Element and relation ids share one namespace, because a relation can end on either. Component and relation type ids start with their package's id, as in `systems.service`.",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "Perspective": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "For example \"Data flow\", \"Security\" or \"Ownership\".",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "The criterion for selecting and arranging the model in a view."
+    },
+    "ShapePosition": {
+      "type": "object",
+      "properties": {
+        "element": {
+          "$ref": "#/definitions/Id"
+        },
+        "container": {
+          "$ref": "#/definitions/Id",
+          "description": "The container whose shape holds this one. Absent when the element sits directly in World."
+        },
+        "x": {
+          "type": "number",
+          "description": "The left edge, relative to the container's shape, or to the canvas when directly in World."
+        },
+        "y": {
+          "type": "number",
+          "description": "The top edge, relative to the container's shape, or to the canvas when directly in World."
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "pinned": {
+          "type": "boolean",
+          "description": "Whether the position was set by hand. Layout arranges every other shape around pinned shapes."
+        }
+      },
+      "required": [
+        "element",
+        "x",
+        "y"
+      ],
+      "additionalProperties": false,
+      "description": "Where an anchored shape sits in a view. An element has one anchored shape inside each of its containers, so a position is identified by the element and the container its shape sits in."
+    },
+    "FreeShape": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "note",
+            "arrow"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "note"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/Note"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "arrow"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/Arrow"
+          }
+        }
+      ],
+      "description": "A shape that is drawing only and does not exist in the model."
+    },
+    "Note": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "note"
+        },
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "x",
+        "y",
+        "width",
+        "height",
+        "text"
+      ],
+      "additionalProperties": false,
+      "description": "A free shape that holds text."
+    },
+    "Arrow": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "arrow"
+        },
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "from": {
+          "$ref": "#/definitions/Point"
+        },
+        "to": {
+          "$ref": "#/definitions/Point"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "from",
+        "to"
+      ],
+      "additionalProperties": false,
+      "description": "A free shape that points from one place on the canvas to another."
+    },
+    "Point": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "additionalProperties": false,
+      "description": "A point on the canvas, in canvas units."
+    }
+  }
+}

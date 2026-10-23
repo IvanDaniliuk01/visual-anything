@@ -1,0 +1,249 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:visual-anything:schema:package",
+  "title": "Visual Anything package file",
+  "description": "The contents of a `.vapackage` file: components and relation types from one domain, shared as a unit.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "$ref": "#/definitions/Id"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Component"
+      }
+    },
+    "relationTypes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/RelationType"
+      }
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "components",
+    "relationTypes"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "Id": {
+      "type": "string",
+      "description": "An identifier, generated once and never reused. Files refer to each other only by id. Element and relation ids share one namespace, because a relation can end on either. Component and relation type ids start with their package's id, as in `systems.service`.",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "Component": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "derivesFrom": {
+          "$ref": "#/definitions/Id",
+          "description": "The component this one derives from: another component, or `essence`."
+        },
+        "description": {
+          "type": "string"
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AttributeDefinition"
+          },
+          "description": "The attributes this component adds to the ones it inherits."
+        },
+        "appearance": {
+          "$ref": "#/definitions/Appearance"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "derivesFrom"
+      ],
+      "additionalProperties": false,
+      "description": "The reusable definition of a kind of element. It inherits everything it does not redefine."
+    },
+    "AttributeDefinition": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "json"
+          ]
+        },
+        "default": {
+          "$ref": "#/definitions/JsonValue",
+          "description": "The value an element or relation has when it does not set its own."
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "additionalProperties": false,
+      "description": "An attribute that a component or relation type defines."
+    },
+    "JsonValue": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/JsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/JsonValue"
+          }
+        }
+      ],
+      "description": "Any JSON value."
+    },
+    "Appearance": {
+      "type": "object",
+      "properties": {
+        "shape": {
+          "type": "string",
+          "enum": [
+            "rectangle",
+            "rounded-rectangle",
+            "ellipse",
+            "cylinder",
+            "person"
+          ]
+        },
+        "fill": {
+          "$ref": "#/definitions/Color"
+        },
+        "stroke": {
+          "$ref": "#/definitions/Color"
+        },
+        "width": {
+          "type": "number",
+          "description": "The width of its shapes when a view does not set one, in canvas units.",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "description": "The height of its shapes when a view does not set one, in canvas units.",
+          "exclusiveMinimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "description": "How an element's shapes are drawn."
+    },
+    "Color": {
+      "type": "string",
+      "description": "A color written as `#rrggbb`.",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "RelationType": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "derivesFrom": {
+          "$ref": "#/definitions/Id",
+          "description": "The relation type this one derives from: another relation type, or `relates-to`."
+        },
+        "description": {
+          "type": "string"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "directed",
+            "undirected"
+          ]
+        },
+        "nests": {
+          "type": "boolean",
+          "description": "Whether its relations place their `from` element inside their `to` element, as \"is part of\" does."
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AttributeDefinition"
+          },
+          "description": "The attributes this relation type adds to the ones it inherits."
+        },
+        "appearance": {
+          "$ref": "#/definitions/RelationAppearance"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "derivesFrom"
+      ],
+      "additionalProperties": false,
+      "description": "The reusable definition of a kind of relation. It inherits everything it does not redefine."
+    },
+    "RelationAppearance": {
+      "type": "object",
+      "properties": {
+        "stroke": {
+          "$ref": "#/definitions/Color"
+        },
+        "width": {
+          "type": "number",
+          "description": "The line width, in canvas units.",
+          "exclusiveMinimum": 0
+        },
+        "dash": {
+          "type": "string",
+          "enum": [
+            "solid",
+            "dashed",
+            "dotted"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "How a relation is drawn."
+    }
+  }
+}

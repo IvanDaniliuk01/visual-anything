@@ -1,0 +1,108 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:visual-anything:schema:scenario",
+  "title": "Visual Anything scenario file",
+  "description": "The contents of a `.vascenario` file: a concrete example played step by step over one view.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "$ref": "#/definitions/Id"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "view": {
+      "$ref": "#/definitions/Id",
+      "description": "The view the scenario plays over."
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Step"
+      },
+      "description": "The steps in order. There are no branches: an alternative path is another scenario."
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "view",
+    "steps"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "Id": {
+      "type": "string",
+      "description": "An identifier, generated once and never reused. Files refer to each other only by id. Element and relation ids share one namespace, because a relation can end on either. Component and relation type ids start with their package's id, as in `systems.service`.",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "Step": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "description": {
+          "type": "string"
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "description": "The relations the step activates, all at once. A step that uses a relation that no longer exists is a broken step; it is kept so it can be fixed.",
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "dataIn": {
+          "$ref": "#/definitions/JsonValue",
+          "description": "What the step takes in."
+        },
+        "dataOut": {
+          "$ref": "#/definitions/JsonValue",
+          "description": "What the step produces."
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "relations"
+      ],
+      "additionalProperties": false,
+      "description": "One step of a scenario."
+    },
+    "JsonValue": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/JsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/JsonValue"
+          }
+        }
+      ],
+      "description": "Any JSON value."
+    }
+  }
+}
