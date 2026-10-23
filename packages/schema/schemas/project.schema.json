@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:visual-anything:schema:project",
+  "title": "Visual Anything project file",
+  "description": "The contents of a project's `.vaproject` file: its name, schema version and the packages in use.",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1,
+      "description": "The version of the project file format."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "packages": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Id"
+      },
+      "description": "The ids of the packages the project uses. Their files live in the project's `packages/` folder.",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "name",
+    "packages"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "Id": {
+      "type": "string",
+      "description": "An identifier, generated once and never reused. Files refer to each other only by id. Element and relation ids share one namespace, because a relation can end on either. Component and relation type ids start with their package's id, as in `systems.service`.",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    }
+  }
+}
