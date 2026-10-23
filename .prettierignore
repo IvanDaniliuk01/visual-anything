@@ -1,0 +1,9 @@
+pnpm-lock.yaml
+**/dist/
+**/coverage/
+.claude/
+# Prose keeps the formatting it was written with.
+*.md
+# Project files are formatted by the program that writes them (M1), and the schemas by their generator.
+examples/
+packages/schema/schemas/
