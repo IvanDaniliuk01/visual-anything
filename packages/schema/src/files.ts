@@ -1,6 +1,7 @@
 /**
  * What each kind of project file holds. A project file is JSON, and its extension says which of these
- * types it holds. The JSON Schema in `schemas/` is generated from these types.
+ * types it holds. The JSON Schema in `schemas/` is generated from these types by `pnpm generate`: doc
+ * comments become its descriptions, and their tags (`@pattern`, `@minLength` and so on) its constraints.
  */
 
 /**
@@ -32,17 +33,30 @@ export const ESSENCE_ID = 'essence';
 /** The id of "relates to", the relation type every other relation type ultimately derives from. */
 export const RELATES_TO_ID = 'relates-to';
 
-/** The contents of a project's `.vaproject` file: its name, schema version and the packages in use. */
+/**
+ * The contents of a project's `.vaproject` file: its name, schema version and the packages in use.
+ *
+ * @title Visual Anything project file
+ */
 export interface ProjectFile {
   /** The version of the project file format. */
   schemaVersion: 1;
+  /** @minLength 1 */
   name: string;
   description?: string;
-  /** The ids of the packages the project uses. Their files live in the project's `packages/` folder. */
+  /**
+   * The ids of the packages the project uses. Their files live in the project's `packages/` folder.
+   *
+   * @uniqueItems true
+   */
   packages: Id[];
 }
 
-/** The contents of a project's `.vamodel` file: World, every other element, and every relation. */
+/**
+ * The contents of a project's `.vamodel` file: World, every other element, and every relation.
+ *
+ * @title Visual Anything model file
+ */
 export interface ModelFile {
   /**
    * The root element; every other element is contained in it, directly or indirectly. An element with no
@@ -59,6 +73,7 @@ export interface Element {
   id: Id;
   /** The component this element is created from. World's component is Essence. */
   component: Id;
+  /** @minLength 1 */
   name: string;
   description?: string;
   /**
@@ -78,14 +93,20 @@ export interface Relation {
   from: Id;
   /** The element or relation this relation goes to. For a nesting relation type, this end is the container. */
   to: Id;
+  /** @minLength 1 */
   name?: string;
   description?: string;
   attributes?: Attributes;
 }
 
-/** The contents of a `.vapackage` file: components and relation types from one domain, shared as a unit. */
+/**
+ * The contents of a `.vapackage` file: components and relation types from one domain, shared as a unit.
+ *
+ * @title Visual Anything package file
+ */
 export interface PackageFile {
   id: Id;
+  /** @minLength 1 */
   name: string;
   description?: string;
   components: Component[];
@@ -95,6 +116,7 @@ export interface PackageFile {
 /** The reusable definition of a kind of element. It inherits everything it does not redefine. */
 export interface Component {
   id: Id;
+  /** @minLength 1 */
   name: string;
   /** The component this one derives from: another component, or `essence`. */
   derivesFrom: Id;
@@ -107,6 +129,7 @@ export interface Component {
 /** The reusable definition of a kind of relation. It inherits everything it does not redefine. */
 export interface RelationType {
   id: Id;
+  /** @minLength 1 */
   name: string;
   /** The relation type this one derives from: another relation type, or `relates-to`. */
   derivesFrom: Id;
@@ -121,6 +144,7 @@ export interface RelationType {
 
 /** An attribute that a component or relation type defines. */
 export interface AttributeDefinition {
+  /** @minLength 1 */
   name: string;
   type: 'string' | 'number' | 'boolean' | 'json';
   /** The value an element or relation has when it does not set its own. */
@@ -133,27 +157,48 @@ export interface Appearance {
   shape?: 'rectangle' | 'rounded-rectangle' | 'ellipse' | 'cylinder' | 'person';
   fill?: Color;
   stroke?: Color;
-  /** The width of its shapes when a view does not set one, in canvas units. */
+  /**
+   * The width of its shapes when a view does not set one, in canvas units.
+   *
+   * @exclusiveMinimum 0
+   */
   width?: number;
-  /** The height of its shapes when a view does not set one, in canvas units. */
+  /**
+   * The height of its shapes when a view does not set one, in canvas units.
+   *
+   * @exclusiveMinimum 0
+   */
   height?: number;
 }
 
 /** How a relation is drawn. */
 export interface RelationAppearance {
   stroke?: Color;
-  /** The line width, in canvas units. */
+  /**
+   * The line width, in canvas units.
+   *
+   * @exclusiveMinimum 0
+   */
   width?: number;
   dash?: 'solid' | 'dashed' | 'dotted';
 }
 
-/** The contents of a `.vaview` file: a projection of the model onto the canvas, with its own positions. */
+/**
+ * The contents of a `.vaview` file: a projection of the model onto the canvas, with its own positions.
+ *
+ * @title Visual Anything view file
+ */
 export interface ViewFile {
   id: Id;
+  /** @minLength 1 */
   name: string;
   description?: string;
   perspective: Perspective;
-  /** The nesting relation types that arrange this view. */
+  /**
+   * The nesting relation types that arrange this view.
+   *
+   * @uniqueItems true
+   */
   nestingRelationTypes: Id[];
   /**
    * The positions of anchored shapes, set by layout or pinned by hand. A shape without a position is
@@ -165,7 +210,11 @@ export interface ViewFile {
 
 /** The criterion for selecting and arranging the model in a view. */
 export interface Perspective {
-  /** For example "Data flow", "Security" or "Ownership". */
+  /**
+   * For example "Data flow", "Security" or "Ownership".
+   *
+   * @minLength 1
+   */
   name: string;
   description?: string;
 }
@@ -182,13 +231,19 @@ export interface ShapePosition {
   x: number;
   /** The top edge, relative to the container's shape, or to the canvas when directly in World. */
   y: number;
+  /** @exclusiveMinimum 0 */
   width?: number;
+  /** @exclusiveMinimum 0 */
   height?: number;
   /** Whether the position was set by hand. Layout arranges every other shape around pinned shapes. */
   pinned?: boolean;
 }
 
-/** A shape that is drawing only and does not exist in the model. */
+/**
+ * A shape that is drawing only and does not exist in the model.
+ *
+ * @discriminator kind
+ */
 export type FreeShape = Note | Arrow;
 
 /** A free shape that holds text. */
@@ -197,7 +252,9 @@ export interface Note {
   id: Id;
   x: number;
   y: number;
+  /** @exclusiveMinimum 0 */
   width: number;
+  /** @exclusiveMinimum 0 */
   height: number;
   text: string;
 }
@@ -216,9 +273,14 @@ export interface Point {
   y: number;
 }
 
-/** The contents of a `.vascenario` file: a concrete example played step by step over one view. */
+/**
+ * The contents of a `.vascenario` file: a concrete example played step by step over one view.
+ *
+ * @title Visual Anything scenario file
+ */
 export interface ScenarioFile {
   id: Id;
+  /** @minLength 1 */
   name: string;
   description?: string;
   /** The view the scenario plays over. */
@@ -236,6 +298,7 @@ export interface Step {
    * a broken step; it is kept so it can be fixed.
    *
    * @minItems 1
+   * @uniqueItems true
    */
   relations: Id[];
   /** What the step takes in. */
