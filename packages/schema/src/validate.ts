@@ -27,7 +27,7 @@ export function parseFile<K extends FileKind>(
   kind: K,
   text: string,
 ): ValidationResult<FileContentByKind[K]> {
-  const json = text.startsWith('﻿') ? text.slice(1) : text;
+  const json = text.startsWith('\uFEFF') ? text.slice(1) : text;
   let data: unknown;
   try {
     data = JSON.parse(json);
