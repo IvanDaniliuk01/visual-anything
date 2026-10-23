@@ -11,6 +11,8 @@
     "./schemas/*": "./schemas/*"
   },
   "scripts": {
+    "build": "tsx scripts/generate.ts",
+    "generate": "tsx scripts/generate.ts",
     "typecheck": "tsc"
   },
   "dependencies": {
