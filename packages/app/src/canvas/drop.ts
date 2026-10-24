@@ -341,7 +341,8 @@ export function dropCommand(
 
 /**
  * The change that takes a shape out of the container it sits in, one container out: into that container's
- * own container, through its first copy, or directly in World; beside the container it leaves.
+ * own container, through its first copy, or directly in World; beside the container it leaves. No one
+ * chose that place by hand, so it is not pinned: layout may still move the shape.
  */
 export function takeOutCommand(
   indexed: IndexedScene,
@@ -367,6 +368,7 @@ export function takeOutCommand(
         element: shape.element,
         from: shape.container,
         at: { x: Math.round(at.x), y: Math.round(at.y), ...shape.storedSize },
+        pinned: false,
       },
     ],
   };
@@ -403,7 +405,10 @@ export function putInsideTarget(
   return undefined;
 }
 
-/** The change that puts a shape inside a target where it is now, below the target's name. */
+/**
+ * The change that puts a shape inside a target where it is now, below the target's name. The place
+ * there is pinned only when the shape was pinned where it is, since the program chose it otherwise.
+ */
 export function putInsideCommand(
   indexed: IndexedScene,
   project: ProjectSnapshot,
@@ -424,6 +429,7 @@ export function putInsideCommand(
         element: shape.element,
         ...(shape.container === undefined ? {} : { from: shape.container }),
         at: { ...at, ...shape.storedSize },
+        pinned: shape.positioned === 'pinned',
       },
     ],
   };

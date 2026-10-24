@@ -2,16 +2,20 @@
  * The app benchmark: mounts the whole app, the shell with its outline, its inspector and the canvas, on
  * a synthetic project of 10,000 elements, and uses it as a person would, through pointer, wheel and key
  * events on the real elements. It plays the local program itself: each command runs in the core and
- * the project it gives goes back to the shell. Open `/app-bench.html` from the dev server;
- * `?elements=N` and `?overlap=…` work as on `/bench.html`, `?strict` mounts the app in React's
- * StrictMode, as `main.tsx` does, which renders everything twice in development, `?profile` says
- * which components and canvas methods the time goes to, and `?clicks=`, `?selectAlls=`, `?frames=`,
- * `?nudges=` and `?renames=` change how many of each the benchmark makes.
+ * the project it gives goes back to the shell.
  *
- * Each interaction is timed from its input event to the second animation frame after React has
- * committed what it changed: the first of the two frames draws the canvas, the second starts once
- * that frame was shown. Panning and zooming are measured as the frames the browser shows, one input
- * event a frame, so the window must be in front.
+ * `pnpm bench` builds it for production and serves it on 127.0.0.1:47707 as `/app-bench.html`, and
+ * its official numbers come from there. The dev server serves the same page for quick checks, but
+ * React's development build more than doubles what it measures. `?elements=N` and `?overlap=…` work
+ * as on `/bench.html`, `?strict` mounts the app in React's StrictMode, as `main.tsx` does, which
+ * renders everything twice in development, `?profile` says which components and canvas methods the
+ * time goes to, and `?clicks=`, `?selectAlls=`, `?frames=`, `?nudges=` and `?renames=` change how
+ * many of each the benchmark makes.
+ *
+ * It times interactions: each one from its input event to the second animation frame after React has
+ * committed what it changed, since the first of the two frames draws the canvas and the second starts
+ * once that frame was shown. It judges panning and zooming on the frames as shown, one input event a
+ * frame, so its window must stay in front, at 60 Hz.
  */
 import {
   applyOperations,
@@ -459,8 +463,8 @@ class Profiling {
   private spans: Span[] = [];
   private frames: LongFrame[] = [];
   private timeline: [number, string, number][] = [];
-  /** How deep the timed methods running now call each other. */
-  private depth = 0;
+  /** How many timed methods are running now, each called from the one before. */
+  private running = 0;
   private container: HTMLElement | undefined;
   private observer: PerformanceObserver | undefined;
   private readonly restores: (() => void)[] = [];
@@ -478,14 +482,14 @@ class Profiling {
         const key = `${owner}.${name}`;
         const timed = function (this: unknown, ...args: unknown[]): unknown {
           const began = performance.now();
-          profiling.depth += 1;
+          profiling.running += 1;
           try {
             return Reflect.apply(original, this, args) as unknown;
           } finally {
-            profiling.depth -= 1;
+            profiling.running -= 1;
             const took = performance.now() - began;
             methods.set(key, (methods.get(key) ?? 0) + took);
-            if (profiling.depth === 0) profiling.timeline.push([began, key, took]);
+            if (profiling.running === 0) profiling.timeline.push([began, key, took]);
           }
         };
         Reflect.set(target, name, timed);
