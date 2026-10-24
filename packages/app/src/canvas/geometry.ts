@@ -1,6 +1,12 @@
 /** Plane geometry for the canvas, in canvas units with y growing downwards. */
 import type { Point } from '@visual-anything/schema';
-import type { ShapeKind } from '../model/definitions';
+import type { Appearance, RelationAppearance } from '@visual-anything/schema';
+
+/** The kinds of shape an element can have. */
+export type ShapeKind = NonNullable<Appearance['shape']>;
+
+/** The ways a relation's line can be drawn. */
+export type Dash = NonNullable<RelationAppearance['dash']>;
 
 export type { Point };
 

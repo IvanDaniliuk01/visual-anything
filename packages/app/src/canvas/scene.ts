@@ -18,15 +18,17 @@ import type {
   ViewFile,
 } from '@visual-anything/schema';
 import { ESSENCE_ID } from '@visual-anything/schema';
-import { containmentTree, type Placement } from '../model/containment';
 import {
   appearanceOf,
-  resolveDefinitions,
-  type Dash,
+  componentOrEssence,
+  containmentTree,
+  definitionsOf,
+  relationTypeOrRelatesTo,
   type Definitions,
+  type Placement,
   type ResolvedAppearance,
-  type ShapeKind,
-} from '../model/definitions';
+} from '@visual-anything/core';
+import type { Dash, ShapeKind } from './geometry';
 import {
   arrowheadAt,
   borderPoint,
@@ -120,7 +122,7 @@ export function buildScene(project: ProjectSnapshot, viewId: Id): Scene {
   const view = project.views.find((candidate) => candidate.id === viewId);
   if (!view) throw new Error(`The project has no view ${JSON.stringify(viewId)}.`);
 
-  const definitions = resolveDefinitions(project.packages);
+  const definitions = definitionsOf(project.packages);
   const nesting = new Set(view.nestingRelationTypes);
   const notes = view.freeShapes.filter(isNote).map(noteShape);
   const arrows = view.freeShapes.filter(isArrow).map(arrowShape);
@@ -182,7 +184,7 @@ function placeShapes(
     return {
       placement,
       element,
-      componentName: definitions.component(element.component).name,
+      componentName: componentOrEssence(definitions, element.component).name,
       appearance,
       width: containerSize(stored?.width, appearance.width, contentsRight),
       height: containerSize(stored?.height, appearance.height, contentsBottom),
@@ -396,7 +398,7 @@ function lineBetween(
     end = toInside;
   }
 
-  const relationType = definitions.relationType(relation.relationType);
+  const relationType = relationTypeOrRelatesTo(definitions, relation.relationType);
   const { stroke, width, dash } = relationType.appearance;
   return {
     relation: relation.id,

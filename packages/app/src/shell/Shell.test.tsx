@@ -62,7 +62,7 @@ describe('Shell', () => {
     expect(treeItem(panel, 'WhatsApp channel')).toHaveTextContent(
       /^WhatsApp channel, Chat channel/,
     );
-    expect(treeItem(panel, 'Appointments DB')).toHaveTextContent(/^Appointments DB, Database$/);
+    expect(treeItem(panel, 'Appointments DB')).toHaveTextContent(/^Appointments DB, Calendar$/);
   });
 
   it('lists the views, marking the open one, and the scenarios', () => {

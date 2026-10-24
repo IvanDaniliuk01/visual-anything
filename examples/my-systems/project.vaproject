@@ -2,5 +2,5 @@
   "schemaVersion": 1,
   "name": "My systems",
   "description": "A sample project: how a clinic books appointments over WhatsApp.",
-  "packages": ["systems"]
+  "packages": ["systems", "clinic"]
 }

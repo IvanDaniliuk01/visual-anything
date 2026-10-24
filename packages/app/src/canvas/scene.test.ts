@@ -189,7 +189,7 @@ describe('buildScene with the sample project', () => {
     });
     expect(shapeOf(overview, 'appointments-db')).toMatchObject({
       kind: 'cylinder',
-      componentName: 'Database',
+      componentName: 'Calendar',
     });
   });
 

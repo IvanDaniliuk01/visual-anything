@@ -1,6 +1,6 @@
 export type { ProjectSnapshot } from './snapshot';
 
-export { BUILTIN_PACKAGES, ESSENCE, RELATES_TO, builtinPackage } from './builtin';
+export { BUILTIN_PACKAGES, ESSENCE, RELATES_TO, SYSTEMS, builtinPackage } from './builtin';
 
 export type {
   Defined,
@@ -10,7 +10,15 @@ export type {
   ResolvedRelationAppearance,
   ResolvedRelationType,
 } from './definitions';
-export { appearanceOf, definitionsOf } from './definitions';
+export {
+  appearanceOf,
+  componentOrEssence,
+  definitionsOf,
+  relationTypeOrRelatesTo,
+} from './definitions';
+
+export type { Placement } from './containment';
+export { containmentTree } from './containment';
 
 export type { ModelIndex } from './model-index';
 export { indexModel } from './model-index';
