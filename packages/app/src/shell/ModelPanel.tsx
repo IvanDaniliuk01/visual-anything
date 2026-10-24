@@ -1,8 +1,12 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Element, Id } from '@visual-anything/schema';
 import { useId, useMemo, type ReactNode } from 'react';
-import { containmentTree, type Placement } from '../model/containment';
-import type { Definitions } from '../model/definitions';
+import {
+  componentOrEssence,
+  containmentTree,
+  type Definitions,
+  type Placement,
+} from '@visual-anything/core';
 
 interface ModelPanelProps {
   project: ProjectSnapshot;
@@ -23,9 +27,8 @@ export function ModelPanel({ project, definitions, openViewId }: ModelPanelProps
   const scenariosHeading = useId();
   const tree = useMemo(
     () =>
-      containmentTree(
-        project.model,
-        (relationType) => definitions.relationType(relationType).nests,
+      containmentTree(project.model, (relationType) =>
+        definitions.nestingRelationTypes.has(relationType),
       ),
     [project.model, definitions],
   );
@@ -117,7 +120,9 @@ function ContainmentList({ placements, elements, definitions, labelledBy }: Cont
         return (
           <li key={placement.element}>
             <span className="item-name">{element?.name ?? placement.element}</span>
-            {element && <Secondary>{definitions.component(element.component).name}</Secondary>}
+            {element && (
+              <Secondary>{componentOrEssence(definitions, element.component).name}</Secondary>
+            )}
             {placement.contents.length > 0 && (
               <ContainmentList
                 placements={placement.contents}

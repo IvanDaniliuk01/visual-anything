@@ -1,7 +1,7 @@
 import type { ViewFile } from '@visual-anything/schema';
 import { useId, type ReactNode } from 'react';
 import type { Scene } from '../canvas/scene';
-import type { Definitions } from '../model/definitions';
+import { relationTypeOrRelatesTo, type Definitions } from '@visual-anything/core';
 
 interface InspectorProps {
   /** The open view, if any, and what it draws. */
@@ -15,7 +15,7 @@ export function Inspector({ view, scene, definitions }: InspectorProps) {
   const heading = useId();
   const viewHeading = useId();
   const nestingNames = view?.nestingRelationTypes.map(
-    (relationType) => definitions.relationType(relationType).name,
+    (relationType) => relationTypeOrRelatesTo(definitions, relationType).name,
   );
 
   return (

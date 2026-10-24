@@ -12,7 +12,8 @@ import {
 } from '@visual-anything/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startServer, type RunningServer } from './server';
-import { openLive, send, sendUpgrade } from './test-support';
+import { openSession, type Session } from './session';
+import { openLive, send, sendUpgrade, writeProjectFolder } from './test-support';
 
 const project: ProjectSnapshot = {
   project: { schemaVersion: 1, name: 'Dev project', packages: [] },
@@ -33,24 +34,33 @@ const INDEX = [
 ].join('\n');
 
 let root: string;
+let projectFolder: string;
+let session: Session;
 let server: RunningServer;
 let origin: string;
 
 /** Starts the local program in dev mode on the test's app sources. */
 const startDevServer = () =>
-  startServer({ project, port: 0, app: { mode: 'dev', root, configFile: false } });
+  startServer({ session, port: 0, app: { mode: 'dev', root, configFile: false } });
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'va-dev-'));
   await writeFile(join(root, 'index.html'), INDEX);
   await writeFile(join(root, 'main.js'), "document.title = 'Dev app';\n");
+  projectFolder = await mkdtemp(join(tmpdir(), 'va-dev-project-'));
+  await writeProjectFolder(projectFolder, project);
+  const opened = await openSession(projectFolder, { watch: false });
+  if (!opened.ok) throw new Error('The test project does not open.');
+  session = opened.session;
   server = await startDevServer();
   origin = `http://127.0.0.1:${server.port}`;
 }, 60_000);
 
 afterAll(async () => {
   await server.close();
+  await session.close();
   await rm(root, { recursive: true, force: true });
+  await rm(projectFolder, { recursive: true, force: true });
 }, 60_000);
 
 describe('startServer in dev mode', { timeout: 30_000 }, () => {
@@ -95,6 +105,7 @@ describe('startServer in dev mode', { timeout: 30_000 }, () => {
       type: 'project/opened',
       protocolVersion: PROTOCOL_VERSION,
       project,
+      history: {},
     });
     outcome.socket.close();
   });

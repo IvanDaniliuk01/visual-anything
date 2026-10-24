@@ -5,7 +5,7 @@
  */
 import { Container, Graphics, Text, type CanvasTextOptions, type TextStyleOptions } from 'pixi.js';
 import type { Color } from '@visual-anything/schema';
-import type { Dash } from '../model/definitions';
+import type { Dash } from './geometry';
 import { dashSegments, distance, middle, type Point, type Rect } from './geometry';
 import {
   ARROW_STROKE,

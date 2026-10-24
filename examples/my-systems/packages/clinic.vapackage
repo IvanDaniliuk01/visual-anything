@@ -1,0 +1,34 @@
+{
+  "id": "clinic",
+  "name": "Clinic",
+  "description": "What this clinic's systems need beyond the built-in Systems package.",
+  "components": [
+    {
+      "id": "clinic.calendar",
+      "name": "Calendar",
+      "derivesFrom": "systems.database",
+      "description": "The database that holds the clinic's appointment slots.",
+      "attributes": [
+        {
+          "name": "timezone",
+          "type": "string",
+          "default": "America/Argentina/Buenos_Aires",
+          "description": "The time zone of the slots."
+        }
+      ]
+    }
+  ],
+  "relationTypes": [
+    {
+      "id": "clinic.reminds",
+      "name": "reminds",
+      "derivesFrom": "systems.communicates-with",
+      "description": "Sends a person a reminder of an appointment.",
+      "limits": {
+        "to": [
+          "systems.person"
+        ]
+      }
+    }
+  ]
+}
