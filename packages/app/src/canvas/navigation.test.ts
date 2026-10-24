@@ -307,6 +307,20 @@ describe('drawnRelations', () => {
     expect(lines.steps('clinic-booking')).toEqual([]);
   });
 
+  it('looks at each relation once, however deep relations between relations are woven', () => {
+    // Every relation of a level ends on two of the level below: 2^40 ways down from the top.
+    const depth = 40;
+    const woven = withWovenRelations(sample, depth);
+    const lines = drawnRelations(buildScene(woven, VIEW), woven);
+    for (const side of ['a', 'b', 'c']) expect(lines.line(`weave-${side}-${depth}`)).toBeDefined();
+    const started = performance.now();
+    expect(lines.elementOf(`weave-a-${depth}`)).toBe('patient');
+    const stops = lines.steps('patient').map(({ line }) => line.relation);
+    expect(performance.now() - started).toBeLessThan(100);
+    expect(stops).toEqual(expect.arrayContaining(['weave-a-40', 'weave-b-40', 'weave-c-40']));
+    expect(new Set(stops).size).toBe(stops.length);
+  });
+
   it('finds the element a relation is stepped through from, through the relations it ends on', () => {
     const onRelations = withRelationsOnRelations(sample);
     const lines = drawnRelations(buildScene(onRelations, VIEW), onRelations);
@@ -398,6 +412,35 @@ function withRelationsOnRelations(project: ProjectSnapshot): ProjectSnapshot {
         },
       ],
     },
+  };
+}
+
+/**
+ * The sample with relations between relations woven `depth` levels high, three at each level: at the
+ * bottom, a triangle of relations between the Patient, the Booking agent and the Reminder service;
+ * above, a, b and c of each level from a, b and c of the level below to b, c and a of it.
+ */
+function withWovenRelations(project: ProjectSnapshot, depth: number): ProjectSnapshot {
+  const bottom = {
+    a: ['patient', 'booking-agent'],
+    b: ['booking-agent', 'reminder-service'],
+    c: ['reminder-service', 'patient'],
+  } as const;
+  const next = { a: 'b', b: 'c', c: 'a' } as const;
+  const woven = [];
+  for (let level = 0; level <= depth; level++) {
+    for (const side of ['a', 'b', 'c'] as const) {
+      woven.push({
+        id: `weave-${side}-${level}`,
+        relationType: RELATES_TO_ID,
+        from: level === 0 ? bottom[side][0] : `weave-${side}-${level - 1}`,
+        to: level === 0 ? bottom[side][1] : `weave-${next[side]}-${level - 1}`,
+      });
+    }
+  }
+  return {
+    ...project,
+    model: { ...project.model, relations: [...project.model.relations, ...woven] },
   };
 }
 
