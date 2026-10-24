@@ -485,6 +485,30 @@ describe('loadProject with the rules of the core', () => {
     ]);
   });
 
+  it('warns about a stacking order that names what is not there, against its view file', async () => {
+    await write({
+      'project.vaproject': projectFile(),
+      'model.vamodel': {
+        ...modelFile(),
+        elements: [{ id: 'box', component: 'essence', name: 'Box' }],
+      },
+      'views/overview.vaview': {
+        ...viewFile('overview'),
+        stackingOrder: { world: ['box', 'gone'], missing: ['box'] },
+      },
+    });
+
+    const loaded = loadedOf(await loadProject(folder));
+    // One for the id that is gone, one for the list kept for what is no element.
+    expect(loaded.warnings).toHaveLength(2);
+    const messages = loaded.warnings.map((warning) => warning.message).join(' ');
+    expect(messages).toContain('"gone"');
+    expect(messages).toContain('"missing"');
+    expect(new Set(loaded.warnings.map((warning) => warning.file))).toEqual(
+      new Set(['views/overview.vaview']),
+    );
+  });
+
   it('reports a containment cycle once, against the whole model file', async () => {
     await write({
       'project.vaproject': projectFile(['shop']),

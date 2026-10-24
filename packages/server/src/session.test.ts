@@ -277,6 +277,29 @@ describe('execute', () => {
     expect(written).toEqual([]);
   });
 
+  it('writes only the view file for a restack, records none that changes nothing, and undoes to the exact bytes', async () => {
+    const original = await filesIn(folder);
+    const { fs, written } = recordingFs(folder);
+    const session = await open({ writer: { fs } });
+    // The Cart, the newest shape directly in World, is already drawn in front.
+    const front = await session.execute(
+      { type: 'restack', view: 'overview', moves: [{ shape: { element: 'cart' }, to: 'front' }] },
+      'user',
+    );
+    expect(front).toMatchObject({ ok: true, recorded: false, operations: [] });
+    expect(written).toEqual([]);
+
+    const back = await session.execute(
+      { type: 'restack', view: 'overview', moves: [{ shape: { element: 'cart' }, to: 'back' }] },
+      'user',
+    );
+    expect(back).toMatchObject({ ok: true, recorded: true });
+    expect(written).toHaveLength(1);
+    expect(written[0]).toMatch(/\.vaview$/);
+    await session.undo();
+    expect(await filesIn(folder)).toEqual(original);
+  });
+
   it('refuses a command that would make a file invalid, and writes nothing', async () => {
     const before = await filesIn(folder);
     const { fs, written } = recordingFs(folder);
