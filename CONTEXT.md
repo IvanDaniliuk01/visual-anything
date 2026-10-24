@@ -70,6 +70,10 @@ A shape that is drawing only and does not exist in the model: a note, an emphasi
 A shape whose position was set by hand in a view; automatic layout arranges everything else around it.
 _Avoid_: locked, fixed
 
+**Outline**:
+The open view written out as a list, shape by shape as the canvas draws it: what sits in World, then what sits inside each container, with the relations drawn from each shape. It can be read and moved through from the keyboard, and it follows the selection.
+_Avoid_: layers panel, tree view
+
 **Aggregated relation**:
 A single relation drawn in place of many relations of the same type between the contents of a collapsed container and another element, labeled with how many it stands for.
 _Avoid_: bundle, summary edge
