@@ -167,6 +167,45 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
         [view.id],
       ),
     );
+    // Stacking lists name the shapes of a container, or of World, by element id. The problems are
+    // the view's: its file is where the list is written.
+    for (const [container, list] of Object.entries(view.stackingOrder ?? {})) {
+      const holder =
+        container === index.world.id ? 'World' : (index.element(container)?.name ?? undefined);
+      if (holder === undefined) {
+        warnings.push(
+          problem(
+            'unknown-element',
+            `The view "${view.name}" keeps a stacking order for "${container}", which is no element of the model; it is ignored.`,
+            [view.id],
+          ),
+        );
+        continue;
+      }
+      const named = new Set<Id>();
+      for (const id of list) {
+        if (named.has(id)) {
+          errors.push(
+            problem(
+              'id-taken',
+              `The stacking order of "${holder}" in the view "${view.name}" names "${id}" more than once.`,
+              [view.id],
+            ),
+          );
+          continue;
+        }
+        named.add(id);
+        if (id === index.world.id || !index.element(id)) {
+          warnings.push(
+            problem(
+              'unknown-element',
+              `The stacking order of "${holder}" in the view "${view.name}" names "${id}", which is no element of the model; it is ignored.`,
+              [view.id],
+            ),
+          );
+        }
+      }
+    }
   }
 
   errors.push(

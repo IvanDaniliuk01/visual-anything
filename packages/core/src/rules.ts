@@ -123,6 +123,11 @@ export interface DeletePreview {
   cascaded: Id[];
   /** The view positions that would go, because their element or its container is deleted. */
   positions: RemovedPosition[];
+  /**
+   * What would leave stacking lists, each once: every id of a list whose container is deleted, which
+   * goes whole, and every deleted element in the other lists.
+   */
+  stacking: { view: Id; container: Id; element: Id }[];
   /** The scenario steps that would become broken steps. They are kept so they can be fixed. */
   brokenSteps: { scenario: Id; step: Id }[];
   /** Why the deletion cannot be done; when there is any, nothing is deleted. */
@@ -174,6 +179,7 @@ export function previewDelete(state: ProjectSnapshot, targets: DeleteTargets): D
     relations: relationIds,
     cascaded: relationIds.filter((id) => !askedRelations.has(id)),
     positions: removedPositions(state.views, askedElements),
+    stacking: removedStacking(state.views, askedElements),
     brokenSteps: brokenSteps(state.scenarios, relations),
     problems,
   };
@@ -193,6 +199,22 @@ function removedPositions(
           element: position.element,
           ...(position.container === undefined ? {} : { container: position.container }),
         });
+      }
+    }
+  }
+  return removed;
+}
+
+function removedStacking(
+  views: readonly ViewFile[],
+  elements: ReadonlySet<Id>,
+): { view: Id; container: Id; element: Id }[] {
+  const removed: { view: Id; container: Id; element: Id }[] = [];
+  for (const view of views) {
+    for (const [container, list] of Object.entries(view.stackingOrder ?? {})) {
+      const whole = elements.has(container);
+      for (const element of list) {
+        if (whole || elements.has(element)) removed.push({ view: view.id, container, element });
       }
     }
   }

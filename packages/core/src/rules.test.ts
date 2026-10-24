@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { containmentCycles, limitWarnings, previewDelete, wouldFormCycle } from './rules';
 import { definitionsIn, modelIndexOf } from './state';
+import type { ProjectSnapshot } from './snapshot';
 import { testProject } from './test/fixtures';
 
 describe('wouldFormCycle', () => {
@@ -98,5 +99,33 @@ describe('previewDelete', () => {
       'unknown-element',
       'unknown-relation',
     ]);
+  });
+
+  describe('of stacking orders', () => {
+    const stacked = (): ProjectSnapshot => {
+      const project = testProject();
+      const [view] = project.views;
+      if (!view) throw new Error('No view.');
+      return {
+        ...project,
+        views: [{ ...view, stackingOrder: { system: ['db', 'api'], world: ['client', 'system'] } }],
+      };
+    };
+
+    it('lists each id a delete takes out of a list, once', () => {
+      expect(previewDelete(stacked(), { elements: ['db'] }).stacking).toEqual([
+        { view: 'overview', container: 'system', element: 'db' },
+      ]);
+      // Deleting a container takes its whole list, and its id out of the list it sits in.
+      expect(previewDelete(stacked(), { elements: ['system', 'db'] }).stacking).toEqual([
+        { view: 'overview', container: 'system', element: 'db' },
+        { view: 'overview', container: 'system', element: 'api' },
+        { view: 'overview', container: 'world', element: 'system' },
+      ]);
+    });
+
+    it('takes nothing out when a relation is deleted, nesting or not', () => {
+      expect(previewDelete(stacked(), { relations: ['api-in-system'] }).stacking).toEqual([]);
+    });
   });
 });

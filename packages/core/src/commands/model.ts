@@ -2,8 +2,15 @@
 import type { Element, Id, Relation, ShapePosition } from '@visual-anything/schema';
 import { slug } from '../ids';
 import { indexModel, type ModelIndex } from '../model-index';
-import { positionKey } from '../operations';
-import { endName, limitWarnings, previewDelete, wouldFormCycle } from '../rules';
+import { BULK, positionKey } from '../operations';
+import { storedStacking } from '../stacking';
+import {
+  endName,
+  limitWarnings,
+  previewDelete,
+  wouldFormCycle,
+  type DeletePreview,
+} from '../rules';
 import {
   changedAttributes,
   compact,
@@ -113,6 +120,16 @@ export function deleteTargets(draft: Draft, command: DeleteCommand): string {
         ? `Delete the relation "${relationLabel(index, preview.relations[0] as Id)}"`
         : `Delete ${deletedThings(preview.elements.length, preview.relations.length)}`;
 
+  applyDeletion(draft, preview);
+  return label;
+}
+
+/**
+ * Deletes what a preview lists: the positions, what stacking lists name, the relations, then the
+ * elements. A stacking list whose container goes is dropped whole; the others lose single ids, or
+ * are rewritten in one operation when that is a large change.
+ */
+export function applyDeletion(draft: Draft, preview: DeletePreview): void {
   for (const position of preview.positions) {
     draft.apply({
       op: 'remove',
@@ -120,13 +137,32 @@ export function deleteTargets(draft: Draft, command: DeleteCommand): string {
       key: positionKey(position),
     });
   }
+  const deleted = new Set(preview.elements);
+  const lists = new Map<string, { view: Id; container: Id; ids: Id[] }>();
+  for (const entry of preview.stacking) {
+    const key = JSON.stringify([entry.view, entry.container]);
+    const list = lists.get(key) ?? { view: entry.view, container: entry.container, ids: [] };
+    list.ids.push(entry.element);
+    lists.set(key, list);
+  }
+  for (const { view, container, ids } of lists.values()) {
+    const collection = { name: 'stackingOrder' as const, view, container };
+    if (deleted.has(container)) {
+      draft.apply({ op: 'replace-all', collection, items: [] });
+    } else if (ids.length > BULK) {
+      const stored = storedStacking(draft.view(view), container) ?? [];
+      const gone = new Set(ids);
+      draft.apply({ op: 'replace-all', collection, items: stored.filter((id) => !gone.has(id)) });
+    } else {
+      for (const id of ids) draft.apply({ op: 'remove', collection, key: id });
+    }
+  }
   for (const id of preview.relations) {
     draft.apply({ op: 'remove', collection: { name: 'relations' }, key: id });
   }
   for (const id of preview.elements) {
     draft.apply({ op: 'remove', collection: { name: 'elements' }, key: id });
   }
-  return label;
 }
 
 export function createRelation(draft: Draft, command: CreateRelationCommand): string {

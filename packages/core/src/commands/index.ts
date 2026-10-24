@@ -20,6 +20,8 @@ import {
   updateRelation,
 } from './model';
 import { updateProject } from './project';
+import { restack } from './stacking';
+import { changeContainer } from './containers';
 import { createScenario, deleteScenario, updateScenario } from './scenarios';
 import type { Command } from './types';
 import {
@@ -34,6 +36,7 @@ import {
 } from './views';
 
 export type * from './types';
+export { previewChangeContainer, type ContainerChangePreview } from './containers';
 
 /** What running a command needs besides the project. */
 export interface CommandContext {
@@ -144,6 +147,10 @@ function run(draft: Draft, command: Command): string {
       return deleteScenario(draft, command);
     case 'update-project':
       return updateProject(draft, command);
+    case 'restack':
+      return restack(draft, command);
+    case 'change-container':
+      return changeContainer(draft, command);
     case 'batch': {
       const label = requireName(command.label, 'A batch');
       const commands = requireList(command.commands, 'commands');

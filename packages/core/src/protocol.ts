@@ -11,8 +11,13 @@ import type { Operation } from './operations';
 import type { Problem } from './problems';
 import type { ProjectSnapshot } from './snapshot';
 
-/** The version of the live protocol; the app and the local program must agree on it. */
-export const PROTOCOL_VERSION = 1;
+/**
+ * The version of the live protocol; the app and the local program must agree on it, so that one from
+ * an older build says so on its first message instead of failing later on what it cannot read.
+ *
+ * 2: operations can change a view's stacking order.
+ */
+export const PROTOCOL_VERSION = 2;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';

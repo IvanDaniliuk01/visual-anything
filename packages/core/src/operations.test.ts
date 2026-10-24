@@ -3,6 +3,7 @@ import {
   OperationError,
   applyOperation,
   applyOperations,
+  keyOf,
   positionKey,
   type Operation,
 } from './operations';
@@ -102,6 +103,83 @@ describe('applyOperation', () => {
         key: 'x',
       }),
     ).toThrow(OperationError);
+  });
+});
+
+describe('stacking lists', () => {
+  const list = (container: string) =>
+    ({ name: 'stackingOrder', view: 'overview', container }) as const;
+
+  it('creates a view’s stacking order with its first id, and drops it with its last', () => {
+    const state = testProject();
+    const inserted = applyOperation(state, {
+      op: 'insert',
+      collection: list('system'),
+      index: 0,
+      item: 'db',
+    });
+    expect(inserted.state.views[0]?.stackingOrder).toEqual({ system: ['db'] });
+    const removed = applyOperation(inserted.state, inserted.inverse);
+    // The view is back exactly: without the key, not with it set to undefined.
+    expect(removed.state).toStrictEqual(state);
+    expect(Object.keys(removed.state.views[0] ?? {})).not.toContain('stackingOrder');
+  });
+
+  it('keeps the other lists when one empties, and replaces a whole list', () => {
+    let state = testProject();
+    state = applyOperation(state, {
+      op: 'insert',
+      collection: list('system'),
+      index: 0,
+      item: 'db',
+    }).state;
+    state = applyOperation(state, {
+      op: 'replace-all',
+      collection: list('world'),
+      items: ['system', 'client'],
+    }).state;
+    expect(state.views[0]?.stackingOrder).toEqual({ system: ['db'], world: ['system', 'client'] });
+    const emptied = applyOperation(state, {
+      op: 'replace-all',
+      collection: list('world'),
+      items: [],
+    });
+    expect(emptied.state.views[0]?.stackingOrder).toEqual({ system: ['db'] });
+    expect(applyOperation(emptied.state, emptied.inverse).state).toEqual(state);
+  });
+
+  it('refuses an id a list already holds, and keys ids by themselves', () => {
+    const { state } = applyOperation(testProject(), {
+      op: 'insert',
+      collection: list('system'),
+      index: 0,
+      item: 'db',
+    });
+    expect(() =>
+      applyOperation(state, { op: 'insert', collection: list('system'), index: 1, item: 'db' }),
+    ).toThrow(OperationError);
+    expect(keyOf(list('system'), 'db')).toBe('db');
+  });
+
+  it('keeps the stacking order when a view’s own properties change', () => {
+    const { state } = applyOperation(testProject(), {
+      op: 'insert',
+      collection: list('system'),
+      index: 0,
+      item: 'db',
+    });
+    const renamed = applyOperation(state, {
+      op: 'set-view',
+      view: 'overview',
+      properties: {
+        id: 'overview',
+        name: 'Renamed',
+        perspective: { name: 'Data flow' },
+        nestingRelationTypes: ['test.inside'],
+      },
+    });
+    expect(renamed.state.views[0]?.stackingOrder).toEqual({ system: ['db'] });
+    expect(applyOperation(renamed.state, renamed.inverse).state).toStrictEqual(state);
   });
 });
 
