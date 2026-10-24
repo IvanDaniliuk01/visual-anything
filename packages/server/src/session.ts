@@ -635,7 +635,7 @@ export class Session implements LiveSession {
   async #changedOnDisk(changes: readonly FileChange[]): Promise<string[]> {
     const changed: string[] = [];
     for (const { path, kind } of changes) {
-      const onDisk = await readIfThere(join(this.folder, path), kind);
+      const onDisk = await readIfThere(this.folder, path, kind);
       const known = this.#known.get(path);
       const same =
         onDisk === 'unreadable'
@@ -695,7 +695,11 @@ export class Session implements LiveSession {
     const target = join(this.folder, path);
     return bytes === null
       ? removeFile(target, this.#options.writer)
-      : writeFileAtomic(target, bytes, { ...this.#options.writer, regularOnly: true });
+      : writeFileAtomic(target, bytes, {
+          ...this.#options.writer,
+          regularOnly: true,
+          inside: this.folder,
+        });
   }
 
   /** Checks the files on disk after the work already asked for; one check waits at a time. */
@@ -847,10 +851,11 @@ function warningNotice(warnings: readonly ProjectFileProblem[]): NoticeMessage {
  * regular file within its kind's cap.
  */
 async function readIfThere(
+  folder: string,
   path: string,
   kind: FileKind,
 ): Promise<Buffer | undefined | 'unreadable'> {
-  const read = await readRegularFile(path, capOf(kind));
+  const read = await readRegularFile(join(folder, path), capOf(kind), { inside: folder });
   if (read.ok) return read.bytes;
   return read.reason === 'missing' ? undefined : 'unreadable';
 }

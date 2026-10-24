@@ -190,7 +190,9 @@ export async function readProjectFiles(folder: string): Promise<Map<string, Buff
   }
   const read = await Promise.all(
     paths.map(async ([path, kind]) => {
-      const file = await readRegularFile(join(projectFolder, path), capOf(kind));
+      const file = await readRegularFile(join(projectFolder, path), capOf(kind), {
+        inside: projectFolder,
+      });
       return file.ok ? [[path, file.bytes] as const] : [];
     }),
   );
@@ -362,7 +364,9 @@ async function readProjectFile<K extends FileKind>(
     problems.add(kind, { file, pointer: '', message });
     return undefined;
   };
-  const read = await readRegularFile(join(projectFolder, file), capOf(kind));
+  const read = await readRegularFile(join(projectFolder, file), capOf(kind), {
+    inside: projectFolder,
+  });
   if (!read.ok) {
     return fail(read.reason === 'missing' ? 'The file could not be read: ENOENT' : read.message);
   }

@@ -1,9 +1,28 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  open,
+  realpath,
+  rename,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { SIZE_CAPS, capOf, describeCap, readRegularFile } from './regular-files';
+import {
+  REAL_READER_FS,
+  SIZE_CAPS,
+  capOf,
+  describeCap,
+  readRegularFile,
+  sameFile,
+  type ReaderFs,
+} from './regular-files';
 
 let folder: string;
 
@@ -102,6 +121,87 @@ describe('readRegularFile', () => {
       ok: false,
       reason: 'not-regular',
     });
+  });
+});
+
+describe('readRegularFile, when a name is swapped while it is read', () => {
+  let project: string;
+  let outside: string;
+
+  beforeEach(async () => {
+    project = await realpath(await mkdtemp(join(tmpdir(), 'va-swap-project-')));
+    outside = await realpath(await mkdtemp(join(tmpdir(), 'va-swap-outside-')));
+    await mkdir(join(project, 'views'));
+    await writeFile(join(project, 'views/a.vaview'), 'inside');
+    await writeFile(join(outside, 'a.vaview'), 'SECRET');
+  });
+
+  afterEach(async () => {
+    await rm(project, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  });
+
+  /** The real file system with some calls replaced. */
+  const fsWith = (overrides: Partial<ReaderFs>): ReaderFs => ({ ...REAL_READER_FS, ...overrides });
+
+  it('reads a file inside the project folder', async () => {
+    const read = await readRegularFile(join(project, 'views/a.vaview'), 1024, { inside: project });
+    expect(read).toEqual({ ok: true, bytes: Buffer.from('inside') });
+  });
+
+  it('refuses a file swapped for another between the look and the open', async () => {
+    // As if the name became a link to the outside file right after it was looked at: Windows opens
+    // through the link, having no flag to stop it.
+    const fs = fsWith({ open: (_path, flags) => open(join(outside, 'a.vaview'), flags) });
+    const read = await readRegularFile(join(project, 'views/a.vaview'), 1024, {
+      inside: project,
+      fs,
+    });
+    expect(read).toEqual({
+      ok: false,
+      reason: 'changed',
+      message:
+        'The file changed while it was being opened; Visual Anything opens only regular files inside the project folder.',
+    });
+  });
+
+  it('refuses a file reached through a folder swapped for a junction to the outside', async (context) => {
+    const swapThenLook = async (path: string) => {
+      await rename(join(project, 'views'), join(project, 'views-before'));
+      await symlink(outside, join(project, 'views'), 'junction');
+      return lstat(path, { bigint: true });
+    };
+    if (!(await tryLink(outside, join(project, 'probe'), 'junction'))) context.skip();
+    await rm(join(project, 'probe'), { recursive: true, force: true });
+
+    const read = await readRegularFile(join(project, 'views/a.vaview'), 1024, {
+      inside: project,
+      fs: fsWith({ lstat: swapThenLook }),
+    });
+    expect(read).toEqual({
+      ok: false,
+      reason: 'link',
+      message:
+        'The file lies outside the project folder; Visual Anything opens only regular files inside the project folder.',
+    });
+  });
+
+  it('refuses a real path that leads to another file than the one opened', async () => {
+    await writeFile(join(project, 'views/b.vaview'), 'other');
+    const fs = fsWith({ realpath: () => Promise.resolve(join(project, 'views/b.vaview')) });
+    const read = await readRegularFile(join(project, 'views/a.vaview'), 1024, {
+      inside: project,
+      fs,
+    });
+    expect(read).toMatchObject({ ok: false, reason: 'changed' });
+  });
+
+  it('compares the files it saw by device and file number', async () => {
+    const a = await stat(join(project, 'views/a.vaview'), { bigint: true });
+    const again = await lstat(join(project, 'views/a.vaview'), { bigint: true });
+    const other = await stat(join(outside, 'a.vaview'), { bigint: true });
+    expect(sameFile(a, again)).toBe(true);
+    expect(sameFile(a, other)).toBe(false);
   });
 });
 
