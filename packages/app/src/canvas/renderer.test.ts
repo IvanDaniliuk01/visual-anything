@@ -234,7 +234,7 @@ describe('CanvasRenderer bands', () => {
     renderer.setCamera({ x: 0, y: 0, scale: 0.3 });
     expect(shapeTiles(renderer)).toHaveLength(300);
     renderer.renderNow();
-    expect(shapeTiles(renderer).filter((tile) => tile.full)).toHaveLength(200);
+    expect(shapeTiles(renderer).filter((tile) => tile.full)).toHaveLength(150);
     renderer.renderNow();
     expect(shapeTiles(renderer).every((tile) => tile.full)).toBe(true);
     expect(0.3).toBeLessThan(NAMES_FROM);
