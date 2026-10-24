@@ -2,6 +2,7 @@
  * The attributes of an element or a relation as the inspector shows them: every attribute its
  * component's or relation type's chain defines, then those it has that the chain does not define.
  */
+import { valueFitsType } from '@visual-anything/core';
 import type { AttributeDefinition, Attributes, JsonValue } from '@visual-anything/schema';
 
 /** The types an attribute's value can have. */
@@ -56,7 +57,7 @@ export function attributeRows(
       stored,
       value,
       differs,
-      mismatched: value !== undefined && !fitsType(value, definition.type),
+      mismatched: value !== undefined && !valueFitsType(value, definition.type),
       reset: !stored ? undefined : !hasDefault ? 'clear' : differs ? 'default' : undefined,
     };
   });
@@ -96,19 +97,8 @@ export function sameJson(a: JsonValue | undefined, b: JsonValue | undefined): bo
   );
 }
 
-/** Whether a value fits an attribute type. */
-export function fitsType(value: JsonValue, type: AttributeType): boolean {
-  switch (type) {
-    case 'string':
-      return typeof value === 'string';
-    case 'number':
-      return typeof value === 'number' && Number.isFinite(value);
-    case 'boolean':
-      return typeof value === 'boolean';
-    case 'json':
-      return true;
-  }
-}
+/** Whether a value fits an attribute type: the core's rule, which every command checks. */
+export { valueFitsType as fitsType } from '@visual-anything/core';
 
 /** The type of a value: a string, a number or a boolean; anything else is JSON. */
 export function typeOfValue(value: JsonValue): AttributeType {
