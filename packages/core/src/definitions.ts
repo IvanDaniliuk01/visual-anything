@@ -16,8 +16,11 @@ import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
 import { ESSENCE, RELATES_TO } from './builtin/essence-and-relates-to';
 import { problem, type Problem } from './problems';
 
-/** How an element's shapes are drawn, with nothing left out. */
-export type ResolvedAppearance = Required<Appearance>;
+/**
+ * How an element's shapes are drawn, with nothing left out but the image they show, which
+ * `imageShownBy` in `images/` works out.
+ */
+export type ResolvedAppearance = Required<Omit<Appearance, 'image'>>;
 
 /** How a relation is drawn, with nothing left out. */
 export type ResolvedRelationAppearance = Required<RelationAppearance>;
