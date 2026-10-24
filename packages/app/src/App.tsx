@@ -8,11 +8,11 @@ interface AppProps {
   token: string | null;
 }
 
-const OPEN_THE_LINK =
-  'Open the link Visual Anything printed in the terminal: it carries this session’s token.';
+const OPEN_THE_ADDRESS =
+  'Open the address Visual Anything printed in the terminal: it carries this session’s token.';
 
 const CLOSED =
-  'The connection to Visual Anything closed, so what you see may be out of date. Start Visual Anything again and open the link it prints in the terminal.';
+  'The connection to Visual Anything closed, so what you see may be out of date. Start Visual Anything again and open the address it prints in the terminal.';
 
 /** The app: the shell once the local program has sent the project, a status screen until then. */
 export function App({ token }: AppProps) {
@@ -42,7 +42,7 @@ function Failure({ problem, detail }: { problem: LiveProblem; detail: string | u
     case 'no-token':
       return (
         <StatusScreen tone="problem" title="This tab has no session token">
-          <p>Visual Anything only connects to the tab it opened. {OPEN_THE_LINK}</p>
+          <p>Visual Anything only connects to the tab it opened. {OPEN_THE_ADDRESS}</p>
         </StatusScreen>
       );
     case 'refused':
@@ -50,7 +50,7 @@ function Failure({ problem, detail }: { problem: LiveProblem; detail: string | u
         <StatusScreen tone="problem" title="Visual Anything refused the connection">
           <p>
             It may not be running, or this tab holds the token of an earlier session. Start Visual
-            Anything if needed, then open the link Visual Anything printed in the terminal: it
+            Anything if needed, then open the address Visual Anything printed in the terminal: it
             carries this session’s token.
           </p>
         </StatusScreen>
@@ -61,7 +61,7 @@ function Failure({ problem, detail }: { problem: LiveProblem; detail: string | u
           {detail !== undefined && <p className="status-detail">{detail}</p>}
           <p>
             The app and the local program may come from different versions. Restart Visual Anything
-            and open the link it prints in the terminal.
+            and open the address it prints in the terminal.
           </p>
         </StatusScreen>
       );

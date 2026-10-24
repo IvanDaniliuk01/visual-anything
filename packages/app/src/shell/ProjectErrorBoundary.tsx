@@ -29,7 +29,7 @@ export class ProjectErrorBoundary extends Component<
         <StatusScreen tone="problem" title="Visual Anything could not show this project">
           <p className="status-detail">{this.state.error.message}</p>
           <p>
-            Check the project’s files, then restart Visual Anything and open the link it prints.
+            Check the project’s files, then restart Visual Anything and open the address it prints.
           </p>
         </StatusScreen>
       );

@@ -7,7 +7,7 @@
   "properties": {
     "world": {
       "$ref": "#/definitions/Element",
-      "description": "The root element; every other element is contained in it, directly or indirectly. An element with no container under a view's nesting relation types sits directly in World."
+      "description": "World, which contains every other element, directly or indirectly. An element with no container under a view's nesting relation types sits directly in World."
     },
     "elements": {
       "type": "array",
@@ -178,7 +178,7 @@
         "to"
       ],
       "additionalProperties": false,
-      "description": "A meaningful link whose ends are elements or other relations, always of a relation type."
+      "description": "A meaningful tie between two ends, each an element or another relation, always of a relation type."
     }
   }
 }

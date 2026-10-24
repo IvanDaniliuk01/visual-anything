@@ -69,8 +69,8 @@ describe('validateFile', () => {
       version: 2,
     };
     const expected = [
-      { path: '', message: 'must not have the property "version"' },
-      { path: '/elements/0', message: 'must not have the property "colour"' },
+      { path: '', message: 'must not have the key "version"' },
+      { path: '/elements/0', message: 'must not have the key "colour"' },
       { path: '/elements/0/id', message: ID_MESSAGE },
       { path: '/relations/0/to', message: ID_MESSAGE },
     ];
@@ -85,7 +85,7 @@ describe('validateFile', () => {
     );
     expect(result).toEqual({
       ok: false,
-      errors: [{ path: '', message: 'must not have the property "__proto__"' }],
+      errors: [{ path: '', message: 'must not have the key "__proto__"' }],
     });
   });
 
@@ -100,7 +100,7 @@ describe('validateFile', () => {
       [
         'a missing required property',
         { schemaVersion: 1, packages: [] },
-        [{ path: '', message: 'must have the property "name"' }],
+        [{ path: '', message: 'must have the key "name"' }],
       ],
       [
         'a value of the wrong type',
@@ -110,7 +110,7 @@ describe('validateFile', () => {
       [
         'an unknown property',
         { ...project, version: '1.0' },
-        [{ path: '', message: 'must not have the property "version"' }],
+        [{ path: '', message: 'must not have the key "version"' }],
       ],
       [
         'an id that breaks the Id pattern',
@@ -183,7 +183,7 @@ describe('validateFile', () => {
       [
         'a missing required property',
         { world, elements: [] },
-        [{ path: '', message: 'must have the property "relations"' }],
+        [{ path: '', message: 'must have the key "relations"' }],
       ],
       [
         'a value of the wrong type',
@@ -193,7 +193,7 @@ describe('validateFile', () => {
       [
         'an unknown property',
         { ...model, elements: [{ ...api, colour: '#ffffff' }] },
-        [{ path: '/elements/0', message: 'must not have the property "colour"' }],
+        [{ path: '/elements/0', message: 'must not have the key "colour"' }],
       ],
       [
         'an id that breaks the Id pattern',
@@ -213,7 +213,7 @@ describe('validateFile', () => {
       [
         'a World without a component',
         { ...model, world: { id: 'world', name: 'My systems' } },
-        [{ path: '/world', message: 'must have the property "component"' }],
+        [{ path: '/world', message: 'must have the key "component"' }],
       ],
     ])('rejects %s', (_, data, errors) => {
       expect(problemsIn('model', data)).toEqual(errors);
@@ -256,7 +256,7 @@ describe('validateFile', () => {
       [
         'a missing required property',
         { ...pkg, components: [{ id: 'systems.box', name: 'Box' }] },
-        [{ path: '/components/0', message: 'must have the property "derivesFrom"' }],
+        [{ path: '/components/0', message: 'must have the key "derivesFrom"' }],
       ],
       [
         'a value of the wrong type',
@@ -266,7 +266,7 @@ describe('validateFile', () => {
       [
         'an unknown property',
         { ...pkg, components: [{ ...service, appearance: { icon: 'server' } }] },
-        [{ path: '/components/0/appearance', message: 'must not have the property "icon"' }],
+        [{ path: '/components/0/appearance', message: 'must not have the key "icon"' }],
       ],
       [
         'an id that breaks the Id pattern',
@@ -334,7 +334,7 @@ describe('validateFile', () => {
       [
         'a missing required property',
         { ...view, perspective: undefined },
-        [{ path: '', message: 'must have the property "perspective"' }],
+        [{ path: '', message: 'must have the key "perspective"' }],
       ],
       [
         'a value of the wrong type',
@@ -344,7 +344,7 @@ describe('validateFile', () => {
       [
         'an unknown property',
         { ...view, positions: [{ element: 'clinic-booking', x: 240, y: 40, z: 1 }] },
-        [{ path: '/positions/0', message: 'must not have the property "z"' }],
+        [{ path: '/positions/0', message: 'must not have the key "z"' }],
       ],
       [
         'an id that breaks the Id pattern',
@@ -359,17 +359,17 @@ describe('validateFile', () => {
       [
         'a free shape without a kind',
         { ...view, freeShapes: [{ ...note, kind: undefined }] },
-        [{ path: '/freeShapes/0', message: 'must have the property "kind"' }],
+        [{ path: '/freeShapes/0', message: 'must have the key "kind"' }],
       ],
       [
         'a note with a property of an arrow',
         { ...view, freeShapes: [{ ...note, from: { x: 0, y: 0 } }] },
-        [{ path: '/freeShapes/0', message: 'must not have the property "from"' }],
+        [{ path: '/freeShapes/0', message: 'must not have the key "from"' }],
       ],
       [
         'an arrow without an end',
         { ...view, freeShapes: [note, { ...arrow, to: undefined }] },
-        [{ path: '/freeShapes/1', message: 'must have the property "to"' }],
+        [{ path: '/freeShapes/1', message: 'must have the key "to"' }],
       ],
       [
         'a note that is not positive in size',
@@ -415,7 +415,7 @@ describe('validateFile', () => {
       [
         'a missing required property',
         { id: 'a', name: 'A', steps: [] },
-        [{ path: '', message: 'must have the property "view"' }],
+        [{ path: '', message: 'must have the key "view"' }],
       ],
       [
         'a value of the wrong type',
@@ -425,7 +425,7 @@ describe('validateFile', () => {
       [
         'an unknown property',
         { ...scenario, steps: [{ id: 'ask', description: '', relations: ['r'], branch: 'b' }] },
-        [{ path: '/steps/0', message: 'must not have the property "branch"' }],
+        [{ path: '/steps/0', message: 'must not have the key "branch"' }],
       ],
       [
         'an id that breaks the Id pattern',
