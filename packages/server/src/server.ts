@@ -52,7 +52,18 @@ export interface ServerOptions {
   onLaunchReused?: () => void;
   /** Told how many apps and Claudes are connected, each time that changes. */
   onConnections?: (count: number) => void;
+  /**
+   * The theme the person chose, carried in every launch address as `theme=` beside the launch code,
+   * so that the page paints its first frame in it; a function is asked each time. It is no secret.
+   */
+  themeHint?: ThemeHint | (() => ThemeHint | undefined);
 }
+
+/** A theme the page can paint its first frame in. */
+export type ThemeHint = 'light' | 'dark';
+
+/** The fragment parameter the theme hint travels under. */
+export const THEME_HINT_PARAM = 'theme';
 
 /** The running local program. */
 export interface RunningServer {
@@ -97,7 +108,11 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
   const launchCodes = new LaunchCodes();
   // The real port, known once the server listens; no request arrives before that.
   let port = options.port;
-  const launchUrl = () => `http://${HOST}:${port}/#${LAUNCH_PARAM}=${launchCodes.create()}`;
+  const launchUrl = () => {
+    const hint = typeof options.themeHint === 'function' ? options.themeHint() : options.themeHint;
+    const theme = hint === 'light' || hint === 'dark' ? `&${THEME_HINT_PARAM}=${hint}` : '';
+    return `http://${HOST}:${port}/#${LAUNCH_PARAM}=${launchCodes.create()}${theme}`;
+  };
 
   const httpServer = createServer();
   const sockets = new Set<Socket>();
