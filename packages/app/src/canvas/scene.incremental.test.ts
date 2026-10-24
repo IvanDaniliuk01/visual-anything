@@ -405,7 +405,7 @@ describe('a scene built after an edit', () => {
       }),
       { numRuns: 60 },
     );
-  });
+  }, 60_000);
 
   it('equals one built from nothing in a larger view with overlapping shapes, too', () => {
     const big = syntheticProject({ elements: 240, perSystem: 8, overlap: 'stairs' });

@@ -244,8 +244,17 @@ function overlaid<V>(
   if (changes.size === 0) return base;
   const layers = base instanceof Overlay ? base.layers + 1 : 1;
   if (layers > MOST_LAYERS || changes.size * 8 > base.size) {
-    const flat = new Map(base);
-    for (const [key, value] of changes) flat.set(key, value);
+    // Copied from the map under every overlay, with each overlay's changes in turn.
+    const stack: ReadonlyMap<string, V>[] = [changes];
+    let root: ReadonlyMap<string, V> = base;
+    while (root instanceof Overlay) {
+      stack.push(root.changes);
+      root = root.base;
+    }
+    const flat = new Map(root);
+    for (let at = stack.length - 1; at >= 0; at--) {
+      for (const [key, value] of stack[at] as ReadonlyMap<string, V>) flat.set(key, value);
+    }
     return flat;
   }
   return new Overlay(base, changes, layers);
@@ -253,8 +262,8 @@ function overlaid<V>(
 
 class Overlay<V> implements ReadonlyMap<string, V> {
   constructor(
-    private readonly base: ReadonlyMap<string, V>,
-    private readonly changes: ReadonlyMap<string, V>,
+    readonly base: ReadonlyMap<string, V>,
+    readonly changes: ReadonlyMap<string, V>,
     readonly layers: number,
   ) {}
 
