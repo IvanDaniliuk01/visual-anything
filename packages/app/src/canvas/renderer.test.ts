@@ -10,7 +10,7 @@ import type { TextFactory } from './draw';
 import type { Rect } from './geometry';
 import { indexScene, type IndexedScene } from './hit';
 import { CanvasRenderer, COARSE_BELOW, NAMES_FROM } from './renderer';
-import { buildScene, type ElementShape, type Scene } from './scene';
+import { buildScene, type ElementShape, type RelationLine, type Scene } from './scene';
 import { MAX_BANDS } from './tiles';
 
 vi.mock('pixi.js', async (importOriginal) => {
@@ -156,6 +156,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe('CanvasRenderer bands', () => {
@@ -330,6 +331,33 @@ describe('CanvasRenderer frames', () => {
     expect(tiles.every((tile) => tile.full?.visible === false && tile.coarse?.alpha === 1)).toBe(
       true,
     );
+  });
+
+  it('draws a long relation in the tile of each cell it crosses, and leaves out those off screen', async () => {
+    const route = [
+      { x: 100, y: 100 },
+      { x: 10_000, y: 100 },
+    ];
+    const line: RelationLine = {
+      relation: 'long',
+      route,
+      from: route[0] as { x: number; y: number },
+      to: route[1] as { x: number; y: number },
+      middle: { x: 5050, y: 100 },
+      stroke: '#000000',
+      width: 2,
+      dash: 'solid',
+    };
+    const renderer = await started();
+    renderer.show(indexScene({ ...sceneOf([]), relations: [line] }));
+    const tiles = [...inside(renderer).tiles.values()].filter((tile) => tile.kind === 'relations');
+    expect(tiles).toHaveLength(10);
+    // Looking at the middle of the line, 1200 units across: the cells near it, and none further.
+    renderer.setCamera({ x: 600 - 5000, y: 300, scale: 1 });
+    renderer.renderNow();
+    const shown = tiles.filter((tile) => !tile.container.culled);
+    expect(shown.length).toBeGreaterThan(0);
+    expect(shown.length).toBeLessThanOrEqual(4);
   });
 
   it('destroys the drawings of the tiles it drops, their geometry included', async () => {

@@ -15,8 +15,10 @@ import { EMPTY_SELECTION } from '../editor/selection';
 import { visibleRect, type Camera, fitCamera } from './camera';
 import {
   drawFreeShapes,
+  drawPieceLines,
   drawRelationLines,
   drawRelationRoutes,
+  drawRoutePieces,
   drawShapeBlocks,
   drawShapeOutlines,
   writeNoteTexts,
@@ -39,8 +41,17 @@ import { bitmapText, installFonts } from './labels';
 import { CANVAS_BACKGROUND } from './palette';
 import { midpointOf, routeBetweenEnds, type RouteEnd } from './route';
 import type { ArrowShape, DrawnEnd, ElementShape, NoteShape, RelationLine } from './scene';
-import { meets, rectAround } from './spatial';
-import { MAX_BANDS, TILE, cellOf, planTiles, plannedTiles, type PlannedTile } from './tiles';
+import { meets } from './spatial';
+import {
+  MAX_BANDS,
+  TILE,
+  planTiles,
+  plannedTiles,
+  relationTiles,
+  type PlannedTile,
+  type RelationTile,
+  type RoutePiece,
+} from './tiles';
 
 /** Names show from this scale on, and component names and relation labels from the next. */
 export const NAMES_FROM = 0.45;
@@ -54,9 +65,9 @@ const LABEL_BUDGET = 6;
 /** How many shapes or relations get their labels between two looks at the clock. */
 const LABEL_BATCH = 6;
 /**
- * How much new drawing a frame takes on, in shapes or relations, and always at least one tile.
- * PixiJS does the costly part of a new drawing when it first renders it, after the clock above has
- * stopped, so the work is counted rather than timed.
+ * How much new drawing a frame takes on, in shapes or pieces of relations, and always at least one
+ * tile. PixiJS does the costly part of a new drawing when it first renders it, after the clock above
+ * has stopped, so the work is counted rather than timed.
  */
 const FULL_SHAPES_PER_FRAME = 150;
 const LABELS_PER_FRAME = 32;
@@ -140,7 +151,10 @@ interface Tile {
   /** For shapes beyond the bands: the drawing rank of the first one, which orders their tiles. */
   rank: number;
   shapes: ElementShape[];
+  /** For relations: those named in the tile, the pieces of routes it draws, and the arrowheads. */
   lines: RelationLine[];
+  pieces: RoutePiece[];
+  ends: RelationLine[];
   notes: NoteShape[];
   /** The plain drawing shown when zoomed far out; free shapes have none. */
   coarse?: Graphics;
@@ -639,38 +653,29 @@ export class CanvasRenderer {
   private rebuildRelations(relations: readonly RelationLine[], budget: { left: number }): void {
     const hidden = this.hidden.relations;
     if (this.relationsFrom?.lines === relations && this.relationsFrom.hidden === hidden) return;
-    const cells = new Map<string, RelationLine[]>();
-    for (const line of relations) {
-      if (hidden.has(line.relation)) continue;
-      const key = `relations ${cellOf(line.middle)}`;
-      const lines = cells.get(key);
-      if (lines) lines.push(line);
-      else cells.set(key, [line]);
-    }
+    const planned = new Map(relationTiles(relations, hidden).map((tile) => [tile.key, tile]));
     for (const [key, tile] of this.tiles) {
-      if (tile.kind === 'relations' && !cells.has(key)) {
+      if (tile.kind === 'relations' && !planned.has(key)) {
         this.tiles.delete(key);
         destroyTile(tile);
         this.plainBounds = undefined;
       }
     }
     const { coarse, wanted } = this.detailNow();
-    for (const [key, lines] of cells) {
-      const signature = lines.map(lineSignature).join('|');
+    for (const [key, next] of planned) {
       const existing = this.tiles.get(key);
-      if (existing?.signature === signature) {
-        existing.lines = lines;
+      if (existing?.signature === next.signature) {
+        Object.assign(existing, { lines: next.lines, pieces: next.pieces, ends: next.ends });
         continue;
       }
-      const cell = cellOf((lines[0] as RelationLine).middle);
-      const tile = this.makeRelationTile(key, cell, signature, lines);
+      const tile = this.makeRelationTile(next);
       this.tiles.set(key, tile);
       this.place(tile);
       this.plainBounds = undefined;
       if (existing) {
         // In place of a tile drawn in full, the new one is drawn in full at once.
         if (!coarse && existing.full && budget.left > 0) {
-          budget.left -= lines.length;
+          budget.left -= next.pieces.length;
           this.drawAtOnce(
             tile,
             existing.level === wantedFor('relations', wanted) ? existing.level : 0,
@@ -784,22 +789,19 @@ export class CanvasRenderer {
     });
   }
 
-  private makeRelationTile(
-    key: string,
-    cell: string,
-    signature: string,
-    lines: RelationLine[],
-  ): Tile {
+  private makeRelationTile(planned: RelationTile): Tile {
     const coarse = batched(new Graphics());
-    drawRelationLines(coarse, lines);
+    drawPieceLines(coarse, planned.pieces);
     return this.tileOf({
-      key,
-      signature,
+      key: planned.key,
+      signature: planned.signature,
       kind: 'relations',
-      cell,
-      lines,
+      cell: planned.cell,
+      lines: planned.lines,
+      pieces: planned.pieces,
+      ends: planned.ends,
       coarse,
-      bounds: boundsOf(lines.map((line) => rectAround(line.route))),
+      bounds: planned.bounds,
     });
   }
 
@@ -822,7 +824,19 @@ export class CanvasRenderer {
   private tileOf(
     parts: Pick<Tile, 'key' | 'signature' | 'kind'> &
       Partial<
-        Pick<Tile, 'band' | 'cell' | 'rank' | 'shapes' | 'lines' | 'notes' | 'coarse' | 'full'>
+        Pick<
+          Tile,
+          | 'band'
+          | 'cell'
+          | 'rank'
+          | 'shapes'
+          | 'lines'
+          | 'pieces'
+          | 'ends'
+          | 'notes'
+          | 'coarse'
+          | 'full'
+        >
       > & {
         bounds: Rect | undefined;
       },
@@ -837,6 +851,8 @@ export class CanvasRenderer {
       rank: 0,
       shapes: [],
       lines: [],
+      pieces: [],
+      ends: [],
       notes: [],
       ...rest,
       container,
@@ -850,7 +866,7 @@ export class CanvasRenderer {
   private drawFully(tile: Tile): void {
     const full = new Graphics();
     if (tile.kind === 'shapes') drawShapeOutlines(full, tile.shapes);
-    else drawRelationRoutes(full, tile.lines);
+    else drawRoutePieces(full, tile.pieces, tile.ends);
     tile.container.addChildAt(full, tile.coarse?.parent === tile.container ? 1 : 0);
     tile.full = full;
     showPlain(tile, false);
@@ -983,7 +999,7 @@ export class CanvasRenderer {
       }
       this.drawFully(tile);
       drawings += 1;
-      drawn += labelCount(tile);
+      drawn += drawingSize(tile);
     }
 
     const began = performance.now();
@@ -1594,6 +1610,15 @@ function wantedFor(kind: Tile['kind'], wanted: Tile['level']): Tile['level'] {
   return wanted === 0 ? 0 : 2;
 }
 
+/** How much a tile's full drawing draws: its shapes, the pieces of routes in it, or its notes. */
+function drawingSize(tile: Tile): number {
+  return tile.kind === 'shapes'
+    ? tile.shapes.length
+    : tile.kind === 'relations'
+      ? tile.pieces.length
+      : tile.notes.length;
+}
+
 /** How many things in a tile have labels to write. */
 function labelCount(tile: Tile): number {
   return tile.kind === 'shapes'
@@ -1616,25 +1641,6 @@ function traceRoute(graphics: Graphics, route: readonly Point[]): void {
   if (!first) return;
   graphics.moveTo(first.x, first.y);
   for (const point of rest) graphics.lineTo(point.x, point.y);
-}
-
-const lineSignatures = new WeakMap<RelationLine, string>();
-
-function lineSignature(line: RelationLine): string {
-  let signature = lineSignatures.get(line);
-  if (signature === undefined) {
-    signature = [
-      line.relation,
-      line.label ?? '',
-      line.stroke,
-      line.width,
-      line.dash,
-      line.arrowhead ? 1 : 0,
-      ...line.route.flatMap((point) => [point.x, point.y]),
-    ].join(' ');
-    lineSignatures.set(line, signature);
-  }
-  return signature;
 }
 
 const relationLookups = new WeakMap<readonly RelationLine[], Map<Id, RelationLine>>();

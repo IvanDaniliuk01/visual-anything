@@ -12,8 +12,9 @@ import {
   grow,
   directionOf,
   distance,
-  middle,
   personHead,
+  untilArrowhead,
+  type Arrowhead,
   type Point,
   type Rect,
 } from './geometry';
@@ -36,6 +37,7 @@ import {
   type NoteShape,
   type RelationLine,
 } from './scene';
+import type { RoutePiece } from './tiles';
 
 /** The fonts text is drawn in, first available first. */
 export const FONT_FAMILY = [
@@ -197,6 +199,39 @@ export function drawRelationRoutes(graphics: Graphics, lines: readonly RelationL
       dash: line.dash,
     });
     if (line.arrowhead) fillArrowhead(graphics, line.arrowhead, line.stroke);
+  }
+}
+
+/**
+ * Draws the pieces of relations' routes that lie in one tile, dashed as their relation types say,
+ * and the arrowheads of `ends`, whose tips lie there.
+ */
+export function drawRoutePieces(
+  graphics: Graphics,
+  pieces: readonly RoutePiece[],
+  ends: readonly RelationLine[],
+): void {
+  for (const piece of pieces) {
+    const { line } = piece;
+    strokeLine(
+      graphics,
+      piece.points,
+      { color: line.stroke, width: line.width, dash: line.dash },
+      piece,
+    );
+  }
+  for (const line of ends) if (line.arrowhead) fillArrowhead(graphics, line.arrowhead, line.stroke);
+}
+
+/**
+ * Draws pieces of relations' routes as plain lines, without dashes or arrowheads: a directed line's
+ * last piece goes on to the tip, where no arrowhead covers it.
+ */
+export function drawPieceLines(graphics: Graphics, pieces: readonly RoutePiece[]): void {
+  for (const piece of pieces) {
+    const { line } = piece;
+    const points = piece.last && line.arrowhead ? [...piece.points, line.to] : piece.points;
+    strokeLine(graphics, points, { color: line.stroke, width: line.width, dash: 'solid' }, piece);
   }
 }
 
@@ -463,28 +498,41 @@ function arcPoints(
 function strokeRoute(
   graphics: Graphics,
   route: readonly Point[],
-  arrowhead: { left: Point; right: Point } | undefined,
+  arrowhead: Arrowhead | undefined,
   style: { color: Color; width: number; dash: Dash },
 ): void {
-  const points = [...route];
-  if (arrowhead && points.length >= 2) {
-    const tip = points.at(-1) as Point;
-    const before = points.at(-2) as Point;
-    const base = middle(arrowhead.left, arrowhead.right);
-    if (distance(before, tip) > distance(base, tip)) points[points.length - 1] = base;
-    else points.pop();
-  }
+  strokeLine(graphics, untilArrowhead(route, arrowhead), style);
+}
+
+/**
+ * Strokes points of a route. `travelled` is how far along the route they start, so that the dashes go
+ * on where the points before left off; an end at a bend of the route reaches half a width past it,
+ * as inner corners do, so that the outside of the bend is filled.
+ */
+function strokeLine(
+  graphics: Graphics,
+  points: readonly Point[],
+  style: { color: Color; width: number; dash: Dash },
+  { travelled: start = 0, bendAtStart = false, bendAtEnd = false } = {},
+): void {
   const [first, ...rest] = points;
   if (!first || rest.length === 0) return;
   const { color, width, dash } = style;
   if (dash === 'solid') {
-    graphics.moveTo(first.x, first.y);
-    for (const point of rest) graphics.lineTo(point.x, point.y);
+    const from = bendAtStart ? reachedPast(points[1] as Point, first, width / 2) : first;
+    graphics.moveTo(from.x, from.y);
+    rest.forEach((point, at) => {
+      const to =
+        bendAtEnd && at === rest.length - 1
+          ? reachedPast(points.at(-2) as Point, point, width / 2)
+          : point;
+      graphics.lineTo(to.x, to.y);
+    });
     graphics.stroke({ color, width, cap: 'butt', join: 'miter' });
     return;
   }
   const texture = patternTexture(dash);
-  let travelled = 0;
+  let travelled = start;
   for (let each = 1; each < points.length; each++) {
     const from = points[each - 1] as Point;
     const to = points[each] as Point;
@@ -492,8 +540,8 @@ function strokeRoute(
     if (!direction) continue;
     const length = distance(from, to);
     // Inner ends reach half a width past the corner, so that the outside of the corner is filled.
-    const before = each > 1 ? width / 2 : 0;
-    const after = each < points.length - 1 ? width / 2 : 0;
+    const before = each > 1 || bendAtStart ? width / 2 : 0;
+    const after = each < points.length - 1 || bendAtEnd ? width / 2 : 0;
     graphics
       .moveTo(from.x - direction.x * before, from.y - direction.y * before)
       .lineTo(to.x + direction.x * after, to.y + direction.y * after)
@@ -507,6 +555,12 @@ function strokeRoute(
       });
     travelled += length;
   }
+}
+
+/** `to`, moved `by` further along the line from `from`. */
+function reachedPast(from: Point, to: Point, by: number): Point {
+  const direction = directionOf(from, to);
+  return direction ? { x: to.x + direction.x * by, y: to.y + direction.y * by } : to;
 }
 
 function fillArrowhead(

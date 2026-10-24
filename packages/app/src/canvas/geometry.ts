@@ -221,6 +221,24 @@ export function arrowheadAt(from: Point, tip: Point, lineWidth: number): Arrowhe
 }
 
 /**
+ * A line's points up to the base of its arrowhead, which covers the rest, so that the line never
+ * shows past the tip: the last point moves to the base, or goes when the base lies before it.
+ */
+export function untilArrowhead(
+  points: readonly Point[],
+  arrowhead: Arrowhead | undefined,
+): Point[] {
+  const until = [...points];
+  if (!arrowhead || until.length < 2) return until;
+  const tip = until.at(-1) as Point;
+  const before = until.at(-2) as Point;
+  const base = middle(arrowhead.left, arrowhead.right);
+  if (distance(before, tip) > distance(base, tip)) until[until.length - 1] = base;
+  else until.pop();
+  return until;
+}
+
+/**
  * The transform that fits `bounds` into an area, keeping `margin` free around it on the tighter side,
  * centering it on the other, never enlarging beyond `maxScale` and never shrinking below `minScale`.
  * The scene is centered at the scale it gets, so a scene too large to fit shows its middle.
