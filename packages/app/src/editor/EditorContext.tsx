@@ -30,6 +30,11 @@ export interface Editor {
    * by its key, or a relation or a free shape by its id.
    */
   reveal: (shapeKey: string) => void;
+  /**
+   * Opens another view of the project on the canvas, as the view list does and as playing a scenario
+   * over its view does. The shell always sets it; it is optional only so that tests can leave it out.
+   */
+  openView?: (viewId: Id) => void;
 }
 
 export const EditorContext = createContext<Editor | undefined>(undefined);
