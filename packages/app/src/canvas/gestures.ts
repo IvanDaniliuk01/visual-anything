@@ -201,7 +201,7 @@ export const BESIDE_TRIES = 100;
 
 /**
  * The command that creates an element of a component beside a shape, in the container that shape
- * sits in, or directly in World: `BESIDE_GAP` to the right of it, top edges level, then further right
+ * sits in, or directly in World: `BESIDE_GAP` to the right of it, top edges aligned, then further right
  * by its own width and the gap until it overlaps no shape there, so that elements added one after
  * another make a row. After `BESIDE_TRIES` places it stays in the first. Its position is stored but
  * not pinned, as the program chose it.

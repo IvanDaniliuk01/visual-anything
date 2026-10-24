@@ -459,8 +459,8 @@ class Profiling {
   private spans: Span[] = [];
   private frames: LongFrame[] = [];
   private timeline: [number, string, number][] = [];
-  /** How deep the timed methods running now call each other. */
-  private depth = 0;
+  /** How many timed methods are running now, each called from the one before. */
+  private running = 0;
   private container: HTMLElement | undefined;
   private observer: PerformanceObserver | undefined;
   private readonly restores: (() => void)[] = [];
@@ -478,14 +478,14 @@ class Profiling {
         const key = `${owner}.${name}`;
         const timed = function (this: unknown, ...args: unknown[]): unknown {
           const began = performance.now();
-          profiling.depth += 1;
+          profiling.running += 1;
           try {
             return Reflect.apply(original, this, args) as unknown;
           } finally {
-            profiling.depth -= 1;
+            profiling.running -= 1;
             const took = performance.now() - began;
             methods.set(key, (methods.get(key) ?? 0) + took);
-            if (profiling.depth === 0) profiling.timeline.push([began, key, took]);
+            if (profiling.running === 0) profiling.timeline.push([began, key, took]);
           }
         };
         Reflect.set(target, name, timed);
