@@ -111,9 +111,6 @@ const outlines = new WeakMap<
   { inputs: OutlineInputs; outline: Outline }
 >();
 
-/** How many relations away from a shape the row of a relation that ends on relations is looked for. */
-const MAX_HOPS = 32;
-
 /**
  * The outline of a scene; worked out once for each scene, and each row's insides when first asked. A
  * new scene that keeps the parts the outline reads, as one the view's stacking order alone changed
@@ -270,20 +267,33 @@ function buildOutline(scene: Scene, project: ProjectSnapshot): Outline {
   };
 
   /** The row of a drawn relation: inside the shape of an element it ends on, or the row of a relation. */
-  const placeOfRelation = (id: Id, hops: number): RowPlace | undefined => {
-    const relation = drawn.has(id) ? index.relation(id) : undefined;
-    if (!relation || hops > MAX_HOPS) return undefined;
-    for (const end of [relation.from, relation.to]) {
-      const shape = firstShapes.get(end);
+  // A relation is listed inside the row of each relation it ends on, so any chain of relations down to
+  // a shape names one of its rows. The nearest is found breadth first, visiting each relation once:
+  // ends that are relations can double at every level, and a malformed file can even loop.
+  const relationPlaces = new Map<Id, RowPlace | undefined>();
+  const placeOfRelation = (id: Id): RowPlace | undefined => {
+    if (relationPlaces.has(id)) return relationPlaces.get(id);
+    const reachedThrough = new Map<Id, Id | undefined>(drawn.has(id) ? [[id, undefined]] : []);
+    let place: RowPlace | undefined;
+    for (const at of reachedThrough.keys()) {
+      const relation = index.relation(at);
+      if (!relation) continue;
+      const ends = [relation.from, relation.to];
+      const shape = ends.flatMap((end) => firstShapes.get(end) ?? [])[0];
       if (shape) {
-        return { id: relationRowId(shape.key, id), outer: [...outerIdsOf(shape.key), shape.key] };
+        place = { id: relationRowId(shape.key, at), outer: [...outerIdsOf(shape.key), shape.key] };
+        for (let inner = reachedThrough.get(at); inner !== undefined;) {
+          place = { id: relationRowId(place.id, inner), outer: [...place.outer, place.id] };
+          inner = reachedThrough.get(inner);
+        }
+        break;
+      }
+      for (const end of ends) {
+        if (drawn.has(end) && !reachedThrough.has(end)) reachedThrough.set(end, at);
       }
     }
-    for (const end of [relation.from, relation.to]) {
-      const place = placeOfRelation(end, hops + 1);
-      if (place) return { id: relationRowId(place.id, id), outer: [...place.outer, place.id] };
-    }
-    return undefined;
+    relationPlaces.set(id, place);
+    return place;
   };
 
   return {
@@ -309,7 +319,7 @@ function buildOutline(scene: Scene, project: ProjectSnapshot): Outline {
           return shape && { id: shape.key, outer: outerIdsOf(shape.key) };
         }
         case 'relation':
-          return placeOfRelation(selectable.id, 0);
+          return placeOfRelation(selectable.id);
         case 'free-shape':
           if (notes.has(selectable.id)) return { id: noteRowId(selectable.id), outer: [] };
           if (arrows.has(selectable.id)) return { id: arrowRowId(selectable.id), outer: [] };
