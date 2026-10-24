@@ -1,12 +1,16 @@
 /**
  * The inspector's controls. Each one changes the project with one command, and so one undoable
- * action: text when it is committed with Enter or by leaving it, and selects, checkboxes and colours on
- * `change`. Until the project shows the result, a control shows what was chosen; then it shows the
- * project's value again, which after a refusal is the value it had.
+ * action: text when it is committed with Enter or by leaving it, checkboxes and colours on `change`,
+ * and selects when an option is picked from the list, or, when the arrow keys go through a closed
+ * select, with Enter or by leaving it. Until the project shows the result, a control shows what was
+ * chosen; then it shows the project's value again, which after a refusal is the value it had. What is
+ * committed while an earlier commit is on its way is compared with that one, not with the value the
+ * project still shows.
  */
 import {
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useRef,
   useState,
   type KeyboardEvent,
@@ -14,6 +18,7 @@ import {
   type RefObject,
 } from 'react';
 import { COLOR_FORMS, readColor, sameColor } from '../../color';
+import type { FocusKeeper } from './focus';
 
 /** What every control takes. */
 interface ControlProps {
@@ -23,6 +28,10 @@ interface ControlProps {
   describedBy?: string | undefined;
   /** Each new request, a number above zero, moves the focus to the control. */
   focusRequest?: number;
+  /** Called once the control took the focus for a request, so that the request can be dropped. */
+  onFocused?: () => void;
+  /** Hands the focus on to the control that takes this one's place, such as for a value of another type. */
+  focusKeeper?: FocusKeeper | undefined;
 }
 
 /** Makes a commit, whose refusal the live session already shows as a notice. */
@@ -34,17 +43,57 @@ async function attempt(commit: () => Promise<unknown>): Promise<void> {
   }
 }
 
-/** Moves the focus to a control on each new request. */
-function useFocusRequest(control: RefObject<HTMLElement | null>, request: number): void {
+/**
+ * Moves the focus to a control on each new request, and says so. The focus keeper hands the focus on
+ * from a control that goes to this one; the cleanup runs before the control leaves the document, while
+ * it can still have the focus.
+ */
+function useFocus(
+  control: RefObject<HTMLElement | null>,
+  request: number,
+  onFocused: (() => void) | undefined,
+  keeper: FocusKeeper | undefined,
+): void {
+  const focused = useEffectEvent(() => onFocused?.());
   useEffect(() => {
-    if (request > 0) control.current?.focus();
+    if (request <= 0) return;
+    control.current?.focus();
+    focused();
   }, [control, request]);
+  useLayoutEffect(() => {
+    const element = control.current;
+    if (keeper?.take()) element?.focus();
+    return () => {
+      if (element && element === element.ownerDocument.activeElement) keeper?.leave();
+    };
+  }, [control, keeper]);
 }
 
 /** Joins the ids of what describes a control, leaving out those that are absent. */
 function describedByOf(...ids: (string | undefined)[]): string | undefined {
   const present = ids.filter((id) => id !== undefined && id !== '');
   return present.length > 0 ? present.join(' ') : undefined;
+}
+
+/**
+ * Why what was typed cannot be committed. It appears without the focus moving, so it is an alert:
+ * screen readers say it as it appears.
+ */
+export function InlineProblem({
+  id,
+  text,
+  inline = false,
+}: {
+  id: string;
+  text: string;
+  inline?: boolean;
+}) {
+  const Tag = inline ? 'span' : 'p';
+  return (
+    <Tag id={id} role="alert" className="inspector-problem">
+      {text}
+    </Tag>
+  );
 }
 
 interface TextControlProps extends ControlProps {
@@ -56,6 +105,11 @@ interface TextControlProps extends ControlProps {
   inputType?: 'text' | 'number';
   /** Why typed text cannot be committed; the control then keeps it and says why. */
   problemOf?: (text: string) => string | undefined;
+  /**
+   * Whether two texts stand for the same value, so that committing one in place of the other sends
+   * nothing; texts that are equal always do.
+   */
+  same?: (a: string, b: string) => boolean;
   /** Commits text that differs from the value; resolves once the project shows the result. */
   onCommit: (text: string) => Promise<unknown>;
 }
@@ -68,28 +122,37 @@ export function TextControl({
   disabled,
   describedBy,
   focusRequest = 0,
+  onFocused,
+  focusKeeper,
   value,
   multiline = false,
   inputType = 'text',
   problemOf,
+  same,
   onCommit,
 }: TextControlProps) {
   const [draft, setDraft] = useState<TextDraft>();
+  // The text last sent, until its answer comes.
+  const sent = useRef<string | undefined>(undefined);
   const control = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
-  useFocusRequest(control, focusRequest);
+  useFocus(control, focusRequest, onFocused, focusKeeper);
   const problemId = `${id}-problem`;
   const problem = draft?.problem;
 
   const save = async (text: string) => {
+    sent.current = text;
     await attempt(() => onCommit(text));
+    if (sent.current === text) sent.current = undefined;
     setDraft((current) => (current?.saving && current.text === text ? undefined : current));
   };
 
   const commit = () => {
     if (!draft || draft.saving) return;
     const { text } = draft;
-    if (text === value) {
-      setDraft(undefined);
+    const base = sent.current ?? value;
+    if (text === base || same?.(text, base) === true) {
+      // Nothing changes: the control shows the project's value, or the text on its way to it.
+      setDraft(sent.current === undefined ? undefined : { text: sent.current, saving: true });
       return;
     }
     const reason = problemOf?.(text);
@@ -133,11 +196,7 @@ export function TextControl({
       ) : (
         <input {...common} type={inputType} step={inputType === 'number' ? 'any' : undefined} />
       )}
-      {problem !== undefined && (
-        <p id={problemId} className="inspector-problem">
-          {problem}
-        </p>
-      )}
+      {problem !== undefined && <InlineProblem id={problemId} text={problem} />}
     </>
   );
 }
@@ -153,12 +212,14 @@ export function CheckboxControl({
   disabled,
   describedBy,
   focusRequest = 0,
+  onFocused,
+  focusKeeper,
   checked,
   onCommit,
 }: CheckboxControlProps) {
   const [pending, setPending] = useState<boolean>();
   const control = useRef<HTMLInputElement>(null);
-  useFocusRequest(control, focusRequest);
+  useFocus(control, focusRequest, onFocused, focusKeeper);
 
   const save = async (next: boolean) => {
     setPending(next);
@@ -188,26 +249,56 @@ interface SelectControlProps extends ControlProps {
   children: ReactNode;
 }
 
-/** A select, committed when another option is chosen. */
+/**
+ * Whether a key goes through the options of a closed select, as the arrow keys, Home, End, the page
+ * keys and typing a letter do on Windows and Linux; with Alt, an arrow opens the list instead.
+ */
+function browsesOptions(event: KeyboardEvent): boolean {
+  if (event.altKey || event.ctrlKey || event.metaKey) return false;
+  return (
+    /^(Arrow(Up|Down|Left|Right)|Home|End|Page(Up|Down))$/.test(event.key) ||
+    (event.key.length === 1 && event.key !== ' ')
+  );
+}
+
+/**
+ * A select. An option picked from the list is committed at once; an option the keys reach in a closed
+ * select only shows, and is committed with Enter or by leaving the select, so that going through the
+ * options sends one command, not one for each key. Escape goes back to the project's value.
+ */
 export function SelectControl({
   id,
   disabled,
   describedBy,
   focusRequest = 0,
+  onFocused,
+  focusKeeper,
   value,
   labelledBy,
   onCommit,
   children,
 }: SelectControlProps) {
+  // What was sent and waits for its answer, and an option the keys reached that is not sent yet.
   const [pending, setPending] = useState<string>();
+  const [reached, setReached] = useState<string>();
+  const sent = useRef<string | undefined>(undefined);
+  // Set by a key that goes through the options, until the change it makes, which comes in the same task.
+  const browsing = useRef(false);
   const control = useRef<HTMLSelectElement>(null);
-  useFocusRequest(control, focusRequest);
-  const shown = pending ?? value;
+  useFocus(control, focusRequest, onFocused, focusKeeper);
+  const shown = reached ?? pending ?? value;
 
   const save = async (next: string) => {
+    sent.current = next;
     setPending(next);
     await attempt(() => onCommit(next));
+    if (sent.current === next) sent.current = undefined;
     setPending((current) => (current === next ? undefined : current));
+  };
+
+  const commit = (next: string) => {
+    setReached(undefined);
+    if (next !== (sent.current ?? value)) void save(next);
   };
 
   return (
@@ -218,8 +309,31 @@ export function SelectControl({
       disabled={disabled}
       aria-labelledby={labelledBy}
       aria-describedby={describedBy}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' && reached !== undefined) {
+          event.preventDefault();
+          commit(reached);
+        } else if (event.key === 'Escape' && reached !== undefined) {
+          event.preventDefault();
+          setReached(undefined);
+        } else if (browsesOptions(event)) {
+          browsing.current = true;
+          setTimeout(() => {
+            browsing.current = false;
+          }, 0);
+        }
+      }}
       onChange={(event) => {
-        if (event.target.value !== shown) void save(event.target.value);
+        const next = event.target.value;
+        if (browsing.current) {
+          browsing.current = false;
+          setReached(next);
+        } else if (next !== shown) {
+          commit(next);
+        }
+      }}
+      onBlur={() => {
+        if (reached !== undefined) commit(reached);
       }}
     >
       {children}
@@ -246,26 +360,32 @@ export function ColorControl({
   disabled,
   describedBy,
   focusRequest = 0,
+  onFocused,
+  focusKeeper,
   label,
   value,
   onCommit,
 }: ColorControlProps) {
   const [draft, setDraft] = useState<string>();
   const [code, setCode] = useState<{ text: string; problem?: string }>();
+  // The colour last sent, until its answer comes.
+  const sent = useRef<string | undefined>(undefined);
   const control = useRef<HTMLInputElement>(null);
-  useFocusRequest(control, focusRequest);
+  useFocus(control, focusRequest, onFocused, focusKeeper);
   const shown = (draft ?? readColor(value) ?? value).toLowerCase();
   const codeId = `${id}-code`;
   const problemId = `${id}-code-problem`;
 
   const choose = (color: string) => {
-    if (sameColor(color, value)) {
-      setDraft(undefined);
+    if (sameColor(color, sent.current ?? value)) {
+      setDraft(sent.current);
       return;
     }
+    sent.current = color;
     setDraft(color);
     void (async () => {
       await attempt(() => onCommit(color));
+      if (sent.current === color) sent.current = undefined;
       setDraft((current) => (current === color ? undefined : current));
     })();
   };
@@ -331,11 +451,7 @@ export function ColorControl({
           }
         }}
       />
-      {code?.problem !== undefined && (
-        <span id={problemId} className="inspector-problem">
-          {code.problem}
-        </span>
-      )}
+      {code?.problem !== undefined && <InlineProblem id={problemId} text={code.problem} inline />}
     </span>
   );
 }

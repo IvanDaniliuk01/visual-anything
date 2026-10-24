@@ -1,5 +1,6 @@
 import { containmentTree, type ProjectSnapshot } from '@visual-anything/core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { drawnRelations } from '../canvas/navigation';
 import { buildScene } from '../canvas/scene';
 import { loadSample } from '../test/sample';
 import {
@@ -10,6 +11,13 @@ import {
   type RelationItem,
 } from './outlineItems';
 import { outerIdsOf, shownRows } from './tree';
+
+// The canvas's own relations, watched to see when the outline asks for them.
+vi.mock('../canvas/navigation', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../canvas/navigation')>();
+  return { ...actual, drawnRelations: vi.fn(actual.drawnRelations) };
+});
+const drawn = vi.mocked(drawnRelations);
 
 const sample = loadSample();
 const outline = outlineOf(buildScene(sample, 'system-overview'), sample);
@@ -143,6 +151,115 @@ describe('outlineOf', () => {
     expect(outline.placeOf({ kind: 'relation', id: 'api-in-scheduling' })).toBeUndefined();
     expect(outline.placeOf({ kind: 'element', id: 'gone' })).toBeUndefined();
     expect(outline.placeOf({ kind: 'free-shape', id: 'gone' })).toBeUndefined();
+  });
+
+  it('finds the first shape of an element', () => {
+    expect(outline.shapeOf('appointments-api')?.key).toBe(
+      'clinic-booking/scheduling/appointments-api',
+    );
+    expect(outline.shapeOf('api-reads-db')).toBeUndefined();
+  });
+});
+
+describe('outlineOf, for relations that end on relations', () => {
+  const project: ProjectSnapshot = {
+    ...sample,
+    model: {
+      ...sample.model,
+      relations: [
+        ...sample.model.relations,
+        { id: 'between', relationType: 'relates-to', from: 'api-reads-db', to: 'api-writes-db' },
+        {
+          id: 'contract',
+          relationType: 'systems.communicates-with',
+          from: 'reminder-service',
+          to: 'agent-to-api',
+          name: 'Contract',
+        },
+      ],
+    },
+  };
+  const related = outlineOf(buildScene(project, 'system-overview'), project);
+  const api = 'clinic-booking/scheduling/appointments-api';
+  const reads = `${api}#api-reads-db`;
+
+  it('lists a relation between two relations inside the row of each relation it ends on', () => {
+    const readsRow = item(reads, related);
+    expect(related.countInside(readsRow)).toBe(1);
+    expect(related.inside(readsRow)).toEqual([
+      expect.objectContaining({
+        kind: 'relation',
+        id: `${reads}#between`,
+        relation: 'between',
+        near: 'api-reads-db',
+        far: 'api-writes-db',
+        way: 'both',
+        farName: 'Appointments API writes to Appointments DB',
+      }),
+    ]);
+    expect(ids(related.inside(item(`${api}#api-writes-db`, related)))).toEqual([
+      `${api}#api-writes-db#between`,
+    ]);
+    // Inside the row of Appointments DB, at the other end of both relations, too.
+    expect(
+      ids(related.inside(item('clinic-booking/scheduling/appointments-db#api-reads-db', related))),
+    ).toEqual(['clinic-booking/scheduling/appointments-db#api-reads-db#between']);
+  });
+
+  it('lists a relation from an element to a relation under both', () => {
+    const agentToApi = item('clinic-booking/booking-agent#agent-to-api', related);
+    expect(ids(related.inside(agentToApi))).toEqual([
+      'clinic-booking/booking-agent#agent-to-api#contract',
+    ]);
+    expect(related.inside(agentToApi)[0]).toMatchObject({
+      near: 'agent-to-api',
+      far: 'reminder-service',
+      way: 'in',
+    });
+    expect(
+      ids(related.inside(item(`clinic-booking/scheduling/reminder-service`, related))),
+    ).toContain('clinic-booking/scheduling/reminder-service#contract');
+  });
+
+  it('finds the row of a relation between two relations, inside the first one’s row', () => {
+    expect(related.placeOf({ kind: 'relation', id: 'between' })).toEqual({
+      id: `${reads}#between`,
+      outer: ['clinic-booking', 'clinic-booking/scheduling', api, reads],
+    });
+    expect(related.placeOf({ kind: 'relation', id: 'contract' })).toEqual({
+      id: 'clinic-booking/scheduling/reminder-service#contract',
+      outer: [
+        'clinic-booking',
+        'clinic-booking/scheduling',
+        'clinic-booking/scheduling/reminder-service',
+      ],
+    });
+  });
+});
+
+describe('outlineOf, as the project changes', () => {
+  it('is the same outline for a scene that keeps the parts the outline reads', () => {
+    const scene = buildScene(sample, 'system-overview');
+    const first = outlineOf(scene, sample);
+    expect(outlineOf({ ...scene }, { ...sample })).toBe(first);
+  });
+
+  it('is a new outline once the model changes', () => {
+    const scene = buildScene(sample, 'system-overview');
+    const first = outlineOf(scene, sample);
+    const changed = { ...sample, model: { ...sample.model } };
+    expect(outlineOf(scene, changed)).not.toBe(first);
+  });
+
+  it('works out the order of the relations around a shape only once a row with relations is opened', () => {
+    const scene = buildScene(sample, 'system-overview');
+    const fresh = outlineOf(scene, { ...sample, model: { ...sample.model } });
+    drawn.mockClear();
+    const rows = shownRows(fresh, (each) => fresh.openAtFirst(each)).rows;
+    expect(rows.find((row) => row.id === 'clinic-booking/booking-agent')?.opens).toBe(true);
+    expect(drawn).not.toHaveBeenCalled();
+    expect(fresh.inside(item('clinic-booking/booking-agent', fresh))).toHaveLength(2);
+    expect(drawn).toHaveBeenCalled();
   });
 });
 

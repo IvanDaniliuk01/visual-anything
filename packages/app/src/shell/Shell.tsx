@@ -3,7 +3,7 @@ import type { ViewFile } from '@visual-anything/schema';
 import { useCallback, useId, useMemo, useState } from 'react';
 import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
 import { EditorContext, type Editor } from '../editor/EditorContext';
-import { EMPTY_SELECTION, prune, type Selection } from '../editor/selection';
+import { useSelection } from '../editor/useSelection';
 import { buildScene, type Scene } from '../canvas/scene';
 import { definitionsOf } from '@visual-anything/core';
 import { Header } from './Header';
@@ -24,26 +24,8 @@ interface ShellProps {
  */
 export function Shell({ project, notice, onCommand }: ShellProps) {
   const view = project.views[0];
-  const [chosen, setSelection] = useState<Selection>(EMPTY_SELECTION);
-  // What an edit removed, from here or elsewhere, drops out of the selection. The ids are gathered
-  // when the project changes, not on every selection, which at 10,000 elements would show.
-  const present = useMemo(
-    () => ({
-      elements: new Set(project.model.elements.map((element) => element.id)),
-      relations: new Set(project.model.relations.map((relation) => relation.id)),
-      freeShapes: new Set(view?.freeShapes.map((shape) => shape.id)),
-    }),
-    [project.model, view],
-  );
-  const selection = useMemo(
-    () =>
-      prune(chosen, {
-        element: (id) => present.elements.has(id),
-        relation: (id) => present.relations.has(id),
-        freeShape: (id) => present.freeShapes.has(id),
-      }),
-    [chosen, present],
-  );
+  // What an edit removed, from here or elsewhere, drops out of the selection.
+  const [selection, setSelection] = useSelection(project, view);
   const definitions = useMemo(() => definitionsOf(project.packages), [project.packages]);
   const scene = useMemo(() => (view ? buildScene(project, view.id) : undefined), [project, view]);
   const [revealed, setRevealed] = useState<{ key: string; request: number }>();
@@ -61,7 +43,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
       send: onCommand,
       reveal,
     }),
-    [project, definitions, view?.id, scene, selection, onCommand, reveal],
+    [project, definitions, view?.id, scene, selection, setSelection, onCommand, reveal],
   );
   const canvasHeading = useId();
 

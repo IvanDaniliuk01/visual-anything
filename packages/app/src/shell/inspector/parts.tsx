@@ -6,7 +6,8 @@ import {
   type ModelIndex,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
-import { useId, type ReactNode, type Ref } from 'react';
+import { useId, useRef, useState, type ReactNode, type Ref } from 'react';
+import { flushSync } from 'react-dom';
 import type { Selectable } from '../../editor/selection';
 import { relationLabel } from './describe';
 
@@ -142,5 +143,50 @@ export function Lineage({ names, none }: { names: readonly string[]; none: strin
         ))}
       </ol>
     </div>
+  );
+}
+
+/** How many items a list of the inspector shows until all of them are asked for. */
+const FIRST_ONES = 50;
+
+interface FirstOnesProps<T> {
+  labelledBy: string;
+  items: readonly T[];
+  keyOf: (item: T) => string;
+  /** What the items are, in the plural, for the button that shows them all. */
+  many: string;
+  render: (item: T) => ReactNode;
+}
+
+/**
+ * A list of things to select that shows the first ones, then all of them once asked: the focus moves
+ * from the button, which goes, to the first of the items it brought.
+ */
+export function FirstOnes<T>({ labelledBy, items, keyOf, many, render }: FirstOnesProps<T>) {
+  const [all, setAll] = useState(false);
+  const list = useRef<HTMLUListElement>(null);
+  const shown = all ? items : items.slice(0, FIRST_ONES);
+
+  const showAll = () => {
+    flushSync(() => setAll(true));
+    list.current?.children[FIRST_ONES]?.querySelector('button')?.focus();
+  };
+
+  return (
+    <>
+      <ul ref={list} className="inspector-selectables" aria-labelledby={labelledBy}>
+        {shown.map((item) => (
+          <li key={keyOf(item)}>{render(item)}</li>
+        ))}
+      </ul>
+      {shown.length < items.length && (
+        <p className="inspector-notes">
+          {shown.length} of {items.length} shown.{' '}
+          <button type="button" className="inspector-action" onClick={showAll}>
+            Show all {items.length} {many}
+          </button>
+        </p>
+      )}
+    </>
   );
 }

@@ -13,8 +13,9 @@ import { AppearanceSection } from './AppearanceSection';
 import { AttributesSection } from './AttributesSection';
 import { byPackage, relationLabel, relationSentence } from './describe';
 import { SelectControl, TextControl } from './controls';
-import { End, Lineage, SelectButton, Title } from './parts';
+import { End, FirstOnes, Lineage, SelectButton, Title } from './parts';
 import { perform } from './send';
+import { sameOptionalText } from './text';
 
 interface ElementInspectorProps {
   element: Element;
@@ -66,11 +67,10 @@ export function ElementInspector({
           value={element.description ?? ''}
           multiline
           disabled={disabled}
+          same={sameOptionalText}
           onCommit={async (text) => {
-            const description = text.trim() === '' ? undefined : text;
-            if (description !== element.description) {
-              await update({ description: description ?? null });
-            }
+            // An empty description removes it.
+            await update({ description: text.trim() === '' ? null : text });
           }}
         />
       </div>
@@ -173,7 +173,11 @@ interface PlacesSectionProps {
   onSelect: (item: Selectable) => void;
 }
 
-/** Where the element sits and how it relates: its containers, then every relation that ends on it. */
+/**
+ * Where the element sits and how it relates: its containers, then every relation that ends on it. A
+ * container that holds thousands of elements has a relation for each; the lists show the first ones
+ * until all are asked for, so that selecting it stays quick.
+ */
 function PlacesSection({ element, index, definitions, onSelect }: PlacesSectionProps) {
   const containersId = useId();
   const relationsId = useId();
@@ -186,13 +190,15 @@ function PlacesSection({ element, index, definitions, onSelect }: PlacesSectionP
       <section className="inspector-section" aria-labelledby={containersId}>
         <h4 id={containersId}>Containers</h4>
         {containers.length > 0 ? (
-          <ul className="inspector-selectables" aria-labelledby={containersId}>
-            {containers.map((id) => (
-              <li key={id}>
-                <End id={id} index={index} definitions={definitions} onSelect={onSelect} />
-              </li>
-            ))}
-          </ul>
+          <FirstOnes
+            labelledBy={containersId}
+            items={containers}
+            keyOf={(id) => id}
+            many="containers"
+            render={(id) => (
+              <End id={id} index={index} definitions={definitions} onSelect={onSelect} />
+            )}
+          />
         ) : (
           <p className="panel-empty">
             {isWorld ? 'World contains every other element.' : 'It sits directly in World.'}
@@ -202,20 +208,22 @@ function PlacesSection({ element, index, definitions, onSelect }: PlacesSectionP
       <section className="inspector-section" aria-labelledby={relationsId}>
         <h4 id={relationsId}>Relations</h4>
         {relations.length > 0 ? (
-          <ul className="inspector-selectables" aria-labelledby={relationsId}>
-            {relations.map((relation) => {
+          <FirstOnes
+            labelledBy={relationsId}
+            items={relations}
+            keyOf={(relation) => relation.id}
+            many="relations"
+            render={(relation) => {
               const sentence = relationSentence(index, definitions, relation);
               return (
-                <li key={relation.id}>
-                  <SelectButton
-                    name={relation.name === undefined ? sentence : relationLabel(index, relation)}
-                    detail={relation.name === undefined ? undefined : sentence}
-                    onSelect={() => onSelect({ kind: 'relation', id: relation.id })}
-                  />
-                </li>
+                <SelectButton
+                  name={relation.name === undefined ? sentence : relationLabel(index, relation)}
+                  detail={relation.name === undefined ? undefined : sentence}
+                  onSelect={() => onSelect({ kind: 'relation', id: relation.id })}
+                />
               );
-            })}
-          </ul>
+            }}
+          />
         ) : (
           <p className="panel-empty">No relation ends on it.</p>
         )}
