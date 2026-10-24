@@ -34,6 +34,8 @@ export interface Start {
 const ACROSS_WEIGHT = 2;
 /** How far, in scene units, a search first looks; it looks twice as far each time it finds nothing. */
 const FIRST_REACH = 256;
+/** How many relations away from an element a relation that ends on relations is looked for. */
+const MAX_HOPS = 32;
 
 export function rectOf(reachable: Reachable): Rect {
   switch (reachable.kind) {
@@ -81,7 +83,8 @@ export function directionScore(from: Rect, to: Rect, direction: Direction): numb
  * The nearest shape in a direction from `start`. The containers the start sits in surround it and the
  * shapes it holds lie within it, so neither counts, and neither do the other shapes of its element,
  * which a selection already holds. A container on the way is entered: the move goes on to the nearest
- * shape inside it, for as long as there is one in that direction.
+ * shape inside it, for as long as there is one in that direction, wherever its contents sit, even
+ * outside its rectangle.
  */
 export function nearestInDirection(
   indexed: IndexedScene,
@@ -103,7 +106,7 @@ export function nearestInDirection(
   ]);
   while (reached?.kind === 'shape' && reached.shape.holdsContents) {
     const container: ElementShape = reached.shape;
-    const inner = bestInDirection(indexed, start.rect, direction, container.rect, (rect) =>
+    const inner = bestInDirection(indexed, start.rect, direction, container.extent, (rect) =>
       shapesIn(
         indexed,
         rect,
@@ -132,14 +135,15 @@ export function nearestTo(indexed: IndexedScene, point: Point): Reachable | unde
       let best: Scored | undefined;
       const consider = (reachable: Reachable, rank: number) => {
         const score = distanceToRect(point, rectOf(reachable));
-        // At the same distance, what is drawn on top wins: free shapes, then inner shapes.
+        // At the same distance, what is drawn on top wins: free shapes, then the element shape drawn
+        // last.
         if (!best || score < best.score || (score === best.score && rank >= best.rank)) {
           best = { reachable, score, distance: 0, rank };
         }
       };
       for (const at of indexed.shapes.query(rect)) {
         const shape = indexed.scene.shapes[at] as ElementShape;
-        consider({ kind: 'shape', shape }, at);
+        consider({ kind: 'shape', shape }, indexed.rankOf[at] as number);
       }
       const above = indexed.scene.shapes.length;
       for (const at of indexed.notes.query(rect)) {
@@ -159,7 +163,10 @@ export function containerOf(indexed: IndexedScene, shape: ElementShape): Element
   return shape.containerShape === undefined ? undefined : indexed.byKey.get(shape.containerShape);
 }
 
-/** The shape inside a container whose top left corner is nearest the container's own. */
+/**
+ * The shape inside a container whose top left corner is nearest the container's own, wherever its
+ * contents sit, even outside its rectangle.
+ */
 export function firstInside(
   indexed: IndexedScene,
   container: ElementShape,
@@ -167,9 +174,9 @@ export function firstInside(
   if (!container.holdsContents) return undefined;
   const corner = { x: container.rect.x, y: container.rect.y };
   const found = search(
-    container.rect,
+    container.extent,
     (reach) => around(corner, reach),
-    farthestCorner(corner, container.rect),
+    farthestCorner(corner, container.extent),
     (rect) => {
       let best: Scored | undefined;
       for (const content of shapesIn(
@@ -186,12 +193,32 @@ export function firstInside(
   return found?.reachable.kind === 'shape' ? found.reachable.shape : undefined;
 }
 
+/** A relation ] and [ step through from an element, and the end it is reached through. */
+export interface RelationStop {
+  line: RelationLine;
+  /** The element it is drawn on, or the relation it ends on when it reaches the element only through that one. */
+  on: Id;
+}
+
 /** The relations a view draws, seen from the elements they relate. */
 export interface DrawnRelations {
   /** The shape an element's relations are drawn from: its first one. */
   shapeOf(element: Id): ElementShape | undefined;
   /** The relations drawn on an element, clockwise around its shape from the top. */
   around(element: Id): readonly RelationLine[];
+  /** The relations drawn that end on a relation, in the model's order, as the outline lists them. */
+  endingOn(relation: Id): readonly RelationLine[];
+  /**
+   * The relations ] and [ step through from an element, each once: those drawn on it, clockwise from
+   * the top, each followed by the relations that end on it, and so on, as the outline lists them with
+   * every row open.
+   */
+  steps(element: Id): readonly RelationStop[];
+  /**
+   * The element a drawn relation is stepped through from: the end it starts from, or else the one it
+   * points to, when either has a shape; else the element of a relation it ends on.
+   */
+  elementOf(relation: Id): Id | undefined;
   /** How a relation is drawn; undefined when the view does not draw it. */
   line(relation: Id): RelationLine | undefined;
   /** The relation in the model. */
@@ -203,7 +230,8 @@ const drawnCache = new WeakMap<Scene, { model: ModelFile; drawn: DrawnRelations 
 /**
  * The relations a scene draws, by the elements they relate: worked out once for each scene, which the
  * canvas and the outline share. A relation is drawn from the first shape of each element it relates;
- * its place around that shape is where its line leaves or reaches the shape's outline.
+ * its place around that shape is where its line leaves or reaches the shape's outline. A relation
+ * between relations is drawn on no element, and is reached through the relations it ends on.
  */
 export function drawnRelations(scene: Scene, project: ProjectSnapshot): DrawnRelations {
   const cached = drawnCache.get(scene);
@@ -216,6 +244,7 @@ export function drawnRelations(scene: Scene, project: ProjectSnapshot): DrawnRel
   }
   const lines = new Map<Id, RelationLine>();
   const turns = new Map<Id, { line: RelationLine; turn: number; order: number }[]>();
+  const onRelations = new Map<Id, RelationLine[]>();
   scene.relations.forEach((line, order) => {
     lines.set(line.relation, line);
     const relation = index.relation(line.relation);
@@ -226,11 +255,11 @@ export function drawnRelations(scene: Scene, project: ProjectSnapshot): DrawnRel
     ];
     for (const [end, point] of ends) {
       const shape = firstShapes.get(end);
-      if (!shape) continue;
-      const entry = { line, turn: turnOf(centerOf(shape.rect), point), order };
-      const list = turns.get(end);
-      if (list) list.push(entry);
-      else turns.set(end, [entry]);
+      if (!shape) {
+        if (index.relation(end)) append(onRelations, end, line);
+        continue;
+      }
+      append(turns, end, { line, turn: turnOf(centerOf(shape.rect), point), order });
     }
   });
   const around = new Map<Id, RelationLine[]>();
@@ -242,9 +271,44 @@ export function drawnRelations(scene: Scene, project: ProjectSnapshot): DrawnRel
     );
   }
 
+  const endingOn = (relation: Id): readonly RelationLine[] => onRelations.get(relation) ?? [];
+  const stepsOf = new Map<Id, readonly RelationStop[]>();
+  const steps = (element: Id): readonly RelationStop[] => {
+    let found = stepsOf.get(element);
+    if (found) return found;
+    const direct = around.get(element) ?? [];
+    const listed = new Set(direct.map((line) => line.relation));
+    const list: RelationStop[] = [];
+    const visit = (line: RelationLine, on: Id): void => {
+      list.push({ line, on });
+      for (const inner of endingOn(line.relation)) {
+        if (listed.has(inner.relation)) continue;
+        listed.add(inner.relation);
+        visit(inner, line.relation);
+      }
+    };
+    for (const line of direct) visit(line, element);
+    found = list;
+    stepsOf.set(element, found);
+    return found;
+  };
+  const elementOf = (id: Id, hops = 0): Id | undefined => {
+    const relation = lines.has(id) ? index.relation(id) : undefined;
+    if (!relation || hops > MAX_HOPS) return undefined;
+    for (const end of [relation.from, relation.to]) if (firstShapes.has(end)) return end;
+    for (const end of [relation.from, relation.to]) {
+      const element = elementOf(end, hops + 1);
+      if (element !== undefined) return element;
+    }
+    return undefined;
+  };
+
   const drawn: DrawnRelations = {
     shapeOf: (element) => firstShapes.get(element),
     around: (element) => around.get(element) ?? [],
+    endingOn,
+    steps,
+    elementOf: (relation) => elementOf(relation),
     line: (relation) => lines.get(relation),
     relation: (id) => index.relation(id),
   };
@@ -253,8 +317,9 @@ export function drawnRelations(scene: Scene, project: ProjectSnapshot): DrawnRel
 }
 
 /**
- * The relation one step from `current` among those drawn on an element, wrapping around: the next for
- * `1`, the one before for `-1`. Without a current one of the element's, the first or the last.
+ * The relation one step from `current` among those ] and [ step through from an element (`steps`),
+ * wrapping around: the next for `1`, the one before for `-1`. Without a current one of the element's,
+ * the first or the last.
  */
 export function stepRelation(
   drawn: DrawnRelations,
@@ -262,11 +327,11 @@ export function stepRelation(
   current: Id | undefined,
   step: 1 | -1,
 ): RelationLine | undefined {
-  const lines = drawn.around(element);
-  if (lines.length === 0) return undefined;
-  const at = current === undefined ? -1 : lines.findIndex((line) => line.relation === current);
-  if (at === -1) return step === 1 ? lines[0] : lines.at(-1);
-  return lines[(at + step + lines.length) % lines.length];
+  const stops = drawn.steps(element);
+  if (stops.length === 0) return undefined;
+  const at = current === undefined ? -1 : stops.findIndex((stop) => stop.line.relation === current);
+  if (at === -1) return (step === 1 ? stops[0] : stops.at(-1))?.line;
+  return stops[(at + step + stops.length) % stops.length]?.line;
 }
 
 /** The end of a relation away from `near`; the end it points to when `near` is neither end. */
@@ -432,6 +497,12 @@ function farthestCorner(point: Point, rect: Rect): number {
   const dx = Math.max(Math.abs(point.x - rect.x), Math.abs(point.x - (rect.x + rect.width)));
   const dy = Math.max(Math.abs(point.y - rect.y), Math.abs(point.y - (rect.y + rect.height)));
   return Math.hypot(dx, dy);
+}
+
+function append<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
 }
 
 /** Where a point lies around a center, as a turn clockwise from straight up, between 0 and 2π. */
