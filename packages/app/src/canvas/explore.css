@@ -1,0 +1,194 @@
+/*
+ * Exploring from the canvas toolbar: the perspective switcher, the filters' button and panel, focus
+ * mode, and the strip under the toolbar. Only the tokens of styles.css, whose text pairs meet WCAG 2.1
+ * AA contrast (4.5:1).
+ */
+
+/* The toolbar wraps on a narrow canvas, and the strip takes a line of its own at its end. */
+.canvas-toolbar {
+  flex-wrap: wrap;
+  row-gap: 0.4rem;
+}
+
+.canvas-toolbar-explore {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.canvas-toolbar-perspective select {
+  max-width: 16rem;
+}
+
+.canvas-toolbar button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.canvas-toolbar-filters {
+  position: relative;
+}
+
+/* The filters' panel, under its button. */
+.explore-panel {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  z-index: 3;
+  width: 22rem;
+  max-width: calc(100vw - 2rem);
+  max-height: 28rem;
+  overflow: auto;
+  padding: 0.6rem 0.75rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  box-shadow: 0 8px 24px rgb(16 24 40 / 16%);
+}
+
+.explore-panel-note {
+  margin: 0.2rem 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.explore-panel-group {
+  margin: 0.6rem 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.explore-panel-group legend {
+  margin-bottom: 0.25rem;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.explore-panel-all {
+  display: flex;
+  gap: 0.3rem;
+  margin-bottom: 0.2rem;
+}
+
+.explore-choices,
+.explore-conditions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.explore-choices label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0;
+  cursor: pointer;
+}
+
+.explore-choice-count {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.explore-condition {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.4rem;
+}
+
+.explore-condition input {
+  min-width: 0;
+  flex: 1 1 6rem;
+}
+
+.explore-panel input:not([type='checkbox']),
+.explore-panel select,
+.explore-strip select {
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.3rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.explore-panel button {
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.explore-panel button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.explore-panel button:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.explore-panel :is(button, input, select):focus-visible,
+.explore-strip :is(button, input, select):focus-visible,
+.canvas-toolbar-explore :is(button, select):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.explore-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+/*
+ * The strip: a line of its own under the toolbar, which lets the pointer through between its parts,
+ * as the toolbar does.
+ */
+.canvas-toolbar > .explore-strip {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+
+.explore-strip-part {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 6%);
+  pointer-events: auto;
+}
+
+.explore-strip-part label {
+  color: var(--text-muted);
+}
+
+.explore-strip-part .explore-isolate {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text);
+}

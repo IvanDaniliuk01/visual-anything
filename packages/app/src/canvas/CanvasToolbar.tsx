@@ -2,6 +2,7 @@ import { definitionsOf, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useMemo, useRef, useState, type KeyboardEvent, type Ref } from 'react';
 import './drop.css';
+import { ExploreControls, ExploreStrip } from './ExploreBar';
 import {
   STACKING_KEYS,
   STACKING_MOVES,
@@ -102,6 +103,7 @@ export function CanvasToolbar({
           ))}
         </div>
       )}
+      <ExploreControls />
       <span className="canvas-toolbar-spacer" />
       <button type="button" aria-label="Zoom out" onClick={() => onZoom(1 / 1.25)}>
         −
@@ -115,6 +117,7 @@ export function CanvasToolbar({
       <button type="button" onClick={onFit}>
         Fit
       </button>
+      <ExploreStrip />
     </div>
   );
 }

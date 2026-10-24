@@ -147,6 +147,18 @@ A way of acting on the model or a view. There are four: explore, play, simulate 
 **Explore**:
 To move through a model without changing it: expand, collapse, filter, focus, follow a relation.
 
+**Filter**:
+A choice, kept by the open app for one view, of components, relation types and conditions on attributes whose shapes the view hides; nothing moves. A relation shows only while both its ends do, and a container that holds a shape still shown stays, drawn faintly.
+_Avoid_: query, hide rule, layer
+
+**Focus**:
+Reading a view from the selection: what the selection reaches through relations, up to some degrees and in one direction or both, stays as it is, and the rest is drawn faintly. It follows the selection while it is on.
+_Avoid_: highlight, spotlight, neighborhood, ego network
+
+**Isolate**:
+Focus that hides what the selection does not reach, instead of drawing it faintly; the containers of what it reaches stay, drawn faintly.
+_Avoid_: solo, hide others
+
 **Play**:
 To step through an already defined sequence over the model: a scenario or a tour.
 _Avoid_: animate, replay

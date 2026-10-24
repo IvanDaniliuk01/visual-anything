@@ -7,6 +7,7 @@ import type { Id } from '@visual-anything/schema';
 import { createContext, useContext } from 'react';
 import type { SendCommand } from '../canvas/CanvasArea';
 import type { Scene } from '../canvas/scene';
+import type { Explore } from '../canvas/useExplorer';
 import type { Selection } from './selection';
 
 export interface Editor {
@@ -35,6 +36,11 @@ export interface Editor {
    * over its view does. The shell always sets it; it is optional only so that tests can leave it out.
    */
   openView?: (viewId: Id) => void;
+  /**
+   * How the open view is explored: its filters and focus, which the shell keeps for each view while
+   * the project is open. The shell always sets it; it is optional only so that tests can leave it out.
+   */
+  explore?: Explore;
 }
 
 export const EditorContext = createContext<Editor | undefined>(undefined);
