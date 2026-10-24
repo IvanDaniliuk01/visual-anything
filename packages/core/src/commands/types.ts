@@ -293,10 +293,15 @@ export interface ChangeContainerCommand {
     /** The container its shape sits in now; absent, or World's id, when it sits directly in World. */
     from?: Id;
     /**
-     * Where its shape goes, relative to the shape of `to`, or to the canvas in World; kept as a
-     * pinned position. Without it, a position stored there before is used, or layout places the shape.
+     * Where its shape goes, relative to the shape of `to`, or to the canvas in World. Without it, a
+     * position stored there before is used, or layout places the shape.
      */
     at?: { x: number; y: number; width?: number; height?: number };
+    /**
+     * Whether `at` is kept pinned, as a place someone chose by hand (the default, as for a drop), or
+     * left for layout to change, as a place the program chose beside the container is.
+     */
+    pinned?: boolean;
   }[];
 }
 
