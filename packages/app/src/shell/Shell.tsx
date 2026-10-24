@@ -7,6 +7,8 @@ import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
 import { useSelection } from '../editor/useSelection';
 import { buildScene, type Scene } from '../canvas/scene';
 import { definitionsOf } from '@visual-anything/core';
+import { ScenarioPanel } from '../scenarios/ScenarioPanel';
+import { ScenarioSession } from '../scenarios/session';
 import { Header } from './Header';
 import { Inspector } from './Inspector';
 import { ModelPanel } from './ModelPanel';
@@ -52,6 +54,8 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   const canvasHeading = useId();
   // What filters, focus, playback and guidance emphasize on the canvas, each as its own source.
   const [emphasis] = useState(() => new EmphasisStore());
+  // The scenario open in the scenario panel, with its playback and its recording on the canvas.
+  const [scenarios] = useState(() => new ScenarioSession());
 
   return (
     <EditorContext.Provider value={editor}>
@@ -78,12 +82,14 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                 onSelect={setSelection}
                 {...(onCommand ? { onCommand } : {})}
                 {...(revealed ? { revealed } : {})}
+                scenarios={scenarios}
               />
             ) : (
               <p className="canvas-message">There is no view to draw.</p>
             )}
           </main>
           <Inspector view={view} scene={scene} definitions={definitions} />
+          <ScenarioPanel session={scenarios} />
         </div>
       </EmphasisContext.Provider>
     </EditorContext.Provider>
