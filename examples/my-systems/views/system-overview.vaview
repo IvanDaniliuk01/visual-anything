@@ -1,0 +1,31 @@
+{
+  "id": "system-overview",
+  "name": "System overview",
+  "description": "How a booking request travels from the patient to the calendar.",
+  "perspective": {
+    "name": "Data flow",
+    "description": "Who sends what to whom, and where data is read and written."
+  },
+  "nestingRelationTypes": ["systems.is-part-of"],
+  "positions": [
+    { "element": "patient", "x": 40, "y": 200, "pinned": true },
+    { "element": "clinic-booking", "x": 240, "y": 40, "width": 980, "height": 480 },
+    { "element": "whatsapp", "container": "clinic-booking", "x": 40, "y": 164 },
+    { "element": "booking-agent", "container": "clinic-booking", "x": 260, "y": 164 },
+    { "element": "scheduling", "container": "clinic-booking", "x": 500, "y": 60, "width": 440, "height": 380 },
+    { "element": "appointments-api", "container": "scheduling", "x": 40, "y": 104 },
+    { "element": "reminder-service", "container": "scheduling", "x": 240, "y": 104 },
+    { "element": "appointments-db", "container": "scheduling", "x": 40, "y": 264 }
+  ],
+  "freeShapes": [
+    {
+      "kind": "note",
+      "id": "calendar-note",
+      "x": 240,
+      "y": 560,
+      "width": 460,
+      "height": 72,
+      "text": "Scheduling owns the calendar: only the Appointments API reads and writes the Appointments DB."
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@visual-anything/core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The model, its commands, invariants and undo history. Pure TypeScript with no I/O.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "@visual-anything/schema": "workspace:*"
+  }
+}

@@ -201,11 +201,11 @@ Seven milestones in build order, each ending in something you can use; tasks are
 
 **M0 · Skeleton.** Done when one command opens the browser on a sample project showing a static view.
 
-- [ ] Create the monorepo with pnpm workspaces: core, server, app, schema
-- [ ] Define the project file types and generate the JSON Schema from them
-- [ ] Local program: serve the app on 127.0.0.1, open the browser, load a project folder
-- [ ] App shell in React: header, model panel, canvas area, inspector
-- [ ] Continuous integration: type checks, lint, tests
+- [x] Create the monorepo with pnpm workspaces: core, server, app, schema
+- [x] Define the project file types and generate the JSON Schema from them
+- [x] Local program: serve the app on 127.0.0.1, open the browser, load a project folder
+- [x] App shell in React: header, model panel, canvas area, inspector
+- [x] Continuous integration: type checks, lint, tests
 
 **M1 · Model core.** Done when the core passes property tests for undo, cascades and containment cycles, and a project folder round-trips without changes.
 
