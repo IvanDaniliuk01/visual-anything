@@ -54,6 +54,32 @@ export function visibleRect(camera: Camera, viewport: Size): Rect {
   };
 }
 
+/**
+ * The camera that brings `rect` into sight: none when it is wholly on screen at `scale` or larger;
+ * otherwise one centered on it, at that scale or the present one when larger.
+ */
+export function revealCamera(
+  camera: Camera,
+  viewport: Size,
+  rect: Rect,
+  scale: number,
+): Camera | undefined {
+  const shown = visibleRect(camera, viewport);
+  const onScreen =
+    rect.x >= shown.x &&
+    rect.y >= shown.y &&
+    rect.x + rect.width <= shown.x + shown.width &&
+    rect.y + rect.height <= shown.y + shown.height;
+  if (onScreen && camera.scale >= scale) return undefined;
+  const next = clampScale(Math.max(camera.scale, scale));
+  const middle = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+  return {
+    scale: next,
+    x: viewport.width / 2 - middle.x * next,
+    y: viewport.height / 2 - middle.y * next,
+  };
+}
+
 /** How much a wheel turn zooms: a notch of a mouse wheel zooms by about 10%. */
 export function wheelFactor(deltaY: number): number {
   return Math.exp(-deltaY * 0.001 * 1.05);
