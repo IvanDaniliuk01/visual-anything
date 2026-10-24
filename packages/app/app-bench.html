@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Visual Anything · app benchmark</title>
+    <style>
+      #app-bench {
+        position: absolute;
+        inset: 0 20rem 0 0;
+      }
+      #results {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 20rem;
+        box-sizing: border-box;
+        padding: 1rem;
+        overflow: auto;
+        border-left: 1px solid #d9dee5;
+        background: #f7f8fa;
+        color: #1f2933;
+        font-family: system-ui, sans-serif;
+        font-size: 0.85rem;
+      }
+      #results h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.2rem;
+      }
+      #results p {
+        margin: 0.5rem 0;
+      }
+      #results table {
+        width: 100%;
+        margin: 0.5rem 0 1rem;
+        border-collapse: collapse;
+      }
+      #results th,
+      #results td {
+        padding: 0.25rem 0.3rem;
+        border-bottom: 1px solid #d9dee5;
+        text-align: right;
+      }
+      #results th:first-child,
+      #results td:first-child {
+        text-align: left;
+      }
+      #results caption {
+        text-align: left;
+        font-weight: 600;
+      }
+      .pass {
+        color: #1e6b43;
+      }
+      .fail {
+        color: #a61b1b;
+      }
+      #notes {
+        white-space: pre-line;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app-bench"></div>
+    <section id="results" aria-live="polite">
+      <h1>App benchmark</h1>
+      <p>Keep this window in front while it runs: panning and zooming are timed as frames shown.</p>
+      <p id="status">Building the synthetic project…</p>
+      <p id="verdict"></p>
+      <table id="steps" hidden>
+        <caption>
+          Interactions, from the input event to two frames after React committed
+        </caption>
+        <thead>
+          <tr>
+            <th>Phase</th>
+            <th>Steps</th>
+            <th>p50 ms</th>
+            <th>p95 ms</th>
+            <th>Worst ms</th>
+            <th>Work p95</th>
+            <th>Mark</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <table id="frames" hidden>
+        <caption>
+          Pan and zoom, frames as shown
+        </caption>
+        <thead>
+          <tr>
+            <th>Phase</th>
+            <th>Avg ms</th>
+            <th>p95 ms</th>
+            <th>Worst ms</th>
+            <th>Work avg / p95 / worst</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <table id="parts" hidden>
+        <caption>
+          Where the time of a change goes, in ms
+        </caption>
+        <thead>
+          <tr>
+            <th>Part</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p id="notes"></p>
+    </section>
+    <script type="module" src="/src/bench/app.tsx"></script>
+  </body>
+</html>
