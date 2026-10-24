@@ -45,7 +45,9 @@ describe('package images in the schema', () => {
     const file = clinic({ images: [SVG, BITMAP] });
     expect(validateFile('package', file)).toEqual({ ok: true, value: file });
     const none = clinic({
-      components: [{ id: 'clinic.x', name: 'X', derivesFrom: 'essence', appearance: { image: 'none' } }],
+      components: [
+        { id: 'clinic.x', name: 'X', derivesFrom: 'essence', appearance: { image: 'none' } },
+      ],
     });
     expect(validateFile('package', none).ok).toBe(true);
     const tinted = clinic({
@@ -74,14 +76,19 @@ describe('package images in the schema', () => {
   });
 
   it('refuses bitmaps over 1,024 pixels a side, of other formats or with data that is not base64', () => {
-    expect(validateFile('package', clinic({ images: [{ ...BITMAP, width: 1025 }] })).ok).toBe(false);
+    expect(validateFile('package', clinic({ images: [{ ...BITMAP, width: 1025 }] })).ok).toBe(
+      false,
+    );
     const gif = { ...BITMAP, format: 'gif' };
     expect(validateFile('package', { ...clinic(), images: [gif] }).ok).toBe(false);
-    expect(validateFile('package', clinic({ images: [{ ...BITMAP, data: 'a:b/' }] })).ok).toBe(false);
+    expect(validateFile('package', clinic({ images: [{ ...BITMAP, data: 'a:b/' }] })).ok).toBe(
+      false,
+    );
   });
 
   it('refuses an image without its kind with one error about the kind', () => {
-    const { kind: _kind, ...withoutKind } = SVG;
+    const withoutKind: Record<string, unknown> = { ...SVG };
+    delete withoutKind.kind;
     const result = validateFile('package', { ...clinic(), images: [withoutKind] });
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -104,7 +111,15 @@ describe('package images in the schema', () => {
     const shuffled = {
       images: [
         { svg: SVG.svg, height: 24, width: 24, name: SVG.name, id: SVG.id, kind: 'svg' as const },
-        { data: BITMAP.data, height: 1, width: 1, format: 'png' as const, name: 'B', id: BITMAP.id, kind: 'bitmap' as const },
+        {
+          data: BITMAP.data,
+          height: 1,
+          width: 1,
+          format: 'png' as const,
+          name: 'B',
+          id: BITMAP.id,
+          kind: 'bitmap' as const,
+        },
       ],
       relationTypes: [],
       components: [],

@@ -4,6 +4,7 @@
  * warnings are shown and the project opens.
  */
 import type { Id } from '@visual-anything/schema';
+import { checkImages } from './images/check';
 import { positionKey } from './operations';
 import { problem, type Problem } from './problems';
 import { containmentCycles, limitWarnings } from './rules';
@@ -233,6 +234,9 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
       ),
     );
   }
+  const images = checkImages(state);
+  errors.push(...images.errors);
+  warnings.push(...images.warnings);
   return { errors, warnings };
 }
 

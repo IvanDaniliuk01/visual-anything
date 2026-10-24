@@ -28,6 +28,13 @@ export type ProblemCode =
   | 'defined-twice'
   | 'built-in-package'
   | 'in-use'
+  // Images: refused, changed by cleaning, or warned about on open.
+  | 'invalid-image'
+  | 'image-too-large'
+  | 'image-cleaned'
+  | 'image-not-clean'
+  | 'unknown-image'
+  | 'large-images'
   // Refusals of the local program, which keeps the history and the files.
   | 'nothing-to-undo'
   | 'nothing-to-redo'
