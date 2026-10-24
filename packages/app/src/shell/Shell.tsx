@@ -1,5 +1,5 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
-import type { ViewFile } from '@visual-anything/schema';
+import type { Id, ViewFile } from '@visual-anything/schema';
 import { useCallback, useId, useMemo, useState } from 'react';
 import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
 import { EditorContext, type Editor } from '../editor/EditorContext';
@@ -21,10 +21,12 @@ interface ShellProps {
 
 /**
  * The app shell: the header, the model panel, the canvas area and the inspector. The canvas draws the
- * project's first view; choosing another view comes with views and perspectives (M3).
+ * open view: the project's first one until another is opened, and the first again when the open one
+ * is deleted.
  */
 export function Shell({ project, notice, onCommand }: ShellProps) {
-  const view = project.views[0];
+  const [openViewId, setOpenViewId] = useState<Id>();
+  const view = project.views.find((each) => each.id === openViewId) ?? project.views[0];
   // What an edit removed, from here or elsewhere, drops out of the selection.
   const [selection, setSelection] = useSelection(project, view);
   const definitions = useMemo(() => definitionsOf(project.packages), [project.packages]);
@@ -43,6 +45,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
       select: setSelection,
       send: onCommand,
       reveal,
+      openView: setOpenViewId,
     }),
     [project, definitions, view?.id, scene, selection, setSelection, onCommand, reveal],
   );
