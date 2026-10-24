@@ -25,7 +25,7 @@ v0.1 covers the model, views, layout, scenarios and Claude through MCP; anything
 | --- | --- | --- |
 | Model | Elements, relations, attributes, particularities, World | — |
 | Components and relation types | Built-in "Systems" package; new ones written in JSON, by hand or by Claude | Created from the canvas; programmable ones (case 4) |
-| Views | One perspective each, nesting chosen per view, collapse and expand, filters, focus mode | — |
+| Views | One perspective each, nesting chosen per view, stacking order, collapse and expand, filters, focus mode | — |
 | Layout | ELK automatic layout, pinned shapes, orthogonal routing | — |
 | Free shapes | Note and arrow | More shapes |
 | Scenarios | Record, play, data per step, simultaneous relations, aggregated steps | Import real traces through a package |
@@ -131,7 +131,7 @@ my-systems/
 ```
 
 - Ids are generated once and never reused; files refer to each other only by id.
-- Positions live only in view files, so moving shapes never touches the model.
+- Positions and stacking orders live only in view files, so moving shapes or changing which is drawn in front never touches the model; dropping a shape into or out of a container changes its containment, which is part of the model.
 - No file contains code that runs. Programmable code, after v0.1, lives in packages and runs sandboxed.
 - Writes are atomic (a temporary file, then a rename), so a crash never leaves a half-written file. Changes made outside the app, such as a git pull, are reloaded with a notice.
 
@@ -145,7 +145,7 @@ The canvas draws one view at a time with WebGL, and every layout decision is kep
 - **Perspective**: fixed per view; the toolbar switches between views over the same part of the model.
 - **Explore**: filters by component, relation type or attribute hide shapes without moving any; focus mode dims everything not connected to the selection; any relation can be followed to its other end.
 - **Layout**: ELK runs in a worker for shapes without a position and on demand; pinned shapes are fixed inputs, and results animate in when ready.
-- **Edit**: create from the component palette, connect, move, rename inline, edit attributes and particularities in the inspector, and delete with a preview of what cascades; undo and redo.
+- **Edit**: create from the component palette, directly in World, inside the selected container or next to the selected element, or inside any element from its menu; connect; move, putting shapes inside a container by dropping them on it and taking them out by dragging them clear of it (hold Alt to move only), or from the shape menu and the inspector; bring to front, bring forward, send backward and send to back; rename inline; edit attributes and particularities in the inspector; and delete with a preview of what cascades; undo and redo.
 - **Text**: edited in an HTML layer placed over the shape, then drawn back on the canvas.
 
 ## Scenarios
@@ -165,9 +165,9 @@ Through MCP, Claude can do everything you can do in v0.1, and each of its write 
 
 | Group | What Claude can do |
 | --- | --- |
-| Read | Summarize the project; query elements and relations by component, attribute or container; read a view or a scenario |
-| Model | Create, update and delete elements, relations, attributes and particularities; define components and relation types in JSON |
-| Views | Create views; set the perspective and nesting relation types; collapse, expand and filter; run layout |
+| Read | Summarize the project; query elements and relations by component, attribute or container; read a view, with its positions and the order it draws the shapes in each container, or a scenario |
+| Model | Create, update and delete elements, relations, attributes and particularities; define components and relation types in JSON; put elements inside containers and take them out |
+| Views | Create views; set the perspective, nesting relation types and stacking order; collapse, expand and filter; run layout |
 | Guide (live) | Highlight, focus, pan to a shape, show a short caption and step through a scenario, while the app is open |
 | Scenarios | Create a scenario from steps, from a description or from a log; play it |
 
@@ -223,6 +223,7 @@ Seven milestones in build order, each ending in something you can use; tasks are
 - [x] Free shapes: note and arrow
 - [x] Keyboard navigation and outline panel
 - [x] Benchmark with a synthetic 10,000-element view
+- [ ] Stacking order per view, drawn and pointed at in the same order; put shapes inside containers and take them out from the canvas, the shape menu and the inspector; create inside the selected container, next to the selected element, or inside any element
 
 **M3 · Views and layout.** Done when you can collapse a container and read its aggregated relations, and switch between two perspectives of the same system.
 
