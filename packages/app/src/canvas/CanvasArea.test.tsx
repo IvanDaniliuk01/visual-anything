@@ -1154,6 +1154,10 @@ describe('Adding elements', () => {
     point('pointerup', host, patient.x, patient.y);
     const select = screen.getByRole('combobox', { name: 'Add an element' });
     expect(within(select).getAllByRole('option')[0]).toHaveTextContent('Add element…');
+    expect(select).toHaveAttribute(
+      'title',
+      'Adds the element directly in World, beside "Patient". To add inside "Patient" itself, use Add inside "Patient"… in its menu or in the inspector.',
+    );
 
     await addService('Billing');
     // Beside Patient lies Clinic booking, so Billing goes on to the right until it is clear of it.
