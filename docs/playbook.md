@@ -26,12 +26,16 @@ Every milestone runs the same five steps:
 | M0 · Skeleton | — | Workspace, base config, the four packages with their minimal interfaces, the sample project | Schema; server; app shell |
 | M1 · Model core | M0 | Model types, commands and history, rules and invariants, test-first | Once those are merged: project I/O; the built-in Systems package |
 | M2 · Canvas | M1 | PixiJS renderer, selection, pan, zoom, move and connect | Inspector with inline text editing; keyboard navigation with the outline panel; the 10,000-element benchmark |
-| M3 · Views and layout | M2 | Views and perspectives, nesting with several containers, collapse with aggregated relations | ELK layout worker; filters and focus mode |
+| M3 · Views, layout and tables | M2 | The security fixes; the scene and renderer seams (incremental scenes, rows); appearance traits, commands and the Data modeling package in the schema and core; views and perspectives, nesting with several containers, collapse with aggregated relations | ELK layout worker; filters and focus mode; tables on the canvas |
+| M3b · Component editor and images | M3 | Images in the schema and core; the page and worker policies; the renderer's image seam | The component editor; images on the canvas with their benchmark; the image MCP tools, after M4's entry point |
 | M4 · Claude through MCP | M1 for the tools, M3 for live guidance | MCP stdio entry point, live guidance over the WebSocket, tool descriptions | Read and query tools; write tools |
 | M5 · Scenarios | M3 and M4 | Scenario files, aggregated steps, broken steps | Recording and playback in the app; the scenario MCP tools |
 | M6 · Dogfooding and v0.1 | M5 | Everything, together with the user | — |
+| Track A · Look and feel | M2 for A1; `a1` for A2; M3's canvas tasks for A3; M4 for A4 | Core foundations: colors, preferences, protocol, dark shades; project appearances and their commands; sizes on the 8-unit step | Server preferences; app preferences and the header; shell polish; canvas theme; canvas colors; inspector color editing; grid; snapping; rulers |
 
-M4's tools depend only on M1, so they can be built in a second Claude Code session in its own worktree while M2 is under way: `claude --worktree mcp-tools`. Do it only when you can review two streams of work at once; otherwise follow the spec's order.
+M4's tools depend only on M1, so they can be built in a second Claude Code session in its own worktree while M2 is under way: `claude --worktree mcp-tools`. Do it only when you can review two streams of work at once; otherwise follow the spec's order. Once M3 is tagged, M3b can run the same way beside M4.
+
+Track A runs in its own worktree on branch `track-a`, branched from the M2 close; its commits start with `A<n>:` and each stage is tagged `a<n>` when its Done when holds. Milestone tags are merged into `track-a`, never rebased onto. The milestones after v0.1 (M7 to M13 in the spec) get their rows here when they are planned.
 
 ## Kickoff prompt for M0
 

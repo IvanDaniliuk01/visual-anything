@@ -8,8 +8,9 @@ Visual Anything: an open-source, local-first tool to make any concept or system 
 
 - `CONTEXT.md`: the domain glossary. Use its terms exactly in code, files, UI and docs, and never the words listed under "Avoid".
 - `docs/adr/`: decisions. Follow every ADR whose status is `accepted`. If a change would contradict one, stop and propose a new ADR that supersedes it; do not implement it until the user agrees.
-- `docs/spec-v0.1.md`: scope, quality bar, milestones and tasks for v0.1. Work only on the current milestone; anything listed as "Later" is out of scope.
+- `docs/spec-v0.1.md`: scope, quality bar, milestones and tasks for v0.1, and the milestones after it. Work only on the current milestone; anything listed as "Later" or "After v0.1" is out of scope until its milestone starts.
 - `docs/playbook.md`: the loop every milestone follows and which of its tasks run in parallel. Read it when you start a milestone.
+- `docs/designs/`: the detailed designs a milestone or track builds from. Read the one for the current milestone when you plan it, and check it against the code.
 
 ## Architecture
 
