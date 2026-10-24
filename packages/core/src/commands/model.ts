@@ -5,12 +5,15 @@ import { indexModel, type ModelIndex } from '../model-index';
 import { BULK, positionKey } from '../operations';
 import { storedStacking } from '../stacking';
 import {
+  choiceWarnings,
   endName,
   limitWarnings,
   previewDelete,
   wouldFormCycle,
   type DeletePreview,
 } from '../rules';
+import { bringNewToFront } from './order';
+import { changedAppearance, checkDetailResolves, checkedAppearance } from './traits';
 import {
   changedAttributes,
   compact,
@@ -29,28 +32,42 @@ import type {
   UpdateElementCommand,
   UpdateRelationCommand,
 } from './types';
+import { putCollapsed } from './collapse';
 import { putPositions } from './views';
 
 export function createElement(draft: Draft, command: CreateElementCommand): string {
   const { element } = command;
   const name = requireName(element.name, 'An element');
-  draft.component(element.component);
+  const component = draft.component(element.component);
+  const worldId = draft.index.world.id;
+  if (command.before !== undefined) {
+    if (command.before === worldId) {
+      reject('world-not-allowed', 'World has no place in the model’s order.', [command.before]);
+    }
+    draft.element(command.before);
+  }
   const id = draft.idFor(element.id, slug(name, 'element'));
+  const attributes = changedAttributes(undefined, element.attributes, undefined);
+  const appearance =
+    element.appearance === undefined
+      ? undefined
+      : checkedAppearance(element.appearance, `"${name}"`);
+  checkDetailResolves(appearance, component.attributes, attributes, draft.definitions, `"${name}"`);
   const created: Element = compact({
     id,
     component: element.component,
     name,
     description: element.description,
-    attributes: changedAttributes(undefined, element.attributes, undefined),
-    appearance: element.appearance,
+    attributes,
+    appearance,
   });
-  draft.apply({
-    op: 'insert',
-    collection: { name: 'elements' },
-    index: draft.state.model.elements.length,
-    item: created,
-  });
+  const index =
+    command.before === undefined
+      ? draft.state.model.elements.length
+      : draft.state.model.elements.findIndex((each) => each.id === command.before);
+  draft.apply({ op: 'insert', collection: { name: 'elements' }, index, item: created });
   draft.created.push(id);
+  draft.warnings.push(...choiceWarnings(created, component.attributes));
 
   for (const { container, relationType } of requireList(command.containers, 'containers')) {
     createRelation(draft, {
@@ -65,6 +82,8 @@ export function createElement(draft: Draft, command: CreateElementCommand): stri
     byView.set(view, list);
   }
   for (const [view, positions] of byView) putPositions(draft, view, positions);
+  // Placed before other elements in the model's order, it would be drawn behind them.
+  if (command.before !== undefined) bringNewToFront(draft, id);
   return `Create "${name}"`;
 }
 
@@ -79,8 +98,22 @@ export function updateElement(draft: Draft, command: UpdateElementCommand): stri
     draft.component(changes.component);
     next.component = changes.component;
   }
+  if (changes.appearance !== undefined && changes.appearanceTraits !== undefined) {
+    reject(
+      'invalid-command',
+      'An element’s appearance is replaced whole or changed trait by trait, not both at once.',
+      [current.id],
+    );
+  }
+  const of = `"${next.name}"`;
   if (changes.appearance === null) delete next.appearance;
-  else if (changes.appearance !== undefined) next.appearance = changes.appearance;
+  else if (changes.appearance !== undefined) {
+    next.appearance = checkedAppearance(changes.appearance, of);
+  } else if (changes.appearanceTraits !== undefined) {
+    const appearance = changedAppearance(current.appearance, changes.appearanceTraits, of);
+    if (appearance === undefined) delete next.appearance;
+    else next.appearance = appearance;
+  }
   const attributes = changedAttributes(
     current.attributes,
     changes.attributes,
@@ -88,6 +121,25 @@ export function updateElement(draft: Draft, command: UpdateElementCommand): stri
   );
   if (attributes === undefined) delete next.attributes;
   else next.attributes = attributes;
+  const component = draft.definitions.component(next.component);
+  if (
+    component !== undefined &&
+    (changes.appearance !== undefined || changes.appearanceTraits !== undefined)
+  ) {
+    checkDetailResolves(
+      next.appearance,
+      component.attributes,
+      next.attributes,
+      draft.definitions,
+      of,
+    );
+  }
+  if (
+    component !== undefined &&
+    (changes.attributes !== undefined || changes.component !== undefined)
+  ) {
+    draft.warnings.push(...choiceWarnings(next, component.attributes));
+  }
 
   if (current.id === draft.index.world.id) {
     draft.apply({ op: 'set-world', world: next });
@@ -167,6 +219,14 @@ export function applyDeletion(draft: Draft, preview: DeletePreview): void {
     } else {
       for (const id of ids) draft.apply({ op: 'remove', collection, key: id });
     }
+  }
+  for (const viewId of new Set(preview.collapsed.map((entry) => entry.view))) {
+    const view = draft.view(viewId);
+    putCollapsed(
+      draft,
+      view,
+      (view.collapsed ?? []).filter((id) => !deleted.has(id)),
+    );
   }
   removeFromModel(draft, 'relations', preview.relations);
   removeFromModel(draft, 'elements', preview.elements);
