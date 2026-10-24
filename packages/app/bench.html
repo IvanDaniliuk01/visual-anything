@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Visual Anything · canvas benchmark</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        font-family: system-ui, sans-serif;
+        color: #1f2933;
+        background: #ffffff;
+      }
+      #canvas {
+        position: absolute;
+        inset: 0 22rem 0 0;
+      }
+      #results {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 22rem;
+        box-sizing: border-box;
+        padding: 1rem;
+        overflow: auto;
+        border-left: 1px solid #d9dee5;
+        background: #f7f8fa;
+        font-size: 0.85rem;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 0.25rem 0.3rem;
+        border-bottom: 1px solid #d9dee5;
+        text-align: right;
+      }
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+      .pass {
+        color: #1e6b43;
+      }
+      .fail {
+        color: #a61b1b;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="canvas" tabindex="0"></div>
+    <section id="results" aria-live="polite">
+      <h1>Canvas benchmark</h1>
+      <p id="status">Building the synthetic project…</p>
+      <table id="table" hidden>
+        <thead>
+          <tr>
+            <th>Phase</th>
+            <th>Avg fps</th>
+            <th>p95 ms</th>
+            <th>Worst ms</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p id="verdict"></p>
+    </section>
+    <script type="module" src="/src/bench/main.ts"></script>
+  </body>
+</html>
