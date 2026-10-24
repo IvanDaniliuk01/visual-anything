@@ -454,7 +454,7 @@ describe('commands over the live connection', () => {
       {
         type: 'command/rejected',
         requestId: 'm2',
-        problems: [{ code: 'invalid-command', message: 'There is nothing to undo.' }],
+        problems: [{ code: 'nothing-to-undo', message: 'There is nothing to undo.' }],
       },
     ]);
   });

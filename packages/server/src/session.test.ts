@@ -10,9 +10,8 @@ import {
   type ProjectSnapshot,
   type ServerMessage,
 } from '@visual-anything/core';
-import { fileKindOf, type ViewFile } from '@visual-anything/schema';
+import type { ViewFile } from '@visual-anything/schema';
 import { formatFile } from '@visual-anything/schema/format';
-import { parseFile } from '@visual-anything/schema/validate';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openSession, type Session, type SessionOptions } from './session';
 import {
@@ -298,7 +297,7 @@ describe('execute', () => {
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
     expect(outcome.problems).toHaveLength(1);
-    expect(outcome.problems[0]?.code).toBe('invalid-command');
+    expect(outcome.problems[0]?.code).toBe('invalid-file');
     expect(outcome.problems[0]?.message).toMatch(
       /^The change would make model\.vamodel invalid: \/elements\/5\/appearance\/shape must be one of /,
     );
@@ -313,7 +312,7 @@ describe('execute', () => {
 
     await expect(
       session.execute({ type: 'create-element' } as unknown as Command, 'user'),
-    ).resolves.toMatchObject({ ok: false, problems: [{ code: 'invalid-command' }] });
+    ).resolves.toMatchObject({ ok: false, problems: [{ code: 'program-failed' }] });
     await expect(session.execute(RENAME_API, 'user')).resolves.toMatchObject({ ok: true });
   });
 
@@ -389,11 +388,11 @@ describe('undo and redo', () => {
 
     await expect(session.undo()).resolves.toEqual({
       ok: false,
-      problems: [{ code: 'invalid-command', message: 'There is nothing to undo.' }],
+      problems: [{ code: 'nothing-to-undo', message: 'There is nothing to undo.' }],
     });
     await expect(session.redo()).resolves.toEqual({
       ok: false,
-      problems: [{ code: 'invalid-command', message: 'There is nothing to redo.' }],
+      problems: [{ code: 'nothing-to-redo', message: 'There is nothing to redo.' }],
     });
   });
 });
@@ -574,15 +573,8 @@ describe('saveAll', () => {
     expect(await filesIn(folder)).toEqual(before);
   });
 
-  it('leaves every byte of the sample project unchanged, once it is in formatFile form', async () => {
+  it('leaves every byte of the sample project unchanged', async () => {
     await cp(SAMPLE, folder, { recursive: true });
-    for (const [path, bytes] of await filesIn(folder)) {
-      const kind = fileKindOf(path);
-      if (kind === undefined) continue;
-      const parsed = parseFile(kind, bytes.toString('utf8'));
-      if (!parsed.ok) throw new Error(`${path} is not valid.`);
-      await writeText(folder, path, formatFile(kind, parsed.value));
-    }
     const before = await filesIn(folder);
     const { fs, written } = recordingFs(folder);
     const session = await open({ writer: { fs } });
@@ -620,7 +612,7 @@ describe('when saving fails', () => {
       ok: false,
       problems: [
         {
-          code: 'invalid-command',
+          code: 'not-saved',
           message: 'Could not save model.vamodel (EACCES); nothing was changed.',
         },
       ],
@@ -990,7 +982,7 @@ describe.each(MODES)('changes made outside the app, watching in %s mode', (mode)
       ok: false,
       problems: [
         {
-          code: 'invalid-command',
+          code: 'changed-on-disk',
           message:
             'model.vamodel changed on disk, so this change was not made; the project is reloaded from the files.',
         },
@@ -1013,7 +1005,7 @@ describe('close', () => {
     await expect(pending).resolves.toMatchObject({ ok: true });
     await expect(session.execute(MOVE_CUSTOMER, 'user')).resolves.toEqual({
       ok: false,
-      problems: [{ code: 'invalid-command', message: 'The project is closed.' }],
+      problems: [{ code: 'project-closed', message: 'The project is closed.' }],
     });
     await expect(session.close()).resolves.toBeUndefined();
   });
