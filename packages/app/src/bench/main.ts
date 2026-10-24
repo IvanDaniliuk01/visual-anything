@@ -1,14 +1,17 @@
 /**
  * The canvas benchmark: draws a synthetic view of 10,000 elements and measures it while the camera
  * pans and zooms by itself, shapes are selected one at a time and all at once, and the view is edited
- * and restacked. Open `/bench.html` from the dev server; `?elements=N` changes the size and
- * `?overlap=stairs`, `grid` or `cascade` makes shapes overlap (see `synthetic.ts`).
+ * and restacked. `pnpm bench` builds this page for production and serves it on 127.0.0.1:47707, at
+ * `/bench.html`; the official numbers come from that build, in work mode. `?elements=N` changes the
+ * size, and `?overlap=stairs`, `grid` or `cascade` makes shapes overlap (see `synthetic.ts`).
  *
- * By default it measures the work of each frame: it moves the camera, draws the frame and waits for
- * the GPU to finish, so the result does not depend on how often the browser offers frames, which it
- * slows down for windows it thinks nobody sees. A phase passes when its frames take 10 ms on average,
- * 13 ms at the 95th percentile and never more than two frames at 60 fps. `?mode=frames` measures the
- * time between frames as the browser shows them instead, which needs the window in front.
+ * Work mode, the default, measures the work of each frame: it moves the camera, draws the frame and
+ * waits until the GPU has drawn it, so the result does not depend on how often the browser offers
+ * frames, which it slows down for windows it thinks nobody sees. A phase passes when its frames take
+ * 10 ms on average, 13 ms at the 95th percentile and never more than two frames at 60 fps.
+ * `?mode=frames` measures the time between frames as the browser shows them instead, which needs the
+ * window in front, on a 60 Hz display; its frames may run a little late on average and at the 95th
+ * percentile, but never more than two frames either.
  */
 import {
   applyOperations,
@@ -154,15 +157,16 @@ async function run(): Promise<void> {
       ...scene.notes.map((note): Selectable => ({ kind: 'free-shape', id: note.id })),
       ...scene.arrows.map((arrow): Selectable => ({ kind: 'free-shape', id: arrow.id })),
     ]);
+  // Every frame counts until all the marks are drawn, a few chunks a frame.
   phases.push(
-    await measure(
-      'Select everything',
-      20,
-      () => controller.setSelection(everything()),
-      () => controller.setSelection(EMPTY_SELECTION),
-    ),
+    await measure('Select everything', 20, () => controller.setSelection(everything()), {
+      before: () => controller.setSelection(EMPTY_SELECTION),
+      more: () => controller.renderer.drawingMarks,
+    }),
   );
   controller.setSelection(everything());
+  // All marks drawn before the zoom, even where the browser offers no frames meanwhile.
+  while (controller.renderer.drawingMarks) controller.renderer.renderNow();
   await settle(300);
   phases.push(
     await measure('Zoom, everything selected', 180, (frame) =>
@@ -201,44 +205,69 @@ function selectAt(point: { x: number; y: number }): void {
   controller.setSelection(selectionOf(id === undefined ? [] : [{ kind: 'element', id }]));
 }
 
+interface Steps {
+  /** Runs before each step, with a frame of its own that is not recorded. */
+  before?: () => void;
+  /** After each step, frames go on being drawn and recorded while this says there is more to draw. */
+  more?: () => boolean;
+}
+
 /**
- * Takes `count` steps, one a frame, and records what each frame took. `before`, when given, runs
- * before each step, with a frame of its own that is not recorded.
+ * Takes `count` steps, one a frame, and records what each frame took, and each frame after a step
+ * while `more` says it still draws what the step started.
  */
 function measure(
   name: string,
   count: number,
   step: (frame: number) => void,
-  before?: () => void,
+  { before, more }: Steps = {},
 ): Promise<Phase> {
+  const { renderer } = controller;
+  // Where each phase starts, for the browser's performance tools.
+  performance.mark(`phase ${name}`);
   if (mode === 'work') {
     const frames: number[] = [];
+    const timed = (work: () => void) => {
+      const began = performance.now();
+      work();
+      renderer.renderNow(true);
+      frames.push(performance.now() - began);
+    };
     for (let frame = 0; frame < count; frame++) {
       if (before) {
         before();
-        controller.renderer.renderNow(true);
+        renderer.renderNow(true);
       }
-      const began = performance.now();
-      step(frame);
-      controller.renderer.renderNow(true);
-      frames.push(performance.now() - began);
+      timed(() => step(frame));
+      while (more?.()) timed(() => undefined);
     }
     return Promise.resolve({ name, frames });
   }
   return new Promise((resolve) => {
     const frames: number[] = [];
     let previous: number | undefined;
-    let frame = 0;
+    let steps = 0;
+    let readied = false;
     const tick = (now: number) => {
       if (previous !== undefined) frames.push(now - previous);
       previous = now;
-      if (frame >= count * (before ? 2 : 1)) {
+      // The renderer draws what is left in its own frames, which are the ones measured meanwhile.
+      if (more?.()) {
+        requestAnimationFrame(tick);
+        return;
+      }
+      if (steps >= count) {
         resolve({ name, frames });
         return;
       }
-      if (before && frame % 2 === 0) before();
-      else step(before ? Math.floor(frame / 2) : frame);
-      frame += 1;
+      if (before && !readied) {
+        before();
+        readied = true;
+      } else {
+        step(steps);
+        steps += 1;
+        readied = false;
+      }
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -387,10 +416,11 @@ function report(phases: Phase[], timed: Timed[], latency: number[]): void {
     const average = frames.reduce((sum, each) => sum + each, 0) / Math.max(1, frames.length);
     const p95 = percentile(frames, 0.95);
     const worst = Math.max(...frames);
+    // Frames as shown may run a little late, but none takes more than two frames, as in work mode.
     const passes =
       mode === 'work'
         ? average <= WORK.average && p95 <= WORK.p95 && worst <= WORK.worst
-        : average <= SHOWN.average && p95 <= SHOWN.p95;
+        : average <= SHOWN.average && p95 <= SHOWN.p95 && worst <= WORK.worst;
     return { name, average, p95, worst, passes };
   });
   const passed = rows.every((row) => row.passes);
