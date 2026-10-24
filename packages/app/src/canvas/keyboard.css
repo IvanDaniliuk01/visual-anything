@@ -1,0 +1,71 @@
+/* The canvas's keyboard help, in its bottom left corner. Text meets WCAG 2.1 AA contrast (4.5:1). */
+
+.canvas-keys {
+  position: absolute;
+  bottom: 0.6rem;
+  left: 0.6rem;
+  z-index: 2;
+  max-width: calc(100% - 1.2rem);
+}
+
+.canvas-keys > summary {
+  display: inline-block;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 6%);
+  cursor: pointer;
+  list-style: none;
+}
+
+.canvas-keys > summary::-webkit-details-marker {
+  display: none;
+}
+
+.canvas-keys > summary:hover {
+  border-color: var(--accent);
+}
+
+.canvas-keys > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.canvas-keys[open] > summary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.canvas-keys-list {
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  left: 0;
+  display: grid;
+  gap: 0.35rem;
+  width: min(26rem, calc(100vw - 4rem));
+  max-height: 60vh;
+  overflow: auto;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(16 24 40 / 16%);
+  font-size: 0.85rem;
+}
+
+.canvas-keys-list > div {
+  display: grid;
+  grid-template-columns: 8.5rem 1fr;
+  gap: 0.6rem;
+}
+
+.canvas-keys-list dt {
+  font-weight: 600;
+}
+
+.canvas-keys-list dd {
+  color: var(--text-muted);
+}
