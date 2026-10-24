@@ -86,7 +86,7 @@ function fixture({ elements, relations = [], view = {} }: Fixture): ProjectSnaps
         positions: [],
         freeShapes: [],
         ...view,
-      } as ViewFile,
+      },
     ],
     scenarios: [],
   };
