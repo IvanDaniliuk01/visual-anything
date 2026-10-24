@@ -197,6 +197,73 @@ describe('writeFileAtomic', () => {
   });
 });
 
+describe('writeFileAtomic for project files only', () => {
+  /** Makes a link, or says this user may not make one here. */
+  async function tryLink(to: string, path: string, type: 'file' | 'junction'): Promise<boolean> {
+    try {
+      await fsp.symlink(to, path, type);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  it('writes over a regular file', async () => {
+    await writeFile(target, 'old');
+    await writeFileAtomic(target, bytes('new'), { regularOnly: true });
+    expect(await readFile(target, 'utf8')).toBe('new');
+  });
+
+  it('never renames over a link, and leaves what it points to alone', async (context) => {
+    const outside = await mkdtemp(join(tmpdir(), 'va-outside-'));
+    try {
+      await writeFile(join(outside, 'secret'), 'secret');
+      if (!(await tryLink(join(outside, 'secret'), target, 'file'))) context.skip();
+      await expect(writeFileAtomic(target, bytes('new'), { regularOnly: true })).rejects.toThrow(
+        'model.vamodel is not a regular file; Visual Anything writes only regular files inside the project folder.',
+      );
+      expect(await readFile(join(outside, 'secret'), 'utf8')).toBe('secret');
+      expect((await fsp.lstat(target)).isSymbolicLink()).toBe(true);
+      expect(await namesIn(folder)).toEqual(['model.vamodel']);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('never writes into a folder that is a link', async (context) => {
+    const outside = await mkdtemp(join(tmpdir(), 'va-outside-'));
+    try {
+      if (!(await tryLink(outside, join(folder, 'views'), 'junction'))) context.skip();
+      await expect(
+        writeFileAtomic(join(folder, 'views', 'a.vaview'), bytes('{}'), { regularOnly: true }),
+      ).rejects.toThrow(
+        'views is not a real folder; Visual Anything writes only regular files inside the project folder.',
+      );
+      expect(await readdir(outside)).toEqual([]);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('never renames over a folder', async () => {
+    await mkdir(target);
+    await expect(writeFileAtomic(target, bytes('new'), { regularOnly: true })).rejects.toThrow(
+      /is not a regular file/,
+    );
+    expect(await namesIn(folder)).toEqual(['model.vamodel']);
+  });
+});
+
+describe('writeFileAtomic with a mode', () => {
+  it.skipIf(process.platform === 'win32')(
+    'gives the file the mode asked for, whatever the umask',
+    async () => {
+      await writeFileAtomic(target, bytes('secret'), { mode: 0o600 });
+      expect((await fsp.stat(target)).mode & 0o777).toBe(0o600);
+    },
+  );
+});
+
 describe('removeFile', () => {
   it('deletes the file', async () => {
     await writeFile(target, 'old');
