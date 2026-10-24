@@ -82,12 +82,41 @@ export interface LayoutStats {
   shapes: number;
   /** How many relations ELK was given, after lifting them to the level where they meet. */
   relations: number;
+  /**
+   * How many relations, lifted, ELK was not given, at levels with more than `ELK_WORK_BUDGET`
+   * allows: there, the pairs of shapes related by the most relations are kept.
+   */
+  leftOut: number;
+  /** How many containers, World included, were packed in rows because ELK's time ran out. */
+  packedForTime: number;
   /** How many times ELK ran, and for how long in all. */
   elkRuns: number;
   elkMs: number;
   /** How long the whole layout took in the worker. */
   totalMs: number;
 }
+
+/** How far a layout has come: how many of the containers it arranges, World included, are done. */
+export interface LayoutProgress {
+  done: number;
+  total: number;
+}
+
+/**
+ * How much ELK may be given at one level, counted as its shapes times its relations beyond one per
+ * shape. ELK's time grows with that product: on the benchmark's laptop, World with 80 shapes took
+ * 0.8 s with 80 relations and 19 s with 401, and with 400 shapes 2.4 s with 400 relations and 104 s
+ * with 800. Within this budget a level takes about a second; beyond it, the pairs related by the
+ * most relations are kept.
+ */
+export const ELK_WORK_BUDGET = 4000;
+
+/**
+ * How long ELK may run in all for one layout, in milliseconds. The containers whose arrangement is
+ * not done by then are packed in rows, which takes milliseconds, so a layout ends within about this
+ * long, besides copying its input and result.
+ */
+export const ELK_TIME_LIMIT = 20_000;
 
 /** Positions are multiples of this, inside each container. */
 export const LAYOUT_STEP = 8;

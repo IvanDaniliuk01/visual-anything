@@ -1,5 +1,5 @@
 /** The messages between the app and its layout worker. */
-import type { LayoutInput, LayoutResult } from './types';
+import type { LayoutInput, LayoutProgress, LayoutResult } from './types';
 
 /** Asks the worker for one layout. */
 export interface LayoutRequest {
@@ -7,6 +7,8 @@ export interface LayoutRequest {
   input: LayoutInput;
 }
 
-/** The worker's answer to one request. */
+/** What the worker says about one request: how far it has come, and then its result or failure. */
 export type LayoutReply =
-  { id: number; ok: true; result: LayoutResult } | { id: number; ok: false; message: string };
+  | { id: number; kind: 'progress'; progress: LayoutProgress }
+  | { id: number; kind: 'done'; result: LayoutResult }
+  | { id: number; kind: 'failed'; message: string };

@@ -174,7 +174,7 @@ describe('CanvasToolbar', () => {
     expect(onAdd).toHaveBeenCalledWith('systems.service');
   });
 
-  it('has Layout, which says what it lays out, and why it cannot when it is off', () => {
+  it('has Layout, which says what it lays out, how far a layout has come, and why it cannot', () => {
     const run = vi.fn();
     const { rerender } = render(
       <CanvasToolbar
@@ -187,6 +187,7 @@ describe('CanvasToolbar', () => {
         onZoom={() => {}}
         onFit={() => {}}
         layout={{
+          label: 'Layout',
           title: 'Lay out "System overview": arrange every shape that is not pinned.',
           enabled: true,
           busy: false,
@@ -213,15 +214,45 @@ describe('CanvasToolbar', () => {
         onAddArrow={() => {}}
         onZoom={() => {}}
         onFit={() => {}}
-        layout={{ title: 'Laying out…', enabled: false, busy: true, run }}
+        layout={{
+          label: 'Stop layout (40%)',
+          title: 'Laying out 500 shapes: 40% done. Press to stop it; nothing moves then.',
+          enabled: true,
+          busy: true,
+          run,
+        }}
       />,
     );
-    const busy = screen.getByRole('button', { name: 'Laying out…' });
-    expect(busy).toHaveAttribute('aria-disabled', 'true');
+    const busy = screen.getByRole('button', { name: 'Stop layout (40%)' });
     expect(busy).toHaveAttribute('aria-busy', 'true');
-    // Still pressable, so that it can say why it does nothing.
+    expect(busy).not.toHaveAttribute('aria-disabled');
     fireEvent.click(busy);
     expect(run).toHaveBeenCalledTimes(2);
+
+    rerender(
+      <CanvasToolbar
+        project={project}
+        editable
+        scale={1}
+        onAdd={() => {}}
+        onAddNote={() => {}}
+        onAddArrow={() => {}}
+        onZoom={() => {}}
+        onFit={() => {}}
+        layout={{
+          label: 'Layout',
+          title: 'Visual Anything is not connected, so nothing can be laid out.',
+          enabled: false,
+          busy: false,
+          run,
+        }}
+      />,
+    );
+    const off = screen.getByRole('button', { name: 'Layout' });
+    expect(off).toHaveAttribute('aria-disabled', 'true');
+    // Still pressable, so that it can say why it does nothing.
+    fireEvent.click(off);
+    expect(run).toHaveBeenCalledTimes(3);
   });
 
   it('has no Layout without the prop', () => {

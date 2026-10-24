@@ -22,7 +22,7 @@ import {
 } from 'react';
 import { sizeOf, type Selection } from '../../editor/selection';
 import type { Scene } from '../scene';
-import { sharedRunner, type LayoutRunner } from './client';
+import { LayoutStopped, sharedRunner, type LayoutRunner } from './client';
 import { layoutCommand } from './command';
 import { layoutInput, type LayoutScope } from './input';
 import {
@@ -32,6 +32,7 @@ import {
   transitionBetween,
   type Transition,
 } from './transition';
+import type { LayoutProgress } from './types';
 
 /**
  * What runs the canvas's layouts: by default (null) the layout worker every canvas shares; tests give
@@ -44,12 +45,22 @@ export const AUTO_DELAY = 120;
 
 /** The toolbar's Layout control. */
 export interface LayoutControl {
-  /** What it lays out now, or why it cannot. */
+  /** What the button says: Layout, or Stop layout with how far the layout under way has come. */
+  label: string;
+  /** What it lays out now, how far a layout under way has come, or why it cannot lay out. */
   title: string;
   enabled: boolean;
-  /** Whether a layout it asked for is under way. */
+  /** Whether a layout is under way, asked for or automatic. */
   busy: boolean;
+  /** Lays out; while a layout is under way, stops it. */
   run: () => void;
+}
+
+/** A layout under way: how many shapes it arranges, how far it has come, and how to stop it. */
+interface Running {
+  shapes: number;
+  progress: LayoutProgress | undefined;
+  stop: () => void;
 }
 
 export interface LayoutOptions {
@@ -90,7 +101,7 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
     latest.current = { project, view, scene, send, announce };
   });
 
-  const [busy, setBusy] = useState(false);
+  const [running, setRunning] = useState<Running>();
   const [armed, setArmed] = useState<Armed>();
   const [moving, setMoving] = useState<{ transition: Transition; progress: number }>();
   const queue = useRef<Promise<void>>(Promise.resolve());
@@ -142,14 +153,31 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
         if (!automatic) asked.announce('Every shape there is pinned, so layout leaves them all.');
         return;
       }
+      // While it runs, the control shows how far it has come, and stops it when pressed.
+      const stopper = new AbortController();
+      const shown: Running = {
+        shapes: input.shapes.filter((shape) => shape.free).length,
+        progress: undefined,
+        stop: () => stopper.abort(),
+      };
+      const ours = (current: Running | undefined) => current?.stop === shown.stop;
+      setRunning(shown);
       let laidOut;
       try {
-        laidOut = await runner.layOut(input);
+        laidOut = await runner.layOut(input, {
+          signal: stopper.signal,
+          onProgress: (progress) =>
+            setRunning((current) => (ours(current) ? { ...shown, progress } : current)),
+        });
       } catch (error) {
         latest.current.announce(
-          `The layout failed: ${error instanceof Error ? error.message : String(error)}`,
+          error instanceof LayoutStopped
+            ? 'Layout stopped, and nothing moved.'
+            : `The layout failed: ${error instanceof Error ? error.message : String(error)}`,
         );
         return;
+      } finally {
+        setRunning((current) => (ours(current) ? undefined : current));
       }
       const now = latest.current;
       if (now.view.id !== asked.view.id || !now.send) return;
@@ -211,30 +239,42 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
 
   const target = useMemo(() => targetOf(scene, selection), [scene, selection]);
   const nameOf = (id: Id) => modelIndexOf(project).element(id)?.name ?? id;
-  const enabled = runner !== undefined && editable && !busy;
-  const title = !runner
-    ? 'Layout needs web workers, which this browser does not offer.'
-    : !editable
-      ? 'Visual Anything is not connected, so nothing can be laid out.'
-      : busy
-        ? 'Laying out…'
+  let control: LayoutControl;
+  if (running) {
+    const { done = 0, total = 0 } = running.progress ?? {};
+    const percent = total > 0 ? Math.round((100 * done) / total) : undefined;
+    const shapes = running.shapes === 1 ? '1 shape' : `${running.shapes} shapes`;
+    control = {
+      label: percent === undefined ? 'Stop layout' : `Stop layout (${percent}%)`,
+      title: `Laying out ${shapes}${percent === undefined ? '' : `: ${percent}% done`}. Press to stop it; nothing moves then.`,
+      enabled: true,
+      busy: true,
+      run: running.stop,
+    };
+  } else {
+    const enabled = runner !== undefined && editable;
+    const title = !runner
+      ? 'Layout needs web workers, which this browser does not offer.'
+      : !editable
+        ? 'Visual Anything is not connected, so nothing can be laid out.'
         : target.kind === 'contents'
           ? `Lay out the contents of "${nameOf(target.container)}": arrange the shapes inside it that are not pinned.`
           : `Lay out "${view.name}": arrange every shape that is not pinned.`;
-  const control: LayoutControl = {
-    title,
-    enabled,
-    busy,
-    run: () => {
-      // Pressed while it cannot lay out, it says why, as the stacking buttons do.
-      if (!enabled) {
-        announce(title);
-        return;
-      }
-      setBusy(true);
-      void enqueue(target, false).finally(() => setBusy(false));
-    },
-  };
+    control = {
+      label: 'Layout',
+      title,
+      enabled,
+      busy: false,
+      run: () => {
+        // Pressed while it cannot lay out, it says why, as the stacking buttons do.
+        if (!enabled) {
+          announce(title);
+          return;
+        }
+        void enqueue(target, false);
+      },
+    };
+  }
 
   return { scene: drawn, control };
 }

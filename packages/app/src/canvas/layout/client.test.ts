@@ -1,13 +1,13 @@
 import ELK from 'elkjs/lib/elk.bundled.js';
 import { describe, expect, it } from 'vitest';
-import { sharedRunner, workerRunner, type LayoutWorker } from './client';
+import { LayoutStopped, sharedRunner, workerRunner, type LayoutWorker } from './client';
 import { layOut } from './engine';
 import type { LayoutReply, LayoutRequest } from './messages';
-import type { LayoutInput } from './types';
+import type { LayoutInput, LayoutProgress } from './types';
 
 const elk = new ELK();
 
-/** Answers as the layout worker does, in this thread; or fails, when told to. */
+/** Answers as the layout worker does, in this thread, with its progress; or fails, when told to. */
 class FakeWorker implements LayoutWorker {
   static started: FakeWorker[] = [];
   private readonly listeners = {
@@ -24,14 +24,20 @@ class FakeWorker implements LayoutWorker {
   postMessage(message: LayoutRequest): void {
     this.received.push(message);
     if (this.answer === 'silent') return;
-    void (async () => {
-      const reply: LayoutReply =
-        this.answer === 'layout'
-          ? { id: message.id, ok: true, result: await layOut(message.input, elk) }
-          : { id: message.id, ok: false, message: 'ELK could not lay it out.' };
+    const send = (reply: LayoutReply) => {
       for (const listener of this.listeners.message) {
         listener(new MessageEvent('message', { data: reply }));
       }
+    };
+    void (async () => {
+      if (this.answer === 'refuse') {
+        send({ id: message.id, kind: 'failed', message: 'ELK could not lay it out.' });
+        return;
+      }
+      const result = await layOut(message.input, elk, {
+        onProgress: (progress) => send({ id: message.id, kind: 'progress', progress }),
+      });
+      send({ id: message.id, kind: 'done', result });
     })();
   }
 
@@ -70,9 +76,36 @@ describe('workerRunner', () => {
     expect(FakeWorker.started[0]?.received.map((each) => each.id)).toEqual([1, 2]);
   });
 
+  it('passes on how far a layout has come', async () => {
+    const runner = workerRunner(() => new FakeWorker());
+    const seen: LayoutProgress[] = [];
+    await runner.layOut(input, { onProgress: (progress) => seen.push(progress) });
+    expect(seen).toEqual([{ done: 1, total: 1 }]);
+  });
+
   it('fails a layout the worker could not do, with its reason', async () => {
     const runner = workerRunner(() => new FakeWorker('refuse'));
     await expect(runner.layOut(input)).rejects.toThrow('ELK could not lay it out.');
+  });
+
+  it('stops a layout by stopping its worker, and starts a new one for the next layout', async () => {
+    FakeWorker.started = [];
+    const answers: ('silent' | 'layout')[] = ['silent', 'layout'];
+    const runner = workerRunner(() => new FakeWorker(answers.shift()));
+    const stop = new AbortController();
+    const waiting = runner.layOut(input, { signal: stop.signal });
+    stop.abort();
+    await expect(waiting).rejects.toBeInstanceOf(LayoutStopped);
+    expect(FakeWorker.started[0]?.terminated).toBe(true);
+    await expect(runner.layOut(input)).resolves.toMatchObject({ stats: { shapes: 2 } });
+    expect(FakeWorker.started).toHaveLength(2);
+    // Stopped before it is sent, a layout is not sent at all.
+    const before = new AbortController();
+    before.abort();
+    await expect(runner.layOut(input, { signal: before.signal })).rejects.toBeInstanceOf(
+      LayoutStopped,
+    );
+    expect(FakeWorker.started[1]?.received).toHaveLength(1);
   });
 
   it('fails what waits on a worker that stops, and starts a new one for the next layout', async () => {
@@ -92,7 +125,7 @@ describe('workerRunner', () => {
     const runner = workerRunner(() => new FakeWorker('silent'));
     const waiting = runner.layOut(input);
     runner.dispose();
-    await expect(waiting).rejects.toThrow('The layout stopped.');
+    await expect(waiting).rejects.toBeInstanceOf(LayoutStopped);
     expect(FakeWorker.started[0]?.terminated).toBe(true);
   });
 });

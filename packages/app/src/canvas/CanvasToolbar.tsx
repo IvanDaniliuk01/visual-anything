@@ -114,7 +114,7 @@ export function CanvasToolbar({
           aria-busy={layout.busy ? true : undefined}
           onClick={layout.run}
         >
-          {layout.busy ? 'Laying out…' : 'Layout'}
+          {layout.label}
         </button>
       )}
       <span className="canvas-toolbar-spacer" />

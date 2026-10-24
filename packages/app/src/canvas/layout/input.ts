@@ -14,7 +14,7 @@ import { ESSENCE_ID } from '@visual-anything/schema';
 import { boundsOf, type Rect } from '../geometry';
 import type { ElementShape, Scene } from '../scene';
 import { connectionPointsOf } from './ports';
-import type { LayoutRelation, LayoutInput, LayoutShape } from './types';
+import type { LayoutConnectionPoint, LayoutInput, LayoutRelation, LayoutShape } from './types';
 
 /**
  * Which shapes one layout may move; pinned shapes never move (ADR-0009):
@@ -71,8 +71,18 @@ export function layoutInput(
 
   const definitions = definitionsOf(project.packages);
   const index = modelIndexOf(project);
-  const appearance = (element: Id) =>
-    appearanceOf(index.element(element) ?? { component: ESSENCE_ID }, definitions);
+  // Elements without an appearance of their own look like their component: worked out once each.
+  const byComponent = new Map<Id, Looks>();
+  const looksOf = (id: Id): Looks => {
+    const element = index.element(id) ?? { id, component: ESSENCE_ID, name: id };
+    if (element.appearance !== undefined) return looks(appearanceOf(element, definitions));
+    let known = byComponent.get(element.component);
+    if (!known) {
+      known = looks(appearanceOf({ component: element.component }, definitions));
+      byComponent.set(element.component, known);
+    }
+    return known;
+  };
   const indexes = new Map<string, number>();
   let anyFree = false;
   const laid = shapes.map((shape, at): LayoutShape => {
@@ -81,9 +91,7 @@ export function layoutInput(
     anyFree ||= isFree;
     const parent =
       shape.containerShape === undefined ? undefined : indexes.get(shape.containerShape);
-    const own = shape.holdsContents || isFree ? appearance(shape.element) : undefined;
-    const points = isFree ? connectionPointsOf(own) : undefined;
-    return {
+    const laidShape: LayoutShape = {
       key: shape.key,
       element: shape.element,
       parent: parent ?? -1,
@@ -92,11 +100,19 @@ export function layoutInput(
       y: shape.offset.y,
       width: shape.rect.width,
       height: shape.rect.height,
-      ...(shape.storedSize?.width === undefined ? {} : { storedWidth: shape.storedSize.width }),
-      ...(shape.storedSize?.height === undefined ? {} : { storedHeight: shape.storedSize.height }),
-      ...(shape.holdsContents && own ? { baseWidth: own.width, baseHeight: own.height } : {}),
-      ...(points ? { points } : {}),
     };
+    const stored = shape.storedSize;
+    if (stored?.width !== undefined) laidShape.storedWidth = stored.width;
+    if (stored?.height !== undefined) laidShape.storedHeight = stored.height;
+    if (shape.holdsContents || isFree) {
+      const own = looksOf(shape.element);
+      if (shape.holdsContents) {
+        laidShape.baseWidth = own.width;
+        laidShape.baseHeight = own.height;
+      }
+      if (isFree && own.points) laidShape.points = own.points;
+    }
+    return laidShape;
   });
   if (!anyFree) return undefined;
 
@@ -112,6 +128,21 @@ export function layoutInput(
 
   const obstacles: Rect[] = scope.kind === 'contents' ? [] : worldObstacles(scene);
   return { shapes: laid, relations, obstacles };
+}
+
+/** What layout takes of an appearance: its size, and where relations attach. */
+interface Looks {
+  width: number;
+  height: number;
+  points: LayoutConnectionPoint[] | undefined;
+}
+
+function looks(appearance: { width: number; height: number }): Looks {
+  return {
+    width: appearance.width,
+    height: appearance.height,
+    points: connectionPointsOf(appearance),
+  };
 }
 
 /** The notes and arrows of the view, which sit directly in World. */

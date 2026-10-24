@@ -44,15 +44,23 @@ const input = timed('main thread: input from the scene', () => layoutInput(scene
 if (!input) throw new Error('Nothing to lay out.');
 timed('main thread: copy of the input to the worker', () => structuredClone(input));
 
+// ELK runs in this thread here, where nothing can interrupt it, so there is no time limit: the
+// numbers are ELK's whole cost, in one thread, where the app's worker shares it among its ELK workers.
 const started = performance.now();
-const result = await layOut(input, new ELK());
+const result = await layOut(input, new ELK(), {
+  timeLimit: Number.POSITIVE_INFINITY,
+  onProgress: ({ done, total }) =>
+    console.log(
+      `  progress ${String(done).padStart(4)} of ${total} at ${(performance.now() - started).toFixed(0)} ms`,
+    ),
+});
 const worker = performance.now() - started;
 console.log(`${'worker: the whole layout'.padEnd(44)} ${worker.toFixed(1).padStart(9)} ms`);
 console.log(
   `${'  of which ELK'.padEnd(44)} ${result.stats.elkMs.toFixed(1).padStart(9)} ms in ${result.stats.elkRuns} runs`,
 );
 console.log(
-  `  ${result.stats.levels} levels, ${result.stats.shapes} shapes, ${result.stats.relations} relations given to ELK`,
+  `  ${result.stats.levels} levels, ${result.stats.shapes} shapes, ${result.stats.relations} relations given to ELK, ${result.stats.leftOut} left out, ${result.stats.packedForTime} levels packed for time`,
 );
 
 timed('main thread: copy of the result back', () => structuredClone(result));

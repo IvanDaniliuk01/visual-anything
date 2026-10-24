@@ -20,17 +20,31 @@ import { boundsOf, type Point, type Rect, type Size } from '../geometry';
 import { measuredSize, packInRows, placeBlock, roundToStep } from './place';
 import { ELK_SIDES, pointOnBorder, pointToward } from './ports';
 import {
+  ELK_TIME_LIMIT,
+  ELK_WORK_BUDGET,
   LAYER_GAP,
   NODE_GAP,
   type LaidOutShape,
   type LayoutConnectionPoint,
   type LayoutInput,
+  type LayoutProgress,
   type LayoutResult,
 } from './types';
 
 /** What the layout needs of ELK: elkjs's `layout`, in the worker or, in tests, in the same thread. */
 export interface ElkEngine {
   layout(graph: ElkNode): Promise<ElkNode>;
+  /** Stops a run under way, whose result never comes; the next run starts afresh. */
+  stop?(): void;
+}
+
+/** How one layout reports and bounds itself. */
+export interface LayOutOptions {
+  /** How long ELK may run in all, in milliseconds; `ELK_TIME_LIMIT` by default. */
+  timeLimit?: number;
+  /** Called each time more of the containers it arranges are done. */
+  onProgress?: (progress: LayoutProgress) => void;
+  now?: () => number;
 }
 
 /** How ELK arranges one block: left to right along the relations, in the model's order. */
@@ -88,35 +102,63 @@ export interface Lifted {
  * Arranges the free shapes of `input`, and says where each goes. Given several ELK engines, as the
  * layout worker gives one per ELK worker it runs, the containers of one depth are shared out among
  * them, each its own run at the same time; the result is the same as with one.
+ *
+ * It is bounded twice. At each level, ELK gets at most `ELK_WORK_BUDGET` of work
+ * (`strongestRelations`). And ELK runs `timeLimit` in all: a run still going then is stopped, and
+ * the containers it had, with those not yet given to ELK, are packed in rows.
  */
 export async function layOut(
   input: LayoutInput,
   elk: ElkEngine | readonly ElkEngine[],
-  now: () => number = () => performance.now(),
+  options: LayOutOptions = {},
 ): Promise<LayoutResult> {
+  const now = options.now ?? (() => performance.now());
   const started = now();
+  const ends = started + (options.timeLimit ?? ELK_TIME_LIMIT);
   const engines = Array.isArray(elk) ? (elk as readonly ElkEngine[]) : [elk as ElkEngine];
   const tree = new Tree(input);
-  const stats = { levels: 0, shapes: 0, relations: 0, elkRuns: 0, elkMs: 0, totalMs: 0 };
+  const stats = {
+    levels: 0,
+    shapes: 0,
+    relations: 0,
+    leftOut: 0,
+    packedForTime: 0,
+    elkRuns: 0,
+    elkMs: 0,
+    totalMs: 0,
+  };
   const placed: LaidOutShape[] = [];
+  const progress = { done: 0, total: tree.levelsToArrange() };
+  const report = (done: number) => {
+    progress.done += done;
+    if (done > 0) options.onProgress?.({ ...progress });
+  };
 
-  /** Runs the graphs of blocks in ELK, shared out among the engines, and gives each block's graph. */
+  /**
+   * Runs the graphs of blocks in ELK, shared out among the engines, and gives each block's graph that
+   * came back in time.
+   */
   const run = async (graphs: readonly ElkNode[]): Promise<Map<string, ElkNode>> => {
+    const left = ends - now();
+    if (left <= 0) return new Map();
     const shares = shareOut(graphs, engines.length);
     const runStarted = now();
     const results = await Promise.all(
-      shares.map((share, at) =>
-        (engines[at] as ElkEngine).layout({
-          id: 'run',
-          layoutOptions: RUN_OPTIONS,
-          children: share,
-        }),
-      ),
+      shares.map(async (share, at) => {
+        const engine = engines[at] as ElkEngine;
+        const result = await within(
+          engine.layout({ id: 'run', layoutOptions: RUN_OPTIONS, children: share }),
+          left,
+        );
+        if (result === undefined) engine.stop?.();
+        else report(share.length);
+        return result;
+      }),
     );
     stats.elkRuns += shares.length;
     stats.elkMs += now() - runStarted;
     return new Map(
-      results.flatMap((result) => result.children ?? []).map((graph) => [graph.id, graph]),
+      results.flatMap((result) => result?.children ?? []).map((graph) => [graph.id, graph]),
     );
   };
 
@@ -124,17 +166,23 @@ export async function layOut(
   const arrange = async (levels: readonly number[]): Promise<void> => {
     const blocks: { level: number; nodes: number[]; places: Map<number, Point> }[] = [];
     const graphs: ElkNode[] = [];
+    const inRows = (nodes: readonly number[], places: Map<number, Point>) => {
+      const rows = packInRows(nodes.map((node) => tree.sizeOf(node)));
+      nodes.forEach((node, at) => places.set(node, rows[at] as Point));
+    };
     for (const level of levels) {
       const nodes = tree.childrenOf(level).filter((child) => input.shapes[child]?.free);
       if (nodes.length === 0) continue;
       stats.levels += 1;
       stats.shapes += nodes.length;
-      const lifted = tree.relationsAt(level);
+      const all = tree.relationsAt(level);
+      const lifted = strongestRelations(all, nodes.length);
+      stats.leftOut += all.length - lifted.length;
       const block = { level, nodes, places: new Map<number, Point>() };
       blocks.push(block);
       if (lifted.length === 0) {
-        const rows = packInRows(nodes.map((node) => tree.sizeOf(node)));
-        nodes.forEach((node, at) => block.places.set(node, rows[at] as Point));
+        inRows(nodes, block.places);
+        report(1);
       } else {
         const sizes = new Map(nodes.map((node) => [node, tree.sizeOf(node)]));
         const graph = blockGraph(
@@ -150,9 +198,18 @@ export async function layOut(
     }
     if (graphs.length > 0) {
       const byId = await run(graphs);
-      for (const block of blocks) {
-        const graph = byId.get(`level ${block.level}`);
-        for (const child of graph?.children ?? []) {
+      for (const graph of graphs) {
+        const block = blocks.find((each) => `level ${each.level}` === graph.id);
+        if (!block) continue;
+        const laid = byId.get(graph.id);
+        if (!laid) {
+          // ELK's time ran out: this container is packed in rows instead.
+          inRows(block.nodes, block.places);
+          stats.packedForTime += 1;
+          report(1);
+          continue;
+        }
+        for (const child of laid.children ?? []) {
           block.places.set(Number(child.id.slice(1)), { x: child.x ?? 0, y: child.y ?? 0 });
         }
       }
@@ -280,6 +337,48 @@ export function blockGraph(
 }
 
 /**
+ * The relations ELK gets at one level: all of them while they fit `ELK_WORK_BUDGET`, that is while
+ * the shapes times the pairs of ends beyond one per shape stay within it; otherwise the pairs related
+ * by the most relations, then the first in the model's order, as many as fit. Every relation of a
+ * pair kept is kept.
+ */
+export function strongestRelations(lifted: readonly Lifted[], shapes: number): Lifted[] {
+  const fit = shapes + Math.floor(ELK_WORK_BUDGET / Math.max(1, shapes));
+  const pairs = new Map<string, { first: number; weight: number }>();
+  lifted.forEach((each, at) => {
+    const key = `${each.u}>${each.v}`;
+    const pair = pairs.get(key);
+    if (pair) pair.weight += 1;
+    else pairs.set(key, { first: at, weight: 1 });
+  });
+  if (pairs.size <= fit) return [...lifted];
+  const kept = new Set(
+    [...pairs.entries()]
+      .sort(([, a], [, b]) => b.weight - a.weight || a.first - b.first)
+      .slice(0, fit)
+      .map(([key]) => key),
+  );
+  return lifted.filter((each) => kept.has(`${each.u}>${each.v}`));
+}
+
+/** The longest wait timers take; a longer one would fire at once. */
+const LONGEST_TIMER = 2_147_483_647;
+
+/** What `promise` gives, unless it takes longer than `ms`: then undefined. */
+async function within<T>(promise: Promise<T>, ms: number): Promise<T | undefined> {
+  if (ms >= LONGEST_TIMER) return promise;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<undefined>((resolve) => {
+    timer = setTimeout(() => resolve(undefined), Math.max(0, ms));
+  });
+  try {
+    return await Promise.race([promise, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Shares graphs out among `count` runs, at most one per graph, each run as close to the same work as
  * can be: the largest first, each to the run with the least so far. Work is counted as shapes and
  * relations, which is roughly what ELK's time follows.
@@ -378,6 +477,14 @@ class Tree {
       this.copies.set(shape.element, copies);
     });
     for (const relation of input.relations) this.lift(relation.from, relation.to);
+  }
+
+  /** How many levels, first copies of containers and World, hold free shapes to arrange. */
+  levelsToArrange(): number {
+    const levels = [WORLD, ...this.firstCopy.values()];
+    return levels.filter((level) =>
+      this.childrenOf(level).some((child) => this.input.shapes[child]?.free),
+    ).length;
   }
 
   /** The shapes directly inside a shape, or directly in World. */
