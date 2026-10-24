@@ -1,4 +1,5 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
+import { RELATES_TO_ID } from '@visual-anything/schema';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { syntheticProject } from '../bench/synthetic';
@@ -21,7 +22,8 @@ import {
 import { buildScene, type ElementShape } from './scene';
 
 const sample = loadSample();
-const indexed = indexScene(buildScene(sample, 'system-overview'));
+const VIEW = 'system-overview';
+const indexed = indexScene(buildScene(sample, VIEW));
 
 function shape(key: string, within: IndexedScene = indexed): ElementShape {
   const found = within.byKey.get(key);
@@ -87,6 +89,18 @@ describe('nearestInDirection', () => {
     const start = { rect: { ...middle, width: 0, height: 0 } };
     expect(nameOf(nearestInDirection(indexed, start, 'right'))).toBe(API);
     expect(nameOf(nearestInDirection(indexed, start, 'left'))).toBe(AGENT);
+  });
+
+  it('enters a container whose contents sit outside its rectangle', () => {
+    // Scheduling's contents dragged up and out of it: they sit at negative offsets, above it.
+    const above = indexScene(buildScene(withSchedulingContentsMovedBy(sample, -400), VIEW));
+    expect(shape(API, above).rect.y + shape(API, above).rect.height).toBeLessThan(
+      shape(SCHEDULING, above).rect.y,
+    );
+    const start = shape(AGENT, above);
+    const reached = nearestInDirection(above, { rect: start.rect, shape: start }, 'right');
+    // The Appointments DB, the lowest of them, is the nearest to the right of the Booking agent.
+    expect(nameOf(reached)).toBe(DB);
   });
 
   it('never goes to another shape of the same element, which the selection already holds', () => {
@@ -168,6 +182,36 @@ describe('nearestTo', () => {
     expect(nameOf(nearestTo(indexed, { x: 5000, y: 240 }))).toBe(CLINIC);
   });
 
+  it('at the same distance, finds the shape drawn on top, whatever the order of the shapes', () => {
+    const rect = (x: number) => ({ x, y: 0, width: 100, height: 100 });
+    const block = (key: string, x: number): ElementShape => ({
+      key,
+      element: key,
+      offset: { x, y: 0 },
+      positioned: 'stored',
+      name: key,
+      componentName: 'Service',
+      kind: 'rectangle',
+      fill: '#ffffff',
+      stroke: '#000000',
+      rect: rect(x),
+      extent: rect(x),
+      holdsContents: false,
+    });
+    const overlapping = (drawing: number[]) =>
+      indexScene({
+        shapes: [block('first', 0), block('second', 50)],
+        drawing,
+        relations: [],
+        notes: [],
+        arrows: [],
+        bounds: { x: 0, y: 0, width: 150, height: 100 },
+      });
+    const middle = { x: 75, y: 50 };
+    expect(nameOf(nearestTo(overlapping([0, 1]), middle))).toBe('second');
+    expect(nameOf(nearestTo(overlapping([1, 0]), middle))).toBe('first');
+  });
+
   it('finds nothing in a view without shapes', () => {
     const empty = indexScene({
       shapes: [],
@@ -190,6 +234,15 @@ describe('containerOf and firstInside', () => {
     expect(firstInside(indexed, shape(CLINIC))?.key).toBe(WHATSAPP);
     expect(firstInside(indexed, shape(SCHEDULING))?.key).toBe(API);
     expect(firstInside(indexed, shape(PATIENT))).toBeUndefined();
+  });
+
+  it('finds the shapes a container holds outside its rectangle', () => {
+    // Above Scheduling, the Appointments DB comes nearest its top left corner; left of it, the
+    // Reminder service does.
+    const above = indexScene(buildScene(withSchedulingContentsMovedBy(sample, -400), VIEW));
+    expect(firstInside(above, shape(SCHEDULING, above))?.key).toBe(DB);
+    const left = indexScene(buildScene(withSchedulingContentsMovedBy(sample, 0, -600), VIEW));
+    expect(firstInside(left, shape(SCHEDULING, left))?.key).toBe(REMINDERS);
   });
 });
 
@@ -224,6 +277,58 @@ describe('drawnRelations', () => {
   it('is worked out once for each scene', () => {
     expect(drawnRelations(indexed.scene, sample)).toBe(drawn);
   });
+
+  it('lists the relations that end on a relation, in the model’s order', () => {
+    const onRelations = withRelationsOnRelations(sample);
+    const lines = drawnRelations(buildScene(onRelations, VIEW), onRelations);
+    const ids = (list: readonly { relation: string }[]) => list.map((line) => line.relation);
+    expect(ids(lines.endingOn('api-reads-db'))).toEqual(['reads-and-writes', 'about-reading']);
+    expect(ids(lines.endingOn('api-writes-db'))).toEqual(['reads-and-writes']);
+    expect(ids(lines.endingOn('reads-and-writes'))).toEqual(['about-reading']);
+    expect(lines.endingOn('agent-to-api')).toEqual([]);
+    // Relations between relations are drawn on no element.
+    expect(ids(lines.around('appointments-api'))).toEqual(around('appointments-api'));
+  });
+
+  it('steps from an element through its relations and those that end on them, each once', () => {
+    const onRelations = withRelationsOnRelations(sample);
+    const lines = drawnRelations(buildScene(onRelations, VIEW), onRelations);
+    expect(lines.steps('appointments-api').map(({ line, on }) => [line.relation, on])).toEqual([
+      ['api-to-reminders', 'appointments-api'],
+      ['api-writes-db', 'appointments-api'],
+      ['reads-and-writes', 'api-writes-db'],
+      ['about-reading', 'reads-and-writes'],
+      ['api-reads-db', 'appointments-api'],
+      ['agent-to-api', 'appointments-api'],
+    ]);
+    expect(lines.steps('booking-agent').map(({ line }) => line.relation)).toEqual(
+      around('booking-agent'),
+    );
+    expect(lines.steps('clinic-booking')).toEqual([]);
+  });
+
+  it('looks at each relation once, however deep relations between relations are woven', () => {
+    // Every relation of a level ends on two of the level below: 2^40 ways down from the top.
+    const depth = 40;
+    const woven = withWovenRelations(sample, depth);
+    const lines = drawnRelations(buildScene(woven, VIEW), woven);
+    for (const side of ['a', 'b', 'c']) expect(lines.line(`weave-${side}-${depth}`)).toBeDefined();
+    const started = performance.now();
+    expect(lines.elementOf(`weave-a-${depth}`)).toBe('patient');
+    const stops = lines.steps('patient').map(({ line }) => line.relation);
+    expect(performance.now() - started).toBeLessThan(100);
+    expect(stops).toEqual(expect.arrayContaining(['weave-a-40', 'weave-b-40', 'weave-c-40']));
+    expect(new Set(stops).size).toBe(stops.length);
+  });
+
+  it('finds the element a relation is stepped through from, through the relations it ends on', () => {
+    const onRelations = withRelationsOnRelations(sample);
+    const lines = drawnRelations(buildScene(onRelations, VIEW), onRelations);
+    expect(lines.elementOf('whatsapp-to-agent')).toBe('whatsapp');
+    expect(lines.elementOf('reads-and-writes')).toBe('appointments-api');
+    expect(lines.elementOf('about-reading')).toBe('appointments-api');
+    expect(lines.elementOf('api-in-scheduling')).toBeUndefined();
+  });
 });
 
 describe('stepRelation and farEnd', () => {
@@ -245,6 +350,17 @@ describe('stepRelation and farEnd', () => {
 
   it('finds no relation on an element without any', () => {
     expect(step('clinic-booking', undefined, 1)).toBeUndefined();
+  });
+
+  it('steps on into the relations that end on a relation', () => {
+    const onRelations = withRelationsOnRelations(sample);
+    const lines = drawnRelations(buildScene(onRelations, VIEW), onRelations);
+    const next = (current: string | undefined, by: 1 | -1) =>
+      stepRelation(lines, 'appointments-api', current, by)?.relation;
+    expect(next('api-writes-db', 1)).toBe('reads-and-writes');
+    expect(next('reads-and-writes', 1)).toBe('about-reading');
+    expect(next('about-reading', 1)).toBe('api-reads-db');
+    expect(next('api-reads-db', -1)).toBe('about-reading');
   });
 
   it('goes to the other end, or to the end the relation points to', () => {
@@ -270,6 +386,82 @@ describe('rectOf', () => {
     ).toEqual({ x: 0, y: 20, width: 10, height: 30 });
   });
 });
+
+/**
+ * The sample with relations between relations: "reads and writes" relates the API's reading of the
+ * database to its writing, and "about reading" relates that relation to the reading.
+ */
+function withRelationsOnRelations(project: ProjectSnapshot): ProjectSnapshot {
+  return {
+    ...project,
+    model: {
+      ...project.model,
+      relations: [
+        ...project.model.relations,
+        {
+          id: 'reads-and-writes',
+          relationType: RELATES_TO_ID,
+          from: 'api-reads-db',
+          to: 'api-writes-db',
+        },
+        {
+          id: 'about-reading',
+          relationType: RELATES_TO_ID,
+          from: 'reads-and-writes',
+          to: 'api-reads-db',
+        },
+      ],
+    },
+  };
+}
+
+/**
+ * The sample with relations between relations woven `depth` levels high, three at each level: at the
+ * bottom, a triangle of relations between the Patient, the Booking agent and the Reminder service;
+ * above, a, b and c of each level from a, b and c of the level below to b, c and a of it.
+ */
+function withWovenRelations(project: ProjectSnapshot, depth: number): ProjectSnapshot {
+  const bottom = {
+    a: ['patient', 'booking-agent'],
+    b: ['booking-agent', 'reminder-service'],
+    c: ['reminder-service', 'patient'],
+  } as const;
+  const next = { a: 'b', b: 'c', c: 'a' } as const;
+  const woven = [];
+  for (let level = 0; level <= depth; level++) {
+    for (const side of ['a', 'b', 'c'] as const) {
+      woven.push({
+        id: `weave-${side}-${level}`,
+        relationType: RELATES_TO_ID,
+        from: level === 0 ? bottom[side][0] : `weave-${side}-${level - 1}`,
+        to: level === 0 ? bottom[side][1] : `weave-${next[side]}-${level - 1}`,
+      });
+    }
+  }
+  return {
+    ...project,
+    model: { ...project.model, relations: [...project.model.relations, ...woven] },
+  };
+}
+
+/** The sample with the shapes inside Scheduling moved by (dy, dx) from where they are stored. */
+function withSchedulingContentsMovedBy(
+  project: ProjectSnapshot,
+  dy: number,
+  dx = 0,
+): ProjectSnapshot {
+  return {
+    ...project,
+    views: project.views.map((view) => ({
+      ...view,
+      positions: view.positions.map((position) =>
+        position.container === 'scheduling'
+          ? { ...position, x: position.x + dx, y: position.y + dy }
+          : position,
+      ),
+    })),
+  };
+}
 
 /**
  * The sample with the Reminder service inside Clinic booking too, so that it has two shapes; the
