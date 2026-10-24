@@ -5,6 +5,7 @@
  * change carries to its own copy of the project, whoever made the change.
  */
 import {
+  LAUNCH_PARAM,
   OperationError,
   ProtocolError,
   applyOperations,
@@ -157,6 +158,8 @@ export class LiveConnection {
   /** Set after reconnecting because the copy drifted, until a change fits the fresh copy. */
   private recovering = false;
   private noticeCount = 0;
+  /** A socket opened with a launch code, kept for a moment after a disconnect: see `disconnect`. */
+  private parked: ReturnType<typeof setTimeout> | undefined;
 
   /**
    * `url` is the live connection's, carrying the session token or a launch code; null when the tab
@@ -191,16 +194,41 @@ export class LiveConnection {
    * failed: it is never reopened in a loop.
    */
   readonly connect = (): void => {
+    if (this.parked !== undefined) {
+      // Connected again at once: the socket kept is still the one to use.
+      clearTimeout(this.parked);
+      this.parked = undefined;
+      return;
+    }
     if (this.url === null || this.socket !== undefined) return;
     if (this.state.status === 'closed' || this.state.status === 'failed') return;
     this.openSocket(this.url);
     if (this.state.status !== 'connecting') this.update({ status: 'connecting' });
   };
 
-  /** Closes the live connection, answering the requests still waiting. `connect` opens a new one. */
+  /**
+   * Closes the live connection, answering the requests still waiting. `connect` opens a new one. A
+   * socket opened with a launch code, before the token was handed over, closes a moment later
+   * instead: the code works once, so a mount undone and done again at once, as React's StrictMode
+   * does, must keep that socket rather than open another with a spent code.
+   */
   readonly disconnect = (): void => {
+    if (this.socket !== undefined && this.parked === undefined && this.opensOnce()) {
+      this.parked = setTimeout(() => {
+        this.parked = undefined;
+        this.closeSocket();
+      }, 0);
+      return;
+    }
     this.closeSocket();
   };
+
+  /** Whether the socket was opened with a launch code that the token has not yet replaced. */
+  private opensOnce(): boolean {
+    if (this.url === null || this.state.status !== 'connecting') return false;
+    const query = this.url.slice(this.url.indexOf('?') + 1);
+    return new URLSearchParams(query).has(LAUNCH_PARAM);
+  }
 
   /** Sends a command; resolves once the local program has answered it. */
   readonly send = (command: Command): Promise<CommandResult> =>
