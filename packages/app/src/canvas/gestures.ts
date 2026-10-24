@@ -3,12 +3,14 @@
  * it is dropped, and relating one element to another. Pure, so that it can be tested without a canvas.
  */
 import {
+  appearanceOf,
   definitionsOf,
   limitWarnings,
   modelIndexOf,
   nestingTypesInView,
   positionKey,
   type Command,
+  type CreateElementCommand,
   type ProjectSnapshot,
   type ResolvedRelationType,
 } from '@visual-anything/core';
@@ -17,6 +19,7 @@ import type { Selection } from '../editor/selection';
 import type { Point } from './geometry';
 import type { IndexedScene } from './hit';
 import type { ElementShape } from './scene';
+import { coversRect } from './stacking';
 
 /**
  * The command that moves the selection by `delta`, in scene units, or `undefined` when nothing moves.
@@ -178,7 +181,7 @@ export function createInsideCommand(
   viewId: Id,
   componentId: Id,
   container: Id,
-): Command | undefined {
+): CreateElementCommand | undefined {
   const view = project.views.find((each) => each.id === viewId);
   const component = definitionsOf(project.packages).component(componentId);
   if (!view || !component || container === project.model.world.id) return undefined;
@@ -189,6 +192,88 @@ export function createInsideCommand(
     element: { component: componentId, name: component.name },
     containers: [{ container, relationType }],
   };
+}
+
+/** How far, in scene units, a shape added beside another sits from it, and from the next one along. */
+export const BESIDE_GAP = 40;
+/** How many places, going right, an element added beside a shape tries before it settles for the first. */
+export const BESIDE_TRIES = 100;
+
+/**
+ * The command that creates an element of a component beside a shape, in the container that shape
+ * sits in, or directly in World: `BESIDE_GAP` to the right of it, top edges level, then further right
+ * by its own width and the gap until it overlaps no shape there, so that elements added one after
+ * another make a row. After `BESIDE_TRIES` places it stays in the first. Its position is stored but
+ * not pinned, as the program chose it.
+ *
+ * The shapes there that only the stand-in row placed would move below the new one, which has a
+ * position, so the same action stores theirs where they are drawn, not pinned either: nothing there
+ * moves. `undefined` for an unknown view or component.
+ */
+export function createBesideCommand(
+  indexed: IndexedScene,
+  project: ProjectSnapshot,
+  viewId: Id,
+  componentId: Id,
+  beside: ElementShape,
+): Command | undefined {
+  const view = project.views.find((each) => each.id === viewId);
+  const definitions = definitionsOf(project.packages);
+  const component = definitions.component(componentId);
+  if (!view || !component) return undefined;
+  const { container } = beside;
+  const create =
+    container === undefined
+      ? ({
+          type: 'create-element',
+          element: { component: componentId, name: component.name },
+        } satisfies CreateElementCommand)
+      : createInsideCommand(project, viewId, componentId, container);
+  if (!create) return undefined;
+  const { width, height } = appearanceOf({ component: componentId }, definitions);
+  const at = besidePlace(indexed, beside, { width, height });
+  const command: CreateElementCommand = {
+    ...create,
+    positions: [{ view: view.id, ...(container === undefined ? {} : { container }), ...at }],
+  };
+
+  const kept = (indexed.contentsOf.get(beside.containerShape ?? '') ?? [])
+    .filter((shape) => shape.positioned === 'placed')
+    .map((shape): ShapePosition => ({
+      element: shape.element,
+      ...(shape.container === undefined ? {} : { container: shape.container }),
+      x: Math.round(shape.offset.x),
+      y: Math.round(shape.offset.y),
+    }));
+  if (kept.length === 0) return command;
+  return {
+    type: 'batch',
+    label: `Create "${component.name}"`,
+    commands: [{ type: 'set-positions', view: view.id, positions: kept }, command],
+  };
+}
+
+/**
+ * Where a shape of `size` goes beside `beside`, relative to the container `beside` sits in: the first
+ * place to its right where it overlaps no shape there, with what sticks out of it.
+ */
+function besidePlace(
+  indexed: IndexedScene,
+  beside: ElementShape,
+  size: { width: number; height: number },
+): Point {
+  const origin = { x: beside.rect.x - beside.offset.x, y: beside.rect.y - beside.offset.y };
+  const first = {
+    x: Math.round(beside.offset.x + beside.rect.width + BESIDE_GAP),
+    y: Math.round(beside.offset.y),
+  };
+  const siblings = indexed.contentsIndex(beside.containerShape ?? '');
+  for (let tried = 0; tried < BESIDE_TRIES; tried++) {
+    const at = { x: first.x + tried * (size.width + BESIDE_GAP), y: first.y };
+    const rect = { x: origin.x + at.x, y: origin.y + at.y, ...size };
+    if (!siblings.query(rect).some((sibling) => coversRect(indexed, sibling, rect))) return at;
+  }
+  return first;
 }
 
 /** A relation type offered when relating two ends, and whether its limits accept them. */
