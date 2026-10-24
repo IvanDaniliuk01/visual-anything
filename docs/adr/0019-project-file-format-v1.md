@@ -23,3 +23,8 @@ We chose each of these as the simplest representation that keeps the rules in `C
 - **Deleting a container's contents with it**: rejected. Containment is one relation among others; deleting it should not delete elements the user did not choose.
 - **Ids made from names alone, with a counter for clashes**: rejected. A deleted id could come back and silently repair a broken step with the wrong relation.
 - **Alphabetical key order everywhere**: rejected. `id` and `name` first read better in a diff.
+
+## Clarifications
+
+- 2026-10-24: a particularity is a value that differs from the default its component gives, not any value an element sets. A value for an attribute without a default is ordinary data. The Particularities bullet above and CONTEXT.md now say so.
+- 2026-10-24: a position stays when its element leaves its container, or when the view stops nesting by that relation type, so that the layout comes back with the containment (the Positions bullet above).

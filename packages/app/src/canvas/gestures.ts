@@ -69,12 +69,16 @@ export function movingShapes(indexed: IndexedScene, selection: Selection): Eleme
   return selected.filter((shape) => !insideAnyOf(shape.key, keys));
 }
 
-/** Every key of the shapes a move draws in a new place: the moving shapes and everything inside them. */
+/**
+ * Every key of the shapes a move draws in a new place: the moving shapes and everything inside them.
+ * A shape is carried when one of the shapes it sits in moves, which its key tells: one look-up per
+ * container on its way out to World, however many shapes move.
+ */
 export function carriedKeys(indexed: IndexedScene, moving: readonly ElementShape[]): Set<string> {
-  const roots = moving.map((shape) => shape.key);
-  const carried = new Set(roots);
+  const movers = new Set(moving.map((shape) => shape.key));
+  const carried = new Set(movers);
   for (const shape of indexed.scene.shapes) {
-    if (roots.some((root) => shape.key.startsWith(`${root}/`))) carried.add(shape.key);
+    if (insideAnyOf(shape.key, movers)) carried.add(shape.key);
   }
   return carried;
 }
@@ -101,8 +105,9 @@ function moved(shape: FreeShape, dx: number, dy: number): FreeShape {
 }
 
 /**
- * The command that creates an element of a component where it is dropped: inside the shape it is
- * dropped on, through the view's first nesting relation type, or directly in World.
+ * The command that creates an element of a component at a point: inside the given shape, through
+ * the view's first nesting relation type, or directly in World. Its position is stored but not
+ * pinned, since no one chose it by hand: layout may arrange it, and moving it pins it.
  */
 export function createAtCommand(
   project: ProjectSnapshot,
@@ -129,7 +134,6 @@ export function createAtCommand(
         ...(container ? { container: container.element } : {}),
         x: Math.round(at.x - origin.x),
         y: Math.round(at.y - origin.y),
-        pinned: true,
       },
     ],
   };

@@ -1,4 +1,7 @@
-/* The app's look. Every color pair used for text meets WCAG 2.1 AA contrast (4.5:1). */
+/*
+ * The app's look. Every color pair used for text meets WCAG 2.1 AA contrast (4.5:1), and the edges
+ * and marks that show where a control is or what is selected meet 3:1.
+ */
 
 :root {
   color-scheme: light;
@@ -7,6 +10,8 @@
   --surface: #ffffff;
   --panel: #f7f8fa;
   --border: #d9dee5;
+  /* The edge of a control one types or chooses in: 3.4:1 on the panels. */
+  --control-border: #7b8794;
   --accent: #1d4f91;
   --accent-soft: #e6eefa;
   --problem: #a61b1b;

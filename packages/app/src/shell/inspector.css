@@ -71,7 +71,7 @@
   width: 100%;
   min-width: 0;
   padding: 0.3rem 0.45rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   border-radius: 0.3rem;
   background: var(--surface);
   color: var(--text);
@@ -321,7 +321,7 @@
   width: 2.4rem;
   height: 1.7rem;
   padding: 0.1rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   border-radius: 0.3rem;
   background: var(--surface);
   cursor: pointer;
