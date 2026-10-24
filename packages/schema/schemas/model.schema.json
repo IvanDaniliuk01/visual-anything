@@ -152,6 +152,18 @@
           },
           "description": "Where relations attach to its shapes: each relation attaches to the one facing its other end. An empty list has relations attach anywhere on the border, whatever is inherited. Shapes that draw their contents as rows attach relations beside their header and their rows instead.",
           "maxItems": 32
+        },
+        "image": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AppearanceImage"
+            },
+            {
+              "type": "string",
+              "const": "none"
+            }
+          ],
+          "description": "The image its shapes show; `none` shows none, whatever is inherited."
         }
       },
       "additionalProperties": false,
@@ -320,6 +332,32 @@
       ],
       "additionalProperties": false,
       "description": "A named place on the border of a shape where relations attach."
+    },
+    "AppearanceImage": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/Id",
+          "description": "The id of an image that a package in use defines."
+        },
+        "placement": {
+          "type": "string",
+          "enum": [
+            "icon",
+            "drawing"
+          ],
+          "description": "`icon`, the default: small, beside the name, inside the shape. `drawing`: on a plate in place of the shape, with the name under it. Shapes that hold other shapes or draw rows always show it as an icon in their header, and rows as a small icon before their name."
+        },
+        "tint": {
+          "$ref": "#/definitions/Color",
+          "description": "When set, the picture is drawn as a silhouette of this colour: its shape kept, its colours replaced."
+        }
+      },
+      "required": [
+        "image"
+      ],
+      "additionalProperties": false,
+      "description": "A picture an appearance shows."
     },
     "Relation": {
       "type": "object",

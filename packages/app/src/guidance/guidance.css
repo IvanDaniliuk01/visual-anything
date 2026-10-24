@@ -1,0 +1,56 @@
+/* Claude's live guidance over the canvas: its caption, or what its marks say, and a way to dismiss it. */
+
+.guidance-caption {
+  position: absolute;
+  bottom: 1rem;
+  left: 50%;
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  max-width: min(36rem, calc(100% - 2rem));
+  transform: translateX(-50%);
+  padding: 0.55rem 0.6rem 0.55rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-left-width: 0.25rem;
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+}
+
+.guidance-caption-author {
+  flex: none;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.guidance-caption-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.guidance-dismiss {
+  flex: none;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  margin-left: auto;
+  border: 1px solid transparent;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.guidance-dismiss:hover {
+  border-color: var(--border);
+  background: var(--panel);
+  color: var(--text);
+}
+
+.guidance-dismiss:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

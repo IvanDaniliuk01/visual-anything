@@ -179,6 +179,30 @@ function checkedConnectionPoints(value: unknown, of: string): ConnectionPoint[] 
   });
 }
 
+/**
+ * The image an appearance shows: `none`, or an image by its id with its placement and tint. Whether a
+ * package in use defines that image is checked after every command (`images/check.ts`).
+ */
+function checkedImage(value: unknown, of: string): NonNullable<Appearance['image']> {
+  if (value === 'none') return 'none';
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    invalid(`The image of ${of} must be "none" or an image named by its id.`);
+  }
+  const { image, placement, tint, ...rest } = value as Record<string, unknown>;
+  if (Object.keys(rest).length > 0) {
+    invalid(`The image of ${of} holds only its image, its placement and its tint.`);
+  }
+  if (!isId(image)) invalid(`The image of ${of} must name an image by its id.`);
+  if (placement !== undefined && placement !== 'icon' && placement !== 'drawing') {
+    invalid(`The image of ${of} is placed as an icon or as a drawing.`);
+  }
+  return {
+    image,
+    ...(placement === undefined ? {} : { placement }),
+    ...(tint === undefined ? {} : { tint: checkedColor(tint, 'tint', of) }),
+  };
+}
+
 function capitalized(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
@@ -198,6 +222,7 @@ const TRAIT_CHECKS: {
   detail: checkedDetail,
   contentsAsRows: (value, of) => checkedBoolean(value, 'draws its contents as rows', of),
   connectionPoints: checkedConnectionPoints,
+  image: checkedImage,
 };
 
 /** Refuses an appearance that draws rows on a shape that cannot, both set in it. */

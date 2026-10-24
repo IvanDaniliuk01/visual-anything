@@ -3,7 +3,15 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { isTemporaryFile, removeFile, writeFileAtomic, type WriterFs } from './writer';
+import {
+  NotRegularFileError,
+  isTemporaryFile,
+  removeFile,
+  writeFileAtomic,
+  type WriterFs,
+} from './writer';
+
+const TEMPORARY = '.va-tmp';
 
 let folder: string;
 let target: string;
@@ -34,7 +42,7 @@ async function namesIn(root: string): Promise<string[]> {
 /** The real file system, with some calls replaced. */
 function fsWith(overrides: Partial<WriterFs>): WriterFs {
   return {
-    open: (path, flags) => fsp.open(path, flags),
+    open: (path, flags, mode) => fsp.open(path, flags, mode),
     rename: (from, to) => fsp.rename(from, to),
     unlink: (path) => fsp.unlink(path),
     mkdir: (path, options) => fsp.mkdir(path, options),
@@ -195,6 +203,194 @@ describe('writeFileAtomic', () => {
     expect(name).not.toMatch(/\.va(project|model|package|view|scenario)$/);
     expect(isTemporaryFile('model.vamodel')).toBe(false);
   });
+});
+
+describe('writeFileAtomic for project files only', () => {
+  /** Makes a link, or says this user may not make one here. */
+  async function tryLink(to: string, path: string, type: 'file' | 'junction'): Promise<boolean> {
+    try {
+      await fsp.symlink(to, path, type);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  it('writes over a regular file', async () => {
+    await writeFile(target, 'old');
+    await writeFileAtomic(target, bytes('new'), { regularOnly: true });
+    expect(await readFile(target, 'utf8')).toBe('new');
+  });
+
+  it('never renames over a link, and leaves what it points to alone', async (context) => {
+    const outside = await mkdtemp(join(tmpdir(), 'va-outside-'));
+    try {
+      await writeFile(join(outside, 'secret'), 'secret');
+      if (!(await tryLink(join(outside, 'secret'), target, 'file'))) context.skip();
+      await expect(writeFileAtomic(target, bytes('new'), { regularOnly: true })).rejects.toThrow(
+        'model.vamodel is not a regular file; Visual Anything writes only regular files inside the project folder.',
+      );
+      expect(await readFile(join(outside, 'secret'), 'utf8')).toBe('secret');
+      expect((await fsp.lstat(target)).isSymbolicLink()).toBe(true);
+      expect(await namesIn(folder)).toEqual(['model.vamodel']);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('never writes into a folder that is a link', async (context) => {
+    const outside = await mkdtemp(join(tmpdir(), 'va-outside-'));
+    try {
+      if (!(await tryLink(outside, join(folder, 'views'), 'junction'))) context.skip();
+      await expect(
+        writeFileAtomic(join(folder, 'views', 'a.vaview'), bytes('{}'), { regularOnly: true }),
+      ).rejects.toThrow(
+        'views is not a real folder; Visual Anything writes only regular files inside the project folder.',
+      );
+      expect(await readdir(outside)).toEqual([]);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('never renames over a folder', async () => {
+    await mkdir(target);
+    await expect(writeFileAtomic(target, bytes('new'), { regularOnly: true })).rejects.toThrow(
+      /is not a regular file/,
+    );
+    expect(await namesIn(folder)).toEqual(['model.vamodel']);
+  });
+});
+
+describe('writeFileAtomic for project files, when a folder is swapped while it writes', () => {
+  let project: string;
+  let outside: string;
+  let views: string;
+  let file: string;
+
+  beforeEach(async () => {
+    project = await fsp.realpath(await mkdtemp(join(tmpdir(), 'va-swap-project-')));
+    outside = await fsp.realpath(await mkdtemp(join(tmpdir(), 'va-swap-outside-')));
+    views = join(project, 'views');
+    file = join(views, 'a.vaview');
+    await mkdir(views);
+    await writeFile(file, 'old');
+  });
+
+  afterEach(async () => {
+    await rm(project, { recursive: true, force: true, maxRetries: 5 });
+    await rm(outside, { recursive: true, force: true, maxRetries: 5 });
+  });
+
+  /** Moves the views folder aside and puts a junction to the outside folder in its place. */
+  async function swapViews(): Promise<void> {
+    await fsp.rename(views, join(project, 'views-before'));
+    await fsp.symlink(outside, views, 'junction');
+  }
+
+  it('writes a file inside the project folder and leaves nothing beside it', async () => {
+    await writeFileAtomic(file, bytes('new'), { regularOnly: true, inside: project });
+    expect(await readFile(file, 'utf8')).toBe('new');
+    expect(await namesIn(project)).toEqual(['views', 'views/a.vaview']);
+  });
+
+  it('refuses before the rename when the folder became a junction to the outside', async () => {
+    let swapped = false;
+    const fs = fsWith({
+      open: async (path, flags, mode) => {
+        if (!swapped && String(path).endsWith(TEMPORARY)) {
+          swapped = true;
+          await swapViews();
+        }
+        return fsp.open(path, flags, mode);
+      },
+    });
+
+    await expect(
+      writeFileAtomic(file, bytes('new'), { regularOnly: true, inside: project, fs }),
+    ).rejects.toThrow('views changed while a.vaview was written, so nothing was written there');
+
+    expect(swapped).toBe(true);
+    expect(await readdir(outside)).toEqual([]);
+    expect(await readFile(join(project, 'views-before/a.vaview'), 'utf8')).toBe('old');
+  });
+
+  it('keeps the bytes of a file of that name outside when the swap comes just before the rename', async () => {
+    await writeFile(join(outside, 'a.vaview'), 'SECRET');
+    const fs = fsWith({
+      link: async (existing, path) => {
+        await swapViews();
+        await fsp.link(existing, path);
+      },
+    });
+
+    await expect(
+      writeFileAtomic(file, bytes('new'), { regularOnly: true, inside: project, fs }),
+    ).rejects.toThrow();
+
+    expect(await readdir(outside)).toEqual(['a.vaview']);
+    expect(await readFile(join(outside, 'a.vaview'), 'utf8')).toBe('SECRET');
+    expect(await readFile(join(project, 'views-before/a.vaview'), 'utf8')).toBe('old');
+  });
+
+  it('puts the old bytes back and refuses when the file landed outside the project folder', async () => {
+    // As if the rename had gone through a link: the name now leads outside.
+    let renamed = false;
+    const fs = fsWith({
+      rename: async (from, to) => {
+        await fsp.rename(from, to);
+        if (to === file) renamed = true;
+      },
+      realpath: async (path) =>
+        renamed && path === file ? join(outside, 'a.vaview') : fsp.realpath(path),
+    });
+
+    await expect(
+      writeFileAtomic(file, bytes('new'), { regularOnly: true, inside: project, fs }),
+    ).rejects.toThrow('views changed while a.vaview was written');
+
+    expect(await readFile(file, 'utf8')).toBe('old');
+    expect(await namesIn(project)).toEqual(['views', 'views/a.vaview']);
+  });
+
+  it('removes what it wrote when there was nothing to put back', async () => {
+    await rm(file);
+    let renamed = false;
+    const fs = fsWith({
+      rename: async (from, to) => {
+        await fsp.rename(from, to);
+        if (to === file) renamed = true;
+      },
+      realpath: async (path) =>
+        renamed && path === file ? join(outside, 'a.vaview') : fsp.realpath(path),
+    });
+
+    await expect(
+      writeFileAtomic(file, bytes('new'), { regularOnly: true, inside: project, fs }),
+    ).rejects.toThrow(NotRegularFileError);
+
+    expect(await namesIn(project)).toEqual(['views']);
+  });
+
+  it('refuses a folder whose real path lies outside the project folder', async () => {
+    await expect(
+      writeFileAtomic(join(outside, 'a.vaview'), bytes('new'), {
+        regularOnly: true,
+        inside: project,
+      }),
+    ).rejects.toThrow('lies outside the project folder');
+    expect(await readdir(outside)).toEqual([]);
+  });
+});
+
+describe('writeFileAtomic with a mode', () => {
+  it.skipIf(process.platform === 'win32')(
+    'gives the file the mode asked for, whatever the umask',
+    async () => {
+      await writeFileAtomic(target, bytes('secret'), { mode: 0o600 });
+      expect((await fsp.stat(target)).mode & 0o777).toBe(0o600);
+    },
+  );
 });
 
 describe('removeFile', () => {
