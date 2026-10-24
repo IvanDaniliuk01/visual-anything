@@ -3,7 +3,8 @@
     "allow": [
       "mcp__claude-in-chrome__tabs_context_mcp",
       "ClaudeInChromeDomain(127.0.0.1:62516)",
-      "ClaudeInChromeDomain(127.0.0.1:63425)"
+      "ClaudeInChromeDomain(127.0.0.1:63425)",
+      "ClaudeInChromeDomain(127.0.0.1:52405)"
     ]
   },
   "worktree": {

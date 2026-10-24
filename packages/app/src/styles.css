@@ -305,3 +305,200 @@ dd {
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
   font-size: 0.85rem;
 }
+
+/* The canvas toolbar floats over the top of the canvas; only its controls take the pointer. */
+.canvas-toolbar {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.6rem;
+  right: 0.6rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  pointer-events: none;
+}
+
+.canvas-toolbar > * {
+  pointer-events: auto;
+}
+
+.canvas-toolbar-spacer {
+  flex: 1;
+  pointer-events: none;
+}
+
+.canvas-toolbar button,
+.canvas-toolbar select,
+.canvas-toolbar-zoom {
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 6%);
+}
+
+.canvas-toolbar button,
+.canvas-toolbar select {
+  cursor: pointer;
+}
+
+.canvas-toolbar button:hover:not(:disabled),
+.canvas-toolbar select:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.canvas-toolbar button:disabled,
+.canvas-toolbar select:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.canvas-toolbar-zoom {
+  min-width: 3.4rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.canvas-host:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* The menu that asks which relation type relates two ends. */
+.canvas-menu {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  min-width: 13rem;
+  max-height: 22rem;
+  overflow: auto;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(16 24 40 / 16%);
+}
+
+.canvas-menu-title {
+  margin: 0.2rem 0.4rem 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.canvas-menu button {
+  padding: 0.35rem 0.5rem;
+  border: 0;
+  border-radius: 0.3rem;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.canvas-menu button:hover,
+.canvas-menu button:focus-visible {
+  outline: none;
+  background: var(--accent-soft);
+}
+
+.canvas-menu-hint {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.canvas-menu .canvas-menu-cancel {
+  margin-top: 0.2rem;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  color: var(--text-muted);
+}
+
+/* Dialogs, such as the preview of what a deletion cascades to. */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  background: rgb(16 24 40 / 35%);
+}
+
+.dialog {
+  width: min(32rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 4rem);
+  overflow: auto;
+  padding: 1.2rem 1.4rem;
+  border-radius: 0.6rem;
+  background: var(--surface);
+  box-shadow: 0 16px 40px rgb(16 24 40 / 25%);
+}
+
+.dialog h2 {
+  margin: 0 0 0.8rem;
+  font-size: 1.1rem;
+}
+
+.dialog p {
+  margin: 0.5rem 0;
+}
+
+.dialog ul {
+  margin: 0.3rem 0 0.6rem;
+  padding-left: 1.2rem;
+}
+
+.dialog-note {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.dialog-actions button {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.dialog-actions .danger {
+  border-color: var(--problem);
+  background: var(--problem);
+  color: #ffffff;
+}
+
+/* Text edited in place, laid over the canvas where it is drawn. */
+.inline-editor {
+  position: absolute;
+  z-index: 3;
+  box-sizing: border-box;
+  padding: 0.2rem 0.4rem;
+  border: 2px solid var(--accent);
+  border-radius: 0.3rem;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-weight: 600;
+  text-align: center;
+  resize: none;
+}
+
+textarea.inline-editor {
+  font-weight: normal;
+  text-align: left;
+}
