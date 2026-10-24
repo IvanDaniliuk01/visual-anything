@@ -5,34 +5,19 @@
  * expands through one command, `set-collapsed`, from the shape menu, the toggle on a container's
  * shape and the keys, so that each is one undoable action.
  */
-import type { Command, ProjectSnapshot } from '@visual-anything/core';
+import type { ProjectSnapshot, SetCollapsedCommand } from '@visual-anything/core';
 import { modelIndexOf } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
 import type { IndexedScene } from './hit';
 import type { ElementShape } from './scene';
 
-/**
- * The command that collapses or expands containers in a view (interface I1). It is undoable, writes
- * only the view file, and the history calls it `Collapse "X"`, `Expand "X"`, or `Collapse N
- * containers` for several.
- */
-export interface SetCollapsedCommand {
-  type: 'set-collapsed';
-  view: Id;
-  elements: Id[];
-  collapsed: boolean;
-}
-
-/** A view as I1 extends it: the element ids of the containers it collapses, sorted and unique. */
-type WithCollapsed = ViewFile & { collapsed?: readonly Id[] };
-
 const NONE: ReadonlySet<Id> = new Set();
 const collapsedSets = new WeakMap<readonly Id[], ReadonlySet<Id>>();
 
-/** The containers a view collapses. */
+/** The containers a view collapses (`ViewFile.collapsed`, interface I1). */
 export function collapsedIn(view: ViewFile): ReadonlySet<Id> {
-  const ids = (view as WithCollapsed).collapsed;
+  const ids = view.collapsed;
   if (ids === undefined || ids.length === 0) return NONE;
   let set = collapsedSets.get(ids);
   if (!set) {
@@ -43,21 +28,21 @@ export function collapsedIn(view: ViewFile): ReadonlySet<Id> {
 }
 
 /**
- * The command that collapses or expands these containers. Until the core's `set-collapsed` lands
- * (interface I1), the `Command` union does not name it, so it is given the union's type here.
+ * The command that collapses or expands these containers (interface I1). It is undoable, writes only
+ * the view file, and the history calls it `Collapse "X"`, `Expand "X"`, or `Collapse N containers`
+ * for several.
  */
 export function setCollapsedCommand(
   viewId: Id,
   elements: readonly Id[],
   collapsed: boolean,
-): Command {
-  const command: SetCollapsedCommand = {
+): SetCollapsedCommand {
+  return {
     type: 'set-collapsed',
     view: viewId,
     elements: [...new Set(elements)].sort(),
     collapsed,
   };
-  return command as unknown as Command;
 }
 
 /** Whether a shape is a container the view can collapse or expand: it holds shapes, or is collapsed. */

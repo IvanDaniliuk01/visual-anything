@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { syntheticProject } from '../bench/synthetic';
 import { loadSample } from '../test/sample';
 import { withWovenRelations } from '../test/woven';
-import { collapsedIn } from './collapse';
+import { collapsedIn, setCollapsedCommand } from './collapse';
 import { hitAt, indexScene, indexSceneAfresh, shapesAt, type IndexedScene } from './hit';
 import { buildScene, buildSceneAfresh, type ElementShape, type Scene } from './scene';
 
@@ -292,28 +292,18 @@ function commandOf(edit: Edit, project: ProjectSnapshot, scene: Scene): Command 
         }
       );
     }
-    case 'collapse':
+    case 'collapse': {
+      // A container drawn expanded collapses, and one drawn collapsed expands, as its toggle does.
+      const containers = scene.shapes.filter((shape) => shape.holdsContents || shape.collapsed);
+      const shape = at(containers, edit.element);
+      return (
+        shape &&
+        setCollapsedCommand(VIEW, [shape.element], !collapsedIn(viewIn(project)).has(shape.element))
+      );
+    }
     case 'undo':
       return undefined;
   }
-}
-
-/** Collapses or expands a container, as I1's `set-collapsed` writes it, until the core has it. */
-function toggleCollapsed(project: ProjectSnapshot, scene: Scene, number: number): ProjectSnapshot {
-  const containers = scene.shapes.filter((shape) => shape.holdsContents || shape.collapsed);
-  const shape = at(containers, number);
-  if (!shape) return project;
-  const view = viewIn(project);
-  const collapsed = new Set(collapsedIn(view));
-  if (collapsed.has(shape.element)) collapsed.delete(shape.element);
-  else collapsed.add(shape.element);
-  const next: ViewFile & { collapsed?: Id[] } = { ...view };
-  if (collapsed.size === 0) delete next.collapsed;
-  else next.collapsed = [...collapsed].sort();
-  return {
-    ...project,
-    views: project.views.map((each) => (each.id === VIEW ? next : each)),
-  };
 }
 
 function run(start: ProjectSnapshot, edits: readonly Edit[]): void {
@@ -321,10 +311,7 @@ function run(start: ProjectSnapshot, edits: readonly Edit[]): void {
   let scene = buildScene(project, VIEW);
   const undos: ProjectSnapshot[] = [];
   for (const each of edits) {
-    if (each.kind === 'collapse') {
-      undos.push(project);
-      project = toggleCollapsed(project, scene, each.element);
-    } else if (each.kind === 'undo') {
+    if (each.kind === 'undo') {
       project = undos.pop() ?? project;
     } else {
       const command = commandOf(each, project, scene);
