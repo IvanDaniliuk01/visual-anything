@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { drawnRelations } from '../canvas/navigation';
 import { buildScene } from '../canvas/scene';
 import { loadSample } from '../test/sample';
+import { withWovenRelations } from '../test/woven';
 import {
   outlineOf,
   textOf,
@@ -234,6 +235,20 @@ describe('outlineOf, for relations that end on relations', () => {
         'clinic-booking/scheduling/reminder-service',
       ],
     });
+  });
+
+  it('finds the row of a relation woven deep among relations at once', () => {
+    // Every relation of a level ends on two of the level below: 2^40 ways down from the top.
+    const depth = 40;
+    const woven = withWovenRelations(sample, depth);
+    const deep = outlineOf(buildScene(woven, 'system-overview'), woven);
+    const started = performance.now();
+    const place = deep.placeOf({ kind: 'relation', id: `weave-a-${depth}` });
+    expect(performance.now() - started).toBeLessThan(100);
+    // Through the first relation of every level, down to the Patient's row.
+    const through = Array.from({ length: depth + 1 }, (_, level) => `weave-a-${level}`);
+    expect(place?.id).toBe(['patient', ...through].join('#'));
+    expect(place?.outer).toHaveLength(depth + 1);
   });
 });
 

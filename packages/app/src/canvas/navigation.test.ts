@@ -4,6 +4,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { syntheticProject } from '../bench/synthetic';
 import { loadSample } from '../test/sample';
+import { withWovenRelations } from '../test/woven';
 import { centerOf, distance, type Rect } from './geometry';
 import { indexScene, type IndexedScene } from './hit';
 import {
@@ -412,35 +413,6 @@ function withRelationsOnRelations(project: ProjectSnapshot): ProjectSnapshot {
         },
       ],
     },
-  };
-}
-
-/**
- * The sample with relations between relations woven `depth` levels high, three at each level: at the
- * bottom, a triangle of relations between the Patient, the Booking agent and the Reminder service;
- * above, a, b and c of each level from a, b and c of the level below to b, c and a of it.
- */
-function withWovenRelations(project: ProjectSnapshot, depth: number): ProjectSnapshot {
-  const bottom = {
-    a: ['patient', 'booking-agent'],
-    b: ['booking-agent', 'reminder-service'],
-    c: ['reminder-service', 'patient'],
-  } as const;
-  const next = { a: 'b', b: 'c', c: 'a' } as const;
-  const woven = [];
-  for (let level = 0; level <= depth; level++) {
-    for (const side of ['a', 'b', 'c'] as const) {
-      woven.push({
-        id: `weave-${side}-${level}`,
-        relationType: RELATES_TO_ID,
-        from: level === 0 ? bottom[side][0] : `weave-${side}-${level - 1}`,
-        to: level === 0 ? bottom[side][1] : `weave-${next[side]}-${level - 1}`,
-      });
-    }
-  }
-  return {
-    ...project,
-    model: { ...project.model, relations: [...project.model.relations, ...woven] },
   };
 }
 
