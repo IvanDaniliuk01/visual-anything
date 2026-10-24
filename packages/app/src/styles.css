@@ -1,27 +1,15 @@
 /*
- * The app's look. Every color pair used for text meets WCAG 2.1 AA contrast (4.5:1), and the edges
- * and marks that show where a control is or what is selected meet 3:1.
+ * The app's look. Its colors are the theme tokens of tokens.css, generated from theme/themes.ts. Every
+ * text pair meets 4.5:1, and every control boundary, focus ring and mark 3:1, in both themes.
  */
 
-:root {
-  color-scheme: light;
-  --text: #1f2933;
-  --text-muted: #52606d;
-  --surface: #ffffff;
-  --panel: #f7f8fa;
-  --border: #d9dee5;
-  /* The edge of a control one types or chooses in: 3.4:1 on the panels. */
-  --control-border: #7b8794;
-  --accent: #1d4f91;
-  --accent-soft: #e6eefa;
-  --problem: #a61b1b;
-  --problem-soft: #fdecec;
-  --notice: #6b4e00;
-  --notice-soft: #fff4d6;
+@import './theme/tokens.css';
 
+:root {
   font-family: system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  font-size: 14px;
-  line-height: 1.45;
+  /* 14 px at the browser's default text size, which this follows. */
+  font-size: 87.5%;
+  line-height: var(--line-normal);
   color: var(--text);
   background: var(--surface);
 }
@@ -61,6 +49,26 @@ dd {
   border: 0;
 }
 
+/*
+ * Every control's states, at the lowest specificity so that a control's own rules come first: the
+ * focus ring, and the muted look of what cannot be used now.
+ */
+:where(button, select, input, textarea, summary, [role='menuitem'], [tabindex]):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+:where(button, select, input, textarea):disabled,
+:where(button, [role='menuitem'])[aria-disabled='true'] {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.icon {
+  display: block;
+  flex: none;
+}
+
 /* The shell: header on top, then the model panel, the canvas area and the inspector. */
 
 .shell {
@@ -78,23 +86,31 @@ dd {
   grid-area: header;
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.25rem 2rem;
-  padding: 0.6rem 1rem;
+  align-items: center;
+  gap: var(--space-1) var(--space-6);
+  padding: 0.45rem var(--space-4);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
 
 .shell-product {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-size: 1.05rem;
-  font-weight: 700;
+  font-weight: var(--weight-heading);
   letter-spacing: 0.01em;
+}
+
+.shell-mark {
+  flex: none;
+  color: var(--accent);
 }
 
 .shell-context {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 1.5rem;
+  gap: var(--space-1) var(--space-5);
 }
 
 .shell-context > div {
@@ -105,21 +121,76 @@ dd {
 
 .shell-context dt {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .shell-context dd {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
+}
+
+/* Undo and redo, then the Theme control, at the header's end. */
+.shell-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  min-width: 0;
+  margin-left: auto;
 }
 
 .shell-notice {
   grid-area: notice;
-  padding: 0.5rem 1rem;
+  padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--border);
-  background: var(--notice-soft);
-  color: var(--notice);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+/* The Theme control: three radios shown as icons, the one chosen pressed in. */
+
+.theme-control {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.theme-option {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.theme-option:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.theme-option:active {
+  background: var(--surface-pressed);
+}
+
+/* Pressed in: a darker background, the text color, and a boundary that reaches 3:1. */
+.theme-option:has(:checked) {
+  background: var(--surface-pressed);
+  box-shadow: inset 0 0 0 1px var(--control-border);
+  color: var(--text);
+}
+
+/* The radio is hidden, so a ring drawn on it would be clipped: the option draws it. */
+.theme-option:has(:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
 
 /* Panels */
@@ -129,20 +200,20 @@ dd {
   position: relative;
   min-height: 0;
   overflow: auto;
-  padding: 0.9rem 1rem 1.5rem;
+  padding: 0.9rem var(--space-4) var(--space-5);
   background: var(--panel);
 }
 
 .panel h2 {
   font-size: 0.95rem;
-  font-weight: 700;
+  font-weight: var(--weight-heading);
 }
 
 .panel h3 {
   margin-bottom: 0.4rem;
   color: var(--text-muted);
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-heading);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -180,7 +251,7 @@ dd {
 
 .containment .containment {
   margin: 0.15rem 0 0.15rem 0.45rem;
-  padding-left: 0.75rem;
+  padding-left: var(--space-3);
   border-left: 1px solid var(--border);
 }
 
@@ -190,13 +261,13 @@ dd {
 }
 
 .item-name {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 
 .item-detail {
   margin-left: 0.4rem;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
 }
 
 .item-list li[aria-current='true'] .item-name {
@@ -206,11 +277,11 @@ dd {
 .item-badge {
   margin-left: 0.4rem;
   padding: 0 0.35rem;
-  border-radius: 0.6rem;
+  border-radius: var(--radius-lg);
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-strong);
 }
 
 /* Details in the inspector */
@@ -222,11 +293,11 @@ dd {
 
 .detail dt {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
 }
 
 .detail-value {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 
 .detail-note {
@@ -242,7 +313,7 @@ dd {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: var(--surface);
+  background: var(--canvas);
 }
 
 .canvas-frame,
@@ -251,17 +322,20 @@ dd {
   inset: 0;
 }
 
+/* What the canvas has to say instead of a drawing: a card in its middle, clear of the toolbar. */
 .canvas-message {
   position: absolute;
-  top: 1rem;
+  top: 50%;
   left: 50%;
-  max-width: calc(100% - 2rem);
-  transform: translateX(-50%);
-  padding: 0.5rem 0.9rem;
+  max-width: min(28rem, calc(100% - var(--space-6)));
+  transform: translate(-50%, -50%);
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--border);
-  border-radius: 0.4rem;
-  background: var(--surface);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-2);
   color: var(--text-muted);
+  text-align: center;
 }
 
 .canvas-failure {
@@ -283,17 +357,20 @@ dd {
 .status-main {
   display: grid;
   place-items: center;
-  padding: 2rem 1rem;
+  padding: var(--space-6) var(--space-4);
 }
 
 .status-card {
+  position: relative;
   display: grid;
   gap: 0.6rem;
   max-width: 34rem;
+  overflow: hidden;
   padding: 1.4rem 1.6rem;
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--surface);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-1);
 }
 
 .status-card h2 {
@@ -304,13 +381,43 @@ dd {
   border-top: 4px solid var(--problem);
 }
 
+/* While connecting: a bar along the card's top that moves, and stays still under reduced motion. */
+.status-progress::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: var(--accent);
+  content: '';
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .status-progress::before {
+    width: 35%;
+    opacity: 1;
+    animation: status-progress 1.4s var(--ease-out) infinite;
+  }
+}
+
+@keyframes status-progress {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(300%);
+  }
+}
+
 .status-detail {
   padding: 0.4rem 0.6rem;
-  border-radius: 0.3rem;
+  border-radius: var(--radius-sm);
   background: var(--problem-soft);
   color: var(--problem);
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
 }
 
 /* The canvas toolbar floats over the top of the canvas; only its controls take the pointer. */
@@ -319,7 +426,7 @@ dd {
   top: 0.6rem;
   left: 0.6rem;
   right: 0.6rem;
-  z-index: 2;
+  z-index: var(--z-toolbar);
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -338,14 +445,18 @@ dd {
 .canvas-toolbar button,
 .canvas-toolbar select,
 .canvas-toolbar-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: var(--control-sm);
   padding: 0.3rem 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
-  background: var(--surface);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
   color: var(--text);
   font: inherit;
-  font-size: 0.85rem;
-  box-shadow: 0 1px 2px rgb(16 24 40 / 6%);
+  font-size: var(--text-sm);
+  box-shadow: var(--shadow-1);
 }
 
 .canvas-toolbar button,
@@ -353,9 +464,13 @@ dd {
   cursor: pointer;
 }
 
-.canvas-toolbar button:hover:not(:disabled),
+.canvas-toolbar button:hover:not(:disabled, [aria-disabled='true']),
 .canvas-toolbar select:hover:not(:disabled) {
-  border-color: var(--accent);
+  background: var(--surface-hover);
+}
+
+.canvas-toolbar button:active:not(:disabled, [aria-disabled='true']) {
+  background: var(--surface-pressed);
 }
 
 .canvas-toolbar button:disabled,
@@ -364,21 +479,24 @@ dd {
   cursor: not-allowed;
 }
 
+/* The zoom readout: digits of one width, so that its size stays put while zooming. */
 .canvas-toolbar-zoom {
-  min-width: 3.4rem;
+  justify-content: center;
+  min-width: calc(4ch + 1.3rem + 2px);
+  border-color: var(--border);
   color: var(--text-muted);
-  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 .canvas-host:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 
-/* The menu that asks which relation type relates two ends. */
+/* Menus on the canvas: the relation menu, the shape menu and the container chooser. */
 .canvas-menu {
   position: absolute;
-  z-index: 3;
+  z-index: var(--z-menu);
   display: flex;
   flex-direction: column;
   min-width: 13rem;
@@ -386,21 +504,22 @@ dd {
   overflow: auto;
   padding: 0.35rem;
   border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  background: var(--surface);
-  box-shadow: 0 8px 24px rgb(16 24 40 / 16%);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-2);
 }
 
 .canvas-menu-title {
   margin: 0.2rem 0.4rem 0.4rem;
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
 }
 
 .canvas-menu button {
-  padding: 0.35rem 0.5rem;
+  min-height: var(--control-sm);
+  padding: 0.35rem var(--space-2);
   border: 0;
-  border-radius: 0.3rem;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--text);
   font: inherit;
@@ -409,15 +528,24 @@ dd {
   cursor: pointer;
 }
 
-.canvas-menu button:hover,
+.canvas-menu button:hover:not([aria-disabled='true']) {
+  background: var(--surface-hover);
+}
+
+.canvas-menu button:active:not([aria-disabled='true']) {
+  background: var(--surface-pressed);
+}
+
+/* The focused item gets a ring inside it, not only a background, which would be too faint to see. */
 .canvas-menu button:focus-visible {
-  outline: none;
-  background: var(--accent-soft);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+  background: var(--surface-hover);
 }
 
 .canvas-menu-hint {
   color: var(--text-muted);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
 }
 
 .canvas-menu .canvas-menu-cancel {
@@ -431,20 +559,21 @@ dd {
 .dialog-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 10;
+  z-index: var(--z-dialog);
   display: grid;
   place-items: center;
-  background: rgb(16 24 40 / 35%);
+  background: var(--backdrop);
 }
 
 .dialog {
-  width: min(32rem, calc(100vw - 2rem));
+  width: min(32rem, calc(100vw - var(--space-6)));
   max-height: calc(100vh - 4rem);
   overflow: auto;
   padding: 1.2rem 1.4rem;
-  border-radius: 0.6rem;
-  background: var(--surface);
-  box-shadow: 0 16px 40px rgb(16 24 40 / 25%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-3);
 }
 
 .dialog h2 {
@@ -453,7 +582,7 @@ dd {
 }
 
 .dialog p {
-  margin: 0.5rem 0;
+  margin: var(--space-2) 0;
 }
 
 .dialog ul {
@@ -463,44 +592,59 @@ dd {
 
 .dialog-note {
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
 }
 
 .dialog-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1rem;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
 }
 
 .dialog-actions button {
+  min-height: var(--control-md);
   padding: 0.4rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: 0.4rem;
-  background: var(--surface);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
   color: var(--text);
   font: inherit;
   cursor: pointer;
 }
 
+.dialog-actions button:hover {
+  background: var(--surface-hover);
+}
+
+.dialog-actions button:active {
+  background: var(--surface-pressed);
+}
+
+/* The action that destroys: its own fill, and the boundary every control has. */
 .dialog-actions .danger {
-  border-color: var(--problem);
-  background: var(--problem);
-  color: #ffffff;
+  border-color: var(--control-border);
+  background: var(--problem-fill);
+  color: var(--on-problem);
+}
+
+.dialog-actions .danger:hover,
+.dialog-actions .danger:active {
+  background: var(--problem-fill-hover);
 }
 
 /* Text edited in place, laid over the canvas where it is drawn. */
 .inline-editor {
   position: absolute;
-  z-index: 3;
+  z-index: var(--z-editor);
   box-sizing: border-box;
   padding: 0.2rem 0.4rem;
-  border: 2px solid var(--accent);
-  border-radius: 0.3rem;
-  background: var(--surface);
+  border: 2px solid var(--focus-ring);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
   color: var(--text);
   font-family: inherit;
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   text-align: center;
   resize: none;
 }
@@ -516,18 +660,18 @@ textarea.inline-editor {
   display: flex;
   gap: 0.4rem;
   min-width: 0;
-  margin-left: auto;
 }
 
 .history-button {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.4rem;
   min-width: 0;
   max-width: 20rem;
+  min-height: var(--control-sm);
   padding: 0.2rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 0.35rem;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--text);
   font: inherit;
@@ -535,7 +679,11 @@ textarea.inline-editor {
 }
 
 .history-button:hover:not([aria-disabled='true']) {
-  background: var(--panel);
+  background: var(--surface-hover);
+}
+
+.history-button:active:not([aria-disabled='true']) {
+  background: var(--surface-pressed);
 }
 
 /* Disabled but still focusable, so the focus stays put when the history runs out. */
@@ -545,7 +693,7 @@ textarea.inline-editor {
 }
 
 .history-verb {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 
 .history-label {
@@ -558,30 +706,30 @@ textarea.inline-editor {
 
 .history-author {
   padding: 0 0.35rem;
-  border-radius: 0.6rem;
+  border-radius: var(--radius-lg);
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 0.75rem;
-  font-weight: 600;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-strong);
 }
 
 .history-button:focus-visible,
 .notice-dismiss:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
-/* Notices, stacked in the bottom right corner with the newest nearest it */
+/* Notices, stacked in the bottom right corner with the newest nearest it, above any dialog. */
 
 .notices {
   position: fixed;
-  right: 1rem;
-  bottom: 1rem;
-  z-index: 10;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: var(--z-notices);
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  width: min(24rem, calc(100vw - 2rem));
+  gap: var(--space-2);
+  width: min(24rem, calc(100vw - var(--space-6)));
   /* Only the notices themselves take the pointer, not the gaps between them. */
   pointer-events: none;
 }
@@ -589,13 +737,13 @@ textarea.inline-editor {
 .notice {
   display: flex;
   align-items: flex-start;
-  gap: 0.5rem;
+  gap: var(--space-2);
   padding: 0.55rem 0.45rem 0.55rem 0.8rem;
   border: 1px solid var(--border);
   border-left-width: 4px;
-  border-radius: 0.4rem;
-  background: var(--surface);
-  box-shadow: 0 2px 8px rgb(31 41 51 / 15%);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-2);
   pointer-events: auto;
 }
 
@@ -604,8 +752,8 @@ textarea.inline-editor {
 }
 
 .notice-warning {
-  border-left-color: var(--notice);
-  background: var(--notice-soft);
+  border-left-color: var(--warning);
+  background: var(--warning-soft);
 }
 
 .notice-error {
@@ -621,7 +769,7 @@ textarea.inline-editor {
 }
 
 .notice-warning .notice-level {
-  color: var(--notice);
+  color: var(--warning);
 }
 
 .notice-error .notice-level {
@@ -629,12 +777,14 @@ textarea.inline-editor {
 }
 
 .notice-dismiss {
+  display: inline-grid;
   flex: none;
-  width: 1.75rem;
-  height: 1.75rem;
+  place-items: center;
+  width: var(--control-sm);
+  height: var(--control-sm);
   padding: 0;
   border: 0;
-  border-radius: 0.3rem;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text-muted);
   font: inherit;
@@ -644,6 +794,30 @@ textarea.inline-editor {
 }
 
 .notice-dismiss:hover {
-  background: rgb(31 41 51 / 8%);
+  background: var(--surface-hover);
   color: var(--text);
+}
+
+.notice-dismiss:active {
+  background: var(--surface-pressed);
+}
+
+/* With forced colors, the system's colors draw focus, and what is pressed in gets an outline. */
+@media (forced-colors: active) {
+  :where(button, select, input, textarea, summary, [role='menuitem'], [tabindex]):focus-visible,
+  .theme-option:has(:focus-visible),
+  .canvas-menu button:focus-visible,
+  .canvas-host:focus-visible {
+    outline-color: Highlight;
+  }
+
+  .theme-option:has(:checked) {
+    outline: 1px solid ButtonText;
+    outline-offset: -3px;
+  }
+
+  .theme-option:has(:checked:focus-visible) {
+    outline: 2px solid Highlight;
+    outline-offset: 1px;
+  }
 }
