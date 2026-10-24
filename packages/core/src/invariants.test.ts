@@ -11,11 +11,33 @@ import { EMPTY_HISTORY, record, redo, undo, type History } from './history';
 import { randomIds } from './ids';
 import { containmentCycles, previewDelete } from './rules';
 import type { ProjectSnapshot } from './snapshot';
-import { modelIndexOf } from './state';
+import { definitionsIn, modelIndexOf } from './state';
 import { testProject } from './test/fixtures';
 
 const COMPONENTS = ['test.box', 'test.service', 'test.database', 'essence'];
-const RELATION_TYPES = ['test.calls', 'test.reads', 'test.inside', 'test.governs'];
+const NESTING = ['test.inside', 'test.part-of'];
+const RELATION_TYPES = ['test.calls', 'test.reads', 'test.governs', ...NESTING];
+
+/**
+ * The test project with a second relation type that nests, so that containment is attempted across
+ * two of them, as views that nest by both would show it.
+ */
+function propertyProject(): ProjectSnapshot {
+  const project = testProject();
+  const [own, ...others] = project.packages;
+  if (!own) throw new Error('The test project has no package.');
+  const partOf = {
+    id: 'test.part-of',
+    name: 'is part of',
+    derivesFrom: 'relates-to',
+    direction: 'directed' as const,
+    nests: true,
+  };
+  return {
+    ...project,
+    packages: [{ ...own, relationTypes: [...own.relationTypes, partOf] }, ...others],
+  };
+}
 
 /** What to do next, in terms the current project turns into a command. */
 type Intent =
@@ -28,8 +50,44 @@ type Intent =
   | { kind: 'delete-relations'; picks: number[] }
   | { kind: 'position'; picks: number[] }
   | { kind: 'batch'; first: number; second: number }
+  | { kind: 'toggle-nests'; type: number }
+  | { kind: 'rederive'; component: number; parent: number }
+  | { kind: 'remove-definition'; at: number }
+  | { kind: 'packages'; systems: boolean }
+  | { kind: 'view'; action: 'create' | 'nesting' | 'delete'; at: number; types: number[] }
+  | { kind: 'scenario'; action: 'create' | 'steps' | 'delete'; at: number; picks: number[] }
+  | { kind: 'note'; action: 'create' | 'move' | 'delete'; at: number }
+  | { kind: 'package' }
+  | { kind: 'forget-positions'; at: number; picks: number[] }
   | { kind: 'undo' }
   | { kind: 'redo' };
+
+/** Every kind of command, each of which the random actions must manage to apply. */
+const COMMAND_TYPES: readonly Command['type'][] = [
+  'create-element',
+  'update-element',
+  'delete',
+  'create-relation',
+  'update-relation',
+  'create-package',
+  'define-component',
+  'remove-component',
+  'define-relation-type',
+  'remove-relation-type',
+  'create-view',
+  'update-view',
+  'delete-view',
+  'set-positions',
+  'remove-positions',
+  'create-free-shape',
+  'update-free-shape',
+  'delete-free-shapes',
+  'create-scenario',
+  'update-scenario',
+  'delete-scenario',
+  'update-project',
+  'batch',
+];
 
 const index = fc.nat({ max: 1000 });
 const intent: fc.Arbitrary<Intent> = fc.oneof(
@@ -56,6 +114,33 @@ const intent: fc.Arbitrary<Intent> = fc.oneof(
     picks: fc.array(index, { minLength: 1, maxLength: 3 }),
   }),
   fc.record({ kind: fc.constant('batch'), first: index, second: index }),
+  fc.record({ kind: fc.constant('toggle-nests'), type: index }),
+  fc.record({ kind: fc.constant('rederive'), component: index, parent: index }),
+  fc.record({ kind: fc.constant('remove-definition'), at: index }),
+  fc.record({ kind: fc.constant('packages'), systems: fc.boolean() }),
+  fc.record({
+    kind: fc.constant('view'),
+    action: fc.constantFrom('create', 'nesting', 'delete'),
+    at: index,
+    types: fc.array(index, { maxLength: 2 }),
+  }),
+  fc.record({
+    kind: fc.constant('scenario'),
+    action: fc.constantFrom('create', 'steps', 'delete'),
+    at: index,
+    picks: fc.array(index, { minLength: 1, maxLength: 3 }),
+  }),
+  fc.record({
+    kind: fc.constant('note'),
+    action: fc.constantFrom('create', 'move', 'delete'),
+    at: index,
+  }),
+  fc.constant({ kind: 'package' as const }),
+  fc.record({
+    kind: fc.constant('forget-positions'),
+    at: index,
+    picks: fc.array(index, { minLength: 1, maxLength: 3 }),
+  }),
   { arbitrary: fc.constant({ kind: 'undo' as const }), weight: 2 },
   { arbitrary: fc.constant({ kind: 'redo' as const }), weight: 1 },
 );
@@ -75,7 +160,9 @@ function commandFor(state: ProjectSnapshot, wish: Intent): Command | undefined {
       return {
         type: 'create-element',
         element: { component: pick(COMPONENTS, wish.component) as Id, name: 'New element' },
-        ...(container ? { containers: [{ container, relationType: 'test.inside' }] } : {}),
+        ...(container
+          ? { containers: [{ container, relationType: pick(NESTING, wish.component) as Id }] }
+          : {}),
       };
     }
     case 'create-relation':
@@ -146,10 +233,140 @@ function commandFor(state: ProjectSnapshot, wish: Intent): Command | undefined {
       const second = commandFor(state, { kind: 'delete-relations', picks: [wish.second] });
       return first && second && { type: 'batch', label: 'Two at once', commands: [first, second] };
     }
+    case 'toggle-nests': {
+      const relationType = pick(ownPackage(state).relationTypes, wish.type);
+      return (
+        relationType && {
+          type: 'define-relation-type',
+          package: 'test',
+          relationType: { ...relationType, nests: !relationType.nests },
+        }
+      );
+    }
+    case 'rederive': {
+      const component = pick(ownPackage(state).components, wish.component);
+      return (
+        component && {
+          type: 'define-component',
+          package: 'test',
+          component: { ...component, derivesFrom: pick(COMPONENTS, wish.parent) as Id },
+        }
+      );
+    }
+    case 'remove-definition': {
+      const own = ownPackage(state);
+      const ids = [...own.components, ...own.relationTypes].map((definition) => definition.id);
+      const id = pick(ids, wish.at);
+      if (id === undefined) return undefined;
+      return own.components.some((component) => component.id === id)
+        ? { type: 'remove-component', id }
+        : { type: 'remove-relation-type', id };
+    }
+    case 'packages':
+      return {
+        type: 'update-project',
+        changes: { packages: wish.systems ? ['test', 'systems'] : ['test'] },
+      };
+    case 'view': {
+      const views = state.views.map((view) => view.id);
+      const nestingRelationTypes = [...new Set(wish.types.map((at) => pick(NESTING, at) as Id))];
+      switch (wish.action) {
+        case 'create':
+          return {
+            type: 'create-view',
+            view: {
+              name: 'Another view',
+              perspective: { name: 'Structure' },
+              nestingRelationTypes,
+            },
+          };
+        case 'nesting': {
+          const view = pick(views, wish.at);
+          return view === undefined
+            ? undefined
+            : { type: 'update-view', id: view, changes: { nestingRelationTypes } };
+        }
+        case 'delete': {
+          const view = pick(views, wish.at);
+          return view === undefined ? undefined : { type: 'delete-view', id: view };
+        }
+      }
+      return undefined;
+    }
+    case 'scenario': {
+      const scenarios = state.scenarios.map((scenario) => scenario.id);
+      const chosen = [...new Set(wish.picks.map((at) => pick(relations, at)))].filter(
+        (id): id is Id => id !== undefined,
+      );
+      const steps = [{ description: 'A step.', relations: chosen }];
+      switch (wish.action) {
+        case 'create': {
+          const view = pick(state.views, wish.at);
+          return view && chosen.length > 0
+            ? { type: 'create-scenario', scenario: { name: 'A story', view: view.id, steps } }
+            : undefined;
+        }
+        case 'steps': {
+          const scenario = pick(scenarios, wish.at);
+          return scenario && chosen.length > 0
+            ? { type: 'update-scenario', id: scenario, changes: { steps } }
+            : undefined;
+        }
+        case 'delete': {
+          const scenario = pick(scenarios, wish.at);
+          return scenario === undefined ? undefined : { type: 'delete-scenario', id: scenario };
+        }
+      }
+      return undefined;
+    }
+    case 'note': {
+      const view = pick(state.views, wish.at);
+      if (!view) return undefined;
+      if (wish.action === 'create') {
+        return {
+          type: 'create-free-shape',
+          view: view.id,
+          shape: { kind: 'note', x: 0, y: 0, width: 120, height: 60, text: 'A note' },
+        };
+      }
+      const note = pick(
+        view.freeShapes.filter((shape) => shape.kind === 'note'),
+        wish.at,
+      );
+      if (!note) return undefined;
+      return wish.action === 'move'
+        ? { type: 'update-free-shape', view: view.id, shape: { ...note, x: note.x + 10 } }
+        : { type: 'delete-free-shapes', view: view.id, ids: [note.id] };
+    }
+    case 'package':
+      return { type: 'create-package', package: { id: 'extra', name: 'Extra' } };
+    case 'forget-positions': {
+      const view = pick(state.views, wish.at);
+      if (!view || view.positions.length === 0) return undefined;
+      const positions = [...new Set(wish.picks.map((at) => pick(view.positions, at)))].flatMap(
+        (position) =>
+          position === undefined
+            ? []
+            : [
+                {
+                  element: position.element,
+                  ...(position.container === undefined ? {} : { container: position.container }),
+                },
+              ],
+      );
+      return { type: 'remove-positions', view: view.id, positions };
+    }
     case 'undo':
     case 'redo':
       return undefined;
   }
+}
+
+/** The project's own package, whose definitions the actions change. */
+function ownPackage(state: ProjectSnapshot) {
+  const own = state.packages.find((file) => file.id === 'test');
+  if (!own) throw new Error('The project lost its own package.');
+  return own;
 }
 
 /** The rules every project keeps after any sequence of actions. */
@@ -165,7 +382,7 @@ function expectRulesKept(state: ProjectSnapshot) {
 
 describe('the rules of the core', () => {
   it('hold after any sequence of commands, undos and redos, and every action undoes exactly', () => {
-    const seen = { applied: 0, deletes: 0, undos: 0 };
+    const seen = { applied: 0, deletes: 0, undos: 0, kinds: new Set<string>() };
     fc.assert(
       fc.property(
         fc.array(intent, { minLength: 10, maxLength: 60 }),
@@ -176,7 +393,7 @@ describe('the rules of the core', () => {
             random = (random * 1103515245 + 12345) % 2147483648;
             return Math.abs(random) / 2147483648;
           });
-          let state = testProject();
+          let state = propertyProject();
           let history: History = EMPTY_HISTORY;
           for (const wish of wishes) {
             if (wish.kind === 'undo' || wish.kind === 'redo') {
@@ -192,6 +409,16 @@ describe('the rules of the core', () => {
             if (!command) continue;
             const preview = command.type === 'delete' ? previewDelete(state, command) : undefined;
             const outcome = executeCommand(state, command, { newId });
+            // Relation type limits only warn: a relation that does not nest, of a relation type
+            // that exists, between ends that exist, is never refused.
+            const definitions = definitionsIn(state);
+            if (
+              command.type === 'create-relation' &&
+              definitions.relationTypes.has(command.relation.relationType) &&
+              !definitions.nestingRelationTypes.has(command.relation.relationType)
+            ) {
+              expect(outcome.ok).toBe(true);
+            }
             if (!outcome.ok) continue;
             const before = state;
             const after = outcome.state;
@@ -201,6 +428,7 @@ describe('the rules of the core', () => {
               seen.deletes += 1;
             }
             seen.applied += 1;
+            seen.kinds.add(command.type);
 
             const recorded = record(history, {
               label: outcome.label,
@@ -224,18 +452,20 @@ describe('the rules of the core', () => {
     expect(seen.applied).toBeGreaterThan(1000);
     expect(seen.deletes).toBeGreaterThan(100);
     expect(seen.undos).toBeGreaterThan(100);
+    // And every kind of command among them.
+    expect([...seen.kinds].sort()).toEqual([...COMMAND_TYPES].sort());
   });
 
   it('never lets containment form a cycle, however nesting is attempted', () => {
     fc.assert(
       fc.property(fc.array(fc.tuple(index, index), { maxLength: 60 }), (pairs) => {
-        let state = testProject();
+        let state = propertyProject();
         for (const [from, to] of pairs) {
           const elements = [...state.model.elements.map((element) => element.id)];
           const outcome = executeCommand(state, {
             type: 'create-relation',
             relation: {
-              relationType: 'test.inside',
+              relationType: pick(NESTING, from + to) as Id,
               from: pick(elements, from) as Id,
               to: pick(elements, to) as Id,
             },
