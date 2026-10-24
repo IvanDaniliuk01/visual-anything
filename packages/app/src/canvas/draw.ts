@@ -1,7 +1,8 @@
 /**
- * The drawing step: turns a scene into PixiJS graphics and text. It only draws; where everything goes
- * was decided by `buildScene`. Text is placed with anchors and never measured here, so drawing does
- * not depend on font metrics.
+ * The drawing step: turns parts of a scene into PixiJS graphics and text. It only draws; where
+ * everything goes was decided by `buildScene`. Text is placed with anchors and never measured here, so
+ * drawing does not depend on font metrics. The canvas draws a scene in tiles with these building
+ * blocks; `drawScene` draws a whole scene at once.
  */
 import { Container, Graphics, Text, type CanvasTextOptions, type TextStyleOptions } from 'pixi.js';
 import type { Color } from '@visual-anything/schema';
@@ -16,7 +17,14 @@ import {
   RELATION_LABEL_TEXT,
   readableTextColors,
 } from './palette';
-import { ARROW_WIDTH, type ElementShape, type Scene } from './scene';
+import {
+  ARROW_WIDTH,
+  type ArrowShape,
+  type ElementShape,
+  type NoteShape,
+  type RelationLine,
+  type Scene,
+} from './scene';
 
 /** What the drawing step made from a scene. */
 export interface DrawnScene {
@@ -32,74 +40,113 @@ const TEXT_INSET = 12;
 const NAME_SIZE = 14;
 const DETAIL_SIZE = 11;
 
-/** Draws a scene, in drawing order: element shapes, their text, relations, labels, notes and arrows. */
+/** Draws a whole scene into one container, in drawing order. */
 export function drawScene(scene: Scene): DrawnScene {
   const content = new Container();
   const texts: Text[] = [];
-  const write = (options: CanvasTextOptions): void => {
-    const text = new Text(options);
-    texts.push(text);
-    content.addChild(text);
+  const add = (written: Text[]) => {
+    texts.push(...written);
+    for (const text of written) content.addChild(text);
   };
 
   const shapes = new Graphics();
-  for (const shape of scene.shapes) outline(shapes, shape);
+  drawShapeOutlines(shapes, scene.shapes);
   content.addChild(shapes);
-  for (const shape of scene.shapes) writeShapeText(shape, write);
+  add(writeShapeLabels(scene.shapes, true));
 
   const relations = new Graphics();
-  for (const line of scene.relations) {
-    strokeLine(relations, line.from, shaftEnd(line.from, line.to, line.arrowhead), {
+  drawRelationRoutes(relations, scene.relations);
+  content.addChild(relations);
+  add(writeRelationLabels(scene.relations));
+
+  const free = new Graphics();
+  drawFreeShapes(free, scene.notes, scene.arrows);
+  content.addChild(free);
+  add(writeNoteTexts(scene.notes));
+  return { content, texts };
+}
+
+/** Draws the outlines of element shapes in order, so that containers come under their contents. */
+export function drawShapeOutlines(graphics: Graphics, shapes: readonly ElementShape[]): void {
+  for (const shape of shapes) outline(graphics, shape);
+}
+
+/** Writes each shape's name and, with `details`, its component's name. */
+export function writeShapeLabels(shapes: readonly ElementShape[], details: boolean): Text[] {
+  const texts: Text[] = [];
+  for (const shape of shapes) {
+    writeShapeText(shape, (options, detail) => {
+      if (!detail || details) texts.push(new Text(options));
+    });
+  }
+  return texts;
+}
+
+/** Draws relations along their routes, with an arrowhead at the end of directed ones. */
+export function drawRelationRoutes(graphics: Graphics, lines: readonly RelationLine[]): void {
+  for (const line of lines) {
+    strokeRoute(graphics, line.route, line.arrowhead, {
       color: line.stroke,
       width: line.width,
       dash: line.dash,
     });
-    if (line.arrowhead) fillArrowhead(relations, line.arrowhead, line.stroke);
+    if (line.arrowhead) fillArrowhead(graphics, line.arrowhead, line.stroke);
   }
-  content.addChild(relations);
-  for (const line of scene.relations) {
-    if (!line.label) continue;
-    write({
-      text: line.label,
-      anchor: 0.5,
-      x: line.middle.x,
-      y: line.middle.y,
-      style: {
-        fontFamily: FONT_FAMILY,
-        fontSize: 12,
-        fill: RELATION_LABEL_TEXT,
-        stroke: { color: RELATION_LABEL_HALO, width: 4, join: 'round' },
-      },
-    });
-  }
+}
 
-  const notes = new Graphics();
-  for (const note of scene.notes) {
+/** Writes the names of the relations that have one, at the middle of their routes. */
+export function writeRelationLabels(lines: readonly RelationLine[]): Text[] {
+  return lines.flatMap((line) =>
+    line.label
+      ? [
+          new Text({
+            text: line.label,
+            anchor: 0.5,
+            x: line.middle.x,
+            y: line.middle.y,
+            style: {
+              fontFamily: FONT_FAMILY,
+              fontSize: 12,
+              fill: RELATION_LABEL_TEXT,
+              stroke: { color: RELATION_LABEL_HALO, width: 4, join: 'round' },
+            },
+          }),
+        ]
+      : [],
+  );
+}
+
+/** Draws notes and free arrows. */
+export function drawFreeShapes(
+  graphics: Graphics,
+  notes: readonly NoteShape[],
+  arrows: readonly ArrowShape[],
+): void {
+  for (const note of notes) {
     const { x, y, width, height } = note.rect;
-    notes.rect(x, y, width, height).fill(NOTE_FILL).stroke({ color: NOTE_STROKE, width: 1 });
+    graphics.rect(x, y, width, height).fill(NOTE_FILL).stroke({ color: NOTE_STROKE, width: 1 });
   }
-  content.addChild(notes);
-  for (const note of scene.notes) {
-    write({
-      text: note.text,
-      x: note.rect.x + TEXT_INSET,
-      y: note.rect.y + 10,
-      style: textStyle(13, NOTE_TEXT, note.rect.width - 2 * TEXT_INSET, 'left'),
-    });
-  }
-
-  const arrows = new Graphics();
-  for (const arrow of scene.arrows) {
-    strokeLine(arrows, arrow.from, shaftEnd(arrow.from, arrow.to, arrow.arrowhead), {
+  for (const arrow of arrows) {
+    strokeRoute(graphics, [arrow.from, arrow.to], arrow.arrowhead, {
       color: ARROW_STROKE,
       width: ARROW_WIDTH,
       dash: 'solid',
     });
-    fillArrowhead(arrows, arrow.arrowhead, ARROW_STROKE);
+    fillArrowhead(graphics, arrow.arrowhead, ARROW_STROKE);
   }
-  content.addChild(arrows);
+}
 
-  return { content, texts };
+/** Writes the text of notes. */
+export function writeNoteTexts(notes: readonly NoteShape[]): Text[] {
+  return notes.map(
+    (note) =>
+      new Text({
+        text: note.text,
+        x: note.rect.x + TEXT_INSET,
+        y: note.rect.y + 10,
+        style: textStyle(13, NOTE_TEXT, Math.max(1, note.rect.width - 2 * TEXT_INSET), 'left'),
+      }),
+  );
 }
 
 /** Draws an element shape's outline, filled and stroked, approximating each kind of shape. */
@@ -152,44 +199,62 @@ function outline(graphics: Graphics, shape: ElementShape): void {
   }
 }
 
-/** Writes a shape's name and its component's name: at the top of a container, centered otherwise. */
-function writeShapeText(shape: ElementShape, write: (options: CanvasTextOptions) => void): void {
+/**
+ * Writes a shape's name and its component's name, which is a detail: at the top of a container,
+ * centered otherwise.
+ */
+function writeShapeText(
+  shape: ElementShape,
+  write: (options: CanvasTextOptions, detail: boolean) => void,
+): void {
   const colors = readableTextColors(shape.fill);
   if (shape.holdsContents) {
     const { x, y, width } = shape.rect;
     const wrap = Math.max(1, width - 2 * TEXT_INSET);
-    write({
-      text: shape.name,
-      x: x + TEXT_INSET,
-      y: y + 8,
-      style: textStyle(NAME_SIZE, colors.name, wrap, 'left', '600'),
-    });
-    write({
-      text: shape.componentName,
-      x: x + TEXT_INSET,
-      y: y + 8 + NAME_SIZE + 6,
-      style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'left'),
-    });
+    write(
+      {
+        text: shape.name,
+        x: x + TEXT_INSET,
+        y: y + 8,
+        style: textStyle(NAME_SIZE, colors.name, wrap, 'left', '600'),
+      },
+      false,
+    );
+    write(
+      {
+        text: shape.componentName,
+        x: x + TEXT_INSET,
+        y: y + 8 + NAME_SIZE + 6,
+        style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'left'),
+      },
+      true,
+    );
     return;
   }
   const area = labelArea(shape);
   const centerX = area.x + area.width / 2;
   const centerY = area.y + area.height / 2;
   const wrap = Math.max(1, area.width - TEXT_INSET);
-  write({
-    text: shape.name,
-    anchor: { x: 0.5, y: 1 },
-    x: centerX,
-    y: centerY + 2,
-    style: textStyle(NAME_SIZE, colors.name, wrap, 'center', '600'),
-  });
-  write({
-    text: shape.componentName,
-    anchor: { x: 0.5, y: 0 },
-    x: centerX,
-    y: centerY + 4,
-    style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'center'),
-  });
+  write(
+    {
+      text: shape.name,
+      anchor: { x: 0.5, y: 1 },
+      x: centerX,
+      y: centerY + 2,
+      style: textStyle(NAME_SIZE, colors.name, wrap, 'center', '600'),
+    },
+    false,
+  );
+  write(
+    {
+      text: shape.componentName,
+      anchor: { x: 0.5, y: 0 },
+      x: centerX,
+      y: centerY + 4,
+      style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'center'),
+    },
+    true,
+  );
 }
 
 /** The part of a shape its text is centered in: below a person's head, below a cylinder's top cap. */
@@ -261,36 +326,38 @@ function arcPoints(
 }
 
 /**
- * Where the stroked part of a line ends: at the base of its arrowhead, so that the line does not show
- * past the arrowhead's tip. Undefined when the line is no longer than its arrowhead.
+ * Strokes a route segment by segment. With an arrowhead, the last segment stops at the arrowhead's
+ * base, so that the line does not show past its tip.
  */
-function shaftEnd(
-  from: Point,
-  to: Point,
-  arrowhead: { left: Point; right: Point } | undefined,
-): Point | undefined {
-  if (!arrowhead) return to;
-  const base = middle(arrowhead.left, arrowhead.right);
-  return distance(from, to) > distance(base, to) ? base : undefined;
-}
-
-function strokeLine(
+function strokeRoute(
   graphics: Graphics,
-  from: Point,
-  to: Point | undefined,
+  route: readonly Point[],
+  arrowhead: { left: Point; right: Point } | undefined,
   style: { color: Color; width: number; dash: Dash },
 ): void {
-  if (!to) return;
+  const points = [...route];
+  if (arrowhead && points.length >= 2) {
+    const tip = points.at(-1) as Point;
+    const before = points.at(-2) as Point;
+    const base = middle(arrowhead.left, arrowhead.right);
+    if (distance(before, tip) > distance(base, tip)) points[points.length - 1] = base;
+    else points.pop();
+  }
+  if (points.length < 2) return;
   const { color, width, dash } = style;
-  if (dash === 'solid') {
-    graphics.moveTo(from.x, from.y).lineTo(to.x, to.y);
-  } else {
-    const [length, gap] = dash === 'dashed' ? [width * 4, width * 3] : [width, width * 2];
-    for (const [start, end] of dashSegments(from, to, length, gap)) {
-      graphics.moveTo(start.x, start.y).lineTo(end.x, end.y);
+  for (let each = 1; each < points.length; each++) {
+    const from = points[each - 1] as Point;
+    const to = points[each] as Point;
+    if (dash === 'solid') {
+      graphics.moveTo(from.x, from.y).lineTo(to.x, to.y);
+    } else {
+      const [length, gap] = dash === 'dashed' ? [width * 4, width * 3] : [width, width * 2];
+      for (const [start, end] of dashSegments(from, to, length, gap)) {
+        graphics.moveTo(start.x, start.y).lineTo(end.x, end.y);
+      }
     }
   }
-  graphics.stroke({ color, width, cap: dash === 'dotted' ? 'round' : 'butt' });
+  graphics.stroke({ color, width, cap: dash === 'dotted' ? 'round' : 'butt', join: 'miter' });
 }
 
 function fillArrowhead(

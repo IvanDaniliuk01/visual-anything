@@ -2,8 +2,9 @@
  * A view turned into what the canvas draws: every shape and relation, with absolute coordinates. This
  * is pure, so the drawing step stays a thin wrapper around PixiJS and everything here can be tested.
  *
- * In M0 a view shows the whole model. Until ELK layout arrives (M3), shapes without a stored position
- * are placed in a simple row below everything else around them.
+ * In v0.1 so far a view shows the whole model. Until ELK layout arrives (M3), shapes without a stored
+ * position are placed in a simple row below everything else around them, and relations follow simple
+ * orthogonal routes.
  */
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type {
@@ -31,16 +32,20 @@ import {
 import type { Dash, ShapeKind } from './geometry';
 import {
   arrowheadAt,
-  borderPoint,
   boundsOf,
   centerOf,
-  clampInto,
   directionOf,
-  middle,
   type Arrowhead,
   type Point,
   type Rect,
 } from './geometry';
+import {
+  midpointOf,
+  routeBetween,
+  routeBetweenPoints,
+  routeFromPoint,
+  routeToPoint,
+} from './route';
 
 /** Everything a view draws, in drawing order. */
 export interface Scene {
@@ -60,6 +65,14 @@ export interface ElementShape {
   element: Id;
   /** The container whose shape holds this one; absent when it sits directly in World. */
   container?: Id;
+  /** The key of the shape this one sits in; absent when it sits directly in World. */
+  containerShape?: string;
+  /** Where it sits relative to its container's shape, or to the canvas when directly in World. */
+  offset: Point;
+  /** The size the view stores for it, if any; a move keeps it. */
+  storedSize?: { width?: number; height?: number };
+  /** Whether the view stores its position, and whether that position was set by hand. */
+  positioned: 'pinned' | 'stored' | 'placed';
   name: string;
   componentName: string;
   kind: ShapeKind;
@@ -70,16 +83,18 @@ export interface ElementShape {
   holdsContents: boolean;
 }
 
-/** A relation drawn as a straight line. */
+/** A relation drawn along an orthogonal route. */
 export interface RelationLine {
   relation: Id;
-  /** The relation's name, shown at the middle of its line. */
+  /** The relation's name, shown at the middle of its route. */
   label?: string;
-  /** Where the line starts: on a shape's border, or at the middle of the relation it starts from. */
+  /** The route from start to end, through its bends. */
+  route: Point[];
+  /** Where the route starts: on a shape's border, or at the middle of the relation it starts from. */
   from: Point;
-  /** Where the line ends: on a shape's border, or at the middle of the relation it ends on. */
+  /** Where the route ends: on a shape's border, or at the middle of the relation it ends on. */
   to: Point;
-  /** The middle of the line, where relations that end on this one attach. */
+  /** The middle of the route, where relations that end on this one attach and its label goes. */
   middle: Point;
   /** Present when the relation type is directed; its tip is `to`. */
   arrowhead?: Arrowhead;
@@ -114,8 +129,6 @@ const CONTAINER_HEADER = 48;
 const ROW_GAP = 40;
 /** How far apart relations that relate the same two ends are drawn. */
 const PARALLEL_GAP = 24;
-/** How close to its shape's border a relation drawn side by side may start or end. */
-const PARALLEL_INSET = 4;
 
 /** Everything the view with this id draws. */
 export function buildScene(project: ProjectSnapshot, viewId: Id): Scene {
@@ -133,7 +146,7 @@ export function buildScene(project: ProjectSnapshot, viewId: Id): Scene {
   const bounds = boundsOf(
     [...shapes.map((shape) => shape.rect), ...notes.map((note) => note.rect)],
     [
-      ...relations.flatMap((line) => [line.from, line.to, ...arrowheadCorners(line.arrowhead)]),
+      ...relations.flatMap((line) => [...line.route, ...arrowheadCorners(line.arrowhead)]),
       ...arrows.flatMap((arrow) => [arrow.from, arrow.to, ...arrowheadCorners(arrow.arrowhead)]),
     ],
   );
@@ -153,6 +166,8 @@ interface Box {
    * comes from the view's stored position, or from the stand-in row once the row is laid out.
    */
   offset?: Point;
+  /** The position the view stores for it, if any. */
+  stored?: ShapePosition;
   contents: Box[];
 }
 
@@ -188,7 +203,7 @@ function placeShapes(
       appearance,
       width: containerSize(stored?.width, appearance.width, contentsRight),
       height: containerSize(stored?.height, appearance.height, contentsBottom),
-      ...(stored ? { offset: { x: stored.x, y: stored.y } } : {}),
+      ...(stored ? { offset: { x: stored.x, y: stored.y }, stored } : {}),
       contents,
     };
   };
@@ -223,10 +238,21 @@ function placeShapes(
       height: box.height,
     };
     const key = path === undefined ? box.element.id : `${path}/${box.element.id}`;
+    const { stored } = box;
+    const storedSize = stored
+      ? {
+          ...(stored.width === undefined ? {} : { width: stored.width }),
+          ...(stored.height === undefined ? {} : { height: stored.height }),
+        }
+      : undefined;
     shapes.push({
       key,
       element: box.element.id,
       ...(box.placement.container === undefined ? {} : { container: box.placement.container }),
+      ...(path === undefined ? {} : { containerShape: path }),
+      offset,
+      ...(storedSize && Object.keys(storedSize).length > 0 ? { storedSize } : {}),
+      positioned: stored ? (stored.pinned ? 'pinned' : 'stored') : 'placed',
       name: box.element.name,
       componentName: box.componentName,
       kind: box.appearance.shape,
@@ -318,7 +344,9 @@ function drawRelations(
   const sameEnds = new Map<string, Relation[]>();
   for (const relation of candidates.values()) {
     const key = endsKey(relation);
-    sameEnds.set(key, [...(sameEnds.get(key) ?? []), relation]);
+    const siblings = sameEnds.get(key);
+    if (siblings) siblings.push(relation);
+    else sameEnds.set(key, [relation]);
   }
 
   const lines = new Map<Id, RelationLine | undefined>();
@@ -355,8 +383,8 @@ function endsKey(relation: Relation): string {
 }
 
 /**
- * The straight line of a relation between two ends, ending at their borders. Relations between the
- * same ends (`siblings`, this one among them) are spread side by side.
+ * The route of a relation between two ends, from border to border. Relations between the same ends
+ * (`siblings`, this one among them) run side by side.
  */
 function lineBetween(
   relation: Relation,
@@ -366,47 +394,32 @@ function lineBetween(
   definitions: Definitions,
 ): RelationLine | undefined {
   if (from.shape && from.shape === to.shape) return undefined;
-
-  // Spread along a direction all siblings share, so relations pointing opposite ways separate too.
-  const shared =
-    relation.from <= relation.to
-      ? directionOf(from.anchor, to.anchor)
-      : directionOf(to.anchor, from.anchor);
-  if (!shared) return undefined;
   const offset = (siblings.indexOf(relation) - (siblings.length - 1) / 2) * PARALLEL_GAP;
-  const shift = (end: End): Point =>
-    end.shape
-      ? clampInto(
-          end.shape.rect,
-          { x: end.anchor.x - shared.y * offset, y: end.anchor.y + shared.x * offset },
-          PARALLEL_INSET,
-        )
-      : end.anchor;
-  const fromInside = shift(from);
-  const toInside = shift(to);
-
-  let start = from.shape
-    ? borderPoint(from.shape.kind, from.shape.rect, fromInside, toInside)
-    : fromInside;
-  let end = to.shape ? borderPoint(to.shape.kind, to.shape.rect, toInside, fromInside) : toInside;
-  // Overlapping shapes leave no gap between their borders: draw between the inner points instead.
-  const intended = directionOf(fromInside, toInside);
-  const actual = directionOf(start, end);
-  if (!intended) return undefined;
-  if (!actual || actual.x * intended.x + actual.y * intended.y <= 0) {
-    start = fromInside;
-    end = toInside;
-  }
+  const route =
+    from.shape && to.shape
+      ? routeBetween(from.shape.rect, to.shape.rect, offset)
+      : from.shape
+        ? routeToPoint(from.shape.rect, to.anchor, offset)
+        : to.shape
+          ? routeFromPoint(from.anchor, to.shape.rect, offset)
+          : routeBetweenPoints(from.anchor, to.anchor);
+  const start = route[0] as Point;
+  const end = route.at(-1) as Point;
+  const beforeEnd = route.at(-2) as Point;
+  if (!directionOf(beforeEnd, end)) return undefined;
 
   const relationType = relationTypeOrRelatesTo(definitions, relation.relationType);
   const { stroke, width, dash } = relationType.appearance;
   return {
     relation: relation.id,
     ...(relation.name ? { label: relation.name } : {}),
+    route,
     from: start,
     to: end,
-    middle: middle(start, end),
-    ...(relationType.direction === 'directed' ? { arrowhead: arrowheadAt(start, end, width) } : {}),
+    middle: midpointOf(route),
+    ...(relationType.direction === 'directed'
+      ? { arrowhead: arrowheadAt(beforeEnd, end, width) }
+      : {}),
     stroke,
     width,
     dash,

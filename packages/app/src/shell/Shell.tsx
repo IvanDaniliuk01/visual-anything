@@ -1,7 +1,9 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { ViewFile } from '@visual-anything/schema';
-import { useId, useMemo } from 'react';
-import { CanvasArea } from '../canvas/CanvasArea';
+import { useId, useMemo, useState } from 'react';
+import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
+import { EditorContext, type Editor } from '../editor/EditorContext';
+import { EMPTY_SELECTION, prune, type Selection } from '../editor/selection';
 import { buildScene, type Scene } from '../canvas/scene';
 import { definitionsOf } from '@visual-anything/core';
 import { Header } from './Header';
@@ -12,39 +14,67 @@ interface ShellProps {
   project: ProjectSnapshot;
   /** A message to show above the panels, such as the live connection having closed. */
   notice?: string;
+  /** Sends commands to the local program; absent while the project cannot be changed. */
+  onCommand?: SendCommand;
 }
 
 /**
  * The app shell: the header, the model panel, the canvas area and the inspector. The canvas draws the
  * project's first view; choosing another view comes with views and perspectives (M3).
  */
-export function Shell({ project, notice }: ShellProps) {
+export function Shell({ project, notice, onCommand }: ShellProps) {
   const view = project.views[0];
+  const [chosen, setSelection] = useState<Selection>(EMPTY_SELECTION);
+  // What an edit removed, from here or elsewhere, drops out of the selection.
+  const selection = useMemo(() => {
+    const elements = new Set(project.model.elements.map((element) => element.id));
+    const relations = new Set(project.model.relations.map((relation) => relation.id));
+    const freeShapes = new Set(view?.freeShapes.map((shape) => shape.id));
+    return prune(chosen, {
+      element: (id) => elements.has(id),
+      relation: (id) => relations.has(id),
+      freeShape: (id) => freeShapes.has(id),
+    });
+  }, [chosen, project.model, view]);
+  const editor = useMemo<Editor>(
+    () => ({ viewId: view?.id, selection, select: setSelection }),
+    [view?.id, selection],
+  );
   const definitions = useMemo(() => definitionsOf(project.packages), [project.packages]);
   const scene = useMemo(() => (view ? buildScene(project, view.id) : undefined), [project, view]);
   const canvasHeading = useId();
 
   return (
-    <div className="shell">
-      <Header projectName={project.project.name} viewName={view?.name} />
-      {notice !== undefined && (
-        <p className="shell-notice" role="alert">
-          {notice}
-        </p>
-      )}
-      <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
-      <main className="canvas-area" aria-labelledby={canvasHeading}>
-        <h2 id={canvasHeading} className="visually-hidden">
-          {view ? view.name : 'Canvas'}
-        </h2>
-        {view && scene ? (
-          <CanvasArea scene={scene} label={describeDrawing(view, scene)} />
-        ) : (
-          <p className="canvas-message">There is no view to draw.</p>
+    <EditorContext.Provider value={editor}>
+      <div className="shell">
+        <Header projectName={project.project.name} viewName={view?.name} />
+        {notice !== undefined && (
+          <p className="shell-notice" role="alert">
+            {notice}
+          </p>
         )}
-      </main>
-      <Inspector view={view} scene={scene} definitions={definitions} />
-    </div>
+        <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
+        <main className="canvas-area" aria-labelledby={canvasHeading}>
+          <h2 id={canvasHeading} className="visually-hidden">
+            {view ? view.name : 'Canvas'}
+          </h2>
+          {view && scene ? (
+            <CanvasArea
+              project={project}
+              view={view}
+              scene={scene}
+              label={describeDrawing(view, scene)}
+              selection={selection}
+              onSelect={setSelection}
+              {...(onCommand ? { onCommand } : {})}
+            />
+          ) : (
+            <p className="canvas-message">There is no view to draw.</p>
+          )}
+        </main>
+        <Inspector view={view} scene={scene} definitions={definitions} />
+      </div>
+    </EditorContext.Provider>
   );
 }
 
