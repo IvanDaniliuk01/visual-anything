@@ -8,8 +8,9 @@ import { parseArgs } from 'node:util';
 import { resolveAppSource } from './app-source';
 import { errorCode, errorReason } from './errors';
 import { toForwardSlashes } from './paths';
-import { formatProjectError, loadProject } from './project';
+import { formatProjectProblem } from './project';
 import { startServer, type AppSource, type RunningServer } from './server';
+import { openSession } from './session';
 import { AppNotBuiltError } from './static';
 
 export const USAGE = `Usage: visual-anything [folder] [--port <n>] [--no-open] [--dev]
@@ -121,24 +122,32 @@ export async function runCommand(
   }
 
   const folder = resolve(environment.cwd, options.folder);
-  const loaded = await loadProject(folder);
-  if (!loaded.ok) {
+  const opened = await openSession(folder, {
+    out: (line) => environment.out(line),
+    err: (line) => environment.err(line),
+  });
+  if (!opened.ok) {
     environment.err(`Could not open the project in ${toForwardSlashes(folder)}:`);
-    for (const error of loaded.errors) environment.err(formatProjectError(error));
+    for (const error of opened.errors) environment.err(formatProjectProblem(error));
     return 1;
   }
+  const { session } = opened;
 
   let server: RunningServer;
   try {
     const app = (environment.appSource ?? resolveAppSource)(options.dev);
-    server = await startServer({ project: loaded.project, port: options.port, app });
+    server = await startServer({ session, port: options.port, app });
   } catch (error) {
+    await session.close();
     environment.err(describeStartFailure(error, options.port));
     return 1;
   }
   const stopped = stopSignal(environment.signals);
 
-  environment.out(`Opened "${loaded.project.project.name}" from ${toForwardSlashes(folder)}.`);
+  environment.out(`Opened "${session.snapshot.project.name}" from ${toForwardSlashes(folder)}.`);
+  for (const warning of session.warnings()) {
+    environment.err(`Warning: ${formatProjectProblem(warning)}`);
+  }
   environment.out(`Visual Anything is running at ${server.url}`);
   if (options.dev) {
     environment.out('Dev mode: Vite serves the app from its sources, with hot reload.');
@@ -160,6 +169,9 @@ export async function runCommand(
   } catch (error) {
     environment.err(`Could not stop cleanly: ${errorReason(error)}`);
     return 1;
+  } finally {
+    // Waits for the changes already sent to be saved, and stops watching the folder.
+    await session.close();
   }
   environment.out('Visual Anything stopped.');
   return 0;

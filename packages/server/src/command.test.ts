@@ -8,7 +8,7 @@ import { LIVE_PATH, TOKEN_PARAM, decodeServerMessage } from '@visual-anything/co
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { USAGE, parseCommandLine, runCommand, type CommandEnvironment } from './command';
 import type { AppSource } from './server';
-import { openLive, send } from './test-support';
+import { openLive, send, testProject, writeProjectFolder } from './test-support';
 
 const REPOSITORY = fileURLToPath(new URL('../../..', import.meta.url));
 const SAMPLE = 'examples/my-systems';
@@ -239,6 +239,61 @@ describe('runCommand', () => {
     expect(err[1]).toBe('.: The folder has no .vaproject file; a project has exactly one.');
     expect(err[2]).toMatch(/^views\/overview\.vaview: Not valid JSON: /);
     expect(opened).toEqual([]);
+  });
+
+  it('prints each error of the core against its file and exits with 1', async () => {
+    const broken = join(folder, 'broken-rules');
+    const state = testProject();
+    await writeProjectFolder(broken, {
+      ...state,
+      model: {
+        ...state.model,
+        elements: [
+          ...state.model.elements,
+          { id: 'ghost', component: 'shop.missing', name: 'Ghost' },
+        ],
+      },
+    });
+    const { err, opened, environment } = harness();
+
+    await expect(runCommand([broken], environment)).resolves.toBe(1);
+
+    expect(err).toEqual([
+      `Could not open the project in ${broken.replaceAll('\\', '/')}:`,
+      'model.vamodel /elements/5: The element "Ghost" is created from "shop.missing", which no package in use defines.',
+    ]);
+    expect(opened).toEqual([]);
+  });
+
+  it('prints the warnings of the project once it is open', async () => {
+    const warned = join(folder, 'warned');
+    const state = testProject();
+    await writeProjectFolder(warned, {
+      ...state,
+      model: {
+        ...state.model,
+        relations: [
+          ...state.model.relations,
+          {
+            id: 'api-reads-customer',
+            relationType: 'systems.reads-from',
+            from: 'api',
+            to: 'customer',
+          },
+        ],
+      },
+    });
+    const { out, err, signals, environment, printedUrl } = harness();
+    const exit = runCommand([warned, '--no-open'], environment);
+
+    await printedUrl();
+    expect(out[0]).toBe(`Opened "Shop" from ${warned.replaceAll('\\', '/')}.`);
+    expect(err).toEqual([
+      'Warning: model.vamodel /elements/3: "reads from" expects its to end to be "Database" or "Object storage", but "Customer" is not.',
+    ]);
+
+    signals.emit('SIGINT');
+    await expect(exit).resolves.toBe(0);
   });
 
   it('exits with 2 and prints the usage for arguments it does not understand', async () => {
