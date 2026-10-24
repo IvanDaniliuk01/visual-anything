@@ -19,14 +19,14 @@ export interface Editor {
   /** What the canvas draws of that view; absent when no view is open or it cannot be drawn. */
   scene: Scene | undefined;
   selection: Selection;
-  select(selection: Selection): void;
+  select: (selection: Selection) => void;
   /**
    * Sends a command to the local program; absent while the project cannot be changed, such as when
    * the connection closed. A refusal is already shown to the user as a notice.
    */
   send: SendCommand | undefined;
   /** Moves the canvas so that the shape with this key shows, as when it is chosen in the outline. */
-  reveal(shapeKey: string): void;
+  reveal: (shapeKey: string) => void;
 }
 
 export const EditorContext = createContext<Editor | undefined>(undefined);

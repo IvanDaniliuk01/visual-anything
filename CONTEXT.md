@@ -23,7 +23,7 @@ A thing in the model with its own identity: a table, a neuron, a service, a tran
 _Avoid_: node, object, entity, instance
 
 **Particularity**:
-A trait of a single element: an attribute value that differs from its component's, an attribute its component does not define, or an appearance of its own.
+A trait of a single element: an attribute value that differs from the default its component gives, an attribute its component does not define, or an appearance of its own. A value for an attribute whose component gives no default is the element's ordinary data, not a particularity.
 _Avoid_: override, exception
 
 **Relation**:
