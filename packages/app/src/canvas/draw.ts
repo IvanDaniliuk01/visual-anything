@@ -9,6 +9,7 @@ import type { Color } from '@visual-anything/schema';
 import type { Dash } from './geometry';
 import {
   cylinderCap,
+  grow,
   directionOf,
   distance,
   middle,
@@ -62,8 +63,8 @@ export type TextFactory = (
 /** Labels as canvas text: sharp at any resolution, but slow to make by the thousand. */
 export const canvasText: TextFactory = (options) => new Text(options);
 const SHAPE_STROKE_WIDTH = 1.5;
-/** How wide the outlines of plain blocks are, so that they show far out. */
-const BLOCK_STROKE_WIDTH = SHAPE_STROKE_WIDTH * 4;
+/** How wide the outlines of plain blocks are, inside them, so that they show far out. */
+const BLOCK_OUTLINE = SHAPE_STROKE_WIDTH * 4;
 /** The contrast below which a block's fill needs an outline to stand out from the canvas, from WCAG 1.4.11. */
 const BLOCK_CONTRAST = 3;
 const TEXT_INSET = 12;
@@ -110,8 +111,12 @@ function needsOutline(fill: Color): boolean {
 /**
  * Draws element shapes as plain blocks of their colour: what the eye can tell apart when a whole large
  * view is on screen, at a fraction of the cost of their outlines. Containers keep an outline, which
- * shows the structure, and so do blocks whose fill would not stand out from the canvas. The outlines
- * come after the fills, so the shapes must not overlap; `inOrder` draws each one whole, in order.
+ * shows the structure, and so do blocks whose fill would not stand out from the canvas.
+ *
+ * An outline is a block of its colour under a smaller block of the fill, inside the shape: blocks
+ * cost far less to draw than strokes, and all those of one colour are drawn together. The outlines
+ * then come before every fill, so the shapes must not overlap; `inOrder` draws each one whole, in
+ * order.
  */
 export function drawShapeBlocks(
   graphics: Graphics,
@@ -119,23 +124,32 @@ export function drawShapeBlocks(
   inOrder = false,
 ): void {
   const outlines = new Map<Color, Rect[]>();
+  const fills = new Map<Color, Rect[]>();
   for (const shape of shapes) {
-    const { x, y, width, height } = shape.rect;
-    graphics.rect(x, y, width, height).fill(shape.fill);
-    if (!shape.holdsContents && !needsOutline(shape.fill)) continue;
+    const outlined = shape.holdsContents || needsOutline(shape.fill);
+    const inner = outlined ? grow(shape.rect, -BLOCK_OUTLINE) : shape.rect;
+    const filled = inner.width > 0 && inner.height > 0;
     if (inOrder) {
-      graphics.stroke({ color: shape.stroke, width: BLOCK_STROKE_WIDTH });
+      if (outlined) fillRects(graphics, shape.stroke, [shape.rect]);
+      if (filled) fillRects(graphics, shape.fill, [inner]);
       continue;
     }
-    const same = outlines.get(shape.stroke);
-    if (same) same.push(shape.rect);
-    else outlines.set(shape.stroke, [shape.rect]);
+    if (outlined) addRect(outlines, shape.stroke, shape.rect);
+    if (filled) addRect(fills, shape.fill, inner);
   }
-  // One stroke for all the outlines of a colour costs far less to draw than one for each.
-  for (const [color, rects] of outlines) {
-    for (const rect of rects) graphics.rect(rect.x, rect.y, rect.width, rect.height);
-    graphics.stroke({ color, width: BLOCK_STROKE_WIDTH });
-  }
+  for (const [color, rects] of outlines) fillRects(graphics, color, rects);
+  for (const [color, rects] of fills) fillRects(graphics, color, rects);
+}
+
+function addRect(byColor: Map<Color, Rect[]>, color: Color, rect: Rect): void {
+  const rects = byColor.get(color);
+  if (rects) rects.push(rect);
+  else byColor.set(color, [rect]);
+}
+
+function fillRects(graphics: Graphics, color: Color, rects: readonly Rect[]): void {
+  for (const { x, y, width, height } of rects) graphics.rect(x, y, width, height);
+  graphics.fill(color);
 }
 
 /** Draws relations as plain lines along their routes, without dashes or arrowheads. */
