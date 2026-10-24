@@ -4,6 +4,7 @@ import { useCallback, useId, useMemo, useState } from 'react';
 import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
+import { GuidanceLayer } from '../guidance/GuidanceLayer';
 import { useSelection } from '../editor/useSelection';
 import { buildScene, type Scene } from '../canvas/scene';
 import { definitionsOf } from '@visual-anything/core';
@@ -82,6 +83,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
             ) : (
               <p className="canvas-message">There is no view to draw.</p>
             )}
+            <GuidanceLayer />
           </main>
           <Inspector view={view} scene={scene} definitions={definitions} />
         </div>
