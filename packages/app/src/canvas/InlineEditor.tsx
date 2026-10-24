@@ -16,7 +16,8 @@ interface InlineEditorProps {
 
 /**
  * Edits text in place, in an HTML field laid over the canvas where the text is drawn (ADR-0014).
- * Enter commits a name, and Ctrl+Enter a note; Escape cancels; leaving the field commits.
+ * Enter commits a name, and Ctrl+Enter a note; Escape cancels; leaving the field commits. While an
+ * input method composes text, Enter and Escape are its own.
  */
 export function InlineEditor({
   rect,
@@ -61,6 +62,8 @@ export function InlineEditor({
     onBlur: () => finish(true),
     onKeyDown: (event: React.KeyboardEvent) => {
       event.stopPropagation();
+      // Safari ends a composition with a key press that no longer says it composes, but has code 229.
+      if (event.nativeEvent.isComposing || event.keyCode === 229) return;
       if (event.key === 'Escape') finish(false);
       else if (event.key === 'Enter' && (!multiline || event.ctrlKey || event.metaKey)) {
         event.preventDefault();
