@@ -13,6 +13,7 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
+import { COLOR_FORMS, readColor, sameColor } from '../../color';
 
 /** What every control takes. */
 interface ControlProps {
@@ -227,32 +228,38 @@ export function SelectControl({
 }
 
 interface ColorControlProps extends ControlProps {
+  /** What the colour is for, such as "Fill": the code box is named after it. */
+  label: string;
   /** The project's colour, as `#rrggbb`. */
   value: string;
   onCommit: (color: string) => Promise<unknown>;
 }
 
 /**
- * A colour, committed when the browser says it was chosen: on the input's `change` event, which React
- * does not tell apart from `input` for colours, so the control listens for it itself. While the picker
- * is open, the swatch shows what it points at. The colour is also written out next to its swatch.
+ * A colour, chosen with the browser's picker or written as a code, such as #f3f5f8. The picker commits
+ * when the browser says a colour was chosen: on the input's `change` event, which React does not tell
+ * apart from `input` for colours, so the control listens for it itself; while the picker is open, the
+ * swatch shows what it points at. The code commits with Enter or by leaving it, and Escape cancels it.
  */
 export function ColorControl({
   id,
   disabled,
   describedBy,
   focusRequest = 0,
+  label,
   value,
   onCommit,
 }: ColorControlProps) {
   const [draft, setDraft] = useState<string>();
+  const [code, setCode] = useState<{ text: string; problem?: string }>();
   const control = useRef<HTMLInputElement>(null);
   useFocusRequest(control, focusRequest);
-  const shown = (draft ?? value).toLowerCase();
-  const writtenId = `${id}-written`;
+  const shown = (draft ?? readColor(value) ?? value).toLowerCase();
+  const codeId = `${id}-code`;
+  const problemId = `${id}-code-problem`;
 
-  const chosen = useEffectEvent((color: string) => {
-    if (color.toLowerCase() === value.toLowerCase()) {
+  const choose = (color: string) => {
+    if (sameColor(color, value)) {
       setDraft(undefined);
       return;
     }
@@ -261,6 +268,10 @@ export function ColorControl({
       await attempt(() => onCommit(color));
       setDraft((current) => (current === color ? undefined : current));
     })();
+  };
+
+  const chosen = useEffectEvent((color: string) => {
+    choose(color);
   });
 
   useEffect(() => {
@@ -275,6 +286,17 @@ export function ColorControl({
     };
   }, []);
 
+  const commitCode = () => {
+    if (!code) return;
+    const color = readColor(code.text);
+    if (color === undefined) {
+      setCode({ text: code.text, problem: COLOR_FORMS });
+      return;
+    }
+    setCode(undefined);
+    choose(color);
+  };
+
   return (
     <span className="inspector-color">
       <input
@@ -283,12 +305,37 @@ export function ColorControl({
         type="color"
         value={shown}
         disabled={disabled}
-        aria-describedby={describedByOf(writtenId, describedBy)}
+        aria-describedby={describedBy}
         onChange={(event) => setDraft(event.target.value)}
       />
-      <span id={writtenId} className="inspector-color-written">
-        {shown}
-      </span>
+      <input
+        id={codeId}
+        type="text"
+        className="inspector-color-code"
+        value={code?.text ?? shown}
+        disabled={disabled}
+        aria-label={`${label} colour code`}
+        aria-describedby={describedByOf(code?.problem === undefined ? undefined : problemId)}
+        aria-invalid={code?.problem === undefined ? undefined : true}
+        spellCheck={false}
+        autoComplete="off"
+        maxLength={24}
+        onChange={(event) => setCode({ text: event.target.value })}
+        onBlur={commitCode}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            setCode(undefined);
+          } else if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+            event.preventDefault();
+            commitCode();
+          }
+        }}
+      />
+      {code?.problem !== undefined && (
+        <span id={problemId} className="inspector-problem">
+          {code.problem}
+        </span>
+      )}
     </span>
   );
 }

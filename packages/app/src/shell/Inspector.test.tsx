@@ -14,6 +14,7 @@ import { EditorContext, type Editor } from '../editor/EditorContext';
 import { selectionOf, type Selectable, type Selection } from '../editor/selection';
 import { loadSample } from '../test/sample';
 import { Inspector } from './Inspector';
+import { COLOR_FORMS } from '../color';
 
 const sample = loadSample();
 
@@ -665,6 +666,54 @@ describe('Inspector', () => {
         },
       ]);
       expect(stroke).toHaveValue('#334455');
+    });
+
+    it('takes a colour written as a code, such as #f3f5f8', async () => {
+      const { send } = renderInspector({ selected: [element('booking-agent')] });
+      const code = screen.getByRole('textbox', { name: 'Fill colour code' });
+      expect(code).toHaveValue('#f8e1ec');
+      fireEvent.change(code, { target: { value: '#F3F5F8' } });
+      await settle(() => fireEvent.keyDown(code, { key: 'Enter' }));
+      expect(sent(send)).toEqual([
+        {
+          type: 'update-element',
+          id: 'booking-agent',
+          changes: { appearance: { fill: '#f3f5f8' } },
+        },
+      ]);
+      expect(screen.getByLabelText('Fill')).toHaveValue('#f3f5f8');
+      expect(code).toHaveValue('#f3f5f8');
+    });
+
+    it('reads rgb() and the short form, and says how to write a colour it cannot read', async () => {
+      const { send } = renderInspector({ selected: [element('booking-agent')] });
+      const code = screen.getByRole('textbox', { name: 'Stroke colour code' });
+      fireEvent.change(code, { target: { value: '#12345' } });
+      await settle(() => fireEvent.blur(code));
+      expect(code).toHaveAttribute('aria-invalid', 'true');
+      expect(code).toHaveAccessibleDescription(COLOR_FORMS);
+      expect(send).not.toHaveBeenCalled();
+      fireEvent.change(code, { target: { value: 'rgb(17, 34, 51)' } });
+      await settle(() => fireEvent.keyDown(code, { key: 'Enter' }));
+      expect(sent(send)).toEqual([
+        {
+          type: 'update-element',
+          id: 'booking-agent',
+          changes: { appearance: { fill: '#F8E1EC', stroke: '#112233' } },
+        },
+      ]);
+      expect(code).not.toHaveAttribute('aria-invalid');
+    });
+
+    it('cancels a colour code with Escape, and sends nothing for the same colour', async () => {
+      const { send } = renderInspector({ selected: [element('booking-agent')] });
+      const code = screen.getByRole('textbox', { name: 'Fill colour code' });
+      fireEvent.change(code, { target: { value: '#000' } });
+      fireEvent.keyDown(code, { key: 'Escape' });
+      expect(code).toHaveValue('#f8e1ec');
+      fireEvent.change(code, { target: { value: 'F8E1EC' } });
+      await settle(() => fireEvent.keyDown(code, { key: 'Enter' }));
+      expect(send).not.toHaveBeenCalled();
     });
 
     it('makes it look like its component again', async () => {
