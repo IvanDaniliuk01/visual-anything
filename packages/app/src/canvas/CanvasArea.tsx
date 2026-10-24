@@ -803,7 +803,16 @@ function addRuleOf(
   if (target !== undefined && index.element(target)) return insideItself(target);
   if (!first || selected === undefined) return {};
   if (first.holdsContents) return insideItself(selected);
-  if (first.container === undefined) return { beside: first };
+  if (first.container === undefined) {
+    return {
+      beside: first,
+      place: {
+        option: 'Add element…',
+        label: 'Add an element',
+        title: `Adds the element directly in World, beside "${nameOf(selected)}". To add inside "${nameOf(selected)}" itself, use Add inside "${nameOf(selected)}"… in its menu or in the inspector.`,
+      },
+    };
+  }
   return {
     ...inside(
       first.container,
