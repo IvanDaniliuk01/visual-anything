@@ -43,7 +43,7 @@ A relation type whose relations place one element inside another, such as "is pa
 _Avoid_: hierarchy, parent/child
 
 **Container**:
-An element that holds other elements through a nesting relation type. An element can have several containers.
+An element that holds other elements, its contents, through a nesting relation type. An element can have several containers.
 _Avoid_: parent, group, folder
 
 **Attribute**:
@@ -70,8 +70,12 @@ A shape that is drawing only and does not exist in the model: a note, an emphasi
 A shape whose position was set by hand in a view; automatic layout arranges everything else around it.
 _Avoid_: locked, fixed
 
+**Stacking order**:
+The order, kept per view, in which the shapes that sit directly in one container, or directly in World, are drawn, from back to front. Every copy of a container draws its contents in the same order. A shape is drawn together with everything inside it, so a container's contents are always in front of it, and a shape is in front of or behind a whole container, never between it and its contents. Relations, then free shapes, are drawn in front of every element's shape. A new element is drawn in front of the shapes beside it, and an element put inside a container from the canvas comes in front there.
+_Avoid_: layer, z-order, z-index, depth, level
+
 **Outline**:
-The open view written out as a list, shape by shape as the canvas draws it: what sits in World, then what sits inside each container, with the relations drawn from each shape. It can be read and moved through from the keyboard, and it follows the selection.
+The open view written out as a list, shape by shape: what sits directly in World, then what sits inside each container, in the model's order whatever the stacking order, with the relations drawn from each shape. It can be read and moved through from the keyboard, and it follows the selection.
 _Avoid_: layers panel, tree view
 
 **Aggregated relation**:
@@ -163,4 +167,4 @@ _Avoid_: walkthrough, presentation, story
 To compute a behavior from parameters the user changes: learning rate and loss curve, replicas and latency.
 
 **Edit**:
-To change the model or the canvas: create, move, connect, delete.
+To change the model or the canvas: create, move, put inside or take out of a container, connect, change the stacking order, delete.
