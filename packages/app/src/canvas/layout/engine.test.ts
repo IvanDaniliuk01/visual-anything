@@ -3,7 +3,7 @@ import type { ElkNode } from 'elkjs/lib/elk-api';
 import { describe, expect, it, vi } from 'vitest';
 import type { Rect } from '../geometry';
 import { CONTENTS_ORIGIN } from '../scene';
-import { blockGraph, layOut, shareOut, type ElkEngine } from './engine';
+import { blockGraph, layOut, shareOut, strongestRelations, type ElkEngine } from './engine';
 import { LAYOUT_STEP, type LaidOutShape, type LayoutInput, type LayoutShape } from './types';
 
 const elk: ElkEngine = new ELK();
@@ -238,9 +238,95 @@ describe('layOut', () => {
     expect(right / bottom).toBeLessThan(3);
   });
 
+  it('reports its progress, container by container, up to all of them', async () => {
+    const shapes = [
+      shape('a', -1, container),
+      shape('a/x', 0),
+      shape('a/y', 0),
+      shape('b', -1, container),
+      shape('b/z', 3),
+      shape('c', -1),
+    ];
+    const seen: { done: number; total: number }[] = [];
+    await layOut(input(shapes, [[1, 2]]), elk, { onProgress: (progress) => seen.push(progress) });
+    expect(seen.at(-1)).toEqual({ done: 3, total: 3 });
+    expect(seen.map((each) => each.done)).toEqual([...seen.map((each) => each.done)].sort());
+  });
+
+  it('packs in rows what ELK has not arranged when its time runs out, and stops ELK', async () => {
+    const stop = vi.fn();
+    const never: ElkEngine = { layout: () => new Promise(() => {}), stop };
+    const shapes = [
+      shape('a', -1, container),
+      shape('a/x', 0),
+      shape('a/y', 0),
+      shape('b', -1),
+      shape('c', -1),
+    ];
+    const { shapes: placed, stats } = await layOut(
+      input(shapes, [
+        [1, 2],
+        [3, 4],
+      ]),
+      never,
+      {
+        timeLimit: 30,
+      },
+    );
+    expect(placed.map((each) => each.element).sort()).toEqual(['a', 'b', 'c', 'x', 'y']);
+    // The container's run was stopped; World, after the time ran out, never went to ELK.
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(stats).toMatchObject({ packedForTime: 2, elkRuns: 1 });
+    for (const each of placed) expect(Number.isInteger(each.x / LAYOUT_STEP)).toBe(true);
+  });
+
+  it('waits for ELK as long as it takes without a time limit', async () => {
+    const slow: ElkEngine = {
+      layout: (graph) =>
+        new Promise((resolve) => setTimeout(() => resolve(elk.layout(structuredClone(graph))), 20)),
+    };
+    const shapes = [shape('a', -1), shape('b', -1)];
+    const { stats } = await layOut(input(shapes, [[0, 1]]), slow, {
+      timeLimit: Number.POSITIVE_INFINITY,
+    });
+    expect(stats.packedForTime).toBe(0);
+  });
+
   it('gives nothing back when nothing is free', async () => {
     const { shapes: placed } = await layOut(input([shape('a', -1, { free: false })]), elk);
     expect(placed).toEqual([]);
+  });
+});
+
+describe('strongestRelations', () => {
+  const lifted = (pairs: [number, number][]) =>
+    pairs.map(([u, v]) => ({ u, v, uDirect: true, vDirect: true }));
+
+  it('keeps every relation of a level within the budget', () => {
+    const all = lifted([
+      [0, 1],
+      [1, 2],
+      [2, 0],
+      [0, 2],
+    ]);
+    expect(strongestRelations(all, 3)).toEqual(all);
+  });
+
+  it('beyond it, keeps the pairs related by the most relations, then the first ones', () => {
+    // 400 shapes may have 410 pairs: 400 + 4000 / 400.
+    const pairs: [number, number][] = [];
+    // 500 different pairs, each related once.
+    for (let at = 0; at < 500; at++) pairs.push([at % 400, (at + 1 + Math.floor(at / 400)) % 400]);
+    // The last pair, related three times, is kept before pairs related once.
+    pairs.push([5, 9], [5, 9], [5, 9]);
+    const kept = strongestRelations(lifted(pairs), 400);
+    const keys = new Set(kept.map((each) => `${each.u}>${each.v}`));
+    expect(keys.size).toBe(410);
+    expect(keys.has('5>9')).toBe(true);
+    expect(kept.filter((each) => each.u === 5 && each.v === 9)).toHaveLength(3);
+    // The other pairs kept are the first ones.
+    expect(keys.has(`${pairs[0]?.[0]}>${pairs[0]?.[1]}`)).toBe(true);
+    expect(keys.has(`${pairs[499]?.[0]}>${pairs[499]?.[1]}`)).toBe(false);
   });
 });
 

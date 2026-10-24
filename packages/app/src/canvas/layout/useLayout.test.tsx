@@ -6,8 +6,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { EMPTY_SELECTION, selectionOf, type Selection } from '../../editor/selection';
 import { loadSample } from '../../test/sample';
 import { buildScene } from '../scene';
-import type { LayoutRunner } from './client';
+import { LayoutStopped, type LayoutRunner } from './client';
 import { layOut } from './engine';
+import type { LayoutProgress } from './types';
 import { AUTO_DELAY, LayoutRunnerContext, useLayout, type LayoutOptions } from './useLayout';
 
 const VIEW = 'system-overview';
@@ -24,6 +25,21 @@ function inThread(): LayoutRunner & { runs: number } {
     dispose: () => {},
   };
   return runner;
+}
+
+/** A runner whose layouts wait until they are stopped, saying how far they came when told to. */
+function heldRunner() {
+  let onProgress: ((progress: LayoutProgress) => void) | undefined;
+  const runner: LayoutRunner = {
+    layOut: (_input, call = {}) => {
+      onProgress = call.onProgress;
+      return new Promise((_resolve, reject) => {
+        call.signal?.addEventListener('abort', () => reject(new LayoutStopped()));
+      });
+    },
+    dispose: () => {},
+  };
+  return { runner, progress: (progress: LayoutProgress) => onProgress?.(progress) };
 }
 
 /** The sample with one more element inside Clinic booking, which no view places yet. */
@@ -177,21 +193,53 @@ describe('the Layout control', () => {
   it('lays out the view, saying what it did', async () => {
     const view = canvas(loadSample());
     expect(view.hook.result.current.control).toMatchObject({
+      label: 'Layout',
       enabled: true,
       busy: false,
       title: 'Lay out "System overview": arrange every shape that is not pinned.',
     });
     act(() => view.hook.result.current.control.run());
-    expect(view.hook.result.current.control).toMatchObject({
-      busy: true,
-      enabled: false,
-      title: 'Laying out…',
-    });
-    await waitFor(() => expect(view.hook.result.current.control.busy).toBe(false));
+    await waitFor(() => expect(view.sent).toHaveLength(1));
     expect(view.sent).toEqual([
       expect.objectContaining({ type: 'batch', label: 'Lay out "System overview"' }),
     ]);
-    expect(view.said.at(-1)).toMatch(/^Lay out "System overview": \d+ shapes moved\.$/);
+    await waitFor(() =>
+      expect(view.said.at(-1)).toMatch(/^Lay out "System overview": \d+ shapes moved\.$/),
+    );
+    expect(view.hook.result.current.control).toMatchObject({ label: 'Layout', busy: false });
+  });
+
+  it('shows how far a layout has come, and stops it when pressed, moving nothing', async () => {
+    const held = heldRunner();
+    const view = canvas(loadSample(), { runner: held.runner });
+    act(() => view.hook.result.current.control.run());
+    await waitFor(() => expect(view.hook.result.current.control.busy).toBe(true));
+    expect(view.hook.result.current.control).toMatchObject({
+      label: 'Stop layout',
+      enabled: true,
+      title: 'Laying out 7 shapes. Press to stop it; nothing moves then.',
+    });
+    act(() => held.progress({ done: 1, total: 4 }));
+    expect(view.hook.result.current.control).toMatchObject({
+      label: 'Stop layout (25%)',
+      title: 'Laying out 7 shapes: 25% done. Press to stop it; nothing moves then.',
+    });
+    act(() => view.hook.result.current.control.run());
+    await waitFor(() => expect(view.said).toContain('Layout stopped, and nothing moved.'));
+    expect(view.hook.result.current.control).toMatchObject({ label: 'Layout', busy: false });
+    expect(view.sent).toHaveLength(0);
+  });
+
+  it('shows an automatic layout under way too, which can be stopped the same way', async () => {
+    const held = heldRunner();
+    const view = canvas(withBilling(), { runner: held.runner });
+    await waitFor(() => expect(view.hook.result.current.control.busy).toBe(true));
+    expect(view.hook.result.current.control.title).toBe(
+      'Laying out 1 shape. Press to stop it; nothing moves then.',
+    );
+    act(() => view.hook.result.current.control.run());
+    await waitFor(() => expect(view.hook.result.current.control.busy).toBe(false));
+    expect(view.sent).toHaveLength(0);
   });
 
   it('lays out the contents of the selected container', async () => {
