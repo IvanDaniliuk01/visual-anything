@@ -340,12 +340,14 @@
 
 /* The cue on the canvas while clicks record steps */
 
+/* At the bottom middle, clear of the keyboard help in the corner. */
 .canvas-recording {
   position: absolute;
   bottom: 0.75rem;
-  left: 0.75rem;
+  left: 50%;
   z-index: 2;
-  max-width: calc(100% - 1.5rem);
+  max-width: calc(100% - 14rem);
+  transform: translateX(-50%);
   padding: 0.3rem 0.65rem;
   border: 2px solid var(--highlight, #c2410c);
   border-radius: 0.4rem;

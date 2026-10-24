@@ -151,6 +151,10 @@ _Avoid_: animate, replay
 A concrete example played step by step over a view, showing what moves where and what each step takes in and produces: a patient's request crossing services, a sentence going through a transformer's layers. A step can involve several relations at once; there are no branches, so an alternative path is a separate scenario. It is recorded by following relations in order or built by Claude from a description or a log.
 _Avoid_: trace, run, flow, example (as a product term), simulation
 
+**Step**:
+One moment of a scenario: the relations it activates at once, a short description, and what it takes in and produces as data. Recorded by clicking a relation; Shift+click adds another relation to the same step.
+_Avoid_: stage, hop
+
 **Aggregated step**:
 A single step played in place of consecutive scenario steps that happen entirely inside a collapsed container, labeled with how many it stands for.
 _Avoid_: grouped step, collapsed step
@@ -158,6 +162,10 @@ _Avoid_: grouped step, collapsed step
 **Broken step**:
 A scenario step that uses a relation that no longer exists; it is kept and flagged so it can be fixed.
 _Avoid_: orphan step, dead step
+
+**Travelling marker**:
+The mark that moves along each relation of the step being played, from its from end to its to end; when the system asks for reduced motion it stands still at the end it travels to.
+_Avoid_: dot, token, pulse
 
 **Tour**:
 A saved sequence of steps, each a view state with an explanation, that is played to walk someone through a concept. A step can play a scenario. Created by a person or by Claude.
