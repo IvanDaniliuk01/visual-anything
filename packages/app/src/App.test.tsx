@@ -71,7 +71,7 @@ describe('App', () => {
     expect(within(header).getByText('My systems')).toBeInTheDocument();
     expect(within(header).getByText('System overview')).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: 'Outline and model' })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: /System overview/ })).toBeInTheDocument();
+    expect(screen.getByRole('application', { name: /System overview/ })).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
@@ -97,11 +97,11 @@ describe('App', () => {
     render(<App token="s3cr3t" />);
     const socket = onlySocket();
     act(() => socket.receive(opened));
-    const canvas = screen.getByRole('img');
+    const canvas = screen.getByRole('application');
     act(() => socket.drop());
     expect(screen.getByRole('alert')).toHaveTextContent(/connection to Visual Anything closed/i);
     expect(within(screen.getByRole('banner')).getByText('My systems')).toBeInTheDocument();
-    expect(screen.getByRole('img')).toBe(canvas);
+    expect(screen.getByRole('application')).toBe(canvas);
     expect(FakeWebSocket.created).toHaveLength(1);
   });
 
@@ -251,7 +251,7 @@ describe('App, editing live', () => {
 
     act(() => socket.receive(changed({ operations: [renameView('Booking overview')] })));
     expect(within(screen.getByRole('banner')).getByText('Booking overview')).toBeInTheDocument();
-    expect(screen.getByRole('img')).toHaveAccessibleName(
+    expect(screen.getByRole('application')).toHaveAccessibleName(
       /^Booking overview, from the Data flow perspective/,
     );
     expect(historyButton('Undo')).toHaveAttribute('aria-disabled', 'true');

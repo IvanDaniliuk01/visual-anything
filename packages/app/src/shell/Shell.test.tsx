@@ -50,7 +50,7 @@ describe('Shell', () => {
     render(<Shell project={sample} />);
     expect(screen.getByRole('banner')).toBeInTheDocument();
     expect(screen.getByRole('complementary', { name: MODEL_PANEL })).toBeInTheDocument();
-    expect(screen.getByRole('main')).toContainElement(screen.getByRole('img'));
+    expect(screen.getByRole('main')).toContainElement(screen.getByRole('application'));
     expect(screen.getByRole('complementary', { name: 'Inspector' })).toBeInTheDocument();
   });
 
@@ -128,7 +128,7 @@ describe('Shell', () => {
 
   it('names the open view in the canvas area’s text alternative', () => {
     render(<Shell project={sample} />);
-    expect(screen.getByRole('img')).toHaveAccessibleName(
+    expect(screen.getByRole('application')).toHaveAccessibleName(
       'System overview, from the Data flow perspective: 8 element shapes, 6 relations and 1 free shape.',
     );
   });
@@ -163,6 +163,6 @@ describe('Shell', () => {
         'No view is open.',
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(screen.queryByRole('application')).not.toBeInTheDocument();
   });
 });

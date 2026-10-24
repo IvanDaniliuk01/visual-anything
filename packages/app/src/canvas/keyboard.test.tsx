@@ -51,7 +51,7 @@ function Harness({ project = sample, onCommand, initial, revealed }: HarnessProp
 /** Starts the canvas at a known size; `at` is where a shape's middle is on screen. */
 async function started(props: HarnessProps = {}) {
   const result = render(<Harness {...props} />);
-  const host = screen.getByRole('img', { name: LABEL });
+  const host = screen.getByRole('application', { name: LABEL });
   Object.defineProperty(host, 'clientWidth', { configurable: true, value: SIZE.width });
   Object.defineProperty(host, 'clientHeight', { configurable: true, value: SIZE.height });
   const [app] = FakeApplication.created as [FakeApplication];
@@ -97,7 +97,7 @@ describe('The canvas from the keyboard', () => {
     const { host } = await started();
     expect(host).toHaveAccessibleDescription(CANVAS_KEYS_HINT);
     expect(screen.getByText('Keyboard')).toBeInTheDocument();
-    expect(screen.getByText('] and [')).toBeInTheDocument();
+    expect(screen.getByText('] and [, or . and ,')).toBeInTheDocument();
     expect(screen.getByText('Shift+arrow keys')).toBeInTheDocument();
   });
 
@@ -166,6 +166,21 @@ describe('The canvas from the keyboard', () => {
     );
     press(host, 'Enter');
     expect(said()).toBe('Reminder service, Service, in Scheduling, 1 relation.');
+  });
+
+  it('steps with . and , too, and with [ and ] typed with AltGr', async () => {
+    const { host, at } = await started();
+    clickOn(host, at('clinic-booking/booking-agent'));
+    press(host, '.');
+    expect(said()).toMatch(/relation 1 of 2 of Booking agent.$/);
+    press(host, '.');
+    expect(said()).toMatch(/relation 2 of 2 of Booking agent.$/);
+    press(host, ',');
+    expect(said()).toMatch(/relation 1 of 2 of Booking agent.$/);
+    // AltGr comes as Ctrl and Alt together, as on a Spanish or German keyboard on Windows.
+    const altGr = { ctrlKey: true, altKey: true, modifierAltGraph: true };
+    expect(press(host, ']', altGr)).toBe(false);
+    expect(said()).toMatch(/relation 2 of 2 of Booking agent.$/);
   });
 
   it('follows a relation selected elsewhere to the end it points to', async () => {

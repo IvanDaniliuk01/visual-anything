@@ -279,7 +279,9 @@ export function CanvasArea({
       <div
         ref={hostRef}
         className="canvas-host"
-        role="img"
+        // The canvas takes its keys itself, so screen readers pass them on; the outline reads it.
+        role="application"
+        aria-roledescription="canvas"
         aria-label={label}
         aria-describedby={hint}
         tabIndex={0}

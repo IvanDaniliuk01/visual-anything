@@ -16,7 +16,7 @@ export function CanvasArea({
 }) {
   return (
     <>
-      <div role="img" aria-label={label} />
+      <div role="application" aria-roledescription="canvas" aria-label={label} />
       {onCommand && (
         <button type="button" onClick={() => void onCommand(CANVAS_COMMAND)}>
           Edit on the canvas

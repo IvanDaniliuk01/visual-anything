@@ -8,7 +8,10 @@ export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
     keys: 'Alt+Up, Alt+Down',
     does: 'Select the container of the selected shape, or the first shape inside it',
   },
-  { keys: '] and [', does: 'Select the next or the previous relation of the selected element' },
+  {
+    keys: '] and [, or . and ,',
+    does: 'Select the next or the previous relation of the selected element',
+  },
   {
     keys: 'Enter',
     does: 'Go to the far end of the selected relation; on an element or a note, edit its text',
@@ -25,4 +28,4 @@ export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
 
 /** What the canvas tells screen readers about its keys when it gets the focus. */
 export const CANVAS_KEYS_HINT =
-  'The arrow keys select shapes, ] and [ step through the selected element’s relations, and Enter follows a relation. Every key is listed under Keyboard, after the canvas.';
+  'The arrow keys select shapes, ] and [ (or . and ,) step through the selected element’s relations, and Enter follows a relation. Every key is listed under Keyboard, after the canvas.';
