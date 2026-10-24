@@ -1,8 +1,23 @@
 import { definitionsOf, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
-import { useMemo } from 'react';
+import { useMemo, useRef, useState, type KeyboardEvent, type Ref } from 'react';
+import './drop.css';
+import {
+  STACKING_KEYS,
+  STACKING_MOVES,
+  STACKING_NAMES,
+  type StackingAction,
+  type StackingMove,
+} from './stacking';
 
-interface CanvasToolbarProps {
+/** Where "Add element…" puts the new element, as its first option, its label and its tooltip say. */
+export interface AddPlace {
+  option: string;
+  label: string;
+  title: string;
+}
+
+export interface CanvasToolbarProps {
   project: ProjectSnapshot;
   /** Whether the project can be changed; adding is off while it cannot. */
   editable: boolean;
@@ -13,11 +28,43 @@ interface CanvasToolbarProps {
   onAddArrow: () => void;
   onZoom: (factor: number) => void;
   onFit: () => void;
+  /** Where "Add element…" puts the new element; absent, directly in World. */
+  addPlace?: AddPlace;
+  /** The stacking buttons' states (`stackingActions`); absent, the toolbar has no stacking group. */
+  stacking?: Record<StackingMove, StackingAction>;
+  /** Called on every press of a stacking button, also of one that would change nothing, to say why. */
+  onRestack?: (move: StackingMove) => void;
+  /** Takes the "Add element…" select, so that `Add inside "X"…` can move the focus to it. */
+  addSelect?: Ref<HTMLSelectElement>;
+  /**
+   * Called when "Add element…" loses the focus, after adding what the keys reached, and on Escape in
+   * it: a target set for the next element added ends there.
+   */
+  onAddLeave?: () => void;
 }
 
-/** The canvas toolbar: the component palette, free shapes and zoom. */
-export function CanvasToolbar(props: CanvasToolbarProps) {
-  const { project, editable, scale } = props;
+const IN_WORLD = 'With nothing selected, elements are added directly in World.';
+
+/**
+ * The canvas toolbar: the component palette, free shapes, the stacking order and zoom. The palette
+ * adds an element when one is picked from its open list; the arrow keys going through it while it is
+ * closed only show an option, which Enter, or leaving it, adds.
+ */
+export function CanvasToolbar({
+  project,
+  editable,
+  scale,
+  onAdd,
+  onAddNote,
+  onAddArrow,
+  onZoom,
+  onFit,
+  addPlace,
+  stacking,
+  onRestack,
+  addSelect,
+  onAddLeave,
+}: CanvasToolbarProps) {
   const palette = useMemo(() => {
     const definitions = definitionsOf(project.packages);
     return project.packages.map((file) => ({
@@ -29,19 +76,55 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
       })),
     }));
   }, [project.packages]);
+  // An option the keys reached in the closed list, not added yet.
+  const [reached, setReached] = useState<string>();
+  // Set by a key that goes through the options, until the change it makes, in the same task.
+  const browsing = useRef(false);
+
+  const add = (component: string) => {
+    setReached(undefined);
+    if (component !== '') onAdd(component);
+  };
 
   return (
     <div className="canvas-toolbar" role="toolbar" aria-label="Canvas">
       <label className="canvas-toolbar-add">
-        <span className="visually-hidden">Add an element</span>
+        <span className="visually-hidden">{addPlace?.label ?? 'Add an element'}</span>
         <select
-          value=""
+          ref={addSelect}
+          value={reached ?? ''}
+          title={addPlace?.title ?? IN_WORLD}
           disabled={!editable}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' && reached !== undefined) {
+              event.preventDefault();
+              add(reached);
+            } else if (event.key === 'Escape') {
+              if (reached !== undefined) event.preventDefault();
+              setReached(undefined);
+              onAddLeave?.();
+            } else if (browsesOptions(event)) {
+              browsing.current = true;
+              setTimeout(() => {
+                browsing.current = false;
+              }, 0);
+            }
+          }}
           onChange={(event) => {
-            if (event.target.value) props.onAdd(event.target.value);
+            const next = event.target.value;
+            if (browsing.current) {
+              browsing.current = false;
+              setReached(next === '' ? undefined : next);
+            } else {
+              add(next);
+            }
+          }}
+          onBlur={() => {
+            if (reached !== undefined) add(reached);
+            onAddLeave?.();
           }}
         >
-          <option value="">Add element…</option>
+          <option value="">{addPlace?.option ?? 'Add element…'}</option>
           {palette.map((file) => (
             <optgroup key={file.id} label={file.name}>
               {file.components.map((component) => (
@@ -53,25 +136,83 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
           ))}
         </select>
       </label>
-      <button type="button" disabled={!editable} onClick={props.onAddNote}>
+      <button type="button" disabled={!editable} onClick={onAddNote}>
         Note
       </button>
-      <button type="button" disabled={!editable} onClick={props.onAddArrow}>
+      <button type="button" disabled={!editable} onClick={onAddArrow}>
         Arrow
       </button>
+      {stacking && (
+        <div className="canvas-toolbar-stacking" role="group" aria-label="Stacking order">
+          {STACKING_MOVES.map((move) => (
+            <button
+              key={move}
+              type="button"
+              title={stacking[move].description}
+              aria-keyshortcuts={STACKING_KEYS[move].keys}
+              aria-disabled={stacking[move].enabled ? undefined : true}
+              onClick={() => onRestack?.(move)}
+            >
+              <StackingIcon move={move} />
+              <span className="visually-hidden">{STACKING_NAMES[move]}</span>
+            </button>
+          ))}
+        </div>
+      )}
       <span className="canvas-toolbar-spacer" />
-      <button type="button" aria-label="Zoom out" onClick={() => props.onZoom(1 / 1.25)}>
+      <button type="button" aria-label="Zoom out" onClick={() => onZoom(1 / 1.25)}>
         −
       </button>
       <output className="canvas-toolbar-zoom" aria-label="Zoom">
         {scale === undefined ? '' : `${Math.round(scale * 100)}%`}
       </output>
-      <button type="button" aria-label="Zoom in" onClick={() => props.onZoom(1.25)}>
+      <button type="button" aria-label="Zoom in" onClick={() => onZoom(1.25)}>
         +
       </button>
-      <button type="button" onClick={props.onFit}>
+      <button type="button" onClick={onFit}>
         Fit
       </button>
     </div>
+  );
+}
+
+/**
+ * Whether a key goes through the options of a closed select, as the arrow keys, Home, End, the page
+ * keys and typing a letter do on Windows and Linux; with Alt, an arrow opens the list instead.
+ */
+function browsesOptions(event: KeyboardEvent): boolean {
+  if (event.altKey || event.ctrlKey || event.metaKey) return false;
+  return (
+    /^(Arrow(Up|Down|Left|Right)|Home|End|Page(Up|Down))$/.test(event.key) ||
+    (event.key.length === 1 && event.key !== ' ')
+  );
+}
+
+/** The paths of each stacking button's icon, in a 16 by 16 box: chevrons up or down, to a bar at the end. */
+const ICONS: Record<StackingMove, string[]> = {
+  front: ['M3 2.5h10', 'M4 9l4-4 4 4', 'M4 13l4-4 4 4'],
+  forward: ['M4 10l4-4 4 4'],
+  backward: ['M4 6l4 4 4-4'],
+  back: ['M4 3l4 4 4-4', 'M4 7l4 4 4-4', 'M3 13.5h10'],
+};
+
+function StackingIcon({ move }: { move: StackingMove }) {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {ICONS[move].map((path) => (
+        <path key={path} d={path} />
+      ))}
+    </svg>
   );
 }
