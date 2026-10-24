@@ -21,7 +21,7 @@ import {
 } from '../editor/selection';
 import { describeRelation, describeSelection, nameOfEnd } from './announce';
 import { panBy, revealCamera, screenToWorld, wheelFactor, zoomAt, type Camera } from './camera';
-import { centerOf, distance, type Point, type Rect } from './geometry';
+import { boundsOf, centerOf, distance, type Point, type Rect } from './geometry';
 import { carriedKeys, moveCommand, movingShapes } from './gestures';
 import { enclosedBy, hitAt, type Hit, type IndexedScene } from './hit';
 import {
@@ -35,9 +35,10 @@ import {
   stepRelation,
   type Direction,
   type Reachable,
+  type RelationStop,
   type Start,
 } from './navigation';
-import { CanvasRenderer } from './renderer';
+import { CanvasRenderer, type Overlay } from './renderer';
 import type { ElementShape, NoteShape } from './scene';
 import { rectAround, rectBetween } from './spatial';
 
@@ -64,9 +65,42 @@ type Gesture =
   | { kind: 'idle' }
   | { kind: 'pan'; pointer: number; start: Point; camera: Camera }
   | { kind: 'press'; pointer: number; start: Point; world: Point; hit: Hit; additive: boolean }
-  | { kind: 'drag'; pointer: number; world: Point; delta: Point }
+  | DragGesture
   | { kind: 'box'; pointer: number; start: Point; additive: boolean }
   | { kind: 'connect'; pointer: number; from: ElementShape; anchor: Point; target?: Hit };
+
+/** Shapes being dragged: from where the press was, by how far, and the renderer's drawing of them. */
+interface DragGesture {
+  kind: 'drag';
+  pointer: number;
+  /** Where the press was, in the scene. */
+  world: Point;
+  /** How far the shapes have been dragged, in scene units. */
+  delta: Point;
+  /** The renderer's drag, as `startDrag` named it: ending it leaves any later drag alone. */
+  drag: number;
+}
+
+/**
+ * A move sent to the local program, until its change comes back. The live connection applies a
+ * change before it answers the request that made it, but either may reach the canvas first; the move
+ * is back once it is applied and the project is no longer the one it was made from. A move always
+ * changes the project.
+ */
+interface SentMove {
+  /** The project the move was made from. */
+  from: ProjectSnapshot;
+  /** Whether the local program said it did the move. */
+  applied: boolean;
+  /** For a drop: the drag that draws the dropped shapes until the change comes back, and where they land. */
+  drop?: { drag: number; landing: () => Rect[] };
+}
+
+/** A press of Shift with an arrow key: the step, and what was selected when it was pressed. */
+interface Nudge {
+  step: Point;
+  selection: Selection;
+}
 
 /** How far the pointer moves before a press becomes a drag, in screen pixels. */
 const DRAG_THRESHOLD = 4;
@@ -85,6 +119,8 @@ const REVEAL_SCALE = 0.75;
 const NUDGE = 10;
 /** How many presses of Shift with an arrow key wait for the move before them, at most. */
 const MAX_WAITING_NUDGES = 8;
+/** How many rectangles show where dropped shapes land; more show as one around them all. */
+const MAX_LANDING_MARKS = 100;
 
 const DIRECTIONS: Partial<Record<string, Direction>> = {
   ArrowLeft: 'left',
@@ -116,8 +152,8 @@ export class CanvasController {
   private gesture: Gesture = { kind: 'idle' };
   private hovered: ElementShape | undefined;
   private spaceHeld = false;
-  private waitingForDrop = false;
   private editable = true;
+  private destroyed = false;
   /**
    * The shape the keys move from: the key of an element's shape or the id of a free shape, last
    * pointed at or reached. An element with several shapes is selected in all of them at once.
@@ -125,10 +161,14 @@ export class CanvasController {
   private current: string | undefined;
   /** The element whose relations ] and [ step through, and the relation they last reached. */
   private stepping: { element: Id; relation: Id | undefined } | undefined;
-  /** The move Shift with an arrow key sent, until the scene it makes comes back. */
-  private nudging: { applied: boolean } | undefined;
-  /** The presses made while a move was on its way, each one a move of its own. */
-  private waitingNudges: Point[] = [];
+  /** The moves sent, drops and nudges, in the order they were sent, until their changes come back. */
+  private sent: SentMove[] = [];
+  /** The last drag the renderer started; it drew over every drop made before it. */
+  private lastDrag: number | undefined;
+  /** The presses of Shift with an arrow key made while a move was on its way, each a move of its own. */
+  private nudges: Nudge[] = [];
+  /** What the gesture under way draws above the scene; where dropped shapes land is drawn with it. */
+  private gestureOverlay: Overlay = {};
 
   constructor(
     private readonly host: HTMLElement,
@@ -147,6 +187,8 @@ export class CanvasController {
     host.addEventListener('dblclick', this.onDoubleClick);
     host.addEventListener('keydown', this.onKeyDown);
     host.addEventListener('keyup', this.onKeyUp);
+    host.addEventListener('blur', this.onBlur);
+    host.ownerDocument.defaultView?.addEventListener('blur', this.onBlur);
   }
 
   /** Shows a project's view; `editable` says whether gestures may change the project. */
@@ -155,20 +197,14 @@ export class CanvasController {
     this.viewId = viewId;
     this.indexed = indexed;
     this.editable = editable;
-    if (this.hovered && !indexed.byKey.has(this.hovered.key)) this.hovered = undefined;
+    // The hovered shape as it is now: where it is, and its handle, may have changed.
+    this.hovered = this.hovered && indexed.byKey.get(this.hovered.key);
     this.renderer.show(indexed);
-    if (this.waitingForDrop) {
-      this.waitingForDrop = false;
-      this.renderer.endDrag();
+    for (const move of [...this.sent]) {
+      if (move.applied && move.from !== project) this.moveBack(move);
     }
     this.refreshMarks();
-    if (!editable) this.stopNudging();
-    else if (this.nudging?.applied) {
-      // The last move came back: the next press waiting moves from where it left the shapes.
-      this.nudging = undefined;
-      const next = this.waitingNudges.shift();
-      if (next) this.sendNudge(next);
-    }
+    this.nudgeNext();
   }
 
   setSelection(selection: Selection): void {
@@ -219,11 +255,11 @@ export class CanvasController {
 
   /** The element shape that holds the middle of the canvas, if any. */
   shapeAtCenter(): ElementShape | undefined {
-    if (!this.indexed) return undefined;
-    const hit = hitAt(this.indexed, this.center, 0);
+    const hit = this.hit(this.center, 0);
     return hit?.kind === 'shape' ? hit.shape : undefined;
   }
 
+  /** Stops listening and releases the canvas; answers that come later change nothing. */
   destroy(): void {
     const { host } = this;
     host.removeEventListener('pointerdown', this.onPointerDown);
@@ -235,12 +271,32 @@ export class CanvasController {
     host.removeEventListener('dblclick', this.onDoubleClick);
     host.removeEventListener('keydown', this.onKeyDown);
     host.removeEventListener('keyup', this.onKeyUp);
+    host.removeEventListener('blur', this.onBlur);
+    host.ownerDocument.defaultView?.removeEventListener('blur', this.onBlur);
+    this.destroyed = true;
+    this.sent = [];
+    this.nudges = [];
     this.renderer.destroy();
+  }
+
+  /**
+   * What lies at a point of the scene, as drawn now: an element shape counts by its outline where the
+   * canvas draws its outline, and by its rectangle where it draws a plain block.
+   */
+  private hit(world: Point, tolerance: number): Hit | undefined {
+    if (!this.indexed) return undefined;
+    return hitAt(this.indexed, world, tolerance, (shape) => this.renderer.showsOutline(shape.key));
   }
 
   private readonly onPointerDown = (event: PointerEvent): void => {
     const indexed = this.indexed;
     if (!indexed) return;
+    if (this.gesture.kind !== 'idle') {
+      // Another pointer, such as a second finger, leaves the gesture under way alone. The same
+      // pointer pressing again means its release never came: what it was doing is dropped.
+      if (event.pointerId !== this.gesture.pointer) return;
+      this.cancel();
+    }
     this.host.focus({ preventScroll: true });
     const screen = this.local(event);
     if (event.button === 1 || (event.button === 0 && this.spaceHeld)) {
@@ -271,7 +327,7 @@ export class CanvasController {
       });
       return;
     }
-    const hit = hitAt(indexed, world, HIT_TOLERANCE / this.camera.scale);
+    const hit = this.hit(world, HIT_TOLERANCE / this.camera.scale);
     const additive = event.shiftKey || event.ctrlKey || event.metaKey;
     this.stepping = undefined;
     if (!hit) {
@@ -317,12 +373,21 @@ export class CanvasController {
         }
         const moving = movingShapes(indexed, this.selection);
         const keys = carriedKeys(indexed, moving);
-        this.renderer.startDrag(keys, this.relationsOn(keys));
+        const drag = this.renderer.startDrag(keys, this.relationsOn(keys));
+        this.lastDrag = drag;
         const delta = { x: world.x - gesture.world.x, y: world.y - gesture.world.y };
-        this.gesture = { kind: 'drag', pointer: gesture.pointer, world: gesture.world, delta };
+        this.gesture = {
+          kind: 'drag',
+          pointer: gesture.pointer,
+          world: gesture.world,
+          delta,
+          drag,
+        };
         this.renderer.dragTo(delta);
         this.hovered = undefined;
         this.refreshMarks();
+        // The drag drew over the drops still waiting: their marks show where they land.
+        this.showOverlay({});
         return;
       }
       case 'drag': {
@@ -332,10 +397,10 @@ export class CanvasController {
         return;
       }
       case 'box':
-        this.renderer.setOverlay({ box: rectBetween(gesture.start, world) });
+        this.showOverlay({ box: rectBetween(gesture.start, world) });
         return;
       case 'connect': {
-        const hit = hitAt(indexed, world, HIT_TOLERANCE / this.camera.scale);
+        const hit = this.hit(world, HIT_TOLERANCE / this.camera.scale);
         const target =
           hit &&
           !(hit.kind === 'shape' && hit.shape.element === gesture.from.element) &&
@@ -344,14 +409,14 @@ export class CanvasController {
             ? hit
             : undefined;
         this.gesture = target ? { ...gesture, target } : { ...gesture, target: undefined };
-        this.renderer.setOverlay({
+        this.showOverlay({
           connect: { from: gesture.anchor, to: world },
           ...(target ? { target: targetRect(target) } : {}),
         });
         return;
       }
       case 'idle': {
-        const hit = hitAt(indexed, world, HIT_TOLERANCE / this.camera.scale);
+        const hit = this.hit(world, HIT_TOLERANCE / this.camera.scale);
         const shape = hit?.kind === 'shape' ? hit.shape : undefined;
         const handleShape = this.handleShape();
         const handle = handleShape && this.handleOf(handleShape);
@@ -359,7 +424,15 @@ export class CanvasController {
           this.editable &&
           handle !== undefined &&
           distance(world, handle) <= HANDLE_REACH / this.camera.scale;
-        if (!onHandle && shape?.key !== this.hovered?.key) {
+        // On the way from the hovered shape to its handle, over a line or nothing, the shape stays
+        // hovered, so that its handle stays to be grabbed.
+        const onTheWay =
+          this.editable &&
+          !shape &&
+          (hit === undefined || hit.kind === 'relation') &&
+          this.hovered !== undefined &&
+          this.onWayToHandle(this.hovered, world);
+        if (!onHandle && !onTheWay && shape?.key !== this.hovered?.key) {
           this.hovered = shape;
           this.refreshMarks();
         }
@@ -404,12 +477,12 @@ export class CanvasController {
         return;
       }
       case 'drag':
-        this.drop(gesture.delta);
+        this.drop(gesture);
         return;
       case 'box': {
         const world = screenToWorld(this.camera, this.local(event));
         const box = rectBetween(gesture.start, world);
-        this.renderer.setOverlay({});
+        this.showOverlay({});
         if (box.width * this.camera.scale < 2 && box.height * this.camera.scale < 2) {
           if (!gesture.additive) this.select(EMPTY_SELECTION);
           return;
@@ -424,7 +497,7 @@ export class CanvasController {
         return;
       }
       case 'connect': {
-        this.renderer.setOverlay({});
+        this.showOverlay({});
         const target = gesture.target;
         const end =
           target?.kind === 'shape'
@@ -439,8 +512,8 @@ export class CanvasController {
     }
   }
 
-  private readonly onPointerCancel = (): void => {
-    this.cancel();
+  private readonly onPointerCancel = (event: PointerEvent): void => {
+    if (this.gesture.kind !== 'idle' && event.pointerId === this.gesture.pointer) this.cancel();
   };
 
   private readonly onPointerLeave = (): void => {
@@ -468,7 +541,7 @@ export class CanvasController {
   private readonly onDoubleClick = (event: MouseEvent): void => {
     if (!this.indexed || !this.editable) return;
     const world = screenToWorld(this.camera, this.local(event));
-    const hit = hitAt(this.indexed, world, HIT_TOLERANCE / this.camera.scale);
+    const hit = this.hit(world, HIT_TOLERANCE / this.camera.scale);
     if (hit?.kind === 'shape') this.callbacks.rename({ kind: 'element', shape: hit.shape });
     else if (hit?.kind === 'note') this.callbacks.rename({ kind: 'note', note: hit.note });
   };
@@ -531,11 +604,21 @@ export class CanvasController {
   };
 
   private readonly onKeyUp = (event: KeyboardEvent): void => {
-    if (event.key === ' ') {
-      this.spaceHeld = false;
-      if (this.gesture.kind === 'idle') this.host.style.cursor = 'default';
-    }
+    if (event.key === ' ') this.releaseSpace();
   };
+
+  /**
+   * The canvas or the window lost the focus: a key let go elsewhere never comes to the canvas, so Space
+   * counts as let go.
+   */
+  private readonly onBlur = (): void => {
+    if (this.spaceHeld) this.releaseSpace();
+  };
+
+  private releaseSpace(): void {
+    this.spaceHeld = false;
+    if (this.gesture.kind === 'idle') this.host.style.cursor = 'default';
+  }
 
   private begin(event: PointerEvent, gesture: Exclude<Gesture, { kind: 'idle' }>): void {
     this.gesture = gesture;
@@ -544,37 +627,95 @@ export class CanvasController {
     this.refreshMarks();
   }
 
-  /** Sends the move the drag made; the dragged shapes stay drawn until the change comes back. */
-  private drop(delta: Point): void {
-    const { indexed, project, viewId } = this;
+  /**
+   * Sends the move the drag made, at once: it moves the shapes from where they were drawn to where
+   * they were let go. The dragged shapes stay drawn there until the change comes back.
+   */
+  private drop(gesture: DragGesture): void {
+    const { indexed, project, viewId, selection } = this;
+    const { delta, drag } = gesture;
     const command =
       indexed && project && viewId
-        ? moveCommand(indexed, project, viewId, this.selection, delta)
+        ? moveCommand(indexed, project, viewId, selection, delta)
         : undefined;
-    if (!command) {
-      this.renderer.endDrag();
+    if (!indexed || !project || !command) {
+      this.renderer.endDrag(drag);
       return;
     }
-    this.waitingForDrop = true;
+    let landing: Rect[] | undefined;
+    this.send(command, {
+      from: project,
+      applied: false,
+      drop: {
+        drag,
+        // Worked out only if a later drag draws over this one before its change comes back.
+        landing: () => (landing ??= landingOf(indexed, selection, delta)),
+      },
+    });
+  }
+
+  private cancel(): void {
+    if (this.gesture.kind === 'drag') this.renderer.endDrag(this.gesture.drag);
+    this.gesture = { kind: 'idle' };
+    this.showOverlay({});
+    this.refreshMarks();
+  }
+
+  /**
+   * Sends a move, and keeps it until its change comes back: once the local program has said it
+   * applied it and the project is no longer the one it was made from, in whichever order the two come.
+   */
+  private send(command: Command, move: SentMove): void {
+    this.sent.push(move);
     this.callbacks.command(command).then(
       (applied) => {
-        if (!applied && this.waitingForDrop) {
-          this.waitingForDrop = false;
-          this.renderer.endDrag();
+        if (!this.sent.includes(move)) return;
+        if (!applied) this.moveFailed(move);
+        else {
+          move.applied = true;
+          if (this.project !== move.from) this.moveBack(move);
         }
       },
       () => {
-        this.waitingForDrop = false;
-        this.renderer.endDrag();
+        if (this.sent.includes(move)) this.moveFailed(move);
       },
     );
   }
 
-  private cancel(): void {
-    if (this.gesture.kind === 'drag') this.renderer.endDrag();
-    this.gesture = { kind: 'idle' };
-    this.renderer.setOverlay({});
-    this.refreshMarks();
+  /** A move's change came back: a drop's shapes are drawn from the scene again, and the next press moves. */
+  private moveBack(move: SentMove): void {
+    this.forget(move);
+    this.nudgeNext();
+  }
+
+  /**
+   * A move was refused or never answered: a drop's shapes go back to where they are, and the presses
+   * waiting, made for shapes that did not move, are dropped.
+   */
+  private moveFailed(move: SentMove): void {
+    this.forget(move);
+    this.nudges = [];
+  }
+
+  private forget(move: SentMove): void {
+    this.sent = this.sent.filter((each) => each !== move);
+    if (this.destroyed || !move.drop) return;
+    this.renderer.endDrag(move.drop.drag);
+    this.showOverlay(this.gestureOverlay);
+  }
+
+  /**
+   * Draws a gesture's marks above the scene, with where the drops still waiting land, for each one a
+   * later drag drew over: until their changes come back, the scene still has them where they were.
+   */
+  private showOverlay(overlay: Overlay): void {
+    this.gestureOverlay = overlay;
+    const ghost = this.sent.flatMap((move) =>
+      move.drop && this.lastDrag !== undefined && move.drop.drag < this.lastDrag
+        ? move.drop.landing()
+        : [],
+    );
+    this.renderer.setOverlay(ghost.length > 0 ? { ...overlay, ghost } : overlay);
   }
 
   private select(selection: Selection): void {
@@ -734,7 +875,9 @@ export class CanvasController {
 
   /**
    * ] and [: selects the next or the previous relation of the selected element, clockwise around its
-   * shape from the top; with one of its relations selected, the one after or before it.
+   * shape from the top, each followed by the relations that end on it; with one of them selected, the
+   * one after or before it. A relation selected on its own steps from the element it is drawn on, or
+   * the element of a relation it ends on.
    */
   private stepRelations(step: 1 | -1): void {
     const { indexed, project } = this;
@@ -749,11 +892,9 @@ export class CanvasController {
       if (!ends) return;
       const stepping = this.stepping?.element;
       element =
-        stepping === ends.from || stepping === ends.to
+        stepping !== undefined && stopOf(drawn.steps(stepping), relation) !== undefined
           ? stepping
-          : drawn.shapeOf(ends.from)
-            ? ends.from
-            : ends.to;
+          : (drawn.elementOf(relation) ?? (drawn.shapeOf(ends.from) ? ends.from : ends.to));
       current = relation;
     } else if (elements.size === 1 && relations.size === 0 && freeShapes.size === 0) {
       [element] = elements;
@@ -766,14 +907,17 @@ export class CanvasController {
       this.announce(`${nameOfEnd(project, element)} has no relations in this view.`);
       return;
     }
-    const around = drawn.around(element);
+    const stops = drawn.steps(element);
+    const at = stops.findIndex((stop) => stop.line === line);
+    const on = stops[at]?.on;
     this.stepping = { element, relation: line.relation };
     this.choose(
       selectionOf([{ kind: 'relation', id: line.relation }]),
       describeRelation(project, line.relation, {
         element,
-        position: around.indexOf(line) + 1,
-        count: around.length,
+        position: at + 1,
+        count: stops.length,
+        ...(on !== undefined && on !== element ? { through: on } : {}),
       }),
     );
     this.revealRect(rectAround(line.route));
@@ -781,7 +925,7 @@ export class CanvasController {
 
   /**
    * Enter on the selected relation: selects its far end, away from the element its relations were
-   * being stepped through, or else the end it points to.
+   * being stepped through, or from the relation it was reached through; or else the end it points to.
    */
   private follow(): void {
     const { indexed, project } = this;
@@ -791,7 +935,10 @@ export class CanvasController {
     const relation = drawn.relation(id);
     if (!relation) return;
     const stepping = this.stepping?.element;
-    const near = stepping === relation.from || stepping === relation.to ? stepping : undefined;
+    const isEnd = stepping === relation.from || stepping === relation.to;
+    const near =
+      (stepping === undefined ? undefined : stopOf(drawn.steps(stepping), id)?.on) ??
+      (isEnd ? stepping : undefined);
     const far = farEnd(relation, near);
     const shape = drawn.shapeOf(far);
     if (shape) {
@@ -818,46 +965,36 @@ export class CanvasController {
   }
 
   /**
-   * Shift with an arrow key: moves the selection a small step, as one undoable move. A press made
-   * while the last move is on its way waits for it, so that each one moves from where the last left
-   * the shapes; a key held down moves only as fast as the moves come back.
+   * Shift with an arrow key: moves what is selected a small step, as one undoable move. A press made
+   * while a move is on its way, a drop's or another press's, waits for it, so that each one moves
+   * from where the last left the shapes, and moves what was selected when it was pressed; a key held
+   * down moves only as fast as the moves come back.
    */
   private nudge(direction: Direction, repeated: boolean): void {
     if (!this.editable) return;
-    const step = STEPS[direction];
-    if (this.nudging) {
-      if (!repeated && this.waitingNudges.length < MAX_WAITING_NUDGES) {
-        this.waitingNudges.push(step);
-      }
+    const nudge: Nudge = { step: STEPS[direction], selection: this.selection };
+    if (this.sent.length > 0 || this.nudges.length > 0) {
+      if (!repeated && this.nudges.length < MAX_WAITING_NUDGES) this.nudges.push(nudge);
       return;
     }
-    this.sendNudge(step);
+    this.sendNudge(nudge);
   }
 
-  private sendNudge(step: Point): void {
+  /** Sends the next press waiting, once no move is on its way; none waits once nothing can be changed. */
+  private nudgeNext(): void {
+    if (!this.editable) this.nudges = [];
+    while (this.sent.length === 0 && this.nudges.length > 0) {
+      this.sendNudge(this.nudges.shift() as Nudge);
+    }
+  }
+
+  private sendNudge({ step, selection }: Nudge): void {
     const { indexed, project, viewId } = this;
     const command =
       indexed && project && viewId
-        ? moveCommand(indexed, project, viewId, this.selection, step)
+        ? moveCommand(indexed, project, viewId, selection, step)
         : undefined;
-    if (!command) return;
-    const nudging = { applied: false };
-    this.nudging = nudging;
-    this.callbacks.command(command).then(
-      (applied) => {
-        if (this.nudging !== nudging) return;
-        if (applied) nudging.applied = true;
-        else this.stopNudging();
-      },
-      () => {
-        if (this.nudging === nudging) this.stopNudging();
-      },
-    );
-  }
-
-  private stopNudging(): void {
-    this.nudging = undefined;
-    this.waitingNudges = [];
+    if (project && command) this.send(command, { from: project, applied: false });
   }
 
   private revealRect(rect: Rect): void {
@@ -915,11 +1052,30 @@ export class CanvasController {
     };
   }
 
+  /**
+   * Whether a point lies on the hovered shape, or between its right side and its handle: the strip
+   * the pointer crosses to reach the handle, where neither is under it.
+   */
+  private onWayToHandle(shape: ElementShape, world: Point): boolean {
+    const { rect } = shape;
+    const handle = this.handleOf(shape);
+    const reach = HANDLE_REACH / this.camera.scale;
+    const right = rect.x + rect.width;
+    const inRect =
+      world.x >= rect.x && world.x <= right && world.y >= rect.y && world.y <= rect.y + rect.height;
+    const inStrip =
+      world.x >= right &&
+      world.x <= handle.x + reach &&
+      world.y >= handle.y - reach &&
+      world.y <= handle.y + reach;
+    return inRect || inStrip;
+  }
+
   private refreshMarks(): void {
     this.renderer.setSelection(this.selection, this.hovered?.key);
     if (this.gesture.kind === 'idle') {
       const shape = this.handleShape();
-      this.renderer.setOverlay(shape ? { handle: this.handleOf(shape) } : {});
+      this.showOverlay(shape ? { handle: this.handleOf(shape) } : {});
     }
   }
 
@@ -927,6 +1083,11 @@ export class CanvasController {
     const rect = this.host.getBoundingClientRect();
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
   }
+}
+
+/** Where a relation is among those ] and [ step through from an element, if it is one of them. */
+function stopOf(stops: readonly RelationStop[], relation: Id): RelationStop | undefined {
+  return stops.find((stop) => stop.line.relation === relation);
 }
 
 /** The key the keys move on from for what a pointer hit: a shape's key, or a free shape's id. */
@@ -939,6 +1100,25 @@ function keyOf(hit: Exclude<Hit, { kind: 'relation' }>): string {
     case 'arrow':
       return hit.arrow.id;
   }
+}
+
+/**
+ * Where a drop lands: the rectangles of the shapes and free shapes it moves, moved by `delta`; when
+ * there are many, one rectangle around them all.
+ */
+function landingOf(indexed: IndexedScene, selection: Selection, delta: Point): Rect[] {
+  const { notes, arrows } = indexed.scene;
+  const free = selection.freeShapes;
+  const rects = [
+    ...movingShapes(indexed, selection).map((shape) => shape.rect),
+    ...notes.filter((note) => free.has(note.id)).map((note) => note.rect),
+    ...arrows
+      .filter((arrow) => free.has(arrow.id))
+      .map((arrow) => rectAround([arrow.from, arrow.to])),
+  ].map((rect) => ({ ...rect, x: rect.x + delta.x, y: rect.y + delta.y }));
+  if (rects.length <= MAX_LANDING_MARKS) return rects;
+  const around = boundsOf(rects);
+  return around ? [around] : [];
 }
 
 function selectableOf(hit: Hit): Selectable {

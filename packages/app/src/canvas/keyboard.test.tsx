@@ -1,9 +1,18 @@
-import type { Command, ProjectSnapshot } from '@visual-anything/core';
+import {
+  PROTOCOL_VERSION,
+  encodeServerMessage,
+  executeCommand,
+  type Command,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
+import { RELATES_TO_ID } from '@visual-anything/schema';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useMemo, useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { App } from '../App';
 import { EMPTY_SELECTION, selectionOf, type Selection } from '../editor/selection';
 import { FakeApplication, FakeResizeObserver } from '../test/FakeApplication';
+import { FakeWebSocket } from '../test/FakeWebSocket';
 import { loadSample } from '../test/sample';
 import { fitCamera, worldToScreen } from './camera';
 import { CanvasArea, type SendCommand } from './CanvasArea';
@@ -168,6 +177,42 @@ describe('The canvas from the keyboard', () => {
     expect(said()).toBe('Reminder service, Service, in Scheduling, 1 relation.');
   });
 
+  it('selects with Alt+Down a shape a container holds outside its rectangle', async () => {
+    const { host } = await started({
+      project: withSchedulingContentsMovedUp(sample, 400),
+      initial: selectionOf([{ kind: 'element', id: 'scheduling' }]),
+    });
+    press(host, 'ArrowDown', { altKey: true });
+    expect(said()).toBe('Appointments DB, Calendar, in Scheduling, 2 relations.');
+  });
+
+  it('steps on with ] into the relations that end on a relation, and follows one back', async () => {
+    const { host, at } = await started({ project: withRelationsOnRelations(sample) });
+    clickOn(host, at('clinic-booking/scheduling/appointments-api'));
+    press(host, ']');
+    press(host, ']');
+    expect(said()).toMatch(/^Appointments API writes to Appointments DB.*relation 2 of 6/);
+    press(host, ']');
+    expect(said()).toBe(
+      'writes to relates to reads from, ending on Appointments API writes to Appointments DB, relation 3 of 6 of Appointments API.',
+    );
+    press(host, '[');
+    expect(said()).toMatch(/relation 2 of 6 of Appointments API\.$/);
+    press(host, ']');
+    press(host, 'Enter');
+    // Its far end, away from the relation it was reached through, is another relation.
+    expect(said()).toBe('Appointments API reads from Appointments DB.');
+  });
+
+  it('steps from a relation between relations selected elsewhere, through an element it reaches', async () => {
+    const { host } = await started({
+      project: withRelationsOnRelations(sample),
+      initial: selectionOf([{ kind: 'relation', id: 'reads-and-writes' }]),
+    });
+    press(host, ']');
+    expect(said()).toMatch(/relation 4 of 6 of Appointments API\.$/);
+  });
+
   it('steps with . and , too, and with [ and ] typed with AltGr', async () => {
     const { host, at } = await started();
     clickOn(host, at('clinic-booking/booking-agent'));
@@ -264,6 +309,48 @@ describe('Editing from the keyboard', () => {
     expect(onCommand.mock.lastCall?.[0]).toEqual(movedTo(50, 210));
   });
 
+  it('waits with a press for a drop still on its way, and moves on from where the drop left the shapes', async () => {
+    let answer: (result: { ok: boolean }) => void = () => undefined;
+    const onCommand = vi.fn<SendCommand>(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    );
+    const { host, at, rerender } = await started({ onCommand });
+    const patient = at('patient');
+    for (const [type, dx] of [
+      ['pointerdown', 0],
+      ['pointermove', 20],
+      ['pointerup', 20],
+    ] as const) {
+      fireEvent(
+        host,
+        new MouseEvent(type, {
+          bubbles: true,
+          clientX: patient.x + dx,
+          clientY: patient.y,
+          button: 0,
+        }),
+      );
+    }
+    expect(onCommand).toHaveBeenCalledTimes(1);
+    const dropped = (onCommand.mock.lastCall?.[0] as Extract<Command, { type: 'set-positions' }>)
+      .positions[0]!;
+    await act(async () => {
+      press(host, 'ArrowDown', { shiftKey: true });
+      await Promise.resolve();
+    });
+    expect(onCommand).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      rerender(<Harness onCommand={onCommand} project={withPatientAt(dropped.x, 200)} />);
+      answer({ ok: true });
+      await Promise.resolve();
+    });
+    expect(onCommand).toHaveBeenCalledTimes(2);
+    expect(onCommand.mock.lastCall?.[0]).toEqual(movedTo(dropped.x, 210));
+  });
+
   it('moves nothing when it cannot send commands, and the arrows still select', async () => {
     const { host, at } = await started();
     clickOn(host, at('patient'));
@@ -274,12 +361,172 @@ describe('Editing from the keyboard', () => {
   });
 });
 
+describe('Moving with Shift and an arrow key, through the local program', () => {
+  beforeEach(() => {
+    FakeWebSocket.created = [];
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+  });
+
+  it('sends one move a press, each once the one before came back', async () => {
+    const program = await openApp();
+    clickOn(program.host, program.at('patient'));
+    press(program.host, 'ArrowRight', { shiftKey: true });
+    expect(program.commands()).toEqual([movedTo(50, 200)]);
+
+    await program.answer();
+    press(program.host, 'ArrowDown', { shiftKey: true });
+    expect(program.commands().at(-1)).toEqual(movedTo(50, 210));
+
+    // A press made before the move comes back waits for it; a held key's repeats do not.
+    press(program.host, 'ArrowLeft', { shiftKey: true });
+    press(program.host, 'ArrowLeft', { shiftKey: true, repeat: true });
+    expect(program.commands()).toHaveLength(2);
+    await program.answer();
+    expect(program.commands()).toHaveLength(3);
+    expect(program.commands().at(-1)).toEqual(movedTo(40, 210));
+    await program.answer();
+    expect(program.commands()).toHaveLength(3);
+  });
+
+  it('moves what was selected when the key was pressed', async () => {
+    const program = await openApp();
+    clickOn(program.host, program.at('patient'));
+    press(program.host, 'ArrowRight', { shiftKey: true });
+    press(program.host, 'ArrowDown', { shiftKey: true });
+    clickOn(program.host, program.at('clinic-booking/booking-agent'));
+    await program.answer();
+    expect(program.commands()).toEqual([movedTo(50, 200), movedTo(50, 210)]);
+    // A change made elsewhere sends nothing more.
+    await program.changeElsewhere({
+      type: 'update-element',
+      id: 'appointments-api',
+      changes: { name: 'Bookings API' },
+    });
+    await program.answer();
+    expect(program.commands()).toHaveLength(2);
+  });
+});
+
+/**
+ * The app open on the sample, with the canvas started; `answer` plays the local program, answering
+ * the oldest command not answered yet as it does: one change, carrying the request's id.
+ */
+async function openApp() {
+  render(<App token="s3cr3t" />);
+  const socket = FakeWebSocket.created[0] as FakeWebSocket;
+  let project = sample;
+  let answered = 0;
+  await act(async () => {
+    socket.accept();
+    socket.receive(
+      encodeServerMessage({
+        type: 'project/opened',
+        protocolVersion: PROTOCOL_VERSION,
+        project,
+        history: {},
+      }),
+    );
+    await Promise.resolve();
+  });
+  const host = screen.getByRole('application');
+  Object.defineProperty(host, 'clientWidth', { configurable: true, value: SIZE.width });
+  Object.defineProperty(host, 'clientHeight', { configurable: true, value: SIZE.height });
+  const app = FakeApplication.created.at(-1) as FakeApplication;
+  await act(async () => {
+    app.finishInit();
+    await Promise.resolve();
+  });
+  const camera = fitCamera(buildScene(sample, VIEW).bounds, SIZE, 32);
+  const sent = () =>
+    socket.sent.flatMap((message) => (message.type === 'command' ? [message] : []));
+  const deliver = async (command: Command, requestId?: string) => {
+    const outcome = executeCommand(project, command);
+    if (!outcome.ok) throw new Error(outcome.problems.map((each) => each.message).join(' '));
+    project = outcome.state;
+    // The live connection applies the change, and React draws it, before the request's answer
+    // reaches the canvas, as in a browser.
+    await act(() => {
+      socket.receive(
+        encodeServerMessage({
+          type: 'project/changed',
+          operations: outcome.operations,
+          kind: 'do',
+          label: outcome.label,
+          author: requestId === undefined ? 'claude' : 'user',
+          history: {},
+          ...(requestId === undefined ? {} : { requestId }),
+          warnings: [],
+          created: outcome.created,
+        }),
+      );
+      return Promise.resolve();
+    });
+  };
+  return {
+    host,
+    at: (key: string) => {
+      const shape = buildScene(sample, VIEW).shapes.find((each) => each.key === key);
+      if (!shape) throw new Error(key);
+      return worldToScreen(camera, centerOf(shape.rect));
+    },
+    commands: (): Command[] => sent().map((message) => message.command),
+    async answer() {
+      const message = sent()[answered];
+      if (!message) return;
+      answered += 1;
+      await deliver(message.command, message.requestId);
+    },
+    changeElsewhere: (command: Command) => deliver(command),
+  };
+}
+
 /** The command that pins the Patient at a place in World. */
 function movedTo(x: number, y: number): Command {
   return {
     type: 'set-positions',
     view: VIEW,
     positions: [{ element: 'patient', x, y, pinned: true }],
+  };
+}
+
+/** The sample with the shapes inside Scheduling dragged up and out of it, above it. */
+function withSchedulingContentsMovedUp(project: ProjectSnapshot, by: number): ProjectSnapshot {
+  return {
+    ...project,
+    views: project.views.map((view) => ({
+      ...view,
+      positions: view.positions.map((position) =>
+        position.container === 'scheduling' ? { ...position, y: position.y - by } : position,
+      ),
+    })),
+  };
+}
+
+/**
+ * The sample with relations between relations: one relating the API's reading of the database to
+ * its writing, and one relating that relation to the reading.
+ */
+function withRelationsOnRelations(project: ProjectSnapshot): ProjectSnapshot {
+  return {
+    ...project,
+    model: {
+      ...project.model,
+      relations: [
+        ...project.model.relations,
+        {
+          id: 'reads-and-writes',
+          relationType: RELATES_TO_ID,
+          from: 'api-writes-db',
+          to: 'api-reads-db',
+        },
+        {
+          id: 'about-reading',
+          relationType: RELATES_TO_ID,
+          from: 'reads-and-writes',
+          to: 'api-reads-db',
+        },
+      ],
+    },
   };
 }
 
