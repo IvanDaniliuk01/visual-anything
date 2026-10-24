@@ -18,6 +18,7 @@ import {
 import type { FileContentByKind, FileKind, PackageFile } from '@visual-anything/schema';
 import { formatFile } from '@visual-anything/schema/format';
 import { WebSocket, type RawData } from 'ws';
+import { CLAUDE_PATH, decodeProgramMessage, type ProgramMessage } from './claude/messages';
 import type { SessionClient } from './session';
 import { isTemporaryFile, type WriterFs } from './writer';
 
@@ -371,6 +372,47 @@ export async function openLiveClient(port: number, token: string): Promise<LiveC
   return {
     messages,
     send: (message) => socket.send(typeof message === 'string' ? message : JSON.stringify(message)),
+    close: async () => {
+      socket.close();
+      await closed;
+    },
+  };
+}
+
+/** Claude on the Claude endpoint, keeping every message the program sends it. */
+export interface ClaudeClient {
+  readonly messages: ProgramMessage[];
+  /** Sends a message: an object is sent as JSON, a string as it is. */
+  send(message: object | string): void;
+  /** The messages answering a request id, once there are `count` of them or after five seconds. */
+  answers(requestId: string, count?: number): Promise<ProgramMessage[]>;
+  close(): Promise<void>;
+}
+
+/** Opens the Claude endpoint as the MCP entry point does: no Origin, and the credential. */
+export async function openClaudeClient(port: number, credential: string): Promise<ClaudeClient> {
+  const socket = new WebSocket(`ws://127.0.0.1:${port}${CLAUDE_PATH}`, {
+    headers: { Authorization: `Bearer ${credential}` },
+  });
+  const messages: ProgramMessage[] = [];
+  socket.on('message', (data) => messages.push(decodeProgramMessage(textOf(data))));
+  await new Promise<void>((resolve, reject) => {
+    socket.once('open', () => resolve());
+    socket.once('error', reject);
+  });
+  const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
+  const answering = (requestId: string) =>
+    messages.filter((message) => 'requestId' in message && message.requestId === requestId);
+  return {
+    messages,
+    send: (message) => socket.send(typeof message === 'string' ? message : JSON.stringify(message)),
+    answers: async (requestId, count = 1) => {
+      const deadline = Date.now() + 5000;
+      while (answering(requestId).length < count && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      return answering(requestId);
+    },
     close: async () => {
       socket.close();
       await closed;
