@@ -89,3 +89,6 @@ export {
   encodeMessage,
   encodeServerMessage,
 } from './protocol';
+// The live protocol's guidance and launch codes (version 3).
+export type { Guidance, GuidanceMessage } from './protocol';
+export { LAUNCH_PARAM, MAX_CAPTION_LENGTH, MAX_GUIDANCE_TARGETS, readGuidance } from './protocol';
