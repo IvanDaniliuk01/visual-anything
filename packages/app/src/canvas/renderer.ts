@@ -6,14 +6,16 @@
  * Element shapes are drawn by depth, containers before what they contain, so that a container never
  * hides its contents, whatever tiles they fall in.
  */
-import { Application, Container, Culler, Graphics, Rectangle, type Text } from 'pixi.js';
+import { Application, Container, Culler, Graphics, Rectangle, Text } from 'pixi.js';
 import type { Id } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
 import { EMPTY_SELECTION } from '../editor/selection';
 import { visibleRect, type Camera, fitCamera } from './camera';
 import {
   drawFreeShapes,
+  drawRelationLines,
   drawRelationRoutes,
+  drawShapeBlocks,
   drawShapeOutlines,
   writeNoteTexts,
   writeRelationLabels,
@@ -21,6 +23,7 @@ import {
 } from './draw';
 import { boundsOf, centerOf, type Point, type Rect, type Size } from './geometry';
 import type { IndexedScene } from './hit';
+import { bitmapText, installFonts } from './labels';
 import { CANVAS_BACKGROUND } from './palette';
 import type { ElementShape, RelationLine } from './scene';
 import { meets, rectAround } from './spatial';
@@ -28,12 +31,29 @@ import { meets, rectAround } from './spatial';
 /** The size of a tile, in scene units. */
 const TILE = 1024;
 /** Names show from this scale on, and component names and relation labels from the next. */
-const NAMES_FROM = 0.3;
-const DETAILS_FROM = 0.5;
+const NAMES_FROM = 0.45;
+const DETAILS_FROM = 0.9;
+/** With this many shapes on screen or fewer, component names show from the scale names show at. */
+const FEW_SHAPES = 300;
+/** How long a frame may spend writing labels; the rest are written in the frames after. */
+const LABEL_BUDGET = 6;
+/** How many shapes or relations get their labels between two looks at the clock. */
+const LABEL_BATCH = 6;
+/**
+ * How much new drawing a frame takes on. PixiJS does the costly part of a new drawing when it first
+ * renders it, after the clock above has stopped, so the work is counted as well as timed.
+ */
+const FULL_DRAWINGS_PER_FRAME = 1;
+const LABELS_PER_FRAME = 32;
+/** Below this scale shapes are drawn as plain blocks and relations as plain lines. */
+const COARSE_BELOW = 0.25;
 /** Room kept around the scene when fitting it, in screen pixels. */
 const FIT_MARGIN = 32;
-/** How long the zoom must settle before text is drawn again at the new resolution. */
-const SHARPEN_AFTER = 180;
+/**
+ * How long the camera must rest before text is drawn again at the new resolution and the tiles around
+ * the screen get ready.
+ */
+const SETTLE_AFTER = 180;
 
 const SELECTED = '#2563EB';
 const HOVERED = '#60A5FA';
@@ -58,9 +78,15 @@ interface Tile {
   kind: 'shapes' | 'relations' | 'free';
   shapes: ElementShape[];
   lines: RelationLine[];
+  /** The plain drawing shown when zoomed far out; free shapes have none. */
+  coarse?: Graphics;
+  /** The full drawing, made the first time the tile is seen close enough. */
+  full?: Graphics;
   /** The labels written, and for which level of detail. */
   labels?: Container;
   level: 0 | 1 | 2;
+  /** How many of its shapes or relations have their labels at `level`; the rest come later. */
+  labelled: number;
 }
 
 export interface RendererCallbacks {
@@ -91,7 +117,9 @@ export class CanvasRenderer {
   private hidden = { shapes: new Set<string>(), relations: new Set<Id>() };
   private observer: ResizeObserver | undefined;
   private frame = 0;
-  private sharpenTimer: ReturnType<typeof setTimeout> | undefined;
+  private settleTimer: ReturnType<typeof setTimeout> | undefined;
+  /** Whether the camera rests, so that spare time can go to the tiles around the screen. */
+  private settled = false;
   private fitted = false;
   private resolution = 1;
   camera: Camera = { x: 0, y: 0, scale: 1 };
@@ -159,9 +187,17 @@ export class CanvasRenderer {
     drawShapeOutlines(graphics, moving);
     this.dragLayer.addChild(graphics);
     if (this.camera.scale >= NAMES_FROM) {
-      for (const text of writeShapeLabels(moving, this.camera.scale >= DETAILS_FROM)) {
-        text.resolution = this.resolution;
-        this.dragLayer.addChild(text);
+      // Names make the drag easier to follow, but the drag works without them.
+      try {
+        for (const text of writeShapeLabels(
+          moving,
+          this.camera.scale >= DETAILS_FROM,
+          bitmapText,
+        )) {
+          this.dragLayer.addChild(text);
+        }
+      } catch {
+        // Without fonts, the shapes move unnamed.
       }
     }
     this.dragLayer.alpha = 0.85;
@@ -201,8 +237,14 @@ export class CanvasRenderer {
     if (zoomed) {
       this.drawSelection();
       this.drawGesture();
-      this.scheduleSharpen();
     }
+    this.settled = false;
+    clearTimeout(this.settleTimer);
+    this.settleTimer = setTimeout(() => {
+      this.settled = true;
+      if (zoomed) this.sharpen();
+      this.requestRender();
+    }, SETTLE_AFTER);
     this.callbacks.onCamera?.(camera);
     this.requestRender();
   }
@@ -220,7 +262,7 @@ export class CanvasRenderer {
     if (this.status === 'ready') {
       this.observer?.disconnect();
       cancelFrame(this.frame);
-      clearTimeout(this.sharpenTimer);
+      clearTimeout(this.settleTimer);
       this.app.destroy(true, { children: true });
     }
     this.status = 'destroyed';
@@ -257,6 +299,14 @@ export class CanvasRenderer {
     this.observer.observe(this.host);
     this.resize();
     if (this.indexed) this.show(this.indexed);
+    // The label fonts take a moment to draw: drawn now, they are ready before the first zoom.
+    setTimeout(() => {
+      try {
+        if (this.status === 'ready') installFonts();
+      } catch {
+        // Without fonts, labels are written when needed, or not at all.
+      }
+    }, 0);
   }
 
   private resize(): void {
@@ -331,27 +381,55 @@ export class CanvasRenderer {
   ): Tile {
     const scene = this.indexed?.scene;
     const container = new Container();
-    const graphics = new Graphics();
     let bounds: Rect | undefined;
+    let coarse: Graphics | undefined;
+    let full: Graphics | undefined;
+    // Shapes and relations start with their plain drawing, which is cheap to make; the full one is
+    // made when the tile is first seen close up.
     if (kind === 'shapes') {
-      drawShapeOutlines(graphics, shapes);
+      coarse = new Graphics();
+      drawShapeBlocks(coarse, shapes);
       bounds = boundsOf(shapes.map((shape) => shape.rect));
     } else if (kind === 'relations') {
-      drawRelationRoutes(graphics, lines);
+      coarse = new Graphics();
+      drawRelationLines(coarse, lines);
       bounds = boundsOf(lines.map((line) => rectAround(line.route)));
     } else if (scene) {
-      drawFreeShapes(graphics, scene.notes, scene.arrows);
+      full = new Graphics();
+      drawFreeShapes(full, scene.notes, scene.arrows);
       bounds = boundsOf(
         scene.notes.map((note) => note.rect),
         scene.arrows.flatMap((arrow) => [arrow.from, arrow.to]),
       );
     }
-    container.addChild(graphics);
+    if (coarse) container.addChild(coarse);
+    if (full) container.addChild(full);
     const area = grow(bounds ?? { x: 0, y: 0, width: 0, height: 0 }, 16);
     container.cullable = true;
     container.cullableChildren = false;
     container.cullArea = new Rectangle(area.x, area.y, area.width, area.height);
-    return { key, signature, container, bounds: area, kind, shapes, lines, level: 0 };
+    return {
+      key,
+      signature,
+      container,
+      bounds: area,
+      kind,
+      shapes,
+      lines,
+      ...(coarse ? { coarse } : {}),
+      ...(full ? { full } : {}),
+      level: 0,
+      labelled: 0,
+    };
+  }
+
+  /** Makes the full drawing of a tile, under its labels. */
+  private drawFully(tile: Tile): void {
+    const full = new Graphics();
+    if (tile.kind === 'shapes') drawShapeOutlines(full, tile.shapes);
+    else drawRelationRoutes(full, tile.lines);
+    tile.container.addChildAt(full, tile.coarse ? 1 : 0);
+    tile.full = full;
   }
 
   private layerFor(kind: Tile['kind'], depth: number): Container {
@@ -365,11 +443,30 @@ export class CanvasRenderer {
     return this.depthLayers[depth] as Container;
   }
 
-  /** Writes the labels of the tiles on screen at the level of detail the scale allows. */
-  private updateLabels(): void {
+  /**
+   * Gives the tiles on screen the detail the scale allows: plain drawings far out; full drawings and
+   * then labels closer in, made the first time a tile needs them, nearest the middle of the screen
+   * first and within a budget per frame, so that zooming never stalls.
+   */
+  private updateDetail(): void {
     const { scale } = this.camera;
-    const level: Tile['level'] = scale >= DETAILS_FROM ? 2 : scale >= NAMES_FROM ? 1 : 0;
-    const visible = grow(visibleRect(this.camera, this.viewport), 64 / scale);
+    const coarse = scale < COARSE_BELOW;
+    const shown = visibleRect(this.camera, this.viewport);
+    // Component names show once they are large enough to read, or earlier when few shapes are on
+    // screen, which is when they cost little.
+    const few =
+      scale >= NAMES_FROM &&
+      scale < DETAILS_FROM &&
+      (this.indexed?.shapes.query(shown).length ?? 0) <= FEW_SHAPES;
+    const level: Tile['level'] = scale >= DETAILS_FROM || few ? 2 : scale >= NAMES_FROM ? 1 : 0;
+    // While the camera moves, only what is on screen; once it rests, the tiles around it too, so
+    // that the next pan finds them drawn.
+    const reach = this.settled
+      ? Math.max(shown.width, shown.height) / 2
+      : Math.max(64 / scale, TILE / 2);
+    const visible = grow(shown, reach);
+    const middle = centerOf(visible);
+    const work: { tile: Tile; draw: boolean; wanted: Tile['level']; distance: number }[] = [];
     for (const tile of this.tiles.values()) {
       const wanted: Tile['level'] =
         tile.kind === 'shapes'
@@ -381,41 +478,83 @@ export class CanvasRenderer {
             : level === 0
               ? 0
               : 2;
+      const full = !coarse && tile.full !== undefined;
+      if (tile.coarse) tile.coarse.visible = !full;
+      if (tile.full) tile.full.visible = full || !tile.coarse;
       if (tile.labels) tile.labels.visible = wanted > 0;
-      if (wanted === 0 || tile.level === wanted || !meets(tile.bounds, visible)) continue;
-      tile.labels?.destroy({ children: true });
-      const labels = new Container();
-      const texts =
-        tile.kind === 'shapes'
-          ? writeShapeLabels(tile.shapes, wanted === 2)
-          : tile.kind === 'relations'
-            ? writeRelationLabels(tile.lines)
-            : writeNoteTexts(this.indexed?.scene.notes ?? []);
-      for (const text of texts) {
-        text.resolution = this.textResolution();
-        labels.addChild(text);
+      if (!meets(tile.bounds, visible)) continue;
+      const draw = !coarse && !tile.full;
+      const label = wanted > 0 && (tile.level !== wanted || tile.labelled < labelCount(tile));
+      if (!draw && !label) continue;
+      const center = centerOf(tile.bounds);
+      work.push({
+        tile,
+        draw,
+        wanted: label ? wanted : tile.level,
+        distance: Math.hypot(center.x - middle.x, center.y - middle.y),
+      });
+    }
+    work.sort((a, b) => a.distance - b.distance);
+    const began = performance.now();
+    let drawings = 0;
+    let written = 0;
+    const spent = () =>
+      performance.now() - began > LABEL_BUDGET ||
+      drawings >= FULL_DRAWINGS_PER_FRAME ||
+      written >= LABELS_PER_FRAME;
+    for (const { tile, draw, wanted } of work) {
+      if (spent()) {
+        this.requestRender();
+        return;
       }
-      tile.container.addChild(labels);
-      tile.labels = labels;
-      tile.level = wanted;
+      if (draw) {
+        drawings += 1;
+        this.drawFully(tile);
+        if (tile.coarse) tile.coarse.visible = false;
+      }
+      if (wanted === 0) continue;
+      if (tile.level !== wanted || !tile.labels) {
+        tile.labels?.destroy({ children: true });
+        tile.labels = new Container();
+        tile.container.addChild(tile.labels);
+        tile.level = wanted;
+        tile.labelled = 0;
+      }
+      // A few shapes at a time, so that no frame goes much over the budget, however full the tile.
+      const total = labelCount(tile);
+      while (tile.labelled < total) {
+        if (spent()) {
+          this.requestRender();
+          return;
+        }
+        const next = tile.labelled + LABEL_BATCH;
+        const texts =
+          tile.kind === 'shapes'
+            ? writeShapeLabels(tile.shapes.slice(tile.labelled, next), wanted === 2, bitmapText)
+            : tile.kind === 'relations'
+              ? writeRelationLabels(tile.lines.slice(tile.labelled, next), bitmapText)
+              : writeNoteTexts(this.indexed?.scene.notes ?? []);
+        for (const text of texts) {
+          if (text instanceof Text) text.resolution = this.textResolution();
+          tile.labels.addChild(text);
+        }
+        written += texts.length;
+        tile.labelled = Math.min(total, next);
+      }
     }
   }
 
-  /** Draws the text of the tiles on screen again at the resolution the zoom now shows it at. */
-  private scheduleSharpen(): void {
-    clearTimeout(this.sharpenTimer);
-    this.sharpenTimer = setTimeout(() => {
-      const resolution = this.textResolution();
-      const visible = visibleRect(this.camera, this.viewport);
-      for (const tile of this.tiles.values()) {
-        if (!tile.labels || !meets(tile.bounds, visible)) continue;
-        for (const child of tile.labels.children) {
-          const text = child as Text;
-          if (text.resolution !== resolution) text.resolution = resolution;
-        }
+  /** Draws the canvas text of the tiles on screen again at the resolution the zoom now shows it at. */
+  private sharpen(): void {
+    const resolution = this.textResolution();
+    const visible = visibleRect(this.camera, this.viewport);
+    for (const tile of this.tiles.values()) {
+      if (!tile.labels || !meets(tile.bounds, visible)) continue;
+      for (const child of tile.labels.children) {
+        // Bitmap labels keep the resolution of their font; canvas text is drawn again.
+        if (child instanceof Text && child.resolution !== resolution) child.resolution = resolution;
       }
-      this.requestRender();
-    }, SHARPEN_AFTER);
+    }
   }
 
   private textResolution(): number {
@@ -518,18 +657,27 @@ export class CanvasRenderer {
     }
   }
 
+  /**
+   * Draws a frame now: labels within their budget, culling and rendering. With `waitForGpu`, returns
+   * only once the GPU has drawn it, so that the time it takes can be measured.
+   */
+  renderNow(waitForGpu = false): void {
+    if (this.status !== 'ready') return;
+    try {
+      this.updateDetail();
+      Culler.shared.cull(this.world, this.app.renderer.screen);
+      this.app.render();
+      if (waitForGpu) (this.app.renderer as { gl?: WebGLRenderingContext }).gl?.finish();
+    } catch (error) {
+      this.callbacks.onFailure(error);
+    }
+  }
+
   private requestRender(): void {
     if (this.status !== 'ready' || this.frame !== 0) return;
     this.frame = nextFrame(() => {
       this.frame = 0;
-      if (this.status !== 'ready') return;
-      try {
-        this.updateLabels();
-        Culler.shared.cull(this.world, this.app.renderer.screen);
-        this.app.render();
-      } catch (error) {
-        this.callbacks.onFailure(error);
-      }
+      this.renderNow();
     });
   }
 }
@@ -544,6 +692,15 @@ function nextFrame(run: () => void): number {
 function cancelFrame(frame: number): void {
   if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame);
   else clearTimeout(frame);
+}
+
+/** How many things in a tile have labels to write. */
+function labelCount(tile: Tile): number {
+  return tile.kind === 'shapes'
+    ? tile.shapes.length
+    : tile.kind === 'relations'
+      ? tile.lines.length
+      : 1;
 }
 
 function cellOf(point: Point): string {

@@ -7,7 +7,7 @@
 import { Container, Graphics, Text, type CanvasTextOptions, type TextStyleOptions } from 'pixi.js';
 import type { Color } from '@visual-anything/schema';
 import type { Dash } from './geometry';
-import { dashSegments, distance, middle, type Point, type Rect } from './geometry';
+import { directionOf, distance, middle, type Point, type Rect } from './geometry';
 import {
   ARROW_STROKE,
   NOTE_FILL,
@@ -17,6 +17,7 @@ import {
   RELATION_LABEL_TEXT,
   readableTextColors,
 } from './palette';
+import { patternMatrix, patternTexture } from './patterns';
 import {
   ARROW_WIDTH,
   type ArrowShape,
@@ -34,7 +35,24 @@ export interface DrawnScene {
   texts: Text[];
 }
 
-const FONT_FAMILY = ['system-ui', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'];
+/** The fonts text is drawn in, first available first. */
+export const FONT_FAMILY = [
+  'system-ui',
+  'Segoe UI',
+  'Roboto',
+  'Helvetica Neue',
+  'Arial',
+  'sans-serif',
+];
+
+/** What a label names: an element, its component, or a relation. */
+export type LabelKind = 'name' | 'detail' | 'relation';
+
+/** Makes the object a label is drawn with, from text laid out by this module. */
+export type TextFactory = (options: CanvasTextOptions, kind: LabelKind) => Container;
+
+/** Labels as canvas text: sharp at any resolution, but slow to make by the thousand. */
+export const canvasText: TextFactory = (options) => new Text(options);
 const SHAPE_STROKE_WIDTH = 1.5;
 const TEXT_INSET = 12;
 const NAME_SIZE = 14;
@@ -52,12 +70,12 @@ export function drawScene(scene: Scene): DrawnScene {
   const shapes = new Graphics();
   drawShapeOutlines(shapes, scene.shapes);
   content.addChild(shapes);
-  add(writeShapeLabels(scene.shapes, true));
+  add(writeShapeLabels(scene.shapes, true) as Text[]);
 
   const relations = new Graphics();
   drawRelationRoutes(relations, scene.relations);
   content.addChild(relations);
-  add(writeRelationLabels(scene.relations));
+  add(writeRelationLabels(scene.relations) as Text[]);
 
   const free = new Graphics();
   drawFreeShapes(free, scene.notes, scene.arrows);
@@ -66,17 +84,46 @@ export function drawScene(scene: Scene): DrawnScene {
   return { content, texts };
 }
 
+/**
+ * Draws element shapes as plain blocks of their colour: what the eye can tell apart when a whole large
+ * view is on screen, at a fraction of the cost of their outlines.
+ */
+export function drawShapeBlocks(graphics: Graphics, shapes: readonly ElementShape[]): void {
+  for (const shape of shapes) {
+    const { x, y, width, height } = shape.rect;
+    graphics.rect(x, y, width, height).fill(shape.fill);
+    // Only containers keep an outline, which shows the structure; the others' would be too thin to see.
+    if (shape.holdsContents)
+      graphics.stroke({ color: shape.stroke, width: SHAPE_STROKE_WIDTH * 4 });
+  }
+}
+
+/** Draws relations as plain lines along their routes, without dashes or arrowheads. */
+export function drawRelationLines(graphics: Graphics, lines: readonly RelationLine[]): void {
+  for (const line of lines) {
+    const [first, ...rest] = line.route;
+    if (!first) continue;
+    graphics.moveTo(first.x, first.y);
+    for (const point of rest) graphics.lineTo(point.x, point.y);
+    graphics.stroke({ color: line.stroke, width: line.width });
+  }
+}
+
 /** Draws the outlines of element shapes in order, so that containers come under their contents. */
 export function drawShapeOutlines(graphics: Graphics, shapes: readonly ElementShape[]): void {
   for (const shape of shapes) outline(graphics, shape);
 }
 
 /** Writes each shape's name and, with `details`, its component's name. */
-export function writeShapeLabels(shapes: readonly ElementShape[], details: boolean): Text[] {
-  const texts: Text[] = [];
+export function writeShapeLabels(
+  shapes: readonly ElementShape[],
+  details: boolean,
+  make: TextFactory = canvasText,
+): Container[] {
+  const texts: Container[] = [];
   for (const shape of shapes) {
     writeShapeText(shape, (options, detail) => {
-      if (!detail || details) texts.push(new Text(options));
+      if (!detail || details) texts.push(make(options, detail ? 'detail' : 'name'));
     });
   }
   return texts;
@@ -95,22 +142,28 @@ export function drawRelationRoutes(graphics: Graphics, lines: readonly RelationL
 }
 
 /** Writes the names of the relations that have one, at the middle of their routes. */
-export function writeRelationLabels(lines: readonly RelationLine[]): Text[] {
+export function writeRelationLabels(
+  lines: readonly RelationLine[],
+  make: TextFactory = canvasText,
+): Container[] {
   return lines.flatMap((line) =>
     line.label
       ? [
-          new Text({
-            text: line.label,
-            anchor: 0.5,
-            x: line.middle.x,
-            y: line.middle.y,
-            style: {
-              fontFamily: FONT_FAMILY,
-              fontSize: 12,
-              fill: RELATION_LABEL_TEXT,
-              stroke: { color: RELATION_LABEL_HALO, width: 4, join: 'round' },
+          make(
+            {
+              text: line.label,
+              anchor: 0.5,
+              x: line.middle.x,
+              y: line.middle.y,
+              style: {
+                fontFamily: FONT_FAMILY,
+                fontSize: 12,
+                fill: RELATION_LABEL_TEXT,
+                stroke: { color: RELATION_LABEL_HALO, width: 4, join: 'round' },
+              },
             },
-          }),
+            'relation',
+          ),
         ]
       : [],
   );
@@ -315,7 +368,7 @@ function arcPoints(
   radiusY: number,
   from: number,
   to: number,
-  steps = 16,
+  steps = 10,
 ): number[] {
   const points: number[] = [];
   for (let step = 0; step <= steps; step++) {
@@ -326,8 +379,8 @@ function arcPoints(
 }
 
 /**
- * Strokes a route segment by segment. With an arrowhead, the last segment stops at the arrowhead's
- * base, so that the line does not show past its tip.
+ * Strokes a route: in one line when solid, piece by piece with a repeating pattern otherwise. With an
+ * arrowhead, the last piece stops at the arrowhead's base, so that the line does not show past its tip.
  */
 function strokeRoute(
   graphics: Graphics,
@@ -343,21 +396,39 @@ function strokeRoute(
     if (distance(before, tip) > distance(base, tip)) points[points.length - 1] = base;
     else points.pop();
   }
-  if (points.length < 2) return;
+  const [first, ...rest] = points;
+  if (!first || rest.length === 0) return;
   const { color, width, dash } = style;
+  if (dash === 'solid') {
+    graphics.moveTo(first.x, first.y);
+    for (const point of rest) graphics.lineTo(point.x, point.y);
+    graphics.stroke({ color, width, cap: 'butt', join: 'miter' });
+    return;
+  }
+  const texture = patternTexture(dash);
+  let travelled = 0;
   for (let each = 1; each < points.length; each++) {
     const from = points[each - 1] as Point;
     const to = points[each] as Point;
-    if (dash === 'solid') {
-      graphics.moveTo(from.x, from.y).lineTo(to.x, to.y);
-    } else {
-      const [length, gap] = dash === 'dashed' ? [width * 4, width * 3] : [width, width * 2];
-      for (const [start, end] of dashSegments(from, to, length, gap)) {
-        graphics.moveTo(start.x, start.y).lineTo(end.x, end.y);
-      }
-    }
+    const direction = directionOf(from, to);
+    if (!direction) continue;
+    const length = distance(from, to);
+    // Inner ends reach half a width past the corner, so that the outside of the corner is filled.
+    const before = each > 1 ? width / 2 : 0;
+    const after = each < points.length - 1 ? width / 2 : 0;
+    graphics
+      .moveTo(from.x - direction.x * before, from.y - direction.y * before)
+      .lineTo(to.x + direction.x * after, to.y + direction.y * after)
+      .stroke({
+        color,
+        width,
+        cap: 'butt',
+        texture,
+        textureSpace: 'global',
+        matrix: patternMatrix(dash, from, direction, travelled, width),
+      });
+    travelled += length;
   }
-  graphics.stroke({ color, width, cap: dash === 'dotted' ? 'round' : 'butt', join: 'miter' });
 }
 
 function fillArrowhead(

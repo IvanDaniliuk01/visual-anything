@@ -150,22 +150,6 @@ export function arrowheadAt(from: Point, tip: Point, lineWidth: number): Arrowhe
   };
 }
 
-/** The pieces of a dashed line from `from` to `to`: dashes of `dash` units separated by `gap` units. */
-export function dashSegments(from: Point, to: Point, dash: number, gap: number): [Point, Point][] {
-  const length = distance(from, to);
-  const direction = directionOf(from, to);
-  if (!direction || dash <= 0) return [];
-  const at = (travel: number): Point => ({
-    x: from.x + direction.x * travel,
-    y: from.y + direction.y * travel,
-  });
-  const segments: [Point, Point][] = [];
-  for (let start = 0; start < length; start += dash + Math.max(0, gap)) {
-    segments.push([at(start), at(Math.min(start + dash, length))]);
-  }
-  return segments;
-}
-
 /**
  * The transform that fits `bounds` into an area, keeping `margin` free around it on the tighter side,
  * centering it on the other, and never enlarging beyond `maxScale`.

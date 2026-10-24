@@ -1,12 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  arrowheadAt,
-  borderPoint,
-  dashSegments,
-  distance,
-  fitTransform,
-  type Rect,
-} from './geometry';
+import { arrowheadAt, borderPoint, distance, fitTransform, type Rect } from './geometry';
 
 describe('fitTransform', () => {
   const bounds: Rect = { x: 40, y: 40, width: 1180, height: 592 };
@@ -74,30 +67,6 @@ describe('arrowheadAt', () => {
     expect(head.left.x).toBeLessThan(100);
     expect(head.right.x).toBe(head.left.x);
     expect(head.left.y).toBe(-head.right.y);
-  });
-});
-
-describe('dashSegments', () => {
-  it('splits a line into dashes separated by gaps, ending at the line’s end', () => {
-    const segments = dashSegments({ x: 0, y: 0 }, { x: 30, y: 0 }, 8, 6);
-    expect(segments).toEqual([
-      [
-        { x: 0, y: 0 },
-        { x: 8, y: 0 },
-      ],
-      [
-        { x: 14, y: 0 },
-        { x: 22, y: 0 },
-      ],
-      [
-        { x: 28, y: 0 },
-        { x: 30, y: 0 },
-      ],
-    ]);
-  });
-
-  it('draws nothing for a line of no length', () => {
-    expect(dashSegments({ x: 5, y: 5 }, { x: 5, y: 5 }, 8, 6)).toEqual([]);
   });
 });
 
