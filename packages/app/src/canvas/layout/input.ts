@@ -14,7 +14,7 @@ import { ESSENCE_ID } from '@visual-anything/schema';
 import { boundsOf, type Rect } from '../geometry';
 import type { ElementShape, Scene } from '../scene';
 import { connectionPointsOf } from './ports';
-import type { LayoutEdge, LayoutInput, LayoutShape } from './types';
+import type { LayoutRelation, LayoutInput, LayoutShape } from './types';
 
 /**
  * Which shapes one layout may move; pinned shapes never move (ADR-0009):
@@ -100,17 +100,18 @@ export function layoutInput(
   });
   if (!anyFree) return undefined;
 
-  const edges: LayoutEdge[] = [];
+  const relations: LayoutRelation[] = [];
   for (const line of scene.relations) {
     const ends = line.ends;
     if (ends?.from.kind !== 'shape' || ends.to.kind !== 'shape') continue;
     const from = indexes.get(ends.from.key);
     const to = indexes.get(ends.to.key);
-    if (from !== undefined && to !== undefined) edges.push({ relation: line.relation, from, to });
+    if (from !== undefined && to !== undefined)
+      relations.push({ relation: line.relation, from, to });
   }
 
   const obstacles: Rect[] = scope.kind === 'contents' ? [] : worldObstacles(scene);
-  return { shapes: laid, edges, obstacles };
+  return { shapes: laid, relations, obstacles };
 }
 
 /** The notes and arrows of the view, which sit directly in World. */

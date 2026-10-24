@@ -7,7 +7,7 @@
  *    contents of two containers orders the two containers. A relation that ends on a shape with
  *    connection points ends on a port there; elsewhere it attaches anywhere on the border. A block
  *    with no relation inside it is packed in rows, which needs no ELK.
- * 2. The block is placed clear of the fixed shapes at that level (`placeBlock`), and every position
+ * 2. The block is placed clear of the shapes kept at that level (`placeBlock`), and every position
  *    is rounded to the step of 8, relative to the container.
  * 3. A container then takes the size the scene will give it around its contents.
  *
@@ -63,7 +63,7 @@ const RUN_OPTIONS: LayoutOptions = {
 const WORLD = -1;
 
 /** A relation at the level where its ends meet: between two of its contents, by shape index. */
-export interface Link {
+export interface Lifted {
   u: number;
   v: number;
   /** Whether the relation ends on the content itself, rather than on something inside it. */
@@ -84,7 +84,7 @@ export async function layOut(
   const started = now();
   const engines = Array.isArray(elk) ? (elk as readonly ElkEngine[]) : [elk as ElkEngine];
   const tree = new Tree(input);
-  const stats = { levels: 0, shapes: 0, edges: 0, elkRuns: 0, elkMs: 0, totalMs: 0 };
+  const stats = { levels: 0, shapes: 0, relations: 0, elkRuns: 0, elkMs: 0, totalMs: 0 };
   const placed: LaidOutShape[] = [];
 
   /** Runs the graphs of blocks in ELK, shared out among the engines, and gives each block's graph. */
@@ -116,10 +116,10 @@ export async function layOut(
       if (nodes.length === 0) continue;
       stats.levels += 1;
       stats.shapes += nodes.length;
-      const links = tree.linksAt(level);
+      const lifted = tree.relationsAt(level);
       const block = { level, nodes, places: new Map<number, Point>() };
       blocks.push(block);
-      if (links.length === 0) {
+      if (lifted.length === 0) {
         const rows = packInRows(nodes.map((node) => tree.sizeOf(node)));
         nodes.forEach((node, at) => block.places.set(node, rows[at] as Point));
       } else {
@@ -129,9 +129,9 @@ export async function layOut(
           nodes,
           sizes,
           (node) => input.shapes[node]?.points,
-          links,
+          lifted,
         );
-        stats.edges += graph.edges?.length ?? 0;
+        stats.relations += graph.edges?.length ?? 0;
         graphs.push(graph);
       }
     }
@@ -206,9 +206,9 @@ export function blockGraph(
   nodes: readonly number[],
   sizes: ReadonlyMap<number, Size>,
   pointsOf: (node: number) => readonly LayoutConnectionPoint[] | undefined,
-  links: readonly Link[],
+  lifted: readonly Lifted[],
 ): ElkNode {
-  const back = backLinks(nodes, links);
+  const back = backRelations(nodes, lifted);
   const ports = new Map<number, Map<number, ElkPort>>();
   const endOf = (node: number, direct: boolean, toward: 'east' | 'west'): string => {
     const points = direct ? pointsOf(node) : undefined;
@@ -233,11 +233,11 @@ export function blockGraph(
 
   const edges: ElkExtendedEdge[] = [];
   const seen = new Set<string>();
-  links.forEach((link, at) => {
-    if (link.u === link.v) return;
+  lifted.forEach((each, at) => {
+    if (each.u === each.v) return;
     const reversed = back.has(at);
-    const source = endOf(link.u, link.uDirect, reversed ? 'west' : 'east');
-    const target = endOf(link.v, link.vDirect, reversed ? 'east' : 'west');
+    const source = endOf(each.u, each.uDirect, reversed ? 'west' : 'east');
+    const target = endOf(each.v, each.vDirect, reversed ? 'east' : 'west');
     const key = `${source}\u0000${target}`;
     if (seen.has(key)) return;
     seen.add(key);
@@ -289,15 +289,15 @@ export function shareOut(graphs: readonly ElkNode[], count: number): ElkNode[][]
 }
 
 /**
- * The indexes of the links that close a cycle: visiting the nodes in order, depth first along the
- * links in order, those that lead back to a node whose visit has not ended.
+ * The indexes of the relations that close a cycle: visiting the nodes in order, depth first along the
+ * relations in order, those that lead back to a node whose visit has not ended.
  */
-function backLinks(nodes: readonly number[], links: readonly Link[]): Set<number> {
+function backRelations(nodes: readonly number[], lifted: readonly Lifted[]): Set<number> {
   const out = new Map<number, number[]>();
-  links.forEach((link, at) => {
-    const list = out.get(link.u) ?? [];
+  lifted.forEach((each, at) => {
+    const list = out.get(each.u) ?? [];
     list.push(at);
-    out.set(link.u, list);
+    out.set(each.u, list);
   });
   const state = new Map<number, 'open' | 'done'>();
   const back = new Set<number>();
@@ -316,7 +316,7 @@ function backLinks(nodes: readonly number[], links: readonly Link[]): Set<number
       }
       const at = leaving[top.next] as number;
       top.next += 1;
-      const target = (links[at] as Link).v;
+      const target = (lifted[at] as Lifted).v;
       const seen = state.get(target);
       if (seen === 'open') back.add(at);
       else if (seen === undefined) {
@@ -340,7 +340,7 @@ class Tree {
   private readonly firstCopy = new Map<string, number>();
   /** Every shape of each element that holds contents. */
   private readonly copies = new Map<string, number[]>();
-  private readonly links = new Map<number, Link[]>();
+  private readonly lifted = new Map<number, Lifted[]>();
   private readonly flows = new Map<number, { into: number; out: number }>();
   /** The places layout gave, by shape index. */
   private readonly moved = new Map<number, Point>();
@@ -364,7 +364,7 @@ class Tree {
       copies.push(at);
       this.copies.set(shape.element, copies);
     });
-    for (const edge of input.edges) this.lift(edge.from, edge.to);
+    for (const relation of input.relations) this.lift(relation.from, relation.to);
   }
 
   /** The shapes directly inside a shape, or directly in World. */
@@ -372,8 +372,8 @@ class Tree {
     return this.children.get(level) ?? [];
   }
 
-  linksAt(level: number): readonly Link[] {
-    return this.links.get(level) ?? [];
+  relationsAt(level: number): readonly Lifted[] {
+    return this.lifted.get(level) ?? [];
   }
 
   /** How many relations lead from kept shapes into free ones at a level, and from free ones out. */
@@ -503,9 +503,9 @@ class Tree {
     const uFree = shapes[u]?.free === true;
     const vFree = shapes[v]?.free === true;
     if (uFree && vFree) {
-      const list = this.links.get(level) ?? [];
+      const list = this.lifted.get(level) ?? [];
       list.push({ u, v, uDirect: belowA === from, vDirect: belowB === to });
-      this.links.set(level, list);
+      this.lifted.set(level, list);
     } else if (uFree !== vFree) {
       const flow = this.flows.get(level) ?? { into: 0, out: 0 };
       if (vFree) flow.into += 1;

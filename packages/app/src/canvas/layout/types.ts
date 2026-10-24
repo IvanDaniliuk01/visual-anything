@@ -22,7 +22,7 @@ export interface LayoutShape {
   element: Id;
   /** The index of the shape it sits in; -1 when it sits directly in World. */
   parent: number;
-  /** Whether layout may move it: otherwise it is a fixed input, such as a pinned shape. */
+  /** Whether layout may move it: otherwise layout keeps it where it is, as it keeps pinned shapes. */
   free: boolean;
   /** Where it sits now, relative to its container's shape, or to the canvas when directly in World. */
   x: number;
@@ -41,7 +41,7 @@ export interface LayoutShape {
 }
 
 /** A drawn relation between two shapes, by their indexes. */
-export interface LayoutEdge {
+export interface LayoutRelation {
   relation: Id;
   from: number;
   to: number;
@@ -51,7 +51,7 @@ export interface LayoutEdge {
 export interface LayoutInput {
   /** Containers before their contents, as the scene lists them. */
   shapes: LayoutShape[];
-  edges: LayoutEdge[];
+  relations: LayoutRelation[];
   /** What else sits directly in World and must not be covered: notes and arrows. */
   obstacles: Rect[];
 }
@@ -81,7 +81,7 @@ export interface LayoutStats {
   /** How many shapes were arranged. */
   shapes: number;
   /** How many relations ELK was given, after lifting them to the level where they meet. */
-  edges: number;
+  relations: number;
   /** How many times ELK ran, and for how long in all. */
   elkRuns: number;
   elkMs: number;

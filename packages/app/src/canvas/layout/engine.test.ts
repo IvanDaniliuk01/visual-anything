@@ -23,7 +23,7 @@ const container = { baseWidth: 160, baseHeight: 72, width: 400, height: 300 };
 function input(shapes: LayoutShape[], edges: [number, number][] = [], obstacles: Rect[] = []) {
   return {
     shapes,
-    edges: edges.map(([from, to], at) => ({ relation: `r${at}`, from, to })),
+    relations: edges.map(([from, to], at) => ({ relation: `r${at}`, from, to })),
     obstacles,
   } satisfies LayoutInput;
 }
@@ -70,10 +70,10 @@ describe('layOut', () => {
     expect(Math.min(b.x, c.x)).toBe(CONTENTS_ORIGIN.x);
     expect(Math.min(b.y, c.y)).toBe(CONTENTS_ORIGIN.y);
     expect(c.x).toBeGreaterThan(b.x + 160);
-    expect(stats).toMatchObject({ levels: 2, shapes: 5, edges: 2 });
+    expect(stats).toMatchObject({ levels: 2, shapes: 5, relations: 2 });
   });
 
-  it('keeps fixed shapes where they are and places the others clear of them', async () => {
+  it('keeps the shapes it may not move where they are and places the others clear of them', async () => {
     const shapes = [
       shape('kept', -1, { free: false, x: 400, y: 200, width: 300, height: 200 }),
       shape('a', -1),
