@@ -6,7 +6,12 @@ import fc from 'fast-check';
 import type { Id, ViewFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { checkProject } from './check';
-import { executeCommand, type Command } from './commands';
+import {
+  executeCommand,
+  previewChangeContainer,
+  type Command,
+  type ContainerChangePreview,
+} from './commands';
 import { EMPTY_HISTORY, record, redo, undo, type History } from './history';
 import { randomIds } from './ids';
 import { containmentCycles, previewDelete } from './rules';
@@ -531,21 +536,31 @@ function expectRulesKept(state: ProjectSnapshot) {
   for (const relation of state.model.relations) {
     expect(model.has(relation.from) && model.has(relation.to)).toBe(true);
   }
-  // A stacking order is never empty, nor any list in it, and no list names anything twice.
+  // A stacking order is never empty, nor any list in it, and no list names anything twice. Each list
+  // is kept for World or an element, and names only elements.
+  const elements = new Set(state.model.elements.map((element) => element.id));
   for (const view of state.views) {
     if (!('stackingOrder' in view)) continue;
     const order = view.stackingOrder ?? {};
     expect(Object.keys(order).length).toBeGreaterThan(0);
-    for (const list of Object.values(order)) {
+    for (const [container, list] of Object.entries(order)) {
+      expect(container === state.model.world.id || elements.has(container)).toBe(true);
       expect(list.length).toBeGreaterThan(0);
       expect(new Set(list).size).toBe(list.length);
+      for (const id of list) expect(elements.has(id)).toBe(true);
     }
   }
 }
 
 describe('the rules of the core', () => {
   it('hold after any sequence of commands, undos and redos, and every action undoes exactly', () => {
-    const seen = { applied: 0, deletes: 0, undos: 0, kinds: new Set<string>() };
+    const seen = {
+      applied: 0,
+      deletes: 0,
+      containerChanges: 0,
+      undos: 0,
+      kinds: new Set<string>(),
+    };
     fc.assert(
       fc.property(
         fc.array(intent, { minLength: 10, maxLength: 60 }),
@@ -571,7 +586,15 @@ describe('the rules of the core', () => {
             const command = commandFor(state, wish);
             if (!command) continue;
             const preview = command.type === 'delete' ? previewDelete(state, command) : undefined;
+            const containerPreview =
+              command.type === 'change-container'
+                ? previewChangeContainer(state, command)
+                : undefined;
             const outcome = executeCommand(state, command, { newId });
+            // A change of container the preview lets through is never refused, and one it stops is.
+            if (containerPreview) {
+              expect(outcome.ok).toBe(containerPreview.problems.length === 0);
+            }
             // Relation type limits only warn: a relation that does not nest, of a relation type
             // that exists, between ends that exist, is never refused.
             const definitions = definitionsIn(state);
@@ -589,6 +612,10 @@ describe('the rules of the core', () => {
             if (preview) {
               expectDeletedExactly(before, after, preview);
               seen.deletes += 1;
+            }
+            if (containerPreview) {
+              expectContainerChangedExactly(before, after, containerPreview);
+              seen.containerChanges += 1;
             }
             seen.applied += 1;
             seen.kinds.add(command.type);
@@ -615,6 +642,7 @@ describe('the rules of the core', () => {
     // The sequences must do things, not only be refused.
     expect(seen.applied).toBeGreaterThan(1000);
     expect(seen.deletes).toBeGreaterThan(100);
+    expect(seen.containerChanges).toBeGreaterThan(20);
     expect(seen.undos).toBeGreaterThan(100);
     // And every kind of command among them.
     expect([...seen.kinds].sort()).toEqual([...COMMAND_TYPES].sort());
@@ -705,4 +733,30 @@ function expectDeletedExactly(
       false,
     );
   }
+}
+
+/**
+ * A change of container deletes exactly the relations its preview listed, and no element; the steps
+ * that played them stay, broken, as the preview said.
+ */
+function expectContainerChangedExactly(
+  before: ProjectSnapshot,
+  after: ProjectSnapshot,
+  preview: ContainerChangePreview,
+) {
+  const left = new Set(after.model.relations.map((relation) => relation.id));
+  const removed = before.model.relations
+    .map((relation) => relation.id)
+    .filter((id) => !left.has(id));
+  expect(removed).toEqual(preview.relations);
+  expect(preview.elements).toEqual([]);
+  expect(after.model.elements).toEqual(before.model.elements);
+  expect(after.scenarios).toEqual(before.scenarios);
+  const gone = new Set(removed);
+  const broken = before.scenarios.flatMap((scenario) =>
+    scenario.steps
+      .filter((step) => step.relations.some((id) => gone.has(id)))
+      .map((step) => ({ scenario: scenario.id, step: step.id })),
+  );
+  expect(preview.brokenSteps).toEqual(broken);
 }

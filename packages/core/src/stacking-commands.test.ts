@@ -181,6 +181,33 @@ describe('restack', () => {
     expect(stackingOrderOf(outcome.state, 'overview').at(-1)).toBe('e0');
   });
 
+  it('moves thousands of shapes in one command at once, in the order given', () => {
+    const base = testProject();
+    const many: Element[] = Array.from({ length: 9_000 }, (_, at) => ({
+      id: `e${at}`,
+      component: 'test.box',
+      name: `E${at}`,
+    }));
+    const crowded = {
+      ...base,
+      model: { ...base.model, elements: [...many, ...base.model.elements] },
+    };
+    // Every other one to the front and the rest to the back, then one just behind another.
+    const moves: Extract<Command, { type: 'restack' }>['moves'] = many.map((element, at) => ({
+      shape: { element: element.id },
+      to: at % 2 === 0 ? 'front' : 'back',
+    }));
+    moves.push({ shape: { element: 'client' }, to: { behind: 'e0' } });
+    const started = Date.now();
+    const outcome = executeCommand(crowded, restack(...moves), { newId: sequentialIds() });
+    expect(Date.now() - started).toBeLessThan(250);
+    if (!outcome.ok) throw new Error('Rejected');
+    const order = stackingOrderOf(outcome.state, 'overview');
+    expect(order.slice(0, 2)).toEqual(['e8999', 'e8997']);
+    expect(order.slice(-3)).toEqual(['e8994', 'e8996', 'e8998']);
+    expect(order[order.indexOf('e0') - 1]).toBe('client');
+  });
+
   it('refuses what it cannot do, changing nothing', () => {
     expect(
       codes({
@@ -252,6 +279,21 @@ describe('change-container', () => {
       pinned: true,
     });
     expect(stackingOrderOf(outcome.state, 'overview', 'system')).toEqual(['api', 'db', 'client']);
+  });
+
+  it('keeps a position the program chose unpinned, so that layout may still move the shape', () => {
+    const outcome = ok(
+      change({
+        to: 'system',
+        shapes: [{ element: 'client', at: { x: 24, y: 48 }, pinned: false }],
+      }),
+    );
+    expect(viewOf(outcome.state).positions).toContainEqual({
+      element: 'client',
+      container: 'system',
+      x: 24,
+      y: 48,
+    });
   });
 
   it('moves a shape from one container into another, keeping the type of what it leaves', () => {
@@ -394,12 +436,27 @@ describe('change-container', () => {
   });
 
   it('deletes what ends on the relation it leaves, keeping the step that used it as a broken step', () => {
-    const project = withRelations(testProject(), {
+    const governed = withRelations(testProject(), {
       id: 'contract-governs-inside',
       relationType: 'test.governs',
       from: 'contract',
       to: 'api-in-system',
     });
+    // A step that plays the relation that goes.
+    const project: ProjectSnapshot = {
+      ...governed,
+      scenarios: governed.scenarios.map((scenario) => ({
+        ...scenario,
+        steps: [
+          ...scenario.steps,
+          {
+            id: 'govern',
+            description: 'The contract governs.',
+            relations: ['contract-governs-inside'],
+          },
+        ],
+      })),
+    };
     const command = change({ shapes: [{ element: 'api', from: 'system' }] });
     const preview = previewChangeContainer(
       project,
@@ -407,6 +464,7 @@ describe('change-container', () => {
     );
     expect(preview.leaving).toEqual(['api-in-system']);
     expect(preview.cascaded).toEqual(['contract-governs-inside']);
+    expect(preview.brokenSteps).toEqual([{ scenario: 'request', step: 'govern' }]);
     expect(preview.problems).toEqual([]);
     const outcome = ok(command, project);
     expect(outcome.state.model.relations.map((relation) => relation.id)).not.toContain(
@@ -518,6 +576,10 @@ describe('change-container', () => {
       codes(
         change({ to: 'contract', shapes: [{ element: 'client', at: { x: Number.NaN, y: 0 } }] }),
       ),
+    ).toEqual(['invalid-command']);
+    const pinnedByName = { element: 'client', at: { x: 0, y: 0 }, pinned: 'yes' };
+    expect(
+      codes(change({ to: 'contract', shapes: [pinnedByName as unknown as { element: string }] })),
     ).toEqual(['invalid-command']);
   });
 

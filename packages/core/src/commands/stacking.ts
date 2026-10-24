@@ -17,16 +17,17 @@ export function restack(draft: Draft, command: RestackCommand): string {
   const moves = requireList(command.moves, 'moves');
   if (moves.length === 0) reject('invalid-command', 'No moves were given.');
   const worldId = draft.index.world.id;
-  const contents = new Map<Id, Id[]>();
-  const contentsOf = (key: Id): Id[] => {
-    let ids = contents.get(key);
-    if (!ids) {
-      ids = contentsInView(draft.state, view, key === worldId ? undefined : key);
-      contents.set(key, ids);
+  const contents = new Map<Id, { ids: Id[]; has: Set<Id> }>();
+  const contentsOf = (key: Id) => {
+    let found = contents.get(key);
+    if (!found) {
+      const ids = contentsInView(draft.state, view, key === worldId ? undefined : key);
+      found = { ids, has: new Set(ids) };
+      contents.set(key, found);
     }
-    return ids;
+    return found;
   };
-  const orders = new Map<Id, { order: Id[]; before: readonly Id[] }>();
+  const orders = new Map<Id, { order: Order; before: readonly Id[] }>();
   const seen = new Set<string>();
   const names: { element: string; reference?: string }[] = [];
 
@@ -41,7 +42,7 @@ export function restack(draft: Draft, command: RestackCommand): string {
         : draft.element(move.shape.container);
     const key = stackingKey(worldId, container?.id);
     const live = contentsOf(key);
-    if (!live.includes(element.id)) {
+    if (!live.has.has(element.id)) {
       reject('unknown-position', whereNot(element.name, container?.name, view), [element.id]);
     }
     const pair = JSON.stringify([key, element.id]);
@@ -55,18 +56,18 @@ export function restack(draft: Draft, command: RestackCommand): string {
           element.id,
         ]);
       }
-      if (!live.includes(reference)) {
+      if (!live.has.has(reference)) {
         const name = draft.index.element(reference)?.name ?? reference;
         reject('unknown-position', whereNot(name, container?.name, view), [reference]);
       }
     }
     let entry = orders.get(key);
     if (!entry) {
-      const order = orderByStacking(live, (id) => id, storedStacking(view, key));
-      entry = { order: [...order], before: order };
+      const order = orderByStacking(live.ids, (id) => id, storedStacking(view, key));
+      entry = { order: new Order(order), before: order };
       orders.set(key, entry);
     }
-    place(entry.order, element.id, move.to);
+    entry.order.move(element.id, move.to);
     names.push({
       element: element.name,
       ...(reference === undefined ? {} : { reference: draft.index.element(reference)?.name }),
@@ -74,8 +75,9 @@ export function restack(draft: Draft, command: RestackCommand): string {
   }
 
   const rankOf = modelRankOf(draft.state);
-  for (const [key, { order, before }] of orders) {
-    if (order.every((id, at) => id === before[at])) continue;
+  for (const [key, entry] of orders) {
+    const order = entry.order.ids();
+    if (order.every((id, at) => id === entry.before[at])) continue;
     const collection = { name: 'stackingOrder' as const, view: view.id, container: key };
     const stored = storedStacking(view, key) ?? [];
     for (const operation of stackingOperations(
@@ -106,13 +108,54 @@ function referenceOf(to: StackingPlace): Id | undefined {
   reject('invalid-command', 'A move goes to "front", "back", { inFrontOf } or { behind }.');
 }
 
-/** Moves an id within an order, back to front. */
-function place(order: Id[], id: Id, to: StackingPlace): void {
-  order.splice(order.indexOf(id), 1);
-  if (to === 'front') order.push(id);
-  else if (to === 'back') order.unshift(id);
-  else if ('inFrontOf' in to) order.splice(order.indexOf(to.inFrontOf) + 1, 0, id);
-  else order.splice(order.indexOf(to.behind), 0, id);
+/**
+ * An order of ids, back to front, linked both ways, so that a command moving thousands of shapes
+ * moves each one in constant time.
+ */
+class Order {
+  private readonly before = new Map<Id, Id | undefined>();
+  private readonly after = new Map<Id, Id | undefined>();
+  private back: Id | undefined;
+  private front: Id | undefined;
+
+  constructor(ids: readonly Id[]) {
+    for (const id of ids) this.insertBehind(id, undefined);
+  }
+
+  /** Moves an id that is in the order. */
+  move(id: Id, to: StackingPlace): void {
+    this.unlink(id);
+    if (to === 'front') this.insertBehind(id, undefined);
+    else if (to === 'back') this.insertBehind(id, this.back);
+    else if ('inFrontOf' in to) this.insertBehind(id, this.after.get(to.inFrontOf));
+    else this.insertBehind(id, to.behind);
+  }
+
+  ids(): Id[] {
+    const ids: Id[] = [];
+    for (let at = this.back; at !== undefined; at = this.after.get(at)) ids.push(at);
+    return ids;
+  }
+
+  private unlink(id: Id): void {
+    const before = this.before.get(id);
+    const after = this.after.get(id);
+    if (before === undefined) this.back = after;
+    else this.after.set(before, after);
+    if (after === undefined) this.front = before;
+    else this.before.set(after, before);
+  }
+
+  /** Puts an id just behind another, or at the front when there is none. */
+  private insertBehind(id: Id, next: Id | undefined): void {
+    const before = next === undefined ? this.front : this.before.get(next);
+    this.before.set(id, before);
+    this.after.set(id, next);
+    if (before === undefined) this.back = id;
+    else this.after.set(before, id);
+    if (next === undefined) this.front = id;
+    else this.before.set(next, id);
+  }
 }
 
 /** Says that a shape does not sit where a command says it does. */
