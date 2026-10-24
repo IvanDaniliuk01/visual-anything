@@ -1370,7 +1370,9 @@ describe('Inspector, in this view', () => {
       {
         type: 'change-container',
         view: 'system-overview',
-        shapes: [{ element: 'whatsapp', from: 'clinic-booking', at: { x: 1260, y: 40 } }],
+        shapes: [
+          { element: 'whatsapp', from: 'clinic-booking', at: { x: 1260, y: 40 }, pinned: false },
+        ],
       },
     ]);
     expect(within(section()).getByText('Directly in World')).toBeInTheDocument();
