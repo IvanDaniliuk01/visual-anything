@@ -1,5 +1,6 @@
 import { executeCommand, type Command, type ProjectSnapshot } from '@visual-anything/core';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { RELATES_TO_ID } from '@visual-anything/schema';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { Container } from 'pixi.js';
 import { Profiler, StrictMode, useEffect, useMemo, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -17,6 +18,15 @@ vi.mock('pixi.js', async (importOriginal) => {
   const { FakeApplication: Application } = await import('../test/FakeApplication');
   return { ...pixi, Application };
 });
+
+/** Whether the canvas runs as on an Apple platform; read on each press. */
+const platform = vi.hoisted(() => ({ apple: false }));
+vi.mock('../live/platform', () => ({
+  isAppleAgent: (agent: string) => /Mac|iPhone|iPad/.test(agent),
+  get IS_APPLE() {
+    return platform.apple;
+  },
+}));
 
 const project = loadSample();
 const view = project.views[0]!;
@@ -69,8 +79,8 @@ function Harness(props: {
  * it keeps, draws the change, and answers after it, as the live connection does. `elsewhere` applies a
  * change made by someone else.
  */
-function localProgram() {
-  let current = project;
+function localProgram(start: ProjectSnapshot = project) {
+  let current = start;
   const shows = new Set<(next: ProjectSnapshot) => void>();
   const apply = (command: Command) => {
     const outcome = executeCommand(current, command);
@@ -125,20 +135,25 @@ function answeredLater() {
   };
 }
 
-/** Starts the canvas at a known size, and returns its host and where a scene point is on screen. */
-async function started(element: React.ReactElement) {
+/**
+ * Starts the canvas at a known size, and returns its host, where a shape's middle is on screen, and
+ * where a point of the scene is; `shown` is the project the canvas first draws.
+ */
+async function started(element: React.ReactElement, shown: ProjectSnapshot = project) {
   const result = render(element);
-  const host = screen.getByRole('application', { name: LABEL });
+  const host = screen.getByRole('application');
   sizeOf(host, SIZE.width, SIZE.height);
   const [app] = FakeApplication.created as [FakeApplication];
   await settle(() => app.finishInit());
-  const camera = fitCamera(scene.bounds, SIZE, 32);
+  const drawn = buildScene(shown, view.id);
+  const camera = fitCamera(drawn.bounds, SIZE, 32);
   const at = (key: string) => {
-    const shape = scene.shapes.find((each) => each.key === key);
+    const shape = drawn.shapes.find((each) => each.key === key);
     if (!shape) throw new Error(key);
     return worldToScreen(camera, centerOf(shape.rect));
   };
-  return { ...result, host, app, camera, at };
+  const on = (point: { x: number; y: number }) => worldToScreen(camera, point);
+  return { ...result, host, app, camera, at, on };
 }
 
 function point(
@@ -188,7 +203,70 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
+  platform.apple = false;
 });
+
+/** The project after a command, as the local program would have it. */
+function after(shown: ProjectSnapshot, command: Command): ProjectSnapshot {
+  const outcome = executeCommand(shown, command);
+  if (!outcome.ok) throw new Error(outcome.problems.map((each) => each.message).join(' '));
+  return outcome.state;
+}
+
+/** The sample with Calendar created last, directly in World, over Clinic booking beside its contents. */
+const withCalendar = after(project, {
+  type: 'create-element',
+  element: { id: 'calendar', component: 'clinic.calendar', name: 'Calendar' },
+  positions: [{ view: view.id, x: 300, y: 380 }],
+});
+
+/** The sample with an empty System directly in World, below everything else. */
+const withEmptySystem = after(project, {
+  type: 'create-element',
+  element: { id: 'empty-system', component: 'systems.system', name: 'System' },
+  positions: [{ view: view.id, x: 40, y: 700 }],
+});
+
+/** The sample with the relation that puts WhatsApp in Clinic booking named, so that taking it out asks. */
+const withNamedMembership: ProjectSnapshot = {
+  ...project,
+  model: {
+    ...project.model,
+    relations: project.model.relations.map((relation) =>
+      relation.id === 'whatsapp-in-clinic' ? { ...relation, name: 'Front door' } : relation,
+    ),
+  },
+};
+
+/** Presses on a point, moves to another and lets go there, with what the moves hold, such as Alt. */
+function dragTo(
+  host: HTMLElement,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  extra: Record<string, unknown> = {},
+) {
+  point('pointerdown', host, from.x, from.y);
+  point('pointermove', host, (from.x + to.x) / 2, (from.y + to.y) / 2, extra);
+  point('pointermove', host, to.x, to.y, extra);
+  point('pointerup', host, to.x, to.y, extra);
+}
+
+/** The caption beside a drop: its line, and its details. */
+function caption(): { text: string; detail: string | undefined } {
+  const element = document.querySelector('.canvas-drop-caption');
+  const detail = element?.querySelector('.canvas-drop-caption-detail')?.textContent ?? undefined;
+  const all = element?.textContent ?? '';
+  return { text: detail === undefined ? all : all.slice(0, all.length - detail.length), detail };
+}
+
+/** Lets the answers to what was sent arrive. */
+async function answers(): Promise<void> {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
 
 describe('CanvasArea', () => {
   it('describes the view to assistive technology', () => {
@@ -719,5 +797,539 @@ describe('Answers that come after the user moved on', () => {
     } finally {
       elsewhere.remove();
     }
+  });
+});
+
+describe('Dropping shapes into and out of containers', () => {
+  it('puts Patient inside Clinic booking when it is dropped on it, and says so', async () => {
+    const program = localProgram();
+    const { host, at, on } = await started(<program.Live />);
+    dragTo(host, at('patient'), on({ x: 400, y: 420 }));
+    await answers();
+    const [command] = program.onCommand.mock.calls.at(-1) ?? [];
+    expect(command).toMatchObject({
+      type: 'change-container',
+      view: view.id,
+      to: 'clinic-booking',
+      shapes: [{ element: 'patient' }],
+    });
+    expect(said()).toBe('Put "Patient" inside "Clinic booking".');
+    expect(
+      program.project.model.relations.some(
+        (relation) => relation.from === 'patient' && relation.to === 'clinic-booking',
+      ),
+    ).toBe(true);
+  });
+
+  it('only moves shapes dragged with Alt held, and keeps Alt from the browser', async () => {
+    const onCommand = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
+    const { host, at, on } = await started(<Harness onCommand={onCommand} />);
+    const patient = at('patient');
+    const target = on({ x: 400, y: 420 });
+    point('pointerdown', host, patient.x, patient.y);
+    point('pointermove', host, target.x, target.y);
+    expect(caption().text).toBe('Put inside "Clinic booking"');
+    expect(fireEvent.keyDown(host, { key: 'Alt', altKey: true })).toBe(false);
+    // Patient is drawn before Clinic booking, so only moving it there lands it behind.
+    expect(caption()).toEqual({ text: 'Moves only', detail: 'Lands behind "Clinic booking"' });
+    expect(fireEvent.keyUp(host, { key: 'Alt' })).toBe(false);
+    expect(caption().text).toBe('Put inside "Clinic booking"');
+    point('pointermove', host, target.x + 1, target.y, { altKey: true });
+    point('pointerup', host, target.x + 1, target.y, { altKey: true });
+    await answers();
+    expect(onCommand).toHaveBeenCalledTimes(1);
+    expect(onCommand.mock.lastCall?.[0]).toMatchObject({ type: 'set-positions' });
+    expect(caption().text).toBe('');
+  });
+
+  it('takes WhatsApp out of Clinic booking once it is dragged clear of it', async () => {
+    const program = localProgram();
+    const { host, at, on } = await started(<program.Live />);
+    dragTo(host, at('clinic-booking/whatsapp'), on({ x: 100, y: 600 }));
+    await answers();
+    const [command] = program.onCommand.mock.calls.at(-1) ?? [];
+    expect(command).toMatchObject({
+      type: 'change-container',
+      shapes: [{ element: 'whatsapp', from: 'clinic-booking' }],
+    });
+    expect(command).not.toHaveProperty('to');
+    expect(said()).toBe('Take "WhatsApp channel" out of "Clinic booking".');
+    expect(program.project.model.relations.some((each) => each.id === 'whatsapp-in-clinic')).toBe(
+      false,
+    );
+  });
+
+  it('only moves the contents of a container rearranged inside it', async () => {
+    const onCommand = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
+    const { host, at, on } = await started(<Harness onCommand={onCommand} />);
+    dragTo(host, at('clinic-booking/scheduling/appointments-api'), on({ x: 900, y: 320 }));
+    await answers();
+    expect(onCommand).toHaveBeenCalledTimes(1);
+    expect(onCommand.mock.lastCall?.[0]).toMatchObject({
+      type: 'set-positions',
+      positions: [{ element: 'appointments-api', container: 'scheduling' }],
+    });
+  });
+
+  it('says where a drop goes as the pointer moves, and arms a shape that holds nothing once the pointer rests on it', async () => {
+    const onCommand = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
+    const { host, at, on } = await started(<Harness onCommand={onCommand} />);
+    const overlays = vi.spyOn(CanvasRenderer.prototype, 'setOverlay');
+    vi.useFakeTimers();
+    const patient = at('patient');
+    point('pointerdown', host, patient.x, patient.y);
+    const scheduling = on({ x: 1000, y: 420 });
+    point('pointermove', host, scheduling.x, scheduling.y);
+    expect(caption()).toEqual({ text: 'Put inside "Scheduling"', detail: 'Alt: move only' });
+    const outlined = (overlays.mock.lastCall?.[0] as Overlay).drop;
+    expect(outlined?.into).toMatchObject({ x: 740, y: 100, width: 440, height: 380 });
+
+    const agent = at('clinic-booking/booking-agent');
+    point('pointermove', host, agent.x, agent.y);
+    expect(caption()).toEqual({
+      text: 'Hold still to put inside "Booking agent"',
+      detail: 'Release now: put inside "Clinic booking" · Alt: move only',
+    });
+    // Moving a little keeps the rest going; resting long enough arms it.
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    point('pointermove', host, agent.x + 3, agent.y);
+    act(() => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(caption().text).toBe('Put inside "Booking agent"');
+    point('pointerup', host, agent.x + 3, agent.y);
+    vi.useRealTimers();
+    await answers();
+    expect(onCommand.mock.lastCall?.[0]).toMatchObject({
+      type: 'change-container',
+      to: 'booking-agent',
+    });
+    expect(caption().text).toBe('');
+  });
+
+  it('clears the caption and the rest when Escape cancels the drag', async () => {
+    const onCommand = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
+    const { host, at } = await started(<Harness onCommand={onCommand} />);
+    vi.useFakeTimers();
+    const patient = at('patient');
+    const agent = at('clinic-booking/booking-agent');
+    point('pointerdown', host, patient.x, patient.y);
+    point('pointermove', host, agent.x, agent.y);
+    expect(caption().text).toBe('Hold still to put inside "Booking agent"');
+    fireEvent.keyDown(host, { key: 'Escape' });
+    expect(caption().text).toBe('');
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    expect(caption().text).toBe('');
+    point('pointerup', host, agent.x, agent.y);
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it('asks before a drop that deletes more than the relation that placed it, showing where the shapes land, and Cancel changes nothing', async () => {
+    const overlays = vi.spyOn(CanvasRenderer.prototype, 'setOverlay');
+    const onCommand = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
+    const { host, at, on } = await started(
+      <Harness project={withNamedMembership} onCommand={onCommand} />,
+      withNamedMembership,
+    );
+    dragTo(host, at('clinic-booking/whatsapp'), on({ x: 100, y: 600 }));
+    const dialog = screen.getByRole('dialog', {
+      name: 'Take "WhatsApp channel" out of "Clinic booking"?',
+    });
+    expect(dialog).toHaveTextContent('This takes away the relation "Front door".');
+    expect(dialog).toHaveTextContent('It has a name, a description or attributes of its own');
+    expect(onCommand).not.toHaveBeenCalled();
+    const ghost = (overlays.mock.lastCall?.[0] as Overlay).ghost ?? [];
+    expect(ghost).toHaveLength(1);
+    expect(ghost[0]).toMatchObject({ width: 180, height: 72 });
+    expect(ghost[0]?.x).toBeCloseTo(10, 0);
+
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+      await Promise.resolve();
+    });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(onCommand).not.toHaveBeenCalled();
+    expect((overlays.mock.lastCall?.[0] as Overlay).ghost).toBeUndefined();
+    expect(document.activeElement).toBe(host);
+  });
+
+  it('sends a drop once it is confirmed, and shows where its shapes land until its change comes back', async () => {
+    const overlays = vi.spyOn(CanvasRenderer.prototype, 'setOverlay');
+    const program = localProgram(withNamedMembership);
+    const { host, at, on } = await started(<program.Live />, withNamedMembership);
+    dragTo(host, at('clinic-booking/whatsapp'), on({ x: 100, y: 600 }));
+    const dialog = screen.getByRole('dialog');
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Take out' }));
+      await Promise.resolve();
+    });
+    await answers();
+    expect(program.onCommand).toHaveBeenCalledTimes(1);
+    expect(program.onCommand.mock.lastCall?.[0]).toMatchObject({ type: 'change-container' });
+    expect(said()).toBe('Take "WhatsApp channel" out of "Clinic booking".');
+    expect((overlays.mock.lastCall?.[0] as Overlay).ghost).toBeUndefined();
+  });
+
+  it('keeps the question up to date while the project changes', async () => {
+    const program = localProgram(withNamedMembership);
+    const { host, at, on } = await started(<program.Live />, withNamedMembership);
+    dragTo(host, at('clinic-booking/whatsapp'), on({ x: 100, y: 600 }));
+    const dialog = screen.getByRole('dialog');
+    await program.elsewhere({
+      type: 'create-relation',
+      relation: {
+        relationType: RELATES_TO_ID,
+        from: 'booking-agent',
+        to: 'whatsapp-in-clinic',
+      },
+    });
+    expect(dialog).toHaveTextContent('This relation ends on it, so it goes too:');
+    expect(screen.getByRole('dialog')).toBe(dialog);
+  });
+});
+
+describe('Adding elements', () => {
+  it('adds next to an empty System selected directly in World, and inside it from its menu', async () => {
+    const onCommand = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
+    const { host, at } = await started(
+      <Harness project={withEmptySystem} onCommand={onCommand} />,
+      withEmptySystem,
+    );
+    const system = at('empty-system');
+    point('pointerdown', host, system.x, system.y);
+    point('pointerup', host, system.x, system.y);
+    const select = screen.getByRole('combobox', { name: 'Add an element' });
+    expect(within(select).getAllByRole('option')[0]).toHaveTextContent('Add element…');
+    await act(async () => {
+      fireEvent.change(select, { target: { value: 'systems.service' } });
+      await Promise.resolve();
+    });
+    const beside = onCommand.mock.lastCall?.[0] as Extract<Command, { type: 'create-element' }>;
+    expect(beside).toMatchObject({ type: 'create-element', element: { name: 'Service' } });
+    expect(beside).not.toHaveProperty('containers');
+    expect(beside.positions?.[0]).not.toHaveProperty('container');
+
+    fireEvent.keyDown(host, { key: 'F10', shiftKey: true });
+    const menu = screen.getByRole('menu', { name: 'System' });
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Add inside "System"…' }));
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    const inside = screen.getByRole('combobox', { name: 'Add an element inside "System"' });
+    expect(document.activeElement).toBe(inside);
+    expect(within(inside).getAllByRole('option')[0]).toHaveTextContent('Add inside "System"…');
+    expect(inside).toHaveAttribute(
+      'title',
+      'Adds the element inside "System". With nothing selected, elements are added directly in World.',
+    );
+    await act(async () => {
+      fireEvent.change(inside, { target: { value: 'systems.service' } });
+      await Promise.resolve();
+    });
+    expect(onCommand.mock.lastCall?.[0]).toEqual({
+      type: 'create-element',
+      element: { component: 'systems.service', name: 'Service' },
+      containers: [{ container: 'empty-system', relationType: 'systems.is-part-of' }],
+    });
+    // The target served once.
+    expect(screen.getByRole('combobox', { name: 'Add an element' })).toBeInTheDocument();
+  });
+
+  it('ends the target set from the menu when the list loses the focus', async () => {
+    const onCommand = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
+    const { host, at } = await started(
+      <Harness project={withEmptySystem} onCommand={onCommand} />,
+      withEmptySystem,
+    );
+    const system = at('empty-system');
+    point('pointerdown', host, system.x, system.y);
+    point('pointerup', host, system.x, system.y);
+    fireEvent.keyDown(host, { key: 'ContextMenu' });
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add inside "System"…' }));
+    const inside = screen.getByRole('combobox', { name: 'Add an element inside "System"' });
+    act(() => host.focus());
+    fireEvent.blur(inside);
+    expect(screen.getByRole('combobox', { name: 'Add an element' })).toBeInTheDocument();
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it('makes siblings of elements added one after another, each named as it comes', async () => {
+    const program = localProgram();
+    const { host, on } = await started(<program.Live />);
+    const booking = on({ x: 600, y: 450 });
+    point('pointerdown', host, booking.x, booking.y);
+    point('pointerup', host, booking.x, booking.y);
+
+    const add = async (name: string) => {
+      await act(async () => {
+        fireEvent.change(screen.getByRole('combobox', { name: /^Add an element/ }), {
+          target: { value: 'systems.service' },
+        });
+        await Promise.resolve();
+      });
+      await answers();
+      const field = await screen.findByRole('textbox', { name: 'Name of Service' });
+      fireEvent.change(field, { target: { value: name } });
+      await act(async () => {
+        fireEvent.keyDown(field, { key: 'Enter' });
+        await Promise.resolve();
+      });
+      await answers();
+    };
+    expect(
+      screen.getByRole('combobox', { name: 'Add an element inside "Clinic booking"' }),
+    ).toHaveAttribute(
+      'title',
+      'Adds the element inside "Clinic booking". With nothing selected, elements are added directly in World.',
+    );
+    await add('Billing');
+    const select = screen.getByRole('combobox', { name: 'Add an element inside "Clinic booking"' });
+    expect(select).toHaveAttribute(
+      'title',
+      'Adds the element inside "Clinic booking", where "Billing" sits. To add inside "Billing" itself, use Add inside "Billing"… in its menu or in the inspector.',
+    );
+    await add('Invoices');
+    const inClinic = (name: string) => {
+      const element = program.project.model.elements.find((each) => each.name === name);
+      return program.project.model.relations.some(
+        (relation) => relation.from === element?.id && relation.to === 'clinic-booking',
+      );
+    };
+    expect(inClinic('Billing')).toBe(true);
+    expect(inClinic('Invoices')).toBe(true);
+    const creates = program.onCommand.mock.calls
+      .map(([command]) => command)
+      .filter((command) => command.type === 'create-element');
+    expect(creates).toHaveLength(2);
+    for (const command of creates) expect(command).not.toHaveProperty('positions');
+  });
+});
+
+describe('The stacking order', () => {
+  it('brings the selection forward with Ctrl+↑, takes the key, and says what it did', async () => {
+    const onCommand = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
+    const { host, on } = await started(
+      <Harness project={withCalendar} onCommand={onCommand} />,
+      withCalendar,
+    );
+    const booking = on({ x: 600, y: 450 });
+    point('pointerdown', host, booking.x, booking.y);
+    point('pointerup', host, booking.x, booking.y);
+    expect(fireEvent.keyDown(host, { key: 'ArrowUp', ctrlKey: true })).toBe(false);
+    await answers();
+    expect(onCommand.mock.lastCall?.[0]).toEqual({
+      type: 'restack',
+      view: view.id,
+      moves: [{ shape: { element: 'clinic-booking' }, to: { inFrontOf: 'calendar' } }],
+    });
+    expect(said()).toBe('"Clinic booking" is now in front of "Calendar".');
+  });
+
+  it('sends the selection backward with ⌘[ while a toolbar button has the focus', async () => {
+    const onCommand = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
+    const { host, at } = await started(
+      <Harness project={withCalendar} onCommand={onCommand} />,
+      withCalendar,
+    );
+    const calendar = at('calendar');
+    point('pointerdown', host, calendar.x, calendar.y);
+    point('pointerup', host, calendar.x, calendar.y);
+    const note = screen.getByRole('button', { name: 'Note' });
+    act(() => note.focus());
+    expect(fireEvent.keyDown(note, { key: '[', metaKey: true })).toBe(false);
+    await answers();
+    expect(onCommand.mock.lastCall?.[0]).toEqual({
+      type: 'restack',
+      view: view.id,
+      moves: [{ shape: { element: 'calendar' }, to: { behind: 'clinic-booking' } }],
+    });
+    expect(document.activeElement).toBe(note);
+  });
+
+  it('says why a press changes nothing, from the toolbar as from the keys', async () => {
+    const onCommand = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
+    const { host, at } = await started(
+      <Harness project={withCalendar} onCommand={onCommand} />,
+      withCalendar,
+    );
+    const calendar = at('calendar');
+    point('pointerdown', host, calendar.x, calendar.y);
+    point('pointerup', host, calendar.x, calendar.y);
+    const group = screen.getByRole('group', { name: 'Stacking order' });
+    const front = within(group).getByRole('button', { name: 'Bring to front' });
+    expect(front).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(front);
+    expect(said()).toBe(
+      '"Calendar" is already in front of everything it overlaps directly in World. It sits over "Clinic booking" without being inside it; Put inside "Clinic booking" orders it among the shapes there.',
+    );
+    point('pointerdown', host, 2, 2);
+    point('pointerup', host, 2, 2);
+    expect(fireEvent.keyDown(host, { key: ']', ctrlKey: true })).toBe(false);
+    expect(said()).toBe(
+      'Select shapes of elements to change their stacking order. Relations, notes and arrows are always drawn in front of them.',
+    );
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it('never takes [ typed in the inline editor', async () => {
+    const onCommand = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
+    const { host, at } = await started(<Harness onCommand={onCommand} />);
+    const patient = at('patient');
+    point('pointerdown', host, patient.x, patient.y);
+    point('pointerup', host, patient.x, patient.y);
+    fireEvent.keyDown(host, { key: 'Enter' });
+    const field = screen.getByRole('textbox', { name: 'Name of Patient' });
+    expect(fireEvent.keyDown(field, { key: '[' })).toBe(true);
+    expect(fireEvent.keyDown(field, { key: '[', ctrlKey: true })).toBe(true);
+    expect(fireEvent.keyDown(field, { key: 'ArrowUp', ctrlKey: true })).toBe(true);
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+});
+
+describe('The shape menu', () => {
+  it('opens on a right-click with the shapes under the pointer, and puts the shape inside the container under its middle', async () => {
+    const program = localProgram(withCalendar);
+    const { host, at } = await started(<program.Live />, withCalendar);
+    const calendar = at('calendar');
+    point('pointerdown', host, calendar.x, calendar.y, { button: 2 });
+    point('pointerup', host, calendar.x, calendar.y, { button: 2 });
+    expect(fireEvent.contextMenu(host, { clientX: calendar.x, clientY: calendar.y })).toBe(false);
+    const menu = screen.getByRole('menu', { name: 'Calendar' });
+    expect(within(menu).getByRole('group', { name: 'Under the pointer' })).toHaveTextContent(
+      'Select "Clinic booking"',
+    );
+    await act(async () => {
+      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Put inside "Clinic booking"' }));
+      await Promise.resolve();
+    });
+    await answers();
+    expect(program.onCommand.mock.lastCall?.[0]).toMatchObject({
+      type: 'change-container',
+      to: 'clinic-booking',
+      shapes: [{ element: 'calendar', at: { x: 60, y: 340 } }],
+    });
+    expect(said()).toBe('Put "Calendar" inside "Clinic booking".');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(host);
+  });
+
+  it('selects a covered shape from the shapes under the pointer', async () => {
+    const onSelect = vi.fn();
+    const { host, at } = await started(
+      <Harness project={withCalendar} onSelect={onSelect} />,
+      withCalendar,
+    );
+    const calendar = at('calendar');
+    point('pointerdown', host, calendar.x, calendar.y, { button: 2 });
+    fireEvent.contextMenu(host, { clientX: calendar.x, clientY: calendar.y });
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Select "Clinic booking"' }));
+    expect([...(onSelect.mock.lastCall?.[0] as Selection).elements]).toEqual(['clinic-booking']);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('on Apple platforms, opens on Ctrl+click without adding to the selection', async () => {
+    platform.apple = true;
+    const onSelect = vi.fn();
+    const { host, at } = await started(<Harness onSelect={onSelect} />);
+    const patient = at('patient');
+    point('pointerdown', host, patient.x, patient.y);
+    point('pointerup', host, patient.x, patient.y);
+    const whatsapp = at('clinic-booking/whatsapp');
+    point('pointerdown', host, whatsapp.x, whatsapp.y, { ctrlKey: true });
+    point('pointermove', host, whatsapp.x + 30, whatsapp.y, { ctrlKey: true });
+    point('pointerup', host, whatsapp.x + 30, whatsapp.y, { ctrlKey: true });
+    expect([...(onSelect.mock.lastCall?.[0] as Selection).elements]).toEqual(['whatsapp']);
+    fireEvent.contextMenu(host, { clientX: whatsapp.x, clientY: whatsapp.y });
+    expect(screen.getByRole('menu', { name: 'WhatsApp channel' })).toBeInTheDocument();
+
+    // ⌘ still adds to the selection there.
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    point('pointerdown', host, patient.x, patient.y, { metaKey: true });
+    point('pointerup', host, patient.x, patient.y, { metaKey: true });
+    expect([...(onSelect.mock.lastCall?.[0] as Selection).elements].sort()).toEqual([
+      'patient',
+      'whatsapp',
+    ]);
+  });
+
+  it('opens once from the keyboard, for the current shape, wherever the event says it is', async () => {
+    const { host, at } = await started(<Harness />);
+    const whatsapp = at('clinic-booking/whatsapp');
+    point('pointerdown', host, whatsapp.x, whatsapp.y);
+    point('pointerup', host, whatsapp.x, whatsapp.y);
+    expect(fireEvent.keyDown(host, { key: 'ContextMenu' })).toBe(false);
+    const menu = screen.getByRole('menu', { name: 'WhatsApp channel' });
+    const items = within(menu).getAllByRole('menuitem');
+    expect(document.activeElement).toBe(items[0]);
+    fireEvent.keyDown(menu, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(items[1]);
+    // The event that follows the key is the key's: the menu stays as it is.
+    const patient = at('patient');
+    expect(fireEvent.contextMenu(host, { clientX: patient.x, clientY: patient.y })).toBe(false);
+    expect(screen.getByRole('menu', { name: 'WhatsApp channel' })).toBe(menu);
+    expect(document.activeElement).toBe(items[1]);
+    fireEvent.keyDown(menu, { key: 'Escape' });
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(host);
+    // With no key or press before it, the event comes from the keyboard too.
+    fireEvent.contextMenu(host, { clientX: patient.x, clientY: patient.y });
+    expect(screen.getByRole('menu', { name: 'WhatsApp channel' })).toBeInTheDocument();
+  });
+
+  it('moves a shape to a container chosen by name', async () => {
+    const program = localProgram();
+    const { host, at } = await started(<program.Live />);
+    const whatsapp = at('clinic-booking/whatsapp');
+    point('pointerdown', host, whatsapp.x, whatsapp.y);
+    point('pointerup', host, whatsapp.x, whatsapp.y);
+    fireEvent.keyDown(host, { key: 'F10', shiftKey: true });
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Move to…' }));
+    const chooser = screen.getByRole('dialog', { name: 'Move "WhatsApp channel" to…' });
+    const field = within(chooser).getByRole('combobox');
+    expect(document.activeElement).toBe(field);
+    fireEvent.change(field, { target: { value: 'sched' } });
+    await act(async () => {
+      fireEvent.keyDown(field, { key: 'Enter' });
+      await Promise.resolve();
+    });
+    await answers();
+    expect(program.onCommand.mock.lastCall?.[0]).toEqual({
+      type: 'change-container',
+      view: view.id,
+      to: 'scheduling',
+      shapes: [{ element: 'whatsapp', from: 'clinic-booking' }],
+    });
+    expect(said()).toBe('Move "WhatsApp channel" from "Clinic booking" into "Scheduling".');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(host);
+  });
+
+  it('asks before taking a shape out from the menu, without a ghost', async () => {
+    const overlays = vi.spyOn(CanvasRenderer.prototype, 'setOverlay');
+    const program = localProgram(withNamedMembership);
+    const { host, at } = await started(<program.Live />, withNamedMembership);
+    const whatsapp = at('clinic-booking/whatsapp');
+    point('pointerdown', host, whatsapp.x, whatsapp.y);
+    point('pointerup', host, whatsapp.x, whatsapp.y);
+    fireEvent.keyDown(host, { key: 'F10', shiftKey: true });
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Take out of "Clinic booking"' }));
+    const dialog = screen.getByRole('dialog', {
+      name: 'Take "WhatsApp channel" out of "Clinic booking"?',
+    });
+    expect((overlays.mock.lastCall?.[0] as Overlay).ghost).toBeUndefined();
+    expect(program.onCommand).not.toHaveBeenCalled();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Take out' }));
+      await Promise.resolve();
+    });
+    await answers();
+    expect(program.onCommand.mock.lastCall?.[0]).toMatchObject({
+      type: 'change-container',
+      shapes: [{ element: 'whatsapp', from: 'clinic-booking', at: { x: 1260, y: 40 } }],
+    });
+    expect(said()).toBe('Take "WhatsApp channel" out of "Clinic booking".');
+    expect(document.activeElement).toBe(host);
   });
 });

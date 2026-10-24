@@ -112,7 +112,9 @@ describe('The canvas from the keyboard', () => {
       screen.getByText('Ctrl+↑ and Ctrl+↓ (⌘ on macOS), or Ctrl+] and Ctrl+['),
     ).toBeInTheDocument();
     expect(
-      screen.getByText('Ctrl+Shift+↑ and Ctrl+Shift+↓, or Ctrl+} and Ctrl+{ (⌥⌘] and ⌥⌘[ on macOS)'),
+      screen.getByText(
+        'Ctrl+Shift+↑ and Ctrl+Shift+↓, or Ctrl+} and Ctrl+{ (⌥⌘] and ⌥⌘[ on macOS)',
+      ),
     ).toBeInTheDocument();
     expect(screen.getByText('Shift+F10 or the menu key')).toBeInTheDocument();
     expect(screen.getByText('Alt while dragging (⌥ on macOS)')).toBeInTheDocument();
@@ -245,16 +247,24 @@ describe('The canvas from the keyboard', () => {
     expect(said()).toBe('Appointments DB, Calendar, in Scheduling, 2 relations.');
   });
 
-  it('leaves Ctrl, ⌘ and Alt with [ and ] alone', async () => {
-    const { host, at } = await started();
+  it('Ctrl and ⌘ with [ and ] change the stacking order; Alt with them is left alone', async () => {
+    const onCommand = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
+    const { host, at } = await started({ onCommand });
     clickOn(host, at('clinic-booking/booking-agent'));
-    press(host, 'ArrowRight');
+    // The Booking agent overlaps nothing beside it, so each press says why nothing changed.
+    expect(press(host, ']', { ctrlKey: true })).toBe(false);
+    expect(said()).toBe(
+      '"Booking agent" is already in front of everything it overlaps inside "Clinic booking".',
+    );
+    expect(press(host, '[', { metaKey: true })).toBe(false);
+    expect(said()).toBe(
+      '"Booking agent" is already behind everything it overlaps inside "Clinic booking".',
+    );
+    expect(press(host, '}', { ctrlKey: true, shiftKey: true })).toBe(false);
     const before = said();
-    expect(press(host, ']', { ctrlKey: true })).toBe(true);
-    expect(press(host, '[', { metaKey: true })).toBe(true);
-    expect(press(host, ']', { ctrlKey: true, shiftKey: true })).toBe(true);
     expect(press(host, ']', { altKey: true })).toBe(true);
     expect(said()).toBe(before);
+    expect(onCommand).not.toHaveBeenCalled();
   });
 
   it('leaves Tab alone, so that it leaves the canvas', async () => {
