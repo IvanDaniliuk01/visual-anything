@@ -421,11 +421,18 @@ function placeShapes(
   return { shapes, inWorld, contents };
 }
 
-/** Gives contents without a stored position a place in a row below the contents that have one. */
+/**
+ * Gives contents without a stored position a place in a row below the contents that have one, and
+ * below the container's name, even when those stick out of its top.
+ */
 function arrangeContents(contents: Box[]): void {
   const positioned = contents.filter((box) => box.offset !== undefined);
   const below = maxOf(positioned.map((box) => (box.offset?.y ?? 0) + box.height));
-  layOutRow(contents, CONTAINER_PADDING, below === undefined ? CONTAINER_HEADER : below + ROW_GAP);
+  layOutRow(
+    contents,
+    CONTAINER_PADDING,
+    below === undefined ? CONTAINER_HEADER : Math.max(CONTAINER_HEADER, below + ROW_GAP),
+  );
 }
 
 /** Places every box that has no offset yet in a row starting at (x, y). */
