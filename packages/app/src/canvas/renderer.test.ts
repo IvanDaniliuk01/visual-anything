@@ -11,6 +11,7 @@ import type { Rect } from './geometry';
 import { indexScene, type IndexedScene } from './hit';
 import { CanvasRenderer, COARSE_BELOW, NAMES_FROM } from './renderer';
 import { buildScene, type ElementShape, type Scene } from './scene';
+import { MAX_BANDS } from './tiles';
 
 vi.mock('pixi.js', async (importOriginal) => {
   const pixi = await importOriginal<typeof import('pixi.js')>();
@@ -23,6 +24,7 @@ interface TileView {
   key: string;
   kind: 'shapes' | 'relations' | 'free';
   band: number;
+  rank: number;
   container: Container;
   shapes: ElementShape[];
   full?: Graphics;
@@ -33,8 +35,9 @@ interface TileView {
 
 interface Inside {
   tiles: Map<string, TileView>;
-  shapeLayer: Container;
-  dragLayer: Container;
+  elementShapes: Container;
+  overflowBand: Container;
+  dragged: Container;
   reroutedLines: Graphics;
   selectionChunks: Graphics[];
   movingMarks: Graphics;
@@ -156,20 +159,55 @@ afterEach(() => {
 });
 
 describe('CanvasRenderer bands', () => {
-  it('draws the bands in increasing order, under the shapes beyond them', async () => {
+  it('draws the bands in increasing order, each by region with its plain drawings under the rest', async () => {
     const renderer = await started();
     renderer.show(withCalendar());
-    const { shapeLayer } = inside(renderer);
-    expect(shapeLayer.children).toHaveLength(5);
+    const { elementShapes, overflowBand } = inside(renderer);
+    // Four bands, then the shapes beyond them, of which there are none.
+    expect(elementShapes.children).toHaveLength(5);
+    expect(elementShapes.children.at(-1)).toBe(overflowBand);
+    expect(overflowBand.children).toHaveLength(0);
     for (const tile of shapeTiles(renderer)) {
-      // Each band draws its tiles by region.
-      const band = tile.container.parent?.parent as Container;
-      expect(shapeLayer.children.indexOf(band)).toBe(tile.band);
+      const [plain, detail] = (elementShapes.children[tile.band] as Container).children;
+      expect(tile.container.parent?.parent).toBe(detail);
+      expect(tile.coarse?.parent?.parent).toBe(plain);
     }
     const calendar = shapeTiles(renderer).find((tile) =>
       tile.shapes.some((shape) => shape.element === 'calendar'),
     );
     expect(calendar?.band).toBe(3);
+  });
+
+  it('draws the shapes beyond the bands above every band, each tile whole and in drawing order', async () => {
+    // A staircase in which each shape lies over the ones before it: one band for each of the first
+    // ones, and the rest beyond the bands.
+    const shapes = Array.from({ length: MAX_BANDS + 8 }, (_, at) =>
+      shapeAt(`s${at}`, { x: at * 10, y: at * 10, width: 100, height: 100 }),
+    );
+    const renderer = await started();
+    renderer.show(
+      indexScene(
+        sceneOf(
+          shapes,
+          shapes.map((_, at) => at),
+        ),
+      ),
+    );
+    const { elementShapes, overflowBand } = inside(renderer);
+    expect(elementShapes.children).toHaveLength(MAX_BANDS + 1);
+    expect(elementShapes.children.at(-1)).toBe(overflowBand);
+    const beyond = shapeTiles(renderer)
+      .filter((tile) => tile.band === MAX_BANDS)
+      .sort((a, b) => a.rank - b.rank);
+    expect(beyond.flatMap((tile) => tile.shapes.map((shape) => shape.key))).toEqual(
+      shapes.slice(MAX_BANDS).map((shape) => shape.key),
+    );
+    expect(overflowBand.children).toEqual(beyond.map((tile) => tile.container));
+    for (const tile of beyond) {
+      // Its plain drawing with the rest of it, and drawn on its own.
+      expect(tile.coarse?.parent).toBe(tile.container);
+      expect(tile.container.isRenderGroup).toBe(true);
+    }
   });
 
   it('keeps every tile’s container when a restack only moves whole tiles to other bands', async () => {
@@ -258,6 +296,40 @@ describe('CanvasRenderer frames', () => {
     renderer.show(withCalendar({ world: ['calendar'] }));
     renderer.renderNow();
     expect(shapeTiles(renderer).every((tile) => !tile.container.culled)).toBe(true);
+  });
+
+  it('leaves out of the frame whole regions of plain drawings, never one tile’s alone', async () => {
+    const renderer = await started();
+    renderer.show(withCalendar());
+    renderer.setCamera({ x: 0, y: 0, scale: 0.1 });
+    renderer.renderNow();
+    const plain = shapeTiles(renderer).map((tile) => tile.coarse as Graphics);
+    const regions = new Set(plain.map((drawing) => drawing.parent as Container));
+    expect([...regions].every((region) => !region.culled)).toBe(true);
+    renderer.setCamera({ x: -100_000, y: -100_000, scale: 0.1 });
+    renderer.renderNow();
+    expect([...regions].every((region) => region.culled)).toBe(true);
+    expect(plain.every((drawing) => !drawing.culled)).toBe(true);
+    renderer.setCamera({ x: 0, y: 0, scale: 0.1 });
+    renderer.renderNow();
+    expect([...regions].every((region) => !region.culled)).toBe(true);
+  });
+
+  it('hides a plain drawing under its full one by making it clear, never by leaving it out', async () => {
+    const renderer = await started();
+    renderer.show(withCalendar());
+    renderer.setCamera({ x: 0, y: 0, scale: 1 });
+    renderer.renderNow();
+    const tiles = shapeTiles(renderer);
+    expect(tiles.every((tile) => tile.full?.visible === true)).toBe(true);
+    expect(tiles.every((tile) => tile.coarse?.visible === true && tile.coarse.alpha === 0)).toBe(
+      true,
+    );
+    renderer.setCamera({ x: 0, y: 0, scale: COARSE_BELOW / 2 });
+    renderer.renderNow();
+    expect(tiles.every((tile) => tile.full?.visible === false && tile.coarse?.alpha === 1)).toBe(
+      true,
+    );
   });
 
   it('destroys the drawings of the tiles it drops, their geometry included', async () => {
@@ -405,9 +477,9 @@ describe('CanvasRenderer drags', () => {
     expect(inside(renderer).tiles.has('free')).toBe(true);
     renderer.startDrag(new Set(), new Set());
     expect(inside(renderer).tiles.has('free')).toBe(false);
-    expect(inside(renderer).dragLayer.children.length).toBeGreaterThan(0);
+    expect(inside(renderer).dragged.children.length).toBeGreaterThan(0);
     renderer.dragTo({ x: 100, y: 0 });
-    expect(inside(renderer).dragLayer.position.x).toBe(100);
+    expect(inside(renderer).dragged.position.x).toBe(100);
     renderer.endDrag();
     expect(inside(renderer).tiles.has('free')).toBe(true);
   });
@@ -483,7 +555,7 @@ describe('CanvasRenderer drags', () => {
     renderer.show(indexed);
     const drag = renderer.startDrag(new Set(['patient']), new Set());
     renderer.destroy();
-    const removed = vi.spyOn(inside(renderer).dragLayer, 'removeChildren');
+    const removed = vi.spyOn(inside(renderer).dragged, 'removeChildren');
     const rebuilds = vi.spyOn(renderer as unknown as { rebuild: () => void }, 'rebuild');
     expect(() => renderer.endDrag(drag)).not.toThrow();
     expect(() => renderer.startDrag(new Set(['patient']), new Set())).not.toThrow();

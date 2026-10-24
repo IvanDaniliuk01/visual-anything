@@ -201,13 +201,15 @@ export class CanvasRenderer {
   // instead of every shape's. What changes often is drawn apart from the tiles, in containers drawn
   // the same way, so that a change there never makes PixiJS gather the tiles' drawings again.
   private readonly world = new Container({ isRenderGroup: true });
-  private readonly shapeLayer = new Container();
-  private readonly relationLayer = new Container();
-  private readonly freeLayer = new Container();
+  /** Element shapes: the bands in increasing order, then the shapes beyond the bands. */
+  private readonly elementShapes = new Container();
+  private readonly relations = regionsIn(new Container());
+  private readonly freeShapes = new Container();
   private readonly rerouted = new Container({ isRenderGroup: true });
   private readonly reroutedLines = new Graphics();
-  private readonly dragLayer = new Container({ isRenderGroup: true });
-  private readonly marksLayer = new Container({ isRenderGroup: true });
+  private readonly dragged = new Container({ isRenderGroup: true });
+  /** The marks of the selection, of the shape under the pointer and of the gesture under way. */
+  private readonly marks = new Container({ isRenderGroup: true });
   private readonly hoverMark = new Graphics();
   /** The selection's marks: those of relations and arrows, and boxes in chunks drawn a few a frame. */
   private readonly selectionMarks = new Container();
@@ -225,11 +227,11 @@ export class CanvasRenderer {
   /** The marks of what is dragged, which move with it. */
   private readonly movingMarks = new Graphics();
   private readonly gestureMarks = new Graphics();
-  /** One container for each band in use, in increasing order, under the shapes beyond the bands. */
-  private readonly bands: Container[] = [];
-  private readonly bandRegions: Map<string, Container>[] = [];
-  private readonly relationRegions = new Map<string, Container>();
+  /** The regions of each band in use, in increasing order, under the shapes beyond the bands. */
+  private readonly bands: Regions[] = [];
   private readonly overflowBand = new Container({ isRenderGroup: true });
+  /** Where the plain drawings of each region lie, once the tiles change; culling goes by them. */
+  private plainBounds: Map<Container, Rect> | undefined;
   private readonly tiles = new Map<string, Tile>();
   private tileOfShape = new Map<string, Tile>();
   private readonly text: TextFactory;
@@ -250,7 +252,7 @@ export class CanvasRenderer {
     | { notes: readonly NoteShape[]; arrows: readonly ArrowShape[]; hidden: ReadonlySet<Id> }
     | undefined;
   /** How many selection marks are drawn, and whether they wait for the camera to rest. */
-  private marks = 0;
+  private markCount = 0;
   private marksStale = false;
   private observer: ResizeObserver | undefined;
   private frame = 0;
@@ -267,22 +269,17 @@ export class CanvasRenderer {
     options: RendererOptions = {},
   ) {
     this.text = options.text ?? bitmapText;
-    this.shapeLayer.addChild(this.overflowBand);
+    this.elementShapes.addChild(this.overflowBand);
     this.rerouted.addChild(this.reroutedLines);
     this.selectionMarks.addChild(this.lineMarks);
-    this.marksLayer.addChild(
-      this.hoverMark,
-      this.selectionMarks,
-      this.movingMarks,
-      this.gestureMarks,
-    );
+    this.marks.addChild(this.hoverMark, this.selectionMarks, this.movingMarks, this.gestureMarks);
     this.world.addChild(
-      this.shapeLayer,
-      this.relationLayer,
-      this.freeLayer,
+      this.elementShapes,
+      this.relations.container,
+      this.freeShapes,
       this.rerouted,
-      this.dragLayer,
-      this.marksLayer,
+      this.dragged,
+      this.marks,
     );
     void this.start();
   }
@@ -361,9 +358,9 @@ export class CanvasRenderer {
     } catch (error) {
       this.callbacks.onFailure(error);
     }
-    this.dragLayer.alpha = 0.85;
+    this.dragged.alpha = 0.85;
     this.rerouted.alpha = 0.85;
-    this.dragLayer.position.set(0, 0);
+    this.dragged.position.set(0, 0);
     this.movingMarks.position.set(0, 0);
     this.drawSelection();
     this.requestRender();
@@ -372,7 +369,7 @@ export class CanvasRenderer {
 
   /** Moves the dragged shapes by a distance in scene units. */
   dragTo(delta: Point): void {
-    this.dragLayer.position.set(delta.x, delta.y);
+    this.dragged.position.set(delta.x, delta.y);
     this.movingMarks.position.set(delta.x, delta.y);
     if (this.drag) this.drag.delta = delta;
     this.requestRender();
@@ -432,7 +429,7 @@ export class CanvasRenderer {
     this.world.scale.set(camera.scale);
     if (zoomed) {
       // Marks keep their width on screen; many of them are drawn again only once the camera rests.
-      if (this.marks <= MARKS_WHILE_MOVING) this.drawSelection();
+      if (this.markCount <= MARKS_WHILE_MOVING) this.drawSelection();
       else this.marksStale = true;
       this.drawHover();
       this.drawGesture();
@@ -611,13 +608,13 @@ export class CanvasRenderer {
         rank: to.rank,
         shapes: to.shapes,
       });
-      this.bandContainer(to.band, to.cell).addChild(tile.container);
+      this.place(tile);
       this.tiles.set(to.key, tile);
     }
     for (const next of plan.make) {
       const tile = this.makeShapeTile(next);
       this.tiles.set(next.key, tile);
-      this.bandContainer(next.band, next.cell).addChild(tile.container);
+      this.place(tile);
       if (next.band === MAX_BANDS) reorder = true;
       const wasReady =
         ready !== undefined && next.shapes.every((shape) => isReady(ready.get(shape.key), wanted));
@@ -627,6 +624,9 @@ export class CanvasRenderer {
       }
     }
     if (reorder) this.orderOverflow();
+    if (plan.make.length > 0 || plan.move.length > 0 || plan.drop.length > 0) {
+      this.plainBounds = undefined;
+    }
 
     this.tileOfShape = new Map();
     for (const tile of this.tiles.values()) {
@@ -651,6 +651,7 @@ export class CanvasRenderer {
       if (tile.kind === 'relations' && !cells.has(key)) {
         this.tiles.delete(key);
         destroyTile(tile);
+        this.plainBounds = undefined;
       }
     }
     const { coarse, wanted } = this.detailNow();
@@ -664,7 +665,8 @@ export class CanvasRenderer {
       const cell = cellOf((lines[0] as RelationLine).middle);
       const tile = this.makeRelationTile(key, cell, signature, lines);
       this.tiles.set(key, tile);
-      regionIn(this.relationLayer, this.relationRegions, cell).addChild(tile.container);
+      this.place(tile);
+      this.plainBounds = undefined;
       if (existing) {
         // In place of a tile drawn in full, the new one is drawn in full at once.
         if (!coarse && existing.full && budget.left > 0) {
@@ -696,7 +698,7 @@ export class CanvasRenderer {
       if (shownNotes.length > 0 || shownArrows.length > 0) {
         const tile = this.makeFreeTile(signature, shownNotes, shownArrows);
         this.tiles.set('free', tile);
-        this.freeLayer.addChild(tile.container);
+        this.place(tile);
       }
     }
     this.freeFrom = { notes, arrows, hidden };
@@ -714,23 +716,38 @@ export class CanvasRenderer {
   }
 
   /**
-   * The container the tiles of a band in a cell go in: the band's container for the cell's region,
-   * made with the bands below it when first needed.
+   * Puts a tile's drawings where they are drawn. In a band, or among the relations, its plain drawing
+   * goes with the plain drawings of its region, which are drawn together and stay as they are when
+   * the camera moves, and the rest with the full drawings and labels of its region. Beyond the bands,
+   * the tile is drawn whole and on its own, in drawing order.
    */
-  private bandContainer(band: number, cell: string): Container {
-    if (band >= MAX_BANDS) return this.overflowBand;
-    while (this.bands.length <= band) {
-      const container = new Container();
-      // Below the shapes beyond the bands, which are always drawn last.
-      this.shapeLayer.addChildAt(container, this.bands.length);
-      this.bands.push(container);
-      this.bandRegions.push(new Map());
+  private place(tile: Tile): void {
+    if (tile.kind === 'free') {
+      this.freeShapes.addChild(tile.container);
+      return;
     }
-    return regionIn(
-      this.bands[band] as Container,
-      this.bandRegions[band] as Map<string, Container>,
-      cell,
-    );
+    if (tile.kind === 'shapes' && tile.band >= MAX_BANDS) {
+      if (tile.coarse) tile.container.addChildAt(tile.coarse, 0);
+      // What the tile shows or leaves out then changes it alone, not the other shapes beyond the bands.
+      tile.container.isRenderGroup = true;
+      this.overflowBand.addChild(tile.container);
+      return;
+    }
+    tile.container.isRenderGroup = false;
+    const regions = tile.kind === 'shapes' ? this.band(tile.band) : this.relations;
+    if (tile.coarse) regionIn(regions.plain, regions.plainRegions, tile.cell).addChild(tile.coarse);
+    regionIn(regions.detail, regions.detailRegions, tile.cell).addChild(tile.container);
+  }
+
+  /** The regions of a band, made with the bands below it when first needed. */
+  private band(band: number): Regions {
+    while (this.bands.length <= band) {
+      // Below the shapes beyond the bands, which are always drawn last.
+      const regions = regionsIn(new Container());
+      this.elementShapes.addChildAt(regions.container, this.bands.length);
+      this.bands.push(regions);
+    }
+    return this.bands[band] as Regions;
   }
 
   /** Puts the tiles of the shapes beyond the bands in drawing order. */
@@ -810,8 +827,8 @@ export class CanvasRenderer {
         bounds: Rect | undefined;
       },
   ): Tile {
+    // The plain drawing goes where `place` puts it.
     const container = new Container();
-    if (parts.coarse) container.addChild(parts.coarse);
     if (parts.full) container.addChild(parts.full);
     const { bounds, ...rest } = parts;
     return {
@@ -829,14 +846,14 @@ export class CanvasRenderer {
     };
   }
 
-  /** Makes the full drawing of a tile, under its labels. */
+  /** Makes the full drawing of a tile, over its plain drawing and under its labels. */
   private drawFully(tile: Tile): void {
     const full = new Graphics();
     if (tile.kind === 'shapes') drawShapeOutlines(full, tile.shapes);
     else drawRelationRoutes(full, tile.lines);
-    tile.container.addChildAt(full, tile.coarse ? 1 : 0);
+    tile.container.addChildAt(full, tile.coarse?.parent === tile.container ? 1 : 0);
     tile.full = full;
-    if (tile.coarse) tile.coarse.visible = false;
+    showPlain(tile, false);
   }
 
   /** Draws a tile in full and writes all its labels for `shown` now, outside the frame's budget. */
@@ -924,7 +941,7 @@ export class CanvasRenderer {
       if (!near && tile.container.culled) continue;
       const wanted = wantedFor(tile.kind, detail);
       const full = !coarse && tile.full !== undefined;
-      if (tile.coarse) tile.coarse.visible = !full;
+      showPlain(tile, !full);
       if (tile.full) tile.full.visible = full || !tile.coarse;
       if (tile.labels) {
         if (wanted === 0) tile.labels.visible = false;
@@ -999,7 +1016,7 @@ export class CanvasRenderer {
         if (child instanceof Text && child.resolution !== resolution) child.resolution = resolution;
       }
     }
-    for (const child of this.dragLayer.children) {
+    for (const child of this.dragged.children) {
       if (child instanceof Text && child.resolution !== resolution) child.resolution = resolution;
     }
   }
@@ -1059,20 +1076,20 @@ export class CanvasRenderer {
         shapes.filter((shape) => !inFull(shape)),
       );
       drawShapeOutlines(graphics, shapes.filter(inFull));
-      this.dragLayer.addChild(graphics, ...label(shapes));
+      this.dragged.addChild(graphics, ...label(shapes));
     }
     // Beyond the bands, one after another, each over the names of those before it.
     let graphics: Graphics | undefined;
     for (const shape of beyond) {
       if (!graphics) {
         graphics = new Graphics();
-        this.dragLayer.addChild(graphics);
+        this.dragged.addChild(graphics);
       }
       if (inFull(shape)) drawShapeOutlines(graphics, [shape]);
       else drawShapeBlocks(graphics, [shape], true);
       const names = label([shape]);
       if (names.length > 0) {
-        this.dragLayer.addChild(...names);
+        this.dragged.addChild(...names);
         graphics = undefined;
       }
     }
@@ -1103,7 +1120,7 @@ export class CanvasRenderer {
       const drawn = new Graphics();
       if (coarse) drawRelationLines(drawn, rigid);
       else drawRelationRoutes(drawn, rigid);
-      this.dragLayer.addChild(drawn);
+      this.dragged.addChild(drawn);
     }
 
     const notes = scene.notes.filter((note) => hidden.free.has(note.id));
@@ -1111,11 +1128,11 @@ export class CanvasRenderer {
     if (notes.length > 0 || arrows.length > 0) {
       const free = new Graphics();
       drawFreeShapes(free, notes, arrows);
-      this.dragLayer.addChild(free);
+      this.dragged.addChild(free);
       if (named) {
         for (const text of writeNoteTexts(notes)) {
           text.resolution = this.textResolution();
-          this.dragLayer.addChild(text);
+          this.dragged.addChild(text);
         }
       }
     }
@@ -1180,11 +1197,11 @@ export class CanvasRenderer {
 
   private clearDrag(): void {
     if (this.status === 'destroyed') return;
-    for (const child of this.dragLayer.removeChildren()) {
+    for (const child of this.dragged.removeChildren()) {
       child.destroy({ children: true, context: true });
     }
     this.reroutedLines.clear();
-    this.dragLayer.position.set(0, 0);
+    this.dragged.position.set(0, 0);
     this.movingMarks.position.set(0, 0);
   }
 
@@ -1199,7 +1216,7 @@ export class CanvasRenderer {
     for (const chunk of this.selectionChunks) chunk.clear();
     moving.clear();
     lineMarks.clear();
-    this.marks = 0;
+    this.markCount = 0;
     this.marksStale = false;
     this.markRects = [];
     this.marksDrawn = 0;
@@ -1267,7 +1284,7 @@ export class CanvasRenderer {
         if (each.length === 0) continue;
         for (const line of each) traceRoute(graphics, line.route);
         graphics.stroke(style);
-        this.marks += each.length;
+        this.markCount += each.length;
       }
     }
     const stillArrows = arrows.filter((arrow) => !hidden.free.has(arrow.id));
@@ -1280,7 +1297,7 @@ export class CanvasRenderer {
       for (const arrow of each) traceRoute(graphics, [arrow.from, arrow.to]);
       graphics.stroke({ color: SELECTED, width: 8 / scale, alpha: 0.35, cap: 'round' });
     }
-    this.marks += this.markRects.length + carriedBoxes + arrows.length;
+    this.markCount += this.markRects.length + carriedBoxes + arrows.length;
     this.drawChunks();
   }
 
@@ -1380,17 +1397,34 @@ export class CanvasRenderer {
   }
 
   /**
-   * Leaves out of the frame the tiles off screen, for where the camera is now. A tile comes back as
-   * soon as it shows, but goes only once it is half a screen away, since every change of what shows
-   * makes PixiJS gather the drawings again.
+   * Leaves out of the frame what is off screen, for where the camera is now: the full drawings and
+   * labels of each tile, and the plain drawings of whole regions. Something comes back as soon as it
+   * shows, but goes only once it is half a screen away, since every change of what shows makes PixiJS
+   * gather again the drawings around it. A tile's plain drawing is never left out on its own: that
+   * would make PixiJS gather again every plain drawing of its region.
    */
   private cull(): void {
     const shown = visibleRect(this.camera, this.viewport);
     const away = grow(shown, Math.max(shown.width, shown.height) / 2);
-    for (const { container, bounds } of this.tiles.values()) {
+    const cullBy = (container: Container, bounds: Rect) => {
       if (container.culled) container.culled = !meets(bounds, shown);
       else container.culled = !meets(bounds, away);
+    };
+    for (const { container, bounds } of this.tiles.values()) cullBy(container, bounds);
+    this.plainBounds ??= this.boundsOfPlainRegions();
+    for (const [region, bounds] of this.plainBounds) cullBy(region, bounds);
+  }
+
+  /** Where the plain drawings of each region lie, from the tiles in it. */
+  private boundsOfPlainRegions(): Map<Container, Rect> {
+    const bounds = new Map<Container, Rect>();
+    for (const tile of this.tiles.values()) {
+      const region = tile.coarse?.parent;
+      if (!region || region === tile.container) continue;
+      const known = bounds.get(region);
+      bounds.set(region, known ? (boundsOf([known, tile.bounds]) as Rect) : tile.bounds);
     }
+    return bounds;
   }
 
   /**
@@ -1486,6 +1520,34 @@ function cancelFrame(frame: number): void {
   else clearTimeout(frame);
 }
 
+/**
+ * Tiles drawn by region: the plain drawings of a region together, under the full drawings and labels
+ * of the same region. Shapes in one band never overlap, so the order of the tiles of a band is
+ * invisible, and a tile's plain drawing never shows with its full one.
+ */
+interface Regions {
+  container: Container;
+  plain: Container;
+  detail: Container;
+  plainRegions: Map<string, Container>;
+  detailRegions: Map<string, Container>;
+}
+
+function regionsIn(container: Container): Regions {
+  const plain = new Container();
+  const detail = new Container();
+  container.addChild(plain, detail);
+  return { container, plain, detail, plainRegions: new Map(), detailRegions: new Map() };
+}
+
+/**
+ * Shows or hides a tile's plain drawing. It is hidden by making it clear rather than by leaving it
+ * out: leaving out one drawing would make PixiJS gather again every plain drawing of its region.
+ */
+function showPlain(tile: Tile, shown: boolean): void {
+  if (tile.coarse) tile.coarse.alpha = shown ? 1 : 0;
+}
+
 /** The container for the region a cell falls in, among the regions of `container`. */
 function regionIn(container: Container, regions: Map<string, Container>, cell: string): Container {
   const [column = 0, row = 0] = cell.split(',').map(Number);
@@ -1508,8 +1570,9 @@ function batched(graphics: Graphics): Graphics {
   return graphics;
 }
 
-/** Destroys a tile with all it drew, its drawings' geometry included. */
+/** Destroys a tile with all it drew, its drawings' geometry included, its plain drawing wherever it is. */
 function destroyTile(tile: Tile): void {
+  tile.coarse?.destroy({ context: true });
   tile.container.destroy({ children: true, context: true });
 }
 
