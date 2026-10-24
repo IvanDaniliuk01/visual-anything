@@ -1,20 +1,28 @@
 /**
  * The canvas area: PixiJS draws the open view imperatively, outside React's state, so that drawing
  * scales to thousands of shapes. React owns the host element and what sits around the drawing: the
- * toolbar, the menu that relates two ends, the delete preview, the in-place text editor, the keyboard
- * help, and the live region that says what the keys select.
+ * toolbar, the menu that relates two ends, the shape menu, the container chooser, the delete preview
+ * and the question before a change of container, the in-place text editor, the caption beside a
+ * drop, the keyboard help, and the live region that says what the keys select and what changed.
+ *
+ * The keys of the stacking order work wherever the focus is, except while typing: they are taken
+ * for the whole window here, so that ⌘[ and ⌘] never leave the app.
  */
 import {
   appearanceOf,
   definitionsOf,
   modelIndexOf,
+  nestingTypesInView,
+  previewChangeContainer,
   previewDelete,
+  type ChangeContainerCommand,
   type Command,
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { Id, Note, ViewFile } from '@visual-anything/schema';
 import {
   useEffect,
+  useEffectEvent,
   useId,
   useLayoutEffect,
   useMemo,
@@ -23,19 +31,25 @@ import {
   useSyncExternalStore,
   type ComponentProps,
 } from 'react';
-import { EMPTY_SELECTION, selectionOf, type Selection } from '../editor/selection';
+import { EMPTY_SELECTION, selectionOf, sizeOf, type Selection } from '../editor/selection';
+import { isTextEntry } from '../live/shortcuts';
 import type { Camera } from './camera';
-import { CanvasController } from './controller';
-import { CanvasToolbar } from './CanvasToolbar';
+import { CanvasController, type ChangeToConfirm } from './controller';
+import { CanvasToolbar, type AddPlace } from './CanvasToolbar';
+import { ContainerChooser } from './ContainerChooser';
 import { DeleteDialog } from './DeleteDialog';
-import { centerOf, type Point } from './geometry';
-import { createAtCommand } from './gestures';
+import { confirmLabelOf, containerChangeLabel, moveToCommand, needsConfirmation } from './drop';
+import './drop.css';
+import type { Point } from './geometry';
+import { createAtCommand, createInsideCommand } from './gestures';
 import { indexScene, type IndexedScene } from './hit';
 import { InlineEditor } from './InlineEditor';
 import { KeyboardHelp } from './KeyboardHelp';
 import { CANVAS_KEYS_HINT } from './keys';
 import { RelationMenu } from './RelationMenu';
 import type { ElementShape, Scene } from './scene';
+import { ShapeMenu } from './ShapeMenu';
+import { restackCommand, stackingActions, stackingShortcut, type StackingMove } from './stacking';
 
 /** Sends a command to the local program; resolves with what it created, or `ok: false` when refused. */
 export type SendCommand = (command: Command) => Promise<{ ok: boolean; created?: Id[] }>;
@@ -70,6 +84,34 @@ interface Deleting {
   freeShapes: Id[];
 }
 
+/**
+ * A change of container that asks first, because it deletes more than the relations that placed the
+ * shapes: what it sends, and what the history calls it after the change's own label, as for a drop
+ * that moves other shapes along. A drop's waits in the canvas, which shows where its shapes land.
+ */
+interface Changing {
+  command: Command;
+  change: ChangeContainerCommand;
+  rest: string;
+  dropped: boolean;
+}
+
+/** The shape menu: where it opened, for which shape, and the shapes under the pointer there. */
+interface OpenMenu {
+  at: Point;
+  shape: string;
+  under?: string[];
+  /** Counts the openings, so that each one starts again from its first item. */
+  opening: number;
+}
+
+/** The container chooser: for which element, from which container, and how it asks. */
+interface Choosing {
+  element: Id;
+  container?: Id;
+  mode: 'put' | 'move';
+}
+
 const NOTE_SIZE = { width: 220, height: 90 };
 const ARROW_LENGTH = 160;
 const NOT_CONNECTED = 'Visual Anything is not connected, so nothing was changed.';
@@ -86,17 +128,26 @@ export function CanvasArea({
 }: CanvasAreaProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
+  const captionRef = useRef<HTMLDivElement>(null);
+  const addSelect = useRef<HTMLSelectElement>(null);
   const controllerRef = useRef<CanvasController | null>(null);
   const [failure, setFailure] = useState<string>();
   // The camera moves on every frame of a pan: only what shows it renders again.
   const [cameras] = useState(() => new CameraWatch());
   const [relating, setRelating] = useState<{ from: Id; to: Id; at: Point }>();
   const [deleting, setDeleting] = useState<Deleting>();
+  const [changing, setChanging] = useState<Changing>();
+  const [menu, setMenu] = useState<OpenMenu>();
+  const [choosing, setChoosing] = useState<Choosing>();
+  // The element the next element added goes inside, set from its menu, for the selection it was set for.
+  const [addTarget, setAddTarget] = useState<{ element: Id; selection: Selection }>();
   const [editing, setEditing] = useState<Editing>();
   // Each message counts, so that the same words said again are heard again.
   const [announcement, setAnnouncement] = useState({ text: '', count: 0 });
   // Counts the times something holding the focus closed by itself, to give the focus to the canvas.
   const [closedByItself, setClosedByItself] = useState(0);
+  // The element just added, whose first shape the camera brings into sight once it is drawn.
+  const revealNext = useRef<Id | undefined>(undefined);
   const hint = useId();
   // A scene that cannot be indexed cannot be drawn either: the canvas area says so, and the rest of
   // the app keeps working.
@@ -109,9 +160,9 @@ export function CanvasArea({
   }, [scene]);
   const indexed = indexing.indexed;
   const editable = onCommand !== undefined;
-  const latest = useRef({ project, view, selection, onSelect, onCommand });
+  const latest = useRef({ project, view, indexed, selection, onSelect, onCommand });
   useLayoutEffect(() => {
-    latest.current = { project, view, selection, onSelect, onCommand };
+    latest.current = { project, view, indexed, selection, onSelect, onCommand };
   });
 
   const announce = (text: string) => setAnnouncement((last) => ({ text, count: last.count + 1 }));
@@ -129,31 +180,52 @@ export function CanvasArea({
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    const controller = new CanvasController(host, {
-      select: (next) => latest.current.onSelect(next),
-      command: async (command) => (await send(command)).ok,
-      relate: (from, to, at) => setRelating({ from, to, at }),
-      // The preview opens unless the selection cannot be deleted, as World cannot.
-      remove: () => {
-        const { view: open, selection: selected } = latest.current;
-        setDeleting({
-          elements: [...selected.elements],
-          relations: [...selected.relations],
-          freeShapes: open.freeShapes
-            .filter((shape) => selected.freeShapes.has(shape.id))
-            .map((shape) => shape.id),
-        });
+    const caption = captionRef.current;
+    const controller = new CanvasController(
+      host,
+      {
+        select: (next) => latest.current.onSelect(next),
+        command: async (command) => (await send(command)).ok,
+        relate: (from, to, at) => setRelating({ from, to, at }),
+        // The preview opens unless the selection cannot be deleted, as World cannot.
+        remove: () => {
+          const { view: open, selection: selected } = latest.current;
+          setDeleting({
+            elements: [...selected.elements],
+            relations: [...selected.relations],
+            freeShapes: open.freeShapes
+              .filter((shape) => selected.freeShapes.has(shape.id))
+              .map((shape) => shape.id),
+          });
+        },
+        rename: (target) =>
+          setEditing(
+            target.kind === 'element'
+              ? { kind: 'element', element: target.shape.element, key: target.shape.key }
+              : { kind: 'note', id: target.note.id },
+          ),
+        camera: (camera) => cameras.set(camera),
+        failure: (error) => setFailure(error instanceof Error ? error.message : String(error)),
+        announce: (text) => setAnnouncement((last) => ({ text, count: last.count + 1 })),
+        confirmChange: (asked: ChangeToConfirm) => {
+          const { project: now, view: open } = latest.current;
+          setChanging({
+            command: asked.command,
+            change: asked.change,
+            rest: restOfLabel(asked.label, containerChangeLabel(now, open.id, asked.change)),
+            dropped: true,
+          });
+        },
+        menu: (at, shape, under) =>
+          setMenu((last) => ({
+            at,
+            shape: shape.key,
+            ...(under ? { under: under.map((each) => each.key) } : {}),
+            opening: (last?.opening ?? 0) + 1,
+          })),
       },
-      rename: (target) =>
-        setEditing(
-          target.kind === 'element'
-            ? { kind: 'element', element: target.shape.element, key: target.shape.key }
-            : { kind: 'note', id: target.note.id },
-        ),
-      camera: (camera) => cameras.set(camera),
-      failure: (error) => setFailure(error instanceof Error ? error.message : String(error)),
-      announce: (text) => setAnnouncement((last) => ({ text, count: last.count + 1 })),
-    });
+      caption ? { caption } : {},
+    );
     controllerRef.current = controller;
     return () => {
       controller.destroy();
@@ -166,6 +238,15 @@ export function CanvasArea({
     if (indexed) controllerRef.current?.update(project, view.id, indexed, editable);
   }, [project, view.id, indexed, editable]);
 
+  // Once the element just added is drawn, the camera brings its first shape into sight.
+  useEffect(() => {
+    const id = revealNext.current;
+    const first = id === undefined ? undefined : indexed?.byElement.get(id)?.[0];
+    if (!first) return;
+    revealNext.current = undefined;
+    controllerRef.current?.reveal(first.key);
+  }, [indexed]);
+
   useEffect(() => {
     controllerRef.current?.setSelection(selection);
   }, [selection]);
@@ -174,18 +255,57 @@ export function CanvasArea({
     if (revealed) controllerRef.current?.reveal(revealed.key);
   }, [revealed]);
 
-  // The menu and the delete preview can change nothing once the project cannot be changed, and the
-  // preview shows what deleting would do now: it closes once nothing it deletes is left.
+  // A drop's question that closed without being confirmed sends nothing, and its ghost goes.
+  const dropAsked = changing?.dropped === true;
+  useEffect(() => {
+    if (!dropAsked) controllerRef.current?.resolveChange(false);
+  }, [dropAsked]);
+
+  // What the toolbar, the shape menu and the stacking keys offer for the selection.
+  const stacking = useMemo(
+    () => (indexed ? stackingActions(indexed, project, view.id, selection, editable) : undefined),
+    [indexed, project, view.id, selection, editable],
+  );
+  // The target set from a menu ends once the selection changes.
+  const target = addTarget && addTarget.selection === selection ? addTarget.element : undefined;
+  const adding = useMemo(
+    () => addRuleOf(project, view, indexed, selection, target),
+    [project, view, indexed, selection, target],
+  );
+
+  // The menus and dialogs can change nothing once the project cannot be changed, and the previews
+  // show what deleting or changing would do now: one closes once nothing it deletes is left, or once
+  // the change can no longer be made.
   const deletion = useMemo(
     () => (deleting ? deletionOf(project, view, deleting) : undefined),
     [project, view, deleting],
   );
-  if ((relating || deleting) && !editable) {
+  const changePreview = useMemo(
+    () => (changing ? previewChangeContainer(project, changing.change) : undefined),
+    [project, changing],
+  );
+  const [changeProblem] = changePreview?.problems ?? [];
+  const chosenGone =
+    choosing !== undefined && modelIndexOf(project).element(choosing.element) === undefined;
+  const menuShape = menu ? indexed?.byKey.get(menu.shape) : undefined;
+  if ((relating || deleting || changing || choosing) && !editable) {
     setRelating(undefined);
     setDeleting(undefined);
+    setChanging(undefined);
+    setChoosing(undefined);
     setClosedByItself((count) => count + 1);
   } else if (deleting && !deletion) {
     setDeleting(undefined);
+    setClosedByItself((count) => count + 1);
+  } else if (changing && changeProblem) {
+    setChanging(undefined);
+    setClosedByItself((count) => count + 1);
+    announce(changeProblem.message);
+  } else if (chosenGone) {
+    setChoosing(undefined);
+    setClosedByItself((count) => count + 1);
+  } else if (menu && !menuShape) {
+    setMenu(undefined);
     setClosedByItself((count) => count + 1);
   }
 
@@ -215,6 +335,7 @@ export function CanvasArea({
   }, [closedByItself]);
 
   const controller = () => controllerRef.current;
+  const focusCanvas = () => hostRef.current?.focus();
 
   /**
    * What the user has chosen now, to tell when an answer comes whether they moved on since they
@@ -227,24 +348,104 @@ export function CanvasArea({
     return () => latest.current.selection === chosen && document.activeElement === focused;
   };
 
+  /**
+   * Changes the stacking order of the selection, and says what it did; a move that would change
+   * nothing says why instead.
+   */
+  const restack = (move: StackingMove) => {
+    if (!indexed) return;
+    const { command, reason, done } = restackCommand(
+      indexed,
+      project,
+      view.id,
+      selection,
+      move,
+      editable,
+    );
+    if (!command) {
+      if (reason !== undefined) announce(reason);
+      return;
+    }
+    void send(command).then((result) => {
+      if (result.ok && done !== undefined) announce(done);
+    });
+  };
+
+  // The stacking keys, wherever the focus is: never while typing, nor for a key something else took.
+  const onWindowKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if (event.defaultPrevented || event.isComposing || isTextEntry(event.target)) return;
+    const move = stackingShortcut({
+      key: event.key,
+      code: event.code,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      altGraph: event.getModifierState('AltGraph'),
+    });
+    if (move === undefined) return;
+    // Taken wherever it is pressed, so that ⌘[ and ⌘] never go back or forward in the browser.
+    event.preventDefault();
+    // A dialog or a menu takes its own keys: the stacking order waits for it to close.
+    const open = relating || deletion || changing || choosing || menu;
+    const inDialog =
+      event.target instanceof Element && event.target.closest('[role="dialog"]') !== null;
+    if (open || inDialog) return;
+    restack(move);
+  });
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => {
+      onWindowKeyDown(event);
+    };
+    window.addEventListener('keydown', listener);
+    return () => {
+      window.removeEventListener('keydown', listener);
+    };
+  }, []);
+
+  /**
+   * Changes the container of a shape, from the shape menu or the chooser: what it would delete is
+   * worked out first; a change the core would refuse says why, and one that deletes more than the
+   * relation that placed the shape asks first.
+   */
+  const changeContainer = (change: ChangeContainerCommand) => {
+    const preview = previewChangeContainer(project, change);
+    const [problem] = preview.problems;
+    if (problem) {
+      announce(problem.message);
+      return;
+    }
+    if (needsConfirmation(preview)) {
+      setChanging({ command: change, change, rest: '', dropped: false });
+      return;
+    }
+    void sendChange(change, containerChangeLabel(project, view.id, change));
+  };
+
+  /** Sends a change of container, and says what it did once it is done. */
+  const sendChange = async (command: Command, done: string) => {
+    const result = await send(command);
+    if (result.ok) announce(`${done}.`);
+  };
+
   const add = async (component: Id) => {
     const canvas = controller();
     if (!canvas) return;
-    const [selected] = selection.elements;
-    const inside =
-      selection.elements.size === 1 && selected !== undefined
-        ? indexed?.byElement.get(selected)?.[0]
-        : undefined;
-    const container = inside?.holdsContents ? inside : undefined;
-    const size = appearanceOf({ component }, definitionsOf(project.packages));
-    const center = container ? centerOf(container.rect) : canvas.center;
-    const command = createAtCommand(
-      project,
-      view.id,
-      component,
-      { x: center.x - size.width / 2, y: center.y - size.height / 2 },
-      container,
-    );
+    setAddTarget(undefined);
+    let command: Command | undefined;
+    if (adding.inside !== undefined) {
+      command = createInsideCommand(project, view.id, component, adding.inside);
+    } else {
+      const size = appearanceOf({ component }, definitionsOf(project.packages));
+      const center = canvas.center;
+      command = createAtCommand(
+        project,
+        view.id,
+        component,
+        { x: center.x - size.width / 2, y: center.y - size.height / 2 },
+        undefined,
+      );
+    }
     if (!command) return;
     const unchanged = intent();
     const result = await send(command);
@@ -252,6 +453,9 @@ export function CanvasArea({
     if (result.ok && id !== undefined && unchanged()) {
       onSelect(selectionOf([{ kind: 'element', id }]));
       setEditing({ kind: 'element', element: id });
+      const first = latest.current.indexed?.byElement.get(id)?.[0];
+      if (first) controller()?.reveal(first.key);
+      else revealNext.current = id;
     }
   };
 
@@ -302,7 +506,7 @@ export function CanvasArea({
     const { from, to } = relating;
     // The menu goes, and the focus it held comes back to the canvas now, not when the answer comes.
     setRelating(undefined);
-    hostRef.current?.focus();
+    focusCanvas();
     const unchanged = intent();
     const result = await send({ type: 'create-relation', relation: { relationType, from, to } });
     const id = result.created?.[0];
@@ -315,7 +519,7 @@ export function CanvasArea({
     if (!deletion) return;
     const { preview, freeShapes } = deletion;
     setDeleting(undefined);
-    hostRef.current?.focus();
+    focusCanvas();
     const commands: Command[] = [];
     if (preview.elements.length > 0 || preview.relations.length > 0) {
       const cascaded = new Set(preview.cascaded);
@@ -337,13 +541,32 @@ export function CanvasArea({
     if (result.ok && unchanged()) onSelect(EMPTY_SELECTION);
   };
 
+  /** How the history names the change asked about, from the project as it is now. */
+  const changeLabel = changing
+    ? `${containerChangeLabel(project, view.id, changing.change)}${changing.rest}`
+    : '';
+
+  const confirmChange = () => {
+    if (!changing) return;
+    setChanging(undefined);
+    focusCanvas();
+    // A drop's is sent by the canvas, which shows where its shapes land until it comes back.
+    if (changing.dropped) controller()?.resolveChange(true);
+    else void sendChange(changing.command, changeLabel);
+  };
+
+  const closeMenu = () => {
+    setMenu(undefined);
+    focusCanvas();
+  };
+
   /**
    * Closes the in-place editor. Closed with Enter or Escape, it gives the focus back to the canvas;
    * closed because the focus went elsewhere, it leaves the focus there.
    */
   const closeEditor = () => {
     setEditing(undefined);
-    if (frameRef.current?.contains(document.activeElement)) hostRef.current?.focus();
+    if (frameRef.current?.contains(document.activeElement)) focusCanvas();
   };
 
   return (
@@ -357,6 +580,11 @@ export function CanvasArea({
         onAddArrow={() => void addArrow()}
         onZoom={(factor) => controller()?.zoomBy(factor)}
         onFit={() => controller()?.fit()}
+        {...(adding.place ? { addPlace: adding.place } : {})}
+        {...(stacking ? { stacking } : {})}
+        onRestack={restack}
+        addSelect={addSelect}
+        onAddLeave={() => setAddTarget(undefined)}
       />
       <div
         ref={hostRef}
@@ -368,12 +596,13 @@ export function CanvasArea({
         aria-describedby={hint}
         tabIndex={0}
       />
+      <div ref={captionRef} className="canvas-drop-caption" aria-hidden="true" />
       <p id={hint} className="visually-hidden">
         {CANVAS_KEYS_HINT}
       </p>
       <div role="status" aria-label="Selection" className="visually-hidden">
         {announcement.text}
-        {announcement.count % 2 === 1 ? ' ' : ''}
+        {announcement.count % 2 === 1 ? ' ' : ''}
       </div>
       <KeyboardHelp />
       {relating && (
@@ -385,7 +614,74 @@ export function CanvasArea({
           onChoose={(relationType) => void relate(relationType)}
           onClose={() => {
             setRelating(undefined);
-            hostRef.current?.focus();
+            focusCanvas();
+          }}
+        />
+      )}
+      {menu && menuShape && indexed && stacking && (
+        <ShapeMenu
+          key={menu.opening}
+          indexed={indexed}
+          project={project}
+          viewId={view.id}
+          selection={selection}
+          shape={menuShape}
+          at={menu.at}
+          {...(menu.under
+            ? { under: menu.under.flatMap((key) => indexed.byKey.get(key) ?? []) }
+            : {})}
+          stacking={stacking}
+          editable={editable}
+          onRestack={(move) => {
+            // A move that would change nothing says why, and leaves the menu open for another.
+            if (stacking[move].enabled) closeMenu();
+            restack(move);
+          }}
+          onChange={(change) => {
+            closeMenu();
+            changeContainer(change);
+          }}
+          onChooseContainer={(mode) => {
+            setMenu(undefined);
+            setChoosing({
+              element: menuShape.element,
+              ...(menuShape.container === undefined ? {} : { container: menuShape.container }),
+              mode,
+            });
+          }}
+          onAddInside={(element) => {
+            setMenu(undefined);
+            setAddTarget({ element, selection });
+            const select = addSelect.current;
+            select?.focus();
+            try {
+              select?.showPicker?.();
+            } catch {
+              // Where the browser does not allow it, the list opens from the keyboard.
+            }
+          }}
+          onSelectShape={(other) => {
+            closeMenu();
+            onSelect(selectionOf([{ kind: 'element', id: other.element }]));
+            controller()?.reveal(other.key);
+          }}
+          onClose={closeMenu}
+        />
+      )}
+      {choosing && (
+        <ContainerChooser
+          project={project}
+          viewId={view.id}
+          element={choosing.element}
+          mode={choosing.mode}
+          onChoose={(to) => {
+            setChoosing(undefined);
+            focusCanvas();
+            changeContainer(moveToCommand(view.id, choosing, to));
+          }}
+          onCancel={() => {
+            setChoosing(undefined);
+            focusCanvas();
           }}
         />
       )}
@@ -397,7 +693,25 @@ export function CanvasArea({
           onConfirm={() => void confirmDelete()}
           onCancel={() => {
             setDeleting(undefined);
-            hostRef.current?.focus();
+            focusCanvas();
+          }}
+        />
+      )}
+      {changing && changePreview && (
+        <DeleteDialog
+          project={project}
+          preview={changePreview}
+          freeShapes={0}
+          action={{
+            title: `${changeLabel}?`,
+            confirmLabel: confirmLabelOf(project, changing.change),
+            leaving: changePreview.leaving,
+            withData: changePreview.withData,
+          }}
+          onConfirm={confirmChange}
+          onCancel={() => {
+            setChanging(undefined);
+            focusCanvas();
           }}
         />
       )}
@@ -445,6 +759,55 @@ export function CanvasArea({
       )}
     </div>
   );
+}
+
+/**
+ * Where "Add element" puts the next element, and how the toolbar says it:
+ * 1. inside the element set from its menu with Add inside "X"…, whatever it holds;
+ * 2. inside the one element selected, when its first shape holds contents;
+ * 3. next to the one element selected, inside the container its first shape sits in;
+ * 4. otherwise directly in World, at the middle of the canvas.
+ * In a view arranged by no relation type that nests, always directly in World.
+ */
+function addRuleOf(
+  project: ProjectSnapshot,
+  view: ViewFile,
+  indexed: IndexedScene | undefined,
+  selection: Selection,
+  target: Id | undefined,
+): { inside?: Id; place?: AddPlace } {
+  if (nestingTypesInView(project, view).length === 0) return {};
+  const index = modelIndexOf(project);
+  const nameOf = (id: Id) => index.element(id)?.name ?? id;
+  const inside = (container: Id, title: string): { inside: Id; place: AddPlace } => ({
+    inside: container,
+    place: {
+      option: `Add inside "${nameOf(container)}"…`,
+      label: `Add an element inside "${nameOf(container)}"`,
+      title,
+    },
+  });
+  const insideItself = (container: Id) =>
+    inside(
+      container,
+      `Adds the element inside "${nameOf(container)}". With nothing selected, elements are added directly in World.`,
+    );
+  if (target !== undefined && index.element(target)) return insideItself(target);
+  const [selected] = selection.elements;
+  if (sizeOf(selection) !== 1 || selected === undefined) return {};
+  const first = indexed?.byElement.get(selected)?.[0];
+  if (!first) return {};
+  if (first.holdsContents) return insideItself(selected);
+  if (first.container === undefined) return {};
+  return inside(
+    first.container,
+    `Adds the element inside "${nameOf(first.container)}", where "${nameOf(selected)}" sits. To add inside "${nameOf(selected)}" itself, use Add inside "${nameOf(selected)}"… in its menu or in the inspector.`,
+  );
+}
+
+/** What a drop's label says after the label of its change, such as ", and move 2 other shapes". */
+function restOfLabel(label: string, changeLabel: string): string {
+  return label.startsWith(changeLabel) ? label.slice(changeLabel.length) : '';
 }
 
 /**

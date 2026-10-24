@@ -114,6 +114,9 @@ export function ShapeMenu({
         if (event.key === 'Escape') onClose();
         else menuKeyDown(event);
       }}
+      // The menu key and Shift+F10 open it before their `contextmenu` event comes, which then comes
+      // to it, where the browser's own menu would open over it.
+      onContextMenu={(event) => event.preventDefault()}
     >
       <p className="canvas-menu-title" aria-hidden="true">
         {shape.name}

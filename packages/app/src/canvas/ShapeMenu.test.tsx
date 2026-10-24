@@ -112,6 +112,12 @@ describe('ShapeMenu', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the browser’s menu from opening over it, as the menu key’s own event would', () => {
+    const { menu } = open(withCalendar(), 'calendar');
+    const [first] = within(menu).getAllByRole('menuitem');
+    expect(fireEvent.contextMenu(first as HTMLElement)).toBe(false);
+  });
+
   it('offers to put a shape directly in World inside the container under its centre', () => {
     const project = withCalendar();
     const { menu, names, indexed, shape, onChange, onChooseContainer, onAddInside } = open(
