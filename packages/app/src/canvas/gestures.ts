@@ -6,6 +6,8 @@ import {
   definitionsOf,
   limitWarnings,
   modelIndexOf,
+  nestingTypesInView,
+  positionKey,
   type Command,
   type ProjectSnapshot,
   type ResolvedRelationType,
@@ -20,6 +22,8 @@ import type { ElementShape } from './scene';
  * The command that moves the selection by `delta`, in scene units, or `undefined` when nothing moves.
  * Every shape of a selected element moves, inside its own container; a shape whose container moves too
  * is carried along and keeps its place in it. Moved shapes are pinned: layout keeps them where they are.
+ * The elements in `except` are left out, for a command that places them otherwise, such as a drop
+ * into a container.
  */
 export function moveCommand(
   indexed: IndexedScene,
@@ -27,36 +31,60 @@ export function moveCommand(
   viewId: Id,
   selection: Selection,
   delta: Point,
+  except?: ReadonlySet<Id>,
 ): Command | undefined {
+  const parts = moveParts(indexed, project, viewId, selection, delta, except);
+  if (!parts) return undefined;
+  const { commands, shapes, viewName } = parts;
+  if (commands.length <= 1) return commands[0];
+  return { type: 'batch', label: `Move ${shapes} shapes in "${viewName}"`, commands };
+}
+
+/**
+ * The commands that make up a move, as `moveCommand` would send them: the positions of the moving
+ * shapes in one command, then one for each free shape; with how many shapes they move.
+ */
+export function moveParts(
+  indexed: IndexedScene,
+  project: ProjectSnapshot,
+  viewId: Id,
+  selection: Selection,
+  delta: Point,
+  except?: ReadonlySet<Id>,
+): { commands: Command[]; shapes: number; viewName: string } | undefined {
   const dx = Math.round(delta.x);
   const dy = Math.round(delta.y);
   if (dx === 0 && dy === 0) return undefined;
   const view = project.views.find((each) => each.id === viewId);
   if (!view) return undefined;
 
-  const moving = movingShapes(indexed, selection);
-  const positions: ShapePosition[] = moving.map((shape) => ({
-    element: shape.element,
-    ...(shape.container === undefined ? {} : { container: shape.container }),
-    x: Math.round(shape.offset.x + dx),
-    y: Math.round(shape.offset.y + dy),
-    ...shape.storedSize,
-    pinned: true,
-  }));
+  // Copies of a container share their contents' positions, so each is written once.
+  const positions = new Map<string, ShapePosition>();
+  for (const shape of movingShapes(indexed, selection)) {
+    if (except?.has(shape.element)) continue;
+    const position: ShapePosition = {
+      element: shape.element,
+      ...(shape.container === undefined ? {} : { container: shape.container }),
+      x: Math.round(shape.offset.x + dx),
+      y: Math.round(shape.offset.y + dy),
+      ...shape.storedSize,
+      pinned: true,
+    };
+    const key = positionKey(position);
+    if (!positions.has(key)) positions.set(key, position);
+  }
   const freeShapes = view.freeShapes
     .filter((shape) => selection.freeShapes.has(shape.id))
     .map((shape) => moved(shape, dx, dy));
 
   const commands: Command[] = [];
-  if (positions.length > 0) commands.push({ type: 'set-positions', view: view.id, positions });
+  if (positions.size > 0) {
+    commands.push({ type: 'set-positions', view: view.id, positions: [...positions.values()] });
+  }
   for (const shape of freeShapes)
     commands.push({ type: 'update-free-shape', view: view.id, shape });
-  if (commands.length <= 1) return commands[0];
-  return {
-    type: 'batch',
-    label: `Move ${positions.length + freeShapes.length} shapes in "${view.name}"`,
-    commands,
-  };
+  if (commands.length === 0) return undefined;
+  return { commands, shapes: positions.size + freeShapes.length, viewName: view.name };
 }
 
 /**
@@ -70,15 +98,16 @@ export function movingShapes(indexed: IndexedScene, selection: Selection): Eleme
 }
 
 /**
- * Every key of the shapes a move draws in a new place: the moving shapes and everything inside them.
- * A shape is carried when one of the shapes it sits in moves, which its key tells: one look-up per
- * container on its way out to World, however many shapes move.
+ * Every key of the shapes a move draws in a new place: the moving shapes and everything inside them,
+ * found by going down from each moving shape, so the cost is what moves, however large the scene.
  */
 export function carriedKeys(indexed: IndexedScene, moving: readonly ElementShape[]): Set<string> {
-  const movers = new Set(moving.map((shape) => shape.key));
-  const carried = new Set(movers);
-  for (const shape of indexed.scene.shapes) {
-    if (insideAnyOf(shape.key, movers)) carried.add(shape.key);
+  const carried = new Set<string>();
+  const waiting = moving.map((shape) => shape.key);
+  for (let key = waiting.pop(); key !== undefined; key = waiting.pop()) {
+    if (carried.has(key)) continue;
+    carried.add(key);
+    for (const content of indexed.contentsOf.get(key) ?? []) waiting.push(content.key);
   }
   return carried;
 }
@@ -106,8 +135,8 @@ function moved(shape: FreeShape, dx: number, dy: number): FreeShape {
 
 /**
  * The command that creates an element of a component at a point: inside the given shape, through
- * the view's first nesting relation type, or directly in World. Its position is stored but not
- * pinned, since no one chose it by hand: layout may arrange it, and moving it pins it.
+ * the first nesting relation type that arranges the view, or directly in World. Its position is
+ * stored but not pinned, since no one chose it by hand: layout may arrange it, and moving it pins it.
  */
 export function createAtCommand(
   project: ProjectSnapshot,
@@ -119,7 +148,7 @@ export function createAtCommand(
   const view = project.views.find((each) => each.id === viewId);
   const component = definitionsOf(project.packages).component(componentId);
   if (!view || !component) return undefined;
-  const nesting = view.nestingRelationTypes[0];
+  const nesting = nestingTypesInView(project, view)[0];
   const container = nesting === undefined ? undefined : inside;
   const origin = container ? { x: container.rect.x, y: container.rect.y } : { x: 0, y: 0 };
   return {
@@ -136,6 +165,29 @@ export function createAtCommand(
         y: Math.round(at.y - origin.y),
       },
     ],
+  };
+}
+
+/**
+ * The command that creates an element of a component inside a container, through the first nesting
+ * relation type that arranges the view, with no position: the shape lands where the container places
+ * new contents, below the ones it holds. `undefined` in World, or in a view that nests nothing.
+ */
+export function createInsideCommand(
+  project: ProjectSnapshot,
+  viewId: Id,
+  componentId: Id,
+  container: Id,
+): Command | undefined {
+  const view = project.views.find((each) => each.id === viewId);
+  const component = definitionsOf(project.packages).component(componentId);
+  if (!view || !component || container === project.model.world.id) return undefined;
+  const relationType = nestingTypesInView(project, view)[0];
+  if (relationType === undefined) return undefined;
+  return {
+    type: 'create-element',
+    element: { component: componentId, name: component.name },
+    containers: [{ container, relationType }],
   };
 }
 
