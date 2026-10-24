@@ -2,7 +2,7 @@
 
 ## What this is
 
-Visual Anything: an open-source, local-first tool to make any concept or system visual and explore it interactively (data science, physical AI, neuroscience, data modeling, systems architecture). Solo project, private for now. Everything in this repository is written in English.
+Visual Anything: an open-source, local-first tool to make any concept or system visual and explore it interactively (data science, physical AI, neuroscience, data modeling, systems architecture). Solo project, private for now. Everything in this repository is written in English, with American spelling (color, behavior).
 
 ## Read before working
 
@@ -16,7 +16,7 @@ Visual Anything: an open-source, local-first tool to make any concept or system 
 
 - `packages/core`: model, commands, invariants and the undo history. Pure TypeScript with no I/O, so it runs in Node and in the browser.
 - `packages/schema`: project file types and the JSON Schema generated from them.
-- `packages/server`: the local Node program. It owns the model and its history (ADR-0016), serves the app on 127.0.0.1, reads and writes the project folder, and exposes the MCP server and the WebSocket for live updates and guidance.
+- `packages/server`: the local Node program. It owns the model and its history (ADR-0016), serves the app on 127.0.0.1, reads and writes the project folder, keeps each person's preferences outside every project (ADR-0032), and exposes the MCP server and the WebSocket for live updates and guidance.
 - `packages/app`: React UI. The canvas is drawn with PixiJS (ADR-0014) and ELK layout runs in a Web Worker (ADR-0015). The app sends commands and renders what comes back.
 
 Each package is named `@visual-anything/<folder>`, such as `@visual-anything/core`. The packages export their TypeScript source, so nothing needs building before dev or tests.
@@ -27,7 +27,7 @@ Each package is named `@visual-anything/<folder>`, such as `@visual-anything/cor
 - Enforce and test these invariants in `core`: every element comes from exactly one component; components and relation types derive from exactly one parent, up to Essence and "relates to"; containment never forms a cycle; deleting a relation also deletes the relations that end on it, after a preview; relation-type limits only warn; scenario steps whose relation is deleted become broken steps and are never deleted.
 - Project files are JSON with the extensions `.vaproject`, `.vamodel`, `.vapackage`, `.vaview` and `.vascenario`. Validate them on open, write them with a stable key order, write atomically (temporary file, then rename), and never store code that runs.
 - The server binds to 127.0.0.1 only, checks the Origin and Host of every request, and requires a per-session token on the WebSocket. `core` has no network access.
-- Performance budget: a view with 10,000 elements pans, zooms and selects at a 60 fps target; layout never blocks the main thread.
+- Performance budget: a view with 10,000 elements pans, zooms and selects at a 60 fps target; a theme switch never stalls a frame; layout never blocks the main thread.
 
 ## Workflow
 
@@ -48,5 +48,6 @@ Run them at the repository root, with Node 22.13 or later and the pnpm version p
 - Lint: `pnpm lint` runs ESLint, then the Prettier check; `pnpm format` fixes formatting.
 - Typecheck: `pnpm typecheck`
 - Build: `pnpm build` regenerates the JSON Schema in `packages/schema/schemas/` and builds the app. After changing `packages/schema/src/files.ts`, run it and commit the schemas.
+- Theme tokens: after changing `packages/app/src/theme/themes.ts` or `scale.ts`, run `pnpm exec tsx packages/app/src/theme/generate.ts` and commit `tokens.css`; a test fails while they differ.
 - Benchmark: `pnpm bench` builds the benchmark pages for production and serves them on 127.0.0.1:47707; no token is needed, and official numbers come from this build. `/bench.html?elements=10000` drives the canvas alone and times the work of each frame, GPU included, so it is valid even in a window behind others; `?mode=frames` times frames as shown instead. `/app-bench.html?elements=10000` drives the whole app, React included: it times clicks, selecting everything, a keyboard move and one edit, and judges pan and zoom on frames as shown, so its window must stay in front at 60 Hz. `pnpm dev` serves the same pages for quick checks, but React's development build more than doubles what the app page measures. Run them with the machine otherwise idle.
 - Open another project: `pnpm exec tsx packages/server/src/cli.ts <folder> [--port <n>] [--no-open] [--dev]`

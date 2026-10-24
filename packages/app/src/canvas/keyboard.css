@@ -4,7 +4,7 @@
   position: absolute;
   bottom: 0.6rem;
   left: 0.6rem;
-  z-index: 2;
+  z-index: var(--z-toolbar);
   max-width: calc(100% - 1.2rem);
 }
 
@@ -16,7 +16,7 @@
   background: var(--surface);
   color: var(--text);
   font-size: 0.85rem;
-  box-shadow: 0 1px 2px rgb(16 24 40 / 6%);
+  box-shadow: var(--shadow-1);
   cursor: pointer;
   list-style: none;
 }
@@ -52,7 +52,7 @@
   border: 1px solid var(--border);
   border-radius: 0.5rem;
   background: var(--surface);
-  box-shadow: 0 8px 24px rgb(16 24 40 / 16%);
+  box-shadow: var(--shadow-2);
   font-size: 0.85rem;
 }
 
