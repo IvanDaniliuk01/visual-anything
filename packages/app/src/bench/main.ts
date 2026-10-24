@@ -25,6 +25,7 @@ import { hitAt, indexScene, type IndexedScene } from '../canvas/hit';
 import { DETAILS_FROM, NAMES_FROM } from '../canvas/renderer';
 import { buildScene, type ElementShape } from '../canvas/scene';
 import { MAX_BANDS, plannedTiles } from '../canvas/tiles';
+import { SHOWN, TARGET_FPS, WORK, addRow, percentile, showVerdict } from './report';
 import { OVERLAPS, seeded, syntheticProject, type Overlap } from './synthetic';
 
 interface Phase {
@@ -48,12 +49,6 @@ interface Timed {
   note?: string;
 }
 
-/** The target: 60 frames per second, which leaves 16.7 ms for each. */
-const TARGET_FPS = 60;
-/** What the work of a frame may take: on average, at the 95th percentile, and at worst two frames. */
-const WORK = { average: 10, p95: 13, worst: 2000 / TARGET_FPS };
-/** What frames as shown may take: they may run a little late now and then. */
-const SHOWN = { average: 1000 / (TARGET_FPS * 0.92), p95: 25 };
 /** How long a restack may take, from the command to the frame drawn, at the 95th percentile. */
 const RESTACK_MARK = 100;
 const VIEW = 'everything';
@@ -367,11 +362,6 @@ function settle(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-function percentile(values: number[], fraction: number): number {
-  const sorted = [...values].sort((a, b) => a - b);
-  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * fraction))] ?? 0;
-}
-
 /** How the scene's shapes fall in bands and tiles. */
 function bandReport(): string {
   const counts = new Map<number, number>();
@@ -441,11 +431,10 @@ function report(phases: Phase[], timed: Timed[], latency: number[]): void {
 
   const selection = { p50: percentile(latency, 0.5), p95: percentile(latency, 0.95) };
   status.textContent = `${size.toLocaleString()} elements, ${scene.relations.length.toLocaleString()} relations; ${mode === 'work' ? 'work of each frame, GPU included' : 'frames as shown'}. Scene built in ${prepared.toFixed(0)} ms. Selecting takes ${selection.p50.toFixed(2)} ms (p95 ${selection.p95.toFixed(2)} ms).`;
-  const verdict = document.getElementById('verdict') as HTMLElement;
-  verdict.className = passed ? 'pass' : 'fail';
-  verdict.textContent = passed
-    ? `Meets the ${TARGET_FPS} fps target in every phase.`
-    : `Misses the ${TARGET_FPS} fps target in at least one phase.`;
+  showVerdict(document.getElementById('verdict') as HTMLElement, passed, {
+    pass: `Meets the ${TARGET_FPS} fps target in every phase.`,
+    fail: `Misses the ${TARGET_FPS} fps target in at least one phase.`,
+  });
   console.info(
     'Visual Anything benchmark',
     JSON.stringify({
@@ -468,15 +457,4 @@ function report(phases: Phase[], timed: Timed[], latency: number[]): void {
       passed,
     }),
   );
-}
-
-function addRow(body: HTMLElement, className: string, values: string[]): void {
-  const tr = document.createElement('tr');
-  if (className) tr.className = className;
-  for (const value of values) {
-    const td = document.createElement('td');
-    td.textContent = value;
-    tr.appendChild(td);
-  }
-  body.appendChild(tr);
 }
