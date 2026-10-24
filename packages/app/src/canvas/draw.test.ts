@@ -10,6 +10,7 @@ import {
   writeShapeLabels,
   type TextFactory,
 } from './draw';
+import type { Rect } from './geometry';
 import { buildScene, type ElementShape } from './scene';
 
 const scene = buildScene(loadSample(), 'system-overview');
@@ -120,24 +121,40 @@ describe('fitText', () => {
 });
 
 describe('drawShapeBlocks', () => {
-  /** The rectangles stroked, by stroke colour. */
-  function outlined(shapes: ElementShape[]): number {
+  /** The rectangles filled with each colour, with no strokes at all. */
+  function blocks(shapes: ElementShape[]): Map<string, Rect[]> {
     const graphics = new Graphics();
     drawShapeBlocks(graphics, shapes);
-    return graphics.context.instructions
-      .filter((each) => each.action === 'stroke')
-      .reduce(
-        (sum, each) =>
-          sum + ('path' in each.data ? each.data.path.shapePath.shapePrimitives.length : 0),
-        0,
+    const byColor = new Map<string, Rect[]>();
+    for (const each of graphics.context.instructions) {
+      expect(each.action).toBe('fill');
+      if (each.action !== 'fill') continue;
+      const color = `#${each.data.style.color.toString(16).padStart(6, '0').toUpperCase()}`;
+      const rects = each.data.path.shapePath.shapePrimitives.map(
+        ({ shape }) => shape as unknown as Rect,
       );
+      byColor.set(color, [...(byColor.get(color) ?? []), ...rects]);
+    }
+    return byColor;
   }
 
   it('outlines containers, and plain blocks whose fill would not stand out from the canvas', () => {
     const pale = shapeOf('whatsapp');
-    const dark = { ...pale, key: 'dark', fill: '#1F2933' };
-    expect(outlined([dark])).toBe(0);
-    expect(outlined([pale])).toBe(1);
-    expect(outlined([shapeOf('clinic-booking'), dark, pale])).toBe(2);
+    const dark = { ...pale, key: 'dark', fill: '#1F2933', stroke: '#000000' };
+    expect([...blocks([dark]).keys()]).toEqual(['#1F2933']);
+    const outlined = blocks([pale]);
+    expect(outlined.get(pale.stroke)).toMatchObject([pale.rect]);
+    // The fill sits inside the outline, so that nothing is drawn beyond the shape.
+    expect(outlined.get(pale.fill)).toMatchObject([
+      {
+        x: pale.rect.x + 6,
+        y: pale.rect.y + 6,
+        width: pale.rect.width - 12,
+        height: pale.rect.height - 12,
+      },
+    ]);
+    const clinic = shapeOf('clinic-booking');
+    const all = blocks([clinic, dark, pale]);
+    expect(all.get(clinic.stroke)).toHaveLength(clinic.stroke === pale.stroke ? 2 : 1);
   });
 });

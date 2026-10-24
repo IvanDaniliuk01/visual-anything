@@ -67,8 +67,20 @@ const LABELS_PER_FRAME = 32;
 const AT_ONCE = 200;
 /** Above this many selection marks, a zoom draws them again for the new scale once the camera rests. */
 const MARKS_WHILE_MOVING = 1000;
+/**
+ * Selection marks are drawn in chunks of this many, and a frame shows this many new chunks: marking
+ * thousands of shapes takes a few short frames rather than one long one.
+ */
+const MARKS_PER_CHUNK = 1000;
+const MARK_CHUNKS_PER_FRAME = 1;
 /** Up to this many dragged shapes are drawn in full wherever they are; beyond it, only those on screen. */
 const DRAG_DETAIL = 400;
+/**
+ * How many cells each side of a region holds. Tiles are drawn by region, each region by PixiJS on its
+ * own, so that a tile shown, hidden, made or dropped makes it gather again the drawings of its region
+ * only, not of the whole view.
+ */
+const REGION = 4;
 /** Room kept around the scene when fitting it, in screen pixels. */
 const FIT_MARGIN = 32;
 /**
@@ -178,21 +190,38 @@ type Status = 'starting' | 'ready' | 'failed' | 'destroyed';
 export class CanvasRenderer {
   private readonly app = new Application();
   // Drawn by PixiJS with a transform of its own, so that moving the camera changes one transform
-  // instead of every shape's.
+  // instead of every shape's. What changes often is drawn apart from the tiles, in containers drawn
+  // the same way, so that a change there never makes PixiJS gather the tiles' drawings again.
   private readonly world = new Container({ isRenderGroup: true });
   private readonly shapeLayer = new Container();
   private readonly relationLayer = new Container();
   private readonly freeLayer = new Container();
+  private readonly rerouted = new Container({ isRenderGroup: true });
   private readonly reroutedLines = new Graphics();
-  private readonly dragLayer = new Container();
+  private readonly dragLayer = new Container({ isRenderGroup: true });
+  private readonly marksLayer = new Container({ isRenderGroup: true });
   private readonly hoverMark = new Graphics();
-  private readonly selectionMarks = new Graphics();
+  /** The selection's marks: those of relations and arrows, and boxes in chunks drawn a few a frame. */
+  private readonly selectionMarks = new Container();
+  private readonly lineMarks = new Graphics();
+  private readonly selectionChunks: Graphics[] = [];
+  /**
+   * The shapes to draw boxes around, how many are drawn, the boxes' width and their gap to the
+   * shapes, and the chunks used.
+   */
+  private markRects: Rect[] = [];
+  private marksDrawn = 0;
+  private markWidth = 1;
+  private markGap = 0;
+  private chunksUsed = 0;
   /** The marks of what is dragged, which move with it. */
   private readonly movingMarks = new Graphics();
   private readonly gestureMarks = new Graphics();
   /** One container for each band in use, in increasing order, under the shapes beyond the bands. */
   private readonly bands: Container[] = [];
-  private readonly overflowBand = new Container();
+  private readonly bandRegions: Map<string, Container>[] = [];
+  private readonly relationRegions = new Map<string, Container>();
+  private readonly overflowBand = new Container({ isRenderGroup: true });
   private readonly tiles = new Map<string, Tile>();
   private tileOfShape = new Map<string, Tile>();
   private readonly text: TextFactory;
@@ -229,14 +258,22 @@ export class CanvasRenderer {
   ) {
     this.text = options.text ?? bitmapText;
     this.shapeLayer.addChild(this.overflowBand);
+    this.rerouted.addChild(this.reroutedLines);
+    this.selectionMarks.addChild(this.lineMarks);
+    this.marksLayer.addChild(
+      this.hoverMark,
+      this.selectionMarks,
+      this.movingMarks,
+      this.gestureMarks,
+    );
     this.world.addChild(
       this.shapeLayer,
       this.relationLayer,
       this.freeLayer,
-      this.reroutedLines,
+      this.rerouted,
       this.dragLayer,
+      this.marksLayer,
     );
-    this.world.addChild(this.hoverMark, this.selectionMarks, this.movingMarks, this.gestureMarks);
     void this.start();
   }
 
@@ -315,7 +352,7 @@ export class CanvasRenderer {
       this.callbacks.onFailure(error);
     }
     this.dragLayer.alpha = 0.85;
-    this.reroutedLines.alpha = 0.85;
+    this.rerouted.alpha = 0.85;
     this.dragLayer.position.set(0, 0);
     this.movingMarks.position.set(0, 0);
     this.drawSelection();
@@ -519,13 +556,13 @@ export class CanvasRenderer {
         rank: to.rank,
         shapes: to.shapes,
       });
-      this.bandContainer(to.band).addChild(tile.container);
+      this.bandContainer(to.band, to.cell).addChild(tile.container);
       this.tiles.set(to.key, tile);
     }
     for (const next of plan.make) {
       const tile = this.makeShapeTile(next);
       this.tiles.set(next.key, tile);
-      this.bandContainer(next.band).addChild(tile.container);
+      this.bandContainer(next.band, next.cell).addChild(tile.container);
       if (next.band === MAX_BANDS) reorder = true;
       const wasReady =
         ready !== undefined && next.shapes.every((shape) => isReady(ready.get(shape.key), level));
@@ -569,9 +606,10 @@ export class CanvasRenderer {
         existing.lines = lines;
         continue;
       }
-      const tile = this.makeRelationTile(key, signature, lines);
+      const cell = cellOf((lines[0] as RelationLine).middle);
+      const tile = this.makeRelationTile(key, cell, signature, lines);
       this.tiles.set(key, tile);
-      this.relationLayer.addChild(tile.container);
+      regionIn(this.relationLayer, this.relationRegions, cell).addChild(tile.container);
       if (existing) {
         // In place of a tile drawn in full, the new one is drawn in full at once.
         if (!coarse && existing.full && budget.left > 0) {
@@ -620,16 +658,24 @@ export class CanvasRenderer {
     return ready;
   }
 
-  /** The container a band's tiles go in, made with the bands below it when first needed. */
-  private bandContainer(band: number): Container {
+  /**
+   * The container the tiles of a band in a cell go in: the band's container for the cell's region,
+   * made with the bands below it when first needed.
+   */
+  private bandContainer(band: number, cell: string): Container {
     if (band >= MAX_BANDS) return this.overflowBand;
     while (this.bands.length <= band) {
       const container = new Container();
       // Below the shapes beyond the bands, which are always drawn last.
       this.shapeLayer.addChildAt(container, this.bands.length);
       this.bands.push(container);
+      this.bandRegions.push(new Map());
     }
-    return this.bands[band] as Container;
+    return regionIn(
+      this.bands[band] as Container,
+      this.bandRegions[band] as Map<string, Container>,
+      cell,
+    );
   }
 
   /** Puts the tiles of the shapes beyond the bands in drawing order. */
@@ -651,7 +697,7 @@ export class CanvasRenderer {
   private makeShapeTile(planned: PlannedTile): Tile {
     // Shapes start with their plain drawing, which is cheap to make; the full one is made when the
     // tile is first seen close up.
-    const coarse = new Graphics();
+    const coarse = batched(new Graphics());
     drawShapeBlocks(coarse, planned.shapes, planned.band === MAX_BANDS);
     return this.tileOf({
       key: planned.key,
@@ -666,13 +712,19 @@ export class CanvasRenderer {
     });
   }
 
-  private makeRelationTile(key: string, signature: string, lines: RelationLine[]): Tile {
-    const coarse = new Graphics();
+  private makeRelationTile(
+    key: string,
+    cell: string,
+    signature: string,
+    lines: RelationLine[],
+  ): Tile {
+    const coarse = batched(new Graphics());
     drawRelationLines(coarse, lines);
     return this.tileOf({
       key,
       signature,
       kind: 'relations',
+      cell,
       lines,
       coarse,
       bounds: boundsOf(lines.map((line) => rectAround(line.route))),
@@ -1056,28 +1108,39 @@ export class CanvasRenderer {
   }
 
   /**
-   * Marks what is selected: the marks of what a drag carries move with it. Each kind of mark is drawn
-   * as one path, which costs far less than one for each mark when everything is selected.
+   * Marks what is selected: the marks of what a drag carries move with it. Marks of one kind are drawn
+   * as one path, which costs far less than one for each, and the boxes of thousands of shapes are
+   * drawn a few chunks a frame.
    */
   private drawSelection(): void {
-    const marks = this.selectionMarks;
     const moving = this.movingMarks;
-    marks.clear();
+    const lineMarks = this.lineMarks;
+    for (const chunk of this.selectionChunks) chunk.clear();
     moving.clear();
+    lineMarks.clear();
     this.marks = 0;
     this.marksStale = false;
+    this.markRects = [];
+    this.marksDrawn = 0;
+    this.chunksUsed = 0;
     const indexed = this.indexed;
     if (!indexed) return;
     const { scene } = indexed;
     const { scale } = this.camera;
     const width = 2 / scale;
     const gap = 3 / scale;
+    this.markWidth = width;
+    this.markGap = gap;
     const hidden = this.hidden;
-    const drawn = { still: 0, moving: 0 };
+    let carriedBoxes = 0;
     const box = (rect: Rect, carried: boolean) => {
-      const around = grow(rect, gap);
-      (carried ? moving : marks).rect(around.x, around.y, around.width, around.height);
-      drawn[carried ? 'moving' : 'still'] += 1;
+      if (carried) {
+        const around = grow(rect, gap);
+        moving.rect(around.x, around.y, around.width, around.height);
+        carriedBoxes += 1;
+      } else {
+        this.markRects.push(rect);
+      }
     };
     for (const id of this.selection.elements) {
       for (const shape of indexed.byElement.get(id) ?? [])
@@ -1091,8 +1154,7 @@ export class CanvasRenderer {
       if ('rect' in shape) box(shape.rect, hidden.free.has(id));
       else arrows.push(shape);
     }
-    if (drawn.still > 0) marks.stroke({ color: SELECTED, width });
-    if (drawn.moving > 0) moving.stroke({ color: SELECTED, width });
+    if (carriedBoxes > 0) moving.stroke({ color: SELECTED, width });
 
     const lines = linesById(scene.relations);
     const byWidth = new Map<number, { still: RelationLine[]; moving: RelationLine[] }>();
@@ -1118,7 +1180,7 @@ export class CanvasRenderer {
         cap: 'round',
       } as const;
       for (const [graphics, each] of [
-        [marks, still],
+        [lineMarks, still],
         [moving, carried],
       ] as const) {
         if (each.length === 0) continue;
@@ -1130,14 +1192,45 @@ export class CanvasRenderer {
     const stillArrows = arrows.filter((arrow) => !hidden.free.has(arrow.id));
     const movingArrows = arrows.filter((arrow) => hidden.free.has(arrow.id));
     for (const [graphics, each] of [
-      [marks, stillArrows],
+      [lineMarks, stillArrows],
       [moving, movingArrows],
     ] as const) {
       if (each.length === 0) continue;
       for (const arrow of each) traceRoute(graphics, [arrow.from, arrow.to]);
       graphics.stroke({ color: SELECTED, width: 8 / scale, alpha: 0.35, cap: 'round' });
     }
-    this.marks += drawn.still + drawn.moving + arrows.length;
+    this.marks += this.markRects.length + carriedBoxes + arrows.length;
+    this.drawChunks();
+  }
+
+  /**
+   * Draws the next chunks of the selection's box marks, and asks for a frame for the ones left:
+   * PixiJS turns a drawing into geometry when it first shows it, so a frame takes on only a few.
+   */
+  private drawChunks(): void {
+    const rects = this.markRects;
+    for (
+      let chunks = 0;
+      chunks < MARK_CHUNKS_PER_FRAME && this.marksDrawn < rects.length;
+      chunks++
+    ) {
+      let chunk = this.selectionChunks[this.chunksUsed];
+      if (!chunk) {
+        chunk = new Graphics();
+        this.selectionChunks.push(chunk);
+        this.selectionMarks.addChild(chunk);
+      }
+      const until = Math.min(rects.length, this.marksDrawn + MARKS_PER_CHUNK);
+      const gap = this.markGap;
+      for (let at = this.marksDrawn; at < until; at++) {
+        const { x, y, width, height } = rects[at] as Rect;
+        chunk.rect(x - gap, y - gap, width + 2 * gap, height + 2 * gap);
+      }
+      chunk.stroke({ color: SELECTED, width: this.markWidth });
+      this.marksDrawn = until;
+      this.chunksUsed += 1;
+    }
+    if (this.marksDrawn < rects.length) this.requestRender();
   }
 
   /** Marks the shape under the pointer, under the selection's marks. */
@@ -1205,10 +1298,18 @@ export class CanvasRenderer {
     }
   }
 
-  /** Leaves out of the frame the tiles off screen, for where the camera is now. */
+  /**
+   * Leaves out of the frame the tiles off screen, for where the camera is now. A tile comes back as
+   * soon as it shows, but goes only once it is half a screen away, since every change of what shows
+   * makes PixiJS gather the drawings again.
+   */
   private cull(): void {
     const shown = visibleRect(this.camera, this.viewport);
-    for (const tile of this.tiles.values()) tile.container.culled = !meets(tile.bounds, shown);
+    const away = grow(shown, Math.max(shown.width, shown.height) / 2);
+    for (const { container, bounds } of this.tiles.values()) {
+      if (container.culled) container.culled = !meets(bounds, shown);
+      else container.culled = !meets(bounds, away);
+    }
   }
 
   /**
@@ -1218,6 +1319,7 @@ export class CanvasRenderer {
   renderNow(waitForGpu = false): void {
     if (this.status !== 'ready') return;
     try {
+      if (this.marksDrawn < this.markRects.length) this.drawChunks();
       this.updateDetail();
       const drag = this.drag;
       if (drag && drag.routed.length > 0 && drag.routedAt !== drag.delta) this.routeDrag();
@@ -1248,6 +1350,28 @@ function nextFrame(run: () => void): number {
 function cancelFrame(frame: number): void {
   if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame);
   else clearTimeout(frame);
+}
+
+/** The container for the region a cell falls in, among the regions of `container`. */
+function regionIn(container: Container, regions: Map<string, Container>, cell: string): Container {
+  const [column = 0, row = 0] = cell.split(',').map(Number);
+  const key = `${Math.floor(column / REGION)},${Math.floor(row / REGION)}`;
+  let region = regions.get(key);
+  if (!region) {
+    region = new Container({ isRenderGroup: true });
+    regions.set(key, region);
+    container.addChild(region);
+  }
+  return region;
+}
+
+/**
+ * Has PixiJS draw a drawing together with the others, whatever its size: plain drawings change only
+ * with the scene, so gathering them again now and then costs less than drawing each on its own.
+ */
+function batched(graphics: Graphics): Graphics {
+  graphics.context.batchMode = 'batch';
+  return graphics;
 }
 
 /** Destroys a tile with all it drew, its drawings' geometry included. */

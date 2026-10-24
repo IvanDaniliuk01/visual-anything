@@ -36,7 +36,7 @@ interface Inside {
   shapeLayer: Container;
   dragLayer: Container;
   reroutedLines: Graphics;
-  selectionMarks: Graphics;
+  selectionChunks: Graphics[];
   movingMarks: Graphics;
   world: Container;
   drag?: { rigid: ReadonlySet<string>; routed: { relation: string }[] };
@@ -162,7 +162,9 @@ describe('CanvasRenderer bands', () => {
     const { shapeLayer } = inside(renderer);
     expect(shapeLayer.children).toHaveLength(5);
     for (const tile of shapeTiles(renderer)) {
-      expect(shapeLayer.children.indexOf(tile.container.parent as Container)).toBe(tile.band);
+      // Each band draws its tiles by region.
+      const band = tile.container.parent?.parent as Container;
+      expect(shapeLayer.children.indexOf(band)).toBe(tile.band);
     }
     const calendar = shapeTiles(renderer).find((tile) =>
       tile.shapes.some((shape) => shape.element === 'calendar'),
@@ -304,7 +306,7 @@ describe('CanvasRenderer selection marks', () => {
     const renderer = await started();
     renderer.show(indexed);
     renderer.setSelection(all, undefined);
-    const marks = inside(renderer).selectionMarks;
+    const marks = inside(renderer).selectionChunks[0] as Graphics;
     const before = strokeWidth(marks);
     renderer.setCamera({ ...renderer.camera, scale: renderer.camera.scale * 1.1 });
     renderer.setCamera({ ...renderer.camera, scale: renderer.camera.scale * 1.1 });
@@ -317,7 +319,7 @@ describe('CanvasRenderer selection marks', () => {
     const renderer = await started();
     renderer.show(indexed);
     renderer.setSelection(selectionOf([{ kind: 'element', id: 'system-0' }]), undefined);
-    const marks = inside(renderer).selectionMarks;
+    const marks = inside(renderer).selectionChunks[0] as Graphics;
     const before = strokeWidth(marks);
     renderer.setCamera({ ...renderer.camera, scale: renderer.camera.scale * 2 });
     expect(strokeWidth(marks)).toBeCloseTo((before ?? 0) / 2);
@@ -329,14 +331,35 @@ describe('CanvasRenderer selection marks', () => {
     renderer.setSelection(all, undefined);
     const keys = new Set(indexed.scene.shapes.map((shape) => shape.key));
     renderer.startDrag(keys, new Set());
-    const { selectionMarks, movingMarks } = inside(renderer);
+    const { selectionChunks, movingMarks } = inside(renderer);
     const moving = movingMarks.context.instructions;
-    expect(selectionMarks.context.instructions).toHaveLength(0);
+    expect(selectionChunks.every((chunk) => chunk.context.instructions.length === 0)).toBe(true);
     expect(moving.length).toBeGreaterThan(0);
     renderer.dragTo({ x: 40, y: 10 });
     renderer.dragTo({ x: 80, y: 20 });
     expect(movingMarks.context.instructions).toBe(moving);
     expect(movingMarks.position.x).toBe(80);
+  });
+});
+
+describe('CanvasRenderer selection marks of thousands of shapes', () => {
+  it('draws them a chunk a frame, so that no frame draws them all', async () => {
+    const project = syntheticProject({ elements: 4500 });
+    const renderer = await started();
+    renderer.show(indexScene(buildScene(project, 'everything')));
+    renderer.setSelection(
+      selectionOf(project.model.elements.map((element) => ({ kind: 'element', id: element.id }))),
+      undefined,
+    );
+    const shown = () =>
+      inside(renderer).selectionChunks.filter(
+        (chunk) => chunk.visible && chunk.context.instructions.length > 0,
+      ).length;
+    expect(shown()).toBe(1);
+    renderer.renderNow();
+    expect(shown()).toBe(2);
+    renderer.renderNow();
+    expect(shown()).toBe(3);
   });
 });
 

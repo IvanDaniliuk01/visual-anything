@@ -91,7 +91,8 @@ Object.assign(window, { benchmark: { controller, project, scene, indexed } });
 void run();
 
 async function run(): Promise<void> {
-  await settle(1000);
+  // Long enough for the garbage of building the scene to be collected before anything is measured.
+  await settle(2500);
   status.textContent = `Measuring ${mode === 'work' ? 'the work of each frame' : 'frames'} with ${size.toLocaleString()} elements and ${scene.relations.length.toLocaleString()} relations…`;
   const phases: Phase[] = [];
   const { width, height } = controller.renderer.viewport;
