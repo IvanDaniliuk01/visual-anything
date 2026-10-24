@@ -713,7 +713,7 @@ describe('cleaned SVG, read by a real XML parser', () => {
           `<svg viewBox="0 0 10 10" ${NS} xmlns:xlink="http://www.w3.org/1999/xlink"><path id="a" d="M0 0h1"/>${children.join('')}</svg>`,
         );
         if (!result.ok) return;
-         
+
         allowed(new DOMParser().parseFromString(result.value.svg, 'image/svg+xml'));
       }),
       { numRuns: 200 },
