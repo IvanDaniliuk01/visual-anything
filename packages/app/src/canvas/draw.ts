@@ -364,11 +364,15 @@ function drawBody(
   }
 }
 
-/** What a shape writes under its name: its component's name, and on a collapsed container how many it holds. */
+/**
+ * What a shape writes under its name: its detail, or its component's name on a shape made without
+ * one; and on a collapsed container, how many shapes it holds.
+ */
 export function detailOf(shape: ElementShape): string {
-  return shape.collapsed === undefined
-    ? shape.componentName
-    : `${shape.componentName} · ${shape.collapsed.contents} inside`;
+  const detail = shape.detail ?? shape.componentName;
+  if (shape.collapsed === undefined) return detail;
+  const inside = `${shape.collapsed.contents} inside`;
+  return detail === '' ? inside : `${detail} · ${inside}`;
 }
 
 /**
@@ -399,10 +403,11 @@ function writeShapeText(
         rooms.name,
       );
     }
-    if (rooms.detail > 0) {
+    const detail = detailOf(shape);
+    if (rooms.detail > 0 && detail !== '') {
       write(
         {
-          text: detailOf(shape),
+          text: detail,
           x: x + TEXT_INSET,
           y: y + 8 + NAME_SIZE + 6,
           style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'left'),
@@ -430,10 +435,11 @@ function writeShapeText(
       rooms.name,
     );
   }
-  if (rooms.detail > 0) {
+  const detail = detailOf(shape);
+  if (rooms.detail > 0 && detail !== '') {
     write(
       {
-        text: shape.componentName,
+        text: detail,
         anchor: { x: 0.5, y: 0 },
         x: centerX,
         y: centerY + 4,

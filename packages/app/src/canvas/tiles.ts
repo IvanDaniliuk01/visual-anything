@@ -77,6 +77,7 @@ export function shapeSignature(shape: ElementShape): string {
       shape.stroke,
       shape.name,
       shape.componentName,
+      shape.detail ?? '',
       shape.holdsContents ? 1 : 0,
       shape.collapsed?.contents ?? -1,
     ].join(' ');
