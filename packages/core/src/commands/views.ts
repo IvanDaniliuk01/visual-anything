@@ -2,6 +2,7 @@
 import type { FreeShape, Id, ShapePosition, ViewFile } from '@visual-anything/schema';
 import { slug } from '../ids';
 import { nestingTypesInView } from '../containers';
+import { appearanceOf } from '../definitions';
 import {
   BULK,
   keyOf,
@@ -129,6 +130,13 @@ export function putPositions(draft: Draft, viewId: Id, positions: readonly Shape
           [element.id, container.id],
         );
       }
+      if (appearanceOf(container, draft.definitions).contentsAsRows) {
+        reject(
+          'position-of-row',
+          `"${element.name}" is a row of "${container.name}", which places its rows in the model's order; a row has no position of its own.`,
+          [element.id, container.id],
+        );
+      }
     }
     const key = positionKey(position);
     if (keys.has(key)) reject('invalid-command', `The position of "${key}" is given twice.`);
@@ -248,8 +256,8 @@ function upsert<T extends Item>(
   }
 }
 
-/** A view without its shapes and their stacking order. */
-function viewProperties(view: ViewFile): ViewProperties {
+/** A view without its shapes and their stacking order: what `set-view` replaces. */
+export function viewProperties(view: ViewFile): ViewProperties {
   const properties: Partial<ViewFile> = { ...view };
   delete properties.positions;
   delete properties.freeShapes;

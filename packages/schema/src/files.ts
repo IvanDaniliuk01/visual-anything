@@ -33,13 +33,16 @@ export const ESSENCE_ID = 'essence';
 /** The id of "relates to", the relation type every other relation type ultimately derives from. */
 export const RELATES_TO_ID = 'relates-to';
 
+/** The version of the project file format this build reads and writes. */
+export const SCHEMA_VERSION = 1;
+
 /**
  * The contents of a project's `.vaproject` file: its name, schema version and the packages in use.
  *
  * @title Visual Anything project file
  */
 export interface ProjectFile {
-  /** The version of the project file format. */
+  /** The version of the project file format. A project saved in a newer one is refused with a message that says so. */
   schemaVersion: 1;
   /** @minLength 1 */
   name: string;
@@ -146,15 +149,22 @@ export interface RelationType {
 }
 
 /**
- * What the ends of a relation type's relations may be. Each list names components or relation types;
- * an end created from one of them, or from anything derived from one of them, keeps within the limit.
- * A missing list sets no limit on that end.
+ * The ids of the components or relation types an end may be created from. An end created from one of
+ * them, or from anything derived from one of them, keeps within the limit.
+ *
+ * @minItems 1
+ * @uniqueItems true
+ */
+export type LimitList = Id[];
+
+/**
+ * What the ends of a relation type's relations may be. A list left out is inherited from the relation
+ * type this one derives from, and sets no limit when none sets one; `any` sets no limit on that end,
+ * whatever is inherited. Breaking a limit only produces a warning.
  */
 export interface RelationTypeLimits {
-  /** @uniqueItems true */
-  from?: Id[];
-  /** @uniqueItems true */
-  to?: Id[];
+  from?: LimitList | 'any';
+  to?: LimitList | 'any';
 }
 
 /** An attribute that a component or relation type defines. */
@@ -165,10 +175,31 @@ export interface AttributeDefinition {
   /** The value an element or relation has when it does not set its own. */
   default?: JsonValue;
   description?: string;
+  /**
+   * For a string attribute, the values it is expected to take, offered in this order. Any other value
+   * only produces a warning.
+   *
+   * @minItems 1
+   * @maxItems 64
+   * @uniqueItems true
+   */
+  choices?: string[];
+  /**
+   * For a number attribute, the unit its values are in, written after them on shapes, such as "ms"
+   * or "GB".
+   *
+   * @minLength 1
+   * @maxLength 16
+   */
+  unit?: string;
 }
 
-/** How an element's shapes are drawn. */
+/** How an element's shapes are drawn. Whatever an appearance leaves out is inherited. */
 export interface Appearance {
+  /**
+   * The kind of its shapes. While its shapes draw their contents as rows, any kind other than
+   * `rounded-rectangle` is drawn as a rectangle.
+   */
   shape?: 'rectangle' | 'rounded-rectangle' | 'ellipse' | 'cylinder' | 'person';
   fill?: Color;
   stroke?: Color;
@@ -176,14 +207,102 @@ export interface Appearance {
    * The width of its shapes when a view does not set one, in canvas units.
    *
    * @exclusiveMinimum 0
+   * @maximum 100000
    */
   width?: number;
   /**
-   * The height of its shapes when a view does not set one, in canvas units.
+   * The height of its shapes when a view does not set one, in canvas units. Shapes that draw their
+   * contents as rows take their height from their rows instead.
    *
    * @exclusiveMinimum 0
+   * @maximum 100000
    */
   height?: number;
+  /** What its shapes write under the element's name. Each part is inherited on its own. */
+  detail?: DetailRules;
+  /**
+   * Whether its shapes draw the elements they hold as rows: one under another below a header, as wide
+   * as the shape, in the model's order, as a table draws its columns. Rows have no positions of their
+   * own in views, and the shape's height follows its rows.
+   */
+  contentsAsRows?: boolean;
+  /**
+   * Where relations attach to its shapes: each relation attaches to the one facing its other end. An
+   * empty list has relations attach anywhere on the border, whatever is inherited. Shapes that draw
+   * their contents as rows attach relations beside their header and their rows instead.
+   *
+   * @maxItems 32
+   */
+  connectionPoints?: ConnectionPoint[];
+}
+
+/** What a shape writes under its element's name, on one line. */
+export interface DetailRules {
+  /** Whether it writes the component's name. Essence writes it. */
+  componentName?: boolean;
+  /**
+   * The attributes whose values it writes, in this order, after the component's name; an attribute
+   * without a value is skipped.
+   *
+   * @maxItems 8
+   * @uniqueItems true
+   */
+  attributes?: string[];
+  /**
+   * The badges it writes after the values, each while its element meets the badge's condition.
+   *
+   * @maxItems 8
+   */
+  badges?: Badge[];
+}
+
+/**
+ * A short text, such as "PK", that a shape writes while its element meets the badge's condition.
+ *
+ * @discriminator when
+ */
+export type Badge = AttributeBadge | RelationEndBadge;
+
+/** A badge written while a boolean attribute of the element is true. */
+export interface AttributeBadge {
+  when: 'attribute';
+  /**
+   * @minLength 1
+   * @maxLength 4
+   */
+  text: string;
+  /** The name of a boolean attribute of the element. */
+  attribute: string;
+}
+
+/** A badge written while the element is the `from` end of a relation of this relation type, or of one derived from it. */
+export interface RelationEndBadge {
+  when: 'from-end';
+  /**
+   * @minLength 1
+   * @maxLength 4
+   */
+  text: string;
+  relationType: Id;
+}
+
+/** A named place on the border of a shape where relations attach. */
+export interface ConnectionPoint {
+  /**
+   * Unique among the connection points of one appearance, such as "in" or "out".
+   *
+   * @minLength 1
+   * @maxLength 32
+   */
+  name: string;
+  side: 'top' | 'right' | 'bottom' | 'left';
+  /**
+   * Where it sits along its side, from 0 at the side's left or top end to 1 at its right or bottom end.
+   *
+   * @minimum 0
+   * @maximum 1
+   */
+  at: number;
 }
 
 /** How a relation is drawn. */
@@ -229,7 +348,21 @@ export interface ViewFile {
    * container draws its contents in the same order. An id whose element does not sit there is ignored.
    */
   stackingOrder?: StackingOrder;
+  /**
+   * The containers this view shows collapsed, by element id, sorted. A collapsed container's shapes
+   * show none of its contents, and the relations to and from them are drawn as aggregated relations.
+   * An id that is no element of the model is ignored.
+   */
+  collapsed?: CollapsedList;
 }
+
+/**
+ * Element ids, sorted, each once.
+ *
+ * @minItems 1
+ * @uniqueItems true
+ */
+export type CollapsedList = Id[];
 
 /**
  * Stacking lists by the id of the container whose contents they order, or World's id for the shapes

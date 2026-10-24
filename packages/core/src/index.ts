@@ -1,6 +1,35 @@
 export type { ProjectSnapshot } from './snapshot';
 
-export { BUILTIN_PACKAGES, ESSENCE, RELATES_TO, SYSTEMS, builtinPackage } from './builtin';
+export {
+  BUILTIN_PACKAGES,
+  DATA_MODELING,
+  ESSENCE,
+  RELATES_TO,
+  RESERVED_PACKAGE_IDS,
+  SYSTEMS,
+  builtinPackage,
+} from './builtin';
+
+export type {
+  AppearanceTrait,
+  DetailPart,
+  ResolvedDetail,
+  TraitPath,
+  TraitSource,
+  TraitSources,
+  Typed,
+} from './appearance';
+export {
+  APPEARANCE_TRAITS,
+  TRAIT_PATHS,
+  attributeValue,
+  detailParts,
+  detailText,
+  resolveAppearance,
+  startedTypesByElement,
+  traitSources,
+  valueFitsType,
+} from './appearance';
 
 export type {
   Defined,
@@ -19,6 +48,7 @@ export {
 
 export type { Placement } from './containment';
 export { containmentTree } from './containment';
+export type { NestingChoice } from './containers';
 export { leavingRelations, nestingTypeFor, nestingTypesInView } from './containers';
 export {
   contentsInView,
@@ -38,7 +68,7 @@ export { definitionsIn, modelIndexOf } from './state';
 export type { Problem, ProblemCode } from './problems';
 
 export type { IdGenerator } from './ids';
-export { ID_PATTERN, freshId, isId, randomIds, slug } from './ids';
+export { ID_PATTERN, definitionIdFor, freshId, isId, randomIds, slug } from './ids';
 
 export type {
   Collection,

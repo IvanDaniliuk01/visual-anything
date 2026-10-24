@@ -70,6 +70,18 @@ A shape that is drawing only and does not exist in the model: a note, an emphasi
 A shape whose position was set by hand in a view; automatic layout arranges everything else around it.
 _Avoid_: locked, fixed
 
+**Row**:
+An element drawn as one line of its container's shape, because the container's appearance draws its contents as rows, as a table draws its columns. Rows follow the model's order, have no positions of their own in a view and move with their container.
+_Avoid_: line item
+
+**Detail**:
+The smaller text a shape writes with its element's name, as its appearance says: its component's name, the values of chosen attributes and badges.
+_Avoid_: subtitle
+
+**Badge**:
+A short text, such as "PK" or "FK", that a shape writes in its detail while its element meets the badge's condition: a boolean attribute is true, or the element is the `from` end of a relation of a given relation type.
+_Avoid_: chip, pill
+
 **Stacking order**:
 The order, kept per view, in which the shapes that sit directly in one container, or directly in World, are drawn, from back to front. Every copy of a container draws its contents in the same order. A shape is drawn together with everything inside it, so a container's contents are always in front of it, and a shape is in front of or behind a whole container, never between it and its contents. Relations, then free shapes, are drawn in front of every element's shape. A new element is drawn in front of the shapes beside it, and an element put inside a container from the canvas comes in front there.
 _Avoid_: layer, z-order, z-index, depth, level
@@ -96,12 +108,24 @@ _Avoid_: palette (alone), toolbox
 The reusable definition of a kind of element: how it looks, which attributes it has and which interactions it supports. "Neuron" is a component; each neuron placed is an element. A component derives from exactly one other component and inherits everything it does not redefine.
 _Avoid_: plugin, widget, template, class
 
+**Appearance**:
+How the shapes of a component's elements, or of one element, look: their shape (rectangle, rounded rectangle, ellipse, cylinder or person), colours and size, the image and detail they show, where relations attach and whether they draw their contents as rows. Whatever an appearance leaves out is inherited.
+_Avoid_: skin
+
+**Connection point**:
+A named place on the border of a component's shapes, set by its appearance, where relations attach: a relation attaches to the connection point that faces its other end, or anywhere on the border when the shape has none. A row has one on each side.
+_Avoid_: attachment point
+
+**Component editor**:
+The part of the inspector that shows a component or a relation type with what it inherits, and where the project's own are derived, defined, changed and removed, trait by trait.
+_Avoid_: designer
+
 **Essence**:
 The component every other component ultimately derives from.
 _Avoid_: base component, root type, object
 
 **Declarative component**:
-A component defined only by its appearance, attributes and connection points, with no code; it can be created from the canvas.
+A component defined only by its appearance, connection points included, and its attributes, with no code; it is created and changed in the component editor.
 
 **Programmable component**:
 A component that extends a declarative one with its own code to draw itself or simulate.
@@ -121,7 +145,7 @@ An axis from which the model is seen. There are five: abstraction level, perspec
 _Avoid_: layer, facet
 
 **Abstraction level**:
-How much detail of an element is shown, from a single box down to its inner parts.
+How much of an element is shown, from a single box down to its inner parts.
 _Avoid_: zoom (when talking about the model)
 
 **Perspective**:
