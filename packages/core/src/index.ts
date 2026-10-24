@@ -74,6 +74,8 @@ export type {
   AppMessage,
   CommandRejectedMessage,
   NoticeMessage,
+  PreferencesChangedMessage,
+  PreferencesSetMessage,
   ProjectChangedMessage,
   ProjectOpenedMessage,
   ProjectReloadedMessage,
@@ -83,9 +85,33 @@ export {
   LIVE_PATH,
   PROTOCOL_VERSION,
   ProtocolError,
+  THEME_PARAM,
   TOKEN_PARAM,
   decodeAppMessage,
   decodeServerMessage,
   encodeMessage,
   encodeServerMessage,
 } from './protocol';
+
+export type {
+  PreferenceChanges,
+  PreferenceName,
+  Preferences,
+  PreferencesRead,
+  ThemeChoice,
+  ThemeName,
+} from './preferences';
+export {
+  DEFAULT_PREFERENCES,
+  MAX_RECENT_COLORS,
+  PREFERENCES_VERSION,
+  PREFERENCE_NAMES,
+  THEME_CHOICES,
+  THEME_NAMES,
+  applyPreferenceChanges,
+  checkPreferenceChanges,
+  formatPreferences,
+  isThemeChoice,
+  readPreferences,
+  resolveTheme,
+} from './preferences';

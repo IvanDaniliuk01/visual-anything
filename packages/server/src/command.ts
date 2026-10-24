@@ -8,6 +8,7 @@ import { parseArgs } from 'node:util';
 import { resolveAppSource } from './app-source';
 import { errorCode, errorReason } from './errors';
 import { toForwardSlashes } from './paths';
+import { openPreferences, themeHintOf, type PreferencesLocation } from './preferences';
 import { formatProjectProblem } from './project';
 import { startServer, type AppSource, type RunningServer } from './server';
 import { openSession } from './session';
@@ -55,6 +56,11 @@ export interface CommandEnvironment {
   signals: Signals;
   /** Where the app comes from: by default the app package, built or in dev mode its sources. */
   appSource?: (dev: boolean) => AppSource;
+  /**
+   * Where the person's preferences are kept (ADR-0032), as `preferencesFolder` works it out; absent,
+   * they are kept in memory only, as tests do.
+   */
+  preferences?: PreferencesLocation;
 }
 
 /** Reads the command line: `[folder] [--port <n>] [--no-open] [--dev] [--help]`. */
@@ -121,14 +127,21 @@ export async function runCommand(
     return 0;
   }
 
+  const location = environment.preferences ?? { folder: null };
+  if (location.warning !== undefined) environment.err(`Warning: ${location.warning}`);
+  const { store: preferences, warning } = await openPreferences(location.folder);
+  if (warning !== undefined) environment.err(`Warning: ${warning}`);
+
   const folder = resolve(environment.cwd, options.folder);
   const opened = await openSession(folder, {
     out: (line) => environment.out(line),
     err: (line) => environment.err(line),
+    preferences,
   });
   if (!opened.ok) {
     environment.err(`Could not open the project in ${toForwardSlashes(folder)}:`);
     for (const error of opened.errors) environment.err(formatProjectProblem(error));
+    await preferences.close();
     return 1;
   }
   const { session } = opened;
@@ -136,9 +149,15 @@ export async function runCommand(
   let server: RunningServer;
   try {
     const app = (environment.appSource ?? resolveAppSource)(options.dev);
-    server = await startServer({ session, port: options.port, app });
+    server = await startServer({
+      session,
+      port: options.port,
+      app,
+      themeHint: themeHintOf(preferences.current()),
+    });
   } catch (error) {
     await session.close();
+    await preferences.close();
     environment.err(describeStartFailure(error, options.port));
     return 1;
   }
@@ -172,6 +191,7 @@ export async function runCommand(
   } finally {
     // Waits for the changes already sent to be saved, and stops watching the folder.
     await session.close();
+    await preferences.close();
   }
   environment.out('Visual Anything stopped.');
   return 0;

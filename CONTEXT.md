@@ -86,6 +86,10 @@ _Avoid_: bundle, summary edge
 A projection of the model onto the canvas, seen from exactly one perspective and keeping its own positions.
 _Avoid_: page, diagram, layer
 
+**Component palette**:
+The list in the canvas toolbar that new elements are created from.
+_Avoid_: palette (alone), toolbox
+
 ### Components
 
 **Component**:
@@ -168,3 +172,13 @@ To compute a behavior from parameters the user changes: learning rate and loss c
 
 **Edit**:
 To change the model or the canvas: create, move, put inside or take out of a container, connect, change the stacking order, delete.
+
+### Preferences
+
+**Preference**:
+A choice a person makes for themselves on this computer: the theme, whether the grid, snapping and the rulers are on, and the colors they picked lately. The local program keeps preferences outside every project; they are never in project files, the undo history or Claude's tools.
+_Avoid_: settings, profile
+
+**Theme**:
+The colors the app and the canvas itself are drawn in, light or dark: panels and text, the canvas background, the grid, the rulers, selection, labels, and notes and free arrows without colors of their own. Built-in packages give their components and relation types a shade for each theme; every color stored in a project is drawn as stored in both. A theme follows the system unless the person chooses one, and it never changes the project.
+_Avoid_: skin, palette
