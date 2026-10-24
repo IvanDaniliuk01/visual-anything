@@ -59,8 +59,8 @@ export interface ProjectFile {
  */
 export interface ModelFile {
   /**
-   * The root element; every other element is contained in it, directly or indirectly. An element with no
-   * container under a view's nesting relation types sits directly in World.
+   * World, which contains every other element, directly or indirectly. An element with no container
+   * under a view's nesting relation types sits directly in World.
    */
   world: Element;
   /** Every element except World. */
@@ -85,7 +85,7 @@ export interface Element {
   appearance?: Appearance;
 }
 
-/** A meaningful link whose ends are elements or other relations, always of a relation type. */
+/** A meaningful tie between two ends, each an element or another relation, always of a relation type. */
 export interface Relation {
   id: Id;
   relationType: Id;

@@ -2,10 +2,15 @@
 import { STATUS_CODES, type OutgoingHttpHeaders, type ServerResponse } from 'node:http';
 import type { Duplex } from 'node:stream';
 
-/** Headers on every response: no content sniffing, and no Referer to other sites. */
+/**
+ * Headers on every response: no content sniffing, no Referer to other sites, and no framing by other
+ * sites, so that none can make the app act through clicks it hides.
+ */
 export const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
+  'Content-Security-Policy': "frame-ancestors 'none'",
+  'X-Frame-Options': 'DENY',
 } as const;
 
 /** Adds the security headers to a response that is not written yet. */

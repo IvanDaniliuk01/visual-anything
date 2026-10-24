@@ -24,7 +24,7 @@ function onlySocket(): FakeWebSocket {
   return FakeWebSocket.created[0] as FakeWebSocket;
 }
 
-const TERMINAL_LINK = /open the link Visual Anything printed in the terminal/i;
+const TERMINAL_ADDRESS = /open the address Visual Anything printed in the terminal/i;
 
 describe('App', () => {
   it('without a session token, says how to get one and does not connect', () => {
@@ -32,7 +32,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Visual Anything' })).toBeInTheDocument();
     const problem = screen.getByRole('alert');
     expect(problem).toHaveTextContent(/no session token/i);
-    expect(problem).toHaveTextContent(TERMINAL_LINK);
+    expect(problem).toHaveTextContent(TERMINAL_ADDRESS);
     expect(problem).toHaveTextContent(/carries this session’s token/);
     expect(FakeWebSocket.created).toHaveLength(0);
   });
@@ -63,7 +63,7 @@ describe('App', () => {
     act(() => onlySocket().drop());
     const problem = screen.getByRole('alert');
     expect(problem).toHaveTextContent(/refused the connection/i);
-    expect(problem).toHaveTextContent(TERMINAL_LINK);
+    expect(problem).toHaveTextContent(TERMINAL_ADDRESS);
     expect(problem).toHaveTextContent(/carries this session’s token/);
     expect(FakeWebSocket.created).toHaveLength(1);
   });

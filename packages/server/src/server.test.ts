@@ -70,6 +70,8 @@ afterAll(async () => {
 function expectSecurityHeaders(reply: Reply) {
   expect(reply.headers['x-content-type-options']).toBe('nosniff');
   expect(reply.headers['referrer-policy']).toBe('no-referrer');
+  expect(reply.headers['content-security-policy']).toBe("frame-ancestors 'none'");
+  expect(reply.headers['x-frame-options']).toBe('DENY');
 }
 
 describe('startServer', () => {

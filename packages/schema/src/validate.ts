@@ -116,9 +116,9 @@ const COMPARISONS = { '<': 'less than', '<=': 'at most', '>': 'greater than', '>
 function messageOf(error: DefinedError): string | undefined {
   switch (error.keyword) {
     case 'required':
-      return `must have the property ${JSON.stringify(error.params.missingProperty)}`;
+      return `must have the key ${JSON.stringify(error.params.missingProperty)}`;
     case 'additionalProperties':
-      return `must not have the property ${JSON.stringify(error.params.additionalProperty)}`;
+      return `must not have the key ${JSON.stringify(error.params.additionalProperty)}`;
     case 'type': {
       const types = error.params.type.split(',').map((type) => TYPE_NAMES[type] ?? type);
       return `must be ${types.join(' or ')}`;

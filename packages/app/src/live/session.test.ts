@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { liveUrl, takeSessionToken } from './session';
 
 describe('takeSessionToken', () => {
-  it('reads the token from the fragment of the link the local program opened', () => {
+  it('reads the token from the fragment of the address the local program opened', () => {
     window.history.replaceState(null, '', '/#token=s3cr3t-T0ken_');
     expect(takeSessionToken(window)).toBe('s3cr3t-T0ken_');
   });
