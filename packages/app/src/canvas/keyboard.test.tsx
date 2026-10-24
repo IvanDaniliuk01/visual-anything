@@ -74,7 +74,8 @@ async function started(props: HarnessProps = {}) {
     if (!shape) throw new Error(key);
     return worldToScreen(camera, centerOf(shape.rect));
   };
-  return { ...result, host, at };
+  const on = (point: { x: number; y: number }) => worldToScreen(camera, point);
+  return { ...result, host, at, on };
 }
 
 function clickOn(host: HTMLElement, point: { x: number; y: number }): void {
@@ -249,7 +250,51 @@ describe('The canvas from the keyboard', () => {
 
   it('Ctrl and ⌘ with [ and ] change the stacking order; Alt with them is left alone', async () => {
     const onCommand = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
-    const { host, at } = await started({ onCommand });
+    const { host, at, on } = await started({ onCommand, project: withCalendarOverClinic() });
+    const sends = async (key: string, init: KeyboardEventInit) => {
+      onCommand.mockClear();
+      expect(press(host, key, init)).toBe(false);
+      await act(async () => {
+        await Promise.resolve();
+      });
+      return onCommand.mock.lastCall?.[0];
+    };
+    // Calendar, the newest shape directly in World, lies over Clinic booking, in front of it.
+    clickOn(host, on({ x: 390, y: 420 }));
+    const behind = { shape: { element: 'calendar' }, to: { behind: 'clinic-booking' } };
+    expect(await sends('[', { ctrlKey: true })).toEqual({
+      type: 'restack',
+      view: VIEW,
+      moves: [behind],
+    });
+    expect(said()).toMatch(/^"Calendar" is now behind "Clinic booking"/);
+    expect(await sends('[', { metaKey: true })).toEqual({
+      type: 'restack',
+      view: VIEW,
+      moves: [behind],
+    });
+    expect(await sends('{', { ctrlKey: true, shiftKey: true })).toEqual({
+      type: 'restack',
+      view: VIEW,
+      moves: [{ shape: { element: 'calendar' }, to: 'back' }],
+    });
+    expect(said()).toMatch(/^"Calendar" is now at the back/);
+
+    // Clinic booking, behind Calendar, comes in front of it.
+    clickOn(host, on({ x: 600, y: 450 }));
+    const inFront = {
+      type: 'restack',
+      view: VIEW,
+      moves: [{ shape: { element: 'clinic-booking' }, to: { inFrontOf: 'calendar' } }],
+    };
+    expect(await sends(']', { ctrlKey: true })).toEqual(inFront);
+    expect(said()).toBe('"Clinic booking" is now in front of "Calendar".');
+    expect(await sends(']', { metaKey: true })).toEqual(inFront);
+    // Alt with them is left alone, even where they would change something.
+    onCommand.mockClear();
+    expect(press(host, ']', { altKey: true })).toBe(true);
+    expect(onCommand).not.toHaveBeenCalled();
+
     clickOn(host, at('clinic-booking/booking-agent'));
     // The Booking agent overlaps nothing beside it, so each press says why nothing changed.
     expect(press(host, ']', { ctrlKey: true })).toBe(false);
@@ -506,6 +551,20 @@ function movedTo(x: number, y: number): Command {
     view: VIEW,
     positions: [{ element: 'patient', x, y, pinned: true }],
   };
+}
+
+/**
+ * The sample with Calendar created last, directly in World, over Clinic booking beside its contents:
+ * from (300, 380) to (480, 460), inside the sample's bounds, so the camera fits it as the sample.
+ */
+function withCalendarOverClinic(): ProjectSnapshot {
+  const outcome = executeCommand(sample, {
+    type: 'create-element',
+    element: { id: 'calendar', component: 'clinic.calendar', name: 'Calendar' },
+    positions: [{ view: VIEW, x: 300, y: 380 }],
+  });
+  if (!outcome.ok) throw new Error('refused');
+  return outcome.state;
 }
 
 /** The sample with the shapes inside Scheduling dragged up and out of it, above it. */

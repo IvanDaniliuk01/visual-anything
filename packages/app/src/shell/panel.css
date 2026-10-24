@@ -1,6 +1,7 @@
 /*
- * The model panel's tabs and its trees: the outline and World's tree. Every color pair used for text
- * meets WCAG 2.1 AA contrast (4.5:1), on the panel and on the selected rows' background alike.
+ * The model panel's tabs and its trees: the outline and World's tree. Its colors are the theme tokens:
+ * every color pair used for text meets 4.5:1, on the panel and on the selected rows' background alike,
+ * in both themes.
  */
 
 .panel.side-panel {
@@ -36,14 +37,18 @@
   color: var(--text);
 }
 
+.panel-tab:active {
+  background: var(--surface-pressed);
+}
+
 .panel-tab[aria-selected='true'] {
   border-bottom-color: var(--accent);
   color: var(--accent);
 }
 
 .panel-tab:focus-visible {
-  border-radius: 0.3rem;
-  outline: 2px solid var(--accent);
+  border-radius: var(--radius-sm);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 
@@ -116,12 +121,12 @@
 }
 
 .tree-row:hover {
-  background: rgb(31 41 51 / 5%);
+  background: var(--surface-hover);
 }
 
 .tree-row[aria-selected='true'] {
   background: var(--accent-soft);
-  /* The background alone is too faint to see: a bar in the accent marks the row, at 7.7:1. */
+  /* The background alone is too faint to see: a bar in the accent marks the row, at 3:1 or more. */
   box-shadow: inset 3px 0 0 var(--accent);
 }
 
@@ -130,7 +135,7 @@
 }
 
 .tree-row:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
 }
 
@@ -138,7 +143,7 @@
   flex: none;
   width: 1rem;
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   text-align: center;
 }
 
