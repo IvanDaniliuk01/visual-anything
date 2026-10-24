@@ -53,6 +53,19 @@ const BLOCK_OPTIONS: LayoutOptions = {
   'elk.layered.cycleBreaking.strategy': 'DFS_NODE_ORDER',
 };
 
+/**
+ * Beyond this many shapes, a block's flow wraps into rows, so that a long chain of relations reads
+ * like lines of text rather than running far off to the right; a shorter flow keeps to one row.
+ */
+export const WRAP_BEYOND = 12;
+
+/** How a block beyond `WRAP_BEYOND` shapes wraps: at several cuts, toward this aspect ratio. */
+const WRAPPED_OPTIONS: LayoutOptions = {
+  ...BLOCK_OPTIONS,
+  'elk.layered.wrapping.strategy': 'MULTI_EDGE',
+  'elk.aspectRatio': '1.6',
+};
+
 /** The graph that holds every block of one run: each is arranged on its own, and none moves. */
 const RUN_OPTIONS: LayoutOptions = {
   'elk.algorithm': 'org.eclipse.elk.fixed',
@@ -246,7 +259,7 @@ export function blockGraph(
 
   return {
     id,
-    layoutOptions: BLOCK_OPTIONS,
+    layoutOptions: nodes.length > WRAP_BEYOND ? WRAPPED_OPTIONS : BLOCK_OPTIONS,
     children: nodes.map((node) => {
       const size = sizes.get(node) ?? { width: 1, height: 1 };
       const own = ports.get(node);
