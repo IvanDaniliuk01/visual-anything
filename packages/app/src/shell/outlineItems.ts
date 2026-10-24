@@ -111,8 +111,8 @@ const outlines = new WeakMap<
   { inputs: OutlineInputs; outline: Outline }
 >();
 
-/** How many relations deep the row of a relation that ends on relations is looked for. */
-const RELATION_DEPTH = 32;
+/** How many relations away from a shape the row of a relation that ends on relations is looked for. */
+const MAX_HOPS = 32;
 
 /**
  * The outline of a scene; worked out once for each scene, and each row's insides when first asked. A
@@ -270,9 +270,9 @@ function buildOutline(scene: Scene, project: ProjectSnapshot): Outline {
   };
 
   /** The row of a drawn relation: inside the shape of an element it ends on, or the row of a relation. */
-  const placeOfRelation = (id: Id, depth: number): RowPlace | undefined => {
+  const placeOfRelation = (id: Id, hops: number): RowPlace | undefined => {
     const relation = drawn.has(id) ? index.relation(id) : undefined;
-    if (!relation || depth > RELATION_DEPTH) return undefined;
+    if (!relation || hops > MAX_HOPS) return undefined;
     for (const end of [relation.from, relation.to]) {
       const shape = firstShapes.get(end);
       if (shape) {
@@ -280,7 +280,7 @@ function buildOutline(scene: Scene, project: ProjectSnapshot): Outline {
       }
     }
     for (const end of [relation.from, relation.to]) {
-      const place = placeOfRelation(end, depth + 1);
+      const place = placeOfRelation(end, hops + 1);
       if (place) return { id: relationRowId(place.id, id), outer: [...place.outer, place.id] };
     }
     return undefined;
