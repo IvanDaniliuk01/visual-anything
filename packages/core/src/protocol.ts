@@ -8,6 +8,7 @@ import type { Id } from '@visual-anything/schema';
 import type { Command } from './commands';
 import type { Author, HistorySummary } from './history';
 import type { Operation } from './operations';
+import type { PreferenceChanges, Preferences } from './preferences';
 import type { Problem } from './problems';
 import type { ProjectSnapshot } from './snapshot';
 
@@ -28,13 +29,21 @@ export const LIVE_PATH = '/live';
  */
 export const TOKEN_PARAM = 'token';
 
+/**
+ * The name the theme a person chose travels under, `light` or `dark`, in the fragment of the URL the
+ * local program opens, so that the tab draws its first frame in it. It is left out when the person
+ * matches the system.
+ */
+export const THEME_PARAM = 'theme';
+
 /** A message the local program sends to the app. */
 export type ServerMessage =
   | ProjectOpenedMessage
   | ProjectChangedMessage
   | CommandRejectedMessage
   | ProjectReloadedMessage
-  | NoticeMessage;
+  | NoticeMessage
+  | PreferencesChangedMessage;
 
 /** Sent when the live connection opens: the project as it is now. */
 export interface ProjectOpenedMessage {
@@ -86,11 +95,34 @@ export interface NoticeMessage {
   message: string;
 }
 
+/**
+ * Sent to every open app when it connects and after every change of preferences, which are each
+ * person's own and never part of the project (ADR-0032). The app that asked for the change gets its
+ * request id.
+ */
+export interface PreferencesChangedMessage {
+  type: 'preferences/changed';
+  preferences: Preferences;
+  requestId?: string;
+}
+
 /** A message the app sends to the local program. */
 export type AppMessage =
   | { type: 'command'; requestId: string; command: Command }
   | { type: 'undo'; requestId: string }
-  | { type: 'redo'; requestId: string };
+  | { type: 'redo'; requestId: string }
+  | PreferencesSetMessage;
+
+/**
+ * Asks the local program to change some preferences. It is answered with `preferences/changed`, or
+ * with `command/rejected` when the changes cannot be used. It is never a command: it is not undone,
+ * has no author and changes no project file.
+ */
+export interface PreferencesSetMessage {
+  type: 'preferences/set';
+  requestId: string;
+  changes: PreferenceChanges;
+}
 
 /** Thrown for a message the live protocol does not define. */
 export class ProtocolError extends Error {
@@ -111,6 +143,7 @@ const SERVER_TYPES = new Set<string>([
   'command/rejected',
   'project/reloaded',
   'notice',
+  'preferences/changed',
 ]);
 
 /**
@@ -138,6 +171,10 @@ export function decodeServerMessage(text: string): ServerMessage {
       if (!Array.isArray(message.operations)) {
         throw new ProtocolError('The message has no operations.');
       }
+      break;
+    case 'preferences/changed':
+      if (!isRecord(message.preferences))
+        throw new ProtocolError('The message has no preferences.');
       break;
   }
   return message as unknown as ServerMessage;
@@ -167,6 +204,12 @@ export function decodeAppMessage(text: string): AppMessage {
       return message as unknown as AppMessage;
     case 'undo':
     case 'redo':
+      return message as unknown as AppMessage;
+    case 'preferences/set':
+      // The changes themselves are checked by checkPreferenceChanges, where they are used.
+      if (!isRecord(message.changes)) {
+        throw new ProtocolError('The message has no preferences to change.');
+      }
       return message as unknown as AppMessage;
     default:
       throw new ProtocolError(`Unknown message type: ${JSON.stringify(message.type)}.`);
