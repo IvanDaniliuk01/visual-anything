@@ -1,3 +1,5 @@
+import { decodeAppMessage, type AppMessage } from '@visual-anything/core';
+
 type Listener = (event: { data?: unknown }) => void;
 
 /**
@@ -10,6 +12,8 @@ export class FakeWebSocket {
   readonly url: string;
   /** Whether the app closed this socket itself. */
   closedByApp = false;
+  /** What the app sent, in order, read as the local program reads it. */
+  readonly sent: AppMessage[] = [];
   private readonly listeners = new Map<string, Set<Listener>>();
 
   constructor(url: string) {
@@ -27,12 +31,29 @@ export class FakeWebSocket {
     this.listeners.get(type)?.delete(listener);
   }
 
-  send(): void {
-    throw new Error('The app sends nothing in M0.');
+  /** Takes a message from the app. It must be one the local program can read. */
+  send(data: unknown): void {
+    if (this.closedByApp) throw new Error('The app sent a message on a socket it had closed.');
+    if (typeof data !== 'string') throw new Error('The app sends text messages only.');
+    this.sent.push(decodeAppMessage(data));
   }
 
   close(): void {
     this.closedByApp = true;
+  }
+
+  /** The last message the app sent. */
+  lastSent(): AppMessage {
+    const message = this.sent.at(-1);
+    if (!message) throw new Error('The app has sent nothing.');
+    return message;
+  }
+
+  /** How many listeners the app has on this socket; none once it has let go of it. */
+  listenerCount(): number {
+    let count = 0;
+    for (const listeners of this.listeners.values()) count += listeners.size;
+    return count;
   }
 
   /** The local program accepts the connection. */
