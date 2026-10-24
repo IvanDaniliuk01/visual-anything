@@ -1,20 +1,31 @@
 /**
  * The drawing step: turns parts of a scene into PixiJS graphics and text. It only draws; where
- * everything goes was decided by `buildScene`. Text is placed with anchors and never measured here, so
- * drawing does not depend on font metrics. The canvas draws a scene in tiles with these building
- * blocks.
+ * everything goes was decided by `buildScene`. Text is placed with anchors and given the room it may
+ * take inside its shape, so that a label never leaves its shape; drawing does not depend on font
+ * metrics beyond that. The canvas draws a scene in tiles with these building blocks.
  */
 import { Container, Graphics, Text, type CanvasTextOptions, type TextStyleOptions } from 'pixi.js';
 import type { Color } from '@visual-anything/schema';
 import type { Dash } from './geometry';
-import { directionOf, distance, middle, type Point, type Rect } from './geometry';
+import {
+  cylinderCap,
+  grow,
+  directionOf,
+  distance,
+  middle,
+  personHead,
+  type Point,
+  type Rect,
+} from './geometry';
 import {
   ARROW_STROKE,
+  CANVAS_BACKGROUND,
   NOTE_FILL,
   NOTE_STROKE,
   NOTE_TEXT,
   RELATION_LABEL_HALO,
   RELATION_LABEL_TEXT,
+  contrastRatio,
   readableTextColors,
 } from './palette';
 import { patternMatrix, patternTexture } from './patterns';
@@ -39,28 +50,106 @@ export const FONT_FAMILY = [
 /** What a label names: an element, its component, or a relation. */
 export type LabelKind = 'name' | 'detail' | 'relation';
 
-/** Makes the object a label is drawn with, from text laid out by this module. */
-export type TextFactory = (options: CanvasTextOptions, kind: LabelKind) => Container;
+/**
+ * Makes what a label is drawn with, from text laid out by this module. `room` is the height the label
+ * may take inside its shape; a factory that cannot fit the text in it gives nothing.
+ */
+export type TextFactory = (
+  options: CanvasTextOptions,
+  kind: LabelKind,
+  room?: number,
+) => Container | undefined;
 
 /** Labels as canvas text: sharp at any resolution, but slow to make by the thousand. */
 export const canvasText: TextFactory = (options) => new Text(options);
 const SHAPE_STROKE_WIDTH = 1.5;
+/** How wide the outlines of plain blocks are, inside them, so that they show far out. */
+const BLOCK_OUTLINE = SHAPE_STROKE_WIDTH * 4;
+/** The contrast below which a block's fill needs an outline to stand out from the canvas, from WCAG 1.4.11. */
+const BLOCK_CONTRAST = 3;
 const TEXT_INSET = 12;
 const NAME_SIZE = 14;
 const DETAIL_SIZE = 11;
 
+/** A label that can be shortened: its text, and how tall it comes out. */
+export interface FittingText {
+  text: string;
+  readonly height: number;
+  destroy(): void;
+}
+
+/**
+ * Fits a label in the room its shape gives it: a label too tall loses the end of its text, with "…"
+ * in its place, once and, when that is not enough, once more; one that still does not fit is
+ * destroyed, and nothing is shown.
+ */
+export function fitText<T extends FittingText>(label: T, room: number | undefined): T | undefined {
+  if (room === undefined || label.height <= room) return label;
+  const full = label.text;
+  let keep = Math.floor((full.length * room) / label.height) - 1;
+  for (let attempt = 0; attempt < 2 && keep > 0; attempt++) {
+    label.text = `${full.slice(0, keep).trimEnd()}…`;
+    if (label.height <= room) return label;
+    keep = Math.floor(keep * 0.7);
+  }
+  label.destroy();
+  return undefined;
+}
+
+const outlinedFills = new Map<Color, boolean>();
+
+/** Whether a block of this fill needs an outline to be told apart from the canvas. */
+function needsOutline(fill: Color): boolean {
+  let outlined = outlinedFills.get(fill);
+  if (outlined === undefined) {
+    outlined = contrastRatio(fill, CANVAS_BACKGROUND) < BLOCK_CONTRAST;
+    outlinedFills.set(fill, outlined);
+  }
+  return outlined;
+}
+
 /**
  * Draws element shapes as plain blocks of their colour: what the eye can tell apart when a whole large
- * view is on screen, at a fraction of the cost of their outlines.
+ * view is on screen, at a fraction of the cost of their outlines. Containers keep an outline, which
+ * shows the structure, and so do blocks whose fill would not stand out from the canvas.
+ *
+ * An outline is a block of its colour under a smaller block of the fill, inside the shape: blocks
+ * cost far less to draw than strokes, and all those of one colour are drawn together. The outlines
+ * then come before every fill, so the shapes must not overlap; `inOrder` draws each one whole, in
+ * order.
  */
-export function drawShapeBlocks(graphics: Graphics, shapes: readonly ElementShape[]): void {
+export function drawShapeBlocks(
+  graphics: Graphics,
+  shapes: readonly ElementShape[],
+  inOrder = false,
+): void {
+  const outlines = new Map<Color, Rect[]>();
+  const fills = new Map<Color, Rect[]>();
   for (const shape of shapes) {
-    const { x, y, width, height } = shape.rect;
-    graphics.rect(x, y, width, height).fill(shape.fill);
-    // Only containers keep an outline, which shows the structure; the others' would be too thin to see.
-    if (shape.holdsContents)
-      graphics.stroke({ color: shape.stroke, width: SHAPE_STROKE_WIDTH * 4 });
+    const outlined = shape.holdsContents || needsOutline(shape.fill);
+    const inner = outlined ? grow(shape.rect, -BLOCK_OUTLINE) : shape.rect;
+    const filled = inner.width > 0 && inner.height > 0;
+    if (inOrder) {
+      if (outlined) fillRects(graphics, shape.stroke, [shape.rect]);
+      if (filled) fillRects(graphics, shape.fill, [inner]);
+      continue;
+    }
+    if (outlined) addRect(outlines, shape.stroke, shape.rect);
+    if (filled) addRect(fills, shape.fill, inner);
   }
+  for (const [color, rects] of outlines) fillRects(graphics, color, rects);
+  for (const [color, rects] of fills) fillRects(graphics, color, rects);
+}
+
+function addRect(byColor: Map<Color, Rect[]>, color: Color, rect: Rect): void {
+  const rects = byColor.get(color);
+  if (rects) rects.push(rect);
+  else byColor.set(color, [rect]);
+}
+
+function fillRects(graphics: Graphics, color: Color, rects: readonly Rect[]): void {
+  for (const { x, y, width, height } of rects) graphics.rect(x, y, width, height);
+  graphics.fill(color);
 }
 
 /** Draws relations as plain lines along their routes, without dashes or arrowheads. */
@@ -79,7 +168,10 @@ export function drawShapeOutlines(graphics: Graphics, shapes: readonly ElementSh
   for (const shape of shapes) outline(graphics, shape);
 }
 
-/** Writes each shape's name and, with `details`, its component's name. */
+/**
+ * Writes each shape's name and, with `details`, its component's name, each in the room its shape
+ * gives it; a label the factory cannot fit is left out.
+ */
 export function writeShapeLabels(
   shapes: readonly ElementShape[],
   details: boolean,
@@ -87,8 +179,10 @@ export function writeShapeLabels(
 ): Container[] {
   const texts: Container[] = [];
   for (const shape of shapes) {
-    writeShapeText(shape, (options, detail) => {
-      if (!detail || details) texts.push(make(options, detail ? 'detail' : 'name'));
+    writeShapeText(shape, (options, detail, room) => {
+      if (detail && !details) return;
+      const text = make(options, detail ? 'detail' : 'name', room);
+      if (text) texts.push(text);
     });
   }
   return texts;
@@ -111,27 +205,26 @@ export function writeRelationLabels(
   lines: readonly RelationLine[],
   make: TextFactory = canvasText,
 ): Container[] {
-  return lines.flatMap((line) =>
-    line.label
-      ? [
-          make(
-            {
-              text: line.label,
-              anchor: 0.5,
-              x: line.middle.x,
-              y: line.middle.y,
-              style: {
-                fontFamily: FONT_FAMILY,
-                fontSize: 12,
-                fill: RELATION_LABEL_TEXT,
-                stroke: { color: RELATION_LABEL_HALO, width: 4, join: 'round' },
-              },
-            },
-            'relation',
-          ),
-        ]
-      : [],
-  );
+  return lines.flatMap((line) => {
+    const text =
+      line.label &&
+      make(
+        {
+          text: line.label,
+          anchor: 0.5,
+          x: line.middle.x,
+          y: line.middle.y,
+          style: {
+            fontFamily: FONT_FAMILY,
+            fontSize: 12,
+            fill: RELATION_LABEL_TEXT,
+            stroke: { color: RELATION_LABEL_HALO, width: 4, join: 'round' },
+          },
+        },
+        'relation',
+      );
+    return text ? [text] : [];
+  });
 }
 
 /** Draws notes and free arrows. */
@@ -188,7 +281,7 @@ function outline(graphics: Graphics, shape: ElementShape): void {
         .stroke(stroke);
       return;
     case 'cylinder': {
-      const cap = capHeight(shape.rect);
+      const cap = cylinderCap(shape.rect);
       const centerX = x + width / 2;
       const radiusX = width / 2;
       // The body, closed along the back of the top cap; then the front of the top cap.
@@ -203,7 +296,7 @@ function outline(graphics: Graphics, shape: ElementShape): void {
       return;
     }
     case 'person': {
-      const head = headRadius(shape.rect);
+      const head = personHead(shape.rect);
       graphics
         .roundRect(x, y + head * 1.6, width, height - head * 1.6, Math.min(12, width / 4))
         .fill(shape.fill)
@@ -219,71 +312,99 @@ function outline(graphics: Graphics, shape: ElementShape): void {
 
 /**
  * Writes a shape's name and its component's name, which is a detail: at the top of a container,
- * centered otherwise.
+ * centered otherwise. Each comes with its room, the height it may take inside the shape; a label
+ * with no room is left out.
  */
 function writeShapeText(
   shape: ElementShape,
-  write: (options: CanvasTextOptions, detail: boolean) => void,
+  write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
 ): void {
   const colors = readableTextColors(shape.fill);
+  const rooms = labelRooms(shape);
   if (shape.holdsContents) {
     const { x, y, width } = shape.rect;
     const wrap = Math.max(1, width - 2 * TEXT_INSET);
-    write(
-      {
-        text: shape.name,
-        x: x + TEXT_INSET,
-        y: y + 8,
-        style: textStyle(NAME_SIZE, colors.name, wrap, 'left', '600'),
-      },
-      false,
-    );
-    write(
-      {
-        text: shape.componentName,
-        x: x + TEXT_INSET,
-        y: y + 8 + NAME_SIZE + 6,
-        style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'left'),
-      },
-      true,
-    );
+    if (rooms.name > 0) {
+      write(
+        {
+          text: shape.name,
+          x: x + TEXT_INSET,
+          y: y + 8,
+          style: textStyle(NAME_SIZE, colors.name, wrap, 'left', '600'),
+        },
+        false,
+        rooms.name,
+      );
+    }
+    if (rooms.detail > 0) {
+      write(
+        {
+          text: shape.componentName,
+          x: x + TEXT_INSET,
+          y: y + 8 + NAME_SIZE + 6,
+          style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'left'),
+        },
+        true,
+        rooms.detail,
+      );
+    }
     return;
   }
   const area = labelArea(shape);
   const centerX = area.x + area.width / 2;
   const centerY = area.y + area.height / 2;
   const wrap = Math.max(1, area.width - TEXT_INSET);
-  write(
-    {
-      text: shape.name,
-      anchor: { x: 0.5, y: 1 },
-      x: centerX,
-      y: centerY + 2,
-      style: textStyle(NAME_SIZE, colors.name, wrap, 'center', '600'),
-    },
-    false,
-  );
-  write(
-    {
-      text: shape.componentName,
-      anchor: { x: 0.5, y: 0 },
-      x: centerX,
-      y: centerY + 4,
-      style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'center'),
-    },
-    true,
-  );
+  if (rooms.name > 0) {
+    write(
+      {
+        text: shape.name,
+        anchor: { x: 0.5, y: 1 },
+        x: centerX,
+        y: centerY + 2,
+        style: textStyle(NAME_SIZE, colors.name, wrap, 'center', '600'),
+      },
+      false,
+      rooms.name,
+    );
+  }
+  if (rooms.detail > 0) {
+    write(
+      {
+        text: shape.componentName,
+        anchor: { x: 0.5, y: 0 },
+        x: centerX,
+        y: centerY + 4,
+        style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'center'),
+      },
+      true,
+      rooms.detail,
+    );
+  }
+}
+
+/**
+ * How tall a shape's name and its component's name may be, so that they stay inside it: in a
+ * container, one line each in its header; elsewhere, the name above the middle of its label area and
+ * the component's name below it.
+ */
+export function labelRooms(shape: ElementShape): { name: number; detail: number } {
+  if (shape.holdsContents) {
+    const { height } = shape.rect;
+    return { name: Math.min(20, height - 12), detail: Math.min(16, height - 32) };
+  }
+  const area = labelArea(shape);
+  return { name: area.height / 2, detail: area.height / 2 - 6 };
 }
 
 /** The part of a shape its text is centered in: below a person's head, below a cylinder's top cap. */
 function labelArea(shape: ElementShape): Rect {
   const { x, y, width, height } = shape.rect;
   if (shape.kind === 'person') {
-    const top = headRadius(shape.rect) * 1.6;
+    const top = personHead(shape.rect) * 1.6;
     return { x, y: y + top, width, height: height - top };
   }
   if (shape.kind === 'cylinder') {
-    const cap = capHeight(shape.rect);
+    const cap = cylinderCap(shape.rect);
     return { x, y: y + 2 * cap, width, height: height - 3 * cap };
   }
   if (shape.kind === 'ellipse') {
@@ -315,14 +436,6 @@ function textStyle(
     wordWrapWidth,
     breakWords: true,
   };
-}
-
-function capHeight(rect: Rect): number {
-  return Math.min(12, rect.height * 0.15);
-}
-
-function headRadius(rect: Rect): number {
-  return Math.min(rect.height * 0.22, rect.width * 0.2);
 }
 
 /** Points along an elliptical arc from one angle to another, flattened for `poly`. */
