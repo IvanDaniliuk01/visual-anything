@@ -14,6 +14,12 @@ describe('takeSessionToken', () => {
     expect(window.location.hash).toBe('');
   });
 
+  it('leaves the theme hint beside the launch code in the address, for the theme to read', () => {
+    window.history.replaceState(null, '', '/#launch=c0de&theme=dark');
+    expect(takeSessionToken(window)).toEqual({ launch: 'c0de' });
+    expect(window.location.hash).toBe('#theme=dark');
+  });
+
   it('keeps no launch code: it works once, so a reload uses the session token instead', () => {
     window.history.replaceState(null, '', '/#launch=c0de');
     takeSessionToken(window);

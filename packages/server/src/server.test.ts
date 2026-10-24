@@ -341,6 +341,27 @@ describe('the live connection', () => {
   });
 });
 
+describe('launch addresses with a theme', () => {
+  it('carry the theme the person chose beside the launch code, and ask for it each time', async () => {
+    let theme: 'light' | 'dark' | undefined = 'dark';
+    const themed = await startServer({
+      session,
+      port: 0,
+      app: { mode: 'static', dir: appDir },
+      themeHint: () => theme,
+    });
+    try {
+      const fragment = new URLSearchParams(new URL(themed.launchUrl()).hash.slice(1));
+      expect(fragment.get('theme')).toBe('dark');
+      expect(fragment.get(LAUNCH_PARAM)).toMatch(/^[A-Za-z0-9_-]{22}$/);
+      theme = undefined;
+      expect(new URL(themed.launchUrl()).hash).not.toContain('theme');
+    } finally {
+      await themed.close();
+    }
+  });
+});
+
 describe('launch addresses', () => {
   const codeOf = (url: string) =>
     new URLSearchParams(new URL(url).hash.slice(1)).get(LAUNCH_PARAM) ?? '';
