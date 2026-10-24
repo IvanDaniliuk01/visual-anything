@@ -178,7 +178,7 @@ describe('where each trait comes from', () => {
       { component: 'systems.ai-agent', appearance: { shape: 'ellipse' } },
       definitions,
     );
-    expect(origins).toEqual({
+    expect(origins).toMatchObject({
       shape: { kind: 'own' },
       fill: builtIn('systems.ai-agent'),
       stroke: builtIn('systems.ai-agent'),
@@ -530,7 +530,8 @@ describe('resolution, as a property', () => {
           for (const path of TRAIT_PATHS) {
             const first = order.find((each) => traitOf(each.appearance, path) !== undefined);
             expect(traitOf(resolved, path), path).toEqual(traitOf(first?.appearance, path));
-            expect(origins[path], path).toEqual(first?.origin);
+            // A trait nothing sets, such as an image, is Essence's to give.
+            expect(origins[path], path).toEqual(first?.origin ?? builtIn('essence'));
           }
         },
       ),

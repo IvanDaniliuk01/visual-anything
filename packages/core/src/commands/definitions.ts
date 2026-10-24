@@ -37,7 +37,7 @@ import {
   changedAttributes,
   changedRelationAppearance,
   checkDetailResolves,
-  checkedAppearance,
+  checkedAppearanceOrNone,
   checkedAttributeDefinitions,
   checkedLimit,
   checkedLimits,
@@ -373,6 +373,7 @@ function checkedComponent(draft: Draft, file: PackageFile, value: unknown): Comp
   const id = checkedDefinitionId(draft, file, given.id, name, 'component');
   const of = `the component "${name}"`;
   const description = checkedDescription(given.description, of);
+  const stored = file.components.find((each) => each.id === id)?.appearance;
   return compact({
     id,
     name,
@@ -383,7 +384,9 @@ function checkedComponent(draft: Draft, file: PackageFile, value: unknown): Comp
         ? undefined
         : checkedAttributeDefinitions(given.attributes, of),
     appearance:
-      given.appearance === undefined ? undefined : checkedAppearance(given.appearance, of),
+      given.appearance === undefined
+        ? undefined
+        : checkedAppearanceOrNone(given.appearance, of, stored),
   });
 }
 
@@ -403,6 +406,7 @@ function checkedRelationType(draft: Draft, file: PackageFile, value: unknown): R
   const name = requireName(given.name, 'A relation type');
   const id = checkedDefinitionId(draft, file, given.id, name, 'relation type');
   const of = `the relation type "${name}"`;
+  const stored = file.relationTypes.find((each) => each.id === id)?.appearance;
   return compact({
     id,
     name,
@@ -415,7 +419,9 @@ function checkedRelationType(draft: Draft, file: PackageFile, value: unknown): R
         ? undefined
         : checkedAttributeDefinitions(given.attributes, of),
     appearance:
-      given.appearance === undefined ? undefined : checkedRelationAppearance(given.appearance, of),
+      given.appearance === undefined
+        ? undefined
+        : checkedRelationAppearance(given.appearance, of, stored),
     limits: checkedLimits(given.limits, draft.definitions, of),
   });
 }
