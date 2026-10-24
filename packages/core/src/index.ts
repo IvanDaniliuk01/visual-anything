@@ -48,6 +48,7 @@ export {
 
 export type { Placement } from './containment';
 export { containmentTree } from './containment';
+export type { NestingChoice } from './containers';
 export { leavingRelations, nestingTypeFor, nestingTypesInView } from './containers';
 export {
   contentsInView,
