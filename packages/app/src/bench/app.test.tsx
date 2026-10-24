@@ -67,6 +67,7 @@ describe('The app benchmark', () => {
       expect.arrayContaining(['Shell', 'CanvasArea', 'Inspector']),
     );
     expect(Object.keys(click?.profile?.methods ?? {})).toContain('CanvasController.setSelection');
+    expect(click?.profile?.timeline[0]?.[1]).toBe('input');
     expect(Object.keys(results.functions ?? {})).toEqual([
       'buildScene',
       'indexScene',
