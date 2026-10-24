@@ -50,8 +50,21 @@ const IN_WORLD = 'With nothing selected, elements are added directly in World.';
  * adds an element when one is picked from its open list; the arrow keys going through it while it is
  * closed only show an option, which Enter, or leaving it, adds.
  */
-export function CanvasToolbar(props: CanvasToolbarProps) {
-  const { project, editable, scale, addPlace, stacking } = props;
+export function CanvasToolbar({
+  project,
+  editable,
+  scale,
+  onAdd,
+  onAddNote,
+  onAddArrow,
+  onZoom,
+  onFit,
+  addPlace,
+  stacking,
+  onRestack,
+  addSelect,
+  onAddLeave,
+}: CanvasToolbarProps) {
   const palette = useMemo(() => {
     const definitions = definitionsOf(project.packages);
     return project.packages.map((file) => ({
@@ -70,7 +83,7 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
 
   const add = (component: string) => {
     setReached(undefined);
-    if (component !== '') props.onAdd(component);
+    if (component !== '') onAdd(component);
   };
 
   return (
@@ -78,7 +91,7 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
       <label className="canvas-toolbar-add">
         <span className="visually-hidden">{addPlace?.label ?? 'Add an element'}</span>
         <select
-          ref={props.addSelect}
+          ref={addSelect}
           value={reached ?? ''}
           title={addPlace?.title ?? IN_WORLD}
           disabled={!editable}
@@ -89,7 +102,7 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
             } else if (event.key === 'Escape') {
               if (reached !== undefined) event.preventDefault();
               setReached(undefined);
-              props.onAddLeave?.();
+              onAddLeave?.();
             } else if (browsesOptions(event)) {
               browsing.current = true;
               setTimeout(() => {
@@ -108,7 +121,7 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
           }}
           onBlur={() => {
             if (reached !== undefined) add(reached);
-            props.onAddLeave?.();
+            onAddLeave?.();
           }}
         >
           <option value="">{addPlace?.option ?? 'Add element…'}</option>
@@ -123,10 +136,10 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
           ))}
         </select>
       </label>
-      <button type="button" disabled={!editable} onClick={props.onAddNote}>
+      <button type="button" disabled={!editable} onClick={onAddNote}>
         Note
       </button>
-      <button type="button" disabled={!editable} onClick={props.onAddArrow}>
+      <button type="button" disabled={!editable} onClick={onAddArrow}>
         Arrow
       </button>
       {stacking && (
@@ -138,7 +151,7 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
               title={stacking[move].description}
               aria-keyshortcuts={STACKING_KEYS[move].keys}
               aria-disabled={stacking[move].enabled ? undefined : true}
-              onClick={() => props.onRestack?.(move)}
+              onClick={() => onRestack?.(move)}
             >
               <StackingIcon move={move} />
               <span className="visually-hidden">{STACKING_NAMES[move]}</span>
@@ -147,16 +160,16 @@ export function CanvasToolbar(props: CanvasToolbarProps) {
         </div>
       )}
       <span className="canvas-toolbar-spacer" />
-      <button type="button" aria-label="Zoom out" onClick={() => props.onZoom(1 / 1.25)}>
+      <button type="button" aria-label="Zoom out" onClick={() => onZoom(1 / 1.25)}>
         −
       </button>
       <output className="canvas-toolbar-zoom" aria-label="Zoom">
         {scale === undefined ? '' : `${Math.round(scale * 100)}%`}
       </output>
-      <button type="button" aria-label="Zoom in" onClick={() => props.onZoom(1.25)}>
+      <button type="button" aria-label="Zoom in" onClick={() => onZoom(1.25)}>
         +
       </button>
-      <button type="button" onClick={props.onFit}>
+      <button type="button" onClick={onFit}>
         Fit
       </button>
     </div>
