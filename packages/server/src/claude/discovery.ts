@@ -1,16 +1,25 @@
 /**
  * How Claude's MCP entry point finds the running local program of a project. Each running program
- * leaves a record in the runtime folder, a folder only its user may read, keyed by the project
- * folder's real path: the program's process, its port and Claude's credential for the Claude
- * endpoint. The record is written when the program listens and removed when it stops.
+ * leaves a record in the runtime folder, keyed by the project folder's real path: the program's
+ * process, its port and Claude's credential for the Claude endpoint. The record is written when the
+ * program listens and removed when it stops.
  *
  * The credential is a secret of its own: it opens only the Claude endpoint, which accepts only what
- * Claude may send, and it is never the session token, which never leaves the program.
+ * Claude may send, and it is never the session token, which never leaves the program. So that no
+ * other account on the computer can read it, or plant a record the entry point would trust:
+ * - on Windows, the runtime folder lies in the user's own profile, whose inherited access list admits
+ *   only the user, SYSTEM and Administrators; a folder named by `VISUAL_ANYTHING_RUNTIME` is refused
+ *   unless its real path lies in the profile too;
+ * - elsewhere, the folder belongs to the user and is closed to everyone else (0700), and each record
+ *   belongs to the user and is readable only by them (0600);
+ * - everywhere, a record is trusted only when it is a regular file, reached through no link, inside
+ *   that folder, and no older than the start of the program it names.
  */
 import { createHash } from 'node:crypto';
-import { chmod, lstat, mkdir, readdir } from 'node:fs/promises';
+import { chmod, lstat, mkdir, readdir, realpath } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import * as path from 'node:path';
-import { errorCode } from '../errors';
+import { isInside } from '../paths';
 import { readRegularFile } from '../regular-files';
 import { removeFile, writeFileAtomic } from '../writer';
 
@@ -35,14 +44,39 @@ export interface ProgramRecord {
   startedAt: string;
 }
 
+/** Who is asking, and on which platform: the real ones by default; tests give their own. */
+export interface RuntimeContext {
+  platform: NodeJS.Platform;
+  /** The user's profile, or home folder. */
+  home: string;
+  /** The user's id, on platforms whose files have owners. */
+  uid?: number;
+}
+
+/** The context of this process. */
+export function currentContext(): RuntimeContext {
+  const uid = process.getuid?.();
+  return { platform: process.platform, home: homedir(), ...(uid === undefined ? {} : { uid }) };
+}
+
+/** Raised for a runtime folder that other accounts could read or write. */
+export class UnsafeRuntimeFolderError extends Error {
+  override name = 'UnsafeRuntimeFolderError';
+}
+
 /** The longest record file read. */
 const RECORD_CAP = 16 * 1024;
 
+/** How far the clocks of a record's file and its own start may disagree. */
+const CLOCK_SLACK = 2_000;
+
 /**
- * The runtime folder: `%LOCALAPPDATA%\Visual Anything\run` on Windows,
- * `~/Library/Application Support/Visual Anything/run` on macOS, `$XDG_RUNTIME_DIR/visual-anything`
+ * The runtime folder: `%LOCALAPPDATA%\Visual Anything\run` on Windows, when that lies in the
+ * profile, or `<profile>\AppData\Local\Visual Anything\run`;
+ * `~/Library/Application Support/Visual Anything/run` on macOS; `$XDG_RUNTIME_DIR/visual-anything`
  * elsewhere, or `$XDG_STATE_HOME/visual-anything/run`, or `~/.local/state/visual-anything/run`.
- * An absolute `VISUAL_ANYTHING_RUNTIME` names another one; relative values are ignored.
+ * An absolute `VISUAL_ANYTHING_RUNTIME` names another one, which is checked when it is used;
+ * relative values are ignored.
  */
 export function runtimeFolder(
   platform: NodeJS.Platform,
@@ -55,7 +89,9 @@ export function runtimeFolder(
   const override = absolute(env[RUNTIME_ENV]);
   if (override !== undefined) return override;
   if (platform === 'win32') {
-    const local = absolute(env.LOCALAPPDATA) ?? paths.join(home, 'AppData', 'Local');
+    const given = absolute(env.LOCALAPPDATA);
+    const inProfile = given !== undefined && isInsideWith(paths, home, given);
+    const local = inProfile ? given : paths.join(home, 'AppData', 'Local');
     return paths.join(local, 'Visual Anything', 'run');
   }
   if (platform === 'darwin') {
@@ -78,9 +114,13 @@ export function recordName(folder: string, platform: NodeJS.Platform = process.p
 }
 
 /** Writes the record of a running program, only its user may read, and returns its path. */
-export async function writeProgramRecord(runtime: string, record: ProgramRecord): Promise<string> {
-  await privateFolder(runtime);
-  const file = path.join(runtime, recordName(record.folder));
+export async function writeProgramRecord(
+  runtime: string,
+  record: ProgramRecord,
+  context: RuntimeContext = currentContext(),
+): Promise<string> {
+  const real = await privateFolder(runtime, context, { create: true });
+  const file = path.join(real, recordName(record.folder, context.platform));
   await writeFileAtomic(file, Buffer.from(`${JSON.stringify(record, null, 2)}\n`, 'utf8'), {
     mode: 0o600,
   });
@@ -88,35 +128,60 @@ export async function writeProgramRecord(runtime: string, record: ProgramRecord)
 }
 
 /** Removes a record, but only while it still names this process: another may have taken its place. */
-export async function removeProgramRecord(file: string, pid: number): Promise<void> {
-  const record = await readRecordFile(file);
+export async function removeProgramRecord(
+  file: string,
+  pid: number,
+  context: RuntimeContext = currentContext(),
+): Promise<void> {
+  let real: string;
+  try {
+    real = await privateFolder(path.dirname(file), context, { create: false });
+  } catch {
+    return;
+  }
+  const record = await readRecordFile(path.join(real, path.basename(file)), real, context);
   if (record?.pid !== pid) return;
   await removeFile(file).catch(() => {});
 }
 
-/** The record of the program that has a project folder open, if one left a valid record. */
+/**
+ * The record of the program that has a project folder open, if a trusted one is there. Throws an
+ * {@link UnsafeRuntimeFolderError} for a runtime folder other accounts could reach.
+ */
 export async function readProgramRecord(
   runtime: string,
   folder: string,
+  context: RuntimeContext = currentContext(),
 ): Promise<ProgramRecord | undefined> {
-  const record = await readRecordFile(path.join(runtime, recordName(folder)));
-  return record !== undefined && recordName(record.folder) === recordName(folder)
+  const real = await openedFolder(runtime, context);
+  if (real === undefined) return undefined;
+  const name = recordName(folder, context.platform);
+  const record = await readRecordFile(path.join(real, name), real, context);
+  return record !== undefined && recordName(record.folder, context.platform) === name
     ? record
     : undefined;
 }
 
-/** Every valid record in the runtime folder. */
-export async function listProgramRecords(runtime: string): Promise<ProgramRecord[]> {
+/**
+ * Every trusted record in the runtime folder. Throws an {@link UnsafeRuntimeFolderError} for a
+ * runtime folder other accounts could reach.
+ */
+export async function listProgramRecords(
+  runtime: string,
+  context: RuntimeContext = currentContext(),
+): Promise<ProgramRecord[]> {
+  const real = await openedFolder(runtime, context);
+  if (real === undefined) return [];
   let names: string[];
   try {
-    names = await readdir(runtime);
+    names = await readdir(real);
   } catch {
     return [];
   }
   const records = await Promise.all(
     names
       .filter((name) => /^[0-9a-f]{24}\.json$/.test(name))
-      .map((name) => readRecordFile(path.join(runtime, name))),
+      .map((name) => readRecordFile(path.join(real, name), real, context)),
   );
   return records.filter((record) => record !== undefined);
 }
@@ -127,20 +192,87 @@ export function isAlive(pid: number): boolean {
     process.kill(pid, 0);
     return true;
   } catch (error) {
-    return errorCode(error) === 'EPERM';
+    return typeof error === 'object' && error !== null && 'code' in error && error.code === 'EPERM';
   }
 }
 
-/** Reads a record file: a regular file of this user, holding a record of this format. */
-async function readRecordFile(file: string): Promise<ProgramRecord | undefined> {
-  if (process.getuid !== undefined) {
-    try {
-      if ((await lstat(file)).uid !== process.getuid()) return undefined;
-    } catch {
-      return undefined;
+/** The real path of an existing runtime folder, checked; `undefined` when there is none yet. */
+async function openedFolder(runtime: string, context: RuntimeContext): Promise<string | undefined> {
+  try {
+    await lstat(runtime);
+  } catch {
+    return undefined;
+  }
+  return privateFolder(runtime, context, { create: false });
+}
+
+/**
+ * Checks, and makes when asked, the runtime folder; returns its real path. It must be a real folder,
+ * not a link. On Windows its real path must lie in the user's profile. Elsewhere it must belong to the
+ * user; a folder made here is closed to everyone else, and one others may write in is refused.
+ */
+async function privateFolder(
+  folder: string,
+  context: RuntimeContext,
+  how: { create: boolean },
+): Promise<string> {
+  if (how.create) await mkdir(folder, { recursive: true, mode: 0o700 });
+  const stats = await lstat(folder);
+  if (stats.isSymbolicLink() || !stats.isDirectory()) {
+    throw new UnsafeRuntimeFolderError(
+      `${folder} is not a real folder, so Claude's credential is not kept there.`,
+    );
+  }
+  const real = await realpath(folder);
+  if (context.platform === 'win32') {
+    const profile = await realpath(context.home).catch(() => context.home);
+    if (!isInside(profile, real)) {
+      throw new UnsafeRuntimeFolderError(
+        `${real} lies outside your profile (${profile}), where other accounts on this computer could read Claude's credential or leave a record of their own. Choose a runtime folder inside your profile.`,
+      );
+    }
+    return real;
+  }
+  if (context.uid !== undefined) {
+    if (stats.uid !== context.uid) {
+      throw new UnsafeRuntimeFolderError(
+        `${folder} belongs to another user, so Claude's credential is not kept there.`,
+      );
+    }
+    if ((stats.mode & 0o077) !== 0) {
+      if (!how.create && (stats.mode & 0o022) !== 0) {
+        throw new UnsafeRuntimeFolderError(
+          `Other users may write in ${folder}, so no record there is trusted.`,
+        );
+      }
+      await chmod(folder, 0o700);
     }
   }
-  const read = await readRegularFile(file, RECORD_CAP);
+  return real;
+}
+
+/**
+ * Reads a record file and trusts it only when it is a regular file reached through no link, inside
+ * the runtime folder; of this user and readable by them only, where files have owners; holding a
+ * record of this format; and no older than the start of the program it names.
+ */
+async function readRecordFile(
+  file: string,
+  realRuntime: string,
+  context: RuntimeContext,
+): Promise<ProgramRecord | undefined> {
+  let modified: number;
+  try {
+    const stats = await lstat(file);
+    if (stats.isSymbolicLink() || !stats.isFile()) return undefined;
+    if (context.platform !== 'win32' && context.uid !== undefined) {
+      if (stats.uid !== context.uid || (stats.mode & 0o077) !== 0) return undefined;
+    }
+    modified = stats.mtimeMs;
+  } catch {
+    return undefined;
+  }
+  const read = await readRegularFile(file, RECORD_CAP, { inside: realRuntime });
   if (!read.ok) return undefined;
   let value: unknown;
   try {
@@ -148,7 +280,11 @@ async function readRecordFile(file: string): Promise<ProgramRecord | undefined> 
   } catch {
     return undefined;
   }
-  return isRecord(value) ? value : undefined;
+  if (!isRecord(value)) return undefined;
+  const started = Date.parse(value.startedAt);
+  // A record is written once its program listens: one older than that start was left by something else.
+  if (Number.isNaN(started) || modified + CLOCK_SLACK < started) return undefined;
+  return value;
 }
 
 function isRecord(value: unknown): value is ProgramRecord {
@@ -168,21 +304,13 @@ function isRecord(value: unknown): value is ProgramRecord {
   );
 }
 
-/**
- * Makes the runtime folder if needed, only its user may enter: a real folder, not a link, and on
- * platforms with owners, owned by this user and closed to everyone else.
- */
-async function privateFolder(folder: string): Promise<void> {
-  await mkdir(folder, { recursive: true, mode: 0o700 });
-  const stats = await lstat(folder);
-  if (stats.isSymbolicLink() || !stats.isDirectory()) {
-    throw new Error(`${folder} is not a real folder, so Claude's credential is not written there.`);
-  }
-  if (process.getuid === undefined) return;
-  if (stats.uid !== process.getuid()) {
-    throw new Error(
-      `${folder} belongs to another user, so Claude's credential is not written there.`,
-    );
-  }
-  if ((stats.mode & 0o077) !== 0) await chmod(folder, 0o700);
+/** Whether `inner` lies inside `outer`, for the path rules of a platform. */
+function isInsideWith(paths: typeof path.win32, outer: string, inner: string): boolean {
+  const relative = paths.relative(outer, inner);
+  return (
+    relative !== '' &&
+    relative !== '..' &&
+    !relative.startsWith(`..${paths.sep}`) &&
+    !paths.isAbsolute(relative)
+  );
 }
