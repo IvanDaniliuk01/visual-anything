@@ -207,7 +207,7 @@
     },
     "Color": {
       "type": "string",
-      "description": "A color written as `#rrggbb`.",
+      "description": "A color written as `#RRGGBB`: no alpha, no short form and no names. Files may write the digits in either case; the program writes new colors in capitals and keeps a color's spelling when it is set to the same color again.",
       "pattern": "^#[0-9a-fA-F]{6}$"
     },
     "DetailRules": {

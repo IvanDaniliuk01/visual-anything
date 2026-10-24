@@ -159,7 +159,7 @@
     },
     "Color": {
       "type": "string",
-      "description": "A color written as `#rrggbb`.",
+      "description": "A color written as `#RRGGBB`: no alpha, no short form and no names. Files may write the digits in either case; the program writes new colors in capitals and keeps a color's spelling when it is set to the same color again.",
       "pattern": "^#[0-9a-fA-F]{6}$"
     },
     "DetailRules": {
@@ -347,6 +347,10 @@
         },
         "attributes": {
           "$ref": "#/definitions/Attributes"
+        },
+        "appearance": {
+          "$ref": "#/definitions/RelationAppearance",
+          "description": "An appearance of its own, which is a particularity. Whatever it leaves out comes from the relation type."
         }
       },
       "required": [
@@ -357,6 +361,29 @@
       ],
       "additionalProperties": false,
       "description": "A meaningful tie between two ends, each an element or another relation, always of a relation type."
+    },
+    "RelationAppearance": {
+      "type": "object",
+      "properties": {
+        "stroke": {
+          "$ref": "#/definitions/Color"
+        },
+        "width": {
+          "type": "number",
+          "description": "The line width, in canvas units.",
+          "exclusiveMinimum": 0
+        },
+        "dash": {
+          "type": "string",
+          "enum": [
+            "solid",
+            "dashed",
+            "dotted"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "How a relation is drawn."
     }
   }
 }

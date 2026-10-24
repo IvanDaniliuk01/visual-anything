@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "urn:visual-anything:schema:project",
   "title": "Visual Anything project file",
-  "description": "The contents of a project's `.vaproject` file: its name, schema version and the packages in use.",
+  "description": "The contents of a project's `.vaproject` file: its name, schema version, the packages in use and the project appearances it gives to definitions it cannot change.",
   "type": "object",
   "properties": {
     "schemaVersion": {
@@ -24,6 +24,10 @@
       },
       "description": "The ids of the packages the project uses. Their files live in the project's `packages/` folder.",
       "uniqueItems": true
+    },
+    "appearances": {
+      "$ref": "#/definitions/ProjectAppearances",
+      "description": "How the project draws the components and relation types it uses but cannot change: those of built-in packages, Essence and \"relates to\". Absent when it gives none an appearance."
     }
   },
   "required": [
@@ -37,6 +41,285 @@
       "type": "string",
       "description": "An identifier, generated once and never reused. Files refer to each other only by id. Element and relation ids share one namespace, because a relation can end on either. Component and relation type ids start with their package's id, as in `systems.service`.",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "ProjectAppearances": {
+      "type": "object",
+      "properties": {
+        "components": {
+          "$ref": "#/definitions/ComponentAppearances",
+          "description": "By component id, `essence` included."
+        },
+        "relationTypes": {
+          "$ref": "#/definitions/RelationTypeAppearances",
+          "description": "By relation type id, `relates-to` included."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Project appearances, by the id of the definition they belong to. Each sets only the traits it lists, for that definition and for whatever derives from it without setting them itself; an element's or a relation's own appearance still comes first. An entry for one of the project's own definitions, or for one no package in use defines, has no effect.",
+      "minProperties": 1
+    },
+    "ComponentAppearances": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/Appearance"
+      },
+      "propertyNames": {
+        "description": "An identifier, generated once and never reused. Files refer to each other only by id. Element and relation ids share one namespace, because a relation can end on either. Component and relation type ids start with their package's id, as in `systems.service`.",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+      },
+      "description": "Project appearances of components, by component id.",
+      "minProperties": 1
+    },
+    "Appearance": {
+      "type": "object",
+      "properties": {
+        "shape": {
+          "type": "string",
+          "enum": [
+            "rectangle",
+            "rounded-rectangle",
+            "ellipse",
+            "cylinder",
+            "person"
+          ],
+          "description": "The kind of its shapes. While its shapes draw their contents as rows, any kind other than `rounded-rectangle` is drawn as a rectangle."
+        },
+        "fill": {
+          "$ref": "#/definitions/Color"
+        },
+        "stroke": {
+          "$ref": "#/definitions/Color"
+        },
+        "width": {
+          "type": "number",
+          "description": "The width of its shapes when a view does not set one, in canvas units.",
+          "exclusiveMinimum": 0,
+          "maximum": 100000
+        },
+        "height": {
+          "type": "number",
+          "description": "The height of its shapes when a view does not set one, in canvas units. Shapes that draw their contents as rows take their height from their rows instead.",
+          "exclusiveMinimum": 0,
+          "maximum": 100000
+        },
+        "detail": {
+          "$ref": "#/definitions/DetailRules",
+          "description": "What its shapes write under the element's name. Each part is inherited on its own."
+        },
+        "contentsAsRows": {
+          "type": "boolean",
+          "description": "Whether its shapes draw the elements they hold as rows: one under another below a header, as wide as the shape, in the model's order, as a table draws its columns. Rows have no positions of their own in views, and the shape's height follows its rows."
+        },
+        "connectionPoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ConnectionPoint"
+          },
+          "description": "Where relations attach to its shapes: each relation attaches to the one facing its other end. An empty list has relations attach anywhere on the border, whatever is inherited. Shapes that draw their contents as rows attach relations beside their header and their rows instead.",
+          "maxItems": 32
+        }
+      },
+      "additionalProperties": false,
+      "description": "How an element's shapes are drawn. Whatever an appearance leaves out is inherited."
+    },
+    "Color": {
+      "type": "string",
+      "description": "A color written as `#RRGGBB`: no alpha, no short form and no names. Files may write the digits in either case; the program writes new colors in capitals and keeps a color's spelling when it is set to the same color again.",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "DetailRules": {
+      "type": "object",
+      "properties": {
+        "componentName": {
+          "type": "boolean",
+          "description": "Whether it writes the component's name. Essence writes it."
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The attributes whose values it writes, in this order, after the component's name; an attribute without a value is skipped.",
+          "maxItems": 8,
+          "uniqueItems": true
+        },
+        "badges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Badge"
+          },
+          "description": "The badges it writes after the values, each while its element meets the badge's condition.",
+          "maxItems": 8
+        }
+      },
+      "additionalProperties": false,
+      "description": "What a shape writes under its element's name, on one line."
+    },
+    "Badge": {
+      "type": "object",
+      "properties": {
+        "when": {
+          "enum": [
+            "attribute",
+            "from-end"
+          ]
+        }
+      },
+      "required": [
+        "when"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "when": {
+                "type": "string",
+                "const": "attribute"
+              }
+            },
+            "required": [
+              "when"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/AttributeBadge"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "when": {
+                "type": "string",
+                "const": "from-end"
+              }
+            },
+            "required": [
+              "when"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/RelationEndBadge"
+          }
+        }
+      ],
+      "description": "A short text, such as \"PK\", that a shape writes while its element meets the badge's condition."
+    },
+    "AttributeBadge": {
+      "type": "object",
+      "properties": {
+        "when": {
+          "type": "string",
+          "const": "attribute"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4
+        },
+        "attribute": {
+          "type": "string",
+          "description": "The name of a boolean attribute of the element."
+        }
+      },
+      "required": [
+        "when",
+        "text",
+        "attribute"
+      ],
+      "additionalProperties": false,
+      "description": "A badge written while a boolean attribute of the element is true."
+    },
+    "RelationEndBadge": {
+      "type": "object",
+      "properties": {
+        "when": {
+          "type": "string",
+          "const": "from-end"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4
+        },
+        "relationType": {
+          "$ref": "#/definitions/Id"
+        }
+      },
+      "required": [
+        "when",
+        "text",
+        "relationType"
+      ],
+      "additionalProperties": false,
+      "description": "A badge written while the element is the `from` end of a relation of this relation type, or of one derived from it."
+    },
+    "ConnectionPoint": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique among the connection points of one appearance, such as \"in\" or \"out\".",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "side": {
+          "type": "string",
+          "enum": [
+            "top",
+            "right",
+            "bottom",
+            "left"
+          ]
+        },
+        "at": {
+          "type": "number",
+          "description": "Where it sits along its side, from 0 at the side's left or top end to 1 at its right or bottom end.",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "name",
+        "side",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A named place on the border of a shape where relations attach."
+    },
+    "RelationTypeAppearances": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/RelationAppearance"
+      },
+      "propertyNames": {
+        "description": "An identifier, generated once and never reused. Files refer to each other only by id. Element and relation ids share one namespace, because a relation can end on either. Component and relation type ids start with their package's id, as in `systems.service`.",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+      },
+      "description": "Project appearances of relation types, by relation type id.",
+      "minProperties": 1
+    },
+    "RelationAppearance": {
+      "type": "object",
+      "properties": {
+        "stroke": {
+          "$ref": "#/definitions/Color"
+        },
+        "width": {
+          "type": "number",
+          "description": "The line width, in canvas units.",
+          "exclusiveMinimum": 0
+        },
+        "dash": {
+          "type": "string",
+          "enum": [
+            "solid",
+            "dashed",
+            "dotted"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "How a relation is drawn."
     }
   }
 }
