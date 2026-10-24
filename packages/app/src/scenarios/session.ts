@@ -84,6 +84,8 @@ const FRAME_CLOCK: Clock = {
 
 /** How many clicks wait for the one before them to come back, at most. */
 const MAX_WAITING_CLICKS = 16;
+/** How much time one frame moves playback on, at most, in milliseconds. */
+const MAX_FRAME_TIME = 100;
 
 interface Click {
   relation: Id;
@@ -160,7 +162,7 @@ export class ScenarioSession {
     if (!context.timeline) this.playback = pause(this.playback);
     this.publish();
     this.recordNext();
-    this.run();
+    this.keepMoving();
   }
 
   /** Opens a scenario, at its first step, paused. */
@@ -226,7 +228,7 @@ export class ScenarioSession {
     }
     this.publish();
     this.emitFrame();
-    this.run();
+    this.keepMoving();
   }
 
   /**
@@ -342,7 +344,7 @@ export class ScenarioSession {
     this.context?.announce(sent.applied.said);
     this.publish();
     this.emitFrame();
-    this.run();
+    this.keepMoving();
   }
 
   /** Moves playback, and keeps the clock going while it plays. */
@@ -350,7 +352,7 @@ export class ScenarioSession {
     this.playback = playback;
     this.publish();
     this.emitFrame();
-    this.run();
+    this.keepMoving();
   }
 
   /** Works out what the state shows now, and tells the listeners when it changed. */
@@ -377,7 +379,7 @@ export class ScenarioSession {
   }
 
   /** Asks for the next frame while playback moves. */
-  private run(): void {
+  private keepMoving(): void {
     if (this.playback.mode === 'paused' || !this.context?.timeline) {
       this.stop();
       return;
@@ -390,7 +392,8 @@ export class ScenarioSession {
   private readonly onFrame = (): void => {
     this.frame = undefined;
     const now = this.clock.now();
-    const passed = now - (this.lastFrame ?? now);
+    // A frame that comes late, as after the tab was hidden, counts as one frame: hidden time never plays.
+    const passed = Math.min(now - (this.lastFrame ?? now), MAX_FRAME_TIME);
     this.lastFrame = now;
     const timeline = this.context?.timeline;
     if (!timeline) {

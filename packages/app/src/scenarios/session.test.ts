@@ -39,6 +39,13 @@ function testClock() {
         frame();
       }
     },
+    /** Lets `ms` milliseconds pass before the next frame, as while the tab is hidden. */
+    late(ms: number) {
+      now += ms;
+      const frame = waiting;
+      waiting = undefined;
+      frame?.();
+    },
     get running() {
       return waiting !== undefined;
     },
@@ -142,6 +149,16 @@ describe('ScenarioSession', () => {
     // The state changes only when the step or the mode does, not on every frame.
     expect(new Set(states)).toEqual(new Set([0, 1, 2, 3, 4]));
     expect(states.length).toBeLessThan(10);
+  });
+
+  it('plays no time it was hidden for: a late frame moves it on as one frame', () => {
+    const setup = setUp();
+    open(setup);
+    setup.session.play();
+    setup.time.pass(32);
+    setup.time.late(60_000);
+    expect(setup.session.getState().step).toBe(0);
+    expect(setup.session.getElapsed()).toBeLessThanOrEqual(132);
   });
 
   it('tells the marker on every frame while it moves', () => {
