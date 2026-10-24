@@ -5,12 +5,18 @@
 import type {
   Appearance,
   Arrow,
+  AttributeDefinition,
   Attributes,
+  Badge,
+  Color,
   Component,
+  ConnectionPoint,
   FreeShape,
   Id,
+  LimitList,
   Note,
   Perspective,
+  RelationAppearance,
   RelationType,
   ShapePosition,
   Step,
@@ -42,6 +48,11 @@ export type Command =
   | UpdateProjectCommand
   | RestackCommand
   | ChangeContainerCommand
+  | UpdateComponentCommand
+  | UpdateRelationTypeCommand
+  | UpdatePackageCommand
+  | ReorderElementsCommand
+  | SetCollapsedCommand
   | BatchCommand;
 
 /** The kinds of command. */
@@ -63,8 +74,16 @@ export interface CreateElementCommand {
   element: NewElement;
   /** The containers to place it in, each through a nesting relation of the given relation type. */
   containers?: { container: Id; relationType: Id }[];
-  /** Where its shapes sit in views. */
+  /**
+   * Where its shapes sit in views. A container that draws its contents as rows takes no position:
+   * a row's place is its place in the model's order.
+   */
   positions?: (Omit<ShapePosition, 'element'> & { view: Id })[];
+  /**
+   * The element it goes before in the model's order, which is the order of rows; absent, it goes
+   * last. Every view still draws its shape in front of the shapes beside it.
+   */
+  before?: Id;
 }
 
 /** Changes an element, World included. `null` removes an optional trait. */
@@ -77,11 +96,132 @@ export interface UpdateElementCommand {
     component?: Id;
     /** The element's own appearance, replaced whole; `null` makes it look like its component. */
     appearance?: Appearance | null;
+    /** Changes to its own appearance, trait by trait; cannot be combined with `appearance`. */
+    appearanceTraits?: AppearanceChanges;
     /** Attribute values to set. */
     attributes?: Attributes;
     /** Attributes to remove. */
     removeAttributes?: string[];
   };
+}
+
+/**
+ * Changes to an appearance, trait by trait: a value sets a trait, `null` takes it out so that it is
+ * inherited again. A trait left out stays as it is.
+ */
+export interface AppearanceChanges {
+  shape?: NonNullable<Appearance['shape']> | null;
+  fill?: Color | null;
+  stroke?: Color | null;
+  width?: number | null;
+  height?: number | null;
+  /** Each part on its own; `null` for the whole detail takes all of its parts out. */
+  detail?: {
+    componentName?: boolean | null;
+    attributes?: string[] | null;
+    badges?: Badge[] | null;
+  } | null;
+  contentsAsRows?: boolean | null;
+  /** An empty list has relations attach anywhere on the border, whatever is inherited. */
+  connectionPoints?: ConnectionPoint[] | null;
+}
+
+/** Changes to how a relation type's relations are drawn, trait by trait, as for an appearance. */
+export interface RelationAppearanceChanges {
+  stroke?: Color | null;
+  width?: number | null;
+  dash?: NonNullable<RelationAppearance['dash']> | null;
+}
+
+/**
+ * Changes to the attributes a definition defines itself, applied in this order: rename, set, remove,
+ * order.
+ */
+export interface AttributeChanges {
+  /**
+   * Its own attributes renamed. Values held under the old name move to the new one on every element
+   * or relation that gets the attribute from this definition, and so do the detail attributes and
+   * badges of this definition, of those deriving from it and of elements' own appearances that name
+   * it; where a nearer definition redefines the name, nothing moves.
+   */
+  rename?: { from: string; to: string }[];
+  /**
+   * Attributes it defines: a new name goes after its others; a name it already defines is redefined
+   * in place, and one only its chain defines is redefined here.
+   */
+  set?: AttributeDefinition[];
+  /** Its own attributes it stops defining; values already held stay. */
+  remove?: string[];
+  /** Its own attributes in this order; those left out keep their order after them. */
+  order?: string[];
+}
+
+/** Changes a component of one of the project's own packages, trait by trait; the rest stays. */
+export interface UpdateComponentCommand {
+  type: 'update-component';
+  id: Id;
+  changes: {
+    name?: string;
+    description?: string | null;
+    derivesFrom?: Id;
+    appearance?: AppearanceChanges;
+    attributes?: AttributeChanges;
+  };
+}
+
+/** Changes a relation type of one of the project's own packages, trait by trait; the rest stays. */
+export interface UpdateRelationTypeCommand {
+  type: 'update-relation-type';
+  id: Id;
+  changes: {
+    name?: string;
+    description?: string | null;
+    derivesFrom?: Id;
+    /** `null` inherits the direction again. */
+    direction?: 'directed' | 'undirected' | null;
+    /**
+     * `null` inherits whether it nests again. Its relations must keep nesting without a cycle, and it
+     * cannot stop nesting while a view nests by it.
+     */
+    nests?: boolean | null;
+    appearance?: RelationAppearanceChanges;
+    attributes?: AttributeChanges;
+    /** Per end: a list or `any` sets its own limit; `null` inherits it again. */
+    limits?: { from?: LimitList | 'any' | null; to?: LimitList | 'any' | null };
+  };
+}
+
+/** Changes the name or description of one of the project's own packages. */
+export interface UpdatePackageCommand {
+  type: 'update-package';
+  id: Id;
+  changes: { name?: string; description?: string | null };
+}
+
+/**
+ * Moves elements in the model's order, which is the order of rows: the listed ones, in the order
+ * listed. Every view keeps drawing its shapes in the order it drew them: where the model's order
+ * would change that, the view's stacking lists are rewritten in the same action. Rows follow the new
+ * order.
+ */
+export interface ReorderElementsCommand {
+  type: 'reorder-elements';
+  /** The elements to move; World cannot move. */
+  elements: Id[];
+  /** The element they go before; absent, they go last. It cannot be one of them. */
+  before?: Id;
+}
+
+/**
+ * Collapses containers in a view, or expands them. A collapsed container's shapes show none of its
+ * contents; the relations to and from them are drawn as aggregated relations. It changes only the
+ * view's file.
+ */
+export interface SetCollapsedCommand {
+  type: 'set-collapsed';
+  view: Id;
+  elements: Id[];
+  collapsed: boolean;
 }
 
 /** Deletes elements and relations, and every relation that ends on anything deleted. */
@@ -129,11 +269,25 @@ export interface CreatePackageCommand {
   package: { id: Id; name: string; description?: string };
 }
 
-/** Defines a component in one of the project's packages, or redefines one it already has. */
+/** A new component or relation type: without an id, the core makes one with `definitionIdFor`. */
+export type NewComponent = Omit<Component, 'id'> & { id?: Id };
+
+/** A new relation type: without an id, the core makes one with `definitionIdFor`. */
+export type NewRelationType = Omit<RelationType, 'id'> & { id?: Id };
+
+/**
+ * Defines a component in one of the project's packages, or redefines one it already has. Without an
+ * id, the core makes one, so the component is new.
+ */
 export interface DefineComponentCommand {
   type: 'define-component';
   package: Id;
-  component: Component;
+  component: NewComponent;
+  /**
+   * Creates only: refused with `id-taken` when the package already has this id, so that the app and
+   * Claude never overwrite each other's new definitions. Without it, an existing id is redefined.
+   */
+  createOnly?: true;
 }
 
 /** Removes a component that no element is created from and no component derives from. */
@@ -142,11 +296,16 @@ export interface RemoveComponentCommand {
   id: Id;
 }
 
-/** Defines a relation type in one of the project's packages, or redefines one it already has. */
+/**
+ * Defines a relation type in one of the project's packages, or redefines one it already has. Without
+ * an id, the core makes one, so the relation type is new.
+ */
 export interface DefineRelationTypeCommand {
   type: 'define-relation-type';
   package: Id;
-  relationType: RelationType;
+  relationType: NewRelationType;
+  /** Creates only: refused with `id-taken` when the package already has this id. */
+  createOnly?: true;
 }
 
 /** Removes a relation type that no relation, relation type or view uses. */

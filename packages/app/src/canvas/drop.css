@@ -13,7 +13,7 @@
   position: absolute;
   top: 0;
   left: 0;
-  z-index: 3;
+  z-index: var(--z-editor);
   max-width: 22rem;
   padding: 0.3rem 0.55rem;
   border-radius: 0.4rem;
@@ -21,7 +21,7 @@
   color: var(--surface);
   font-size: 0.8rem;
   line-height: 1.35;
-  box-shadow: 0 4px 12px rgb(16 24 40 / 20%);
+  box-shadow: var(--shadow-2);
   pointer-events: none;
   will-change: transform;
 }
@@ -30,10 +30,10 @@
   display: none;
 }
 
-/* The details below the caption's line: 11:1 on its background. */
+/* The details below the caption's line, quieter, on the caption's inverted background in both themes. */
 .canvas-drop-caption-detail {
   display: block;
-  color: #d9dee5;
+  color: var(--border);
   font-size: 0.75rem;
 }
 
@@ -118,7 +118,7 @@
 
 /* The confirm button of a change that asks first: it changes the model, but deletes no element. */
 .dialog-actions .dialog-confirm {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #ffffff;
+  border-color: var(--accent-fill);
+  background: var(--accent-fill);
+  color: var(--on-accent);
 }

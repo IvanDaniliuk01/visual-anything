@@ -55,3 +55,24 @@ export function freshId(generate: IdGenerator, base: string, taken: (id: Id) => 
   }
   throw new Error(`No free id could be made from "${base}".`);
 }
+
+/** The longest id the Id pattern allows. */
+const ID_LENGTH = 128;
+
+/**
+ * A new id for a component, relation type or image of a package: the package's id, a dot, a base made
+ * from the name and six random base-36 characters, such as `clinic.message-queue-k3f9q2`, unused by
+ * anything `taken` names. The base is shortened when a long package id leaves it less room. The app,
+ * Claude's tools and the core make every definition id they make through it, so that an id once
+ * removed never comes back.
+ */
+export function definitionIdFor(
+  packageId: Id,
+  name: string,
+  generate: IdGenerator,
+  taken: (id: Id) => boolean = () => false,
+): Id {
+  const room = ID_LENGTH - packageId.length - 1 - (SUFFIX_LENGTH + 1);
+  const base = slug(name, 'definition').slice(0, Math.max(1, room)).replace(/-+$/, '');
+  return freshId(generate, `${packageId}.${base === '' ? 'd' : base}`, taken);
+}

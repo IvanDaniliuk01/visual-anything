@@ -3,6 +3,9 @@
  * point, a shape's container and the first shape inside it, and the relations drawn on an element in
  * the order the keys step through them. Every search goes through the spatial index and widens only as
  * far as it must, so it looks at the shapes around where it starts, not at every shape of the view.
+ *
+ * What the canvas hides, as filters and isolating do, the keys skip: the shell says what each scene
+ * hides with `setHidden`, from the same sets the canvas draws.
  */
 import { modelIndexOf, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id, ModelFile, Relation } from '@visual-anything/schema';
@@ -34,6 +37,28 @@ export interface Start {
 const ACROSS_WEIGHT = 2;
 /** How far, in scene units, a search first looks; it looks twice as far each time it finds nothing. */
 const FIRST_REACH = 256;
+
+/** What each scene hides, by the keys of `editor/emphasis.ts`. */
+const hiddenInScenes = new WeakMap<Scene, ReadonlySet<string>>();
+
+/**
+ * Says what the canvas hides in a scene: element shapes by their keys, relations and free shapes by
+ * their ids. The keys skip it from then on; undefined hides nothing.
+ */
+export function setHidden(scene: Scene, hidden: ReadonlySet<string> | undefined): void {
+  if (hidden === undefined) hiddenInScenes.delete(scene);
+  else hiddenInScenes.set(scene, hidden);
+}
+
+/** What the canvas hides in a scene, as `setHidden` last said. */
+export function hiddenIn(scene: Scene): ReadonlySet<string> | undefined {
+  return hiddenInScenes.get(scene);
+}
+
+/** Whether the canvas hides something of a scene. */
+function isHidden(scene: Scene, key: string): boolean {
+  return hiddenInScenes.get(scene)?.has(key) ?? false;
+}
 
 export function rectOf(reachable: Reachable): Rect {
   switch (reachable.kind) {
@@ -82,7 +107,7 @@ export function directionScore(from: Rect, to: Rect, direction: Direction): numb
  * shapes it holds lie within it, so neither counts, and neither do the other shapes of its element,
  * which a selection already holds. A container on the way is entered: the move goes on to the nearest
  * shape inside it, for as long as there is one in that direction, wherever its contents sit, even
- * outside its rectangle.
+ * outside its rectangle. What the canvas hides is skipped.
  */
 export function nearestInDirection(
   indexed: IndexedScene,
@@ -119,7 +144,7 @@ export function nearestInDirection(
 
 /**
  * The shape nearest a point: the topmost one under it, as a click there would find, or else the one
- * whose outline comes closest.
+ * whose outline comes closest. What the canvas hides is skipped.
  */
 export function nearestTo(indexed: IndexedScene, point: Point): Reachable | undefined {
   const bounds = indexed.scene.bounds;
@@ -132,6 +157,7 @@ export function nearestTo(indexed: IndexedScene, point: Point): Reachable | unde
     (rect) => {
       let best: Scored | undefined;
       const consider = (reachable: Reachable, rank: number) => {
+        if (isHidden(indexed.scene, reachableKey(reachable))) return;
         const score = distanceToRect(point, rectOf(reachable));
         // At the same distance, what is drawn on top wins: free shapes, then the element shape drawn
         // last.
@@ -156,14 +182,25 @@ export function nearestTo(indexed: IndexedScene, point: Point): Reachable | unde
   )?.reachable;
 }
 
-/** The shape of the container a shape sits in; none for a shape directly in World. */
+/**
+ * The shape of the container a shape sits in, or of the nearest one around it that the canvas does
+ * not hide; none for a shape directly in World.
+ */
 export function containerOf(indexed: IndexedScene, shape: ElementShape): ElementShape | undefined {
-  return shape.containerShape === undefined ? undefined : indexed.byKey.get(shape.containerShape);
+  let container =
+    shape.containerShape === undefined ? undefined : indexed.byKey.get(shape.containerShape);
+  while (container && isHidden(indexed.scene, container.key)) {
+    container =
+      container.containerShape === undefined
+        ? undefined
+        : indexed.byKey.get(container.containerShape);
+  }
+  return container;
 }
 
 /**
  * The shape inside a container whose top left corner is nearest the container's own, wherever its
- * contents sit, even outside its rectangle.
+ * contents sit, even outside its rectangle; what the canvas hides is skipped.
  */
 export function firstInside(
   indexed: IndexedScene,
@@ -223,27 +260,38 @@ export interface DrawnRelations {
   relation(id: Id): Relation | undefined;
 }
 
-const drawnCache = new WeakMap<Scene, { model: ModelFile; drawn: DrawnRelations }>();
+const drawnCache = new WeakMap<
+  Scene,
+  { model: ModelFile; hidden: ReadonlySet<string> | undefined; drawn: DrawnRelations }
+>();
 
 /**
- * The relations a scene draws, by the elements they relate: worked out once for each scene, which the
- * canvas and the outline share. A relation is drawn from the first shape of each element it relates;
- * its place around that shape is where its line leaves or reaches the shape's outline. A relation
- * between relations is drawn on no element, and is reached through the relations it ends on.
+ * The relations a scene draws, by the elements they relate: worked out once for each scene, and again
+ * when what it hides changes, which the canvas and the outline share. A relation is drawn from the
+ * first shape of each element it relates; its place around that shape is where its line leaves or
+ * reaches the shape's outline. A relation between relations is drawn on no element, and is reached
+ * through the relations it ends on. The relations the canvas hides are left out.
  */
 export function drawnRelations(scene: Scene, project: ProjectSnapshot): DrawnRelations {
+  const hidden = hiddenIn(scene);
   const cached = drawnCache.get(scene);
-  if (cached?.model === project.model) return cached.drawn;
+  if (cached?.model === project.model && cached.hidden === hidden) return cached.drawn;
 
   const index = modelIndexOf(project);
   const firstShapes = new Map<Id, ElementShape>();
+  // The first shape of each element that the canvas shows, which a move along a relation goes to.
+  const shownShapes = new Map<Id, ElementShape>();
   for (const shape of scene.shapes) {
     if (!firstShapes.has(shape.element)) firstShapes.set(shape.element, shape);
+    if (!shownShapes.has(shape.element) && !hidden?.has(shape.key)) {
+      shownShapes.set(shape.element, shape);
+    }
   }
   const lines = new Map<Id, RelationLine>();
   const turns = new Map<Id, { line: RelationLine; turn: number; order: number }[]>();
   const onRelations = new Map<Id, RelationLine[]>();
   scene.relations.forEach((line, order) => {
+    if (hidden?.has(line.relation)) return;
     lines.set(line.relation, line);
     const relation = index.relation(line.relation);
     if (!relation) return;
@@ -310,7 +358,7 @@ export function drawnRelations(scene: Scene, project: ProjectSnapshot): DrawnRel
       const relation = index.relation(queue[at] as Id);
       if (!relation) continue;
       const ends = [relation.from, relation.to];
-      found = ends.find((end) => firstShapes.has(end));
+      found = ends.find((end) => shownShapes.has(end));
       for (const end of ends) {
         if (lines.has(end) && !seen.has(end)) {
           seen.add(end);
@@ -323,7 +371,7 @@ export function drawnRelations(scene: Scene, project: ProjectSnapshot): DrawnRel
   };
 
   const drawn: DrawnRelations = {
-    shapeOf: (element) => firstShapes.get(element),
+    shapeOf: (element) => shownShapes.get(element),
     around: (element) => around.get(element) ?? [],
     endingOn,
     steps,
@@ -331,7 +379,7 @@ export function drawnRelations(scene: Scene, project: ProjectSnapshot): DrawnRel
     line: (relation) => lines.get(relation),
     relation: (id) => index.relation(id),
   };
-  drawnCache.set(scene, { model: project.model, drawn });
+  drawnCache.set(scene, { model: project.model, hidden, drawn });
   return drawn;
 }
 
@@ -450,7 +498,7 @@ function ahead(from: Rect, direction: Direction, reach: number): Rect {
   }
 }
 
-/** The element shapes meeting a rectangle that `accept` takes, in drawing order. */
+/** The element shapes meeting a rectangle that `accept` takes and the canvas shows, in drawing order. */
 function shapesIn(
   indexed: IndexedScene,
   rect: Rect,
@@ -459,14 +507,15 @@ function shapesIn(
   const found: ReachedShape[] = [];
   for (const at of indexed.shapes.query(rect)) {
     const shape = indexed.scene.shapes[at] as ElementShape;
-    if (accept(shape)) found.push({ kind: 'shape', shape });
+    if (accept(shape) && !isHidden(indexed.scene, shape.key)) found.push({ kind: 'shape', shape });
   }
   return found;
 }
 
-/** The notes, then the arrows, meeting a rectangle. */
+/** The notes, then the arrows, meeting a rectangle that the canvas shows. */
 function freeShapesIn(indexed: IndexedScene, rect: Rect): Reachable[] {
-  const { notes, arrows } = indexed.scene;
+  const { scene } = indexed;
+  const { notes, arrows } = scene;
   return [
     ...indexed.notes
       .query(rect)
@@ -474,7 +523,19 @@ function freeShapesIn(indexed: IndexedScene, rect: Rect): Reachable[] {
     ...indexed.arrows
       .query(rect)
       .map((at): Reachable => ({ kind: 'arrow', arrow: arrows[at] as ArrowShape })),
-  ];
+  ].filter((reachable) => !isHidden(scene, reachableKey(reachable)));
+}
+
+/** The key the canvas knows a reachable shape by: an element shape's key, or a free shape's id. */
+function reachableKey(reachable: Reachable): string {
+  switch (reachable.kind) {
+    case 'shape':
+      return reachable.shape.key;
+    case 'note':
+      return reachable.note.id;
+    case 'arrow':
+      return reachable.arrow.id;
+  }
 }
 
 /** The square reaching `reach` from a point on every side. */

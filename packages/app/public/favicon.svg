@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- The product's mark: two overlapping rounded squares in the accent of the browser's theme. -->
+  <style>
+    .mark { stroke: #1D4F91; fill: none; }
+    .front { fill: #1D4F91; fill-opacity: 0.3; }
+    @media (prefers-color-scheme: dark) {
+      .mark { stroke: #8AB4F8; }
+      .front { fill: #8AB4F8; }
+    }
+  </style>
+  <rect class="mark" x="2.5" y="2.5" width="18" height="18" rx="4" stroke-width="3" />
+  <rect class="mark front" x="11.5" y="11.5" width="18" height="18" rx="4" stroke-width="3" />
+</svg>

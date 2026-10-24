@@ -52,7 +52,7 @@ import { DeleteDialog } from './DeleteDialog';
 import { confirmLabelOf, containerChangeLabel, moveToCommand, needsConfirmation } from './drop';
 import './drop.css';
 import type { Point } from './geometry';
-import { createAtCommand, createInsideCommand } from './gestures';
+import { createAtCommand, createBesideCommand, createInsideCommand } from './gestures';
 import { indexScene, type IndexedScene } from './hit';
 import { InlineEditor } from './InlineEditor';
 import { KeyboardHelp } from './KeyboardHelp';
@@ -459,7 +459,9 @@ export function CanvasArea({
     if (!canvas) return;
     setAddTarget(undefined);
     let command: Command | undefined;
-    if (adding.inside !== undefined) {
+    if (adding.beside && indexed) {
+      command = createBesideCommand(indexed, project, view.id, component, adding.beside);
+    } else if (adding.inside !== undefined) {
       command = createInsideCommand(project, view.id, component, adding.inside);
     } else {
       const size = appearanceOf({ component }, definitionsOf(project.packages));
@@ -802,7 +804,8 @@ export function CanvasArea({
  * Where "Add element" puts the next element, and how the toolbar says it:
  * 1. inside the element set from its menu with Add inside "X"…, whatever it holds;
  * 2. inside the one element selected, when its first shape holds contents;
- * 3. next to the one element selected, inside the container its first shape sits in;
+ * 3. beside the first shape of the one element selected, when it holds nothing, in the container it
+ *    sits in or directly in World, so that adding one after another makes a row;
  * 4. otherwise directly in World, at the middle of the canvas.
  * In a view arranged by no relation type that nests, always directly in World.
  */
@@ -812,8 +815,13 @@ function addRuleOf(
   indexed: IndexedScene | undefined,
   selection: Selection,
   target: Id | undefined,
-): { inside?: Id; place?: AddPlace } {
-  if (nestingTypesInView(project, view).length === 0) return {};
+): { inside?: Id; beside?: ElementShape; place?: AddPlace } {
+  const [selected] = selection.elements;
+  const first =
+    sizeOf(selection) === 1 && selected !== undefined
+      ? indexed?.byElement.get(selected)?.[0]
+      : undefined;
+  if (nestingTypesInView(project, view).length === 0) return first ? { beside: first } : {};
   const index = modelIndexOf(project);
   const nameOf = (id: Id) => index.element(id)?.name ?? id;
   const inside = (container: Id, title: string): { inside: Id; place: AddPlace } => ({
@@ -830,16 +838,25 @@ function addRuleOf(
       `Adds the element inside "${nameOf(container)}". With nothing selected, elements are added directly in World.`,
     );
   if (target !== undefined && index.element(target)) return insideItself(target);
-  const [selected] = selection.elements;
-  if (sizeOf(selection) !== 1 || selected === undefined) return {};
-  const first = indexed?.byElement.get(selected)?.[0];
-  if (!first) return {};
+  if (!first || selected === undefined) return {};
   if (first.holdsContents) return insideItself(selected);
-  if (first.container === undefined) return {};
-  return inside(
-    first.container,
-    `Adds the element inside "${nameOf(first.container)}", where "${nameOf(selected)}" sits. To add inside "${nameOf(selected)}" itself, use Add inside "${nameOf(selected)}"… in its menu or in the inspector.`,
-  );
+  if (first.container === undefined) {
+    return {
+      beside: first,
+      place: {
+        option: 'Add element…',
+        label: 'Add an element',
+        title: `Adds the element directly in World, beside "${nameOf(selected)}". To add inside "${nameOf(selected)}" itself, use Add inside "${nameOf(selected)}"… in its menu or in the inspector.`,
+      },
+    };
+  }
+  return {
+    ...inside(
+      first.container,
+      `Adds the element inside "${nameOf(first.container)}", where "${nameOf(selected)}" sits. To add inside "${nameOf(selected)}" itself, use Add inside "${nameOf(selected)}"… in its menu or in the inspector.`,
+    ),
+    beside: first,
+  };
 }
 
 /** What a drop's label says after the label of its change, such as ", and move 2 other shapes". */

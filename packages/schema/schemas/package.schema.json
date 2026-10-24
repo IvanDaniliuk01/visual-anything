@@ -99,6 +99,22 @@
         },
         "description": {
           "type": "string"
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "For a string attribute, the values it is expected to take, offered in this order. Any other value only produces a warning.",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true
+        },
+        "unit": {
+          "type": "string",
+          "description": "For a number attribute, the unit its values are in, written after them on shapes, such as \"ms\" or \"GB\".",
+          "minLength": 1,
+          "maxLength": 16
         }
       },
       "required": [
@@ -148,7 +164,8 @@
             "ellipse",
             "cylinder",
             "person"
-          ]
+          ],
+          "description": "The kind of its shapes. While its shapes draw their contents as rows, any kind other than `rounded-rectangle` is drawn as a rectangle."
         },
         "fill": {
           "$ref": "#/definitions/Color"
@@ -159,21 +176,198 @@
         "width": {
           "type": "number",
           "description": "The width of its shapes when a view does not set one, in canvas units.",
-          "exclusiveMinimum": 0
+          "exclusiveMinimum": 0,
+          "maximum": 100000
         },
         "height": {
           "type": "number",
-          "description": "The height of its shapes when a view does not set one, in canvas units.",
-          "exclusiveMinimum": 0
+          "description": "The height of its shapes when a view does not set one, in canvas units. Shapes that draw their contents as rows take their height from their rows instead.",
+          "exclusiveMinimum": 0,
+          "maximum": 100000
+        },
+        "detail": {
+          "$ref": "#/definitions/DetailRules",
+          "description": "What its shapes write under the element's name. Each part is inherited on its own."
+        },
+        "contentsAsRows": {
+          "type": "boolean",
+          "description": "Whether its shapes draw the elements they hold as rows: one under another below a header, as wide as the shape, in the model's order, as a table draws its columns. Rows have no positions of their own in views, and the shape's height follows its rows."
+        },
+        "connectionPoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ConnectionPoint"
+          },
+          "description": "Where relations attach to its shapes: each relation attaches to the one facing its other end. An empty list has relations attach anywhere on the border, whatever is inherited. Shapes that draw their contents as rows attach relations beside their header and their rows instead.",
+          "maxItems": 32
         }
       },
       "additionalProperties": false,
-      "description": "How an element's shapes are drawn."
+      "description": "How an element's shapes are drawn. Whatever an appearance leaves out is inherited."
     },
     "Color": {
       "type": "string",
       "description": "A color written as `#rrggbb`.",
       "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "DetailRules": {
+      "type": "object",
+      "properties": {
+        "componentName": {
+          "type": "boolean",
+          "description": "Whether it writes the component's name. Essence writes it."
+        },
+        "attributes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The attributes whose values it writes, in this order, after the component's name; an attribute without a value is skipped.",
+          "maxItems": 8,
+          "uniqueItems": true
+        },
+        "badges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Badge"
+          },
+          "description": "The badges it writes after the values, each while its element meets the badge's condition.",
+          "maxItems": 8
+        }
+      },
+      "additionalProperties": false,
+      "description": "What a shape writes under its element's name, on one line."
+    },
+    "Badge": {
+      "type": "object",
+      "properties": {
+        "when": {
+          "enum": [
+            "attribute",
+            "from-end"
+          ]
+        }
+      },
+      "required": [
+        "when"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "when": {
+                "type": "string",
+                "const": "attribute"
+              }
+            },
+            "required": [
+              "when"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/AttributeBadge"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "when": {
+                "type": "string",
+                "const": "from-end"
+              }
+            },
+            "required": [
+              "when"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/RelationEndBadge"
+          }
+        }
+      ],
+      "description": "A short text, such as \"PK\", that a shape writes while its element meets the badge's condition."
+    },
+    "AttributeBadge": {
+      "type": "object",
+      "properties": {
+        "when": {
+          "type": "string",
+          "const": "attribute"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4
+        },
+        "attribute": {
+          "type": "string",
+          "description": "The name of a boolean attribute of the element."
+        }
+      },
+      "required": [
+        "when",
+        "text",
+        "attribute"
+      ],
+      "additionalProperties": false,
+      "description": "A badge written while a boolean attribute of the element is true."
+    },
+    "RelationEndBadge": {
+      "type": "object",
+      "properties": {
+        "when": {
+          "type": "string",
+          "const": "from-end"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4
+        },
+        "relationType": {
+          "$ref": "#/definitions/Id"
+        }
+      },
+      "required": [
+        "when",
+        "text",
+        "relationType"
+      ],
+      "additionalProperties": false,
+      "description": "A badge written while the element is the `from` end of a relation of this relation type, or of one derived from it."
+    },
+    "ConnectionPoint": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Unique among the connection points of one appearance, such as \"in\" or \"out\".",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "side": {
+          "type": "string",
+          "enum": [
+            "top",
+            "right",
+            "bottom",
+            "left"
+          ]
+        },
+        "at": {
+          "type": "number",
+          "description": "Where it sits along its side, from 0 at the side's left or top end to 1 at its right or bottom end.",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "name",
+        "side",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "A named place on the border of a shape where relations attach."
     },
     "RelationType": {
       "type": "object",
@@ -253,22 +447,39 @@
       "type": "object",
       "properties": {
         "from": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/Id"
-          },
-          "uniqueItems": true
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LimitList"
+            },
+            {
+              "type": "string",
+              "const": "any"
+            }
+          ]
         },
         "to": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/Id"
-          },
-          "uniqueItems": true
+          "anyOf": [
+            {
+              "$ref": "#/definitions/LimitList"
+            },
+            {
+              "type": "string",
+              "const": "any"
+            }
+          ]
         }
       },
       "additionalProperties": false,
-      "description": "What the ends of a relation type's relations may be. Each list names components or relation types; an end created from one of them, or from anything derived from one of them, keeps within the limit. A missing list sets no limit on that end."
+      "description": "What the ends of a relation type's relations may be. A list left out is inherited from the relation type this one derives from, and sets no limit when none sets one; `any` sets no limit on that end, whatever is inherited. Breaking a limit only produces a warning."
+    },
+    "LimitList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Id"
+      },
+      "description": "The ids of the components or relation types an end may be created from. An end created from one of them, or from anything derived from one of them, keeps within the limit.",
+      "minItems": 1,
+      "uniqueItems": true
     }
   }
 }

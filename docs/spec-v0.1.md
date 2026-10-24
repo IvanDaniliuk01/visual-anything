@@ -113,7 +113,7 @@ flowchart TB
 
 The browser and Claude never write files: both send commands to the core, which checks the rules, records each change in one undo history and saves it. Claude's live guidance goes straight to the open view without touching the model.
 
-- **Local program** (Node, listening only on 127.0.0.1): serves the app, owns the model and its history, reads and writes the project folder, and exposes the MCP server.
+- **Local program** (Node, listening only on 127.0.0.1): serves the app, owns the model and its history, reads and writes the project folder, keeps each person's preferences outside every project (ADR 0032), and exposes the MCP server.
 - **Browser app** (React, PixiJS, ELK in a worker): renders the open view, turns your gestures into commands and shows Claude's live guidance. Drags and other continuous gestures update the canvas locally and send a single command when they end.
 - **Claude** (Desktop or Code): connects through an MCP stdio entry point that attaches to the running local program, starting it if needed.
 - **Core**: the same TypeScript package runs in both places, so a read-only demo can run in the browser alone.
@@ -153,6 +153,7 @@ The canvas draws one view at a time with WebGL, and every layout decision is kep
 - **Layout**: ELK runs in a worker for shapes without a position and on demand; pinned shapes are fixed inputs, and results animate in when ready.
 - **Edit**: create from the component palette, directly in World, inside the selected container or next to the selected element, or inside any element from its menu; connect; move, putting shapes inside a container by dropping them on it and taking them out by dragging them clear of it (hold Alt to move only), or from the shape menu and the inspector; bring to front, bring forward, send backward and send to back; rename inline; edit attributes and particularities in the inspector; and delete with a preview of what cascades; undo and redo.
 - **Text**: edited in an HTML layer placed over the shape, then drawn back on the canvas.
+- **Themes**: the app and the canvas are drawn light or dark, following the system unless you choose, and change together; built-in colors have a shade for each theme, and every color you set is drawn as set in both (ADR 0033).
 
 ## Scenarios
 
@@ -181,14 +182,15 @@ Through MCP, Claude can do everything you can do in v0.1, and each of its write 
 - Guidance never changes the model; it only moves and marks the open view.
 - Writing programmable code waits until after v0.1, and will need your approval before it runs.
 - Tool descriptions include examples, because they are how Claude learns to use the tools well.
+- Preferences, such as the theme, are each person's own: Claude's tools neither read nor change them; "everything you can do" means everything you can do to the project.
 
 ## Quality bar
 
 These hold at every milestone, not only at the end.
 
-- **Performance**: 10,000 elements in one view pan, zoom and select smoothly, with a 60 frames per second target; layout never blocks interaction.
+- **Performance**: 10,000 elements in one view pan, zoom and select smoothly, with a 60 frames per second target; a theme switch never stalls a frame; layout never blocks interaction.
 - **Security**: project files never run code and are validated when opened. The local program listens only on 127.0.0.1, checks the origin of every request and requires a per-session token for the live connection, so other websites cannot drive it. The core has no network access.
-- **Accessibility**: keyboard navigation between shapes and along relations, an outline panel that mirrors the view, sufficient contrast, and reduced motion during playback when the system asks for it.
+- **Accessibility**: keyboard navigation between shapes and along relations, an outline panel that mirrors the view, contrast in both themes of 4.5:1 for text and 3:1 for lines, marks, control boundaries and focus rings, and reduced motion for every animation when the system asks for it.
 - **Reliability**: atomic writes, reload on outside changes, and property tests for the core rules: undo exactly reverses every command, containment never forms a cycle, and deletes cascade as specified.
 
 ## Decisions settled while writing

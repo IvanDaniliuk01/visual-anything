@@ -144,7 +144,7 @@ export function ShapeMenu({
             <Item
               label={collapse.collapse.label}
               title="Draws none of what it holds; their relations become aggregated relations. Alt+−"
-              locked={!editable}
+              readOnly={!editable}
               onPress={() => onCollapse(collapse.collapse as CollapseAction, true)}
             />
           )}
@@ -152,7 +152,7 @@ export function ShapeMenu({
             <Item
               label={collapse.expand.label}
               title="Draws again what it holds. Alt++"
-              locked={!editable}
+              readOnly={!editable}
               onPress={() => onCollapse(collapse.expand as CollapseAction, false)}
             />
           )}
@@ -164,25 +164,25 @@ export function ShapeMenu({
           {target && (
             <Item
               label={fromWorld ? `Put inside "${target.name}"` : `Move into "${target.name}"`}
-              locked={!editable}
+              readOnly={!editable}
               onPress={change(() => putInsideCommand(indexed, project, viewId, shape, target))}
             />
           )}
           <Item
             label={fromWorld ? 'Put inside…' : 'Move to…'}
-            locked={!editable}
+            readOnly={!editable}
             onPress={() => onChooseContainer(fromWorld ? 'put' : 'move')}
           />
           {takeOutOf !== undefined && (
             <Item
               label={`Take out of "${takeOutOf}"`}
-              locked={!editable}
+              readOnly={!editable}
               onPress={change(() => takeOutCommand(indexed, project, viewId, shape))}
             />
           )}
           <Item
             label={`Add inside "${shape.name}"…`}
-            locked={!editable}
+            readOnly={!editable}
             onPress={() => onAddInside(shape.element)}
           />
         </>
@@ -209,20 +209,20 @@ export function ShapeMenu({
 }
 
 /**
- * One item. A `disabled` one is pressed all the same, to say why it changes nothing; a `locked` one,
+ * One item. A `disabled` one is pressed all the same, to say why it changes nothing; a `readOnly` one,
  * while the project cannot be changed, does nothing.
  */
 function Item({
   label,
   title,
   disabled = false,
-  locked = false,
+  readOnly = false,
   onPress,
 }: {
   label: string;
   title?: string;
   disabled?: boolean;
-  locked?: boolean;
+  readOnly?: boolean;
   onPress: () => void;
 }) {
   return (
@@ -230,9 +230,9 @@ function Item({
       type="button"
       role="menuitem"
       tabIndex={-1}
-      title={locked ? NOT_EDITABLE : title}
-      aria-disabled={disabled || locked ? true : undefined}
-      onClick={locked ? undefined : onPress}
+      title={readOnly ? NOT_EDITABLE : title}
+      aria-disabled={disabled || readOnly ? true : undefined}
+      onClick={readOnly ? undefined : onPress}
     >
       {label}
     </button>
