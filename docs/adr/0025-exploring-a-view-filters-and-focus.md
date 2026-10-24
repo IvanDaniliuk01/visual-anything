@@ -33,3 +33,7 @@ We chose these because exploring is reading, not editing (CONTEXT.md, "Explore")
 - Hit testing must skip what the emphasis hides; the renderer does this when it draws the emphasis.
 - The outline still lists what a filter hides; it should mark or leave out those shapes.
 - Claude cannot set filters through a tool that changes the project; it guides through its own emphasis source, and filtering for Claude needs a live message of its own.
+
+## Clarifications
+
+- 2026-10-24: Claude filters and focuses the open view through the live connection, as it guides: a guidance message sets the filters or the focus of the view open in the app, which shows them as it shows a person's, and a person can end them. Nothing is written to view files, so this ADR holds; the MCP tool says so in its description.
