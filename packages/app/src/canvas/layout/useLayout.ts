@@ -186,6 +186,8 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
   const layOutSoon = useEffectEvent(() => {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
+      // While the project cannot be changed, they wait on, for when it can again.
+      if (!latest.current.send) return;
       const keys = waiting.current;
       waiting.current = new Set();
       void enqueue({ kind: 'new', keys }, true);
