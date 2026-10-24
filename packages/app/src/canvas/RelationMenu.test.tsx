@@ -5,7 +5,7 @@ import { RelationMenu } from './RelationMenu';
 
 const project = loadSample();
 
-function open() {
+function open(at = { x: 10, y: 10 }) {
   const onChoose = vi.fn();
   const onClose = vi.fn();
   render(
@@ -15,7 +15,7 @@ function open() {
         project={project}
         from="appointments-api"
         to="appointments-db"
-        at={{ x: 10, y: 10 }}
+        at={at}
         onChoose={onChoose}
         onClose={onClose}
       />
@@ -61,5 +61,21 @@ describe('RelationMenu', () => {
     expect(onClose).not.toHaveBeenCalled();
     fireEvent.pointerDown(screen.getByRole('button', { name: 'Elsewhere' }));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('moves in from the canvas’s edge, so that every item shows', () => {
+    const frame = document.createElement('div');
+    Object.defineProperty(frame, 'clientWidth', { configurable: true, value: 600 });
+    Object.defineProperty(frame, 'clientHeight', { configurable: true, value: 400 });
+    vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockReturnValue(frame);
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(220);
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(260);
+    try {
+      const { menu } = open({ x: 500, y: 380 });
+      expect(menu.style.left).toBe('380px');
+      expect(menu.style.top).toBe('140px');
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });

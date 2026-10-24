@@ -1,7 +1,7 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useEffect, useMemo, useRef } from 'react';
-import { menuKeyDown, useOutsidePress } from './focus';
+import { menuKeyDown, useMenuInsideFrame, useOutsidePress } from './focus';
 import type { Point } from './geometry';
 import { relationChoices } from './gestures';
 
@@ -18,10 +18,11 @@ interface RelationMenuProps {
 /**
  * The menu that asks which relation type relates two ends, after a line is dragged between them. The
  * arrow keys, Home and End move through it, Enter chooses, and Escape or a press outside it closes it.
+ * Dropped near the canvas's edge, it moves in, so that every item shows.
  */
 export function RelationMenu({ project, from, to, at, onChoose, onClose }: RelationMenuProps) {
   const choices = useMemo(() => relationChoices(project, from, to), [project, from, to]);
-  const menu = useRef<HTMLDivElement>(null);
+  const menu = useMenuInsideFrame<HTMLDivElement>(at);
   const first = useRef<HTMLButtonElement>(null);
   const nameOf = (id: Id) =>
     project.model.elements.find((element) => element.id === id)?.name ??
