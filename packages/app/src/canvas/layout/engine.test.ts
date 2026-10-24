@@ -223,6 +223,21 @@ describe('layOut', () => {
     expect(shared.stats.elkRuns).toBe(3);
   });
 
+  it('keeps a short flow in one row, and wraps a long one into rows about 1.6 times wider than tall', async () => {
+    const chain = (length: number) => {
+      const shapes = Array.from({ length }, (_, at) => shape(`c${at}`, -1));
+      const edges = shapes.slice(1).map((_, at): [number, number] => [at, at + 1]);
+      return input(shapes, edges);
+    };
+    const short = await layOut(chain(5), elk);
+    expect(new Set(short.shapes.map((each) => each.y)).size).toBe(1);
+    const long = await layOut(chain(24), elk);
+    const right = Math.max(...long.shapes.map((each) => each.x + 160));
+    const bottom = Math.max(...long.shapes.map((each) => each.y + 72));
+    expect(right / bottom).toBeGreaterThan(0.8);
+    expect(right / bottom).toBeLessThan(3);
+  });
+
   it('gives nothing back when nothing is free', async () => {
     const { shapes: placed } = await layOut(input([shape('a', -1, { free: false })]), elk);
     expect(placed).toEqual([]);
