@@ -294,14 +294,104 @@ describe('createInsideCommand', () => {
     expect(inside?.[0]?.offset).toEqual({ x: 24, y: 48 });
   });
 
-  it('creates nothing in World, in a view that nests nothing, or for an unknown component', () => {
+  it('creates nothing in World, or for an unknown component or view', () => {
     expect(createInsideCommand(project, VIEW, 'systems.service', 'world')).toBeUndefined();
     expect(createInsideCommand(project, VIEW, 'systems.nothing', 'scheduling')).toBeUndefined();
+    expect(
+      createInsideCommand(project, 'nowhere', 'systems.service', 'scheduling'),
+    ).toBeUndefined();
+  });
+
+  it('in a view that nests nothing, starts nesting it by the relation type that holds the element, in the same action', () => {
     const flat = {
       ...project,
       views: project.views.map((view) => ({ ...view, nestingRelationTypes: [] })),
     };
-    expect(createInsideCommand(flat, VIEW, 'systems.service', 'scheduling')).toBeUndefined();
+    const command = createInsideCommand(flat, VIEW, 'systems.service', 'scheduling');
+    expect(command).toEqual({
+      type: 'batch',
+      label: 'Create "Service"',
+      commands: [
+        {
+          type: 'update-view',
+          id: VIEW,
+          changes: { nestingRelationTypes: ['systems.is-part-of'] },
+        },
+        {
+          type: 'create-element',
+          element: { component: 'systems.service', name: 'Service' },
+          containers: [{ container: 'scheduling', relationType: 'systems.is-part-of' }],
+        },
+      ],
+    });
+    expect(executeCommand(flat, command!).ok).toBe(true);
+  });
+});
+
+describe('the nesting relation type of a new element', () => {
+  /** The project using Data modeling, with an empty table "users" in World, which draws rows. */
+  function withTable(state: ProjectSnapshot = project): ProjectSnapshot {
+    const using = after(state, {
+      type: 'update-project',
+      changes: { packages: [...state.project.packages, 'data-modeling'] },
+    });
+    return after(using, {
+      type: 'create-element',
+      element: { id: 'users', component: 'data-modeling.table', name: 'users' },
+      positions: [{ view: VIEW, x: 2000, y: 0 }],
+    });
+  }
+
+  /** The action that nests the view by these, then creates a column in "users". */
+  const columnInUsers = (nesting: Id[]): Command => ({
+    type: 'batch',
+    label: 'Create "Column"',
+    commands: [
+      { type: 'update-view', id: VIEW, changes: { nestingRelationTypes: nesting } },
+      {
+        type: 'create-element',
+        element: { component: 'data-modeling.column', name: 'Column' },
+        containers: [{ container: 'users', relationType: 'data-modeling.is-column-of' }],
+      },
+    ],
+  });
+
+  it('holds a column in a table by "is column of", which the view starts nesting by, with no position in the table', () => {
+    const state = withTable();
+    const table = indexScene(buildScene(state, VIEW)).byKey.get('users');
+    const at = createAtCommand(state, VIEW, 'data-modeling.column', { x: 2010, y: 10 }, table);
+    expect(at).toEqual(columnInUsers(['systems.is-part-of', 'data-modeling.is-column-of']));
+    expect(executeCommand(state, at!).ok).toBe(true);
+    expect(createInsideCommand(state, VIEW, 'data-modeling.column', 'users')).toEqual(at);
+  });
+
+  it('keeps "is part of" for a service in a system, whatever else is in use', () => {
+    expect(createInsideCommand(withTable(), VIEW, 'systems.service', 'scheduling')).toEqual({
+      type: 'create-element',
+      element: { component: 'systems.service', name: 'Service' },
+      containers: [{ container: 'scheduling', relationType: 'systems.is-part-of' }],
+    });
+  });
+
+  it('drops from the view a nesting relation type that no longer exists when it adds one', () => {
+    const state = withTable(withUnknownNestingFirst());
+    const command = createInsideCommand(state, VIEW, 'data-modeling.column', 'users');
+    expect(command).toEqual(columnInUsers(['systems.is-part-of', 'data-modeling.is-column-of']));
+    expect(executeCommand(state, command!).ok).toBe(true);
+  });
+
+  it('adds a column beside another in its table with no position, and stores none for the rows there', () => {
+    const table = withTable();
+    const state = after(table, createInsideCommand(table, VIEW, 'data-modeling.column', 'users')!);
+    const scene = indexScene(buildScene(state, VIEW));
+    const [column] = scene.contentsOf.get('users') ?? [];
+    const command = createBesideCommand(scene, state, VIEW, 'data-modeling.column', column!);
+    expect(command).toEqual({
+      type: 'create-element',
+      element: { component: 'data-modeling.column', name: 'Column' },
+      containers: [{ container: 'users', relationType: 'data-modeling.is-column-of' }],
+    });
+    expect(executeCommand(state, command!).ok).toBe(true);
   });
 });
 

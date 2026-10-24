@@ -7,6 +7,7 @@ import {
   definitionsOf,
   limitWarnings,
   modelIndexOf,
+  nestingTypeFor,
   nestingTypesInView,
   positionKey,
   type Command,
@@ -14,7 +15,7 @@ import {
   type ProjectSnapshot,
   type ResolvedRelationType,
 } from '@visual-anything/core';
-import type { Arrow, FreeShape, Id, Note, ShapePosition } from '@visual-anything/schema';
+import type { Arrow, FreeShape, Id, Note, ShapePosition, ViewFile } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
 import type { Point } from './geometry';
 import type { IndexedScene } from './hit';
@@ -137,9 +138,56 @@ function moved(shape: FreeShape, dx: number, dy: number): FreeShape {
 }
 
 /**
+ * How a new element of a component goes inside a container in a view: through the nesting relation
+ * type the core chooses for the two by their limits (`nestingTypeFor`), after the command that makes
+ * the view nest by it when it does not yet. That command lists the view's nesting relation types that
+ * exist and nest, then the new one, so a stale entry never makes it fail. `undefined` when no nesting
+ * relation type can hold it, such as in World.
+ */
+function nestingInside(
+  project: ProjectSnapshot,
+  view: ViewFile,
+  componentId: Id,
+  container: Id,
+): { relationType: Id; first: Command[] } | undefined {
+  const choice = nestingTypeFor(project, view, componentId, container);
+  if (!choice) return undefined;
+  const first: Command[] = choice.addToView
+    ? [
+        {
+          type: 'update-view',
+          id: view.id,
+          changes: {
+            nestingRelationTypes: [...nestingTypesInView(project, view), choice.relationType],
+          },
+        },
+      ]
+    : [];
+  return { relationType: choice.relationType, first };
+}
+
+/** Whether an element's shapes draw what it holds as rows, which have no positions of their own. */
+function drawsRows(project: ProjectSnapshot, container: Id | undefined): boolean {
+  if (container === undefined) return false;
+  const element = modelIndexOf(project).element(container);
+  return (
+    element !== undefined && appearanceOf(element, definitionsOf(project.packages)).contentsAsRows
+  );
+}
+
+/** The commands as one action: alone when it is one, otherwise a batch labelled `label`. */
+function asOneAction(commands: Command[], label: string): Command | undefined {
+  if (commands.length <= 1) return commands[0];
+  return { type: 'batch', label, commands };
+}
+
+/**
  * The command that creates an element of a component at a point: inside the given shape, through
- * the first nesting relation type that arranges the view, or directly in World. Its position is
- * stored but not pinned, since no one chose it by hand: layout may arrange it, and moving it pins it.
+ * the nesting relation type that holds the two (`nestingTypeFor`), or directly in World when none
+ * can. When the view does not nest by that relation type yet, the same action makes it. Its position
+ * is stored but not pinned, since no one chose it by hand: layout may arrange it, and moving it pins
+ * it. Inside a shape that draws its contents as rows, it stores no position: a row's place is its
+ * place in the model's order.
  */
 export function createAtCommand(
   project: ProjectSnapshot,
@@ -151,47 +199,52 @@ export function createAtCommand(
   const view = project.views.find((each) => each.id === viewId);
   const component = definitionsOf(project.packages).component(componentId);
   if (!view || !component) return undefined;
-  const nesting = nestingTypesInView(project, view)[0];
-  const container = nesting === undefined ? undefined : inside;
+  const nesting = inside && nestingInside(project, view, componentId, inside.element);
+  const container = nesting ? inside : undefined;
   const origin = container ? { x: container.rect.x, y: container.rect.y } : { x: 0, y: 0 };
-  return {
+  const create: CreateElementCommand = {
     type: 'create-element',
     element: { component: componentId, name: component.name },
-    ...(container && nesting !== undefined
-      ? { containers: [{ container: container.element, relationType: nesting }] }
+    ...(container && nesting
+      ? { containers: [{ container: container.element, relationType: nesting.relationType }] }
       : {}),
-    positions: [
+  };
+  if (!drawsRows(project, container?.element)) {
+    create.positions = [
       {
         view: view.id,
         ...(container ? { container: container.element } : {}),
         x: Math.round(at.x - origin.x),
         y: Math.round(at.y - origin.y),
       },
-    ],
-  };
+    ];
+  }
+  return asOneAction([...(nesting?.first ?? []), create], `Create "${component.name}"`);
 }
 
 /**
- * The command that creates an element of a component inside a container, through the first nesting
- * relation type that arranges the view, with no position: the shape lands where the container places
- * new contents, below the ones it holds. `undefined` in World, or in a view that nests nothing.
+ * The command that creates an element of a component inside a container, through the nesting
+ * relation type that holds the two (`nestingTypeFor`), with no position: the shape lands where the
+ * container places new contents, below the ones it holds. When the view does not nest by that
+ * relation type yet, the same action makes it. `undefined` in World, or where no relation type nests.
  */
 export function createInsideCommand(
   project: ProjectSnapshot,
   viewId: Id,
   componentId: Id,
   container: Id,
-): CreateElementCommand | undefined {
+): Command | undefined {
   const view = project.views.find((each) => each.id === viewId);
   const component = definitionsOf(project.packages).component(componentId);
   if (!view || !component || container === project.model.world.id) return undefined;
-  const relationType = nestingTypesInView(project, view)[0];
-  if (relationType === undefined) return undefined;
-  return {
+  const nesting = nestingInside(project, view, componentId, container);
+  if (!nesting) return undefined;
+  const create: CreateElementCommand = {
     type: 'create-element',
     element: { component: componentId, name: component.name },
-    containers: [{ container, relationType }],
+    containers: [{ container, relationType: nesting.relationType }],
   };
+  return asOneAction([...nesting.first, create], `Create "${component.name}"`);
 }
 
 /** How far, in scene units, a shape added beside another sits from it, and from the next one along. */
@@ -208,7 +261,10 @@ export const BESIDE_TRIES = 100;
  *
  * The shapes there that only the stand-in row placed would move below the new one, which has a
  * position, so the same action stores theirs where they are drawn, not pinned either: nothing there
- * moves. `undefined` for an unknown view or component.
+ * moves. In a container whose shapes draw their contents as rows, nothing has a position, and the new
+ * row comes last. The container holds it through the nesting relation type `nestingTypeFor` chooses,
+ * which the same action makes the view nest by when it does not yet. `undefined` for an unknown view
+ * or component.
  */
 export function createBesideCommand(
   indexed: IndexedScene,
@@ -222,21 +278,23 @@ export function createBesideCommand(
   const component = definitions.component(componentId);
   if (!view || !component) return undefined;
   const { container } = beside;
-  const create =
-    container === undefined
-      ? ({
-          type: 'create-element',
-          element: { component: componentId, name: component.name },
-        } satisfies CreateElementCommand)
-      : createInsideCommand(project, viewId, componentId, container);
-  if (!create) return undefined;
+  const nesting =
+    container === undefined ? undefined : nestingInside(project, view, componentId, container);
+  if (container !== undefined && !nesting) return undefined;
+  const create: CreateElementCommand = {
+    type: 'create-element',
+    element: { component: componentId, name: component.name },
+    ...(container !== undefined && nesting
+      ? { containers: [{ container, relationType: nesting.relationType }] }
+      : {}),
+  };
+  const label = `Create "${component.name}"`;
+  const first = nesting?.first ?? [];
+  if (drawsRows(project, container)) return asOneAction([...first, create], label);
+
   const { width, height } = appearanceOf({ component: componentId }, definitions);
   const at = besidePlace(indexed, beside, { width, height });
-  const command: CreateElementCommand = {
-    ...create,
-    positions: [{ view: view.id, ...(container === undefined ? {} : { container }), ...at }],
-  };
-
+  create.positions = [{ view: view.id, ...(container === undefined ? {} : { container }), ...at }];
   const kept = (indexed.contentsOf.get(beside.containerShape ?? '') ?? [])
     .filter((shape) => shape.positioned === 'placed')
     .map((shape): ShapePosition => ({
@@ -245,12 +303,9 @@ export function createBesideCommand(
       x: Math.round(shape.offset.x),
       y: Math.round(shape.offset.y),
     }));
-  if (kept.length === 0) return command;
-  return {
-    type: 'batch',
-    label: `Create "${component.name}"`,
-    commands: [{ type: 'set-positions', view: view.id, positions: kept }, command],
-  };
+  const keep: Command[] =
+    kept.length === 0 ? [] : [{ type: 'set-positions', view: view.id, positions: kept }];
+  return asOneAction([...first, ...keep, create], label);
 }
 
 /**
