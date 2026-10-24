@@ -74,13 +74,20 @@ export class Draft {
     return freshId(this.generate, base, (id) => this.isTaken(id) || alsoTaken(id));
   }
 
-  /** Whether an element, relation, view, scenario, package or definition already has this id. */
+  /**
+   * Whether an element, relation, view, scenario, package or definition already has this id, or a step
+   * still names it: a broken step's relation id is never given to something new, so that the step
+   * never comes to mean it.
+   */
   isTaken(id: Id): boolean {
     const { state } = this;
     return (
       this.index.has(id) ||
       state.views.some((view) => view.id === id) ||
-      state.scenarios.some((scenario) => scenario.id === id) ||
+      state.scenarios.some(
+        (scenario) =>
+          scenario.id === id || scenario.steps.some((step) => step.relations.includes(id)),
+      ) ||
       state.packages.some((file) => file.id === id) ||
       this.definitions.components.has(id) ||
       this.definitions.relationTypes.has(id) ||

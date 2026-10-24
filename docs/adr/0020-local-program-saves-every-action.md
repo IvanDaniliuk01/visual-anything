@@ -13,6 +13,7 @@ The local program owns the model (ADR-0016). It keeps the project's files in ste
 - **Outside changes.** The program watches the project folder. When project files change on disk, it reads them again and every open app reloads. The history starts over, because its actions no longer apply to what is on disk. A command that would overwrite a file changed on disk but not yet read again is refused, and the project is read again. While the files on disk are invalid, as in a merge conflict, the project stays as it was last read, and commands that touch other files still save.
 - **Refusals** carry a problem code that apps and Claude can act on: `nothing-to-undo`, `nothing-to-redo`, `project-closed`, `invalid-file` (the change would make a file invalid), `changed-on-disk`, `not-saved` and `program-failed`, besides the core's own codes.
 - **A command that changes nothing** is not recorded and nothing is saved; only the app that sent it is answered, with no operations.
+- **The history** lives in the program's memory and starts empty each time a project opens. It keeps the last 500 actions; older ones can no longer be undone.
 
 We chose this because every action the history shows as done is then on disk, and other tools, such as git and editors, always see the files as the app shows them.
 

@@ -183,9 +183,9 @@ function checkedDefinition<T extends Component | RelationType>(
   if (elsewhere && elsewhere.package !== file.id) {
     reject('defined-twice', `The package "${elsewhere.package}" already defines "${id}".`, [id]);
   }
-  const root = noun === 'component' ? ESSENCE_ID : RELATES_TO_ID;
+  const builtIn = noun === 'component' ? ESSENCE_ID : RELATES_TO_ID;
   const parentKnown =
-    definition.derivesFrom === root ||
+    definition.derivesFrom === builtIn ||
     (noun === 'component'
       ? definitions.components.has(definition.derivesFrom)
       : definitions.relationTypes.has(definition.derivesFrom));
