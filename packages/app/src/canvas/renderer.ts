@@ -61,6 +61,11 @@ const LABEL_BATCH = 6;
 const FULL_SHAPES_PER_FRAME = 200;
 const LABELS_PER_FRAME = 32;
 /**
+ * How many labels written before a frame shows again, nearest the middle first, when zooming in brings
+ * them back: PixiJS prepares each label it shows again, which for thousands takes a long frame.
+ */
+const LABELS_SHOWN_PER_FRAME = 600;
+/**
  * How many shapes or relations an edit may draw at once, in full and named, in tiles made in place of
  * tiles that showed them so: what a restack or a drag splits or joins shows no plain blocks meanwhile.
  */
@@ -885,6 +890,11 @@ export class CanvasRenderer {
     const visible = grow(shown, reach);
     const middle = centerOf(visible);
     const work: { tile: Tile; draw: boolean; wanted: Tile['level']; distance: number }[] = [];
+    const showing: { labels: Container; distance: number }[] = [];
+    const distanceOf = (tile: Tile) => {
+      const center = centerOf(tile.bounds);
+      return Math.hypot(center.x - middle.x, center.y - middle.y);
+    };
     for (const tile of this.tiles.values()) {
       const near = meets(tile.bounds, visible);
       // A tile left out of the frame shows what it should once it is near again, as this runs
@@ -894,7 +904,11 @@ export class CanvasRenderer {
       const full = !coarse && tile.full !== undefined;
       if (tile.coarse) tile.coarse.visible = !full;
       if (tile.full) tile.full.visible = full || !tile.coarse;
-      if (tile.labels) tile.labels.visible = wanted > 0;
+      if (tile.labels) {
+        if (wanted === 0) tile.labels.visible = false;
+        else if (!tile.labels.visible)
+          showing.push({ labels: tile.labels, distance: distanceOf(tile) });
+      }
       if (!near) continue;
       const draw = !coarse && !tile.full;
       const label = wanted > 0 && (tile.level !== wanted || tile.labelled < labelCount(tile));
@@ -910,6 +924,16 @@ export class CanvasRenderer {
     work.sort((a, b) => a.distance - b.distance);
 
     let more = false;
+    showing.sort((a, b) => a.distance - b.distance);
+    let shownAgain = 0;
+    for (const { labels } of showing) {
+      if (shownAgain >= LABELS_SHOWN_PER_FRAME) {
+        more = true;
+        break;
+      }
+      labels.visible = true;
+      shownAgain += labels.children.length;
+    }
     let drawn = 0;
     let drawings = 0;
     for (const { tile, draw } of work) {
