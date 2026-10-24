@@ -34,8 +34,6 @@ export interface Start {
 const ACROSS_WEIGHT = 2;
 /** How far, in scene units, a search first looks; it looks twice as far each time it finds nothing. */
 const FIRST_REACH = 256;
-/** How many relations away from an element a relation that ends on relations is looked for. */
-const MAX_HOPS = 32;
 
 export function rectOf(reachable: Reachable): Rect {
   switch (reachable.kind) {
@@ -273,34 +271,55 @@ export function drawnRelations(scene: Scene, project: ProjectSnapshot): DrawnRel
 
   const endingOn = (relation: Id): readonly RelationLine[] => onRelations.get(relation) ?? [];
   const stepsOf = new Map<Id, readonly RelationStop[]>();
+  // Depth first, in the order the outline lists the rows with every row open, each relation listed at
+  // its first place only: the element's own relations keep theirs. A stack rather than recursion, so
+  // that however long a chain of relations between relations is, each is looked at once.
   const steps = (element: Id): readonly RelationStop[] => {
     let found = stepsOf.get(element);
     if (found) return found;
     const direct = around.get(element) ?? [];
     const listed = new Set(direct.map((line) => line.relation));
     const list: RelationStop[] = [];
-    const visit = (line: RelationLine, on: Id): void => {
-      list.push({ line, on });
-      for (const inner of endingOn(line.relation)) {
-        if (listed.has(inner.relation)) continue;
-        listed.add(inner.relation);
-        visit(inner, line.relation);
+    const pending: RelationStop[] = direct.map((line) => ({ line, on: element })).reverse();
+    for (let stop = pending.pop(); stop; stop = pending.pop()) {
+      const { line, on } = stop;
+      if (on !== element) {
+        if (listed.has(line.relation)) continue;
+        listed.add(line.relation);
       }
-    };
-    for (const line of direct) visit(line, element);
+      list.push(stop);
+      const inner = endingOn(line.relation);
+      for (let at = inner.length - 1; at >= 0; at--) {
+        const next = inner[at] as RelationLine;
+        if (!listed.has(next.relation)) pending.push({ line: next, on: line.relation });
+      }
+    }
     found = list;
     stepsOf.set(element, found);
     return found;
   };
-  const elementOf = (id: Id, hops = 0): Id | undefined => {
-    const relation = lines.has(id) ? index.relation(id) : undefined;
-    if (!relation || hops > MAX_HOPS) return undefined;
-    for (const end of [relation.from, relation.to]) if (firstShapes.has(end)) return end;
-    for (const end of [relation.from, relation.to]) {
-      const element = elementOf(end, hops + 1);
-      if (element !== undefined) return element;
+  // Breadth first over the relations a relation ends on, each looked at once, so that the nearest end
+  // with a shape is found however the relations between relations are woven, even in a cycle.
+  const elementsOf = new Map<Id, Id | undefined>();
+  const elementOf = (id: Id): Id | undefined => {
+    if (elementsOf.has(id)) return elementsOf.get(id);
+    let found: Id | undefined;
+    const queue = lines.has(id) ? [id] : [];
+    const seen = new Set(queue);
+    for (let at = 0; at < queue.length && found === undefined; at++) {
+      const relation = index.relation(queue[at] as Id);
+      if (!relation) continue;
+      const ends = [relation.from, relation.to];
+      found = ends.find((end) => firstShapes.has(end));
+      for (const end of ends) {
+        if (lines.has(end) && !seen.has(end)) {
+          seen.add(end);
+          queue.push(end);
+        }
+      }
     }
-    return undefined;
+    elementsOf.set(id, found);
+    return found;
   };
 
   const drawn: DrawnRelations = {
@@ -308,7 +327,7 @@ export function drawnRelations(scene: Scene, project: ProjectSnapshot): DrawnRel
     around: (element) => around.get(element) ?? [],
     endingOn,
     steps,
-    elementOf: (relation) => elementOf(relation),
+    elementOf,
     line: (relation) => lines.get(relation),
     relation: (id) => index.relation(id),
   };
