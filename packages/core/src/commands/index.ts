@@ -83,6 +83,14 @@ export function executeCommand(
     };
   } catch (error) {
     if (error instanceof Rejection) return { ok: false, problems: error.problems };
+    // A command missing a part, or with a part of the wrong kind, fails where the core first reads
+    // it; it is refused as not well formed, and the project is unchanged as for any refusal.
+    if (error instanceof TypeError) {
+      return {
+        ok: false,
+        problems: [problem('invalid-command', `The command is not well formed: ${error.message}`)],
+      };
+    }
     throw error;
   }
 }

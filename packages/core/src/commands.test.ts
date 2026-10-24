@@ -84,12 +84,19 @@ describe('create-element', () => {
     ).toEqual(['invalid-id']);
   });
 
+  it('refuses a command that is missing a part, as not well formed', () => {
+    expect(rejected({ type: 'create-element' } as unknown as Command)).toEqual(['invalid-command']);
+    expect(rejected({ type: 'update-element', id: 'api' } as unknown as Command)).toEqual([
+      'invalid-command',
+    ]);
+  });
+
   it('keeps no part of a command it refuses', () => {
     const state = testProject();
     const { outcome } = run(
       {
         type: 'create-element',
-        element: { component: 'test.box', name: 'Orphan' },
+        element: { component: 'test.box', name: 'Unplaced' },
         positions: [{ view: 'no-view', x: 0, y: 0 }],
       },
       state,
@@ -181,6 +188,28 @@ describe('delete', () => {
       'client',
     ]);
     expect(outcome.state.scenarios).toEqual(testProject().scenarios);
+  });
+
+  it('never gives a broken step’s relation id to something new', () => {
+    const deleted = ok({ type: 'delete', relations: ['client-calls-api'] }).state;
+    expect(
+      rejected(
+        {
+          type: 'create-relation',
+          relation: { id: 'client-calls-api', relationType: 'test.reads', from: 'api', to: 'db' },
+        },
+        deleted,
+      ),
+    ).toEqual(['id-taken']);
+    expect(
+      rejected(
+        {
+          type: 'create-element',
+          element: { id: 'client-calls-api', component: 'test.box', name: 'A' },
+        },
+        deleted,
+      ),
+    ).toEqual(['id-taken']);
   });
 
   it('names what it deletes', () => {

@@ -451,7 +451,7 @@ describe('loadProject with the rules of the core', () => {
         ...packageFile('shop'),
         components: [
           { id: 'shop.service', name: 'Service', derivesFrom: 'essence' },
-          { id: 'shop.orphan', name: 'Orphan', derivesFrom: 'shop.unknown' },
+          { id: 'shop.stray', name: 'Stray', derivesFrom: 'shop.unknown' },
         ],
       },
       'views/overview.vaview': viewFile('overview'),
@@ -475,7 +475,7 @@ describe('loadProject with the rules of the core', () => {
         file: 'packages/shop.vapackage',
         pointer: '/components/1',
         message:
-          'The component "shop.orphan" derives from "shop.unknown", which no package in use defines.',
+          'The component "shop.stray" derives from "shop.unknown", which no package in use defines.',
       },
       {
         file: 'scenarios/request.vascenario',

@@ -307,12 +307,12 @@ describe('execute', () => {
     expect(await filesIn(folder)).toEqual(before);
   });
 
-  it('refuses a command that the core cannot even run, and keeps going', async () => {
+  it('refuses a command that is not well formed, and keeps going', async () => {
     const session = await open();
 
     await expect(
       session.execute({ type: 'create-element' } as unknown as Command, 'user'),
-    ).resolves.toMatchObject({ ok: false, problems: [{ code: 'program-failed' }] });
+    ).resolves.toMatchObject({ ok: false, problems: [{ code: 'invalid-command' }] });
     await expect(session.execute(RENAME_API, 'user')).resolves.toMatchObject({ ok: true });
   });
 
