@@ -98,7 +98,7 @@ export interface ContentPolicies {
  */
 export function applyContentPolicies(response: ServerResponse, policies: ContentPolicies): void {
   const writeHead = response.writeHead.bind(response) as (...args: unknown[]) => ServerResponse;
-  response.writeHead = ((statusCode: number, ...rest: unknown[]) => {
+  response.writeHead = (statusCode: number, ...rest: unknown[]) => {
     const at = typeof rest[0] === 'string' ? 1 : 0;
     const headers = rest[at] as OutgoingHttpHeaders | OutgoingHttpHeader[] | undefined;
     const type = contentTypeIn(headers) ?? response.getHeader('content-type');
@@ -112,7 +112,7 @@ export function applyContentPolicies(response: ServerResponse, policies: Content
       }
     }
     return writeHead(statusCode, ...rest);
-  });
+  };
 }
 
 function policyFor(type: unknown, policies: ContentPolicies): string | undefined {
