@@ -448,4 +448,46 @@ describe('CanvasRenderer drags', () => {
     renderer.endDrag(second);
     expect(renderer.dragging).toBe(false);
   });
+
+  it('draws a drop’s change with one rebuild, leaving the end of the drag to the scene shown next', async () => {
+    const renderer = await started();
+    renderer.show(indexed);
+    settleFrames(renderer);
+    const drag = renderer.startDrag(new Set(['patient']), new Set());
+    const moved = indexScene(
+      buildScene(
+        {
+          ...sample,
+          views: sample.views.map((view) => ({
+            ...view,
+            positions: view.positions.map((position) =>
+              position.element === 'patient' ? { ...position, x: 90 } : position,
+            ),
+          })),
+        },
+        'system-overview',
+      ),
+    );
+    const rebuilds = vi.spyOn(renderer as unknown as { rebuild: () => void }, 'rebuild');
+    renderer.endDrag(drag, { redraw: false });
+    expect(rebuilds).not.toHaveBeenCalled();
+    renderer.show(moved);
+    expect(rebuilds).toHaveBeenCalledTimes(1);
+    expect(renderer.dragging).toBe(false);
+    // Drawn in full at once, as it was before the drag took it out of its tile.
+    expect(renderer.showsOutline('patient')).toBe(true);
+  });
+
+  it('leaves the canvas alone once destroyed, when a drag starts or ends late', async () => {
+    const renderer = await started();
+    renderer.show(indexed);
+    const drag = renderer.startDrag(new Set(['patient']), new Set());
+    renderer.destroy();
+    const removed = vi.spyOn(inside(renderer).dragLayer, 'removeChildren');
+    const rebuilds = vi.spyOn(renderer as unknown as { rebuild: () => void }, 'rebuild');
+    expect(() => renderer.endDrag(drag)).not.toThrow();
+    expect(() => renderer.startDrag(new Set(['patient']), new Set())).not.toThrow();
+    expect(removed).not.toHaveBeenCalled();
+    expect(rebuilds).not.toHaveBeenCalled();
+  });
 });
