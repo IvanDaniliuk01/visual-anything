@@ -105,6 +105,12 @@ export interface ControllerCallbacks {
   menu?(at: Point, shape: ElementShape, under?: readonly ElementShape[]): void;
 }
 
+/**
+ * Records a relation into a scenario, while the canvas records: `simultaneous` when Shift was held, so
+ * that it joins the current step.
+ */
+export type Recorder = (relation: Id, simultaneous: boolean) => void;
+
 /** A change of container a drop makes, which waits to be confirmed. */
 export interface ChangeToConfirm {
   /** What is sent once confirmed: the change, alone or with the moves of the other dropped shapes. */
@@ -284,6 +290,8 @@ export class CanvasController {
   private menuKeyTime: number | undefined;
   /** Where the drop caption is written. */
   private readonly caption: HTMLElement | undefined;
+  /** While a scenario records: a click on a relation, or Enter on a selected one, records it. */
+  private recorder: Recorder | undefined;
 
   constructor(
     private readonly host: HTMLElement,
@@ -330,6 +338,15 @@ export class CanvasController {
   setSelection(selection: Selection): void {
     this.selection = selection;
     this.refreshMarks();
+  }
+
+  /**
+   * Starts or stops recording a scenario: while a recorder is set, a click on a relation records it
+   * instead of selecting it alone or toggling it, and Enter on a selected relation records it and
+   * follows it; with Shift, either joins the current step and Enter stays.
+   */
+  setRecorder(recorder: Recorder | undefined): void {
+    this.recorder = recorder;
   }
 
   get camera(): Camera {
@@ -484,6 +501,12 @@ export class CanvasController {
       this.begin(event, { kind: 'box', pointer: event.pointerId, start: world, additive });
       return;
     }
+    if (hit.kind === 'relation' && this.recorder && this.editable) {
+      // Recording: the relation is selected alone, which the step panel and the keys go on from.
+      this.select(selectionOf([selectableOf(hit)]));
+      this.recorder(hit.line.relation, event.shiftKey);
+      return;
+    }
     // The keys move on from what was pointed at.
     if (hit.kind !== 'relation') this.current = keyOf(hit);
     const item = selectableOf(hit);
@@ -609,7 +632,9 @@ export class CanvasController {
           : this.spaceHeld
             ? 'grab'
             : hit
-              ? 'pointer'
+              ? hit.kind === 'relation' && this.recorder
+                ? 'copy'
+                : 'pointer'
               : 'default';
         return;
       }
@@ -781,8 +806,9 @@ export class CanvasController {
     if (!event.altKey && (event.key === 'Enter' || event.key === 'F2')) {
       event.preventDefault();
       if (this.gesture.kind !== 'idle') return;
-      if (event.key === 'Enter' && this.selectedRelation() !== undefined) this.follow();
-      else this.edit();
+      if (event.key === 'Enter' && this.selectedRelation() !== undefined) {
+        this.followOrRecord(event.shiftKey);
+      } else this.edit();
       return;
     }
     if (event.key === '+' || event.key === '=') this.zoomBy(KEY_ZOOM);
@@ -1361,6 +1387,19 @@ export class CanvasController {
     this.stepping = undefined;
     this.choose(selectionOf([{ kind: 'relation', id: far }]));
     this.revealRect(rectAround(line.route));
+  }
+
+  /**
+   * Enter on the selected relation: follows it; while a scenario records, records it first, and with
+   * Shift adds it to the current step and stays on it.
+   */
+  private followOrRecord(simultaneous: boolean): void {
+    const relation = this.selectedRelation();
+    if (relation !== undefined && this.recorder && this.editable) {
+      this.recorder(relation, simultaneous);
+      if (simultaneous) return;
+    }
+    this.follow();
   }
 
   /** Enter or F2: edits the name of the selected element, or the text of the selected note, in place. */
