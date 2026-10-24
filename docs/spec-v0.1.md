@@ -209,11 +209,11 @@ Seven milestones in build order, each ending in something you can use; tasks are
 
 **M1 · Model core.** Done when the core passes property tests for undo, cascades and containment cycles, and a project folder round-trips without changes.
 
-- [ ] Elements, components derived up to Essence, relations ending on elements or relations, relation types derived up to "relates to", particularities
-- [ ] Commands and history: every change is a command; undo and redo; each action labelled by author (you or Claude)
-- [ ] Rules: block containment cycles, warn on relation type limits, cascade deletes with a preview
-- [ ] Project I/O: validate on open, stable formatting, atomic writes, reload on outside changes
-- [ ] Built-in "Systems" package: Box, System, Service (Chat channel, AI agent, MCP server, Semantic layer), Database, Object storage, Person; relation types communicates with, writes to, reads from, queries, loads into, is part of
+- [x] Elements, components derived up to Essence, relations ending on elements or relations, relation types derived up to "relates to", particularities
+- [x] Commands and history: every change is a command; undo and redo; each action labelled by author (you or Claude)
+- [x] Rules: block containment cycles, warn on relation type limits, cascade deletes with a preview
+- [x] Project I/O: validate on open, stable formatting, atomic writes, reload on outside changes
+- [x] Built-in "Systems" package: Box, System, Service (Chat channel, AI agent, MCP server, Semantic layer), Database, Object storage, Person; relation types communicates with, writes to, reads from, queries, loads into, is part of
 
 **M2 · Canvas.** Done when a synthetic view with 10,000 elements pans, zooms and selects at the 60 frames per second target.
 

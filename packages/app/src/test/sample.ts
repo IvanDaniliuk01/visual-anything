@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import type { ProjectSnapshot } from '@visual-anything/core';
+import { builtinPackage, type ProjectSnapshot } from '@visual-anything/core';
 import type {
   ModelFile,
   PackageFile,
@@ -28,15 +28,21 @@ function readAll<T>(folder: string, extension: string): T[] {
     .map((name) => readJson<T>(join(directory, name)));
 }
 
-/** The sample project in `examples/my-systems`, read from its files as the local program sends it. */
+/**
+ * The sample project in `examples/my-systems`, read from its files as the local program sends it: the
+ * packages it lists, from its packages/ folder or built in.
+ */
 export function loadSample(): ProjectSnapshot {
   const project = readJson<ProjectFile>(join(SAMPLE_FOLDER, 'project.vaproject'));
+  const own = readAll<PackageFile>('packages', '.vapackage');
   return {
     project,
     model: readJson<ModelFile>(join(SAMPLE_FOLDER, 'model.vamodel')),
-    packages: readAll<PackageFile>('packages', '.vapackage').filter((file) =>
-      project.packages.includes(file.id),
-    ),
+    packages: project.packages.map((id) => {
+      const found = own.find((file) => file.id === id) ?? builtinPackage(id);
+      if (!found) throw new Error(`The sample lists the package "${id}", which it does not hold.`);
+      return found;
+    }),
     views: readAll<ViewFile>('views', '.vaview'),
     scenarios: readAll<ScenarioFile>('scenarios', '.vascenario'),
   };

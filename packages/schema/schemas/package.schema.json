@@ -212,6 +212,10 @@
         },
         "appearance": {
           "$ref": "#/definitions/RelationAppearance"
+        },
+        "limits": {
+          "$ref": "#/definitions/RelationTypeLimits",
+          "description": "What its relations may connect. Breaking a limit only produces a warning."
         }
       },
       "required": [
@@ -244,6 +248,27 @@
       },
       "additionalProperties": false,
       "description": "How a relation is drawn."
+    },
+    "RelationTypeLimits": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "uniqueItems": true
+        },
+        "to": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false,
+      "description": "What the ends of a relation type's relations may be. Each list names components or relation types; an end created from one of them, or from anything derived from one of them, keeps within the limit. A missing list sets no limit on that end."
     }
   }
 }

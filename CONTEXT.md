@@ -98,6 +98,10 @@ A component that extends a declarative one with its own code to draw itself or s
 A set of components and relation types from one domain, shared as a unit: "Neuroscience", "Data modeling".
 _Avoid_: library, plugin, extension
 
+**Built-in package**:
+A package that comes with Visual Anything, such as "Systems". A project uses it by listing its id; it is never copied into the project folder.
+_Avoid_: default package, standard library
+
 ### Dimensions
 
 **Dimension**:
