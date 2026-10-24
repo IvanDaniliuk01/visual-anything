@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_PREFERENCES, THEME_PARAM, TOKEN_PARAM } from '@visual-anything/core';
+import { DEFAULT_PREFERENCES, LAUNCH_PARAM, THEME_PARAM } from '@visual-anything/core';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { runCommand, type CommandEnvironment } from './command';
 import { PREFERENCES_FILE } from './preferences';
@@ -51,8 +51,10 @@ function run(overrides: Partial<CommandEnvironment> = {}) {
   };
   const exit = runCommand([SAMPLE, '--no-open'], environment);
   const printedUrl = async () => {
-    await expect.poll(() => out.some((line) => line.includes('http://'))).toBe(true);
-    const line = out.find((printed) => printed.includes('http://')) ?? '';
+    // The launch address, which carries the theme beside its launch code.
+    const launch = (line: string) => line.includes(`#${LAUNCH_PARAM}=`);
+    await expect.poll(() => out.some(launch)).toBe(true);
+    const line = out.find(launch) ?? '';
     return new URL(line.slice(line.indexOf('http://')));
   };
   const stop = async () => {
@@ -72,13 +74,13 @@ describe('the address the program opens', () => {
     const { printedUrl, stop } = run();
     const fragment = fragmentOf(await printedUrl());
     expect(fragment.get(THEME_PARAM)).toBe(theme);
-    expect(fragment.get(TOKEN_PARAM)).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(fragment.get(LAUNCH_PARAM)).toMatch(/^[A-Za-z0-9_-]{22}$/);
     await stop();
   });
 
   it('carries no theme for a person who matches the system', async () => {
     const { printedUrl, stop } = run();
-    expect([...fragmentOf(await printedUrl()).keys()]).toEqual([TOKEN_PARAM]);
+    expect([...fragmentOf(await printedUrl()).keys()]).toEqual([LAUNCH_PARAM]);
     await stop();
   });
 });
@@ -112,7 +114,8 @@ describe('preferences over the live connection', () => {
     await mkdir(nested);
     const { printedUrl, stop } = run({ preferences: { folder: nested } });
     const url = await printedUrl();
-    const app = await openLiveClient(Number(url.port), fragmentOf(url).get(TOKEN_PARAM) ?? '');
+    const code = fragmentOf(url).get(LAUNCH_PARAM) ?? '';
+    const app = await openLiveClient(Number(url.port), code, 'launch');
 
     await expect
       .poll(() => app.messages.map((message) => message.type))

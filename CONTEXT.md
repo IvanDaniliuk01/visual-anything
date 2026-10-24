@@ -138,6 +138,9 @@ _Avoid_: library, plugin, extension
 A package that comes with Visual Anything, such as "Systems". A project uses it by listing its id; it is never copied into the project folder.
 _Avoid_: default package, standard library
 
+**Image**:
+A picture a package defines, in SVG or as a small PNG, JPEG or WebP bitmap, that an appearance shows on shapes: as an icon beside the name, or as the shape's whole drawing, optionally as a silhouette of one color. It is data only: the core cleans it of anything that runs or refers to anything outside it before it is stored, and every reader sees only that cleaned picture.
+
 ### Dimensions
 
 **Dimension**:
@@ -211,6 +214,14 @@ _Avoid_: dot, token, pulse
 A saved sequence of steps, each a view state with an explanation, that is played to walk someone through a concept. A step can play a scenario. Created by a person or by Claude.
 _Avoid_: walkthrough, presentation, story
 
+**Guidance**:
+The marks and moves Claude makes live on the open view while it explains: highlighting shapes, focusing on some and dimming the rest, moving the canvas to one, and showing a caption. Guidance never changes the model, a view or the history, and shows only while the app is open.
+_Avoid_: spotlight
+
+**Caption**:
+A short plain text Claude shows over the canvas as part of its guidance, until it shows another, clears it, or the person dismisses it.
+_Avoid_: toast
+
 **Simulate**:
 To compute a behavior from parameters the user changes: learning rate and loss curve, replicas and latency.
 
@@ -226,3 +237,9 @@ _Avoid_: settings, profile
 **Theme**:
 The colors the app and the canvas itself are drawn in, light or dark: panels and text, the canvas background, the grid, the rulers, selection, labels, and notes and free arrows without colors of their own. Built-in packages give their components and relation types a shade for each theme; every color stored in a project is drawn as stored in both. A theme follows the system unless the person chooses one, and it never changes the project.
 _Avoid_: skin, palette
+
+### The local program
+
+**Launch address**:
+An address that opens a project in the browser once, within two minutes of being made. The local program opens or prints one instead of an address carrying the session token, which never leaves the program; the tab gets the token when it opens and keeps it for reloads.
+_Avoid_: magic link, one-time link

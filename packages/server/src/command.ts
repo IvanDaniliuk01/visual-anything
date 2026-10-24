@@ -2,10 +2,16 @@
  * The `visual-anything` command: reads its arguments, opens the project folder, starts the local
  * program and opens the browser on it, then runs until it is stopped. Everything it touches outside
  * itself comes in through a {@link CommandEnvironment}, so it runs the same in tests.
+ *
+ * The session token never appears on screen or in an address: the browser is opened, or an address
+ * printed, with a launch code that works once, within two minutes. In a terminal, `o` opens another
+ * tab and `a` prints another such address.
  */
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { PROTOCOL_VERSION } from '@visual-anything/core';
 import { resolveAppSource } from './app-source';
+import { removeProgramRecord, writeProgramRecord } from './claude/discovery';
 import { errorCode, errorReason } from './errors';
 import { toForwardSlashes } from './paths';
 import { openPreferences, themeHintOf, type PreferencesLocation } from './preferences';
@@ -14,14 +20,16 @@ import { startServer, type AppSource, type RunningServer } from './server';
 import { openSession } from './session';
 import { AppNotBuiltError } from './static';
 
-export const USAGE = `Usage: visual-anything [folder] [--port <n>] [--no-open] [--dev]
+export const USAGE = `Usage: visual-anything [folder] [--port <n>] [--no-open] [--dev] [--stop-when-idle]
 
 Opens the project in folder (the current folder when left out) and serves the app on 127.0.0.1.
 
-  --port <n>  Listen on port n, from 0 to 65535 (default 0: any free port).
-  --no-open   Print the address without opening the browser.
-  --dev       Serve the app from its sources through Vite, with hot reload.
-  -h, --help  Show this help.`;
+  --port <n>        Listen on port n, from 0 to 65535 (default 0: any free port).
+  --no-open         Print an address that works once, instead of opening the browser.
+  --dev             Serve the app from its sources through Vite, with hot reload.
+  --stop-when-idle  Stop once no app and no Claude has been connected for a minute, as when
+                    Claude started the program.
+  -h, --help        Show this help.`;
 
 /** What the command line asks for. */
 export interface CommandLine {
@@ -31,6 +39,8 @@ export interface CommandLine {
   /** Whether to open the browser. */
   open: boolean;
   dev: boolean;
+  /** Whether to stop once nothing has been connected for a while. */
+  stopWhenIdle: boolean;
   help: boolean;
 }
 
@@ -41,6 +51,12 @@ export type ParsedCommandLine = { ok: true; value: CommandLine } | { ok: false; 
 export interface Signals {
   once(signal: 'SIGINT' | 'SIGTERM', listener: () => void): unknown;
   off(signal: 'SIGINT' | 'SIGTERM', listener: () => void): unknown;
+}
+
+/** The keys pressed in the terminal the program runs in, one at a time. */
+export interface KeyInput {
+  /** Calls `onKey` with each key pressed, until the function it returns is called. */
+  listen(onKey: (key: string) => void): () => void;
 }
 
 /** Everything the command uses from the world around it. */
@@ -54,6 +70,15 @@ export interface CommandEnvironment {
   /** Opens the browser at a URL. */
   openBrowser(url: string): Promise<unknown>;
   signals: Signals;
+  /** The keys pressed, when the program runs in a terminal; absent otherwise. */
+  keys?: KeyInput;
+  /**
+   * The runtime folder, where the program leaves the record that lets Claude's MCP entry point
+   * attach to it; `null` or absent leaves none.
+   */
+  runtimeFolder?: string | null;
+  /** How long `--stop-when-idle` waits with nothing connected, in milliseconds; a minute by default. */
+  idleStopDelay?: number;
   /** Where the app comes from: by default the app package, built or in dev mode its sources. */
   appSource?: (dev: boolean) => AppSource;
   /**
@@ -63,7 +88,14 @@ export interface CommandEnvironment {
   preferences?: PreferencesLocation;
 }
 
-/** Reads the command line: `[folder] [--port <n>] [--no-open] [--dev] [--help]`. */
+/** How long a program started with `--stop-when-idle` waits with nothing connected. */
+export const IDLE_STOP_DELAY = 60_000;
+
+/** The keys the program answers in a terminal. */
+const KEY_HELP =
+  'Press o to open Visual Anything in a new tab, or a to print an address that works once.';
+
+/** Reads the command line: `[folder] [--port <n>] [--no-open] [--dev] [--stop-when-idle] [--help]`. */
 export function parseCommandLine(argv: readonly string[]): ParsedCommandLine {
   let parsed;
   try {
@@ -75,6 +107,7 @@ export function parseCommandLine(argv: readonly string[]): ParsedCommandLine {
         port: { type: 'string' },
         'no-open': { type: 'boolean' },
         dev: { type: 'boolean' },
+        'stop-when-idle': { type: 'boolean' },
         help: { type: 'boolean', short: 'h' },
       },
     });
@@ -102,14 +135,16 @@ export function parseCommandLine(argv: readonly string[]): ParsedCommandLine {
       port,
       open: values['no-open'] !== true,
       dev: values.dev === true,
+      stopWhenIdle: values['stop-when-idle'] === true,
       help: values.help === true,
     },
   };
 }
 
 /**
- * Runs the command and resolves with its exit code: 0 once stopped by SIGINT or SIGTERM, 1 when the
- * project cannot be opened or the local program cannot start, 2 for arguments it does not understand.
+ * Runs the command and resolves with its exit code: 0 once stopped by SIGINT, SIGTERM, Ctrl+C in its
+ * terminal or, with `--stop-when-idle`, by being idle; 1 when the project cannot be opened or the
+ * local program cannot start; 2 for arguments it does not understand.
  */
 export async function runCommand(
   argv: readonly string[],
@@ -146,6 +181,25 @@ export async function runCommand(
   }
   const { session } = opened;
 
+  const stopper = new Stopper();
+  const idle = options.stopWhenIdle
+    ? new IdleStop(environment.idleStopDelay ?? IDLE_STOP_DELAY, () => {
+        environment.out('Nothing has been connected for a while, so Visual Anything stops.');
+        stopper.stop();
+      })
+    : undefined;
+
+  const openBrowser = async (url: string) => {
+    try {
+      await environment.openBrowser(url);
+    } catch (error) {
+      environment.err(
+        `Could not open the browser (${errorReason(error)}). ${environment.keys ? 'Press a to print an address that works once.' : 'Start Visual Anything again with --no-open to print an address that works once.'}`,
+      );
+      throw error;
+    }
+  };
+
   let server: RunningServer;
   try {
     const app = (environment.appSource ?? resolveAppSource)(options.dev);
@@ -153,42 +207,61 @@ export async function runCommand(
       session,
       port: options.port,
       app,
-      themeHint: themeHintOf(preferences.current()),
+      openBrowser,
+      onLaunchReused: () =>
+        environment.err(
+          'The launch address was used twice; if your tab did not open the project, something else on this computer used it first.',
+        ),
+      ...(idle === undefined ? {} : { onConnections: (count: number) => idle.connections(count) }),
+      themeHint: () => themeHintOf(preferences.current()),
     });
   } catch (error) {
+    idle?.cancel();
     await session.close();
     await preferences.close();
     environment.err(describeStartFailure(error, options.port));
     return 1;
   }
-  const stopped = stopSignal(environment.signals);
+  stopper.onSignals(environment.signals);
+  // Before saying it runs, so that Claude can attach as soon as it does.
+  const record = await recordForClaude(environment, server, session.folder);
 
   environment.out(`Opened "${session.snapshot.project.name}" from ${toForwardSlashes(folder)}.`);
   for (const warning of session.warnings()) {
     environment.err(`Warning: ${formatProjectProblem(warning)}`);
   }
-  environment.out(`Visual Anything is running at ${server.url}`);
+  environment.out(`Visual Anything is running at ${server.address}`);
   if (options.dev) {
     environment.out('Dev mode: Vite serves the app from its sources, with hot reload.');
   }
-  environment.out('Press Ctrl+C to stop.');
-  if (options.open) {
-    void Promise.resolve()
-      .then(() => environment.openBrowser(server.url))
-      .catch((error: unknown) =>
-        environment.err(
-          `Could not open the browser (${errorReason(error)}); open the address above by hand.`,
-        ),
-      );
-  }
 
-  await stopped;
+  if (options.open) {
+    void openBrowser(server.launchUrl()).catch(() => {});
+  } else {
+    environment.out(
+      `Open Visual Anything at this address, which works once, within two minutes: ${server.launchUrl()}`,
+    );
+  }
+  const stopKeys = environment.keys?.listen((key) => {
+    if (key === 'o') void openBrowser(server.launchUrl()).catch(() => {});
+    else if (key === 'a') {
+      environment.out(`This address works once, within two minutes: ${server.launchUrl()}`);
+    } else if (key === '\u0003') stopper.stop();
+  });
+  if (stopKeys !== undefined) environment.out(KEY_HELP);
+  environment.out('Press Ctrl+C to stop.');
+  idle?.start();
+
+  await stopper.stopped;
+  stopKeys?.();
+  idle?.cancel();
   try {
     await server.close();
   } catch (error) {
     environment.err(`Could not stop cleanly: ${errorReason(error)}`);
     return 1;
   } finally {
+    if (record !== undefined) await removeProgramRecord(record, process.pid);
     // Waits for the changes already sent to be saved, and stops watching the folder.
     await session.close();
     await preferences.close();
@@ -197,27 +270,113 @@ export async function runCommand(
   return 0;
 }
 
+/**
+ * Leaves the record that lets Claude's MCP entry point attach, and returns its path; says why when
+ * it cannot, and the program runs on without it.
+ */
+async function recordForClaude(
+  environment: CommandEnvironment,
+  server: RunningServer,
+  folder: string,
+): Promise<string | undefined> {
+  const runtime = environment.runtimeFolder;
+  if (runtime === undefined || runtime === null) return undefined;
+  try {
+    return await writeProgramRecord(runtime, {
+      format: 1,
+      protocolVersion: PROTOCOL_VERSION,
+      pid: process.pid,
+      port: server.port,
+      folder: toForwardSlashes(folder),
+      credential: server.credential,
+      startedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    environment.err(
+      `Claude cannot attach to this program: its record could not be written in ${toForwardSlashes(runtime)} (${errorReason(error)}).`,
+    );
+    return undefined;
+  }
+}
+
+/** What stops the program: the first SIGINT or SIGTERM, Ctrl+C in its terminal, or being idle. */
+class Stopper {
+  readonly stopped: Promise<void>;
+  #resolve: () => void = () => {};
+  #release: (() => void) | undefined;
+
+  constructor() {
+    this.stopped = new Promise((resolve) => {
+      this.#resolve = resolve;
+    });
+  }
+
+  /**
+   * Stops on the first SIGINT or SIGTERM. It stops listening at once, so a second signal gets the
+   * default behavior and ends the process even if closing hangs.
+   */
+  onSignals(signals: Signals): void {
+    const stop = () => this.stop();
+    signals.once('SIGINT', stop);
+    signals.once('SIGTERM', stop);
+    this.#release = () => {
+      signals.off('SIGINT', stop);
+      signals.off('SIGTERM', stop);
+    };
+  }
+
+  stop(): void {
+    this.#release?.();
+    this.#release = undefined;
+    this.#resolve();
+  }
+}
+
+/** Calls `onIdle` once nothing has been connected for `delay` milliseconds, counted from the start. */
+class IdleStop {
+  readonly #delay: number;
+  readonly #onIdle: () => void;
+  #count = 0;
+  #started = false;
+  #timer: ReturnType<typeof setTimeout> | undefined;
+
+  constructor(delay: number, onIdle: () => void) {
+    this.#delay = delay;
+    this.#onIdle = onIdle;
+  }
+
+  start(): void {
+    this.#started = true;
+    this.#schedule();
+  }
+
+  connections(count: number): void {
+    this.#count = count;
+    this.#schedule();
+  }
+
+  cancel(): void {
+    clearTimeout(this.#timer);
+    this.#timer = undefined;
+    this.#started = false;
+  }
+
+  #schedule(): void {
+    clearTimeout(this.#timer);
+    this.#timer = undefined;
+    if (!this.#started || this.#count > 0) return;
+    this.#timer = setTimeout(() => {
+      this.#timer = undefined;
+      this.#onIdle();
+    }, this.#delay);
+  }
+}
+
 /** Reads a port: decimal digits only, from 0 to 65535. */
 function parsePort(text: string): number | undefined {
   if (!/^\d{1,5}$/.test(text)) return undefined;
   const port = Number(text);
   return port <= 65535 ? port : undefined;
-}
-
-/**
- * Resolves on the first SIGINT or SIGTERM. It stops listening at once, so a second signal gets the
- * default behavior and ends the process even if closing hangs.
- */
-function stopSignal(signals: Signals): Promise<void> {
-  return new Promise((resolve) => {
-    const stop = () => {
-      signals.off('SIGINT', stop);
-      signals.off('SIGTERM', stop);
-      resolve();
-    };
-    signals.once('SIGINT', stop);
-    signals.once('SIGTERM', stop);
-  });
 }
 
 function describeStartFailure(error: unknown, port: number): string {
