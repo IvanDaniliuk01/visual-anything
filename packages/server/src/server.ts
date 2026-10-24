@@ -70,6 +70,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     type: 'project/opened',
     protocolVersion: PROTOCOL_VERSION,
     project: options.project,
+    history: {},
   });
   // The real port, known once the server listens; no request arrives before that.
   let port = options.port;

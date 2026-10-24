@@ -275,6 +275,7 @@ describe('the live connection', () => {
       type: 'project/opened',
       protocolVersion: PROTOCOL_VERSION,
       project: snapshot,
+      history: {},
     });
     outcome.socket.close();
   });

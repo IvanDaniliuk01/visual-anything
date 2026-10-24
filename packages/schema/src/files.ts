@@ -140,6 +140,20 @@ export interface RelationType {
   /** The attributes this relation type adds to the ones it inherits. */
   attributes?: AttributeDefinition[];
   appearance?: RelationAppearance;
+  /** What its relations may connect. Breaking a limit only produces a warning. */
+  limits?: RelationTypeLimits;
+}
+
+/**
+ * What the ends of a relation type's relations may be. Each list names components or relation types;
+ * an end created from one of them, or from anything derived from one of them, keeps within the limit.
+ * A missing list sets no limit on that end.
+ */
+export interface RelationTypeLimits {
+  /** @uniqueItems true */
+  from?: Id[];
+  /** @uniqueItems true */
+  to?: Id[];
 }
 
 /** An attribute that a component or relation type defines. */
