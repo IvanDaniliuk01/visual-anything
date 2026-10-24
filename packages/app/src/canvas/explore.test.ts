@@ -14,6 +14,7 @@ import {
   focusEmphasis,
   isFiltering,
   meetsCondition,
+  perspectiveOption,
   reachedFrom,
   type AttributeCondition,
   type Filters,
@@ -523,6 +524,17 @@ describe('filterChoices', () => {
     );
     // "communicates with" defines a protocol, though no relation of the sample sets one.
     expect(choices.attributes.relations).toEqual(['protocol']);
+  });
+});
+
+describe('perspectiveOption', () => {
+  it('names a view by its perspective, then by its own name when that says more', () => {
+    expect(perspectiveOption({ name: 'System overview', perspective: { name: 'Data flow' } })).toBe(
+      'Data flow — System overview',
+    );
+    expect(perspectiveOption({ name: 'Security', perspective: { name: 'security ' } })).toBe(
+      'security ',
+    );
   });
 });
 

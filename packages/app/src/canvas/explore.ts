@@ -23,6 +23,7 @@ import type {
   Id,
   JsonValue,
   Relation,
+  ViewFile,
 } from '@visual-anything/schema';
 import type { Emphasis } from '../editor/emphasis';
 import type { ElementShape, Scene } from './scene';
@@ -233,7 +234,7 @@ export function meetsCondition(
       return present && textOf(value).toLowerCase().includes(wanted.trim().toLowerCase());
     case 'below':
     case 'above': {
-      const number = numberOf(value);
+      const number = value === undefined ? undefined : numberOf(value);
       const limit = numberOf(wanted);
       if (number === undefined || limit === undefined) return false;
       return test === 'below' ? number < limit : number > limit;
@@ -433,6 +434,17 @@ export function filterChoices(scene: Scene, project: ProjectSnapshot): FilterCho
       .sort(byName),
     attributes: { elements: names(elementAttributes), relations: names(relationAttributes) },
   };
+}
+
+/**
+ * How the perspective switcher names a view: by its perspective, then by its own name when that says
+ * more. In v0.1 every view shows the whole model, so every view is one of the same part of it.
+ */
+export function perspectiveOption(view: Pick<ViewFile, 'name' | 'perspective'>): string {
+  const perspective = view.perspective.name;
+  return perspective.trim().toLowerCase() === view.name.trim().toLowerCase()
+    ? perspective
+    : `${perspective} — ${view.name}`;
 }
 
 /** One end of a relation, as following it goes there: an element's shape, or a relation's line. */
