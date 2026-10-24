@@ -215,6 +215,26 @@ describe('ScenarioSession', () => {
     expect(setup.session.getState().scenario).toBeUndefined();
   });
 
+  it('keeps a scenario just created open until the project holding it comes, and records into it', () => {
+    const setup = setUp();
+    const created = executeCommand(setup.project, {
+      type: 'create-scenario',
+      scenario: { id: 'fresh', name: 'Fresh', view: VIEW, steps: [] },
+    });
+    if (!created.ok) throw new Error('The scenario was not created.');
+    // The answer came first: the project the tab shows does not hold it yet.
+    setup.session.open('fresh');
+    setup.session.setRecording(true);
+    setup.sync();
+    expect(setup.session.getState()).toMatchObject({
+      scenario: 'fresh',
+      recording: true,
+      canRecord: false,
+    });
+    setup.project = created.state;
+    expect(setup.session.getState().canRecord).toBe(true);
+  });
+
   it('never changes the project while it plays', () => {
     const setup = setUp();
     open(setup);

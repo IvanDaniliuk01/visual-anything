@@ -120,6 +120,11 @@ export class ScenarioSession {
   private lastFrame: number | undefined;
   private clicks: Click[] = [];
   private sent: SentClick | undefined;
+  /**
+   * Whether the open scenario has been in the project: one just created may be opened before the
+   * project holding it comes, and only one that was there and is gone was deleted.
+   */
+  private seen = false;
 
   constructor(private readonly clock: Clock = FRAME_CLOCK) {}
 
@@ -153,7 +158,9 @@ export class ScenarioSession {
   /** Takes in the tab as it is now: the project, the open view, and the open scenario's timeline. */
   sync(context: SessionContext): void {
     this.context = context;
-    if (this.state.scenario !== undefined && !this.openScenario()) {
+    if (this.openScenario()) {
+      this.seen = true;
+    } else if (this.state.scenario !== undefined && this.seen) {
       // The scenario was deleted, here or elsewhere.
       this.reset(undefined);
       return;
@@ -268,6 +275,7 @@ export class ScenarioSession {
     this.clicks = [];
     this.sent = undefined;
     this.state = { ...this.state, scenario, recording: false };
+    this.seen = this.openScenario() !== undefined;
     this.publish();
     this.emitFrame();
   }

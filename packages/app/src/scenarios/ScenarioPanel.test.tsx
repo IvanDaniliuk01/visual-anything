@@ -375,12 +375,16 @@ describe('ScenarioPanel', () => {
     expect(within(panel()).getByRole('button', { name: 'Play' })).toBeEnabled();
   });
 
-  it('closes the scenario, back to the list', () => {
+  it('closes the scenario, back to the list, keeping the focus in the panel', () => {
     render(<Shell project={sample} />);
     openScenario();
+    expect(document.activeElement).toBe(within(panel()).getByRole('heading', { name: NAME }));
     fireEvent.click(within(panel()).getByRole('button', { name: 'Close' }));
     expect(
       within(panel()).getByRole('list', { name: 'Scenarios of the project' }),
     ).toBeInTheDocument();
+    expect(document.activeElement).toBe(
+      within(panel()).getByRole('heading', { name: 'Scenarios' }),
+    );
   });
 });

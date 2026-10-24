@@ -50,6 +50,7 @@ export function ScenarioPanel({ session }: { session: ScenarioSession }) {
   const { project, viewId, send } = editor;
   const state = useSyncExternalStore(session.subscribe, session.getState);
   const heading = useId();
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const [announcement, setAnnouncement] = useState({ text: '', count: 0 });
   const announce = useCallback(
     (text: string) => setAnnouncement((last) => ({ text, count: last.count + 1 })),
@@ -87,7 +88,9 @@ export function ScenarioPanel({ session }: { session: ScenarioSession }) {
 
   return (
     <aside className="panel scenario-panel" aria-labelledby={heading}>
-      <h2 id={heading}>Scenarios</h2>
+      <h2 id={heading} ref={headingRef} tabIndex={-1}>
+        Scenarios
+      </h2>
       {scenario && timeline ? (
         <OpenScenario
           session={session}
@@ -96,6 +99,7 @@ export function ScenarioPanel({ session }: { session: ScenarioSession }) {
           timeline={timeline}
           active={active}
           send={sendCommand}
+          onClosed={() => headingRef.current?.focus()}
         />
       ) : (
         <ScenarioList session={session} />
@@ -213,6 +217,7 @@ function OpenScenario({
   timeline,
   active,
   send,
+  onClosed,
 }: {
   session: ScenarioSession;
   state: ScenarioState;
@@ -220,6 +225,8 @@ function OpenScenario({
   timeline: Timeline;
   active: boolean;
   send: (command: Command, done?: string) => Promise<boolean>;
+  /** Gives the focus a place once the scenario closes, or is deleted. */
+  onClosed: () => void;
 }) {
   const editor = useEditor();
   const { project } = editor;
@@ -228,6 +235,16 @@ function OpenScenario({
   const [deleting, setDeleting] = useState(false);
   const renameId = useId();
   const speedId = useId();
+  // The title takes the focus when the scenario opens, and back from the rename form.
+  const title = useRef<HTMLHeadingElement>(null);
+  const [titleRequest, setTitleRequest] = useState(1);
+  useEffect(() => {
+    title.current?.focus();
+  }, [titleRequest]);
+  const stopRenaming = () => {
+    setRenaming(undefined);
+    setTitleRequest((count) => count + 1);
+  };
   const viewName = project.views.find((view) => view.id === scenario.view)?.name ?? scenario.view;
   const at = entryOfStep(timeline, state.step);
   const entry = at === undefined ? undefined : timeline.entries[at];
@@ -236,21 +253,23 @@ function OpenScenario({
   const rename = async (event: FormEvent) => {
     event.preventDefault();
     const name = renaming?.trim();
-    setRenaming(undefined);
+    stopRenaming();
     if (!name || name === scenario.name) return;
     await send(renameScenarioCommand(scenario, name), `Renamed to “${name}”.`);
   };
 
   const remove = async () => {
     setDeleting(false);
-    await send(deleteScenarioCommand(scenario), `Deleted “${scenario.name}”.`);
+    if (await send(deleteScenarioCommand(scenario), `Deleted “${scenario.name}”.`)) onClosed();
   };
 
   return (
     <div className="scenario-open-scenario">
       {renaming === undefined ? (
         <div className="scenario-head">
-          <h3 className="scenario-title">{scenario.name}</h3>
+          <h3 ref={title} tabIndex={-1} className="scenario-title">
+            {scenario.name}
+          </h3>
           <div className="scenario-actions">
             <button
               type="button"
@@ -268,7 +287,14 @@ function OpenScenario({
             >
               Delete
             </button>
-            <button type="button" className="scenario-button" onClick={() => session.close()}>
+            <button
+              type="button"
+              className="scenario-button"
+              onClick={() => {
+                session.close();
+                onClosed();
+              }}
+            >
               Close
             </button>
           </div>
@@ -283,18 +309,14 @@ function OpenScenario({
             autoFocus
             onChange={(event) => setRenaming(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Escape') setRenaming(undefined);
+              if (event.key === 'Escape') stopRenaming();
             }}
           />
           <div className="scenario-actions">
             <button type="submit" className="scenario-button" disabled={!renaming.trim()}>
               Rename
             </button>
-            <button
-              type="button"
-              className="scenario-button"
-              onClick={() => setRenaming(undefined)}
-            >
+            <button type="button" className="scenario-button" onClick={stopRenaming}>
               Cancel
             </button>
           </div>
@@ -316,7 +338,14 @@ function OpenScenario({
             >
               Delete scenario
             </button>
-            <button type="button" className="scenario-button" onClick={() => setDeleting(false)}>
+            <button
+              type="button"
+              className="scenario-button"
+              onClick={() => {
+                setDeleting(false);
+                setTitleRequest((count) => count + 1);
+              }}
+            >
               Cancel
             </button>
           </div>
