@@ -5,6 +5,10 @@
  * In v0.1 so far a view shows the whole model. Until ELK layout arrives (M3), shapes without a stored
  * position are placed in a simple row below everything else around them, and relations follow simple
  * orthogonal routes.
+ *
+ * The shapes keep containment order, whatever the view's stacking order, which only decides the order
+ * they are drawn in. So a change of stacking order only walks the shapes again: everything else is
+ * laid out once and kept until something it depends on changes.
  */
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type {
@@ -24,7 +28,10 @@ import {
   componentOrEssence,
   containmentTree,
   definitionsOf,
+  nestingTypesInView,
+  orderByStacking,
   relationTypeOrRelatesTo,
+  storedStacking,
   type Definitions,
   type Placement,
   type ResolvedAppearance,
@@ -39,18 +46,22 @@ import {
   type Point,
   type Rect,
 } from './geometry';
-import {
-  midpointOf,
-  routeBetween,
-  routeBetweenPoints,
-  routeFromPoint,
-  routeToPoint,
-} from './route';
+import { midpointOf, routeBetweenEnds, type RouteEnd } from './route';
 
-/** Everything a view draws, in drawing order. */
+/** Everything a view draws. */
 export interface Scene {
-  /** The anchored shapes of elements; a container comes before its contents. */
+  /**
+   * The anchored shapes of elements in containment order: World's contents, and each container's
+   * contents, in model order, a container before its contents. The outline, the keys, relations and an
+   * element's first shape follow this order, whatever the stacking order.
+   */
   shapes: ElementShape[];
+  /**
+   * The indexes of `shapes` in drawing order, back to front: a container before its contents, its
+   * contents before its next sibling, siblings in the view's stacking order. Absent: as `shapes`.
+   */
+  drawing?: readonly number[];
+  /** Drawn in front of every element shape, in model order. */
   relations: RelationLine[];
   notes: NoteShape[];
   arrows: ArrowShape[];
@@ -79,6 +90,11 @@ export interface ElementShape {
   fill: Color;
   stroke: Color;
   rect: Rect;
+  /**
+   * The rectangle holding this shape and everything inside it; larger than `rect` only when contents
+   * stick out of its left or top side.
+   */
+  extent: Rect;
   /** Whether other shapes sit inside this one; its name is then drawn at its top. */
   holdsContents: boolean;
 }
@@ -101,7 +117,15 @@ export interface RelationLine {
   stroke: Color;
   width: number;
   dash: Dash;
+  /**
+   * What the route runs between, so that it can be routed again while one end is dragged: each end's
+   * shape or relation, and how far the route runs beside others between the same ends.
+   */
+  ends?: { from: DrawnEnd; to: DrawnEnd; offset: number };
 }
+
+/** One end of a drawn relation: an element's shape, by its key, or the relation it ends on. */
+export type DrawnEnd = { kind: 'shape'; key: string } | { kind: 'relation'; relation: Id };
 
 /** A note: a free shape holding text. */
 export interface NoteShape {
@@ -125,22 +149,107 @@ export const ARROW_WIDTH = 2;
 const CONTAINER_PADDING = 24;
 /** Where the first row of contents starts inside a container, below the container's name. */
 const CONTAINER_HEADER = 48;
+/** Where contents placed without a stored position start, relative to their container's shape. */
+export const CONTENTS_ORIGIN: Readonly<Point> = { x: CONTAINER_PADDING, y: CONTAINER_HEADER };
 /** The space between shapes in the stand-in row, and between that row and what is above it. */
 const ROW_GAP = 40;
 /** How far apart relations that relate the same two ends are drawn. */
 const PARALLEL_GAP = 24;
 
-/** Everything the view with this id draws. */
+/** Everything a view draws but the order its shapes are drawn in. */
+interface Layout {
+  shapes: ElementShape[];
+  /** The indexes of the shapes that sit directly in World, in containment order. */
+  inWorld: number[];
+  /** The indexes of the shapes that sit directly in each shape, by its index. */
+  contents: number[][];
+  /** The drawing order when the view keeps no stacking order: the shapes' own order. */
+  identity: readonly number[];
+  relations: RelationLine[];
+  notes: NoteShape[];
+  arrows: ArrowShape[];
+  bounds: Rect | undefined;
+}
+
+/** A layout, with what it was made from and the last scene drawn from it. */
+interface LaidOut {
+  viewId: Id;
+  model: ProjectSnapshot['model'];
+  packages: ProjectSnapshot['packages'];
+  view: ViewFile;
+  layout: Layout;
+  scene: Scene;
+}
+
+/** The view fields a layout does not depend on: a restack or a rename changes only these. */
+const NOT_LAID_OUT: ReadonlySet<string> = new Set(['stackingOrder', 'name', 'description']);
+
+/**
+ * The last layout of each view, by its positions. A change that leaves the positions, the model, the
+ * packages and every other field of the view as they were reuses it.
+ */
+const layouts = new WeakMap<ViewFile['positions'], LaidOut>();
+
+/**
+ * Everything the view with this id draws. When nothing it draws changed, it is the same scene as
+ * before; when only the view's stacking order changed, it shares everything but the drawing order.
+ */
 export function buildScene(project: ProjectSnapshot, viewId: Id): Scene {
   const view = project.views.find((candidate) => candidate.id === viewId);
   if (!view) throw new Error(`The project has no view ${JSON.stringify(viewId)}.`);
 
+  const kept = layouts.get(view.positions);
+  if (kept && laidOutFrom(kept, project, view)) {
+    if (kept.view.stackingOrder === view.stackingOrder) return kept.scene;
+    const scene = sceneOf(kept.layout, drawingOrder(kept.layout, view, project.model.world.id));
+    layouts.set(view.positions, { ...kept, view, scene });
+    return scene;
+  }
+
+  const layout = layOut(project, view);
+  const scene = sceneOf(layout, drawingOrder(layout, view, project.model.world.id));
+  layouts.set(view.positions, {
+    viewId: view.id,
+    model: project.model,
+    packages: project.packages,
+    view,
+    layout,
+    scene,
+  });
+  return scene;
+}
+
+/** Whether a layout was made from this project's model and packages and from this view as it is now. */
+function laidOutFrom(kept: LaidOut, project: ProjectSnapshot, view: ViewFile): boolean {
+  if (kept.viewId !== view.id || kept.model !== project.model) return false;
+  if (kept.packages !== project.packages) return false;
+  const before = kept.view as unknown as Record<string, unknown>;
+  const now = view as unknown as Record<string, unknown>;
+  const keys = (fields: Record<string, unknown>) =>
+    Object.keys(fields).filter((key) => !NOT_LAID_OUT.has(key));
+  const keysBefore = keys(before);
+  const keysNow = keys(now);
+  return (
+    keysBefore.length === keysNow.length &&
+    keysNow.every((key) => Object.hasOwn(before, key) && Object.is(before[key], now[key]))
+  );
+}
+
+function sceneOf(layout: Layout, drawing: readonly number[]): Scene {
+  const { shapes, relations, notes, arrows, bounds } = layout;
+  return { shapes, drawing, relations, notes, arrows, bounds };
+}
+
+/** Lays out the view: every shape and relation, in containment and model order. */
+function layOut(project: ProjectSnapshot, view: ViewFile): Layout {
   const definitions = definitionsOf(project.packages);
-  const nesting = new Set(view.nestingRelationTypes);
+  // Only the listed types that a package defines and that nest arrange the view, as in the core.
+  const nesting = new Set(nestingTypesInView(project, view));
   const notes = view.freeShapes.filter(isNote).map(noteShape);
   const arrows = view.freeShapes.filter(isArrow).map(arrowShape);
 
-  const shapes = placeShapes(project, view, nesting, definitions, notes, arrows);
+  const placed = placeShapes(project, view, nesting, definitions, notes, arrows);
+  const { shapes } = placed;
   const relations = drawRelations(project.model.relations, nesting, shapes, definitions);
 
   const bounds = boundsOf(
@@ -150,7 +259,38 @@ export function buildScene(project: ProjectSnapshot, viewId: Id): Scene {
       ...arrows.flatMap((arrow) => [arrow.from, arrow.to, ...arrowheadCorners(arrow.arrowhead)]),
     ],
   );
-  return { shapes, relations, notes, arrows, bounds };
+  return {
+    ...placed,
+    identity: shapes.map((_, at) => at),
+    relations,
+    notes,
+    arrows,
+    bounds,
+  };
+}
+
+/**
+ * The order the shapes are drawn in, back to front: each container before its contents and its
+ * contents before what comes after it, and the shapes that sit directly in one container, or in
+ * World, in the view's stacking order there. Every copy of a container orders its contents alike.
+ */
+function drawingOrder(layout: Layout, view: ViewFile, worldId: Id): readonly number[] {
+  if (view.stackingOrder === undefined) return layout.identity;
+  const { shapes, contents } = layout;
+  const order: number[] = [];
+  const visit = (indexes: readonly number[], key: Id): void => {
+    const stored = storedStacking(view, key);
+    const sorted = stored
+      ? orderByStacking(indexes, (at) => (shapes[at] as ElementShape).element, stored)
+      : indexes;
+    for (const at of sorted) {
+      order.push(at);
+      const inside = contents[at] as number[];
+      if (inside.length > 0) visit(inside, (shapes[at] as ElementShape).element);
+    }
+  };
+  visit(layout.inWorld, worldId);
+  return order;
 }
 
 /** A placement with its size worked out, before it gets absolute coordinates. */
@@ -171,7 +311,10 @@ interface Box {
   contents: Box[];
 }
 
-/** The anchored shapes of every element except World, with absolute rectangles, containers first. */
+/**
+ * The anchored shapes of every element except World, with absolute rectangles, containers first, and
+ * which shapes sit directly in World and in each shape.
+ */
 function placeShapes(
   project: ProjectSnapshot,
   view: ViewFile,
@@ -179,7 +322,7 @@ function placeShapes(
   definitions: Definitions,
   notes: readonly NoteShape[],
   arrows: readonly ArrowShape[],
-): ElementShape[] {
+): Pick<Layout, 'shapes' | 'inWorld' | 'contents'> {
   const { model } = project;
   const elements = new Map(model.elements.map((element) => [element.id, element]));
   const positions = positionsOf(view, model.world.id);
@@ -229,7 +372,8 @@ function placeShapes(
   );
 
   const shapes: ElementShape[] = [];
-  const place = (box: Box, origin: Point, path: string | undefined): void => {
+  const contents: number[][] = [];
+  const place = (box: Box, origin: Point, path: string | undefined): number => {
     const offset = box.offset ?? { x: 0, y: 0 };
     const rect = {
       x: origin.x + offset.x,
@@ -245,7 +389,7 @@ function placeShapes(
           ...(stored.height === undefined ? {} : { height: stored.height }),
         }
       : undefined;
-    shapes.push({
+    const shape: ElementShape = {
       key,
       element: box.element.id,
       ...(box.placement.container === undefined ? {} : { container: box.placement.container }),
@@ -259,12 +403,22 @@ function placeShapes(
       fill: box.appearance.fill,
       stroke: box.appearance.stroke,
       rect,
+      extent: rect,
       holdsContents: box.contents.length > 0,
-    });
-    for (const content of box.contents) place(content, rect, key);
+    };
+    const at = shapes.length;
+    shapes.push(shape);
+    const inside: number[] = [];
+    contents.push(inside);
+    for (const content of box.contents) inside.push(place(content, rect, key));
+    if (inside.length > 0) {
+      const extents = inside.map((each) => (shapes[each] as ElementShape).extent);
+      shape.extent = boundsOf([rect, ...extents]) ?? rect;
+    }
+    return at;
   };
-  for (const box of worldContents) place(box, { x: 0, y: 0 }, undefined);
-  return shapes;
+  const inWorld = worldContents.map((box) => place(box, { x: 0, y: 0 }, undefined));
+  return { shapes, inWorld, contents };
 }
 
 /** Gives contents without a stored position a place in a row below the contents that have one. */
@@ -317,6 +471,7 @@ function positionKey(element: Id, container: Id | undefined): string {
 interface End {
   anchor: Point;
   shape?: ElementShape;
+  drawn: DrawnEnd;
 }
 
 /**
@@ -354,9 +509,11 @@ function drawRelations(
 
   const endAt = (id: Id): End | undefined => {
     const shape = firstShapes.get(id);
-    if (shape) return { anchor: centerOf(shape.rect), shape };
+    if (shape) {
+      return { anchor: centerOf(shape.rect), shape, drawn: { kind: 'shape', key: shape.key } };
+    }
     const line = lineOf(id);
-    return line && { anchor: line.middle };
+    return line && { anchor: line.middle, drawn: { kind: 'relation', relation: id } };
   };
 
   const lineOf = (id: Id): RelationLine | undefined => {
@@ -395,14 +552,7 @@ function lineBetween(
 ): RelationLine | undefined {
   if (from.shape && from.shape === to.shape) return undefined;
   const offset = (siblings.indexOf(relation) - (siblings.length - 1) / 2) * PARALLEL_GAP;
-  const route =
-    from.shape && to.shape
-      ? routeBetween(from.shape.rect, to.shape.rect, offset)
-      : from.shape
-        ? routeToPoint(from.shape.rect, to.anchor, offset)
-        : to.shape
-          ? routeFromPoint(from.anchor, to.shape.rect, offset)
-          : routeBetweenPoints(from.anchor, to.anchor);
+  const route = routeBetweenEnds(routeEnd(from), routeEnd(to), offset);
   const start = route[0] as Point;
   const end = route.at(-1) as Point;
   const beforeEnd = route.at(-2) as Point;
@@ -423,7 +573,12 @@ function lineBetween(
     stroke,
     width,
     dash,
+    ends: { from: from.drawn, to: to.drawn, offset },
   };
+}
+
+function routeEnd(end: End): RouteEnd {
+  return end.shape ? { rect: end.shape.rect } : { point: end.anchor };
 }
 
 function isNote(shape: FreeShape): shape is Note {

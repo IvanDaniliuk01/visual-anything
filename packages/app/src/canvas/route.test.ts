@@ -54,6 +54,34 @@ describe('routeBetween', () => {
     expect(other[0]?.y).toBe(42);
   });
 
+  it('leaves an element inside its container by the element’s nearest side, along an axis', () => {
+    const container = box(0, 0, 600, 400);
+    // 40 from the left side, 100 from the top, 360 from the right and 240 from the bottom.
+    const inside = box(40, 100, 200, 60);
+    expect(routeBetween(inside, container)).toEqual([
+      { x: 40, y: 130 },
+      { x: 0, y: 130 },
+    ]);
+    expect(routeBetween(container, inside)).toEqual([
+      { x: 0, y: 130 },
+      { x: 40, y: 130 },
+    ]);
+    // Nearest the bottom: the route goes down.
+    expect(routeBetween(box(200, 320, 100, 60), container)).toEqual([
+      { x: 250, y: 380 },
+      { x: 250, y: 400 },
+    ]);
+  });
+
+  it('routes between siblings that overlap along an axis, out of the side that leaves the other', () => {
+    const route = routeBetween(box(0, 0, 100, 60), box(50, 30, 100, 60));
+    expect(orthogonal(route)).toBe(true);
+    expect(route).toEqual([
+      { x: 75, y: 60 },
+      { x: 75, y: 90 },
+    ]);
+  });
+
   it('always routes along the axes, from the border of one shape to the border of the other', () => {
     const rect = fc.record({
       x: fc.integer({ min: -1000, max: 1000 }),
@@ -64,15 +92,36 @@ describe('routeBetween', () => {
     fc.assert(
       fc.property(rect, rect, fc.integer({ min: -20, max: 20 }), (from, to, offset) => {
         const route = routeBetween(from, to, offset);
-        const separate =
-          to.x > from.x + from.width ||
-          from.x > to.x + to.width ||
-          to.y > from.y + from.height ||
-          from.y > to.y + to.height;
-        if (!separate) return;
         expect(orthogonal(route)).toBe(true);
         expect(onBorder(route[0] as Point, from)).toBe(true);
         expect(onBorder(route.at(-1) as Point, to)).toBe(true);
+      }),
+    );
+  });
+
+  it('never runs through a shape that lies inside the other, nor diagonally', () => {
+    const rect = fc.record({
+      x: fc.integer({ min: 0, max: 400 }),
+      y: fc.integer({ min: 0, max: 400 }),
+      width: fc.integer({ min: 20, max: 200 }),
+      height: fc.integer({ min: 20, max: 200 }),
+    });
+    const container = box(-100, -100, 800, 800);
+    fc.assert(
+      fc.property(rect, fc.boolean(), fc.integer({ min: -20, max: 20 }), (inner, out, offset) => {
+        const route = out
+          ? routeBetween(inner, container, offset)
+          : routeBetween(container, inner, offset);
+        expect(route).toHaveLength(2);
+        expect(orthogonal(route)).toBe(true);
+        const [a, b] = route as [Point, Point];
+        const middle = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        const strictlyInside =
+          middle.x > inner.x &&
+          middle.x < inner.x + inner.width &&
+          middle.y > inner.y &&
+          middle.y < inner.y + inner.height;
+        expect(strictlyInside).toBe(false);
       }),
     );
   });

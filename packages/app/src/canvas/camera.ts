@@ -3,7 +3,7 @@
  * `point × scale + (x, y)`. Panning moves (x, y); zooming changes the scale around a point that stays
  * under the pointer.
  */
-import { fitTransform, type Point, type Rect, type Size } from './geometry';
+import { MAX_FIT_SCALE, fitTransform, type Point, type Rect, type Size } from './geometry';
 
 export interface Camera {
   x: number;
@@ -39,8 +39,15 @@ export function panBy(camera: Camera, dx: number, dy: number): Camera {
 
 /** The camera that shows all of `bounds` in a viewport, with a margin. */
 export function fitCamera(bounds: Rect | undefined, viewport: Size, margin: number): Camera {
-  const { scale, x, y } = fitTransform(bounds, viewport, margin);
-  return { scale: clampScale(scale), x, y };
+  // Centered at the scale the camera can take, so that a scene too large to fit shows its middle.
+  const { scale, x, y } = fitTransform(
+    bounds,
+    viewport,
+    margin,
+    Math.min(MAX_FIT_SCALE, MAX_SCALE),
+    MIN_SCALE,
+  );
+  return { scale, x, y };
 }
 
 /** The part of the scene the camera shows in a viewport. */

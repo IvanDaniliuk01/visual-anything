@@ -50,6 +50,9 @@
       .fail {
         color: #a61b1b;
       }
+      #notes {
+        white-space: pre-line;
+      }
     </style>
   </head>
   <body>
@@ -61,7 +64,7 @@
         <thead>
           <tr>
             <th>Phase</th>
-            <th>Avg fps</th>
+            <th>Avg ms</th>
             <th>p95 ms</th>
             <th>Worst ms</th>
           </tr>
@@ -69,6 +72,19 @@
         <tbody></tbody>
       </table>
       <p id="verdict"></p>
+      <table id="edits" hidden>
+        <thead>
+          <tr>
+            <th>Change</th>
+            <th>p50 ms</th>
+            <th>p95 ms</th>
+            <th>Worst ms</th>
+            <th>Mark</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <p id="notes"></p>
     </section>
     <script type="module" src="/src/bench/main.ts"></script>
   </body>

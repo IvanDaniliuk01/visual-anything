@@ -484,3 +484,169 @@ describe('buildScene', () => {
     expect(() => buildScene(sample, 'no-such-view')).toThrow(/no-such-view/);
   });
 });
+
+/** The sample with its overview view changed by `change`, keeping everything else as it is. */
+function sampleWith(change: (view: ViewFile) => ViewFile): ProjectSnapshot {
+  return {
+    ...sample,
+    views: sample.views.map((view) => (view.id === 'system-overview' ? change(view) : view)),
+  };
+}
+
+function drawnKeys(scene: Scene): string[] {
+  const drawing = scene.drawing ?? scene.shapes.map((_, at) => at);
+  return drawing.map((at) => (scene.shapes[at] as ElementShape).key);
+}
+
+describe('buildScene and the stacking order', () => {
+  it('draws in containment order when the view keeps no stacking order', () => {
+    expect(drawnKeys(overview)).toEqual(overview.shapes.map((shape) => shape.key));
+  });
+
+  it('draws the shapes beside each other in the stored order, the shapes it leaves out after them', () => {
+    const scene = buildScene(
+      sampleWith((view) => ({
+        ...view,
+        stackingOrder: { world: ['clinic-booking'], 'clinic-booking': ['scheduling'] },
+      })),
+      'system-overview',
+    );
+    expect(drawnKeys(scene)).toEqual([
+      'clinic-booking',
+      'clinic-booking/scheduling',
+      'clinic-booking/scheduling/appointments-api',
+      'clinic-booking/scheduling/appointments-db',
+      'clinic-booking/scheduling/reminder-service',
+      'clinic-booking/whatsapp',
+      'clinic-booking/booking-agent',
+      'patient',
+    ]);
+  });
+
+  it('keeps the shapes, their places and the routes whatever the stacking order', () => {
+    const scene = buildScene(
+      sampleWith((view) => ({
+        ...view,
+        stackingOrder: { world: ['clinic-booking'], scheduling: ['reminder-service'] },
+      })),
+      'system-overview',
+    );
+    expect(scene.shapes).toEqual(overview.shapes);
+    expect(scene.relations).toEqual(overview.relations);
+    expect(scene.bounds).toEqual(overview.bounds);
+  });
+
+  it('ignores ids a list holds that do not sit there', () => {
+    const scene = buildScene(
+      sampleWith((view) => ({ ...view, stackingOrder: { world: ['scheduling', 'gone'] } })),
+      'system-overview',
+    );
+    expect(drawnKeys(scene)).toEqual(drawnKeys(overview));
+  });
+
+  it('draws the contents of every copy of a container in the same order', () => {
+    const project = fixture({
+      relationTypes: [isIn],
+      elements: [{ id: 'region' }, { id: 'circuit' }, { id: 'cell' }, { id: 'a' }, { id: 'b' }],
+      relations: [
+        { id: 'r1', relationType: 'p.in', from: 'cell', to: 'region' },
+        { id: 'r2', relationType: 'p.in', from: 'cell', to: 'circuit' },
+        { id: 'r3', relationType: 'p.in', from: 'a', to: 'cell' },
+        { id: 'r4', relationType: 'p.in', from: 'b', to: 'cell' },
+      ],
+      view: { nestingRelationTypes: ['p.in'], stackingOrder: { cell: ['b'] } },
+    });
+    const keys = drawnKeys(buildScene(project, 'v'));
+    expect(keys).toEqual([
+      'region',
+      'region/cell',
+      'region/cell/b',
+      'region/cell/a',
+      'circuit',
+      'circuit/cell',
+      'circuit/cell/b',
+      'circuit/cell/a',
+    ]);
+  });
+
+  it('lays the view out again only when something it is laid out from changes', () => {
+    const first = buildScene(sample, 'system-overview');
+    expect(buildScene(sample, 'system-overview')).toBe(first);
+    for (const change of [
+      (view: ViewFile) => ({ ...view, stackingOrder: { world: ['clinic-booking'] } }),
+      (view: ViewFile) => ({ ...view, name: 'Renamed' }),
+      (view: ViewFile) => ({ ...view, description: 'Told again.' }),
+    ]) {
+      const scene = buildScene(sampleWith(change), 'system-overview');
+      expect(scene.shapes).toBe(first.shapes);
+      expect(scene.relations).toBe(first.relations);
+      expect(scene.notes).toBe(first.notes);
+    }
+    for (const change of [
+      (view: ViewFile) => ({ ...view, perspective: { name: 'Other' } }),
+      (view: ViewFile) => ({ ...view, nestingRelationTypes: [...view.nestingRelationTypes] }),
+      (view: ViewFile) => ({ ...view, freeShapes: [...view.freeShapes] }),
+      (view: ViewFile) => ({ ...view, extra: true }) as ViewFile,
+    ]) {
+      const scene = buildScene(sampleWith(change), 'system-overview');
+      expect(scene.shapes).not.toBe(first.shapes);
+      expect(scene.shapes).toEqual(first.shapes);
+    }
+    const model = { ...sample.model };
+    expect(buildScene({ ...sample, model }, 'system-overview').shapes).not.toBe(first.shapes);
+  });
+
+  it('draws nothing inside containers through a listed type that no longer nests, but its relations as lines', () => {
+    const project = fixture({
+      relationTypes: [{ ...isIn, nests: false }],
+      elements: [{ id: 'a' }, { id: 'b' }],
+      relations: [{ id: 'r', relationType: 'p.in', from: 'a', to: 'b' }],
+      view: {
+        nestingRelationTypes: ['p.in'],
+        positions: [
+          { element: 'a', x: 0, y: 0 },
+          { element: 'b', x: 400, y: 0 },
+        ],
+      },
+    });
+    const scene = buildScene(project, 'v');
+    expect(scene.shapes.map((shape) => [shape.key, shape.container])).toEqual([
+      ['a', undefined],
+      ['b', undefined],
+    ]);
+    expect(scene.relations.map((line) => line.relation)).toEqual(['r']);
+  });
+
+  it('holds in each shape’s extent everything inside it, contents sticking out included', () => {
+    const project = fixture({
+      components: [box],
+      relationTypes: [isIn],
+      elements: [{ id: 'outer' }, { id: 'inner' }, { id: 'item', component: 'p.box' }],
+      relations: [
+        { id: 'r1', relationType: 'p.in', from: 'inner', to: 'outer' },
+        { id: 'r2', relationType: 'p.in', from: 'item', to: 'inner' },
+      ],
+      view: {
+        nestingRelationTypes: ['p.in'],
+        positions: [
+          { element: 'outer', x: 0, y: 0, width: 400, height: 300 },
+          { element: 'inner', container: 'outer', x: 50, y: 50, width: 200, height: 150 },
+          { element: 'item', container: 'inner', x: -120, y: -80 },
+        ],
+      },
+    });
+    const scene = buildScene(project, 'v');
+    expect(shapeOf(scene, 'item').extent).toEqual(shapeOf(scene, 'item').rect);
+    expect(shapeOf(scene, 'inner').extent).toEqual({ x: -70, y: -30, width: 320, height: 230 });
+    expect(shapeOf(scene, 'outer').extent).toEqual({ x: -70, y: -30, width: 470, height: 330 });
+    expect(overview.shapes.every((shape) => encloses(shape.rect, shape.extent))).toBe(true);
+  });
+
+  it('says what each drawn relation runs between', () => {
+    expect(lineOf(overview, 'patient-to-whatsapp').ends).toEqual({
+      from: { kind: 'shape', key: 'patient' },
+      to: { kind: 'shape', key: 'clinic-booking/whatsapp' },
+      offset: 0,
+    });
+  });
+});
