@@ -1,5 +1,6 @@
 /** Projects and packages for the core's tests. */
 import type { PackageFile } from '@visual-anything/schema';
+import { SYSTEMS } from '../builtin/systems';
 import type { IdGenerator } from '../ids';
 import type { ProjectSnapshot } from '../snapshot';
 
@@ -120,6 +121,88 @@ export function testProject(): ProjectSnapshot {
         ],
       },
     ],
+  };
+}
+
+/**
+ * A package of the project's own over the built-in Systems package, as the sample's Clinic is: a
+ * component that derives from Database without colors of its own, one that sets its own, and a
+ * relation type that derives from "communicates with".
+ */
+export const CLINIC_PACKAGE: PackageFile = {
+  id: 'clinic',
+  name: 'Clinic',
+  components: [
+    {
+      id: 'clinic.calendar',
+      name: 'Calendar',
+      derivesFrom: 'systems.database',
+      attributes: [{ name: 'timezone', type: 'string' }],
+    },
+    {
+      id: 'clinic.desk',
+      name: 'Desk',
+      derivesFrom: 'systems.box',
+      appearance: { fill: '#FFE8D6', stroke: '#B4531A' },
+    },
+  ],
+  relationTypes: [
+    { id: 'clinic.reminds', name: 'reminds', derivesFrom: 'systems.communicates-with' },
+    {
+      id: 'clinic.escalates',
+      name: 'escalates',
+      derivesFrom: 'relates-to',
+      appearance: { stroke: '#B42318', width: 3 },
+    },
+  ],
+};
+
+/**
+ * A clinic's systems over the built-in Systems package and the Clinic package: built-in and own
+ * components and relation types, an element with a stroke of its own, a note and an arrow.
+ */
+export function colorProject(): ProjectSnapshot {
+  return {
+    project: { schemaVersion: 1, name: 'Clinic', packages: ['systems', 'clinic'] },
+    model: {
+      world: { id: 'world', component: 'essence', name: 'World' },
+      elements: [
+        { id: 'clinic', component: 'systems.system', name: 'Clinic booking' },
+        { id: 'api', component: 'systems.service', name: 'Appointments API' },
+        {
+          id: 'agent',
+          component: 'systems.ai-agent',
+          name: 'Booking agent',
+          appearance: { stroke: '#D6336C' },
+        },
+        { id: 'whatsapp', component: 'systems.chat-channel', name: 'WhatsApp' },
+        { id: 'calendar', component: 'clinic.calendar', name: 'Calendar' },
+        { id: 'desk', component: 'clinic.desk', name: 'Front desk' },
+        { id: 'patient', component: 'systems.person', name: 'Patient' },
+      ],
+      relations: [
+        { id: 'api-in-clinic', relationType: 'systems.is-part-of', from: 'api', to: 'clinic' },
+        { id: 'asks', relationType: 'systems.communicates-with', from: 'whatsapp', to: 'agent' },
+        { id: 'books', relationType: 'systems.communicates-with', from: 'agent', to: 'api' },
+        { id: 'writes', relationType: 'systems.writes-to', from: 'api', to: 'calendar' },
+        { id: 'reminds', relationType: 'clinic.reminds', from: 'api', to: 'patient' },
+      ],
+    },
+    packages: [SYSTEMS, CLINIC_PACKAGE],
+    views: [
+      {
+        id: 'overview',
+        name: 'Overview',
+        perspective: { name: 'Data flow' },
+        nestingRelationTypes: ['systems.is-part-of'],
+        positions: [],
+        freeShapes: [
+          { kind: 'note', id: 'note', x: 0, y: 0, width: 200, height: 60, text: 'Hi' },
+          { kind: 'arrow', id: 'arrow', from: { x: 0, y: 0 }, to: { x: 100, y: 0 } },
+        ],
+      },
+    ],
+    scenarios: [],
   };
 }
 
