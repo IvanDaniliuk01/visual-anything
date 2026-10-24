@@ -17,7 +17,8 @@ export const ESSENCE = {
     stroke: '#52606D',
     width: 160,
     height: 72,
-  } satisfies Required<Appearance>,
+    // Essence shows no image.
+  } satisfies Required<Omit<Appearance, 'image'>>,
 } as const;
 
 /** "Relates to", with every trait it gives to the relation types that derive from it. */

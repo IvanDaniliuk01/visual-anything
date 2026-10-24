@@ -133,6 +133,18 @@
           "type": "number",
           "description": "The height of its shapes when a view does not set one, in canvas units.",
           "exclusiveMinimum": 0
+        },
+        "image": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AppearanceImage"
+            },
+            {
+              "type": "string",
+              "const": "none"
+            }
+          ],
+          "description": "The image its shapes show; `none` shows none, whatever is inherited."
         }
       },
       "additionalProperties": false,
@@ -142,6 +154,32 @@
       "type": "string",
       "description": "A color written as `#rrggbb`.",
       "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "AppearanceImage": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/Id",
+          "description": "The id of an image that a package in use defines."
+        },
+        "placement": {
+          "type": "string",
+          "enum": [
+            "icon",
+            "drawing"
+          ],
+          "description": "`icon`, the default: small, beside the name, inside the shape. `drawing`: on a plate in place of the shape, with the name under it. Shapes that hold other shapes or draw rows always show it as an icon in their header, and rows as a small icon before their name."
+        },
+        "tint": {
+          "$ref": "#/definitions/Color",
+          "description": "When set, the picture is drawn as a silhouette of this colour: its shape kept, its colours replaced."
+        }
+      },
+      "required": [
+        "image"
+      ],
+      "additionalProperties": false,
+      "description": "A picture an appearance shows."
     },
     "Relation": {
       "type": "object",

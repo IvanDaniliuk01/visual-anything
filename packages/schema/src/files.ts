@@ -3,6 +3,9 @@
  * types it holds. The JSON Schema in `schemas/` is generated from these types by `pnpm generate`: doc
  * comments become its descriptions, and their tags (`@pattern`, `@minLength` and so on) its constraints.
  */
+import type { AppearanceImage, ImageDefinition } from './images';
+
+export type { AppearanceImage, BitmapImage, ImageDefinition, SvgImage } from './images';
 
 /**
  * An identifier, generated once and never reused. Files refer to each other only by id. Element and
@@ -112,6 +115,14 @@ export interface PackageFile {
   description?: string;
   components: Component[];
   relationTypes: RelationType[];
+  /**
+   * The images its components' appearances, and elements' own appearances, show. Each is data only:
+   * nothing in it runs or refers to anything outside it. Left out when there are none.
+   *
+   * @minItems 1
+   * @maxItems 128
+   */
+  images?: ImageDefinition[];
 }
 
 /** The reusable definition of a kind of element. It inherits everything it does not redefine. */
@@ -184,6 +195,8 @@ export interface Appearance {
    * @exclusiveMinimum 0
    */
   height?: number;
+  /** The image its shapes show; `none` shows none, whatever is inherited. */
+  image?: AppearanceImage | 'none';
 }
 
 /** How a relation is drawn. */
