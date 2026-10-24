@@ -886,12 +886,16 @@ export class CanvasRenderer {
     const middle = centerOf(visible);
     const work: { tile: Tile; draw: boolean; wanted: Tile['level']; distance: number }[] = [];
     for (const tile of this.tiles.values()) {
+      const near = meets(tile.bounds, visible);
+      // A tile left out of the frame shows what it should once it is near again, as this runs
+      // before culling: changing what it shows now would only make PixiJS gather its region again.
+      if (!near && tile.container.culled) continue;
       const wanted = wantedFor(tile.kind, detail);
       const full = !coarse && tile.full !== undefined;
       if (tile.coarse) tile.coarse.visible = !full;
       if (tile.full) tile.full.visible = full || !tile.coarse;
       if (tile.labels) tile.labels.visible = wanted > 0;
-      if (!meets(tile.bounds, visible)) continue;
+      if (!near) continue;
       const draw = !coarse && !tile.full;
       const label = wanted > 0 && (tile.level !== wanted || tile.labelled < labelCount(tile));
       if (!draw && !label) continue;
