@@ -1,7 +1,7 @@
 import type { Id, PackageFile } from '@visual-anything/schema';
 import { SYSTEMS } from './systems';
 
-export { ESSENCE, RELATES_TO } from './roots';
+export { ESSENCE, RELATES_TO } from './essence-and-relates-to';
 export { SYSTEMS } from './systems';
 
 /**

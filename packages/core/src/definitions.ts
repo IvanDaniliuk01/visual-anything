@@ -13,7 +13,7 @@ import type {
   RelationType,
 } from '@visual-anything/schema';
 import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
-import { ESSENCE, RELATES_TO } from './builtin/roots';
+import { ESSENCE, RELATES_TO } from './builtin/essence-and-relates-to';
 import { problem, type Problem } from './problems';
 
 /** How an element's shapes are drawn, with nothing left out. */
@@ -216,24 +216,24 @@ const RESOLVED_RELATES_TO: ResolvedRelationType = {
 /** A definition followed by the ones it derives from, nearest first, and how the chain ends. */
 interface Chain<T> {
   definitions: T[];
-  /** `root` when the chain reaches the built-in root; otherwise the id where it broke off. */
-  end: { kind: 'root' } | { kind: 'unknown-parent'; parent: Id } | { kind: 'cycle'; at: Id };
+  /** `built-in` when the chain reaches Essence or "relates to"; otherwise where it broke off. */
+  end: { kind: 'built-in' } | { kind: 'unknown-parent'; parent: Id } | { kind: 'cycle'; at: Id };
 }
 
 function collect<T extends { id: Id }>(
   byId: Map<Id, Defined<T>>,
   definition: T,
   packageId: Id,
-  rootId: Id,
+  builtInId: Id,
   noun: string,
   problems: Problem[],
 ): void {
-  if (definition.id === rootId) {
+  if (definition.id === builtInId) {
     problems.push(
       problem(
         'defined-twice',
-        `The ${noun} "${rootId}" is built in; package "${packageId}" cannot define it.`,
-        [rootId],
+        `The ${noun} "${builtInId}" is built in; package "${packageId}" cannot define it.`,
+        [builtInId],
       ),
     );
     return;
@@ -264,7 +264,7 @@ function collect<T extends { id: Id }>(
 function chainOf<T extends { id: Id; derivesFrom: Id }>(
   id: Id,
   byId: ReadonlyMap<Id, Defined<T>>,
-  rootId: Id,
+  builtInId: Id,
   memo: Map<Id, Chain<T>>,
 ): Chain<T> {
   const known = memo.get(id);
@@ -274,8 +274,8 @@ function chainOf<T extends { id: Id; derivesFrom: Id }>(
   let current = id;
   let end: Chain<T>['end'];
   for (;;) {
-    if (current === rootId) {
-      end = { kind: 'root' };
+    if (current === builtInId) {
+      end = { kind: 'built-in' };
       break;
     }
     if (seen.has(current)) {
@@ -332,9 +332,9 @@ function reportChainProblems<T extends { id: Id; derivesFrom: Id }>(
   }
 }
 
-function lineageOf<T extends { id: Id }>(chain: Chain<T>, rootId: Id): Id[] {
+function lineageOf<T extends { id: Id }>(chain: Chain<T>, builtInId: Id): Id[] {
   const ids = chain.definitions.map((definition) => definition.id);
-  return chain.end.kind === 'root' ? [...ids, rootId] : ids;
+  return chain.end.kind === 'built-in' ? [...ids, builtInId] : ids;
 }
 
 function resolveComponent(
@@ -405,7 +405,10 @@ function nearest<T, K extends keyof T>(
   return undefined;
 }
 
-/** The attributes of a chain: the root-most definitions first, a redefinition replacing in place. */
+/**
+ * The attributes of a chain: those nearest Essence or "relates to" first, a redefinition replacing
+ * in place.
+ */
 function mergedAttributes(
   chain: readonly { attributes?: AttributeDefinition[] }[],
 ): AttributeDefinition[] {
