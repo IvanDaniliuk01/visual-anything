@@ -221,7 +221,31 @@ export interface ViewFile {
    */
   positions: ShapePosition[];
   freeShapes: FreeShape[];
+  /**
+   * The order in which this view draws the anchored shapes that sit directly inside each container,
+   * or directly in World, by the id of the container, or World's id. Each list goes from back to front:
+   * the shapes it does not name are drawn in front of the ones it names, in model order, so without a
+   * list every shape there is drawn in model order and a new shape comes in front. Every copy of a
+   * container draws its contents in the same order. An id whose element does not sit there is ignored.
+   */
+  stackingOrder?: StackingOrder;
 }
+
+/**
+ * Stacking lists by the id of the container whose contents they order, or World's id for the shapes
+ * directly in World.
+ *
+ * @minProperties 1
+ */
+export type StackingOrder = Record<Id, StackingList>;
+
+/**
+ * Element ids, from back to front.
+ *
+ * @minItems 1
+ * @uniqueItems true
+ */
+export type StackingList = Id[];
 
 /** The criterion for selecting and arranging the model in a view. */
 export interface Perspective {

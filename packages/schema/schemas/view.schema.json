@@ -38,6 +38,10 @@
       "items": {
         "$ref": "#/definitions/FreeShape"
       }
+    },
+    "stackingOrder": {
+      "$ref": "#/definitions/StackingOrder",
+      "description": "The order in which this view draws the anchored shapes that sit directly inside each container, or directly in World, by the id of the container, or World's id. Each list goes from back to front: the shapes it does not name are drawn in front of the ones it names, in model order, so without a list every shape there is drawn in model order and a new shape comes in front. Every copy of a container draws its contents in the same order. An id whose element does not sit there is ignored."
     }
   },
   "required": [
@@ -243,6 +247,27 @@
       ],
       "additionalProperties": false,
       "description": "A point on the canvas, in canvas units."
+    },
+    "StackingOrder": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/StackingList"
+      },
+      "propertyNames": {
+        "description": "An identifier, generated once and never reused. Files refer to each other only by id. Element and relation ids share one namespace, because a relation can end on either. Component and relation type ids start with their package's id, as in `systems.service`.",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+      },
+      "description": "Stacking lists by the id of the container whose contents they order, or World's id for the shapes directly in World.",
+      "minProperties": 1
+    },
+    "StackingList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Id"
+      },
+      "description": "Element ids, from back to front.",
+      "minItems": 1,
+      "uniqueItems": true
     }
   }
 }
