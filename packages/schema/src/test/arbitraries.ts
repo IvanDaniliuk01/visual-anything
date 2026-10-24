@@ -175,6 +175,13 @@ const freeShape: fc.Arbitrary<FreeShape> = fc.oneof(
   ),
 );
 
+/** A view's stacking order: never empty, and no list empty or with an id twice. */
+const stackingOrder = fc.dictionary(id, fc.uniqueArray(id, { minLength: 1, maxLength: 4 }), {
+  minKeys: 1,
+  maxKeys: 3,
+  noNullPrototype: true,
+});
+
 const view: fc.Arbitrary<ViewFile> = fc.record(
   {
     id,
@@ -184,6 +191,7 @@ const view: fc.Arbitrary<ViewFile> = fc.record(
     nestingRelationTypes: ids(),
     positions: list(position),
     freeShapes: list(freeShape),
+    stackingOrder,
   },
   {
     requiredKeys: ['id', 'name', 'perspective', 'nestingRelationTypes', 'positions', 'freeShapes'],

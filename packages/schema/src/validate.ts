@@ -79,6 +79,9 @@ function validationErrors(errors: DefinedError[]): ValidationError[] {
   const seen = new Set<string>();
   const result: ValidationError[] = [];
   for (const error of errors) {
+    // A key that breaks propertyNames is reported once, by the propertyNames error that names it,
+    // not again by the errors of the schema its name failed.
+    if (error.propertyName !== undefined && error.keyword !== 'propertyNames') continue;
     const message = messageOf(error);
     const key = JSON.stringify([error.instancePath, message]);
     if (message === undefined || seen.has(key)) continue;
@@ -140,6 +143,12 @@ function messageOf(error: DefinedError): string | undefined {
         : `must have at least ${error.params.limit} characters`;
     case 'minItems':
       return `must have at least ${error.params.limit} item${error.params.limit === 1 ? '' : 's'}`;
+    case 'minProperties':
+      return error.params.limit === 1
+        ? 'must not be empty'
+        : `must have at least ${error.params.limit} keys`;
+    case 'propertyNames':
+      return `must have ids as its keys, and ${JSON.stringify(error.params.propertyName)} is not one`;
     case 'uniqueItems':
       return `must not have duplicate items (items ${error.params.j} and ${error.params.i} are the same)`;
     case 'minimum':

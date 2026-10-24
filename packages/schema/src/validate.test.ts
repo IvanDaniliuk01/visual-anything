@@ -376,6 +376,41 @@ describe('validateFile', () => {
         { ...view, freeShapes: [{ ...note, height: -10 }] },
         [{ path: '/freeShapes/0/height', message: 'must be greater than 0' }],
       ],
+      [
+        'an empty stacking order',
+        { ...view, stackingOrder: {} },
+        [{ path: '/stackingOrder', message: 'must not be empty' }],
+      ],
+      [
+        'an empty stacking list',
+        { ...view, stackingOrder: { 'clinic-booking': [] } },
+        [{ path: '/stackingOrder/clinic-booking', message: 'must have at least 1 item' }],
+      ],
+      [
+        'a stacking list that names an element twice',
+        { ...view, stackingOrder: { 'clinic-booking': ['scheduling', 'whatsapp', 'scheduling'] } },
+        [
+          {
+            path: '/stackingOrder/clinic-booking',
+            message: 'must not have duplicate items (items 0 and 2 are the same)',
+          },
+        ],
+      ],
+      [
+        'a stacking order keyed by something that is not an id',
+        { ...view, stackingOrder: { 'clinic booking': ['scheduling'] } },
+        [
+          {
+            path: '/stackingOrder',
+            message: 'must have ids as its keys, and "clinic booking" is not one',
+          },
+        ],
+      ],
+      [
+        'a stacking list with an item that is not an id',
+        { ...view, stackingOrder: { 'clinic-booking': [7] } },
+        [{ path: '/stackingOrder/clinic-booking/0', message: 'must be a string' }],
+      ],
     ])('rejects %s', (_, data, errors) => {
       // A property set to undefined is left out of the JSON, as JSON.stringify does.
       expect(problemsIn('view', JSON.parse(JSON.stringify(data)))).toEqual(errors);
