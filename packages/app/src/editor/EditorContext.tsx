@@ -25,7 +25,10 @@ export interface Editor {
    * the connection closed. A refusal is already shown to the user as a notice.
    */
   send: SendCommand | undefined;
-  /** Moves the canvas so that the shape with this key shows, as when it is chosen in the outline. */
+  /**
+   * Moves the canvas so that something shows, as when it is chosen in the outline: an element shape
+   * by its key, or a relation or a free shape by its id.
+   */
   reveal: (shapeKey: string) => void;
 }
 

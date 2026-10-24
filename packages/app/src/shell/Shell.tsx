@@ -25,17 +25,25 @@ interface ShellProps {
 export function Shell({ project, notice, onCommand }: ShellProps) {
   const view = project.views[0];
   const [chosen, setSelection] = useState<Selection>(EMPTY_SELECTION);
-  // What an edit removed, from here or elsewhere, drops out of the selection.
-  const selection = useMemo(() => {
-    const elements = new Set(project.model.elements.map((element) => element.id));
-    const relations = new Set(project.model.relations.map((relation) => relation.id));
-    const freeShapes = new Set(view?.freeShapes.map((shape) => shape.id));
-    return prune(chosen, {
-      element: (id) => elements.has(id),
-      relation: (id) => relations.has(id),
-      freeShape: (id) => freeShapes.has(id),
-    });
-  }, [chosen, project.model, view]);
+  // What an edit removed, from here or elsewhere, drops out of the selection. The ids are gathered
+  // when the project changes, not on every selection, which at 10,000 elements would show.
+  const present = useMemo(
+    () => ({
+      elements: new Set(project.model.elements.map((element) => element.id)),
+      relations: new Set(project.model.relations.map((relation) => relation.id)),
+      freeShapes: new Set(view?.freeShapes.map((shape) => shape.id)),
+    }),
+    [project.model, view],
+  );
+  const selection = useMemo(
+    () =>
+      prune(chosen, {
+        element: (id) => present.elements.has(id),
+        relation: (id) => present.relations.has(id),
+        freeShape: (id) => present.freeShapes.has(id),
+      }),
+    [chosen, present],
+  );
   const definitions = useMemo(() => definitionsOf(project.packages), [project.packages]);
   const scene = useMemo(() => (view ? buildScene(project, view.id) : undefined), [project, view]);
   const [revealed, setRevealed] = useState<{ key: string; request: number }>();

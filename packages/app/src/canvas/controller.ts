@@ -76,6 +76,8 @@ const HIT_TOLERANCE = 6;
 const HANDLE_OFFSET = 14;
 const HANDLE_REACH = 10;
 /** How much a key press zooms. */
+/** The keys that step through the selected element's relations; . and , type alike on every keyboard. */
+const RELATION_STEPS: Partial<Record<string, 1 | -1>> = { ']': 1, '[': -1, '.': 1, ',': -1 };
 const KEY_ZOOM = 1.25;
 /** The scale a revealed shape is shown at, at least: large enough to read its name. */
 const REVEAL_SCALE = 0.75;
@@ -505,11 +507,15 @@ export class CanvasController {
       this.onArrow(event, direction);
       return;
     }
-    // With Ctrl or ⌘, and with Alt, [ and ] are left to other commands, such as the stacking order.
-    if (command) return;
-    if (!event.altKey && (event.key === ']' || event.key === '[')) {
+    // Some keyboards type [ and ] with AltGr, which browsers report as Ctrl and Alt together, and
+    // as AltGraph. Otherwise, with Ctrl or ⌘ and with Alt, [ and ] are left to other commands, such
+    // as the stacking order.
+    const altGraph = event.getModifierState('AltGraph');
+    if (command && !altGraph) return;
+    const step = RELATION_STEPS[event.key];
+    if (step !== undefined && (altGraph || !event.altKey)) {
       event.preventDefault();
-      if (this.gesture.kind === 'idle') this.stepRelations(event.key === ']' ? 1 : -1);
+      if (this.gesture.kind === 'idle') this.stepRelations(step);
       return;
     }
     if (!event.altKey && (event.key === 'Enter' || event.key === 'F2')) {

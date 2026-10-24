@@ -62,7 +62,7 @@ function Harness(props: {
 /** Starts the canvas at a known size, and returns its host and where a scene point is on screen. */
 async function started(element: React.ReactElement) {
   const result = render(element);
-  const host = screen.getByRole('img', { name: LABEL });
+  const host = screen.getByRole('application', { name: LABEL });
   sizeOf(host, SIZE.width, SIZE.height);
   const [app] = FakeApplication.created as [FakeApplication];
   await settle(() => app.finishInit());
@@ -97,12 +97,12 @@ beforeEach(() => {
 describe('CanvasArea', () => {
   it('describes the view to assistive technology', () => {
     render(<Harness />);
-    expect(screen.getByRole('img', { name: LABEL })).toBeInTheDocument();
+    expect(screen.getByRole('application', { name: LABEL })).toBeInTheDocument();
   });
 
   it('starts a WebGL canvas and attaches it once it is ready', async () => {
     render(<Harness />);
-    const host = screen.getByRole('img', { name: LABEL });
+    const host = screen.getByRole('application', { name: LABEL });
     const [app] = FakeApplication.created;
     expect(app?.initOptions).toMatchObject({ preference: 'webgl' });
     expect(host.querySelector('canvas')).toBeNull();
@@ -116,7 +116,7 @@ describe('CanvasArea', () => {
         <Harness />
       </StrictMode>,
     );
-    const host = screen.getByRole('img', { name: LABEL });
+    const host = screen.getByRole('application', { name: LABEL });
     const [first, second] = FakeApplication.created as [FakeApplication, FakeApplication];
     await settle(() => {
       second.finishInit();
@@ -243,6 +243,6 @@ describe('CanvasArea', () => {
     const [app] = FakeApplication.created as [FakeApplication];
     await settle(() => app.finishInit());
     expect(screen.getByRole('alert')).toHaveTextContent(/could not draw this view/);
-    expect(screen.getByRole('img', { name: LABEL })).toBeInTheDocument();
+    expect(screen.getByRole('application', { name: LABEL })).toBeInTheDocument();
   });
 });
