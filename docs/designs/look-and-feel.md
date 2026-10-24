@@ -14,6 +14,15 @@ Since the proposals were written:
 
 Paths are relative to the repository root. Line numbers are those of `e983c0b`. A0 checks every line reference again against the `m2` tag before it commits the docs. Contrast ratios were computed with the WCAG formula in `packages/app/src/canvas/palette.ts`.
 
+**Built in wave 1 (W8, 2026-10-24).** Where the code differs from this design, the code holds:
+- ADR numbers: this design's 0021 is ADR-0032 (preferences) and its 0022 is ADR-0033, which also records the one source of theme tokens. Its 0023 and 0024 (A2) still need numbers.
+- No protocol version change for preferences: the version belongs to M4's work, and the version-mismatch screen with it.
+- The app's store and hooks live in `app/src/theme/store.ts` and `theme/usePreferences.ts`: `changePreferences` is this design's `applyLocally`, and `linkPreferences` (through `usePreferencesLink()` in the header) connects the store to the live session, feature-detecting its `preferences` and `setPreferences`. The first subscriber starts the store, so `main.tsx` needs no call.
+- Refusals of `preferences/set` use the existing `invalid-command` and `not-saved` codes.
+- The first paint is a static script of the page's origin, `public/theme.js`, not an inline one, so the page policy needs no hash.
+- The generator is `src/theme/generate.ts` (`pnpm exec tsx packages/app/src/theme/generate.ts`). `tokens.css` is written in Prettier's own format, so `.prettierignore` is unchanged. `styles.css` imports it.
+- `CanvasTheme` also holds `refused`, `relationLabelText`, `relationLabelBack`, `rowsBody` and `rowSeparator`. `--notice` and `--notice-soft` stay one wave longer, as aliases.
+- The tab's title is set by `Header`, which has the project's name.
 ---
 
 ## 1. Summary

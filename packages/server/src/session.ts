@@ -14,6 +14,7 @@ import { isDeepStrictEqual } from 'node:util';
 import {
   EMPTY_HISTORY,
   PROTOCOL_VERSION,
+  checkPreferenceChanges,
   checkProject,
   decodeAppMessage,
   executeCommand,
@@ -31,6 +32,7 @@ import {
   type IdGenerator,
   type NoticeMessage,
   type Operation,
+  type PreferencesSetMessage,
   type Problem,
   type ProblemCode,
   type ProjectChangedMessage,
@@ -50,6 +52,7 @@ import {
   type FileKey,
 } from './file-plan';
 import { FOLDERS, newFilePath } from './layout';
+import type { PreferencesStore } from './preferences';
 import { toForwardSlashes } from './paths';
 import {
   formatProjectProblem,
@@ -112,6 +115,11 @@ export interface SessionOptions {
   out?: (line: string) => void;
   /** Prints a line about a problem. */
   err?: (line: string) => void;
+  /**
+   * The person's preferences (ADR-0032), which every app gets when it connects and can change; absent,
+   * the program keeps none and refuses changes.
+   */
+  preferences?: PreferencesStore;
 }
 
 /** The outcome of opening a session: the session, or every problem that keeps the project closed. */
@@ -260,6 +268,10 @@ export class Session implements LiveSession {
     } catch (error) {
       this.#err(`Could not check the project for warnings: ${reasonOf(error)}`);
     }
+    const preferences = this.#options.preferences;
+    if (preferences !== undefined) {
+      this.#send(client, { type: 'preferences/changed', preferences: preferences.current() });
+    }
     return () => {
       this.#clients.delete(client);
     };
@@ -296,6 +308,51 @@ export class Session implements LiveSession {
       case 'redo':
         await this.redo(origin);
         return;
+      case 'preferences/set':
+        await this.#setPreferences(client, message);
+        return;
+    }
+  }
+
+  /**
+   * Changes the person's preferences (ADR-0032). They are not part of the project: this is never a
+   * command, never enters the history, writes no project file and never waits behind the project's own
+   * work. Every open app hears of the change, the one that asked with its request id.
+   */
+  async #setPreferences(client: SessionClient, message: PreferencesSetMessage): Promise<void> {
+    const { requestId } = message;
+    const store = this.#options.preferences;
+    const refuse = (problems: Problem[]) =>
+      this.#send(client, { type: 'command/rejected', requestId, problems });
+    if (store === undefined) {
+      refuse([refusal('not-saved', 'This program keeps no preferences.')]);
+      return;
+    }
+    const checked = checkPreferenceChanges(message.changes);
+    if (!checked.ok) {
+      refuse(checked.problems);
+      return;
+    }
+    let result;
+    try {
+      result = await store.set(checked.changes);
+    } catch (error) {
+      refuse([
+        refusal('program-failed', `Your preferences could not be changed: ${reasonOf(error)}`),
+      ]);
+      return;
+    }
+    const { preferences } = result;
+    this.#send(client, { type: 'preferences/changed', preferences, requestId });
+    for (const other of this.#clients) {
+      if (other !== client) this.#send(other, { type: 'preferences/changed', preferences });
+    }
+    if (!result.saved) {
+      this.#send(client, {
+        type: 'notice',
+        level: 'warning',
+        message: `Your preference applies until Visual Anything stops: it could not be saved (${result.reason}).`,
+      });
     }
   }
 
