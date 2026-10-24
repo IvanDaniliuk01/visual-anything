@@ -44,7 +44,7 @@ function setup({ project = twoViews, send, openViewId = 'system-overview' }: Set
       : undefined,
     selection: EMPTY_SELECTION,
     select: () => undefined,
-    ...(send === null ? {} : { send: send ?? sent }),
+    send: send === null ? undefined : (send ?? sent),
     reveal: () => undefined,
     openView,
   };
