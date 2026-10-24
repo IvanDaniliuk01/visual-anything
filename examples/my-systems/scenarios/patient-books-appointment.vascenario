@@ -1,0 +1,41 @@
+{
+  "id": "patient-books-appointment",
+  "name": "Patient books an appointment",
+  "description": "A patient asks for a cardiology appointment on WhatsApp and ends up with a booked slot and a reminder.",
+  "view": "system-overview",
+  "steps": [
+    {
+      "id": "ask",
+      "description": "The patient asks for an appointment on WhatsApp.",
+      "relations": ["patient-to-whatsapp"],
+      "dataIn": { "text": "Hi! Can I see a cardiologist next week?" },
+      "dataOut": { "messageId": "msg-7f3a" }
+    },
+    {
+      "id": "hand-over",
+      "description": "The channel hands the message to the booking agent.",
+      "relations": ["whatsapp-to-agent"],
+      "dataIn": { "messageId": "msg-7f3a", "patient": "patient-1042", "text": "Hi! Can I see a cardiologist next week?" }
+    },
+    {
+      "id": "find-slots",
+      "description": "The agent asks the Appointments API for free cardiology slots next week.",
+      "relations": ["agent-to-api"],
+      "dataIn": { "specialty": "cardiology", "from": "2026-10-26", "to": "2026-10-30" }
+    },
+    {
+      "id": "read-calendar",
+      "description": "The API reads the free slots from the calendar.",
+      "relations": ["api-reads-db"],
+      "dataIn": { "specialty": "cardiology", "from": "2026-10-26", "to": "2026-10-30" },
+      "dataOut": { "slots": ["2026-10-27T10:00", "2026-10-28T15:30"] }
+    },
+    {
+      "id": "book",
+      "description": "The API books the first free slot and schedules its reminder, both at once.",
+      "relations": ["api-writes-db", "api-to-reminders"],
+      "dataIn": { "slot": "2026-10-27T10:00", "patient": "patient-1042" },
+      "dataOut": { "appointment": "apt-5531", "reminderAt": "2026-10-26T10:00" }
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+* text=auto eol=lf
+
+# Project files are JSON.
+*.vaproject linguist-language=JSON
+*.vamodel linguist-language=JSON
+*.vapackage linguist-language=JSON
+*.vaview linguist-language=JSON
+*.vascenario linguist-language=JSON

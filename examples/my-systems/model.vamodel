@@ -1,0 +1,71 @@
+{
+  "world": {
+    "id": "world",
+    "component": "essence",
+    "name": "My systems"
+  },
+  "elements": [
+    {
+      "id": "patient",
+      "component": "systems.person",
+      "name": "Patient"
+    },
+    {
+      "id": "clinic-booking",
+      "component": "systems.system",
+      "name": "Clinic booking",
+      "description": "Everything that turns a patient's message into a booked appointment."
+    },
+    {
+      "id": "whatsapp",
+      "component": "systems.chat-channel",
+      "name": "WhatsApp channel",
+      "attributes": { "provider": "WhatsApp Business", "owner": "Patient experience" }
+    },
+    {
+      "id": "booking-agent",
+      "component": "systems.ai-agent",
+      "name": "Booking agent",
+      "description": "Understands the request, offers free slots and books the one the patient picks.",
+      "attributes": { "owner": "Patient experience" },
+      "appearance": { "fill": "#F8E1EC" }
+    },
+    {
+      "id": "scheduling",
+      "component": "systems.system",
+      "name": "Scheduling"
+    },
+    {
+      "id": "appointments-api",
+      "component": "systems.service",
+      "name": "Appointments API",
+      "attributes": { "owner": "Scheduling team" }
+    },
+    {
+      "id": "appointments-db",
+      "component": "systems.database",
+      "name": "Appointments DB",
+      "attributes": { "engine": "postgres", "sizeGb": 12 }
+    },
+    {
+      "id": "reminder-service",
+      "component": "systems.service",
+      "name": "Reminder service",
+      "attributes": { "owner": "Scheduling team" }
+    }
+  ],
+  "relations": [
+    { "id": "whatsapp-in-clinic", "relationType": "systems.is-part-of", "from": "whatsapp", "to": "clinic-booking" },
+    { "id": "agent-in-clinic", "relationType": "systems.is-part-of", "from": "booking-agent", "to": "clinic-booking" },
+    { "id": "scheduling-in-clinic", "relationType": "systems.is-part-of", "from": "scheduling", "to": "clinic-booking" },
+    { "id": "api-in-scheduling", "relationType": "systems.is-part-of", "from": "appointments-api", "to": "scheduling" },
+    { "id": "db-in-scheduling", "relationType": "systems.is-part-of", "from": "appointments-db", "to": "scheduling" },
+    { "id": "reminders-in-scheduling", "relationType": "systems.is-part-of", "from": "reminder-service", "to": "scheduling" },
+    { "id": "patient-to-whatsapp", "relationType": "systems.communicates-with", "from": "patient", "to": "whatsapp" },
+    { "id": "whatsapp-to-agent", "relationType": "systems.communicates-with", "from": "whatsapp", "to": "booking-agent" },
+    { "id": "agent-to-api", "relationType": "systems.communicates-with", "from": "booking-agent", "to": "appointments-api", "name": "HTTPS" },
+    { "id": "api-reads-db", "relationType": "systems.reads-from", "from": "appointments-api", "to": "appointments-db" },
+    { "id": "api-writes-db", "relationType": "systems.writes-to", "from": "appointments-api", "to": "appointments-db" },
+    { "id": "api-to-reminders", "relationType": "systems.communicates-with", "from": "appointments-api", "to": "reminder-service" }
+  ]
+}

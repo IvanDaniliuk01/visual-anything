@@ -1,0 +1,24 @@
+{
+  "name": "@visual-anything/schema",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Project file types and the JSON Schema generated from them.",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts",
+    "./validate": "./src/validate.ts",
+    "./schemas/*": "./schemas/*"
+  },
+  "scripts": {
+    "build": "tsx scripts/generate.ts",
+    "generate": "tsx scripts/generate.ts",
+    "typecheck": "tsc"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0"
+  },
+  "devDependencies": {
+    "ts-json-schema-generator": "^2.9.0"
+  }
+}

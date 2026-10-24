@@ -1,0 +1,184 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:visual-anything:schema:model",
+  "title": "Visual Anything model file",
+  "description": "The contents of a project's `.vamodel` file: World, every other element, and every relation.",
+  "type": "object",
+  "properties": {
+    "world": {
+      "$ref": "#/definitions/Element",
+      "description": "World, which contains every other element, directly or indirectly. An element with no container under a view's nesting relation types sits directly in World."
+    },
+    "elements": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Element"
+      },
+      "description": "Every element except World."
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Relation"
+      }
+    }
+  },
+  "required": [
+    "world",
+    "elements",
+    "relations"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "Element": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "component": {
+          "$ref": "#/definitions/Id",
+          "description": "The component this element is created from. World's component is Essence."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "attributes": {
+          "$ref": "#/definitions/Attributes",
+          "description": "The element's attribute values. A value that differs from its component's, or a value for an attribute its component does not define, is a particularity."
+        },
+        "appearance": {
+          "$ref": "#/definitions/Appearance",
+          "description": "An appearance of its own, which is a particularity. Whatever it leaves out comes from the component."
+        }
+      },
+      "required": [
+        "id",
+        "component",
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "A thing in the model with its own identity, created from a component."
+    },
+    "Id": {
+      "type": "string",
+      "description": "An identifier, generated once and never reused. Files refer to each other only by id. Element and relation ids share one namespace, because a relation can end on either. Component and relation type ids start with their package's id, as in `systems.service`.",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "Attributes": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/JsonValue"
+      },
+      "description": "Attribute values by attribute name."
+    },
+    "JsonValue": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/JsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/JsonValue"
+          }
+        }
+      ],
+      "description": "Any JSON value."
+    },
+    "Appearance": {
+      "type": "object",
+      "properties": {
+        "shape": {
+          "type": "string",
+          "enum": [
+            "rectangle",
+            "rounded-rectangle",
+            "ellipse",
+            "cylinder",
+            "person"
+          ]
+        },
+        "fill": {
+          "$ref": "#/definitions/Color"
+        },
+        "stroke": {
+          "$ref": "#/definitions/Color"
+        },
+        "width": {
+          "type": "number",
+          "description": "The width of its shapes when a view does not set one, in canvas units.",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "description": "The height of its shapes when a view does not set one, in canvas units.",
+          "exclusiveMinimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "description": "How an element's shapes are drawn."
+    },
+    "Color": {
+      "type": "string",
+      "description": "A color written as `#rrggbb`.",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    },
+    "Relation": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "relationType": {
+          "$ref": "#/definitions/Id"
+        },
+        "from": {
+          "$ref": "#/definitions/Id",
+          "description": "The element or relation this relation starts from."
+        },
+        "to": {
+          "$ref": "#/definitions/Id",
+          "description": "The element or relation this relation goes to. For a nesting relation type, this end is the container."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "attributes": {
+          "$ref": "#/definitions/Attributes"
+        }
+      },
+      "required": [
+        "id",
+        "relationType",
+        "from",
+        "to"
+      ],
+      "additionalProperties": false,
+      "description": "A meaningful tie between two ends, each an element or another relation, always of a relation type."
+    }
+  }
+}

@@ -18,7 +18,7 @@ Visual Anything: an open-source, local-first tool to make any concept or system 
 - `packages/server`: the local Node program. It owns the model and its history (ADR-0016), serves the app on 127.0.0.1, reads and writes the project folder, and exposes the MCP server and the WebSocket for live updates and guidance.
 - `packages/app`: React UI. The canvas is drawn with PixiJS (ADR-0014) and ELK layout runs in a Web Worker (ADR-0015). The app sends commands and renders what comes back.
 
-Package names are the plan; confirm or adjust them in M0.
+Each package is named `@visual-anything/<folder>`, such as `@visual-anything/core`. The packages export their TypeScript source, so nothing needs building before dev or tests.
 
 ## Rules
 
@@ -38,4 +38,13 @@ Package names are the plan; confirm or adjust them in M0.
 
 ## Commands
 
-Fill in during M0: install, dev, test, lint, typecheck, build.
+Run them at the repository root, with Node 22.13 or later and the pnpm version pinned in `package.json`.
+
+- Install: `pnpm install`
+- Dev: `pnpm dev` serves `examples/my-systems` with hot reload and opens the browser.
+- Start: `pnpm start` builds, then serves `examples/my-systems` and opens the browser.
+- Test: `pnpm test` runs Vitest in every package.
+- Lint: `pnpm lint` runs ESLint, then the Prettier check; `pnpm format` fixes formatting.
+- Typecheck: `pnpm typecheck`
+- Build: `pnpm build` regenerates the JSON Schema in `packages/schema/schemas/` and builds the app. After changing `packages/schema/src/files.ts`, run it and commit the schemas.
+- Open another project: `pnpm exec tsx packages/server/src/cli.ts <folder> [--port <n>] [--no-open] [--dev]`
