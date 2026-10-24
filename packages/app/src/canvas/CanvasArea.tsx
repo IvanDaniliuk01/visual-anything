@@ -1,7 +1,8 @@
 /**
  * The canvas area: PixiJS draws the open view imperatively, outside React's state, so that drawing
  * scales to thousands of shapes. React owns the host element and what sits around the drawing: the
- * toolbar, the menu that relates two ends, the delete preview and the in-place text editor.
+ * toolbar, the menu that relates two ends, the delete preview, the in-place text editor, the keyboard
+ * help, and the live region that says what the keys select.
  */
 import {
   appearanceOf,
@@ -12,7 +13,7 @@ import {
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { Id, Note, ViewFile } from '@visual-anything/schema';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { EMPTY_SELECTION, selectionOf, type Selection } from '../editor/selection';
 import type { Camera } from './camera';
 import { CanvasController } from './controller';
@@ -22,6 +23,8 @@ import { centerOf, type Point } from './geometry';
 import { createAtCommand } from './gestures';
 import { indexScene } from './hit';
 import { InlineEditor } from './InlineEditor';
+import { KeyboardHelp } from './KeyboardHelp';
+import { CANVAS_KEYS_HINT } from './keys';
 import { RelationMenu } from './RelationMenu';
 import type { ElementShape, NoteShape, Scene } from './scene';
 
@@ -66,6 +69,9 @@ export function CanvasArea({
   const [deleting, setDeleting] = useState<{ preview: DeletePreview; freeShapes: Id[] }>();
   const [editing, setEditing] = useState<Editing>();
   const [pendingEdit, setPendingEdit] = useState<{ kind: 'element' | 'note'; id: Id }>();
+  // Each message counts, so that the same words said again are heard again.
+  const [announcement, setAnnouncement] = useState({ text: '', count: 0 });
+  const hint = useId();
   // A scene that cannot be indexed cannot be drawn either: the canvas area says so, and the rest of
   // the app keeps working.
   const indexing = useMemo(() => {
@@ -111,6 +117,7 @@ export function CanvasArea({
         ),
       camera: setCamera,
       failure: (error) => setFailure(error instanceof Error ? error.message : String(error)),
+      announce: (text) => setAnnouncement((last) => ({ text, count: last.count + 1 })),
     });
     controllerRef.current = controller;
     return () => {
@@ -269,7 +276,22 @@ export function CanvasArea({
         onZoom={(factor) => controller()?.zoomBy(factor)}
         onFit={() => controller()?.fit()}
       />
-      <div ref={hostRef} className="canvas-host" role="img" aria-label={label} tabIndex={0} />
+      <div
+        ref={hostRef}
+        className="canvas-host"
+        role="img"
+        aria-label={label}
+        aria-describedby={hint}
+        tabIndex={0}
+      />
+      <p id={hint} className="visually-hidden">
+        {CANVAS_KEYS_HINT}
+      </p>
+      <div role="status" aria-label="Selection" className="visually-hidden">
+        {announcement.text}
+        {announcement.count % 2 === 1 ? '\u00a0' : ''}
+      </div>
+      <KeyboardHelp />
       {relating && (
         <RelationMenu
           project={project}

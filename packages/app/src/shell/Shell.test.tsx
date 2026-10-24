@@ -1,5 +1,5 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { loadSample } from '../test/sample';
 import { Shell } from './Shell';
@@ -8,11 +8,27 @@ vi.mock('../canvas/CanvasArea', () => import('../test/FakeCanvasArea'));
 
 const sample = loadSample();
 
-/** The list item that holds the element with this name in the model panel's tree. */
-function treeItem(panel: HTMLElement, name: string): HTMLElement {
-  const item = within(panel).getByText(name).closest('li');
-  if (!item) throw new Error(`${name} is not in a list item.`);
+/** The panel left of the canvas, with its two tabs. */
+const MODEL_PANEL = 'Outline and model';
+
+/** The row that holds the element with this name in a tree of the model panel. */
+function treeItem(tree: HTMLElement, name: string): HTMLElement {
+  const item = within(tree).getByText(name).closest<HTMLElement>('[role="treeitem"]');
+  if (!item) throw new Error(`${name} is not in a row of a tree.`);
   return item;
+}
+
+/** Each row of a tree: what it says, and how deep it sits. */
+function rowsOf(tree: HTMLElement): [string, number][] {
+  return within(tree)
+    .getAllByRole('treeitem')
+    .map((row) => [row.textContent ?? '', Number(row.getAttribute('aria-level'))]);
+}
+
+/** Shows the model panel's Model tab, and returns what it holds. */
+function showModelTab(): HTMLElement {
+  fireEvent.click(screen.getByRole('tab', { name: 'Model' }));
+  return screen.getByRole('tabpanel', { name: 'Model' });
 }
 
 /** The text of the description that goes with a term in a description list. */
@@ -33,41 +49,55 @@ describe('Shell', () => {
   it('lays out the header, the model panel, the canvas area and the inspector as landmarks', () => {
     render(<Shell project={sample} />);
     expect(screen.getByRole('banner')).toBeInTheDocument();
-    expect(screen.getByRole('complementary', { name: 'Model' })).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: MODEL_PANEL })).toBeInTheDocument();
     expect(screen.getByRole('main')).toContainElement(screen.getByRole('img'));
     expect(screen.getByRole('complementary', { name: 'Inspector' })).toBeInTheDocument();
   });
 
+  it('shows the open view’s outline in the model panel first', () => {
+    render(<Shell project={sample} />);
+    const panel = screen.getByRole('complementary', { name: MODEL_PANEL });
+    expect(within(panel).getByRole('tab', { name: 'Outline' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    const outline = within(panel).getByRole('tree', { name: 'Outline of System overview' });
+    expect(rowsOf(outline).slice(0, 3)).toEqual([
+      ['Patient, Person', 1],
+      ['Clinic booking, System', 1],
+      ['WhatsApp channel, Chat channel', 2],
+    ]);
+  });
+
   it('shows World’s contents in the model panel as a containment tree', () => {
     render(<Shell project={sample} />);
-    const panel = screen.getByRole('complementary', { name: 'Model' });
-    expect(within(panel).getByRole('heading', { name: 'World' })).toBeInTheDocument();
-
-    const clinic = treeItem(panel, 'Clinic booking');
-    const scheduling = treeItem(panel, 'Scheduling');
-    expect(clinic).toContainElement(treeItem(panel, 'WhatsApp channel'));
-    expect(clinic).toContainElement(treeItem(panel, 'Booking agent'));
-    expect(clinic).toContainElement(scheduling);
-    for (const name of ['Appointments API', 'Appointments DB', 'Reminder service']) {
-      expect(scheduling).toContainElement(treeItem(panel, name));
-    }
-    expect(clinic).not.toContainElement(treeItem(panel, 'Patient'));
-    expect(treeItem(panel, 'Patient').parentElement).toBe(clinic.parentElement);
+    const tab = showModelTab();
+    expect(within(tab).getByRole('heading', { name: 'World' })).toBeInTheDocument();
+    expect(rowsOf(within(tab).getByRole('tree', { name: 'World' }))).toEqual([
+      ['Patient, Person', 1],
+      ['Clinic booking, System', 1],
+      ['WhatsApp channel, Chat channel', 2],
+      ['Booking agent, AI agent', 2],
+      ['Scheduling, System', 2],
+      ['Appointments API, Service', 3],
+      ['Appointments DB, Calendar', 3],
+      ['Reminder service, Service', 3],
+    ]);
   });
 
   it('shows each element’s component next to its name', () => {
     render(<Shell project={sample} />);
-    const panel = screen.getByRole('complementary', { name: 'Model' });
-    expect(treeItem(panel, 'Patient')).toHaveTextContent(/^Patient, Person/);
-    expect(treeItem(panel, 'WhatsApp channel')).toHaveTextContent(
+    const world = within(showModelTab()).getByRole('tree', { name: 'World' });
+    expect(treeItem(world, 'Patient')).toHaveTextContent(/^Patient, Person/);
+    expect(treeItem(world, 'WhatsApp channel')).toHaveTextContent(
       /^WhatsApp channel, Chat channel/,
     );
-    expect(treeItem(panel, 'Appointments DB')).toHaveTextContent(/^Appointments DB, Calendar$/);
+    expect(treeItem(world, 'Appointments DB')).toHaveTextContent(/^Appointments DB, Calendar$/);
   });
 
   it('lists the views, marking the open one, and the scenarios', () => {
     render(<Shell project={sample} />);
-    const panel = screen.getByRole('complementary', { name: 'Model' });
+    const panel = showModelTab();
     const views = within(panel).getByRole('list', { name: 'Views' });
     const view = within(views).getByRole('listitem');
     expect(view).toHaveTextContent('System overview');
@@ -116,7 +146,12 @@ describe('Shell', () => {
       scenarios: [],
     };
     render(<Shell project={empty} />);
-    const panel = screen.getByRole('complementary', { name: 'Model' });
+    expect(
+      within(screen.getByRole('complementary', { name: MODEL_PANEL })).getByText(
+        'There is no view to outline.',
+      ),
+    ).toBeInTheDocument();
+    const panel = showModelTab();
     expect(within(panel).getByText('World holds no elements yet.')).toBeInTheDocument();
     expect(within(panel).getByText('This project has no views yet.')).toBeInTheDocument();
     expect(within(panel).getByText('This project has no scenarios yet.')).toBeInTheDocument();
