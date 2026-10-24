@@ -334,29 +334,36 @@ describe('SpatialIndex', () => {
     expect(index.at({ x: 200, y: 200 })).toEqual([]);
   });
 
-  it('finds the highest score among the items that overlap a rectangle', () => {
+  it('finds the highest score among the items that overlap a rectangle, as a search of every item does', () => {
+    // On a coarse grid, so that rectangles that only touch, which do not overlap, come up often.
+    const step = (min: number, max: number) => fc.integer({ min, max }).map((n) => n * 50);
     const rect = fc.record({
-      x: fc.integer({ min: -2000, max: 2000 }),
-      y: fc.integer({ min: -2000, max: 2000 }),
-      width: fc.integer({ min: 0, max: 900 }),
-      height: fc.integer({ min: 0, max: 900 }),
+      x: step(-40, 40),
+      y: step(-40, 40),
+      width: step(0, 18),
+      height: step(0, 18),
     });
+    // An item covers one rectangle, or several, as a route covers its segments.
+    const item = fc.tuple(
+      fc.array(rect, { minLength: 1, maxLength: 3 }),
+      fc.integer({ min: 0, max: 50 }),
+    );
     fc.assert(
       fc.property(
-        fc.array(fc.tuple(rect, fc.integer({ min: 0, max: 50 })), { maxLength: 30 }),
+        fc.array(item, { maxLength: 30 }),
         rect,
-        (items, probe) => {
-          const index = new SpatialIndex<number>();
-          items.forEach(([each], at) => index.insert(at, each));
-          const scores = items.map(([, score]) => score);
+        fc.integer({ min: 16, max: 512 }),
+        (items, probe, cellSize) => {
+          const index = new SpatialIndex<number>(cellSize);
+          items.forEach(([parts], at) => index.insertParts(at, parts));
+          // Without the index: every item, by its own rectangles.
           const expected = Math.max(
             -1,
-            ...index
-              .query(probe)
-              .filter((at) => overlaps((items[at] as [Rect, number])[0], probe))
-              .map((at) => scores[at] as number),
+            ...items
+              .filter(([parts]) => parts.some((part) => overlaps(part, probe)))
+              .map(([, score]) => score),
           );
-          expect(index.highest(probe, (at) => scores[at] as number)).toBe(expected);
+          expect(index.highest(probe, (at) => (items[at] as [Rect[], number])[1])).toBe(expected);
         },
       ),
     );
