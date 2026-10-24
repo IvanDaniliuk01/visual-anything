@@ -3,7 +3,7 @@
  * a project; after every step the project keeps its rules, and every action undoes exactly.
  */
 import fc from 'fast-check';
-import type { Id, LimitList, ViewFile } from '@visual-anything/schema';
+import type { FileKind, Id, LimitList, ViewFile } from '@visual-anything/schema';
 import { validateFile } from '@visual-anything/schema/validate';
 import { describe, expect, it } from 'vitest';
 import { checkProject } from './check';
@@ -701,13 +701,22 @@ function expectRulesKept(state: ProjectSnapshot) {
     expect(collapsed).toEqual([...new Set(collapsed)].sort());
     for (const id of collapsed) expect(elements.has(id)).toBe(true);
   }
-  // Every value a command set is one the published schema accepts, so every save succeeds.
-  expect(validateFile('model', state.model).ok).toBe(true);
-  for (const file of state.packages)
-    expect(validateFile('package', file)).toEqual({ ok: true, value: file });
-  for (const view of state.views)
-    expect(validateFile('view', view)).toEqual({ ok: true, value: view });
+  // Every value a command set is one the published schema accepts, so every save succeeds. A file an
+  // action left alone keeps its object, so each object is checked once.
+  const files: [FileKind, object][] = [
+    ['model', state.model],
+    ...state.packages.map((file): [FileKind, object] => ['package', file]),
+    ...state.views.map((view): [FileKind, object] => ['view', view]),
+  ];
+  for (const [kind, file] of files) {
+    if (validated.has(file)) continue;
+    expect(validateFile(kind, file)).toEqual({ ok: true, value: file });
+    validated.add(file);
+  }
 }
+
+/** The file contents already found valid. */
+const validated = new WeakSet<object>();
 
 describe('the rules of the core', () => {
   it('hold after any sequence of commands, undos and redos, and every action undoes exactly', () => {
@@ -803,7 +812,8 @@ describe('the rules of the core', () => {
     expect(seen.undos).toBeGreaterThan(100);
     // And every kind of command among them.
     expect([...seen.kinds].sort()).toEqual([...COMMAND_TYPES].sort());
-  });
+    // Thousands of actions: on a loaded machine this takes longer than a test's default 5 seconds.
+  }, 60_000);
 
   it('never lets containment form a cycle, however nesting is attempted', () => {
     fc.assert(

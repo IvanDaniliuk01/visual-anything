@@ -533,6 +533,41 @@ describe('update-component', () => {
     ).toEqual(['unknown-attribute']);
   });
 
+  it('lets a detail problem a file already had stand in the way only of changes to the detail', () => {
+    const state = freshProject();
+    const box = state.packages[0]?.components[0];
+    if (box) box.appearance = { detail: { attributes: ['typo'] } };
+    const fill = ok(
+      { type: 'update-component', id: 'test.box', changes: { appearance: { fill: '#010203' } } },
+      state,
+    );
+    expect(component(fill.state, 'test.box')?.appearance).toEqual({
+      detail: { attributes: ['typo'] },
+      fill: '#010203',
+    });
+    expect(
+      refused(
+        {
+          type: 'update-component',
+          id: 'test.box',
+          changes: { appearance: { detail: { componentName: false } } },
+        },
+        state,
+      ),
+    ).toEqual(['unknown-attribute']);
+    const fixed = ok(
+      {
+        type: 'update-component',
+        id: 'test.box',
+        changes: { appearance: { detail: { attributes: ['owner'] } } },
+      },
+      state,
+    );
+    expect(component(fixed.state, 'test.box')?.appearance?.detail).toEqual({
+      attributes: ['owner'],
+    });
+  });
+
   it('refuses to change a built-in component, which offers to derive one instead', () => {
     const systems = ok({ type: 'update-project', changes: { packages: ['test', 'systems'] } });
     expect(
