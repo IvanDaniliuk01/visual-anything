@@ -19,6 +19,17 @@ export {
 
 export type { Placement } from './containment';
 export { containmentTree } from './containment';
+export { leavingRelations, nestingTypeFor, nestingTypesInView } from './containers';
+export {
+  contentsInView,
+  modelRankOf,
+  orderByStacking,
+  stackingKey,
+  stackingListFor,
+  stackingOperations,
+  stackingOrderOf,
+  storedStacking,
+} from './stacking';
 
 export type { ModelIndex } from './model-index';
 export { indexModel } from './model-index';
@@ -37,14 +48,21 @@ export type {
   PackageProperties,
   ViewProperties,
 } from './operations';
-export { OperationError, applyOperation, applyOperations, keyOf, positionKey } from './operations';
+export {
+  BULK,
+  OperationError,
+  applyOperation,
+  applyOperations,
+  keyOf,
+  positionKey,
+} from './operations';
 
 export type { DeletePreview, DeleteTargets, RemovedPosition } from './rules';
 export { containmentCycles, limitWarnings, previewDelete, wouldFormCycle } from './rules';
 
 export type * from './commands/types';
-export type { CommandContext, CommandOutcome } from './commands';
-export { executeCommand } from './commands';
+export type { CommandContext, CommandOutcome, ContainerChangePreview } from './commands';
+export { executeCommand, previewChangeContainer } from './commands';
 
 export type { Author, History, HistoryEntry, HistorySummary, Step as HistoryStep } from './history';
 export { EMPTY_HISTORY, HISTORY_LIMIT, record, redo, summarize, undo } from './history';

@@ -23,6 +23,12 @@ const project: ProjectSnapshot = {
   scenarios: [],
 };
 
+describe('PROTOCOL_VERSION', () => {
+  it('is 2, since operations can change stacking orders', () => {
+    expect(PROTOCOL_VERSION).toBe(2);
+  });
+});
+
 describe('decodeServerMessage', () => {
   it.each<ServerMessage>([
     { type: 'project/opened', protocolVersion: PROTOCOL_VERSION, project, history: {} },

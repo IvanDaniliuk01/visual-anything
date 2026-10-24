@@ -212,6 +212,24 @@ describe('delete', () => {
     ).toEqual(['id-taken']);
   });
 
+  it('takes deleted elements out of stacking lists, and drops a deleted container’s list', () => {
+    const project = testProject();
+    const [view] = project.views;
+    if (!view) throw new Error('No view.');
+    const stacked: ProjectSnapshot = {
+      ...project,
+      views: [{ ...view, stackingOrder: { system: ['db', 'api'], world: ['client', 'system'] } }],
+    };
+    expect(ok({ type: 'delete', elements: ['db'] }, stacked).state.views[0]?.stackingOrder).toEqual(
+      { system: ['api'], world: ['client', 'system'] },
+    );
+    expect(
+      ok({ type: 'delete', elements: ['system'] }, stacked).state.views[0]?.stackingOrder,
+    ).toEqual({ world: ['client'] });
+    const everything = ok({ type: 'delete', elements: ['system', 'client'] }, stacked).state;
+    expect(everything.views[0]).not.toHaveProperty('stackingOrder');
+  });
+
   it('names what it deletes', () => {
     expect(ok({ type: 'delete', relations: ['api-reads-db'] }).label).toBe(
       'Delete the relation "API → DB"',

@@ -122,6 +122,37 @@ describe('checkProject', () => {
     ]);
   });
 
+  it('warns about stacking lists that name no element, and refuses an id named twice in one', () => {
+    const state = testProject();
+    const [view] = state.views;
+    if (!view) throw new Error('fixture');
+    view.stackingOrder = { world: ['client'], gone: ['system'], system: ['db', 'nothing'] };
+    const { errors, warnings } = checkProject(state);
+    expect(errors).toEqual([]);
+    expect(warnings.map((each) => [each.code, each.message, each.subjects])).toEqual([
+      [
+        'unknown-element',
+        'The view "Overview" keeps a stacking order for "gone", which is no element of the model; it is ignored.',
+        ['overview'],
+      ],
+      [
+        'unknown-element',
+        'The stacking order of "System" in the view "Overview" names "nothing", which is no element of the model; it is ignored.',
+        ['overview'],
+      ],
+    ]);
+    view.stackingOrder = { system: ['db', 'api', 'db'] };
+    expect(
+      checkProject(state).errors.map((each) => [each.code, each.message, each.subjects]),
+    ).toEqual([
+      [
+        'id-taken',
+        'The stacking order of "System" in the view "Overview" names "db" more than once.',
+        ['overview'],
+      ],
+    ]);
+  });
+
   it('keeps broken steps, which are not a problem of the files', () => {
     expect(
       codes((state) => {

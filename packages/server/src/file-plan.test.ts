@@ -72,6 +72,13 @@ describe('affectedFiles', () => {
     expect(
       affected({ type: 'update-view', id: 'overview', changes: { name: 'Big picture' } }).files,
     ).toEqual(['view:overview']);
+    expect(
+      affected({
+        type: 'restack',
+        view: 'overview',
+        moves: [{ shape: { element: 'customer' }, to: 'back' }],
+      }).files,
+    ).toEqual(['view:overview']);
   });
 
   it('saves every file a command touches', () => {

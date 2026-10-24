@@ -40,6 +40,8 @@ export type Command =
   | UpdateScenarioCommand
   | DeleteScenarioCommand
   | UpdateProjectCommand
+  | RestackCommand
+  | ChangeContainerCommand
   | BatchCommand;
 
 /** The kinds of command. */
@@ -247,6 +249,55 @@ export interface DeleteScenarioCommand {
 export interface UpdateProjectCommand {
   type: 'update-project';
   changes: { name?: string; description?: string | null; packages?: Id[] };
+}
+
+/**
+ * An anchored shape, by its element and the container its shape sits in: none, or World's id, when it
+ * sits directly in World.
+ */
+export interface StackedShape {
+  element: Id;
+  container?: Id;
+}
+
+/** Where a shape goes among the shapes beside it: the front, the back, or just in front of or behind one of them. */
+export type StackingPlace = 'front' | 'back' | { inFrontOf: Id } | { behind: Id };
+
+/** Changes the order in which a view draws shapes that sit together, one move after another, as one action. */
+export interface RestackCommand {
+  type: 'restack';
+  view: Id;
+  moves: { shape: StackedShape; to: StackingPlace }[];
+}
+
+/**
+ * Puts elements inside a container in a view, or takes them out of the containers their shapes sit
+ * in, as one action. Each element whose shape leaves a container loses the relations of the view's
+ * nesting relation types from it to that container, with the relations that end on them. It then sits
+ * inside `to` through one relation of a nesting relation type, unless it already does, and comes to
+ * the front of the stacking order there. A shape whose `from` equals `to` only gets its position.
+ */
+export interface ChangeContainerCommand {
+  type: 'change-container';
+  view: Id;
+  /** The container the shapes go into; absent, or World's id, to take them out to World. */
+  to?: Id;
+  /**
+   * The nesting relation type that puts them inside `to`. By default, for each element: the type of
+   * the relations that placed it where it was, when they are all of one type, however many; otherwise
+   * the view's first nesting relation type.
+   */
+  relationType?: Id;
+  shapes: {
+    element: Id;
+    /** The container its shape sits in now; absent, or World's id, when it sits directly in World. */
+    from?: Id;
+    /**
+     * Where its shape goes, relative to the shape of `to`, or to the canvas in World; kept as a
+     * pinned position. Without it, a position stored there before is used, or layout places the shape.
+     */
+    at?: { x: number; y: number; width?: number; height?: number };
+  }[];
 }
 
 /** Several commands done as one action and undone together. */

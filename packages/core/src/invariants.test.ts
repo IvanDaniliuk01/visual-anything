@@ -3,7 +3,7 @@
  * a project; after every step the project keeps its rules, and every action undoes exactly.
  */
 import fc from 'fast-check';
-import type { Id } from '@visual-anything/schema';
+import type { Id, ViewFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { checkProject } from './check';
 import { executeCommand, type Command } from './commands';
@@ -11,6 +11,8 @@ import { EMPTY_HISTORY, record, redo, undo, type History } from './history';
 import { randomIds } from './ids';
 import { containmentCycles, previewDelete } from './rules';
 import type { ProjectSnapshot } from './snapshot';
+import { containmentTree, type Placement } from './containment';
+import { nestingTypesInView } from './containers';
 import { definitionsIn, modelIndexOf } from './state';
 import { testProject } from './test/fixtures';
 
@@ -59,6 +61,15 @@ type Intent =
   | { kind: 'note'; action: 'create' | 'move' | 'delete'; at: number }
   | { kind: 'package' }
   | { kind: 'forget-positions'; at: number; picks: number[] }
+  | { kind: 'restack'; at: number; picks: number[]; place: number; target: number }
+  | {
+      kind: 'change-container';
+      at: number;
+      picks: number[];
+      to: number | null;
+      positioned: boolean;
+      relationType: number | null;
+    }
   | { kind: 'undo' }
   | { kind: 'redo' };
 
@@ -86,6 +97,8 @@ const COMMAND_TYPES: readonly Command['type'][] = [
   'update-scenario',
   'delete-scenario',
   'update-project',
+  'restack',
+  'change-container',
   'batch',
 ];
 
@@ -136,6 +149,27 @@ const intent: fc.Arbitrary<Intent> = fc.oneof(
     at: index,
   }),
   fc.constant({ kind: 'package' as const }),
+  {
+    arbitrary: fc.record({
+      kind: fc.constant('restack'),
+      at: index,
+      picks: fc.array(index, { minLength: 1, maxLength: 3 }),
+      place: fc.nat({ max: 3 }),
+      target: index,
+    }),
+    weight: 2,
+  },
+  {
+    arbitrary: fc.record({
+      kind: fc.constant('change-container'),
+      at: index,
+      picks: fc.array(index, { minLength: 1, maxLength: 3 }),
+      to: fc.option(index),
+      positioned: fc.boolean(),
+      relationType: fc.option(index, { freq: 4 }),
+    }),
+    weight: 3,
+  },
   fc.record({
     kind: fc.constant('forget-positions'),
     at: index,
@@ -356,10 +390,79 @@ function commandFor(state: ProjectSnapshot, wish: Intent): Command | undefined {
       );
       return { type: 'remove-positions', view: view.id, positions };
     }
+    case 'restack': {
+      const view = pick(state.views, wish.at);
+      if (!view) return undefined;
+      const placements = placementsIn(state, view);
+      const moves = [...new Set(wish.picks.map((at) => pick(placements, at)))].flatMap(
+        (placement) => {
+          if (!placement) return [];
+          const siblings = placements.filter(
+            (each) => each.container === placement.container && each.element !== placement.element,
+          );
+          const other = pick(siblings, wish.target);
+          const places = [
+            'front' as const,
+            'back' as const,
+            ...(other ? [{ inFrontOf: other.element }, { behind: other.element }] : []),
+          ];
+          return [
+            {
+              shape: {
+                element: placement.element,
+                ...(placement.container === undefined ? {} : { container: placement.container }),
+              },
+              to: pick(places, wish.place) ?? 'front',
+            },
+          ];
+        },
+      );
+      return moves.length === 0 ? undefined : { type: 'restack', view: view.id, moves };
+    }
+    case 'change-container': {
+      const view = pick(state.views, wish.at);
+      if (!view) return undefined;
+      const placements = placementsIn(state, view);
+      const chosen = [...new Set(wish.picks.map((at) => pick(placements, at)))].filter(
+        (placement) => placement !== undefined,
+      );
+      if (chosen.length === 0) return undefined;
+      const to = wish.to === null ? undefined : pick(elements, wish.to);
+      const relationType =
+        wish.relationType === null ? undefined : pick(RELATION_TYPES, wish.relationType);
+      return {
+        type: 'change-container',
+        view: view.id,
+        ...(to === undefined ? {} : { to }),
+        ...(relationType === undefined ? {} : { relationType }),
+        shapes: chosen.map((placement, at) => ({
+          element: placement.element,
+          ...(placement.container === undefined ? {} : { from: placement.container }),
+          ...(wish.positioned ? { at: { x: at * 20, y: 10 } } : {}),
+        })),
+      };
+    }
     case 'undo':
     case 'redo':
       return undefined;
   }
+}
+
+/** Every anchored shape of a view: an element, and the container it sits in there. */
+function placementsIn(state: ProjectSnapshot, view: ViewFile): { element: Id; container?: Id }[] {
+  const types = new Set(nestingTypesInView(state, view));
+  const placements: { element: Id; container?: Id }[] = [];
+  const visit = (tree: readonly Placement[]) => {
+    for (const placement of tree) {
+      placements.push({
+        element: placement.element,
+        ...(placement.container === undefined ? {} : { container: placement.container }),
+      });
+      visit(placement.contents);
+    }
+  };
+  visit(containmentTree(state.model, (type) => types.has(type)));
+  return placements;
 }
 
 /** The project's own package, whose definitions the actions change. */
@@ -377,6 +480,16 @@ function expectRulesKept(state: ProjectSnapshot) {
   expect(containmentCycles(model, all)).toEqual([]);
   for (const relation of state.model.relations) {
     expect(model.has(relation.from) && model.has(relation.to)).toBe(true);
+  }
+  // A stacking order is never empty, nor any list in it, and no list names anything twice.
+  for (const view of state.views) {
+    if (!('stackingOrder' in view)) continue;
+    const order = view.stackingOrder ?? {};
+    expect(Object.keys(order).length).toBeGreaterThan(0);
+    for (const list of Object.values(order)) {
+      expect(list.length).toBeGreaterThan(0);
+      expect(new Set(list).size).toBe(list.length);
+    }
   }
 }
 
@@ -437,7 +550,8 @@ describe('the rules of the core', () => {
               inverse: outcome.inverse,
             });
             const undone = undo(after, recorded);
-            expect(undone?.state).toEqual(before);
+            // Exactly: a key left with an undefined value would not count as undone.
+            expect(undone?.state).toStrictEqual(before);
             expect(redo(undone?.state ?? before, undone?.history ?? recorded)?.state).toEqual(
               after,
             );
@@ -473,6 +587,28 @@ describe('the rules of the core', () => {
           if (outcome.ok) state = outcome.state;
           const all = state.model.elements.map((element) => element.id);
           expect(containmentCycles(modelIndexOf(state), all)).toEqual([]);
+          // Putting a shape inside another from the canvas never forms one either.
+          const view = state.views[0];
+          if (view) {
+            const placements = placementsIn(state, view);
+            const shape = pick(placements, from);
+            const into = pick(elements, to);
+            if (shape && into) {
+              const moved = executeCommand(state, {
+                type: 'change-container',
+                view: view.id,
+                to: into,
+                shapes: [
+                  {
+                    element: shape.element,
+                    ...(shape.container === undefined ? {} : { from: shape.container }),
+                  },
+                ],
+              });
+              if (moved.ok) state = moved.state;
+              expect(containmentCycles(modelIndexOf(state), all)).toEqual([]);
+            }
+          }
         }
       }),
     );
@@ -494,6 +630,26 @@ function expectDeletedExactly(
   expect(removedElements).toEqual(preview.elements);
   expect(removedRelations).toEqual(preview.relations);
   expect(after.scenarios).toEqual(before.scenarios);
+  // No stacking list names, or is kept for, something deleted, and the lists lost what the preview said.
+  const entries = (state: ProjectSnapshot) =>
+    state.views.flatMap((view) =>
+      Object.entries(view.stackingOrder ?? {}).flatMap(([container, list]) =>
+        list.map((element) => JSON.stringify([view.id, container, element])),
+      ),
+    );
+  const left = new Set(entries(after));
+  const gone = entries(before).filter((entry) => !left.has(entry));
+  expect(new Set(gone)).toEqual(
+    new Set(
+      preview.stacking.map((entry) => JSON.stringify([entry.view, entry.container, entry.element])),
+    ),
+  );
+  for (const view of after.views) {
+    for (const [container, list] of Object.entries(view.stackingOrder ?? {})) {
+      expect(preview.elements).not.toContain(container);
+      for (const element of list) expect(preview.elements).not.toContain(element);
+    }
+  }
   for (const relation of after.model.relations) {
     expect(preview.elements.includes(relation.from) || preview.elements.includes(relation.to)).toBe(
       false,
