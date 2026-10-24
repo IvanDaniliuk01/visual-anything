@@ -4,7 +4,7 @@
  * to the colour that reads on their shape's fill.
  */
 import { BitmapFont, BitmapText, type TextStyleOptions } from 'pixi.js';
-import { FONT_FAMILY, type LabelKind, type TextFactory } from './draw';
+import { FONT_FAMILY, fitText, type LabelKind, type TextFactory } from './draw';
 import { RELATION_LABEL_HALO, RELATION_LABEL_TEXT } from './palette';
 
 const FONTS: Record<LabelKind, string> = {
@@ -47,8 +47,11 @@ export function installFonts(): void {
   });
 }
 
-/** Makes a label from a bitmap font, laid out as `draw.ts` lays out its text. */
-export const bitmapText: TextFactory = (options, kind) => {
+/**
+ * Makes a label from a bitmap font, laid out as `draw.ts` lays out its text, and fitted in the room
+ * its shape gives it: shortened with "…" when too tall, or left out when even that does not fit.
+ */
+export const bitmapText: TextFactory = (options, kind, room) => {
   installFonts();
   const style: TextStyleOptions = options.style ?? {};
   const text = new BitmapText({
@@ -66,5 +69,5 @@ export const bitmapText: TextFactory = (options, kind) => {
     },
   });
   if (kind !== 'relation' && typeof style.fill === 'string') text.tint = style.fill;
-  return text;
+  return fitText(text, room);
 };
