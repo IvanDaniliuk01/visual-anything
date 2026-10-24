@@ -18,6 +18,8 @@ export interface Live extends LiveState {
   notify: (level: NoticeLevel, message: string) => void;
   /** Stops showing a notice. */
   dismiss: (id: number) => void;
+  /** Stops showing Claude's guidance in this tab; absent where there is no live session to clear. */
+  clearGuidance?: () => void;
 }
 
 /**

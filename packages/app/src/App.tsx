@@ -3,21 +3,24 @@ import type { SendCommand } from './canvas/CanvasArea';
 import type { LiveFailure } from './live/connection';
 import { useLive } from './live/context';
 import { LiveProvider } from './live/LiveProvider';
+import type { LiveCredential } from './live/session';
 import { Notices } from './shell/Notices';
 import { ProjectErrorBoundary } from './shell/ProjectErrorBoundary';
 import { Shell } from './shell/Shell';
 import { StatusScreen } from './shell/StatusScreen';
 
 interface AppProps {
-  /** This session's token, or null when the tab has none. */
-  token: string | null;
+  /**
+   * What this tab connects with: the session token, as a string or `{ token }`, or a launch code
+   * that works once, `{ launch }`; null when the tab has neither.
+   */
+  token: string | LiveCredential | null;
 }
 
-const OPEN_THE_ADDRESS =
-  'Open the address Visual Anything printed in the terminal: it carries this session’s token.';
+const OPEN_AGAIN =
+  'Press o in the terminal where Visual Anything runs to open a new tab, or start Visual Anything again.';
 
-const CLOSED =
-  'The connection to Visual Anything closed, so what you see may be out of date. Start Visual Anything again and open the address it prints in the terminal.';
+const CLOSED = `The connection to Visual Anything closed, so what you see may be out of date. ${OPEN_AGAIN}`;
 
 /**
  * The app: the shell once the local program has sent the project, a status screen until then, and the
@@ -71,16 +74,18 @@ function Failure({ failure }: { failure: LiveFailure }) {
     case 'no-token':
       return (
         <StatusScreen tone="problem" title="This tab has no session token">
-          <p>Visual Anything only connects to the tab it opened. {OPEN_THE_ADDRESS}</p>
+          <p>
+            Visual Anything connects only to a tab it opened, through an address that works once.{' '}
+            {OPEN_AGAIN}
+          </p>
         </StatusScreen>
       );
     case 'refused':
       return (
         <StatusScreen tone="problem" title="Visual Anything refused the connection">
           <p>
-            It may not be running, or this tab holds the token of an earlier session. Start Visual
-            Anything if needed, then open the address Visual Anything printed in the terminal: it
-            carries this session’s token.
+            It may not be running, this tab may hold the token of an earlier session, or its address
+            was already used: an address works once, within two minutes. {OPEN_AGAIN}
           </p>
         </StatusScreen>
       );
@@ -89,8 +94,8 @@ function Failure({ failure }: { failure: LiveFailure }) {
         <StatusScreen tone="problem" title="Visual Anything sent something this app cannot read">
           {failure.detail !== undefined && <p className="status-detail">{failure.detail}</p>}
           <p>
-            The app and the local program may come from different versions. Restart Visual Anything
-            and open the address it prints in the terminal.
+            The app and the local program may come from different versions. Restart Visual Anything:
+            it opens a new tab.
           </p>
         </StatusScreen>
       );
