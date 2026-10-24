@@ -13,6 +13,7 @@ import { firstShapeOf, worldTreeOf, type WorldItem } from './outlineItems';
 import { Secondary } from './Secondary';
 import { shownRows, type TreeRow } from './tree';
 import { useTreeState } from './useTreeState';
+import { ViewList } from './ViewList';
 import { VirtualTree } from './VirtualTree';
 
 interface ModelTabProps {
@@ -25,9 +26,10 @@ interface ModelTabProps {
 }
 
 /**
- * What the model holds: World's contents as a containment tree, then the project's views and
- * scenarios. The tree nests by every relation type that nests in the packages in use, whatever the
- * open view chooses. Enter or a click on an element selects it and shows it on the canvas.
+ * What the model holds: World's contents as a containment tree, then the project's views, which open
+ * on the canvas and are made, changed and deleted there, and its scenarios. The tree nests by every
+ * relation type that nests in the packages in use, whatever the open view chooses. Enter or a click on
+ * an element selects it and shows it on the canvas.
  */
 export function ModelTab({ active, project, definitions, openViewId }: ModelTabProps) {
   const editor = useEditor();
@@ -107,26 +109,12 @@ export function ModelTab({ active, project, definitions, openViewId }: ModelTabP
 
       <section className="panel-section">
         <h3 id={viewsHeading}>Views</h3>
-        {project.views.length > 0 ? (
-          <ul className="item-list" aria-labelledby={viewsHeading}>
-            {project.views.map((view) => {
-              const isOpen = view.id === openViewId;
-              return (
-                <li key={view.id} aria-current={isOpen ? 'true' : undefined}>
-                  <span className="item-name">{view.name}</span>
-                  <Secondary text={view.perspective.name} />
-                  {isOpen && (
-                    <span className="item-badge" aria-hidden="true">
-                      Open
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p className="panel-empty">This project has no views yet.</p>
-        )}
+        <ViewList
+          project={project}
+          definitions={definitions}
+          openViewId={openViewId}
+          labelledBy={viewsHeading}
+        />
       </section>
 
       <section className="panel-section">

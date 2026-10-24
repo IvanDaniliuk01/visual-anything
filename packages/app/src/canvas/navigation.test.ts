@@ -13,9 +13,11 @@ import {
   drawnRelations,
   farEnd,
   firstInside,
+  hiddenIn,
   nearestInDirection,
   nearestTo,
   rectOf,
+  setHidden,
   stepRelation,
   type Direction,
   type Reachable,
@@ -369,6 +371,78 @@ describe('stepRelation and farEnd', () => {
     expect(farEnd(relation, 'booking-agent')).toBe('whatsapp');
     expect(farEnd(relation, 'whatsapp')).toBe('booking-agent');
     expect(farEnd(relation, undefined)).toBe('booking-agent');
+  });
+});
+
+describe('what the canvas hides', () => {
+  /** A scene of its own, so that what it hides reaches no other test. */
+  function ownScene(project: ProjectSnapshot = sample): IndexedScene {
+    const copy: ProjectSnapshot = {
+      ...project,
+      views: project.views.map((view) => ({ ...view, positions: [...view.positions] })),
+    };
+    return indexScene(buildScene(copy, VIEW));
+  }
+
+  function going(within: IndexedScene, key: string, direction: Direction): string | undefined {
+    const start = shape(key, within);
+    return nameOf(nearestInDirection(within, { rect: start.rect, shape: start }, direction));
+  }
+
+  it('is nothing until it is set, and can be set again or taken away', () => {
+    const own = ownScene();
+    expect(hiddenIn(own.scene)).toBeUndefined();
+    const hidden = new Set([WHATSAPP]);
+    setHidden(own.scene, hidden);
+    expect(hiddenIn(own.scene)).toBe(hidden);
+    setHidden(own.scene, undefined);
+    expect(hiddenIn(own.scene)).toBeUndefined();
+    expect(hiddenIn(indexed.scene)).toBeUndefined();
+  });
+
+  it('is skipped by the arrow keys, free shapes too', () => {
+    const own = ownScene();
+    setHidden(own.scene, new Set([WHATSAPP, 'calendar-note']));
+    expect(going(own, PATIENT, 'right')).toBe(AGENT);
+    expect(going(own, DB, 'down')).toBeUndefined();
+    setHidden(own.scene, new Set());
+    expect(going(own, PATIENT, 'right')).toBe(WHATSAPP);
+  });
+
+  it('is skipped when the keys start from the middle of the canvas', () => {
+    const own = ownScene();
+    setHidden(own.scene, new Set([AGENT]));
+    expect(nameOf(nearestTo(own, centerOf(shape(AGENT, own).rect)))).toBe(CLINIC);
+  });
+
+  it('is skipped going to a container, and into one', () => {
+    const own = ownScene();
+    setHidden(own.scene, new Set([SCHEDULING, WHATSAPP]));
+    expect(containerOf(own, shape(API, own))?.key).toBe(CLINIC);
+    expect(firstInside(own, shape(CLINIC, own))?.key).toBe(AGENT);
+  });
+
+  it('leaves the relations it hides out of the ones the keys step through and follow', () => {
+    const own = ownScene();
+    const shown = drawnRelations(own.scene, sample);
+    setHidden(own.scene, new Set(['agent-to-api', 'api-reads-db']));
+    const drawn = drawnRelations(own.scene, sample);
+    expect(drawn).not.toBe(shown);
+    expect(drawn.around('appointments-api').map((line) => line.relation)).toEqual([
+      'api-to-reminders',
+      'api-writes-db',
+    ]);
+    expect(drawn.line('agent-to-api')).toBeUndefined();
+    expect(stepRelation(drawn, 'booking-agent', undefined, 1)?.relation).toBe('whatsapp-to-agent');
+    expect(drawnRelations(own.scene, sample)).toBe(drawn);
+  });
+
+  it('gives an element’s relations the first of its shapes it does not hide', () => {
+    const twice = withSecondContainer(sample);
+    const own = ownScene(twice);
+    const [first, second] = own.byElement.get('reminder-service') ?? [];
+    setHidden(own.scene, new Set([first?.key ?? '']));
+    expect(drawnRelations(own.scene, twice).shapeOf('reminder-service')).toBe(second);
   });
 });
 
