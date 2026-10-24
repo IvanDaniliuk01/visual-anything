@@ -14,6 +14,7 @@ export type {
   AppearanceTrait,
   DetailPart,
   ResolvedDetail,
+  TraitOrigin,
   TraitPath,
   TraitSource,
   TraitSources,
@@ -34,17 +35,50 @@ export {
 export type {
   Defined,
   Definitions,
+  Drawn,
+  DrawnRelation,
+  RelationAppearanceTrait,
   ResolvedAppearance,
   ResolvedComponent,
   ResolvedRelationAppearance,
   ResolvedRelationType,
+  ShapeColors,
 } from './definitions';
 export {
+  RELATION_APPEARANCE_TRAITS,
   appearanceOf,
+  appearanceOriginsOf,
   componentOrEssence,
+  darkColorsOf,
   definitionsOf,
+  drawnColorsOf,
+  drawnRelationAppearanceOf,
+  isBuiltInDefinition,
+  relationAppearanceOf,
+  relationAppearanceOriginsOf,
+  relationDarkStrokeOf,
   relationTypeOrRelatesTo,
 } from './definitions';
+
+export type { FreeShapeColor, FreeShapeTheme } from './colors';
+export {
+  CANVAS_BACKGROUNDS,
+  COLOR_PATTERN,
+  MINIMUM_MARK_CONTRAST,
+  MINIMUM_TEXT_CONTRAST,
+  arrowColorOf,
+  contrastRatio,
+  isColor,
+  legibility,
+  noteColorsOf,
+  relativeLuminance,
+  sameColor,
+  storedColor,
+} from './colors';
+export type { DarkShades } from './builtin/dark';
+export { DARK_SHADES, darkShadeOf } from './builtin/dark';
+export type { EditableAppearance } from './project-appearances';
+export { colorsInUse, editableAppearanceOf, projectAppearanceOf } from './project-appearances';
 
 export type { Placement } from './containment';
 export { containmentTree } from './containment';
