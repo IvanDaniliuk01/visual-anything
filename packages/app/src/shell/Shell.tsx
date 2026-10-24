@@ -6,6 +6,7 @@ import { EditorContext, type Editor } from '../editor/EditorContext';
 import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
 import { useSelection } from '../editor/useSelection';
 import { buildScene, type Scene } from '../canvas/scene';
+import { useExplorer } from '../canvas/useExplorer';
 import { definitionsOf } from '@visual-anything/core';
 import { Header } from './Header';
 import { Inspector } from './Inspector';
@@ -35,6 +36,10 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   const reveal = useCallback((key: string) => {
     setRevealed((last) => ({ key, request: (last?.request ?? 0) + 1 }));
   }, []);
+  // What filters, focus, playback and guidance emphasize on the canvas, each as its own source.
+  const [emphasis] = useState(() => new EmphasisStore());
+  // The filters and focus of each view; they set the open view's emphasis.
+  const explore = useExplorer({ project, viewId: view?.id, scene, selection, emphasis });
   const editor = useMemo<Editor>(
     () => ({
       project,
@@ -46,12 +51,11 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
       send: onCommand,
       reveal,
       openView: setOpenViewId,
+      explore,
     }),
-    [project, definitions, view?.id, scene, selection, setSelection, onCommand, reveal],
+    [project, definitions, view?.id, scene, selection, setSelection, onCommand, reveal, explore],
   );
   const canvasHeading = useId();
-  // What filters, focus, playback and guidance emphasize on the canvas, each as its own source.
-  const [emphasis] = useState(() => new EmphasisStore());
 
   return (
     <EditorContext.Provider value={editor}>
