@@ -5,6 +5,7 @@ import {
   type Definitions,
   type ModelIndex,
   type UpdateRelationCommand,
+  wouldFormCycle,
 } from '@visual-anything/core';
 import { RELATES_TO_ID, type Relation } from '@visual-anything/schema';
 import { useId, type Ref } from 'react';
@@ -15,6 +16,7 @@ import { byPackage, relationLabel } from './describe';
 import { SelectControl, TextControl } from './controls';
 import { Detail, End, Lineage, Title } from './parts';
 import { perform } from './send';
+import { sameOptionalText } from './text';
 
 interface RelationInspectorProps {
   relation: Relation;
@@ -54,10 +56,10 @@ export function RelationInspector({
           id={nameId}
           value={relation.name ?? ''}
           disabled={disabled}
+          same={sameOptionalText}
           onCommit={async (text) => {
             // A relation's name is optional: an empty one removes it.
-            const name = text.trim() === '' ? undefined : text;
-            if (name !== relation.name) await update({ name: name ?? null });
+            await update({ name: text.trim() === '' ? null : text });
           }}
         />
       </div>
@@ -68,11 +70,9 @@ export function RelationInspector({
           value={relation.description ?? ''}
           multiline
           disabled={disabled}
+          same={sameOptionalText}
           onCommit={async (text) => {
-            const description = text.trim() === '' ? undefined : text;
-            if (description !== relation.description) {
-              await update({ description: description ?? null });
-            }
+            await update({ description: text.trim() === '' ? null : text });
           }}
         />
       </div>
@@ -115,7 +115,9 @@ interface RelationTypeSectionProps {
 
 /**
  * The relation's relation type, among those of the packages in use. Each choice says when the ends
- * would break its limits, which only warns; a relation type that nests needs two elements as ends.
+ * would break its limits, which only warns. A relation type that nests cannot be chosen where the core
+ * would refuse it: it needs two elements as ends, World sits inside nothing, and containment never
+ * forms a cycle.
  */
 function RelationTypeSection({
   relation,
@@ -131,19 +133,18 @@ function RelationTypeSection({
   const known = definitions.relationType(relation.relationType) !== undefined;
   const offered = byPackage(definitions.relationTypes, project.packages);
   const listed = offered.some((from) => from.members.includes(relation.relationType));
-  const endsAreElements =
-    index.element(relation.from) !== undefined && index.element(relation.to) !== undefined;
   const warnings = limitWarnings(relation, index, definitions);
+  const nestingRefusal = nestingRefusalOf(relation, index);
 
   const option = (id: string) => {
     const each = relationTypeOrRelatesTo(definitions, id);
-    const needsElements = each.nests && !endsAreElements;
+    const refused = each.nests ? nestingRefusal : undefined;
     const fits =
       limitWarnings({ relationType: id, from: relation.from, to: relation.to }, index, definitions)
         .length === 0;
-    const hint = needsElements ? ' · needs two elements' : fits ? '' : ' · outside its limits';
+    const hint = refused !== undefined ? ` · ${refused}` : fits ? '' : ' · outside its limits';
     return (
-      <option key={id} value={id} disabled={needsElements && id !== relation.relationType}>
+      <option key={id} value={id} disabled={refused !== undefined && id !== relation.relationType}>
         {`${each.name}${hint}`}
       </option>
     );
@@ -198,4 +199,19 @@ function RelationTypeSection({
       )}
     </section>
   );
+}
+
+/**
+ * Why the relation could not be of a relation type that nests, as the core would refuse it; undefined
+ * when it could be.
+ */
+function nestingRefusalOf(relation: Relation, index: ModelIndex): string | undefined {
+  if (index.element(relation.from) === undefined || index.element(relation.to) === undefined) {
+    return 'needs two elements';
+  }
+  if (relation.from === index.world.id) return 'World cannot sit inside anything';
+  if (wouldFormCycle(index, relation.from, relation.to)) {
+    return 'would make containment form a cycle';
+  }
+  return undefined;
 }

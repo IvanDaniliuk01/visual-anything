@@ -12,7 +12,8 @@ import {
   type AttributeRow,
   type AttributeType,
 } from './attributes';
-import { CheckboxControl, TextControl } from './controls';
+import { CheckboxControl, InlineProblem, TextControl } from './controls';
+import { useFocusKeeper, type FocusKeeper } from './focus';
 import { Mark } from './parts';
 
 /** A change to attributes, sent as one command. */
@@ -51,10 +52,18 @@ export function AttributesSection({
 }: AttributesSectionProps) {
   const headingId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
-  const [focus, setFocus] = useState<{ name: string; request: number }>();
+  // The row whose value takes the focus, until it has: a row that comes back later, after an undo, a
+  // redo or an edit elsewhere, does not take it again.
+  const [focus, setFocus] = useState<{ name: string | undefined; request: number }>({
+    name: undefined,
+    request: 0,
+  });
   const rows = attributeRows(definitions, values);
-  const focusOn = (name: string) =>
-    setFocus((last) => ({ name, request: (last?.request ?? 0) + 1 }));
+  const focusOn = (name: string) => setFocus((last) => ({ name, request: last.request + 1 }));
+  const focused = () =>
+    setFocus((last) =>
+      last.name === undefined ? last : { name: undefined, request: last.request },
+    );
 
   const reset = async (row: AttributeRow) => {
     if (!(await change({ removeAttributes: [row.name] }))) return;
@@ -76,7 +85,8 @@ export function AttributesSection({
               row={row}
               of={of}
               disabled={disabled}
-              focusRequest={focus?.name === row.name ? focus.request : 0}
+              focusRequest={focus.name === row.name ? focus.request : 0}
+              onFocused={focused}
               onSet={(value) => change({ attributes: { [row.name]: value } })}
               onReset={() => void reset(row)}
             />
@@ -105,15 +115,25 @@ interface AttributeItemProps {
   of: 'element' | 'relation';
   disabled: boolean;
   focusRequest: number;
+  onFocused: () => void;
   onSet: (value: JsonValue) => Promise<boolean>;
   onReset: () => void;
 }
 
-function AttributeItem({ row, of, disabled, focusRequest, onSet, onReset }: AttributeItemProps) {
+function AttributeItem({
+  row,
+  of,
+  disabled,
+  focusRequest,
+  onFocused,
+  onSet,
+  onReset,
+}: AttributeItemProps) {
   const controlId = useId();
   const typeId = useId();
   const notesId = useId();
   const markId = useId();
+  const focusKeeper = useFocusKeeper();
   const particularity = of === 'element' && (row.differs || row.definition === undefined);
   const describedBy = [typeId, notesId, ...(particularity ? [markId] : [])].join(' ');
   const definer = DEFINER[of];
@@ -150,6 +170,8 @@ function AttributeItem({ row, of, disabled, focusRequest, onSet, onReset }: Attr
         disabled={disabled}
         describedBy={describedBy}
         focusRequest={focusRequest}
+        onFocused={onFocused}
+        focusKeeper={focusKeeper}
         onSet={onSet}
       />
       <p id={notesId} className="inspector-notes">
@@ -177,53 +199,86 @@ interface ValueControlProps {
   disabled: boolean;
   describedBy: string;
   focusRequest: number;
+  onFocused: () => void;
+  focusKeeper: FocusKeeper;
   onSet: (value: JsonValue) => Promise<boolean>;
 }
 
-/** The control for an attribute's value, by its type; a value that does not fit its type is edited as JSON. */
-function ValueControl({ id, row, disabled, describedBy, focusRequest, onSet }: ValueControlProps) {
-  const common = { id, disabled, describedBy, focusRequest };
+/**
+ * The control for an attribute's value, by its type; a value that does not fit its type is edited as
+ * JSON. Each kind of control has its own key, so that a value that changes kind gets a new control,
+ * and the focus keeper moves the focus to it.
+ */
+function ValueControl({
+  id,
+  row,
+  disabled,
+  describedBy,
+  focusRequest,
+  onFocused,
+  focusKeeper,
+  onSet,
+}: ValueControlProps) {
+  const common = { id, disabled, describedBy, focusRequest, onFocused, focusKeeper };
   const { value } = row;
-  switch (row.mismatched ? 'json' : row.type) {
+  const kind = row.mismatched ? 'json' : row.type;
+  switch (kind) {
     case 'boolean':
-      return <CheckboxControl {...common} checked={value === true} onCommit={onSet} />;
+      return <CheckboxControl key={kind} {...common} checked={value === true} onCommit={onSet} />;
     case 'number':
       return (
         <TextControl
+          key={kind}
           {...common}
           inputType="number"
           value={typeof value === 'number' ? String(value) : ''}
           problemOf={(text) => problemIn(readNumber(text))}
+          same={sameNumber}
           onCommit={async (text) => {
             const read = readNumber(text);
-            if (read.ok && read.value !== value) await onSet(read.value);
+            if (read.ok) await onSet(read.value);
           }}
         />
       );
     case 'json':
       return (
         <TextControl
+          key={kind}
           {...common}
           multiline
           value={jsonText(value)}
           problemOf={(text) => problemIn(readJson(text))}
+          same={sameJsonText}
           onCommit={async (text) => {
             const read = readJson(text);
-            if (read.ok && !(value !== undefined && sameJson(read.value, value))) {
-              await onSet(read.value);
-            }
+            if (read.ok) await onSet(read.value);
           }}
         />
       );
     case 'string':
       return (
         <TextControl
+          key={kind}
           {...common}
           value={typeof value === 'string' ? value : ''}
           onCommit={(text) => onSet(text)}
         />
       );
   }
+}
+
+/** Whether two texts are the same number. */
+function sameNumber(a: string, b: string): boolean {
+  const first = readNumber(a);
+  const second = readNumber(b);
+  return first.ok && second.ok && first.value === second.value;
+}
+
+/** Whether two texts are the same JSON value, however they are spaced or their keys ordered. */
+function sameJsonText(a: string, b: string): boolean {
+  const first = readJson(a);
+  const second = readJson(b);
+  return first.ok && second.ok && sameJson(first.value, second.value);
 }
 
 /** Why something typed cannot be read, if it cannot. */
@@ -248,18 +303,25 @@ function NewAttribute({ names, disabled, onAdd }: NewAttributeProps) {
   const [name, setName] = useState('');
   const [type, setType] = useState<AttributeType>('string');
   const [problem, setProblem] = useState<string>();
+  const nameInput = useRef<HTMLInputElement>(null);
   // One attribute is added at a time, so that a second submit sends nothing while the first is answered.
   const adding = useRef(false);
+
+  /** Says what is wrong with the name, and moves the focus to it so that it can be put right. */
+  const refuse = (reason: string) => {
+    setProblem(reason);
+    nameInput.current?.focus();
+  };
 
   const add = async () => {
     if (adding.current) return;
     const trimmed = name.trim();
     if (trimmed === '') {
-      setProblem('Give the attribute a name.');
+      refuse('Give the attribute a name.');
       return;
     }
     if (names.includes(trimmed)) {
-      setProblem(`It already has an attribute named “${trimmed}”.`);
+      refuse(`It already has an attribute named “${trimmed}”.`);
       return;
     }
     setProblem(undefined);
@@ -287,6 +349,7 @@ function NewAttribute({ names, disabled, onAdd }: NewAttributeProps) {
         <div className="inspector-control">
           <label htmlFor={nameId}>Attribute name</label>
           <input
+            ref={nameInput}
             id={nameId}
             type="text"
             value={name}
@@ -318,11 +381,7 @@ function NewAttribute({ names, disabled, onAdd }: NewAttributeProps) {
           Add attribute
         </button>
       </div>
-      {problem !== undefined && (
-        <p id={problemId} className="inspector-problem">
-          {problem}
-        </p>
-      )}
+      {problem !== undefined && <InlineProblem id={problemId} text={problem} />}
     </form>
   );
 }
