@@ -292,6 +292,7 @@ function showProject(next: ProjectSnapshot): { build: number; index: number; dra
  * and times each from the scene's build to the frame drawn with it.
  */
 async function measureEdits(count: number): Promise<Timed> {
+  performance.mark('phase One edit');
   const shape = shapeInTheMiddle();
   const times: number[] = [];
   const parts = { build: 0, index: 0, draw: 0 };
@@ -334,6 +335,7 @@ async function measureEdits(count: number): Promise<Timed> {
  * another, and times each from the command to the frame drawn with it.
  */
 async function measureRestacks(count: number): Promise<Timed> {
+  performance.mark('phase Restack');
   const random = seeded(7);
   const systems = indexed.contentsOf
     .get('')
