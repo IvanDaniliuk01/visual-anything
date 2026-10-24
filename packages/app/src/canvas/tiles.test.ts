@@ -1,9 +1,22 @@
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { loadSample } from '../test/sample';
-import type { Rect } from './geometry';
+import { arrowheadAt, distance, middle, type Point, type Rect } from './geometry';
 import { indexScene } from './hit';
-import { buildScene, type ElementShape, type Scene } from './scene';
-import { MAX_BANDS, MAX_RUN, planTiles, plannedTiles, type PlannedTile } from './tiles';
+import { lengthOf, midpointOf } from './route';
+import { buildScene, type ElementShape, type RelationLine, type Scene } from './scene';
+import {
+  MAX_BANDS,
+  MAX_RUN,
+  TILE,
+  cellOf,
+  drawnRoute,
+  planTiles,
+  plannedTiles,
+  relationTiles,
+  routePieces,
+  type PlannedTile,
+} from './tiles';
 
 function shapeAt(key: string, rect: Rect): ElementShape {
   return {
@@ -167,5 +180,204 @@ describe('planTiles', () => {
     expect(plan.make).toEqual([]);
     expect(plan.drop).toEqual([]);
     expect(plan.move).toHaveLength(4);
+  });
+});
+
+/** A relation drawn along a route, solid and without an arrowhead unless told otherwise. */
+function lineAlong(route: Point[], extra: Partial<RelationLine> = {}): RelationLine {
+  return {
+    relation: 'r',
+    route,
+    from: route[0] as Point,
+    to: route.at(-1) as Point,
+    middle: midpointOf(route),
+    stroke: '#000000',
+    width: 2,
+    dash: 'solid',
+    ...extra,
+  };
+}
+
+describe('routePieces', () => {
+  it('cuts a route where it passes from one cell to another, carrying on how far it has come', () => {
+    const pieces = routePieces(
+      lineAlong([
+        { x: 100, y: 100 },
+        { x: 2500, y: 100 },
+      ]),
+    );
+    expect(pieces.map((piece) => [piece.cell, piece.points, piece.travelled])).toEqual([
+      [
+        '0,0',
+        [
+          { x: 100, y: 100 },
+          { x: 1024, y: 100 },
+        ],
+        0,
+      ],
+      [
+        '1,0',
+        [
+          { x: 1024, y: 100 },
+          { x: 2048, y: 100 },
+        ],
+        924,
+      ],
+      [
+        '2,0',
+        [
+          { x: 2048, y: 100 },
+          { x: 2500, y: 100 },
+        ],
+        1948,
+      ],
+    ]);
+    expect(pieces.every((piece) => !piece.bendAtStart && !piece.bendAtEnd)).toBe(true);
+    expect(pieces.map((piece) => piece.last)).toEqual([false, false, true]);
+  });
+
+  it('keeps a bend inside a cell in one piece, and says where a piece ends at a bend', () => {
+    const inside = routePieces(
+      lineAlong([
+        { x: 100, y: 100 },
+        { x: 500, y: 100 },
+        { x: 500, y: 900 },
+      ]),
+    );
+    expect(inside.map((piece) => piece.points)).toEqual([
+      [
+        { x: 100, y: 100 },
+        { x: 500, y: 100 },
+        { x: 500, y: 900 },
+      ],
+    ]);
+    // Bent on the side two cells share: the second segment runs along it, in the cell to its right.
+    const onTheSide = routePieces(
+      lineAlong([
+        { x: 100, y: 100 },
+        { x: 1024, y: 100 },
+        { x: 1024, y: 900 },
+      ]),
+    );
+    expect(
+      onTheSide.map((piece) => [
+        piece.cell,
+        piece.bendAtStart,
+        piece.bendAtEnd,
+        piece.points.length,
+      ]),
+    ).toEqual([
+      ['0,0', false, true, 2],
+      ['1,0', true, false, 2],
+    ]);
+  });
+
+  it('stops the line at the base of its arrowhead, which covers the rest', () => {
+    const route = [
+      { x: 100, y: 100 },
+      { x: 600, y: 100 },
+    ];
+    const arrowhead = arrowheadAt(route[0] as Point, route[1] as Point, 2);
+    const line = lineAlong(route, { arrowhead });
+    expect(drawnRoute(line).at(-1)).toEqual(middle(arrowhead.left, arrowhead.right));
+    expect(routePieces(line).at(-1)?.points.at(-1)).toEqual(
+      middle(arrowhead.left, arrowhead.right),
+    );
+  });
+
+  it('cuts any route into pieces that each lie in their cell and together draw the whole route', () => {
+    const step = fc.tuple(fc.boolean(), fc.integer({ min: -4000, max: 4000 }));
+    const start = fc.record({
+      x: fc.integer({ min: -3000, max: 3000 }),
+      y: fc.integer({ min: -3000, max: 3000 }),
+    });
+    fc.assert(
+      fc.property(start, fc.array(step, { minLength: 1, maxLength: 5 }), (first, steps) => {
+        // An orthogonal route, as relations are routed.
+        const route: Point[] = [first];
+        for (const [across, by] of steps) {
+          const last = route.at(-1) as Point;
+          route.push(across ? { x: last.x + by, y: last.y } : { x: last.x, y: last.y + by });
+        }
+        const line = lineAlong(route);
+        const pieces = routePieces(line);
+        let travelled = 0;
+        pieces.forEach((piece, at) => {
+          const [column = 0, row = 0] = piece.cell.split(',').map(Number);
+          for (const point of piece.points) {
+            expect(point.x).toBeGreaterThanOrEqual(column * TILE);
+            expect(point.x).toBeLessThanOrEqual((column + 1) * TILE);
+            expect(point.y).toBeGreaterThanOrEqual(row * TILE);
+            expect(point.y).toBeLessThanOrEqual((row + 1) * TILE);
+          }
+          expect(piece.travelled).toBeCloseTo(travelled, 6);
+          travelled += lengthOf(piece.points);
+          const next = pieces[at + 1];
+          if (next) expect(next.points[0]).toEqual(piece.points.at(-1));
+        });
+        expect(travelled).toBeCloseTo(lengthOf(drawnRoute(line)), 6);
+      }),
+    );
+  });
+});
+
+describe('relationTiles', () => {
+  const across = lineAlong(
+    [
+      { x: 100, y: 100 },
+      { x: 3000, y: 100 },
+    ],
+    { relation: 'across', label: 'HTTPS' },
+  );
+  const directed: RelationLine = {
+    ...across,
+    arrowhead: arrowheadAt({ x: 100, y: 100 }, { x: 3000, y: 100 }, 2),
+  };
+  const short = lineAlong(
+    [
+      { x: 200, y: 300 },
+      { x: 400, y: 300 },
+    ],
+    { relation: 'short' },
+  );
+
+  it('draws a relation in every cell it crosses, its arrowhead where its tip is and its name where its middle is', () => {
+    const tiles = relationTiles([directed, short], new Set());
+    const byCell = new Map(tiles.map((tile) => [tile.cell, tile]));
+    expect([...byCell.keys()].sort()).toEqual(['0,0', '1,0', '2,0']);
+    expect(byCell.get('0,0')?.pieces.map((piece) => piece.line.relation)).toEqual([
+      'across',
+      'short',
+    ]);
+    expect(byCell.get('2,0')?.ends.map((line) => line.relation)).toEqual(['across']);
+    expect(byCell.get(cellOf(directed.middle))?.lines.map((line) => line.relation)).toEqual([
+      'across',
+    ]);
+    expect(byCell.get('0,0')?.lines.map((line) => line.relation)).toEqual(['short']);
+    // However long its relations, a tile spans about its cell.
+    for (const tile of tiles) {
+      expect(tile.bounds.width).toBeLessThanOrEqual(TILE + 256);
+      expect(tile.bounds.height).toBeLessThanOrEqual(TILE + 256);
+    }
+  });
+
+  it('leaves out hidden relations, and signs each tile by the relations it draws', () => {
+    const before = relationTiles([across, short], new Set());
+    const moved = lineAlong(
+      [
+        { x: 200, y: 320 },
+        { x: 400, y: 320 },
+      ],
+      { relation: 'short' },
+    );
+    const after = relationTiles([across, moved], new Set());
+    const signature = (tiles: typeof before, cell: string) =>
+      tiles.find((tile) => tile.cell === cell)?.signature;
+    expect(signature(after, '0,0')).not.toBe(signature(before, '0,0'));
+    expect(signature(after, '1,0')).toBe(signature(before, '1,0'));
+    expect(relationTiles([across, short], new Set(['across'])).map((tile) => tile.cell)).toEqual([
+      '0,0',
+    ]);
+    expect(distance(directed.to, { x: 3000, y: 100 })).toBe(0);
   });
 });
