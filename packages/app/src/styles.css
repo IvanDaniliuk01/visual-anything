@@ -120,6 +120,8 @@ dd {
 /* Panels */
 
 .panel {
+  /* Holds text hidden for screen readers, so that a long panel scrolls itself, never the page. */
+  position: relative;
   min-height: 0;
   overflow: auto;
   padding: 0.9rem 1rem 1.5rem;
