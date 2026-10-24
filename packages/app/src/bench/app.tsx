@@ -3,15 +3,21 @@
  * a synthetic project of 10,000 elements, and uses it as a person would, through pointer, wheel and key
  * events on the real elements. It plays the local program itself: each command runs in the core and
  * the project it gives goes back to the shell. Open `/app-bench.html` from the dev server;
- * `?elements=N` and `?overlap=…` work as on `/bench.html`, and `?strict` mounts the app in React's
- * StrictMode, as `main.tsx` does, which renders everything twice in development.
+ * `?elements=N` and `?overlap=…` work as on `/bench.html`, `?strict` mounts the app in React's
+ * StrictMode, as `main.tsx` does, which renders everything twice in development, and `?profile` says
+ * which components and canvas methods the time goes to.
  *
  * Each interaction is timed from its input event to the second animation frame after React has
  * committed what it changed: the first of the two frames draws the canvas, the second starts once
  * that frame was shown. Panning and zooming are measured as the frames the browser shows, one input
  * event a frame, so the window must be in front.
  */
-import { applyOperations, executeCommand, type ProjectSnapshot } from '@visual-anything/core';
+import {
+  applyOperations,
+  executeCommand,
+  modelIndexOf,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import type { Id, Element as ModelElement } from '@visual-anything/schema';
 import {
   Profiler,
@@ -34,13 +40,24 @@ import {
   type Camera,
 } from '../canvas/camera';
 import type { SendCommand } from '../canvas/CanvasArea';
-import { centerOf, type Point, type Size } from '../canvas/geometry';
+import { CanvasController } from '../canvas/controller';
+import type { Point, Rect, Size } from '../canvas/geometry';
 import { hitAt, indexScene, type IndexedScene } from '../canvas/hit';
-import { NAMES_FROM } from '../canvas/renderer';
+import { CanvasRenderer, NAMES_FROM } from '../canvas/renderer';
 import { buildScene, type ElementShape } from '../canvas/scene';
+import { outlineOf } from '../shell/outlineItems';
 import { ProjectErrorBoundary } from '../shell/ProjectErrorBoundary';
 import { Shell } from '../shell/Shell';
-import { SHOWN, TARGET_FPS, WORK, addRow, showVerdict, summarize, type Summary } from './report';
+import {
+  SHOWN,
+  TARGET_FPS,
+  WORK,
+  addRow,
+  percentile,
+  showVerdict,
+  summarize,
+  type Summary,
+} from './report';
 import { OVERLAPS, seeded, syntheticProject, type Overlap } from './synthetic';
 import '../styles.css';
 
@@ -60,6 +77,15 @@ export interface BenchPlan {
   rest: { start: number; between: number };
 }
 
+/**
+ * Where time went, in milliseconds: React's components by name, each for rendering itself without
+ * its children, and the canvas's methods by name, each with what it calls.
+ */
+export interface Breakdown {
+  components: Record<string, number>;
+  methods: Record<string, number>;
+}
+
 /** One interaction, in milliseconds from its input event. */
 export interface Step {
   /** To the start of the second frame after the change was committed. */
@@ -68,6 +94,11 @@ export interface Step {
   listeners: number;
   /** Until what the step waits for showed: the inspector or the project changed. */
   shown: number;
+  /**
+   * The work of the main thread until the canvas drew the change: until it showed, then the canvas's
+   * drawing in the next frame, without waiting for that frame to start.
+   */
+  work: number;
   /** Spent running commands in the core, and applying their operations. */
   core: number;
   /** Spent rendering in React, as the Profiler measures it, and in how many commits. */
@@ -76,6 +107,7 @@ export interface Step {
   /** Until the shell committed a new project, and until the effects of that commit ran. */
   committed?: number;
   effects?: number;
+  profile?: Breakdown;
 }
 
 /** What a pass mark asks of a series of times. */
@@ -99,6 +131,7 @@ export interface FramePhase {
   intervals: number[];
   /** The listeners of each event and React's work after them, then the next frame's drawing. */
   work: number[];
+  profile?: Breakdown;
 }
 
 export interface BenchResults {
@@ -106,14 +139,20 @@ export interface BenchResults {
   frames: FramePhase[];
   /** From the first render of the app to the end of its first commit's effects. */
   mounted: number;
+  /** How often the browser starts a frame while nothing happens, in milliseconds. */
+  frameInterval: number;
   /** The canvas's size, and the scale it clicks shapes at. */
   viewport: Size;
   clickScale: number;
+  /** While profiling, what the functions the shell runs on every change take on their own. */
+  functions?: Record<string, number>;
 }
 
 interface AppBenchProps {
   project: ProjectSnapshot;
   plan: BenchPlan;
+  /** Says which components and canvas methods the time goes to; React reports it in development. */
+  profile?: boolean;
   /** Says what the benchmark is doing. */
   onStatus?: (text: string) => void;
   /** Called once, with the results or with why the benchmark stopped. */
@@ -135,14 +174,30 @@ const FRAMES_MARK: Mark = {
   passes: ({ average, p95, worst }) =>
     average <= SHOWN.average && p95 <= SHOWN.p95 && worst <= WORK.worst,
 };
+/** The work of each frame, as the canvas benchmark judges it, here without the GPU. */
+const WORK_MARK: Mark = {
+  text: `avg ≤ ${WORK.average}, p95 ≤ ${WORK.p95}, worst ≤ ${WORK.worst.toFixed(1)}`,
+  passes: ({ average, p95, worst }) =>
+    average <= WORK.average && p95 <= WORK.p95 && worst <= WORK.worst,
+};
+/** The canvas's methods timed while profiling, those that exist. */
+const TIMED_METHODS: readonly [object, string, readonly string[]][] = [
+  [CanvasController.prototype, 'CanvasController', ['update', 'setSelection', 'reveal']],
+  [
+    CanvasRenderer.prototype,
+    'CanvasRenderer',
+    ['show', 'setSelection', 'setOverlay', 'setCamera', 'renderNow', 'rebuild', 'drawSelection'],
+  ],
+];
 
 /**
  * The app as `LiveApp` mounts it, with a local program of its own, and the benchmark that drives it
  * once the canvas has started.
  */
-export function AppBench({ project, plan, onStatus, onFinish }: AppBenchProps) {
+export function AppBench({ project, plan, profile = false, onStatus, onFinish }: AppBenchProps) {
   const [shown, setShown] = useState(project);
-  const [trace] = useState(() => new Trace());
+  const [profiling] = useState(() => (profile ? new Profiling() : undefined));
+  const [trace] = useState(() => new Trace(profiling));
   const frame = useRef<HTMLDivElement>(null);
   const current = useRef(project);
   const callbacks = useRef({ onStatus, onFinish });
@@ -172,6 +227,13 @@ export function AppBench({ project, plan, onStatus, onFinish }: AppBenchProps) {
     (_id, _phase, actualDuration) => trace.render(actualDuration),
     [trace],
   );
+
+  useLayoutEffect(() => {
+    const container = frame.current?.parentElement;
+    if (!profiling || !container) return;
+    profiling.start(container);
+    return () => profiling.stop();
+  }, [profiling]);
 
   useEffect(() => {
     const root = frame.current;
@@ -237,6 +299,8 @@ class Trace {
   private firstEffects: number | undefined;
   private readonly created = performance.now();
 
+  constructor(readonly profiling: Profiling | undefined) {}
+
   begin(): void {
     this.began = performance.now();
     this.core = 0;
@@ -244,6 +308,7 @@ class Trace {
     this.commits = 0;
     this.committedAt = undefined;
     this.effectsAt = undefined;
+    this.profiling?.take();
   }
 
   run(core: number): void {
@@ -257,6 +322,7 @@ class Trace {
   render(actualDuration: number): void {
     this.rendering += actualDuration;
     this.commits += 1;
+    this.profiling?.committed();
   }
 
   commit(): void {
@@ -284,15 +350,118 @@ class Trace {
     return this.refusals.pop();
   }
 
-  end(): Pick<Step, 'core' | 'rendering' | 'commits' | 'committed' | 'effects'> {
+  end(): Pick<Step, 'core' | 'rendering' | 'commits' | 'committed' | 'effects' | 'profile'> {
+    const profile = this.profiling?.take();
     return {
       core: this.core,
       rendering: this.rendering,
       commits: this.commits,
       ...(this.committedAt === undefined ? {} : { committed: this.committedAt - this.began }),
       ...(this.effectsAt === undefined ? {} : { effects: this.effectsAt - this.began }),
+      ...(profile ? { profile } : {}),
     };
   }
+}
+
+/** React's fibers, as far as the profile reads them: React's own fields, filled in development. */
+interface Fiber {
+  type: unknown;
+  child: Fiber | null;
+  sibling: Fiber | null;
+  alternate: Fiber | null;
+  flags: number;
+  selfBaseDuration?: number;
+  stateNode: unknown;
+}
+
+/** React's flag on a component that rendered in the commit at hand. */
+const PERFORMED_WORK = 1;
+
+/**
+ * Says which components and canvas methods the time goes to. React's Profiler times every component
+ * inside it in development; each commit, the components that rendered add how long they took to render
+ * themselves. The canvas's methods are wrapped while profiling, so that each adds how long it took.
+ */
+class Profiling {
+  private components = new Map<string, number>();
+  private methods = new Map<string, number>();
+  private container: HTMLElement | undefined;
+  private readonly restores: (() => void)[] = [];
+
+  start(container: HTMLElement): void {
+    this.container = container;
+    for (const [target, owner, names] of TIMED_METHODS) {
+      for (const name of names) {
+        const original: unknown = Reflect.get(target, name);
+        if (typeof original !== 'function') continue;
+        const methods = this.methods;
+        const timed = function (this: unknown, ...args: unknown[]): unknown {
+          const began = performance.now();
+          try {
+            return Reflect.apply(original, this, args) as unknown;
+          } finally {
+            const key = `${owner}.${name}`;
+            methods.set(key, (methods.get(key) ?? 0) + performance.now() - began);
+          }
+        };
+        Reflect.set(target, name, timed);
+        this.restores.push(() => Reflect.set(target, name, original));
+      }
+    }
+  }
+
+  stop(): void {
+    for (const restore of this.restores.splice(0)) restore();
+    this.container = undefined;
+  }
+
+  /** Adds what the components that rendered in the commit at hand took. */
+  committed(): void {
+    const root = this.container && currentTree(this.container);
+    if (!root) return;
+    const visit: Fiber[] = [root];
+    for (let fiber = visit.pop(); fiber; fiber = visit.pop()) {
+      const name = nameOf(fiber.type);
+      if ((fiber.flags & PERFORMED_WORK) !== 0 && name && fiber.selfBaseDuration !== undefined) {
+        this.components.set(name, (this.components.get(name) ?? 0) + fiber.selfBaseDuration);
+      }
+      // Below a fiber whose children were not rendered again, nothing rendered in this commit.
+      if (fiber.alternate !== null && fiber.child === fiber.alternate.child) continue;
+      for (let child = fiber.child; child; child = child.sibling) visit.push(child);
+    }
+  }
+
+  /** What was added since the last time, which starts again from nothing. */
+  take(): Breakdown {
+    const taken = {
+      components: Object.fromEntries(this.components),
+      methods: Object.fromEntries(this.methods),
+    };
+    this.components = new Map();
+    this.methods.clear();
+    return taken;
+  }
+}
+
+/** The tree React shows now in a container it renders into. */
+function currentTree(container: HTMLElement): Fiber | undefined {
+  const key = Object.keys(container).find((each) => each.startsWith('__reactContainer$'));
+  const hostRoot = key === undefined ? undefined : (Reflect.get(container, key) as Fiber | null);
+  const root = hostRoot?.stateNode as { current?: Fiber } | null | undefined;
+  return root?.current;
+}
+
+/** A component's name; none for the elements of the page. */
+function nameOf(type: unknown): string | undefined {
+  if (typeof type === 'function') {
+    const named = type as { displayName?: string; name?: string };
+    return named.displayName ?? named.name;
+  }
+  if (typeof type === 'object' && type !== null) {
+    const wrapped = type as { displayName?: string; type?: unknown; render?: unknown };
+    return wrapped.displayName ?? nameOf(wrapped.type ?? wrapped.render);
+  }
+  return undefined;
 }
 
 /** Drives the app through its elements and times what it does. */
@@ -301,6 +470,7 @@ class Driver {
   private camera: Camera = { x: 0, y: 0, scale: 1 };
   private readonly indexed: IndexedScene;
   private readonly names: Map<Id, string>;
+  private readonly viewId: Id;
 
   constructor(
     private readonly root: HTMLElement,
@@ -312,6 +482,7 @@ class Driver {
   ) {
     const view = project.views[0];
     if (!view) throw new Error('The project has no view to draw.');
+    this.viewId = view.id;
     // The same scene as the shell's, for where the shapes are.
     this.indexed = indexScene(buildScene(project, view.id));
     this.names = new Map(project.model.elements.map((element) => [element.id, element.name]));
@@ -325,6 +496,7 @@ class Driver {
     await this.canvasStarted();
     this.status('Resting, so that the garbage of building the project is collected…');
     await this.rest(this.plan.rest.start);
+    const frameInterval = await this.frameInterval();
     this.showOutline();
     const host = this.host();
     host.focus();
@@ -339,7 +511,7 @@ class Driver {
 
     this.status(`Clicking ${this.plan.clicks} shapes…`);
     const clicks: Step[] = [];
-    for (const shape of this.targets(this.plan.clicks)) clicks.push(await this.click(shape));
+    for (const target of this.targets(this.plan.clicks)) clicks.push(await this.click(target));
     steps.push({
       name: 'Select by clicking',
       mark: {
@@ -357,7 +529,7 @@ class Driver {
     this.status('Selecting everything…');
     const everything: Step[] = [];
     for (let each = 0; each < this.plan.selectAlls; each++) {
-      await this.untimed(
+      await this.step(
         () => this.press(host, 'Escape'),
         () => this.inspectsNothing(),
       );
@@ -377,16 +549,17 @@ class Driver {
 
     this.status('Panning and zooming with everything selected…');
     frames.push(...(await this.panAndZoom('everything selected')));
-    await this.untimed(
+    await this.step(
       () => this.press(host, 'Escape'),
       () => this.inspectsNothing(),
     );
     await this.rest(this.plan.rest.between);
 
     // A shape at the left of its container, so that moving it right keeps it inside.
-    const [moved] = this.targets(1, (a, b) => a.offset.x - b.offset.x);
-    if (!moved) throw new Error('No shape shows to move.');
-    await this.click(moved);
+    const [target] = this.targets(1, (a, b) => a.offset.x - b.offset.x);
+    if (!target) throw new Error('No shape shows to move.');
+    const moved = target.shape;
+    await this.click(target);
     host.focus();
     this.status(`Moving ${moved.name} with Shift+ArrowRight…`);
     const nudges: Step[] = [];
@@ -416,13 +589,14 @@ class Driver {
     }
     steps.push({ name: 'One edit: a rename', steps: renames });
 
-    const viewport = this.viewport();
     return {
       steps,
       frames,
       mounted: this.trace.mounted ?? 0,
-      viewport,
+      frameInterval,
+      viewport: this.viewport(),
       clickScale: CLICK_SCALE,
+      ...(this.trace.profiling ? { functions: this.functions(moved.element) } : {}),
     };
   }
 
@@ -473,9 +647,9 @@ class Driver {
    * Hovers a shape, then presses on it, timing from the press until the inspector shows its element
    * and two frames more, then lets go.
    */
-  private async click(shape: ElementShape): Promise<Step> {
+  private async click({ shape, spot }: Target): Promise<Step> {
     const host = this.host();
-    const at = this.client(worldToScreen(this.camera, centerOf(shape.rect)));
+    const at = this.client(worldToScreen(this.camera, pointIn(shape.rect, spot)));
     this.pointer(host, 'pointermove', at, { button: -1, buttons: 0 });
     await this.frames(2);
     const name = this.names.get(shape.element) ?? shape.name;
@@ -513,24 +687,30 @@ class Driver {
       if (waited >= MAX_WAIT_FRAMES) throw new Error('What the benchmark waited for never showed.');
       await this.frames(1);
     }
-    const shown = performance.now() - began;
-    await this.frames(2);
-    return { total: performance.now() - began, listeners, shown, ...this.trace.end() };
-  }
-
-  private async untimed(act: () => void, done: () => boolean): Promise<void> {
-    await this.step(act, done);
+    const shownAt = performance.now();
+    // The canvas draws in this frame, before this callback: its own was asked for before.
+    const { start, called } = await nextFrame();
+    const drawn = called - Math.max(start, shownAt);
+    await this.frames(1);
+    return {
+      total: performance.now() - began,
+      listeners,
+      shown: shownAt - began,
+      work: shownAt - began + drawn,
+      ...this.trace.end(),
+    };
   }
 
   /**
    * Makes one input a frame for `count` frames, and records the time between frames and the work of
    * each input: its listeners and what React did after them, then the drawing in the next frame.
    */
-  private measureFrames(
+  private async measureFrames(
     count: number,
     step: (frame: number) => void,
-  ): Promise<Pick<FramePhase, 'intervals' | 'work'>> {
-    return new Promise((resolve) => {
+  ): Promise<Pick<FramePhase, 'intervals' | 'work' | 'profile'>> {
+    this.trace.begin();
+    const measured = await new Promise<Pick<FramePhase, 'intervals' | 'work'>>((resolve) => {
       const intervals: number[] = [];
       const work: number[] = [];
       let previous: number | undefined;
@@ -558,39 +738,98 @@ class Driver {
       };
       requestAnimationFrame(tick);
     });
+    const { profile } = this.trace.end();
+    return { ...measured, ...(profile ? { profile } : {}) };
+  }
+
+  /** How often frames start while nothing happens: the median of half a second of them. */
+  private async frameInterval(): Promise<number> {
+    const starts: number[] = [];
+    for (let each = 0; each < 31; each++) starts.push((await nextFrame()).start);
+    return percentile(
+      starts.slice(1).map((start, at) => start - (starts[at] as number)),
+      0.5,
+    );
   }
 
   /**
-   * Shapes holding nothing, wholly on screen, that a click at their middle selects whatever the canvas
-   * draws them as, in a shuffled order or the order given, `count` of them, one after another.
+   * What the functions the shell and the canvas run on every change of the project take on their
+   * own, on a project none of them has seen: the median of three.
    */
-  private targets(count: number, order?: (a: ElementShape, b: ElementShape) => number) {
+  private functions(element: Id): Record<string, number> {
+    const timings = new Map<string, number[]>();
+    const time = <T,>(name: string, run: () => T): T => {
+      const began = performance.now();
+      const result = run();
+      timings.set(name, [...(timings.get(name) ?? []), performance.now() - began]);
+      return result;
+    };
+    for (let each = 0; each < 3; each++) {
+      const outcome = executeCommand(this.current(), {
+        type: 'update-element',
+        id: element,
+        changes: { name: `Measured ${each}` },
+      });
+      if (!outcome.ok) continue;
+      const project = outcome.state;
+      const scene = time('buildScene', () => buildScene(project, this.viewId));
+      time('indexScene', () => indexScene(scene));
+      time('outlineOf', () => outlineOf(scene, project));
+      time('modelIndexOf', () => modelIndexOf(project));
+    }
+    return Object.fromEntries(
+      [...timings].map(([name, values]) => [name, percentile(values, 0.5)] as const),
+    );
+  }
+
+  /**
+   * Shapes holding nothing, wholly on screen, with a spot where a click selects them whatever the
+   * canvas draws them as, clear of relations and of the toolbar: in a shuffled order or the order
+   * given, `count` of them, one after another.
+   */
+  private targets(count: number, order?: (a: ElementShape, b: ElementShape) => number): Target[] {
+    const host = this.host();
     const { width, height } = this.viewport();
     const tolerance = HIT_TOLERANCE / this.camera.scale;
     const inside = (point: Point) =>
       point.x >= 8 && point.y >= 8 && point.x <= width - 8 && point.y <= height - 8;
-    const found = this.indexed.scene.shapes.filter((shape) => {
-      const { rect } = shape;
-      if (shape.holdsContents) return false;
-      const topLeft = worldToScreen(this.camera, rect);
-      const bottomRight = worldToScreen(this.camera, {
-        x: rect.x + rect.width,
-        y: rect.y + rect.height,
-      });
-      if (!inside(topLeft) || !inside(bottomRight)) return false;
-      const client = this.client(worldToScreen(this.camera, centerOf(rect)));
+    const page = this.root.ownerDocument;
+    // Where nothing over the canvas, such as its toolbar, takes the press; jsdom lays out nothing.
+    const onCanvas = (client: Point) => {
+      const top =
+        typeof page.elementFromPoint === 'function'
+          ? page.elementFromPoint(client.x, client.y)
+          : null;
+      return top === null || host.contains(top);
+    };
+    const selects = (shape: ElementShape, spot: Point) => {
+      const client = this.client(worldToScreen(this.camera, pointIn(shape.rect, spot)));
+      if (!onCanvas(client)) return false;
       const world = screenToWorld(this.camera, this.local(client));
       return [true, false].every((exact) => {
         const hit = hitAt(this.indexed, world, tolerance, () => exact);
         return hit?.kind === 'shape' && hit.shape.element === shape.element;
       });
-    });
-    if (order) found.sort(order);
+    };
+    const found: Target[] = [];
+    for (const shape of this.indexed.scene.shapes) {
+      const { rect } = shape;
+      if (shape.holdsContents) continue;
+      const topLeft = worldToScreen(this.camera, rect);
+      const bottomRight = worldToScreen(this.camera, {
+        x: rect.x + rect.width,
+        y: rect.y + rect.height,
+      });
+      if (!inside(topLeft) || !inside(bottomRight)) continue;
+      const spot = SPOTS.find((each) => selects(shape, each));
+      if (spot) found.push({ shape, spot });
+    }
+    if (order) found.sort((a, b) => order(a.shape, b.shape));
     else shuffle(found, seeded(11));
     if (found.length === 0 || (count > 1 && found.length < 2)) {
       throw new Error('Too few shapes show to click one after another.');
     }
-    return Array.from({ length: count }, (_, each) => found[each % found.length] as ElementShape);
+    return Array.from({ length: count }, (_, each) => found[each % found.length] as Target);
   }
 
   /** Zooms around the middle of the canvas to a scale, in one turn of the wheel. */
@@ -737,7 +976,7 @@ class Driver {
 
   private async frames(count: number): Promise<void> {
     for (let each = 0; each < count; each++) {
-      await new Promise((resolve) => requestAnimationFrame(resolve));
+      await nextFrame();
       if (this.stopped) throw new Error('The benchmark was stopped.');
     }
   }
@@ -746,6 +985,36 @@ class Driver {
     await new Promise((resolve) => setTimeout(resolve, milliseconds));
     if (this.stopped) throw new Error('The benchmark was stopped.');
   }
+}
+
+/** Where in a shape a click goes, as fractions of its width and height: the middle first. */
+const SPOTS: readonly Point[] = [
+  { x: 0.5, y: 0.5 },
+  { x: 0.5, y: 0.3 },
+  { x: 0.5, y: 0.7 },
+  { x: 0.3, y: 0.5 },
+  { x: 0.7, y: 0.5 },
+  { x: 0.3, y: 0.3 },
+  { x: 0.7, y: 0.3 },
+  { x: 0.3, y: 0.7 },
+  { x: 0.7, y: 0.7 },
+];
+
+/** A shape to click, and where. */
+interface Target {
+  shape: ElementShape;
+  spot: Point;
+}
+
+function pointIn(rect: Rect, spot: Point): Point {
+  return { x: rect.x + rect.width * spot.x, y: rect.y + rect.height * spot.y };
+}
+
+/** The next frame: when it started, and when this callback was called in it. */
+function nextFrame(): Promise<{ start: number; called: number }> {
+  return new Promise((resolve) =>
+    requestAnimationFrame((start) => resolve({ start, called: performance.now() })),
+  );
 }
 
 /** Lets the promise jobs queued so far run, React's among them. */
@@ -780,6 +1049,7 @@ function startPage(mount: HTMLElement): void {
   const size = Number(search.get('elements') ?? 10_000);
   const overlap: Overlap = OVERLAPS.find((each) => each === search.get('overlap')) ?? 'none';
   const strict = search.has('strict');
+  const profile = search.has('profile');
   const status = document.getElementById('status') as HTMLElement;
   const began = performance.now();
   const project = syntheticProject({ elements: size, overlap });
@@ -796,6 +1066,7 @@ function startPage(mount: HTMLElement): void {
     <AppBench
       project={project}
       plan={plan}
+      profile={profile}
       onStatus={(text) => {
         status.textContent = text;
       }}
@@ -806,7 +1077,7 @@ function startPage(mount: HTMLElement): void {
           console.error(error);
           return;
         }
-        report(outcome.results, { size, overlap, strict, prepared, project });
+        report(outcome.results, { size, overlap, strict, profile, prepared, project });
       }}
     />
   );
@@ -818,6 +1089,7 @@ interface PageSetup {
   size: number;
   overlap: Overlap;
   strict: boolean;
+  profile: boolean;
   prepared: number;
   project: ProjectSnapshot;
 }
@@ -835,13 +1107,18 @@ const PARTS: { name: string; of: (step: Step) => number }[] = [
   },
   { name: 'The frame', of: (step) => step.total - (step.effects ?? step.shown) },
   { name: 'Of the render: React’s Profiler', of: (step) => step.rendering },
+  { name: 'Of the frame: the canvas drawing', of: (step) => step.work - step.shown },
 ];
+
+/** How many of the largest components and methods a phase's profile lists. */
+const PROFILE_TOP = 8;
 
 function report(results: BenchResults, setup: PageSetup): void {
   const marked: boolean[] = [];
   const stepBody = document.querySelector('#steps tbody') as HTMLElement;
   const stepRows = results.steps.map((phase) => {
     const summary = summarize(phase.steps.map((step) => step.total));
+    const work = summarize(phase.steps.map((step) => step.work));
     const passes = phase.mark?.passes(summary);
     if (passes !== undefined) marked.push(passes);
     addRow(stepBody, passes === undefined ? '' : passes ? 'pass' : 'fail', [
@@ -850,9 +1127,10 @@ function report(results: BenchResults, setup: PageSetup): void {
       summary.p50.toFixed(1),
       summary.p95.toFixed(1),
       summary.worst.toFixed(1),
+      work.p95.toFixed(1),
       phase.mark?.text ?? 'report only',
     ]);
-    return { name: phase.name, summary, passes };
+    return { name: phase.name, summary, work, passes };
   });
   (document.getElementById('steps') as HTMLElement).hidden = false;
 
@@ -867,9 +1145,9 @@ function report(results: BenchResults, setup: PageSetup): void {
       summary.average.toFixed(1),
       summary.p95.toFixed(1),
       summary.worst.toFixed(1),
-      work.p95.toFixed(1),
+      `${work.average.toFixed(1)} / ${work.p95.toFixed(1)} / ${work.worst.toFixed(1)}`,
     ]);
-    return { name: phase.name, summary, work, passes };
+    return { name: phase.name, summary, work, passes, workPasses: WORK_MARK.passes(work) };
   });
   (document.getElementById('frames') as HTMLElement).hidden = false;
 
@@ -901,33 +1179,78 @@ function report(results: BenchResults, setup: PageSetup): void {
       const listeners = of((step) => step.listeners);
       const react = of((step) => step.shown - step.listeners);
       const rendering = of((step) => step.rendering);
-      const frame = of((step) => step.total - step.shown);
-      return `${phase.name}: listeners p50 ${listeners.p50.toFixed(1)} ms (p95 ${listeners.p95.toFixed(1)}); React’s render, commit and effects p50 ${react.p50.toFixed(1)} ms (p95 ${react.p95.toFixed(1)}), of which rendering p50 ${rendering.p50.toFixed(1)} ms (p95 ${rendering.p95.toFixed(1)}); the frame p50 ${frame.p50.toFixed(1)} ms (p95 ${frame.p95.toFixed(1)}).`;
+      const drawing = of((step) => step.work - step.shown);
+      return `${phase.name}: listeners p50 ${listeners.p50.toFixed(1)} ms (p95 ${listeners.p95.toFixed(1)}); React’s render, commit and effects p50 ${react.p50.toFixed(1)} ms (p95 ${react.p95.toFixed(1)}), of which rendering p50 ${rendering.p50.toFixed(1)} ms (p95 ${rendering.p95.toFixed(1)}); the canvas drawing p50 ${drawing.p50.toFixed(1)} ms (p95 ${drawing.p95.toFixed(1)}).`;
     });
+
+  // While profiling: for each phase, the components and methods that take the most, on average.
+  const profiles = [
+    ...results.steps.map((phase) => ({
+      name: phase.name,
+      count: phase.steps.length,
+      breakdowns: phase.steps.flatMap((step) => (step.profile ? [step.profile] : [])),
+    })),
+    ...results.frames.map((phase) => ({
+      name: phase.name,
+      count: phase.intervals.length,
+      breakdowns: phase.profile ? [phase.profile] : [],
+    })),
+  ]
+    .filter((phase) => phase.breakdowns.length > 0)
+    .map((phase) => ({
+      name: phase.name,
+      components: largest(
+        phase.breakdowns.map((each) => each.components),
+        phase.count,
+      ),
+      methods: largest(
+        phase.breakdowns.map((each) => each.methods),
+        phase.count,
+      ),
+    }));
+  const profileLines = profiles.map(
+    (phase) =>
+      `${phase.name}, per step: ${phase.components.map(([name, ms]) => `${name} ${ms.toFixed(1)}`).join(', ')}; ${phase.methods.map(([name, ms]) => `${name} ${ms.toFixed(1)}`).join(', ')} ms.`,
+  );
 
   const passed = marked.every(Boolean);
   const relations = setup.project.model.relations.length;
+  const build = import.meta.env.DEV ? 'development' : 'production';
   const status = document.getElementById('status') as HTMLElement;
-  status.textContent = `${setup.size.toLocaleString()} elements and ${relations.toLocaleString()} relations, overlap “${setup.overlap}”; React ${import.meta.env.DEV ? 'development' : 'production'} build${setup.strict ? ' in StrictMode' : ''}. Project built in ${setup.prepared.toFixed(0)} ms; the app mounted in ${results.mounted.toFixed(0)} ms.`;
+  status.textContent = `${setup.size.toLocaleString()} elements and ${relations.toLocaleString()} relations, overlap “${setup.overlap}”; React ${build} build${setup.strict ? ' in StrictMode' : ''}${setup.profile ? ', profiling' : ''}. Project built in ${setup.prepared.toFixed(0)} ms; the app mounted in ${results.mounted.toFixed(0)} ms. Frames start every ${results.frameInterval.toFixed(1)} ms here.`;
   showVerdict(document.getElementById('verdict') as HTMLElement, passed, {
     pass: 'Meets every mark.',
     fail: 'Misses at least one mark.',
   });
   (document.getElementById('notes') as HTMLElement).textContent = [
+    ...(results.frameInterval > 1000 / TARGET_FPS + 2
+      ? [
+          `This browser starts a frame only every ${results.frameInterval.toFixed(1)} ms, not every ${(1000 / TARGET_FPS).toFixed(1)} ms: the marks on frames cannot be met here, and the work columns say what the app costs.`,
+        ]
+      : []),
     `Canvas ${results.viewport.width} × ${results.viewport.height} px; shapes are clicked at scale ${results.clickScale.toFixed(3)}.`,
-    'Interactions: from the input event to the second requestAnimationFrame callback after React committed the change; the canvas draws in the first of those frames.',
-    'Pan and zoom: one input event a frame, timed as the frames shown (requestAnimationFrame timestamps); the work column adds the listeners and React’s work for each event to the canvas drawing it in the next frame, without the GPU.',
+    'Interactions: from the input event to the second requestAnimationFrame callback after React committed the change; the canvas draws in the first of those frames. Work: the main thread’s time from the input event until the canvas drew, without waiting for a frame to start.',
+    `Pan and zoom pass with frames as shown at ${FRAMES_MARK.text} ms. One input event a frame, timed by requestAnimationFrame timestamps; work (avg / p95 / worst) is each event’s listeners and React’s work for it, then the canvas drawing it in the next frame, without the GPU, which the canvas benchmark judges at ${WORK_MARK.text} ms.`,
     ...selecting,
+    ...(results.functions
+      ? [
+          `On their own, on a changed project: ${Object.entries(results.functions)
+            .map(([name, ms]) => `${name} ${ms.toFixed(1)} ms`)
+            .join(', ')}.`,
+        ]
+      : []),
+    ...profileLines,
   ].join('\n');
 
   const json = {
     elements: setup.size,
     relations,
     overlap: setup.overlap,
-    build: import.meta.env.DEV ? 'development' : 'production',
+    build,
     strict: setup.strict,
     prepared: setup.prepared,
     mounted: results.mounted,
+    frameInterval: results.frameInterval,
     viewport: results.viewport,
     clickScale: results.clickScale,
     steps: stepRows,
@@ -937,8 +1260,22 @@ function report(results: BenchResults, setup: PageSetup): void {
       figures: figures.map((figure, at) => ({ phase: changing[at]?.name, ...figure })),
     })),
     selecting,
+    functions: results.functions,
+    profiles,
     passed,
   };
   Object.assign(window, { appBenchmark: { results, report: json } });
   console.info('Visual Anything app benchmark', JSON.stringify(json));
+}
+
+/** The largest totals of a series of breakdowns, divided by how many steps they come from. */
+function largest(totals: Record<string, number>[], count: number): [string, number][] {
+  const sum = new Map<string, number>();
+  for (const each of totals) {
+    for (const [name, ms] of Object.entries(each)) sum.set(name, (sum.get(name) ?? 0) + ms);
+  }
+  return [...sum]
+    .map(([name, ms]): [string, number] => [name, ms / Math.max(1, count)])
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, PROFILE_TOP);
 }

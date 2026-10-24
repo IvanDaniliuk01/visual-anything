@@ -42,7 +42,7 @@ describe('The app benchmark', () => {
   it('mounts the whole app and runs one step of each phase through its elements', async () => {
     const project = syntheticProject({ elements: 60 });
     const finished = new Promise<Outcome>((resolve) => {
-      render(<AppBench project={project} plan={PLAN} onFinish={resolve} />);
+      render(<AppBench project={project} plan={PLAN} profile onFinish={resolve} />);
     });
     // The canvas starts, as PixiJS does once WebGL is ready.
     FakeApplication.created.at(-1)?.finishInit();
@@ -57,9 +57,22 @@ describe('The app benchmark', () => {
       ['One edit: a rename', 1],
     ]);
     for (const step of results.steps.flatMap((phase) => phase.steps)) {
-      expect(step.total).toBeGreaterThanOrEqual(step.shown);
+      expect(step.total).toBeGreaterThanOrEqual(step.work);
+      expect(step.work).toBeGreaterThanOrEqual(step.shown);
       expect(step.commits).toBeGreaterThan(0);
     }
+    // The profile names the components that rendered and the canvas's methods that ran.
+    const [click] = results.steps[0]?.steps ?? [];
+    expect(Object.keys(click?.profile?.components ?? {})).toEqual(
+      expect.arrayContaining(['Shell', 'CanvasArea', 'Inspector']),
+    );
+    expect(Object.keys(click?.profile?.methods ?? {})).toContain('CanvasController.setSelection');
+    expect(Object.keys(results.functions ?? {})).toEqual([
+      'buildScene',
+      'indexScene',
+      'outlineOf',
+      'modelIndexOf',
+    ]);
     // What changes the project goes through the core, and the shell commits it.
     for (const phase of results.steps.slice(2)) {
       const [step] = phase.steps;
