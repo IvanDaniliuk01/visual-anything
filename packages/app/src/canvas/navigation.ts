@@ -1,0 +1,441 @@
+/**
+ * Moving through a view from the keyboard: the nearest shape in a direction, the shape nearest a
+ * point, a shape's container and the first shape inside it, and the relations drawn on an element in
+ * the order the keys step through them. Every search goes through the spatial index and widens only as
+ * far as it must, so it looks at the shapes around where it starts, not at every shape of the view.
+ */
+import { modelIndexOf, type ProjectSnapshot } from '@visual-anything/core';
+import type { Id, ModelFile, Relation } from '@visual-anything/schema';
+import { boundsOf, centerOf, distance, type Point, type Rect } from './geometry';
+import type { IndexedScene } from './hit';
+import type { ArrowShape, ElementShape, NoteShape, RelationLine, Scene } from './scene';
+import { rectAround } from './spatial';
+
+export type Direction = 'left' | 'right' | 'up' | 'down';
+
+/** A shape the keys can select: an element's shape, or a free shape. */
+export type Reachable =
+  | { kind: 'shape'; shape: ElementShape }
+  | { kind: 'note'; note: NoteShape }
+  | { kind: 'arrow'; arrow: ArrowShape };
+
+type ReachedShape = Extract<Reachable, { kind: 'shape' }>;
+
+/** Where a move starts: what is selected, as a rectangle, and the element's shape it is, if it is one. */
+export interface Start {
+  rect: Rect;
+  shape?: ElementShape;
+}
+
+/**
+ * How much the offset across a direction counts against a shape, compared with the gap along it: a
+ * shape in the same row wins over a nearer one in the next row.
+ */
+const ACROSS_WEIGHT = 2;
+/** How far, in scene units, a search first looks; it looks twice as far each time it finds nothing. */
+const FIRST_REACH = 256;
+
+export function rectOf(reachable: Reachable): Rect {
+  switch (reachable.kind) {
+    case 'shape':
+      return reachable.shape.rect;
+    case 'note':
+      return reachable.note.rect;
+    case 'arrow':
+      return rectAround([reachable.arrow.from, reachable.arrow.to]);
+  }
+}
+
+/**
+ * How far `to` lies from `from` in a direction: the gap between them along it, plus twice the offset
+ * across it. Undefined when the middle of `to` is not beyond the middle of `from` in that direction.
+ */
+export function directionScore(from: Rect, to: Rect, direction: Direction): number | undefined {
+  const start = centerOf(from);
+  const end = centerOf(to);
+  const horizontal = direction === 'left' || direction === 'right';
+  const ahead =
+    direction === 'right'
+      ? end.x > start.x
+      : direction === 'left'
+        ? end.x < start.x
+        : direction === 'down'
+          ? end.y > start.y
+          : end.y < start.y;
+  if (!ahead) return undefined;
+  const along =
+    direction === 'right'
+      ? to.x - (from.x + from.width)
+      : direction === 'left'
+        ? from.x - (to.x + to.width)
+        : direction === 'down'
+          ? to.y - (from.y + from.height)
+          : from.y - (to.y + to.height);
+  const across = horizontal
+    ? gapBetween(from.y, from.height, to.y, to.height)
+    : gapBetween(from.x, from.width, to.x, to.width);
+  return Math.max(0, along) + ACROSS_WEIGHT * across;
+}
+
+/**
+ * The nearest shape in a direction from `start`. The containers the start sits in surround it and the
+ * shapes it holds lie within it, so neither counts, and neither do the other shapes of its element,
+ * which a selection already holds. A container on the way is entered: the move goes on to the nearest
+ * shape inside it, for as long as there is one in that direction.
+ */
+export function nearestInDirection(
+  indexed: IndexedScene,
+  start: Start,
+  direction: Direction,
+): Reachable | undefined {
+  const bounds = indexed.scene.bounds;
+  if (!bounds) return undefined;
+  const shape = start.shape;
+  const allowed = (candidate: ElementShape) =>
+    !shape ||
+    (candidate.element !== shape.element &&
+      !candidate.key.startsWith(`${shape.key}/`) &&
+      !shape.key.startsWith(`${candidate.key}/`));
+
+  let reached = bestInDirection(indexed, start.rect, direction, bounds, (rect) => [
+    ...shapesIn(indexed, rect, allowed),
+    ...freeShapesIn(indexed, rect),
+  ]);
+  while (reached?.kind === 'shape' && reached.shape.holdsContents) {
+    const container: ElementShape = reached.shape;
+    const inner = bestInDirection(indexed, start.rect, direction, container.rect, (rect) =>
+      shapesIn(
+        indexed,
+        rect,
+        (candidate) => candidate.containerShape === container.key && allowed(candidate),
+      ),
+    );
+    if (!inner) break;
+    reached = inner;
+  }
+  return reached;
+}
+
+/**
+ * The shape nearest a point: the topmost one under it, as a click there would find, or else the one
+ * whose outline comes closest.
+ */
+export function nearestTo(indexed: IndexedScene, point: Point): Reachable | undefined {
+  const bounds = indexed.scene.bounds;
+  if (!bounds) return undefined;
+  const enough = farthestCorner(point, bounds);
+  return search(
+    bounds,
+    (reach) => around(point, reach),
+    enough,
+    (rect) => {
+      let best: Scored | undefined;
+      const consider = (reachable: Reachable, rank: number) => {
+        const score = distanceToRect(point, rectOf(reachable));
+        // At the same distance, what is drawn on top wins: free shapes, then inner shapes.
+        if (!best || score < best.score || (score === best.score && rank >= best.rank)) {
+          best = { reachable, score, distance: 0, rank };
+        }
+      };
+      for (const at of indexed.shapes.query(rect)) {
+        const shape = indexed.scene.shapes[at] as ElementShape;
+        consider({ kind: 'shape', shape }, at);
+      }
+      const above = indexed.scene.shapes.length;
+      for (const at of indexed.notes.query(rect)) {
+        consider({ kind: 'note', note: indexed.scene.notes[at] as NoteShape }, above + at);
+      }
+      const top = above + indexed.scene.notes.length;
+      for (const at of indexed.arrows.query(rect)) {
+        consider({ kind: 'arrow', arrow: indexed.scene.arrows[at] as ArrowShape }, top + at);
+      }
+      return best;
+    },
+  )?.reachable;
+}
+
+/** The shape of the container a shape sits in; none for a shape directly in World. */
+export function containerOf(indexed: IndexedScene, shape: ElementShape): ElementShape | undefined {
+  return shape.containerShape === undefined ? undefined : indexed.byKey.get(shape.containerShape);
+}
+
+/** The shape inside a container whose top left corner is nearest the container's own. */
+export function firstInside(
+  indexed: IndexedScene,
+  container: ElementShape,
+): ElementShape | undefined {
+  if (!container.holdsContents) return undefined;
+  const corner = { x: container.rect.x, y: container.rect.y };
+  const found = search(
+    container.rect,
+    (reach) => around(corner, reach),
+    farthestCorner(corner, container.rect),
+    (rect) => {
+      let best: Scored | undefined;
+      for (const content of shapesIn(
+        indexed,
+        rect,
+        (each) => each.containerShape === container.key,
+      )) {
+        const score = distance(corner, { x: content.shape.rect.x, y: content.shape.rect.y });
+        if (!best || score < best.score) best = { reachable: content, score, distance: 0, rank: 0 };
+      }
+      return best;
+    },
+  );
+  return found?.reachable.kind === 'shape' ? found.reachable.shape : undefined;
+}
+
+/** The relations a view draws, seen from the elements they relate. */
+export interface DrawnRelations {
+  /** The shape an element's relations are drawn from: its first one. */
+  shapeOf(element: Id): ElementShape | undefined;
+  /** The relations drawn on an element, clockwise around its shape from the top. */
+  around(element: Id): readonly RelationLine[];
+  /** How a relation is drawn; undefined when the view does not draw it. */
+  line(relation: Id): RelationLine | undefined;
+  /** The relation in the model. */
+  relation(id: Id): Relation | undefined;
+}
+
+const drawnCache = new WeakMap<Scene, { model: ModelFile; drawn: DrawnRelations }>();
+
+/**
+ * The relations a scene draws, by the elements they relate: worked out once for each scene, which the
+ * canvas and the outline share. A relation is drawn from the first shape of each element it relates;
+ * its place around that shape is where its line leaves or reaches the shape's outline.
+ */
+export function drawnRelations(scene: Scene, project: ProjectSnapshot): DrawnRelations {
+  const cached = drawnCache.get(scene);
+  if (cached?.model === project.model) return cached.drawn;
+
+  const index = modelIndexOf(project);
+  const firstShapes = new Map<Id, ElementShape>();
+  for (const shape of scene.shapes) {
+    if (!firstShapes.has(shape.element)) firstShapes.set(shape.element, shape);
+  }
+  const lines = new Map<Id, RelationLine>();
+  const turns = new Map<Id, { line: RelationLine; turn: number; order: number }[]>();
+  scene.relations.forEach((line, order) => {
+    lines.set(line.relation, line);
+    const relation = index.relation(line.relation);
+    if (!relation) return;
+    const ends: [Id, Point][] = [
+      [relation.from, line.from],
+      [relation.to, line.to],
+    ];
+    for (const [end, point] of ends) {
+      const shape = firstShapes.get(end);
+      if (!shape) continue;
+      const entry = { line, turn: turnOf(centerOf(shape.rect), point), order };
+      const list = turns.get(end);
+      if (list) list.push(entry);
+      else turns.set(end, [entry]);
+    }
+  });
+  const around = new Map<Id, RelationLine[]>();
+  for (const [element, list] of turns) {
+    list.sort((a, b) => a.turn - b.turn || a.order - b.order);
+    around.set(
+      element,
+      list.map((entry) => entry.line),
+    );
+  }
+
+  const drawn: DrawnRelations = {
+    shapeOf: (element) => firstShapes.get(element),
+    around: (element) => around.get(element) ?? [],
+    line: (relation) => lines.get(relation),
+    relation: (id) => index.relation(id),
+  };
+  drawnCache.set(scene, { model: project.model, drawn });
+  return drawn;
+}
+
+/**
+ * The relation one step from `current` among those drawn on an element, wrapping around: the next for
+ * `1`, the one before for `-1`. Without a current one of the element's, the first or the last.
+ */
+export function stepRelation(
+  drawn: DrawnRelations,
+  element: Id,
+  current: Id | undefined,
+  step: 1 | -1,
+): RelationLine | undefined {
+  const lines = drawn.around(element);
+  if (lines.length === 0) return undefined;
+  const at = current === undefined ? -1 : lines.findIndex((line) => line.relation === current);
+  if (at === -1) return step === 1 ? lines[0] : lines.at(-1);
+  return lines[(at + step + lines.length) % lines.length];
+}
+
+/** The end of a relation away from `near`; the end it points to when `near` is neither end. */
+export function farEnd(relation: Pick<Relation, 'from' | 'to'>, near: Id | undefined): Id {
+  return near === relation.to ? relation.from : relation.to;
+}
+
+/** A candidate a search found, with what ranks it. */
+interface Scored {
+  reachable: Reachable;
+  /** The lower the better. */
+  score: number;
+  /** Breaks a tie in score: the lower the better. */
+  distance: number;
+  /** Breaks a tie in score where `distance` does not: the higher the better. */
+  rank: number;
+}
+
+/** The best shape in a direction from `from`, among those `candidatesIn` finds within `bounds`. */
+function bestInDirection(
+  indexed: IndexedScene,
+  from: Rect,
+  direction: Direction,
+  bounds: Rect,
+  candidatesIn: (rect: Rect) => Reachable[],
+): Reachable | undefined {
+  const start = centerOf(from);
+  const extent = boundsOf([from, bounds]) as Rect;
+  const enough = (1 + ACROSS_WEIGHT) * Math.max(extent.width, extent.height);
+  return search(
+    bounds,
+    (reach) => ahead(from, direction, reach),
+    enough,
+    (rect) => {
+      // On a tie in score and distance, the first candidate in drawing order stays.
+      let best: Scored | undefined;
+      for (const reachable of candidatesIn(rect)) {
+        const candidate = rectOf(reachable);
+        const score = directionScore(from, candidate, direction);
+        if (score === undefined) continue;
+        const apart = distance(start, centerOf(candidate));
+        if (!best || score < best.score || (score === best.score && apart < best.distance)) {
+          best = { reachable, score, distance: apart, rank: 0 };
+        }
+      }
+      return best;
+    },
+  )?.reachable;
+}
+
+/**
+ * The best candidate of a search that widens until it is sure. `regionFor(reach)` holds every
+ * candidate that scores `reach` or better, and `best(rect)` is the best candidate meeting a rectangle;
+ * the search stops at the first reach that holds a candidate scoring within it, or at `enough`, a reach
+ * whose region holds every candidate there is.
+ */
+function search(
+  bounds: Rect,
+  regionFor: (reach: number) => Rect,
+  enough: number,
+  best: (rect: Rect) => Scored | undefined,
+): Scored | undefined {
+  for (let reach = FIRST_REACH; ; reach *= 2) {
+    const region = overlapOf(regionFor(reach), bounds);
+    const found = region ? best(region) : undefined;
+    if ((found && found.score <= reach) || !(reach < enough)) return found;
+  }
+}
+
+/**
+ * The part of the scene ahead of `from` in a direction that holds every rectangle scoring `reach` or
+ * better: from its middle onwards, as far as `reach` past its edge, and `reach / ACROSS_WEIGHT` to
+ * either side.
+ */
+function ahead(from: Rect, direction: Direction, reach: number): Rect {
+  const middle = centerOf(from);
+  const side = reach / ACROSS_WEIGHT;
+  switch (direction) {
+    case 'right':
+      return spanning(
+        middle.x,
+        from.x + from.width + reach,
+        from.y - side,
+        from.y + from.height + side,
+      );
+    case 'left':
+      return spanning(from.x - reach, middle.x, from.y - side, from.y + from.height + side);
+    case 'down':
+      return spanning(
+        from.x - side,
+        from.x + from.width + side,
+        middle.y,
+        from.y + from.height + reach,
+      );
+    case 'up':
+      return spanning(from.x - side, from.x + from.width + side, from.y - reach, middle.y);
+  }
+}
+
+/** The element shapes meeting a rectangle that `accept` takes, in drawing order. */
+function shapesIn(
+  indexed: IndexedScene,
+  rect: Rect,
+  accept: (shape: ElementShape) => boolean,
+): ReachedShape[] {
+  const found: ReachedShape[] = [];
+  for (const at of indexed.shapes.query(rect)) {
+    const shape = indexed.scene.shapes[at] as ElementShape;
+    if (accept(shape)) found.push({ kind: 'shape', shape });
+  }
+  return found;
+}
+
+/** The notes, then the arrows, meeting a rectangle. */
+function freeShapesIn(indexed: IndexedScene, rect: Rect): Reachable[] {
+  const { notes, arrows } = indexed.scene;
+  return [
+    ...indexed.notes
+      .query(rect)
+      .map((at): Reachable => ({ kind: 'note', note: notes[at] as NoteShape })),
+    ...indexed.arrows
+      .query(rect)
+      .map((at): Reachable => ({ kind: 'arrow', arrow: arrows[at] as ArrowShape })),
+  ];
+}
+
+/** The square reaching `reach` from a point on every side. */
+function around(point: Point, reach: number): Rect {
+  return spanning(point.x - reach, point.x + reach, point.y - reach, point.y + reach);
+}
+
+function spanning(left: number, right: number, top: number, bottom: number): Rect {
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+/** Where two rectangles overlap; undefined when they do not meet. */
+function overlapOf(a: Rect, b: Rect): Rect | undefined {
+  const left = Math.max(a.x, b.x);
+  const top = Math.max(a.y, b.y);
+  const right = Math.min(a.x + a.width, b.x + b.width);
+  const bottom = Math.min(a.y + a.height, b.y + b.height);
+  return right < left || bottom < top ? undefined : spanning(left, right, top, bottom);
+}
+
+/** The gap between two spans on one axis; 0 when they overlap. */
+function gapBetween(
+  start: number,
+  length: number,
+  otherStart: number,
+  otherLength: number,
+): number {
+  return Math.max(0, otherStart - (start + length), start - (otherStart + otherLength));
+}
+
+function distanceToRect(point: Point, rect: Rect): number {
+  const dx = gapBetween(point.x, 0, rect.x, rect.width);
+  const dy = gapBetween(point.y, 0, rect.y, rect.height);
+  return Math.hypot(dx, dy);
+}
+
+/** How far the corner of a rectangle farthest from a point is. */
+function farthestCorner(point: Point, rect: Rect): number {
+  const dx = Math.max(Math.abs(point.x - rect.x), Math.abs(point.x - (rect.x + rect.width)));
+  const dy = Math.max(Math.abs(point.y - rect.y), Math.abs(point.y - (rect.y + rect.height)));
+  return Math.hypot(dx, dy);
+}
+
+/** Where a point lies around a center, as a turn clockwise from straight up, between 0 and 2π. */
+function turnOf(center: Point, point: Point): number {
+  const turn = Math.atan2(point.x - center.x, center.y - point.y);
+  return turn < 0 ? turn + 2 * Math.PI : turn;
+}

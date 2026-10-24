@@ -70,7 +70,7 @@ describe('App', () => {
     const header = screen.getByRole('banner');
     expect(within(header).getByText('My systems')).toBeInTheDocument();
     expect(within(header).getByText('System overview')).toBeInTheDocument();
-    expect(screen.getByRole('complementary', { name: 'Model' })).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'Outline and model' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: /System overview/ })).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
@@ -213,8 +213,9 @@ function openApp(history: HistorySummary = {}): FakeWebSocket {
   return socket;
 }
 
+/** The panel left of the canvas, whose outline shows the open view's elements by name. */
 function modelPanel(): HTMLElement {
-  return screen.getByRole('complementary', { name: 'Model' });
+  return screen.getByRole('complementary', { name: 'Outline and model' });
 }
 
 function historyButton(name: string | RegExp): HTMLElement {
