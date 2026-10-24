@@ -1,0 +1,154 @@
+import { definitionsOf, type ProjectSnapshot } from '@visual-anything/core';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { describe, expect, it, vi } from 'vitest';
+import { buildScene } from '../canvas/scene';
+import { EditorContext, type Editor } from '../editor/EditorContext';
+import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
+import { EMPTY_SELECTION } from '../editor/selection';
+import { LiveContext, type Live } from '../live/context';
+import { fakeLive } from '../test/fakeLive';
+import { loadSample } from '../test/sample';
+import { GuidanceLayer } from './GuidanceLayer';
+import type { GuidanceState } from './state';
+
+const sample = loadSample();
+
+/** The sample with a second view, so that guidance can name a view that is not open. */
+const project: ProjectSnapshot = {
+  ...sample,
+  views: [
+    ...sample.views,
+    { ...(sample.views[0] as ProjectSnapshot['views'][number]), id: 'second', name: 'Second' },
+  ],
+};
+
+function editorFor(viewId: string, overrides: Partial<Editor> = {}): Editor {
+  return {
+    project,
+    definitions: definitionsOf(project.packages),
+    viewId,
+    scene: buildScene(project, viewId),
+    selection: EMPTY_SELECTION,
+    select: vi.fn(),
+    send: undefined,
+    reveal: vi.fn(),
+    openView: vi.fn(),
+    ...overrides,
+  };
+}
+
+function Harness(props: { live: Live; editor: Editor; store: EmphasisStore; children: ReactNode }) {
+  return (
+    <LiveContext value={props.live}>
+      <EditorContext.Provider value={props.editor}>
+        <EmphasisContext.Provider value={props.store}>{props.children}</EmphasisContext.Provider>
+      </EditorContext.Provider>
+    </LiveContext>
+  );
+}
+
+function renderWith(guidance: GuidanceState, editor = editorFor('system-overview')) {
+  const store = new EmphasisStore();
+  const clearGuidance = vi.fn();
+  const live = fakeLive({ project, guidance, clearGuidance });
+  const view = render(
+    <Harness live={live} editor={editor} store={store}>
+      <GuidanceLayer />
+    </Harness>,
+  );
+  const rerender = (next: GuidanceState, nextEditor = editor) =>
+    view.rerender(
+      <Harness
+        live={fakeLive({ project, guidance: next, clearGuidance })}
+        editor={nextEditor}
+        store={store}
+      >
+        <GuidanceLayer />
+      </Harness>,
+    );
+  return { store, editor, clearGuidance, rerender };
+}
+
+const keyOf = (element: string) =>
+  buildScene(project, 'system-overview').shapes.find((shape) => shape.element === element)?.key;
+
+describe('GuidanceLayer', () => {
+  it('shows nothing and emphasizes nothing without guidance', () => {
+    const { store } = renderWith({});
+    expect(
+      screen.queryByRole('complementary', { name: 'Claude’s guidance' }),
+    ).not.toBeInTheDocument();
+    expect(store.get()).toEqual({});
+  });
+
+  it('highlights Claude’s targets through the emphasis store, and says so in words', () => {
+    const { store } = renderWith({
+      marks: { kind: 'highlight', targets: ['patient'], request: 1 },
+    });
+    expect(store.get().highlighted).toEqual(new Set([keyOf('patient')]));
+    const panel = screen.getByRole('complementary', { name: 'Claude’s guidance' });
+    expect(panel).toHaveTextContent('Claude highlights “Patient”.');
+  });
+
+  it('shows Claude’s caption as plain text, never as markup', () => {
+    const text = '<img src=x onerror=alert(1)> The patient writes first.';
+    renderWith({ caption: text });
+    const panel = screen.getByRole('complementary', { name: 'Claude’s guidance' });
+    expect(panel).toHaveTextContent(text);
+    expect(panel.querySelector('img')).toBeNull();
+  });
+
+  it('lets the person dismiss it', () => {
+    const { clearGuidance } = renderWith({ caption: 'Here.' });
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss Claude’s guidance' }));
+    expect(clearGuidance).toHaveBeenCalledOnce();
+  });
+
+  it('takes its emphasis away when the guidance goes', () => {
+    const { store, rerender } = renderWith({
+      marks: { kind: 'focus', targets: ['patient'], request: 1 },
+    });
+    expect(store.get().dimmed?.size).toBeGreaterThan(0);
+    act(() => rerender({}));
+    expect(store.get()).toEqual({});
+  });
+
+  it('moves the canvas to the target, once per request', () => {
+    const { editor, rerender } = renderWith({ panTo: { target: 'whatsapp', request: 1 } });
+    expect(editor.reveal).toHaveBeenCalledWith(keyOf('whatsapp'));
+    act(() => rerender({ panTo: { target: 'whatsapp', request: 1 } }));
+    expect(editor.reveal).toHaveBeenCalledTimes(1);
+    act(() => rerender({ panTo: { target: 'whatsapp', request: 2 } }));
+    expect(editor.reveal).toHaveBeenCalledTimes(2);
+  });
+
+  it('opens the view Claude names first, then moves there once it is drawn', () => {
+    const { editor, rerender } = renderWith({
+      panTo: { target: 'whatsapp', view: 'second', request: 1 },
+    });
+    expect(editor.openView).toHaveBeenCalledWith('second');
+    expect(editor.reveal).not.toHaveBeenCalled();
+    const second = editorFor('second', { reveal: editor.reveal, openView: editor.openView });
+    act(() => rerender({ panTo: { target: 'whatsapp', view: 'second', request: 1 } }, second));
+    expect(editor.reveal).toHaveBeenCalledOnce();
+    expect(editor.openView).toHaveBeenCalledOnce();
+  });
+
+  it('shows marks made for another view only in that view', () => {
+    const { store } = renderWith({
+      marks: { kind: 'highlight', targets: ['patient'], view: 'second', request: 1 },
+    });
+    expect(store.get()).toEqual({});
+  });
+
+  it('works outside a live session, showing nothing', () => {
+    const store = new EmphasisStore();
+    render(
+      <EmphasisContext.Provider value={store}>
+        <GuidanceLayer />
+      </EmphasisContext.Provider>,
+    );
+    expect(store.get()).toEqual({});
+  });
+});

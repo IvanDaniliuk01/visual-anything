@@ -23,8 +23,75 @@ const ioGlobals = [
   'indexedDB',
 ];
 
+const NO_MARKUP =
+  'The app turns no text into markup in the page: it draws an image only by decoding it as a picture (CLAUDE.md, ADR-0027).';
+
+/**
+ * What keeps the app from turning text into HTML or SVG markup in the page, so that no picture or text
+ * from a project reaches an HTML parser there. Tests may use these, as `shortcuts.test.ts` does.
+ */
+export const pageSafety = {
+  files: ['packages/app/src/**/*.{ts,tsx}'],
+  ignores: ['**/*.test.{ts,tsx}'],
+  rules: {
+    'no-restricted-properties': [
+      'error',
+      ...[
+        'innerHTML',
+        'outerHTML',
+        'insertAdjacentHTML',
+        'setHTMLUnsafe',
+        'createContextualFragment',
+        'srcdoc',
+      ].map((property) => ({ property, message: NO_MARKUP })),
+      { object: 'document', property: 'write', message: NO_MARKUP },
+      { object: 'document', property: 'writeln', message: NO_MARKUP },
+    ],
+    'no-restricted-syntax': [
+      'error',
+      ...[
+        "JSXAttribute[name.name='dangerouslySetInnerHTML']",
+        "JSXAttribute[name.name='srcDoc']",
+        // PixiJS's Graphics.svg() parses the markup in the live page.
+        "CallExpression[callee.property.name='svg']",
+        "CallExpression[callee.property.name='parseHTMLUnsafe']",
+        "NewExpression[callee.name='DOMParser']",
+        // PixiJS's loadSVG with parseAsGraphicsContext parses the markup in the live page too.
+        "Property[key.name='parseAsGraphicsContext']",
+      ].map((selector) => ({ selector, message: NO_MARKUP })),
+    ],
+    'no-restricted-imports': [
+      'error',
+      {
+        paths: [
+          {
+            name: 'pixi.js',
+            importNames: [
+              'HTMLText',
+              'HTMLTextStyle',
+              'HTMLTextPipe',
+              'HTMLTextRenderData',
+              'BatchableHTMLText',
+              'DOMContainer',
+            ],
+            message: `PixiJS's HTML text and DOM containers put text into the page as HTML. ${NO_MARKUP}`,
+          },
+          { name: 'pixi.js/text-html', message: NO_MARKUP },
+          { name: 'pixi.js/dom', message: NO_MARKUP },
+        ],
+      },
+    ],
+  },
+};
+
 export default defineConfig(
-  globalIgnores(['**/dist/', '**/coverage/', '.claude/', 'packages/schema/schemas/']),
+  globalIgnores([
+    '**/dist/',
+    '**/dist-bench/',
+    '**/coverage/',
+    '.claude/',
+    'packages/schema/schemas/',
+  ]),
   js.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
   {
@@ -48,6 +115,7 @@ export default defineConfig(
     extends: [reactHooks.configs.flat.recommended, reactRefresh.configs.vite],
     languageOptions: { globals: globals.browser },
   },
+  pageSafety,
   {
     // core and schema run in Node and in the browser and have no I/O: in particular, no network access.
     files: ['packages/core/src/**/*.ts', 'packages/schema/src/**/*.ts'],

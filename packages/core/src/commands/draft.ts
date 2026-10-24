@@ -14,7 +14,8 @@ import type {
 import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
 import { builtinPackage } from '../builtin';
 import type { Definitions, ResolvedComponent, ResolvedRelationType } from '../definitions';
-import { freshId, isId, type IdGenerator } from '../ids';
+import { definitionIdFor, freshId, isId, type IdGenerator } from '../ids';
+import { imagesIn } from '../images/catalog';
 import type { ModelIndex } from '../model-index';
 import { applyOperation, type Operation } from '../operations';
 import { problem, type Problem, type ProblemCode } from '../problems';
@@ -74,6 +75,11 @@ export class Draft {
     return freshId(this.generate, base, (id) => this.isTaken(id) || alsoTaken(id));
   }
 
+  /** A new id for a definition of a package, made from its name, unused by anything in the project. */
+  newDefinitionId(packageId: Id, name: string): Id {
+    return definitionIdFor(packageId, name, this.generate, (id) => this.isTaken(id));
+  }
+
   /**
    * Whether an element, relation, view, scenario, package or definition already has this id, or a step
    * still names it: a broken step's relation id is never given to something new, so that the step
@@ -91,6 +97,7 @@ export class Draft {
       state.packages.some((file) => file.id === id) ||
       this.definitions.components.has(id) ||
       this.definitions.relationTypes.has(id) ||
+      imagesIn(state).images.has(id) ||
       id === ESSENCE_ID ||
       id === RELATES_TO_ID
     );
@@ -223,6 +230,26 @@ export function changedAttributes(
   );
   const merged: Attributes = Object.fromEntries(entries);
   return Object.keys(merged).length === 0 ? undefined : merged;
+}
+
+/** Whether two JSON values are the same, whatever the order of their keys. */
+export function sameJson(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return (
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((each, at) => sameJson(each, b[at]))
+    );
+  }
+  const left = Object.entries(a).filter(([, value]) => value !== undefined);
+  const right = b as Record<string, unknown>;
+  return (
+    left.length === Object.values(right).filter((value) => value !== undefined).length &&
+    left.every(([key, value]) => Object.hasOwn(right, key) && sameJson(value, right[key]))
+  );
 }
 
 /** A name to show in labels: an element's name, or a relation's name or id. */

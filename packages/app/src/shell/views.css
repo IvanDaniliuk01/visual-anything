@@ -1,0 +1,156 @@
+/*
+ * The view list in the Model tab: each view opens from its name, and its settings show under it.
+ * Only the tokens of styles.css, whose text pairs meet WCAG 2.1 AA contrast (4.5:1).
+ */
+
+.view-row-line {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.view-open {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.15rem 0.3rem;
+  border: 0;
+  border-radius: 0.3rem;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.view-open:hover {
+  background: var(--accent-soft);
+}
+
+.view-action {
+  flex: none;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.view-action:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.view-action:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.view-action[aria-expanded='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.view-list + .view-action,
+.view-new {
+  margin-top: 0.5rem;
+}
+
+.view-open:focus-visible,
+.view-action:focus-visible,
+.view-settings :is(input, textarea):focus-visible,
+.view-new input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.view-settings,
+.view-new {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.35rem 0 0.6rem 0.3rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  background: var(--surface);
+}
+
+.view-control {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.view-control label,
+.view-nesting legend {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.view-settings input:is([type='text'], :not([type])),
+.view-settings textarea,
+.view-new input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.3rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.view-nesting {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.view-nesting-types {
+  margin: 0.2rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.view-nesting-types li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.view-note {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.view-problem {
+  color: var(--problem);
+  font-size: 0.8rem;
+}
+
+.view-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.view-confirm p {
+  flex-basis: 100%;
+  font-size: 0.85rem;
+}
+
+.view-action.view-delete {
+  border-color: var(--problem);
+  color: var(--problem);
+}
+
+.view-new-title {
+  font-weight: 600;
+}
+
+.view-new-actions {
+  display: flex;
+  gap: 0.4rem;
+}

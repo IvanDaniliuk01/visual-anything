@@ -14,3 +14,11 @@ The canvas is drawn with WebGL through PixiJS, and text editing happens in an HT
 ## Consequences
 
 A WebGL canvas is invisible to screen readers, so the app needs a parallel accessible representation: keyboard navigation between shapes and an outline of the view that mirrors the model. Exporting a view as SVG or PNG needs its own path rather than serializing the page.
+
+## Clarifications
+
+- 2026-10-24: how the canvas meets the budget at 10,000 elements, which every later drawing (rows, images, themes, 3D pictures) has to keep:
+  - Shapes are drawn into tiles of canvas cells. Where shapes overlap, tiles are split into bands, so that the drawing order is exactly the stacking order of ADR 0021 and hit testing picks the shape drawn on top.
+  - Tiles are culled by the camera of the frame being drawn. A tile comes back as soon as it is on screen, and is culled only once it is half a screen away.
+  - New drawings, labels and selection marks are spread over frames within fixed budgets per frame, so no single frame takes on all of them.
+  - The camera container is one render group, and tiles are drawn by region, so that a change rebuilds only the region it touches.

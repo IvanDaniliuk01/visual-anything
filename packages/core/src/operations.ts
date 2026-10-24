@@ -8,6 +8,7 @@ import type {
   Element,
   FreeShape,
   Id,
+  ImageDefinition,
   PackageFile,
   ProjectFile,
   Relation,
@@ -27,8 +28,12 @@ export type Collection =
   | { name: 'scenarios' }
   | { name: 'components'; package: Id }
   | { name: 'relationTypes'; package: Id }
+  /** The images of a package; a package without any has no list at all. */
+  | { name: 'images'; package: Id }
   | { name: 'positions'; view: Id }
-  | { name: 'freeShapes'; view: Id };
+  | { name: 'freeShapes'; view: Id }
+  /** One stacking list of a view: the order of the shapes directly in a container, or in World. */
+  | { name: 'stackingOrder'; view: Id; container: Id };
 
 /** What each list holds. */
 export interface CollectionItems {
@@ -39,18 +44,21 @@ export interface CollectionItems {
   scenarios: ScenarioFile;
   components: Component;
   relationTypes: RelationType;
+  images: ImageDefinition;
   positions: ShapePosition;
   freeShapes: FreeShape;
+  /** An element id: a stacking list holds bare ids. */
+  stackingOrder: Id;
 }
 
 /** Anything a list holds. */
 export type Item = CollectionItems[keyof CollectionItems];
 
-/** A view without its shapes: what `set-view` changes. */
-export type ViewProperties = Omit<ViewFile, 'positions' | 'freeShapes'>;
+/** A view without its shapes and their order: what `set-view` changes. */
+export type ViewProperties = Omit<ViewFile, 'positions' | 'freeShapes' | 'stackingOrder'>;
 
-/** A package without its definitions: what `set-package` changes. */
-export type PackageProperties = Omit<PackageFile, 'components' | 'relationTypes'>;
+/** A package without its definitions and images: what `set-package` changes. */
+export type PackageProperties = Omit<PackageFile, 'components' | 'relationTypes' | 'images'>;
 
 /** One change to a project. Each has an inverse that undoes it exactly. */
 export type Operation =
@@ -67,6 +75,9 @@ export type Operation =
   | { op: 'set-view'; view: Id; properties: ViewProperties }
   | { op: 'set-package'; package: Id; properties: PackageProperties };
 
+/** Above this many changes to one list, a command replaces the whole list in one operation. */
+export const BULK = 200;
+
 /** Thrown when an operation does not fit the project, which means the copy it is applied to drifted. */
 export class OperationError extends Error {
   override name = 'OperationError';
@@ -81,9 +92,14 @@ export function positionKey(position: { element: Id; container?: Id | undefined 
 
 /** The key that identifies an item in its list. */
 export function keyOf(collection: Collection, item: Item): string {
-  return collection.name === 'positions'
-    ? positionKey(item as ShapePosition)
-    : (item as { id: Id }).id;
+  switch (collection.name) {
+    case 'positions':
+      return positionKey(item as ShapePosition);
+    case 'stackingOrder':
+      return item as Id;
+    default:
+      return (item as { id: Id }).id;
+  }
 }
 
 /** Applies one operation and returns the new project and the operation that undoes it. */
@@ -147,11 +163,16 @@ export function applyOperation(
       };
     case 'set-view': {
       const view = findView(state, operation.view);
-      const { positions, freeShapes, ...previous } = view;
+      const { positions, freeShapes, stackingOrder, ...previous } = view;
       if (operation.properties.id !== view.id) {
         throw new OperationError(`A view cannot change its id ("${view.id}").`);
       }
-      const next: ViewFile = { ...operation.properties, positions, freeShapes };
+      const next: ViewFile = {
+        ...operation.properties,
+        positions,
+        freeShapes,
+        ...(stackingOrder === undefined ? {} : { stackingOrder }),
+      };
       return {
         state: { ...state, views: state.views.map((each) => (each === view ? next : each)) },
         inverse: { op: 'set-view', view: view.id, properties: previous },
@@ -159,11 +180,16 @@ export function applyOperation(
     }
     case 'set-package': {
       const file = findPackage(state, operation.package);
-      const { components, relationTypes, ...previous } = file;
+      const { components, relationTypes, images, ...previous } = file;
       if (operation.properties.id !== file.id) {
         throw new OperationError(`A package cannot change its id ("${file.id}").`);
       }
-      const next: PackageFile = { ...operation.properties, components, relationTypes };
+      const next: PackageFile = {
+        ...operation.properties,
+        components,
+        relationTypes,
+        ...(images === undefined ? {} : { images }),
+      };
       return {
         state: { ...state, packages: state.packages.map((each) => (each === file ? next : each)) },
         inverse: { op: 'set-package', package: file.id, properties: previous },
@@ -206,10 +232,19 @@ function itemsOf(state: ProjectSnapshot, collection: Collection): readonly Item[
       return findPackage(state, collection.package).components;
     case 'relationTypes':
       return findPackage(state, collection.package).relationTypes;
+    case 'images':
+      return findPackage(state, collection.package).images ?? [];
     case 'positions':
       return findView(state, collection.view).positions;
     case 'freeShapes':
       return findView(state, collection.view).freeShapes;
+    case 'stackingOrder': {
+      const order = findView(state, collection.view).stackingOrder;
+      // Any string can be an id, `constructor` included, so only the map's own keys count.
+      return order !== undefined && Object.hasOwn(order, collection.container)
+        ? (order[collection.container] ?? [])
+        : [];
+    }
   }
 }
 
@@ -239,6 +274,10 @@ function withItems(
         ...file,
         relationTypes: items as RelationType[],
       }));
+    case 'images':
+      return updatePackage(state, collection.package, (file) =>
+        withImages(file, items as ImageDefinition[]),
+      );
     case 'positions':
       return updateView(state, collection.view, (view) => ({
         ...view,
@@ -249,7 +288,38 @@ function withItems(
         ...view,
         freeShapes: items as FreeShape[],
       }));
+    case 'stackingOrder':
+      return updateView(state, collection.view, (view) =>
+        withStackingList(view, collection.container, items as Id[]),
+      );
   }
+}
+
+/**
+ * A view with one stacking list replaced. An empty list is no list, and a view without lists has no
+ * stacking order at all: the key goes, rather than staying with an empty value, so that undo gives
+ * back the view exactly as it was.
+ */
+function withStackingList(view: ViewFile, container: Id, items: readonly Id[]): ViewFile {
+  const rest = Object.fromEntries(
+    Object.entries(view.stackingOrder ?? {}).filter(([key]) => key !== container),
+  );
+  const next = items.length === 0 ? rest : { ...rest, [container]: [...items] };
+  if (Object.keys(next).length > 0) return { ...view, stackingOrder: next };
+  const without: ViewFile = { ...view };
+  delete without.stackingOrder;
+  return without;
+}
+
+/**
+ * A package with its images replaced. A package without images has no list, rather than an empty
+ * one, so that undo gives back the package exactly as it was.
+ */
+function withImages(file: PackageFile, images: readonly ImageDefinition[]): PackageFile {
+  if (images.length > 0) return { ...file, images: [...images] };
+  const without: PackageFile = { ...file };
+  delete without.images;
+  return without;
 }
 
 function indexOfKey(items: readonly Item[], collection: Collection, key: string): number {
@@ -295,10 +365,13 @@ function describe(collection: Collection): string {
   switch (collection.name) {
     case 'components':
     case 'relationTypes':
+    case 'images':
       return `The ${collection.name} of package "${collection.package}"`;
     case 'positions':
     case 'freeShapes':
       return `The ${collection.name} of view "${collection.view}"`;
+    case 'stackingOrder':
+      return `The stacking order of "${collection.container}" in view "${collection.view}"`;
     default:
       return `The ${collection.name} of the project`;
   }

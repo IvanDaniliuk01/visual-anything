@@ -62,10 +62,12 @@ export function affectedFiles(
             break;
           case 'components':
           case 'relationTypes':
+          case 'images':
             ofPackage(collection.package);
             break;
           case 'positions':
           case 'freeShapes':
+          case 'stackingOrder':
             keys.add(`view:${collection.view}`);
             break;
           case 'packages':
@@ -80,6 +82,11 @@ export function affectedFiles(
               keys.add(`scenario:${id}`);
             }
             break;
+          default: {
+            // A new kind of list must say which file it lives in, or its changes would not be saved.
+            const unknown: never = collection;
+            throw new Error(`No file is known to hold ${JSON.stringify(unknown)}.`);
+          }
         }
       }
     }

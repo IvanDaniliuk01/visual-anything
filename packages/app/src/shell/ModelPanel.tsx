@@ -1,12 +1,9 @@
-import type { ProjectSnapshot } from '@visual-anything/core';
-import type { Element, Id } from '@visual-anything/schema';
-import { useId, useMemo, type ReactNode } from 'react';
-import {
-  componentOrEssence,
-  containmentTree,
-  type Definitions,
-  type Placement,
-} from '@visual-anything/core';
+import type { Definitions, ProjectSnapshot } from '@visual-anything/core';
+import type { Id } from '@visual-anything/schema';
+import { useId, useRef, useState, type KeyboardEvent } from 'react';
+import { ModelTab } from './ModelTab';
+import { Outline } from './Outline';
+import './panel.css';
 
 interface ModelPanelProps {
   project: ProjectSnapshot;
@@ -15,134 +12,90 @@ interface ModelPanelProps {
   openViewId: Id | undefined;
 }
 
+type Tab = 'outline' | 'model';
+
+const TABS: readonly { tab: Tab; name: string }[] = [
+  { tab: 'outline', name: 'Outline' },
+  { tab: 'model', name: 'Model' },
+];
+
 /**
- * The model panel: World's contents as a containment tree, then the project's views and scenarios.
- * The tree nests by every relation type that nests in the packages in use, whatever the open view
- * chooses. It is read-only.
+ * The panel left of the canvas, in two tabs: the outline of the open view, which mirrors what the
+ * canvas draws, and the model's contents with the project's views and scenarios. Each tab keeps its
+ * rows open or closed while the other one shows.
  */
 export function ModelPanel({ project, definitions, openViewId }: ModelPanelProps) {
-  const panelHeading = useId();
-  const worldHeading = useId();
-  const viewsHeading = useId();
-  const scenariosHeading = useId();
-  const tree = useMemo(
-    () =>
-      containmentTree(project.model, (relationType) =>
-        definitions.nestingRelationTypes.has(relationType),
-      ),
-    [project.model, definitions],
-  );
-  const elements = useMemo(
-    () => new Map(project.model.elements.map((element) => [element.id, element])),
-    [project.model.elements],
-  );
-  const viewNames = new Map(project.views.map((view) => [view.id, view.name]));
+  const [tab, setTab] = useState<Tab>('outline');
+  const heading = useId();
+  const ids = { outline: useId(), model: useId() };
+  const buttons = useRef(new Map<Tab, HTMLButtonElement>());
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const at = TABS.findIndex((each) => each.tab === tab);
+    const next =
+      event.key === 'ArrowRight'
+        ? TABS[(at + 1) % TABS.length]
+        : event.key === 'ArrowLeft'
+          ? TABS[(at - 1 + TABS.length) % TABS.length]
+          : event.key === 'Home'
+            ? TABS[0]
+            : event.key === 'End'
+              ? TABS.at(-1)
+              : undefined;
+    if (!next) return;
+    event.preventDefault();
+    setTab(next.tab);
+    buttons.current.get(next.tab)?.focus();
+  };
 
   return (
-    <aside className="panel model-panel" aria-labelledby={panelHeading}>
-      <h2 id={panelHeading}>Model</h2>
-
-      <section className="panel-section">
-        <h3 id={worldHeading}>World</h3>
-        {tree.length > 0 ? (
-          <ContainmentList
-            placements={tree}
-            elements={elements}
-            definitions={definitions}
-            labelledBy={worldHeading}
-          />
-        ) : (
-          <p className="panel-empty">World holds no elements yet.</p>
-        )}
-      </section>
-
-      <section className="panel-section">
-        <h3 id={viewsHeading}>Views</h3>
-        {project.views.length > 0 ? (
-          <ul className="item-list" aria-labelledby={viewsHeading}>
-            {project.views.map((view) => {
-              const open = view.id === openViewId;
-              return (
-                <li key={view.id} aria-current={open ? 'true' : undefined}>
-                  <span className="item-name">{view.name}</span>
-                  <Secondary>{view.perspective.name}</Secondary>
-                  {open && (
-                    <span className="item-badge" aria-hidden="true">
-                      Open
-                    </span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p className="panel-empty">This project has no views yet.</p>
-        )}
-      </section>
-
-      <section className="panel-section">
-        <h3 id={scenariosHeading}>Scenarios</h3>
-        {project.scenarios.length > 0 ? (
-          <ul className="item-list" aria-labelledby={scenariosHeading}>
-            {project.scenarios.map((scenario) => {
-              const viewName = viewNames.get(scenario.view);
-              return (
-                <li key={scenario.id}>
-                  <span className="item-name">{scenario.name}</span>
-                  <Secondary>
-                    {scenario.steps.length === 1 ? '1 step' : `${scenario.steps.length} steps`}
-                    {viewName !== undefined && ` over ${viewName}`}
-                  </Secondary>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p className="panel-empty">This project has no scenarios yet.</p>
-        )}
-      </section>
+    <aside className="panel model-panel side-panel" aria-labelledby={heading}>
+      <h2 id={heading} className="visually-hidden">
+        Outline and model
+      </h2>
+      <div role="tablist" aria-labelledby={heading} className="panel-tabs" onKeyDown={onKeyDown}>
+        {TABS.map((each) => (
+          <button
+            key={each.tab}
+            ref={(element) => {
+              if (element) buttons.current.set(each.tab, element);
+            }}
+            type="button"
+            role="tab"
+            id={`${ids[each.tab]}-tab`}
+            aria-selected={tab === each.tab}
+            aria-controls={`${ids[each.tab]}-panel`}
+            tabIndex={tab === each.tab ? 0 : -1}
+            className="panel-tab"
+            onClick={() => setTab(each.tab)}
+          >
+            {each.name}
+          </button>
+        ))}
+      </div>
+      <div
+        role="tabpanel"
+        id={`${ids.outline}-panel`}
+        aria-labelledby={`${ids.outline}-tab`}
+        hidden={tab !== 'outline'}
+        className="panel-tab-content"
+      >
+        <Outline active={tab === 'outline'} />
+      </div>
+      <div
+        role="tabpanel"
+        id={`${ids.model}-panel`}
+        aria-labelledby={`${ids.model}-tab`}
+        hidden={tab !== 'model'}
+        className="panel-tab-content"
+      >
+        <ModelTab
+          active={tab === 'model'}
+          project={project}
+          definitions={definitions}
+          openViewId={openViewId}
+        />
+      </div>
     </aside>
-  );
-}
-
-interface ContainmentListProps {
-  placements: readonly Placement[];
-  elements: ReadonlyMap<Id, Element>;
-  definitions: Definitions;
-  labelledBy?: string;
-}
-
-function ContainmentList({ placements, elements, definitions, labelledBy }: ContainmentListProps) {
-  return (
-    <ul className="containment" aria-labelledby={labelledBy}>
-      {placements.map((placement) => {
-        const element = elements.get(placement.element);
-        return (
-          <li key={placement.element}>
-            <span className="item-name">{element?.name ?? placement.element}</span>
-            {element && (
-              <Secondary>{componentOrEssence(definitions, element.component).name}</Secondary>
-            )}
-            {placement.contents.length > 0 && (
-              <ContainmentList
-                placements={placement.contents}
-                elements={elements}
-                definitions={definitions}
-              />
-            )}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-/** Secondary text after an item's name; screen readers hear it after a comma. */
-function Secondary({ children }: { children: ReactNode }) {
-  return (
-    <span className="item-detail">
-      <span className="visually-hidden">, </span>
-      {children}
-    </span>
   );
 }

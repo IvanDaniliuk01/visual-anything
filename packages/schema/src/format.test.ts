@@ -176,6 +176,7 @@ describe('formatFile', () => {
 
   it('writes a view file with the keys in the order of its schema', () => {
     const view: ViewFile = {
+      stackingOrder: { world: ['clinic-booking'], 'clinic-booking': ['scheduling', 'whatsapp'] },
       freeShapes: [],
       positions: [
         {
@@ -203,9 +204,15 @@ describe('formatFile', () => {
         'nestingRelationTypes',
         'positions',
         'freeShapes',
+        'stackingOrder',
       ],
       '/perspective': ['name', 'description'],
       '/positions/0': ['element', 'container', 'x', 'y', 'width', 'height', 'pinned'],
+      // The keys of the stacking order are ids, so they are sorted; each list keeps its order.
+      '/stackingOrder': ['clinic-booking', 'world'],
+    });
+    expect(JSON.parse(formatFile('view', view))).toMatchObject({
+      stackingOrder: { 'clinic-booking': ['scheduling', 'whatsapp'] },
     });
   });
 
@@ -746,6 +753,8 @@ const IDLE_KEYWORDS = [
   'uniqueItems',
   'minProperties',
   'maxProperties',
+  // Only checks the names of keys; formatFile sorts the keys of a map whatever they are.
+  'propertyNames',
 ];
 
 /** A schema and every schema inside it, at any depth. */

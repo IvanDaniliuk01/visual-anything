@@ -2,8 +2,18 @@
 import type { Element, Id, Relation, ShapePosition } from '@visual-anything/schema';
 import { slug } from '../ids';
 import { indexModel, type ModelIndex } from '../model-index';
-import { positionKey } from '../operations';
-import { endName, limitWarnings, previewDelete, wouldFormCycle } from '../rules';
+import { BULK, positionKey } from '../operations';
+import { storedStacking } from '../stacking';
+import {
+  choiceWarnings,
+  endName,
+  limitWarnings,
+  previewDelete,
+  wouldFormCycle,
+  type DeletePreview,
+} from '../rules';
+import { bringNewToFront } from './order';
+import { changedAppearance, checkDetailResolves, checkedAppearance } from './traits';
 import {
   changedAttributes,
   compact,
@@ -22,28 +32,42 @@ import type {
   UpdateElementCommand,
   UpdateRelationCommand,
 } from './types';
+import { putCollapsed } from './collapse';
 import { putPositions } from './views';
 
 export function createElement(draft: Draft, command: CreateElementCommand): string {
   const { element } = command;
   const name = requireName(element.name, 'An element');
-  draft.component(element.component);
+  const component = draft.component(element.component);
+  const worldId = draft.index.world.id;
+  if (command.before !== undefined) {
+    if (command.before === worldId) {
+      reject('world-not-allowed', 'World has no place in the model’s order.', [command.before]);
+    }
+    draft.element(command.before);
+  }
   const id = draft.idFor(element.id, slug(name, 'element'));
+  const attributes = changedAttributes(undefined, element.attributes, undefined);
+  const appearance =
+    element.appearance === undefined
+      ? undefined
+      : checkedAppearance(element.appearance, `"${name}"`);
+  checkDetailResolves(appearance, component.attributes, attributes, draft.definitions, `"${name}"`);
   const created: Element = compact({
     id,
     component: element.component,
     name,
     description: element.description,
-    attributes: changedAttributes(undefined, element.attributes, undefined),
-    appearance: element.appearance,
+    attributes,
+    appearance,
   });
-  draft.apply({
-    op: 'insert',
-    collection: { name: 'elements' },
-    index: draft.state.model.elements.length,
-    item: created,
-  });
+  const index =
+    command.before === undefined
+      ? draft.state.model.elements.length
+      : draft.state.model.elements.findIndex((each) => each.id === command.before);
+  draft.apply({ op: 'insert', collection: { name: 'elements' }, index, item: created });
   draft.created.push(id);
+  draft.warnings.push(...choiceWarnings(created, component.attributes));
 
   for (const { container, relationType } of requireList(command.containers, 'containers')) {
     createRelation(draft, {
@@ -58,6 +82,8 @@ export function createElement(draft: Draft, command: CreateElementCommand): stri
     byView.set(view, list);
   }
   for (const [view, positions] of byView) putPositions(draft, view, positions);
+  // Placed before other elements in the model's order, it would be drawn behind them.
+  if (command.before !== undefined) bringNewToFront(draft, id);
   return `Create "${name}"`;
 }
 
@@ -72,8 +98,22 @@ export function updateElement(draft: Draft, command: UpdateElementCommand): stri
     draft.component(changes.component);
     next.component = changes.component;
   }
+  if (changes.appearance !== undefined && changes.appearanceTraits !== undefined) {
+    reject(
+      'invalid-command',
+      'An element’s appearance is replaced whole or changed trait by trait, not both at once.',
+      [current.id],
+    );
+  }
+  const of = `"${next.name}"`;
   if (changes.appearance === null) delete next.appearance;
-  else if (changes.appearance !== undefined) next.appearance = changes.appearance;
+  else if (changes.appearance !== undefined) {
+    next.appearance = checkedAppearance(changes.appearance, of);
+  } else if (changes.appearanceTraits !== undefined) {
+    const appearance = changedAppearance(current.appearance, changes.appearanceTraits, of);
+    if (appearance === undefined) delete next.appearance;
+    else next.appearance = appearance;
+  }
   const attributes = changedAttributes(
     current.attributes,
     changes.attributes,
@@ -81,6 +121,25 @@ export function updateElement(draft: Draft, command: UpdateElementCommand): stri
   );
   if (attributes === undefined) delete next.attributes;
   else next.attributes = attributes;
+  const component = draft.definitions.component(next.component);
+  if (
+    component !== undefined &&
+    (changes.appearance !== undefined || changes.appearanceTraits !== undefined)
+  ) {
+    checkDetailResolves(
+      next.appearance,
+      component.attributes,
+      next.attributes,
+      draft.definitions,
+      of,
+    );
+  }
+  if (
+    component !== undefined &&
+    (changes.attributes !== undefined || changes.component !== undefined)
+  ) {
+    draft.warnings.push(...choiceWarnings(next, component.attributes));
+  }
 
   if (current.id === draft.index.world.id) {
     draft.apply({ op: 'set-world', world: next });
@@ -113,20 +172,78 @@ export function deleteTargets(draft: Draft, command: DeleteCommand): string {
         ? `Delete the relation "${relationLabel(index, preview.relations[0] as Id)}"`
         : `Delete ${deletedThings(preview.elements.length, preview.relations.length)}`;
 
-  for (const position of preview.positions) {
-    draft.apply({
-      op: 'remove',
-      collection: { name: 'positions', view: position.view },
-      key: positionKey(position),
-    });
-  }
-  for (const id of preview.relations) {
-    draft.apply({ op: 'remove', collection: { name: 'relations' }, key: id });
-  }
-  for (const id of preview.elements) {
-    draft.apply({ op: 'remove', collection: { name: 'elements' }, key: id });
-  }
+  applyDeletion(draft, preview);
   return label;
+}
+
+/**
+ * Deletes what a preview lists: the positions, what stacking lists name, the relations, then the
+ * elements. A stacking list whose container goes is dropped whole; the others lose single ids, or
+ * are rewritten in one operation when that is a large change.
+ */
+export function applyDeletion(draft: Draft, preview: DeletePreview): void {
+  // A large deletion rewrites each list once: one operation per item would copy the list each time.
+  const byView = new Map<Id, Set<string>>();
+  for (const position of preview.positions) {
+    const keys = byView.get(position.view) ?? new Set<string>();
+    keys.add(positionKey(position));
+    byView.set(position.view, keys);
+  }
+  for (const [view, keys] of byView) {
+    const collection = { name: 'positions' as const, view };
+    if (keys.size > BULK) {
+      const kept = draft
+        .view(view)
+        .positions.filter((position) => !keys.has(positionKey(position)));
+      draft.apply({ op: 'replace-all', collection, items: kept });
+    } else {
+      for (const key of keys) draft.apply({ op: 'remove', collection, key });
+    }
+  }
+  const deleted = new Set(preview.elements);
+  const lists = new Map<string, { view: Id; container: Id; ids: Id[] }>();
+  for (const entry of preview.stacking) {
+    const key = JSON.stringify([entry.view, entry.container]);
+    const list = lists.get(key) ?? { view: entry.view, container: entry.container, ids: [] };
+    list.ids.push(entry.element);
+    lists.set(key, list);
+  }
+  for (const { view, container, ids } of lists.values()) {
+    const collection = { name: 'stackingOrder' as const, view, container };
+    if (deleted.has(container)) {
+      draft.apply({ op: 'replace-all', collection, items: [] });
+    } else if (ids.length > BULK) {
+      const stored = storedStacking(draft.view(view), container) ?? [];
+      const gone = new Set(ids);
+      draft.apply({ op: 'replace-all', collection, items: stored.filter((id) => !gone.has(id)) });
+    } else {
+      for (const id of ids) draft.apply({ op: 'remove', collection, key: id });
+    }
+  }
+  for (const viewId of new Set(preview.collapsed.map((entry) => entry.view))) {
+    const view = draft.view(viewId);
+    putCollapsed(
+      draft,
+      view,
+      (view.collapsed ?? []).filter((id) => !deleted.has(id)),
+    );
+  }
+  removeFromModel(draft, 'relations', preview.relations);
+  removeFromModel(draft, 'elements', preview.elements);
+}
+
+/** Removes ids from the model's elements or relations: one by one, or in one rewrite when many. */
+function removeFromModel(draft: Draft, name: 'elements' | 'relations', ids: readonly Id[]): void {
+  if (ids.length <= BULK) {
+    for (const id of ids) draft.apply({ op: 'remove', collection: { name }, key: id });
+    return;
+  }
+  const gone = new Set(ids);
+  const items =
+    name === 'elements'
+      ? draft.state.model.elements.filter((element) => !gone.has(element.id))
+      : draft.state.model.relations.filter((relation) => !gone.has(relation.id));
+  draft.apply({ op: 'replace-all', collection: { name }, items });
 }
 
 export function createRelation(draft: Draft, command: CreateRelationCommand): string {

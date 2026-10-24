@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { SCHEMA_VERSION } from './files';
 import type { FileKind } from './kinds';
 import type { ValidationError } from './validate';
-import { parseFile, validateFile } from './validate';
+import { newerFormatOf, parseFile, validateFile } from './validate';
 
 /** The problems found in `data` as a project file of the given kind; empty when there are none. */
 function problemsIn(kind: FileKind, data: unknown): ValidationError[] {
@@ -33,11 +34,34 @@ describe('parseFile', () => {
   });
 
   it('reports JSON that does not match the schema of its kind', () => {
-    const result = parseFile('project', '{ "schemaVersion": 2, "name": "A", "packages": [] }');
+    const result = parseFile('project', '{ "schemaVersion": 0, "name": "A", "packages": [] }');
     expect(result).toEqual({
       ok: false,
       errors: [{ path: '/schemaVersion', message: 'must be 1' }],
     });
+  });
+
+  it('refuses a project saved in a newer format with one clear message, whatever else it holds', () => {
+    for (const text of [
+      '{ "schemaVersion": 2, "name": "A", "packages": [] }',
+      '{ "schemaVersion": 2, "name": "", "packages": [], "code": true }',
+    ]) {
+      expect(parseFile('project', text)).toEqual({
+        ok: false,
+        errors: [
+          {
+            path: '/schemaVersion',
+            message:
+              'This project was saved by a newer Visual Anything, format 2. Update the program to open it.',
+          },
+        ],
+      });
+    }
+    expect(newerFormatOf({ schemaVersion: 7 })).toBe(7);
+    expect(newerFormatOf({ schemaVersion: SCHEMA_VERSION })).toBeUndefined();
+    expect(newerFormatOf({ schemaVersion: 1.5 })).toBeUndefined();
+    expect(newerFormatOf({ schemaVersion: '2' })).toBeUndefined();
+    expect(newerFormatOf(null)).toBeUndefined();
   });
 
   it.each([
@@ -119,7 +143,7 @@ describe('validateFile', () => {
       ],
       [
         'a schema version other than 1',
-        { ...project, schemaVersion: 2 },
+        { ...project, schemaVersion: 1.5 },
         [{ path: '/schemaVersion', message: 'must be 1' }],
       ],
       [
@@ -252,6 +276,169 @@ describe('validateFile', () => {
       expect(validateFile('package', pkg)).toEqual({ ok: true, value: pkg });
     });
 
+    /** A component that sets every appearance trait, and a relation type with every kind of limit. */
+    const queue = {
+      id: 'clinic.queue',
+      name: 'Queue',
+      derivesFrom: 'systems.service',
+      attributes: [
+        { name: 'depth', type: 'number', description: 'Messages waiting.', unit: 'msgs' },
+        {
+          name: 'delivery',
+          type: 'string',
+          default: 'at least once',
+          choices: ['at most once', 'at least once', 'exactly once'],
+        },
+        { name: 'ordered', type: 'boolean' },
+      ],
+      appearance: {
+        shape: 'rounded-rectangle',
+        fill: '#FFF4E5',
+        width: 100_000,
+        detail: {
+          componentName: false,
+          attributes: ['depth'],
+          badges: [
+            { when: 'attribute', text: 'ORD', attribute: 'ordered' },
+            { when: 'from-end', text: 'FK', relationType: 'clinic.feeds' },
+          ],
+        },
+        contentsAsRows: true,
+        connectionPoints: [
+          { name: 'in', side: 'left', at: 0.5 },
+          { name: 'out', side: 'right', at: 1 },
+        ],
+      },
+    };
+    const feeds = {
+      id: 'clinic.feeds',
+      name: 'feeds',
+      derivesFrom: 'relates-to',
+      limits: { from: 'any', to: ['clinic.queue'] },
+    };
+    const clinic = { id: 'clinic', name: 'Clinic', components: [queue], relationTypes: [feeds] };
+
+    it('accepts every appearance trait, attribute choices and units, and limits lifted with "any"', () => {
+      expect(validateFile('package', clinic)).toEqual({ ok: true, value: clinic });
+      const empty = { ...queue, appearance: { connectionPoints: [], detail: {} } };
+      expect(problemsIn('package', { ...clinic, components: [empty] })).toEqual([]);
+    });
+
+    const appearanceOf = (appearance: object) => ({
+      ...clinic,
+      components: [{ ...queue, appearance: { ...queue.appearance, ...appearance } }],
+    });
+    const detailOf = (detail: object) => appearanceOf({ detail: { ...detail } });
+    const badge = { when: 'attribute', text: 'PK', attribute: 'ordered' };
+
+    it.each([
+      [
+        'an empty limit list',
+        { ...clinic, relationTypes: [{ ...feeds, limits: { to: [] } }] },
+        [{ path: '/relationTypes/0/limits/to', message: 'must have at least 1 item' }],
+      ],
+      [
+        'a limit that is neither a list nor "any"',
+        { ...clinic, relationTypes: [{ ...feeds, limits: { from: 'all' } }] },
+        [{ path: '/relationTypes/0/limits/from', message: 'must be an array or "any"' }],
+      ],
+      [
+        'a width above 100,000',
+        appearanceOf({ width: 100_001 }),
+        [{ path: '/components/0/appearance/width', message: 'must be at most 100000' }],
+      ],
+      [
+        'a detail that writes an attribute twice',
+        detailOf({ attributes: ['depth', 'type', 'depth'] }),
+        [
+          {
+            path: '/components/0/appearance/detail/attributes',
+            message: 'must not have duplicate items (items 2 and 0 are the same)',
+          },
+        ],
+      ],
+      [
+        'a limit list that names an id that is not one',
+        { ...clinic, relationTypes: [{ ...feeds, limits: { to: ['clinic queue'] } }] },
+        [{ path: '/relationTypes/0/limits/to/0', message: ID_MESSAGE }],
+      ],
+      [
+        'a ninth badge',
+        detailOf({ badges: Array.from({ length: 9 }, () => badge) }),
+        [
+          {
+            path: '/components/0/appearance/detail/badges',
+            message: 'must have at most 8 items',
+          },
+        ],
+      ],
+      [
+        'a badge text longer than 4',
+        detailOf({ badges: [{ ...badge, text: 'PRIMARY' }] }),
+        [
+          {
+            path: '/components/0/appearance/detail/badges/0/text',
+            message: 'must have at most 4 characters',
+          },
+        ],
+      ],
+      [
+        'a badge with an unknown condition',
+        detailOf({ badges: [{ ...badge, when: 'always' }] }),
+        [
+          {
+            path: '/components/0/appearance/detail/badges/0/when',
+            message: 'must be one of "attribute", "from-end"',
+          },
+        ],
+      ],
+      [
+        'a connection point beyond the end of its side',
+        appearanceOf({ connectionPoints: [{ name: 'in', side: 'left', at: 1.5 }] }),
+        [
+          {
+            path: '/components/0/appearance/connectionPoints/0/at',
+            message: 'must be at most 1',
+          },
+        ],
+      ],
+      [
+        'a connection point on an unknown side',
+        appearanceOf({ connectionPoints: [{ name: 'in', side: 'middle', at: 0.5 }] }),
+        [
+          {
+            path: '/components/0/appearance/connectionPoints/0/side',
+            message: 'must be one of "top", "right", "bottom", "left"',
+          },
+        ],
+      ],
+      [
+        'an empty list of choices',
+        {
+          ...clinic,
+          components: [{ ...queue, attributes: [{ name: 'x', type: 'string', choices: [] }] }],
+        },
+        [{ path: '/components/0/attributes/0/choices', message: 'must have at least 1 item' }],
+      ],
+      [
+        'a unit longer than 16 characters',
+        {
+          ...clinic,
+          components: [
+            { ...queue, attributes: [{ name: 'x', type: 'number', unit: 'requests a second' }] },
+          ],
+        },
+        [
+          {
+            path: '/components/0/attributes/0/unit',
+            message: 'must have at most 16 characters',
+          },
+        ],
+      ],
+    ])('rejects %s', (_, data, errors) => {
+      expect(problemsIn('package', data)).toEqual(errors);
+    });
+
     it.each([
       [
         'a missing required property',
@@ -330,6 +517,11 @@ describe('validateFile', () => {
       expect(validateFile('view', view)).toEqual({ ok: true, value: view });
     });
 
+    it('accepts the containers it keeps collapsed', () => {
+      const collapsed = { ...view, collapsed: ['clinic-booking', 'scheduling'] };
+      expect(validateFile('view', collapsed)).toEqual({ ok: true, value: collapsed });
+    });
+
     it.each([
       [
         'a missing required property',
@@ -375,6 +567,56 @@ describe('validateFile', () => {
         'a note that is not positive in size',
         { ...view, freeShapes: [{ ...note, height: -10 }] },
         [{ path: '/freeShapes/0/height', message: 'must be greater than 0' }],
+      ],
+      [
+        'an empty stacking order',
+        { ...view, stackingOrder: {} },
+        [{ path: '/stackingOrder', message: 'must not be empty' }],
+      ],
+      [
+        'an empty stacking list',
+        { ...view, stackingOrder: { 'clinic-booking': [] } },
+        [{ path: '/stackingOrder/clinic-booking', message: 'must have at least 1 item' }],
+      ],
+      [
+        'a stacking list that names an element twice',
+        { ...view, stackingOrder: { 'clinic-booking': ['scheduling', 'whatsapp', 'scheduling'] } },
+        [
+          {
+            path: '/stackingOrder/clinic-booking',
+            message: 'must not have duplicate items (items 0 and 2 are the same)',
+          },
+        ],
+      ],
+      [
+        'a stacking order keyed by something that is not an id',
+        { ...view, stackingOrder: { 'clinic booking': ['scheduling'] } },
+        [
+          {
+            path: '/stackingOrder',
+            message: 'must have ids as its keys, and "clinic booking" is not one',
+          },
+        ],
+      ],
+      [
+        'a stacking list with an item that is not an id',
+        { ...view, stackingOrder: { 'clinic-booking': [7] } },
+        [{ path: '/stackingOrder/clinic-booking/0', message: 'must be a string' }],
+      ],
+      [
+        'an empty list of collapsed containers',
+        { ...view, collapsed: [] },
+        [{ path: '/collapsed', message: 'must have at least 1 item' }],
+      ],
+      [
+        'a container collapsed twice',
+        { ...view, collapsed: ['clinic-booking', 'clinic-booking'] },
+        [
+          {
+            path: '/collapsed',
+            message: 'must not have duplicate items (items 0 and 1 are the same)',
+          },
+        ],
       ],
     ])('rejects %s', (_, data, errors) => {
       // A property set to undefined is left out of the JSON, as JSON.stringify does.

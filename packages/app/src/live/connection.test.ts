@@ -1,6 +1,7 @@
 import {
   PROTOCOL_VERSION,
   encodeServerMessage,
+  type Guidance,
   type HistorySummary,
   type Operation,
   type Problem,
@@ -125,6 +126,7 @@ describe('LiveConnection', () => {
       project: undefined,
       history: {},
       notices: [],
+      guidance: {},
     });
   });
 
@@ -636,5 +638,119 @@ describe('connect and disconnect', () => {
     const result = connection.send({ type: 'delete', elements: ['patient'] });
     connection.disconnect();
     await expect(result).resolves.toEqual(CLOSED);
+  });
+});
+
+describe('launch codes', () => {
+  const LAUNCH_URL = 'ws://localhost:3000/live?launch=c0de';
+
+  function openedWithToken(token: string): string {
+    return encodeServerMessage({
+      type: 'project/opened',
+      protocolVersion: PROTOCOL_VERSION,
+      project: sample,
+      history: {},
+      token,
+    });
+  }
+
+  it('hands on the session token the local program gives for a launch code', () => {
+    const onToken = vi.fn((token: string) => `ws://localhost:3000/live?token=${token}`);
+    const connection = new LiveConnection(LAUNCH_URL, { onToken });
+    connection.connect();
+    expect(latestSocket().url).toBe(LAUNCH_URL);
+    latestSocket().accept();
+    latestSocket().receive(openedWithToken('s3cr3t'));
+    expect(onToken).toHaveBeenCalledWith('s3cr3t');
+    expect(connection.getState().status).toBe('open');
+  });
+
+  it('keeps the socket of a launch code through a mount undone at once, as StrictMode does', () => {
+    vi.useFakeTimers();
+    try {
+      const connection = new LiveConnection(LAUNCH_URL, {
+        onToken: (token) => `ws://h/live?token=${token}`,
+      });
+      connection.connect();
+      connection.disconnect();
+      connection.connect();
+      vi.runAllTimers();
+      expect(FakeWebSocket.created).toHaveLength(1);
+      expect(latestSocket().closedByApp).toBe(false);
+      latestSocket().accept();
+      latestSocket().receive(openedWithToken('s3cr3t'));
+      expect(connection.getState().status).toBe('open');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('still closes the socket of a launch code when it is disconnected for good', () => {
+    vi.useFakeTimers();
+    try {
+      const connection = new LiveConnection(LAUNCH_URL);
+      connection.connect();
+      connection.disconnect();
+      vi.runAllTimers();
+      expect(latestSocket().closedByApp).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reconnects with the token, never with the launch code it spent', () => {
+    const connection = new LiveConnection(LAUNCH_URL, {
+      onToken: (token) => `ws://localhost:3000/live?token=${token}`,
+    });
+    connection.connect();
+    latestSocket().accept();
+    latestSocket().receive(openedWithToken('s3cr3t'));
+    latestSocket().receive(changed({ operations: [drifting] }));
+    expect(latestSocket().url).toBe('ws://localhost:3000/live?token=s3cr3t');
+  });
+});
+
+describe('guidance', () => {
+  function guidance(value: Guidance): string {
+    return encodeServerMessage({ type: 'guidance', guidance: value });
+  }
+
+  it('starts with none', () => {
+    const { connection } = openConnection();
+    expect(connection.getState().guidance).toEqual({});
+  });
+
+  it('keeps what Claude’s guidance shows, message after message', () => {
+    const { connection, socket } = openConnection();
+    socket.receive(guidance({ kind: 'highlight', targets: ['patient'] }));
+    socket.receive(guidance({ kind: 'caption', text: 'The patient writes first.' }));
+    expect(connection.getState().guidance).toEqual({
+      marks: { kind: 'highlight', targets: ['patient'], request: 1 },
+      caption: 'The patient writes first.',
+    });
+    socket.receive(guidance({ kind: 'pan-to', target: 'whatsapp' }));
+    expect(connection.getState().guidance?.panTo).toEqual({ target: 'whatsapp', request: 3 });
+  });
+
+  it('changes neither the project nor the history', () => {
+    const { connection, socket } = openConnection({ undo: { label: 'Edit', author: 'user' } });
+    const before = connection.getState();
+    socket.receive(guidance({ kind: 'focus', targets: ['patient'] }));
+    expect(connection.getState().project).toBe(before.project);
+    expect(connection.getState().history).toBe(before.history);
+  });
+
+  it('lets the person dismiss it', () => {
+    const { connection, socket } = openConnection();
+    socket.receive(guidance({ kind: 'highlight', targets: ['patient'] }));
+    connection.clearGuidance();
+    expect(connection.getState().guidance).toEqual({});
+  });
+
+  it('takes it away when the connection closes', () => {
+    const { connection, socket } = openConnection();
+    socket.receive(guidance({ kind: 'caption', text: 'Here.' }));
+    socket.drop();
+    expect(connection.getState()).toMatchObject({ status: 'closed', guidance: {} });
   });
 });

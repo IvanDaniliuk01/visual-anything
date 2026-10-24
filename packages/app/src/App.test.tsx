@@ -12,6 +12,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
+import { CANVAS_COMMAND } from './test/canvasCommand';
 import { FakeWebSocket } from './test/FakeWebSocket';
 import { loadSample } from './test/sample';
 
@@ -40,7 +41,7 @@ function onlySocket(): FakeWebSocket {
   return FakeWebSocket.created[0] as FakeWebSocket;
 }
 
-const TERMINAL_ADDRESS = /open the address Visual Anything printed in the terminal/i;
+const TERMINAL_ADDRESS = /press o in the terminal where Visual Anything runs/i;
 
 describe('App', () => {
   it('without a session token, says how to get one and does not connect', () => {
@@ -49,7 +50,7 @@ describe('App', () => {
     const problem = screen.getByRole('alert');
     expect(problem).toHaveTextContent(/no session token/i);
     expect(problem).toHaveTextContent(TERMINAL_ADDRESS);
-    expect(problem).toHaveTextContent(/carries this session’s token/);
+    expect(problem).toHaveTextContent(/an address that works once/);
     expect(FakeWebSocket.created).toHaveLength(0);
   });
 
@@ -57,6 +58,48 @@ describe('App', () => {
     render(<App token="s3cr3t" />);
     expect(onlySocket().url).toBe('ws://localhost:3000/live?token=s3cr3t');
     expect(screen.getByRole('status')).toHaveTextContent(/connecting/i);
+  });
+
+  it('shows Claude’s guidance over the canvas, and lets the person dismiss it', () => {
+    render(<App token="s3cr3t" />);
+    const socket = onlySocket();
+    act(() => {
+      socket.accept();
+      socket.receive(opened);
+      socket.receive(
+        encodeServerMessage({
+          type: 'guidance',
+          guidance: { kind: 'caption', text: 'This is where a booking starts.' },
+        }),
+      );
+    });
+    const panel = screen.getByRole('complementary', { name: 'Claude’s guidance' });
+    expect(panel).toHaveTextContent('This is where a booking starts.');
+    fireEvent.click(within(panel).getByRole('button', { name: 'Dismiss Claude’s guidance' }));
+    expect(
+      screen.queryByRole('complementary', { name: 'Claude’s guidance' }),
+    ).not.toBeInTheDocument();
+    expect(socket.sent).toEqual([]);
+  });
+
+  it('opens the live connection with a launch code, then keeps the token it is handed', () => {
+    render(<App token={{ launch: 'c0de' }} />);
+    const socket = onlySocket();
+    expect(socket.url).toBe('ws://localhost:3000/live?launch=c0de');
+    act(() => {
+      socket.accept();
+      socket.receive(
+        encodeServerMessage({
+          type: 'project/opened',
+          protocolVersion: PROTOCOL_VERSION,
+          project: sample,
+          history: {},
+          token: 'handed-0ver',
+        }),
+      );
+    });
+    expect(window.sessionStorage.getItem('visual-anything.session-token')).toBe('handed-0ver');
+    expect(screen.getByRole('banner')).toHaveTextContent('My systems');
   });
 
   it('shows the project once the local program sends it', () => {
@@ -69,8 +112,8 @@ describe('App', () => {
     const header = screen.getByRole('banner');
     expect(within(header).getByText('My systems')).toBeInTheDocument();
     expect(within(header).getByText('System overview')).toBeInTheDocument();
-    expect(screen.getByRole('complementary', { name: 'Model' })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: /System overview/ })).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'Outline and model' })).toBeInTheDocument();
+    expect(screen.getByRole('application', { name: /System overview/ })).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
@@ -80,7 +123,7 @@ describe('App', () => {
     const problem = screen.getByRole('alert');
     expect(problem).toHaveTextContent(/refused the connection/i);
     expect(problem).toHaveTextContent(TERMINAL_ADDRESS);
-    expect(problem).toHaveTextContent(/carries this session’s token/);
+    expect(problem).toHaveTextContent(/works once, within two minutes/);
     expect(FakeWebSocket.created).toHaveLength(1);
   });
 
@@ -96,11 +139,11 @@ describe('App', () => {
     render(<App token="s3cr3t" />);
     const socket = onlySocket();
     act(() => socket.receive(opened));
-    const canvas = screen.getByRole('img');
+    const canvas = screen.getByRole('application');
     act(() => socket.drop());
     expect(screen.getByRole('alert')).toHaveTextContent(/connection to Visual Anything closed/i);
     expect(within(screen.getByRole('banner')).getByText('My systems')).toBeInTheDocument();
-    expect(screen.getByRole('img')).toBe(canvas);
+    expect(screen.getByRole('application')).toBe(canvas);
     expect(FakeWebSocket.created).toHaveLength(1);
   });
 
@@ -212,8 +255,9 @@ function openApp(history: HistorySummary = {}): FakeWebSocket {
   return socket;
 }
 
+/** The panel left of the canvas, whose outline shows the open view's elements by name. */
 function modelPanel(): HTMLElement {
-  return screen.getByRole('complementary', { name: 'Model' });
+  return screen.getByRole('complementary', { name: 'Outline and model' });
 }
 
 function historyButton(name: string | RegExp): HTMLElement {
@@ -249,7 +293,7 @@ describe('App, editing live', () => {
 
     act(() => socket.receive(changed({ operations: [renameView('Booking overview')] })));
     expect(within(screen.getByRole('banner')).getByText('Booking overview')).toBeInTheDocument();
-    expect(screen.getByRole('img')).toHaveAccessibleName(
+    expect(screen.getByRole('application')).toHaveAccessibleName(
       /^Booking overview, from the Data flow perspective/,
     );
     expect(historyButton('Undo')).toHaveAttribute('aria-disabled', 'true');
@@ -377,6 +421,33 @@ describe('App, editing live', () => {
     act(() => second.receive(changed({ operations: [drifting] })));
     expect(FakeWebSocket.created).toHaveLength(2);
     expect(screen.getByRole('alert')).toHaveTextContent(/cannot read/i);
+  });
+
+  it('sends the canvas’s commands to the local program, and says why one was refused', async () => {
+    const socket = openApp();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit on the canvas' }));
+    expect(socket.lastSent()).toEqual({
+      type: 'command',
+      command: CANVAS_COMMAND,
+      requestId: expect.any(String) as string,
+    });
+    act(() =>
+      socket.receive(
+        encodeServerMessage({
+          type: 'command/rejected',
+          requestId: socket.lastSent().requestId,
+          problems: [{ code: 'empty-name', message: 'An element needs a name.' }],
+        }),
+      ),
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent('Error: An element needs a name.');
+  });
+
+  it('lets the canvas change nothing once the connection closes', () => {
+    const socket = openApp();
+    expect(screen.getByRole('button', { name: 'Edit on the canvas' })).toBeInTheDocument();
+    act(() => socket.drop());
+    expect(screen.queryByRole('button', { name: 'Edit on the canvas' })).not.toBeInTheDocument();
   });
 
   it('disables undo and redo once the connection closes', () => {

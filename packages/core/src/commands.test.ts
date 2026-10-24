@@ -212,6 +212,41 @@ describe('delete', () => {
     ).toEqual(['id-taken']);
   });
 
+  it('takes deleted elements out of stacking lists, and drops a deleted container’s list', () => {
+    const project = testProject();
+    const [view] = project.views;
+    if (!view) throw new Error('No view.');
+    const stacked: ProjectSnapshot = {
+      ...project,
+      views: [{ ...view, stackingOrder: { system: ['db', 'api'], world: ['client', 'system'] } }],
+    };
+    expect(ok({ type: 'delete', elements: ['db'] }, stacked).state.views[0]?.stackingOrder).toEqual(
+      { system: ['api'], world: ['client', 'system'] },
+    );
+    expect(
+      ok({ type: 'delete', elements: ['system'] }, stacked).state.views[0]?.stackingOrder,
+    ).toEqual({ world: ['client'] });
+    const everything = ok({ type: 'delete', elements: ['system', 'client'] }, stacked).state;
+    expect(everything.views[0]).not.toHaveProperty('stackingOrder');
+  });
+
+  it('rewrites each list once when it deletes many things', () => {
+    const base = testProject();
+    const many = Array.from({ length: 300 }, (_, at) => ({
+      id: `e${at}`,
+      component: 'test.box',
+      name: `E${at}`,
+    }));
+    const crowded: ProjectSnapshot = {
+      ...base,
+      model: { ...base.model, elements: [...base.model.elements, ...many] },
+    };
+    const outcome = ok({ type: 'delete', elements: many.map((element) => element.id) }, crowded);
+    expect(outcome.operations).toEqual([
+      { op: 'replace-all', collection: { name: 'elements' }, items: base.model.elements },
+    ]);
+  });
+
   it('names what it deletes', () => {
     expect(ok({ type: 'delete', relations: ['api-reads-db'] }).label).toBe(
       'Delete the relation "API → DB"',

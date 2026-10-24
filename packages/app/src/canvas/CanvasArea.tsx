@@ -1,50 +1,900 @@
-import { useEffect, useRef, useState } from 'react';
-import type { Scene } from './scene';
-import { SceneCanvas } from './SceneCanvas';
+/**
+ * The canvas area: PixiJS draws the open view imperatively, outside React's state, so that drawing
+ * scales to thousands of shapes. React owns the host element and what sits around the drawing: the
+ * toolbar, the menu that relates two ends, the shape menu, the container chooser, the delete preview
+ * and the question before a change of container, the in-place text editor, the caption beside a
+ * drop, the keyboard help, and the live region that says what the keys select and what changed.
+ *
+ * The keys of the stacking order work wherever the focus is, except while typing: they are taken
+ * for the whole window here, so that ⌘[ and ⌘] never leave the app.
+ */
+import {
+  appearanceOf,
+  definitionsOf,
+  modelIndexOf,
+  nestingTypesInView,
+  previewChangeContainer,
+  previewDelete,
+  type ChangeContainerCommand,
+  type Command,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
+import type { Id, Note, ViewFile } from '@visual-anything/schema';
+import {
+  useEffect,
+  useEffectEvent,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ComponentProps,
+} from 'react';
+import { EMPTY_SELECTION, selectionOf, sizeOf, type Selection } from '../editor/selection';
+import { isTextEntry } from '../live/shortcuts';
+import { RecordingCue } from '../scenarios/RecordingCue';
+import type { ScenarioSession } from '../scenarios/session';
+import { useCanvasRecording } from '../scenarios/useCanvasRecording';
+import type { Camera } from './camera';
+import { CanvasController, type ChangeToConfirm } from './controller';
+import { CanvasToolbar, type AddPlace } from './CanvasToolbar';
+import { ContainerChooser } from './ContainerChooser';
+import { DeleteDialog } from './DeleteDialog';
+import { confirmLabelOf, containerChangeLabel, moveToCommand, needsConfirmation } from './drop';
+import './drop.css';
+import type { Point } from './geometry';
+import { createAtCommand, createBesideCommand, createInsideCommand } from './gestures';
+import { indexScene, type IndexedScene } from './hit';
+import { InlineEditor } from './InlineEditor';
+import { KeyboardHelp } from './KeyboardHelp';
+import { CANVAS_KEYS_HINT } from './keys';
+import { RelationMenu } from './RelationMenu';
+import type { ElementShape, Scene } from './scene';
+import { ShapeMenu } from './ShapeMenu';
+import { restackCommand, stackingActions, stackingShortcut, type StackingMove } from './stacking';
+
+/** Sends a command to the local program; resolves with what it created, or `ok: false` when refused. */
+export type SendCommand = (command: Command) => Promise<{ ok: boolean; created?: Id[] }>;
 
 interface CanvasAreaProps {
+  project: ProjectSnapshot;
+  view: ViewFile;
   /** What to draw. */
   scene: Scene;
   /** The text alternative for the drawing, which screen readers cannot see. */
   label: string;
+  selection: Selection;
+  onSelect: (selection: Selection) => void;
+  /** Sends commands; absent while the project cannot be changed, such as when the connection closed. */
+  onCommand?: SendCommand;
+  /** The shape to bring into sight; each new request moves the camera again. */
+  revealed?: { key: string; request: number };
+  /** The scenario session, whose recording takes clicks on relations while it records. */
+  scenarios?: ScenarioSession;
 }
 
 /**
- * The canvas area: PixiJS draws the scene imperatively, outside React's state, so that drawing can
- * later scale to thousands of shapes. React only owns the host element and the messages around it.
+ * What the in-place editor edits: an element's name, through the shape it was opened on or else its
+ * first shape, or a note's text. `shown` is the name it was drawn for, once it has been drawn.
  */
-export function CanvasArea({ scene, label }: CanvasAreaProps) {
+type Editing =
+  | { kind: 'element'; element: Id; key?: string; shown?: string }
+  | { kind: 'note'; id: Id; shown?: string };
+
+/** What the delete preview deletes: what was selected when it opened. */
+interface Deleting {
+  elements: Id[];
+  relations: Id[];
+  freeShapes: Id[];
+}
+
+/**
+ * A change of container that asks first, because it deletes more than the relations that placed the
+ * shapes: what it sends, and what the history calls it after the change's own label, as for a drop
+ * that moves other shapes along. A drop's waits in the canvas, which shows where its shapes land.
+ */
+interface Changing {
+  command: Command;
+  change: ChangeContainerCommand;
+  rest: string;
+  dropped: boolean;
+}
+
+/** The shape menu: where it opened, for which shape, and the shapes under the pointer there. */
+interface OpenMenu {
+  at: Point;
+  shape: string;
+  under?: string[];
+  /** Counts the openings, so that each one starts again from its first item. */
+  opening: number;
+}
+
+/** The container chooser: for which element, from which container, and how it asks. */
+interface Choosing {
+  element: Id;
+  container?: Id;
+  mode: 'put' | 'move';
+}
+
+const NOTE_SIZE = { width: 220, height: 90 };
+const ARROW_LENGTH = 160;
+const NOT_CONNECTED = 'Visual Anything is not connected, so nothing was changed.';
+
+export function CanvasArea({
+  project,
+  view,
+  scene,
+  label,
+  selection,
+  onSelect,
+  onCommand,
+  revealed,
+  scenarios,
+}: CanvasAreaProps) {
+  const frameRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<SceneCanvas | null>(null);
+  const captionRef = useRef<HTMLDivElement>(null);
+  const addSelect = useRef<HTMLSelectElement>(null);
+  const controllerRef = useRef<CanvasController | null>(null);
   const [failure, setFailure] = useState<string>();
+  // The camera moves on every frame of a pan: only what shows it renders again.
+  const [cameras] = useState(() => new CameraWatch());
+  const [relating, setRelating] = useState<{ from: Id; to: Id; at: Point }>();
+  const [deleting, setDeleting] = useState<Deleting>();
+  const [changing, setChanging] = useState<Changing>();
+  const [menu, setMenu] = useState<OpenMenu>();
+  const [choosing, setChoosing] = useState<Choosing>();
+  // The element the next element added goes inside, set from its menu, for the selection it was set for.
+  const [addTarget, setAddTarget] = useState<{ element: Id; selection: Selection }>();
+  const [editing, setEditing] = useState<Editing>();
+  // Each message counts, so that the same words said again are heard again.
+  const [announcement, setAnnouncement] = useState({ text: '', count: 0 });
+  // Counts the times something holding the focus closed by itself, to give the focus to the canvas.
+  const [closedByItself, setClosedByItself] = useState(0);
+  // The element just added, whose first shape the camera brings into sight once it is drawn.
+  const revealNext = useRef<Id | undefined>(undefined);
+  const hint = useId();
+  // A scene that cannot be indexed cannot be drawn either: the canvas area says so, and the rest of
+  // the app keeps working.
+  const indexing = useMemo(() => {
+    try {
+      return { indexed: indexScene(scene) };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) };
+    }
+  }, [scene]);
+  const indexed = indexing.indexed;
+  const editable = onCommand !== undefined;
+  const latest = useRef({ project, view, indexed, selection, onSelect, onCommand });
+  useLayoutEffect(() => {
+    latest.current = { project, view, indexed, selection, onSelect, onCommand };
+  });
+
+  const announce = (text: string) => setAnnouncement((last) => ({ text, count: last.count + 1 }));
+
+  /** Sends a command; while the project cannot be changed, sends nothing and says so. */
+  const send = async (command: Command): Promise<{ ok: boolean; created?: Id[] }> => {
+    const sendNow = latest.current.onCommand;
+    if (!sendNow) {
+      setAnnouncement((last) => ({ text: NOT_CONNECTED, count: last.count + 1 }));
+      return { ok: false };
+    }
+    return sendNow(command);
+  };
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    const canvas = new SceneCanvas(host, (error) => {
-      setFailure(error instanceof Error ? error.message : String(error));
-    });
-    canvasRef.current = canvas;
+    const caption = captionRef.current;
+    const controller = new CanvasController(
+      host,
+      {
+        select: (next) => latest.current.onSelect(next),
+        command: async (command) => (await send(command)).ok,
+        relate: (from, to, at) => setRelating({ from, to, at }),
+        // The preview opens unless the selection cannot be deleted, as World cannot.
+        remove: () => {
+          const { view: open, selection: selected } = latest.current;
+          setDeleting({
+            elements: [...selected.elements],
+            relations: [...selected.relations],
+            freeShapes: open.freeShapes
+              .filter((shape) => selected.freeShapes.has(shape.id))
+              .map((shape) => shape.id),
+          });
+        },
+        rename: (target) =>
+          setEditing(
+            target.kind === 'element'
+              ? { kind: 'element', element: target.shape.element, key: target.shape.key }
+              : { kind: 'note', id: target.note.id },
+          ),
+        camera: (camera) => cameras.set(camera),
+        failure: (error) => setFailure(error instanceof Error ? error.message : String(error)),
+        announce: (text) => setAnnouncement((last) => ({ text, count: last.count + 1 })),
+        confirmChange: (asked: ChangeToConfirm) => {
+          const { project: now, view: open } = latest.current;
+          setChanging({
+            command: asked.command,
+            change: asked.change,
+            rest: restOfLabel(asked.label, containerChangeLabel(now, open.id, asked.change)),
+            dropped: true,
+          });
+        },
+        menu: (at, shape, under) =>
+          setMenu((last) => ({
+            at,
+            shape: shape.key,
+            ...(under ? { under: under.map((each) => each.key) } : {}),
+            opening: (last?.opening ?? 0) + 1,
+          })),
+      },
+      caption ? { caption } : {},
+    );
+    controllerRef.current = controller;
     return () => {
-      canvas.destroy();
-      canvasRef.current = null;
+      controller.destroy();
+      controllerRef.current = null;
+    };
+    // The controller lives as long as the canvas area; `latest` gives it the current props.
+  }, [cameras]);
+
+  // While a scenario records, clicks on relations record its steps.
+  const recording = useCanvasRecording(controllerRef, scenarios);
+
+  useEffect(() => {
+    if (indexed) controllerRef.current?.update(project, view.id, indexed, editable);
+  }, [project, view.id, indexed, editable]);
+
+  // Once the element just added is drawn, the camera brings its first shape into sight.
+  useEffect(() => {
+    const id = revealNext.current;
+    const first = id === undefined ? undefined : indexed?.byElement.get(id)?.[0];
+    if (!first) return;
+    revealNext.current = undefined;
+    controllerRef.current?.reveal(first.key);
+  }, [indexed]);
+
+  useEffect(() => {
+    controllerRef.current?.setSelection(selection);
+  }, [selection]);
+
+  useEffect(() => {
+    if (revealed) controllerRef.current?.reveal(revealed.key);
+  }, [revealed]);
+
+  // A drop's question that closed without being confirmed sends nothing, and its ghost goes.
+  const dropAsked = changing?.dropped === true;
+  useEffect(() => {
+    if (!dropAsked) controllerRef.current?.resolveChange(false);
+  }, [dropAsked]);
+
+  // What the toolbar, the shape menu and the stacking keys offer for the selection.
+  const stacking = useMemo(
+    () => (indexed ? stackingActions(indexed, project, view.id, selection, editable) : undefined),
+    [indexed, project, view.id, selection, editable],
+  );
+  // The target set from a menu ends once the selection changes.
+  const target = addTarget && addTarget.selection === selection ? addTarget.element : undefined;
+  const adding = useMemo(
+    () => addRuleOf(project, view, indexed, selection, target),
+    [project, view, indexed, selection, target],
+  );
+
+  // The menus and dialogs can change nothing once the project cannot be changed, and the previews
+  // show what deleting or changing would do now: one closes once nothing it deletes is left, or once
+  // the change can no longer be made.
+  const deletion = useMemo(
+    () => (deleting ? deletionOf(project, view, deleting) : undefined),
+    [project, view, deleting],
+  );
+  const changePreview = useMemo(
+    () => (changing ? previewChangeContainer(project, changing.change) : undefined),
+    [project, changing],
+  );
+  const [changeProblem] = changePreview?.problems ?? [];
+  const chosenGone =
+    choosing !== undefined && modelIndexOf(project).element(choosing.element) === undefined;
+  const menuShape = menu ? indexed?.byKey.get(menu.shape) : undefined;
+  if ((relating || deleting || changing || choosing) && !editable) {
+    setRelating(undefined);
+    setDeleting(undefined);
+    setChanging(undefined);
+    setChoosing(undefined);
+    setClosedByItself((count) => count + 1);
+  } else if (deleting && !deletion) {
+    setDeleting(undefined);
+    setClosedByItself((count) => count + 1);
+  } else if (changing && changeProblem) {
+    setChanging(undefined);
+    setClosedByItself((count) => count + 1);
+    announce(changeProblem.message);
+  } else if (chosenGone) {
+    setChoosing(undefined);
+    setClosedByItself((count) => count + 1);
+  } else if (menu && !menuShape) {
+    setMenu(undefined);
+    setClosedByItself((count) => count + 1);
+  }
+
+  // The in-place editor opens once what it edits is drawn, as for what was just created, and closes
+  // once it is no longer drawn, saying so.
+  const editedShape = editing?.kind === 'element' ? shapeToEdit(indexed, editing) : undefined;
+  const editedNote =
+    editing?.kind === 'note' ? scene.notes.find((note) => note.id === editing.id) : undefined;
+  const edited = editedShape?.name ?? (editedNote ? 'The note' : undefined);
+  if (editing && edited !== undefined && editing.shown === undefined) {
+    setEditing({ ...editing, shown: edited });
+  } else if (editing?.shown !== undefined && edited === undefined) {
+    setEditing(undefined);
+    setClosedByItself((count) => count + 1);
+    announce(
+      editing.kind === 'element'
+        ? `${editing.shown} is no longer in this view, so its name was not changed.`
+        : 'The note is no longer in this view, so its text was not changed.',
+    );
+  }
+
+  // What closed by itself held the focus, which fell to the page: the canvas takes it back.
+  useLayoutEffect(() => {
+    if (closedByItself === 0) return;
+    const active = document.activeElement;
+    if (!active || active === document.body) hostRef.current?.focus();
+  }, [closedByItself]);
+
+  const controller = () => controllerRef.current;
+  const focusCanvas = () => hostRef.current?.focus();
+
+  /**
+   * What the user has chosen now, to tell when an answer comes whether they moved on since they
+   * asked: they selected something else, or put the focus elsewhere. An answer that comes after that
+   * changes neither the selection nor the focus.
+   */
+  const intent = () => {
+    const chosen = latest.current.selection;
+    const focused = document.activeElement;
+    return () => latest.current.selection === chosen && document.activeElement === focused;
+  };
+
+  /**
+   * Changes the stacking order of the selection, and says what it did; a move that would change
+   * nothing says why instead.
+   */
+  const restack = (move: StackingMove) => {
+    if (!indexed) return;
+    const { command, reason, done } = restackCommand(
+      indexed,
+      project,
+      view.id,
+      selection,
+      move,
+      editable,
+    );
+    if (!command) {
+      if (reason !== undefined) announce(reason);
+      return;
+    }
+    void send(command).then((result) => {
+      if (result.ok && done !== undefined) announce(done);
+    });
+  };
+
+  // The stacking keys, wherever the focus is: never while typing, nor for a key something else took.
+  const onWindowKeyDown = useEffectEvent((event: KeyboardEvent) => {
+    if (event.defaultPrevented || event.isComposing || isTextEntry(event.target)) return;
+    const move = stackingShortcut({
+      key: event.key,
+      code: event.code,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      altGraph: event.getModifierState('AltGraph'),
+    });
+    if (move === undefined) return;
+    // Taken wherever it is pressed, so that ⌘[ and ⌘] never go back or forward in the browser.
+    event.preventDefault();
+    // A dialog or a menu takes its own keys: the stacking order waits for it to close.
+    const open = relating || deletion || changing || choosing || menu;
+    const inDialog =
+      event.target instanceof Element && event.target.closest('[role="dialog"]') !== null;
+    if (open || inDialog) return;
+    restack(move);
+  });
+  useEffect(() => {
+    const listener = (event: KeyboardEvent) => {
+      onWindowKeyDown(event);
+    };
+    window.addEventListener('keydown', listener);
+    return () => {
+      window.removeEventListener('keydown', listener);
     };
   }, []);
 
-  useEffect(() => {
-    canvasRef.current?.show(scene);
-  }, [scene]);
+  /**
+   * Changes the container of a shape, from the shape menu or the chooser: what it would delete is
+   * worked out first; a change the core would refuse says why, and one that deletes more than the
+   * relation that placed the shape asks first.
+   */
+  const changeContainer = (change: ChangeContainerCommand) => {
+    const preview = previewChangeContainer(project, change);
+    const [problem] = preview.problems;
+    if (problem) {
+      announce(problem.message);
+      return;
+    }
+    if (needsConfirmation(preview)) {
+      setChanging({ command: change, change, rest: '', dropped: false });
+      return;
+    }
+    void sendChange(change, containerChangeLabel(project, view.id, change));
+  };
+
+  /** Sends a change of container, and says what it did once it is done. */
+  const sendChange = async (command: Command, done: string) => {
+    const result = await send(command);
+    if (result.ok) announce(`${done}.`);
+  };
+
+  const add = async (component: Id) => {
+    const canvas = controller();
+    if (!canvas) return;
+    setAddTarget(undefined);
+    let command: Command | undefined;
+    if (adding.beside && indexed) {
+      command = createBesideCommand(indexed, project, view.id, component, adding.beside);
+    } else if (adding.inside !== undefined) {
+      command = createInsideCommand(project, view.id, component, adding.inside);
+    } else {
+      const size = appearanceOf({ component }, definitionsOf(project.packages));
+      const center = canvas.center;
+      command = createAtCommand(
+        project,
+        view.id,
+        component,
+        { x: center.x - size.width / 2, y: center.y - size.height / 2 },
+        undefined,
+      );
+    }
+    if (!command) return;
+    const unchanged = intent();
+    const result = await send(command);
+    const id = result.created?.[0];
+    if (result.ok && id !== undefined && unchanged()) {
+      onSelect(selectionOf([{ kind: 'element', id }]));
+      setEditing({ kind: 'element', element: id });
+      const first = latest.current.indexed?.byElement.get(id)?.[0];
+      if (first) controller()?.reveal(first.key);
+      else revealNext.current = id;
+    }
+  };
+
+  const addNote = async () => {
+    const center = controller()?.center;
+    if (!center) return;
+    const unchanged = intent();
+    const result = await send({
+      type: 'create-free-shape',
+      view: view.id,
+      shape: {
+        kind: 'note',
+        x: Math.round(center.x - NOTE_SIZE.width / 2),
+        y: Math.round(center.y - NOTE_SIZE.height / 2),
+        ...NOTE_SIZE,
+        text: 'Note',
+      },
+    });
+    const id = result.created?.[0];
+    if (result.ok && id !== undefined && unchanged()) {
+      onSelect(selectionOf([{ kind: 'free-shape', id }]));
+      setEditing({ kind: 'note', id });
+    }
+  };
+
+  const addArrow = async () => {
+    const center = controller()?.center;
+    if (!center) return;
+    const y = Math.round(center.y);
+    const unchanged = intent();
+    const result = await send({
+      type: 'create-free-shape',
+      view: view.id,
+      shape: {
+        kind: 'arrow',
+        from: { x: Math.round(center.x - ARROW_LENGTH / 2), y },
+        to: { x: Math.round(center.x + ARROW_LENGTH / 2), y },
+      },
+    });
+    const id = result.created?.[0];
+    if (result.ok && id !== undefined && unchanged()) {
+      onSelect(selectionOf([{ kind: 'free-shape', id }]));
+    }
+  };
+
+  const relate = async (relationType: Id) => {
+    if (!relating) return;
+    const { from, to } = relating;
+    // The menu goes, and the focus it held comes back to the canvas now, not when the answer comes.
+    setRelating(undefined);
+    focusCanvas();
+    const unchanged = intent();
+    const result = await send({ type: 'create-relation', relation: { relationType, from, to } });
+    const id = result.created?.[0];
+    if (result.ok && id !== undefined && unchanged()) {
+      onSelect(selectionOf([{ kind: 'relation', id }]));
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deletion) return;
+    const { preview, freeShapes } = deletion;
+    setDeleting(undefined);
+    focusCanvas();
+    const commands: Command[] = [];
+    if (preview.elements.length > 0 || preview.relations.length > 0) {
+      const cascaded = new Set(preview.cascaded);
+      commands.push({
+        type: 'delete',
+        elements: preview.elements,
+        relations: preview.relations.filter((id) => !cascaded.has(id)),
+      });
+    }
+    if (freeShapes.length > 0)
+      commands.push({ type: 'delete-free-shapes', view: view.id, ids: freeShapes });
+    const command: Command | undefined =
+      commands.length > 1
+        ? { type: 'batch', label: 'Delete the selection', commands }
+        : commands[0];
+    if (!command) return;
+    const unchanged = intent();
+    const result = await send(command);
+    if (result.ok && unchanged()) onSelect(EMPTY_SELECTION);
+  };
+
+  /** How the history names the change asked about, from the project as it is now. */
+  const changeLabel = changing
+    ? `${containerChangeLabel(project, view.id, changing.change)}${changing.rest}`
+    : '';
+
+  const confirmChange = () => {
+    if (!changing) return;
+    setChanging(undefined);
+    focusCanvas();
+    // A drop's is sent by the canvas, which shows where its shapes land until it comes back.
+    if (changing.dropped) controller()?.resolveChange(true);
+    else void sendChange(changing.command, changeLabel);
+  };
+
+  const closeMenu = () => {
+    setMenu(undefined);
+    focusCanvas();
+  };
+
+  /**
+   * Closes the in-place editor. Closed with Enter or Escape, it gives the focus back to the canvas;
+   * closed because the focus went elsewhere, it leaves the focus there.
+   */
+  const closeEditor = () => {
+    setEditing(undefined);
+    if (frameRef.current?.contains(document.activeElement)) focusCanvas();
+  };
 
   return (
-    <div className="canvas-frame">
-      <div ref={hostRef} className="canvas-host" role="img" aria-label={label} />
-      {failure !== undefined ? (
+    <div ref={frameRef} className="canvas-frame">
+      <ZoomedToolbar
+        cameras={cameras}
+        project={project}
+        editable={editable}
+        onAdd={(component) => void add(component)}
+        onAddNote={() => void addNote()}
+        onAddArrow={() => void addArrow()}
+        onZoom={(factor) => controller()?.zoomBy(factor)}
+        onFit={() => controller()?.fit()}
+        {...(adding.place ? { addPlace: adding.place } : {})}
+        {...(stacking ? { stacking } : {})}
+        onRestack={restack}
+        addSelect={addSelect}
+        onAddLeave={() => setAddTarget(undefined)}
+      />
+      <div
+        ref={hostRef}
+        className="canvas-host"
+        // The canvas takes its keys itself, so screen readers pass them on; the outline reads it.
+        role="application"
+        aria-roledescription="canvas"
+        aria-label={label}
+        aria-describedby={hint}
+        tabIndex={0}
+      />
+      <div ref={captionRef} className="canvas-drop-caption" aria-hidden="true" />
+      <p id={hint} className="visually-hidden">
+        {CANVAS_KEYS_HINT}
+      </p>
+      <div role="status" aria-label="Selection" className="visually-hidden">
+        {announcement.text}
+        {announcement.count % 2 === 1 ? ' ' : ''}
+      </div>
+      <KeyboardHelp />
+      {recording && <RecordingCue />}
+      {relating && (
+        <RelationMenu
+          project={project}
+          from={relating.from}
+          to={relating.to}
+          at={relating.at}
+          onChoose={(relationType) => void relate(relationType)}
+          onClose={() => {
+            setRelating(undefined);
+            focusCanvas();
+          }}
+        />
+      )}
+      {menu && menuShape && indexed && stacking && (
+        <ShapeMenu
+          key={menu.opening}
+          indexed={indexed}
+          project={project}
+          viewId={view.id}
+          selection={selection}
+          shape={menuShape}
+          at={menu.at}
+          {...(menu.under
+            ? { under: menu.under.flatMap((key) => indexed.byKey.get(key) ?? []) }
+            : {})}
+          stacking={stacking}
+          editable={editable}
+          onRestack={(move) => {
+            // A move that would change nothing says why, and leaves the menu open for another.
+            if (stacking[move].enabled) closeMenu();
+            restack(move);
+          }}
+          onChange={(change) => {
+            closeMenu();
+            changeContainer(change);
+          }}
+          onChooseContainer={(mode) => {
+            setMenu(undefined);
+            setChoosing({
+              element: menuShape.element,
+              ...(menuShape.container === undefined ? {} : { container: menuShape.container }),
+              mode,
+            });
+          }}
+          onAddInside={(element) => {
+            setMenu(undefined);
+            setAddTarget({ element, selection });
+            const select = addSelect.current;
+            select?.focus();
+            try {
+              select?.showPicker?.();
+            } catch {
+              // Where the browser does not allow it, the list opens from the keyboard.
+            }
+          }}
+          onSelectShape={(other) => {
+            closeMenu();
+            onSelect(selectionOf([{ kind: 'element', id: other.element }]));
+            controller()?.reveal(other.key);
+          }}
+          onClose={closeMenu}
+        />
+      )}
+      {choosing && (
+        <ContainerChooser
+          project={project}
+          viewId={view.id}
+          element={choosing.element}
+          mode={choosing.mode}
+          onChoose={(to) => {
+            setChoosing(undefined);
+            focusCanvas();
+            changeContainer(moveToCommand(view.id, choosing, to));
+          }}
+          onCancel={() => {
+            setChoosing(undefined);
+            focusCanvas();
+          }}
+        />
+      )}
+      {deletion && (
+        <DeleteDialog
+          project={project}
+          preview={deletion.preview}
+          freeShapes={deletion.freeShapes.length}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => {
+            setDeleting(undefined);
+            focusCanvas();
+          }}
+        />
+      )}
+      {changing && changePreview && (
+        <DeleteDialog
+          project={project}
+          preview={changePreview}
+          freeShapes={0}
+          action={{
+            title: `${changeLabel}?`,
+            confirmLabel: confirmLabelOf(project, changing.change),
+            leaving: changePreview.leaving,
+            withData: changePreview.withData,
+          }}
+          onConfirm={confirmChange}
+          onCancel={() => {
+            setChanging(undefined);
+            focusCanvas();
+          }}
+        />
+      )}
+      {editing?.kind === 'element' && editedShape && (
+        <PlacedEditor
+          // Kept while the element's shape changes, as when it moves into another container.
+          key={`element ${editing.element}`}
+          cameras={cameras}
+          rect={editedShape.rect}
+          value={editedShape.name}
+          multiline={false}
+          label={`Name of ${editedShape.name}`}
+          onCommit={(name) => {
+            closeEditor();
+            void send({ type: 'update-element', id: editedShape.element, changes: { name } });
+          }}
+          onCancel={closeEditor}
+        />
+      )}
+      {editing?.kind === 'note' && editedNote && (
+        <PlacedEditor
+          key={`note ${editedNote.id}`}
+          cameras={cameras}
+          rect={editedNote.rect}
+          value={editedNote.text}
+          multiline
+          label="Text of the note"
+          onCommit={(text) => {
+            closeEditor();
+            const note = view.freeShapes.find(
+              (shape): shape is Note => shape.id === editedNote.id && shape.kind === 'note',
+            );
+            if (note)
+              void send({ type: 'update-free-shape', view: view.id, shape: { ...note, text } });
+          }}
+          onCancel={closeEditor}
+        />
+      )}
+      {(failure ?? indexing.error) !== undefined ? (
         <p className="canvas-message canvas-failure" role="alert">
-          The canvas could not draw this view: {failure}
+          The canvas could not draw this view: {failure ?? indexing.error}
         </p>
       ) : (
         scene.bounds === undefined && <p className="canvas-message">This view has no shapes yet.</p>
       )}
     </div>
   );
+}
+
+/**
+ * Where "Add element" puts the next element, and how the toolbar says it:
+ * 1. inside the element set from its menu with Add inside "X"…, whatever it holds;
+ * 2. inside the one element selected, when its first shape holds contents;
+ * 3. beside the first shape of the one element selected, when it holds nothing, in the container it
+ *    sits in or directly in World, so that adding one after another makes a row;
+ * 4. otherwise directly in World, at the middle of the canvas.
+ * In a view arranged by no relation type that nests, always directly in World.
+ */
+function addRuleOf(
+  project: ProjectSnapshot,
+  view: ViewFile,
+  indexed: IndexedScene | undefined,
+  selection: Selection,
+  target: Id | undefined,
+): { inside?: Id; beside?: ElementShape; place?: AddPlace } {
+  const [selected] = selection.elements;
+  const first =
+    sizeOf(selection) === 1 && selected !== undefined
+      ? indexed?.byElement.get(selected)?.[0]
+      : undefined;
+  if (nestingTypesInView(project, view).length === 0) return first ? { beside: first } : {};
+  const index = modelIndexOf(project);
+  const nameOf = (id: Id) => index.element(id)?.name ?? id;
+  const inside = (container: Id, title: string): { inside: Id; place: AddPlace } => ({
+    inside: container,
+    place: {
+      option: `Add inside "${nameOf(container)}"…`,
+      label: `Add an element inside "${nameOf(container)}"`,
+      title,
+    },
+  });
+  const insideItself = (container: Id) =>
+    inside(
+      container,
+      `Adds the element inside "${nameOf(container)}". With nothing selected, elements are added directly in World.`,
+    );
+  if (target !== undefined && index.element(target)) return insideItself(target);
+  if (!first || selected === undefined) return {};
+  if (first.holdsContents) return insideItself(selected);
+  if (first.container === undefined) {
+    return {
+      beside: first,
+      place: {
+        option: 'Add element…',
+        label: 'Add an element',
+        title: `Adds the element directly in World, beside "${nameOf(selected)}". To add inside "${nameOf(selected)}" itself, use Add inside "${nameOf(selected)}"… in its menu or in the inspector.`,
+      },
+    };
+  }
+  return {
+    ...inside(
+      first.container,
+      `Adds the element inside "${nameOf(first.container)}", where "${nameOf(selected)}" sits. To add inside "${nameOf(selected)}" itself, use Add inside "${nameOf(selected)}"… in its menu or in the inspector.`,
+    ),
+    beside: first,
+  };
+}
+
+/** What a drop's label says after the label of its change, such as ", and move 2 other shapes". */
+function restOfLabel(label: string, changeLabel: string): string {
+  return label.startsWith(changeLabel) ? label.slice(changeLabel.length) : '';
+}
+
+/**
+ * What deleting the targets would do now, with the free shapes still in the view; undefined when
+ * none of them is left, or when they cannot be deleted.
+ */
+function deletionOf(project: ProjectSnapshot, view: ViewFile, targets: Deleting) {
+  const index = modelIndexOf(project);
+  const inView = new Set(view.freeShapes.map((shape) => shape.id));
+  const elements = targets.elements.filter((id) => index.element(id) !== undefined);
+  const relations = targets.relations.filter((id) => index.relation(id) !== undefined);
+  const freeShapes = targets.freeShapes.filter((id) => inView.has(id));
+  if (elements.length === 0 && relations.length === 0 && freeShapes.length === 0) return undefined;
+  const preview = previewDelete(project, { elements, relations });
+  return preview.problems.length === 0 ? { preview, freeShapes } : undefined;
+}
+
+/** The shape an element's name is edited on: the one it was opened on, or else its first one. */
+function shapeToEdit(
+  indexed: IndexedScene | undefined,
+  editing: Extract<Editing, { kind: 'element' }>,
+): ElementShape | undefined {
+  const opened = editing.key === undefined ? undefined : indexed?.byKey.get(editing.key);
+  return opened ?? indexed?.byElement.get(editing.element)?.[0];
+}
+
+/** The camera, kept outside React's state, for the few things that show it to follow it. */
+class CameraWatch {
+  camera: Camera | undefined;
+  private readonly listeners = new Set<() => void>();
+
+  set(camera: Camera): void {
+    this.camera = camera;
+    for (const listener of this.listeners) listener();
+  }
+
+  readonly subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+
+  readonly current = (): Camera | undefined => this.camera;
+
+  readonly scale = (): number | undefined => this.camera?.scale;
+}
+
+/** The toolbar, which shows the zoom: it renders again when the zoom changes, not on every pan. */
+function ZoomedToolbar({
+  cameras,
+  ...props
+}: Omit<ComponentProps<typeof CanvasToolbar>, 'scale'> & { cameras: CameraWatch }) {
+  const scale = useSyncExternalStore(cameras.subscribe, cameras.scale);
+  return <CanvasToolbar {...props} scale={scale} />;
+}
+
+/** The in-place editor, laid over the canvas where the camera shows what it edits, as it moves. */
+function PlacedEditor({
+  cameras,
+  ...props
+}: Omit<ComponentProps<typeof InlineEditor>, 'camera'> & { cameras: CameraWatch }) {
+  const camera = useSyncExternalStore(cameras.subscribe, cameras.current);
+  return camera ? <InlineEditor {...props} camera={camera} /> : null;
 }

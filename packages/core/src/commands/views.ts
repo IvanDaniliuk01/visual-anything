@@ -1,7 +1,16 @@
 /** Commands on views: the views themselves, where their shapes sit, and their free shapes. */
 import type { FreeShape, Id, ShapePosition, ViewFile } from '@visual-anything/schema';
 import { slug } from '../ids';
-import { positionKey, type Collection, type Item, type ViewProperties } from '../operations';
+import { nestingTypesInView } from '../containers';
+import { appearanceOf } from '../definitions';
+import {
+  BULK,
+  keyOf,
+  positionKey,
+  type Collection,
+  type Item,
+  type ViewProperties,
+} from '../operations';
 import {
   compact,
   count,
@@ -23,9 +32,6 @@ import type {
   UpdateFreeShapeCommand,
   UpdateViewCommand,
 } from './types';
-
-/** Above this many changes to one list, a command replaces the whole list in one operation. */
-const BULK = 200;
 
 export function createView(draft: Draft, command: CreateViewCommand): string {
   const { view } = command;
@@ -99,7 +105,8 @@ export function setPositions(draft: Draft, command: SetPositionsCommand): string
  */
 export function putPositions(draft: Draft, viewId: Id, positions: readonly ShapePosition[]): void {
   const view = draft.view(viewId);
-  const nesting = new Set(view.nestingRelationTypes);
+  // The same rule as the canvas: the types the view lists that a package in use defines and that nest.
+  const nesting = new Set(nestingTypesInView(draft.state, view));
   const keys = new Set<string>();
   const checked = positions.map((position) => {
     const element = draft.element(position.element);
@@ -120,6 +127,13 @@ export function putPositions(draft: Draft, viewId: Id, positions: readonly Shape
         reject(
           'unknown-position',
           `"${element.name}" does not sit inside "${container.name}" in the view "${view.name}".`,
+          [element.id, container.id],
+        );
+      }
+      if (appearanceOf(container, draft.definitions).contentsAsRows) {
+        reject(
+          'position-of-row',
+          `"${element.name}" is a row of "${container.name}", which places its rows in the model's order; a row has no position of its own.`,
           [element.id, container.id],
         );
       }
@@ -221,8 +235,7 @@ function upsert<T extends Item>(
   current: readonly T[],
   items: readonly T[],
 ): void {
-  const keyOfItem = (item: T) =>
-    collection.name === 'positions' ? positionKey(item as ShapePosition) : (item as { id: Id }).id;
+  const keyOfItem = (item: T) => keyOf(collection, item);
   if (items.length > BULK) {
     const byKey = new Map(items.map((item) => [keyOfItem(item), item]));
     const next: T[] = current.map((item) => byKey.get(keyOfItem(item)) ?? item);
@@ -243,11 +256,12 @@ function upsert<T extends Item>(
   }
 }
 
-/** A view without its shapes. */
-function viewProperties(view: ViewFile): ViewProperties {
+/** A view without its shapes and their stacking order: what `set-view` replaces. */
+export function viewProperties(view: ViewFile): ViewProperties {
   const properties: Partial<ViewFile> = { ...view };
   delete properties.positions;
   delete properties.freeShapes;
+  delete properties.stackingOrder;
   return properties as ViewProperties;
 }
 

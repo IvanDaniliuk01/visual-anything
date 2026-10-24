@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { containmentCycles, limitWarnings, previewDelete, wouldFormCycle } from './rules';
 import { definitionsIn, modelIndexOf } from './state';
+import type { ProjectSnapshot } from './snapshot';
 import { testProject } from './test/fixtures';
 
 describe('wouldFormCycle', () => {
@@ -98,5 +99,113 @@ describe('previewDelete', () => {
       'unknown-element',
       'unknown-relation',
     ]);
+  });
+
+  describe('of stacking orders', () => {
+    const stacked = (): ProjectSnapshot => {
+      const project = testProject();
+      const [view] = project.views;
+      if (!view) throw new Error('No view.');
+      return {
+        ...project,
+        views: [{ ...view, stackingOrder: { system: ['db', 'api'], world: ['client', 'system'] } }],
+      };
+    };
+
+    it('lists each id a delete takes out of a list, once', () => {
+      expect(previewDelete(stacked(), { elements: ['db'] }).stacking).toEqual([
+        { view: 'overview', container: 'system', element: 'db' },
+      ]);
+      // Deleting a container takes its whole list, and its id out of the list it sits in.
+      expect(previewDelete(stacked(), { elements: ['system', 'db'] }).stacking).toEqual([
+        { view: 'overview', container: 'system', element: 'db' },
+        { view: 'overview', container: 'system', element: 'api' },
+        { view: 'overview', container: 'world', element: 'system' },
+      ]);
+    });
+
+    it('takes nothing out when a relation is deleted, nesting or not', () => {
+      expect(previewDelete(stacked(), { relations: ['api-in-system'] }).stacking).toEqual([]);
+    });
+  });
+
+  describe('what the deleted elements hold', () => {
+    /**
+     * Two tables drawn as rows: "orders" holds id and total, "invoices" holds tenant_id with orders;
+     * total holds a note, and a server outside both holds total too in one case.
+     */
+    const tables = (shared = false): ProjectSnapshot => {
+      const project = JSON.parse(JSON.stringify(testProject())) as ProjectSnapshot;
+      const own = project.packages[0];
+      own?.components.push({
+        id: 'test.table',
+        name: 'Table',
+        derivesFrom: 'essence',
+        appearance: { contentsAsRows: true },
+      });
+      project.model.elements.push(
+        { id: 'orders', component: 'test.table', name: 'orders' },
+        { id: 'invoices', component: 'test.table', name: 'invoices' },
+        { id: 'order-id', component: 'test.box', name: 'id' },
+        { id: 'total', component: 'test.box', name: 'total' },
+        { id: 'tenant', component: 'test.box', name: 'tenant_id' },
+        { id: 'note', component: 'test.box', name: 'note' },
+      );
+      project.model.relations.push(
+        { id: 'r1', relationType: 'test.inside', from: 'order-id', to: 'orders' },
+        { id: 'r2', relationType: 'test.inside', from: 'total', to: 'orders' },
+        { id: 'r3', relationType: 'test.inside', from: 'tenant', to: 'orders' },
+        { id: 'r4', relationType: 'test.inside', from: 'tenant', to: 'invoices' },
+        { id: 'r5', relationType: 'test.inside', from: 'note', to: 'total' },
+        ...(shared ? [{ id: 'r6', relationType: 'test.inside', from: 'total', to: 'system' }] : []),
+      );
+      return project;
+    };
+
+    it('groups the rows nothing else holds apart from what is also held elsewhere', () => {
+      expect(previewDelete(tables(), { elements: ['orders'] }, 'overview').contents).toEqual([
+        { element: 'order-id', group: 'rows' },
+        { element: 'total', group: 'rows' },
+        { element: 'tenant', group: 'other', elsewhere: 'invoices' },
+        // Inside a row, so it goes with the row.
+        { element: 'note', group: 'rows' },
+      ]);
+      expect(previewDelete(tables(true), { elements: ['orders'] }, 'overview').contents).toEqual([
+        { element: 'order-id', group: 'rows' },
+        { element: 'total', group: 'other', elsewhere: 'system' },
+        { element: 'tenant', group: 'other', elsewhere: 'invoices' },
+        // Total stays, and keeps holding it.
+        { element: 'note', group: 'other', elsewhere: 'total' },
+      ]);
+    });
+
+    it('counts nothing as rows without a view, or in a view that does not draw them', () => {
+      expect(
+        previewDelete(tables(), { elements: ['orders'] }).contents.map((each) => each.group),
+      ).toEqual(['other', 'other', 'other', 'other']);
+      const notNesting = tables();
+      const view = notNesting.views[0];
+      if (view) view.nestingRelationTypes = [];
+      expect(
+        previewDelete(notNesting, { elements: ['orders'] }, 'overview').contents.map(
+          (each) => each.group,
+        ),
+      ).toEqual(['other', 'other', 'other', 'other']);
+    });
+
+    it('lists nothing the deletion already removes, and nothing for a plain container', () => {
+      expect(
+        previewDelete(tables(), { elements: ['orders', 'invoices', 'tenant'] }, 'overview')
+          .contents,
+      ).toEqual([
+        { element: 'order-id', group: 'rows' },
+        { element: 'total', group: 'rows' },
+        { element: 'note', group: 'rows' },
+      ]);
+      expect(previewDelete(testProject(), { elements: ['system'] }, 'overview').contents).toEqual([
+        { element: 'api', group: 'other' },
+        { element: 'db', group: 'other' },
+      ]);
+    });
   });
 });
