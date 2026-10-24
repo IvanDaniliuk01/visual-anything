@@ -342,6 +342,38 @@ describe('CanvasRenderer selection marks', () => {
   });
 });
 
+describe('CanvasRenderer labels', () => {
+  it('shows the labels written before again a few hundred a frame when zooming back in', async () => {
+    const indexed = indexScene(buildScene(syntheticProject({ elements: 1200 }), 'everything'));
+    // Big enough to show the whole view at a scale that shows names.
+    const renderer = await started({ width: 8000, height: 6000 });
+    renderer.show(indexed);
+    const named = { x: 0, y: 0, scale: 0.6 };
+    renderer.setCamera(named);
+    settleFrames(renderer, 200);
+    const shownLabels = () =>
+      [...inside(renderer).tiles.values()].reduce((sum, tile) => {
+        const written = (tile as unknown as { labels?: Container }).labels;
+        return sum + (written?.visible ? written.children.length : 0);
+      }, 0);
+    const all = shownLabels();
+    expect(all).toBeGreaterThan(1000);
+    renderer.setCamera({ ...named, scale: 0.3 });
+    renderer.renderNow();
+    expect(shownLabels()).toBe(0);
+    labels = 0;
+    renderer.setCamera(named);
+    renderer.renderNow();
+    const first = shownLabels();
+    expect(first).toBeGreaterThan(0);
+    expect(first).toBeLessThan(all);
+    settleFrames(renderer, 10);
+    expect(shownLabels()).toBe(all);
+    // Shown again, not written again.
+    expect(labels).toBe(0);
+  });
+});
+
 describe('CanvasRenderer selection marks of thousands of shapes', () => {
   it('draws them a chunk a frame, so that no frame draws them all', async () => {
     const project = syntheticProject({ elements: 4500 });
