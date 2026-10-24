@@ -76,7 +76,7 @@ const MARKS_WHILE_MOVING = 1000;
  * Selection marks are drawn in chunks of this many, and a frame shows this many new chunks: marking
  * thousands of shapes takes a few short frames rather than one long one.
  */
-const MARKS_PER_CHUNK = 1000;
+const MARKS_PER_CHUNK = 500;
 const MARK_CHUNKS_PER_FRAME = 1;
 /** Up to this many dragged shapes are drawn in full wherever they are; beyond it, only those on screen. */
 const DRAG_DETAIL = 400;
