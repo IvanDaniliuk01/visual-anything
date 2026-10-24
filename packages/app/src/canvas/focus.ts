@@ -1,9 +1,17 @@
 /**
  * What the canvas's menus and dialogs share about the keyboard and the focus: in a menu, the arrow
  * keys move through its items and a press outside it closes it; a modal dialog keeps the focus inside
- * it while it is open.
+ * it while it is open; and a menu opened near the canvas's edge moves in, so that every item shows.
  */
-import { useEffect, useEffectEvent, type KeyboardEvent, type RefObject } from 'react';
+import {
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  type KeyboardEvent,
+  type RefObject,
+} from 'react';
+import type { Point } from './geometry';
 
 /**
  * Moves through the items of a menu, for its `keydown`: Up and Down to the previous and the next one,
@@ -60,6 +68,24 @@ export function useOutsidePress(
       document.removeEventListener('pointerdown', listener, true);
     };
   }, [element]);
+}
+
+/**
+ * The ref of a menu placed at `at`, in its frame's coordinates: moved in from the frame's right and
+ * bottom edges as far as it needs to show whole, and never past its left and top ones.
+ */
+export function useMenuInsideFrame<T extends HTMLElement>(at: Point): RefObject<T | null> {
+  const menu = useRef<T>(null);
+  useLayoutEffect(() => {
+    const element = menu.current;
+    const frame = element?.offsetParent;
+    if (!element || !(frame instanceof HTMLElement)) return;
+    const left = Math.max(0, Math.min(at.x, frame.clientWidth - element.offsetWidth));
+    const top = Math.max(0, Math.min(at.y, frame.clientHeight - element.offsetHeight));
+    element.style.left = `${left}px`;
+    element.style.top = `${top}px`;
+  }, [at.x, at.y]);
+  return menu;
 }
 
 /** What can take the focus by Tab. */
