@@ -13,6 +13,7 @@ import {
 } from '@visual-anything/core';
 import type { ModelFile } from '@visual-anything/schema';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { WORKER_POLICY, pagePolicy } from './policies';
 import { startServer, type RunningServer } from './server';
 import { openSession, type Session } from './session';
 import {
@@ -88,10 +89,21 @@ afterAll(async () => {
   await rm(folder, { recursive: true, force: true, maxRetries: 10 });
 });
 
+/**
+ * The headers every response carries. Its content security policy is the page's for HTML, the
+ * worker policy for JavaScript, and `frame-ancestors 'none'` for everything else.
+ */
 function expectSecurityHeaders(reply: Reply) {
   expect(reply.headers['x-content-type-options']).toBe('nosniff');
   expect(reply.headers['referrer-policy']).toBe('no-referrer');
-  expect(reply.headers['content-security-policy']).toBe("frame-ancestors 'none'");
+  const type = reply.headers['content-type'] ?? '';
+  expect(reply.headers['content-security-policy']).toBe(
+    type.startsWith('text/html')
+      ? pagePolicy(server.port, { trustedTypes: true, scriptHashes: [] })
+      : type.startsWith('text/javascript')
+        ? WORKER_POLICY
+        : "frame-ancestors 'none'",
+  );
   expect(reply.headers['x-frame-options']).toBe('DENY');
 }
 
