@@ -87,7 +87,7 @@ const DRAG_DETAIL = 400;
  */
 const REGION = 4;
 /** Room kept around the scene when fitting it, in screen pixels. */
-const FIT_MARGIN = 32;
+export const FIT_MARGIN = 32;
 /**
  * How long the camera must rest before text is drawn again at the new resolution and the tiles around
  * the screen get ready.
