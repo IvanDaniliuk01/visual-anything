@@ -195,6 +195,14 @@
         },
         "text": {
           "type": "string"
+        },
+        "fill": {
+          "$ref": "#/definitions/Color",
+          "description": "Its fill; without one, the theme's note color."
+        },
+        "stroke": {
+          "$ref": "#/definitions/Color",
+          "description": "Its stroke; without one, the theme's."
         }
       },
       "required": [
@@ -208,6 +216,11 @@
       ],
       "additionalProperties": false,
       "description": "A free shape that holds text."
+    },
+    "Color": {
+      "type": "string",
+      "description": "A color written as `#RRGGBB`: no alpha, no short form and no names. Files may write the digits in either case; the program writes new colors in capitals and keeps a color's spelling when it is set to the same color again.",
+      "pattern": "^#[0-9a-fA-F]{6}$"
     },
     "Arrow": {
       "type": "object",
@@ -224,6 +237,10 @@
         },
         "to": {
           "$ref": "#/definitions/Point"
+        },
+        "stroke": {
+          "$ref": "#/definitions/Color",
+          "description": "Its color; without one, the theme's arrow color."
         }
       },
       "required": [
