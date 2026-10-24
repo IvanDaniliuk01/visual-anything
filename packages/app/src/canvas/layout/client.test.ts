@@ -54,7 +54,7 @@ const input: LayoutInput = {
     { key: 'a', element: 'a', parent: -1, free: true, x: 0, y: 0, width: 160, height: 72 },
     { key: 'b', element: 'b', parent: -1, free: true, x: 0, y: 0, width: 160, height: 72 },
   ],
-  edges: [{ relation: 'r', from: 0, to: 1 }],
+  relations: [{ relation: 'r', from: 0, to: 1 }],
   obstacles: [],
 };
 

@@ -52,7 +52,7 @@ console.log(
   `${'  of which ELK'.padEnd(44)} ${result.stats.elkMs.toFixed(1).padStart(9)} ms in ${result.stats.elkRuns} runs`,
 );
 console.log(
-  `  ${result.stats.levels} levels, ${result.stats.shapes} shapes, ${result.stats.edges} relations given to ELK`,
+  `  ${result.stats.levels} levels, ${result.stats.shapes} shapes, ${result.stats.relations} relations given to ELK`,
 );
 
 timed('main thread: copy of the result back', () => structuredClone(result));
