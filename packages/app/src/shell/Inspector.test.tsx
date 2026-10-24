@@ -1365,17 +1365,58 @@ describe('Inspector, in this view', () => {
     expect(within(here).getByRole('button', { name: 'Move to…' })).toHaveFocus();
     expect(send).not.toHaveBeenCalled();
 
-    await settle(() => fireEvent.click(within(here).getByRole('button', { name: 'Take out' })));
+    // Moved to another container, chosen by name.
+    fireEvent.click(within(section()).getByRole('button', { name: 'Move to…' }));
+    const into = within(screen.getByRole('dialog', { name: 'Move "WhatsApp channel" to…' }));
+    fireEvent.change(into.getByRole('combobox'), { target: { value: 'sched' } });
+    expect(into.getAllByRole('option').map((option) => option.textContent)).toEqual(['Scheduling']);
+    await settle(() => fireEvent.keyDown(into.getByRole('combobox'), { key: 'Enter' }));
     expect(sent(send)).toEqual([
       {
         type: 'change-container',
         view: 'system-overview',
-        shapes: [
-          { element: 'whatsapp', from: 'clinic-booking', at: { x: 1260, y: 40 }, pinned: false },
-        ],
+        to: 'scheduling',
+        shapes: [{ element: 'whatsapp', from: 'clinic-booking' }],
       },
     ]);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(within(section()).getByText('In "Scheduling"')).toBeInTheDocument();
+    expect(within(section()).getByRole('status')).toHaveTextContent(
+      'Move "WhatsApp channel" from "Clinic booking" into "Scheduling".',
+    );
+
+    // Taken out, one container out: into Clinic booking, beside Scheduling.
+    await settle(() =>
+      fireEvent.click(within(section()).getByRole('button', { name: 'Take out' })),
+    );
+    expect(sent(send).at(-1)).toEqual({
+      type: 'change-container',
+      view: 'system-overview',
+      to: 'clinic-booking',
+      shapes: [
+        {
+          element: 'whatsapp',
+          from: 'scheduling',
+          at: { x: 500 + 440 + 40, y: 60 },
+          pinned: false,
+        },
+      ],
+    });
+    expect(within(section()).getByText('In "Clinic booking"')).toBeInTheDocument();
+
+    // Moved to World, which the chooser lists first.
+    fireEvent.click(within(section()).getByRole('button', { name: 'Move to…' }));
+    const out = within(screen.getByRole('dialog', { name: 'Move "WhatsApp channel" to…' }));
+    expect(out.getAllByRole('option')[0]).toHaveTextContent('Directly in World');
+    await settle(() => fireEvent.click(out.getByRole('option', { name: 'Directly in World' })));
+    expect(sent(send).at(-1)).toEqual({
+      type: 'change-container',
+      view: 'system-overview',
+      shapes: [{ element: 'whatsapp', from: 'clinic-booking' }],
+    });
+    expect(sent(send)).toHaveLength(3);
     expect(within(section()).getByText('Directly in World')).toBeInTheDocument();
+    expect(within(section()).queryByRole('button', { name: 'Take out' })).not.toBeInTheDocument();
   });
 
   it('asks before a change that deletes more than the relation that places the shape', async () => {
