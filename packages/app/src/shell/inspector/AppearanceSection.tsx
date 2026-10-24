@@ -78,6 +78,7 @@ export function AppearanceSection({
           {(id, describedBy) => (
             <ColorControl
               id={id}
+              label="Fill"
               value={shown.fill}
               disabled={disabled}
               describedBy={describedBy}
@@ -89,6 +90,7 @@ export function AppearanceSection({
           {(id, describedBy) => (
             <ColorControl
               id={id}
+              label="Stroke"
               value={shown.stroke}
               disabled={disabled}
               describedBy={describedBy}
