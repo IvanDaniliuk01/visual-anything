@@ -112,6 +112,22 @@ describe('ShapeMenu', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('stays inside the canvas, opened near its bottom or its right side', () => {
+    const frame = document.createElement('div');
+    Object.defineProperty(frame, 'clientWidth', { configurable: true, value: 600 });
+    Object.defineProperty(frame, 'clientHeight', { configurable: true, value: 400 });
+    vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockReturnValue(frame);
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(200);
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(300);
+    try {
+      const { menu } = open(withCalendar(), 'calendar', { at: { x: 550, y: 350 } });
+      expect(menu.style.left).toBe('400px');
+      expect(menu.style.top).toBe('100px');
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+
   it('keeps the browser’s menu from opening over it, as the menu key’s own event would', () => {
     const { menu } = open(withCalendar(), 'calendar');
     const [first] = within(menu).getAllByRole('menuitem');
