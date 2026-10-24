@@ -130,12 +130,23 @@ export function deleteTargets(draft: Draft, command: DeleteCommand): string {
  * are rewritten in one operation when that is a large change.
  */
 export function applyDeletion(draft: Draft, preview: DeletePreview): void {
+  // A large deletion rewrites each list once: one operation per item would copy the list each time.
+  const byView = new Map<Id, Set<string>>();
   for (const position of preview.positions) {
-    draft.apply({
-      op: 'remove',
-      collection: { name: 'positions', view: position.view },
-      key: positionKey(position),
-    });
+    const keys = byView.get(position.view) ?? new Set<string>();
+    keys.add(positionKey(position));
+    byView.set(position.view, keys);
+  }
+  for (const [view, keys] of byView) {
+    const collection = { name: 'positions' as const, view };
+    if (keys.size > BULK) {
+      const kept = draft
+        .view(view)
+        .positions.filter((position) => !keys.has(positionKey(position)));
+      draft.apply({ op: 'replace-all', collection, items: kept });
+    } else {
+      for (const key of keys) draft.apply({ op: 'remove', collection, key });
+    }
   }
   const deleted = new Set(preview.elements);
   const lists = new Map<string, { view: Id; container: Id; ids: Id[] }>();
@@ -157,12 +168,22 @@ export function applyDeletion(draft: Draft, preview: DeletePreview): void {
       for (const id of ids) draft.apply({ op: 'remove', collection, key: id });
     }
   }
-  for (const id of preview.relations) {
-    draft.apply({ op: 'remove', collection: { name: 'relations' }, key: id });
+  removeFromModel(draft, 'relations', preview.relations);
+  removeFromModel(draft, 'elements', preview.elements);
+}
+
+/** Removes ids from the model's elements or relations: one by one, or in one rewrite when many. */
+function removeFromModel(draft: Draft, name: 'elements' | 'relations', ids: readonly Id[]): void {
+  if (ids.length <= BULK) {
+    for (const id of ids) draft.apply({ op: 'remove', collection: { name }, key: id });
+    return;
   }
-  for (const id of preview.elements) {
-    draft.apply({ op: 'remove', collection: { name: 'elements' }, key: id });
-  }
+  const gone = new Set(ids);
+  const items =
+    name === 'elements'
+      ? draft.state.model.elements.filter((element) => !gone.has(element.id))
+      : draft.state.model.relations.filter((relation) => !gone.has(relation.id));
+  draft.apply({ op: 'replace-all', collection: { name }, items });
 }
 
 export function createRelation(draft: Draft, command: CreateRelationCommand): string {
