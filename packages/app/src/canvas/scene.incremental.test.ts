@@ -2,7 +2,14 @@
  * A scene built after an edit, from the scene before it, must equal one built from nothing, field by
  * field: whatever an edit leaves alone is kept, and nothing it changes is.
  */
-import { applyOperations, executeCommand, type Command, type ProjectSnapshot } from '@visual-anything/core';
+import {
+  DATA_MODELING,
+  applyOperations,
+  definitionsOf,
+  executeCommand,
+  type Command,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import type { Id, Note, ShapePosition, ViewFile } from '@visual-anything/schema';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
@@ -47,6 +54,54 @@ function richSample(): ProjectSnapshot {
           }
         : view,
     ),
+  };
+}
+
+/** Two tables of the Data modeling package, with their columns, side by side in one view. */
+function tables(): ProjectSnapshot {
+  const columns = [
+    { id: 'users-id', table: 'users', type: 'uuid', primaryKey: true },
+    { id: 'users-org', table: 'users', type: 'uuid' },
+    { id: 'users-name', table: 'users', type: 'text' },
+    { id: 'orgs-id', table: 'orgs', type: 'uuid', primaryKey: true },
+    { id: 'orgs-owner', table: 'orgs', type: 'uuid' },
+  ];
+  return {
+    project: { schemaVersion: 1, name: 'Tables', packages: ['data-modeling'] },
+    model: {
+      world: { id: 'world', component: 'essence', name: 'World' },
+      elements: [
+        { id: 'users', component: 'data-modeling.table', name: 'users' },
+        { id: 'orgs', component: 'data-modeling.table', name: 'orgs' },
+        ...columns.map(({ id, type, primaryKey }) => ({
+          id,
+          component: 'data-modeling.column',
+          name: id,
+          attributes: { type, ...(primaryKey ? { primaryKey } : {}) },
+        })),
+      ],
+      relations: columns.map(({ id, table }) => ({
+        id: `${id}-in`,
+        relationType: 'data-modeling.is-column-of',
+        from: id,
+        to: table,
+      })),
+    },
+    packages: [DATA_MODELING],
+    views: [
+      {
+        id: VIEW,
+        name: 'Tables',
+        perspective: { name: 'Schema' },
+        nestingRelationTypes: ['data-modeling.is-column-of'],
+        positions: [
+          { element: 'users', x: 0, y: 0 },
+          { element: 'orgs', x: 500, y: 0 },
+        ],
+        freeShapes: [],
+      },
+    ],
+    scenarios: [],
   };
 }
 
@@ -125,7 +180,13 @@ const edit: fc.Arbitrary<Edit> = fc.oneof(
   { weight: 2, arbitrary: fc.constant({ kind: 'undo' as const }) },
 );
 
-const RELATION_TYPES = ['systems.communicates-with', 'systems.reads-from', 'systems.writes-to'];
+/** The relation types a project's packages define that do not nest, which edits relate by. */
+function relationTypesOf(project: ProjectSnapshot): string[] {
+  const definitions = definitionsOf(project.packages);
+  return [...definitions.relationTypes.keys()].filter(
+    (id) => definitions.relationType(id)?.nests === false,
+  );
+}
 
 function at<T>(list: readonly T[], number: number): T | undefined {
   return list.length === 0 ? undefined : list[number % list.length];
@@ -219,7 +280,7 @@ function commandOf(edit: Edit, project: ProjectSnapshot, scene: Scene): Command 
         element && {
           type: 'update-element',
           id: element.id,
-          changes: { attributes: { load: edit.value } },
+          changes: { attributes: { load: edit.value, primaryKey: edit.value % 2 === 0 } },
         }
       );
     }
@@ -248,7 +309,7 @@ function commandOf(edit: Edit, project: ProjectSnapshot, scene: Scene): Command 
       const ends = [...elements.map((each) => each.id), ...relations.map((each) => each.id)];
       const from = at(ends, edit.from);
       const to = at(ends, edit.to + 1);
-      const relationType = at(RELATION_TYPES, edit.type) as string;
+      const relationType = at(relationTypesOf(project), edit.type) as string;
       return from && to && from !== to
         ? { type: 'create-relation', relation: { relationType, from, to } }
         : undefined;
@@ -394,6 +455,35 @@ describe('a scene built after an edit', () => {
       { numRuns: 60 },
     );
   }, 60_000);
+
+  it('equals one built from nothing in a view of tables, whose columns badge their keys', () => {
+    fc.assert(
+      fc.property(fc.array(edit, { minLength: 1, maxLength: 16 }), (edits) => {
+        run(tables(), edits);
+      }),
+      { numRuns: 40 },
+    );
+  }, 60_000);
+
+  it('writes a column’s detail with its type and badges, again when a reference comes or goes', () => {
+    const project = tables();
+    const first = buildScene(project, VIEW);
+    const detail = (scene: Scene, key: string) =>
+      scene.shapes.find((shape) => shape.key === key)?.detail;
+    expect(detail(first, 'users/users-id')).toBe('uuid · PK');
+    expect(detail(first, 'users/users-org')).toBe('uuid');
+    expect(detail(first, 'users')).toBe('');
+    const referenced = executeCommand(project, {
+      type: 'create-relation',
+      relation: { relationType: 'data-modeling.references', from: 'users-org', to: 'orgs-id' },
+    });
+    if (!referenced.ok) throw new Error('The reference was refused.');
+    const after = buildScene(referenced.state, VIEW);
+    expect(detail(after, 'users/users-org')).toBe('uuid · FK');
+    expect(after).toEqual(buildSceneAfresh(referenced.state, VIEW));
+    const changed = after.shapes.filter((shape, at) => shape !== first.shapes[at]);
+    expect(changed.map((shape) => shape.key)).toEqual(['users/users-org']);
+  });
 
   it('equals one built from nothing in a larger view with overlapping shapes, too', () => {
     const big = syntheticProject({ elements: 240, perSystem: 8, overlap: 'stairs' });

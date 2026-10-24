@@ -36,6 +36,9 @@ import {
   componentOrEssence,
   containmentTree,
   definitionsOf,
+  detailParts,
+  detailText,
+  startedTypesByElement,
   nestingTypesInView,
   orderByStacking,
   relationTypeOrRelatesTo,
@@ -87,6 +90,12 @@ export interface ElementShape {
   positioned: 'pinned' | 'stored' | 'placed';
   name: string;
   componentName: string;
+  /**
+   * What the shape writes under its name, its appearance's detail on one line: its component's
+   * name, the values of the attributes it shows and the badges that hold (core's `detailText`), or
+   * nothing. Absent, as on a shape made by hand, its component's name.
+   */
+  detail?: string;
   kind: ShapeKind;
   fill: Color;
   stroke: Color;
@@ -458,10 +467,54 @@ function drawingOrder(layout: Layout, view: ViewFile, worldId: Id): readonly num
   return order;
 }
 
-/** What depends only on an element and the definitions: how its shapes look and its component's name. */
+/**
+ * What depends only on an element and the definitions: how its shapes look, its component's name,
+ * and its detail for each set of relation types it is the `from` end of, which its badges depend on.
+ */
 interface Look {
   appearance: ResolvedAppearance;
   componentName: string;
+  details: Map<string, string>;
+}
+
+const NO_TYPES: ReadonlySet<Id> = new Set();
+const startedMaps = new WeakMap<readonly Relation[], Map<Id, Set<Id>>>();
+
+/** The relation types each element starts relations of, for its badges, worked out once per list. */
+function startedOf(relations: readonly Relation[]): Map<Id, Set<Id>> {
+  let started = startedMaps.get(relations);
+  if (!started) {
+    started = startedTypesByElement(relations);
+    startedMaps.set(relations, started);
+  }
+  return started;
+}
+
+/** An element's detail, given the relation types it starts. */
+function detailFor(
+  look: Look,
+  element: Element,
+  definitions: Definitions,
+  started: ReadonlySet<Id> | undefined,
+): string {
+  const types = started ?? NO_TYPES;
+  const key = types.size === 0 ? '' : [...types].sort().join(' ');
+  let detail = look.details.get(key);
+  if (detail === undefined) {
+    detail = detailText(detailParts(element, definitions, types));
+    look.details.set(key, detail);
+  }
+  return detail;
+}
+
+/** Whether two sets hold the same members. */
+function sameTypes(a: ReadonlySet<Id> | undefined, b: ReadonlySet<Id> | undefined): boolean {
+  if (a === b) return true;
+  const x = a ?? NO_TYPES;
+  const y = b ?? NO_TYPES;
+  if (x.size !== y.size) return false;
+  for (const type of x) if (!y.has(type)) return false;
+  return true;
 }
 
 /** The looks of elements, for each set of definitions: dropped with them, when packages change. */
@@ -476,12 +529,24 @@ function looksOf(definitions: Definitions, keep: boolean): WeakMap<Element, Look
   return kept;
 }
 
+/** An element's look and its detail, as `measured` takes them. */
+function lookAndDetail(
+  element: Element,
+  definitions: Definitions,
+  kept: WeakMap<Element, Look>,
+  started: ReadonlyMap<Id, ReadonlySet<Id>>,
+): [Look, string] {
+  const look = lookOf(element, definitions, kept);
+  return [look, detailFor(look, element, definitions, started.get(element.id))];
+}
+
 function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Element, Look>): Look {
   let look = kept.get(element);
   if (!look) {
     look = {
       appearance: appearanceOf(element, definitions),
       componentName: componentOrEssence(definitions, element.component).name,
+      details: new Map(),
     };
     kept.set(element, look);
   }
@@ -508,6 +573,7 @@ interface Box {
 interface Measured {
   element: Element;
   look: Look;
+  detail: string;
   position: ShapePosition | undefined;
   contents: Box[];
   /** For a collapsed container: how many shapes would sit directly in it. */
@@ -534,6 +600,7 @@ function measured(
   placement: Placement,
   element: Element,
   look: Look,
+  detail: string,
   position: ShapePosition | undefined,
   collapsed: boolean,
   contentsOf: () => Box[],
@@ -547,7 +614,14 @@ function measured(
       height: appearance.height,
       offset,
       stored: position !== undefined,
-      measured: { element, look, position, contents: [], folded: placement.contents.length },
+      measured: {
+        element,
+        look,
+        detail,
+        position,
+        contents: [],
+        folded: placement.contents.length,
+      },
     };
   }
   const contents = contentsOf();
@@ -566,7 +640,7 @@ function measured(
     height: containerSize(position?.height, appearance.height, bottom),
     offset,
     stored: position !== undefined,
-    measured: { element, look, position, contents },
+    measured: { element, look, detail, position, contents },
   };
 }
 
@@ -610,6 +684,7 @@ function placeShapes(
   const elements = elementsById(model.elements);
   const positions = positionsOf(view, model.world.id);
   const kept = looksOf(definitions, keep);
+  const started = startedOf(model.relations);
 
   const measure = (placement: Placement): Box => {
     const element = elements.get(placement.element) ?? {
@@ -620,7 +695,7 @@ function placeShapes(
     return measured(
       placement,
       element,
-      lookOf(element, definitions, kept),
+      ...lookAndDetail(element, definitions, kept, started),
       positions.get(positionKey(placement.element, placement.container)),
       collapsed.has(placement.element),
       () => placement.contents.map(measure),
@@ -763,6 +838,17 @@ function replaceShapes(
       if (element !== was[at]) for (const placement of index.byElement.get(element.id) ?? []) mark(placement);
     }
   }
+  if (base.model.relations !== model.relations) {
+    const before = startedOf(base.model.relations);
+    const after = startedOf(model.relations);
+    const differ = (id: Id) => {
+      if (!sameTypes(before.get(id), after.get(id))) {
+        for (const placement of index.byElement.get(id) ?? []) mark(placement);
+      }
+    };
+    for (const id of after.keys()) differ(id);
+    for (const id of before.keys()) if (!after.has(id)) differ(id);
+  }
   const { positions, changed } = positionsAfter(base.view, view, model.world.id);
   if (changed.length > 0) {
     for (const key of changed) {
@@ -775,6 +861,7 @@ function replaceShapes(
 
   const elements = elementsById(now);
   const kept = looksOf(definitions, true);
+  const started = startedOf(model.relations);
   const old = base.layout.shapes;
   const { contents, inWorld } = base.layout;
   const collapsed = base.collapsed;
@@ -800,7 +887,7 @@ function replaceShapes(
     return measured(
       placement,
       element,
-      lookOf(element, definitions, kept),
+      ...lookAndDetail(element, definitions, kept, started),
       positions.get(positionKey(placement.element, placement.container)),
       collapsed.has(placement.element),
       () => placement.contents.map((content, each) => measureAt(inside[each] as number, content)),
@@ -951,7 +1038,7 @@ function shapeFor(
     if (extent.x + extent.width > x2) x2 = extent.x + extent.width;
     if (extent.y + extent.height > y2) y2 = extent.y + extent.height;
   }
-  const { element, look, position, folded } = parts;
+  const { element, look, detail, position, folded } = parts;
   const { appearance } = look;
   const positioned = position ? (position.pinned ? 'pinned' : 'stored') : 'placed';
   const container = box.placement.container;
@@ -969,6 +1056,7 @@ function shapeFor(
     before.positioned === positioned &&
     before.name === element.name &&
     before.componentName === look.componentName &&
+    before.detail === detail &&
     before.kind === appearance.shape &&
     before.fill === appearance.fill &&
     before.stroke === appearance.stroke &&
@@ -993,6 +1081,7 @@ function shapeFor(
     positioned,
     name: element.name,
     componentName: look.componentName,
+    detail,
     kind: appearance.shape,
     fill: appearance.fill,
     stroke: appearance.stroke,
@@ -1380,8 +1469,8 @@ function planRelations(
     }
     const pair =
       spec.from.id < spec.to.id
-        ? `${spec.from.id} ${spec.to.id}`
-        : `${spec.to.id} ${spec.from.id}`;
+        ? `${spec.from.id}\u0000${spec.to.id}`
+        : `${spec.to.id}\u0000${spec.from.id}`;
     const list = siblings.get(pair);
     if (list) list.push(spec);
     else siblings.set(pair, [spec]);
