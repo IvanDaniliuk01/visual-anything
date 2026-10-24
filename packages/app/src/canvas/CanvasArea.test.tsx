@@ -442,6 +442,25 @@ describe('Dragging shapes', () => {
     expect(onCommand).toHaveBeenCalledTimes(2);
   });
 
+  it('draws a drop’s change with one rebuild of the canvas, whichever comes first', async () => {
+    const rebuilds = vi.spyOn(
+      CanvasRenderer.prototype as unknown as { rebuild: () => void },
+      'rebuild',
+    );
+    const { onCommand, answer } = answeredLater();
+    const { host, at, rerender } = await started(<Harness onCommand={onCommand} />);
+    drag(host, at('patient'), 50, 0);
+    const dropped = (onCommand.mock.lastCall?.[0] as Extract<Command, { type: 'set-positions' }>)
+      .positions[0]!;
+    await answer(0, { ok: true });
+    rebuilds.mockClear();
+    await act(async () => {
+      rerender(<Harness onCommand={onCommand} project={withPatientAt(dropped.x, dropped.y)} />);
+      await Promise.resolve();
+    });
+    expect(rebuilds).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps a drag going when another pointer comes down', async () => {
     const onCommand = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
     const { host, at } = await started(<Harness onCommand={onCommand} />);

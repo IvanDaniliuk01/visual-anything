@@ -199,10 +199,12 @@ export class CanvasController {
     this.editable = editable;
     // The hovered shape as it is now: where it is, and its handle, may have changed.
     this.hovered = this.hovered && indexed.byKey.get(this.hovered.key);
-    this.renderer.show(indexed);
+    // The drops whose changes this scene holds stop being drawn apart first, so that the scene is
+    // drawn once, with them in it.
     for (const move of [...this.sent]) {
-      if (move.applied && move.from !== project) this.moveBack(move);
+      if (move.applied && move.from !== project) this.forget(move, false);
     }
+    this.renderer.show(indexed);
     this.refreshMarks();
     this.nudgeNext();
   }
@@ -697,10 +699,14 @@ export class CanvasController {
     this.nudges = [];
   }
 
-  private forget(move: SentMove): void {
+  /**
+   * Forgets a move, and stops drawing a drop's shapes apart; with `redraw` off, the scene shown next
+   * draws them.
+   */
+  private forget(move: SentMove, redraw = true): void {
     this.sent = this.sent.filter((each) => each !== move);
     if (this.destroyed || !move.drop) return;
-    this.renderer.endDrag(move.drop.drag);
+    this.renderer.endDrag(move.drop.drag, { redraw });
     this.showOverlay(this.gestureOverlay);
   }
 
