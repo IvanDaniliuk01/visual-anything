@@ -1,0 +1,359 @@
+/*
+ * The scenario panel, below the inspector, and the cue on the canvas while recording. It uses the
+ * colors of the app's tokens; the step playback is on is marked by its width and weight as well as
+ * by the highlight color, and a broken step says so in words.
+ */
+
+/* The panel takes the inspector's column, below it. */
+.shell:has(> .scenario-panel) {
+  grid-template-areas:
+    'header header header'
+    'notice notice notice'
+    'model canvas inspector'
+    'model canvas scenario';
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+.scenario-panel {
+  grid-area: scenario;
+  max-height: 55vh;
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+}
+
+.scenario-panel h3 {
+  margin: 0.8rem 0 0.35rem;
+}
+
+.scenario-panel .scenario-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+  text-transform: none;
+  letter-spacing: normal;
+  overflow-wrap: anywhere;
+}
+
+.scenario-panel h4 {
+  margin: 0 0 0.3rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.scenario-head {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.6rem;
+}
+
+.scenario-description,
+.scenario-elsewhere,
+.scenario-hint {
+  margin-top: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.scenario-recording-hint {
+  padding: 0.35rem 0.55rem;
+  border-left: 3px solid var(--highlight);
+  border-radius: 0.3rem;
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Buttons and fields */
+
+.scenario-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+
+.scenario-button {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.35rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.scenario-button:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.scenario-button:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.scenario-button-small {
+  padding: 0 0.4rem;
+  font-size: 0.8rem;
+}
+
+.scenario-button-primary {
+  min-width: 4.5rem;
+  font-weight: 700;
+}
+
+.scenario-button-danger:not(:disabled) {
+  color: var(--problem);
+}
+
+.scenario-record[aria-pressed='true'] {
+  border-width: 2px;
+  border-color: var(--highlight);
+  font-weight: 700;
+}
+
+.scenario-panel :is(button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.scenario-panel :is(input, textarea, select) {
+  width: 100%;
+  min-width: 0;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.3rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.scenario-panel textarea {
+  resize: vertical;
+}
+
+.scenario-panel :is(input, textarea, select):disabled {
+  background: var(--panel);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.scenario-panel [aria-invalid='true'] {
+  border-color: var(--problem);
+}
+
+.scenario-panel .inspector-problem {
+  color: var(--problem);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.scenario-form,
+.scenario-field {
+  display: grid;
+  gap: 0.2rem;
+  margin-top: 0.6rem;
+}
+
+.scenario-form label,
+.scenario-field label,
+.scenario-options label {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.scenario-data textarea {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 0.85rem;
+}
+
+.scenario-confirm {
+  margin-top: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.35rem;
+  background: var(--surface);
+}
+
+/* The scenarios of the project */
+
+.scenario-list {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.5rem 0 0.6rem;
+  padding: 0;
+  list-style: none;
+}
+
+.scenario-open {
+  display: grid;
+  width: 100%;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.scenario-open:hover {
+  border-color: var(--accent);
+}
+
+.scenario-open-name {
+  font-weight: 600;
+}
+
+.scenario-open-detail {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* Playback */
+
+.scenario-transport,
+.scenario-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.6rem;
+}
+
+.scenario-options select {
+  width: auto;
+}
+
+.scenario-position {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The steps */
+
+.scenario-steps {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0;
+  list-style: none;
+}
+
+.scenario-step {
+  border-left: 1px solid var(--border);
+  border-radius: 0.3rem;
+}
+
+.scenario-step-current {
+  border-left: 4px solid var(--highlight);
+  background: var(--surface);
+}
+
+.scenario-step-head {
+  display: flex;
+  gap: 0.45rem;
+  align-items: baseline;
+  width: 100%;
+  padding: 0.3rem 0.45rem;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.scenario-step-head[aria-disabled='true'] {
+  cursor: default;
+}
+
+.scenario-step-number {
+  min-width: 1.6rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.scenario-step-current .scenario-step-number,
+.scenario-step-current .scenario-step-text {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.scenario-step-text {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.scenario-badge {
+  padding: 0 0.35rem;
+  border-radius: 0.6rem;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.scenario-badge-broken {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.scenario-step-details {
+  padding: 0 0.6rem 0.6rem;
+}
+
+.scenario-relations,
+.scenario-aggregated {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0 0 0.4rem;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+
+.scenario-aggregated {
+  padding-left: 1.4rem;
+  list-style: decimal;
+}
+
+.scenario-relations li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: baseline;
+}
+
+.scenario-fix {
+  padding: 0.35rem 0.55rem;
+  border-left: 3px solid var(--warning);
+  border-radius: 0.3rem;
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: 0.85rem;
+}
+
+/* The cue on the canvas while clicks record steps */
+
+/* At the bottom middle, clear of the keyboard help in the corner. */
+.canvas-recording {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  z-index: 2;
+  max-width: calc(100% - 14rem);
+  transform: translateX(-50%);
+  padding: 0.3rem 0.65rem;
+  border: 2px solid var(--highlight);
+  border-radius: 0.4rem;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  pointer-events: none;
+}

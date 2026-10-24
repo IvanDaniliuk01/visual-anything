@@ -8,6 +8,8 @@ import { useSelection } from '../editor/useSelection';
 import { buildScene, type Scene } from '../canvas/scene';
 import { useExplorer } from '../canvas/useExplorer';
 import { definitionsOf } from '@visual-anything/core';
+import { ScenarioPanel } from '../scenarios/ScenarioPanel';
+import { ScenarioSession } from '../scenarios/session';
 import { Header } from './Header';
 import { Inspector } from './Inspector';
 import { ModelPanel } from './ModelPanel';
@@ -56,6 +58,8 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
     [project, definitions, view?.id, scene, selection, setSelection, onCommand, reveal, explore],
   );
   const canvasHeading = useId();
+  // The scenario open in the scenario panel, with its playback and its recording on the canvas.
+  const [scenarios] = useState(() => new ScenarioSession());
 
   return (
     <EditorContext.Provider value={editor}>
@@ -82,12 +86,14 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                 onSelect={setSelection}
                 {...(onCommand ? { onCommand } : {})}
                 {...(revealed ? { revealed } : {})}
+                scenarios={scenarios}
               />
             ) : (
               <p className="canvas-message">There is no view to draw.</p>
             )}
           </main>
           <Inspector view={view} scene={scene} definitions={definitions} />
+          <ScenarioPanel session={scenarios} />
         </div>
       </EmphasisContext.Provider>
     </EditorContext.Provider>
