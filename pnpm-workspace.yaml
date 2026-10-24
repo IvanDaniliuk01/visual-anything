@@ -4,3 +4,7 @@ packages:
 # Dependencies allowed to run install scripts; pnpm fails the install on any other that has one.
 allowBuilds:
   esbuild: true
+
+permissions:
+  pixi.js:
+    skills: true
