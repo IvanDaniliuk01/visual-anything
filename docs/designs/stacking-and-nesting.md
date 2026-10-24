@@ -1150,12 +1150,13 @@ createInsideCommand(project, viewId, componentId, container: Id): Command | unde
 **The add rule, in `add()` (phase b).** The target is chosen in this order:
 1. **A one-shot target X**, set by `Add inside "X"…` in the shape menu. It lasts until an element is added, the selection changes, the select loses the focus, or Escape. The new element goes inside X, whatever X holds. Option: `Add inside "X"…`.
 2. **Exactly one element X selected, and nothing else, whose first shape holds contents:** inside X, as today. Option: `Add inside "X"…`; title `Adds the element inside "X". With nothing selected, elements are added directly in World.`
-3. **Exactly one element X selected whose first shape holds nothing and sits in container C:** inside C, next to X. Option: `Add inside "C"…`; title `Adds the element inside "C", where "X" sits. To add inside "X" itself, use Add inside "X"… in its menu or in the inspector.`
-4. **Otherwise**, including a selected leaf directly in World: directly in World at the canvas center (`createAtCommand`). Option: `Add element…`.
+3. **Exactly one element X selected whose first shape holds nothing:** next to X, in the container C its first shape sits in, or directly in World (`createBesideCommand`). Inside C, the option is `Add inside "C"…`, titled `Adds the element inside "C", where "X" sits. To add inside "X" itself, use Add inside "X"… in its menu or in the inspector.`; directly in World, it is `Add element…`.
+4. **Otherwise:** directly in World at the canvas center (`createAtCommand`). Option: `Add element…`.
 
-Adding elements one after another therefore makes siblings. The element just created is a leaf, so the next add goes into its container, never inside it.
+Adding elements one after another therefore makes siblings, side by side. The element just created is a leaf, so the next add goes beside it in its container, never inside it.
 
-- Rules 1 to 3 use `createInsideCommand`. The stand-in row places the new shape (ELK in M3): at (24, 48) in a container with no positioned contents, below the positioned ones otherwise. It never lands over contents or over the container's name.
+- Rules 1 and 2 use `createInsideCommand`. The stand-in row places the new shape (ELK in M3): at (24, 48) in a container with no positioned contents, below the positioned ones otherwise. It never lands over contents or over the container's name.
+- Rule 3 stores a position, not pinned: at `(X.offset.x + X.rect.width + 40, X.offset.y)` in X's container, then further right by the new shape's width plus 40 while it overlaps a shape there, with what sticks out of it; after 100 places it stays at the first. Its size is the one its component gives. The shapes there that only the stand-in row placed would move below the new one, so the same action, a batch named as the creation, stores their places as drawn, not pinned either.
 - The new element is the newest and unlisted, so it is drawn in front.
 - Then the new element is selected, its first shape is revealed (`controller.reveal(key)` once drawn), and the inline editor opens, as today.
 

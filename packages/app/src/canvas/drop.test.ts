@@ -667,7 +667,9 @@ describe('takeOutCommand', () => {
       type: 'change-container',
       view: VIEW,
       to: 'clinic-booking',
-      shapes: [{ element: 'appointments-api', from: 'scheduling', at: { x: 980, y: 60 } }],
+      shapes: [
+        { element: 'appointments-api', from: 'scheduling', at: { x: 980, y: 60 }, pinned: false },
+      ],
     });
     expect(containerChangeLabel(sample, VIEW, up!)).toBe(
       'Move "Appointments API" from "Scheduling" into "Clinic booking"',
@@ -679,7 +681,9 @@ describe('takeOutCommand', () => {
     expect(out).toEqual({
       type: 'change-container',
       view: VIEW,
-      shapes: [{ element: 'whatsapp', from: 'clinic-booking', at: { x: 1260, y: 40 } }],
+      shapes: [
+        { element: 'whatsapp', from: 'clinic-booking', at: { x: 1260, y: 40 }, pinned: false },
+      ],
     });
     expect(confirmLabelOf(sample, out!)).toBe('Take out');
     expect(confirmLabelOf(sample, up!)).toBe('Move');
@@ -705,6 +709,68 @@ describe('takeOutCommand', () => {
     const api = shape(indexed, 'clinic-booking/scheduling/appointments-api');
     expect(takeOutCommand(indexed, project, VIEW, api)?.shapes[0]?.at).toEqual({ x: 980, y: 48 });
   });
+
+  it('leaves the place it chooses unpinned, so that layout may still move it, pinned or not before', () => {
+    const pinned = after(sample, {
+      type: 'set-positions',
+      view: VIEW,
+      positions: [
+        { element: 'whatsapp', container: 'clinic-booking', x: 40, y: 164, pinned: true },
+      ],
+    });
+    const indexed = indexOf(pinned);
+    const whatsapp = shape(indexed, 'clinic-booking/whatsapp');
+    expect(whatsapp.positioned).toBe('pinned');
+    const done = after(pinned, takeOutCommand(indexed, pinned, VIEW, whatsapp)!);
+    const placed = done.views[0]?.positions.find(
+      (each) => each.element === 'whatsapp' && each.container === undefined,
+    );
+    expect(placed).toEqual({ element: 'whatsapp', x: 1260, y: 40 });
+    expect(shape(indexOf(done), 'whatsapp').positioned).toBe('stored');
+  });
+});
+
+describe('putInsideCommand', () => {
+  /** Where Calendar's shape sits once put inside the container under its centre. */
+  function putInside(project: ProjectSnapshot) {
+    const indexed = indexOf(project);
+    const calendar = shape(indexed, 'calendar');
+    const target = putInsideTarget(indexed, project, VIEW, calendar)!;
+    const done = after(project, putInsideCommand(indexed, project, VIEW, calendar, target));
+    return {
+      position: done.views[0]?.positions.find(
+        (each) => each.element === 'calendar' && each.container === target.element,
+      ),
+      shape: shape(indexOf(done), `${target.key}/calendar`),
+    };
+  }
+
+  it('leaves the place unpinned when the shape had a place no one chose by hand', () => {
+    const { position, shape: inside } = putInside(withCalendar({ x: 300, y: 300 }));
+    expect(position).toEqual({ element: 'calendar', container: 'clinic-booking', x: 60, y: 260 });
+    expect(inside.positioned).toBe('stored');
+  });
+
+  it('keeps the place pinned when the shape was pinned where it is', () => {
+    const pinned = after(withCalendar({ x: 300, y: 300 }), {
+      type: 'set-positions',
+      view: VIEW,
+      positions: [{ element: 'calendar', x: 300, y: 300, pinned: true }],
+    });
+    const indexed = indexOf(pinned);
+    const calendar = shape(indexed, 'calendar');
+    const target = putInsideTarget(indexed, pinned, VIEW, calendar)!;
+    expect(putInsideCommand(indexed, pinned, VIEW, calendar, target).shapes[0]?.pinned).toBe(true);
+    const { position, shape: inside } = putInside(pinned);
+    expect(position).toEqual({
+      element: 'calendar',
+      container: 'clinic-booking',
+      x: 60,
+      y: 260,
+      pinned: true,
+    });
+    expect(inside.positioned).toBe('pinned');
+  });
 });
 
 describe('putInsideTarget', () => {
@@ -719,7 +785,7 @@ describe('putInsideTarget', () => {
       type: 'change-container',
       view: VIEW,
       to: 'clinic-booking',
-      shapes: [{ element: 'calendar', at: { x: 60, y: 260 } }],
+      shapes: [{ element: 'calendar', at: { x: 60, y: 260 }, pinned: false }],
     });
     expect(containerChangeLabel(project, VIEW, change)).toBe(
       'Put "Calendar" inside "Clinic booking"',
