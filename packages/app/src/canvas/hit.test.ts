@@ -14,7 +14,7 @@ import {
   type IndexedScene,
 } from './hit';
 import { buildScene, type ElementShape, type Scene } from './scene';
-import { SpatialIndex, overlaps, rectBetween } from './spatial';
+import { SpatialIndex, meets, overlaps, rectBetween } from './spatial';
 
 const sample = loadSample();
 const indexed = indexScene(buildScene(sample, 'system-overview'));
@@ -332,6 +332,49 @@ describe('SpatialIndex', () => {
     expect(index.query({ x: 0, y: 0, width: 50, height: 50 })).toEqual(['big', 'small']);
     expect(index.at({ x: 90, y: 90 })).toEqual(['big']);
     expect(index.at({ x: 200, y: 200 })).toEqual([]);
+  });
+
+  it('keeps a rectangle a billion units wide in bounded time, and finds it', () => {
+    // Positions come from project files and from Claude; one shape that far must not fill millions
+    // of cells.
+    const index = new SpatialIndex<string>();
+    const began = performance.now();
+    index.insert('far', { x: 0, y: 0, width: 1e9, height: 100 });
+    index.insertParts('route', [
+      { x: 0, y: 0, width: 1e9, height: 0 },
+      { x: 1e9, y: 0, width: 0, height: 1e9 },
+    ]);
+    index.insert('near', { x: 10, y: 10, width: 20, height: 20 });
+    expect(index.query({ x: 5e8, y: 50, width: 10, height: 10 })).toEqual(['far']);
+    expect(index.at({ x: 1e9, y: 5e8 })).toEqual(['route']);
+    expect(index.query({ x: -1e9, y: -1e9, width: 3e9, height: 3e9 })).toEqual([
+      'far',
+      'route',
+      'near',
+    ]);
+    expect(index.highest({ x: 5e8, y: 0, width: 10, height: 10 }, (item) => item.length)).toBe(3);
+    expect(performance.now() - began).toBeLessThan(100);
+  });
+
+  it('finds what a search of every item finds, items and queries that span many cells included', () => {
+    const rect = fc.record({
+      x: fc.integer({ min: -200, max: 200 }),
+      y: fc.integer({ min: -200, max: 200 }),
+      width: fc.integer({ min: 0, max: 150 }),
+      height: fc.integer({ min: 0, max: 150 }),
+    });
+    const item = fc.array(rect, { minLength: 1, maxLength: 3 });
+    fc.assert(
+      fc.property(fc.array(item, { maxLength: 20 }), rect, (items, probe) => {
+        // Cells one unit wide, so that many items and queries cover more cells than are entered.
+        const index = new SpatialIndex<number>(1);
+        items.forEach((parts, at) => index.insertParts(at, parts));
+        const expected = items.flatMap((parts, at) =>
+          parts.some((part) => meets(part, probe)) ? [at] : [],
+        );
+        expect(index.query(probe)).toEqual(expected);
+      }),
+    );
   });
 
   it('finds the highest score among the items that overlap a rectangle, as a search of every item does', () => {

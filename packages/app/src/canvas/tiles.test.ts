@@ -285,6 +285,46 @@ describe('routePieces', () => {
     );
   });
 
+  it('leaves whole, in one tile, a route that crosses too many cells, however far its ends', () => {
+    // Positions come from project files and from Claude: one a billion units away must not make a
+    // billion pieces.
+    const far = lineAlong(
+      [
+        { x: 0, y: 0 },
+        { x: 1e9, y: 0 },
+      ],
+      {
+        relation: 'far',
+        label: 'far',
+        arrowhead: arrowheadAt({ x: 0, y: 0 }, { x: 1e9, y: 0 }, 2),
+      },
+    );
+    const began = performance.now();
+    const pieces = routePieces(far);
+    const tiles = relationTiles([far], new Set());
+    expect(performance.now() - began).toBeLessThan(100);
+    expect(pieces).toHaveLength(1);
+    expect(pieces[0]?.points).toEqual(drawnRoute(far));
+    expect(pieces[0]?.last).toBe(true);
+    // The piece with its name, and the arrowhead where its tip is.
+    expect(tiles.length).toBeLessThanOrEqual(2);
+    // A route of many segments, each crossing few cells, but too many in all.
+    const zigzag = lineAlong(
+      Array.from({ length: 41 }, (_, at) => ({ x: at % 2 === 0 ? 0 : 200 * TILE, y: at * 10 })),
+      { relation: 'zigzag' },
+    );
+    expect(routePieces(zigzag)).toHaveLength(1);
+    // Coordinates that are not numbers at all cut nothing either.
+    const broken = lineAlong(
+      [
+        { x: 0, y: 0 },
+        { x: Number.POSITIVE_INFINITY, y: Number.NaN },
+      ],
+      { relation: 'broken' },
+    );
+    expect(routePieces(broken)).toHaveLength(1);
+  });
+
   it('cuts any route into pieces that each lie in their cell and together draw the whole route', () => {
     const step = fc.tuple(fc.boolean(), fc.integer({ min: -4000, max: 4000 }));
     const start = fc.record({

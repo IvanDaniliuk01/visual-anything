@@ -10,7 +10,8 @@
  * A relation is cut where its route passes from one cell to another, and each piece goes in the tile
  * of its cell, so that a tile spans about its cell however far its relations reach, and the tiles
  * off screen can be left out of the frame. Its arrowhead goes with the cell of its tip, and its name
- * with the cell of its middle.
+ * with the cell of its middle. A route that would cross more cells than a bounded number is left
+ * whole, in one tile.
  */
 import type { Id } from '@visual-anything/schema';
 import {
@@ -86,14 +87,62 @@ export function drawnRoute(line: RelationLine): Point[] {
   return untilArrowhead(line.route, line.arrowhead);
 }
 
+/**
+ * The most sides of cells one segment, and a whole route, may cross and still be cut. Positions come
+ * from project files and from Claude, so a route can reach a billion units away: beyond these, it is
+ * left whole in one tile rather than cut into a piece for each cell, so that the work stays bounded
+ * whatever the coordinates.
+ */
+export const MAX_SEGMENT_CROSSINGS = 256;
+export const MAX_ROUTE_CROSSINGS = 1024;
+
 const piecesOfLines = new WeakMap<RelationLine, RoutePiece[]>();
 
-/** A relation's drawn route, cut where it passes from one cell to another. */
+/**
+ * A relation's drawn route, cut where it passes from one cell to another; left whole, in the cell of
+ * its middle, when it crosses too many cells or its points are not all numbers.
+ */
 export function routePieces(line: RelationLine): RoutePiece[] {
   const known = piecesOfLines.get(line);
   if (known) return known;
-  const pieces: RoutePiece[] = [];
   const route = drawnRoute(line);
+  const pieces = crossesFew(route) ? cutAtCells(line, route) : [whole(line, route)];
+  piecesOfLines.set(line, pieces);
+  return pieces;
+}
+
+/** Whether a route crosses few enough sides of cells to be cut, worked out without visiting them. */
+function crossesFew(route: readonly Point[]): boolean {
+  let total = 0;
+  for (let each = 1; each < route.length; each++) {
+    const from = route[each - 1] as Point;
+    const to = route[each] as Point;
+    const crossed =
+      Math.abs(Math.floor(to.x / TILE) - Math.floor(from.x / TILE)) +
+      Math.abs(Math.floor(to.y / TILE) - Math.floor(from.y / TILE));
+    // Written so that a coordinate that is not a finite number never counts as few.
+    if (!(crossed <= MAX_SEGMENT_CROSSINGS)) return false;
+    total += crossed;
+  }
+  return total <= MAX_ROUTE_CROSSINGS;
+}
+
+/** A route as one piece, in the cell of its line's middle. */
+function whole(line: RelationLine, route: Point[]): RoutePiece {
+  return {
+    line,
+    cell: cellOf(line.middle),
+    points: route,
+    travelled: 0,
+    bendAtStart: false,
+    bendAtEnd: false,
+    last: true,
+  };
+}
+
+/** A route that crosses few cells, cut where it passes from one to another. */
+function cutAtCells(line: RelationLine, route: readonly Point[]): RoutePiece[] {
+  const pieces: RoutePiece[] = [];
   let piece: RoutePiece | undefined;
   let travelled = 0;
   for (let each = 1; each < route.length; each++) {
@@ -130,7 +179,6 @@ export function routePieces(line: RelationLine): RoutePiece[] {
     travelled += length;
   }
   if (piece) piece.last = true;
-  piecesOfLines.set(line, pieces);
   return pieces;
 }
 
