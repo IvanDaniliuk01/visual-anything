@@ -1,4 +1,5 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
+import type { ViewFile } from '@visual-anything/schema';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { loadSample } from '../test/sample';
@@ -108,6 +109,28 @@ describe('Shell', () => {
     const scenario = within(scenarios).getByRole('listitem');
     expect(scenario).toHaveTextContent('Patient books an appointment');
     expect(scenario).toHaveTextContent('5 steps');
+  });
+
+  it('opens the view chosen in the view list, and the first again once the open one is deleted', () => {
+    const security: ViewFile = {
+      id: 'security',
+      name: 'Security',
+      perspective: { name: 'Security' },
+      nestingRelationTypes: [],
+      positions: [],
+      freeShapes: [],
+    };
+    const twoViews: ProjectSnapshot = { ...sample, views: [...sample.views, security] };
+    const { rerender } = render(<Shell project={twoViews} />);
+    const views = within(showModelTab()).getByRole('list', { name: 'Views' });
+    fireEvent.click(within(views).getByRole('button', { name: 'Security, Security' }));
+    // Nesting by nothing, it draws the six "is part of" relations as lines too.
+    expect(screen.getByRole('application')).toHaveAccessibleName(
+      'Security, from the Security perspective: 8 element shapes, 12 relations and 0 free shapes.',
+    );
+    expect(within(views).getAllByRole('listitem')[1]).toHaveAttribute('aria-current', 'true');
+    rerender(<Shell project={sample} />);
+    expect(screen.getByRole('application')).toHaveAccessibleName(/^System overview, from/);
   });
 
   it('details the open view in the inspector, with nothing selected', () => {
