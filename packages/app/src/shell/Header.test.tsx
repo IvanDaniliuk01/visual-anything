@@ -1,9 +1,17 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { DEFAULT_PREFERENCES, type PreferenceChanges } from '@visual-anything/core';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CommandResult } from '../live/connection';
 import { LiveContext, type Live } from '../live/context';
+import { SEND_DELAY_MS, resetPreferencesForTests, type PreferencesAnswer } from '../theme/store';
+import { readSource, stubSystemTheme } from '../theme/testing';
 import { fakeLive } from '../test/fakeLive';
 import { Header } from './Header';
+
+afterEach(() => {
+  resetPreferencesForTests();
+  vi.useRealTimers();
+});
 
 const RENAME = { label: 'Rename "API" to "Gateway"', author: 'user' as const };
 const DELETE = { label: 'Delete "Patient"', author: 'user' as const };
@@ -46,7 +54,7 @@ describe('Header', () => {
   it('shows no undo or redo outside a live session', () => {
     renderHeader(null);
     expect(within(screen.getByRole('banner')).getByText('My systems')).toBeInTheDocument();
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^(Undo|Redo)/ })).not.toBeInTheDocument();
   });
 
   it('shows no undo or redo on the screens without a project', () => {
@@ -55,7 +63,7 @@ describe('Header', () => {
         <Header />
       </LiveContext>,
     );
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^(Undo|Redo)/ })).not.toBeInTheDocument();
   });
 
   it('names the action that undo and redo would do', () => {
@@ -247,5 +255,121 @@ describe('Header', () => {
     unmount();
     expect(await press(document.body, { key: 'z', ctrlKey: true })).toBe(true);
     expect(live.undo).not.toHaveBeenCalled();
+  });
+});
+
+describe('the product and the tab', () => {
+  it('shows the product mark beside its name, hidden from assistive technology', () => {
+    renderHeader(null);
+    const heading = screen.getByRole('heading', { level: 1 });
+    expect(heading).toHaveAccessibleName('Visual Anything');
+    expect(heading.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('names the tab after the open project, and after the product alone without one', () => {
+    const { unmount } = renderHeader(null);
+    expect(document.title).toBe('My systems · Visual Anything');
+    unmount();
+    render(<Header />);
+    expect(document.title).toBe('Visual Anything');
+  });
+});
+
+describe('the Theme control', () => {
+  function themeRadio(name: string): HTMLInputElement {
+    return within(screen.getByRole('radiogroup', { name: 'Theme' })).getByRole('radio', { name });
+  }
+
+  it('offers Match the system, Light and Dark, matching the system at first', () => {
+    renderHeader(fakeLive());
+    const group = screen.getByRole('radiogroup', { name: 'Theme' });
+    expect(
+      within(group)
+        .getAllByRole('radio')
+        .map((radio) => radio.getAttribute('value')),
+    ).toEqual(['system', 'light', 'dark']);
+    expect(themeRadio('Match the system')).toBeChecked();
+  });
+
+  it('says what matching the system gives now', () => {
+    stubSystemTheme('dark');
+    renderHeader(null);
+    expect(themeRadio('Match the system').closest('label')).toHaveAttribute(
+      'title',
+      'Match the system (dark now)',
+    );
+    expect(document.documentElement.dataset.theme).toBe('dark');
+  });
+
+  it('applies a choice in the tab at once', () => {
+    renderHeader(null);
+    fireEvent.click(themeRadio('Dark'));
+    expect(themeRadio('Dark')).toBeChecked();
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    fireEvent.click(themeRadio('Light'));
+    expect(document.documentElement.dataset.theme).toBe('light');
+  });
+
+  it('is one radio group, so the arrow keys move the choice as in any other', () => {
+    renderHeader(null);
+    const names = new Set(
+      ['Match the system', 'Light', 'Dark'].map((name) => themeRadio(name).name),
+    );
+    expect(names.size).toBe(1);
+    expect([...names][0]).not.toBe('');
+  });
+
+  it('draws the focus ring on the option, since the radio itself is hidden', () => {
+    const css = readSource('styles.css');
+    expect(css).toMatch(
+      /\.theme-option:has\(:focus-visible\)\s*\{[^}]*outline: 2px solid var\(--focus-ring\)/,
+    );
+    renderHeader(null);
+    expect(themeRadio('Light')).toHaveClass('visually-hidden');
+  });
+
+  it('works on the screens without a project, and without a live session', () => {
+    render(<Header />);
+    fireEvent.click(themeRadio('Dark'));
+    expect(document.documentElement.dataset.theme).toBe('dark');
+  });
+
+  it('sends the program one change after several quick choices', async () => {
+    vi.useFakeTimers();
+    const asked: PreferenceChanges[] = [];
+    const setPreferences = vi.fn((changes: PreferenceChanges) => {
+      asked.push(changes);
+      return Promise.resolve<PreferencesAnswer>({
+        ok: true,
+        preferences: { ...DEFAULT_PREFERENCES, ...changes },
+      });
+    });
+    const live = { ...fakeLive(), preferences: DEFAULT_PREFERENCES, setPreferences };
+    renderHeader(live);
+    fireEvent.click(themeRadio('Dark'));
+    fireEvent.click(themeRadio('Light'));
+    fireEvent.click(themeRadio('Dark'));
+    expect(asked).toEqual([]);
+    await act(async () => {
+      vi.advanceTimersByTime(SEND_DELAY_MS);
+      await Promise.resolve();
+    });
+    expect(asked).toEqual([{ theme: 'dark' }]);
+    expect(themeRadio('Dark')).toBeChecked();
+  });
+
+  it('follows the program’s preferences when it sends them', () => {
+    const { rerender } = renderHeader(fakeLive());
+    expect(themeRadio('Match the system')).toBeChecked();
+    const live = {
+      ...fakeLive(),
+      preferences: { ...DEFAULT_PREFERENCES, theme: 'light' as const },
+    };
+    rerender(
+      <LiveContext value={live}>
+        <Header projectName="My systems" viewName="System overview" />
+      </LiveContext>,
+    );
+    expect(themeRadio('Light')).toBeChecked();
   });
 });
