@@ -8,7 +8,13 @@ import { realpath } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
 import type { Duplex } from 'node:stream';
-import { LIVE_PATH, TOKEN_PARAM, encodeServerMessage } from '@visual-anything/core';
+import {
+  LIVE_PATH,
+  THEME_PARAM,
+  TOKEN_PARAM,
+  encodeServerMessage,
+  type ThemeName,
+} from '@visual-anything/core';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import { refuseUpgrade, sendText, setSecurityHeaders } from './responses';
 import { checkLiveRequest, checkRequest, createToken, type RequestHeaders } from './security';
@@ -32,6 +38,11 @@ export interface ServerOptions {
   /** The port to listen on; 0 lets the operating system pick a free one. */
   port: number;
   app: AppSource;
+  /**
+   * The theme the person chose, carried in the fragment of the address beside the token so that the
+   * tab's first frame is drawn in it; absent when they match the system.
+   */
+  themeHint?: ThemeName | undefined;
 }
 
 /** The running local program. */
@@ -150,7 +161,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
   };
 
   return {
-    url: `http://${HOST}:${port}/#${TOKEN_PARAM}=${token}`,
+    url: `http://${HOST}:${port}/#${TOKEN_PARAM}=${token}${themeFragment(options.themeHint)}`,
     port,
     token,
     close: () => (closing ??= closeAll()),
@@ -221,6 +232,11 @@ function listen(server: Server, port: number): Promise<number> {
       }
     });
   });
+}
+
+/** The theme's part of the address's fragment, after the token. */
+function themeFragment(theme: ThemeName | undefined): string {
+  return theme === undefined ? '' : `&${THEME_PARAM}=${theme}`;
 }
 
 function headersOf(request: IncomingMessage): RequestHeaders {
