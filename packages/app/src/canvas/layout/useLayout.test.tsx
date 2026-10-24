@@ -143,6 +143,17 @@ describe('automatic layout', () => {
     expect(runner.runs).toBe(1);
   });
 
+  it('keeps a new shape waiting when the project stops being changeable just before it runs', async () => {
+    const view = canvas(loadSample());
+    act(() => view.show(withBilling(view.project)));
+    // The connection closes before automatic layout runs, and opens again later.
+    act(() => view.show(view.project, { editable: false }));
+    await quietly();
+    expect(view.sent).toHaveLength(0);
+    act(() => view.show(view.project, { editable: true }));
+    await waitFor(() => expect(view.sent).toHaveLength(1));
+  });
+
   it('waits while the project cannot be changed, and lays out once it can', async () => {
     const view = canvas(withBilling(), { editable: false });
     await quietly();
