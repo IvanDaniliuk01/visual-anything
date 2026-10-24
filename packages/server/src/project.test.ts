@@ -66,11 +66,11 @@ describe('loadProject', () => {
     const project = snapshotOf(await loadProject(SAMPLE));
 
     expect(project.project.name).toBe('My systems');
-    expect(project.project.packages).toEqual(['systems']);
+    expect(project.project.packages).toEqual(['systems', 'clinic']);
     expect(project.model.world.id).toBe('world');
     expect(project.model.elements).toHaveLength(8);
     expect(project.model.relations).toHaveLength(12);
-    expect(project.packages.map((p) => p.id)).toEqual(['systems']);
+    expect(project.packages.map((p) => p.id)).toEqual(['systems', 'clinic']);
     expect(project.views.map((view) => view.id)).toEqual(['system-overview']);
     expect(project.scenarios.map((scenario) => scenario.id)).toEqual(['patient-books-appointment']);
   });
@@ -81,17 +81,17 @@ describe('loadProject', () => {
       elements: [{ id: 'api', component: 'essence', name: 'API', attributes: { latencyMs: 12 } }],
     };
     await write({
-      'project.vaproject': projectFile(['systems']),
+      'project.vaproject': projectFile(['shop']),
       'model.vamodel': model,
-      'packages/systems.vapackage': packageFile('systems'),
+      'packages/shop.vapackage': packageFile('shop'),
       'views/overview.vaview': viewFile('overview'),
       'scenarios/request.vascenario': scenarioFile('request'),
     });
 
     expect(snapshotOf(await loadProject(folder))).toEqual({
-      project: projectFile(['systems']),
+      project: projectFile(['shop']),
       model,
-      packages: [packageFile('systems')],
+      packages: [packageFile('shop')],
       views: [viewFile('overview')],
       scenarios: [scenarioFile('request')],
     });
@@ -164,9 +164,9 @@ describe('loadProject', () => {
 
   it('changes nothing in the folder', async () => {
     await write({
-      'project.vaproject': projectFile(['systems']),
+      'project.vaproject': projectFile(['shop']),
       'model.vamodel': modelFile(),
-      'packages/systems.vapackage': packageFile('systems'),
+      'packages/shop.vapackage': packageFile('shop'),
       'views/overview.vaview': viewFile('overview'),
     });
     const before = await contentsOf(folder);
@@ -260,25 +260,56 @@ describe('loadProject', () => {
 
   it('reports a listed package that has no file', async () => {
     await write({
-      'project.vaproject': projectFile(['systems', 'neuroscience']),
+      'project.vaproject': projectFile(['shop', 'neuroscience']),
       'model.vamodel': modelFile(),
-      'packages/systems.vapackage': packageFile('systems'),
+      'packages/shop.vapackage': packageFile('shop'),
     });
 
     expect(errorsOf(await loadProject(folder))).toEqual([
       {
         file: 'project.vaproject',
         pointer: '/packages/1',
-        message: 'The package "neuroscience" is listed, but no file in packages/ holds it.',
+        message:
+          'The package "neuroscience" is listed, but neither packages/ nor the built-in packages hold it.',
+      },
+    ]);
+  });
+
+  it('takes a listed package that packages/ does not hold from the built-in ones', async () => {
+    await write({
+      'project.vaproject': projectFile(['systems', 'shop']),
+      'model.vamodel': modelFile(),
+      'packages/shop.vapackage': packageFile('shop'),
+    });
+
+    const project = snapshotOf(await loadProject(folder));
+    expect(project.packages.map((file) => file.id)).toEqual(['systems', 'shop']);
+    expect(project.packages[0]?.components.map((component) => component.id)).toContain(
+      'systems.service',
+    );
+  });
+
+  it('refuses a package of the project that takes the id of a built-in one', async () => {
+    await write({
+      'project.vaproject': projectFile(['systems']),
+      'model.vamodel': modelFile(),
+      'packages/systems.vapackage': packageFile('systems'),
+    });
+
+    expect(errorsOf(await loadProject(folder))).toEqual([
+      {
+        file: 'packages/systems.vapackage',
+        pointer: '/id',
+        message: 'The package "systems" is built into Visual Anything; give this one another id.',
       },
     ]);
   });
 
   it('reports a package listed twice', async () => {
     await write({
-      'project.vaproject': projectFile(['systems', 'systems']),
+      'project.vaproject': projectFile(['shop', 'shop']),
       'model.vamodel': modelFile(),
-      'packages/systems.vapackage': packageFile('systems'),
+      'packages/shop.vapackage': packageFile('shop'),
     });
 
     expect(errorsOf(await loadProject(folder))).toEqual([
@@ -315,10 +346,10 @@ describe('loadProject', () => {
 
   it('reports duplicate package ids and duplicate scenario ids', async () => {
     await write({
-      'project.vaproject': projectFile(['systems']),
+      'project.vaproject': projectFile(['shop']),
       'model.vamodel': modelFile(),
-      'packages/one.vapackage': packageFile('systems'),
-      'packages/two.vapackage': packageFile('systems'),
+      'packages/one.vapackage': packageFile('shop'),
+      'packages/two.vapackage': packageFile('shop'),
       'scenarios/one.vascenario': scenarioFile('request'),
       'scenarios/two.vascenario': scenarioFile('request'),
     });
@@ -327,7 +358,7 @@ describe('loadProject', () => {
       {
         file: 'packages/two.vapackage',
         pointer: '/id',
-        message: 'The package id "systems" is already used by packages/one.vapackage.',
+        message: 'The package id "shop" is already used by packages/one.vapackage.',
       },
       {
         file: 'scenarios/two.vascenario',

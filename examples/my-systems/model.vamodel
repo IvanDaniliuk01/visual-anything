@@ -43,7 +43,7 @@
     },
     {
       "id": "appointments-db",
-      "component": "systems.database",
+      "component": "clinic.calendar",
       "name": "Appointments DB",
       "attributes": { "engine": "postgres", "sizeGb": 12 }
     },

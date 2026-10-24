@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./validate": "./src/validate.ts",
+    "./format": "./src/format.ts",
     "./schemas/*": "./schemas/*"
   },
   "scripts": {

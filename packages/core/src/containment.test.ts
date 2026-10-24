@@ -1,6 +1,6 @@
 import type { ModelFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
-import { loadSample } from '../test/sample';
+import { testProject } from './test/fixtures';
 import { containmentTree, type Placement } from './containment';
 
 /** The tree as nested element ids, which is easier to read in an assertion. */
@@ -12,7 +12,7 @@ function outline(placements: Placement[]): unknown[] {
   );
 }
 
-const isPartOf = (relationType: string) => relationType === 'systems.is-part-of';
+const isInside = (relationType: string) => relationType === 'test.inside';
 
 function model(
   elements: string[],
@@ -35,32 +35,19 @@ const inP = (relationType: string) => relationType === 'p.in';
 
 describe('containmentTree', () => {
   it('builds World’s contents from the nesting relations, the `to` end being the container', () => {
-    const tree = containmentTree(loadSample().model, isPartOf);
-    expect(outline(tree)).toEqual([
-      'patient',
-      {
-        'clinic-booking': [
-          'whatsapp',
-          'booking-agent',
-          { scheduling: ['appointments-api', 'appointments-db', 'reminder-service'] },
-        ],
-      },
-    ]);
+    const tree = containmentTree(testProject().model, isInside);
+    expect(outline(tree)).toEqual([{ system: ['api', 'db'] }, 'client', 'contract']);
   });
 
   it('records the container each placement sits in', () => {
-    const [patient, clinic] = containmentTree(loadSample().model, isPartOf);
-    expect(patient?.container).toBeUndefined();
-    expect(clinic?.contents.map((placement) => placement.container)).toEqual([
-      'clinic-booking',
-      'clinic-booking',
-      'clinic-booking',
-    ]);
+    const [system, client] = containmentTree(testProject().model, isInside);
+    expect(client?.container).toBeUndefined();
+    expect(system?.contents.map((placement) => placement.container)).toEqual(['system', 'system']);
   });
 
   it('ignores relations of other relation types', () => {
-    const tree = containmentTree(loadSample().model, () => false);
-    expect(tree).toHaveLength(8);
+    const tree = containmentTree(testProject().model, () => false);
+    expect(tree).toHaveLength(5);
     expect(tree.every((placement) => placement.contents.length === 0)).toBe(true);
   });
 

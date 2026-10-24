@@ -43,7 +43,7 @@ describe('parseFile', () => {
   it.each([
     ['project', 'project.vaproject'],
     ['model', 'model.vamodel'],
-    ['package', 'packages/systems.vapackage'],
+    ['package', 'packages/clinic.vapackage'],
     ['view', 'views/system-overview.vaview'],
     ['scenario', 'scenarios/patient-books-appointment.vascenario'],
   ] as const)('reads the %s file of the sample project (%s)', (kind, path) => {

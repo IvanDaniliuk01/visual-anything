@@ -3,7 +3,7 @@ import type { ViewFile } from '@visual-anything/schema';
 import { useId, useMemo } from 'react';
 import { CanvasArea } from '../canvas/CanvasArea';
 import { buildScene, type Scene } from '../canvas/scene';
-import { resolveDefinitions } from '../model/definitions';
+import { definitionsOf } from '@visual-anything/core';
 import { Header } from './Header';
 import { Inspector } from './Inspector';
 import { ModelPanel } from './ModelPanel';
@@ -20,7 +20,7 @@ interface ShellProps {
  */
 export function Shell({ project, notice }: ShellProps) {
   const view = project.views[0];
-  const definitions = useMemo(() => resolveDefinitions(project.packages), [project.packages]);
+  const definitions = useMemo(() => definitionsOf(project.packages), [project.packages]);
   const scene = useMemo(() => (view ? buildScene(project, view.id) : undefined), [project, view]);
   const canvasHeading = useId();
 

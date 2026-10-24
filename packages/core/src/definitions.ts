@@ -114,6 +114,16 @@ export function appearanceOf(
   };
 }
 
+/** The component with this id; for an id no package defines, one named by the id that looks like Essence. */
+export function componentOrEssence(definitions: Definitions, id: Id): ResolvedComponent {
+  return definitions.component(id) ?? { ...RESOLVED_ESSENCE, id, name: id, lineage: [id] };
+}
+
+/** The relation type with this id; for an id no package defines, one named by the id that behaves like "relates to". */
+export function relationTypeOrRelatesTo(definitions: Definitions, id: Id): ResolvedRelationType {
+  return definitions.relationType(id) ?? { ...RESOLVED_RELATES_TO, id, name: id, lineage: [id] };
+}
+
 function buildDefinitions(packages: readonly PackageFile[]): Definitions {
   const problems: Problem[] = [];
   const components = new Map<Id, Defined<Component>>();

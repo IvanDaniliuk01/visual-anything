@@ -4,7 +4,7 @@
  */
 import { readFile, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import type { ProjectSnapshot } from '@visual-anything/core';
+import { builtinPackage, type ProjectSnapshot } from '@visual-anything/core';
 import {
   FILE_EXTENSIONS,
   fileKindOf,
@@ -264,8 +264,9 @@ function requireUniqueIds(
 }
 
 /**
- * The packages the project lists, in its order; reports listed packages that have no file. The schema
- * already refuses a package listed twice.
+ * The packages the project lists, in its order. Each comes from the project's packages/ folder or, if
+ * none there has its id, from the packages built into Visual Anything. A package of the project may not
+ * take the id of a built-in one. The schema already refuses a package listed twice.
  */
 function findListedPackages(
   project: Read<'project'>,
@@ -273,17 +274,25 @@ function findListedPackages(
   problems: Problems,
 ): PackageFile[] {
   const packageWithId = new Map<string, PackageFile>();
-  for (const { value } of packages) {
-    if (!packageWithId.has(value.id)) packageWithId.set(value.id, value);
+  for (const { file, value } of packages) {
+    if (builtinPackage(value.id)) {
+      problems.add('package', {
+        file,
+        pointer: '/id',
+        message: `The package "${value.id}" is built into Visual Anything; give this one another id.`,
+      });
+    } else if (!packageWithId.has(value.id)) {
+      packageWithId.set(value.id, value);
+    }
   }
   const listed: PackageFile[] = [];
   project.value.packages.forEach((id, index) => {
-    const found = packageWithId.get(id);
+    const found = packageWithId.get(id) ?? builtinPackage(id);
     if (found === undefined) {
       problems.add('project', {
         file: project.file,
         pointer: `/packages/${index}`,
-        message: `The package "${id}" is listed, but no file in packages/ holds it.`,
+        message: `The package "${id}" is listed, but neither packages/ nor the built-in packages hold it.`,
       });
     } else {
       listed.push(found);
