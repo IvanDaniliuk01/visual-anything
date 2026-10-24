@@ -71,18 +71,43 @@ export interface Link {
   vDirect: boolean;
 }
 
-/** Arranges the free shapes of `input`, and says where each goes. */
+/**
+ * Arranges the free shapes of `input`, and says where each goes. Given several ELK engines, as the
+ * layout worker gives one per ELK worker it runs, the containers of one depth are shared out among
+ * them, each its own run at the same time; the result is the same as with one.
+ */
 export async function layOut(
   input: LayoutInput,
-  elk: ElkEngine,
+  elk: ElkEngine | readonly ElkEngine[],
   now: () => number = () => performance.now(),
 ): Promise<LayoutResult> {
   const started = now();
+  const engines = Array.isArray(elk) ? (elk as readonly ElkEngine[]) : [elk as ElkEngine];
   const tree = new Tree(input);
   const stats = { levels: 0, shapes: 0, edges: 0, elkRuns: 0, elkMs: 0, totalMs: 0 };
   const placed: LaidOutShape[] = [];
 
-  /** Arranges the levels given, one ELK run for all of them, and records their contents' new places. */
+  /** Runs the graphs of blocks in ELK, shared out among the engines, and gives each block's graph. */
+  const run = async (graphs: readonly ElkNode[]): Promise<Map<string, ElkNode>> => {
+    const shares = shareOut(graphs, engines.length);
+    const runStarted = now();
+    const results = await Promise.all(
+      shares.map((share, at) =>
+        (engines[at] as ElkEngine).layout({
+          id: 'run',
+          layoutOptions: RUN_OPTIONS,
+          children: share,
+        }),
+      ),
+    );
+    stats.elkRuns += shares.length;
+    stats.elkMs += now() - runStarted;
+    return new Map(
+      results.flatMap((result) => result.children ?? []).map((graph) => [graph.id, graph]),
+    );
+  };
+
+  /** Arranges the levels given, in ELK at once, and records their contents' new places. */
   const arrange = async (levels: readonly number[]): Promise<void> => {
     const blocks: { level: number; nodes: number[]; places: Map<number, Point> }[] = [];
     const graphs: ElkNode[] = [];
@@ -111,11 +136,7 @@ export async function layOut(
       }
     }
     if (graphs.length > 0) {
-      const runStarted = now();
-      const result = await elk.layout({ id: 'run', layoutOptions: RUN_OPTIONS, children: graphs });
-      stats.elkRuns += 1;
-      stats.elkMs += now() - runStarted;
-      const byId = new Map((result.children ?? []).map((graph) => [graph.id, graph]));
+      const byId = await run(graphs);
       for (const block of blocks) {
         const graph = byId.get(`level ${block.level}`);
         for (const child of graph?.children ?? []) {
@@ -243,6 +264,28 @@ export function blockGraph(
     }),
     edges,
   };
+}
+
+/**
+ * Shares graphs out among `count` runs, at most one per graph, each run as close to the same work as
+ * can be: the largest first, each to the run with the least so far. Work is counted as shapes and
+ * relations, which is roughly what ELK's time follows.
+ */
+export function shareOut(graphs: readonly ElkNode[], count: number): ElkNode[][] {
+  const runs = Math.max(1, Math.min(count, graphs.length));
+  const shares: ElkNode[][] = Array.from({ length: runs }, () => []);
+  const work = new Array<number>(runs).fill(0);
+  const weightOf = (graph: ElkNode) => (graph.children?.length ?? 0) + (graph.edges?.length ?? 0);
+  const order = graphs.map((graph, at) => ({ graph, at, weight: weightOf(graph) }));
+  order.sort((a, b) => b.weight - a.weight || a.at - b.at);
+  for (const { graph, weight } of order) {
+    let least = 0;
+    for (let at = 1; at < runs; at++)
+      if ((work[at] as number) < (work[least] as number)) least = at;
+    (shares[least] as ElkNode[]).push(graph);
+    work[least] = (work[least] as number) + weight;
+  }
+  return shares;
 }
 
 /**
