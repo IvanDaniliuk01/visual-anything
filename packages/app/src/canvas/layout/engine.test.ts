@@ -3,7 +3,7 @@ import type { ElkNode } from 'elkjs/lib/elk-api';
 import { describe, expect, it, vi } from 'vitest';
 import type { Rect } from '../geometry';
 import { CONTENTS_ORIGIN } from '../scene';
-import { blockGraph, layOut, type ElkEngine } from './engine';
+import { blockGraph, layOut, shareOut, type ElkEngine } from './engine';
 import { LAYOUT_STEP, type LaidOutShape, type LayoutInput, type LayoutShape } from './types';
 
 const elk: ElkEngine = new ELK();
@@ -202,9 +202,51 @@ describe('layOut', () => {
     expect(stats.elkRuns).toBe(2);
   });
 
+  it('shares the containers of one depth out among several engines, with the same result', async () => {
+    const shapes: LayoutShape[] = [];
+    const edges: [number, number][] = [];
+    for (let system = 0; system < 5; system++) {
+      const at = shapes.length;
+      shapes.push(shape(`s${system}`, -1, container));
+      shapes.push(shape(`s${system}/a`, at), shape(`s${system}/b`, at), shape(`s${system}/c`, at));
+      edges.push([at + 1, at + 2], [at + 2, at + 3]);
+    }
+    edges.push([1, 5]);
+    const alone = await layOut(input(shapes, edges), elk);
+    const first = vi.fn(elk.layout.bind(elk));
+    const second = vi.fn(new ELK().layout.bind(new ELK()));
+    const shared = await layOut(input(shapes, edges), [{ layout: first }, { layout: second }]);
+    expect(shared.shapes).toEqual(alone.shapes);
+    // The containers go to both; World, a single block, to one.
+    expect(first).toHaveBeenCalledTimes(2);
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(shared.stats.elkRuns).toBe(3);
+  });
+
   it('gives nothing back when nothing is free', async () => {
     const { shapes: placed } = await layOut(input([shape('a', -1, { free: false })]), elk);
     expect(placed).toEqual([]);
+  });
+});
+
+describe('shareOut', () => {
+  const graph = (id: string, nodes: number): ElkNode => ({
+    id,
+    children: Array.from({ length: nodes }, (_, at) => ({ id: `${id}${at}` })),
+  });
+
+  it('gives each run about the same work, the largest first, and keeps every graph once', () => {
+    const graphs = [graph('a', 2), graph('b', 9), graph('c', 4), graph('d', 5), graph('e', 1)];
+    const shares = shareOut(graphs, 2);
+    expect(shares.map((share) => share.map((each) => each.id))).toEqual([
+      ['b', 'a'],
+      ['d', 'c', 'e'],
+    ]);
+  });
+
+  it('never makes more runs than graphs, nor fewer than one', () => {
+    expect(shareOut([graph('a', 1)], 3)).toHaveLength(1);
+    expect(shareOut([graph('a', 1), graph('b', 1)], 0)).toHaveLength(1);
   });
 });
 
