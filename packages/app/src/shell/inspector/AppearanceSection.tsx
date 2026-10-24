@@ -1,6 +1,6 @@
 import { appearanceOf, type Definitions, type UpdateElementCommand } from '@visual-anything/core';
 import type { Appearance, Element } from '@visual-anything/schema';
-import { useId, useState, type ReactNode } from 'react';
+import { useId, useRef, useState, type ReactNode } from 'react';
 import { ColorControl, SelectControl } from './controls';
 import { Mark } from './parts';
 
@@ -30,7 +30,7 @@ interface AppearanceSectionProps {
 /**
  * How the element is drawn: what its own appearance sets, which is a particularity, and its
  * component's appearance for the rest. Its own appearance is replaced whole, so a change keeps the
- * traits it already sets.
+ * traits it already sets, and those of a change still on its way, which the project does not show yet.
  */
 export function AppearanceSection({
   element,
@@ -40,14 +40,29 @@ export function AppearanceSection({
 }: AppearanceSectionProps) {
   const headingId = useId();
   const [focusShape, setFocusShape] = useState(0);
+  // The appearance last sent, until its answer comes: what is changed meanwhile builds on it.
+  const sent = useRef<{ appearance: Appearance | null } | undefined>(undefined);
   const own = element.appearance ?? {};
   const shown = appearanceOf(element, definitions);
   const ownTraits = Object.entries(own).filter(([, value]) => value !== undefined);
-  const change = (traits: Appearance) => update({ appearance: { ...own, ...traits } });
+
+  const send = async (appearance: Appearance | null): Promise<boolean> => {
+    const mine = { appearance };
+    sent.current = mine;
+    try {
+      return await update({ appearance });
+    } finally {
+      if (sent.current === mine) sent.current = undefined;
+    }
+  };
+  const change = (traits: Appearance) => {
+    const base = sent.current === undefined ? own : (sent.current.appearance ?? {});
+    return send({ ...base, ...traits });
+  };
 
   const reset = async () => {
     // The button goes with the element's own appearance: the focus moves to the first trait.
-    if (await update({ appearance: null })) setFocusShape((request) => request + 1);
+    if (await send(null)) setFocusShape((request) => request + 1);
   };
 
   return (
