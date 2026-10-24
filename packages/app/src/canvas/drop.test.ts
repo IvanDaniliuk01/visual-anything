@@ -332,36 +332,36 @@ describe('dropAimAt and dropCommand', () => {
 
   it('keeps contents in their container while they are rearranged inside it', () => {
     const row = (shape: 'ellipse' | undefined) => {
-      const box = after(sample, {
+      const system = after(sample, {
         type: 'create-element',
         element: {
-          id: 'box',
+          id: 'empty-system',
           component: 'systems.system',
-          name: 'Box system',
+          name: 'Empty system',
           ...(shape ? { appearance: { shape } } : {}),
         },
         positions: [{ view: VIEW, x: 0, y: 1000, width: 448, height: 144 }],
       });
-      const one = after(box, {
+      const one = after(system, {
         type: 'create-element',
         element: { id: 'one', component: 'systems.service', name: 'One' },
-        containers: [{ container: 'box', relationType: 'systems.is-part-of' }],
-        positions: [{ view: VIEW, container: 'box', x: 24, y: 48 }],
+        containers: [{ container: 'empty-system', relationType: 'systems.is-part-of' }],
+        positions: [{ view: VIEW, container: 'empty-system', x: 24, y: 48 }],
       });
       return after(one, {
         type: 'create-element',
         element: { id: 'two', component: 'systems.service', name: 'Two' },
-        containers: [{ container: 'box', relationType: 'systems.is-part-of' }],
-        positions: [{ view: VIEW, container: 'box', x: 244, y: 48 }],
+        containers: [{ container: 'empty-system', relationType: 'systems.is-part-of' }],
+        positions: [{ view: VIEW, container: 'empty-system', x: 244, y: 48 }],
       });
     };
     // The second one below the first, with the pointer below the container.
-    const below = drag(row(undefined), ['two'], 'box/two', { x: 114, y: 1176 });
+    const below = drag(row(undefined), ['two'], 'empty-system/two', { x: 114, y: 1176 });
     expect(below.delta).toEqual({ x: -220, y: 92 });
     expect(aimOf(below)).toEqual({ kind: 'stay' });
     // In an ellipse, with the pointer in the corner of its rectangle, outside the ellipse.
-    const corner = drag(row('ellipse'), ['two'], 'box/two', { x: 440, y: 1140 });
-    expect(shape(corner.indexed, 'box').kind).toBe('ellipse');
+    const corner = drag(row('ellipse'), ['two'], 'empty-system/two', { x: 440, y: 1140 });
+    expect(shape(corner.indexed, 'empty-system').kind).toBe('ellipse');
     expect(aimOf(corner)).toEqual({ kind: 'stay' });
   });
 
@@ -659,7 +659,7 @@ describe('landingCover', () => {
 });
 
 describe('takeOutCommand', () => {
-  it('takes a shape one level up, beside the container it leaves', () => {
+  it('takes a shape out into the container around its own, beside the one it leaves', () => {
     const indexed = indexOf(sample);
     const api = shape(indexed, 'clinic-booking/scheduling/appointments-api');
     const up = takeOutCommand(indexed, sample, VIEW, api);
