@@ -37,8 +37,8 @@ export interface CanvasToolbarProps {
   /** Takes the "Add element…" select, so that `Add inside "X"…` can move the focus to it. */
   addSelect?: Ref<HTMLSelectElement>;
   /**
-   * Called when "Add element…" loses the focus, after adding what the keys reached, and on Escape in
-   * it: a target set for the next element added ends there.
+   * Called when "Add element…" loses the focus, and on Escape in it: a target set for the next
+   * element added ends there.
    */
   onAddLeave?: () => void;
 }
@@ -48,7 +48,7 @@ const IN_WORLD = 'With nothing selected, elements are added directly in World.';
 /**
  * The canvas toolbar: the component palette, free shapes, the stacking order and zoom. The palette
  * adds an element when one is picked from its open list; the arrow keys going through it while it is
- * closed only show an option, which Enter, or leaving it, adds.
+ * closed only show an option, which Enter adds.
  */
 export function CanvasToolbar({
   project,
@@ -65,76 +65,19 @@ export function CanvasToolbar({
   addSelect,
   onAddLeave,
 }: CanvasToolbarProps) {
-  const palette = useMemo(() => {
-    const definitions = definitionsOf(project.packages);
-    return project.packages.map((file) => ({
-      id: file.id,
-      name: file.name,
-      components: file.components.map((component) => ({
-        id: component.id,
-        name: definitions.component(component.id)?.name ?? component.name,
-      })),
-    }));
-  }, [project.packages]);
-  // An option the keys reached in the closed list, not added yet.
-  const [reached, setReached] = useState<string>();
-  // Set by a key that goes through the options, until the change it makes, in the same task.
-  const browsing = useRef(false);
-
-  const add = (component: string) => {
-    setReached(undefined);
-    if (component !== '') onAdd(component);
-  };
-
   return (
     <div className="canvas-toolbar" role="toolbar" aria-label="Canvas">
       <label className="canvas-toolbar-add">
         <span className="visually-hidden">{addPlace?.label ?? 'Add an element'}</span>
-        <select
-          ref={addSelect}
-          value={reached ?? ''}
+        <ComponentSelect
+          project={project}
+          option={addPlace?.option ?? 'Add element…'}
           title={addPlace?.title ?? IN_WORLD}
           disabled={!editable}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && reached !== undefined) {
-              event.preventDefault();
-              add(reached);
-            } else if (event.key === 'Escape') {
-              if (reached !== undefined) event.preventDefault();
-              setReached(undefined);
-              onAddLeave?.();
-            } else if (browsesOptions(event)) {
-              browsing.current = true;
-              setTimeout(() => {
-                browsing.current = false;
-              }, 0);
-            }
-          }}
-          onChange={(event) => {
-            const next = event.target.value;
-            if (browsing.current) {
-              browsing.current = false;
-              setReached(next === '' ? undefined : next);
-            } else {
-              add(next);
-            }
-          }}
-          onBlur={() => {
-            if (reached !== undefined) add(reached);
-            onAddLeave?.();
-          }}
-        >
-          <option value="">{addPlace?.option ?? 'Add element…'}</option>
-          {palette.map((file) => (
-            <optgroup key={file.id} label={file.name}>
-              {file.components.map((component) => (
-                <option key={component.id} value={component.id}>
-                  {component.name}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+          onAdd={onAdd}
+          {...(addSelect ? { selectRef: addSelect } : {})}
+          {...(onAddLeave ? { onLeave: onAddLeave } : {})}
+        />
       </label>
       <button type="button" disabled={!editable} onClick={onAddNote}>
         Note
@@ -173,6 +116,102 @@ export function CanvasToolbar({
         Fit
       </button>
     </div>
+  );
+}
+
+export interface ComponentSelectProps {
+  project: ProjectSnapshot;
+  /** The first option, which says where the element goes. */
+  option: string;
+  title?: string;
+  disabled: boolean;
+  onAdd: (component: Id) => void;
+  selectRef?: Ref<HTMLSelectElement>;
+  /** Called when it loses the focus, and on Escape in it. */
+  onLeave?: () => void;
+}
+
+/**
+ * A select of the components of the packages in use, which adds an element of the one picked from its
+ * open list. The keys that go through the options of a closed list only show one, which Enter adds;
+ * leaving the list adds nothing, since adding an element is not a value left behind.
+ */
+export function ComponentSelect({
+  project,
+  option,
+  title,
+  disabled,
+  onAdd,
+  selectRef,
+  onLeave,
+}: ComponentSelectProps) {
+  const palette = useMemo(() => {
+    const definitions = definitionsOf(project.packages);
+    return project.packages.map((file) => ({
+      id: file.id,
+      name: file.name,
+      components: file.components.map((component) => ({
+        id: component.id,
+        name: definitions.component(component.id)?.name ?? component.name,
+      })),
+    }));
+  }, [project.packages]);
+  // An option the keys reached in the closed list, not added yet.
+  const [reached, setReached] = useState<string>();
+  // Set by a key that goes through the options, until the change it makes, in the same task.
+  const browsing = useRef(false);
+
+  const add = (component: string) => {
+    setReached(undefined);
+    if (component !== '') onAdd(component);
+  };
+
+  return (
+    <select
+      ref={selectRef}
+      value={reached ?? ''}
+      title={title}
+      disabled={disabled}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' && reached !== undefined) {
+          event.preventDefault();
+          add(reached);
+        } else if (event.key === 'Escape') {
+          if (reached !== undefined) event.preventDefault();
+          setReached(undefined);
+          onLeave?.();
+        } else if (browsesOptions(event)) {
+          browsing.current = true;
+          setTimeout(() => {
+            browsing.current = false;
+          }, 0);
+        }
+      }}
+      onChange={(event) => {
+        const next = event.target.value;
+        if (browsing.current) {
+          browsing.current = false;
+          setReached(next === '' ? undefined : next);
+        } else {
+          add(next);
+        }
+      }}
+      onBlur={() => {
+        setReached(undefined);
+        onLeave?.();
+      }}
+    >
+      <option value="">{option}</option>
+      {palette.map((file) => (
+        <optgroup key={file.id} label={file.name}>
+          {file.components.map((component) => (
+            <option key={component.id} value={component.id}>
+              {component.name}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
   );
 }
 

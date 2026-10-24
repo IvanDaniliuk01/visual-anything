@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { createRef, type ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { loadSample } from '../test/sample';
-import { CanvasToolbar } from './CanvasToolbar';
+import { CanvasToolbar, ComponentSelect } from './CanvasToolbar';
 import type { StackingAction, StackingMove } from './stacking';
 
 const project = loadSample();
@@ -126,7 +126,7 @@ describe('CanvasToolbar', () => {
     expect(select).toHaveValue('');
   });
 
-  it('adds what the keys reached when it loses the focus, and nothing after Escape', () => {
+  it('adds nothing when it loses the focus or on Escape, which end where the next element goes', () => {
     const onAddLeave = vi.fn();
     const { onAdd } = toolbar({ onAddLeave });
     const select = screen.getByRole('combobox', { name: 'Add an element' });
@@ -139,11 +139,39 @@ describe('CanvasToolbar', () => {
     expect(onAdd).not.toHaveBeenCalled();
     expect(onAddLeave).toHaveBeenCalledTimes(2);
 
+    // Adding an element is not a value left behind: leaving the list adds nothing.
     fireEvent.keyDown(select, { key: 'ArrowDown' });
     fireEvent.change(select, { target: { value: 'systems.box' } });
     fireEvent.blur(select);
-    expect(onAdd).toHaveBeenCalledWith('systems.box');
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(select).toHaveValue('');
     expect(onAddLeave).toHaveBeenCalledTimes(3);
+  });
+
+  it('adds from a select of its own elsewhere by the same rule', () => {
+    const onAdd = vi.fn();
+    const onLeave = vi.fn();
+    render(
+      <label>
+        Add an element inside "Scheduling"
+        <ComponentSelect
+          project={project}
+          option='Add inside "Scheduling"…'
+          disabled={false}
+          onAdd={onAdd}
+          onLeave={onLeave}
+        />
+      </label>,
+    );
+    const select = screen.getByRole('combobox', { name: 'Add an element inside "Scheduling"' });
+    expect(within(select).getAllByRole('option')[0]).toHaveTextContent('Add inside "Scheduling"…');
+    fireEvent.keyDown(select, { key: 'ArrowDown' });
+    fireEvent.change(select, { target: { value: 'systems.box' } });
+    fireEvent.blur(select);
+    expect(onAdd).not.toHaveBeenCalled();
+    expect(onLeave).toHaveBeenCalledTimes(1);
+    fireEvent.change(select, { target: { value: 'systems.service' } });
+    expect(onAdd).toHaveBeenCalledWith('systems.service');
   });
 
   it('hands its select over, so that the focus can be moved to it', () => {

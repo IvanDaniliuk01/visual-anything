@@ -189,6 +189,54 @@
   font-size: 0.85rem;
 }
 
+/* In this view: each container the element sits in, its place in the stacking order, and moves */
+
+.inspector-memberships {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0;
+  list-style: none;
+}
+
+.inspector-membership + .inspector-membership {
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+/* Where it sits, then its buttons; in a narrow panel the buttons go below. */
+.inspector-membership-place {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.4rem;
+  overflow-wrap: anywhere;
+}
+
+.inspector-membership-place span {
+  flex: 1 1 8rem;
+}
+
+.inspector-stacking-place {
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.inspector-stacking {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.3rem;
+}
+
+/* A move that would change nothing stays focusable, and says why when pressed. */
+.inspector-action[aria-disabled='true'] {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.inspector-action[aria-disabled='true']:hover {
+  border-color: var(--border);
+}
+
 /* What a component or relation type derives from: "Database › Box › Essence" */
 
 .inspector-lineage {

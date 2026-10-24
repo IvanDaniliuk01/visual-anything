@@ -16,6 +16,7 @@ import { SelectControl, TextControl } from './controls';
 import { End, FirstOnes, Lineage, SelectButton, Title } from './parts';
 import { perform } from './send';
 import { sameOptionalText } from './text';
+import { ViewSection } from './ViewSection';
 
 interface ElementInspectorProps {
   element: Element;
@@ -27,8 +28,9 @@ interface ElementInspectorProps {
 }
 
 /**
- * One element: its name and description, its component, where it sits, the relations on it, its
- * attributes and its appearance. Its particularities are marked, and each can be taken back.
+ * One element: its name and description, its component, where it sits, the relations on it, where
+ * it sits in the open view and its stacking order there, its attributes and its appearance. Its
+ * particularities are marked, and each can be taken back.
  */
 export function ElementInspector({
   element,
@@ -86,6 +88,7 @@ export function ElementInspector({
         definitions={definitions}
         onSelect={onSelect}
       />
+      <ViewSection element={element} />
       <AttributesSection
         of="element"
         definitions={component.attributes}

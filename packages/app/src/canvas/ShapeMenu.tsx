@@ -5,7 +5,7 @@ import {
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
-import { useEffect, useId, useRef } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef } from 'react';
 import type { Selection } from '../editor/selection';
 import './drop.css';
 import { putInsideCommand, putInsideTarget, takeOutCommand } from './drop';
@@ -78,6 +78,16 @@ export function ShapeMenu({
   const menu = useRef<HTMLDivElement>(null);
   const underId = useId();
   useOutsidePress(menu, onClose);
+  // Opened near the bottom or the right side of the canvas, it moves in, so that every item shows.
+  useLayoutEffect(() => {
+    const element = menu.current;
+    const frame = element?.offsetParent;
+    if (!element || !(frame instanceof HTMLElement)) return;
+    const left = Math.max(0, Math.min(at.x, frame.clientWidth - element.offsetWidth));
+    const top = Math.max(0, Math.min(at.y, frame.clientHeight - element.offsetHeight));
+    element.style.left = `${left}px`;
+    element.style.top = `${top}px`;
+  }, [at.x, at.y]);
   useEffect(() => {
     menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
   }, []);
@@ -114,6 +124,9 @@ export function ShapeMenu({
         if (event.key === 'Escape') onClose();
         else menuKeyDown(event);
       }}
+      // The menu key and Shift+F10 open it before their `contextmenu` event comes, which then comes
+      // to it, where the browser's own menu would open over it.
+      onContextMenu={(event) => event.preventDefault()}
     >
       <p className="canvas-menu-title" aria-hidden="true">
         {shape.name}
