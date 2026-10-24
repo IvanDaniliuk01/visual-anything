@@ -452,6 +452,123 @@ describe('cleanSvg refuses', () => {
   });
 });
 
+/**
+ * Cleans text and says how long it took, in milliseconds: the least of three runs, so that a busy
+ * machine does not fail the bound while a cost that grows with the input still would.
+ */
+function timed(text: string): { result: ReturnType<typeof cleanSvg>; ms: number } {
+  let ms = Infinity;
+  let result = cleanSvg(text);
+  for (let run = 0; run < 3; run++) {
+    const start = Date.now();
+    result = cleanSvg(text);
+    ms = Math.min(ms, Date.now() - start);
+  }
+  return { result, ms };
+}
+
+/** The most a crafted input may take to clean or refuse. */
+const BOUND_MS = 200;
+
+describe('cleanSvg’s time is bounded, whatever the input holds', () => {
+  it('refuses 5,000 elements under 5,000 style rules quickly', () => {
+    const rules = Array.from({ length: 5000 }, (_, i) => `.c${i}{fill:#000;stroke:#111}`).join('');
+    const elements = Array.from(
+      { length: 5000 },
+      (_, i) => `<path class="c${i} c0" d="M0 0h1"/>`,
+    ).join('');
+    const text = `<svg viewBox="0 0 1 1" ${NS}><style>${rules}</style>${elements}</svg>`;
+    expect(text.length).toBeLessThanOrEqual(SVG_CAPS.input);
+    const { result, ms } = timed(text);
+    expect(result.ok || result.problem.code).toBe('image-too-large');
+    expect(ms).toBeLessThan(BOUND_MS);
+  });
+
+  it('refuses rules that hold over 1,024 declarations, counted once per selector', () => {
+    const selectors = Array.from({ length: 16 }, (_, i) => `.s${i}`).join(',');
+    const body = Array.from({ length: 10 }, () => 'fill:#000000').join(';');
+    const rules = Array.from({ length: 7 }, () => `${selectors}{${body}}`).join('');
+    const { result, ms } = timed(
+      `<svg viewBox="0 0 1 1" ${NS}><style>${rules}</style>${SQUARE}</svg>`,
+    );
+    expect(result.ok || result.problem.code).toBe('image-too-large');
+    expect(result.ok || result.problem.message).toContain('1024 declarations');
+    expect(ms).toBeLessThan(BOUND_MS);
+  });
+
+  it('refuses rules that match every element through many classes, once the fold budget runs out', () => {
+    const classes = Array.from({ length: 16 }, (_, i) => `k${i}`);
+    const rules = Array.from(
+      { length: 256 },
+      () => `${classes.map((each) => `.${each}`).join(',')}{}`,
+    ).join('');
+    const elements = Array.from({ length: 3900 }, () => `<g class="${classes.join(' ')}"/>`).join(
+      '',
+    );
+    const { result, ms } = timed(
+      `<svg viewBox="0 0 1 1" ${NS}><style>${rules}</style>${elements}${SQUARE}</svg>`,
+    );
+    expect(result.ok || result.problem.code).toBe('image-too-large');
+    expect(result.ok || result.problem.message).toContain('style rules match too many');
+    expect(ms).toBeLessThan(BOUND_MS);
+  });
+
+  it('refuses an element rule of many declarations over thousands of elements, and folds one within the budget', () => {
+    const body = (count: number) =>
+      Array.from({ length: count }, (_, i) => (i % 2 ? 'fill:#000000' : 'stroke:#000000')).join(
+        ';',
+      );
+    const paths = (count: number) => '<path d="M0 0h1"/>'.repeat(count);
+    const over = timed(
+      `<svg viewBox="0 0 1 1" ${NS}><style>path{${body(30)}}</style>${paths(3900)}</svg>`,
+    );
+    expect(over.result.ok || over.result.problem.code).toBe('image-too-large');
+    expect(over.ms).toBeLessThan(BOUND_MS);
+    const within = timed(
+      `<svg viewBox="0 0 1 1" ${NS}><style>path{${body(2)}}</style>${paths(1000)}</svg>`,
+    );
+    expect(within.result.ok).toBe(true);
+    expect(within.ms).toBeLessThan(BOUND_MS);
+  });
+
+  it('refuses over 4,000 elements to draw before folding their styles', () => {
+    const { result } = timed(`<svg viewBox="0 0 1 1" ${NS}>${'<g/>'.repeat(4001)}${SQUARE}</svg>`);
+    expect(result.ok || result.problem.message).toContain('over 4000 elements to draw');
+  });
+
+  it('refuses over 256 namespace declarations, which each element that declares one would copy', () => {
+    const many = Array.from({ length: 257 }, (_, i) => ` xmlns:p${i}="urn:p${i}"`).join('');
+    expect(refusal(`<svg viewBox="0 0 1 1" ${NS}${many}>${SQUARE}</svg>`)).toBe('image-too-large');
+    const root = Array.from({ length: 250 }, (_, i) => ` xmlns:p${i}="urn:p${i}"`).join('');
+    const children = Array.from({ length: 19_000 }, () => '<metadata xmlns:x="urn:x"/>').join('');
+    const { result, ms } = timed(`<svg viewBox="0 0 1 1" ${NS}${root}>${children}${SQUARE}</svg>`);
+    expect(result.ok || result.problem.code).toBe('image-too-large');
+    expect(ms).toBeLessThan(BOUND_MS);
+  });
+
+  it('names at most 20 kinds of what it removed', () => {
+    const others = Array.from({ length: 30 }, (_, i) => `<x:e${i} xmlns:x="urn:x"/>`).join('');
+    const result = cleaned(`<svg viewBox="0 0 1 1" ${NS}>${others}${SQUARE}</svg>`);
+    expect(result.removed).toHaveLength(21);
+    expect(result.removed.at(-1)).toBe('10 more kinds of thing');
+  });
+
+  it('keeps the look of an ordinary icon with a style block', () => {
+    const icon =
+      `<svg ${NS} viewBox="0 0 64 64"><defs><style>.cls-1{fill:#e44d26}.cls-2{fill:#f16529}` +
+      'circle{stroke:#ffffff;stroke-width:2}</style></defs>' +
+      '<path class="cls-1" d="M5 0h54l-5 56-22 8-22-8z"/><path class="cls-2" d="M32 59V5h22l-4 47z"/>' +
+      '<circle class="cls-1" cx="32" cy="32" r="8" style="fill:#ebebeb"/></svg>';
+    const result = cleaned(icon);
+    expect(result.svg).toBe(
+      `<svg viewBox="0 0 64 64" ${NS}><defs/>` +
+        '<path d="M5 0h54l-5 56-22 8-22-8z" fill="#e44d26"/><path d="M32 59V5h22l-4 47z" fill="#f16529"/>' +
+        '<circle cx="32" cy="32" fill="#ebebeb" r="8" stroke="#ffffff" stroke-width="2"/></svg>',
+    );
+    expect(result.removed).toEqual([]);
+  });
+});
+
 describe('pathCommandCount', () => {
   it('counts the segments a command repeats implicitly', () => {
     expect(pathCommandCount('M0 0 1 1 2 2')).toBe(3);
