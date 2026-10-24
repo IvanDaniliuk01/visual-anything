@@ -41,10 +41,10 @@ import {
   type Camera,
 } from '../canvas/camera';
 import type { SendCommand } from '../canvas/CanvasArea';
-import { CanvasController } from '../canvas/controller';
+import { CanvasController, HIT_TOLERANCE } from '../canvas/controller';
 import type { Point, Rect, Size } from '../canvas/geometry';
 import { hitAt, indexScene, type IndexedScene } from '../canvas/hit';
-import { CanvasRenderer, NAMES_FROM } from '../canvas/renderer';
+import { CanvasRenderer, FIT_MARGIN, NAMES_FROM } from '../canvas/renderer';
 import { buildScene, type ElementShape } from '../canvas/scene';
 import { outlineOf } from '../shell/outlineItems';
 import { ProjectErrorBoundary } from '../shell/ProjectErrorBoundary';
@@ -183,9 +183,6 @@ interface AppBenchProps {
 
 /** Clicks shapes where names show, as a person does who reads what they click. */
 const CLICK_SCALE = NAMES_FROM * 1.3;
-/** Copied from the renderer and the controller, which keep them to themselves. */
-const FIT_MARGIN = 32;
-const HIT_TOLERANCE = 6;
 /** The longest the benchmark waits for something to show before it gives up, in frames. */
 const MAX_WAIT_FRAMES = 600;
 const CLICKS_MARK = 2000 / TARGET_FPS;

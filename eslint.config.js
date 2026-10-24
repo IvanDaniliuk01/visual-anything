@@ -24,7 +24,13 @@ const ioGlobals = [
 ];
 
 export default defineConfig(
-  globalIgnores(['**/dist/', '**/coverage/', '.claude/', 'packages/schema/schemas/']),
+  globalIgnores([
+    '**/dist/',
+    '**/dist-bench/',
+    '**/coverage/',
+    '.claude/',
+    'packages/schema/schemas/',
+  ]),
   js.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
   {

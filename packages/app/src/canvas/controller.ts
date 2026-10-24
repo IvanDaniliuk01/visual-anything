@@ -206,7 +206,7 @@ interface Nudge {
 /** How far the pointer moves before a press becomes a drag, in screen pixels. */
 const DRAG_THRESHOLD = 4;
 /** How close to a line the pointer must be to point at it, in screen pixels. */
-const HIT_TOLERANCE = 6;
+export const HIT_TOLERANCE = 6;
 /** How far beside a shape its handle sits, and how close the pointer must be to grab it. */
 const HANDLE_OFFSET = 14;
 const HANDLE_REACH = 10;

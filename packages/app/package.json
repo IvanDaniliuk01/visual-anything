@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "bench": "vite build --config vite.bench.config.ts && vite preview --config vite.bench.config.ts",
     "typecheck": "tsc"
   },
   "dependencies": {
