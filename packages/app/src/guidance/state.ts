@@ -61,8 +61,10 @@ export function applyGuidance(
     }
     case 'caption': {
       if (guidance.text !== '') return { ...state, caption: guidance.text };
-      const { caption: _gone, ...rest } = state;
-      return rest;
+      return {
+        ...(state.marks === undefined ? {} : { marks: state.marks }),
+        ...(state.panTo === undefined ? {} : { panTo: state.panTo }),
+      };
     }
     case 'clear':
       return NO_GUIDANCE;
