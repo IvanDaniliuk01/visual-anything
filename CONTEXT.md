@@ -163,8 +163,22 @@ _Avoid_: orphan step, dead step
 A saved sequence of steps, each a view state with an explanation, that is played to walk someone through a concept. A step can play a scenario. Created by a person or by Claude.
 _Avoid_: walkthrough, presentation, story
 
+**Guidance**:
+The marks and moves Claude makes live on the open view while it explains: highlighting shapes, focusing on some and dimming the rest, moving the canvas to one, and showing a caption. Guidance never changes the model, a view or the history, and shows only while the app is open.
+_Avoid_: spotlight
+
+**Caption**:
+A short plain text Claude shows over the canvas as part of its guidance, until it shows another, clears it, or the person dismisses it.
+_Avoid_: toast
+
 **Simulate**:
 To compute a behavior from parameters the user changes: learning rate and loss curve, replicas and latency.
 
 **Edit**:
 To change the model or the canvas: create, move, put inside or take out of a container, connect, change the stacking order, delete.
+
+### The local program
+
+**Launch address**:
+An address that opens a project in the browser once, within two minutes of being made. The local program opens or prints one instead of an address carrying the session token, which never leaves the program; the tab gets the token when it opens and keeps it for reloads.
+_Avoid_: magic link, one-time link
