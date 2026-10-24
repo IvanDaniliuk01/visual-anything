@@ -208,6 +208,8 @@ export async function runCommand(
     return 1;
   }
   stopper.onSignals(environment.signals);
+  // Before saying it runs, so that Claude can attach as soon as it does.
+  const record = await recordForClaude(environment, server, session.folder);
 
   environment.out(`Opened "${session.snapshot.project.name}" from ${toForwardSlashes(folder)}.`);
   for (const warning of session.warnings()) {
@@ -217,8 +219,6 @@ export async function runCommand(
   if (options.dev) {
     environment.out('Dev mode: Vite serves the app from its sources, with hot reload.');
   }
-
-  const record = await recordForClaude(environment, server, session.folder);
 
   if (options.open) {
     void openBrowser(server.launchUrl()).catch(() => {});
