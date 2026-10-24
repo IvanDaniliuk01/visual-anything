@@ -10,6 +10,7 @@ import packageSchema from '../schemas/package.schema.json' with { type: 'json' }
 import projectSchema from '../schemas/project.schema.json' with { type: 'json' };
 import scenarioSchema from '../schemas/scenario.schema.json' with { type: 'json' };
 import viewSchema from '../schemas/view.schema.json' with { type: 'json' };
+import { SCHEMA_VERSION } from './files';
 import type { FileContentByKind, FileKind } from './kinds';
 
 /** A problem found in a project file. */
@@ -46,9 +47,37 @@ export function validateFile<K extends FileKind>(
   kind: K,
   data: unknown,
 ): ValidationResult<FileContentByKind[K]> {
+  // A project from a newer build fails on its version and on whatever it added; only the first says
+  // what to do, so it is said alone.
+  const newer = kind === 'project' ? newerFormatOf(data) : undefined;
+  if (newer !== undefined) {
+    return {
+      ok: false,
+      errors: [
+        {
+          path: '/schemaVersion',
+          message: `This project was saved by a newer Visual Anything, format ${newer}. Update the program to open it.`,
+        },
+      ],
+    };
+  }
   const validate = validatorOf(kind);
   if (validate(data)) return { ok: true, value: data as FileContentByKind[K] };
   return { ok: false, errors: validationErrors((validate.errors ?? []) as DefinedError[]) };
+}
+
+/**
+ * The format version of a project file's contents when it is newer than the one this build reads: an
+ * integer above it. `undefined` for anything else, which the schema then checks as usual.
+ */
+export function newerFormatOf(data: unknown): number | undefined {
+  if (typeof data !== 'object' || data === null || !Object.hasOwn(data, 'schemaVersion')) {
+    return undefined;
+  }
+  const version = (data as { schemaVersion: unknown }).schemaVersion;
+  return typeof version === 'number' && Number.isInteger(version) && version > SCHEMA_VERSION
+    ? version
+    : undefined;
 }
 
 /** The published JSON Schema of each kind of project file. */
@@ -78,12 +107,65 @@ function validatorOf(kind: FileKind): ValidateFunction {
 function validationErrors(errors: DefinedError[]): ValidationError[] {
   const seen = new Set<string>();
   const result: ValidationError[] = [];
-  for (const error of errors) {
-    const message = messageOf(error);
+  for (const { error, message: joined } of withUnionsExplained(errors)) {
+    // A key that breaks propertyNames is reported once, by the propertyNames error that names it,
+    // not again by the errors of the schema its name failed.
+    if (error.propertyName !== undefined && error.keyword !== 'propertyNames') continue;
+    const message = joined ?? messageOf(error);
     const key = JSON.stringify([error.instancePath, message]);
     if (message === undefined || seen.has(key)) continue;
     seen.add(key);
     result.push({ path: error.instancePath, message });
+  }
+  return result;
+}
+
+/**
+ * The keywords by which a value fails a member of a union only because it is another kind of value,
+ * such as a string where the member is a list.
+ */
+const MISMATCHES = new Set<string>(['type', 'const', 'enum', 'anyOf']);
+
+/**
+ * Ajv's errors with each failed union (`anyOf`, such as a limit that is a list or `any`) told the way
+ * a person reads it. When the value fails a member it is the kind of, only that member's own errors
+ * stay, such as "must have at least 1 item"; when it is the kind of no member, the union's errors
+ * become one, such as `must be an array or "any"`, given as `message`.
+ */
+function withUnionsExplained(errors: DefinedError[]): { error: DefinedError; message?: string }[] {
+  const unions = new Set(
+    errors.filter((error) => error.keyword === 'anyOf').map((error) => error.instancePath),
+  );
+  const result: { error: DefinedError; message?: string }[] = [];
+  const joined = new Set<string>();
+  for (const error of errors) {
+    const path = error.instancePath;
+    if (!unions.has(path) || !MISMATCHES.has(error.keyword)) {
+      result.push({ error });
+      continue;
+    }
+    const inside = errors.some(
+      (each) =>
+        (each.instancePath === path && !MISMATCHES.has(each.keyword)) ||
+        each.instancePath.startsWith(`${path}/`),
+    );
+    if (inside || joined.has(path)) continue;
+    joined.add(path);
+    const alternatives = errors
+      .filter((each) => each.instancePath === path)
+      .flatMap((each): string[] => {
+        switch (each.keyword) {
+          case 'type':
+            return [TYPE_NAMES[each.params.type] ?? each.params.type];
+          case 'const':
+            return [JSON.stringify(each.params.allowedValue)];
+          case 'enum':
+            return each.params.allowedValues.map((value) => JSON.stringify(value));
+          default:
+            return [];
+        }
+      });
+    result.push({ error, message: `must be ${[...new Set(alternatives)].join(' or ')}` });
   }
   return result;
 }
@@ -140,6 +222,16 @@ function messageOf(error: DefinedError): string | undefined {
         : `must have at least ${error.params.limit} characters`;
     case 'minItems':
       return `must have at least ${error.params.limit} item${error.params.limit === 1 ? '' : 's'}`;
+    case 'maxItems':
+      return `must have at most ${error.params.limit} item${error.params.limit === 1 ? '' : 's'}`;
+    case 'maxLength':
+      return `must have at most ${error.params.limit} character${error.params.limit === 1 ? '' : 's'}`;
+    case 'minProperties':
+      return error.params.limit === 1
+        ? 'must not be empty'
+        : `must have at least ${error.params.limit} keys`;
+    case 'propertyNames':
+      return `must have ids as its keys, and ${JSON.stringify(error.params.propertyName)} is not one`;
     case 'uniqueItems':
       return `must not have duplicate items (items ${error.params.j} and ${error.params.i} are the same)`;
     case 'minimum':

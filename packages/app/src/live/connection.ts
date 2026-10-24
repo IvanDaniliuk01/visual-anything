@@ -5,6 +5,7 @@
  * change carries to its own copy of the project, whoever made the change.
  */
 import {
+  LAUNCH_PARAM,
   OperationError,
   ProtocolError,
   applyOperations,
@@ -20,6 +21,7 @@ import {
   type ServerMessage,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
+import { NO_GUIDANCE, applyGuidance, type GuidanceState } from '../guidance/state';
 
 /** Where the live connection stands. */
 export type LiveStatus =
@@ -69,6 +71,17 @@ export interface LiveState {
   readonly history: HistorySummary;
   /** The notices to show, oldest first. */
   readonly notices: readonly Notice[];
+  /** What Claude's live guidance shows now; it never changes the project. */
+  readonly guidance?: GuidanceState;
+}
+
+/** How a connection hears of what the local program hands it. */
+export interface LiveConnectionOptions {
+  /**
+   * Called with the session token the local program hands over for a launch code, which is spent;
+   * returns the URL to reconnect at from then on.
+   */
+  onToken?: (token: string) => string;
 }
 
 /**
@@ -131,7 +144,11 @@ function sentences(problems: readonly { message: string }[]): string {
  * methods are bound, so they can be handed around as they are.
  */
 export class LiveConnection {
-  private readonly url: string | null;
+  /** Where to connect: with a launch code at first, with the session token once it was handed over. */
+  private url: string | null;
+  private readonly options: LiveConnectionOptions;
+  /** How many guidance messages arrived, to number each one. */
+  private guidanceCount = 0;
   private state: LiveState;
   private socket: WebSocket | undefined;
   /** Stops listening to the current socket. */
@@ -141,16 +158,23 @@ export class LiveConnection {
   /** Set after reconnecting because the copy drifted, until a change fits the fresh copy. */
   private recovering = false;
   private noticeCount = 0;
+  /** A socket opened with a launch code, kept for a moment after a disconnect: see `disconnect`. */
+  private parked: ReturnType<typeof setTimeout> | undefined;
 
-  /** `url` is the live connection's, carrying the session token; null when the tab has none. */
-  constructor(url: string | null) {
+  /**
+   * `url` is the live connection's, carrying the session token or a launch code; null when the tab
+   * has neither.
+   */
+  constructor(url: string | null, options: LiveConnectionOptions = {}) {
     this.url = url;
+    this.options = options;
     this.state = {
       status: url === null ? 'failed' : 'connecting',
       failure: url === null ? { reason: 'no-token' } : undefined,
       project: undefined,
       history: {},
       notices: [],
+      guidance: NO_GUIDANCE,
     };
   }
 
@@ -170,16 +194,41 @@ export class LiveConnection {
    * failed: it is never reopened in a loop.
    */
   readonly connect = (): void => {
+    if (this.parked !== undefined) {
+      // Connected again at once: the socket kept is still the one to use.
+      clearTimeout(this.parked);
+      this.parked = undefined;
+      return;
+    }
     if (this.url === null || this.socket !== undefined) return;
     if (this.state.status === 'closed' || this.state.status === 'failed') return;
     this.openSocket(this.url);
     if (this.state.status !== 'connecting') this.update({ status: 'connecting' });
   };
 
-  /** Closes the live connection, answering the requests still waiting. `connect` opens a new one. */
+  /**
+   * Closes the live connection, answering the requests still waiting. `connect` opens a new one. A
+   * socket opened with a launch code, before the token was handed over, closes a moment later
+   * instead: the code works once, so a mount undone and done again at once, as React's StrictMode
+   * does, must keep that socket rather than open another with a spent code.
+   */
   readonly disconnect = (): void => {
+    if (this.socket !== undefined && this.parked === undefined && this.opensOnce()) {
+      this.parked = setTimeout(() => {
+        this.parked = undefined;
+        this.closeSocket();
+      }, 0);
+      return;
+    }
     this.closeSocket();
   };
+
+  /** Whether the socket was opened with a launch code that the token has not yet replaced. */
+  private opensOnce(): boolean {
+    if (this.url === null || this.state.status !== 'connecting') return false;
+    const query = this.url.slice(this.url.indexOf('?') + 1);
+    return new URLSearchParams(query).has(LAUNCH_PARAM);
+  }
 
   /** Sends a command; resolves once the local program has answered it. */
   readonly send = (command: Command): Promise<CommandResult> =>
@@ -202,6 +251,11 @@ export class LiveConnection {
     this.update({
       notices: [...others, { id: this.noticeCount, level, message }].slice(-MAX_NOTICES),
     });
+  };
+
+  /** Stops showing Claude's guidance in this tab, as when the person dismisses it. */
+  readonly clearGuidance = (): void => {
+    if (this.state.guidance !== NO_GUIDANCE) this.update({ guidance: NO_GUIDANCE });
   };
 
   /** Stops showing a notice. */
@@ -271,10 +325,11 @@ export class LiveConnection {
   /** The socket closed without this tab closing it. */
   private closed(): void {
     this.forgetSocket();
+    // Claude's marks and caption no longer come from a live session.
     this.update(
       this.state.project === undefined
-        ? { status: 'failed', failure: { reason: 'refused' } }
-        : { status: 'closed' },
+        ? { status: 'failed', failure: { reason: 'refused' }, guidance: NO_GUIDANCE }
+        : { status: 'closed', guidance: NO_GUIDANCE },
     );
   }
 
@@ -295,6 +350,9 @@ export class LiveConnection {
     }
     switch (message.type) {
       case 'project/opened':
+        if (message.token !== undefined && this.options.onToken !== undefined) {
+          this.url = this.options.onToken(message.token);
+        }
         this.update({ status: 'open', project: message.project, history: message.history });
         break;
       case 'project/changed':
@@ -310,6 +368,16 @@ export class LiveConnection {
         break;
       case 'notice':
         this.notify(message.level, message.message);
+        break;
+      case 'guidance':
+        this.guidanceCount += 1;
+        this.update({
+          guidance: applyGuidance(
+            this.state.guidance ?? NO_GUIDANCE,
+            message.guidance,
+            this.guidanceCount,
+          ),
+        });
         break;
     }
   }

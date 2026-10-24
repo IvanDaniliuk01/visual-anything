@@ -1,9 +1,13 @@
 /**
  * Opens a project folder: finds its files, parses and validates each one, checks the rules that span
- * files, then checks the whole project against the rules of the core. Opening only reads.
+ * files, then checks the whole project against the rules of the core. Opening only reads, and reads
+ * only regular files within their kind's size cap, in real folders inside the project folder: a name
+ * that is a link, a device, a FIFO or a socket is a problem of its file, and nothing it points to is
+ * read.
  */
-import { readFile, readdir } from 'node:fs/promises';
+import { lstat, readdir, realpath } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import * as core from '@visual-anything/core';
 import {
   builtinPackage,
   checkProject,
@@ -23,6 +27,7 @@ import { parseFile } from '@visual-anything/schema/validate';
 import { errorCode, errorReason } from './errors';
 import { FOLDERS, type FolderKind } from './layout';
 import { toForwardSlashes } from './paths';
+import { capOf, readRegularFile } from './regular-files';
 
 /** A problem found in a project folder, reported against the file it concerns. */
 export interface ProjectFileProblem {
@@ -95,18 +100,21 @@ interface Read<K extends FileKind> {
  * problem is collected before returning; the core's rules are checked once every file is valid.
  */
 export async function loadProject(folder: string): Promise<LoadProjectResult> {
-  const projectFolder = resolve(folder);
+  const given = resolve(folder);
   const problems = new Problems();
 
-  const names = await listFiles(projectFolder);
+  const names = await listFiles(given);
   if (!names.ok) {
     problems.add('folder', {
       file: '.',
       pointer: '',
-      message: describeFolderFailure(projectFolder, names),
+      message: describeFolderFailure(given, names),
     });
     return { ok: false, errors: problems.list() };
   }
+  // Every file is read through the folder's real path, worked out once, so that a link on the way to
+  // the folder that changes meanwhile cannot send one read somewhere else.
+  const projectFolder = await realFolder(given);
 
   const [project, model, packages, views, scenarios] = await Promise.all([
     readTopLevelFile(projectFolder, names.names, 'project', problems),
@@ -157,7 +165,7 @@ export async function loadProject(folder: string): Promise<LoadProjectResult> {
   return {
     ok: true,
     project: snapshot,
-    warnings: locateProblems(check.warnings, snapshot, files),
+    warnings: withReservedIds(locateProblems(check.warnings, snapshot, files), listedPackages),
     files,
     contents,
   };
@@ -169,24 +177,77 @@ export async function loadProject(folder: string): Promise<LoadProjectResult> {
  * and checks nothing; a file that cannot be read is left out, as if it were gone.
  */
 export async function readProjectFiles(folder: string): Promise<Map<string, Buffer>> {
-  const projectFolder = resolve(folder);
+  const projectFolder = await realFolder(resolve(folder));
   const top = await listFiles(projectFolder);
   if (!top.ok) return new Map();
-  const paths = [...topLevelFilesOf(top.names, 'project'), ...topLevelFilesOf(top.names, 'model')];
+  const paths: [path: string, kind: FileKind][] = [
+    ...topLevelFilesOf(top.names, 'project').map((path): [string, FileKind] => [path, 'project']),
+    ...topLevelFilesOf(top.names, 'model').map((path): [string, FileKind] => [path, 'model']),
+  ];
   for (const kind of FOLDER_KINDS) {
-    const listing = await listFiles(join(projectFolder, FOLDERS[kind]));
-    if (listing.ok) paths.push(...folderFilesOf(listing.names, kind));
+    const listing = await listSubfolder(projectFolder, FOLDERS[kind]);
+    if (!listing.ok) continue;
+    for (const path of folderFilesOf(listing.names, kind)) paths.push([path, kind]);
   }
   const read = await Promise.all(
-    paths.map(async (path) => {
-      try {
-        return [[path, await readFile(join(projectFolder, path))] as const];
-      } catch {
-        return [];
-      }
+    paths.map(async ([path, kind]) => {
+      const file = await readRegularFile(join(projectFolder, path), capOf(kind), {
+        inside: projectFolder,
+      });
+      return file.ok ? [[path, file.bytes] as const] : [];
     }),
   );
   return new Map(read.flat());
+}
+
+/** The real path of a folder, every link resolved; the path as given when it cannot be resolved. */
+async function realFolder(folder: string): Promise<string> {
+  try {
+    return await realpath(folder);
+  } catch {
+    return folder;
+  }
+}
+
+/** How to give a package of the project another id. */
+const HOW_TO_RENAME =
+  'change "id" in this file, the start of every component and relation type id in it, and every reference to them, and rename the file to match.';
+
+/**
+ * The package ids the core keeps for built-in packages to come, where this build of the core has
+ * them (`RESERVED_PACKAGE_IDS`); the built-in ones are among them.
+ */
+export function reservedPackageIds(): string[] {
+  const reserved = (core as unknown as Record<string, unknown>).RESERVED_PACKAGE_IDS;
+  if (reserved instanceof Set || Array.isArray(reserved)) {
+    return [...(reserved as Iterable<unknown>)].filter((id) => typeof id === 'string');
+  }
+  return [];
+}
+
+/**
+ * The warnings of a project, with one for each of its own packages whose id is kept for a built-in
+ * package to come, saying how to rename it; the core's own warning about it, if any, makes way.
+ */
+function withReservedIds(
+  warnings: ProjectFileProblem[],
+  listed: readonly ListedPackage[],
+): ProjectFileProblem[] {
+  const reserved = new Set(reservedPackageIds());
+  const own = listed.filter(
+    (each): each is ListedPackage & { file: string } =>
+      each.file !== undefined && reserved.has(each.value.id) && !builtinPackage(each.value.id),
+  );
+  if (own.length === 0) return warnings;
+  const files = new Set(own.map((each) => each.file));
+  return [
+    ...warnings.filter((each) => !(files.has(each.file) && /reserved|keeps/i.test(each.message))),
+    ...own.map((each) => ({
+      file: each.file,
+      pointer: '/id',
+      message: `${each.file} takes the id "${each.value.id}", which Visual Anything keeps for a built-in package to come. Rename it before that package ships: ${HOW_TO_RENAME}`,
+    })),
+  ];
 }
 
 /** Writes a problem on one line: `<file> <pointer>: <message>`, without the pointer when it is empty. */
@@ -222,18 +283,38 @@ class Problems {
 type Listing =
   { ok: true; names: string[] } | { ok: false; code: string | undefined; reason: string };
 
-/** The names of the files directly in a folder, sorted; folders inside it are left out. */
+/**
+ * The names of everything directly in a folder that is not a folder, sorted: files, but also links,
+ * devices, FIFOs and sockets, so that one of those with a project file's name is reported as a
+ * problem rather than silently passed over.
+ */
 async function listFiles(folder: string): Promise<Listing> {
   try {
     const entries = await readdir(folder, { withFileTypes: true });
     const names = entries
-      .filter((entry) => entry.isFile() || entry.isSymbolicLink())
+      .filter((entry) => !entry.isDirectory())
       .map((entry) => entry.name)
       .sort(compareText);
     return { ok: true, names };
   } catch (error) {
     return { ok: false, code: errorCode(error), reason: errorReason(error) };
   }
+}
+
+/**
+ * Lists the folder of packages, views or scenarios, which must be a real folder: a link to one is
+ * refused with the code `ELINK`, and what it points to is never listed.
+ */
+async function listSubfolder(projectFolder: string, subfolder: string): Promise<Listing> {
+  const path = join(projectFolder, subfolder);
+  try {
+    if ((await lstat(path)).isSymbolicLink()) {
+      return { ok: false, code: 'ELINK', reason: 'it is a link' };
+    }
+  } catch (error) {
+    return { ok: false, code: errorCode(error), reason: errorReason(error) };
+  }
+  return listFiles(path);
 }
 
 /** The names of the files of a kind among those directly in the project folder. */
@@ -290,13 +371,15 @@ async function readSubfolder<K extends FolderKind>(
   problems: Problems,
 ): Promise<Read<K>[]> {
   const subfolder = FOLDERS[kind];
-  const listing = await listFiles(join(projectFolder, subfolder));
+  const listing = await listSubfolder(projectFolder, subfolder);
   if (!listing.ok) {
     if (listing.code !== 'ENOENT') {
       const message =
         listing.code === 'ENOTDIR'
           ? `${subfolder} is not a folder; ${FILE_EXTENSIONS[kind]} files go in ${subfolder}/.`
-          : `The folder ${subfolder}/ could not be read: ${listing.reason}`;
+          : listing.code === 'ELINK'
+            ? `${subfolder} is a link; Visual Anything opens only real folders and regular files inside the project folder.`
+            : `The folder ${subfolder}/ could not be read: ${listing.reason}`;
       problems.add(kind, { file: subfolder, pointer: '', message });
     }
     return [];
@@ -309,7 +392,10 @@ async function readSubfolder<K extends FolderKind>(
   return read.filter((file) => file !== undefined);
 }
 
-/** Reads a project file as UTF-8, then parses and validates it as its kind. */
+/**
+ * Reads a project file, which must be a regular file within its kind's cap, as UTF-8, then parses and
+ * validates it as its kind.
+ */
 async function readProjectFile<K extends FileKind>(
   projectFolder: string,
   file: string,
@@ -320,12 +406,13 @@ async function readProjectFile<K extends FileKind>(
     problems.add(kind, { file, pointer: '', message });
     return undefined;
   };
-  let bytes: Buffer;
-  try {
-    bytes = await readFile(join(projectFolder, file));
-  } catch (error) {
-    return fail(`The file could not be read: ${errorReason(error)}`);
+  const read = await readRegularFile(join(projectFolder, file), capOf(kind), {
+    inside: projectFolder,
+  });
+  if (!read.ok) {
+    return fail(read.reason === 'missing' ? 'The file could not be read: ENOENT' : read.message);
   }
+  const { bytes } = read;
   let text: string;
   try {
     text = UTF8.decode(bytes);
@@ -382,7 +469,7 @@ function findListedPackages(
       problems.add('package', {
         file: read.file,
         pointer: '/id',
-        message: `The package "${read.value.id}" is built into Visual Anything; give this one another id.`,
+        message: `${read.file} takes the id "${read.value.id}", which Visual Anything keeps for its built-in ${builtinPackage(read.value.id)?.name ?? read.value.id} package. Give it another id: ${HOW_TO_RENAME}`,
       });
     } else if (!packageWithId.has(read.value.id)) {
       packageWithId.set(read.value.id, read);

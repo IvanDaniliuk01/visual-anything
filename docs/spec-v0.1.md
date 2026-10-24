@@ -1,6 +1,6 @@
 # Visual Anything v0.1 — Specification
 
-Last updated 2026-10-23 · Ivan
+Last updated 2026-10-24 · Ivan
 
 > Exported from the Claude doc "Visual Anything v0.1 — Specification". Once this repository exists, this file is the source of truth: change it here, through pull requests.
 
@@ -19,25 +19,31 @@ v0.1 is done when you can model one of your own systems end to end, read it at t
 
 ## Scope
 
-v0.1 covers the model, views, layout, scenarios and Claude through MCP; anything that needs code from packages, the remaining dimensions or sharing waits.
+v0.1 covers the model, views, layout, tables, the component editor, images, themes, scenarios and Claude through MCP; anything that needs code from packages, the remaining dimensions (3D included) or sharing waits, in the order of "After v0.1" below.
 
 | Capability | In v0.1 | Later |
 | --- | --- | --- |
 | Model | Elements, relations, attributes, particularities, World | — |
-| Components and relation types | Built-in "Systems" package; new ones written in JSON, by hand or by Claude | Created from the canvas; programmable ones (case 4) |
-| Views | One perspective each, nesting chosen per view, collapse and expand, filters, focus mode | — |
-| Layout | ELK automatic layout, pinned shapes, orthogonal routing | — |
-| Free shapes | Note and arrow | More shapes |
+| Components and relation types | Built-in "Systems" and "Data modeling" packages; your own, derived and changed in the component editor or written in JSON, by hand or by Claude | Programmable ones (case 4) |
+| Tables | A component that draws what its elements hold as rows, as a table draws its columns; columns added on the canvas, typed or pasted | Importing many tables at once |
+| Images | SVG pictures and small PNG, JPEG or WebP bitmaps kept in packages, shown on components and single elements as an icon or as the whole shape | Large photos kept as files; images as free shapes; SVG with named parts as shapes (after v0.1) |
+| Themes | Light and dark for the app and the canvas, following the system unless you choose; kept by the local program for each person | More themes, such as high contrast |
+| Appearance editing | Any #RRGGBB fill and stroke for elements, components and relation types (built-in ones through project appearances), one relation, notes and free arrows; from the inspector or by Claude | Transparency, gradients; colors that depend on an attribute's value |
+| Grid and rulers | A grid that follows the zoom, rulers in canvas units, and snapping of hand moves to 8 canvas units | Custom spacing, guides dragged from rulers, alignment guides |
+| Views | One perspective each, nesting chosen per view, stacking order, collapse and expand, filters, focus mode | Semantic zoom declared as data (after v0.1) |
+| Layout | ELK automatic layout, pinned shapes, orthogonal routing | Curved routes (after v0.1) |
+| Free shapes | Note and arrow | Free 2D geometry for shapes, and more free shapes (after v0.1) |
 | Scenarios | Record, play, data per step, simultaneous relations, aggregated steps | Import real traces through a package |
 | Tours | — | v0.2, able to play scenarios |
-| Claude through MCP | Model, views, declarative components, scenarios, live guidance | Writing programmable code, with approval |
+| Claude through MCP | Model, views, declarative components with their images, rows and connection points, appearances, scenarios, live guidance | Writing programmable code, with approval |
 | Time (model versions) | — | After v0.1 |
 | Attribute space | — | Case 3 (transformer) |
-| Physical space | — | Case 5 (robotic arm) |
+| Physical space (3D) | — | Case 5 (robotic arm, human body): 3D models inside components first, then a 3D panel linked to the 2D views (after v0.1) |
 | Live data from your systems | Claude refreshes the model through its other MCPs | Packages that request network permission |
-| Export (image, PDF, shareable page) | — | After v0.1 |
+| Export (image, PDF, shareable page) | — | SVG and PNG first (after v0.1) |
+| HTML | — | Static HTML imported as a cleaned drawing (after v0.1); HTML that runs only with a new ADR |
 | Collaboration | Git on the project files | No real-time editing |
-| Platforms | Desktop browsers | Mobile out of scope |
+| Platforms | Windows, macOS and Linux: the local program as one executable for each (ADR 0037), or from npm, with the app in any desktop browser | Mobile out of scope; installers and updates (Track D) |
 | Embedded chat | — | Optional package |
 | draw.io import | — | Not planned |
 
@@ -107,7 +113,7 @@ flowchart TB
 
 The browser and Claude never write files: both send commands to the core, which checks the rules, records each change in one undo history and saves it. Claude's live guidance goes straight to the open view without touching the model.
 
-- **Local program** (Node, listening only on 127.0.0.1): serves the app, owns the model and its history, reads and writes the project folder, and exposes the MCP server.
+- **Local program** (Node, listening only on 127.0.0.1): serves the app, owns the model and its history, reads and writes the project folder, keeps each person's preferences outside every project (ADR 0032), and exposes the MCP server.
 - **Browser app** (React, PixiJS, ELK in a worker): renders the open view, turns your gestures into commands and shows Claude's live guidance. Drags and other continuous gestures update the canvas locally and send a single command when they end.
 - **Claude** (Desktop or Code): connects through an MCP stdio entry point that attaches to the running local program, starting it if needed.
 - **Core**: the same TypeScript package runs in both places, so a read-only demo can run in the browser alone.
@@ -131,7 +137,7 @@ my-systems/
 ```
 
 - Ids are generated once and never reused; files refer to each other only by id.
-- Positions live only in view files, so moving shapes never touches the model.
+- Positions and stacking orders live only in view files, so moving shapes or changing which is drawn in front never touches the model; dropping a shape into or out of a container changes its containment, which is part of the model.
 - No file contains code that runs. Programmable code, after v0.1, lives in packages and runs sandboxed.
 - Writes are atomic (a temporary file, then a rename), so a crash never leaves a half-written file. Changes made outside the app, such as a git pull, are reloaded with a notice.
 
@@ -145,8 +151,9 @@ The canvas draws one view at a time with WebGL, and every layout decision is kep
 - **Perspective**: fixed per view; the toolbar switches between views over the same part of the model.
 - **Explore**: filters by component, relation type or attribute hide shapes without moving any; focus mode dims everything not connected to the selection; any relation can be followed to its other end.
 - **Layout**: ELK runs in a worker for shapes without a position and on demand; pinned shapes are fixed inputs, and results animate in when ready.
-- **Edit**: create from the component palette, connect, move, rename inline, edit attributes and particularities in the inspector, and delete with a preview of what cascades; undo and redo.
+- **Edit**: create from the component palette, directly in World, inside the selected container or next to the selected element, or inside any element from its menu; connect; move, putting shapes inside a container by dropping them on it and taking them out by dragging them clear of it (hold Alt to move only), or from the shape menu and the inspector; bring to front, bring forward, send backward and send to back; rename inline; edit attributes and particularities in the inspector; and delete with a preview of what cascades; undo and redo.
 - **Text**: edited in an HTML layer placed over the shape, then drawn back on the canvas.
+- **Themes**: the app and the canvas are drawn light or dark, following the system unless you choose, and change together; built-in colors have a shade for each theme, and every color you set is drawn as set in both (ADR 0033).
 
 ## Scenarios
 
@@ -165,9 +172,9 @@ Through MCP, Claude can do everything you can do in v0.1, and each of its write 
 
 | Group | What Claude can do |
 | --- | --- |
-| Read | Summarize the project; query elements and relations by component, attribute or container; read a view or a scenario |
-| Model | Create, update and delete elements, relations, attributes and particularities; define components and relation types in JSON |
-| Views | Create views; set the perspective and nesting relation types; collapse, expand and filter; run layout |
+| Read | Summarize the project; query elements and relations by component, attribute or container; read a view, with its positions and the order it draws the shapes in each container, or a scenario |
+| Model | Create, update and delete elements, relations, attributes and particularities; define components and relation types in JSON; put elements inside containers and take them out |
+| Views | Create views; set the perspective, nesting relation types and stacking order; collapse, expand and filter; run layout |
 | Guide (live) | Highlight, focus, pan to a shape, show a short caption and step through a scenario, while the app is open |
 | Scenarios | Create a scenario from steps, from a description or from a log; play it |
 
@@ -175,29 +182,33 @@ Through MCP, Claude can do everything you can do in v0.1, and each of its write 
 - Guidance never changes the model; it only moves and marks the open view.
 - Writing programmable code waits until after v0.1, and will need your approval before it runs.
 - Tool descriptions include examples, because they are how Claude learns to use the tools well.
+- Preferences, such as the theme, are each person's own: Claude's tools neither read nor change them; "everything you can do" means everything you can do to the project.
 
 ## Quality bar
 
 These hold at every milestone, not only at the end.
 
-- **Performance**: 10,000 elements in one view pan, zoom and select smoothly, with a 60 frames per second target; layout never blocks interaction.
+- **Performance**: 10,000 elements in one view pan, zoom and select smoothly, with a 60 frames per second target; a theme switch never stalls a frame; layout never blocks interaction.
 - **Security**: project files never run code and are validated when opened. The local program listens only on 127.0.0.1, checks the origin of every request and requires a per-session token for the live connection, so other websites cannot drive it. The core has no network access.
-- **Accessibility**: keyboard navigation between shapes and along relations, an outline panel that mirrors the view, sufficient contrast, and reduced motion during playback when the system asks for it.
+- **Accessibility**: keyboard navigation between shapes and along relations, an outline panel that mirrors the view, contrast in both themes of 4.5:1 for text and 3:1 for lines, marks, control boundaries and focus rings, and reduced motion for every animation when the system asks for it.
 - **Reliability**: atomic writes, reload on outside changes, and property tests for the core rules: undo exactly reverses every command, containment never forms a cycle, and deletes cascade as specified.
 
 ## Decisions settled while writing
 
-Three choices came up while writing this spec; all three follow the recommendation below.
+Three choices came up while writing this spec, and three more when its scope grew on 2026-10-23; all six follow the recommendation below.
 
 | Decision | Settled | Rejected alternative |
 | --- | --- | --- |
+| What v0.1 takes of the scope added on 2026-10-23 | Stacking order, putting shapes inside containers and the shape menu in M2; tables and appearance traits in M3; the component editor and images in a new M3b; themes, colors and the grid in Track A beside the milestones | v0.1 as planned plus tables, with the editor and images moved to v0.2 |
+| How 3D comes in | After v0.1, once shapes can have free 2D geometry: first 3D models drawn inside components, then a 3D panel linked to the 2D views, under a new ADR that supersedes ADR 0003 | A switch between 2D and 3D for each view, which ADR 0003 rejected: text and relations read worse in 3D |
+| HTML | Static HTML enters as a drawing, cleaned and turned into SVG, after v0.1 | Storing HTML with scripts, which is code that runs |
 | Who owns the model while editing | The local program owns the model and its history; the browser sends commands and renders what comes back (ADR 0016) | The browser owns it and the local program relays Claude's calls, so Claude can only edit while the app is open |
 | File extensions | .vaproject, .vamodel, .vapackage, .vaview, .vascenario | Plain .json with a type field inside |
 | Deleting a relation that a scenario uses | The delete preview lists the affected scenarios; their steps are marked broken, not deleted, so you can fix them | Delete those steps too |
 
 ## Milestones and tasks
 
-Seven milestones in build order, each ending in something you can use; tasks are in order within each one.
+Eight milestones in build order, each ending in something you can use, and Track A beside them; tasks are in order within each one.
 
 **M0 · Skeleton.** Done when one command opens the browser on a sample project showing a static view.
 
@@ -217,26 +228,43 @@ Seven milestones in build order, each ending in something you can use; tasks are
 
 **M2 · Canvas.** Done when a synthetic view with 10,000 elements pans, zooms and selects at the 60 frames per second target.
 
-- [ ] PixiJS renderer: anchored shapes from their component's look, relations with orthogonal routes and arrowheads
-- [ ] Pan, zoom, select (click and box), move, connect, delete
-- [ ] Inline text editing in an HTML layer; inspector for attributes and particularities
-- [ ] Free shapes: note and arrow
-- [ ] Keyboard navigation and outline panel
-- [ ] Benchmark with a synthetic 10,000-element view
+- [x] PixiJS renderer: anchored shapes from their component's look, relations with orthogonal routes and arrowheads
+- [x] Pan, zoom, select (click and box), move, connect, delete
+- [x] Inline text editing in an HTML layer; inspector for attributes and particularities
+- [x] Free shapes: note and arrow
+- [x] Keyboard navigation and outline panel
+- [x] Benchmark with a synthetic 10,000-element view
+- [ ] Stacking order per view, drawn and pointed at in the same order; put shapes inside containers and take them out from the canvas, the shape menu and the inspector; create inside the selected container, next to the selected element, or inside any element
 
-**M3 · Views and layout.** Done when you can collapse a container and read its aggregated relations, and switch between two perspectives of the same system.
+**M3 · Views, layout and tables.** Done when you can collapse a container and read its aggregated relations; you can switch between two perspectives of the same system; you can model the sample's appointments and patients as tables inside the Appointments DB, one by adding its columns on the canvas and one by pasting its `CREATE TABLE`, with the reference between them attached at the rows it joins, before and after layout and after collapsing a table; and the tables benchmark meets the 60 frames per second target, while applying one edit at 10,000 elements takes at most 50 ms and a layout at most 150 ms.
 
+- [ ] Project files read only as regular files within size caps; a launch address that works once
+- [ ] Scene and renderer within budget: a per-element cache and incremental scenes for position-only and same-size actions, checked against a full build by a property test; rows in bands; benchmark phases for one column and one layout
+- [ ] Appearance traits in the schema and core: detail and badges, connection points, contents drawn as rows, attribute choices and units, limits that lift with "any"; the core checks every value a command sets; newer formats refused with a clear message
+- [ ] Commands: components, relation types and packages changed trait by trait; elements reordered; definitions created only once, with ids the program makes
+- [ ] Built-in "Data modeling" package: Table, Column, is column of, references; reserved package ids; the nesting relation type chosen by its limits
 - [ ] Views: perspective, nesting relation types, positions; view list and perspective switcher
 - [ ] Nesting with several containers: one copy per container, selected together
-- [ ] Collapse and expand with aggregated relations (count and line weight)
-- [ ] Filters and focus mode
-- [ ] ELK layout in a worker, pinned shapes as fixed inputs, re-layout on demand
+- [ ] Collapse and expand with aggregated relations (count and line weight), also for what a row holds
+- [ ] Filters and focus mode, by degrees and by direction, with isolating the selection
+- [ ] ELK layout in a worker, pinned shapes as fixed inputs, re-layout on demand; each table as one block with a connection point for each related row
+- [ ] Connection points from components, in a format that leaves room for free geometry: relations attach to them, and ELK takes them as ports
+- [ ] Tables on the canvas: rows, relations to rows, drawing within the budget; columns added on the canvas, typed or pasted; the tables benchmark
+
+**M3b · Component editor and images.** Done when you derive a component from a built-in one in the component editor, change its shape, colors, detail and attributes, give it an SVG icon from a file, give one element a PNG of its own and another element a picture already in the project, and undo each step one at a time; an SVG holding a script or an outside reference is cleaned before it is saved and never runs; the built app shows no content security policy violation; and a view of 10,000 elements with tables and images still pans, zooms and selects at the 60 frames per second target. It runs after M3, and can run beside M4 in a second session.
+
+- [ ] Images in the schema and core: package images, the SVG and bitmap cleaner and its cleaned view, checks on open, the history's size budget
+- [ ] The page's content security policy with Trusted Types, worker policies, a payload limit on the live connection, and dev mode's guard on project files
+- [ ] The component editor in the inspector and the Components tab: derive, define, change and remove your own components, relation types and packages, showing what each one inherits
+- [ ] Images on the canvas within the frame budget, and in the inspector and the component editor
+- [ ] Benchmark with images
+- [ ] MCP tools for images, once M4's entry point exists
 
 **M4 · Claude through MCP.** Done when Claude builds a view of a system from a description, walks you through it live, and you can undo each of its actions.
 
-- [ ] MCP stdio entry point that attaches to the running local program
+- [ ] MCP stdio entry point that attaches to the running local program through an endpoint and a credential of its own, which accept only the messages Claude may send
 - [ ] Read and query tools
-- [ ] Write tools for the model, components and views: one undoable action per call, labelled Claude
+- [ ] Write tools for the model, components and views (components, relation types and packages trait by trait, rows, tables and appearances included): one undoable action per call, labelled Claude
 - [ ] Live guidance over the WebSocket: highlight, focus, pan to, caption
 - [ ] Tool descriptions written for Claude, with examples
 
@@ -255,3 +283,59 @@ Seven milestones in build order, each ending in something you can use; tasks are
 - [ ] Fix what dogfooding surfaces
 - [ ] README with setup for Claude Desktop and Claude Code
 - [ ] Tag v0.1 in the private repository
+
+**Track A · Look and feel**, beside the milestones: A1 right after M2 and before M3's app tasks; A2's core before M3's commands for collapse, expand and filters, and A2 tagged before M4's write tools are fixed; A3 after M3's canvas tasks; A4 before M4's UI tasks. Its commits start with `A<n>:`, and each stage is tagged `a<n>` when its Done when holds.
+
+**A1 · Themes.** Done when the app and the canvas follow the system's light or dark setting, and the Theme control in the header (also shown while connecting and on failure screens) switches between Match the system, Light and Dark; an explicit choice survives restarting Visual Anything and is in place on the first frame; the contrast tests pass for every pair in both themes; and on the benchmark a theme switch keeps every frame within 33 ms and 95% within 16.7 ms, shows on the canvas and the panels together in one frame, never shows a tile drawn in the other theme, and every M2 phase meets the 60 frames per second target in both themes.
+
+- [ ] Preferences: core types and rules, the next protocol version, the preferences file kept by the local program outside every project
+- [ ] Theme tokens generated from one TypeScript source, light and dark, with contrast tests
+- [ ] The header's Theme control and the first paint in the chosen theme
+- [ ] Control states, focus rings, icons, the canvas message and the menus in place
+- [ ] The canvas follows the theme: background, marks, labels, casings and notes, built-in colors in their dark shades, tiles restyled within the frame budget and shown with the panels in one frame
+- [ ] Benchmark phases for theme switches, for panning and zooming after them, and for selecting everything
+
+**A2 · Colors.** Done when, from the inspector, any #RRGGBB can be given to an element's fill and stroke, to every element of a built-in component and of one of the project's own, to a built-in relation type, to one relation, to a note, to a free arrow and to several selected shapes at once; each change is one undoable action whose git diff shows only the keys it changed; picking the color already shown records nothing; each has a command for Claude; and on the benchmark, recoloring every Service shows on screen in one frame and keeps every later frame within 33 ms.
+
+- [ ] Project appearances, a relation's own appearance and free-shape colors in the file format and the core, with their commands
+- [ ] Colors checked and normalized by every command that stores one
+- [ ] Recolors restyle tiles in place; the scene keeps what did not change
+- [ ] The inspector edits colors for one shape, every shape of a definition and a selection, from a picker or a color code
+
+**A3 · Grid, rulers and snapping.** Done when the grid and rulers can be shown from the canvas toolbar and with Shift+G and Shift+R; with both shown, every benchmark phase meets the 60 frames per second target and the grid adds at most 0.5 ms per frame at the median; while the grid shows, a hand move stores the moved shapes at multiples of 8 canvas units inside their container and lands where its preview showed, a shape created by hand is stored at a multiple of 8, and Alt places freely; and Shift with an arrow key moves the selection by 8.
+
+- [ ] One step of 8: built-in sizes, nudges and the sample
+- [ ] The grid, following the zoom, also on the container under the pointer
+- [ ] Snapping of drags, nudges and new shapes, with the container's grid and position while dragging
+- [ ] Rulers with the selection's extent
+
+**A4 · Polish.** Done when no color, size, spacing, radius, shadow or z-index is written out in any stylesheet outside the generated tokens, every control has hover, pressed, disabled and focus-visible states, every icon comes from one icon set kept in the app, and every empty state says what to do next.
+
+**Track D · Distribution**, beside the milestones, starting now (ADR 0037). Its commits start with `D<n>:`, and each stage is tagged `d<n>` when its Done when holds.
+
+**D1 · Every system, every change.** Done when the test suite, typecheck, lint and build run in CI on Windows, macOS and Linux for every change, and pass.
+
+- [ ] CI on Windows, macOS and Linux, with Node 22 and 24 on Linux
+- [ ] Whatever differs between the three systems fixed where the suite finds it: paths, file locks, line endings, opening the browser
+
+**D2 · One executable per system.** Done when CI builds, for every change to the default branch, single executables for Windows x64, macOS arm64 and x64, and Linux x64 and arm64; each one, started on its own system with no Node installed, opens a sample project, serves it on 127.0.0.1 and opens the browser; `visual-anything mcp` lists the MCP tools; and the README says how to set up Claude Desktop and Claude Code with the executable.
+
+- [ ] The server bundled into one script, and the built app read from embedded assets
+- [ ] Node single executable applications built and smoke-tested in CI on each system, macOS ones signed ad hoc
+- [ ] Release artifacts attached to a tag, with checksums
+
+**D3 · Installers and signing** (when Visual Anything is published). An MSI for Windows, a signed and notarized macOS app, a Linux AppImage or package, and updates.
+
+## After v0.1
+
+The order below follows the benchmark of what Visual Anything needs to represent anything complex, such as the human body with all its parts: the model already holds what is hardest to add later (typed elements, several containers per element, relations on relations, perspectives), so what comes next is appearance beyond boxes, control of detail, physical space, and safe import. Each milestone gets its tasks, and the ADRs it needs, when it is planned.
+
+- **M7 · Package code.** Code kept in packages computes attributes, checks elements and draws shapes; it runs sandboxed (ADR 0012), only after you approve it, and changing it asks again; Claude can read, write and check it.
+- **M8 · Beyond boxes.** Free 2D geometry for a component's shape, with exact hit testing and connection points; SVG with named parts, each part an anchored shape of its element; semantic zoom declared as data; overlays that color shapes by an attribute, with a legend; external identifiers and crosswalks, so that Claude and importers never confuse parts; static HTML imported as a cleaned drawing; curved routes.
+- **M9 · Physical space inside components.** A component can draw its element's 3D model (glTF, cleaned by the local program and never carrying behavior) inside its shape: a cached picture while you pan, live when you focus it, with three.js loaded only when a view needs it.
+- **M10 · A linked physical-space panel.** A 3D panel beside the canvas, showing the same elements where they really are, with selection, focus and scenarios linked to the 2D views. A new ADR that supersedes ADR 0003 comes first.
+- **M11 · Tours and export.** Tours that play scenarios with an animated camera; SVG and PNG export of a view.
+- **M12 · Simulate (case 4).** A programmable component simulates a behavior from parameters you change, within its limits, and stops cleanly when it exceeds them.
+- **M13 · Anatomy.** A built-in anatomy package and import from open anatomical ontologies, with their licenses respected, built on M8 to M10.
+
+Not planned: a switch between 2D and 3D for each view, an iframe for each element, and storing HTML with scripts or 3D models with behavior in a project.

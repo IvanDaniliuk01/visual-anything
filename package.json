@@ -12,6 +12,7 @@
     "dev": "tsx packages/server/src/cli.ts examples/my-systems --dev",
     "start": "pnpm build && tsx packages/server/src/cli.ts examples/my-systems",
     "build": "pnpm --recursive --if-present run build",
+    "bench": "pnpm --filter @visual-anything/app run bench",
     "test": "vitest run",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",

@@ -1,7 +1,14 @@
 import type { HistorySummary } from '@visual-anything/core';
 import { useContext, useEffect, useEffectEvent, useRef } from 'react';
 import { LiveContext, type Live } from '../live/context';
+import { IS_APPLE } from '../live/platform';
 import { historyShortcut, isTextEntry, type HistoryAction } from '../live/shortcuts';
+import { ThemeControl } from '../theme/ThemeControl';
+import { usePreferencesLink } from '../theme/usePreferences';
+import { RedoIcon, UndoIcon } from './icons';
+
+/** The product's name, as the header and the tab's title write it. */
+export const PRODUCT_NAME = 'Visual Anything';
 
 interface HeaderProps {
   /** The open project's name; absent until a project is open. */
@@ -11,14 +18,23 @@ interface HeaderProps {
 }
 
 /**
- * The header: the product name, then the open project and view. While a project is open in a live
- * session, it also holds undo and redo.
+ * The header: the product's mark and name, then the open project and view, and at its end the Theme
+ * control. While a project is open in a live session, it also holds undo and redo. It is on every
+ * screen, so it also keeps the person's preferences in step with the local program, and names the tab
+ * after the open project.
  */
 export function Header({ projectName, viewName }: HeaderProps) {
   const live = useContext(LiveContext);
+  usePreferencesLink();
+  useEffect(() => {
+    document.title = projectName === undefined ? PRODUCT_NAME : `${projectName} · ${PRODUCT_NAME}`;
+  }, [projectName]);
   return (
     <header className="shell-header">
-      <h1 className="shell-product">Visual Anything</h1>
+      <h1 className="shell-product">
+        <ProductMark />
+        {PRODUCT_NAME}
+      </h1>
       {projectName !== undefined && (
         <dl className="shell-context">
           <div>
@@ -33,17 +49,40 @@ export function Header({ projectName, viewName }: HeaderProps) {
           )}
         </dl>
       )}
-      {projectName !== undefined && live !== null && <HistoryControls live={live} />}
+      <div className="shell-actions">
+        {projectName !== undefined && live !== null && <HistoryControls live={live} />}
+        <ThemeControl />
+      </div>
     </header>
+  );
+}
+
+/** The product's mark: two overlapping rounded squares, in the accent color. */
+function ProductMark() {
+  return (
+    <svg
+      className="shell-mark"
+      aria-hidden="true"
+      focusable="false"
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+    >
+      <rect x="1.5" y="1.5" width="11" height="11" rx="2.5" />
+      <rect x="7.5" y="7.5" width="11" height="11" rx="2.5" fill="currentColor" fillOpacity="0.3" />
+    </svg>
   );
 }
 
 /** An action the history could undo or redo. */
 type HistoryStep = NonNullable<HistorySummary['undo']>;
 
-const IS_APPLE = /Mac|iPhone|iPad/.test(navigator.userAgent);
-
 const VERBS: Record<HistoryAction, string> = { undo: 'Undo', redo: 'Redo' };
+
+const ICONS: Record<HistoryAction, typeof UndoIcon> = { undo: UndoIcon, redo: RedoIcon };
 
 const SHORTCUTS: Record<HistoryAction, { keys: string; shown: string }> = {
   undo: { keys: 'Control+Z Meta+Z', shown: IS_APPLE ? '⌘Z' : 'Ctrl+Z' },
@@ -130,6 +169,7 @@ interface HistoryButtonProps {
 function HistoryButton({ action, step, available, connected, onPress }: HistoryButtonProps) {
   const name = nameOf(action, step);
   const shortcut = SHORTCUTS[action];
+  const Icon = ICONS[action];
   const tooltip = available
     ? `${name} (${shortcut.shown})`
     : connected
@@ -145,6 +185,7 @@ function HistoryButton({ action, step, available, connected, onPress }: HistoryB
       aria-keyshortcuts={shortcut.keys}
       onClick={available ? onPress : undefined}
     >
+      <Icon />
       <span className="history-verb">{VERBS[action]}</span>
       {step !== undefined && <span className="history-label">{step.label}</span>}
       {step?.author === 'claude' && <span className="history-author">Claude</span>}

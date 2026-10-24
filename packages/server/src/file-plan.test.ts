@@ -72,6 +72,13 @@ describe('affectedFiles', () => {
     expect(
       affected({ type: 'update-view', id: 'overview', changes: { name: 'Big picture' } }).files,
     ).toEqual(['view:overview']);
+    expect(
+      affected({
+        type: 'restack',
+        view: 'overview',
+        moves: [{ shape: { element: 'customer' }, to: 'back' }],
+      }).files,
+    ).toEqual(['view:overview']);
   });
 
   it('saves every file a command touches', () => {
@@ -81,6 +88,26 @@ describe('affectedFiles', () => {
         element: { component: 'systems.service', name: 'Worker' },
         containers: [{ container: 'system', relationType: 'systems.is-part-of' }],
         positions: [{ view: 'overview', container: 'system', x: 200, y: 40 }],
+      }).files,
+    ).toEqual(['model', 'view:overview']);
+  });
+
+  it('saves the model and the view for a change of container, and only the view for a restack', () => {
+    // Putting the Customer inside the Shop system relates them, and places it and orders it there.
+    expect(
+      affected({
+        type: 'change-container',
+        view: 'overview',
+        to: 'system',
+        shapes: [{ element: 'customer', at: { x: 24, y: 48 } }],
+      }).files,
+    ).toEqual(['model', 'view:overview']);
+    // Taking the API out deletes the relation that placed it, and brings it to World's front.
+    expect(
+      affected({
+        type: 'change-container',
+        view: 'overview',
+        shapes: [{ element: 'api', from: 'system' }],
       }).files,
     ).toEqual(['model', 'view:overview']);
   });

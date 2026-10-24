@@ -7,7 +7,10 @@ import type {
   Appearance,
   AttributeDefinition,
   Attributes,
+  Badge,
   Component,
+  ConnectionPoint,
+  DetailRules,
   Element,
   FreeShape,
   JsonValue,
@@ -46,20 +49,56 @@ const ids = (minLength = 0) => fc.uniqueArray(id, { minLength, maxLength: 3 });
 const name = fc.string({ unit: 'binary', minLength: 1, maxLength: 12 });
 const color = fc.stringMatching(/^#[0-9a-fA-F]{6}$/);
 const size = fc.double({ min: Number.MIN_VALUE, noNaN: true, noDefaultInfinity: true });
+/** The width or height of an appearance: positive and at most 100,000. */
+const appearanceSize = fc.double({ min: Number.MIN_VALUE, max: 100_000, noNaN: true });
 const list = <T>(item: fc.Arbitrary<T>) => fc.array(item, { maxLength: 3 });
+/** A short text of 1 to 4 characters, as a badge writes. */
+const badgeText = fc.string({ unit: 'binary', minLength: 1, maxLength: 4 });
 
 const attributes: fc.Arbitrary<Attributes> = fc.dictionary(text, anyJson, {
   maxKeys: 4,
   noNullPrototype: true,
 });
 
+const badge: fc.Arbitrary<Badge> = fc.oneof(
+  fc.record(
+    { when: fc.constant('attribute' as const), text: badgeText, attribute: text },
+    { noNullPrototype: true },
+  ),
+  fc.record(
+    { when: fc.constant('from-end' as const), text: badgeText, relationType: id },
+    { noNullPrototype: true },
+  ),
+);
+
+const detail: fc.Arbitrary<DetailRules> = fc.record(
+  {
+    componentName: fc.boolean(),
+    attributes: fc.uniqueArray(text, { maxLength: 8 }),
+    badges: fc.array(badge, { maxLength: 8 }),
+  },
+  { requiredKeys: [], noNullPrototype: true },
+);
+
+const connectionPoint: fc.Arbitrary<ConnectionPoint> = fc.record(
+  {
+    name: fc.string({ unit: 'binary', minLength: 1, maxLength: 32 }),
+    side: fc.constantFrom('top', 'right', 'bottom', 'left'),
+    at: fc.double({ min: 0, max: 1, noNaN: true }).map((n) => (n === 0 ? 0 : n)),
+  },
+  { noNullPrototype: true },
+);
+
 const appearance: fc.Arbitrary<Appearance> = fc.record(
   {
     shape: fc.constantFrom('rectangle', 'rounded-rectangle', 'ellipse', 'cylinder', 'person'),
     fill: color,
     stroke: color,
-    width: size,
-    height: size,
+    width: appearanceSize,
+    height: appearanceSize,
+    detail,
+    contentsAsRows: fc.boolean(),
+    connectionPoints: fc.array(connectionPoint, { maxLength: 3 }),
   },
   { requiredKeys: [], noNullPrototype: true },
 );
@@ -85,6 +124,8 @@ const attributeDefinition: fc.Arbitrary<AttributeDefinition> = fc.record(
     type: fc.constantFrom('string', 'number', 'boolean', 'json'),
     default: anyJson,
     description: text,
+    choices: fc.uniqueArray(text, { minLength: 1, maxLength: 4 }),
+    unit: fc.string({ unit: 'binary', minLength: 1, maxLength: 16 }),
   },
   { requiredKeys: ['name', 'type'], noNullPrototype: true },
 );
@@ -106,8 +147,11 @@ const relationAppearance: fc.Arbitrary<RelationAppearance> = fc.record(
   { requiredKeys: [], noNullPrototype: true },
 );
 
+/** A limit for one end: a list of at least one id, or `any`. */
+const limit = fc.oneof(ids(1), fc.constant('any' as const));
+
 const limits: fc.Arbitrary<RelationTypeLimits> = fc.record(
-  { from: ids(), to: ids() },
+  { from: limit, to: limit },
   { requiredKeys: [], noNullPrototype: true },
 );
 
@@ -175,6 +219,13 @@ const freeShape: fc.Arbitrary<FreeShape> = fc.oneof(
   ),
 );
 
+/** A view's stacking order: never empty, and no list empty or with an id twice. */
+const stackingOrder = fc.dictionary(id, fc.uniqueArray(id, { minLength: 1, maxLength: 4 }), {
+  minKeys: 1,
+  maxKeys: 3,
+  noNullPrototype: true,
+});
+
 const view: fc.Arbitrary<ViewFile> = fc.record(
   {
     id,
@@ -184,6 +235,8 @@ const view: fc.Arbitrary<ViewFile> = fc.record(
     nestingRelationTypes: ids(),
     positions: list(position),
     freeShapes: list(freeShape),
+    stackingOrder,
+    collapsed: fc.uniqueArray(id, { minLength: 1, maxLength: 3 }).map((each) => each.sort()),
   },
   {
     requiredKeys: ['id', 'name', 'perspective', 'nestingRelationTypes', 'positions', 'freeShapes'],

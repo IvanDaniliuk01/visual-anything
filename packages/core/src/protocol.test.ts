@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  LAUNCH_PARAM,
+  MAX_CAPTION_LENGTH,
+  MAX_GUIDANCE_TARGETS,
   PROTOCOL_VERSION,
   ProtocolError,
+  TOKEN_PARAM,
   decodeAppMessage,
   decodeServerMessage,
   encodeMessage,
   encodeServerMessage,
+  readGuidance,
   type AppMessage,
   type ServerMessage,
 } from './protocol';
@@ -23,9 +28,33 @@ const project: ProjectSnapshot = {
   scenarios: [],
 };
 
+describe('PROTOCOL_VERSION', () => {
+  it('is 3, since guidance and launch addresses came', () => {
+    expect(PROTOCOL_VERSION).toBe(3);
+  });
+
+  it('names the launch code and the token in the address and on the live connection', () => {
+    expect(LAUNCH_PARAM).toBe('launch');
+    expect(TOKEN_PARAM).toBe('token');
+  });
+});
+
 describe('decodeServerMessage', () => {
   it.each<ServerMessage>([
     { type: 'project/opened', protocolVersion: PROTOCOL_VERSION, project, history: {} },
+    {
+      type: 'project/opened',
+      protocolVersion: PROTOCOL_VERSION,
+      project,
+      history: {},
+      token: 'the-session-token',
+    },
+    { type: 'guidance', guidance: { kind: 'highlight', targets: ['api', 'api-reads-db'] } },
+    { type: 'guidance', guidance: { kind: 'focus', targets: ['api'], view: 'overview' } },
+    { type: 'guidance', guidance: { kind: 'pan-to', target: 'db', view: 'overview' } },
+    { type: 'guidance', guidance: { kind: 'caption', text: 'The API reads the DB.' } },
+    { type: 'guidance', guidance: { kind: 'caption', text: '' } },
+    { type: 'guidance', guidance: { kind: 'clear' } },
     {
       type: 'project/changed',
       operations: [{ op: 'set-project', project: project.project }],
@@ -61,8 +90,62 @@ describe('decodeServerMessage', () => {
       JSON.stringify({ type: 'project/opened', protocolVersion: PROTOCOL_VERSION }),
     ],
     ['a change without operations', JSON.stringify({ type: 'project/changed' })],
+    [
+      'an opening whose token is not text',
+      JSON.stringify({
+        type: 'project/opened',
+        protocolVersion: PROTOCOL_VERSION,
+        project,
+        history: {},
+        token: 7,
+      }),
+    ],
+    ['guidance without its guidance', JSON.stringify({ type: 'guidance' })],
+    [
+      'guidance of an unknown kind',
+      JSON.stringify({ type: 'guidance', guidance: { kind: 'explode' } }),
+    ],
   ])('rejects %s', (_case, text) => {
     expect(() => decodeServerMessage(text)).toThrow(ProtocolError);
+  });
+});
+
+describe('readGuidance', () => {
+  it('keeps only what each kind of guidance holds', () => {
+    expect(
+      readGuidance({ kind: 'highlight', targets: ['a'], view: 'v', extra: '<script>' }),
+    ).toEqual({ kind: 'highlight', targets: ['a'], view: 'v' });
+    expect(readGuidance({ kind: 'clear', targets: ['a'] })).toEqual({ kind: 'clear' });
+  });
+
+  it('takes a caption up to its longest', () => {
+    const text = 'x'.repeat(MAX_CAPTION_LENGTH);
+    expect(readGuidance({ kind: 'caption', text })).toEqual({ kind: 'caption', text });
+  });
+
+  it('takes up to the most targets', () => {
+    const targets = Array.from({ length: MAX_GUIDANCE_TARGETS }, (_, n) => `t${n}`);
+    expect(readGuidance({ kind: 'focus', targets })).toEqual({ kind: 'focus', targets });
+  });
+
+  it.each([
+    ['not an object', 'highlight'],
+    ['no kind', {}],
+    ['an unknown kind', { kind: 'zoom' }],
+    ['targets that are not a list', { kind: 'highlight', targets: 'a' }],
+    ['no targets', { kind: 'highlight', targets: [] }],
+    ['a target that is not an id', { kind: 'highlight', targets: [''] }],
+    ['a target of the wrong type', { kind: 'focus', targets: [3] }],
+    [
+      'too many targets',
+      { kind: 'highlight', targets: Array.from({ length: MAX_GUIDANCE_TARGETS + 1 }, () => 'a') },
+    ],
+    ['a view that is not an id', { kind: 'highlight', targets: ['a'], view: 4 }],
+    ['pan-to without a target', { kind: 'pan-to' }],
+    ['a caption without text', { kind: 'caption' }],
+    ['a caption that is too long', { kind: 'caption', text: 'x'.repeat(MAX_CAPTION_LENGTH + 1) }],
+  ])('refuses guidance with %s', (_case, value) => {
+    expect(() => readGuidance(value)).toThrow(ProtocolError);
   });
 });
 

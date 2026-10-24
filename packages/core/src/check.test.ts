@@ -1,3 +1,4 @@
+import type { PackageFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { checkProject } from './check';
 import type { ProjectSnapshot } from './snapshot';
@@ -120,6 +121,118 @@ describe('checkProject', () => {
       'unknown-relation-type',
       'unknown-position',
     ]);
+  });
+
+  it('warns about stacking lists that name no element, and refuses an id named twice in one', () => {
+    const state = testProject();
+    const [view] = state.views;
+    if (!view) throw new Error('fixture');
+    view.stackingOrder = { world: ['client'], gone: ['system'], system: ['db', 'nothing'] };
+    const { errors, warnings } = checkProject(state);
+    expect(errors).toEqual([]);
+    expect(warnings.map((each) => [each.code, each.message, each.subjects])).toEqual([
+      [
+        'unknown-element',
+        'The view "Overview" keeps a stacking order for "gone", which is no element of the model; it is ignored.',
+        ['overview'],
+      ],
+      [
+        'unknown-element',
+        'The stacking order of "System" in the view "Overview" names "nothing", which is no element of the model; it is ignored.',
+        ['overview'],
+      ],
+    ]);
+    view.stackingOrder = { system: ['db', 'api', 'db'] };
+    expect(
+      checkProject(state).errors.map((each) => [each.code, each.message, each.subjects]),
+    ).toEqual([
+      [
+        'id-taken',
+        'The stacking order of "System" in the view "Overview" names "db" more than once.',
+        ['overview'],
+      ],
+    ]);
+  });
+
+  it('refuses a project saved in a newer format', () => {
+    const state = testProject();
+    state.project = { ...state.project, schemaVersion: 2 as 1 };
+    expect(checkProject(state).errors.map((each) => [each.code, each.message])).toEqual([
+      [
+        'newer-format',
+        'This project was saved by a newer Visual Anything, format 2. Update the program to open it.',
+      ],
+    ]);
+  });
+
+  it('only warns about appearances, limits and values that name or hold what does not fit', () => {
+    const state = JSON.parse(JSON.stringify(testProject())) as ProjectSnapshot;
+    const own = state.packages[0] as PackageFile;
+    own.components.push(
+      {
+        id: 'test.odd',
+        name: 'Odd',
+        derivesFrom: 'test.database',
+        attributes: [{ name: 'tier', type: 'string', choices: ['gold', 'silver'] }],
+        appearance: {
+          contentsAsRows: true,
+          detail: {
+            attributes: ['missing'],
+            badges: [{ when: 'from-end', text: 'X', relationType: 'test.nothing' }],
+          },
+          connectionPoints: [
+            { name: 'in', side: 'left', at: 0.5 },
+            { name: 'in', side: 'right', at: 0.5 },
+          ],
+        },
+      },
+      // Inherits both the rows and the cylinder, and sets neither: only "Odd" is warned about.
+      { id: 'test.odder', name: 'Odder', derivesFrom: 'test.odd' },
+    );
+    own.relationTypes.push({
+      id: 'test.feeds',
+      name: 'feeds',
+      derivesFrom: 'relates-to',
+      limits: { to: ['test.nowhere'] },
+    });
+    state.model.elements.push(
+      ...Array.from({ length: 22 }, (_, at) => ({
+        id: `odd-${at}`,
+        component: 'test.odd',
+        name: `Odd ${at}`,
+        attributes: { tier: 'bronze' },
+      })),
+      {
+        id: 'mine',
+        component: 'test.box',
+        name: 'Mine',
+        appearance: { detail: { attributes: ['owner', 'gone'] } },
+      },
+    );
+    state.packages.push({ id: 'neuroscience', name: 'Mine', components: [], relationTypes: [] });
+    state.project.packages.push('neuroscience');
+    const [view] = state.views;
+    if (view) view.collapsed = ['gone', 'system'];
+
+    const { errors, warnings } = checkProject(state);
+    expect(errors).toEqual([]);
+    const counted = new Map<string, number>();
+    for (const each of warnings) counted.set(each.code, (counted.get(each.code) ?? 0) + 1);
+    expect(Object.fromEntries(counted)).toEqual({
+      'unknown-attribute': 2,
+      'unknown-relation-type': 1,
+      'invalid-appearance': 2,
+      'unknown-component': 1,
+      'choice-broken': 21,
+      'built-in-package': 1,
+      'unknown-element': 1,
+    });
+    expect(warnings.filter((each) => each.code === 'choice-broken').at(-1)?.message).toBe(
+      '…and 2 more values are outside their choices.',
+    );
+    expect(warnings.find((each) => each.code === 'built-in-package')?.message).toBe(
+      'The package "neuroscience" takes an id Visual Anything keeps for a package it plans to build in; rename it before that package ships.',
+    );
   });
 
   it('keeps broken steps, which are not a problem of the files', () => {

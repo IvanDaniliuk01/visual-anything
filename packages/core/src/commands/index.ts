@@ -10,8 +10,14 @@ import {
   defineRelationType,
   removeComponent,
   removeRelationType,
+  updateComponent,
+  updatePackage,
+  updateRelationType,
 } from './definitions';
+import { reorderElements } from './order';
+import { setCollapsed } from './collapse';
 import { Draft, Rejection, reject, requireList, requireName } from './draft';
+import { checkImageReferences, defineImage, removeImage } from './images';
 import {
   createElement,
   createRelation,
@@ -20,6 +26,8 @@ import {
   updateRelation,
 } from './model';
 import { updateProject } from './project';
+import { restack } from './stacking';
+import { changeContainer } from './containers';
 import { createScenario, deleteScenario, updateScenario } from './scenarios';
 import type { Command } from './types';
 import {
@@ -34,6 +42,7 @@ import {
 } from './views';
 
 export type * from './types';
+export { previewChangeContainer, type ContainerChangePreview } from './containers';
 
 /** What running a command needs besides the project. */
 export interface CommandContext {
@@ -72,6 +81,7 @@ export function executeCommand(
   const draft = new Draft(state, context.newId ?? randomIds());
   try {
     const label = run(draft, command);
+    checkImageReferences(state, draft.state, draft.operations);
     return {
       ok: true,
       state: draft.state,
@@ -144,6 +154,24 @@ function run(draft: Draft, command: Command): string {
       return deleteScenario(draft, command);
     case 'update-project':
       return updateProject(draft, command);
+    case 'restack':
+      return restack(draft, command);
+    case 'change-container':
+      return changeContainer(draft, command);
+    case 'update-component':
+      return updateComponent(draft, command);
+    case 'update-relation-type':
+      return updateRelationType(draft, command);
+    case 'update-package':
+      return updatePackage(draft, command);
+    case 'reorder-elements':
+      return reorderElements(draft, command);
+    case 'set-collapsed':
+      return setCollapsed(draft, command);
+    case 'define-image':
+      return defineImage(draft, command);
+    case 'remove-image':
+      return removeImage(draft, command);
     case 'batch': {
       const label = requireName(command.label, 'A batch');
       const commands = requireList(command.commands, 'commands');

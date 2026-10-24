@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  LAUNCH_ADDRESS_SPENT,
+  LAUNCH_CODE_LIFETIME,
+  LaunchCodes,
+  checkClaudeRequest,
   checkLiveRequest,
   checkRequest,
   createToken,
@@ -101,6 +105,59 @@ describe('checkLiveRequest', () => {
   it('accepts our host and origin with the session token', () => {
     expect(checkLiveRequest({ host, origin, url: `/live?token=${token}` }, session)).toEqual({
       ok: true,
+      via: 'token',
+    });
+  });
+
+  describe('with a launch code', () => {
+    it('accepts a launch code once', () => {
+      const launchCodes = new LaunchCodes();
+      const code = launchCodes.create();
+      const url = `/live?launch=${code}`;
+      expect(checkLiveRequest({ host, origin, url }, { ...session, launchCodes })).toEqual({
+        ok: true,
+        via: 'launch',
+      });
+      expect(checkLiveRequest({ host, origin, url }, { ...session, launchCodes })).toEqual({
+        ok: false,
+        status: 401,
+        message: LAUNCH_ADDRESS_SPENT,
+        reused: true,
+      });
+    });
+
+    it('checks the host and the origin before spending the code', () => {
+      const launchCodes = new LaunchCodes();
+      const code = launchCodes.create();
+      const url = `/live?launch=${code}`;
+      const checked = { ...session, launchCodes };
+      expect(checkLiveRequest({ host, origin: 'http://evil.example', url }, checked)).toMatchObject(
+        {
+          status: 403,
+        },
+      );
+      expect(checkLiveRequest({ host, origin, url }, checked)).toMatchObject({ ok: true });
+    });
+
+    it.each([
+      ['without launch codes', undefined, (code: string) => `/live?launch=${code}`],
+      [
+        'with the code twice',
+        new LaunchCodes(),
+        (code: string) => `/live?launch=${code}&launch=${code}`,
+      ],
+      [
+        'with both a token and a code',
+        new LaunchCodes(),
+        (code: string) => `/live?launch=${code}&token=${token}`,
+      ],
+    ])('refuses a connection %s with 401', (_case, launchCodes, urlOf) => {
+      const code = launchCodes?.create() ?? 'abc';
+      const checked = launchCodes === undefined ? session : { ...session, launchCodes };
+      expect(checkLiveRequest({ host, origin, url: urlOf(code) }, checked)).toMatchObject({
+        ok: false,
+        status: 401,
+      });
     });
   });
 
@@ -125,6 +182,96 @@ describe('checkLiveRequest', () => {
     expect(checkLiveRequest({ host, origin, url }, session)).toMatchObject({
       ok: false,
       status: 401,
+    });
+  });
+});
+
+describe('LaunchCodes', () => {
+  it('makes codes of 16 random bytes in base64url', () => {
+    const code = new LaunchCodes().create();
+    expect(code).toMatch(/^[A-Za-z0-9_-]{22}$/);
+    expect(Buffer.from(code, 'base64url')).toHaveLength(16);
+  });
+
+  it('redeems a code once', () => {
+    const codes = new LaunchCodes();
+    const code = codes.create();
+    expect(codes.redeem(code)).toBe('ok');
+    expect(codes.redeem(code)).toBe('used');
+  });
+
+  it('keeps one code open at a time: making a new one ends the old', () => {
+    const codes = new LaunchCodes();
+    const old = codes.create();
+    const current = codes.create();
+    expect(codes.redeem(old)).toBe('unknown');
+    expect(codes.redeem(current)).toBe('ok');
+  });
+
+  it('ends a code two minutes after it was made', () => {
+    let now = 1_000;
+    const codes = new LaunchCodes({ now: () => now });
+    expect(LAUNCH_CODE_LIFETIME).toBe(120_000);
+    const code = codes.create();
+    now += LAUNCH_CODE_LIFETIME;
+    const late = codes.create();
+    now += LAUNCH_CODE_LIFETIME + 1;
+    expect(codes.redeem(code)).toBe('unknown');
+    expect(codes.redeem(late)).toBe('expired');
+    expect(codes.redeem(late)).toBe('unknown');
+  });
+
+  it.each([
+    ['no code', undefined],
+    ['an empty code', ''],
+    ['a code it never made', 'AAAAAAAAAAAAAAAAAAAAAA'],
+  ])('refuses %s', (_case, code) => {
+    const codes = new LaunchCodes();
+    codes.create();
+    expect(codes.redeem(code)).toBe('unknown');
+  });
+
+  it('refuses everything before it makes a code', () => {
+    expect(new LaunchCodes().redeem('AAAAAAAAAAAAAAAAAAAAAA')).toBe('unknown');
+  });
+});
+
+describe('checkClaudeRequest', () => {
+  const credential = createToken();
+  const claude = { port, credential };
+  const host = `127.0.0.1:${port}`;
+  const authorization = `Bearer ${credential}`;
+
+  it('accepts our host, no origin and Claude’s credential', () => {
+    expect(checkClaudeRequest({ host, origin: undefined, authorization }, claude)).toEqual({
+      ok: true,
+    });
+  });
+
+  it.each([
+    ['a foreign host', `evil.example:${port}`, undefined],
+    ['our own origin, since only browsers send one', host, `http://${host}`],
+    ['a foreign origin', host, 'http://evil.example'],
+    ['the origin null', host, 'null'],
+  ])('refuses %s with 403, even with the credential', (_case, requestHost, origin) => {
+    expect(checkClaudeRequest({ host: requestHost, origin, authorization }, claude)).toMatchObject({
+      ok: false,
+      status: 403,
+    });
+  });
+
+  it.each([
+    ['no credential', undefined],
+    ['an empty credential', 'Bearer '],
+    ['a wrong credential', `Bearer ${createToken()}`],
+    ['the credential without its scheme', credential],
+    ['another scheme', `Basic ${credential}`],
+    ['the credential with more after it', `Bearer ${credential} x`],
+  ])('refuses %s with 401', (_case, value) => {
+    expect(checkClaudeRequest({ host, origin: undefined, authorization: value }, claude)).toEqual({
+      ok: false,
+      status: 401,
+      message: 'The Claude endpoint needs Claude’s credential.',
     });
   });
 });

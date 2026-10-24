@@ -1,0 +1,402 @@
+/*
+ * The inspector's controls and sections. It uses the theme tokens, whose pairs for text meet 4.5:1 and
+ * whose control boundaries and focus rings meet 3:1, in both themes.
+ */
+
+/*
+ * The inspector scrolls on its own. Text hidden for screen readers is positioned absolutely, so the
+ * inspector must hold it: otherwise what sits low in a long inspector makes the whole page scroll.
+ */
+.inspector {
+  position: relative;
+}
+
+.inspector .inspector-title {
+  margin: 0.7rem 0 0.2rem;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: normal;
+  overflow-wrap: anywhere;
+}
+
+.inspector-title-detail {
+  margin-left: 0.15rem;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+
+.inspector-title:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.inspector-section {
+  margin-top: 1.1rem;
+}
+
+.inspector h4 {
+  margin: 0 0 0.4rem;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.inspector h4:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Controls */
+
+.inspector-control {
+  display: grid;
+  gap: 0.2rem;
+  margin-top: 0.6rem;
+}
+
+.inspector-control label,
+.inspector-trait label {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.inspector input:is([type='text'], [type='number']),
+.inspector textarea,
+.inspector select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.3rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.inspector textarea {
+  resize: vertical;
+}
+
+.inspector-attribute textarea {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--text-xs);
+}
+
+.inspector :is(input, textarea, select, button):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.inspector :is(input, textarea, select):disabled {
+  background: var(--panel);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.inspector [aria-invalid='true'] {
+  border-color: var(--problem);
+}
+
+.inspector-problem {
+  color: var(--problem);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.inspector-notes {
+  margin-top: 0.25rem;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.inspector-warning,
+.inspector-warnings {
+  margin-top: 0.4rem;
+  padding: 0.35rem 0.55rem;
+  border-left: 3px solid var(--warning);
+  border-radius: 0.3rem;
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: var(--text-xs);
+}
+
+.inspector-warnings {
+  padding-left: 1.4rem;
+}
+
+.inspector-warnings li + li {
+  margin-top: 0.25rem;
+}
+
+/* Buttons: those that change the project, and those that select what is listed */
+
+.inspector-action {
+  margin-top: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.inspector-action:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.inspector-action:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.inspector-selectables {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0;
+  list-style: none;
+}
+
+.inspector-selectable {
+  padding: 0.1rem 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.inspector-selectable-name {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.inspector-selectable:hover .inspector-selectable-name {
+  text-decoration-thickness: 2px;
+}
+
+.inspector-selectable-detail {
+  margin-left: 0.15rem;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+/* In this view: each container the element sits in, its place in the stacking order, and moves */
+
+.inspector-memberships {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0;
+  list-style: none;
+}
+
+.inspector-membership + .inspector-membership {
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+/* Where it sits, then its buttons; in a narrow panel the buttons go below. */
+.inspector-membership-place {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.4rem;
+  overflow-wrap: anywhere;
+}
+
+.inspector-membership-place span {
+  flex: 1 1 8rem;
+}
+
+.inspector-stacking-place {
+  margin-top: 0.35rem;
+  font-size: var(--text-xs);
+}
+
+.inspector-stacking {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 0.3rem;
+}
+
+/* A move that would change nothing stays focusable, and says why when pressed. */
+.inspector-action[aria-disabled='true'] {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.inspector-action[aria-disabled='true']:hover {
+  border-color: var(--border);
+}
+
+/* What a component or relation type derives from: "Database › Box › Essence" */
+
+.inspector-lineage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.inspector-lineage ol {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 0;
+  list-style: none;
+  color: var(--text);
+}
+
+.inspector-lineage li + li::before {
+  margin: 0 0.3rem;
+  color: var(--text-muted);
+  content: '›';
+  content: '›' / '';
+}
+
+/* Particularities */
+
+.inspector-mark {
+  padding: 0 0.4rem;
+  border-radius: 0.6rem;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Attributes */
+
+.inspector-attributes {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+
+.inspector-attribute-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.45rem;
+  margin-bottom: 0.2rem;
+}
+
+.inspector-attribute-head label {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.inspector-type {
+  color: var(--text-muted);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--text-xs);
+}
+
+.inspector-new-attribute {
+  margin-top: 0.9rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.inspector-new-attribute-title {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.inspector-new-attribute-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0 0.5rem;
+}
+
+.inspector-new-attribute-controls .inspector-control {
+  margin-top: 0.4rem;
+}
+
+.inspector-new-attribute-controls .inspector-action {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-top: 0.5rem;
+}
+
+/* Appearance */
+
+.inspector-appearance {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0;
+  list-style: none;
+}
+
+/* Label, control and mark in a row; in a narrow panel the mark goes below. */
+.inspector-trait {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.5rem;
+}
+
+.inspector-trait label {
+  flex: 0 0 3.4rem;
+}
+
+.inspector-trait-control {
+  flex: 1 1 7rem;
+  min-width: 0;
+}
+
+.inspector-color {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.inspector input[type='color'] {
+  width: 2.4rem;
+  height: 1.7rem;
+  padding: 0.1rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.3rem;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.inspector input[type='color']:disabled {
+  cursor: not-allowed;
+}
+
+.inspector-color-code {
+  width: 6.5rem;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--text-xs);
+}
+
+.inspector-color .inspector-problem {
+  flex-basis: 100%;
+}
+
+/* A note's text, which is edited on the canvas */
+
+.inspector-note-text {
+  margin-top: 0.4rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  background: var(--surface);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

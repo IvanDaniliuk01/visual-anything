@@ -137,6 +137,76 @@ function ellipseExit(rect: Rect, from: Point, direction: Point): number {
   return Math.max(0, (-b + Math.sqrt(discriminant)) / (2 * a));
 }
 
+/** The rectangle grown by `by` on every side, or shrunk when `by` is negative. */
+export function grow(rect: Rect, by: number): Rect {
+  return {
+    x: rect.x - by,
+    y: rect.y - by,
+    width: rect.width + 2 * by,
+    height: rect.height + 2 * by,
+  };
+}
+
+/** How tall the ellipse is that closes a cylinder at the top and at the bottom, halved. */
+export function cylinderCap(rect: Rect): number {
+  return Math.min(12, rect.height * 0.15);
+}
+
+/** The radius of a person's head; the body starts below it. */
+export function personHead(rect: Rect): number {
+  return Math.min(rect.height * 0.22, rect.width * 0.2);
+}
+
+/**
+ * Whether a shape of this kind drawn in `rect` holds a point, by its drawn outline: an ellipse by its
+ * ellipse, a cylinder by its body and its two caps, a person by its body and its head. Rectangles,
+ * rounded ones included, hold their whole rectangle.
+ */
+export function holdsPoint(kind: ShapeKind, rect: Rect, point: Point): boolean {
+  const inRect = (box: Rect) =>
+    point.x >= box.x &&
+    point.x <= box.x + box.width &&
+    point.y >= box.y &&
+    point.y <= box.y + box.height;
+  if (!inRect(rect)) return false;
+  const centerX = rect.x + rect.width / 2;
+  switch (kind) {
+    case 'rectangle':
+    case 'rounded-rectangle':
+      return true;
+    case 'ellipse':
+      return inEllipse(point, centerX, rect.y + rect.height / 2, rect.width / 2, rect.height / 2);
+    case 'cylinder': {
+      const cap = cylinderCap(rect);
+      const body = { x: rect.x, y: rect.y + cap, width: rect.width, height: rect.height - 2 * cap };
+      return (
+        inRect(body) ||
+        inEllipse(point, centerX, rect.y + cap, rect.width / 2, cap) ||
+        inEllipse(point, centerX, rect.y + rect.height - cap, rect.width / 2, cap)
+      );
+    }
+    case 'person': {
+      const head = personHead(rect);
+      const top = rect.y + head * 1.6;
+      const body = { x: rect.x, y: top, width: rect.width, height: rect.y + rect.height - top };
+      return inRect(body) || inEllipse(point, centerX, rect.y + head, head, head);
+    }
+  }
+}
+
+function inEllipse(
+  point: Point,
+  centerX: number,
+  centerY: number,
+  radiusX: number,
+  radiusY: number,
+): boolean {
+  if (radiusX <= 0 || radiusY <= 0) return point.x === centerX && point.y === centerY;
+  const dx = (point.x - centerX) / radiusX;
+  const dy = (point.y - centerY) / radiusY;
+  return dx * dx + dy * dy <= 1;
+}
+
 /** The arrowhead for a line from `from` whose end is `tip`, sized for the line's width. */
 export function arrowheadAt(from: Point, tip: Point, lineWidth: number): Arrowhead {
   const direction = directionOf(from, tip) ?? { x: 1, y: 0 };
@@ -150,39 +220,28 @@ export function arrowheadAt(from: Point, tip: Point, lineWidth: number): Arrowhe
   };
 }
 
-/** The pieces of a dashed line from `from` to `to`: dashes of `dash` units separated by `gap` units. */
-export function dashSegments(from: Point, to: Point, dash: number, gap: number): [Point, Point][] {
-  const length = distance(from, to);
-  const direction = directionOf(from, to);
-  if (!direction || dash <= 0) return [];
-  const at = (travel: number): Point => ({
-    x: from.x + direction.x * travel,
-    y: from.y + direction.y * travel,
-  });
-  const segments: [Point, Point][] = [];
-  for (let start = 0; start < length; start += dash + Math.max(0, gap)) {
-    segments.push([at(start), at(Math.min(start + dash, length))]);
-  }
-  return segments;
-}
-
 /**
  * The transform that fits `bounds` into an area, keeping `margin` free around it on the tighter side,
- * centering it on the other, and never enlarging beyond `maxScale`.
+ * centering it on the other, never enlarging beyond `maxScale` and never shrinking below `minScale`.
+ * The scene is centered at the scale it gets, so a scene too large to fit shows its middle.
  */
 export function fitTransform(
   bounds: Rect | undefined,
   area: Size,
   margin: number,
   maxScale = MAX_FIT_SCALE,
+  minScale = 0,
 ): Transform {
   if (!bounds) return { scale: 1, x: 0, y: 0 };
   const availableWidth = Math.max(1, area.width - 2 * margin);
   const availableHeight = Math.max(1, area.height - 2 * margin);
-  const scale = Math.min(
-    bounds.width > 0 ? availableWidth / bounds.width : Infinity,
-    bounds.height > 0 ? availableHeight / bounds.height : Infinity,
-    maxScale,
+  const scale = Math.max(
+    minScale,
+    Math.min(
+      bounds.width > 0 ? availableWidth / bounds.width : Infinity,
+      bounds.height > 0 ? availableHeight / bounds.height : Infinity,
+      maxScale,
+    ),
   );
   return {
     scale,

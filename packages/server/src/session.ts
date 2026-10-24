@@ -8,12 +8,13 @@
  * the bytes of every project file as it last read or wrote them: a change on disk that differs from
  * them was made outside, and a file is never written over such a change.
  */
-import { readFile, readdir } from 'node:fs/promises';
+import { readdir, realpath } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import {
   EMPTY_HISTORY,
   PROTOCOL_VERSION,
+  checkPreferenceChanges,
   checkProject,
   decodeAppMessage,
   executeCommand,
@@ -25,12 +26,14 @@ import {
   type Author,
   type Command,
   type CommandOutcome,
+  type Guidance,
   type History,
   type HistoryStep,
   type HistorySummary,
   type IdGenerator,
   type NoticeMessage,
   type Operation,
+  type PreferencesSetMessage,
   type Problem,
   type ProblemCode,
   type ProjectChangedMessage,
@@ -40,7 +43,7 @@ import {
 import type { FileKind, Id } from '@visual-anything/schema';
 import { formatFile } from '@visual-anything/schema/format';
 import { validateFile, type ValidationError } from '@visual-anything/schema/validate';
-import { errorCode, errorReason } from './errors';
+import { errorReason } from './errors';
 import {
   affectedFiles,
   contentOf,
@@ -50,6 +53,7 @@ import {
   type FileKey,
 } from './file-plan';
 import { FOLDERS, newFilePath } from './layout';
+import type { PreferencesStore } from './preferences';
 import { toForwardSlashes } from './paths';
 import {
   formatProjectProblem,
@@ -60,6 +64,7 @@ import {
   type ProjectFileProblem,
   type ProjectFiles,
 } from './project';
+import { capOf, readRegularFile } from './regular-files';
 import { watchProject, type ProjectWatcher, type WatchMode } from './watcher';
 import { removeFile, writeFileAtomic, type WriteOptions } from './writer';
 
@@ -68,15 +73,39 @@ export interface SessionClient {
   send(message: ServerMessage): void;
 }
 
+/** How an app connects. */
+export interface ConnectOptions {
+  /**
+   * The session token, handed to an app that opened the connection with a launch code, which is
+   * spent; it reconnects with the token from then on.
+   */
+  token?: string;
+}
+
 /** What the local program's server needs from the open project. */
 export interface LiveSession {
+  /** The project folder, as an absolute path: dev mode serves no file inside it. */
+  readonly folder?: string;
   /**
    * Greets an app that connects with the project, its history and its warnings, and sends it every
    * change from then on. Returns what to call when the app disconnects.
    */
-  connect(client: SessionClient): () => void;
+  connect(client: SessionClient, options?: ConnectOptions): () => void;
   /** Handles a message an app sent. It never fails: a message it cannot use is answered or ignored. */
   receive(client: SessionClient, text: string): Promise<void>;
+  /**
+   * Greets Claude, attached through its own endpoint, with the project and its history, and sends it
+   * every change and reload from then on; never the session token, notices or what only apps need.
+   * Returns what to call when Claude detaches.
+   */
+  attachClaude(client: SessionClient): () => void;
+  /** Runs a command, as {@link Session.execute} does. */
+  execute(command: Command, author: Author, origin?: Origin): Promise<SessionOutcome>;
+  /**
+   * Shows Claude's guidance in every open app, after the work already asked for; resolves with how
+   * many apps it reached. Guidance changes nothing: no file, no history.
+   */
+  guide(guidance: Guidance): Promise<number>;
 }
 
 /** Who asked for a change: the app it is answered to, and the id of its request. */
@@ -112,6 +141,11 @@ export interface SessionOptions {
   out?: (line: string) => void;
   /** Prints a line about a problem. */
   err?: (line: string) => void;
+  /**
+   * The person's preferences (ADR-0032), which every app gets when it connects and can change; absent,
+   * the program keeps none and refuses changes.
+   */
+  preferences?: PreferencesStore;
 }
 
 /** The outcome of opening a session: the session, or every problem that keeps the project closed. */
@@ -165,6 +199,8 @@ export class Session implements LiveSession {
    */
   #originals = new Map<string, { bytes: Buffer; text: string }>();
   readonly #clients = new Set<SessionClient>();
+  /** Claude, attached through its own endpoint: it hears of changes and reloads only. */
+  readonly #claudes = new Set<SessionClient>();
   /** The work in progress: commands, undos, redos, saves and checks of the files, one at a time. */
   #queue: Promise<void> = Promise.resolve();
   #scanQueued = false;
@@ -184,7 +220,9 @@ export class Session implements LiveSession {
 
   /** Opens the project in a folder; see {@link openSession}. */
   static async open(folder: string, options: SessionOptions = {}): Promise<OpenSessionResult> {
-    const projectFolder = resolve(folder);
+    // The real path, worked out once: every later read and write goes there, whatever a link on the
+    // way to it comes to point to.
+    const projectFolder = await realpath(resolve(folder)).catch(() => resolve(folder));
     const loaded = await loadProject(projectFolder);
     if (!loaded.ok) return { ok: false, errors: loaded.errors };
     const session = new Session(projectFolder, loaded, options);
@@ -246,13 +284,14 @@ export class Session implements LiveSession {
     return known.warnings;
   }
 
-  connect(client: SessionClient): () => void {
+  connect(client: SessionClient, options: ConnectOptions = {}): () => void {
     this.#clients.add(client);
     this.#send(client, {
       type: 'project/opened',
       protocolVersion: PROTOCOL_VERSION,
       project: this.#state,
       history: this.history,
+      ...(options.token === undefined ? {} : { token: options.token }),
     });
     try {
       const warnings = this.warnings();
@@ -260,9 +299,35 @@ export class Session implements LiveSession {
     } catch (error) {
       this.#err(`Could not check the project for warnings: ${reasonOf(error)}`);
     }
+    const preferences = this.#options.preferences;
+    if (preferences !== undefined) {
+      this.#send(client, { type: 'preferences/changed', preferences: preferences.current() });
+    }
     return () => {
       this.#clients.delete(client);
     };
+  }
+
+  attachClaude(client: SessionClient): () => void {
+    this.#claudes.add(client);
+    this.#send(client, {
+      type: 'project/opened',
+      protocolVersion: PROTOCOL_VERSION,
+      project: this.#state,
+      history: this.history,
+    });
+    return () => {
+      this.#claudes.delete(client);
+    };
+  }
+
+  guide(guidance: Guidance): Promise<number> {
+    if (this.#closed) return Promise.resolve(0);
+    // In the queue, so that guidance about what a command just made reaches the apps after it.
+    return this.#enqueue(() => {
+      for (const client of this.#clients) this.#send(client, { type: 'guidance', guidance });
+      return Promise.resolve(this.#clients.size);
+    });
   }
 
   /**
@@ -296,6 +361,51 @@ export class Session implements LiveSession {
       case 'redo':
         await this.redo(origin);
         return;
+      case 'preferences/set':
+        await this.#setPreferences(client, message);
+        return;
+    }
+  }
+
+  /**
+   * Changes the person's preferences (ADR-0032). They are not part of the project: this is never a
+   * command, never enters the history, writes no project file and never waits behind the project's own
+   * work. Every open app hears of the change, the one that asked with its request id.
+   */
+  async #setPreferences(client: SessionClient, message: PreferencesSetMessage): Promise<void> {
+    const { requestId } = message;
+    const store = this.#options.preferences;
+    const refuse = (problems: Problem[]) =>
+      this.#send(client, { type: 'command/rejected', requestId, problems });
+    if (store === undefined) {
+      refuse([refusal('not-saved', 'This program keeps no preferences.')]);
+      return;
+    }
+    const checked = checkPreferenceChanges(message.changes);
+    if (!checked.ok) {
+      refuse(checked.problems);
+      return;
+    }
+    let result;
+    try {
+      result = await store.set(checked.changes);
+    } catch (error) {
+      refuse([
+        refusal('program-failed', `Your preferences could not be changed: ${reasonOf(error)}`),
+      ]);
+      return;
+    }
+    const { preferences } = result;
+    this.#send(client, { type: 'preferences/changed', preferences, requestId });
+    for (const other of this.#clients) {
+      if (other !== client) this.#send(other, { type: 'preferences/changed', preferences });
+    }
+    if (!result.saved) {
+      this.#send(client, {
+        type: 'notice',
+        level: 'warning',
+        message: `Your preference applies until Visual Anything stops: it could not be saved (${result.reason}).`,
+      });
     }
   }
 
@@ -429,7 +539,7 @@ export class Session implements LiveSession {
     }
   }
 
-  /** Tells every app about a change, the one that asked with its request id. */
+  /** Tells every app and Claude about a change, the one that asked with its request id. */
   #announce(
     change: Pick<
       ProjectChangedMessage,
@@ -439,7 +549,7 @@ export class Session implements LiveSession {
   ): SessionOutcome {
     const history = this.history;
     const message: ProjectChangedMessage = { type: 'project/changed', ...change, history };
-    for (const client of this.#clients) {
+    for (const client of [...this.#clients, ...this.#claudes]) {
       this.#send(
         client,
         origin?.client === client ? { ...message, requestId: origin.requestId } : message,
@@ -631,8 +741,8 @@ export class Session implements LiveSession {
   /** The files about to change whose bytes on disk are not those last read or written. */
   async #changedOnDisk(changes: readonly FileChange[]): Promise<string[]> {
     const changed: string[] = [];
-    for (const { path } of changes) {
-      const onDisk = await readIfThere(join(this.folder, path));
+    for (const { path, kind } of changes) {
+      const onDisk = await readIfThere(this.folder, path, kind);
       const known = this.#known.get(path);
       const same =
         onDisk === 'unreadable'
@@ -692,7 +802,11 @@ export class Session implements LiveSession {
     const target = join(this.folder, path);
     return bytes === null
       ? removeFile(target, this.#options.writer)
-      : writeFileAtomic(target, bytes, this.#options.writer);
+      : writeFileAtomic(target, bytes, {
+          ...this.#options.writer,
+          regularOnly: true,
+          inside: this.folder,
+        });
   }
 
   /** Checks the files on disk after the work already asked for; one check waits at a time. */
@@ -732,12 +846,14 @@ export class Session implements LiveSession {
     this.#adopt(loaded);
     const reason = `${listOf([...reloaded.keys()])} changed on disk.`;
     this.#out(`Reloaded the project: ${reason}`);
-    this.#broadcast({
+    const announcement: ServerMessage = {
       type: 'project/reloaded',
       project: this.#state,
       history: this.history,
       reason,
-    });
+    };
+    this.#broadcast(announcement);
+    for (const client of this.#claudes) this.#send(client, announcement);
     const warnings = this.warnings();
     if (warnings.length > 0) this.#broadcast(warningNotice(warnings));
   }
@@ -839,13 +955,18 @@ function warningNotice(warnings: readonly ProjectFileProblem[]): NoticeMessage {
   };
 }
 
-/** The bytes of a file, `undefined` when there is none, or `unreadable`. */
-async function readIfThere(path: string): Promise<Buffer | undefined | 'unreadable'> {
-  try {
-    return await readFile(path);
-  } catch (error) {
-    return errorCode(error) === 'ENOENT' ? undefined : 'unreadable';
-  }
+/**
+ * The bytes of a project file, `undefined` when there is none, or `unreadable`, as is anything but a
+ * regular file within its kind's cap.
+ */
+async function readIfThere(
+  folder: string,
+  path: string,
+  kind: FileKind,
+): Promise<Buffer | undefined | 'unreadable'> {
+  const read = await readRegularFile(join(folder, path), capOf(kind), { inside: folder });
+  if (read.ok) return read.bytes;
+  return read.reason === 'missing' ? undefined : 'unreadable';
 }
 
 /** How files are written: kinds that others refer to come first, and are deleted last. */
