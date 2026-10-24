@@ -309,13 +309,13 @@ describe('drawnRelations', () => {
   });
 
   it('looks at each relation once, however deep relations between relations are woven', () => {
-    // Every relation of a level ends on two of the level below: 2^40 ways down from the top.
-    const depth = 40;
-    const woven = withWovenRelations(sample, depth);
+    // Every relation of a round ends on two of the round before: 2^40 ways back from the last.
+    const rounds = 40;
+    const woven = withWovenRelations(sample, rounds);
     const lines = drawnRelations(buildScene(woven, VIEW), woven);
-    for (const side of ['a', 'b', 'c']) expect(lines.line(`weave-${side}-${depth}`)).toBeDefined();
+    for (const side of ['a', 'b', 'c']) expect(lines.line(`weave-${side}-${rounds}`)).toBeDefined();
     const started = performance.now();
-    expect(lines.elementOf(`weave-a-${depth}`)).toBe('patient');
+    expect(lines.elementOf(`weave-a-${rounds}`)).toBe('patient');
     const stops = lines.steps('patient').map(({ line }) => line.relation);
     expect(performance.now() - started).toBeLessThan(100);
     expect(stops).toEqual(expect.arrayContaining(['weave-a-40', 'weave-b-40', 'weave-c-40']));

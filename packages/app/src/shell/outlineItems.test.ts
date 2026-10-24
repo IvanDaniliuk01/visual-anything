@@ -238,17 +238,17 @@ describe('outlineOf, for relations that end on relations', () => {
   });
 
   it('finds the row of a relation woven deep among relations at once', () => {
-    // Every relation of a level ends on two of the level below: 2^40 ways down from the top.
-    const depth = 40;
-    const woven = withWovenRelations(sample, depth);
+    // Every relation of a round ends on two of the round before: 2^40 ways back from the last.
+    const rounds = 40;
+    const woven = withWovenRelations(sample, rounds);
     const deep = outlineOf(buildScene(woven, 'system-overview'), woven);
     const started = performance.now();
-    const place = deep.placeOf({ kind: 'relation', id: `weave-a-${depth}` });
+    const place = deep.placeOf({ kind: 'relation', id: `weave-a-${rounds}` });
     expect(performance.now() - started).toBeLessThan(100);
-    // Through the first relation of every level, down to the Patient's row.
-    const through = Array.from({ length: depth + 1 }, (_, level) => `weave-a-${level}`);
+    // Through the first relation of every round, back to the Patient's row.
+    const through = Array.from({ length: rounds + 1 }, (_, round) => `weave-a-${round}`);
     expect(place?.id).toBe(['patient', ...through].join('#'));
-    expect(place?.outer).toHaveLength(depth + 1);
+    expect(place?.outer).toHaveLength(rounds + 1);
   });
 });
 

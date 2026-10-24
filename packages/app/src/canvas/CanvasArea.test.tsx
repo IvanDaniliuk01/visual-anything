@@ -1022,7 +1022,7 @@ describe('Adding elements', () => {
       fireEvent.change(select, { target: { value: 'systems.service' } });
       await Promise.resolve();
     });
-    // Directly in World, 40 to the right of the System, top edges level, and not pinned.
+    // Directly in World, 40 to the right of the System, top edges aligned, and not pinned.
     const shown = buildScene(withEmptySystem, view.id).shapes.find(
       (shape) => shape.key === 'empty-system',
     );
@@ -1120,7 +1120,7 @@ describe('Adding elements', () => {
 
   /**
    * The first shapes of the named elements, as the project draws them now, once checked to make a
-   * row: top edges level, each 40 to the right of the one before, none overlapping a shape beside it.
+   * row: top edges aligned, each 40 to the right of the one before, none overlapping a shape beside it.
    */
   function rowOf(shown: ProjectSnapshot, names: readonly string[]) {
     const drawn = buildScene(shown, view.id);
