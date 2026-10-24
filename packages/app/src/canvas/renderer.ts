@@ -58,7 +58,7 @@ const LABEL_BATCH = 6;
  * PixiJS does the costly part of a new drawing when it first renders it, after the clock above has
  * stopped, so the work is counted rather than timed.
  */
-const FULL_SHAPES_PER_FRAME = 200;
+const FULL_SHAPES_PER_FRAME = 150;
 const LABELS_PER_FRAME = 32;
 /**
  * How many labels written before a frame shows again, nearest the middle first, when zooming in brings
