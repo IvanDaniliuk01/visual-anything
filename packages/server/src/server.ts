@@ -167,7 +167,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
             },
           },
     );
-    socket.on('close', connection.detach);
+    socket.on('close', () => connection.detach());
     socket.on('message', (data) => {
       connection.receive(textOf(data)).catch((error: unknown) => console.error(error));
     });

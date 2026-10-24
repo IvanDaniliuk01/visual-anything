@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { Command } from '@visual-anything/core';
+import { executeCommand, type Command } from '@visual-anything/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openSession, type Session } from '../session';
 import { FakeClient, testProject, writeProjectFolder } from '../test-support';
@@ -49,6 +49,15 @@ afterEach(async () => {
   await session.close();
   await rm(folder, { recursive: true, force: true, maxRetries: 10 });
 });
+
+/**
+ * Whether the core of this build knows a kind of command: one it does not know is refused as not a
+ * command, whatever it holds.
+ */
+function coreKnows(type: string): boolean {
+  const outcome = executeCommand(testProject(), { type } as unknown as Command);
+  return outcome.ok || !outcome.problems.some((each) => each.message.includes('is not a command'));
+}
 
 /** Calls a tool by name with its arguments. */
 async function call(name: string, args: unknown = {}): Promise<ToolOutcome> {
@@ -318,10 +327,90 @@ describe('other write tools', () => {
     expect([element('api')?.name, element('db')?.name]).toEqual(['Gateway', 'Orders']);
   });
 
-  it('say collapsing is not there yet while the core lacks it', async () => {
-    expect(
-      await failure('set_collapsed', { view: 'overview', elements: ['system'], collapsed: true }),
-    ).toBe('Collapsing and expanding are not in this build of Visual Anything yet.');
+  it('collapse a container, or say collapsing is not there yet while the core lacks it', async () => {
+    const args = { view: 'overview', elements: ['system'], collapsed: true };
+    if (!coreKnows('set-collapsed')) {
+      expect(await failure('set_collapsed', args)).toBe(
+        'Collapsing and expanding are not in this build of Visual Anything yet.',
+      );
+      return;
+    }
+    await value('set_collapsed', args);
+    expect((session.snapshot.views[0] as { collapsed?: string[] }).collapsed).toEqual(['system']);
+    expect(session.history.undo?.author).toBe('claude');
+  });
+
+  it('rename a package, or say it is not there yet', async () => {
+    const args = { id: 'shop', name: 'Shop things' };
+    if (!coreKnows('update-package')) {
+      expect(await failure('update_package', args)).toBe(
+        'Changing a package is not in this build of Visual Anything yet.',
+      );
+      return;
+    }
+    await value('update_package', args);
+    expect(session.snapshot.packages.find((each) => each.id === 'shop')?.name).toBe('Shop things');
+  });
+
+  it('change a component trait by trait, or say it is not there yet', async () => {
+    const args = { id: 'shop.cart', name: 'Basket', appearance: { fill: '#E3F2E9' } };
+    if (!coreKnows('update-component')) {
+      expect(await failure('update_component', args)).toBe(
+        'Changing a component trait by trait is not in this build of Visual Anything yet.',
+      );
+      return;
+    }
+    await value('update_component', args);
+    const cart = session.snapshot.packages
+      .find((each) => each.id === 'shop')
+      ?.components.find((each) => each.id === 'shop.cart');
+    expect(cart?.name).toBe('Basket');
+    expect(cart?.attributes).toEqual([{ name: 'items', type: 'number', default: 0 }]);
+  });
+
+  it('change a relation type trait by trait, or say it is not there yet', async () => {
+    const args = { id: 'shop.holds', name: 'contains' };
+    if (!coreKnows('update-relation-type')) {
+      expect(await failure('update_relation_type', args)).toBe(
+        'Changing a relation type trait by trait is not in this build of Visual Anything yet.',
+      );
+      return;
+    }
+    await value('update_relation_type', args);
+    const holds = session.snapshot.packages
+      .find((each) => each.id === 'shop')
+      ?.relationTypes.find((each) => each.id === 'shop.holds');
+    expect(holds?.name).toBe('contains');
+  });
+
+  it('reorder elements, or say it is not there yet', async () => {
+    const args = { elements: ['cart'], before: 'system' };
+    if (!coreKnows('reorder-elements')) {
+      expect(await failure('reorder_elements', args)).toBe(
+        'Reordering elements is not in this build of Visual Anything yet.',
+      );
+      return;
+    }
+    await value('reorder_elements', args);
+    expect(session.snapshot.model.elements[0]?.id).toBe('cart');
+  });
+
+  it('define a component with an id it makes, created only once', async () => {
+    const component = { name: 'Queue', derivesFrom: 'systems.service' };
+    const outcome = await call('define_component', {
+      package: 'shop',
+      createOnly: true,
+      component,
+    });
+    // Builds whose core makes definition ids create it; older ones need an id.
+    if (!outcome.ok) {
+      expect(outcome.message).toMatch(/^Refused, so nothing changed/);
+      return;
+    }
+    const created = (outcome.value as { created: string[] }).created;
+    expect(created[0]).toMatch(/^shop\./);
+    const defined = session.snapshot.packages.find((each) => each.id === 'shop')?.components;
+    expect(defined?.map((each) => each.name)).toContain('Queue');
   });
 
   it('add a note to a view', async () => {

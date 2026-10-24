@@ -31,13 +31,13 @@ export interface WriterFs {
   unlink(path: string): Promise<void>;
   mkdir(path: string, options: { recursive: true }): Promise<string | undefined>;
   /** Looks at a name without following a link; the real `lstat` when left out. */
-  lstat?(path: string): Promise<BigIntStats>;
+  lstat?: (path: string) => Promise<BigIntStats>;
   /** Looks at what a name leads to; the real `stat` when left out. */
-  stat?(path: string): Promise<BigIntStats>;
+  stat?: (path: string) => Promise<BigIntStats>;
   /** The real path of a name; the real `realpath` when left out. */
-  realpath?(path: string): Promise<string>;
+  realpath?: (path: string) => Promise<string>;
   /** Gives a file a second name; the real `link` when left out. */
-  link?(existing: string, path: string): Promise<void>;
+  link?: (existing: string, path: string) => Promise<void>;
 }
 
 /** The real file system, looking at names with every number as a bigint. */
@@ -191,10 +191,7 @@ async function writeRegularFile(
   if (!(await landedInside(look, target, written, options.inside))) {
     if (backup !== undefined) {
       // Puts back what the name held, wherever it now leads; should that fail, the backup keeps it.
-      const restored = await retrying(
-        () => fs.rename(backup as string, target),
-        options.retryDelays,
-      )
+      const restored = await retrying(() => fs.rename(backup, target), options.retryDelays)
         .then(() => true)
         .catch(() => false);
       if (!restored) await removeFile(target, options).catch(() => {});
