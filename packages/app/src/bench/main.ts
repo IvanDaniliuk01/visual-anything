@@ -343,17 +343,24 @@ async function measureRestacks(count: number): Promise<Timed> {
   };
 }
 
+/** The shape nearest the middle of the screen, one that holds nothing when there is one near. */
 function shapeInTheMiddle(): ElementShape | undefined {
   const { width, height } = controller.renderer.viewport;
   const world = screenToWorld(controller.camera, { x: width / 2, y: height / 2 });
-  const near = indexed.shapes.query({
-    x: world.x - 400,
-    y: world.y - 400,
-    width: 800,
-    height: 800,
-  });
-  const shapes = near.map((at) => indexed.scene.shapes[at] as ElementShape);
-  return shapes.find((shape) => !shape.holdsContents) ?? shapes[0];
+  const bounds = scene.bounds;
+  const reachAll = bounds ? Math.max(bounds.width, bounds.height) * 2 : 0;
+  for (let reach = 400; reach <= Math.max(400, reachAll); reach *= 2) {
+    const near = indexed.shapes.query({
+      x: world.x - reach,
+      y: world.y - reach,
+      width: 2 * reach,
+      height: 2 * reach,
+    });
+    const shapes = near.map((at) => indexed.scene.shapes[at] as ElementShape);
+    const found = shapes.find((shape) => !shape.holdsContents) ?? shapes[0];
+    if (found) return found;
+  }
+  return undefined;
 }
 
 function settle(milliseconds: number): Promise<void> {
@@ -369,10 +376,17 @@ function percentile(values: number[], fraction: number): number {
 function bandReport(): string {
   const counts = new Map<number, number>();
   for (const band of indexed.bands) counts.set(band, (counts.get(band) ?? 0) + 1);
-  const histogram = [...counts.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([band, count]) => `${band}: ${count.toLocaleString()}`)
-    .join(', ');
+  // The bands with tiles of their own one by one, and those beyond them together.
+  const beyond = [...counts.entries()]
+    .filter(([band]) => band >= MAX_BANDS)
+    .reduce((sum, [, count]) => sum + count, 0);
+  const histogram = [
+    ...[...counts.entries()]
+      .filter(([band]) => band < MAX_BANDS)
+      .sort(([a], [b]) => a - b)
+      .map(([band, count]) => `${band}: ${count.toLocaleString()}`),
+    ...(beyond > 0 ? [`${MAX_BANDS} and above: ${beyond.toLocaleString()}`] : []),
+  ].join(', ');
   const tiles = plannedTiles(indexed, new Set());
   const runs = tiles.filter((tile) => tile.band === MAX_BANDS).length;
   return `Overlap "${overlap}": highest band ${Math.max(0, ...indexed.bands)}; shapes by band ${histogram}; ${(tiles.length - runs).toLocaleString()} tiles in bands and ${runs.toLocaleString()} runs beyond them.`;
@@ -406,7 +420,7 @@ function report(phases: Phase[], timed: Timed[], latency: number[]): void {
     ...each,
     p50: percentile(each.times, 0.5),
     p95: percentile(each.times, 0.95),
-    worst: Math.max(...each.times),
+    worst: Math.max(0, ...each.times),
   }));
   for (const action of actions) {
     const passes = action.mark === undefined || action.p95 <= action.mark;
