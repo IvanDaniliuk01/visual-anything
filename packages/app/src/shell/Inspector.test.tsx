@@ -686,7 +686,7 @@ describe('Inspector', () => {
       ).not.toBeInTheDocument();
     });
 
-    it('changes the shape, keeping the rest of its own appearance', async () => {
+    it('changes the shape alone, as a trait of its own, keeping the rest of its own appearance', async () => {
       const { send } = renderInspector({ selected: [element('booking-agent')] });
       await settle(() =>
         fireEvent.change(screen.getByRole('combobox', { name: 'Shape' }), {
@@ -697,12 +697,32 @@ describe('Inspector', () => {
         {
           type: 'update-element',
           id: 'booking-agent',
-          changes: { appearance: { fill: '#F8E1EC', shape: 'ellipse' } },
+          changes: { appearanceTraits: { shape: 'ellipse' } },
         },
       ]);
       expect(screen.getByRole('combobox', { name: 'Shape' })).toHaveAccessibleDescription(
         /Particularity/,
       );
+      expect(screen.getByLabelText('Fill')).toHaveAccessibleDescription(/Particularity/);
+    });
+
+    it('says what its shapes write under its name, and its badges', () => {
+      const project = withElement('appointments-db', (each) => ({
+        ...each,
+        attributes: { ...each.attributes, replicated: true },
+        appearance: {
+          detail: {
+            attributes: ['engine'],
+            badges: [{ when: 'attribute', text: 'R', attribute: 'replicated' }],
+          },
+        },
+      }));
+      const { inspector } = renderInspector({ project, selected: [element('appointments-db')] });
+      expect(detail(inspector, 'Detail')).toBe('Calendar · postgres');
+      expect(detail(inspector, 'Badges')).toBe('R');
+      expect(
+        screen.getByRole('heading', { name: 'Appointments DB, Calendar · postgres · R' }),
+      ).toBeInTheDocument();
     });
 
     it('sends a colour when it is chosen, not on every input', async () => {
@@ -717,7 +737,7 @@ describe('Inspector', () => {
         {
           type: 'update-element',
           id: 'booking-agent',
-          changes: { appearance: { fill: '#F8E1EC', stroke: '#334455' } },
+          changes: { appearanceTraits: { stroke: '#334455' } },
         },
       ]);
       expect(stroke).toHaveValue('#334455');
@@ -733,7 +753,7 @@ describe('Inspector', () => {
         {
           type: 'update-element',
           id: 'booking-agent',
-          changes: { appearance: { fill: '#f3f5f8' } },
+          changes: { appearanceTraits: { fill: '#f3f5f8' } },
         },
       ]);
       expect(screen.getByLabelText('Fill')).toHaveValue('#f3f5f8');
@@ -754,7 +774,7 @@ describe('Inspector', () => {
         {
           type: 'update-element',
           id: 'booking-agent',
-          changes: { appearance: { fill: '#F8E1EC', stroke: '#112233' } },
+          changes: { appearanceTraits: { stroke: '#112233' } },
         },
       ]);
       expect(code).not.toHaveAttribute('aria-invalid');
@@ -1159,13 +1179,16 @@ describe('Inspector, while answers are on their way', () => {
     await settle(() => fireEvent.change(fill, { target: { value: '#f8e1ec' } }));
     expect(
       sent(send).map((command) => command.type === 'update-element' && command.changes),
-    ).toEqual([{ appearance: { fill: '#445566' } }, { appearance: { fill: '#f8e1ec' } }]);
+    ).toEqual([
+      { appearanceTraits: { fill: '#445566' } },
+      { appearanceTraits: { fill: '#f8e1ec' } },
+    ]);
     await answerNext();
     await answerNext();
     expect(fill).toHaveValue('#f8e1ec');
   });
 
-  it('builds a second appearance change on the first while the first is on its way', async () => {
+  it('sends only the trait each change names while the first is on its way, so neither undoes the other', async () => {
     const { send } = renderInspector({ selected: [element('booking-agent')] });
     const { answerNext } = holdAnswers(send);
     const shape = screen.getByRole('combobox', { name: 'Shape' });
@@ -1175,8 +1198,8 @@ describe('Inspector, while answers are on their way', () => {
     expect(
       sent(send).map((command) => command.type === 'update-element' && command.changes),
     ).toEqual([
-      { appearance: { fill: '#F8E1EC', shape: 'ellipse' } },
-      { appearance: { fill: '#F8E1EC', shape: 'ellipse', stroke: '#334455' } },
+      { appearanceTraits: { shape: 'ellipse' } },
+      { appearanceTraits: { stroke: '#334455' } },
     ]);
     await answerNext();
     await answerNext();
@@ -1184,7 +1207,7 @@ describe('Inspector, while answers are on their way', () => {
     expect(stroke).toHaveValue('#334455');
   });
 
-  it('builds a change made right after going back to the component’s appearance on no appearance of its own', async () => {
+  it('sends a trait changed right after going back to the component’s appearance on its own', async () => {
     const { send } = renderInspector({ selected: [element('booking-agent')] });
     const { answerNext } = holdAnswers(send);
     await settle(() =>
@@ -1197,7 +1220,7 @@ describe('Inspector, while answers are on their way', () => {
     );
     expect(
       sent(send).map((command) => command.type === 'update-element' && command.changes),
-    ).toEqual([{ appearance: null }, { appearance: { shape: 'ellipse' } }]);
+    ).toEqual([{ appearance: null }, { appearanceTraits: { shape: 'ellipse' } }]);
     await answerNext();
     await answerNext();
     expect(screen.getByLabelText('Fill')).toHaveValue('#ede4ff');
@@ -1247,7 +1270,7 @@ describe('Inspector selects', () => {
       {
         type: 'update-element',
         id: 'booking-agent',
-        changes: { appearance: { fill: '#F8E1EC', shape: 'cylinder' } },
+        changes: { appearanceTraits: { shape: 'cylinder' } },
       },
     ]);
     await settle(() => fireEvent.blur(shape));

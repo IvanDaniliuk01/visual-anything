@@ -1,26 +1,21 @@
-import { appearanceOf, type Definitions, type UpdateElementCommand } from '@visual-anything/core';
-import type { Appearance, Element } from '@visual-anything/schema';
-import { useId, useRef, useState, type ReactNode } from 'react';
+import {
+  appearanceOf,
+  detailText,
+  type AppearanceChanges,
+  type Definitions,
+  type ModelIndex,
+  type UpdateElementCommand,
+} from '@visual-anything/core';
+import type { Element } from '@visual-anything/schema';
+import { useId, useState, type ReactNode } from 'react';
 import { ColorControl, SelectControl } from './controls';
-import { Mark } from './parts';
-
-type Shape = NonNullable<Appearance['shape']>;
-
-/** The shapes an element can be drawn as, in the order the inspector offers them. */
-const SHAPES: readonly { shape: Shape; name: string }[] = [
-  { shape: 'rectangle', name: 'Rectangle' },
-  { shape: 'rounded-rectangle', name: 'Rounded rectangle' },
-  { shape: 'ellipse', name: 'Ellipse' },
-  { shape: 'cylinder', name: 'Cylinder' },
-  { shape: 'person', name: 'Person' },
-];
-
-function isShape(value: string): value is Shape {
-  return SHAPES.some((each) => each.shape === value);
-}
+import { detailOf } from './detail';
+import { Detail, Mark } from './parts';
+import { SHAPES, isShape } from './shapes';
 
 interface AppearanceSectionProps {
   element: Element;
+  index: ModelIndex;
   definitions: Definitions;
   disabled: boolean;
   /** Changes the element with one command; resolves to whether it was done. */
@@ -29,40 +24,31 @@ interface AppearanceSectionProps {
 
 /**
  * How the element is drawn: what its own appearance sets, which is a particularity, and its
- * component's appearance for the rest. Its own appearance is replaced whole, so a change keeps the
- * traits it already sets, and those of a change still on its way, which the project does not show yet.
+ * component's appearance for the rest, with what its shapes write under its name. Each change sends
+ * only the trait it changes, so it never undoes a change to another trait made meanwhile, here or by
+ * Claude.
  */
 export function AppearanceSection({
   element,
+  index,
   definitions,
   disabled,
   update,
 }: AppearanceSectionProps) {
   const headingId = useId();
   const [focusShape, setFocusShape] = useState(0);
-  // The appearance last sent, until its answer comes: what is changed meanwhile builds on it.
-  const sent = useRef<{ appearance: Appearance | null } | undefined>(undefined);
   const own = element.appearance ?? {};
   const shown = appearanceOf(element, definitions);
   const ownTraits = Object.entries(own).filter(([, value]) => value !== undefined);
+  const parts = detailOf(element, index, definitions);
+  const written = detailText(parts.filter((part) => part.kind !== 'badge'));
+  const badges = parts.filter((part) => part.kind === 'badge').map((part) => part.text);
 
-  const send = async (appearance: Appearance | null): Promise<boolean> => {
-    const mine = { appearance };
-    sent.current = mine;
-    try {
-      return await update({ appearance });
-    } finally {
-      if (sent.current === mine) sent.current = undefined;
-    }
-  };
-  const change = (traits: Appearance) => {
-    const base = sent.current === undefined ? own : (sent.current.appearance ?? {});
-    return send({ ...base, ...traits });
-  };
+  const change = (traits: AppearanceChanges) => update({ appearanceTraits: traits });
 
   const reset = async () => {
     // The button goes with the element's own appearance: the focus moves to the first trait.
-    if (await send(null)) setFocusShape((request) => request + 1);
+    if (await update({ appearance: null })) setFocusShape((request) => request + 1);
   };
 
   return (
@@ -119,6 +105,10 @@ export function AppearanceSection({
           It also sets its own size: {own.width ?? shown.width} by {own.height ?? shown.height}.
         </p>
       )}
+      <dl className="details inspector-detail">
+        <Detail term="Detail">{written === '' ? 'Nothing under its name' : written}</Detail>
+        {badges.length > 0 && <Detail term="Badges">{badges.join(', ')}</Detail>}
+      </dl>
       {ownTraits.length > 0 && (
         <button
           type="button"

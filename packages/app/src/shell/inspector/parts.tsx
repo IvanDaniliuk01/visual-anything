@@ -1,15 +1,11 @@
 /** Small parts the inspector's sections share. */
-import {
-  componentOrEssence,
-  relationTypeOrRelatesTo,
-  type Definitions,
-  type ModelIndex,
-} from '@visual-anything/core';
+import { relationTypeOrRelatesTo, type Definitions, type ModelIndex } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useId, useRef, useState, type ReactNode, type Ref } from 'react';
 import { flushSync } from 'react-dom';
 import type { Selectable } from '../../editor/selection';
 import { relationLabel } from './describe';
+import { describedAs } from './detail';
 
 /** One term and its description in a description list. */
 export function Detail({ term, children }: { term: string; children: ReactNode }) {
@@ -95,7 +91,7 @@ interface EndProps {
 export function End({ id, index, definitions, onSelect }: EndProps) {
   const element = index.element(id);
   if (element) {
-    const component = componentOrEssence(definitions, element.component).name;
+    const component = describedAs(element, index, definitions);
     if (element.id === index.world.id) {
       return (
         <span>
