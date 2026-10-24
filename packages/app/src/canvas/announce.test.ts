@@ -68,6 +68,34 @@ describe('describeRelation', () => {
     ).toBe('WhatsApp channel communicates with Booking agent, relation 2 of 2 of Booking agent.');
   });
 
+  it('says which relation it ends on, when it is reached through that one', () => {
+    const onRelation: ProjectSnapshot = {
+      ...sample,
+      model: {
+        ...sample.model,
+        relations: [
+          ...sample.model.relations,
+          {
+            id: 'about-reading',
+            relationType: 'relates-to',
+            from: 'api-reads-db',
+            to: 'agent-to-api',
+          },
+        ],
+      },
+    };
+    expect(
+      describeRelation(onRelation, 'about-reading', {
+        element: 'appointments-api',
+        position: 4,
+        count: 5,
+        through: 'api-reads-db',
+      }),
+    ).toBe(
+      'reads from relates to communicates with “HTTPS”, ending on Appointments API reads from Appointments DB, relation 4 of 5 of Appointments API.',
+    );
+  });
+
   it('says what a relation that no longer exists was', () => {
     expect(describeRelation(sample, 'gone')).toBe('A relation that no longer exists.');
   });
