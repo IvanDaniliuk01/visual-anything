@@ -97,7 +97,7 @@ interface Attached {
   waiting: Map<string, (message: ProgramMessage | Error) => void>;
 }
 
-const START_TIMEOUT = 30_000;
+const START_TIMEOUT = 60_000;
 const REQUEST_TIMEOUT = 60_000;
 const POLL = 100;
 

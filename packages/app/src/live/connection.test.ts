@@ -665,6 +665,39 @@ describe('launch codes', () => {
     expect(connection.getState().status).toBe('open');
   });
 
+  it('keeps the socket of a launch code through a mount undone at once, as StrictMode does', () => {
+    vi.useFakeTimers();
+    try {
+      const connection = new LiveConnection(LAUNCH_URL, {
+        onToken: (token) => `ws://h/live?token=${token}`,
+      });
+      connection.connect();
+      connection.disconnect();
+      connection.connect();
+      vi.runAllTimers();
+      expect(FakeWebSocket.created).toHaveLength(1);
+      expect(latestSocket().closedByApp).toBe(false);
+      latestSocket().accept();
+      latestSocket().receive(openedWithToken('s3cr3t'));
+      expect(connection.getState().status).toBe('open');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('still closes the socket of a launch code when it is disconnected for good', () => {
+    vi.useFakeTimers();
+    try {
+      const connection = new LiveConnection(LAUNCH_URL);
+      connection.connect();
+      connection.disconnect();
+      vi.runAllTimers();
+      expect(latestSocket().closedByApp).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('reconnects with the token, never with the launch code it spent', () => {
     const connection = new LiveConnection(LAUNCH_URL, {
       onToken: (token) => `ws://localhost:3000/live?token=${token}`,
