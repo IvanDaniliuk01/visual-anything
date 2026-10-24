@@ -38,6 +38,9 @@ import {
 import { useEmphasis, type Emphasis } from '../editor/emphasis';
 import { EMPTY_SELECTION, selectionOf, sizeOf, type Selection } from '../editor/selection';
 import { isTextEntry } from '../live/shortcuts';
+import { RecordingCue } from '../scenarios/RecordingCue';
+import type { ScenarioSession } from '../scenarios/session';
+import { useCanvasRecording } from '../scenarios/useCanvasRecording';
 import type { Camera } from './camera';
 import {
   collapseActions,
@@ -78,6 +81,8 @@ interface CanvasAreaProps {
   onCommand?: SendCommand;
   /** The shape to bring into sight; each new request moves the camera again. */
   revealed?: { key: string; request: number };
+  /** The scenario session, whose recording takes clicks on relations while it records. */
+  scenarios?: ScenarioSession;
 }
 
 /**
@@ -136,6 +141,7 @@ export function CanvasArea({
   onSelect,
   onCommand,
   revealed,
+  scenarios,
 }: CanvasAreaProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -259,6 +265,9 @@ export function CanvasArea({
     };
     // The controller lives as long as the canvas area; `latest` gives it the current props.
   }, [cameras]);
+
+  // While a scenario records, clicks on relations record its steps.
+  const recording = useCanvasRecording(controllerRef, scenarios);
 
   useEffect(() => {
     if (indexed) controllerRef.current?.update(project, view.id, indexed, editable);
@@ -639,6 +648,7 @@ export function CanvasArea({
         {announcement.count % 2 === 1 ? ' ' : ''}
       </div>
       <KeyboardHelp />
+      {recording && <RecordingCue />}
       {relating && (
         <RelationMenu
           project={project}

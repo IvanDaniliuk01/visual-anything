@@ -145,3 +145,4 @@ export {
   readPreferences,
   resolveTheme,
 } from './preferences';
+export * from './scenarios';
