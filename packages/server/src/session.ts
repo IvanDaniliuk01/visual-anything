@@ -70,6 +70,8 @@ export interface SessionClient {
 
 /** What the local program's server needs from the open project. */
 export interface LiveSession {
+  /** The project folder, as an absolute path: dev mode serves no file inside it. */
+  readonly folder?: string;
   /**
    * Greets an app that connects with the project, its history and its warnings, and sends it every
    * change from then on. Returns what to call when the app disconnects.
