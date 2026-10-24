@@ -90,9 +90,11 @@ export function emphasize(scene: Scene, emphasis: Emphasis): Emphasized {
     return found;
   };
   const every = (set: ReadonlySet<string>, line: RelationLine) =>
-    set.has(line.relation) || (line.aggregate !== undefined && standsFor(line).every((id) => set.has(id)));
+    set.has(line.relation) ||
+    (line.aggregate !== undefined && standsFor(line).every((id) => set.has(id)));
   const some = (set: ReadonlySet<string>, line: RelationLine) =>
-    set.has(line.relation) || (line.aggregate !== undefined && standsFor(line).some((id) => set.has(id)));
+    set.has(line.relation) ||
+    (line.aggregate !== undefined && standsFor(line).some((id) => set.has(id)));
 
   const hiddenShapes = keysOf(hidden);
   const hiddenLines = new Set<string>();
@@ -119,12 +121,15 @@ export function emphasize(scene: Scene, emphasis: Emphasis): Emphasized {
   const litLines =
     highlighted.size === 0
       ? []
-      : scene.relations.filter((line) => some(highlighted, line) && !hiddenLines.has(line.relation));
+      : scene.relations.filter(
+          (line) => some(highlighted, line) && !hiddenLines.has(line.relation),
+        );
   // The ends of an aggregated relation lit for what it stands for show that relation's ends.
   const litEnds = new Set<string>();
   for (const line of litLines) {
     if (!line.aggregate || highlighted.has(line.relation) || !line.ends) continue;
-    for (const end of [line.ends.from, line.ends.to]) if (end.kind === 'shape') litEnds.add(end.key);
+    for (const end of [line.ends.from, line.ends.to])
+      if (end.kind === 'shape') litEnds.add(end.key);
   }
   const lit = {
     shapes:
@@ -137,9 +142,7 @@ export function emphasize(scene: Scene, emphasis: Emphasis): Emphasized {
           ),
     lines: litLines,
     notes: scene.notes.filter((note) => highlighted.has(note.id) && !hiddenFree.has(note.id)),
-    arrows: scene.arrows.filter(
-      (arrow) => highlighted.has(arrow.id) && !hiddenFree.has(arrow.id),
-    ),
+    arrows: scene.arrows.filter((arrow) => highlighted.has(arrow.id) && !hiddenFree.has(arrow.id)),
   };
   const litShapes = new Set(lit.shapes.map((shape) => shape.key));
   const litLineKeys = new Set(lit.lines.map((line) => line.relation));

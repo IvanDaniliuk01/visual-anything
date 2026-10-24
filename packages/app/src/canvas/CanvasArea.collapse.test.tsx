@@ -117,7 +117,13 @@ async function started(element: React.ReactElement) {
 
 function press(host: HTMLElement, x: number, y: number, init: MouseEventInit = {}) {
   for (const type of ['pointerdown', 'pointerup']) {
-    const event = new MouseEvent(type, { bubbles: true, clientX: x, clientY: y, button: 0, ...init });
+    const event = new MouseEvent(type, {
+      bubbles: true,
+      clientX: x,
+      clientY: y,
+      button: 0,
+      ...init,
+    });
     Object.defineProperty(event, 'pointerId', { value: 1 });
     fireEvent(host, event);
   }

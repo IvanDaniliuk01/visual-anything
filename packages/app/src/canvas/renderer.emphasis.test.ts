@@ -1,4 +1,9 @@
-import { applyOperations, executeCommand, type Command, type ProjectSnapshot } from '@visual-anything/core';
+import {
+  applyOperations,
+  executeCommand,
+  type Command,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { Container, Graphics } from 'pixi.js';
 import fc from 'fast-check';
@@ -119,7 +124,12 @@ describe('CanvasRenderer after an edit', () => {
     let project: ProjectSnapshot = sample;
     renderer.show(indexScene(buildScene(project, VIEW)));
     const step = fc.oneof(
-      fc.record({ kind: fc.constant('move' as const), shape: fc.nat(40), dx: fc.integer({ min: -900, max: 900 }), dy: fc.integer({ min: -600, max: 600 }) }),
+      fc.record({
+        kind: fc.constant('move' as const),
+        shape: fc.nat(40),
+        dx: fc.integer({ min: -900, max: 900 }),
+        dy: fc.integer({ min: -600, max: 600 }),
+      }),
       fc.record({ kind: fc.constant('rename' as const), element: fc.nat(40) }),
       fc.record({ kind: fc.constant('relate' as const), from: fc.nat(40), to: fc.nat(40) }),
       fc.record({
@@ -136,7 +146,10 @@ describe('CanvasRenderer after an edit', () => {
         renderer.show(indexScene(buildScene(project, VIEW)));
         for (const each of steps) {
           const scene = buildScene(project, VIEW);
-          const keys = [...scene.shapes.map((shape) => shape.key), ...scene.relations.map((line) => line.relation)];
+          const keys = [
+            ...scene.shapes.map((shape) => shape.key),
+            ...scene.relations.map((line) => line.relation),
+          ];
           const elements = project.model.elements;
           let command: Command | undefined;
           if (each.kind === 'move') {
@@ -159,11 +172,20 @@ describe('CanvasRenderer after an edit', () => {
             }
           } else if (each.kind === 'rename') {
             const element = elements[each.element % elements.length];
-            if (element) command = { type: 'update-element', id: element.id, changes: { name: `${element.name}!` } };
+            if (element)
+              command = {
+                type: 'update-element',
+                id: element.id,
+                changes: { name: `${element.name}!` },
+              };
           } else if (each.kind === 'relate') {
             const from = elements[each.from % elements.length]?.id as Id;
             const to = elements[(each.to + 1) % elements.length]?.id as Id;
-            if (from !== to) command = { type: 'create-relation', relation: { relationType: 'systems.communicates-with', from, to } };
+            if (from !== to)
+              command = {
+                type: 'create-relation',
+                relation: { relationType: 'systems.communicates-with', from, to },
+              };
           } else {
             emphasis = {
               hidden: new Set(each.hide.map((at) => keys[at % keys.length] as string)),
@@ -263,7 +285,11 @@ describe('CanvasRenderer emphasis (I2)', () => {
     );
     expect(circle).toBeDefined();
     const at = pointAlong(line.route, 0.25);
-    const shape = (circle as { data: { path: { shapePath: { shapePrimitives: { shape: { x: number; y: number } }[] } } } }).data.path.shapePath.shapePrimitives[0]?.shape;
+    const shape = (
+      circle as {
+        data: { path: { shapePath: { shapePrimitives: { shape: { x: number; y: number } }[] } } };
+      }
+    ).data.path.shapePath.shapePrimitives[0]?.shape;
     expect(shape?.x).toBeCloseTo(at.x);
     expect(shape?.y).toBeCloseTo(at.y);
     renderer.setEmphasis({ markers: [{ relation: line.relation, progress: 0.75 }] });
@@ -318,7 +344,9 @@ describe('emphasize', () => {
     const scene = collapsed();
     const nothing = emphasize(scene, {});
     expect(emphasize(scene, { hidden: new Set() })).toBe(nothing);
-    const unknown = emphasize(scene, { hidden: new Set(['clinic-booking/scheduling/appointments-api']) });
+    const unknown = emphasize(scene, {
+      hidden: new Set(['clinic-booking/scheduling/appointments-api']),
+    });
     expect(unknown.hidden.shapes.size).toBe(0);
   });
 });

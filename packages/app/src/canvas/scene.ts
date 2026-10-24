@@ -231,7 +231,8 @@ export function shownBy(scene: Scene, element: Id): ElementShape | undefined {
   let first = firstShapeMaps.get(scene.shapes);
   if (!first) {
     first = new Map();
-    for (const shape of scene.shapes) if (!first.has(shape.element)) first.set(shape.element, shape);
+    for (const shape of scene.shapes)
+      if (!first.has(shape.element)) first.set(shape.element, shape);
     firstShapeMaps.set(scene.shapes, first);
   }
   const shape = first.get(element);
@@ -410,7 +411,16 @@ function layOut(
       : undefined;
   const placed = base
     ? replaceShapes(project, view, definitions, tree, free, base)
-    : placeShapes(project, view, definitions, tree, collapsed, free, keep ? before : undefined, keep);
+    : placeShapes(
+        project,
+        view,
+        definitions,
+        tree,
+        collapsed,
+        free,
+        keep ? before : undefined,
+        keep,
+      );
   const { shapes } = placed;
 
   const drawn = drawRelations(
@@ -447,9 +457,7 @@ function layOut(
     bounds: before && sameRect(bounds, before.layout.bounds) ? before.layout.bounds : bounds,
   };
   const orderKept =
-    before !== undefined &&
-    placed.keysKept &&
-    before.view.stackingOrder === view.stackingOrder;
+    before !== undefined && placed.keysKept && before.view.stackingOrder === view.stackingOrder;
   const drawing =
     orderKept && before
       ? (before.scene.drawing ?? before.layout.identity)
@@ -820,7 +828,8 @@ const ORIGIN: Readonly<Point> = { x: 0, y: 0 };
 
 /** Where each placement sits in a containment tree, and the placements of each element. */
 interface TreeIndex {
-  parent: Map<Placement, Placement | undefined>;
+  /** The placement each one sits in; none for one directly in World. */
+  holder: Map<Placement, Placement | undefined>;
   byElement: Map<Id, Placement[]>;
 }
 
@@ -829,17 +838,17 @@ const treeIndexes = new WeakMap<readonly Placement[], TreeIndex>();
 function treeIndexOf(tree: readonly Placement[]): TreeIndex {
   let index = treeIndexes.get(tree);
   if (!index) {
-    const parent = new Map<Placement, Placement | undefined>();
+    const holder = new Map<Placement, Placement | undefined>();
     const byElement = new Map<Id, Placement[]>();
     const visit = (placement: Placement, outer: Placement | undefined) => {
-      parent.set(placement, outer);
+      holder.set(placement, outer);
       const list = byElement.get(placement.element);
       if (list) list.push(placement);
       else byElement.set(placement.element, [placement]);
       for (const content of placement.contents) visit(content, placement);
     };
     for (const placement of tree) visit(placement, undefined);
-    index = { parent, byElement };
+    index = { holder, byElement };
     treeIndexes.set(tree, index);
   }
   return index;
@@ -865,7 +874,7 @@ function replaceShapes(
     for (
       let at: Placement | undefined = placement;
       at !== undefined && !dirty.has(at);
-      at = index.parent.get(at)
+      at = index.holder.get(at)
     ) {
       dirty.add(at);
     }
@@ -875,7 +884,8 @@ function replaceShapes(
   if (was !== now) {
     for (let at = 0; at < now.length; at++) {
       const element = now[at] as Element;
-      if (element !== was[at]) for (const placement of index.byElement.get(element.id) ?? []) mark(placement);
+      if (element !== was[at])
+        for (const placement of index.byElement.get(element.id) ?? []) mark(placement);
     }
   }
   if (base.model.relations !== model.relations) {
@@ -933,7 +943,9 @@ function replaceShapes(
       () => placement.contents.map((content, each) => measureAt(inside[each] as number, content)),
     );
   };
-  const worldContents = tree.map((placement, each) => measureAt(inWorld[each] as number, placement));
+  const worldContents = tree.map((placement, each) =>
+    measureAt(inWorld[each] as number, placement),
+  );
   standInWorld(worldContents, free);
 
   let shapes: ElementShape[] | undefined;
@@ -980,10 +992,7 @@ function replaceShapes(
     box.measured.contents.forEach((content, each) =>
       placeAt(inside[each] as number, content, x, y, shape.key),
     );
-    write(
-      at,
-      shapeFor(shape, box, shape.key, path, offset, x, y, inside, { at: current }),
-    );
+    write(at, shapeFor(shape, box, shape.key, path, offset, x, y, inside, { at: current }));
   };
   tree.forEach((_, each) =>
     placeAt(inWorld[each] as number, worldContents[each] as Box, 0, 0, undefined),
@@ -1015,10 +1024,7 @@ function positionsAfter(
   if (before === after) return { positions: positionsOf(view, worldId), changed: [] };
   const baseMap = positionsOf(base, worldId);
   const keyOf = (position: ShapePosition) =>
-    positionKey(
-      position.element,
-      position.container === worldId ? undefined : position.container,
-    );
+    positionKey(position.element, position.container === worldId ? undefined : position.container);
   if (before.length === after.length) {
     const changed: string[] = [];
     let inPlace = true;
@@ -1439,7 +1445,9 @@ function planRelations(
     const holder = hiddenIn.get(id);
     if (holder !== undefined) return shapeEnd(holder, true);
     const key = keyOf(id);
-    return key === undefined ? undefined : { kind: 'relation', at: -1, key, via: false, id: `r ${key}` };
+    return key === undefined
+      ? undefined
+      : { kind: 'relation', at: -1, key, via: false, id: `r ${key}` };
   };
   // The key of the line that draws a relation: its id, an aggregated relation's key, or none.
   const keyOf = (id: Id): string | undefined => {
@@ -1584,8 +1592,7 @@ function lineBetween(
     toRoute: routeNumbers(to),
     offset,
     definitions,
-    source:
-      relation ?? `${spec.relationType} ${members?.join(' ')} | ${spec.reversed?.join(' ')}`,
+    source: relation ?? `${spec.relationType} ${members?.join(' ')} | ${spec.reversed?.join(' ')}`,
   };
   const was = kept && lineInputs.get(kept);
   if (

@@ -90,8 +90,12 @@ _Avoid_: layer, z-order, z-index, depth, level
 The open view written out as a list, shape by shape: what sits directly in World, then what sits inside each container, in the model's order whatever the stacking order, with the relations drawn from each shape. It can be read and moved through from the keyboard, and it follows the selection.
 _Avoid_: layers panel, tree view
 
+**Collapsed container**:
+A container a view draws closed: at its component's size, on a sheet that says it holds more, showing none of its contents and how many sit directly in it. The relations of its contents are drawn as aggregated relations. Each view keeps which containers it shows collapsed; expanding one draws its contents again.
+_Avoid_: folded group, closed group
+
 **Aggregated relation**:
-A single relation drawn in place of many relations of the same type between the contents of a collapsed container and another element, labeled with how many it stands for.
+A single relation drawn in place of many relations of the same type between the contents of a collapsed container and another element, labeled with how many it stands for and drawn with a thicker line.
 _Avoid_: bundle, summary edge
 
 **View**:

@@ -85,10 +85,12 @@ describe('pointing past what the emphasis hides', () => {
       kind: 'shape',
       shape: { key: 'under' },
     });
-    expect(hitAt(indexed, point, 6, () => true, skipping('across', 'over', 'under'))).toBeUndefined();
-    expect(shapesAt(indexed, point, () => true, skipping('over')).map((shape) => shape.key)).toEqual(
-      ['under'],
-    );
+    expect(
+      hitAt(indexed, point, 6, () => true, skipping('across', 'over', 'under')),
+    ).toBeUndefined();
+    expect(
+      shapesAt(indexed, point, () => true, skipping('over')).map((shape) => shape.key),
+    ).toEqual(['under']);
   });
 
   it('leaves what is hidden out of a box selection', () => {
@@ -105,7 +107,13 @@ describe('pointing past what the emphasis hides', () => {
     const api = indexed.byKey.get('clinic-booking/scheduling/appointments-api') as ElementShape;
     const scheduling = indexed.byKey.get('clinic-booking/scheduling') as ElementShape;
     const patient = indexed.byKey.get('patient') as ElementShape;
-    const plan = planDrop(indexed, sample, VIEW, selectionOf([{ kind: 'element', id: 'patient' }]), patient);
+    const plan = planDrop(
+      indexed,
+      sample,
+      VIEW,
+      selectionOf([{ kind: 'element', id: 'patient' }]),
+      patient,
+    );
     if (!plan) throw new Error('The patient cannot be dropped.');
     // Over Scheduling, clear of its contents.
     const point = { x: scheduling.rect.x + scheduling.rect.width - 20, y: api.rect.y - 20 };
@@ -116,7 +124,14 @@ describe('pointing past what the emphasis hides', () => {
     });
     const hidden = emphasize(indexed.scene, { hidden: new Set(['clinic-booking/scheduling']) })
       .hidden.shapes;
-    const aim = dropAimAt(withoutShapes(indexed, hidden), plan, point, delta, undefined, () => true);
+    const aim = dropAimAt(
+      withoutShapes(indexed, hidden),
+      plan,
+      point,
+      delta,
+      undefined,
+      () => true,
+    );
     expect(aim).toMatchObject({ kind: 'into', target: { key: 'clinic-booking' } });
     // The index without them is made once for each set, and leaves the index it came from whole.
     expect(withoutShapes(indexed, hidden)).toBe(withoutShapes(indexed, hidden));
