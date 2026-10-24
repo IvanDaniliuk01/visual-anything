@@ -1,25 +1,43 @@
 /**
  * The local program's HTTP server. It listens on 127.0.0.1 only, checks the Host and Origin of every
  * request, serves the app (its build, or its sources through Vite in dev mode) and opens the live
- * connection for a page that holds the per-session token. Each live connection is an app of the
- * open project's session: it gets the project and every change, and its messages go to the session.
+ * connection for a page that holds the per-session token or a launch code that works once. Each live
+ * connection is an app of the open project's session: it gets the project and every change, and its
+ * messages go to the session. The Claude endpoint, on its own path and with its own credential,
+ * attaches Claude's MCP entry point to the same session.
  */
-import { realpath } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
+import { join } from 'node:path';
 import type { Duplex } from 'node:stream';
-import {
-  LIVE_PATH,
-  THEME_PARAM,
-  TOKEN_PARAM,
-  encodeServerMessage,
-  type ThemeName,
-} from '@visual-anything/core';
+import { LAUNCH_PARAM, LIVE_PATH, encodeServerMessage } from '@visual-anything/core';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
+import { attachClaude } from './claude/endpoint';
+import { CLAUDE_PATH, encodeClaudeMessage } from './claude/messages';
 import { refuseUpgrade, sendText, setSecurityHeaders } from './responses';
-import { checkLiveRequest, checkRequest, createToken, type RequestHeaders } from './security';
+import {
+  LaunchCodes,
+  checkClaudeRequest,
+  checkLiveRequest,
+  checkRequest,
+  createToken,
+  type RequestHeaders,
+} from './security';
+import {
+  LIVE_MAX_PAYLOAD,
+  WORKER_POLICY,
+  applyContentPolicies,
+  createNonce,
+  inlineScriptHashes,
+  pagePolicy,
+  servesProjectFile,
+} from './policies';
 import type { LiveSession, SessionClient } from './session';
 import { openStaticRoot, serveStatic } from './static';
+
+/** The largest message Claude may send: a command creating thousands of elements fits. */
+const CLAUDE_MAX_PAYLOAD = 8 * 1024 * 1024;
 
 /** The only address the local program listens on, so other machines cannot reach it. */
 export const HOST = '127.0.0.1';
@@ -38,20 +56,43 @@ export interface ServerOptions {
   /** The port to listen on; 0 lets the operating system pick a free one. */
   port: number;
   app: AppSource;
+  /** Opens the browser at an address, for Claude's request to open the app; without it, it cannot. */
+  openBrowser?: (url: string) => Promise<unknown>;
+  /** Told when a launch address that was already used came again. */
+  onLaunchReused?: () => void;
+  /** Told how many apps and Claudes are connected, each time that changes. */
+  onConnections?: (count: number) => void;
   /**
-   * The theme the person chose, carried in the fragment of the address beside the token so that the
-   * tab's first frame is drawn in it; absent when they match the system.
+   * The theme the person chose, carried in every launch address as `theme=` beside the launch code,
+   * so that the page paints its first frame in it; a function is asked each time. It is no secret.
    */
-  themeHint?: ThemeName | undefined;
+  themeHint?: ThemeHint | (() => ThemeHint | undefined);
 }
+
+/** A theme the page can paint its first frame in. */
+export type ThemeHint = 'light' | 'dark';
+
+/** The fragment parameter the theme hint travels under. */
+export const THEME_HINT_PARAM = 'theme';
 
 /** The running local program. */
 export interface RunningServer {
-  /** The address to open the app at, with the session token in its fragment. */
-  url: string;
+  /** The address the app is served at, which holds no secret: `http://127.0.0.1:<port>/`. */
+  address: string;
   port: number;
-  /** The per-session token the live connection requires. */
+  /**
+   * The per-session token the live connection requires. It never leaves this process: it is never
+   * printed, never put in an address and never handed to another program. A page gets it only by
+   * redeeming a launch code.
+   */
   token: string;
+  /** Claude's credential for the Claude endpoint, which only the discovery file holds. */
+  credential: string;
+  /**
+   * Makes an address that opens the app once, within two minutes, and ends the one made before:
+   * `http://127.0.0.1:<port>/#launch=<code>`.
+   */
+  launchUrl(): string;
   /** Closes the live connections and stops listening. */
   close(): Promise<void>;
 }
@@ -67,14 +108,23 @@ interface App {
    * are taken off the HTTP server and called only for upgrades that pass the checks.
    */
   upgrades: UpgradeListener[];
+  /** The content security policy of the app's page, served from a port. */
+  pagePolicyAt(port: number): string;
   close(): Promise<void>;
 }
 
 /** Starts the local program and resolves once it listens. */
 export async function startServer(options: ServerOptions): Promise<RunningServer> {
   const token = createToken();
+  const credential = createToken();
+  const launchCodes = new LaunchCodes();
   // The real port, known once the server listens; no request arrives before that.
   let port = options.port;
+  const launchUrl = () => {
+    const hint = typeof options.themeHint === 'function' ? options.themeHint() : options.themeHint;
+    const theme = hint === 'light' || hint === 'dark' ? `&${THEME_HINT_PARAM}=${hint}` : '';
+    return `http://${HOST}:${port}/#${LAUNCH_PARAM}=${launchCodes.create()}${theme}`;
+  };
 
   const httpServer = createServer();
   const sockets = new Set<Socket>();
@@ -83,15 +133,30 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     socket.once('close', () => sockets.delete(socket));
   });
 
-  const live = new WebSocketServer({ noServer: true });
-  live.on('connection', (socket) => {
-    socket.on('error', () => socket.terminate());
+  let connections = 0;
+  const counted = (socket: WebSocket) => {
+    connections += 1;
+    options.onConnections?.(connections);
+    socket.once('close', () => {
+      connections -= 1;
+      options.onConnections?.(connections);
+    });
+  };
+
+  const live = new WebSocketServer({ noServer: true, maxPayload: LIVE_MAX_PAYLOAD });
+  live.on('connection', (socket: WebSocket, _request: IncomingMessage, via: 'token' | 'launch') => {
+    // A message over the payload limit makes ws close the connection with code 1009 itself, so that
+    // the app can say the change was too large; only a connection that is not closing is cut.
+    socket.on('error', () => {
+      if (socket.readyState !== WebSocket.CLOSING) socket.terminate();
+    });
+    counted(socket);
     const client: SessionClient = {
       send: (message) => {
         if (socket.readyState === WebSocket.OPEN) socket.send(encodeServerMessage(message));
       },
     };
-    const disconnect = options.session.connect(client);
+    const disconnect = options.session.connect(client, via === 'launch' ? { token } : {});
     socket.on('close', disconnect);
     socket.on('message', (data) => {
       options.session.receive(client, textOf(data)).catch((error: unknown) => {
@@ -100,7 +165,31 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     });
   });
 
-  const app = await openApp(options.app, httpServer);
+  const claude = new WebSocketServer({ noServer: true, maxPayload: CLAUDE_MAX_PAYLOAD });
+  claude.on('connection', (socket: WebSocket) => {
+    socket.on('error', () => socket.terminate());
+    counted(socket);
+    const { openBrowser } = options;
+    const connection = attachClaude(
+      options.session,
+      (message) => {
+        if (socket.readyState === WebSocket.OPEN) socket.send(encodeClaudeMessage(message));
+      },
+      openBrowser === undefined
+        ? {}
+        : {
+            openApp: async () => {
+              await openBrowser(launchUrl());
+            },
+          },
+    );
+    socket.on('close', () => connection.detach());
+    socket.on('message', (data) => {
+      connection.receive(textOf(data)).catch((error: unknown) => console.error(error));
+    });
+  });
+
+  const app = await openApp(options.app, httpServer, options.session.folder);
 
   httpServer.on('request', (request: IncomingMessage, response: ServerResponse) => {
     setSecurityHeaders(response);
@@ -109,6 +198,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       sendText(response, check.status, check.message);
       return;
     }
+    applyContentPolicies(response, { page: app.pagePolicyAt(port), worker: WORKER_POLICY });
     app.serve(request, response);
   });
 
@@ -121,13 +211,31 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     }
     const target = request.url ?? '';
     if (pathOf(target) === LIVE_PATH) {
-      const liveCheck = checkLiveRequest({ ...headersOf(request), url: target }, { port, token });
+      const liveCheck = checkLiveRequest(
+        { ...headersOf(request), url: target },
+        { port, token, launchCodes },
+      );
       if (!liveCheck.ok) {
+        if (liveCheck.reused) options.onLaunchReused?.();
         refuseUpgrade(socket, liveCheck.status, liveCheck.message);
         return;
       }
       live.handleUpgrade(request, socket, head, (client) =>
-        live.emit('connection', client, request),
+        live.emit('connection', client, request, liveCheck.via),
+      );
+      return;
+    }
+    if (pathOf(target) === CLAUDE_PATH) {
+      const claudeCheck = checkClaudeRequest(
+        { ...headersOf(request), authorization: request.headers.authorization },
+        { port, credential },
+      );
+      if (!claudeCheck.ok) {
+        refuseUpgrade(socket, claudeCheck.status, claudeCheck.message);
+        return;
+      }
+      claude.handleUpgrade(request, socket, head, (client) =>
+        claude.emit('connection', client, request),
       );
       return;
     }
@@ -142,6 +250,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     port = await listen(httpServer, options.port);
   } catch (error) {
     live.close();
+    claude.close();
     await app.close();
     throw error;
   }
@@ -152,8 +261,9 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     const stopped = new Promise<void>((resolve, reject) =>
       httpServer.close((error) => (error ? reject(error) : resolve())),
     );
-    for (const client of live.clients) client.terminate();
+    for (const client of [...live.clients, ...claude.clients]) client.terminate();
     await new Promise<void>((resolve) => live.close(() => resolve()));
+    await new Promise<void>((resolve) => claude.close(() => resolve()));
     await app.close();
     // Whatever is still open: idle keep-alive connections and upgrades that no one took.
     for (const socket of sockets) socket.destroy();
@@ -161,22 +271,35 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
   };
 
   return {
-    url: `http://${HOST}:${port}/#${TOKEN_PARAM}=${token}${themeFragment(options.themeHint)}`,
+    address: `http://${HOST}:${port}/`,
     port,
     token,
+    credential,
+    launchUrl,
     close: () => (closing ??= closeAll()),
   };
 }
 
-/** Prepares the app: its build from a folder, or its sources through Vite. */
-async function openApp(source: AppSource, httpServer: Server): Promise<App> {
+/**
+ * Prepares the app: its build from a folder, or its sources through Vite. In dev mode, no file inside
+ * the project folder is ever served.
+ */
+async function openApp(
+  source: AppSource,
+  httpServer: Server,
+  projectFolder: string | undefined,
+): Promise<App> {
   if (source.mode === 'static') {
     const root = await openStaticRoot(source.dir);
+    // The built page's own inline scripts, such as the one that applies the theme before the first
+    // paint, are allowed by their hashes.
+    const scriptHashes = inlineScriptHashes(await readFile(join(root, 'index.html'), 'utf8'));
     return {
       serve: (request, response) => {
         serveStatic(root, request, response).catch((error: unknown) => fail(response, error));
       },
       upgrades: [],
+      pagePolicyAt: (port) => pagePolicy(port, { trustedTypes: true, scriptHashes }),
       close: async () => {},
     };
   }
@@ -184,30 +307,48 @@ async function openApp(source: AppSource, httpServer: Server): Promise<App> {
   // Imported only in dev mode, so that serving the build never loads Vite.
   const { createServer: createViteServer } = await import('vite');
   const before = new Set(httpServer.listeners('upgrade'));
+  // Vite puts it on the scripts and styles it writes into the page, which the page's policy allows.
+  const nonce = createNonce();
+  // The real path: Vite's file allow list rejects files under a Windows short path (`PCDIM-~1`).
+  const root = await realpath(source.root);
   const vite = await createViteServer({
-    // The real path: Vite's file allow list rejects files under a Windows short path (`PCDIM-~1`).
-    root: await realpath(source.root),
+    root,
     configFile: source.configFile,
     appType: 'spa',
     // Keeps the address the local program printed on screen.
     clearScreen: false,
     // Hot reload shares the local program's server; `ws.server` is the current name of `hmr.server`.
     server: { middlewareMode: true, ws: { server: httpServer } },
+    html: { cspNonce: nonce },
   });
   const upgrades = httpServer
     .listeners('upgrade')
     .filter((listener) => !before.has(listener)) as UpgradeListener[];
   for (const listener of upgrades) httpServer.off('upgrade', listener);
 
+  const serve = (request: IncomingMessage, response: ServerResponse) => {
+    // Vite calls this when none of its middlewares answered, or with the error one of them hit.
+    vite.middlewares(request, response, (error?: unknown) => {
+      if (error) fail(response, error);
+      else sendText(response, 404, 'Not found.');
+    });
+  };
   return {
     serve: (request, response) => {
-      // Vite calls this when none of its middlewares answered, or with the error one of them hit.
-      vite.middlewares(request, response, (error?: unknown) => {
-        if (error) fail(response, error);
-        else sendText(response, 404, 'Not found.');
-      });
+      if (projectFolder === undefined) {
+        serve(request, response);
+        return;
+      }
+      servesProjectFile(request, { project: projectFolder, root })
+        .then((refused) => {
+          if (refused) sendText(response, 403, 'Dev mode serves no file of the open project.');
+          else serve(request, response);
+        })
+        .catch((error: unknown) => fail(response, error));
     },
     upgrades,
+    // Without Trusted Types, because Vite's error overlay writes HTML.
+    pagePolicyAt: (port) => pagePolicy(port, { trustedTypes: false, nonce }),
     close: () => vite.close(),
   };
 }
@@ -232,11 +373,6 @@ function listen(server: Server, port: number): Promise<number> {
       }
     });
   });
-}
-
-/** The theme's part of the address's fragment, after the token. */
-function themeFragment(theme: ThemeName | undefined): string {
-  return theme === undefined ? '' : `&${THEME_PARAM}=${theme}`;
 }
 
 function headersOf(request: IncomingMessage): RequestHeaders {

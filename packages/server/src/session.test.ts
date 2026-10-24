@@ -1016,6 +1016,30 @@ describe.each(MODES)('changes made outside the app, watching in %s mode', (mode)
     expect(session.snapshot.model).toEqual(renamedModel());
     expect(await readText(folder, 'model.vamodel')).toBe(formatFile('model', renamedModel()));
   });
+
+  it('never writes through a view file that became a link, and keeps the open project', async (context) => {
+    await writeProjectFolder(folder, testProject());
+    const session = await open();
+    const outside = await mkdtemp(join(tmpdir(), 'va-outside-'));
+    try {
+      await fsp.rm(join(folder, 'views/overview.vaview'));
+      try {
+        await fsp.symlink(outside, join(folder, 'views/overview.vaview'), 'junction');
+      } catch {
+        context.skip();
+      }
+
+      const outcome = await session.execute(MOVE_CUSTOMER, 'user');
+
+      expect(outcome).toMatchObject({ ok: false, problems: [{ code: 'changed-on-disk' }] });
+      await session.idle();
+      expect(await fsp.readdir(outside)).toEqual([]);
+      expect(session.snapshot.views.map((view) => view.id)).toEqual(['overview']);
+      expect(logs.err.join('\n')).toContain('views/overview.vaview: The file is a link');
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('close', () => {

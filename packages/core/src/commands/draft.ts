@@ -15,6 +15,7 @@ import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
 import { builtinPackage } from '../builtin';
 import type { Definitions, ResolvedComponent, ResolvedRelationType } from '../definitions';
 import { definitionIdFor, freshId, isId, type IdGenerator } from '../ids';
+import { imagesIn } from '../images/catalog';
 import type { ModelIndex } from '../model-index';
 import { applyOperation, type Operation } from '../operations';
 import { problem, type Problem, type ProblemCode } from '../problems';
@@ -96,6 +97,7 @@ export class Draft {
       state.packages.some((file) => file.id === id) ||
       this.definitions.components.has(id) ||
       this.definitions.relationTypes.has(id) ||
+      imagesIn(state).images.has(id) ||
       id === ESSENCE_ID ||
       id === RELATES_TO_ID
     );

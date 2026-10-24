@@ -26,6 +26,15 @@
       "items": {
         "$ref": "#/definitions/RelationType"
       }
+    },
+    "images": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ImageDefinition"
+      },
+      "description": "The images its components' appearances, and elements' own appearances, show. Each is data only: nothing in it runs or refers to anything outside it. Left out when there are none.",
+      "minItems": 1,
+      "maxItems": 128
     }
   },
   "required": [
@@ -200,6 +209,18 @@
           },
           "description": "Where relations attach to its shapes: each relation attaches to the one facing its other end. An empty list has relations attach anywhere on the border, whatever is inherited. Shapes that draw their contents as rows attach relations beside their header and their rows instead.",
           "maxItems": 32
+        },
+        "image": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AppearanceImage"
+            },
+            {
+              "type": "string",
+              "const": "none"
+            }
+          ],
+          "description": "The image its shapes show; `none` shows none, whatever is inherited."
         }
       },
       "additionalProperties": false,
@@ -369,6 +390,32 @@
       "additionalProperties": false,
       "description": "A named place on the border of a shape where relations attach."
     },
+    "AppearanceImage": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "$ref": "#/definitions/Id",
+          "description": "The id of an image that a package in use defines."
+        },
+        "placement": {
+          "type": "string",
+          "enum": [
+            "icon",
+            "drawing"
+          ],
+          "description": "`icon`, the default: small, beside the name, inside the shape. `drawing`: on a plate in place of the shape, with the name under it. Shapes that hold other shapes or draw rows always show it as an icon in their header, and rows as a small icon before their name."
+        },
+        "tint": {
+          "$ref": "#/definitions/Color",
+          "description": "When set, the picture is drawn as a silhouette of this colour: its shape kept, its colours replaced."
+        }
+      },
+      "required": [
+        "image"
+      ],
+      "additionalProperties": false,
+      "description": "A picture an appearance shows."
+    },
     "RelationType": {
       "type": "object",
       "properties": {
@@ -480,6 +527,168 @@
       "description": "The ids of the components or relation types an end may be created from. An end created from one of them, or from anything derived from one of them, keeps within the limit.",
       "minItems": 1,
       "uniqueItems": true
+    },
+    "ImageDefinition": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "svg",
+            "bitmap"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "svg"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/SvgImage"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "bitmap"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/BitmapImage"
+          }
+        }
+      ],
+      "description": "A picture a package defines, kept as the core cleaned it."
+    },
+    "SvgImage": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "svg"
+        },
+        "id": {
+          "$ref": "#/definitions/Id",
+          "description": "Starts with its package's id, as in `clinic.whatsapp-logo-k3f9q2`."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "source": {
+          "type": "string",
+          "description": "Where it comes from and under which licence, such as \"Simple Icons, CC0-1.0\".",
+          "maxLength": 500
+        },
+        "width": {
+          "type": "number",
+          "description": "The width of its view box, which with its height gives its proportions.",
+          "exclusiveMinimum": 0,
+          "maximum": 100000
+        },
+        "height": {
+          "type": "number",
+          "description": "The height of its view box.",
+          "exclusiveMinimum": 0,
+          "maximum": 100000
+        },
+        "svg": {
+          "type": "string",
+          "description": "Its SVG text as the core cleans it: one `svg` element with a `viewBox`, elements and attributes from an allow-list only, and references only to its own parts.",
+          "minLength": 1,
+          "maxLength": 65536,
+          "pattern": "^<svg[ >]"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "name",
+        "width",
+        "height",
+        "svg"
+      ],
+      "additionalProperties": false,
+      "description": "A picture drawn from SVG: shapes, paths, gradients, clipping and masks only."
+    },
+    "BitmapImage": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "bitmap"
+        },
+        "id": {
+          "$ref": "#/definitions/Id",
+          "description": "Starts with its package's id, as in `clinic.front-desk-4fj2ka`."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "source": {
+          "type": "string",
+          "description": "Where it comes from and under which licence.",
+          "maxLength": 500
+        },
+        "format": {
+          "type": "string",
+          "enum": [
+            "png",
+            "jpeg",
+            "webp"
+          ]
+        },
+        "width": {
+          "type": "number",
+          "description": "Its width in pixels, as its header gives it.",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "height": {
+          "type": "number",
+          "description": "Its height in pixels, as its header gives it.",
+          "minimum": 1,
+          "maximum": 1024
+        },
+        "data": {
+          "type": "string",
+          "description": "Its bytes in base64.",
+          "minLength": 4,
+          "maxLength": 262144,
+          "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+        }
+      },
+      "required": [
+        "kind",
+        "id",
+        "name",
+        "format",
+        "width",
+        "height",
+        "data"
+      ],
+      "additionalProperties": false,
+      "description": "A picture kept as the bytes of a PNG, JPEG or WebP file, without its metadata."
     }
   }
 }
