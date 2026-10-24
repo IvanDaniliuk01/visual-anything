@@ -8,7 +8,7 @@ Visual Anything: an open-source, local-first tool to make any concept or system 
 
 - `CONTEXT.md`: the domain glossary. Use its terms exactly in code, files, UI and docs, and never the words listed under "Avoid".
 - `docs/adr/`: decisions. Follow every ADR whose status is `accepted`. If a change would contradict one, stop and propose a new ADR that supersedes it; do not implement it until the user agrees.
-- `docs/spec-v0.1.md`: scope, quality bar, milestones and tasks for v0.1, and the milestones after it. Work only on the current milestone; anything listed as "Later" or "After v0.1" is out of scope until its milestone starts.
+- `docs/spec-v0.1.md`: scope, quality bar, milestones and tasks for v0.1, and the milestones after it. Work only on the milestones under way; anything listed as "Later" or "After v0.1" is out of scope until its milestone starts.
 - `docs/playbook.md`: the loop every milestone follows and which of its tasks run in parallel. Read it when you start a milestone.
 - `docs/designs/`: the detailed designs a milestone or track builds from. Read the one for the current milestone when you plan it, and check it against the code.
 
@@ -31,10 +31,10 @@ Each package is named `@visual-anything/<folder>`, such as `@visual-anything/cor
 
 ## Workflow
 
-- Start each milestone in plan mode and wait for the user's OK before writing code.
+- Milestones run in parallel, as the user asked on 2026-10-24: the main session lands the seams the tasks share (types, interfaces, stubs) and commits them, then launches every task whose interfaces are fixed, across milestones, each owning its files. Tasks merge into the `develop` branch as they finish; the main session resolves what they share. The user has delegated design decisions: record them in ADRs and say what was decided, rather than waiting in plan mode.
 - Build `core` test-first, with property tests for the invariants.
-- Use subagents where they pay off: `task-builder` for parallel tasks whose interfaces are already fixed (it works in its own git worktree, branched from the last commit, so commit before launching it), Explore for research that would flood the main context, and `spec-reviewer` at the end of every milestone. Build the foundational `core` types and commands in the main session.
-- When the docs do not answer a design question, stop and ask. Record the answer in `CONTEXT.md` (terms) or in a new ADR (hard-to-reverse decisions).
+- Use subagents where they pay off: `task-builder` for parallel tasks whose interfaces are already fixed (it works in its own git worktree, branched from the last commit, so commit before launching it), Explore for research that would flood the main context, and `spec-reviewer` at the end of every milestone. A task may own `core` work when no other running task changes the same core files.
+- When the docs do not answer a design question, decide it, as the user has delegated, and say so. Record the answer in `CONTEXT.md` (terms) or in a new ADR (hard-to-reverse decisions).
 - A milestone is done only when its "Done when" line in the spec holds. Check it, then commit and tag `m<N>`.
 
 ## Commands
