@@ -25,7 +25,9 @@
       "derivesFrom": "systems.communicates-with",
       "description": "Sends a person a reminder of an appointment.",
       "limits": {
-        "to": ["systems.person"]
+        "to": [
+          "systems.person"
+        ]
       }
     }
   ]
