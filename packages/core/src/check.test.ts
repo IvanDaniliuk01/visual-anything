@@ -2,7 +2,7 @@ import type { PackageFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { checkProject } from './check';
 import type { ProjectSnapshot } from './snapshot';
-import { TEST_PACKAGE, testProject } from './test/fixtures';
+import { TEST_PACKAGE, colorProject, testProject } from './test/fixtures';
 
 function codes(change: (state: ProjectSnapshot) => void) {
   const state = testProject();
@@ -233,6 +233,48 @@ describe('checkProject', () => {
     expect(warnings.find((each) => each.code === 'built-in-package')?.message).toBe(
       'The package "neuroscience" takes an id Visual Anything keeps for a package it plans to build in; rename it before that package ships.',
     );
+  });
+
+  it('only warns about project appearances that have no effect, and the project still opens', () => {
+    const state = colorProject();
+    state.project.appearances = {
+      components: {
+        'systems.service': { fill: '#FFE8D6' },
+        'clinic.desk': { fill: '#000000' },
+        'nowhere.thing': { fill: '#000000' },
+        'systems.database': { detail: { attributes: ['nonsense'] } },
+      },
+      relationTypes: { 'clinic.reminds': { width: 4 }, 'relates-to': { dash: 'dotted' } },
+    };
+    const { errors, warnings } = checkProject(state);
+    expect(errors).toEqual([]);
+    expect(warnings).toEqual([
+      {
+        code: 'appearance-not-used',
+        message:
+          'The project gives "Desk" an appearance, but it belongs to the project’s package "clinic"; set it there. This entry is ignored.',
+        subjects: ['clinic.desk'],
+      },
+      {
+        code: 'appearance-not-used',
+        message:
+          'The project gives "nowhere.thing" an appearance, but no package in use defines it; it is ignored.',
+        subjects: ['nowhere.thing'],
+      },
+      {
+        code: 'unknown-attribute',
+        message:
+          'The detail of the project appearance of "Database" writes "nonsense", which it does not have.',
+        subjects: ['systems.database'],
+      },
+      {
+        code: 'appearance-not-used',
+        message:
+          'The project gives "reminds" an appearance, but it belongs to the project’s package "clinic"; set it there. This entry is ignored.',
+        subjects: ['clinic.reminds'],
+      },
+    ]);
+    expect(checkProject(colorProject())).toEqual({ errors: [], warnings: [] });
   });
 
   it('keeps broken steps, which are not a problem of the files', () => {
