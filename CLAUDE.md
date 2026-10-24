@@ -41,12 +41,12 @@ Each package is named `@visual-anything/<folder>`, such as `@visual-anything/cor
 
 Run them at the repository root, with Node 22.13 or later and the pnpm version pinned in `package.json`.
 
-- Install: `pnpm install`
+- Install: `pnpm install`. It also links the agent skills that `pnpm-workspace.yaml` grants, today PixiJS's, into `.claude/skills`; read them again when that dependency is upgraded.
 - Dev: `pnpm dev` serves `examples/my-systems` with hot reload and opens the browser.
 - Start: `pnpm start` builds, then serves `examples/my-systems` and opens the browser.
 - Test: `pnpm test` runs Vitest in every package.
 - Lint: `pnpm lint` runs ESLint, then the Prettier check; `pnpm format` fixes formatting.
 - Typecheck: `pnpm typecheck`
 - Build: `pnpm build` regenerates the JSON Schema in `packages/schema/schemas/` and builds the app. After changing `packages/schema/src/files.ts`, run it and commit the schemas.
-- Benchmark: `pnpm bench` builds the benchmark pages for production and serves them on 127.0.0.1:47707; no token is needed. `/bench.html?elements=10000` drives the canvas alone and `/app-bench.html?elements=10000` the whole app, React included. Both time the work of each frame, GPU included, and their official numbers come from this build; `?mode=frames` on the canvas page times frames as shown, which needs the window in front at 60 Hz. `pnpm dev` serves the same pages for quick checks, but React's development build more than doubles what the app page measures. Run it with the machine otherwise idle.
+- Benchmark: `pnpm bench` builds the benchmark pages for production and serves them on 127.0.0.1:47707; no token is needed, and official numbers come from this build. `/bench.html?elements=10000` drives the canvas alone and times the work of each frame, GPU included, so it is valid even in a window behind others; `?mode=frames` times frames as shown instead. `/app-bench.html?elements=10000` drives the whole app, React included: it times clicks, selecting everything, a keyboard move and one edit, and judges pan and zoom on frames as shown, so its window must stay in front at 60 Hz. `pnpm dev` serves the same pages for quick checks, but React's development build more than doubles what the app page measures. Run them with the machine otherwise idle.
 - Open another project: `pnpm exec tsx packages/server/src/cli.ts <folder> [--port <n>] [--no-open] [--dev]`
