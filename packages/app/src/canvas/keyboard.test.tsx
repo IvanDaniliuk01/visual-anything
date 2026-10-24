@@ -108,6 +108,15 @@ describe('The canvas from the keyboard', () => {
     expect(screen.getByText('Keyboard')).toBeInTheDocument();
     expect(screen.getByText('] and [, or . and ,')).toBeInTheDocument();
     expect(screen.getByText('Shift+arrow keys')).toBeInTheDocument();
+    expect(
+      screen.getByText('Ctrl+↑ and Ctrl+↓ (⌘ on macOS), or Ctrl+] and Ctrl+['),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Ctrl+Shift+↑ and Ctrl+Shift+↓, or Ctrl+} and Ctrl+{ (⌥⌘] and ⌥⌘[ on macOS)'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Shift+F10 or the menu key')).toBeInTheDocument();
+    expect(screen.getByText('Alt while dragging (⌥ on macOS)')).toBeInTheDocument();
+    expect(CANVAS_KEYS_HINT).toContain(', and Shift+F10 opens the selected shape’s menu.');
   });
 
   it('selects the shape nearest the middle when nothing is selected, and says what it is', async () => {
