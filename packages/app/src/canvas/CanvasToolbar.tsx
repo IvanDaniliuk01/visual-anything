@@ -2,6 +2,7 @@ import { definitionsOf, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useMemo, useRef, useState, type KeyboardEvent, type Ref } from 'react';
 import './drop.css';
+import type { LayoutControl } from './layout/useLayout';
 import {
   STACKING_KEYS,
   STACKING_MOVES,
@@ -41,6 +42,8 @@ export interface CanvasToolbarProps {
    * element added ends there.
    */
   onAddLeave?: () => void;
+  /** Layout of the view or of the selected container's contents; absent, the toolbar has no Layout. */
+  layout?: LayoutControl;
 }
 
 const IN_WORLD = 'With nothing selected, elements are added directly in World.';
@@ -64,6 +67,7 @@ export function CanvasToolbar({
   onRestack,
   addSelect,
   onAddLeave,
+  layout,
 }: CanvasToolbarProps) {
   return (
     <div className="canvas-toolbar" role="toolbar" aria-label="Canvas">
@@ -101,6 +105,17 @@ export function CanvasToolbar({
             </button>
           ))}
         </div>
+      )}
+      {layout && (
+        <button
+          type="button"
+          title={layout.title}
+          aria-disabled={layout.enabled ? undefined : true}
+          aria-busy={layout.busy ? true : undefined}
+          onClick={layout.run}
+        >
+          {layout.busy ? 'Laying out…' : 'Layout'}
+        </button>
       )}
       <span className="canvas-toolbar-spacer" />
       <button type="button" aria-label="Zoom out" onClick={() => onZoom(1 / 1.25)}>

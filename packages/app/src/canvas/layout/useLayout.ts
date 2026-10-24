@@ -162,7 +162,7 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
         before: now.scene,
         project: now.project,
         view: now.view.id,
-        animate: !prefersReducedMotion(),
+        animate: typeof requestAnimationFrame === 'function' && !prefersReducedMotion(),
       });
       const sent = await now.send(action.command);
       if (!sent.ok) {
@@ -209,20 +209,26 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
 
   const target = useMemo(() => targetOf(scene, selection), [scene, selection]);
   const nameOf = (id: Id) => modelIndexOf(project).element(id)?.name ?? id;
+  const enabled = runner !== undefined && editable && !busy;
+  const title = !runner
+    ? 'Layout needs web workers, which this browser does not offer.'
+    : !editable
+      ? 'Visual Anything is not connected, so nothing can be laid out.'
+      : busy
+        ? 'Laying out…'
+        : target.kind === 'contents'
+          ? `Lay out the contents of "${nameOf(target.container)}": arrange the shapes inside it that are not pinned.`
+          : `Lay out "${view.name}": arrange every shape that is not pinned.`;
   const control: LayoutControl = {
-    title: !runner
-      ? 'Layout needs web workers, which this browser does not offer.'
-      : !editable
-        ? 'Visual Anything is not connected, so nothing can be laid out.'
-        : busy
-          ? 'Laying out…'
-          : target.kind === 'contents'
-            ? `Lay out the contents of "${nameOf(target.container)}": arrange the shapes inside it that are not pinned.`
-            : `Lay out "${view.name}": arrange every shape that is not pinned.`,
-    enabled: runner !== undefined && editable && !busy,
+    title,
+    enabled,
     busy,
     run: () => {
-      if (!runner || !editable || busy) return;
+      // Pressed while it cannot lay out, it says why, as the stacking buttons do.
+      if (!enabled) {
+        announce(title);
+        return;
+      }
       setBusy(true);
       void enqueue(target, false).finally(() => setBusy(false));
     },

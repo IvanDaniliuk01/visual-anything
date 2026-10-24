@@ -174,6 +174,61 @@ describe('CanvasToolbar', () => {
     expect(onAdd).toHaveBeenCalledWith('systems.service');
   });
 
+  it('has Layout, which says what it lays out, and why it cannot when it is off', () => {
+    const run = vi.fn();
+    const { rerender } = render(
+      <CanvasToolbar
+        project={project}
+        editable
+        scale={1}
+        onAdd={() => {}}
+        onAddNote={() => {}}
+        onAddArrow={() => {}}
+        onZoom={() => {}}
+        onFit={() => {}}
+        layout={{
+          title: 'Lay out "System overview": arrange every shape that is not pinned.',
+          enabled: true,
+          busy: false,
+          run,
+        }}
+      />,
+    );
+    const layout = screen.getByRole('button', { name: 'Layout' });
+    expect(layout).toHaveAttribute(
+      'title',
+      'Lay out "System overview": arrange every shape that is not pinned.',
+    );
+    expect(layout).not.toHaveAttribute('aria-disabled');
+    fireEvent.click(layout);
+    expect(run).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <CanvasToolbar
+        project={project}
+        editable
+        scale={1}
+        onAdd={() => {}}
+        onAddNote={() => {}}
+        onAddArrow={() => {}}
+        onZoom={() => {}}
+        onFit={() => {}}
+        layout={{ title: 'Laying out…', enabled: false, busy: true, run }}
+      />,
+    );
+    const busy = screen.getByRole('button', { name: 'Laying out…' });
+    expect(busy).toHaveAttribute('aria-disabled', 'true');
+    expect(busy).toHaveAttribute('aria-busy', 'true');
+    // Still pressable, so that it can say why it does nothing.
+    fireEvent.click(busy);
+    expect(run).toHaveBeenCalledTimes(2);
+  });
+
+  it('has no Layout without the prop', () => {
+    toolbar();
+    expect(screen.queryByRole('button', { name: 'Layout' })).not.toBeInTheDocument();
+  });
+
   it('hands its select over, so that the focus can be moved to it', () => {
     const addSelect = createRef<HTMLSelectElement>();
     toolbar({ addSelect });

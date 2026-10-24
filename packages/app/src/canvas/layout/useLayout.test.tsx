@@ -204,12 +204,15 @@ describe('the Layout control', () => {
     expect(view.sent).toHaveLength(1);
   });
 
-  it('is off while the project cannot be changed', () => {
+  it('is off while the project cannot be changed, and says so when pressed', () => {
     const view = canvas(loadSample(), { editable: false });
     expect(view.hook.result.current.control).toMatchObject({
       enabled: false,
       title: 'Visual Anything is not connected, so nothing can be laid out.',
     });
+    act(() => view.hook.result.current.control.run());
+    expect(view.said).toEqual(['Visual Anything is not connected, so nothing can be laid out.']);
+    expect(view.sent).toHaveLength(0);
   });
 
   it('says why a layout failed', async () => {
