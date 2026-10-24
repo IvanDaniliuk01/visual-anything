@@ -1,6 +1,6 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { ViewFile } from '@visual-anything/schema';
-import { useId, useMemo, useState } from 'react';
+import { useCallback, useId, useMemo, useState } from 'react';
 import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { EMPTY_SELECTION, prune, type Selection } from '../editor/selection';
@@ -36,12 +36,25 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
       freeShape: (id) => freeShapes.has(id),
     });
   }, [chosen, project.model, view]);
-  const editor = useMemo<Editor>(
-    () => ({ viewId: view?.id, selection, select: setSelection }),
-    [view?.id, selection],
-  );
   const definitions = useMemo(() => definitionsOf(project.packages), [project.packages]);
   const scene = useMemo(() => (view ? buildScene(project, view.id) : undefined), [project, view]);
+  const [revealed, setRevealed] = useState<{ key: string; request: number }>();
+  const reveal = useCallback((key: string) => {
+    setRevealed((last) => ({ key, request: (last?.request ?? 0) + 1 }));
+  }, []);
+  const editor = useMemo<Editor>(
+    () => ({
+      project,
+      definitions,
+      viewId: view?.id,
+      scene,
+      selection,
+      select: setSelection,
+      send: onCommand,
+      reveal,
+    }),
+    [project, definitions, view?.id, scene, selection, onCommand, reveal],
+  );
   const canvasHeading = useId();
 
   return (
@@ -67,6 +80,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
               selection={selection}
               onSelect={setSelection}
               {...(onCommand ? { onCommand } : {})}
+              {...(revealed ? { revealed } : {})}
             />
           ) : (
             <p className="canvas-message">There is no view to draw.</p>

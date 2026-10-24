@@ -17,7 +17,7 @@ import {
   type Selectable,
   type Selection,
 } from '../editor/selection';
-import { panBy, screenToWorld, wheelFactor, zoomAt, type Camera } from './camera';
+import { panBy, revealCamera, screenToWorld, wheelFactor, zoomAt, type Camera } from './camera';
 import { centerOf, distance, type Point } from './geometry';
 import { carriedKeys, moveCommand, movingShapes } from './gestures';
 import { enclosedBy, hitAt, type Hit, type IndexedScene } from './hit';
@@ -59,6 +59,8 @@ const HANDLE_OFFSET = 14;
 const HANDLE_REACH = 10;
 /** How much a key press zooms. */
 const KEY_ZOOM = 1.25;
+/** The scale a revealed shape is shown at, at least: large enough to read its name. */
+const REVEAL_SCALE = 0.75;
 
 export class CanvasController {
   readonly renderer: CanvasRenderer;
@@ -123,6 +125,19 @@ export class CanvasController {
   zoomBy(factor: number): void {
     const { width, height } = this.renderer.viewport;
     this.renderer.setCamera(zoomAt(this.camera, { x: width / 2, y: height / 2 }, factor));
+    this.refreshMarks();
+  }
+
+  /**
+   * Moves the camera so that the shape with this key shows: when it is not wholly on screen, or too
+   * small to read, it comes to the middle, at a scale where its name reads.
+   */
+  reveal(key: string): void {
+    const shape = this.indexed?.byKey.get(key);
+    if (!shape) return;
+    const camera = revealCamera(this.camera, this.renderer.viewport, shape.rect, REVEAL_SCALE);
+    if (!camera) return;
+    this.renderer.setCamera(camera);
     this.refreshMarks();
   }
 

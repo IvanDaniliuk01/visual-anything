@@ -39,6 +39,8 @@ interface CanvasAreaProps {
   onSelect: (selection: Selection) => void;
   /** Sends commands; absent while the project cannot be changed, such as when the connection closed. */
   onCommand?: SendCommand;
+  /** The shape to bring into sight; each new request moves the camera again. */
+  revealed?: { key: string; request: number };
 }
 
 type Editing = { kind: 'element'; key: string } | { kind: 'note'; id: Id };
@@ -54,6 +56,7 @@ export function CanvasArea({
   selection,
   onSelect,
   onCommand,
+  revealed,
 }: CanvasAreaProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<CanvasController | null>(null);
@@ -124,6 +127,10 @@ export function CanvasArea({
   useEffect(() => {
     controllerRef.current?.setSelection(selection);
   }, [selection]);
+
+  useEffect(() => {
+    if (revealed) controllerRef.current?.reveal(revealed.key);
+  }, [revealed]);
 
   const controller = () => controllerRef.current;
 
