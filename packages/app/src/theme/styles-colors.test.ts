@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { SOURCE_FOLDER, readSource } from './testing';
 
 /** Stylesheets of other work in progress, which move onto the tokens when their owners next change them. */
-const NOT_YET_ON_TOKENS = new Set(['canvas/drop.css', 'canvas/keyboard.css']);
+const NOT_YET_ON_TOKENS = new Set<string>();
 
 const COLOR_LITERAL =
   /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(|:\s*(?:white|black)\b|\s(?:white|black)\s*;/gi;
