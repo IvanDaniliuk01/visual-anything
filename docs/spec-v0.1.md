@@ -217,12 +217,12 @@ Seven milestones in build order, each ending in something you can use; tasks are
 
 **M2 · Canvas.** Done when a synthetic view with 10,000 elements pans, zooms and selects at the 60 frames per second target.
 
-- [ ] PixiJS renderer: anchored shapes from their component's look, relations with orthogonal routes and arrowheads
-- [ ] Pan, zoom, select (click and box), move, connect, delete
-- [ ] Inline text editing in an HTML layer; inspector for attributes and particularities
-- [ ] Free shapes: note and arrow
-- [ ] Keyboard navigation and outline panel
-- [ ] Benchmark with a synthetic 10,000-element view
+- [x] PixiJS renderer: anchored shapes from their component's look, relations with orthogonal routes and arrowheads
+- [x] Pan, zoom, select (click and box), move, connect, delete
+- [x] Inline text editing in an HTML layer; inspector for attributes and particularities
+- [x] Free shapes: note and arrow
+- [x] Keyboard navigation and outline panel
+- [x] Benchmark with a synthetic 10,000-element view
 
 **M3 · Views and layout.** Done when you can collapse a container and read its aggregated relations, and switch between two perspectives of the same system.
 
