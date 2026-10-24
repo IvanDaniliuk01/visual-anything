@@ -27,7 +27,15 @@ export type ProblemCode =
   | 'id-outside-package'
   | 'defined-twice'
   | 'built-in-package'
-  | 'in-use';
+  | 'in-use'
+  // Refusals of the local program, which keeps the history and the files.
+  | 'nothing-to-undo'
+  | 'nothing-to-redo'
+  | 'project-closed'
+  | 'invalid-file'
+  | 'changed-on-disk'
+  | 'not-saved'
+  | 'program-failed';
 
 /** Something wrong with a command or a project, in words, with the ids it concerns. */
 export interface Problem {

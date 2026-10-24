@@ -265,6 +265,9 @@ importers:
         specifier: ^8.20.0
         version: 8.20.0
     devDependencies:
+      fast-check:
+        specifier: ^4.10.2
+        version: 4.10.2
       ts-json-schema-generator:
         specifier: ^2.9.0
         version: 2.9.0

@@ -3,7 +3,13 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { formatProjectError, loadProject, type LoadProjectResult } from './project';
+import {
+  formatProjectProblem,
+  loadProject,
+  locateProblems,
+  readProjectFiles,
+  type LoadProjectResult,
+} from './project';
 
 const SAMPLE = fileURLToPath(new URL('../../../examples/my-systems', import.meta.url));
 
@@ -26,7 +32,7 @@ const viewFile = (id: string) => ({
   positions: [],
   freeShapes: [],
 });
-const scenarioFile = (id: string) => ({ id, name: id, view: 'overview', steps: [] });
+const scenarioFile = (id: string, view = 'overview') => ({ id, name: id, view, steps: [] });
 
 let folder: string;
 
@@ -56,9 +62,13 @@ function errorsOf(result: LoadProjectResult) {
   return result.errors;
 }
 
-function snapshotOf(result: LoadProjectResult) {
+function loadedOf(result: LoadProjectResult) {
   if (!result.ok) throw new Error(`Expected the project to load: ${JSON.stringify(result.errors)}`);
-  return result.project;
+  return result;
+}
+
+function snapshotOf(result: LoadProjectResult) {
+  return loadedOf(result).project;
 }
 
 describe('loadProject', () => {
@@ -73,6 +83,10 @@ describe('loadProject', () => {
     expect(project.packages.map((p) => p.id)).toEqual(['systems', 'clinic']);
     expect(project.views.map((view) => view.id)).toEqual(['system-overview']);
     expect(project.scenarios.map((scenario) => scenario.id)).toEqual(['patient-books-appointment']);
+  });
+
+  it('opens the sample without warnings', async () => {
+    expect(loadedOf(await loadProject(SAMPLE)).warnings).toEqual([]);
   });
 
   it('holds each file exactly as written', async () => {
@@ -125,8 +139,8 @@ describe('loadProject', () => {
       'model.vamodel': modelFile(),
       'views/b.vaview': viewFile('first-id'),
       'views/a.vaview': viewFile('second-id'),
-      'scenarios/2-later.vascenario': scenarioFile('one'),
-      'scenarios/1-earlier.vascenario': scenarioFile('two'),
+      'scenarios/2-later.vascenario': scenarioFile('one', 'first-id'),
+      'scenarios/1-earlier.vascenario': scenarioFile('two', 'first-id'),
     });
 
     const project = snapshotOf(await loadProject(folder));
@@ -144,6 +158,7 @@ describe('loadProject', () => {
       'views/old/archived.vaview': viewFile('archived'),
       'views/folder.vaview/inner.vaview': viewFile('inner'),
       'views/overview.vaview.bak': '{',
+      'views/.overview.vaview.0a1b2c3d4e5f.va-tmp': '{',
       'scenarios/request.vascenario': scenarioFile('request'),
       'stray.vaview': viewFile('stray'),
     });
@@ -420,15 +435,293 @@ describe('loadProject', () => {
   });
 });
 
-describe('formatProjectError', () => {
+describe('loadProject with the rules of the core', () => {
+  it('refuses a project that breaks them, reporting each error against its file', async () => {
+    await write({
+      'project.vaproject': projectFile(['shop']),
+      'model.vamodel': {
+        ...modelFile(),
+        elements: [
+          { id: 'api', component: 'shop.service', name: 'API' },
+          { id: 'ghost', component: 'shop.missing', name: 'Ghost' },
+        ],
+        relations: [{ id: 'calls', relationType: 'relates-to', from: 'api', to: 'nowhere' }],
+      },
+      'packages/shop.vapackage': {
+        ...packageFile('shop'),
+        components: [
+          { id: 'shop.service', name: 'Service', derivesFrom: 'essence' },
+          { id: 'shop.orphan', name: 'Orphan', derivesFrom: 'shop.unknown' },
+        ],
+      },
+      'views/overview.vaview': viewFile('overview'),
+      'scenarios/request.vascenario': scenarioFile('request', 'elsewhere'),
+    });
+
+    expect(errorsOf(await loadProject(folder))).toEqual([
+      {
+        file: 'model.vamodel',
+        pointer: '/elements/1',
+        message:
+          'The element "Ghost" is created from "shop.missing", which no package in use defines.',
+      },
+      {
+        file: 'model.vamodel',
+        pointer: '/relations/0',
+        message:
+          'The relation "calls" ends on "nowhere", which is no element or relation of the model.',
+      },
+      {
+        file: 'packages/shop.vapackage',
+        pointer: '/components/1',
+        message:
+          'The component "shop.orphan" derives from "shop.unknown", which no package in use defines.',
+      },
+      {
+        file: 'scenarios/request.vascenario',
+        pointer: '',
+        message: 'The scenario "request" plays over "elsewhere", which is no view of the project.',
+      },
+    ]);
+  });
+
+  it('reports a containment cycle once, against the whole model file', async () => {
+    await write({
+      'project.vaproject': projectFile(['shop']),
+      'model.vamodel': {
+        ...modelFile(),
+        elements: [
+          { id: 'a', component: 'essence', name: 'A' },
+          { id: 'b', component: 'essence', name: 'B' },
+        ],
+        relations: [
+          { id: 'a-in-b', relationType: 'shop.inside', from: 'a', to: 'b' },
+          { id: 'b-in-a', relationType: 'shop.inside', from: 'b', to: 'a' },
+        ],
+      },
+      'packages/shop.vapackage': {
+        ...packageFile('shop'),
+        relationTypes: [
+          { id: 'shop.inside', name: 'is inside', derivesFrom: 'relates-to', nests: true },
+        ],
+      },
+    });
+
+    expect(errorsOf(await loadProject(folder))).toEqual([
+      {
+        file: 'model.vamodel',
+        pointer: '',
+        message: 'Containment forms a cycle: "A" inside "B".',
+      },
+    ]);
+  });
+
+  it('reports a problem that spans packages against each of their files', async () => {
+    await write({
+      'project.vaproject': projectFile(['one', 'two']),
+      'model.vamodel': modelFile(),
+      'packages/one.vapackage': {
+        ...packageFile('one'),
+        components: [{ id: 'one.x', name: 'X', derivesFrom: 'two.y' }],
+      },
+      'packages/two.vapackage': {
+        ...packageFile('two'),
+        components: [{ id: 'two.y', name: 'Y', derivesFrom: 'one.x' }],
+      },
+    });
+
+    const message = 'The components "one.x", "two.y" derive from each other in a cycle.';
+    expect(errorsOf(await loadProject(folder))).toEqual([
+      { file: 'packages/one.vapackage', pointer: '/components/0', message },
+      { file: 'packages/two.vapackage', pointer: '/components/0', message },
+    ]);
+  });
+
+  it('places a problem about a definition in its package, even when an element shares its id', async () => {
+    await write({
+      'project.vaproject': projectFile(['shop']),
+      'model.vamodel': {
+        ...modelFile(),
+        elements: [{ id: 'shop.box', component: 'essence', name: 'A box' }],
+      },
+      'packages/shop.vapackage': {
+        ...packageFile('shop'),
+        components: [{ id: 'shop.box', name: 'Box', derivesFrom: 'shop.nothing' }],
+      },
+    });
+
+    expect(errorsOf(await loadProject(folder))).toEqual([
+      {
+        file: 'packages/shop.vapackage',
+        pointer: '/components/0',
+        message:
+          'The component "shop.box" derives from "shop.nothing", which no package in use defines.',
+      },
+    ]);
+  });
+
+  it('opens a project that only earns warnings, and reports each against its file', async () => {
+    await write({
+      'project.vaproject': projectFile(['systems', 'shop']),
+      'model.vamodel': {
+        ...modelFile(),
+        elements: [
+          { id: 'patient', component: 'systems.person', name: 'Patient' },
+          { id: 'api', component: 'systems.service', name: 'API' },
+        ],
+        relations: [
+          {
+            id: 'api-reads-patient',
+            relationType: 'systems.reads-from',
+            from: 'api',
+            to: 'patient',
+          },
+        ],
+      },
+      'packages/shop.vapackage': {
+        ...packageFile('shop'),
+        components: [{ id: 'other.thing', name: 'Thing', derivesFrom: 'essence' }],
+      },
+      'views/overview.vaview': {
+        ...viewFile('overview'),
+        nestingRelationTypes: ['systems.communicates-with'],
+        positions: [{ element: 'ghost', x: 0, y: 0 }],
+      },
+    });
+
+    const loaded = loadedOf(await loadProject(folder));
+    expect(loaded.warnings).toEqual([
+      {
+        file: 'model.vamodel',
+        pointer: '/elements/0',
+        message:
+          '"reads from" expects its to end to be "Database" or "Object storage", but "Patient" is not.',
+      },
+      {
+        file: 'packages/shop.vapackage',
+        pointer: '/components/0',
+        message: 'The component "other.thing" of package "shop" should start with "shop.".',
+      },
+      {
+        file: 'views/overview.vaview',
+        pointer: '',
+        message: 'The view "overview" is arranged by "communicates with", which does not nest.',
+      },
+      {
+        file: 'views/overview.vaview',
+        pointer: '',
+        message:
+          'The view "overview" keeps a position for "ghost", but the model has no element "ghost"; it is ignored.',
+      },
+    ]);
+  });
+});
+
+describe('where each file lives', () => {
+  beforeEach(async () => {
+    await write({
+      'project.vaproject': projectFile(['systems', 'shop', 'tools']),
+      'model.vamodel': modelFile(),
+      'packages/a.vapackage': packageFile('shop'),
+      'packages/tools.vapackage': packageFile('tools'),
+      'packages/old.vapackage': packageFile('old'),
+      'views/first.vaview': viewFile('overview'),
+      'scenarios/s.vascenario': scenarioFile('request'),
+      'README.md': 'not a project file',
+    });
+  });
+
+  it('gives the path of every project file, by id, leaving out built-in packages', async () => {
+    expect(loadedOf(await loadProject(folder)).files).toEqual({
+      project: 'project.vaproject',
+      model: 'model.vamodel',
+      packages: new Map([
+        ['shop', 'packages/a.vapackage'],
+        ['tools', 'packages/tools.vapackage'],
+      ]),
+      views: new Map([['overview', 'views/first.vaview']]),
+      scenarios: new Map([['request', 'scenarios/s.vascenario']]),
+      unlistedPackages: new Map([['old', 'packages/old.vapackage']]),
+    });
+  });
+
+  it('gives the bytes of every project file as read', async () => {
+    const { contents } = loadedOf(await loadProject(folder));
+
+    expect([...contents.keys()].sort()).toEqual([
+      'model.vamodel',
+      'packages/a.vapackage',
+      'packages/old.vapackage',
+      'packages/tools.vapackage',
+      'project.vaproject',
+      'scenarios/s.vascenario',
+      'views/first.vaview',
+    ]);
+    for (const [path, bytes] of contents) {
+      expect(Buffer.compare(bytes, await readFile(join(folder, path)))).toBe(0);
+    }
+  });
+
+  it('reads the same files as opening, without opening the project', async () => {
+    const { contents } = loadedOf(await loadProject(folder));
+
+    expect(await readProjectFiles(folder)).toEqual(contents);
+  });
+
+  it('reads every candidate file, even of a project that does not open', async () => {
+    await write({ 'other.vamodel': '{', 'views/broken.vaview': '' });
+
+    expect([...(await readProjectFiles(folder)).keys()].sort()).toEqual([
+      'model.vamodel',
+      'other.vamodel',
+      'packages/a.vapackage',
+      'packages/old.vapackage',
+      'packages/tools.vapackage',
+      'project.vaproject',
+      'scenarios/s.vascenario',
+      'views/broken.vaview',
+      'views/first.vaview',
+    ]);
+  });
+
+  it('reads nothing from a folder that does not exist', async () => {
+    expect(await readProjectFiles(join(folder, 'missing'))).toEqual(new Map());
+  });
+});
+
+describe('locateProblems', () => {
+  it('reports a problem about nothing in particular against the folder', async () => {
+    await write({ 'project.vaproject': projectFile(), 'model.vamodel': modelFile() });
+    const { project, files } = loadedOf(await loadProject(folder));
+
+    expect(
+      locateProblems([{ code: 'invalid-command', message: 'Something.' }], project, files),
+    ).toEqual([{ file: '.', pointer: '', message: 'Something.' }]);
+  });
+
+  it('reports a problem about something the project lacks against the folder', async () => {
+    await write({ 'project.vaproject': projectFile(), 'model.vamodel': modelFile() });
+    const { project, files } = loadedOf(await loadProject(folder));
+
+    expect(
+      locateProblems(
+        [{ code: 'unknown-element', message: 'Gone.', subjects: ['ghost'] }],
+        project,
+        files,
+      ),
+    ).toEqual([{ file: '.', pointer: '', message: 'Gone.' }]);
+  });
+});
+
+describe('formatProjectProblem', () => {
   it('writes the file, the pointer and the message', () => {
     expect(
-      formatProjectError({ file: 'model.vamodel', pointer: '/elements/0/name', message: 'bad' }),
+      formatProjectProblem({ file: 'model.vamodel', pointer: '/elements/0/name', message: 'bad' }),
     ).toBe('model.vamodel /elements/0/name: bad');
   });
 
-  it('leaves the pointer out when the error concerns the whole file', () => {
-    expect(formatProjectError({ file: 'views/a.vaview', pointer: '', message: 'bad' })).toBe(
+  it('leaves the pointer out when the problem concerns the whole file', () => {
+    expect(formatProjectProblem({ file: 'views/a.vaview', pointer: '', message: 'bad' })).toBe(
       'views/a.vaview: bad',
     );
   });

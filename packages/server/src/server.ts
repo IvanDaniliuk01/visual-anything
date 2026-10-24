@@ -1,22 +1,18 @@
 /**
  * The local program's HTTP server. It listens on 127.0.0.1 only, checks the Host and Origin of every
  * request, serves the app (its build, or its sources through Vite in dev mode) and opens the live
- * connection for a page that holds the per-session token.
+ * connection for a page that holds the per-session token. Each live connection is an app of the
+ * open project's session: it gets the project and every change, and its messages go to the session.
  */
 import { realpath } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
 import type { Duplex } from 'node:stream';
-import {
-  LIVE_PATH,
-  PROTOCOL_VERSION,
-  TOKEN_PARAM,
-  encodeServerMessage,
-  type ProjectSnapshot,
-} from '@visual-anything/core';
-import { WebSocketServer } from 'ws';
+import { LIVE_PATH, TOKEN_PARAM, encodeServerMessage } from '@visual-anything/core';
+import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import { refuseUpgrade, sendText, setSecurityHeaders } from './responses';
 import { checkLiveRequest, checkRequest, createToken, type RequestHeaders } from './security';
+import type { LiveSession, SessionClient } from './session';
 import { openStaticRoot, serveStatic } from './static';
 
 /** The only address the local program listens on, so other machines cannot reach it. */
@@ -31,8 +27,8 @@ export type AppSource =
 
 /** What the local program serves. */
 export interface ServerOptions {
-  /** The open project, sent to the app when the live connection opens. */
-  project: ProjectSnapshot;
+  /** The open project's session: it greets each app that connects and handles what the app sends. */
+  session: LiveSession;
   /** The port to listen on; 0 lets the operating system pick a free one. */
   port: number;
   app: AppSource;
@@ -66,12 +62,6 @@ interface App {
 /** Starts the local program and resolves once it listens. */
 export async function startServer(options: ServerOptions): Promise<RunningServer> {
   const token = createToken();
-  const opened = encodeServerMessage({
-    type: 'project/opened',
-    protocolVersion: PROTOCOL_VERSION,
-    project: options.project,
-    history: {},
-  });
   // The real port, known once the server listens; no request arrives before that.
   let port = options.port;
 
@@ -85,8 +75,18 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
   const live = new WebSocketServer({ noServer: true });
   live.on('connection', (socket) => {
     socket.on('error', () => socket.terminate());
-    // Messages from the app carry commands from M1 on; until then they are ignored.
-    socket.send(opened);
+    const client: SessionClient = {
+      send: (message) => {
+        if (socket.readyState === WebSocket.OPEN) socket.send(encodeServerMessage(message));
+      },
+    };
+    const disconnect = options.session.connect(client);
+    socket.on('close', disconnect);
+    socket.on('message', (data) => {
+      options.session.receive(client, textOf(data)).catch((error: unknown) => {
+        console.error(error);
+      });
+    });
   });
 
   const app = await openApp(options.app, httpServer);
@@ -230,4 +230,11 @@ function headersOf(request: IncomingMessage): RequestHeaders {
 function pathOf(target: string): string {
   const queryStart = target.indexOf('?');
   return queryStart === -1 ? target : target.slice(0, queryStart);
+}
+
+/** The text of a message from the app, which sends text; anything else is read as UTF-8. */
+function textOf(data: RawData): string {
+  if (Array.isArray(data)) return Buffer.concat(data).toString('utf8');
+  if (data instanceof ArrayBuffer) return Buffer.from(data).toString('utf8');
+  return data.toString('utf8');
 }
