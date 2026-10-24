@@ -132,8 +132,17 @@ function characterOf({ key, code, shiftKey }: ShortcutKeys): string {
 }
 
 /**
+ * One membership of the selected elements: their shapes that sit directly in one container, or
+ * directly in World when `container` is absent, as the inspector restacks them one at a time.
+ */
+export interface Membership {
+  container: Id | undefined;
+}
+
+/**
  * The restack a move of the selection's shapes sends, or why it changes nothing. Every shape of every
  * selected element moves, once for each container it sits in: copies of a container share the order.
+ * With a membership, only the shapes in that container move.
  */
 export function restackCommand(
   indexed: IndexedScene,
@@ -142,11 +151,12 @@ export function restackCommand(
   selection: Selection,
   move: StackingMove,
   editable = true,
+  membership?: Membership,
 ): Restack {
   if (!editable || !project.views.some((view) => view.id === viewId)) {
     return { reason: NOT_EDITABLE };
   }
-  const shapes = stackedShapes(indexed, selection);
+  const shapes = stackedShapes(indexed, selection, membership);
   if (shapes.length === 0) return { reason: SELECT_SHAPES };
   const { restack } = outcomeOf(planOf(indexed, selection, shapes), viewId, move);
   return restack;
@@ -155,6 +165,7 @@ export function restackCommand(
 /**
  * The four moves for the selection: whether each would change anything, and what it would do or why
  * it would not. For more than EAGER_LIMIT shapes, every move is offered and worked out on the press.
+ * With a membership, the moves of the shapes in that container only.
  */
 export function stackingActions(
   indexed: IndexedScene,
@@ -162,6 +173,7 @@ export function stackingActions(
   viewId: Id,
   selection: Selection,
   editable = true,
+  membership?: Membership,
 ): Record<StackingMove, StackingAction> {
   const all = (action: (move: StackingMove) => StackingAction) =>
     Object.fromEntries(STACKING_MOVES.map((move) => [move, action(move)])) as Record<
@@ -171,12 +183,14 @@ export function stackingActions(
   if (!editable || !project.views.some((view) => view.id === viewId)) {
     return all(() => ({ enabled: false, description: NOT_EDITABLE }));
   }
-  const counted = countShapes(indexed, selection, EAGER_LIMIT + 1);
+  const counted = membership
+    ? stackedShapes(indexed, selection, membership).length
+    : countShapes(indexed, selection, EAGER_LIMIT + 1);
   if (counted === 0) return all(() => ({ enabled: false, description: SELECT_SHAPES }));
   if (counted > EAGER_LIMIT) {
     return all((move) => ({ enabled: true, description: withKeys(OF_THE_SELECTION[move], move) }));
   }
-  const plan = planOf(indexed, selection, stackedShapes(indexed, selection));
+  const plan = planOf(indexed, selection, stackedShapes(indexed, selection, membership));
   return all((move) => {
     const { restack, description } = outcomeOf(plan, viewId, move);
     return restack.command
@@ -222,10 +236,15 @@ interface Plan {
  * The shapes of the selected elements, once for each element and container: through the first copy
  * of the container, since every copy has the same contents, drawn in the same order.
  */
-function stackedShapes(indexed: IndexedScene, selection: Selection): ElementShape[] {
+function stackedShapes(
+  indexed: IndexedScene,
+  selection: Selection,
+  membership?: Membership,
+): ElementShape[] {
   const shapes: ElementShape[] = [];
   for (const id of selection.elements) {
     for (const shape of indexed.byElement.get(id) ?? []) {
+      if (membership && shape.container !== membership.container) continue;
       if (shape.container !== undefined) {
         const first = indexed.byElement.get(shape.container)?.[0];
         if (first && shape.containerShape !== first.key) continue;
@@ -254,16 +273,47 @@ function planOf(
   return {
     indexed,
     selected: selection.elements,
-    shapes: shapes.map((shape) => {
-      const holder = shape.containerShape ?? '';
-      const overlapping = indexed
-        .contentsIndex(holder)
-        .query(shape.extent)
-        .filter((other) => other.key !== shape.key && overlapWithContents(indexed, shape, other))
-        .map((other) => ({ shape: other, rank: drawingRank(indexed, other) }))
-        .sort((a, b) => a.rank - b.rank);
-      return { shape, rank: drawingRank(indexed, shape), holder, overlapping };
-    }),
+    shapes: shapes.map((shape) => ({
+      shape,
+      rank: drawingRank(indexed, shape),
+      holder: shape.containerShape ?? '',
+      overlapping: overlappingBeside(indexed, shape),
+    })),
+  };
+}
+
+/**
+ * The shapes beside a shape, in the container it sits in, that overlap it, with what is inside them
+ * or it, back to front: the candidates every move of the shape is worked out from.
+ */
+function overlappingBeside(
+  indexed: IndexedScene,
+  shape: ElementShape,
+): { shape: ElementShape; rank: number }[] {
+  return indexed
+    .contentsIndex(shape.containerShape ?? '')
+    .query(shape.extent)
+    .filter((other) => other.key !== shape.key && overlapWithContents(indexed, shape, other))
+    .map((other) => ({ shape: other, rank: drawingRank(indexed, other) }))
+    .sort((a, b) => a.rank - b.rank);
+}
+
+/**
+ * The shapes beside a shape that overlap it, as the inspector lists them: those drawn in front of it
+ * and those drawn behind it, the nearest first.
+ */
+export function stackingNeighbours(
+  indexed: IndexedScene,
+  shape: ElementShape,
+): { inFront: ElementShape[]; behind: ElementShape[] } {
+  const rank = drawingRank(indexed, shape);
+  const beside = overlappingBeside(indexed, shape);
+  return {
+    inFront: beside.filter((other) => other.rank > rank).map((other) => other.shape),
+    behind: beside
+      .filter((other) => other.rank < rank)
+      .reverse()
+      .map((other) => other.shape),
   };
 }
 

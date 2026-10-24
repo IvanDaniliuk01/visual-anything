@@ -11,6 +11,7 @@ import {
   EAGER_LIMIT,
   restackCommand,
   stackingActions,
+  stackingNeighbours,
   stackingShortcut,
   type StackingMove,
 } from './stacking';
@@ -547,4 +548,89 @@ describe('stackingActions', () => {
       }
     },
   );
+});
+
+describe('One membership of an element', () => {
+  /** Calendar inside Patient, and inside Clinic booking too, over Scheduling. */
+  function inTwoPlaces(): ProjectSnapshot {
+    const calendar = after(sample, {
+      type: 'create-element',
+      element: { id: 'calendar', component: 'clinic.calendar', name: 'Calendar' },
+      containers: [
+        { container: 'patient', relationType: 'systems.is-part-of' },
+        { container: 'clinic-booking', relationType: 'systems.is-part-of' },
+      ],
+    });
+    return placed(calendar, [{ element: 'calendar', container: 'clinic-booking', x: 470, y: 330 }]);
+  }
+
+  it('lists the shapes beside a shape that overlap it, the nearest first, in front and behind', () => {
+    const indexed = indexOf(withCalendar());
+    const calendar = indexed.byKey.get('calendar');
+    if (!calendar) throw new Error('No Calendar');
+    const around = stackingNeighbours(indexed, calendar);
+    expect(around.inFront).toEqual([]);
+    expect(around.behind.map((shape) => shape.key)).toEqual(['clinic-booking']);
+    const scheduling = indexed.byKey.get('clinic-booking/scheduling');
+    if (!scheduling) throw new Error('No Scheduling');
+    expect(stackingNeighbours(indexed, scheduling)).toEqual({ inFront: [], behind: [] });
+  });
+
+  it('finds no neighbour in the gap of an L-shaped extent', () => {
+    const shapes = project([
+      { id: 's', x: 0, y: 0, width: 400, height: 300 },
+      { id: 'c', in: 's', x: -300, y: -200 },
+      { id: 'y', x: -250, y: 100 },
+    ]);
+    const indexed = indexOf(shapes, 'shapes');
+    const y = indexed.byKey.get('y');
+    if (!y) throw new Error('No Y');
+    expect(stackingNeighbours(indexed, y)).toEqual({ inFront: [], behind: [] });
+  });
+
+  it('restacks the shape of one membership only, and describes it so', () => {
+    const shown = inTwoPlaces();
+    const indexed = indexOf(shown);
+    expect(indexed.byElement.get('calendar')?.map((shape) => shape.key)).toEqual([
+      'patient/calendar',
+      'clinic-booking/calendar',
+    ]);
+    const selection = elements('calendar');
+    expect(
+      restackCommand(indexed, shown, VIEW, selection, 'backward', true, {
+        container: 'clinic-booking',
+      }),
+    ).toEqual({
+      command: {
+        type: 'restack',
+        view: VIEW,
+        moves: [
+          {
+            shape: { element: 'calendar', container: 'clinic-booking' },
+            to: { behind: 'scheduling' },
+          },
+        ],
+      },
+      done: '"Calendar" is now behind "Scheduling".',
+    });
+    expect(
+      stackingActions(indexed, shown, VIEW, selection, true, { container: 'clinic-booking' })
+        .backward,
+    ).toEqual({ enabled: true, description: 'Send backward, behind "Scheduling" (Ctrl+↓)' });
+    // Inside Patient, it sits alone.
+    expect(
+      stackingActions(indexed, shown, VIEW, selection, true, { container: 'patient' }).backward,
+    ).toEqual({
+      enabled: false,
+      description: '"Calendar" is already behind everything it overlaps inside "Patient".',
+    });
+    expect(
+      restackCommand(indexed, shown, VIEW, selection, 'backward', true, {
+        container: 'scheduling',
+      }),
+    ).toEqual({
+      reason:
+        'Select shapes of elements to change their stacking order. Relations, notes and arrows are always drawn in front of them.',
+    });
+  });
 });
