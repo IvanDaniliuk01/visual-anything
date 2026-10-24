@@ -7,6 +7,7 @@
  */
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import * as core from '@visual-anything/core';
 import {
   builtinPackage,
   checkProject,
@@ -164,7 +165,7 @@ export async function loadProject(folder: string): Promise<LoadProjectResult> {
   return {
     ok: true,
     project: snapshot,
-    warnings: locateProblems(check.warnings, snapshot, files),
+    warnings: withReservedIds(locateProblems(check.warnings, snapshot, files), listedPackages),
     files,
     contents,
   };
@@ -206,6 +207,47 @@ async function realFolder(folder: string): Promise<string> {
   } catch {
     return folder;
   }
+}
+
+/** How to give a package of the project another id. */
+const HOW_TO_RENAME =
+  'change "id" in this file, the start of every component and relation type id in it, and every reference to them, and rename the file to match.';
+
+/**
+ * The package ids the core keeps for built-in packages to come, where this build of the core has
+ * them (`RESERVED_PACKAGE_IDS`); the built-in ones are among them.
+ */
+export function reservedPackageIds(): string[] {
+  const reserved = (core as unknown as Record<string, unknown>).RESERVED_PACKAGE_IDS;
+  if (reserved instanceof Set || Array.isArray(reserved)) {
+    return [...(reserved as Iterable<unknown>)].filter((id) => typeof id === 'string');
+  }
+  return [];
+}
+
+/**
+ * The warnings of a project, with one for each of its own packages whose id is kept for a built-in
+ * package to come, saying how to rename it; the core's own warning about it, if any, makes way.
+ */
+function withReservedIds(
+  warnings: ProjectFileProblem[],
+  listed: readonly ListedPackage[],
+): ProjectFileProblem[] {
+  const reserved = new Set(reservedPackageIds());
+  const own = listed.filter(
+    (each): each is ListedPackage & { file: string } =>
+      each.file !== undefined && reserved.has(each.value.id) && !builtinPackage(each.value.id),
+  );
+  if (own.length === 0) return warnings;
+  const files = new Set(own.map((each) => each.file));
+  return [
+    ...warnings.filter((each) => !(files.has(each.file) && /reserved|keeps/i.test(each.message))),
+    ...own.map((each) => ({
+      file: each.file,
+      pointer: '/id',
+      message: `${each.file} takes the id "${each.value.id}", which Visual Anything keeps for a built-in package to come. Rename it before that package ships: ${HOW_TO_RENAME}`,
+    })),
+  ];
 }
 
 /** Writes a problem on one line: `<file> <pointer>: <message>`, without the pointer when it is empty. */
@@ -427,7 +469,7 @@ function findListedPackages(
       problems.add('package', {
         file: read.file,
         pointer: '/id',
-        message: `The package "${read.value.id}" is built into Visual Anything; give this one another id.`,
+        message: `${read.file} takes the id "${read.value.id}", which Visual Anything keeps for its built-in ${builtinPackage(read.value.id)?.name ?? read.value.id} package. Give it another id: ${HOW_TO_RENAME}`,
       });
     } else if (!packageWithId.has(read.value.id)) {
       packageWithId.set(read.value.id, read);

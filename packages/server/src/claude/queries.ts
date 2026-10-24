@@ -209,7 +209,6 @@ export interface RelationFilter {
 /** Relations found by relation type, ends or name, in model order. */
 export function findRelations(state: ProjectSnapshot, filter: RelationFilter = {}) {
   const definitions = definitionsIn(state);
-  const index = modelIndexOf(state);
   const name = filter.nameContains?.toLowerCase();
   const matches = state.model.relations.filter((relation) => {
     if (filter.relationType !== undefined) {

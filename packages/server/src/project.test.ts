@@ -4,11 +4,13 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { builtinPackage } from '@visual-anything/core';
 import {
   formatProjectProblem,
   loadProject,
   locateProblems,
   readProjectFiles,
+  reservedPackageIds,
   type LoadProjectResult,
 } from './project';
 
@@ -316,9 +318,27 @@ describe('loadProject', () => {
       {
         file: 'packages/systems.vapackage',
         pointer: '/id',
-        message: 'The package "systems" is built into Visual Anything; give this one another id.',
+        message:
+          'packages/systems.vapackage takes the id "systems", which Visual Anything keeps for its built-in Systems package. Give it another id: change "id" in this file, the start of every component and relation type id in it, and every reference to them, and rename the file to match.',
       },
     ]);
+  });
+
+  it('warns about a package of the project whose id is kept for a built-in package to come', async () => {
+    const reserved = reservedPackageIds().find((id) => builtinPackage(id) === undefined);
+    if (reserved === undefined) return;
+    await write({
+      'project.vaproject': projectFile([reserved]),
+      'model.vamodel': modelFile(),
+      [`packages/${reserved}.vapackage`]: packageFile(reserved),
+    });
+
+    const { warnings } = loadedOf(await loadProject(folder));
+    expect(warnings).toContainEqual({
+      file: `packages/${reserved}.vapackage`,
+      pointer: '/id',
+      message: `packages/${reserved}.vapackage takes the id "${reserved}", which Visual Anything keeps for a built-in package to come. Rename it before that package ships: change "id" in this file, the start of every component and relation type id in it, and every reference to them, and rename the file to match.`,
+    });
   });
 
   it('reports a package listed twice', async () => {

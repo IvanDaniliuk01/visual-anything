@@ -327,8 +327,10 @@ const updateElement = tool({
   title: 'Change an element',
   description: `Changes an element, World included, as one undoable action: its name, description, component, attribute values, attributes to remove, or its own appearance (replaced whole; null makes it look like its component again). A description of null removes it.
 
+To change some traits of its own appearance and keep the others, give appearanceTraits instead: a value sets a trait, null makes it inherited again.
+
 Example: { "id": "appointments-db", "attributes": { "engine": "postgres", "sizeGb": 20 } }
-Example: { "id": "booking-agent", "appearance": { "fill": "#F8E1EC" } }`,
+Example: { "id": "booking-agent", "appearanceTraits": { "fill": "#F8E1EC", "stroke": null } }`,
   input: {
     id: id(),
     name: z.string().min(1).optional(),
@@ -337,6 +339,12 @@ Example: { "id": "booking-agent", "appearance": { "fill": "#F8E1EC" } }`,
     attributes: attributes().optional(),
     removeAttributes: z.array(z.string()).optional(),
     appearance: appearance().nullable().optional(),
+    appearanceTraits: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe(
+        'Traits of its own appearance to set, or null to inherit again: shape, fill, stroke, width, height, detail, contentsAsRows, connectionPoints.',
+      ),
   },
   hints: WRITE,
   run: async ({ id: target, ...changes }, program) =>
@@ -441,7 +449,7 @@ Example: { "view": "system-overview", "into": "scheduling", "shapes": [{ "elemen
       view: args.view,
       ...(args.into === undefined ? {} : { to: args.into }),
       ...(args.relationType === undefined ? {} : { relationType: args.relationType }),
-      shapes: args.shapes.map((shape) => withoutUndefined(shape)) as never,
+      shapes: args.shapes.map((shape) => withoutUndefined(shape)),
     }),
 });
 
@@ -456,53 +464,65 @@ Example: { "id": "clinic", "name": "Clinic", "description": "What a clinic needs
   input: { id: id(), name: z.string().min(1), description: z.string().optional() },
   hints: WRITE,
   run: async (args, program) =>
-    act(program, { type: 'create-package', package: withoutUndefined(args) as never }),
+    act(program, { type: 'create-package', package: withoutUndefined(args) }),
 });
 
 const defineComponent = tool({
   name: 'define_component',
   title: 'Define a component',
-  description: `Defines a component in one of the project's own packages, or redefines one it already has, as one undoable action, written as the package file's JSON writes it. It derives from exactly one component and inherits everything it does not redefine. Read list_definitions first.
+  description: `Defines a component in one of the project's own packages, as one undoable action, written as the package file's JSON writes it. It derives from exactly one component and inherits everything it does not redefine. Leave the id out to have the program make one from the name. To create, pass createOnly: then an id the package already has is refused rather than redefined. To change some traits of a component, use update_component instead. Read list_definitions first.
 
-Example: { "package": "clinic", "component": { "id": "clinic.calendar", "name": "Calendar", "derivesFrom": "systems.database", "attributes": [{ "name": "slotMinutes", "type": "number", "default": 15 }], "appearance": { "fill": "#E3F2E9" } } }`,
+Example: { "package": "clinic", "createOnly": true, "component": { "name": "Calendar", "derivesFrom": "systems.database", "attributes": [{ "name": "slotMinutes", "type": "number", "default": 15 }], "appearance": { "fill": "#E3F2E9" } } }`,
   input: {
     package: id(),
+    createOnly: z.boolean().optional(),
     component: z
-      .object({ id: id(), name: z.string().min(1), derivesFrom: id() })
+      .object({ id: id().optional(), name: z.string().min(1), derivesFrom: id() })
       .catchall(z.unknown())
-      .describe('id, name, derivesFrom, and optionally description, attributes and appearance.'),
+      .describe('name, derivesFrom, and optionally id, description, attributes and appearance.'),
   },
   hints: WRITE,
   run: async (args, program) =>
-    act(program, {
-      type: 'define-component',
-      package: args.package,
-      component: args.component as never,
-    }),
+    act(
+      program,
+      {
+        type: 'define-component',
+        package: args.package,
+        component: args.component,
+        ...(args.createOnly ? { createOnly: true } : {}),
+      } as unknown as Command,
+      (answer) => ({ created: answer.created }),
+    ),
 });
 
 const defineRelationType = tool({
   name: 'define_relation_type',
   title: 'Define a relation type',
-  description: `Defines a relation type in one of the project's own packages, or redefines one, as one undoable action. It derives from exactly one relation type. direction is "directed" or "undirected"; nests: true makes its relations put the from end inside the to end; limits name the components each end should come from, and only warn.
+  description: `Defines a relation type in one of the project's own packages, as one undoable action. It derives from exactly one relation type. direction is "directed" or "undirected"; nests: true makes its relations put the from end inside the to end; limits name the components each end should come from, and only warn. Leave the id out to have the program make one; pass createOnly to create rather than redefine. To change some traits, use update_relation_type instead.
 
-Example: { "package": "clinic", "relationType": { "id": "clinic.books", "name": "books", "derivesFrom": "relates-to", "direction": "directed", "limits": { "from": ["systems.person"] } } }`,
+Example: { "package": "clinic", "createOnly": true, "relationType": { "name": "books", "derivesFrom": "relates-to", "direction": "directed", "limits": { "from": ["systems.person"] } } }`,
   input: {
     package: id(),
+    createOnly: z.boolean().optional(),
     relationType: z
-      .object({ id: id(), name: z.string().min(1), derivesFrom: id() })
+      .object({ id: id().optional(), name: z.string().min(1), derivesFrom: id() })
       .catchall(z.unknown())
       .describe(
-        'id, name, derivesFrom, and optionally description, direction, nests, attributes, appearance and limits.',
+        'name, derivesFrom, and optionally id, description, direction, nests, attributes, appearance and limits.',
       ),
   },
   hints: WRITE,
   run: async (args, program) =>
-    act(program, {
-      type: 'define-relation-type',
-      package: args.package,
-      relationType: args.relationType as never,
-    }),
+    act(
+      program,
+      {
+        type: 'define-relation-type',
+        package: args.package,
+        relationType: args.relationType,
+        ...(args.createOnly ? { createOnly: true } : {}),
+      } as unknown as Command,
+      (answer) => ({ created: answer.created }),
+    ),
 });
 
 const removeDefinition = tool({
@@ -523,6 +543,114 @@ Example: { "id": "clinic.calendar" }`,
     }
     return fail(`No package in use defines a component or relation type "${args.id}".`);
   },
+});
+
+const attributeChanges = () =>
+  z
+    .object({
+      rename: z.array(z.object({ from: z.string(), to: z.string() })).optional(),
+      set: z.array(z.record(z.string(), z.unknown())).optional(),
+      remove: z.array(z.string()).optional(),
+      order: z.array(z.string()).optional(),
+    })
+    .describe(
+      'Changes to the attributes it defines itself, applied in this order: rename, set, remove, order. A rename moves the values elements hold.',
+    );
+
+const updateComponent = tool({
+  name: 'update_component',
+  title: 'Change a component, trait by trait',
+  description: `Changes a component of one of the project's own packages, trait by trait, as one undoable action; what you leave out stays. In appearance, a value sets a trait and null makes it inherited again. To change a built-in component's look in this project, change its elements instead.
+
+Example: { "id": "clinic.calendar", "name": "Calendar", "appearance": { "fill": "#E3F2E9", "stroke": null }, "attributes": { "rename": [{ "from": "slotMinutes", "to": "slotLength" }] } }`,
+  input: {
+    id: id(),
+    name: z.string().min(1).optional(),
+    description: z.string().nullable().optional(),
+    derivesFrom: id().optional(),
+    appearance: z.record(z.string(), z.unknown()).optional(),
+    attributes: attributeChanges().optional(),
+  },
+  hints: WRITE,
+  run: async ({ id: target, ...changes }, program) =>
+    actOnNewer(
+      program,
+      { type: 'update-component', id: target, changes: withoutUndefined(changes) },
+      'Changing a component trait by trait is',
+    ),
+});
+
+const updateRelationType = tool({
+  name: 'update_relation_type',
+  title: 'Change a relation type, trait by trait',
+  description: `Changes a relation type of one of the project's own packages, trait by trait, as one undoable action; what you leave out stays, and null makes a trait inherited again. Limits take, per end, a list of component ids, "any", or null. It cannot stop nesting while a view nests by it.
+
+Example: { "id": "clinic.books", "direction": "directed", "limits": { "to": ["clinic.calendar"] } }`,
+  input: {
+    id: id(),
+    name: z.string().min(1).optional(),
+    description: z.string().nullable().optional(),
+    derivesFrom: id().optional(),
+    direction: z.enum(['directed', 'undirected']).nullable().optional(),
+    nests: z.boolean().nullable().optional(),
+    appearance: z.record(z.string(), z.unknown()).optional(),
+    attributes: attributeChanges().optional(),
+    limits: z
+      .object({
+        from: z
+          .union([z.array(id()), z.literal('any')])
+          .nullable()
+          .optional(),
+        to: z
+          .union([z.array(id()), z.literal('any')])
+          .nullable()
+          .optional(),
+      })
+      .optional(),
+  },
+  hints: WRITE,
+  run: async ({ id: target, ...changes }, program) =>
+    actOnNewer(
+      program,
+      { type: 'update-relation-type', id: target, changes: withoutUndefined(changes) },
+      'Changing a relation type trait by trait is',
+    ),
+});
+
+const updatePackage = tool({
+  name: 'update_package',
+  title: 'Rename a package',
+  description: `Changes the name or description of one of the project's own packages, as one undoable action. Its id stays.
+
+Example: { "id": "clinic", "name": "Clinic", "description": "What a clinic needs beyond Systems." }`,
+  input: {
+    id: id(),
+    name: z.string().min(1).optional(),
+    description: z.string().nullable().optional(),
+  },
+  hints: WRITE,
+  run: async ({ id: target, ...changes }, program) =>
+    actOnNewer(
+      program,
+      { type: 'update-package', id: target, changes: withoutUndefined(changes) },
+      'Changing a package is',
+    ),
+});
+
+const reorderElements = tool({
+  name: 'reorder_elements',
+  title: 'Reorder elements',
+  description: `Moves elements in the model's order, as one undoable action: the ones listed, in the order listed, before another element, or last. It is the order of a table's rows, and the order shapes that no stacking order names are drawn in. World cannot move.
+
+Example: { "elements": ["patients-id"], "before": "patients-name" }`,
+  input: { elements: z.array(id()).min(1), before: id().optional() },
+  hints: WRITE,
+  run: async (args, program) =>
+    actOnNewer(
+      program,
+      { type: 'reorder-elements', ...withoutUndefined(args) },
+      'Reordering elements is',
+    ),
 });
 
 // ——— Views ———
@@ -548,7 +676,7 @@ Example: { "name": "Who owns what", "perspective": { "name": "Ownership", "descr
         view: withoutUndefined({
           ...args,
           perspective: withoutUndefined(args.perspective),
-        }) as never,
+        }),
       },
       (answer) => ({ view: answer.created[0] }),
     ),
@@ -571,7 +699,7 @@ Example: { "id": "system-overview", "perspective": { "name": "Data flow" }, "nes
   },
   hints: WRITE,
   run: async ({ id: target, ...changes }, program) =>
-    act(program, { type: 'update-view', id: target, changes: withoutUndefined(changes) as never }),
+    act(program, { type: 'update-view', id: target, changes: withoutUndefined(changes) }),
 });
 
 const deleteView = tool({
@@ -603,7 +731,7 @@ Example: { "view": "system-overview", "positions": [{ "element": "scheduling", "
       positions: args.positions.map((position) => ({
         pinned: false,
         ...withoutUndefined(position),
-      })) as never,
+      })),
     }),
 });
 
@@ -622,7 +750,7 @@ Example: { "view": "system-overview", "positions": [{ "element": "reminder-servi
     act(program, {
       type: 'remove-positions',
       view: args.view,
-      positions: args.positions.map((position) => withoutUndefined(position)) as never,
+      positions: args.positions.map((position) => withoutUndefined(position)),
     }),
 });
 
@@ -656,7 +784,7 @@ Example: { "view": "system-overview", "moves": [{ "element": "appointments-db", 
       moves: args.moves.map(({ element, container, to }) => ({
         shape: withoutUndefined({ element, container }),
         to,
-      })) as never,
+      })),
     }),
 });
 
@@ -668,15 +796,9 @@ const setCollapsed = tool({
 Example: { "view": "system-overview", "elements": ["scheduling"], "collapsed": true }`,
   input: { view: id(), elements: z.array(id()).min(1), collapsed: z.boolean() },
   hints: WRITE,
-  run: async (args, program) => {
-    // The command of interface I1, which the core of this build may not know yet.
-    const command = { type: 'set-collapsed', ...args } as unknown as Command;
-    const outcome = await act(program, command);
-    if (!outcome.ok && outcome.message.includes('"set-collapsed" is not a command')) {
-      return fail('Collapsing and expanding are not in this build of Visual Anything yet.');
-    }
-    return outcome;
-  },
+  run: async (args, program) =>
+    // The command of interface I1.
+    actOnNewer(program, { type: 'set-collapsed', ...args }, 'Collapsing and expanding are'),
 });
 
 const freeShape = () =>
@@ -749,7 +871,7 @@ Example: { "name": "Clinic systems" }`,
   },
   hints: WRITE,
   run: async (args, program) =>
-    act(program, { type: 'update-project', changes: withoutUndefined(args) as never }),
+    act(program, { type: 'update-project', changes: withoutUndefined(args) }),
 });
 
 const runCommands = tool({
@@ -868,6 +990,10 @@ export const TOOLS: readonly Tool[] = [
   defineComponent,
   defineRelationType,
   removeDefinition,
+  updateComponent,
+  updateRelationType,
+  updatePackage,
+  reorderElements,
   createView,
   updateView,
   deleteView,
@@ -886,7 +1012,7 @@ export const TOOLS: readonly Tool[] = [
   showCaption,
   clearGuidance,
   openApp,
-] as unknown as readonly Tool[];
+];
 
 /** Runs a tool, turning a program that cannot be reached into an outcome Claude reads. */
 export async function runTool(
@@ -937,6 +1063,22 @@ async function act(
       ? { warnings: answer.warnings.map((each) => each.message) }
       : {}),
   });
+}
+
+/**
+ * Sends a command that only newer builds of the core know, and says so plainly when this one does
+ * not: `what` is how the answer names what is missing, such as "Collapsing is".
+ */
+async function actOnNewer(
+  program: Program,
+  command: { type: string } & Record<string, unknown>,
+  what: string,
+): Promise<ToolOutcome> {
+  const outcome = await act(program, command as unknown as Command);
+  if (!outcome.ok && outcome.message.includes(`"${command.type}" is not a command`)) {
+    return fail(`${what} not in this build of Visual Anything yet.`);
+  }
+  return outcome;
 }
 
 /** Checks the targets and view of guidance, sends it, and says whether anyone saw it. */
@@ -1070,7 +1212,7 @@ function buildAdditions(
         description: element.description,
         attributes: element.attributes as Attributes | undefined,
         appearance: element.appearance,
-      }) as never,
+      }),
       ...(containers.length === 0 ? {} : { containers }),
       ...(element.positions === undefined
         ? {}
@@ -1094,7 +1236,7 @@ function buildAdditions(
         name: relation.name,
         description: relation.description,
         attributes: relation.attributes as Attributes | undefined,
-      }) as never,
+      }),
     });
   }
   const only = commands[0];
