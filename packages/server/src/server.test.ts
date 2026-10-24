@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { connect } from 'node:net';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,11 +9,23 @@ import {
   TOKEN_PARAM,
   decodeServerMessage,
   type ProjectSnapshot,
+  type ServerMessage,
 } from '@visual-anything/core';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProject } from './project';
+import type { ModelFile } from '@visual-anything/schema';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { startServer, type RunningServer } from './server';
-import { openLive, send, sendRaw, sendUpgrade, type Reply } from './test-support';
+import { openSession, type Session } from './session';
+import {
+  openLive,
+  openLiveClient,
+  readText,
+  send,
+  sendRaw,
+  sendUpgrade,
+  textOf,
+  type LiveClient,
+  type Reply,
+} from './test-support';
 
 const SAMPLE = fileURLToPath(new URL('../../../examples/my-systems', import.meta.url));
 const INDEX = '<!doctype html><title>Visual Anything</title><div id="root"></div>';
@@ -40,31 +52,40 @@ const externalAddress = Object.values(networkInterfaces())
 
 let folder: string;
 let appDir: string;
+let session: Session;
 let snapshot: ProjectSnapshot;
 let server: RunningServer;
 let host: string;
 let origin: string;
 
-beforeAll(async () => {
-  const loaded = await loadProject(SAMPLE);
-  if (!loaded.ok) throw new Error('The sample project does not load.');
-  snapshot = loaded.project;
+/** Opens a session on a copy of the sample project, so that commands never touch the sample. */
+async function openSample(into: string): Promise<Session> {
+  await cp(SAMPLE, into, { recursive: true });
+  const opened = await openSession(into, { watch: false, out: () => {}, err: () => {} });
+  if (!opened.ok) throw new Error('The sample project does not open.');
+  return opened.session;
+}
 
+beforeAll(async () => {
   folder = await mkdtemp(join(tmpdir(), 'va-server-'));
+  session = await openSample(join(folder, 'project'));
+  snapshot = session.snapshot;
+
   appDir = join(folder, 'dist');
   await mkdir(join(appDir, 'assets'), { recursive: true });
   await writeFile(join(folder, 'package.json'), SECRET);
   await writeFile(join(appDir, 'index.html'), INDEX);
   for (const [path] of FILES) await writeFile(join(appDir, path), `contents of ${path}`);
 
-  server = await startServer({ project: snapshot, port: 0, app: { mode: 'static', dir: appDir } });
+  server = await startServer({ session, port: 0, app: { mode: 'static', dir: appDir } });
   host = `127.0.0.1:${server.port}`;
   origin = `http://127.0.0.1:${server.port}`;
 });
 
 afterAll(async () => {
   await server.close();
-  await rm(folder, { recursive: true, force: true });
+  await session.close();
+  await rm(folder, { recursive: true, force: true, maxRetries: 10 });
 });
 
 function expectSecurityHeaders(reply: Reply) {
@@ -290,24 +311,159 @@ describe('the live connection', () => {
     if (outcome.open) outcome.socket.close();
   });
 
-  it('ignores messages from the app and stays open', async () => {
+  it('ignores a message that has no request id, and stays open', async () => {
     const outcome = await openLive(server.port, { path: live(server.token), origin });
     if (!outcome.open) throw new Error(`The live connection was refused: ${outcome.status}`);
     const { socket } = outcome;
-    socket.send(JSON.stringify({ type: 'element/create', name: 'Ignored until M1' }));
+    const answers: string[] = [];
+    socket.on('message', (data) => answers.push(textOf(data)));
+    socket.send(JSON.stringify({ type: 'element/create', name: 'No request id' }));
     socket.send('not even JSON');
+    socket.send(Buffer.from([0xff, 0xfe]), { binary: true });
     const pong = new Promise<void>((resolve) => socket.once('pong', () => resolve()));
     socket.ping();
     await pong;
     expect(socket.readyState).toBe(socket.OPEN);
+    expect(answers).toEqual([]);
     socket.close();
+  });
+});
+
+describe('commands over the live connection', () => {
+  let projectFolder: string;
+  let live: Session;
+  let running: RunningServer;
+  let apps: LiveClient[];
+
+  beforeEach(async () => {
+    projectFolder = await mkdtemp(join(tmpdir(), 'va-live-'));
+    live = await openSample(projectFolder);
+    running = await startServer({ session: live, port: 0, app: { mode: 'static', dir: appDir } });
+    apps = [
+      await openLiveClient(running.port, running.token),
+      await openLiveClient(running.port, running.token),
+    ];
+    await expect.poll(() => apps.every((app) => app.messages.length === 1)).toBe(true);
+  });
+
+  afterEach(async () => {
+    for (const app of apps) await app.close();
+    await running.close();
+    await live.close();
+    await rm(projectFolder, { recursive: true, force: true, maxRetries: 10 });
+  });
+
+  /** The messages each app got after the project, once both have as many as expected. */
+  async function after(counts: [number, number]): Promise<ServerMessage[][]> {
+    await expect
+      .poll(() => apps.map((app) => app.messages.length - 1), { timeout: 5000 })
+      .toEqual(counts);
+    return apps.map((app) => app.messages.slice(1));
+  }
+
+  const rename = { type: 'update-element', id: 'patient', changes: { name: 'Client' } };
+
+  it('runs a command from one app and tells both, only the sender with its request id', async () => {
+    const [sender, other] = apps as [LiveClient, LiveClient];
+
+    sender.send({ type: 'command', requestId: 'r1', command: rename });
+
+    const [toSender, toOther] = await after([1, 1]);
+    const change = {
+      type: 'project/changed',
+      kind: 'do',
+      label: 'Rename "Patient" to "Client"',
+      author: 'user',
+      history: { undo: { label: 'Rename "Patient" to "Client"', author: 'user' } },
+      warnings: [],
+      created: [],
+    };
+    expect(toSender).toMatchObject([{ ...change, requestId: 'r1' }]);
+    expect(toOther).toMatchObject([change]);
+    expect(toOther?.[0] && 'requestId' in toOther[0]).toBe(false);
+    expect(other.messages).toHaveLength(2);
+    const saved = JSON.parse(await readText(projectFolder, 'model.vamodel')) as ModelFile;
+    expect(saved.elements.find((element) => element.id === 'patient')?.name).toBe('Client');
+  });
+
+  it('answers a rejected command to its sender only', async () => {
+    const [sender] = apps as [LiveClient, LiveClient];
+
+    sender.send({
+      type: 'command',
+      requestId: 'r2',
+      command: { type: 'delete', elements: ['nobody'] },
+    });
+
+    const [toSender] = await after([1, 0]);
+    expect(toSender).toEqual([
+      {
+        type: 'command/rejected',
+        requestId: 'r2',
+        problems: [
+          {
+            code: 'unknown-element',
+            message: 'There is no element "nobody".',
+            subjects: ['nobody'],
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('tells both apps about an undo and a redo', async () => {
+    const [first, second] = apps as [LiveClient, LiveClient];
+
+    first.send({ type: 'command', requestId: 'r1', command: rename });
+    await after([1, 1]);
+    second.send({ type: 'undo', requestId: 'u1' });
+    await after([2, 2]);
+    first.send({ type: 'redo', requestId: 'u2' });
+
+    const [toFirst, toSecond] = await after([3, 3]);
+    const summary = (messages: ServerMessage[] | undefined) =>
+      (messages ?? []).map((message) =>
+        message.type === 'project/changed' ? [message.kind, message.requestId] : [message.type],
+      );
+    expect(summary(toFirst)).toEqual([
+      ['do', 'r1'],
+      ['undo', undefined],
+      ['redo', 'u2'],
+    ]);
+    expect(summary(toSecond)).toEqual([
+      ['do', undefined],
+      ['undo', 'u1'],
+      ['redo', undefined],
+    ]);
+  });
+
+  it('answers a malformed message that has a request id with command/rejected', async () => {
+    const [sender] = apps as [LiveClient, LiveClient];
+
+    sender.send({ type: 'command', requestId: 'm1', command: 'delete everything' });
+    sender.send('not JSON');
+    sender.send({ type: 'undo', requestId: 'm2' });
+
+    const [toSender] = await after([2, 0]);
+    expect(toSender).toEqual([
+      {
+        type: 'command/rejected',
+        requestId: 'm1',
+        problems: [{ code: 'invalid-command', message: 'The message has no command.' }],
+      },
+      {
+        type: 'command/rejected',
+        requestId: 'm2',
+        problems: [{ code: 'invalid-command', message: 'There is nothing to undo.' }],
+      },
+    ]);
   });
 });
 
 describe('closing', () => {
   it('closes the live connections and stops listening', async () => {
     const running = await startServer({
-      project: snapshot,
+      session,
       port: 0,
       app: { mode: 'static', dir: appDir },
     });
@@ -327,7 +483,7 @@ describe('closing', () => {
 
   it('closes while a browser keeps an idle connection open', async () => {
     const running = await startServer({
-      project: snapshot,
+      session,
       port: 0,
       app: { mode: 'static', dir: appDir },
     });
@@ -345,13 +501,13 @@ describe('starting', () => {
     const empty = join(folder, 'empty');
     await mkdir(empty, { recursive: true });
     await expect(
-      startServer({ project: snapshot, port: 0, app: { mode: 'static', dir: empty } }),
+      startServer({ session, port: 0, app: { mode: 'static', dir: empty } }),
     ).rejects.toThrow(/is missing\. Run `pnpm build` first\.$/);
   });
 
   it('reports a port that is already in use', async () => {
     await expect(
-      startServer({ project: snapshot, port: server.port, app: { mode: 'static', dir: appDir } }),
+      startServer({ session, port: server.port, app: { mode: 'static', dir: appDir } }),
     ).rejects.toMatchObject({ code: 'EADDRINUSE' });
   });
 });
