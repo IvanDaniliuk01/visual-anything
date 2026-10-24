@@ -95,10 +95,21 @@ export type { CommandContext, CommandOutcome, ContainerChangePreview } from './c
 export { executeCommand, previewChangeContainer } from './commands';
 
 export type { Author, History, HistoryEntry, HistorySummary, Step as HistoryStep } from './history';
-export { EMPTY_HISTORY, HISTORY_LIMIT, record, redo, summarize, undo } from './history';
+export {
+  EMPTY_HISTORY,
+  HISTORY_LIMIT,
+  HISTORY_WEIGHT_LIMIT,
+  actionWeight,
+  record,
+  redo,
+  summarize,
+  undo,
+} from './history';
 
 export type { ProjectCheck } from './check';
 export { checkProject } from './check';
+
+export * from './images';
 
 export type {
   AppMessage,
@@ -146,3 +157,6 @@ export {
   resolveTheme,
 } from './preferences';
 export * from './scenarios';
+// The live protocol's guidance and launch codes (version 3).
+export type { Guidance, GuidanceMessage } from './protocol';
+export { LAUNCH_PARAM, MAX_CAPTION_LENGTH, MAX_GUIDANCE_TARGETS, readGuidance } from './protocol';

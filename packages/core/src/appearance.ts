@@ -61,6 +61,7 @@ export const APPEARANCE_TRAITS = listingEvery<keyof Appearance>()([
   'detail',
   'contentsAsRows',
   'connectionPoints',
+  'image',
 ]);
 
 /** A trait of an appearance. */
@@ -85,6 +86,7 @@ export const TRAIT_PATHS: readonly TraitPath[] = [
   'detail.badges',
   'contentsAsRows',
   'connectionPoints',
+  'image',
 ];
 
 /** The value the nearest member of a chain sets for a key, if one does. */

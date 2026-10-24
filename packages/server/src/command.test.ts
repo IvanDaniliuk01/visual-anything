@@ -1,12 +1,25 @@
 import { EventEmitter } from 'node:events';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LIVE_PATH, TOKEN_PARAM, decodeServerMessage } from '@visual-anything/core';
+import {
+  LAUNCH_PARAM,
+  LIVE_PATH,
+  PROTOCOL_VERSION,
+  TOKEN_PARAM,
+  decodeServerMessage,
+} from '@visual-anything/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { USAGE, parseCommandLine, runCommand, type CommandEnvironment } from './command';
+import { listProgramRecords } from './claude/discovery';
+import {
+  USAGE,
+  parseCommandLine,
+  runCommand,
+  type CommandEnvironment,
+  type KeyInput,
+} from './command';
 import type { AppSource } from './server';
 import { openLive, send, testProject, writeProjectFolder } from './test-support';
 
@@ -55,21 +68,70 @@ function harness(overrides: Partial<CommandEnvironment> = {}) {
     const line = out.find((printed) => printed.includes('http://')) ?? '';
     return new URL(line.slice(line.indexOf('http://')));
   };
-  return { out, err, opened, appSources, signals, environment, printedUrl };
+  /** The launch addresses the program printed, once it printed `count` of them. */
+  const printedLaunchUrls = async (count = 1) => {
+    const lines = () => out.filter((line) => line.includes(`#${LAUNCH_PARAM}=`));
+    await expect.poll(() => lines().length).toBe(count);
+    return lines().map((line) => new URL(line.slice(line.indexOf('http://'))));
+  };
+  return { out, err, opened, appSources, signals, environment, printedUrl, printedLaunchUrls };
+}
+
+/** The launch code of an address that carries one. */
+function launchCodeOf(url: URL): string {
+  return new URLSearchParams(url.hash.slice(1)).get(LAUNCH_PARAM) ?? '';
+}
+
+/** Opens the live connection with a launch code, as the page does. */
+function redeem(url: URL) {
+  return openLive(Number(url.port), {
+    path: `${LIVE_PATH}?${LAUNCH_PARAM}=${launchCodeOf(url)}`,
+    origin: url.origin,
+  });
+}
+
+/** Keys to press, as in a terminal. */
+function fakeKeys() {
+  let listener: ((key: string) => void) | undefined;
+  let released = false;
+  const keys: KeyInput = {
+    listen: (onKey) => {
+      listener = onKey;
+      return () => {
+        released = true;
+        listener = undefined;
+      };
+    },
+  };
+  return {
+    keys,
+    press: (key: string) => listener?.(key),
+    listening: () => listener !== undefined,
+    released: () => released,
+  };
 }
 
 describe('parseCommandLine', () => {
   it('opens the current folder on any free port and opens the browser by default', () => {
     expect(parseCommandLine([])).toEqual({
       ok: true,
-      value: { folder: '.', port: 0, open: true, dev: false, help: false },
+      value: { folder: '.', port: 0, open: true, dev: false, stopWhenIdle: false, help: false },
     });
   });
 
-  it('takes the folder, the port, --no-open and --dev', () => {
-    expect(parseCommandLine([SAMPLE, '--port', '8080', '--no-open', '--dev'])).toEqual({
+  it('takes the folder, the port, --no-open, --dev and --stop-when-idle', () => {
+    expect(
+      parseCommandLine([SAMPLE, '--port', '8080', '--no-open', '--dev', '--stop-when-idle']),
+    ).toEqual({
       ok: true,
-      value: { folder: SAMPLE, port: 8080, open: false, dev: true, help: false },
+      value: {
+        folder: SAMPLE,
+        port: 8080,
+        open: false,
+        dev: true,
+        stopWhenIdle: true,
+        help: false,
+      },
     });
   });
 
@@ -118,7 +180,7 @@ describe('parseCommandLine', () => {
 });
 
 describe('runCommand', () => {
-  it('opens the browser at a URL whose fragment carries the token, and stops on SIGINT', async () => {
+  it('opens the browser at an address that works once, which hands the page the token, and stops on SIGINT', async () => {
     const { opened, signals, environment } = harness();
     const exit = runCommand([SAMPLE], environment);
 
@@ -127,45 +189,149 @@ describe('runCommand', () => {
     expect(url.origin).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
     expect(url.pathname).toBe('/');
     expect(url.search).toBe('');
-    const token = new URLSearchParams(url.hash.slice(1)).get(TOKEN_PARAM) ?? '';
-    expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(url.hash).toMatch(new RegExp(`^#${LAUNCH_PARAM}=[A-Za-z0-9_-]{22}$`));
 
-    const outcome = await openLive(Number(url.port), {
-      path: `${LIVE_PATH}?${TOKEN_PARAM}=${token}`,
-      origin: url.origin,
-    });
+    const outcome = await redeem(url);
     if (!outcome.open) throw new Error(`The live connection was refused: ${outcome.status}`);
     const message = decodeServerMessage(outcome.firstMessage);
     expect(message.type === 'project/opened' && message.project.project.name).toBe('My systems');
+    const token = message.type === 'project/opened' ? (message.token ?? '') : '';
+    expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     outcome.socket.close();
+
+    expect(await redeem(url)).toEqual({ open: false, status: 401 });
+    const again = await openLive(Number(url.port), {
+      path: `${LIVE_PATH}?${TOKEN_PARAM}=${token}`,
+      origin: url.origin,
+    });
+    expect(again.open).toBe(true);
+    if (again.open) {
+      const reopened = decodeServerMessage(again.firstMessage);
+      expect(reopened.type === 'project/opened' && reopened.token).toBeUndefined();
+      again.socket.close();
+    }
 
     signals.emit('SIGINT');
     await expect(exit).resolves.toBe(0);
     await expect(send(Number(url.port))).rejects.toMatchObject({ code: 'ECONNREFUSED' });
   });
 
-  it('prints the project name and the whole URL, token included', async () => {
-    const { out, opened, signals, environment } = harness();
+  it('prints the project name and an address without any secret, and never the token', async () => {
+    const { out, err, opened, signals, environment } = harness();
     const exit = runCommand([SAMPLE], environment);
 
     await expect.poll(() => opened).toHaveLength(1);
     expect(out.some((line) => line.includes('"My systems"'))).toBe(true);
-    expect(out.some((line) => line.endsWith(opened[0] ?? '-'))).toBe(true);
+    const url = new URL(opened[0] ?? '');
+    expect(out).toContain(`Visual Anything is running at ${url.origin}/`);
+    const outcome = await redeem(url);
+    if (!outcome.open) throw new Error(`The live connection was refused: ${outcome.status}`);
+    const message = decodeServerMessage(outcome.firstMessage);
+    const token = message.type === 'project/opened' ? (message.token ?? '-') : '-';
+    outcome.socket.close();
+    expect([...out, ...err, ...opened].some((line) => line.includes(token))).toBe(false);
+    expect(out.some((line) => line.includes(launchCodeOf(url)))).toBe(false);
 
     signals.emit('SIGTERM');
     await expect(exit).resolves.toBe(0);
   });
 
-  it('does not open the browser with --no-open', async () => {
-    const { opened, signals, environment, printedUrl } = harness();
+  it('prints one address that works once with --no-open, without opening the browser', async () => {
+    const { opened, signals, environment, printedLaunchUrls } = harness();
     const exit = runCommand([SAMPLE, '--no-open'], environment);
 
-    const url = await printedUrl();
-    expect(url.hash).toMatch(new RegExp(`^#${TOKEN_PARAM}=[A-Za-z0-9_-]{43}$`));
+    const [url] = await printedLaunchUrls();
+    if (url === undefined) throw new Error('No launch address was printed.');
+    expect(url.hash).toMatch(new RegExp(`^#${LAUNCH_PARAM}=[A-Za-z0-9_-]{22}$`));
     expect(opened).toEqual([]);
+    expect((await redeem(url)).open).toBe(true);
 
     signals.emit('SIGTERM');
     await expect(exit).resolves.toBe(0);
+  });
+
+  it('warns in the terminal when a launch address is used twice', async () => {
+    const { err, signals, environment, printedLaunchUrls } = harness();
+    const exit = runCommand([SAMPLE, '--no-open'], environment);
+
+    const [url] = await printedLaunchUrls();
+    if (url === undefined) throw new Error('No launch address was printed.');
+    const first = await redeem(url);
+    if (first.open) first.socket.close();
+    expect(await redeem(url)).toEqual({ open: false, status: 401 });
+    expect(err).toEqual([
+      'The launch address was used twice; if your tab did not open the project, something else on this computer used it first.',
+    ]);
+
+    signals.emit('SIGTERM');
+    await expect(exit).resolves.toBe(0);
+  });
+
+  it('in a terminal, opens a new tab on o, prints a new address on a, and stops on Ctrl+C', async () => {
+    const terminal = fakeKeys();
+    const { out, opened, environment, printedLaunchUrls } = harness({ keys: terminal.keys });
+    const exit = runCommand([SAMPLE], environment);
+
+    await expect.poll(() => opened).toHaveLength(1);
+    await expect.poll(() => terminal.listening()).toBe(true);
+    expect(out).toContain(
+      'Press o to open Visual Anything in a new tab, or a to print an address that works once.',
+    );
+
+    terminal.press('o');
+    await expect.poll(() => opened).toHaveLength(2);
+    expect(opened[1]).not.toBe(opened[0]);
+
+    terminal.press('a');
+    const [printed] = await printedLaunchUrls(1);
+    if (printed === undefined) throw new Error('No launch address was printed.');
+    // Only the newest address works: making one ends the one before.
+    expect(await redeem(new URL(opened[1] ?? ''))).toEqual({ open: false, status: 401 });
+    const outcome = await redeem(printed);
+    expect(outcome.open).toBe(true);
+    if (outcome.open) outcome.socket.close();
+
+    terminal.press('\u0003');
+    await expect(exit).resolves.toBe(0);
+    expect(terminal.released()).toBe(true);
+  });
+
+  it('leaves a record for Claude while it runs, and removes it when it stops', async () => {
+    const runtime = join(folder, 'runtime');
+    const { signals, environment, printedUrl } = harness({ runtimeFolder: runtime });
+    const exit = runCommand([SAMPLE, '--no-open'], environment);
+
+    const url = await printedUrl();
+    const [record] = await listProgramRecords(runtime);
+    expect(record).toMatchObject({
+      format: 1,
+      protocolVersion: PROTOCOL_VERSION,
+      pid: process.pid,
+      port: Number(url.port),
+    });
+    expect(record?.folder).toBe((await realpath(join(REPOSITORY, SAMPLE))).replaceAll('\\', '/'));
+    expect(record?.credential).toMatch(/^[A-Za-z0-9_-]{43}$/);
+
+    signals.emit('SIGINT');
+    await expect(exit).resolves.toBe(0);
+    expect(await listProgramRecords(runtime)).toEqual([]);
+  });
+
+  it('with --stop-when-idle, stops once nothing has been connected for a while', async () => {
+    const { out, environment, printedLaunchUrls } = harness({ idleStopDelay: 300 });
+    const exit = runCommand([SAMPLE, '--no-open', '--stop-when-idle'], environment);
+
+    const [url] = await printedLaunchUrls();
+    if (url === undefined) throw new Error('No launch address was printed.');
+    const outcome = await redeem(url);
+    if (!outcome.open) throw new Error('The live connection was refused.');
+    // Connected for longer than the delay: still running.
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(out).not.toContain('Visual Anything stopped.');
+    outcome.socket.close();
+
+    await expect(exit).resolves.toBe(0);
+    expect(out).toContain('Nothing has been connected for a while, so Visual Anything stops.');
   });
 
   it('listens on the port given with --port', async () => {
@@ -212,7 +378,9 @@ describe('runCommand', () => {
     await printedUrl();
     await expect
       .poll(() => err)
-      .toEqual(['Could not open the browser (no browser); open the address above by hand.']);
+      .toEqual([
+        'Could not open the browser (no browser). Start Visual Anything again with --no-open to print an address that works once.',
+      ]);
 
     signals.emit('SIGINT');
     await expect(exit).resolves.toBe(0);

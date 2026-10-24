@@ -41,7 +41,7 @@ function onlySocket(): FakeWebSocket {
   return FakeWebSocket.created[0] as FakeWebSocket;
 }
 
-const TERMINAL_ADDRESS = /open the address Visual Anything printed in the terminal/i;
+const TERMINAL_ADDRESS = /press o in the terminal where Visual Anything runs/i;
 
 describe('App', () => {
   it('without a session token, says how to get one and does not connect', () => {
@@ -50,7 +50,7 @@ describe('App', () => {
     const problem = screen.getByRole('alert');
     expect(problem).toHaveTextContent(/no session token/i);
     expect(problem).toHaveTextContent(TERMINAL_ADDRESS);
-    expect(problem).toHaveTextContent(/carries this session’s token/);
+    expect(problem).toHaveTextContent(/an address that works once/);
     expect(FakeWebSocket.created).toHaveLength(0);
   });
 
@@ -58,6 +58,48 @@ describe('App', () => {
     render(<App token="s3cr3t" />);
     expect(onlySocket().url).toBe('ws://localhost:3000/live?token=s3cr3t');
     expect(screen.getByRole('status')).toHaveTextContent(/connecting/i);
+  });
+
+  it('shows Claude’s guidance over the canvas, and lets the person dismiss it', () => {
+    render(<App token="s3cr3t" />);
+    const socket = onlySocket();
+    act(() => {
+      socket.accept();
+      socket.receive(opened);
+      socket.receive(
+        encodeServerMessage({
+          type: 'guidance',
+          guidance: { kind: 'caption', text: 'This is where a booking starts.' },
+        }),
+      );
+    });
+    const panel = screen.getByRole('complementary', { name: 'Claude’s guidance' });
+    expect(panel).toHaveTextContent('This is where a booking starts.');
+    fireEvent.click(within(panel).getByRole('button', { name: 'Dismiss Claude’s guidance' }));
+    expect(
+      screen.queryByRole('complementary', { name: 'Claude’s guidance' }),
+    ).not.toBeInTheDocument();
+    expect(socket.sent).toEqual([]);
+  });
+
+  it('opens the live connection with a launch code, then keeps the token it is handed', () => {
+    render(<App token={{ launch: 'c0de' }} />);
+    const socket = onlySocket();
+    expect(socket.url).toBe('ws://localhost:3000/live?launch=c0de');
+    act(() => {
+      socket.accept();
+      socket.receive(
+        encodeServerMessage({
+          type: 'project/opened',
+          protocolVersion: PROTOCOL_VERSION,
+          project: sample,
+          history: {},
+          token: 'handed-0ver',
+        }),
+      );
+    });
+    expect(window.sessionStorage.getItem('visual-anything.session-token')).toBe('handed-0ver');
+    expect(screen.getByRole('banner')).toHaveTextContent('My systems');
   });
 
   it('shows the project once the local program sends it', () => {
@@ -81,7 +123,7 @@ describe('App', () => {
     const problem = screen.getByRole('alert');
     expect(problem).toHaveTextContent(/refused the connection/i);
     expect(problem).toHaveTextContent(TERMINAL_ADDRESS);
-    expect(problem).toHaveTextContent(/carries this session’s token/);
+    expect(problem).toHaveTextContent(/works once, within two minutes/);
     expect(FakeWebSocket.created).toHaveLength(1);
   });
 
