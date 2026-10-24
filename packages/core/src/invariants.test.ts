@@ -54,7 +54,8 @@ type Intent =
   | { kind: 'batch'; first: number; second: number }
   | { kind: 'toggle-nests'; type: number }
   | { kind: 'rederive'; component: number; parent: number }
-  | { kind: 'remove-definition'; at: number }
+  | { kind: 'define'; relationType: boolean; parent: number }
+  | { kind: 'remove-definition'; at: number; unused: boolean }
   | { kind: 'packages'; systems: boolean }
   | { kind: 'view'; action: 'create' | 'nesting' | 'delete'; at: number; types: number[] }
   | { kind: 'scenario'; action: 'create' | 'steps' | 'delete'; at: number; picks: number[] }
@@ -129,14 +130,33 @@ const intent: fc.Arbitrary<Intent> = fc.oneof(
   fc.record({ kind: fc.constant('batch'), first: index, second: index }),
   fc.record({ kind: fc.constant('toggle-nests'), type: index }),
   fc.record({ kind: fc.constant('rederive'), component: index, parent: index }),
-  fc.record({ kind: fc.constant('remove-definition'), at: index }),
+  // Definitions nothing uses yet, so that removing one is often allowed.
+  {
+    arbitrary: fc.record({
+      kind: fc.constant('define'),
+      relationType: fc.boolean(),
+      parent: index,
+    }),
+    weight: 2,
+  },
+  {
+    arbitrary: fc.record({
+      kind: fc.constant('remove-definition'),
+      at: index,
+      unused: fc.boolean(),
+    }),
+    weight: 3,
+  },
   fc.record({ kind: fc.constant('packages'), systems: fc.boolean() }),
-  fc.record({
-    kind: fc.constant('view'),
-    action: fc.constantFrom('create', 'nesting', 'delete'),
-    at: index,
-    types: fc.array(index, { maxLength: 2 }),
-  }),
+  {
+    arbitrary: fc.record({
+      kind: fc.constant('view'),
+      action: fc.constantFrom('create', 'nesting', 'delete'),
+      at: index,
+      types: fc.array(index, { maxLength: 2 }),
+    }),
+    weight: 2,
+  },
   fc.record({
     kind: fc.constant('scenario'),
     action: fc.constantFrom('create', 'steps', 'delete'),
@@ -287,10 +307,38 @@ function commandFor(state: ProjectSnapshot, wish: Intent): Command | undefined {
         }
       );
     }
+    case 'define':
+      return wish.relationType
+        ? {
+            type: 'define-relation-type',
+            package: 'test',
+            relationType: {
+              id: 'test.added-type',
+              name: 'Added type',
+              derivesFrom: pick(RELATION_TYPES, wish.parent) as Id,
+            },
+          }
+        : {
+            type: 'define-component',
+            package: 'test',
+            component: {
+              id: 'test.added',
+              name: 'Added',
+              derivesFrom: pick(COMPONENTS, wish.parent) as Id,
+            },
+          };
     case 'remove-definition': {
       const own = ownPackage(state);
       const ids = [...own.components, ...own.relationTypes].map((definition) => definition.id);
-      const id = pick(ids, wish.at);
+      const used = new Set([
+        ...state.model.elements.map((element) => element.component),
+        ...state.model.relations.map((relation) => relation.relationType),
+        ...state.packages.flatMap((file) =>
+          [...file.components, ...file.relationTypes].map((definition) => definition.derivesFrom),
+        ),
+      ]);
+      const unused = ids.filter((each) => !used.has(each));
+      const id = pick(wish.unused && unused.length > 0 ? unused : ids, wish.at);
       if (id === undefined) return undefined;
       return own.components.some((component) => component.id === id)
         ? { type: 'remove-component', id }
@@ -321,7 +369,9 @@ function commandFor(state: ProjectSnapshot, wish: Intent): Command | undefined {
             : { type: 'update-view', id: view, changes: { nestingRelationTypes } };
         }
         case 'delete': {
-          const view = pick(views, wish.at);
+          // A view no scenario plays over, which can go; while there is none, one that is refused.
+          const free = views.filter((id) => !state.scenarios.some((each) => each.view === id));
+          const view = pick(free.length > 0 ? free : views, wish.at);
           return view === undefined ? undefined : { type: 'delete-view', id: view };
         }
       }
