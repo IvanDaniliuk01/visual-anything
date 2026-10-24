@@ -1,3 +1,7 @@
+// First, before any other code runs: the page's Trusted Types policy, then PixiJS's code paths that
+// need no `eval`, so that the page's content security policy allows neither HTML from text nor eval.
+import './trusted-types';
+import 'pixi.js/unsafe-eval';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
