@@ -95,14 +95,21 @@ describe.each(MODES)('watchProject, watching in %s mode', (mode) => {
     await reported(() => put('scenarios/request.vascenario', 'scenario, edited'));
   });
 
-  it.skipIf(mode === 'folders' && process.platform === 'win32')(
-    'keeps watching a folder of the project that is removed and made again',
-    async () => {
-      await reported(() => rm(join(folder, 'views'), { recursive: true }));
-      await reported(() => put('views/c.vaview', 'view c'));
-      await reported(() => put('views/c.vaview', 'view c, edited'));
-    },
-  );
+  it('keeps watching a folder of the project that is removed and made again', async () => {
+    await reported(() => rm(join(folder, 'views'), { recursive: true }));
+    await reported(() => put('views/c.vaview', 'view c'));
+    await reported(() => put('views/c.vaview', 'view c, edited'));
+  });
+
+  it('keeps watching a folder of the project that is replaced at once', async () => {
+    // A checkout can remove a folder and make it again before the watcher hears of either.
+    await reported(async () => {
+      await rm(join(folder, 'views'), { recursive: true });
+      await put('views/c.vaview', 'view c');
+    });
+    await reported(() => put('views/c.vaview', 'view c, edited'));
+    await reported(() => put('views/d.vaview', 'view d'));
+  });
 
   it('waits until the changes stop, then reports them once', async () => {
     // A delay far longer than the gaps between the writes, which a busy disk can stretch.

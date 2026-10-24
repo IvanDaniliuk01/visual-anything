@@ -112,13 +112,17 @@ function watchFolders(folder: string, onEvent: OnEvent, onError: (error: unknown
   const children = new Map<FolderKind, { watcher: FSWatcher; inode: number }>();
   let stopped = false;
 
-  /** Starts, stops or restarts the watcher of each folder to follow what is on disk now. */
-  const follow = () => {
+  /**
+   * Starts, stops or restarts the watcher of each folder to follow what is on disk now. A folder
+   * named in `renew` gets a new watcher even when its inode is the same: it was made, removed or
+   * moved, and a folder made anew can reuse the inode number of the one it replaces.
+   */
+  const follow = (renew: FolderKind | 'all' | undefined = undefined) => {
     for (const kind of FOLDER_KINDS) {
       const path = join(folder, FOLDERS[kind]);
       const inode = folderInode(path);
       const current = children.get(kind);
-      if (current?.inode === inode) continue;
+      if (renew !== 'all' && renew !== kind && current?.inode === inode) continue;
       current?.watcher.close();
       children.delete(kind);
       if (inode === undefined || stopped) continue;
@@ -142,7 +146,9 @@ function watchFolders(folder: string, onEvent: OnEvent, onError: (error: unknown
   };
 
   const root = watch(folder, (eventType, filename) => {
-    if (filename === null || folderKindOf(filename) !== undefined) follow();
+    const kind = filename === null ? undefined : folderKindOf(filename);
+    if (filename === null) follow('all');
+    else if (kind !== undefined) follow(eventType === 'rename' ? kind : undefined);
     onEvent(eventType, filename);
   });
   root.on('error', onError);
