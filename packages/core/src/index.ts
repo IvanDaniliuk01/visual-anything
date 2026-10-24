@@ -3,6 +3,27 @@ export type { ProjectSnapshot } from './snapshot';
 export { BUILTIN_PACKAGES, ESSENCE, RELATES_TO, SYSTEMS, builtinPackage } from './builtin';
 
 export type {
+  AppearanceTrait,
+  DetailPart,
+  ResolvedDetail,
+  TraitPath,
+  TraitSource,
+  TraitSources,
+  Typed,
+} from './appearance';
+export {
+  APPEARANCE_TRAITS,
+  TRAIT_PATHS,
+  attributeValue,
+  detailParts,
+  detailText,
+  resolveAppearance,
+  startedTypesByElement,
+  traitSources,
+  valueFitsType,
+} from './appearance';
+
+export type {
   Defined,
   Definitions,
   ResolvedAppearance,

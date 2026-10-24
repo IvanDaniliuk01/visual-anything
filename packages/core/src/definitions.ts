@@ -13,11 +13,11 @@ import type {
   RelationType,
 } from '@visual-anything/schema';
 import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
+import { resolveAppearance, type ResolvedAppearance } from './appearance';
 import { ESSENCE, RELATES_TO } from './builtin/essence-and-relates-to';
 import { problem, type Problem } from './problems';
 
-/** How an element's shapes are drawn, with nothing left out. */
-export type ResolvedAppearance = Required<Appearance>;
+export type { ResolvedAppearance } from './appearance';
 
 /** How a relation is drawn, with nothing left out. */
 export type ResolvedRelationAppearance = Required<RelationAppearance>;
@@ -104,14 +104,7 @@ export function appearanceOf(
   definitions: Definitions,
 ): ResolvedAppearance {
   const inherited = definitions.component(element.component)?.appearance ?? ESSENCE.appearance;
-  const own = element.appearance;
-  return {
-    shape: own?.shape ?? inherited.shape,
-    fill: own?.fill ?? inherited.fill,
-    stroke: own?.stroke ?? inherited.stroke,
-    width: own?.width ?? inherited.width,
-    height: own?.height ?? inherited.height,
-  };
+  return resolveAppearance([element.appearance], inherited);
 }
 
 /** The component with this id; for an id no package defines, one named by the id that looks like Essence. */
@@ -352,13 +345,7 @@ function resolveComponent(
     ...(description === undefined ? {} : { description }),
     ...(packageId === undefined ? {} : { package: packageId }),
     lineage: lineageOf(chain, ESSENCE_ID),
-    appearance: {
-      shape: nearest(appearances, 'shape') ?? ESSENCE.appearance.shape,
-      fill: nearest(appearances, 'fill') ?? ESSENCE.appearance.fill,
-      stroke: nearest(appearances, 'stroke') ?? ESSENCE.appearance.stroke,
-      width: nearest(appearances, 'width') ?? ESSENCE.appearance.width,
-      height: nearest(appearances, 'height') ?? ESSENCE.appearance.height,
-    },
+    appearance: resolveAppearance(appearances, ESSENCE.appearance),
     attributes: mergedAttributes(chain.definitions),
   };
 }
@@ -370,9 +357,12 @@ function resolveRelationType(
 ): ResolvedRelationType {
   const [own] = chain.definitions;
   const appearances = chain.definitions.map((definition) => definition.appearance);
+  // `any` lifts whatever limit is inherited: the end has none.
   const limits = chain.definitions.map((definition) => definition.limits);
-  const from = nearest(limits, 'from');
-  const to = nearest(limits, 'to');
+  const lifted = (limit: readonly Id[] | 'any' | undefined) =>
+    limit === 'any' ? undefined : limit;
+  const from = lifted(nearest(limits, 'from'));
+  const to = lifted(nearest(limits, 'to'));
   const description = own?.description;
   const packageId = relationTypes.get(id)?.package;
   return {
