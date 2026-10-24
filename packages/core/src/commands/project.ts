@@ -1,7 +1,8 @@
 /** Commands on the project itself: its name, description and the packages it uses. */
 import { builtinPackage } from '../builtin';
 import { packageUsers } from '../rules';
-import { reject, requireList, requireName, type Draft } from './draft';
+import { withoutEntries } from './appearance';
+import { reject, requireList, requireName, sameJson, type Draft } from './draft';
 import type { UpdateProjectCommand } from './types';
 
 export function updateProject(draft: Draft, command: UpdateProjectCommand): string {
@@ -17,6 +18,17 @@ export function updateProject(draft: Draft, command: UpdateProjectCommand): stri
       reject('invalid-command', 'A package is listed twice.');
     }
     const current = new Set(draft.state.project.packages);
+    // The project appearances of the definitions of a package it stops using go with it.
+    const leaving = draft.state.packages.filter(
+      (file) => current.has(file.id) && !wanted.includes(file.id),
+    );
+    const appearances = withoutEntries(
+      next.appearances,
+      new Set(leaving.flatMap((file) => file.components.map((each) => each.id))),
+      new Set(leaving.flatMap((file) => file.relationTypes.map((each) => each.id))),
+    );
+    if (appearances === undefined) delete next.appearances;
+    else if (!sameJson(appearances, next.appearances)) next.appearances = appearances;
     for (const id of draft.state.project.packages) {
       if (wanted.includes(id)) continue;
       const users = packageUsers(draft.state, id);

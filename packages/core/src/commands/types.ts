@@ -50,6 +50,8 @@ export type Command =
   | ChangeContainerCommand
   | UpdateComponentCommand
   | UpdateRelationTypeCommand
+  | SetComponentAppearanceCommand
+  | SetRelationTypeAppearanceCommand
   | UpdatePackageCommand
   | ReorderElementsCommand
   | SetCollapsedCommand
@@ -191,6 +193,37 @@ export interface UpdateRelationTypeCommand {
   };
 }
 
+/**
+ * Changes how every element of a component is drawn, at the level the project can change it (ADR-0034):
+ * for a component the project cannot change, one of a built-in package or Essence, its project
+ * appearance, kept in the project file; for one of the project's own, its appearance in its package,
+ * and an entry the project file kept for it goes in the same action. Give either `appearance` or
+ * `appearanceTraits`. With `appearance: null`, an entry the project file keeps for a component no
+ * package in use defines is forgotten.
+ */
+export interface SetComponentAppearanceCommand {
+  type: 'set-component-appearance';
+  component: Id;
+  /** The appearance at that level, replaced whole; `null` removes it, and `{}` is none. */
+  appearance?: Appearance | null;
+  /** Changes to the appearance at that level, trait by trait; `null` takes a trait out. */
+  appearanceTraits?: AppearanceChanges;
+}
+
+/**
+ * Changes how every relation of a relation type is drawn, at the level the project can change it:
+ * built-in relation types and "relates to" in the project file, the project's own in their package.
+ * Give either `appearance` or `appearanceTraits`.
+ */
+export interface SetRelationTypeAppearanceCommand {
+  type: 'set-relation-type-appearance';
+  relationType: Id;
+  /** The appearance at that level, replaced whole; `null` removes it, and `{}` is none. */
+  appearance?: RelationAppearance | null;
+  /** Changes to the appearance at that level, trait by trait; `null` takes a trait out. */
+  appearanceTraits?: RelationAppearanceChanges;
+}
+
 /** Changes the name or description of one of the project's own packages. */
 export interface UpdatePackageCommand {
   type: 'update-package';
@@ -240,6 +273,8 @@ export interface NewRelation {
   name?: string;
   description?: string;
   attributes?: Attributes;
+  /** An appearance of its own, which is a particularity; `{}` is none. */
+  appearance?: RelationAppearance;
 }
 
 /** Creates a relation between elements or relations. */
@@ -260,6 +295,10 @@ export interface UpdateRelationCommand {
     description?: string | null;
     attributes?: Attributes;
     removeAttributes?: string[];
+    /** The relation's own appearance, replaced whole; `null` makes it look like its relation type. */
+    appearance?: RelationAppearance | null;
+    /** Changes to its own appearance, trait by trait; cannot be combined with `appearance`. */
+    appearanceTraits?: RelationAppearanceChanges;
   };
 }
 

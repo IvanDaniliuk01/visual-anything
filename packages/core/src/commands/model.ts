@@ -13,7 +13,13 @@ import {
   type DeletePreview,
 } from '../rules';
 import { bringNewToFront } from './order';
-import { changedAppearance, checkDetailResolves, checkedAppearance } from './traits';
+import {
+  changedAppearance,
+  changedRelationAppearance,
+  checkDetailResolves,
+  checkedAppearanceOrNone,
+  checkedRelationAppearance,
+} from './traits';
 import {
   changedAttributes,
   compact,
@@ -51,7 +57,7 @@ export function createElement(draft: Draft, command: CreateElementCommand): stri
   const appearance =
     element.appearance === undefined
       ? undefined
-      : checkedAppearance(element.appearance, `"${name}"`);
+      : checkedAppearanceOrNone(element.appearance, `"${name}"`);
   checkDetailResolves(appearance, component.attributes, attributes, draft.definitions, `"${name}"`);
   const created: Element = compact({
     id,
@@ -108,7 +114,9 @@ export function updateElement(draft: Draft, command: UpdateElementCommand): stri
   const of = `"${next.name}"`;
   if (changes.appearance === null) delete next.appearance;
   else if (changes.appearance !== undefined) {
-    next.appearance = checkedAppearance(changes.appearance, of);
+    const appearance = checkedAppearanceOrNone(changes.appearance, of, current.appearance);
+    if (appearance === undefined) delete next.appearance;
+    else next.appearance = appearance;
   } else if (changes.appearanceTraits !== undefined) {
     const appearance = changedAppearance(current.appearance, changes.appearanceTraits, of);
     if (appearance === undefined) delete next.appearance;
@@ -151,9 +159,21 @@ export function updateElement(draft: Draft, command: UpdateElementCommand): stri
       draft.warnings.push(...limitWarnings(relation, draft.index, draft.definitions));
     }
   }
-  return changes.name !== undefined && Object.keys(changes).length === 1
-    ? `Rename "${current.name}" to "${next.name}"`
+  if (changes.name !== undefined && Object.keys(changes).length === 1) {
+    return `Rename "${current.name}" to "${next.name}"`;
+  }
+  return onlyAppearance(changes)
+    ? `${next.appearance === undefined ? 'Reset' : 'Change'} the appearance of "${next.name}"`
     : `Edit "${next.name}"`;
+}
+
+/** Whether the only changes a command makes are to an appearance, whole or trait by trait. */
+function onlyAppearance(changes: object): boolean {
+  const named = Object.entries(changes).filter(([, value]) => value !== undefined);
+  return (
+    named.length > 0 &&
+    named.every(([key]) => key === 'appearance' || key === 'appearanceTraits')
+  );
 }
 
 export function deleteTargets(draft: Draft, command: DeleteCommand): string {
@@ -253,14 +273,20 @@ export function createRelation(draft: Draft, command: CreateRelationCommand): st
   draft.end(relation.to);
   checkNesting(draft, draft.index, relation);
   const id = draft.idFor(relation.id, slug(type.name, 'relation'));
+  const name = relation.name === undefined ? undefined : requireName(relation.name, 'A relation');
+  const of = `the relation "${name ?? `${nameOf(draft.index, relation.from)} → ${nameOf(draft.index, relation.to)}`}"`;
   const created: Relation = compact({
     id,
     relationType: relation.relationType,
     from: relation.from,
     to: relation.to,
-    name: relation.name === undefined ? undefined : requireName(relation.name, 'A relation'),
+    name,
     description: relation.description,
     attributes: changedAttributes(undefined, relation.attributes, undefined),
+    appearance:
+      relation.appearance === undefined
+        ? undefined
+        : checkedRelationAppearance(relation.appearance, of),
   });
   draft.apply({
     op: 'insert',
@@ -305,6 +331,24 @@ export function updateRelation(draft: Draft, command: UpdateRelationCommand): st
   );
   if (attributes === undefined) delete next.attributes;
   else next.attributes = attributes;
+  if (changes.appearance !== undefined && changes.appearanceTraits !== undefined) {
+    reject(
+      'invalid-command',
+      'A relation’s appearance is replaced whole or changed trait by trait, not both at once.',
+      [current.id],
+    );
+  }
+  const of = `the relation "${relationLabel(draft.index, current.id)}"`;
+  const appearance =
+    changes.appearance === null
+      ? undefined
+      : changes.appearance !== undefined
+        ? checkedRelationAppearance(changes.appearance, of, current.appearance)
+        : changes.appearanceTraits !== undefined
+          ? changedRelationAppearance(current.appearance, changes.appearanceTraits, of)
+          : current.appearance;
+  if (appearance === undefined) delete next.appearance;
+  else next.appearance = appearance;
 
   const others = indexModel(
     {
@@ -322,7 +366,9 @@ export function updateRelation(draft: Draft, command: UpdateRelationCommand): st
   ) {
     draft.warnings.push(...limitWarnings(next, draft.index, draft.definitions));
   }
-  return `Edit the relation "${relationLabel(draft.index, current.id)}"`;
+  return onlyAppearance(changes)
+    ? `${next.appearance === undefined ? 'Reset' : 'Change'} the appearance of the relation "${relationLabel(draft.index, current.id)}"`
+    : `Edit the relation "${relationLabel(draft.index, current.id)}"`;
 }
 
 /**

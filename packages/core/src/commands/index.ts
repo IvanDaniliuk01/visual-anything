@@ -25,6 +25,7 @@ import {
   updateRelation,
 } from './model';
 import { updateProject } from './project';
+import { setComponentAppearance, setRelationTypeAppearance } from './appearance';
 import { restack } from './stacking';
 import { changeContainer } from './containers';
 import { createScenario, deleteScenario, updateScenario } from './scenarios';
@@ -160,6 +161,10 @@ function run(draft: Draft, command: Command): string {
       return updateComponent(draft, command);
     case 'update-relation-type':
       return updateRelationType(draft, command);
+    case 'set-component-appearance':
+      return setComponentAppearance(draft, command);
+    case 'set-relation-type-appearance':
+      return setRelationTypeAppearance(draft, command);
     case 'update-package':
       return updatePackage(draft, command);
     case 'reorder-elements':
