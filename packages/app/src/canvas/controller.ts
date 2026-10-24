@@ -1,8 +1,10 @@
 /**
  * The canvas's gestures: pointing selects, dragging moves or selects with a box, the handle beside a
- * shape relates it to another, the wheel pans and zooms, and keys delete, select all and zoom. The
- * controller only turns gestures into selections and commands; the local program applies commands and
- * the canvas redraws what comes back.
+ * shape relates it to another, the wheel pans and zooms, and keys delete, select all and zoom. From
+ * the keyboard, the arrow keys go from shape to shape, ] and [ step through an element's relations,
+ * Enter follows a relation or edits a name, and Shift with an arrow key moves the selection; what the
+ * keys select is announced to screen readers. The controller only turns gestures into selections and
+ * commands; the local program applies commands and the canvas redraws what comes back.
  */
 import type { Command, ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
@@ -17,10 +19,24 @@ import {
   type Selectable,
   type Selection,
 } from '../editor/selection';
+import { describeRelation, describeSelection, nameOfEnd } from './announce';
 import { panBy, revealCamera, screenToWorld, wheelFactor, zoomAt, type Camera } from './camera';
-import { centerOf, distance, type Point } from './geometry';
+import { centerOf, distance, type Point, type Rect } from './geometry';
 import { carriedKeys, moveCommand, movingShapes } from './gestures';
 import { enclosedBy, hitAt, type Hit, type IndexedScene } from './hit';
+import {
+  containerOf,
+  drawnRelations,
+  farEnd,
+  firstInside,
+  nearestInDirection,
+  nearestTo,
+  rectOf,
+  stepRelation,
+  type Direction,
+  type Reachable,
+  type Start,
+} from './navigation';
 import { CanvasRenderer } from './renderer';
 import type { ElementShape, NoteShape } from './scene';
 import { rectAround, rectBetween } from './spatial';
@@ -40,6 +56,8 @@ export interface ControllerCallbacks {
   ): void;
   camera(camera: Camera): void;
   failure(error: unknown): void;
+  /** Says what the keys just selected, or why they selected nothing, for screen readers. */
+  announce?(message: string): void;
 }
 
 type Gesture =
@@ -61,6 +79,31 @@ const HANDLE_REACH = 10;
 const KEY_ZOOM = 1.25;
 /** The scale a revealed shape is shown at, at least: large enough to read its name. */
 const REVEAL_SCALE = 0.75;
+/** How far Shift with an arrow key moves the selection, in scene units. */
+const NUDGE = 10;
+/** How many presses of Shift with an arrow key wait for the move before them, at most. */
+const MAX_WAITING_NUDGES = 8;
+
+const DIRECTIONS: Partial<Record<string, Direction>> = {
+  ArrowLeft: 'left',
+  ArrowRight: 'right',
+  ArrowUp: 'up',
+  ArrowDown: 'down',
+};
+
+const STEPS: Record<Direction, Point> = {
+  left: { x: -NUDGE, y: 0 },
+  right: { x: NUDGE, y: 0 },
+  up: { x: 0, y: -NUDGE },
+  down: { x: 0, y: NUDGE },
+};
+
+const TOWARDS: Record<Direction, string> = {
+  left: 'to the left',
+  right: 'to the right',
+  up: 'above',
+  down: 'below',
+};
 
 export class CanvasController {
   readonly renderer: CanvasRenderer;
@@ -73,6 +116,17 @@ export class CanvasController {
   private spaceHeld = false;
   private waitingForDrop = false;
   private editable = true;
+  /**
+   * The shape the keys move from: the key of an element's shape or the id of a free shape, last
+   * pointed at or reached. An element with several shapes is selected in all of them at once.
+   */
+  private current: string | undefined;
+  /** The element whose relations ] and [ step through, and the relation they last reached. */
+  private stepping: { element: Id; relation: Id | undefined } | undefined;
+  /** The move Shift with an arrow key sent, until the scene it makes comes back. */
+  private nudging: { applied: boolean } | undefined;
+  /** The presses made while a move was on its way, each one a move of its own. */
+  private waitingNudges: Point[] = [];
 
   constructor(
     private readonly host: HTMLElement,
@@ -106,6 +160,13 @@ export class CanvasController {
       this.renderer.endDrag();
     }
     this.refreshMarks();
+    if (!editable) this.stopNudging();
+    else if (this.nudging?.applied) {
+      // The last move came back: the next press waiting moves from where it left the shapes.
+      this.nudging = undefined;
+      const next = this.waitingNudges.shift();
+      if (next) this.sendNudge(next);
+    }
   }
 
   setSelection(selection: Selection): void {
@@ -130,15 +191,22 @@ export class CanvasController {
 
   /**
    * Moves the camera so that the shape with this key shows: when it is not wholly on screen, or too
-   * small to read, it comes to the middle, at a scale where its name reads.
+   * small to read, it comes to the middle, at a scale where its name reads. The key is an element
+   * shape's key, a free shape's id, or a relation's id for the line that draws it. The keys move on
+   * from a shape revealed this way, as when it is chosen in the outline.
    */
   reveal(key: string): void {
-    const shape = this.indexed?.byKey.get(key);
-    if (!shape) return;
-    const camera = revealCamera(this.camera, this.renderer.viewport, shape.rect, REVEAL_SCALE);
-    if (!camera) return;
-    this.renderer.setCamera(camera);
-    this.refreshMarks();
+    const indexed = this.indexed;
+    if (!indexed) return;
+    const shape = indexed.byKey.get(key);
+    const reached: Reachable | undefined = shape ? { kind: 'shape', shape } : this.freeShape(key);
+    if (reached) {
+      this.current = key;
+      this.revealRect(rectOf(reached));
+      return;
+    }
+    const line = this.project && drawnRelations(indexed.scene, this.project).line(key);
+    if (line) this.revealRect(rectAround(line.route));
   }
 
   /** Where the middle of the canvas is in the scene, for creating things there. */
@@ -203,10 +271,13 @@ export class CanvasController {
     }
     const hit = hitAt(indexed, world, HIT_TOLERANCE / this.camera.scale);
     const additive = event.shiftKey || event.ctrlKey || event.metaKey;
+    this.stepping = undefined;
     if (!hit) {
       this.begin(event, { kind: 'box', pointer: event.pointerId, start: world, additive });
       return;
     }
+    // The keys move on from what was pointed at.
+    if (hit.kind !== 'relation') this.current = keyOf(hit);
     const item = selectableOf(hit);
     if (additive) this.select(toggle(this.selection, item));
     else if (!isSelected(this.selection, item)) this.select(selectionOf([item]));
@@ -421,7 +492,7 @@ export class CanvasController {
     }
     if (event.key === 'Escape') {
       if (this.gesture.kind !== 'idle') this.cancel();
-      else this.select(EMPTY_SELECTION);
+      else this.choose(EMPTY_SELECTION);
       return;
     }
     if (command && event.key.toLowerCase() === 'a') {
@@ -429,7 +500,25 @@ export class CanvasController {
       this.selectAll();
       return;
     }
+    const direction = DIRECTIONS[event.key];
+    if (direction) {
+      this.onArrow(event, direction);
+      return;
+    }
+    // With Ctrl or ⌘, and with Alt, [ and ] are left to other commands, such as the stacking order.
     if (command) return;
+    if (!event.altKey && (event.key === ']' || event.key === '[')) {
+      event.preventDefault();
+      if (this.gesture.kind === 'idle') this.stepRelations(event.key === ']' ? 1 : -1);
+      return;
+    }
+    if (!event.altKey && (event.key === 'Enter' || event.key === 'F2')) {
+      event.preventDefault();
+      if (this.gesture.kind !== 'idle') return;
+      if (event.key === 'Enter' && this.selectedRelation() !== undefined) this.follow();
+      else this.edit();
+      return;
+    }
     if (event.key === '+' || event.key === '=') this.zoomBy(KEY_ZOOM);
     else if (event.key === '-' || event.key === '_') this.zoomBy(1 / KEY_ZOOM);
     else if (event.key === '0' || (event.key === '!' && event.shiftKey)) this.fit();
@@ -491,7 +580,7 @@ export class CanvasController {
   private selectAll(): void {
     const scene = this.indexed?.scene;
     if (!scene) return;
-    this.select(
+    this.choose(
       selectionOf([
         ...[...new Set(scene.shapes.map((shape) => shape.element))].map((id): Selectable => ({
           kind: 'element',
@@ -501,6 +590,275 @@ export class CanvasController {
         ...scene.arrows.map((arrow): Selectable => ({ kind: 'free-shape', id: arrow.id })),
       ]),
     );
+  }
+
+  /** Selects from the keyboard, and says what was selected. */
+  private choose(selection: Selection, message?: string): void {
+    this.select(selection);
+    const { indexed, project } = this;
+    if (indexed && project) {
+      this.announce(message ?? describeSelection(indexed, project, selection, this.current));
+    }
+  }
+
+  private announce(message: string): void {
+    this.callbacks.announce?.(message);
+  }
+
+  private onArrow(event: KeyboardEvent, direction: Direction): void {
+    // Ctrl and ⌘ with an arrow key are left alone, and so are Alt with Left and Right, which go back
+    // and forward in the browser's history.
+    if (event.ctrlKey || event.metaKey) return;
+    if (event.altKey && (direction === 'left' || direction === 'right')) return;
+    event.preventDefault();
+    if (this.gesture.kind !== 'idle') return;
+    if (event.altKey) {
+      if (direction === 'up') this.selectContainer();
+      else this.selectInside();
+    } else if (event.shiftKey) {
+      this.nudge(direction, event.repeat);
+    } else {
+      this.go(direction);
+    }
+  }
+
+  /**
+   * Selects the nearest shape in a direction from the selected one, or the shape nearest the middle
+   * of the canvas when nothing is selected, and brings it into sight.
+   */
+  private go(direction: Direction): void {
+    const indexed = this.indexed;
+    if (!indexed) return;
+    const start = this.startOfMove();
+    const reached = start
+      ? nearestInDirection(indexed, start, direction)
+      : nearestTo(indexed, this.center);
+    if (reached) this.reach(reached);
+    else if (start) this.announce(`No shape ${TOWARDS[direction]}.`);
+  }
+
+  /** Alt+Up: the container of the selected shape. */
+  private selectContainer(): void {
+    const indexed = this.indexed;
+    const current = this.currentReachable();
+    if (!indexed || current?.kind !== 'shape') return;
+    const container = containerOf(indexed, current.shape);
+    if (container) this.reach({ kind: 'shape', shape: container });
+    else this.announce(`${current.shape.name} sits directly in World.`);
+  }
+
+  /** Alt+Down: the first shape inside the selected container. */
+  private selectInside(): void {
+    const indexed = this.indexed;
+    const current = this.currentReachable();
+    if (!indexed || current?.kind !== 'shape') return;
+    const inside = firstInside(indexed, current.shape);
+    if (inside) this.reach({ kind: 'shape', shape: inside });
+    else this.announce(`${current.shape.name} holds no shapes.`);
+  }
+
+  /** Selects a shape the keys reached, says what it is and brings it into sight. */
+  private reach(reached: Reachable): void {
+    this.stepping = undefined;
+    if (reached.kind === 'shape') {
+      this.current = reached.shape.key;
+      this.choose(selectionOf([{ kind: 'element', id: reached.shape.element }]));
+    } else {
+      const id = reached.kind === 'note' ? reached.note.id : reached.arrow.id;
+      this.current = id;
+      this.choose(selectionOf([{ kind: 'free-shape', id }]));
+    }
+    this.revealRect(rectOf(reached));
+  }
+
+  /**
+   * Where the keys move from: the shape last pointed at or reached when it is selected, or else the
+   * first selected element's shape, free shape, or relation, whose line counts from its middle.
+   */
+  private startOfMove(): Start | undefined {
+    const current = this.currentReachable();
+    if (current) {
+      return current.kind === 'shape'
+        ? { rect: current.shape.rect, shape: current.shape }
+        : { rect: rectOf(current) };
+    }
+    const [relation] = this.selection.relations;
+    const line =
+      relation !== undefined && this.indexed && this.project
+        ? drawnRelations(this.indexed.scene, this.project).line(relation)
+        : undefined;
+    return line && { rect: { x: line.middle.x, y: line.middle.y, width: 0, height: 0 } };
+  }
+
+  /** The selected shape the keys act on: the one last pointed at or reached, or the first selected. */
+  private currentReachable(): Reachable | undefined {
+    const indexed = this.indexed;
+    if (!indexed) return undefined;
+    const { elements, freeShapes } = this.selection;
+    if (this.current !== undefined) {
+      const shape = indexed.byKey.get(this.current);
+      if (shape && elements.has(shape.element)) return { kind: 'shape', shape };
+      if (freeShapes.has(this.current)) {
+        const free = this.freeShape(this.current);
+        if (free) return free;
+      }
+    }
+    const [element] = elements;
+    const first = element === undefined ? undefined : indexed.byElement.get(element)?.[0];
+    if (first) return { kind: 'shape', shape: first };
+    const [free] = freeShapes;
+    return free === undefined ? undefined : this.freeShape(free);
+  }
+
+  private freeShape(id: Id): Reachable | undefined {
+    const scene = this.indexed?.scene;
+    const note = scene?.notes.find((each) => each.id === id);
+    if (note) return { kind: 'note', note };
+    const arrow = scene?.arrows.find((each) => each.id === id);
+    return arrow && { kind: 'arrow', arrow };
+  }
+
+  /** The relation selected, when it is all that is selected. */
+  private selectedRelation(): Id | undefined {
+    const { elements, relations, freeShapes } = this.selection;
+    if (relations.size !== 1 || elements.size > 0 || freeShapes.size > 0) return undefined;
+    const [relation] = relations;
+    return relation;
+  }
+
+  /**
+   * ] and [: selects the next or the previous relation of the selected element, clockwise around its
+   * shape from the top; with one of its relations selected, the one after or before it.
+   */
+  private stepRelations(step: 1 | -1): void {
+    const { indexed, project } = this;
+    if (!indexed || !project) return;
+    const drawn = drawnRelations(indexed.scene, project);
+    const { elements, relations, freeShapes } = this.selection;
+    let element: Id | undefined;
+    let current: Id | undefined;
+    const relation = this.selectedRelation();
+    if (relation !== undefined) {
+      const ends = drawn.relation(relation);
+      if (!ends) return;
+      const stepping = this.stepping?.element;
+      element =
+        stepping === ends.from || stepping === ends.to
+          ? stepping
+          : drawn.shapeOf(ends.from)
+            ? ends.from
+            : ends.to;
+      current = relation;
+    } else if (elements.size === 1 && relations.size === 0 && freeShapes.size === 0) {
+      [element] = elements;
+      const stepping = this.stepping;
+      current = stepping && stepping.element === element ? stepping.relation : undefined;
+    }
+    if (element === undefined) return;
+    const line = stepRelation(drawn, element, current, step);
+    if (!line) {
+      this.announce(`${nameOfEnd(project, element)} has no relations in this view.`);
+      return;
+    }
+    const around = drawn.around(element);
+    this.stepping = { element, relation: line.relation };
+    this.choose(
+      selectionOf([{ kind: 'relation', id: line.relation }]),
+      describeRelation(project, line.relation, {
+        element,
+        position: around.indexOf(line) + 1,
+        count: around.length,
+      }),
+    );
+    this.revealRect(rectAround(line.route));
+  }
+
+  /**
+   * Enter on the selected relation: selects its far end, away from the element its relations were
+   * being stepped through, or else the end it points to.
+   */
+  private follow(): void {
+    const { indexed, project } = this;
+    const id = this.selectedRelation();
+    if (!indexed || !project || id === undefined) return;
+    const drawn = drawnRelations(indexed.scene, project);
+    const relation = drawn.relation(id);
+    if (!relation) return;
+    const stepping = this.stepping?.element;
+    const near = stepping === relation.from || stepping === relation.to ? stepping : undefined;
+    const far = farEnd(relation, near);
+    const shape = drawn.shapeOf(far);
+    if (shape) {
+      this.current = shape.key;
+      // ] and [ go on from the relation the move came along.
+      this.stepping = { element: far, relation: id };
+      this.choose(selectionOf([{ kind: 'element', id: far }]));
+      this.revealRect(shape.rect);
+      return;
+    }
+    const line = drawn.line(far);
+    if (!line) return;
+    this.stepping = undefined;
+    this.choose(selectionOf([{ kind: 'relation', id: far }]));
+    this.revealRect(rectAround(line.route));
+  }
+
+  /** Enter or F2: edits the name of the selected element, or the text of the selected note, in place. */
+  private edit(): void {
+    if (!this.editable || sizeOf(this.selection) !== 1) return;
+    const current = this.currentReachable();
+    if (current?.kind === 'shape') this.callbacks.rename({ kind: 'element', shape: current.shape });
+    else if (current?.kind === 'note') this.callbacks.rename({ kind: 'note', note: current.note });
+  }
+
+  /**
+   * Shift with an arrow key: moves the selection a small step, as one undoable move. A press made
+   * while the last move is on its way waits for it, so that each one moves from where the last left
+   * the shapes; a key held down moves only as fast as the moves come back.
+   */
+  private nudge(direction: Direction, repeated: boolean): void {
+    if (!this.editable) return;
+    const step = STEPS[direction];
+    if (this.nudging) {
+      if (!repeated && this.waitingNudges.length < MAX_WAITING_NUDGES) {
+        this.waitingNudges.push(step);
+      }
+      return;
+    }
+    this.sendNudge(step);
+  }
+
+  private sendNudge(step: Point): void {
+    const { indexed, project, viewId } = this;
+    const command =
+      indexed && project && viewId
+        ? moveCommand(indexed, project, viewId, this.selection, step)
+        : undefined;
+    if (!command) return;
+    const nudging = { applied: false };
+    this.nudging = nudging;
+    this.callbacks.command(command).then(
+      (applied) => {
+        if (this.nudging !== nudging) return;
+        if (applied) nudging.applied = true;
+        else this.stopNudging();
+      },
+      () => {
+        if (this.nudging === nudging) this.stopNudging();
+      },
+    );
+  }
+
+  private stopNudging(): void {
+    this.nudging = undefined;
+    this.waitingNudges = [];
+  }
+
+  private revealRect(rect: Rect): void {
+    const camera = revealCamera(this.camera, this.renderer.viewport, rect, REVEAL_SCALE);
+    if (!camera) return;
+    this.renderer.setCamera(camera);
+    this.refreshMarks();
   }
 
   /** The relations drawn from or to anything being carried, and those that end on them. */
@@ -562,6 +920,18 @@ export class CanvasController {
   private local(event: MouseEvent): Point {
     const rect = this.host.getBoundingClientRect();
     return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  }
+}
+
+/** The key the keys move on from for what a pointer hit: a shape's key, or a free shape's id. */
+function keyOf(hit: Exclude<Hit, { kind: 'relation' }>): string {
+  switch (hit.kind) {
+    case 'shape':
+      return hit.shape.key;
+    case 'note':
+      return hit.note.id;
+    case 'arrow':
+      return hit.arrow.id;
   }
 }
 
