@@ -186,6 +186,17 @@ export async function listProgramRecords(
   return records.filter((record) => record !== undefined);
 }
 
+/**
+ * Makes the runtime folder if needed and checks it, as writing a record does; returns its real path.
+ * Throws an {@link UnsafeRuntimeFolderError} for a folder other accounts could reach.
+ */
+export function ensureRuntimeFolder(
+  runtime: string,
+  context: RuntimeContext = currentContext(),
+): Promise<string> {
+  return privateFolder(runtime, context, { create: true });
+}
+
 /** Whether a process is running; one this user may not signal is running too. */
 export function isAlive(pid: number): boolean {
   try {
