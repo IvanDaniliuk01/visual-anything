@@ -47,4 +47,5 @@ Run them at the repository root, with Node 22.13 or later and the pnpm version p
 - Lint: `pnpm lint` runs ESLint, then the Prettier check; `pnpm format` fixes formatting.
 - Typecheck: `pnpm typecheck`
 - Build: `pnpm build` regenerates the JSON Schema in `packages/schema/schemas/` and builds the app. After changing `packages/schema/src/files.ts`, run it and commit the schemas.
+- Benchmark: run `pnpm dev`, then open `/bench.html?elements=10000` at the address it prints; no token is needed. It times the work of each frame, GPU included, while a 10,000-element view pans, zooms and selects; `?mode=frames` times frames as shown, which needs the window in front. Run it with the machine otherwise idle.
 - Open another project: `pnpm exec tsx packages/server/src/cli.ts <folder> [--port <n>] [--no-open] [--dev]`

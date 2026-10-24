@@ -75,9 +75,9 @@ const HIT_TOLERANCE = 6;
 /** How far beside a shape its handle sits, and how close the pointer must be to grab it. */
 const HANDLE_OFFSET = 14;
 const HANDLE_REACH = 10;
-/** How much a key press zooms. */
 /** The keys that step through the selected element's relations; . and , type alike on every keyboard. */
 const RELATION_STEPS: Partial<Record<string, 1 | -1>> = { ']': 1, '[': -1, '.': 1, ',': -1 };
+/** How much a key press zooms. */
 const KEY_ZOOM = 1.25;
 /** The scale a revealed shape is shown at, at least: large enough to read its name. */
 const REVEAL_SCALE = 0.75;

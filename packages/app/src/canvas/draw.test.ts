@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { loadSample } from '../test/sample';
-import { drawScene } from './draw';
+import { writeNoteTexts, writeRelationLabels, writeShapeLabels } from './draw';
 import { buildScene } from './scene';
 
-describe('drawScene', () => {
-  const scene = buildScene(loadSample(), 'system-overview');
-  const drawn = drawScene(scene);
-  const written = drawn.texts.map((text) => text.text);
+const scene = buildScene(loadSample(), 'system-overview');
+const textOf = (label: unknown) => (label as { text: string }).text;
 
-  it('writes each element’s name and its component’s name', () => {
+describe('writeShapeLabels', () => {
+  it('writes each element’s name and, with details, its component’s name', () => {
+    const written = writeShapeLabels(scene.shapes, true).map(textOf);
     for (const shape of scene.shapes) {
       expect(written).toContain(shape.name);
       expect(written).toContain(shape.componentName);
@@ -16,13 +16,16 @@ describe('drawScene', () => {
     expect(written.filter((text) => text === 'Service')).toHaveLength(2);
   });
 
-  it('labels the relations that have a name, and writes the notes', () => {
-    expect(written).toContain('HTTPS');
-    expect(written).toContain(scene.notes[0]?.text);
+  it('writes only the names without details', () => {
+    const written = writeShapeLabels(scene.shapes, false).map(textOf);
+    expect(written).toHaveLength(scene.shapes.length);
+    expect(written).not.toContain('Service');
   });
+});
 
-  it('draws everything into one container', () => {
-    expect(drawn.content.children.length).toBeGreaterThan(drawn.texts.length);
-    for (const text of drawn.texts) expect(text.parent).toBe(drawn.content);
+describe('writeRelationLabels and writeNoteTexts', () => {
+  it('labels the relations that have a name, and writes the notes', () => {
+    expect(writeRelationLabels(scene.relations).map(textOf)).toContain('HTTPS');
+    expect(writeNoteTexts(scene.notes).map(textOf)).toEqual(scene.notes.map((note) => note.text));
   });
 });

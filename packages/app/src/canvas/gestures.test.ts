@@ -76,7 +76,7 @@ describe('moveCommand', () => {
 });
 
 describe('createAtCommand', () => {
-  it('creates an element inside the shape it is dropped on, at the drop point', () => {
+  it('creates an element inside the given shape, at the point, with its position not pinned', () => {
     const scheduling = indexed.byKey.get('clinic-booking/scheduling');
     const command = createAtCommand(
       project,
@@ -89,15 +89,15 @@ describe('createAtCommand', () => {
       type: 'create-element',
       element: { component: 'systems.service', name: 'Service' },
       containers: [{ container: 'scheduling', relationType: 'systems.is-part-of' }],
-      positions: [{ view: VIEW, container: 'scheduling', x: 60, y: 400, pinned: true }],
+      positions: [{ view: VIEW, container: 'scheduling', x: 60, y: 400 }],
     });
     expect(executeCommand(project, command!).ok).toBe(true);
   });
 
-  it('creates it directly in World when dropped on the canvas', () => {
+  it('creates it directly in World when no shape is given', () => {
     const command = createAtCommand(project, VIEW, 'systems.person', { x: -100, y: 40 }, undefined);
     expect(command && 'positions' in command && command.positions).toEqual([
-      { view: VIEW, x: -100, y: 40, pinned: true },
+      { view: VIEW, x: -100, y: 40 },
     ]);
   });
 });

@@ -74,7 +74,7 @@ describe('outlineOf', () => {
   });
 
   it('puts a container’s relations before the shapes it holds', () => {
-    const linked: ProjectSnapshot = {
+    const related: ProjectSnapshot = {
       ...sample,
       model: {
         ...sample.model,
@@ -89,8 +89,8 @@ describe('outlineOf', () => {
         ],
       },
     };
-    const linkedOutline = outlineOf(buildScene(linked, 'system-overview'), linked);
-    const inside = linkedOutline.inside(item('clinic-booking', linkedOutline));
+    const relatedOutline = outlineOf(buildScene(related, 'system-overview'), related);
+    const inside = relatedOutline.inside(item('clinic-booking', relatedOutline));
     expect(ids(inside)[0]).toBe('clinic-booking#patient-uses-clinic');
     expect(inside[0]).toMatchObject({ way: 'both', farName: 'Patient' });
     expect(ids(inside).slice(1)).toEqual(ids(outline.inside(item('clinic-booking'))));

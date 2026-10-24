@@ -2,7 +2,7 @@
  * The drawing step: turns parts of a scene into PixiJS graphics and text. It only draws; where
  * everything goes was decided by `buildScene`. Text is placed with anchors and never measured here, so
  * drawing does not depend on font metrics. The canvas draws a scene in tiles with these building
- * blocks; `drawScene` draws a whole scene at once.
+ * blocks.
  */
 import { Container, Graphics, Text, type CanvasTextOptions, type TextStyleOptions } from 'pixi.js';
 import type { Color } from '@visual-anything/schema';
@@ -24,16 +24,7 @@ import {
   type ElementShape,
   type NoteShape,
   type RelationLine,
-  type Scene,
 } from './scene';
-
-/** What the drawing step made from a scene. */
-export interface DrawnScene {
-  /** Everything drawn, in the scene's coordinates. */
-  content: Container;
-  /** Every text drawn, so that its resolution can follow the scale the scene is shown at. */
-  texts: Text[];
-}
 
 /** The fonts text is drawn in, first available first. */
 export const FONT_FAMILY = [
@@ -57,32 +48,6 @@ const SHAPE_STROKE_WIDTH = 1.5;
 const TEXT_INSET = 12;
 const NAME_SIZE = 14;
 const DETAIL_SIZE = 11;
-
-/** Draws a whole scene into one container, in drawing order. */
-export function drawScene(scene: Scene): DrawnScene {
-  const content = new Container();
-  const texts: Text[] = [];
-  const add = (written: Text[]) => {
-    texts.push(...written);
-    for (const text of written) content.addChild(text);
-  };
-
-  const shapes = new Graphics();
-  drawShapeOutlines(shapes, scene.shapes);
-  content.addChild(shapes);
-  add(writeShapeLabels(scene.shapes, true) as Text[]);
-
-  const relations = new Graphics();
-  drawRelationRoutes(relations, scene.relations);
-  content.addChild(relations);
-  add(writeRelationLabels(scene.relations) as Text[]);
-
-  const free = new Graphics();
-  drawFreeShapes(free, scene.notes, scene.arrows);
-  content.addChild(free);
-  add(writeNoteTexts(scene.notes));
-  return { content, texts };
-}
 
 /**
  * Draws element shapes as plain blocks of their colour: what the eye can tell apart when a whole large

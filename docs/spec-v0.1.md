@@ -231,6 +231,7 @@ Seven milestones in build order, each ending in something you can use; tasks are
 - [ ] Collapse and expand with aggregated relations (count and line weight)
 - [ ] Filters and focus mode
 - [ ] ELK layout in a worker, pinned shapes as fixed inputs, re-layout on demand
+- [ ] Connection points from components: relations attach to them, and ELK takes them as ports
 
 **M4 · Claude through MCP.** Done when Claude builds a view of a system from a description, walks you through it live, and you can undo each of its actions.
 
