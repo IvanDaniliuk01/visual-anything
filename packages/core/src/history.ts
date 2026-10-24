@@ -37,9 +37,54 @@ export const EMPTY_HISTORY: History = { done: [], undone: [] };
 /** How many actions the history keeps; older ones can no longer be undone. */
 export const HISTORY_LIMIT = 500;
 
-/** Records a new action. Whatever was undone can no longer be redone. */
+/**
+ * How much the history keeps besides its count: the strings in its actions' operations and inverses,
+ * in UTF-16 code units. Images make single actions large, and 500 of them could hold gigabytes.
+ */
+export const HISTORY_WEIGHT_LIMIT = 64 * 1024 * 1024;
+
+/**
+ * Records a new action. Whatever was undone can no longer be redone. The oldest actions go while the
+ * history holds more than {@link HISTORY_LIMIT} actions or weighs more than
+ * {@link HISTORY_WEIGHT_LIMIT}; the newest is always kept.
+ */
 export function record(history: History, entry: HistoryEntry): History {
-  return { done: [...history.done, entry].slice(-HISTORY_LIMIT), undone: [] };
+  const done = [...history.done, entry].slice(-HISTORY_LIMIT);
+  let total = 0;
+  for (const each of done) total += actionWeight(each);
+  let oldest = 0;
+  while (total > HISTORY_WEIGHT_LIMIT && oldest < done.length - 1) {
+    total -= actionWeight(done[oldest] as HistoryEntry);
+    oldest += 1;
+  }
+  return { done: oldest === 0 ? done : done.slice(oldest), undone: [] };
+}
+
+const weights = new WeakMap<HistoryEntry, number>();
+
+/** What an action weighs: the length of every string in its operations and inverses. */
+export function actionWeight(entry: HistoryEntry): number {
+  let weight = weights.get(entry);
+  if (weight === undefined) {
+    weight = stringLength(entry.operations) + stringLength(entry.inverse);
+    weights.set(entry, weight);
+  }
+  return weight;
+}
+
+/** The length of every string in a value, keys left out, walked without recursion. */
+function stringLength(value: unknown): number {
+  let length = 0;
+  const pending: unknown[] = [value];
+  while (pending.length > 0) {
+    const next = pending.pop();
+    if (typeof next === 'string') length += next.length;
+    else if (Array.isArray(next)) for (const item of next) pending.push(item);
+    else if (typeof next === 'object' && next !== null) {
+      for (const item of Object.values(next)) pending.push(item);
+    }
+  }
+  return length;
 }
 
 /** The result of undoing or redoing an action. */

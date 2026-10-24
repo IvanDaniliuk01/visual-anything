@@ -7,6 +7,7 @@ import type { Appearance, AttributeDefinition, Attributes, Id } from '@visual-an
 import { ESSENCE_ID, RELATES_TO_ID, SCHEMA_VERSION } from '@visual-anything/schema';
 import { RESERVED_PACKAGE_IDS, builtinPackage } from './builtin';
 import { appearanceOf, type Definitions } from './definitions';
+import { checkImages } from './images/check';
 import { positionKey } from './operations';
 import { problem, type Problem } from './problems';
 import { cappedWarnings, choiceWarnings, containmentCycles, limitWarnings } from './rules';
@@ -269,6 +270,9 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
       ),
     );
   }
+  const images = checkImages(state);
+  errors.push(...images.errors);
+  warnings.push(...images.warnings);
   return { errors, warnings };
 }
 

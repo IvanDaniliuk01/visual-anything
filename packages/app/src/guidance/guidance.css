@@ -15,7 +15,7 @@
   border-radius: 0.4rem;
   background: var(--surface);
   color: var(--text);
-  box-shadow: 0 0.15rem 0.6rem rgb(0 0 0 / 12%);
+  box-shadow: var(--shadow-2);
 }
 
 .guidance-caption-author {

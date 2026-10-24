@@ -62,6 +62,7 @@ export function affectedFiles(
             break;
           case 'components':
           case 'relationTypes':
+          case 'images':
             ofPackage(collection.package);
             break;
           case 'positions':

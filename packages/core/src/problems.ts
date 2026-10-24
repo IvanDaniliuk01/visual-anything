@@ -42,6 +42,8 @@ export type ProblemCode =
   | 'unknown-image'
   | 'invalid-image'
   | 'image-not-clean'
+  | 'image-too-large'
+  | 'image-cleaned'
   | 'large-images'
   // Refusals of the local program, which keeps the history and the files.
   | 'nothing-to-undo'

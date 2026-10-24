@@ -114,6 +114,7 @@ describe('resolveAppearance', () => {
       'detail',
       'contentsAsRows',
       'connectionPoints',
+      'image',
     ]);
   });
 
@@ -192,6 +193,8 @@ describe('traitSources', () => {
       'detail.badges': 'essence',
       contentsAsRows: 'essence',
       connectionPoints: 'layered.service',
+      // Nothing in the chain shows an image, so it comes from Essence, which shows none.
+      image: 'essence',
     });
     expect(Object.keys(sources.traits)).toEqual([...TRAIT_PATHS]);
     expect([...sources.attributes]).toEqual([

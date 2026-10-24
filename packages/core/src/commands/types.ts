@@ -6,6 +6,7 @@ import type {
   Appearance,
   Arrow,
   AttributeDefinition,
+  BitmapImage,
   Attributes,
   Badge,
   Color,
@@ -53,6 +54,8 @@ export type Command =
   | UpdatePackageCommand
   | ReorderElementsCommand
   | SetCollapsedCommand
+  | DefineImageCommand
+  | RemoveImageCommand
   | BatchCommand;
 
 /** The kinds of command. */
@@ -470,4 +473,27 @@ export interface BatchCommand {
   /** How the history names the action. */
   label: string;
   commands: Command[];
+}
+
+/**
+ * A new image, as SVG text or as a bitmap's format and bytes in base64; the core cleans it before
+ * storing it. Without an id, the core makes one from its package's id and its name.
+ */
+export type NewImage = { id?: Id; name: string; source?: string } & (
+  { svg: string } | { format: BitmapImage['format']; data: string }
+);
+
+/** Defines an image in one of the project's own packages, or redefines one it already has. */
+export interface DefineImageCommand {
+  type: 'define-image';
+  package: Id;
+  image: NewImage;
+  /** Creates only: refused with `id-taken` when the package already has this id. */
+  createOnly?: true;
+}
+
+/** Removes an image that no appearance shows. */
+export interface RemoveImageCommand {
+  type: 'remove-image';
+  id: Id;
 }
