@@ -145,9 +145,9 @@ interface Tile {
   labelled: number;
 }
 
-/** How far a shape was drawn before an edit: in full, and named at a level of detail or not yet. */
+/** How far a shape was drawn before an edit: in full, and named for which detail, or not yet. */
 interface Readiness {
-  level: Tile['level'];
+  named: Tile['level'];
   labelled: boolean;
 }
 
@@ -553,7 +553,7 @@ export class CanvasRenderer {
     for (const tile of this.tiles.values())
       if (tile.kind === 'shapes') previous.set(tile.key, tile);
     const plan = planTiles(previous, planned);
-    const { coarse, level } = this.detail();
+    const { coarse, wanted } = this.detailNow();
     // How far each shape was drawn before this edit, for the tiles it makes.
     const ready = plan.make.length > 0 && !coarse ? this.readiness(extra) : undefined;
     const byKey = new Map(planned.map((tile) => [tile.key, tile]));
@@ -595,10 +595,10 @@ export class CanvasRenderer {
       this.bandContainer(next.band, next.cell).addChild(tile.container);
       if (next.band === MAX_BANDS) reorder = true;
       const wasReady =
-        ready !== undefined && next.shapes.every((shape) => isReady(ready.get(shape.key), level));
+        ready !== undefined && next.shapes.every((shape) => isReady(ready.get(shape.key), wanted));
       if (wasReady && budget.left > 0) {
         budget.left -= next.shapes.length;
-        this.drawAtOnce(tile, level);
+        this.drawAtOnce(tile, wanted);
       }
     }
     if (reorder) this.orderOverflow();
@@ -628,7 +628,7 @@ export class CanvasRenderer {
         destroyTile(tile);
       }
     }
-    const { coarse, level } = this.detail();
+    const { coarse, wanted } = this.detailNow();
     for (const [key, lines] of cells) {
       const signature = lines.map(lineSignature).join('|');
       const existing = this.tiles.get(key);
@@ -646,7 +646,7 @@ export class CanvasRenderer {
           budget.left -= lines.length;
           this.drawAtOnce(
             tile,
-            existing.level === wantedLevel('relations', level) ? existing.level : 0,
+            existing.level === wantedFor('relations', wanted) ? existing.level : 0,
           );
         }
         destroyTile(existing);
@@ -814,10 +814,10 @@ export class CanvasRenderer {
     if (tile.coarse) tile.coarse.visible = false;
   }
 
-  /** Draws a tile in full and writes all its labels for `level` now, outside the frame's budget. */
-  private drawAtOnce(tile: Tile, level: Tile['level']): void {
+  /** Draws a tile in full and writes all its labels for `shown` now, outside the frame's budget. */
+  private drawAtOnce(tile: Tile, shown: Tile['level']): void {
     this.drawFully(tile);
-    const wanted = wantedLevel(tile.kind, level);
+    const wanted = wantedFor(tile.kind, shown);
     if (wanted === 0) return;
     try {
       this.labelUpTo(tile, wanted, labelCount(tile));
@@ -853,7 +853,7 @@ export class CanvasRenderer {
   }
 
   /** How the canvas draws at the present scale: as plain blocks or not, and with which labels. */
-  private detail(): { coarse: boolean; level: Tile['level'] } {
+  private detailNow(): { coarse: boolean; wanted: Tile['level'] } {
     const { scale } = this.camera;
     // Component names show once they are large enough to read, or earlier when few shapes are on
     // screen, which is when they cost little.
@@ -864,7 +864,7 @@ export class CanvasRenderer {
         FEW_SHAPES;
     return {
       coarse: scale < COARSE_BELOW,
-      level: scale >= DETAILS_FROM || few ? 2 : scale >= NAMES_FROM ? 1 : 0,
+      wanted: scale >= DETAILS_FROM || few ? 2 : scale >= NAMES_FROM ? 1 : 0,
     };
   }
 
@@ -874,7 +874,7 @@ export class CanvasRenderer {
    * first and within a budget per frame, so that zooming never stalls.
    */
   private updateDetail(): void {
-    const { coarse, level } = this.detail();
+    const { coarse, wanted: detail } = this.detailNow();
     const { scale } = this.camera;
     const shown = visibleRect(this.camera, this.viewport);
     // While the camera moves, only what is on screen; once it rests, the tiles around it too, so
@@ -886,7 +886,7 @@ export class CanvasRenderer {
     const middle = centerOf(visible);
     const work: { tile: Tile; draw: boolean; wanted: Tile['level']; distance: number }[] = [];
     for (const tile of this.tiles.values()) {
-      const wanted = wantedLevel(tile.kind, level);
+      const wanted = wantedFor(tile.kind, detail);
       const full = !coarse && tile.full !== undefined;
       if (tile.coarse) tile.coarse.visible = !full;
       if (tile.full) tile.full.visible = full || !tile.coarse;
@@ -1454,21 +1454,21 @@ function destroyTile(tile: Tile): void {
 }
 
 function readinessOf(tile: Tile): Readiness {
-  return { level: tile.level, labelled: tile.labelled >= labelCount(tile) };
+  return { named: tile.level, labelled: tile.labelled >= labelCount(tile) };
 }
 
 /** Whether a shape drawn so before an edit can be drawn as fully again at once. */
-function isReady(readiness: Readiness | undefined, level: Tile['level']): boolean {
+function isReady(readiness: Readiness | undefined, wanted: Tile['level']): boolean {
   return (
-    readiness !== undefined && (level === 0 || (readiness.level === level && readiness.labelled))
+    readiness !== undefined && (wanted === 0 || (readiness.named === wanted && readiness.labelled))
   );
 }
 
-/** The level of detail a tile of this kind shows at the scene's level of detail. */
-function wantedLevel(kind: Tile['kind'], level: Tile['level']): Tile['level'] {
-  if (kind === 'shapes') return level;
-  if (kind === 'relations') return level === 2 ? 2 : 0;
-  return level === 0 ? 0 : 2;
+/** The detail a tile of this kind shows when shapes show `wanted`: relations and notes have only one. */
+function wantedFor(kind: Tile['kind'], wanted: Tile['level']): Tile['level'] {
+  if (kind === 'shapes') return wanted;
+  if (kind === 'relations') return wanted === 2 ? 2 : 0;
+  return wanted === 0 ? 0 : 2;
 }
 
 /** How many things in a tile have labels to write. */
