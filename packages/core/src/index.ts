@@ -89,3 +89,5 @@ export {
   encodeMessage,
   encodeServerMessage,
 } from './protocol';
+
+export * from './scenarios';
