@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -432,6 +433,134 @@ describe('loadProject', () => {
     expect(errorsOf(await loadProject(file))).toEqual([
       { file: '.', pointer: '', message: `${file.replaceAll('\\', '/')} is not a folder.` },
     ]);
+  });
+});
+
+/** Makes a symbolic link or a junction, or says this user may not make one here. */
+async function tryLink(target: string, path: string, type: 'file' | 'junction'): Promise<boolean> {
+  try {
+    await mkdir(dirname(path), { recursive: true });
+    await symlink(target, path, type);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const ONLY_REGULAR = 'Visual Anything opens only regular files inside the project folder.';
+
+describe('loadProject reads only regular files within their caps', () => {
+  beforeEach(async () => {
+    await write({ 'project.vaproject': projectFile(), 'model.vamodel': modelFile() });
+  });
+
+  it('refuses a view that is a link to a file outside the folder, as a problem of that file', async (context) => {
+    const outside = await mkdtemp(join(tmpdir(), 'va-outside-'));
+    try {
+      await writeFile(join(outside, 'secret.vaview'), JSON.stringify(viewFile('secret')));
+      if (
+        !(await tryLink(join(outside, 'secret.vaview'), join(folder, 'views/a.vaview'), 'file'))
+      ) {
+        context.skip();
+      }
+      expect(errorsOf(await loadProject(folder))).toEqual([
+        { file: 'views/a.vaview', pointer: '', message: `The file is a link; ${ONLY_REGULAR}` },
+      ]);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a project file that is a junction, as a problem of that file', async (context) => {
+    await mkdir(join(folder, 'elsewhere'));
+    if (!(await tryLink(join(folder, 'elsewhere'), join(folder, 'views/a.vaview'), 'junction'))) {
+      context.skip();
+    }
+    expect(errorsOf(await loadProject(folder))).toEqual([
+      { file: 'views/a.vaview', pointer: '', message: `The file is a link; ${ONLY_REGULAR}` },
+    ]);
+  });
+
+  it('refuses a views folder that is a link, without reading what it points to', async (context) => {
+    const outside = await mkdtemp(join(tmpdir(), 'va-outside-'));
+    try {
+      await writeFile(join(outside, 'secret.vaview'), JSON.stringify(viewFile('secret')));
+      if (!(await tryLink(outside, join(folder, 'views'), 'junction'))) context.skip();
+      expect(errorsOf(await loadProject(folder))).toEqual([
+        {
+          file: 'views',
+          pointer: '',
+          message: `views is a link; Visual Anything opens only real folders and regular files inside the project folder.`,
+        },
+      ]);
+      expect([...(await readProjectFiles(folder)).keys()].sort()).toEqual([
+        'model.vamodel',
+        'project.vaproject',
+      ]);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a file that holds more than its kind may', async () => {
+    await write({
+      'project.vaproject': `${JSON.stringify(projectFile())}${' '.repeat(1024 * 1024)}`,
+    });
+    expect(errorsOf(await loadProject(folder))).toEqual([
+      {
+        file: 'project.vaproject',
+        pointer: '',
+        message: 'The file holds more than 1 MiB, the most a file of this kind may hold.',
+      },
+    ]);
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'refuses a FIFO among the views without waiting on it',
+    async () => {
+      await mkdir(join(folder, 'views'));
+      execFileSync('mkfifo', [join(folder, 'views/pipe.vaview')]);
+      expect(errorsOf(await loadProject(folder))).toEqual([
+        {
+          file: 'views/pipe.vaview',
+          pointer: '',
+          message: `The file is not a regular file; ${ONLY_REGULAR}`,
+        },
+      ]);
+    },
+  );
+
+  it.skipIf(process.platform === 'win32')('refuses a package linked to /dev/zero', async () => {
+    await mkdir(join(folder, 'packages'));
+    await symlink('/dev/zero', join(folder, 'packages/zero.vapackage'));
+    expect(errorsOf(await loadProject(folder))).toEqual([
+      {
+        file: 'packages/zero.vapackage',
+        pointer: '',
+        message: `The file is a link; ${ONLY_REGULAR}`,
+      },
+    ]);
+  });
+
+  it('leaves links out of the files it reads to look for changes', async (context) => {
+    await mkdir(join(folder, 'elsewhere'));
+    if (!(await tryLink(join(folder, 'elsewhere'), join(folder, 'views/a.vaview'), 'junction'))) {
+      context.skip();
+    }
+    expect([...(await readProjectFiles(folder)).keys()].sort()).toEqual([
+      'model.vamodel',
+      'project.vaproject',
+    ]);
+  });
+
+  it('opens a project through a link to its folder', async (context) => {
+    const link = `${folder}-link`;
+    if (!(await tryLink(folder, link, 'junction'))) context.skip();
+    try {
+      expect(snapshotOf(await loadProject(link)).project).toEqual(projectFile());
+    } finally {
+      await rm(link, { force: true, recursive: false }).catch(() => {});
+    }
   });
 });
 

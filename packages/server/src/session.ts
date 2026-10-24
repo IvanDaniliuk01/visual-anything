@@ -8,7 +8,7 @@
  * the bytes of every project file as it last read or wrote them: a change on disk that differs from
  * them was made outside, and a file is never written over such a change.
  */
-import { readFile, readdir } from 'node:fs/promises';
+import { readdir, realpath } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import {
@@ -40,7 +40,7 @@ import {
 import type { FileKind, Id } from '@visual-anything/schema';
 import { formatFile } from '@visual-anything/schema/format';
 import { validateFile, type ValidationError } from '@visual-anything/schema/validate';
-import { errorCode, errorReason } from './errors';
+import { errorReason } from './errors';
 import {
   affectedFiles,
   contentOf,
@@ -60,6 +60,7 @@ import {
   type ProjectFileProblem,
   type ProjectFiles,
 } from './project';
+import { capOf, readRegularFile } from './regular-files';
 import { watchProject, type ProjectWatcher, type WatchMode } from './watcher';
 import { removeFile, writeFileAtomic, type WriteOptions } from './writer';
 
@@ -184,7 +185,9 @@ export class Session implements LiveSession {
 
   /** Opens the project in a folder; see {@link openSession}. */
   static async open(folder: string, options: SessionOptions = {}): Promise<OpenSessionResult> {
-    const projectFolder = resolve(folder);
+    // The real path, worked out once: every later read and write goes there, whatever a link on the
+    // way to it comes to point to.
+    const projectFolder = await realpath(resolve(folder)).catch(() => resolve(folder));
     const loaded = await loadProject(projectFolder);
     if (!loaded.ok) return { ok: false, errors: loaded.errors };
     const session = new Session(projectFolder, loaded, options);
@@ -631,8 +634,8 @@ export class Session implements LiveSession {
   /** The files about to change whose bytes on disk are not those last read or written. */
   async #changedOnDisk(changes: readonly FileChange[]): Promise<string[]> {
     const changed: string[] = [];
-    for (const { path } of changes) {
-      const onDisk = await readIfThere(join(this.folder, path));
+    for (const { path, kind } of changes) {
+      const onDisk = await readIfThere(join(this.folder, path), kind);
       const known = this.#known.get(path);
       const same =
         onDisk === 'unreadable'
@@ -692,7 +695,7 @@ export class Session implements LiveSession {
     const target = join(this.folder, path);
     return bytes === null
       ? removeFile(target, this.#options.writer)
-      : writeFileAtomic(target, bytes, this.#options.writer);
+      : writeFileAtomic(target, bytes, { ...this.#options.writer, regularOnly: true });
   }
 
   /** Checks the files on disk after the work already asked for; one check waits at a time. */
@@ -839,13 +842,17 @@ function warningNotice(warnings: readonly ProjectFileProblem[]): NoticeMessage {
   };
 }
 
-/** The bytes of a file, `undefined` when there is none, or `unreadable`. */
-async function readIfThere(path: string): Promise<Buffer | undefined | 'unreadable'> {
-  try {
-    return await readFile(path);
-  } catch (error) {
-    return errorCode(error) === 'ENOENT' ? undefined : 'unreadable';
-  }
+/**
+ * The bytes of a project file, `undefined` when there is none, or `unreadable`, as is anything but a
+ * regular file within its kind's cap.
+ */
+async function readIfThere(
+  path: string,
+  kind: FileKind,
+): Promise<Buffer | undefined | 'unreadable'> {
+  const read = await readRegularFile(path, capOf(kind));
+  if (read.ok) return read.bytes;
+  return read.reason === 'missing' ? undefined : 'unreadable';
 }
 
 /** How files are written: kinds that others refer to come first, and are deleted last. */

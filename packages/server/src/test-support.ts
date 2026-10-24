@@ -2,6 +2,7 @@
  * Helpers for the tests: a small project and its folder, and clients that talk to a running local
  * program over HTTP and WebSocket.
  */
+import { realpathSync } from 'node:fs';
 import * as fsp from 'node:fs/promises';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { request, type IncomingHttpHeaders, type OutgoingHttpHeaders } from 'node:http';
@@ -187,7 +188,10 @@ export class FakeClient implements SessionClient {
 export function recordingFs(folder: string) {
   const written: string[] = [];
   const deleted: string[] = [];
-  const project = (path: string) => relative(folder, path).replaceAll('\\', '/');
+  // The session writes through the folder's real path, which on Windows spells out a short name such
+  // as `PCDIM-~1` in full.
+  const real = realpathSync.native(folder);
+  const project = (path: string) => relative(real, path).replaceAll('\\', '/');
   const fs: WriterFs = {
     open: (path, flags) => fsp.open(path, flags),
     rename: async (from, to) => {
