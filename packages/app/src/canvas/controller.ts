@@ -63,7 +63,14 @@ import {
 import { collapseActions, type CollapseAction } from './collapse';
 import { boundsOf, centerOf, distance, toggleRect, type Point, type Rect } from './geometry';
 import { carriedKeys, moveCommand, movingShapes } from './gestures';
-import { enclosedBy, hitAt, shapesAt, type Hit, type IndexedScene } from './hit';
+import {
+  enclosedBy,
+  hitAt,
+  shapesAt,
+  withoutShapes,
+  type Hit,
+  type IndexedScene,
+} from './hit';
 import {
   containerOf,
   drawnRelations,
@@ -1036,8 +1043,9 @@ export class CanvasController {
     if (!indexed || !project || !plan) return;
     if (gesture.alt) gesture.armed = undefined;
     const world = screenToWorld(this.camera, gesture.at);
+    // What the emphasis hides cannot be dropped onto.
     const aim = dropAimAt(
-      indexed,
+      withoutShapes(indexed, this.renderer.hiddenShapes),
       plan,
       world,
       gesture.delta,

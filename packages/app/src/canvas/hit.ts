@@ -418,6 +418,29 @@ function relationIndexOf(lines: readonly RelationLine[]): SpatialIndex<number> {
   return cached(relationIndexes, lines, indexRelations);
 }
 
+const indexesWithout = new WeakMap<
+  IndexedScene,
+  { hidden: ReadonlySet<string>; indexed: IndexedScene }
+>();
+
+/**
+ * The index without the element shapes in `hidden`, by key, for what finds shapes through it alone,
+ * as aiming a drop does: what the canvas hides cannot be dropped onto. Made once for each set.
+ */
+export function withoutShapes(indexed: IndexedScene, hidden: ReadonlySet<string>): IndexedScene {
+  if (hidden.size === 0) return indexed;
+  const known = indexesWithout.get(indexed);
+  if (known?.hidden === hidden) return known.indexed;
+  const shapes = indexed.shapes.clone();
+  for (const key of hidden) {
+    const at = indexed.indexOfKey.get(key);
+    if (at !== undefined) shapes.remove(indexed.rankOf[at] as number);
+  }
+  const made: IndexedScene = { ...indexed, shapes };
+  indexesWithout.set(indexed, { hidden, indexed: made });
+  return made;
+}
+
 /** What hit testing leaves out: what the canvas does not draw, by the keys the emphasis uses. */
 export interface Skipped {
   /** Element shapes by key, relations by their line's key, free shapes by id. */

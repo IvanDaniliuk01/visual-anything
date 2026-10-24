@@ -56,7 +56,7 @@ import { confirmLabelOf, containerChangeLabel, moveToCommand, needsConfirmation 
 import './drop.css';
 import type { Point } from './geometry';
 import { createAtCommand, createBesideCommand, createInsideCommand } from './gestures';
-import { indexScene, type IndexedScene } from './hit';
+import { indexScene, withoutShapes, type IndexedScene } from './hit';
 import { InlineEditor } from './InlineEditor';
 import { KeyboardHelp } from './KeyboardHelp';
 import { CANVAS_KEYS_HINT } from './keys';
@@ -119,6 +119,8 @@ interface OpenMenu {
   under?: string[];
   /** Counts the openings, so that each one starts again from its first item. */
   opening: number;
+  /** The shapes the emphasis hid when it opened, which it looks past. */
+  hidden: ReadonlySet<string>;
 }
 
 /** The container chooser: for which element, from which container, and how it asks. */
@@ -129,6 +131,7 @@ interface Choosing {
 }
 
 const NOTE_SIZE = { width: 220, height: 90 };
+const NO_KEYS: ReadonlySet<string> = new Set();
 const ARROW_LENGTH = 160;
 const NOT_CONNECTED = 'Visual Anything is not connected, so nothing was changed.';
 
@@ -250,6 +253,7 @@ export function CanvasArea({
           setMenu((last) => ({
             at,
             shape: shape.key,
+            hidden: controllerRef.current?.renderer.hiddenShapes ?? NO_KEYS,
             ...(under ? { under: under.map((each) => each.key) } : {}),
             opening: (last?.opening ?? 0) + 1,
           })),
@@ -665,7 +669,8 @@ export function CanvasArea({
       {menu && menuShape && indexed && stacking && (
         <ShapeMenu
           key={menu.opening}
-          indexed={indexed}
+          // The shape to put this one inside is never one the emphasis hides.
+          indexed={withoutShapes(indexed, menu.hidden)}
           project={project}
           viewId={view.id}
           selection={selection}

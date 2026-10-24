@@ -202,6 +202,44 @@ export function isAggregated(key: string): boolean {
   return key.startsWith(AGGREGATED);
 }
 
+/**
+ * The relations of the model a line draws: its own, or those an aggregated relation stands for, which
+ * no line of their own draws. Filters, focus, playback and guidance name relations by these ids.
+ */
+export function standsFor(line: RelationLine): readonly Id[] {
+  return line.aggregate ? line.aggregate.relations : [line.relation];
+}
+
+/**
+ * The key of the shape that the elements of a path draw, from one directly in World down to the
+ * shape's own element: their ids joined by `/`. An element's shape inside a container has the
+ * container's shape's key, `/`, and its own id.
+ */
+export function shapeKeyOf(path: readonly Id[]): string {
+  return path.join('/');
+}
+
+const hidings = new WeakMap<Scene, ReadonlyMap<Id, number>>();
+const firstShapeMaps = new WeakMap<readonly ElementShape[], Map<Id, ElementShape>>();
+
+/**
+ * The shape that shows an element in a scene: its first shape, in containment order; or, when only
+ * collapsed containers hold it, the shape of the outermost collapsed container that holds its first
+ * copy. None for an element the view does not draw.
+ */
+export function shownBy(scene: Scene, element: Id): ElementShape | undefined {
+  let first = firstShapeMaps.get(scene.shapes);
+  if (!first) {
+    first = new Map();
+    for (const shape of scene.shapes) if (!first.has(shape.element)) first.set(shape.element, shape);
+    firstShapeMaps.set(scene.shapes, first);
+  }
+  const shape = first.get(element);
+  if (shape) return shape;
+  const holder = hidings.get(scene)?.get(element);
+  return holder === undefined ? undefined : scene.shapes[holder];
+}
+
 /** How much wider than its relation type's line an aggregated relation of `count` relations is. */
 export function aggregatedExtraWidth(count: number): number {
   return Math.min(MOST_EXTRA_WIDTH, 1 + Math.floor(Math.log2(Math.max(1, count))));
@@ -300,6 +338,7 @@ function redrawn(kept: Built, project: ProjectSnapshot, view: ViewFile): Scene {
     kept.scene.drawing,
   );
   const scene = sceneOf(kept.layout, drawing);
+  hidings.set(scene, kept.hiddenIn);
   const next: Built = { ...kept, view, scene };
   exactly.set(view.positions, next);
   latest.set(view.id, next);
@@ -425,6 +464,7 @@ function layOut(
     (before.scene.drawing ?? before.layout.identity) === drawing
       ? before.scene
       : sceneOf(layout, drawing);
+  hidings.set(scene, placed.hiddenIn);
   return {
     viewId: view.id,
     model,

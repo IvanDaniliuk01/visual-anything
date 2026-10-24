@@ -12,7 +12,7 @@ import { hitAt, indexScene, type IndexedScene } from './hit';
 import { DIMMED_ALPHA } from './palette';
 import { CanvasRenderer, emphasize } from './renderer';
 import { pointAlong } from './route';
-import { buildScene, type Scene } from './scene';
+import { buildScene, shapeKeyOf, shownBy, standsFor, type Scene } from './scene';
 
 vi.mock('pixi.js', async (importOriginal) => {
   const pixi = await importOriginal<typeof import('pixi.js')>();
@@ -278,7 +278,7 @@ describe('emphasize', () => {
     const project: ProjectSnapshot = {
       ...sample,
       views: sample.views.map((each) =>
-        each === view ? ({ ...each, collapsed: ['scheduling'] } as typeof each) : each,
+        each === view ? { ...each, collapsed: ['scheduling'] } : each,
       ),
     };
     return buildScene(project, VIEW);
@@ -298,6 +298,18 @@ describe('emphasize', () => {
     const [one] = members;
     const lit = emphasize(scene, { highlighted: new Set([one as string]) });
     expect(lit.highlighted.lines).toEqual([aggregate]);
+    // Its ends show the relation's ends, one of which the collapsed container hides: lit too.
+    const ends = [aggregate.ends?.from, aggregate.ends?.to].map((end) =>
+      end?.kind === 'shape' ? end.key : undefined,
+    );
+    expect(lit.highlighted.shapes.map((shape) => shape.key).sort()).toEqual(
+      ends.filter((key) => key !== undefined).sort(),
+    );
+    expect(ends).toContain('clinic-booking/scheduling');
+    expect(standsFor(aggregate)).toEqual(aggregate.aggregate.relations);
+    expect(shownBy(scene, 'appointments-api')?.key).toBe('clinic-booking/scheduling');
+    expect(shownBy(scene, 'patient')?.key).toBe(shapeKeyOf(['patient']));
+    expect(shownBy(scene, 'no-such-element')).toBeUndefined();
     const moving = emphasize(scene, { markers: [{ relation: one as string, progress: 0.4 }] });
     expect(moving.markers).toEqual([{ line: aggregate, along: 0.4 }]);
   });
