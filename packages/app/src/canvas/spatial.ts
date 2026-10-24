@@ -6,6 +6,13 @@ import type { Point, Rect } from './geometry';
 
 /** How many rows a column of cells holds before its cell numbers repeat; a repeat only adds candidates. */
 const ROWS = 1_048_576;
+/**
+ * The most cells an item enters, or a query visits. Positions come from project files and from
+ * Claude, so a rectangle can be a billion units wide: an item that would enter more cells is kept
+ * apart and looked at by every query, and a query over more cells looks at every item instead, so
+ * that the work stays bounded whatever the coordinates.
+ */
+const MAX_CELLS = 4096;
 
 export class SpatialIndex<T> {
   private readonly items: T[] = [];
@@ -13,6 +20,8 @@ export class SpatialIndex<T> {
   /** The rectangles an item covers when it covers several, such as the segments of a route. */
   private readonly parts: (readonly Rect[] | undefined)[] = [];
   private readonly cells = new Map<number, number[]>();
+  /** The items that cover too many cells to enter them. */
+  private readonly large: number[] = [];
   /** Which query last found each item, so that a query lists each item once without a set. */
   private readonly seen: number[] = [];
   private queries = 0;
@@ -27,7 +36,8 @@ export class SpatialIndex<T> {
   /** Adds an item that covers `rect`. */
   insert(item: T, rect: Rect): void {
     const index = this.add(item, rect, undefined);
-    this.enter(index, rect);
+    if (this.fewCells(rect)) this.enter(index, rect);
+    else this.large.push(index);
   }
 
   /**
@@ -42,6 +52,12 @@ export class SpatialIndex<T> {
       return;
     }
     const index = this.add(item, enclosing(parts), parts);
+    let cells = 0;
+    for (const part of parts) cells += this.cellCount(part);
+    if (!(cells <= MAX_CELLS)) {
+      this.large.push(index);
+      return;
+    }
     for (const part of parts) this.enter(index, part);
   }
 
@@ -49,13 +65,11 @@ export class SpatialIndex<T> {
   query(rect: Rect): T[] {
     const stamp = ++this.queries;
     const found: number[] = [];
-    this.eachCell(rect, (cell) => {
-      for (const index of cell) {
-        if (this.seen[index] === stamp) continue;
-        if (this.covers(index, rect, meets)) {
-          this.seen[index] = stamp;
-          found.push(index);
-        }
+    this.candidates(rect, (index) => {
+      if (this.seen[index] === stamp) return;
+      if (this.covers(index, rect, meets)) {
+        this.seen[index] = stamp;
+        found.push(index);
       }
     });
     found.sort((a, b) => a - b);
@@ -78,14 +92,40 @@ export class SpatialIndex<T> {
    */
   highest(rect: Rect, score: (item: T) => number): number {
     let best = -1;
-    this.eachCell(rect, (cell) => {
-      for (const index of cell) {
-        if (!this.covers(index, rect, overlaps)) continue;
-        const value = score(this.items[index] as T);
-        if (value > best) best = value;
-      }
+    this.candidates(rect, (index) => {
+      if (!this.covers(index, rect, overlaps)) return;
+      const value = score(this.items[index] as T);
+      if (value > best) best = value;
     });
     return best;
+  }
+
+  /**
+   * Visits the items that may meet `rect`, some more than once: those in the cells it covers and
+   * those kept apart, or every item when it covers too many cells to visit them.
+   */
+  private candidates(rect: Rect, visit: (index: number) => void): void {
+    if (!this.fewCells(rect)) {
+      for (let index = 0; index < this.items.length; index++) visit(index);
+      return;
+    }
+    this.eachCell(rect, (cell) => {
+      for (const index of cell) visit(index);
+    });
+    for (const index of this.large) visit(index);
+  }
+
+  /** How many cells a rectangle covers; not a number when its coordinates are not. */
+  private cellCount(rect: Rect): number {
+    const size = this.cellSize;
+    const columns = Math.floor((rect.x + rect.width) / size) - Math.floor(rect.x / size) + 1;
+    const rows = Math.floor((rect.y + rect.height) / size) - Math.floor(rect.y / size) + 1;
+    return columns * rows;
+  }
+
+  /** Whether a rectangle covers few enough cells to visit them; never when its coordinates are not numbers. */
+  private fewCells(rect: Rect): boolean {
+    return this.cellCount(rect) <= MAX_CELLS;
   }
 
   private add(item: T, rect: Rect, parts: readonly Rect[] | undefined): number {
