@@ -3,6 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { appearanceOf, definitionsOf } from './definitions';
 import { TEST_PACKAGE } from './test/fixtures';
 
+/** The traits Essence gives that the test package never sets. */
+const ESSENCE_EXTRAS = {
+  detail: { componentName: true, attributes: [], badges: [] },
+  contentsAsRows: false,
+  connectionPoints: [],
+};
+
 describe('definitionsOf', () => {
   const definitions = definitionsOf([TEST_PACKAGE]);
 
@@ -16,6 +23,7 @@ describe('definitionsOf', () => {
       stroke: '#52606D',
       width: 180,
       height: 72,
+      ...ESSENCE_EXTRAS,
     });
   });
 
@@ -24,6 +32,21 @@ describe('definitionsOf', () => {
       { name: 'owner', type: 'string', description: 'The team that runs it.' },
       { name: 'latency', type: 'number', default: 100 },
     ]);
+  });
+
+  it('lifts an inherited limit with "any", and inherits a limit left out', () => {
+    const lifted = definitionsOf([
+      {
+        ...TEST_PACKAGE,
+        relationTypes: [
+          ...TEST_PACKAGE.relationTypes,
+          { id: 'test.peeks', name: 'peeks', derivesFrom: 'test.reads', limits: { to: 'any' } },
+          { id: 'test.glances', name: 'glances', derivesFrom: 'test.peeks' },
+        ],
+      },
+    ]);
+    expect(lifted.relationType('test.peeks')?.limits).toEqual({ from: ['test.service'] });
+    expect(lifted.relationType('test.glances')?.limits).toEqual({ from: ['test.service'] });
   });
 
   it('resolves a relation type trait by trait, limits included', () => {
@@ -128,7 +151,14 @@ describe('appearanceOf', () => {
   it("layers an element's own appearance over its component's", () => {
     expect(
       appearanceOf({ component: 'test.database', appearance: { fill: '#FF0000' } }, definitions),
-    ).toEqual({ shape: 'cylinder', fill: '#FF0000', stroke: '#52606D', width: 150, height: 72 });
+    ).toEqual({
+      shape: 'cylinder',
+      fill: '#FF0000',
+      stroke: '#52606D',
+      width: 150,
+      height: 72,
+      ...ESSENCE_EXTRAS,
+    });
   });
 
   it('draws an element of an unknown component like Essence', () => {
