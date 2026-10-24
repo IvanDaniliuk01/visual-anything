@@ -95,6 +95,7 @@ describe('startServer in dev mode', { timeout: 30_000 }, () => {
       type: 'project/opened',
       protocolVersion: PROTOCOL_VERSION,
       project,
+      history: {},
     });
     outcome.socket.close();
   });

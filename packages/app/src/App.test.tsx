@@ -12,6 +12,7 @@ const opened = encodeServerMessage({
   type: 'project/opened',
   protocolVersion: PROTOCOL_VERSION,
   project: loadSample(),
+  history: {},
 });
 
 beforeEach(() => {

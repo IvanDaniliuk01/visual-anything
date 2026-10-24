@@ -136,7 +136,7 @@ describe('runCommand', () => {
     });
     if (!outcome.open) throw new Error(`The live connection was refused: ${outcome.status}`);
     const message = decodeServerMessage(outcome.firstMessage);
-    expect(message.project.project.name).toBe('My systems');
+    expect(message.type === 'project/opened' && message.project.project.name).toBe('My systems');
     outcome.socket.close();
 
     signals.emit('SIGINT');
