@@ -218,7 +218,7 @@ function buildOutline(
   const outerOf = (shape: ElementShape): string[] => {
     if (!hidden) return outerIdsOf(shape.key);
     const outer: string[] = [];
-    for (let at = shownContainer(shape); at !== undefined; ) {
+    for (let at = shownContainer(shape); at !== undefined;) {
       outer.unshift(at);
       const around = byKey.get(at);
       at = around && shownContainer(around);
@@ -316,7 +316,10 @@ function buildOutline(
     const [fromName, toName] = fromHere ? [shape.name, farName] : [farName, shape.name];
     return {
       kind: 'relation',
-      id: relationRowId(rowId, `aggregated.${aggregate.relationType}.${other.kind === 'shape' ? other.key : 'line'}`),
+      id: relationRowId(
+        rowId,
+        `aggregated.${aggregate.relationType}.${other.kind === 'shape' ? other.key : 'line'}`,
+      ),
       relation: first as Id,
       near: shape.element,
       far,

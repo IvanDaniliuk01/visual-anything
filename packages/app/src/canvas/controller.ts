@@ -63,14 +63,7 @@ import {
 import { collapseActions, type CollapseAction } from './collapse';
 import { boundsOf, centerOf, distance, toggleRect, type Point, type Rect } from './geometry';
 import { carriedKeys, moveCommand, movingShapes } from './gestures';
-import {
-  enclosedBy,
-  hitAt,
-  shapesAt,
-  withoutShapes,
-  type Hit,
-  type IndexedScene,
-} from './hit';
+import { enclosedBy, hitAt, shapesAt, withoutShapes, type Hit, type IndexedScene } from './hit';
 import {
   containerOf,
   drawnRelations,

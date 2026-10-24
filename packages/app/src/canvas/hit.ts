@@ -230,8 +230,8 @@ function updatedLookups(
   };
 }
 
-/** How many maps an overlay may lie on before it is made one map again. */
-const MOST_LAYERS = 8;
+/** How many overlays may pile up before they are made one map again. */
+const MOST_OVERLAYS = 8;
 
 /**
  * A map that reads `changes` over `base`, for the same keys: an edit that changes a few shapes of
@@ -242,15 +242,15 @@ function overlaid<V>(
   changes: Map<string, V>,
 ): ReadonlyMap<string, V> {
   if (changes.size === 0) return base;
-  const layers = base instanceof Overlay ? base.layers + 1 : 1;
-  if (layers > MOST_LAYERS || changes.size * 8 > base.size) {
+  const piled = base instanceof Overlay ? base.piled + 1 : 1;
+  if (piled > MOST_OVERLAYS || changes.size * 8 > base.size) {
     // Copied from the map under every overlay, with each overlay's changes in turn.
     const stack: ReadonlyMap<string, V>[] = [changes];
     let root: ReadonlyMap<string, V> = base;
     while (root instanceof Overlay) {
-      const layer = root as Overlay<V>;
-      stack.push(layer.changes);
-      root = layer.base;
+      const overlay = root as Overlay<V>;
+      stack.push(overlay.changes);
+      root = overlay.base;
     }
     const flat = new Map(root);
     for (let at = stack.length - 1; at >= 0; at--) {
@@ -258,14 +258,15 @@ function overlaid<V>(
     }
     return flat;
   }
-  return new Overlay(base, changes, layers);
+  return new Overlay(base, changes, piled);
 }
 
 class Overlay<V> implements ReadonlyMap<string, V> {
   constructor(
     readonly base: ReadonlyMap<string, V>,
     readonly changes: ReadonlyMap<string, V>,
-    readonly layers: number,
+    /** How many overlays this one is, counting those under it. */
+    readonly piled: number,
   ) {}
 
   get size(): number {
@@ -355,12 +356,12 @@ class RankHeap {
     this.queued.add(rank);
     const heap = this.heap;
     heap.push(rank);
-    for (let at = heap.length - 1; at > 0; ) {
-      const parent = (at - 1) >> 1;
-      if ((heap[parent] as number) <= rank) break;
-      heap[at] = heap[parent] as number;
-      heap[parent] = rank;
-      at = parent;
+    for (let at = heap.length - 1; at > 0;) {
+      const up = (at - 1) >> 1;
+      if ((heap[up] as number) <= rank) break;
+      heap[at] = heap[up] as number;
+      heap[up] = rank;
+      at = up;
     }
   }
 
@@ -371,11 +372,12 @@ class RankHeap {
     const last = heap.pop() as number;
     if (heap.length > 0) {
       heap[0] = last;
-      for (let at = 0; ; ) {
+      for (let at = 0; ;) {
         const left = 2 * at + 1;
         const right = left + 1;
         let smallest = at;
-        if (left < heap.length && (heap[left] as number) < (heap[smallest] as number)) smallest = left;
+        if (left < heap.length && (heap[left] as number) < (heap[smallest] as number))
+          smallest = left;
         if (right < heap.length && (heap[right] as number) < (heap[smallest] as number))
           smallest = right;
         if (smallest === at) break;
@@ -540,9 +542,7 @@ export function enclosedBy(
     arrows: indexed.arrows
       .query(box)
       .map((at) => scene.arrows[at] as ArrowShape)
-      .filter(
-        (arrow) => !hidden.has(arrow.id) && within(rectAround([arrow.from, arrow.to]), box),
-      ),
+      .filter((arrow) => !hidden.has(arrow.id) && within(rectAround([arrow.from, arrow.to]), box)),
   };
 }
 

@@ -246,12 +246,12 @@ describe('a collapsed container', () => {
     });
     const lines = aggregates(buildScene(project, 'v'));
     // Directed: each way is an aggregated relation of its own.
-    expect(lines.map((line) => [line.ends?.from, line.ends?.to, line.aggregate?.relations])).toEqual(
-      [
-        [{ kind: 'shape', key: 'a' }, { kind: 'shape', key: 'b' }, ['x', 'y']],
-        [{ kind: 'shape', key: 'b' }, { kind: 'shape', key: 'a' }, ['z']],
-      ],
-    );
+    expect(
+      lines.map((line) => [line.ends?.from, line.ends?.to, line.aggregate?.relations]),
+    ).toEqual([
+      [{ kind: 'shape', key: 'a' }, { kind: 'shape', key: 'b' }, ['x', 'y']],
+      [{ kind: 'shape', key: 'b' }, { kind: 'shape', key: 'a' }, ['z']],
+    ]);
   });
 
   it('aggregates relations of an undirected type whichever way they run, saying which run back', () => {
@@ -360,10 +360,11 @@ describe('copies of an element in several containers', () => {
     const line = scene.relations.find((each) => each.relation === 'm');
     expect(line?.ends?.to).toEqual({ kind: 'shape', key: 'region/cell' });
     // Selected together: every copy is the element's.
-    expect(indexScene(scene).byElement.get('cell')?.map((shape) => shape.key)).toEqual([
-      'region/cell',
-      'circuit/cell',
-    ]);
+    expect(
+      indexScene(scene)
+        .byElement.get('cell')
+        ?.map((shape) => shape.key),
+    ).toEqual(['region/cell', 'circuit/cell']);
   });
 
   it('hides only the copy inside a collapsed container, and draws relations from one that shows', () => {

@@ -48,7 +48,15 @@ function richSample(): ProjectSnapshot {
             ...view,
             freeShapes: [
               ...view.freeShapes,
-              { kind: 'note', id: 'second-note', x: 900, y: 600, width: 200, height: 60, text: 'Hi' },
+              {
+                kind: 'note',
+                id: 'second-note',
+                x: 900,
+                y: 600,
+                width: 200,
+                height: 60,
+                text: 'Hi',
+              },
               { kind: 'arrow', id: 'pointer', from: { x: 0, y: 700 }, to: { x: 120, y: 700 } },
             ],
           }
@@ -127,7 +135,10 @@ type Edit =
 const small = fc.integer({ min: -300, max: 300 });
 const pick = fc.nat({ max: 1000 });
 const edit: fc.Arbitrary<Edit> = fc.oneof(
-  { weight: 4, arbitrary: fc.record({ kind: fc.constant('drag'), shape: pick, dx: small, dy: small }) },
+  {
+    weight: 4,
+    arbitrary: fc.record({ kind: fc.constant('drag'), shape: pick, dx: small, dy: small }),
+  },
   {
     weight: 1,
     arbitrary: fc.record({
@@ -148,7 +159,10 @@ const edit: fc.Arbitrary<Edit> = fc.oneof(
       name: fc.string({ minLength: 1, maxLength: 12 }),
     }),
   },
-  { weight: 2, arbitrary: fc.record({ kind: fc.constant('attribute'), element: pick, value: pick }) },
+  {
+    weight: 2,
+    arbitrary: fc.record({ kind: fc.constant('attribute'), element: pick, value: pick }),
+  },
   { weight: 1, arbitrary: fc.record({ kind: fc.constant('recolor'), element: pick, fill: pick }) },
   {
     weight: 1,

@@ -190,7 +190,6 @@ interface Readiness {
   labelled: boolean;
 }
 
-
 interface Drag {
   id: number;
   delta: Point;
@@ -279,8 +278,7 @@ export class CanvasRenderer {
   private endedReady: ReadonlyMap<string, Readiness> | undefined;
   /** What the tiles of element shapes, of relations and of free shapes were last made from. */
   private shapesFrom:
-    | { indexed: IndexedScene; hidden: ReadonlySet<string>; dimmed: ReadonlySet<string> }
-    | undefined;
+    { indexed: IndexedScene; hidden: ReadonlySet<string>; dimmed: ReadonlySet<string> } | undefined;
   private relationsFrom:
     | { lines: readonly RelationLine[]; hidden: ReadonlySet<Id>; dimmed: ReadonlySet<Id> }
     | undefined;
@@ -1900,7 +1898,8 @@ function changedLines(
   lines: readonly RelationLine[],
   hidden: ReadonlySet<Id>,
   dimmed: ReadonlySet<Id>,
-): { changed: Map<string, RelationLine | undefined>; order: () => Map<string, number> } | undefined {
+):
+  { changed: Map<string, RelationLine | undefined>; order: () => Map<string, number> } | undefined {
   const changed = new Map<string, RelationLine | undefined>();
   let keysKept = true;
   if (from.lines !== lines) {
@@ -1930,7 +1929,11 @@ function changedLines(
     }
   }
   const lineOf = (key: string) =>
-    changed.has(key) ? changed.get(key) : keysKept ? linesById(from.lines).get(key) : linesById(lines).get(key);
+    changed.has(key)
+      ? changed.get(key)
+      : keysKept
+        ? linesById(from.lines).get(key)
+        : linesById(lines).get(key);
   const add = (key: string) => {
     if (!changed.has(key)) changed.set(key, lineOf(key));
   };
@@ -1987,7 +1990,7 @@ function keptEmphasized(before: Emphasized, after: Emphasized): Emphasized {
       ? was
       : { shapes, relations, free };
   };
-  const sameList = <T,>(a: readonly T[], b: readonly T[]) =>
+  const sameList = <T>(a: readonly T[], b: readonly T[]) =>
     a.length === b.length && a.every((item, at) => item === b[at]);
   const lit = after.highlighted;
   const wasLit = before.highlighted;
