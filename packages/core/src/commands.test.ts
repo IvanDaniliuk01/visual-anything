@@ -230,6 +230,23 @@ describe('delete', () => {
     expect(everything.views[0]).not.toHaveProperty('stackingOrder');
   });
 
+  it('rewrites each list once when it deletes many things', () => {
+    const base = testProject();
+    const many = Array.from({ length: 300 }, (_, at) => ({
+      id: `e${at}`,
+      component: 'test.box',
+      name: `E${at}`,
+    }));
+    const crowded: ProjectSnapshot = {
+      ...base,
+      model: { ...base.model, elements: [...base.model.elements, ...many] },
+    };
+    const outcome = ok({ type: 'delete', elements: many.map((element) => element.id) }, crowded);
+    expect(outcome.operations).toEqual([
+      { op: 'replace-all', collection: { name: 'elements' }, items: base.model.elements },
+    ]);
+  });
+
   it('names what it deletes', () => {
     expect(ok({ type: 'delete', relations: ['api-reads-db'] }).label).toBe(
       'Delete the relation "API → DB"',
