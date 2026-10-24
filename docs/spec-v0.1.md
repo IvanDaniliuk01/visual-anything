@@ -43,7 +43,7 @@ v0.1 covers the model, views, layout, tables, the component editor, images, them
 | Export (image, PDF, shareable page) | — | SVG and PNG first (after v0.1) |
 | HTML | — | Static HTML imported as a cleaned drawing (after v0.1); HTML that runs only with a new ADR |
 | Collaboration | Git on the project files | No real-time editing |
-| Platforms | Desktop browsers | Mobile out of scope |
+| Platforms | Windows, macOS and Linux: the local program as one executable for each (ADR 0037), or from npm, with the app in any desktop browser | Mobile out of scope; installers and updates (Track D) |
 | Embedded chat | — | Optional package |
 | draw.io import | — | Not planned |
 
@@ -310,6 +310,21 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [ ] Rulers with the selection's extent
 
 **A4 · Polish.** Done when no color, size, spacing, radius, shadow or z-index is written out in any stylesheet outside the generated tokens, every control has hover, pressed, disabled and focus-visible states, every icon comes from one icon set kept in the app, and every empty state says what to do next.
+
+**Track D · Distribution**, beside the milestones, starting now (ADR 0037). Its commits start with `D<n>:`, and each stage is tagged `d<n>` when its Done when holds.
+
+**D1 · Every system, every change.** Done when the test suite, typecheck, lint and build run in CI on Windows, macOS and Linux for every change, and pass.
+
+- [ ] CI on Windows, macOS and Linux, with Node 22 and 24 on Linux
+- [ ] Whatever differs between the three systems fixed where the suite finds it: paths, file locks, line endings, opening the browser
+
+**D2 · One executable per system.** Done when CI builds, for every change to the default branch, single executables for Windows x64, macOS arm64 and x64, and Linux x64 and arm64; each one, started on its own system with no Node installed, opens a sample project, serves it on 127.0.0.1 and opens the browser; `visual-anything mcp` lists the MCP tools; and the README says how to set up Claude Desktop and Claude Code with the executable.
+
+- [ ] The server bundled into one script, and the built app read from embedded assets
+- [ ] Node single executable applications built and smoke-tested in CI on each system, macOS ones signed ad hoc
+- [ ] Release artifacts attached to a tag, with checksums
+
+**D3 · Installers and signing** (when Visual Anything is published). An MSI for Windows, a signed and notarized macOS app, a Linux AppImage or package, and updates.
 
 ## After v0.1
 
