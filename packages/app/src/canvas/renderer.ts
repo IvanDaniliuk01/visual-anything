@@ -94,6 +94,9 @@ export const FIT_MARGIN = 32;
  */
 const SETTLE_AFTER = 180;
 
+/** Where a frame measured with the GPU reads its one pixel back. */
+const ONE_PIXEL = new Uint8Array(4);
+
 const SELECTED = '#2563EB';
 const HOVERED = '#60A5FA';
 const REFUSED = '#DC2626';
@@ -405,6 +408,11 @@ export class CanvasRenderer {
   /** Whether shapes are being drawn as dragged. */
   get dragging(): boolean {
     return this.drag !== undefined;
+  }
+
+  /** Whether some of the selection's marks are still to be drawn, in the frames that follow. */
+  get drawingMarks(): boolean {
+    return this.marksDrawn < this.markRects.length;
   }
 
   /**
@@ -1398,10 +1406,19 @@ export class CanvasRenderer {
       if (drag && drag.routed.length > 0 && drag.routedAt !== drag.delta) this.routeDrag();
       this.cull();
       this.app.render();
-      if (waitForGpu) (this.app.renderer as { gl?: WebGLRenderingContext }).gl?.finish();
+      if (waitForGpu) this.waitForGpu();
     } catch (error) {
       this.callbacks.onFailure(error);
     }
+  }
+
+  /**
+   * Waits until the GPU has drawn what was sent. Chrome's `finish` returns at once, leaving the
+   * drawing queued, but it cannot read a pixel back before everything sent before is drawn.
+   */
+  private waitForGpu(): void {
+    const gl = (this.app.renderer as { gl?: WebGLRenderingContext }).gl;
+    gl?.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, ONE_PIXEL);
   }
 
   private requestRender(): void {
