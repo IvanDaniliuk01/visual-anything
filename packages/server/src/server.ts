@@ -6,9 +6,10 @@
  * messages go to the session. The Claude endpoint, on its own path and with its own credential,
  * attaches Claude's MCP entry point to the same session.
  */
-import { realpath } from 'node:fs/promises';
+import { readFile, realpath } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
+import { join } from 'node:path';
 import type { Duplex } from 'node:stream';
 import { LAUNCH_PARAM, LIVE_PATH, encodeServerMessage } from '@visual-anything/core';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
@@ -23,6 +24,15 @@ import {
   createToken,
   type RequestHeaders,
 } from './security';
+import {
+  LIVE_MAX_PAYLOAD,
+  WORKER_POLICY,
+  applyContentPolicies,
+  createNonce,
+  inlineScriptHashes,
+  pagePolicy,
+  servesProjectFile,
+} from './policies';
 import type { LiveSession, SessionClient } from './session';
 import { openStaticRoot, serveStatic } from './static';
 
@@ -98,6 +108,8 @@ interface App {
    * are taken off the HTTP server and called only for upgrades that pass the checks.
    */
   upgrades: UpgradeListener[];
+  /** The content security policy of the app's page, served from a port. */
+  pagePolicyAt(port: number): string;
   close(): Promise<void>;
 }
 
@@ -131,9 +143,13 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     });
   };
 
-  const live = new WebSocketServer({ noServer: true });
+  const live = new WebSocketServer({ noServer: true, maxPayload: LIVE_MAX_PAYLOAD });
   live.on('connection', (socket: WebSocket, _request: IncomingMessage, via: 'token' | 'launch') => {
-    socket.on('error', () => socket.terminate());
+    // A message over the payload limit makes ws close the connection with code 1009 itself, so that
+    // the app can say the change was too large; only a connection that is not closing is cut.
+    socket.on('error', () => {
+      if (socket.readyState !== WebSocket.CLOSING) socket.terminate();
+    });
     counted(socket);
     const client: SessionClient = {
       send: (message) => {
@@ -173,7 +189,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
     });
   });
 
-  const app = await openApp(options.app, httpServer);
+  const app = await openApp(options.app, httpServer, options.session.folder);
 
   httpServer.on('request', (request: IncomingMessage, response: ServerResponse) => {
     setSecurityHeaders(response);
@@ -182,6 +198,7 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       sendText(response, check.status, check.message);
       return;
     }
+    applyContentPolicies(response, { page: app.pagePolicyAt(port), worker: WORKER_POLICY });
     app.serve(request, response);
   });
 
@@ -263,15 +280,26 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
   };
 }
 
-/** Prepares the app: its build from a folder, or its sources through Vite. */
-async function openApp(source: AppSource, httpServer: Server): Promise<App> {
+/**
+ * Prepares the app: its build from a folder, or its sources through Vite. In dev mode, no file inside
+ * the project folder is ever served.
+ */
+async function openApp(
+  source: AppSource,
+  httpServer: Server,
+  projectFolder: string | undefined,
+): Promise<App> {
   if (source.mode === 'static') {
     const root = await openStaticRoot(source.dir);
+    // The built page's own inline scripts, such as the one that applies the theme before the first
+    // paint, are allowed by their hashes.
+    const scriptHashes = inlineScriptHashes(await readFile(join(root, 'index.html'), 'utf8'));
     return {
       serve: (request, response) => {
         serveStatic(root, request, response).catch((error: unknown) => fail(response, error));
       },
       upgrades: [],
+      pagePolicyAt: (port) => pagePolicy(port, { trustedTypes: true, scriptHashes }),
       close: async () => {},
     };
   }
@@ -279,30 +307,48 @@ async function openApp(source: AppSource, httpServer: Server): Promise<App> {
   // Imported only in dev mode, so that serving the build never loads Vite.
   const { createServer: createViteServer } = await import('vite');
   const before = new Set(httpServer.listeners('upgrade'));
+  // Vite puts it on the scripts and styles it writes into the page, which the page's policy allows.
+  const nonce = createNonce();
+  // The real path: Vite's file allow list rejects files under a Windows short path (`PCDIM-~1`).
+  const root = await realpath(source.root);
   const vite = await createViteServer({
-    // The real path: Vite's file allow list rejects files under a Windows short path (`PCDIM-~1`).
-    root: await realpath(source.root),
+    root,
     configFile: source.configFile,
     appType: 'spa',
     // Keeps the address the local program printed on screen.
     clearScreen: false,
     // Hot reload shares the local program's server; `ws.server` is the current name of `hmr.server`.
     server: { middlewareMode: true, ws: { server: httpServer } },
+    html: { cspNonce: nonce },
   });
   const upgrades = httpServer
     .listeners('upgrade')
     .filter((listener) => !before.has(listener)) as UpgradeListener[];
   for (const listener of upgrades) httpServer.off('upgrade', listener);
 
+  const serve = (request: IncomingMessage, response: ServerResponse) => {
+    // Vite calls this when none of its middlewares answered, or with the error one of them hit.
+    vite.middlewares(request, response, (error?: unknown) => {
+      if (error) fail(response, error);
+      else sendText(response, 404, 'Not found.');
+    });
+  };
   return {
     serve: (request, response) => {
-      // Vite calls this when none of its middlewares answered, or with the error one of them hit.
-      vite.middlewares(request, response, (error?: unknown) => {
-        if (error) fail(response, error);
-        else sendText(response, 404, 'Not found.');
-      });
+      if (projectFolder === undefined) {
+        serve(request, response);
+        return;
+      }
+      servesProjectFile(request, { project: projectFolder, root })
+        .then((refused) => {
+          if (refused) sendText(response, 403, 'Dev mode serves no file of the open project.');
+          else serve(request, response);
+        })
+        .catch((error: unknown) => fail(response, error));
     },
     upgrades,
+    // Without Trusted Types, because Vite's error overlay writes HTML.
+    pagePolicyAt: (port) => pagePolicy(port, { trustedTypes: false, nonce }),
     close: () => vite.close(),
   };
 }
