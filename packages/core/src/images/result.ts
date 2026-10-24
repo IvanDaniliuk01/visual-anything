@@ -35,6 +35,9 @@ export function cleaning<T>(clean: (removals: Removals) => T): Cleaned<T> {
   }
 }
 
+/** How many kinds of thing a report of what cleaning removed names. */
+export const REPORTED_KINDS = 20;
+
 /** Counts what cleaning removed, by kind, in the order first met. */
 export class Removals {
   readonly #counts = new Map<string, { singular: string; plural: string; count: number }>();
@@ -47,10 +50,16 @@ export class Removals {
     else this.#counts.set(key, { singular, plural, count });
   }
 
-  /** What was removed, in words, such as "2 script elements". */
+  /**
+   * What was removed, in words, such as "2 script elements": at most {@link REPORTED_KINDS} kinds, then
+   * how many more kinds there were.
+   */
   list(): string[] {
-    return [...this.#counts.values()].map(({ singular, plural, count }) =>
+    const all = [...this.#counts.values()].map(({ singular, plural, count }) =>
       count === 1 ? `1 ${singular}` : `${count} ${plural}`,
     );
+    if (all.length <= REPORTED_KINDS) return all;
+    const more = all.length - REPORTED_KINDS;
+    return [...all.slice(0, REPORTED_KINDS), `${more} more kind${more === 1 ? '' : 's'} of thing`];
   }
 }

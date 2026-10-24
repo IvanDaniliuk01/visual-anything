@@ -21,10 +21,20 @@ export const SVG_CAPS = {
   inputElements: 20_000,
   /** How deeply the input's elements nest; deeper input is refused before it is read further. */
   inputDepth: 256,
+  /** Namespace declarations in the input. */
+  namespaceDeclarations: 256,
   /** `<style>` rules in the input, `@` rules included. */
   styleRules: 256,
   /** Selectors in one rule. */
   selectorsPerRule: 16,
+  /** Declarations of the style rules that fold into attributes, each counted once per selector. */
+  styleDeclarations: 1_024,
+  /**
+   * Folding in all: each declaration that a rule or a `style` attribute applies to an element counts
+   * once, and each rule that an element's name or one of its classes finds counts once more, before
+   * anything is folded. This caps the time cleaning takes, whatever the number of elements and rules.
+   */
+  foldBudget: 100_000,
   /** Weighted elements of the output: see {@link elementWeight}. */
   weight: 4_000,
   /** How deeply the output's elements nest, its `svg` element at 1. */
@@ -129,8 +139,8 @@ const ID = /^[A-Za-z_][\w.-]{0,63}$/;
 const LOCAL_REFERENCE = /^url\(#([A-Za-z_][\w.-]{0,63})\)$/;
 const HREF = /^#([A-Za-z_][\w.-]{0,63})$/;
 const NUMBER = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
-const NAME_START = /[A-Za-z_:À-￿]/;
-const NAME_CHAR = /[-A-Za-z0-9._:·À-￿]/;
+/** An XML name, read where it starts. */
+const NAME = /[A-Za-z_:\u00C0-\uFFFF][-A-Za-z0-9._:\u00B7\u00C0-\uFFFF]*/y;
 
 /**
  * Rebuilds SVG text from an allow-list, so that nothing in it runs or loads, and reports what went.
@@ -146,8 +156,8 @@ export function cleanSvg(text: string): Cleaned<CleanedSvg> {
     if (!isSvg(root) || root.local !== 'svg') {
       invalid('The outermost element is not an SVG element.');
     }
-    const rules = readStyles(root, removals);
-    const [top] = cleanElement(root, rules, removals);
+    const styles = readStyles(root, removals);
+    const [top] = cleanElement(root, styles, { folded: 0, kept: 0 }, removals);
     if (top === undefined) invalid('The outermost element is not an SVG element.');
     const box = viewBoxOf(top);
     finishValues(top, box, removals);
@@ -181,10 +191,11 @@ interface RawElement {
 
 /** Reads XML text strictly into its outermost element. */
 function parse(text: string, removals: Removals): RawElement {
-  const s = text.startsWith('﻿') ? text.slice(1) : text;
+  const s = text.startsWith('\uFEFF') ? text.slice(1) : text;
   const stack: RawElement[] = [];
   let root: RawElement | undefined;
   let elements = 0;
+  let namespaces = 0;
   let i = 0;
   let first = true;
 
@@ -246,6 +257,13 @@ function parse(text: string, removals: Removals): RawElement {
       if (elements > SVG_CAPS.inputElements) {
         tooLarge(`The SVG text has over ${SVG_CAPS.inputElements} elements.`);
       }
+      for (const name of tag.attributes.keys()) {
+        if (name === 'xmlns' || name.startsWith('xmlns:')) namespaces += 1;
+      }
+      // Each element that declares namespaces copies the ones in scope: few declarations keep that cheap.
+      if (namespaces > SVG_CAPS.namespaceDeclarations) {
+        tooLarge(`The SVG text has over ${SVG_CAPS.namespaceDeclarations} namespace declarations.`);
+      }
       const parent = stack.at(-1);
       const element = makeElement(tag.name, tag.attributes, parent?.scope);
       if (parent) parent.children.push(element);
@@ -304,10 +322,10 @@ function readStartTag(
 }
 
 function readName(s: string, at: number): string {
-  if (!NAME_START.test(s.charAt(at))) invalid('The SVG text has a malformed tag.');
-  let end = at + 1;
-  while (end < s.length && NAME_CHAR.test(s.charAt(end))) end++;
-  return s.slice(at, end);
+  NAME.lastIndex = at;
+  const name = NAME.exec(s)?.[0];
+  if (name === undefined) invalid('The SVG text has a malformed tag.');
+  return name;
 }
 
 function isSpace(code: number): boolean {
@@ -376,23 +394,32 @@ function isSvg(element: RawElement): boolean {
 
 // --- Styles --------------------------------------------------------------------------------------
 
-/** A style rule that is folded into attributes: by class, or by element name. */
-interface Rule {
-  kind: 'class' | 'element';
-  name: string;
-  declarations: [string, string][];
+/** The declarations of a rule that folds into attributes, with its place among the rules. */
+interface Folded {
+  order: number;
+  declarations: readonly [string, string][];
 }
 
-/** Reads every `<style>` element's rules, counting them against the caps before folding any. */
-function readStyles(root: RawElement, removals: Removals): Rule[] {
+/** The rules that fold into attributes, by the element name or the class they select, in order. */
+interface StyleIndex {
+  byElement: Map<string, Folded[]>;
+  byClass: Map<string, Folded[]>;
+}
+
+/**
+ * Reads every `<style>` element's rules, counting them against the caps before folding any, and
+ * indexes them, so that each element looks up only the rules that select it.
+ */
+function readStyles(root: RawElement, removals: Removals): StyleIndex {
   const texts: string[] = [];
   const visit = (element: RawElement) => {
     if (isSvg(element) && element.local === 'style') texts.push(element.text);
     for (const child of element.children) visit(child);
   };
   visit(root);
-  const rules: Rule[] = [];
+  const index: StyleIndex = { byElement: new Map(), byClass: new Map() };
   let counted = 0;
+  let declared = 0;
   for (const text of texts) {
     for (const parsed of parseCss(text)) {
       counted += 1;
@@ -418,16 +445,24 @@ function readStyles(root: RawElement, removals: Removals): Rule[] {
         continue;
       }
       const declarations = parseDeclarations(parsed.body);
-      for (const selector of selectors) {
-        rules.push(
-          selector.startsWith('.')
-            ? { kind: 'class', name: selector.slice(1), declarations }
-            : { kind: 'element', name: selector, declarations },
+      declared += declarations.length * selectors.length;
+      if (declared > SVG_CAPS.styleDeclarations) {
+        tooLarge(
+          `The SVG text's style rules hold over ${SVG_CAPS.styleDeclarations} declarations, counted once per selector.`,
         );
+      }
+      const folded: Folded = { order: counted, declarations };
+      for (const selector of new Set(selectors)) {
+        const [byName, name] = selector.startsWith('.')
+          ? [index.byClass, selector.slice(1)]
+          : [index.byElement, selector];
+        const list = byName.get(name);
+        if (list) list.push(folded);
+        else byName.set(name, [folded]);
       }
     }
   }
-  return rules;
+  return index;
 }
 
 /** The rules of a style sheet: `@` rules, or selectors with a block of declarations. */
@@ -488,12 +523,26 @@ interface Clean {
  * The cleaned elements a read element gives: itself, its children when it is unwrapped, or nothing
  * when it is dropped with its content.
  */
-function cleanElement(element: RawElement, rules: readonly Rule[], removals: Removals): Clean[] {
+/** The work cleaning has done so far, against the caps that bound its time. */
+interface Budget {
+  /** Declarations folded, and rules matched: see {@link SVG_CAPS.foldBudget}. */
+  folded: number;
+  /** Elements kept. */
+  kept: number;
+}
+
+function cleanElement(
+  element: RawElement,
+  styles: StyleIndex,
+  budget: Budget,
+  removals: Removals,
+): Clean[] {
   if (!isSvg(element)) {
     removals.add(`${element.qname} element`);
     return [];
   }
-  const children = () => element.children.flatMap((child) => cleanElement(child, rules, removals));
+  const children = () =>
+    element.children.flatMap((child) => cleanElement(child, styles, budget, removals));
   if (UNWRAPPED.has(element.local)) {
     removals.add(
       `${element.local} element unwrapped, its contents kept`,
@@ -513,10 +562,15 @@ function cleanElement(element: RawElement, rules: readonly Rule[], removals: Rem
     }
     return [];
   }
+  // Each element kept weighs at least 1, so too many are refused before their styles are folded.
+  budget.kept += 1;
+  if (budget.kept > SVG_CAPS.weight) {
+    tooLarge(`The SVG picture has over ${SVG_CAPS.weight} elements to draw.`);
+  }
   return [
     {
       name: element.local,
-      attributes: cleanAttributes(element, rules, removals),
+      attributes: cleanAttributes(element, styles, budget, removals),
       children: children(),
     },
   ];
@@ -528,7 +582,8 @@ function cleanElement(element: RawElement, rules: readonly Rule[], removals: Rem
  */
 function cleanAttributes(
   element: RawElement,
-  rules: readonly Rule[],
+  styles: StyleIndex,
+  budget: Budget,
   removals: Removals,
 ): Map<string, string> {
   const kept = new Map<string, string>();
@@ -576,7 +631,14 @@ function cleanAttributes(
     else removals.add('other attribute');
   }
 
+  const spend = (work: number) => {
+    budget.folded += work;
+    if (budget.folded > SVG_CAPS.foldBudget) {
+      tooLarge('The SVG picture’s style rules match too many of its elements to fold them in.');
+    }
+  };
   const fold = (declarations: readonly [string, string][]) => {
+    spend(declarations.length);
     for (const [property, value] of declarations) {
       if (PAINT.has(property)) kept.set(property, value);
       else
@@ -586,11 +648,19 @@ function cleanAttributes(
         );
     }
   };
-  for (const rule of rules) {
-    if (rule.kind === 'element' && rule.name === element.local) fold(rule.declarations);
-  }
-  for (const rule of rules) {
-    if (rule.kind === 'class' && classes.includes(rule.name)) fold(rule.declarations);
+  // Each rule that matches counts against the budget as it is looked up, before anything is folded.
+  const byElement = styles.byElement.get(element.local) ?? [];
+  spend(byElement.length);
+  for (const rule of byElement) fold(rule.declarations);
+  if (classes.length > 0) {
+    // A rule that selects two of the element's classes folds once, in its place among the rules.
+    const matched = new Set<Folded>();
+    for (const name of new Set(classes)) {
+      const rules = styles.byClass.get(name) ?? [];
+      spend(rules.length);
+      for (const rule of rules) matched.add(rule);
+    }
+    for (const rule of [...matched].sort((a, b) => a.order - b.order)) fold(rule.declarations);
   }
   if (style !== undefined) fold(parseDeclarations(style));
 
