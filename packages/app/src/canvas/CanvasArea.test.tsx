@@ -5,11 +5,13 @@ import { Container } from 'pixi.js';
 import { Profiler, StrictMode, useEffect, useMemo, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EMPTY_SELECTION, selectionOf, type Selection } from '../editor/selection';
+import { Shell } from '../shell/Shell';
 import { FakeApplication, FakeResizeObserver } from '../test/FakeApplication';
 import { loadSample } from '../test/sample';
 import { fitCamera, worldToScreen } from './camera';
 import { CanvasArea, type SendCommand } from './CanvasArea';
 import { centerOf } from './geometry';
+import { indexScene } from './hit';
 import { CanvasRenderer, type Overlay } from './renderer';
 import { buildScene, type Scene } from './scene';
 
@@ -102,8 +104,18 @@ function localProgram(start: ProjectSnapshot = project) {
     }, []);
     return <Harness {...props} project={shown} onCommand={onCommand} />;
   }
+  /** The whole app around the canvas, as LiveApp shows it. */
+  function LiveShell() {
+    const [shown, setShown] = useState(current);
+    useEffect(() => {
+      shows.add(setShown);
+      return () => void shows.delete(setShown);
+    }, []);
+    return <Shell project={shown} onCommand={onCommand} />;
+  }
   return {
     Live,
+    LiveShell,
     onCommand,
     get project() {
       return current;
@@ -1331,5 +1343,111 @@ describe('The shape menu', () => {
     });
     expect(said()).toBe('Take "WhatsApp channel" out of "Clinic booking".');
     expect(document.activeElement).toBe(host);
+  });
+});
+
+describe('The user’s case, end to end', () => {
+  it('puts Calendar, added directly in World, inside Clinic booking from the canvas, and orders it there', async () => {
+    const program = localProgram(withCalendar);
+    const { host, at, on } = await started(<program.LiveShell />, withCalendar);
+    /** Where a shape is in the drawing order of the view as the local program has it now. */
+    const rank = (key: string) => {
+      const indexed = indexScene(buildScene(program.project, view.id));
+      const at = indexed.indexOfKey.get(key);
+      if (at === undefined) throw new Error(`No shape ${key}`);
+      return indexed.rankOf[at] as number;
+    };
+
+    // 1. Calendar, the newest shape in World, is drawn in front of Clinic booking and all it
+    // holds, where clicks already land.
+    expect(rank('calendar')).toBeGreaterThan(rank('clinic-booking/scheduling/reminder-service'));
+    const calendar = at('calendar');
+    point('pointerdown', host, calendar.x, calendar.y);
+    point('pointerup', host, calendar.x, calendar.y);
+    expect(screen.getByRole('heading', { name: 'Calendar, Calendar' })).toBeInTheDocument();
+
+    // 6. Without dragging, the shape menu offers to put it inside Clinic booking, as its centre lies
+    // over it, and the inspector says it sits directly in World, with Put inside….
+    fireEvent.keyDown(host, { key: 'F10', shiftKey: true });
+    const menu = screen.getByRole('menu', { name: 'Calendar' });
+    expect(
+      within(menu).getByRole('menuitem', { name: 'Put inside "Clinic booking"' }),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(menu, { key: 'Escape' });
+    const inView = screen.getByRole('region', { name: 'In this view' });
+    expect(within(inView).getByText('Directly in World')).toBeInTheDocument();
+    expect(within(inView).getByRole('button', { name: 'Put inside…' })).toBeInTheDocument();
+
+    // 7. Sent backward while it still sits directly in World, it goes behind the whole box, and the
+    // canvas says why it is hidden. It comes back in front with Ctrl+↑.
+    fireEvent.keyDown(host, { key: 'ArrowDown', ctrlKey: true });
+    await answers();
+    expect(said()).toBe(
+      '"Calendar" is now behind "Clinic booking", which hides it. It sits over "Clinic booking" without being inside it; Put inside "Clinic booking" orders it among the shapes there.',
+    );
+    expect(rank('calendar')).toBeLessThan(rank('clinic-booking'));
+    fireEvent.keyDown(host, { key: 'ArrowUp', ctrlKey: true });
+    await answers();
+    expect(said()).toBe('"Calendar" is now in front of "Clinic booking".');
+
+    // 2 and 4. Dragged over Clinic booking, outside Scheduling, Clinic booking lights up and the
+    // caption says what a release does; over Scheduling it would have said Scheduling.
+    const overlays = vi.spyOn(CanvasRenderer.prototype, 'setOverlay');
+    point('pointerdown', host, calendar.x, calendar.y);
+    const scheduling = on({ x: 1000, y: 420 });
+    point('pointermove', host, scheduling.x, scheduling.y);
+    expect(caption()).toEqual({ text: 'Put inside "Scheduling"', detail: 'Alt: move only' });
+    const booking = on({ x: 700, y: 400 });
+    point('pointermove', host, booking.x, booking.y);
+    expect(caption()).toEqual({ text: 'Put inside "Clinic booking"', detail: 'Alt: move only' });
+    expect((overlays.mock.lastCall?.[0] as Overlay).drop?.into).toMatchObject({
+      x: 240,
+      y: 40,
+      width: 980,
+      height: 480,
+    });
+
+    // 3. Released, one action puts it inside Clinic booking with the position it was dropped at,
+    // pinned, and draws it there in front of Scheduling.
+    point('pointerup', host, booking.x, booking.y);
+    await answers();
+    expect(program.onCommand.mock.lastCall?.[0]).toMatchObject({
+      type: 'change-container',
+      to: 'clinic-booking',
+      shapes: [{ element: 'calendar', at: { x: 370, y: 320 } }],
+    });
+    expect(said()).toBe('Put "Calendar" inside "Clinic booking".');
+    expect(program.project.model.relations).toContainEqual(
+      expect.objectContaining({
+        relationType: 'systems.is-part-of',
+        from: 'calendar',
+        to: 'clinic-booking',
+      }),
+    );
+    expect(program.project.views[0]?.positions).toContainEqual(
+      expect.objectContaining({ element: 'calendar', container: 'clinic-booking', pinned: true }),
+    );
+    expect(rank('clinic-booking/calendar')).toBeGreaterThan(rank('clinic-booking/scheduling'));
+
+    // 5. Overlapping Scheduling, Ctrl+↓ sends it behind Scheduling and what that holds, still in
+    // front of Clinic booking.
+    fireEvent.keyDown(host, { key: 'ArrowDown', ctrlKey: true });
+    await answers();
+    expect(said()).toBe('"Calendar" is now behind "Scheduling".');
+    expect(rank('clinic-booking/calendar')).toBeLessThan(rank('clinic-booking/scheduling'));
+    expect(rank('clinic-booking/calendar')).toBeGreaterThan(rank('clinic-booking'));
+
+    // 8. Add element now puts the new element inside Clinic booking, next to Calendar.
+    const add = screen.getByRole('combobox', { name: 'Add an element inside "Clinic booking"' });
+    await act(async () => {
+      fireEvent.change(add, { target: { value: 'systems.service' } });
+      await Promise.resolve();
+    });
+    await answers();
+    expect(program.onCommand.mock.lastCall?.[0]).toEqual({
+      type: 'create-element',
+      element: { component: 'systems.service', name: 'Service' },
+      containers: [{ container: 'clinic-booking', relationType: 'systems.is-part-of' }],
+    });
   });
 });
