@@ -835,7 +835,9 @@ export class CanvasRenderer {
   private labelUpTo(tile: Tile, wanted: Tile['level'], until: number): number {
     if (tile.level !== wanted || !tile.labels) {
       tile.labels?.destroy({ children: true });
-      tile.labels = new Container();
+      // Drawn on its own: labels are many, and showing or writing them then makes PixiJS gather
+      // again only the tile's labels, not the drawings of its whole region.
+      tile.labels = new Container({ isRenderGroup: true });
       tile.container.addChild(tile.labels);
       tile.level = wanted;
       tile.labelled = 0;
