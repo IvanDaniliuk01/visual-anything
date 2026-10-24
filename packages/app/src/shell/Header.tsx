@@ -1,6 +1,7 @@
 import type { HistorySummary } from '@visual-anything/core';
 import { useContext, useEffect, useEffectEvent, useRef } from 'react';
 import { LiveContext, type Live } from '../live/context';
+import { IS_APPLE } from '../live/platform';
 import { historyShortcut, isTextEntry, type HistoryAction } from '../live/shortcuts';
 
 interface HeaderProps {
@@ -40,8 +41,6 @@ export function Header({ projectName, viewName }: HeaderProps) {
 
 /** An action the history could undo or redo. */
 type HistoryStep = NonNullable<HistorySummary['undo']>;
-
-const IS_APPLE = /Mac|iPhone|iPad/.test(navigator.userAgent);
 
 const VERBS: Record<HistoryAction, string> = { undo: 'Undo', redo: 'Redo' };
 

@@ -238,6 +238,8 @@ export class CanvasRenderer {
   private hidden: Hidden = NOTHING_HIDDEN;
   private drag: Drag | undefined;
   private drags = 0;
+  /** How far the shapes of a drag ended without a redraw were drawn, for the next rebuild. */
+  private endedReady: ReadonlyMap<string, Readiness> | undefined;
   /** What the tiles of element shapes, of relations and of free shapes were last made from. */
   private shapesFrom: { indexed: IndexedScene; hidden: ReadonlySet<string> } | undefined;
   private relationsFrom: { lines: readonly RelationLine[]; hidden: ReadonlySet<Id> } | undefined;
@@ -337,7 +339,7 @@ export class CanvasRenderer {
   startDrag(shapes: ReadonlySet<string>, relations: ReadonlySet<Id>): number {
     const id = ++this.drags;
     const indexed = this.indexed;
-    if (!indexed) return id;
+    if (!indexed || this.status === 'destroyed') return id;
     this.clearDrag();
     const ready = new Map<string, Readiness>();
     for (const key of shapes) {
@@ -375,14 +377,22 @@ export class CanvasRenderer {
 
   /**
    * Stops drawing a drag: the shapes go back to their tiles, where they are in the scene. Given the
-   * drag `startDrag` named, it stops only that one, and leaves a later drag alone.
+   * drag `startDrag` named, it stops only that one, and leaves a later drag alone. With `redraw` off,
+   * the tiles are made again only by the `show` that follows, as when a drop's change comes back: the
+   * scene that holds it is then drawn once, not first as it was and then as it is.
    */
-  endDrag(drag?: number): void {
+  endDrag(drag?: number, { redraw = true }: { redraw?: boolean } = {}): void {
     const ended = this.drag;
+    if (this.status === 'destroyed') return;
     if (!ended || (drag !== undefined && drag !== ended.id)) return;
     this.clearDrag();
     this.drag = undefined;
     this.hidden = NOTHING_HIDDEN;
+    if (!redraw) {
+      // How far the dragged shapes were drawn, for the tiles the next rebuild makes for them.
+      this.endedReady = new Map([...(this.endedReady ?? []), ...ended.ready]);
+      return;
+    }
     try {
       if (this.indexed) this.rebuild(ended.ready);
     } catch (error) {
@@ -541,7 +551,9 @@ export class CanvasRenderer {
     const indexed = this.indexed;
     if (!indexed) return;
     const budget = { left: AT_ONCE };
-    this.rebuildShapes(indexed, ready ?? this.drag?.ready, budget);
+    const ended = this.endedReady;
+    this.endedReady = undefined;
+    this.rebuildShapes(indexed, ready ?? this.drag?.ready ?? ended, budget);
     this.rebuildRelations(indexed.scene.relations, budget);
     this.rebuildFree(indexed.scene.notes, indexed.scene.arrows);
   }
@@ -1159,6 +1171,7 @@ export class CanvasRenderer {
   }
 
   private clearDrag(): void {
+    if (this.status === 'destroyed') return;
     for (const child of this.dragLayer.removeChildren()) {
       child.destroy({ children: true, context: true });
     }

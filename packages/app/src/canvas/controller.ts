@@ -5,8 +5,18 @@
  * Enter follows a relation or edits a name, and Shift with an arrow key moves the selection; what the
  * keys select is announced to screen readers. The controller only turns gestures into selections and
  * commands; the local program applies commands and the canvas redraws what comes back.
+ *
+ * Dragging shapes onto a container puts them inside it, and dragging them clear of theirs takes them
+ * out: while they are dragged, the canvas outlines where they would go and a caption beside the
+ * pointer says it; Alt only moves. A secondary press, Shift+F10 or the menu key opens a shape's menu.
  */
-import type { Command, ProjectSnapshot } from '@visual-anything/core';
+import {
+  previewChangeContainer,
+  type ChangeContainerCommand,
+  type Command,
+  type ContainerChangePreview,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import {
   EMPTY_SELECTION,
@@ -19,11 +29,35 @@ import {
   type Selectable,
   type Selection,
 } from '../editor/selection';
+import { IS_APPLE } from '../live/platform';
 import { describeRelation, describeSelection, nameOfEnd } from './announce';
-import { panBy, revealCamera, screenToWorld, wheelFactor, zoomAt, type Camera } from './camera';
+import {
+  panBy,
+  revealCamera,
+  screenToWorld,
+  wheelFactor,
+  worldToScreen,
+  zoomAt,
+  type Camera,
+} from './camera';
+import {
+  REST_TO_ARM,
+  REST_TOLERANCE,
+  confirmLabelOf,
+  dropAimAt,
+  dropCaption,
+  dropCommand,
+  dropOverlay,
+  landingCover,
+  needsConfirmation,
+  planDrop,
+  type DropAim,
+  type DropCaption,
+  type DropPlan,
+} from './drop';
 import { boundsOf, centerOf, distance, type Point, type Rect } from './geometry';
 import { carriedKeys, moveCommand, movingShapes } from './gestures';
-import { enclosedBy, hitAt, type Hit, type IndexedScene } from './hit';
+import { enclosedBy, hitAt, shapesAt, type Hit, type IndexedScene } from './hit';
 import {
   containerOf,
   drawnRelations,
@@ -59,6 +93,33 @@ export interface ControllerCallbacks {
   failure(error: unknown): void;
   /** Says what the keys just selected, or why they selected nothing, for screen readers. */
   announce?(message: string): void;
+  /**
+   * Asks to confirm a drop that deletes more than the relations that placed the dropped shapes, before
+   * it is sent; the answer comes back through `resolveChange`. Without it, such a drop is sent at once.
+   */
+  confirmChange?(change: ChangeToConfirm): void;
+  /**
+   * Asks to open the menu of a shape: `at` is on screen, relative to the canvas; `under` lists the
+   * shapes under the pointer, topmost first, when the menu was opened with it.
+   */
+  menu?(at: Point, shape: ElementShape, under?: readonly ElementShape[]): void;
+}
+
+/** A change of container a drop makes, which waits to be confirmed. */
+export interface ChangeToConfirm {
+  /** What is sent once confirmed: the change, alone or with the moves of the other dropped shapes. */
+  command: Command;
+  change: ChangeContainerCommand;
+  /** What the change deletes, as it was when the shapes were dropped. */
+  preview: ContainerChangePreview;
+  /** How the history names it, which the dialog asks with a question mark. */
+  label: string;
+  confirmLabel: string;
+}
+
+export interface ControllerOptions {
+  /** Where the caption that says what a drop would do is written, beside the pointer. */
+  caption?: HTMLElement;
 }
 
 type Gesture =
@@ -69,7 +130,10 @@ type Gesture =
   | { kind: 'box'; pointer: number; start: Point; additive: boolean }
   | { kind: 'connect'; pointer: number; from: ElementShape; anchor: Point; target?: Hit };
 
-/** Shapes being dragged: from where the press was, by how far, and the renderer's drawing of them. */
+/**
+ * Shapes being dragged: from where the press was, by how far, and the renderer's drawing of them; and
+ * what releasing them would do, which changes as the pointer moves.
+ */
 interface DragGesture {
   kind: 'drag';
   pointer: number;
@@ -79,13 +143,29 @@ interface DragGesture {
   delta: Point;
   /** The renderer's drag, as `startDrag` named it: ending it leaves any later drag alone. */
   drag: number;
+  /** What a drop into or out of a container may do; absent when the drag only moves shapes. */
+  plan?: DropPlan;
+  /** What releasing the shapes now would do, as last worked out. */
+  aim: DropAim;
+  /** Whether Alt is held, which only moves. */
+  alt: boolean;
+  /** The shape that would cover the grabbed one where it lands, as last checked. */
+  cover: ElementShape | undefined;
+  /** Where the pointer is, on screen relative to the canvas. */
+  at: Point;
+  /** The shape that holds nothing the pointer rested on long enough for it to take the drop. */
+  armed: string | undefined;
+  /** The shape that holds nothing the pointer rests on, where the rest started, and its timer. */
+  rest: { leaf: string; from: Point; timer: ReturnType<typeof setTimeout> } | undefined;
+  /** The frame that checks again where the grabbed shape lands, while the aim stays. */
+  landingFrame: number | undefined;
 }
 
 /**
  * A move sent to the local program, until its change comes back. The live connection applies a
  * change before it answers the request that made it, but either may reach the canvas first; the move
  * is back once it is applied and the project is no longer the one it was made from. A move always
- * changes the project.
+ * changes the project. A drop that waits to be confirmed is one too, sent once it is.
  */
 interface SentMove {
   /** The project the move was made from. */
@@ -94,6 +174,27 @@ interface SentMove {
   applied: boolean;
   /** For a drop: the drag that draws the dropped shapes until the change comes back, and where they land. */
   drop?: { drag: number; landing: () => Rect[] };
+  /**
+   * For a drop that asked to be confirmed, whose drag ended: where the dropped shapes land, shown
+   * until its change comes back, or it is cancelled or refused.
+   */
+  ghost?: Rect[];
+  /** What to say once the local program did it. */
+  done?: string;
+}
+
+/** A drop waiting to be confirmed: what it sends, as one more move. */
+interface Confirming {
+  move: SentMove;
+  command: Command;
+}
+
+/** A secondary press: where and when it was, and the shape it was on, whose menu it opens. */
+interface SecondaryPress {
+  at: Point;
+  world: Point;
+  time: number;
+  shape?: string;
 }
 
 /** A press of Shift with an arrow key: the step, and what was selected when it was pressed. */
@@ -121,6 +222,12 @@ const NUDGE = 10;
 const MAX_WAITING_NUDGES = 8;
 /** How many rectangles show where dropped shapes land; more show as one around them all. */
 const MAX_LANDING_MARKS = 100;
+/** Where the drop caption sits from the pointer, in screen pixels. */
+const CAPTION_OFFSET = { x: 16, y: 20 };
+/** How long after Shift+F10 or the menu key a `contextmenu` event is theirs, in milliseconds. */
+const MENU_KEY_WINDOW = 500;
+/** How long after a secondary press a `contextmenu` event is its, in milliseconds. */
+const SECONDARY_PRESS_WINDOW = 1000;
 
 const DIRECTIONS: Partial<Record<string, Direction>> = {
   ArrowLeft: 'left',
@@ -169,11 +276,21 @@ export class CanvasController {
   private nudges: Nudge[] = [];
   /** What the gesture under way draws above the scene; where dropped shapes land is drawn with it. */
   private gestureOverlay: Overlay = {};
+  /** A drop waiting to be confirmed, whose ghost shows where its shapes land. */
+  private confirming: Confirming | undefined;
+  /** The last secondary press, whose `contextmenu` event opens the menu where it was. */
+  private secondary: SecondaryPress | undefined;
+  /** When Shift+F10 or the menu key last opened the menu, so that their `contextmenu` event does not. */
+  private menuKeyTime: number | undefined;
+  /** Where the drop caption is written. */
+  private readonly caption: HTMLElement | undefined;
 
   constructor(
     private readonly host: HTMLElement,
     private readonly callbacks: ControllerCallbacks,
+    options: ControllerOptions = {},
   ) {
+    this.caption = options.caption;
     this.renderer = new CanvasRenderer(host, {
       onFailure: (error) => callbacks.failure(error),
       onCamera: (camera) => callbacks.camera(camera),
@@ -185,6 +302,7 @@ export class CanvasController {
     host.addEventListener('pointerleave', this.onPointerLeave);
     host.addEventListener('wheel', this.onWheel, { passive: false });
     host.addEventListener('dblclick', this.onDoubleClick);
+    host.addEventListener('contextmenu', this.onContextMenu);
     host.addEventListener('keydown', this.onKeyDown);
     host.addEventListener('keyup', this.onKeyUp);
     host.addEventListener('blur', this.onBlur);
@@ -199,10 +317,12 @@ export class CanvasController {
     this.editable = editable;
     // The hovered shape as it is now: where it is, and its handle, may have changed.
     this.hovered = this.hovered && indexed.byKey.get(this.hovered.key);
-    this.renderer.show(indexed);
+    // The drops whose changes this scene holds stop being drawn apart first, so that the scene is
+    // drawn once, with them in it.
     for (const move of [...this.sent]) {
-      if (move.applied && move.from !== project) this.moveBack(move);
+      if (move.applied && move.from !== project) this.forget(move, false);
     }
+    this.renderer.show(indexed);
     this.refreshMarks();
     this.nudgeNext();
   }
@@ -259,6 +379,25 @@ export class CanvasController {
     return hit?.kind === 'shape' ? hit.shape : undefined;
   }
 
+  /**
+   * Answers a drop that asked to be confirmed: confirmed, it is sent, and its ghost shows where its
+   * shapes land until its change comes back; otherwise nothing changes.
+   */
+  resolveChange(confirmed: boolean): void {
+    const confirming = this.confirming;
+    if (!confirming) return;
+    this.confirming = undefined;
+    const { move, command } = confirming;
+    if (!confirmed || this.destroyed || !this.project) {
+      this.forget(move);
+      this.nudgeNext();
+      return;
+    }
+    // Back once the project is no longer the one it is sent on, which may have changed meanwhile.
+    move.from = this.project;
+    this.send(command, move);
+  }
+
   /** Stops listening and releases the canvas; answers that come later change nothing. */
   destroy(): void {
     const { host } = this;
@@ -269,15 +408,22 @@ export class CanvasController {
     host.removeEventListener('pointerleave', this.onPointerLeave);
     host.removeEventListener('wheel', this.onWheel);
     host.removeEventListener('dblclick', this.onDoubleClick);
+    host.removeEventListener('contextmenu', this.onContextMenu);
     host.removeEventListener('keydown', this.onKeyDown);
     host.removeEventListener('keyup', this.onKeyUp);
     host.removeEventListener('blur', this.onBlur);
     host.ownerDocument.defaultView?.removeEventListener('blur', this.onBlur);
+    if (this.gesture.kind === 'drag') this.endDropFeedback(this.gesture);
+    this.gesture = { kind: 'idle' };
     this.destroyed = true;
     this.sent = [];
     this.nudges = [];
+    this.confirming = undefined;
     this.renderer.destroy();
   }
+
+  /** Whether a shape counts by its drawn outline, where the canvas draws it, rather than its rectangle. */
+  private readonly exact = (shape: ElementShape): boolean => this.renderer.showsOutline(shape.key);
 
   /**
    * What lies at a point of the scene, as drawn now: an element shape counts by its outline where the
@@ -285,7 +431,7 @@ export class CanvasController {
    */
   private hit(world: Point, tolerance: number): Hit | undefined {
     if (!this.indexed) return undefined;
-    return hitAt(this.indexed, world, tolerance, (shape) => this.renderer.showsOutline(shape.key));
+    return hitAt(this.indexed, world, tolerance, this.exact);
   }
 
   private readonly onPointerDown = (event: PointerEvent): void => {
@@ -307,6 +453,10 @@ export class CanvasController {
         camera: this.camera,
       });
       this.host.style.cursor = 'grabbing';
+      return;
+    }
+    if (isSecondaryPress(event)) {
+      this.pressSecondary(event, screen);
       return;
     }
     if (event.button !== 0) return;
@@ -376,24 +526,42 @@ export class CanvasController {
         const drag = this.renderer.startDrag(keys, this.relationsOn(keys));
         this.lastDrag = drag;
         const delta = { x: world.x - gesture.world.x, y: world.y - gesture.world.y };
-        this.gesture = {
+        const { project, viewId } = this;
+        // What dropping can do is worked out once, for the shape grabbed.
+        const plan =
+          gesture.hit.kind === 'shape' && project && viewId
+            ? planDrop(indexed, project, viewId, this.selection, gesture.hit.shape)
+            : undefined;
+        const dragged: DragGesture = {
           kind: 'drag',
           pointer: gesture.pointer,
           world: gesture.world,
           delta,
           drag,
+          ...(plan ? { plan } : {}),
+          aim: { kind: 'stay' },
+          alt: event.altKey,
+          cover: undefined,
+          at: screen,
+          armed: undefined,
+          rest: undefined,
+          landingFrame: undefined,
         };
+        this.gesture = dragged;
         this.renderer.dragTo(delta);
         this.hovered = undefined;
         this.refreshMarks();
         // The drag drew over the drops still waiting: their marks show where they land.
         this.showOverlay({});
+        this.aimDrop(dragged, true);
         return;
       }
       case 'drag': {
-        const delta = { x: world.x - gesture.world.x, y: world.y - gesture.world.y };
-        this.gesture = { ...gesture, delta };
-        this.renderer.dragTo(delta);
+        gesture.delta = { x: world.x - gesture.world.x, y: world.y - gesture.world.y };
+        gesture.at = screen;
+        gesture.alt = event.altKey;
+        this.renderer.dragTo(gesture.delta);
+        this.aimDrop(gesture);
         return;
       }
       case 'box':
@@ -548,6 +716,25 @@ export class CanvasController {
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     const command = event.ctrlKey || event.metaKey;
+    const gesture = this.gesture;
+    if (event.key === 'Alt' && gesture.kind === 'drag') {
+      // Kept from the browser, which would show its menu bar, as Firefox on Windows does.
+      event.preventDefault();
+      if (!gesture.alt) {
+        gesture.alt = true;
+        this.aimDrop(gesture);
+      }
+      return;
+    }
+    if (
+      event.key === 'ContextMenu' ||
+      (event.key === 'F10' && event.shiftKey && !command && !event.altKey)
+    ) {
+      event.preventDefault();
+      this.menuKeyTime = event.timeStamp;
+      if (gesture.kind === 'idle') this.openMenuForCurrent();
+      return;
+    }
     if (event.key === ' ') {
       event.preventDefault();
       if (!this.spaceHeld) {
@@ -581,8 +768,8 @@ export class CanvasController {
       return;
     }
     // Some keyboards type [ and ] with AltGr, which browsers report as Ctrl and Alt together, and
-    // as AltGraph. Otherwise, with Ctrl or ⌘ and with Alt, [ and ] are left to other commands, such
-    // as the stacking order.
+    // as AltGraph. Otherwise, with Ctrl or ⌘, [ and ] are the stacking order's, which the canvas
+    // area handles for the whole window; with Alt they are left alone.
     const altGraph = event.getModifierState('AltGraph');
     if (command && !altGraph) return;
     const step = RELATION_STEPS[event.key];
@@ -605,7 +792,70 @@ export class CanvasController {
 
   private readonly onKeyUp = (event: KeyboardEvent): void => {
     if (event.key === ' ') this.releaseSpace();
+    const gesture = this.gesture;
+    if (event.key === 'Alt' && gesture.kind === 'drag') {
+      event.preventDefault();
+      gesture.alt = false;
+      this.aimDrop(gesture);
+    }
   };
+
+  /**
+   * `contextmenu` on the canvas never shows the browser's menu. Shortly after Shift+F10 or the menu
+   * key, it is theirs, which opened the menu already; shortly after a secondary press, it opens the
+   * menu where the press was; otherwise it comes from the keyboard, and opens the menu of the current
+   * shape, wherever the event says it is.
+   */
+  private readonly onContextMenu = (event: MouseEvent): void => {
+    event.preventDefault();
+    const { menuKeyTime, secondary } = this;
+    this.menuKeyTime = undefined;
+    this.secondary = undefined;
+    if (this.gesture.kind !== 'idle') return;
+    if (menuKeyTime !== undefined && event.timeStamp - menuKeyTime <= MENU_KEY_WINDOW) return;
+    if (secondary && event.timeStamp - secondary.time <= SECONDARY_PRESS_WINDOW) {
+      this.openMenuAt(secondary);
+      return;
+    }
+    this.openMenuForCurrent();
+  };
+
+  /**
+   * A secondary press, with the right button or, on Apple platforms, with Ctrl: it selects what it
+   * is on unless that is selected already, and neither toggles nor drags; the `contextmenu` event
+   * that follows opens the menu.
+   */
+  private pressSecondary(event: PointerEvent, screen: Point): void {
+    const world = screenToWorld(this.camera, screen);
+    const hit = this.hit(world, HIT_TOLERANCE / this.camera.scale);
+    this.stepping = undefined;
+    if (hit) {
+      if (hit.kind !== 'relation') this.current = keyOf(hit);
+      const item = selectableOf(hit);
+      if (!isSelected(this.selection, item)) this.select(selectionOf([item]));
+    }
+    this.secondary = {
+      at: screen,
+      world,
+      time: event.timeStamp,
+      ...(hit?.kind === 'shape' ? { shape: hit.shape.key } : {}),
+    };
+  }
+
+  /** Opens the menu of the shape a secondary press was on, there, with the shapes under it. */
+  private openMenuAt(press: SecondaryPress): void {
+    const indexed = this.indexed;
+    const shape = press.shape === undefined ? undefined : indexed?.byKey.get(press.shape);
+    if (!indexed || !shape) return;
+    this.callbacks.menu?.(press.at, shape, shapesAt(indexed, press.world, this.exact));
+  }
+
+  /** Opens the menu of the shape the keys act on, at its middle. */
+  private openMenuForCurrent(): void {
+    const current = this.currentReachable();
+    if (current?.kind !== 'shape') return;
+    this.callbacks.menu?.(worldToScreen(this.camera, centerOf(current.shape.rect)), current.shape);
+  }
 
   /**
    * The canvas or the window lost the focus: a key let go elsewhere never comes to the canvas, so Space
@@ -628,37 +878,185 @@ export class CanvasController {
   }
 
   /**
-   * Sends the move the drag made, at once: it moves the shapes from where they were drawn to where
-   * they were let go. The dragged shapes stay drawn there until the change comes back.
+   * Sends what the drag did, at once: it puts the shapes inside the container they were let go on,
+   * takes them out of theirs, or moves them from where they were drawn to where they were let go. The
+   * dragged shapes stay drawn there until the change comes back. A change that would delete more than
+   * the relations that placed them is shown first, and waits to be confirmed; one the core would
+   * refuse is not sent, and says why.
    */
   private drop(gesture: DragGesture): void {
+    this.endDropFeedback(gesture);
     const { indexed, project, viewId, selection } = this;
-    const { delta, drag } = gesture;
-    const command =
-      indexed && project && viewId
-        ? moveCommand(indexed, project, viewId, selection, delta)
+    const { delta, drag, plan } = gesture;
+    const dropped =
+      indexed && project && viewId && plan
+        ? dropCommand(indexed, project, viewId, selection, plan, gesture.aim, delta)
         : undefined;
+    const command =
+      dropped?.command ??
+      (indexed && project && viewId
+        ? moveCommand(indexed, project, viewId, selection, delta)
+        : undefined);
     if (!indexed || !project || !command) {
       this.renderer.endDrag(drag);
       return;
     }
     let landing: Rect[] | undefined;
-    this.send(command, {
-      from: project,
-      applied: false,
-      drop: {
-        drag,
-        // Worked out only if a later drag draws over this one before its change comes back.
-        landing: () => (landing ??= landingOf(indexed, selection, delta)),
-      },
-    });
+    // Worked out only if a later drag draws over this one before its change comes back.
+    const lands = () => (landing ??= landingOf(indexed, selection, delta));
+    const done = dropped && { done: `${dropped.label}.` };
+    if (dropped?.change && takesOut(project, dropped.change)) {
+      const { change } = dropped;
+      const preview = previewChangeContainer(project, change);
+      const [problem] = preview.problems;
+      if (problem) {
+        this.renderer.endDrag(drag);
+        this.announce(problem.message);
+        return;
+      }
+      if (needsConfirmation(preview) && this.callbacks.confirmChange) {
+        // The drag ends, and the ghost shows where the shapes land while the question is asked.
+        this.renderer.endDrag(drag);
+        const move: SentMove = { from: project, applied: false, ghost: lands(), ...done };
+        this.sent.push(move);
+        this.confirming = { move, command };
+        this.showOverlay({});
+        this.callbacks.confirmChange({
+          command,
+          change,
+          preview,
+          label: dropped.label,
+          confirmLabel: confirmLabelOf(project, change),
+        });
+        return;
+      }
+    }
+    this.send(command, { from: project, applied: false, drop: { drag, landing: lands }, ...done });
   }
 
   private cancel(): void {
-    if (this.gesture.kind === 'drag') this.renderer.endDrag(this.gesture.drag);
+    if (this.gesture.kind === 'drag') {
+      this.endDropFeedback(this.gesture);
+      this.renderer.endDrag(this.gesture.drag);
+    }
     this.gesture = { kind: 'idle' };
     this.showOverlay({});
     this.refreshMarks();
+  }
+
+  /**
+   * Works out what releasing the dragged shapes would do now, from where the pointer is, and shows it
+   * when it changed: the outlines of the containers it goes into or leaves, and the caption. Where the
+   * grabbed shape would land behind another is checked again on each change, and once a frame while
+   * the aim stays.
+   */
+  private aimDrop(gesture: DragGesture, first = false): void {
+    this.placeCaption(gesture.at);
+    const { indexed, project } = this;
+    const { plan } = gesture;
+    if (!indexed || !project || !plan) return;
+    if (gesture.alt) gesture.armed = undefined;
+    const world = screenToWorld(this.camera, gesture.at);
+    const aim = dropAimAt(
+      indexed,
+      plan,
+      world,
+      gesture.delta,
+      gesture.armed,
+      this.exact,
+      gesture.alt,
+    );
+    // Leaving the shape armed disarms it: coming back to it means resting on it again.
+    if (gesture.armed !== undefined && !(aim.kind === 'into' && aim.target.key === gesture.armed)) {
+      gesture.armed = undefined;
+    }
+    this.restOn(gesture, aim);
+    if (first || !sameAim(aim, gesture.aim)) {
+      gesture.aim = aim;
+      gesture.cover = landingCover(indexed, plan, aim, gesture.delta);
+      this.showDrop(gesture);
+    } else {
+      this.checkLandingSoon(gesture);
+    }
+  }
+
+  /**
+   * Times the rest on a shape that holds nothing, which arms it to take the drop: the timer starts
+   * when the pointer comes onto another such shape, and again whenever it moves further than a few
+   * pixels from where it started.
+   */
+  private restOn(gesture: DragGesture, aim: DropAim): void {
+    const leaf = aim.kind === 'pending' ? aim.leaf.key : undefined;
+    const rest = gesture.rest;
+    if (rest && rest.leaf === leaf && distance(rest.from, gesture.at) <= REST_TOLERANCE) return;
+    if (rest) clearTimeout(rest.timer);
+    gesture.rest = undefined;
+    if (leaf === undefined) return;
+    gesture.rest = {
+      leaf,
+      from: gesture.at,
+      timer: setTimeout(() => {
+        if (this.gesture !== gesture) return;
+        gesture.rest = undefined;
+        gesture.armed = leaf;
+        this.aimDrop(gesture);
+      }, REST_TO_ARM),
+    };
+  }
+
+  /** Checks at the next frame where the grabbed shape lands, and shows it when that changed. */
+  private checkLandingSoon(gesture: DragGesture): void {
+    if (gesture.landingFrame !== undefined) return;
+    gesture.landingFrame = nextFrame(() => {
+      gesture.landingFrame = undefined;
+      const indexed = this.indexed;
+      if (this.gesture !== gesture || !indexed || !gesture.plan) return;
+      const cover = landingCover(indexed, gesture.plan, gesture.aim, gesture.delta);
+      if (cover?.key === gesture.cover?.key) return;
+      gesture.cover = cover;
+      this.showDrop(gesture);
+    });
+  }
+
+  /** Outlines where the dragged shapes would go, and says it beside the pointer. */
+  private showDrop(gesture: DragGesture): void {
+    const { indexed, project } = this;
+    if (!indexed || !project || !gesture.plan) return;
+    const drop = dropOverlay(indexed, gesture.plan, gesture.aim);
+    this.showOverlay(drop ? { drop } : {});
+    this.showCaption(dropCaption(project, gesture.plan, gesture.aim, gesture.cover));
+    this.placeCaption(gesture.at);
+  }
+
+  /** Stops what a drag shows and times while it goes: the rest, the landing check and the caption. */
+  private endDropFeedback(gesture: DragGesture): void {
+    if (gesture.rest) clearTimeout(gesture.rest.timer);
+    gesture.rest = undefined;
+    if (gesture.landingFrame !== undefined) cancelFrame(gesture.landingFrame);
+    gesture.landingFrame = undefined;
+    this.showCaption(undefined);
+  }
+
+  /** Writes the caption: its line, and the details below it; nothing hides it. */
+  private showCaption(caption: DropCaption | undefined): void {
+    const element = this.caption;
+    if (!element) return;
+    element.textContent = caption?.text ?? '';
+    if (caption?.detail === undefined) return;
+    const detail = element.ownerDocument.createElement('span');
+    detail.className = 'canvas-drop-caption-detail';
+    detail.textContent = caption.detail;
+    element.append(detail);
+  }
+
+  /** Puts the caption beside the pointer, within the canvas. */
+  private placeCaption(at: Point): void {
+    const element = this.caption;
+    if (!element || element.textContent === '') return;
+    const { width, height } = this.renderer.viewport;
+    const x = Math.max(0, Math.min(at.x + CAPTION_OFFSET.x, width - element.offsetWidth));
+    const y = Math.max(0, Math.min(at.y + CAPTION_OFFSET.y, height - element.offsetHeight));
+    element.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
   }
 
   /**
@@ -666,13 +1064,14 @@ export class CanvasController {
    * applied it and the project is no longer the one it was made from, in whichever order the two come.
    */
   private send(command: Command, move: SentMove): void {
-    this.sent.push(move);
+    if (!this.sent.includes(move)) this.sent.push(move);
     this.callbacks.command(command).then(
       (applied) => {
         if (!this.sent.includes(move)) return;
         if (!applied) this.moveFailed(move);
         else {
           move.applied = true;
+          if (move.done !== undefined) this.announce(move.done);
           if (this.project !== move.from) this.moveBack(move);
         }
       },
@@ -697,23 +1096,30 @@ export class CanvasController {
     this.nudges = [];
   }
 
-  private forget(move: SentMove): void {
+  /**
+   * Forgets a move, and stops drawing a drop's shapes apart; with `redraw` off, the scene shown next
+   * draws them.
+   */
+  private forget(move: SentMove, redraw = true): void {
     this.sent = this.sent.filter((each) => each !== move);
-    if (this.destroyed || !move.drop) return;
-    this.renderer.endDrag(move.drop.drag);
-    this.showOverlay(this.gestureOverlay);
+    if (this.destroyed) return;
+    if (move.drop) this.renderer.endDrag(move.drop.drag, { redraw });
+    if (move.drop || move.ghost) this.showOverlay(this.gestureOverlay);
   }
 
   /**
-   * Draws a gesture's marks above the scene, with where the drops still waiting land, for each one a
-   * later drag drew over: until their changes come back, the scene still has them where they were.
+   * Draws a gesture's marks above the scene, with where the drops still waiting land: for each one a
+   * later drag drew over, and each one asked to be confirmed, whose drag ended. Until their changes
+   * come back, the scene still has them where they were.
    */
   private showOverlay(overlay: Overlay): void {
     this.gestureOverlay = overlay;
-    const ghost = this.sent.flatMap((move) =>
-      move.drop && this.lastDrag !== undefined && move.drop.drag < this.lastDrag
-        ? move.drop.landing()
-        : [],
+    const ghost = this.sent.flatMap(
+      (move) =>
+        move.ghost ??
+        (move.drop && this.lastDrag !== undefined && move.drop.drag < this.lastDrag
+          ? move.drop.landing()
+          : []),
     );
     this.renderer.setOverlay(ghost.length > 0 ? { ...overlay, ghost } : overlay);
   }
@@ -753,8 +1159,9 @@ export class CanvasController {
   }
 
   private onArrow(event: KeyboardEvent, direction: Direction): void {
-    // Ctrl and ⌘ with an arrow key are left alone, and so are Alt with Left and Right, which go back
-    // and forward in the browser's history.
+    // Ctrl and ⌘ with ↑ and ↓ are the stacking order's, which the canvas area handles for the whole
+    // window; with ← and → they are left alone. So are Alt with Left and Right, which go back and
+    // forward in the browser's history.
     if (event.ctrlKey || event.metaKey) return;
     if (event.altKey && (direction === 'left' || direction === 'right')) return;
     event.preventDefault();
@@ -1119,6 +1526,52 @@ function landingOf(indexed: IndexedScene, selection: Selection, delta: Point): R
   if (rects.length <= MAX_LANDING_MARKS) return rects;
   const around = boundsOf(rects);
   return around ? [around] : [];
+}
+
+/**
+ * Whether a press opens the menu rather than selects or drags: the right button, or on Apple
+ * platforms the main one with Ctrl and without ⌘, where Ctrl then no longer adds to the selection.
+ */
+function isSecondaryPress(event: PointerEvent): boolean {
+  return event.button === 2 || (IS_APPLE && event.button === 0 && event.ctrlKey && !event.metaKey);
+}
+
+/** Whether a change of container takes some element out of a container it sits in. */
+function takesOut(project: ProjectSnapshot, change: ChangeContainerCommand): boolean {
+  const world = project.model.world.id;
+  const to = change.to === world ? undefined : change.to;
+  return change.shapes.some(
+    (shape) => shape.from !== undefined && shape.from !== world && shape.from !== to,
+  );
+}
+
+/** Whether two aims would do the same: for the outlines and the caption to stay as they are. */
+function sameAim(a: DropAim, b: DropAim): boolean {
+  switch (a.kind) {
+    case 'stay':
+    case 'out':
+      return b.kind === a.kind;
+    case 'into':
+      return b.kind === 'into' && b.target.key === a.target.key;
+    case 'refused':
+      return b.kind === 'refused' && b.target.key === a.target.key && b.reason === a.reason;
+    case 'only-moves':
+      return b.kind === 'only-moves' && b.reason === a.reason;
+    case 'pending':
+      return b.kind === 'pending' && b.leaf.key === a.leaf.key && sameAim(a.fallback, b.fallback);
+  }
+}
+
+/** Runs at the next frame; where frames are not drawn, as in tests, soon after. */
+function nextFrame(run: () => void): number {
+  return typeof requestAnimationFrame === 'function'
+    ? requestAnimationFrame(run)
+    : (setTimeout(run, 16) as unknown as number);
+}
+
+function cancelFrame(frame: number): void {
+  if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(frame);
+  else clearTimeout(frame);
 }
 
 function selectableOf(hit: Hit): Selectable {
