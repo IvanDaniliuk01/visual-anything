@@ -1,0 +1,628 @@
+/**
+ * Checking every value a command sets on an appearance, an attribute definition or a relation type's
+ * limits, so that a refusal names what is wrong with a stable problem code before anything is saved.
+ * Values are checked as they arrive, from the app or from Claude, so nothing about their type is
+ * taken for granted.
+ */
+import type {
+  Appearance,
+  AttributeDefinition,
+  Attributes,
+  Badge,
+  ConnectionPoint,
+  DetailRules,
+  Id,
+  JsonValue,
+  RelationAppearance,
+  RelationTypeLimits,
+} from '@visual-anything/schema';
+import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
+import { valueFitsType } from '../appearance';
+import type { Definitions } from '../definitions';
+import { isId } from '../ids';
+import { reject } from './draft';
+
+/** The largest width or height an appearance may give. */
+export const MAX_APPEARANCE_SIZE = 100_000;
+
+const SHAPES = ['rectangle', 'rounded-rectangle', 'ellipse', 'cylinder', 'person'] as const;
+/** The shapes that cannot draw rows. */
+const NOT_FOR_ROWS: ReadonlySet<string> = new Set(['ellipse', 'cylinder', 'person']);
+const SIDES = ['top', 'right', 'bottom', 'left'] as const;
+const DASHES = ['solid', 'dashed', 'dotted'] as const;
+const ATTRIBUTE_TYPES = ['string', 'number', 'boolean', 'json'] as const;
+const COLOR = /^#[0-9a-fA-F]{6}$/;
+
+/** Whether a value is a plain object, as JSON objects are. */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** The length of a text in characters, as the published schema counts them. */
+function characters(text: string): number {
+  return [...text].length;
+}
+
+/** Refuses the keys of an object that its kind does not have. */
+function onlyKeys(
+  value: Record<string, unknown>,
+  keys: readonly string[],
+  refuse: (key: string) => never,
+): void {
+  for (const key of Object.keys(value)) if (!keys.includes(key)) refuse(key);
+}
+
+// Appearances --------------------------------------------------------------------------------------
+
+function invalid(message: string): never {
+  reject('invalid-appearance', message);
+}
+
+function checkedColor(value: unknown, trait: string, of: string): string {
+  if (typeof value !== 'string' || !COLOR.test(value)) {
+    invalid(`The ${trait} of ${of} must be a color written as #rrggbb.`);
+  }
+  return value;
+}
+
+function checkedSize(value: unknown, trait: string, of: string): number {
+  if (
+    typeof value !== 'number' ||
+    !Number.isFinite(value) ||
+    value <= 0 ||
+    value > MAX_APPEARANCE_SIZE
+  ) {
+    invalid(`The ${trait} of ${of} must be a number above 0 and at most 100,000.`);
+  }
+  return value;
+}
+
+function checkedBoolean(value: unknown, trait: string, of: string): boolean {
+  if (typeof value !== 'boolean') invalid(`Whether ${of} ${trait} is true or false.`);
+  return value;
+}
+
+function checkedShape(value: unknown, of: string): NonNullable<Appearance['shape']> {
+  if (!SHAPES.includes(value as (typeof SHAPES)[number])) {
+    invalid(`The shape of ${of} must be one of ${SHAPES.map((each) => `"${each}"`).join(', ')}.`);
+  }
+  return value as NonNullable<Appearance['shape']>;
+}
+
+function checkedDetailAttributes(value: unknown, of: string): string[] {
+  if (!Array.isArray(value)) invalid(`The attributes the detail of ${of} writes must be a list.`);
+  if (value.length > 8) invalid(`The detail of ${of} writes at most 8 attributes.`);
+  const seen = new Set<string>();
+  for (const name of value) {
+    if (typeof name !== 'string') invalid(`The detail of ${of} names attributes by their names.`);
+    if (seen.has(name)) invalid(`The detail of ${of} writes "${name}" twice.`);
+    seen.add(name);
+  }
+  return [...(value as string[])];
+}
+
+function checkedBadge(value: unknown, of: string): Badge {
+  if (!isRecord(value)) invalid(`A badge of ${of} must be an object.`);
+  const text = value.text;
+  if (typeof text !== 'string' || characters(text) < 1 || characters(text) > 4) {
+    invalid(`A badge of ${of} writes 1 to 4 characters.`);
+  }
+  if (value.when === 'attribute') {
+    onlyKeys(value, ['when', 'text', 'attribute'], (key) =>
+      invalid(`A badge of ${of} has no "${key}".`),
+    );
+    if (typeof value.attribute !== 'string') {
+      invalid(`The badge "${text}" of ${of} names the attribute it is written for.`);
+    }
+    return { when: 'attribute', text, attribute: value.attribute };
+  }
+  if (value.when === 'from-end') {
+    onlyKeys(value, ['when', 'text', 'relationType'], (key) =>
+      invalid(`A badge of ${of} has no "${key}".`),
+    );
+    if (!isId(value.relationType)) {
+      invalid(`The badge "${text}" of ${of} names a relation type by its id.`);
+    }
+    return { when: 'from-end', text, relationType: value.relationType };
+  }
+  invalid(`A badge of ${of} is written "when" an "attribute" is true or at a "from-end".`);
+}
+
+function checkedBadges(value: unknown, of: string): Badge[] {
+  if (!Array.isArray(value)) invalid(`The badges of ${of} must be a list.`);
+  if (value.length > 8) invalid(`The detail of ${of} writes at most 8 badges.`);
+  return value.map((badge) => checkedBadge(badge, of));
+}
+
+function checkedDetail(value: unknown, of: string): DetailRules {
+  if (!isRecord(value)) invalid(`The detail of ${of} must be an object.`);
+  onlyKeys(value, ['componentName', 'attributes', 'badges'], (key) =>
+    invalid(`The detail of ${of} has no "${key}".`),
+  );
+  const detail: DetailRules = {};
+  if (value.componentName !== undefined) {
+    detail.componentName = checkedBoolean(value.componentName, 'writes its component’s name', of);
+  }
+  if (value.attributes !== undefined) {
+    detail.attributes = checkedDetailAttributes(value.attributes, of);
+  }
+  if (value.badges !== undefined) detail.badges = checkedBadges(value.badges, of);
+  return detail;
+}
+
+function checkedConnectionPoints(value: unknown, of: string): ConnectionPoint[] {
+  if (!Array.isArray(value)) invalid(`The connection points of ${of} must be a list.`);
+  if (value.length > 32) invalid(`${capitalized(of)} has at most 32 connection points.`);
+  const names = new Set<string>();
+  return value.map((point: unknown) => {
+    if (!isRecord(point)) invalid(`A connection point of ${of} must be an object.`);
+    onlyKeys(point, ['name', 'side', 'at'], (key) =>
+      invalid(`A connection point of ${of} has no "${key}".`),
+    );
+    const { name, side, at } = point;
+    if (typeof name !== 'string' || characters(name) < 1 || characters(name) > 32) {
+      invalid(`A connection point of ${of} has a name of 1 to 32 characters.`);
+    }
+    if (names.has(name)) invalid(`${capitalized(of)} has two connection points named "${name}".`);
+    names.add(name);
+    if (!SIDES.includes(side as (typeof SIDES)[number])) {
+      invalid(
+        `The connection point "${name}" of ${of} sits on the top, right, bottom or left side.`,
+      );
+    }
+    if (typeof at !== 'number' || !Number.isFinite(at) || at < 0 || at > 1) {
+      invalid(
+        `The connection point "${name}" of ${of} sits at a place from 0 to 1 along its side.`,
+      );
+    }
+    return { name, side: side as ConnectionPoint['side'], at };
+  });
+}
+
+function capitalized(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * How each trait of an appearance is checked. It names every trait: adding one to `Appearance`
+ * without a check here does not compile.
+ */
+const TRAIT_CHECKS: {
+  [K in keyof Appearance]-?: (value: unknown, of: string) => NonNullable<Appearance[K]>;
+} = {
+  shape: checkedShape,
+  fill: (value, of) => checkedColor(value, 'fill', of),
+  stroke: (value, of) => checkedColor(value, 'stroke', of),
+  width: (value, of) => checkedSize(value, 'width', of),
+  height: (value, of) => checkedSize(value, 'height', of),
+  detail: checkedDetail,
+  contentsAsRows: (value, of) => checkedBoolean(value, 'draws its contents as rows', of),
+  connectionPoints: checkedConnectionPoints,
+};
+
+/** Refuses an appearance that draws rows on a shape that cannot, both set in it. */
+function checkRowsShape(appearance: Appearance, of: string): void {
+  if (appearance.contentsAsRows === true && NOT_FOR_ROWS.has(appearance.shape ?? '')) {
+    invalid(
+      `${capitalized(of)} cannot draw its contents as rows as a ${appearance.shape}: only a rectangle or a rounded rectangle draws rows.`,
+    );
+  }
+}
+
+/**
+ * A whole appearance a command sets, checked trait by trait. `of` names whose it is in messages, as
+ * in `the component "Queue"`.
+ */
+export function checkedAppearance(value: unknown, of: string): Appearance {
+  if (!isRecord(value)) invalid(`The appearance of ${of} must be an object.`);
+  const appearance: Record<string, unknown> = {};
+  for (const [trait, traitValue] of Object.entries(value)) {
+    if (!Object.hasOwn(TRAIT_CHECKS, trait)) invalid(`An appearance has no trait "${trait}".`);
+    if (traitValue === undefined) continue;
+    appearance[trait] = TRAIT_CHECKS[trait as keyof Appearance](traitValue, of);
+  }
+  checkRowsShape(appearance, of);
+  return appearance;
+}
+
+/**
+ * An appearance after changes, trait by trait: a value sets a trait, `null` takes it out, and a trait
+ * left out stays. `undefined` when nothing is left. Rows on a shape that cannot draw them are refused
+ * when the changes set either of the two.
+ */
+export function changedAppearance(
+  own: Appearance | undefined,
+  changes: unknown,
+  of: string,
+): Appearance | undefined {
+  if (!isRecord(changes)) invalid(`The changes to the appearance of ${of} must be an object.`);
+  const next: Record<string, unknown> = { ...own };
+  for (const [trait, value] of Object.entries(changes)) {
+    if (!Object.hasOwn(TRAIT_CHECKS, trait)) invalid(`An appearance has no trait "${trait}".`);
+    if (value === undefined) continue;
+    if (value === null) {
+      delete next[trait];
+    } else if (trait === 'detail') {
+      const detail = changedDetail(own?.detail, value, of);
+      if (detail === undefined) delete next.detail;
+      else next.detail = detail;
+    } else {
+      next[trait] = TRAIT_CHECKS[trait as keyof Appearance](value, of);
+    }
+  }
+  if (Object.hasOwn(changes, 'shape') || Object.hasOwn(changes, 'contentsAsRows')) {
+    checkRowsShape(next, of);
+  }
+  return Object.keys(next).length === 0 ? undefined : next;
+}
+
+/** A detail after changes, part by part; `undefined` when no part is left. */
+function changedDetail(
+  own: DetailRules | undefined,
+  changes: unknown,
+  of: string,
+): DetailRules | undefined {
+  if (!isRecord(changes)) invalid(`The changes to the detail of ${of} must be an object.`);
+  const next: Record<string, unknown> = { ...own };
+  for (const [part, value] of Object.entries(changes)) {
+    if (!['componentName', 'attributes', 'badges'].includes(part)) {
+      invalid(`The detail of ${of} has no "${part}".`);
+    }
+    if (value === undefined) continue;
+    if (value === null) delete next[part];
+    else next[part] = value;
+  }
+  const checked = checkedDetail(next, of);
+  return Object.keys(checked).length === 0 ? undefined : checked;
+}
+
+// Relation appearances -----------------------------------------------------------------------------
+
+const RELATION_TRAIT_CHECKS: {
+  [K in keyof RelationAppearance]-?: (
+    value: unknown,
+    of: string,
+  ) => NonNullable<RelationAppearance[K]>;
+} = {
+  stroke: (value, of) => checkedColor(value, 'stroke', of),
+  width: (value, of) => {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+      invalid(`The line width of ${of} must be a number above 0.`);
+    }
+    return value;
+  },
+  dash: (value, of) => {
+    if (!DASHES.includes(value as (typeof DASHES)[number])) {
+      invalid(`The dash of ${of} must be "solid", "dashed" or "dotted".`);
+    }
+    return value as NonNullable<RelationAppearance['dash']>;
+  },
+};
+
+/** How a relation type's relations are drawn, as a command sets it whole, checked trait by trait. */
+export function checkedRelationAppearance(value: unknown, of: string): RelationAppearance {
+  return changedRelationAppearance(undefined, value, of) ?? {};
+}
+
+/** How a relation type's relations are drawn after changes, trait by trait; `undefined` when empty. */
+export function changedRelationAppearance(
+  own: RelationAppearance | undefined,
+  changes: unknown,
+  of: string,
+): RelationAppearance | undefined {
+  if (!isRecord(changes)) invalid(`The appearance of ${of} must be an object.`);
+  const next: Record<string, unknown> = { ...own };
+  for (const [trait, value] of Object.entries(changes)) {
+    if (!Object.hasOwn(RELATION_TRAIT_CHECKS, trait)) {
+      invalid(`How a relation is drawn has no trait "${trait}".`);
+    }
+    if (value === undefined) continue;
+    if (value === null) delete next[trait];
+    else next[trait] = RELATION_TRAIT_CHECKS[trait as keyof RelationAppearance](value, of);
+  }
+  return Object.keys(next).length === 0 ? undefined : next;
+}
+
+// Attribute definitions ----------------------------------------------------------------------------
+
+function invalidAttribute(message: string): never {
+  reject('invalid-attribute', message);
+}
+
+/** One attribute definition a command sets, checked. */
+export function checkedAttributeDefinition(value: unknown, of: string): AttributeDefinition {
+  if (!isRecord(value)) invalidAttribute(`An attribute of ${of} must be an object.`);
+  onlyKeys(value, ['name', 'type', 'default', 'description', 'choices', 'unit'], (key) =>
+    invalidAttribute(`An attribute definition has no "${key}".`),
+  );
+  const { name, type, description, choices, unit } = value;
+  if (typeof name !== 'string' || name.trim() === '') {
+    reject('empty-name', `An attribute of ${of} needs a name.`);
+  }
+  if (!ATTRIBUTE_TYPES.includes(type as (typeof ATTRIBUTE_TYPES)[number])) {
+    invalidAttribute(
+      `The attribute "${name}" of ${of} is of type "string", "number", "boolean" or "json".`,
+    );
+  }
+  const attributeType = type as AttributeDefinition['type'];
+  const checked: AttributeDefinition = { name, type: attributeType };
+  if (Object.hasOwn(value, 'default') && value.default !== undefined) {
+    const fallback = value.default as JsonValue;
+    if (!isJson(fallback) || !valueFitsType(fallback, attributeType)) {
+      invalidAttribute(`The default of "${name}" of ${of} must be a ${attributeType} value.`);
+    }
+    checked.default = fallback;
+  }
+  if (description !== undefined) {
+    if (typeof description !== 'string') {
+      invalidAttribute(`The description of "${name}" of ${of} must be text.`);
+    }
+    checked.description = description;
+  }
+  if (choices !== undefined) {
+    if (attributeType !== 'string') {
+      invalidAttribute(
+        `Only a string attribute has choices; "${name}" of ${of} is a ${attributeType}.`,
+      );
+    }
+    if (
+      !Array.isArray(choices) ||
+      choices.length < 1 ||
+      choices.length > 64 ||
+      !choices.every((each) => typeof each === 'string') ||
+      new Set(choices).size !== choices.length
+    ) {
+      invalidAttribute(`The choices of "${name}" of ${of} are 1 to 64 different texts.`);
+    }
+    checked.choices = [...choices];
+    if (checked.default !== undefined && !checked.choices.includes(checked.default as string)) {
+      invalidAttribute(`The default of "${name}" of ${of} must be one of its choices.`);
+    }
+  }
+  if (unit !== undefined) {
+    if (attributeType !== 'number') {
+      invalidAttribute(
+        `Only a number attribute has a unit; "${name}" of ${of} is a ${attributeType}.`,
+      );
+    }
+    if (typeof unit !== 'string' || characters(unit) < 1 || characters(unit) > 16) {
+      invalidAttribute(`The unit of "${name}" of ${of} has 1 to 16 characters.`);
+    }
+    checked.unit = unit;
+  }
+  return checked;
+}
+
+/** The attribute definitions a command sets, checked, each name once. */
+export function checkedAttributeDefinitions(value: unknown, of: string): AttributeDefinition[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) invalidAttribute(`The attributes of ${of} must be a list.`);
+  const names = new Set<string>();
+  return value.map((each: unknown) => {
+    const attribute = checkedAttributeDefinition(each, of);
+    if (names.has(attribute.name)) {
+      invalidAttribute(`${capitalized(of)} defines the attribute "${attribute.name}" twice.`);
+    }
+    names.add(attribute.name);
+    return attribute;
+  });
+}
+
+/** Whether a value is JSON: what a project file can hold. */
+function isJson(value: unknown): value is JsonValue {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return true;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every(isJson);
+  return isRecord(value) && Object.values(value).every(isJson);
+}
+
+/** What a definition's own attributes become after changes, and the renames made. */
+export interface ChangedAttributes {
+  attributes: AttributeDefinition[];
+  renamed: { from: string; to: string }[];
+}
+
+/**
+ * A definition's own attributes after changes, applied in order: rename, set, remove, order. `chain`
+ * is every attribute the definition has, its own and those it inherits. Whether a rename or a removal
+ * is allowed by the rest of the project is checked by the command.
+ */
+export function changedAttributes(
+  own: readonly AttributeDefinition[],
+  chain: readonly AttributeDefinition[],
+  changes: unknown,
+  of: string,
+): ChangedAttributes {
+  if (!isRecord(changes))
+    reject('invalid-command', `The attribute changes of ${of} must be an object.`);
+  onlyKeys(changes, ['rename', 'set', 'remove', 'order'], (key) =>
+    reject('invalid-command', `Attribute changes have no "${key}".`),
+  );
+  let attributes = [...own];
+  const ownNames = () => new Set(attributes.map((attribute) => attribute.name));
+  const renamed: { from: string; to: string }[] = [];
+  const chainNames = new Set(chain.map((attribute) => attribute.name));
+
+  for (const rename of listOf(changes.rename, 'rename')) {
+    if (!isRecord(rename) || typeof rename.from !== 'string' || typeof rename.to !== 'string') {
+      reject('invalid-command', 'A rename gives the attribute "from" and its new name "to".');
+    }
+    const { from, to } = rename;
+    if (!ownNames().has(from)) {
+      reject(
+        'unknown-attribute',
+        `${capitalized(of)} does not define "${from}" itself, so it cannot rename it.`,
+      );
+    }
+    if (to.trim() === '') reject('empty-name', 'An attribute needs a name.');
+    if (chainNames.has(to) || ownNames().has(to)) {
+      reject('name-taken', `${capitalized(of)} already has an attribute "${to}".`);
+    }
+    attributes = attributes.map((attribute) =>
+      attribute.name === from ? { ...attribute, name: to } : attribute,
+    );
+    chainNames.delete(from);
+    chainNames.add(to);
+    renamed.push({ from, to });
+  }
+
+  for (const value of listOf(changes.set, 'set')) {
+    const attribute = checkedAttributeDefinition(value, of);
+    const at = attributes.findIndex((each) => each.name === attribute.name);
+    if (at === -1) attributes.push(attribute);
+    else attributes[at] = attribute;
+  }
+
+  for (const name of listOf(changes.remove, 'remove')) {
+    if (typeof name !== 'string' || !ownNames().has(name)) {
+      reject(
+        'unknown-attribute',
+        `${capitalized(of)} does not define "${String(name)}" itself, so it cannot stop defining it.`,
+      );
+    }
+    attributes = attributes.filter((attribute) => attribute.name !== name);
+  }
+
+  const order = listOf(changes.order, 'order');
+  if (order.length > 0) {
+    const seen = new Set<string>();
+    for (const name of order) {
+      if (typeof name !== 'string' || !ownNames().has(name)) {
+        reject(
+          'unknown-attribute',
+          `${capitalized(of)} does not define "${String(name)}" itself, so it cannot order it.`,
+        );
+      }
+      if (seen.has(name)) reject('invalid-command', `"${name}" is ordered twice.`);
+      seen.add(name);
+    }
+    const byName = new Map(attributes.map((attribute) => [attribute.name, attribute]));
+    attributes = [
+      ...(order as string[]).map((name) => byName.get(name) as AttributeDefinition),
+      ...attributes.filter((attribute) => !seen.has(attribute.name)),
+    ];
+  }
+  return { attributes: checkedAttributeDefinitions(attributes, of), renamed };
+}
+
+function listOf(value: unknown, what: string): readonly unknown[] {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) reject('invalid-command', `"${what}" must be a list.`);
+  return value;
+}
+
+// Limits ------------------------------------------------------------------------------------------
+
+/** One end's limit a command sets: a list of at least one known id, or `any`. */
+export function checkedLimit(
+  value: unknown,
+  end: 'from' | 'to',
+  definitions: Definitions,
+  of: string,
+): readonly Id[] | 'any' {
+  if (value === 'any') return 'any';
+  if (!Array.isArray(value)) {
+    reject('invalid-command', `The ${end} limit of ${of} is a list of ids, or "any".`);
+  }
+  if (value.length === 0) {
+    reject(
+      'invalid-command',
+      `The ${end} limit of ${of} names nothing: leave it out to inherit it, or write "any".`,
+    );
+  }
+  const seen = new Set<Id>();
+  for (const id of value) {
+    if (!isId(id)) reject('invalid-id', `"${String(id)}" is not a valid id.`);
+    if (seen.has(id)) reject('invalid-command', `The ${end} limit of ${of} names "${id}" twice.`);
+    seen.add(id);
+    const known =
+      id === ESSENCE_ID ||
+      id === RELATES_TO_ID ||
+      definitions.components.has(id) ||
+      definitions.relationTypes.has(id);
+    if (!known) {
+      reject(
+        'unknown-component',
+        `The ${end} limit of ${of} names "${id}", which is no component or relation type of a package in use.`,
+        [id],
+      );
+    }
+  }
+  return [...(value as Id[])];
+}
+
+/** A relation type's limits as a command sets them whole, checked; `undefined` when empty. */
+export function checkedLimits(
+  value: unknown,
+  definitions: Definitions,
+  of: string,
+): RelationTypeLimits | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) reject('invalid-command', `The limits of ${of} must be an object.`);
+  onlyKeys(value, ['from', 'to'], (key) =>
+    reject('invalid-command', `Limits are set for the "from" and "to" ends, not "${key}".`),
+  );
+  const limits: Record<string, readonly Id[] | 'any'> = {};
+  for (const end of ['from', 'to'] as const) {
+    if (value[end] !== undefined) limits[end] = checkedLimit(value[end], end, definitions, of);
+  }
+  return Object.keys(limits).length === 0 ? undefined : limits;
+}
+
+// Details against the attributes they name ---------------------------------------------------------
+
+/**
+ * Refuses an appearance whose own detail writes attributes, or whose attribute badges name
+ * attributes, that the thing it belongs to does not have: `attributes` its definition gives, and
+ * `values` it holds itself, for an element. An attribute badge must name a boolean attribute, and a
+ * from-end badge a relation type of a package in use.
+ */
+export function checkDetailResolves(
+  appearance: Appearance | undefined,
+  attributes: readonly AttributeDefinition[],
+  values: Attributes | undefined,
+  definitions: Definitions,
+  of: string,
+): void {
+  const detail = appearance?.detail;
+  if (detail === undefined) return;
+  const byName = new Map(attributes.map((attribute) => [attribute.name, attribute]));
+  const holds = (name: string) => values !== undefined && Object.hasOwn(values, name);
+  for (const name of detail.attributes ?? []) {
+    if (!byName.has(name) && !holds(name)) {
+      reject(
+        'unknown-attribute',
+        `The detail of ${of} writes "${name}", which ${of} does not have.`,
+      );
+    }
+  }
+  for (const badge of detail.badges ?? []) {
+    if (badge.when === 'attribute') {
+      const definition = byName.get(badge.attribute);
+      if (definition === undefined && !holds(badge.attribute)) {
+        reject(
+          'unknown-attribute',
+          `The badge "${badge.text}" of ${of} is written while "${badge.attribute}" is true, but ${of} has no such attribute.`,
+        );
+      }
+      const boolean =
+        definition !== undefined
+          ? definition.type === 'boolean'
+          : typeof values?.[badge.attribute] === 'boolean';
+      if (!boolean) {
+        invalid(
+          `The badge "${badge.text}" of ${of} is written while "${badge.attribute}" is true, but it is not a boolean attribute.`,
+        );
+      }
+    } else if (
+      badge.relationType !== RELATES_TO_ID &&
+      definitions.relationType(badge.relationType) === undefined
+    ) {
+      reject(
+        'unknown-relation-type',
+        `The badge "${badge.text}" of ${of} names the relation type "${badge.relationType}", which no package in use defines.`,
+        [badge.relationType],
+      );
+    }
+  }
+}
