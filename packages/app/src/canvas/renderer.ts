@@ -476,14 +476,44 @@ export class CanvasRenderer {
     this.observer.observe(this.host);
     this.resize();
     if (this.indexed) this.show(this.indexed);
-    // The label fonts take a moment to draw: drawn now, they are ready before the first zoom.
+    // The label fonts take a moment to draw, and PixiJS prepares how to draw each kind of drawing
+    // the first time it draws one: done now, both are ready before the first zoom.
     setTimeout(() => {
       try {
-        if (this.status === 'ready') installFonts();
+        if (this.status !== 'ready') return;
+        installFonts();
+        this.warmUp();
       } catch {
         // Without fonts, labels are written when needed, or not at all.
       }
     }, 0);
+  }
+
+  /** Draws once, out of sight, one of each kind of drawing and label the canvas makes. */
+  private warmUp(): void {
+    const { shapes, lines, notes } = SAMPLE_DRAWINGS;
+    const sample = new Container();
+    const outlines = new Graphics();
+    drawShapeOutlines(outlines, shapes);
+    drawRelationRoutes(outlines, lines);
+    drawFreeShapes(outlines, notes, []);
+    const blocks = batched(new Graphics());
+    drawShapeBlocks(blocks, shapes);
+    drawRelationLines(blocks, lines);
+    sample.addChild(
+      blocks,
+      outlines,
+      ...writeShapeLabels(shapes, true, this.text),
+      ...writeRelationLabels(lines, this.text),
+      ...writeNoteTexts(notes),
+    );
+    sample.position.set(-100_000, -100_000);
+    this.app.stage.addChild(sample);
+    try {
+      this.app.render();
+    } finally {
+      sample.destroy({ children: true, context: true });
+    }
   }
 
   private resize(): void {
@@ -1339,6 +1369,50 @@ export class CanvasRenderer {
     });
   }
 }
+
+/** One drawing of each kind: a shape of each kind, a container, relations of each dash, a note. */
+const SAMPLE_DRAWINGS: { shapes: ElementShape[]; lines: RelationLine[]; notes: NoteShape[] } =
+  (() => {
+    const kinds = ['rectangle', 'rounded-rectangle', 'ellipse', 'cylinder', 'person'] as const;
+    const shapes = kinds.map((kind, at): ElementShape => {
+      const rect = { x: at * 200, y: 0, width: 180, height: 80 };
+      return {
+        key: `sample-${kind}`,
+        element: `sample-${kind}`,
+        offset: { x: rect.x, y: rect.y },
+        positioned: 'placed',
+        name: 'Sample',
+        componentName: 'Sample',
+        kind,
+        fill: '#F3F5F8',
+        stroke: '#3E4C59',
+        rect,
+        extent: rect,
+        holdsContents: at === 0,
+      };
+    });
+    const dashes = ['solid', 'dashed', 'dotted'] as const;
+    const lines = dashes.map((dash, at): RelationLine => {
+      const from = { x: 0, y: 200 + at * 40 };
+      const to = { x: 400, y: 200 + at * 40 };
+      return {
+        relation: `sample-${dash}`,
+        label: 'Sample',
+        route: [from, to],
+        from,
+        to,
+        middle: { x: 200, y: from.y },
+        arrowhead: arrowheadAt(from, to, 2),
+        stroke: '#3E4C59',
+        width: 2,
+        dash,
+      };
+    });
+    const notes: NoteShape[] = [
+      { id: 'sample-note', rect: { x: 0, y: 400, width: 200, height: 60 }, text: 'Sample' },
+    ];
+    return { shapes, lines, notes };
+  })();
 
 /** Runs at the next frame; where frames are not drawn, as in tests, soon after. */
 function nextFrame(run: () => void): number {
