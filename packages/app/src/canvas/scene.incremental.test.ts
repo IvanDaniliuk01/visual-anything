@@ -10,7 +10,7 @@ import {
   type Command,
   type ProjectSnapshot,
 } from '@visual-anything/core';
-import type { Id, Note, ShapePosition, ViewFile } from '@visual-anything/schema';
+import type { Note, ShapePosition, ViewFile } from '@visual-anything/schema';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { syntheticProject } from '../bench/synthetic';
