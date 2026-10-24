@@ -1,6 +1,7 @@
 /**
  * Orthogonal routes for relations: horizontal and vertical segments that leave a shape and enter the
- * other on the sides facing each other. This stands in until ELK routes relations, in M3.
+ * other on the sides facing each other, or, when one shape overlaps the other, that leave the inner one
+ * by its side nearest the other's outline. This stands in until ELK routes relations, in M3.
  */
 import { centerOf, distance, type Point, type Rect } from './geometry';
 
@@ -10,6 +11,21 @@ export type Route = Point[];
 /** How close to a corner a route may leave or enter a shape. */
 const CORNER_INSET = 6;
 
+/** One end of a route: a shape, by its rectangle, or a point, such as the middle of another relation. */
+export type RouteEnd = { rect: Rect } | { point: Point };
+
+/** Routes between two ends, each a shape or a point, as a relation between them is drawn. */
+export function routeBetweenEnds(from: RouteEnd, to: RouteEnd, offset = 0): Route {
+  if ('rect' in from) {
+    return 'rect' in to
+      ? routeBetween(from.rect, to.rect, offset)
+      : routeToPoint(from.rect, to.point, offset);
+  }
+  return 'rect' in to
+    ? routeFromPoint(from.point, to.rect, offset)
+    : routeBetweenPoints(from.point, to.point);
+}
+
 /**
  * Routes from one shape to another. `offset` moves both ends along their sides, so that relations
  * between the same two shapes run side by side.
@@ -17,7 +33,7 @@ const CORNER_INSET = 6;
 export function routeBetween(from: Rect, to: Rect, offset = 0): Route {
   const gapX = Math.max(to.x - right(from), from.x - right(to));
   const gapY = Math.max(to.y - bottom(from), from.y - bottom(to));
-  if (gapX <= 0 && gapY <= 0) return straightBetween(from, to);
+  if (gapX <= 0 && gapY <= 0) return routeAcross(from, to, offset);
 
   if (gapX >= gapY) {
     const goesRight = to.x >= right(from);
@@ -143,9 +159,51 @@ function distanceToSegment(point: Point, a: Point, b: Point): number {
   return distance(point, { x: a.x + t * dx, y: a.y + t * dy });
 }
 
-/** A straight route between the borders of two overlapping shapes, along the line of their centers. */
-function straightBetween(from: Rect, to: Rect): Route {
-  return [centerOf(from), centerOf(to)];
+/**
+ * The route between two shapes that overlap or touch, such as an element and its container: one
+ * straight segment, horizontal or vertical, from a side of one to a side of the other. It leaves the
+ * inner shape by its side nearest the other's outline, crossing as few of the two shapes as it can,
+ * and runs where both shapes span, so that it starts and ends on their outlines.
+ */
+function routeAcross(from: Rect, to: Rect, offset: number): Route {
+  let best: { route: Route; score: number[] } | undefined;
+  for (const axis of ['x', 'y'] as const) {
+    const across = axis === 'x' ? 'y' : 'x';
+    const span = (rect: Rect) => (axis === 'x' ? rect.width : rect.height);
+    const spanAcross = (rect: Rect) => (axis === 'x' ? rect.height : rect.width);
+    // Where both shapes span across the segment; it is never empty, as the shapes meet.
+    const low = Math.max(from[across], to[across]);
+    const high = Math.min(from[across] + spanAcross(from), to[across] + spanAcross(to));
+    const shared = overlap(low, high, low, high) ?? [low, high];
+    const along = clamp((low + high) / 2 + offset, shared[0], Math.max(shared[0], shared[1]));
+    for (const start of [from[axis], from[axis] + span(from)]) {
+      for (const end of [to[axis], to[axis] + span(to)]) {
+        const length = Math.abs(end - start);
+        if (length === 0) continue;
+        // Whether the segment runs through the inside of each shape, rather than away from it.
+        const throughFrom = start === from[axis] ? end > start : end < start;
+        const throughTo = end === to[axis] ? start > end : start < end;
+        // Fewest shapes run through, then the shortest, then one that leaves `from` rather than `to`.
+        const score = [(throughFrom ? 1 : 0) + (throughTo ? 1 : 0), length, throughFrom ? 1 : 0];
+        if (best && !before(score, best.score)) continue;
+        const point = (at: number): Point =>
+          axis === 'x' ? { x: at, y: along } : { x: along, y: at };
+        best = { route: [point(start), point(end)], score };
+      }
+    }
+  }
+  // Two shapes that are one point have no side to leave by.
+  return best?.route ?? [centerOf(from), centerOf(to)];
+}
+
+/** Whether one score comes strictly before another, comparing them part by part. */
+function before(score: readonly number[], other: readonly number[]): boolean {
+  for (let at = 0; at < score.length; at++) {
+    const a = score[at] as number;
+    const b = other[at] as number;
+    if (a !== b) return a < b;
+  }
+  return false;
 }
 
 function turnFrom(start: Point, end: Point, first: 'horizontal' | 'vertical'): Route {

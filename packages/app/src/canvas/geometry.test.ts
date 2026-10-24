@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { arrowheadAt, borderPoint, distance, fitTransform, type Rect } from './geometry';
+import {
+  arrowheadAt,
+  borderPoint,
+  cylinderCap,
+  distance,
+  fitTransform,
+  grow,
+  holdsPoint,
+  personHead,
+  type Rect,
+  type ShapeKind,
+} from './geometry';
 
 describe('fitTransform', () => {
   const bounds: Rect = { x: 40, y: 40, width: 1180, height: 592 };
@@ -73,5 +84,60 @@ describe('arrowheadAt', () => {
 describe('distance', () => {
   it('measures the straight distance between two points', () => {
     expect(distance({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(5);
+  });
+});
+
+describe('holdsPoint', () => {
+  const rect: Rect = { x: 0, y: 0, width: 200, height: 100 };
+  const kinds: ShapeKind[] = ['rectangle', 'rounded-rectangle', 'ellipse', 'cylinder', 'person'];
+
+  it('holds the whole rectangle of rectangles, rounded ones included', () => {
+    for (const kind of ['rectangle', 'rounded-rectangle'] as const) {
+      expect(holdsPoint(kind, rect, { x: 1, y: 1 })).toBe(true);
+      expect(holdsPoint(kind, rect, { x: 200, y: 100 })).toBe(true);
+    }
+  });
+
+  it('holds an ellipse by its ellipse, not its corners', () => {
+    expect(holdsPoint('ellipse', rect, { x: 100, y: 50 })).toBe(true);
+    expect(holdsPoint('ellipse', rect, { x: 100, y: 1 })).toBe(true);
+    expect(holdsPoint('ellipse', rect, { x: 5, y: 5 })).toBe(false);
+    expect(holdsPoint('ellipse', rect, { x: 195, y: 95 })).toBe(false);
+  });
+
+  it('holds a cylinder by its body and its two caps', () => {
+    expect(cylinderCap(rect)).toBe(12);
+    expect(holdsPoint('cylinder', rect, { x: 2, y: 50 })).toBe(true);
+    expect(holdsPoint('cylinder', rect, { x: 100, y: 2 })).toBe(true);
+    expect(holdsPoint('cylinder', rect, { x: 100, y: 98 })).toBe(true);
+    expect(holdsPoint('cylinder', rect, { x: 2, y: 2 })).toBe(false);
+    expect(holdsPoint('cylinder', rect, { x: 198, y: 98 })).toBe(false);
+  });
+
+  it('holds a person by its body and its head', () => {
+    const head = personHead(rect);
+    expect(head).toBe(22);
+    expect(holdsPoint('person', rect, { x: 100, y: head })).toBe(true);
+    expect(holdsPoint('person', rect, { x: 5, y: 50 })).toBe(true);
+    expect(holdsPoint('person', rect, { x: 5, y: 5 })).toBe(false);
+    expect(holdsPoint('person', rect, { x: 100 + head + 2, y: head })).toBe(false);
+  });
+
+  it('holds nothing outside the rectangle', () => {
+    for (const kind of kinds) {
+      expect(holdsPoint(kind, rect, { x: -1, y: 50 })).toBe(false);
+      expect(holdsPoint(kind, rect, { x: 100, y: 101 })).toBe(false);
+    }
+  });
+});
+
+describe('grow', () => {
+  it('grows a rectangle on every side', () => {
+    expect(grow({ x: 10, y: 20, width: 30, height: 40 }, 5)).toEqual({
+      x: 5,
+      y: 15,
+      width: 40,
+      height: 50,
+    });
   });
 });
