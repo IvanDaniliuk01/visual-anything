@@ -1305,3 +1305,192 @@ describe('Inspector of an element with many relations', () => {
     expect(screen.queryByRole('button', { name: /^Show all/ })).not.toBeInTheDocument();
   });
 });
+
+describe('Inspector, in this view', () => {
+  /** The test project after a command, as the local program would have it. */
+  function after(project: ProjectSnapshot, command: Command): ProjectSnapshot {
+    const outcome = executeCommand(project, command);
+    if (!outcome.ok) throw new Error(outcome.problems.map((each) => each.message).join(' '));
+    return outcome.state;
+  }
+
+  /** Calendar, created last, directly in World over Clinic booking, beside what that holds. */
+  const WITH_CALENDAR = after(PROJECT, {
+    type: 'create-element',
+    element: { id: 'calendar', component: 'clinic.calendar', name: 'Calendar' },
+    positions: [{ view: 'system-overview', x: 300, y: 380 }],
+  });
+
+  function section(): HTMLElement {
+    return screen.getByRole('region', { name: 'In this view' });
+  }
+
+  it('says Calendar sits directly in World, and puts it inside a container chosen by name', async () => {
+    const { send } = renderInspector({ project: WITH_CALENDAR, selected: [element('calendar')] });
+    const here = section();
+    expect(within(here).getByText('Directly in World')).toBeInTheDocument();
+    expect(within(here).queryByRole('button', { name: 'Take out' })).not.toBeInTheDocument();
+    const put = within(here).getByRole('button', { name: 'Put inside…' });
+    fireEvent.click(put);
+    const chooser = screen.getByRole('dialog', { name: 'Put "Calendar" inside…' });
+    const field = within(chooser).getByRole('combobox');
+    expect(field).toHaveFocus();
+    expect(within(chooser).queryByText('Directly in World')).not.toBeInTheDocument();
+    fireEvent.change(field, { target: { value: 'clinic' } });
+    await settle(() => fireEvent.keyDown(field, { key: 'Enter' }));
+    expect(sent(send)).toEqual([
+      {
+        type: 'change-container',
+        view: 'system-overview',
+        to: 'clinic-booking',
+        shapes: [{ element: 'calendar' }],
+      },
+    ]);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(within(section()).getByRole('status')).toHaveTextContent(
+      'Put "Calendar" inside "Clinic booking".',
+    );
+    expect(within(section()).getByText('In "Clinic booking"')).toBeInTheDocument();
+  });
+
+  it('takes WhatsApp out of Clinic booking, or moves it to another container, or to World', async () => {
+    const { send } = renderInspector({ selected: [element('whatsapp')] });
+    const here = section();
+    expect(within(here).getByText('In "Clinic booking"')).toBeInTheDocument();
+    fireEvent.click(within(here).getByRole('button', { name: 'Move to…' }));
+    const chooser = screen.getByRole('dialog', { name: 'Move "WhatsApp channel" to…' });
+    expect(within(chooser).getAllByRole('option')[0]).toHaveTextContent('Directly in World');
+    fireEvent.click(within(chooser).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(within(here).getByRole('button', { name: 'Move to…' })).toHaveFocus();
+    expect(send).not.toHaveBeenCalled();
+
+    await settle(() => fireEvent.click(within(here).getByRole('button', { name: 'Take out' })));
+    expect(sent(send)).toEqual([
+      {
+        type: 'change-container',
+        view: 'system-overview',
+        shapes: [{ element: 'whatsapp', from: 'clinic-booking', at: { x: 1260, y: 40 } }],
+      },
+    ]);
+    expect(within(section()).getByText('Directly in World')).toBeInTheDocument();
+  });
+
+  it('asks before a change that deletes more than the relation that places the shape', async () => {
+    const named = withRelations([]);
+    const project: ProjectSnapshot = {
+      ...named,
+      model: {
+        ...named.model,
+        relations: named.model.relations.map((each) =>
+          each.id === 'whatsapp-in-clinic'
+            ? { ...each, description: 'Where patients write' }
+            : each,
+        ),
+      },
+    };
+    const { send } = renderInspector({ project, selected: [element('whatsapp')] });
+    const takeOut = within(section()).getByRole('button', { name: 'Take out' });
+    fireEvent.click(takeOut);
+    const dialog = screen.getByRole('dialog', {
+      name: 'Take "WhatsApp channel" out of "Clinic booking"?',
+    });
+    expect(dialog).toHaveTextContent('It has a name, a description or attributes of its own');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(send).not.toHaveBeenCalled();
+    expect(takeOut).toHaveFocus();
+    fireEvent.click(takeOut);
+    await settle(() =>
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Take out' })),
+    );
+    expect(sent(send)).toHaveLength(1);
+    expect(sent(send)[0]).toMatchObject({ type: 'change-container' });
+  });
+
+  it('says where it is in the stacking order, what overlaps it, and changes the order', async () => {
+    const { send } = renderInspector({ project: WITH_CALENDAR, selected: [element('calendar')] });
+    const here = section();
+    expect(within(here).getByText('Directly in World: 3rd of 3, from the back')).toHaveAttribute(
+      'aria-live',
+      'polite',
+    );
+    expect(within(here).getByText('Behind it: "Clinic booking"')).toBeInTheDocument();
+    expect(within(here).queryByText(/^In front of it/)).not.toBeInTheDocument();
+    const group = within(here).getByRole('group', { name: 'Stacking order' });
+    const front = within(group).getByRole('button', { name: 'Bring to front' });
+    expect(front).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(front);
+    expect(within(here).getByRole('status')).toHaveTextContent(
+      '"Calendar" is already in front of everything it overlaps directly in World.',
+    );
+    expect(send).not.toHaveBeenCalled();
+    const backward = within(group).getByRole('button', { name: 'Send backward' });
+    expect(backward).toHaveAttribute(
+      'title',
+      'Send backward, behind "Clinic booking", which hides it (Ctrl+↓)',
+    );
+    await settle(() => fireEvent.click(backward));
+    expect(sent(send)).toEqual([
+      {
+        type: 'restack',
+        view: 'system-overview',
+        moves: [{ shape: { element: 'calendar' }, to: { behind: 'clinic-booking' } }],
+      },
+    ]);
+    expect(
+      within(section()).getByText('Directly in World: 2nd of 3, from the back'),
+    ).toBeInTheDocument();
+    expect(within(section()).getByText('In front of it: "Clinic booking"')).toBeInTheDocument();
+    expect(within(section()).getByRole('status')).toHaveTextContent(
+      '"Calendar" is now behind "Clinic booking", which hides it.',
+    );
+  });
+
+  it('adds an element inside the inspected one, and selects it', async () => {
+    const { send, select } = renderInspector({ selected: [element('scheduling')] });
+    send.mockResolvedValueOnce({ ok: true, created: ['service-1'] });
+    const add = within(section()).getByRole('combobox', {
+      name: 'Add an element inside "Scheduling"',
+    });
+    expect(within(add).getAllByRole('option')[0]).toHaveTextContent('Add inside "Scheduling"…');
+    await settle(() => fireEvent.change(add, { target: { value: 'systems.service' } }));
+    expect(sent(send)).toEqual([
+      {
+        type: 'create-element',
+        element: { component: 'systems.service', name: 'Service' },
+        containers: [{ container: 'scheduling', relationType: 'systems.is-part-of' }],
+      },
+    ]);
+    expect(select).toHaveBeenLastCalledWith(selectionOf([element('service-1')]));
+  });
+
+  it('puts nothing inside containers in a view arranged by no relation type that nests', () => {
+    const project: ProjectSnapshot = {
+      ...PROJECT,
+      views: PROJECT.views.map((view) => ({ ...view, nestingRelationTypes: [] })),
+    };
+    renderInspector({ project, selected: [element('patient')] });
+    const here = section();
+    expect(
+      within(here).getByText(
+        'This view puts nothing inside containers: it is arranged by no relation type that nests.',
+      ),
+    ).toBeInTheDocument();
+    expect(within(here).queryByRole('button', { name: 'Put inside…' })).not.toBeInTheDocument();
+    expect(within(here).queryByRole('combobox')).not.toBeInTheDocument();
+    expect(within(here).getByRole('group', { name: 'Stacking order' })).toBeInTheDocument();
+  });
+
+  it('changes nothing while the project cannot be changed', () => {
+    renderInspector({ selected: [element('whatsapp')], editable: false });
+    const here = section();
+    expect(within(here).getByRole('button', { name: 'Take out' })).toBeDisabled();
+    expect(within(here).getByRole('button', { name: 'Move to…' })).toBeDisabled();
+    expect(within(here).getByRole('combobox')).toBeDisabled();
+    expect(
+      within(within(here).getByRole('group', { name: 'Stacking order' })).getByRole('button', {
+        name: 'Bring forward',
+      }),
+    ).toHaveAttribute('title', 'The project cannot be changed now.');
+  });
+});
