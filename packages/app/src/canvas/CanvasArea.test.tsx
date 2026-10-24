@@ -10,6 +10,7 @@ import { FakeApplication, FakeResizeObserver } from '../test/FakeApplication';
 import { loadSample } from '../test/sample';
 import { fitCamera, worldToScreen } from './camera';
 import { CanvasArea, type SendCommand } from './CanvasArea';
+import { CanvasController } from './controller';
 import { centerOf } from './geometry';
 import { indexScene } from './hit';
 import { CanvasRenderer, type Overlay } from './renderer';
@@ -1065,6 +1066,24 @@ describe('Adding elements', () => {
     fireEvent.blur(inside);
     expect(screen.getByRole('combobox', { name: 'Add an element' })).toBeInTheDocument();
     expect(onCommand).not.toHaveBeenCalled();
+  });
+
+  it('brings the element just added into sight once it is drawn', async () => {
+    const reveal = vi.spyOn(CanvasController.prototype, 'reveal');
+    const program = localProgram();
+    const { host, on } = await started(<program.Live />);
+    const booking = on({ x: 600, y: 450 });
+    point('pointerdown', host, booking.x, booking.y);
+    point('pointerup', host, booking.x, booking.y);
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: /^Add an element/ }), {
+        target: { value: 'systems.service' },
+      });
+      await Promise.resolve();
+    });
+    await answers();
+    const added = program.project.model.elements.at(-1)?.id;
+    expect(reveal).toHaveBeenCalledWith(`clinic-booking/${added}`);
   });
 
   it('makes siblings of elements added one after another, each named as it comes', async () => {
