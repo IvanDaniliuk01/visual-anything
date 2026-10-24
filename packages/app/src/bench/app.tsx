@@ -4,8 +4,9 @@
  * events on the real elements. It plays the local program itself: each command runs in the core and
  * the project it gives goes back to the shell. Open `/app-bench.html` from the dev server;
  * `?elements=N` and `?overlap=…` work as on `/bench.html`, `?strict` mounts the app in React's
- * StrictMode, as `main.tsx` does, which renders everything twice in development, and `?profile` says
- * which components and canvas methods the time goes to.
+ * StrictMode, as `main.tsx` does, which renders everything twice in development, `?profile` says
+ * which components and canvas methods the time goes to, and `?clicks=`, `?selectAlls=`, `?frames=`,
+ * `?nudges=` and `?renames=` change how many of each the benchmark makes.
  *
  * Each interaction is timed from its input event to the second animation frame after React has
  * committed what it changed: the first of the two frames draws the canvas, the second starts once
@@ -78,12 +79,30 @@ export interface BenchPlan {
 }
 
 /**
- * Where time went, in milliseconds: React's components by name, each for rendering itself without
- * its children, and the canvas's methods by name, each with what it calls.
+ * Where time went, in milliseconds: React's components by name, each for rendering itself and for its
+ * own effects, without its children; the canvas's methods by name, each with what it calls; and the
+ * frames that took more than 50 ms, as the browser reports them.
  */
 export interface Breakdown {
   components: Record<string, number>;
+  effects: Record<string, number>;
   methods: Record<string, number>;
+  frames: LongFrames;
+  /** What happened, in order: milliseconds from the start, what it was, and how long it took. */
+  timeline: [number, string, number][];
+}
+
+/** What the long animation frames of a step took, in milliseconds, where the browser reports them. */
+export interface LongFrames {
+  count: number;
+  /** In all. */
+  duration: number;
+  /** From the start of their rendering: animation frame callbacks, style, layout and paint. */
+  rendering: number;
+  /** Style and layout at the end of each frame. */
+  styleAndLayout: number;
+  /** Style and layout that scripts forced by reading the layout. */
+  forcedStyleAndLayout: number;
 }
 
 /** One interaction, in milliseconds from its input event. */
@@ -107,6 +126,9 @@ export interface Step {
   /** Until the shell committed a new project, and until the effects of that commit ran. */
   committed?: number;
   effects?: number;
+  /** What React says its layout effects and its passive effects took, in every commit of the step. */
+  layoutEffects: number;
+  passiveEffects: number;
   profile?: Breakdown;
 }
 
@@ -180,15 +202,13 @@ const WORK_MARK: Mark = {
   passes: ({ average, p95, worst }) =>
     average <= WORK.average && p95 <= WORK.p95 && worst <= WORK.worst,
 };
-/** The canvas's methods timed while profiling, those that exist. */
-const TIMED_METHODS: readonly [object, string, readonly string[]][] = [
-  [CanvasController.prototype, 'CanvasController', ['update', 'setSelection', 'reveal']],
-  [
-    CanvasRenderer.prototype,
-    'CanvasRenderer',
-    ['show', 'setSelection', 'setOverlay', 'setCamera', 'renderNow', 'rebuild', 'drawSelection'],
-  ],
+/** The classes whose methods are timed while profiling, every method on their prototypes. */
+const TIMED_CLASSES: readonly [object, string][] = [
+  [CanvasController.prototype, 'CanvasController'],
+  [CanvasRenderer.prototype, 'CanvasRenderer'],
 ];
+/** The track React's development build logs each component's render and effects on. */
+const COMPONENTS_TRACK = 'Components \u269b';
 
 /**
  * The app as `LiveApp` mounts it, with a local program of its own, and the benchmark that drives it
@@ -224,9 +244,14 @@ export function AppBench({ project, plan, profile = false, onStatus, onFinish }:
     [trace],
   );
   const onRender = useCallback<ProfilerOnRenderCallback>(
-    (_id, _phase, actualDuration) => trace.render(actualDuration),
+    (_id, phase, actualDuration) => trace.render(phase, actualDuration),
     [trace],
   );
+  // React's Profiler also says what each commit's effects took, though its types leave it out.
+  const [effectHooks] = useState(() => ({
+    onCommit: (_id: string, _phase: string, duration: number) => trace.layout(duration),
+    onPostCommit: (_id: string, _phase: string, duration: number) => trace.passive(duration),
+  }));
 
   useLayoutEffect(() => {
     const container = frame.current?.parentElement;
@@ -265,7 +290,7 @@ export function AppBench({ project, plan, profile = false, onStatus, onFinish }:
 
   return (
     <div ref={frame} className="app-bench-frame">
-      <Profiler id="shell" onRender={onRender}>
+      <Profiler id="shell" onRender={onRender} {...(effectHooks as object)}>
         <ProjectErrorBoundary>
           <Shell project={shown} onCommand={onCommand} />
         </ProjectErrorBoundary>
@@ -293,6 +318,8 @@ class Trace {
   private commits = 0;
   private committedAt: number | undefined;
   private effectsAt: number | undefined;
+  private layoutEffects = 0;
+  private passiveEffects = 0;
   private readonly refusals: string[] = [];
   /** The project whose commit's effects ran last, and when the first ever ran. */
   private effected: ProjectSnapshot | undefined;
@@ -308,7 +335,10 @@ class Trace {
     this.commits = 0;
     this.committedAt = undefined;
     this.effectsAt = undefined;
+    this.layoutEffects = 0;
+    this.passiveEffects = 0;
     this.profiling?.take();
+    this.profiling?.log('input');
   }
 
   run(core: number): void {
@@ -319,18 +349,31 @@ class Trace {
     this.refusals.push(problems);
   }
 
-  render(actualDuration: number): void {
+  render(phase: string, actualDuration: number): void {
     this.rendering += actualDuration;
     this.commits += 1;
     this.profiling?.committed();
+    this.profiling?.log(`React: render (${phase})`, actualDuration);
+  }
+
+  layout(duration: number): void {
+    this.layoutEffects += duration;
+    this.profiling?.log('React: layout effects', duration);
+  }
+
+  passive(duration: number): void {
+    this.passiveEffects += duration;
+    this.profiling?.log('React: passive effects', duration);
   }
 
   commit(): void {
     this.committedAt = performance.now();
+    this.profiling?.log('committed');
   }
 
   affect(project: ProjectSnapshot): void {
     this.effectsAt = performance.now();
+    this.profiling?.log('effects ran');
     this.effected = project;
     this.firstEffects ??= this.effectsAt;
   }
@@ -350,12 +393,24 @@ class Trace {
     return this.refusals.pop();
   }
 
-  end(): Pick<Step, 'core' | 'rendering' | 'commits' | 'committed' | 'effects' | 'profile'> {
-    const profile = this.profiling?.take();
+  end(): Pick<
+    Step,
+    | 'core'
+    | 'rendering'
+    | 'commits'
+    | 'committed'
+    | 'effects'
+    | 'layoutEffects'
+    | 'passiveEffects'
+    | 'profile'
+  > {
+    const profile = this.profiling?.take(this.began);
     return {
       core: this.core,
       rendering: this.rendering,
       commits: this.commits,
+      layoutEffects: this.layoutEffects,
+      passiveEffects: this.passiveEffects,
       ...(this.committedAt === undefined ? {} : { committed: this.committedAt - this.began }),
       ...(this.effectsAt === undefined ? {} : { effects: this.effectsAt - this.began }),
       ...(profile ? { profile } : {}),
@@ -377,41 +432,104 @@ interface Fiber {
 /** React's flag on a component that rendered in the commit at hand. */
 const PERFORMED_WORK = 1;
 
+/** A span React logged on its components track: an effect's, from its start to its end. */
+interface Span {
+  name: string;
+  start: number;
+  end: number;
+  /** The time of the spans inside it. */
+  inner: number;
+}
+
+/** A long animation frame, as the browser reports it; Chrome has them since version 123. */
+interface LongFrame extends PerformanceEntry {
+  renderStart: number;
+  styleAndLayoutStart: number;
+  scripts: readonly { forcedStyleAndLayoutDuration: number }[];
+}
+
 /**
  * Says which components and canvas methods the time goes to. React's Profiler times every component
  * inside it in development; each commit, the components that rendered add how long they took to render
- * themselves. The canvas's methods are wrapped while profiling, so that each adds how long it took.
+ * themselves. React's development build also logs each component's effects on its own track of the
+ * Performance panel, which the profile reads as they are logged. The canvas's methods are wrapped while
+ * profiling, so that each adds how long it took, with the methods it calls. The browser reports the
+ * frames that took long.
  */
 class Profiling {
   private components = new Map<string, number>();
   private methods = new Map<string, number>();
+  private spans: Span[] = [];
+  private frames: LongFrame[] = [];
+  private timeline: [number, string, number][] = [];
+  /** How deep the timed methods running now call each other. */
+  private depth = 0;
   private container: HTMLElement | undefined;
+  private observer: PerformanceObserver | undefined;
   private readonly restores: (() => void)[] = [];
 
   start(container: HTMLElement): void {
     this.container = container;
-    for (const [target, owner, names] of TIMED_METHODS) {
-      for (const name of names) {
-        const original: unknown = Reflect.get(target, name);
-        if (typeof original !== 'function') continue;
-        const methods = this.methods;
+    const methods = this.methods;
+    // eslint-disable-next-line @typescript-eslint/no-this-alias -- the wrapped methods have their own `this`.
+    const profiling = this;
+    for (const [target, owner] of TIMED_CLASSES) {
+      for (const name of Object.getOwnPropertyNames(target)) {
+        const descriptor = Object.getOwnPropertyDescriptor(target, name);
+        const original: unknown = descriptor?.value;
+        if (name === 'constructor' || typeof original !== 'function') continue;
+        const key = `${owner}.${name}`;
         const timed = function (this: unknown, ...args: unknown[]): unknown {
           const began = performance.now();
+          profiling.depth += 1;
           try {
             return Reflect.apply(original, this, args) as unknown;
           } finally {
-            const key = `${owner}.${name}`;
-            methods.set(key, (methods.get(key) ?? 0) + performance.now() - began);
+            profiling.depth -= 1;
+            const took = performance.now() - began;
+            methods.set(key, (methods.get(key) ?? 0) + took);
+            if (profiling.depth === 0) profiling.timeline.push([began, key, took]);
           }
         };
         Reflect.set(target, name, timed);
         this.restores.push(() => Reflect.set(target, name, original));
       }
     }
+    const logged: unknown = Reflect.get(console, 'timeStamp');
+    if (typeof logged === 'function') {
+      const spans = this.spans;
+      const timeStamp = (...args: unknown[]): unknown => {
+        const [name, start, end, track, , color] = args;
+        if (
+          track === COMPONENTS_TRACK &&
+          typeof name === 'string' &&
+          typeof start === 'number' &&
+          typeof end === 'number' &&
+          // React colours the spans of effects in its secondary colours, and renders otherwise.
+          typeof color === 'string' &&
+          (color.startsWith('secondary') || color === 'error')
+        ) {
+          spans.push({ name, start, end, inner: 0 });
+        }
+        return Reflect.apply(logged, console, args) as unknown;
+      };
+      Reflect.set(console, 'timeStamp', timeStamp);
+      this.restores.push(() => Reflect.set(console, 'timeStamp', logged));
+    }
+    if (
+      typeof PerformanceObserver === 'function' &&
+      PerformanceObserver.supportedEntryTypes.includes('long-animation-frame')
+    ) {
+      this.observer = new PerformanceObserver((list) => {
+        this.frames.push(...(list.getEntries() as LongFrame[]));
+      });
+      this.observer.observe({ type: 'long-animation-frame' });
+    }
   }
 
   stop(): void {
     for (const restore of this.restores.splice(0)) restore();
+    this.observer?.disconnect();
     this.container = undefined;
   }
 
@@ -431,16 +549,68 @@ class Profiling {
     }
   }
 
-  /** What was added since the last time, which starts again from nothing. */
-  take(): Breakdown {
-    const taken = {
-      components: Object.fromEntries(this.components),
-      methods: Object.fromEntries(this.methods),
+  /** Notes when something happened, and how long it took if it is over. */
+  log(what: string, took = 0): void {
+    this.timeline.push([performance.now() - took, what, took]);
+  }
+
+  /** What was added since the last time, which starts again from nothing; times from `since`. */
+  take(since = 0): Breakdown {
+    this.frames.push(...((this.observer?.takeRecords() ?? []) as LongFrame[]));
+    const frames: LongFrames = {
+      count: this.frames.length,
+      duration: 0,
+      rendering: 0,
+      styleAndLayout: 0,
+      forcedStyleAndLayout: 0,
     };
+    for (const frame of this.frames) {
+      const end = frame.startTime + frame.duration;
+      frames.duration += frame.duration;
+      if (frame.renderStart > 0) frames.rendering += end - frame.renderStart;
+      if (frame.styleAndLayoutStart > 0) frames.styleAndLayout += end - frame.styleAndLayoutStart;
+      for (const script of frame.scripts) {
+        frames.forcedStyleAndLayout += script.forcedStyleAndLayoutDuration;
+      }
+    }
+    const taken: Breakdown = {
+      components: Object.fromEntries(this.components),
+      effects: selfTimes(this.spans),
+      methods: Object.fromEntries(this.methods),
+      frames,
+      timeline: this.timeline
+        .sort((a, b) => a[0] - b[0])
+        .map(([at, what, took]): [number, string, number] => [
+          Math.round((at - since) * 10) / 10,
+          what,
+          Math.round(took * 10) / 10,
+        ]),
+    };
+    this.timeline = [];
     this.components = new Map();
     this.methods.clear();
+    this.spans.splice(0);
+    this.frames = [];
     return taken;
   }
+}
+
+/** Each component's own time in spans that nest, without the spans inside its own. */
+function selfTimes(spans: readonly Span[]): Record<string, number> {
+  const sorted = [...spans].sort((a, b) => a.start - b.start || b.end - a.end);
+  const open: Span[] = [];
+  for (const span of sorted) {
+    span.inner = 0;
+    while (open.length > 0 && (open.at(-1) as Span).end <= span.start) open.pop();
+    const outer = open.at(-1);
+    if (outer && span.end <= outer.end) outer.inner += span.end - span.start;
+    open.push(span);
+  }
+  const times: Record<string, number> = {};
+  for (const span of sorted) {
+    times[span.name] = (times[span.name] ?? 0) + span.end - span.start - span.inner;
+  }
+  return times;
 }
 
 /** The tree React shows now in a container it renders into. */
@@ -686,12 +856,16 @@ class Driver {
     for (let waited = 0; !done(); waited++) {
       if (waited >= MAX_WAIT_FRAMES) throw new Error('What the benchmark waited for never showed.');
       await this.frames(1);
+      this.trace.profiling?.log('frame, waiting');
     }
     const shownAt = performance.now();
+    this.trace.profiling?.log('shown');
     // The canvas draws in this frame, before this callback: its own was asked for before.
     const { start, called } = await nextFrame();
+    this.trace.profiling?.log('frame');
     const drawn = called - Math.max(start, shownAt);
     await this.frames(1);
+    this.trace.profiling?.log('frame');
     return {
       total: performance.now() - began,
       listeners,
@@ -1054,12 +1228,17 @@ function startPage(mount: HTMLElement): void {
   const began = performance.now();
   const project = syntheticProject({ elements: size, overlap });
   const prepared = performance.now() - began;
+  // Each count can be changed, as `?clicks=10`, to look into one phase quickly.
+  const count = (name: string, fallback: number) => {
+    const asked = Number(search.get(name) ?? fallback);
+    return Number.isInteger(asked) && asked > 0 ? asked : fallback;
+  };
   const plan: BenchPlan = {
-    clicks: 40,
-    selectAlls: 10,
-    frames: 180,
-    nudges: 20,
-    renames: 20,
+    clicks: count('clicks', 40),
+    selectAlls: count('selectAlls', 10),
+    frames: count('frames', 180),
+    nudges: count('nudges', 20),
+    renames: count('renames', 20),
     rest: { start: 2500, between: 300 },
   };
   const app = (
@@ -1102,11 +1281,12 @@ const PARTS: { name: string; of: (step: Step) => number }[] = [
     of: (step) => (step.committed ?? step.shown) - step.core,
   },
   {
-    name: 'The canvas update (effects)',
+    name: 'The canvas update and the other effects',
     of: (step) => (step.effects ?? step.shown) - (step.committed ?? step.shown),
   },
   { name: 'The frame', of: (step) => step.total - (step.effects ?? step.shown) },
   { name: 'Of the render: React’s Profiler', of: (step) => step.rendering },
+  { name: 'Of the effects: their own code, as React times it', of: (step) => step.passiveEffects },
   { name: 'Of the frame: the canvas drawing', of: (step) => step.work - step.shown },
 ];
 
@@ -1197,20 +1377,26 @@ function report(results: BenchResults, setup: PageSetup): void {
     })),
   ]
     .filter((phase) => phase.breakdowns.length > 0)
-    .map((phase) => ({
-      name: phase.name,
-      components: largest(
-        phase.breakdowns.map((each) => each.components),
+    .map((phase) => {
+      const per = (pick: (each: Breakdown) => Record<string, number>) =>
+        largest(phase.breakdowns.map(pick), phase.count);
+      const frames = largest(
+        phase.breakdowns.map((each) => ({ ...each.frames })),
         phase.count,
-      ),
-      methods: largest(
-        phase.breakdowns.map((each) => each.methods),
-        phase.count,
-      ),
-    }));
+      );
+      return {
+        name: phase.name,
+        components: per((each) => each.components),
+        effects: per((each) => each.effects),
+        methods: per((each) => each.methods),
+        frames,
+      };
+    });
+  const listed = (entries: [string, number][]) =>
+    entries.map(([name, ms]) => `${name} ${ms.toFixed(1)}`).join(', ') || 'none';
   const profileLines = profiles.map(
     (phase) =>
-      `${phase.name}, per step: ${phase.components.map(([name, ms]) => `${name} ${ms.toFixed(1)}`).join(', ')}; ${phase.methods.map(([name, ms]) => `${name} ${ms.toFixed(1)}`).join(', ')} ms.`,
+      `${phase.name}, ms per step. Rendering: ${listed(phase.components)}. Effects: ${listed(phase.effects)}. Canvas: ${listed(phase.methods)}. Long frames: ${listed(phase.frames)}.`,
   );
 
   const passed = marked.every(Boolean);
@@ -1226,6 +1412,11 @@ function report(results: BenchResults, setup: PageSetup): void {
     ...(results.frameInterval > 1000 / TARGET_FPS + 2
       ? [
           `This browser starts a frame only every ${results.frameInterval.toFixed(1)} ms, not every ${(1000 / TARGET_FPS).toFixed(1)} ms: the marks on frames cannot be met here, and the work columns say what the app costs.`,
+        ]
+      : []),
+    ...(import.meta.env.DEV
+      ? [
+          'React’s development build logs each component’s render and effects for the Performance panel while it runs the effects: the time between the effects’ own code and the canvas update, below, is that logging, which a production build leaves out.',
         ]
       : []),
     `Canvas ${results.viewport.width} × ${results.viewport.height} px; shapes are clicked at scale ${results.clickScale.toFixed(3)}.`,
