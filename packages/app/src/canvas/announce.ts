@@ -22,6 +22,8 @@ export interface RelationStep {
   /** From 1. */
   position: number;
   count: number;
+  /** The relation it ends on, when the keys reach it through that one rather than on the element. */
+  through?: Id;
 }
 
 /** "Appointments API, Service, in Scheduling, 4 relations." */
@@ -41,16 +43,21 @@ export function describeShape(
   return `${shape.name}, ${shape.componentName}, ${where}, ${counted(relations, 'relation', 'relations')}.`;
 }
 
-/** "Booking agent communicates with Appointments API, “HTTPS”.", and where it is when stepping. */
+/**
+ * "Booking agent communicates with Appointments API, “HTTPS”.", and where it is when stepping: which
+ * relation it ends on, when it is reached through one, and its place among the element's.
+ */
 export function describeRelation(project: ProjectSnapshot, id: Id, step?: RelationStep): string {
   const index = modelIndexOf(project);
   const relation = index.relation(id);
   if (!relation) return 'A relation that no longer exists.';
   const named = relation.name ? `, “${relation.name}”` : '';
+  const through =
+    step?.through === undefined ? '' : `, ending on ${nameOfEnd(project, step.through)}`;
   const where = step
     ? `, relation ${step.position} of ${step.count} of ${nameIn(index, step.element)}`
     : '';
-  return `${sentenceOf(index, project, relation)}${named}${where}.`;
+  return `${sentenceOf(index, project, relation)}${named}${through}${where}.`;
 }
 
 /** The name of an end of a relation: an element's name, or the sentence a relation reads as. */
