@@ -32,6 +32,7 @@ import {
   type NoticeMessage,
   type Operation,
   type Problem,
+  type ProblemCode,
   type ProjectChangedMessage,
   type ProjectSnapshot,
   type ServerMessage,
@@ -279,7 +280,7 @@ export class Session implements LiveSession {
         this.#send(client, {
           type: 'command/rejected',
           requestId,
-          problems: [invalid(reasonOf(error))],
+          problems: [refusal('invalid-command', reasonOf(error))],
         });
       }
       return;
@@ -316,7 +317,7 @@ export class Session implements LiveSession {
           );
         } catch (error) {
           return this.#refuse(origin, [
-            invalid(`The command could not be run: ${reasonOf(error)}`),
+            refusal('program-failed', `The command could not be run: ${reasonOf(error)}`),
           ]);
         }
         if (!outcome.ok) return this.#refuse(origin, outcome.problems);
@@ -384,7 +385,9 @@ export class Session implements LiveSession {
           this.#history,
         );
         if (step === undefined)
-          return this.#refuse(origin, [invalid(`There is nothing to ${kind}.`)]);
+          return this.#refuse(origin, [
+            refusal(`nothing-to-${kind}`, `There is nothing to ${kind}.`),
+          ]);
         const operations = [...step.operations];
         const saved = await this.#save(step.state, operations);
         if (!saved.ok) return this.#refuse(origin, saved.problems);
@@ -420,7 +423,9 @@ export class Session implements LiveSession {
       this.#err(
         `The local program failed: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`,
       );
-      return this.#refuse(origin, [invalid(`The local program failed: ${reasonOf(error)}`)]);
+      return this.#refuse(origin, [
+        refusal('program-failed', `The local program failed: ${reasonOf(error)}`),
+      ]);
     }
   }
 
@@ -510,7 +515,8 @@ export class Session implements LiveSession {
       return {
         ok: false,
         problems: [
-          invalid(
+          refusal(
+            'changed-on-disk',
             `${listOf(changed)} changed on disk, so this change was not made; the project is reloaded from the files.`,
           ),
         ],
@@ -572,7 +578,10 @@ export class Session implements LiveSession {
       const checked = validateFile(content.kind, content.value);
       if (!checked.ok) {
         problems.push(
-          invalid(`The change would make ${path} invalid: ${describeErrors(checked.errors)}.`),
+          refusal(
+            'invalid-file',
+            `The change would make ${path} invalid: ${describeErrors(checked.errors)}.`,
+          ),
         );
         continue;
       }
@@ -650,9 +659,11 @@ export class Session implements LiveSession {
         await this.#put(change.path, change.next);
       } catch (error) {
         const reason = `Could not save ${change.path} (${errorReason(error)})`;
-        if (await this.#putBack(done)) return invalid(`${reason}; nothing was changed.`);
+        if (await this.#putBack(done))
+          return refusal('not-saved', `${reason}; nothing was changed.`);
         this.#scanSoon();
-        return invalid(
+        return refusal(
+          'not-saved',
           `${reason}, nor put back the files saved before it; the project is reloaded from the files.`,
         );
       }
@@ -782,10 +793,10 @@ export class Session implements LiveSession {
   }
 }
 
-const CLOSED: Problem = { code: 'invalid-command', message: 'The project is closed.' };
+const CLOSED: Problem = { code: 'project-closed', message: 'The project is closed.' };
 
-function invalid(message: string): Problem {
-  return { code: 'invalid-command', message };
+function refusal(code: ProblemCode, message: string): Problem {
+  return { code, message };
 }
 
 function reasonOf(error: unknown): string {
