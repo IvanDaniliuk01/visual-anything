@@ -6,8 +6,8 @@ import {
 } from '@visual-anything/core';
 import type { AttributeDefinition, Element, Relation } from '@visual-anything/schema';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { useMemo, useRef, useState } from 'react';
-import { describe, expect, it, vi, type Mock } from 'vitest';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { SendCommand } from '../canvas/CanvasArea';
 import { buildScene } from '../canvas/scene';
 import { EditorContext, type Editor } from '../editor/EditorContext';
@@ -108,6 +108,8 @@ interface Setup {
 interface HarnessProps extends Required<Setup> {
   send: SendCommand;
   select: (selection: Selection) => void;
+  /** Receives what puts another project in place, as an undo, a redo or an edit by Claude does. */
+  onReplace: (replace: (project: ProjectSnapshot) => void) => void;
 }
 
 /**
@@ -115,10 +117,16 @@ interface HarnessProps extends Required<Setup> {
  * project with the core, as the local program would, so the inspector shows the result; and what is
  * selected through the editor becomes the selection.
  */
-function Harness({ project: initial, selected, editable, send, select }: HarnessProps) {
+function Harness({ project: initial, selected, editable, send, select, onReplace }: HarnessProps) {
   const [project, setProject] = useState(initial);
   const [selection, setSelection] = useState(() => selectionOf(selected));
   const latest = useRef(initial);
+  useEffect(() => {
+    onReplace((next) => {
+      latest.current = next;
+      setProject(next);
+    });
+  }, [onReplace]);
   const definitions = useMemo(() => definitionsOf(project.packages), [project.packages]);
   const view = project.views[0];
   const scene = useMemo(() => (view ? buildScene(project, view.id) : undefined), [project, view]);
@@ -154,6 +162,7 @@ function Harness({ project: initial, selected, editable, send, select }: Harness
 function renderInspector({ project = PROJECT, selected = [], editable = true }: Setup = {}) {
   const send = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
   const select = vi.fn<(selection: Selection) => void>();
+  let replaceProject: (next: ProjectSnapshot) => void = () => {};
   render(
     <Harness
       project={project}
@@ -161,10 +170,56 @@ function renderInspector({ project = PROJECT, selected = [], editable = true }: 
       editable={editable}
       send={send}
       select={select}
+      onReplace={(replace) => {
+        replaceProject = replace;
+      }}
     />,
   );
-  return { send, select, inspector: screen.getByRole('complementary', { name: 'Inspector' }) };
+  return {
+    send,
+    select,
+    inspector: screen.getByRole('complementary', { name: 'Inspector' }),
+    /** Puts another project in place, as an undo, a redo or an edit by Claude does. */
+    replace: (next: ProjectSnapshot) => act(() => replaceProject(next)),
+  };
 }
+
+/**
+ * Makes `send` hold its answers until the test gives them, in the order it was called, as the local
+ * program answers each command after saving the files.
+ */
+function holdAnswers(send: Mock<SendCommand>): { answerNext: () => Promise<void> } {
+  const waiting: (() => void)[] = [];
+  send.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        waiting.push(() => resolve({ ok: true }));
+      }),
+  );
+  return {
+    answerNext: () =>
+      settle(() => {
+        const answer = waiting.shift();
+        if (!answer) throw new Error('No command is waiting for its answer.');
+        answer();
+      }),
+  };
+}
+
+const outside: HTMLElement[] = [];
+
+/** A button outside the inspector, to hold the focus as the canvas or the header would. */
+function outsideButton(): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.textContent = 'Outside';
+  document.body.append(button);
+  outside.push(button);
+  return button;
+}
+
+afterEach(() => {
+  for (const each of outside.splice(0)) each.remove();
+});
 
 /** The commands sent so far. */
 function sent(send: Mock<SendCommand>): Command[] {
@@ -951,5 +1006,302 @@ describe('Inspector', () => {
       for (const control of controls) expect(control).toBeDisabled();
       expect(screen.getByRole('button', { name: 'Booking agent, AI agent' })).toBeEnabled();
     });
+  });
+});
+
+describe('Inspector focus', () => {
+  /** Adds an attribute of the element's own from the form. */
+  async function addAttribute(name: string, type: string): Promise<void> {
+    fireEvent.change(screen.getByRole('textbox', { name: 'Attribute name' }), {
+      target: { value: name },
+    });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Attribute type' }), {
+      target: { value: type },
+    });
+    await settle(() => fireEvent.click(screen.getByRole('button', { name: 'Add attribute' })));
+  }
+
+  const withReplicas = (value: number | boolean) =>
+    withElement('appointments-db', (each) => ({
+      ...each,
+      attributes: { ...each.attributes, replicas: value },
+    }));
+
+  it('moves the focus to a new attribute once, not again when its row comes back', async () => {
+    const { replace } = renderInspector({ selected: [element('appointments-db')] });
+    await addAttribute('replicas', 'number');
+    expect(screen.getByRole('spinbutton', { name: 'replicas' })).toHaveFocus();
+
+    const canvas = outsideButton();
+    act(() => canvas.focus());
+    // Undo removes the attribute, and redo brings it back.
+    replace(PROJECT);
+    expect(screen.queryByRole('spinbutton', { name: 'replicas' })).not.toBeInTheDocument();
+    replace(withReplicas(0));
+    expect(screen.getByRole('spinbutton', { name: 'replicas' })).toBeInTheDocument();
+    expect(canvas).toHaveFocus();
+
+    // A change from elsewhere that gives it another kind of control does not take the focus either.
+    replace(withReplicas(true));
+    expect(screen.getByRole('checkbox', { name: 'replicas' })).toBeInTheDocument();
+    expect(canvas).toHaveFocus();
+  });
+
+  it('keeps the focus on a value whose control changes with what is committed', async () => {
+    const project = withElement('appointments-db', (each) => ({
+      ...each,
+      attributes: { ...each.attributes, poolSize: 'lots', replicated: 'yes' },
+    }));
+    renderInspector({ project, selected: [element('appointments-db')] });
+
+    await addAttribute('limits', 'json');
+    const limits = screen.getByRole('textbox', { name: 'limits' });
+    expect(limits).toHaveFocus();
+    await enter(limits, '5');
+    expect(screen.getByRole('spinbutton', { name: 'limits' })).toHaveFocus();
+
+    const poolSize = screen.getByRole('textbox', { name: 'poolSize' });
+    act(() => poolSize.focus());
+    await enter(poolSize, '40');
+    expect(screen.getByRole('spinbutton', { name: 'poolSize' })).toHaveFocus();
+
+    const replicated = screen.getByRole('textbox', { name: 'replicated' });
+    act(() => replicated.focus());
+    await enter(replicated, 'true');
+    expect(screen.getByRole('checkbox', { name: 'replicated' })).toHaveFocus();
+  });
+
+  it('leaves the focus where it went when leaving a value commits one of another type', async () => {
+    const project = withElement('appointments-db', (each) => ({
+      ...each,
+      attributes: { ...each.attributes, poolSize: 'lots' },
+    }));
+    renderInspector({ project, selected: [element('appointments-db')] });
+    const poolSize = screen.getByRole('textbox', { name: 'poolSize' });
+    act(() => poolSize.focus());
+    fireEvent.change(poolSize, { target: { value: '40' } });
+    const canvas = outsideButton();
+    await settle(() => canvas.focus());
+    expect(screen.getByRole('spinbutton', { name: 'poolSize' })).toHaveValue(40);
+    expect(canvas).toHaveFocus();
+  });
+});
+
+describe('Inspector problems', () => {
+  it('says a problem with a value as it appears', async () => {
+    renderInspector({ selected: [element('appointments-db')] });
+    const poolSize = screen.getByRole('spinbutton', { name: 'poolSize' });
+    await leave(poolSize, '');
+    expect(within(rowOf(poolSize)).getByRole('alert')).toHaveTextContent('Enter a number.');
+    expect(poolSize).toHaveAccessibleDescription(/Enter a number\.$/);
+  });
+
+  it('says a problem with a new attribute, and moves the focus to its name', async () => {
+    renderInspector({ selected: [element('appointments-db')] });
+    const form = screen.getByRole('form', { name: 'Add an attribute of its own' });
+    const add = within(form).getByRole('button', { name: 'Add attribute' });
+    act(() => add.focus());
+    await settle(() => fireEvent.click(add));
+    expect(within(form).getByRole('alert')).toHaveTextContent('Give the attribute a name.');
+    expect(within(form).getByRole('textbox', { name: 'Attribute name' })).toHaveFocus();
+  });
+
+  it('says a problem with a colour code as it appears', async () => {
+    renderInspector({ selected: [element('booking-agent')] });
+    const code = screen.getByRole('textbox', { name: 'Stroke colour code' });
+    fireEvent.change(code, { target: { value: '#12345' } });
+    await settle(() => fireEvent.blur(code));
+    expect(screen.getByRole('alert')).toHaveTextContent(COLOR_FORMS);
+  });
+});
+
+describe('Inspector, while answers are on their way', () => {
+  it('sends a name put back while the first rename is on its way', async () => {
+    const { send } = renderInspector({ selected: [element('booking-agent')] });
+    const { answerNext } = holdAnswers(send);
+    const name = screen.getByRole('textbox', { name: 'Name' });
+    await enter(name, 'Booking bot');
+    await enter(name, 'Booking agent');
+    expect(sent(send)).toEqual([
+      { type: 'update-element', id: 'booking-agent', changes: { name: 'Booking bot' } },
+      { type: 'update-element', id: 'booking-agent', changes: { name: 'Booking agent' } },
+    ]);
+    expect(name).toHaveValue('Booking agent');
+    await answerNext();
+    expect(name).toHaveValue('Booking agent');
+    await answerNext();
+    expect(name).toHaveValue('Booking agent');
+    expect(screen.getByRole('heading', { name: 'Booking agent, AI agent' })).toBeInTheDocument();
+  });
+
+  it('sends a description put back while the first change is on its way, and nothing more for the same text', async () => {
+    const { send } = renderInspector({ selected: [element('booking-agent')] });
+    const { answerNext } = holdAnswers(send);
+    const description = screen.getByRole('textbox', { name: 'Description' });
+    const original =
+      'Understands the request, offers free slots and books the one the patient picks.';
+    await enter(description, 'Books slots.');
+    await enter(description, 'Books slots.');
+    await enter(description, original);
+    expect(
+      sent(send).map((command) => command.type === 'update-element' && command.changes),
+    ).toEqual([{ description: 'Books slots.' }, { description: original }]);
+    await answerNext();
+    await answerNext();
+    expect(description).toHaveValue(original);
+  });
+
+  it('sends a colour picked back while the first pick is on its way', async () => {
+    const { send } = renderInspector({ selected: [element('booking-agent')] });
+    const { answerNext } = holdAnswers(send);
+    const fill = screen.getByLabelText('Fill');
+    await settle(() => fireEvent.change(fill, { target: { value: '#445566' } }));
+    await settle(() => fireEvent.change(fill, { target: { value: '#f8e1ec' } }));
+    expect(
+      sent(send).map((command) => command.type === 'update-element' && command.changes),
+    ).toEqual([{ appearance: { fill: '#445566' } }, { appearance: { fill: '#f8e1ec' } }]);
+    await answerNext();
+    await answerNext();
+    expect(fill).toHaveValue('#f8e1ec');
+  });
+
+  it('builds a second appearance change on the first while the first is on its way', async () => {
+    const { send } = renderInspector({ selected: [element('booking-agent')] });
+    const { answerNext } = holdAnswers(send);
+    const shape = screen.getByRole('combobox', { name: 'Shape' });
+    const stroke = screen.getByLabelText('Stroke');
+    await settle(() => fireEvent.change(shape, { target: { value: 'ellipse' } }));
+    await settle(() => fireEvent.change(stroke, { target: { value: '#334455' } }));
+    expect(
+      sent(send).map((command) => command.type === 'update-element' && command.changes),
+    ).toEqual([
+      { appearance: { fill: '#F8E1EC', shape: 'ellipse' } },
+      { appearance: { fill: '#F8E1EC', shape: 'ellipse', stroke: '#334455' } },
+    ]);
+    await answerNext();
+    await answerNext();
+    expect(shape).toHaveValue('ellipse');
+    expect(stroke).toHaveValue('#334455');
+  });
+
+  it('builds a change made right after going back to the component’s appearance on no appearance of its own', async () => {
+    const { send } = renderInspector({ selected: [element('booking-agent')] });
+    const { answerNext } = holdAnswers(send);
+    await settle(() =>
+      fireEvent.click(screen.getByRole('button', { name: 'Use the component’s appearance' })),
+    );
+    await settle(() =>
+      fireEvent.change(screen.getByRole('combobox', { name: 'Shape' }), {
+        target: { value: 'ellipse' },
+      }),
+    );
+    expect(
+      sent(send).map((command) => command.type === 'update-element' && command.changes),
+    ).toEqual([{ appearance: null }, { appearance: { shape: 'ellipse' } }]);
+    await answerNext();
+    await answerNext();
+    expect(screen.getByLabelText('Fill')).toHaveValue('#ede4ff');
+  });
+});
+
+describe('Inspector selects', () => {
+  /** An arrow key on a closed select, which moves its value on Windows and Linux. */
+  function arrowTo(select: HTMLElement, value: string): void {
+    fireEvent.keyDown(select, { key: 'ArrowDown' });
+    fireEvent.change(select, { target: { value } });
+  }
+
+  it('sends one command for the option the arrow keys reach in a closed select, once it is left', async () => {
+    const { send } = renderInspector({ selected: [relation('agent-to-api')] });
+    const relationType = screen.getByRole('combobox', { name: 'Relation type' });
+    act(() => relationType.focus());
+    arrowTo(relationType, 'systems.reads-from');
+    arrowTo(relationType, 'systems.queries');
+    arrowTo(relationType, 'systems.writes-to');
+    expect(send).not.toHaveBeenCalled();
+    expect(relationType).toHaveValue('systems.writes-to');
+    await settle(() => fireEvent.blur(relationType));
+    expect(sent(send)).toEqual([
+      {
+        type: 'update-relation',
+        id: 'agent-to-api',
+        changes: { relationType: 'systems.writes-to' },
+      },
+    ]);
+    expect(relationType).toHaveValue('systems.writes-to');
+  });
+
+  it('commits the option the arrow keys reached with Enter, and goes back with Escape', async () => {
+    const { send } = renderInspector({ selected: [element('booking-agent')] });
+    const shape = screen.getByRole('combobox', { name: 'Shape' });
+    act(() => shape.focus());
+    arrowTo(shape, 'ellipse');
+    fireEvent.keyDown(shape, { key: 'Escape' });
+    expect(shape).toHaveValue('rounded-rectangle');
+    await settle(() => fireEvent.blur(shape));
+    expect(send).not.toHaveBeenCalled();
+
+    arrowTo(shape, 'cylinder');
+    await settle(() => fireEvent.keyDown(shape, { key: 'Enter' }));
+    expect(sent(send)).toEqual([
+      {
+        type: 'update-element',
+        id: 'booking-agent',
+        changes: { appearance: { fill: '#F8E1EC', shape: 'cylinder' } },
+      },
+    ]);
+    await settle(() => fireEvent.blur(shape));
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers no relation type that nests where containment would form a cycle', () => {
+    const project = withRelations([
+      {
+        id: 'scheduling-to-api',
+        relationType: 'systems.communicates-with',
+        from: 'scheduling',
+        to: 'appointments-api',
+      },
+    ]);
+    renderInspector({ project, selected: [relation('scheduling-to-api')] });
+    expect(
+      within(screen.getByRole('combobox', { name: 'Relation type' })).getByRole('option', {
+        name: 'is part of · would make containment form a cycle',
+      }),
+    ).toBeDisabled();
+  });
+
+  it('offers no relation type that nests when World is its from end', () => {
+    const project = withRelations([
+      { id: 'world-to-patient', relationType: 'relates-to', from: 'world', to: 'patient' },
+    ]);
+    renderInspector({ project, selected: [relation('world-to-patient')] });
+    expect(
+      within(screen.getByRole('combobox', { name: 'Relation type' })).getByRole('option', {
+        name: 'is part of · World cannot sit inside anything',
+      }),
+    ).toBeDisabled();
+  });
+});
+
+describe('Inspector of an element with many relations', () => {
+  it('lists the first 50 relations on it, and all of them when asked', async () => {
+    const many: Relation[] = Array.from({ length: 70 }, (_, at) => ({
+      id: `extra-${at}`,
+      relationType: 'systems.communicates-with',
+      from: 'appointments-api',
+      to: 'reminder-service',
+    }));
+    renderInspector({ project: withRelations(many), selected: [element('appointments-api')] });
+    const relations = screen.getByRole('list', { name: 'Relations' });
+    expect(within(relations).getAllByRole('button')).toHaveLength(50);
+    expect(screen.getByText('50 of 75 shown.')).toBeInTheDocument();
+    await settle(() =>
+      fireEvent.click(screen.getByRole('button', { name: 'Show all 75 relations' })),
+    );
+    const all = within(screen.getByRole('list', { name: 'Relations' })).getAllByRole('button');
+    expect(all).toHaveLength(75);
+    expect(all[50]).toHaveFocus();
+    expect(screen.queryByRole('button', { name: /^Show all/ })).not.toBeInTheDocument();
   });
 });

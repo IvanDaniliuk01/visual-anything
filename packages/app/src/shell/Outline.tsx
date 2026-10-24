@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { drawnRelations } from '../canvas/navigation';
 import { useEditor } from '../editor/EditorContext';
 import { selectionOf, sizeOf, type Selectable } from '../editor/selection';
 import {
@@ -57,7 +56,7 @@ export function Outline({ active }: OutlineProps) {
 
   /** Selects the relation's far end, shows it on the canvas and moves the focus to its row. */
   const follow = (item: RelationItem) => {
-    const farShape = drawnRelations(scene, project).shapeOf(item.far);
+    const farShape = outline.shapeOf(item.far);
     const far: Selectable = farShape
       ? { kind: 'element', id: item.far }
       : { kind: 'relation', id: item.far };

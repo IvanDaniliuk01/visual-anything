@@ -1,11 +1,12 @@
 import { definitionsOf, type ProjectSnapshot } from '@visual-anything/core';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { syntheticProject } from '../bench/synthetic';
 import { buildScene } from '../canvas/scene';
 import { EditorContext, type Editor } from '../editor/EditorContext';
-import { EMPTY_SELECTION, selectionOf, type Selectable, type Selection } from '../editor/selection';
+import { selectionOf, type Selectable } from '../editor/selection';
+import { useSelection } from '../editor/useSelection';
 import { loadSample } from '../test/sample';
 import { ModelPanel } from './ModelPanel';
 
@@ -20,8 +21,8 @@ interface HarnessProps {
 
 /** The model panel with the editor's state, as the shell keeps it, and a stand-in for the canvas. */
 function Harness({ project = sample, onReveal, canvasSelects = [] }: HarnessProps) {
-  const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
   const view = project.views[0];
+  const [selection, setSelection] = useSelection(project, view);
   const scene = useMemo(() => (view ? buildScene(project, view.id) : undefined), [project, view]);
   const definitions = definitionsOf(project.packages);
   const editor: Editor = {
@@ -255,6 +256,86 @@ describe('The outline', () => {
   });
 });
 
+describe('The outline, as its tab hides and shows', () => {
+  it('leaves the focus on its tab when shown again, where it went last does not take it', () => {
+    render(<Harness />);
+    focus(row('Booking agent, AI agent'));
+    press('ArrowRight');
+    press('ArrowDown');
+    press('Enter');
+    press('Enter');
+    expect(focused()).toHaveAccessibleName('Appointments API, Service');
+
+    const outlineTab = screen.getByRole('tab', { name: 'Outline' });
+    focus(outlineTab);
+    fireEvent.keyDown(outlineTab, { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Model' }), { key: 'ArrowLeft' });
+    expect(outlineTab).toHaveAttribute('aria-selected', 'true');
+    expect(focused()).toBe(outlineTab);
+    expect(row('Appointments API, Service')).toHaveAttribute('tabindex', '0');
+  });
+
+  it('keeps the tab stop on the selected row when shown again', () => {
+    render(<Harness canvasSelects={[{ kind: 'element', id: 'appointments-db' }]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Select on the canvas' }));
+    focus(row('Patient, Person'));
+    press('Enter');
+    fireEvent.click(screen.getByRole('tab', { name: 'Model' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Outline' }));
+    const stops = within(outlineTree())
+      .getAllByRole('treeitem')
+      .filter((each) => each.getAttribute('tabindex') === '0');
+    expect(stops.map(nameOf)).toEqual(['Patient, Person']);
+  });
+});
+
+describe('The outline, as the project changes', () => {
+  it('leaves closed rows closed once a selected element is removed elsewhere', () => {
+    const { rerender } = render(
+      <Harness
+        canvasSelects={[
+          { kind: 'element', id: 'patient' },
+          { kind: 'element', id: 'appointments-db' },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Select on the canvas' }));
+    // An undo of its creation, or Claude, removes Patient.
+    const gone = withoutPatient(sample);
+    rerender(<Harness project={gone} />);
+    focus(row('Clinic booking, System'));
+    press('ArrowLeft');
+    expect(row('Clinic booking, System')).toHaveAttribute('aria-expanded', 'false');
+
+    rerender(<Harness project={renamed(gone, 'whatsapp', 'WhatsApp')} />);
+    expect(row('Clinic booking, System')).toHaveAttribute('aria-expanded', 'false');
+    expect(focused()).toHaveAccessibleName('Clinic booking, System');
+  });
+
+  it('gives a relation between two relations a row inside each relation it ends on', () => {
+    const project = withRelationBetweenRelations(sample);
+    render(
+      <Harness project={project} canvasSelects={[{ kind: 'relation', id: 'reads-then-writes' }]} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Select on the canvas' }));
+    const reads = row('Appointments API reads from Appointments DB');
+    expect(reads).toHaveAttribute('aria-expanded', 'true');
+    const between = row('reads from relates to writes to');
+    expect(between).toHaveAttribute('aria-selected', 'true');
+    expect(between).toHaveAttribute(
+      'aria-level',
+      String(Number(reads.getAttribute('aria-level')) + 1),
+    );
+    expect(between).toHaveTextContent('— Appointments API writes to Appointments DB, relates to');
+
+    // Enter on it goes to its far end, the relation it reaches.
+    focus(between);
+    press('Enter');
+    expect(focused()).toHaveAccessibleName('Appointments API writes to Appointments DB');
+    expect(focused()).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
 describe('The tabs', () => {
   it('switch with the arrow keys, Home and End, which move the focus with them', () => {
     render(<Harness />);
@@ -315,6 +396,9 @@ describe('With 10,000 shapes', () => {
     const viewport = tree.parentElement as HTMLElement;
     expect(viewport.scrollTop).toBeGreaterThan(0);
     expect(within(tree).getAllByRole('treeitem').length).toBeLessThan(50);
+    // The rows around it are drawn with it, not only the row itself.
+    expect(within(tree).getByRole('treeitem', { name: /^Element 300\.6,/ })).toBeInTheDocument();
+    expect(within(tree).queryByRole('treeitem', { name: /^System 0,/ })).toBeNull();
   });
 
   it('draws only a screenful of World’s tree too', { timeout: 30_000 }, () => {
@@ -324,6 +408,56 @@ describe('With 10,000 shapes', () => {
     expect(within(world).getAllByRole('treeitem').length).toBeLessThan(50);
   });
 });
+
+/** The project without Patient and the relations on it, as an undo of its creation leaves it. */
+function withoutPatient(project: ProjectSnapshot): ProjectSnapshot {
+  const [view] = project.views;
+  if (!view) throw new Error('The sample has no view.');
+  return {
+    ...project,
+    model: {
+      ...project.model,
+      elements: project.model.elements.filter((each) => each.id !== 'patient'),
+      relations: project.model.relations.filter(
+        (each) => each.from !== 'patient' && each.to !== 'patient',
+      ),
+    },
+    views: [
+      { ...view, positions: view.positions.filter((each) => each.element !== 'patient') },
+      ...project.views.slice(1),
+    ],
+  };
+}
+
+/** The project with one element renamed. */
+function renamed(project: ProjectSnapshot, id: string, name: string): ProjectSnapshot {
+  return {
+    ...project,
+    model: {
+      ...project.model,
+      elements: project.model.elements.map((each) => (each.id === id ? { ...each, name } : each)),
+    },
+  };
+}
+
+/** The sample with a relation from "reads from" to "writes to", both relations. */
+function withRelationBetweenRelations(project: ProjectSnapshot): ProjectSnapshot {
+  return {
+    ...project,
+    model: {
+      ...project.model,
+      relations: [
+        ...project.model.relations,
+        {
+          id: 'reads-then-writes',
+          relationType: 'relates-to',
+          from: 'api-reads-db',
+          to: 'api-writes-db',
+        },
+      ],
+    },
+  };
+}
 
 /** The sample with the Reminder service inside Clinic booking too, so that it has two shapes. */
 function withSecondContainer(project: ProjectSnapshot): ProjectSnapshot {
