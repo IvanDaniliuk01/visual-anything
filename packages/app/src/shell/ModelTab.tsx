@@ -7,10 +7,9 @@ import {
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useId, useMemo } from 'react';
-import { drawnRelations } from '../canvas/navigation';
 import { useEditor } from '../editor/EditorContext';
 import { selectionOf } from '../editor/selection';
-import { worldTreeOf, type WorldItem } from './outlineItems';
+import { firstShapeOf, worldTreeOf, type WorldItem } from './outlineItems';
 import { Secondary } from './Secondary';
 import { shownRows, type TreeRow } from './tree';
 import { useTreeState } from './useTreeState';
@@ -86,7 +85,7 @@ export function ModelTab({ active, project, definitions, openViewId }: ModelTabP
             onActivate={(row) => {
               const { element } = row.item.placement;
               tree.choose(selectionOf([{ kind: 'element', id: element }]));
-              const shape = scene && drawnRelations(scene, project).shapeOf(element);
+              const shape = scene && firstShapeOf(scene, element);
               if (shape) editor.reveal(shape.key);
             }}
             renderRow={(row) => {

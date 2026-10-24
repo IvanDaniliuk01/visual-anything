@@ -4,15 +4,18 @@
  * an element with several containers has a row inside each; the view's free shapes come last. Inside
  * the row of the shape an element's relations are drawn from come that element's relations, before
  * the shapes it holds, clockwise from the top as the canvas steps through them: "communicates with →
- * Appointments API". World's tree follows the model's containment instead.
+ * Appointments API". Inside the row of a relation come the relations that end on it, in the model's
+ * order, so that a relation between two relations has a row inside each. World's tree follows the
+ * model's containment instead.
  */
 import {
   definitionsOf,
+  modelIndexOf,
   relationTypeOrRelatesTo,
   type Placement,
   type ProjectSnapshot,
 } from '@visual-anything/core';
-import type { Id } from '@visual-anything/schema';
+import type { Id, ModelFile, PackageFile } from '@visual-anything/schema';
 import { nameOfEnd } from '../canvas/announce';
 import { drawnRelations, farEnd } from '../canvas/navigation';
 import type { ArrowShape, ElementShape, NoteShape, RelationLine, Scene } from '../canvas/scene';
@@ -29,13 +32,13 @@ export interface ShapeItem {
   shape: ElementShape;
 }
 
-/** The row of a relation, inside the row of the shape at one of its ends. */
+/** The row of a relation, inside the row of the shape or of the relation at one of its ends. */
 export interface RelationItem {
   kind: 'relation';
   id: string;
   relation: Id;
-  /** The shape the row sits inside, at the relation's near end. */
-  shape: ElementShape;
+  /** The end the row sits under: the element of the shape whose row holds it, or the relation. */
+  near: Id;
   /** The relation's other end: an element, or another relation. */
   far: Id;
   /** Which way the relation points, seen from the near end; `both` when it has no direction. */
@@ -73,6 +76,8 @@ export interface Outline extends TreeItems<OutlineItem> {
   openAtFirstOf(id: string): boolean;
   /** The row that stands for something selected; none for what the view does not draw. */
   placeOf(selectable: Selectable): RowPlace | undefined;
+  /** The shape an element's relations are drawn from, and its row stands for it: its first one. */
+  shapeOf(element: Id): ElementShape | undefined;
 }
 
 /**
@@ -91,13 +96,81 @@ export function placeOfSelection(
   return free === undefined ? undefined : placeOf({ kind: 'free-shape', id: free });
 }
 
-/** The outline of a scene; worked out once for each scene, and each row's insides when first asked. */
+/** What an outline was worked out from, besides the scene's shapes. */
+interface OutlineInputs {
+  relations: readonly RelationLine[];
+  notes: readonly NoteShape[];
+  arrows: readonly ArrowShape[];
+  model: ModelFile;
+  packages: readonly PackageFile[];
+}
+
+/** The outlines worked out, by the shapes of their scene. */
+const outlines = new WeakMap<
+  readonly ElementShape[],
+  { inputs: OutlineInputs; outline: Outline }
+>();
+
+/** How many relations deep the row of a relation that ends on relations is looked for. */
+const RELATION_DEPTH = 32;
+
+/**
+ * The outline of a scene; worked out once for each scene, and each row's insides when first asked. A
+ * new scene that keeps the parts the outline reads, as one the view's stacking order alone changed
+ * does, keeps its outline too. The order of the relations around a shape, which the canvas works out,
+ * is asked for only once the row of a shape with relations opens.
+ */
 export function outlineOf(scene: Scene, project: ProjectSnapshot): Outline {
-  const drawn = drawnRelations(scene, project);
+  const inputs: OutlineInputs = {
+    relations: scene.relations,
+    notes: scene.notes,
+    arrows: scene.arrows,
+    model: project.model,
+    packages: project.packages,
+  };
+  const kept = outlines.get(scene.shapes);
+  if (kept && sameInputs(kept.inputs, inputs)) return kept.outline;
+  const outline = buildOutline(scene, project);
+  outlines.set(scene.shapes, { inputs, outline });
+  return outline;
+}
+
+function sameInputs(a: OutlineInputs, b: OutlineInputs): boolean {
+  return (
+    a.relations === b.relations &&
+    a.notes === b.notes &&
+    a.arrows === b.arrows &&
+    a.model === b.model &&
+    a.packages === b.packages
+  );
+}
+
+const firstShapesCache = new WeakMap<readonly ElementShape[], ReadonlyMap<Id, ElementShape>>();
+
+/** The first shape of each element: the one its relations are drawn from, and its row stands for. */
+function firstShapesOf(shapes: readonly ElementShape[]): ReadonlyMap<Id, ElementShape> {
+  let found = firstShapesCache.get(shapes);
+  if (!found) {
+    const first = new Map<Id, ElementShape>();
+    for (const shape of shapes) if (!first.has(shape.element)) first.set(shape.element, shape);
+    found = first;
+    firstShapesCache.set(shapes, found);
+  }
+  return found;
+}
+
+/** The first shape of an element in a scene, which the canvas brings into sight for it. */
+export function firstShapeOf(scene: Scene, element: Id): ElementShape | undefined {
+  return firstShapesOf(scene.shapes).get(element);
+}
+
+function buildOutline(scene: Scene, project: ProjectSnapshot): Outline {
+  const index = modelIndexOf(project);
   const definitions = definitionsOf(project.packages);
   const top: OutlineItem[] = [];
   const held = new Map<string, ShapeItem[]>();
   const containers = new Set<string>();
+  const firstShapes = firstShapesOf(scene.shapes);
   for (const shape of scene.shapes) {
     const item: ShapeItem = { kind: 'shape', id: shape.key, shape };
     if (shape.holdsContents) containers.add(shape.key);
@@ -120,27 +193,55 @@ export function outlineOf(scene: Scene, project: ProjectSnapshot): Outline {
     top.push({ kind: 'arrow', id: arrowRowId(arrow.id), arrow });
   }
 
+  // The relations drawn, how many are drawn from each element's first shape, and which end on each
+  // relation, in the model's order.
+  const drawn = new Set<Id>();
+  const onElements = new Map<Id, number>();
+  const onRelations = new Map<Id, Id[]>();
+  for (const line of scene.relations) {
+    drawn.add(line.relation);
+    const relation = index.relation(line.relation);
+    if (!relation) continue;
+    const ends = relation.from === relation.to ? [relation.from] : [relation.from, relation.to];
+    for (const end of ends) {
+      if (firstShapes.has(end)) {
+        onElements.set(end, (onElements.get(end) ?? 0) + 1);
+      } else if (index.relation(end)) {
+        const list = onRelations.get(end);
+        if (list) list.push(relation.id);
+        else onRelations.set(end, [relation.id]);
+      }
+    }
+  }
+
   /** The relations drawn from a shape: those of its element, when it is the element's first shape. */
   const linesFrom = (shape: ElementShape): readonly RelationLine[] =>
-    drawn.shapeOf(shape.element) === shape ? drawn.around(shape.element) : [];
+    firstShapes.get(shape.element) === shape && onElements.has(shape.element)
+      ? drawnRelations(scene, project).around(shape.element)
+      : [];
 
-  const relationItem = (shape: ElementShape, line: RelationLine): RelationItem | undefined => {
-    const relation = drawn.relation(line.relation);
+  /** How many relations a shape's row holds. */
+  const relationsFrom = (shape: ElementShape): number =>
+    firstShapes.get(shape.element) === shape ? (onElements.get(shape.element) ?? 0) : 0;
+
+  /** The relations that end on a relation, inside its row: none that the row already sits inside. */
+  const endingOn = (item: RelationItem): Id[] => {
+    const around = new Set(item.id.split('#').slice(1));
+    return (onRelations.get(item.relation) ?? []).filter((id) => !around.has(id));
+  };
+
+  const relationItem = (rowId: string, near: Id, id: Id): RelationItem | undefined => {
+    const relation = index.relation(id);
     if (!relation) return undefined;
-    const far = farEnd(relation, shape.element);
+    const far = farEnd(relation, near);
     const relationType = relationTypeOrRelatesTo(definitions, relation.relationType);
     return {
       kind: 'relation',
-      id: relationRowId(shape.key, relation.id),
+      id: relationRowId(rowId, relation.id),
       relation: relation.id,
-      shape,
+      near,
       far,
-      way:
-        relationType.direction === 'undirected'
-          ? 'both'
-          : relation.from === shape.element
-            ? 'out'
-            : 'in',
+      way: relationType.direction === 'undirected' ? 'both' : relation.from === near ? 'out' : 'in',
       relationType: relationType.name,
       ...(relation.name ? { name: relation.name } : {}),
       farName: nameOfEnd(project, far),
@@ -150,52 +251,72 @@ export function outlineOf(scene: Scene, project: ProjectSnapshot): Outline {
 
   const insides = new Map<string, readonly OutlineItem[]>();
   const inside = (item: OutlineItem): readonly OutlineItem[] => {
-    if (item.kind !== 'shape') return [];
+    if (item.kind !== 'shape' && item.kind !== 'relation') return [];
     let found = insides.get(item.id);
     if (!found) {
-      found = [
-        ...linesFrom(item.shape).flatMap((line) => relationItem(item.shape, line) ?? []),
-        ...(held.get(item.id) ?? []),
-      ];
+      if (item.kind === 'shape') {
+        // A relation from an element to itself is drawn twice around its shape, and listed once.
+        const relations = new Set(linesFrom(item.shape).map((line) => line.relation));
+        found = [
+          ...[...relations].flatMap((id) => relationItem(item.id, item.shape.element, id) ?? []),
+          ...(held.get(item.id) ?? []),
+        ];
+      } else {
+        found = endingOn(item).flatMap((id) => relationItem(item.id, item.relation, id) ?? []);
+      }
       insides.set(item.id, found);
     }
     return found;
   };
 
+  /** The row of a drawn relation: inside the shape of an element it ends on, or the row of a relation. */
+  const placeOfRelation = (id: Id, depth: number): RowPlace | undefined => {
+    const relation = drawn.has(id) ? index.relation(id) : undefined;
+    if (!relation || depth > RELATION_DEPTH) return undefined;
+    for (const end of [relation.from, relation.to]) {
+      const shape = firstShapes.get(end);
+      if (shape) {
+        return { id: relationRowId(shape.key, id), outer: [...outerIdsOf(shape.key), shape.key] };
+      }
+    }
+    for (const end of [relation.from, relation.to]) {
+      const place = placeOfRelation(end, depth + 1);
+      if (place) return { id: relationRowId(place.id, id), outer: [...place.outer, place.id] };
+    }
+    return undefined;
+  };
+
   return {
     top,
     inside,
-    countInside: (item) =>
-      item.kind === 'shape' ? linesFrom(item.shape).length + (held.get(item.id)?.length ?? 0) : 0,
+    countInside: (item) => {
+      switch (item.kind) {
+        case 'shape':
+          return relationsFrom(item.shape) + (held.get(item.id)?.length ?? 0);
+        case 'relation':
+          return endingOn(item).length;
+        default:
+          return 0;
+      }
+    },
     idOf: (item) => item.id,
     openAtFirst: (item) => item.kind === 'shape' && item.shape.holdsContents,
     openAtFirstOf: (id) => containers.has(id),
     placeOf: (selectable) => {
       switch (selectable.kind) {
         case 'element': {
-          const shape = drawn.shapeOf(selectable.id);
+          const shape = firstShapes.get(selectable.id);
           return shape && { id: shape.key, outer: outerIdsOf(shape.key) };
         }
-        case 'relation': {
-          const relation = drawn.line(selectable.id) && drawn.relation(selectable.id);
-          if (!relation) return undefined;
-          for (const end of [relation.from, relation.to]) {
-            const shape = drawn.shapeOf(end);
-            if (shape) {
-              return {
-                id: relationRowId(shape.key, relation.id),
-                outer: [...outerIdsOf(shape.key), shape.key],
-              };
-            }
-          }
-          return undefined;
-        }
+        case 'relation':
+          return placeOfRelation(selectable.id, 0);
         case 'free-shape':
           if (notes.has(selectable.id)) return { id: noteRowId(selectable.id), outer: [] };
           if (arrows.has(selectable.id)) return { id: arrowRowId(selectable.id), outer: [] };
           return undefined;
       }
     },
+    shapeOf: (element) => firstShapes.get(element),
   };
 }
 
@@ -293,8 +414,9 @@ export function worldTreeOf(placements: readonly Placement[]): WorldTree {
   };
 }
 
-function relationRowId(shapeKey: string, relation: Id): string {
-  return `${shapeKey}#${relation}`;
+/** The id of a relation's row: the id of the row it sits inside, then the relation's. */
+function relationRowId(outer: string, relation: Id): string {
+  return `${outer}#${relation}`;
 }
 
 function noteRowId(id: Id): string {

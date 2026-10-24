@@ -74,6 +74,8 @@ export function VirtualTree<T>({
   const elements = useRef(new Map<string, HTMLElement>());
   const pendingFocus = useRef<string | undefined>(undefined);
   const handledRequest = useRef(0);
+  // A request the tree finds when it shows only scrolls: the focus stays where it is, such as on a tab.
+  const shownAfter = useRef(request?.serial ?? 0);
   const typed = useRef({ text: '', at: 0 });
   const [scrollTop, setScrollTop] = useState(0);
   const [height, setHeight] = useState(UNMEASURED_HEIGHT);
@@ -96,16 +98,25 @@ export function VirtualTree<T>({
     return () => observer.disconnect();
   }, []);
 
-  // A request scrolls its row into view once, and focuses it when asked; the row is drawn as the tab
-  // stop wherever it is.
+  // A request scrolls its row into view once, and focuses it when asked while the focus is in the
+  // tree; the row is drawn as the tab stop wherever it is. The rows around it are drawn before the
+  // browser paints, not only once the scroll event comes.
   useLayoutEffect(() => {
     if (!request || request.serial === handledRequest.current) return;
     const index = at.get(request.id);
     const element = viewport.current;
     if (index === undefined || !element) return;
     handledRequest.current = request.serial;
-    element.scrollTop = scrollToShow(index, element.scrollTop, element.clientHeight || height);
-    if (request.focus) pendingFocus.current = request.id;
+    const next = scrollToShow(index, element.scrollTop, element.clientHeight || height);
+    element.scrollTop = next;
+    setScrollTop(next);
+    if (
+      request.focus &&
+      request.serial > shownAfter.current &&
+      element.contains(element.ownerDocument.activeElement)
+    ) {
+      pendingFocus.current = request.id;
+    }
   }, [request, at, height]);
 
   // The focus follows the keys to the row they reached, once that row is drawn.
