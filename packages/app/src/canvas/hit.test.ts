@@ -27,7 +27,7 @@ function shapeAt(key: string, rect: Rect, extent: Rect = rect): ElementShape {
     key,
     element,
     ...(parts.length > 1
-      ? { container: parts.at(-2) as string, containerShape: parts.slice(0, -1).join('/') }
+      ? { container: parts.at(-2), containerShape: parts.slice(0, -1).join('/') }
       : {}),
     offset: { x: rect.x, y: rect.y },
     positioned: 'stored',

@@ -1,8 +1,32 @@
 import { checkProject } from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
-import { indexScene } from '../canvas/hit';
+import { centerOf } from '../canvas/geometry';
+import { indexScene, type IndexedScene } from '../canvas/hit';
 import { buildScene } from '../canvas/scene';
-import { syntheticProject } from './synthetic';
+import { MAX_BANDS, cellOf, plannedTiles } from '../canvas/tiles';
+import { syntheticProject, type Overlap } from './synthetic';
+
+/** Builds and indexes a mode at 10,000 elements, and how long that took. */
+function built(overlap: Overlap): { indexed: IndexedScene; elapsed: number } {
+  const project = syntheticProject({ elements: 10_000, overlap });
+  const started = performance.now();
+  const indexed = indexScene(buildScene(project, 'everything'));
+  return { indexed, elapsed: performance.now() - started };
+}
+
+const modes = new Map<Overlap, ReturnType<typeof built>>();
+function mode(overlap: Overlap): ReturnType<typeof built> {
+  let made = modes.get(overlap);
+  if (!made) {
+    made = built(overlap);
+    modes.set(overlap, made);
+  }
+  return made;
+}
+
+function maximumBand(indexed: IndexedScene): number {
+  return Math.max(...indexed.bands);
+}
 
 describe('syntheticProject', () => {
   const project = syntheticProject({ elements: 10_000 });
@@ -17,16 +41,73 @@ describe('syntheticProject', () => {
     expect(syntheticProject({ elements: 500 })).toEqual(syntheticProject({ elements: 500 }));
   });
 
+  it('names about a third of its relations', () => {
+    const named = project.model.relations.filter((relation) => relation.name !== undefined);
+    const between = project.model.relations.filter(
+      (relation) => relation.relationType !== 'systems.is-part-of',
+    );
+    expect(named.length / between.length).toBeGreaterThan(0.3);
+    expect(named.length / between.length).toBeLessThan(0.36);
+  });
+
   it('turns into a scene and an index quickly enough to redraw after an edit', () => {
-    const started = performance.now();
-    const scene = buildScene(project, 'everything');
-    const indexed = indexScene(scene);
-    const elapsed = performance.now() - started;
-    expect(scene.shapes).toHaveLength(10_000);
+    const { indexed, elapsed } = mode('none');
+    expect(indexed.scene.shapes).toHaveLength(10_000);
     expect(indexed.byKey.size).toBe(10_000);
-    expect(scene.relations.length).toBeGreaterThan(9_000);
+    expect(indexed.scene.relations.length).toBeGreaterThan(9_000);
     // A bound that only a much slower algorithm breaks, such as one quadratic in the elements, on
     // a loaded machine too; the benchmark page measures the real speed.
     expect(elapsed).toBeLessThan(5000);
+  });
+
+  it('draws as many tiles in bands as by the containers above each shape', () => {
+    const { indexed } = mode('none');
+    expect(maximumBand(indexed)).toBe(1);
+    const byContainers = new Set(
+      indexed.scene.shapes.map(
+        (shape) => `${shape.key.split('/').length - 1} ${cellOf(centerOf(shape.rect))}`,
+      ),
+    );
+    expect(plannedTiles(indexed, new Set())).toHaveLength(byContainers.size);
+  });
+
+  it('lays out every way of overlapping with the same elements, quickly, and keeps the rules', () => {
+    for (const overlap of ['stairs', 'grid', 'cascade'] as const) {
+      const project = syntheticProject({ elements: 10_000, overlap });
+      expect(project.model.elements, overlap).toHaveLength(10_000);
+      expect(checkProject(project).errors, overlap).toEqual([]);
+      const { indexed, elapsed } = mode(overlap);
+      expect(indexed.scene.shapes, overlap).toHaveLength(10_000);
+      expect(elapsed, overlap).toBeLessThan(5000);
+    }
+  });
+
+  it('draws a grid of touching shapes in one band, one tile to a cell', () => {
+    const { indexed } = mode('grid');
+    expect(maximumBand(indexed)).toBe(0);
+    expect(plannedTiles(indexed, new Set())).toHaveLength(50);
+  });
+
+  it('draws staircases one band higher for each step', () => {
+    const { indexed } = mode('stairs');
+    // A system, four steps, and a shape directly in World over them.
+    expect(maximumBand(indexed)).toBe(5);
+  });
+
+  it('draws a long cascade in every band, then in fewer than a hundred runs', () => {
+    const { indexed } = mode('cascade');
+    const tiles = plannedTiles(indexed, new Set());
+    const first = tiles.filter(
+      (tile) => tile.band < MAX_BANDS && tile.shapes.some((shape) => shape.element === 'cascade-0'),
+    );
+    expect(first).toHaveLength(1);
+    const start = tiles.filter(
+      (tile) =>
+        tile.band < MAX_BANDS && tile.shapes.some((shape) => shape.element.startsWith('cascade-')),
+    );
+    expect(start).toHaveLength(MAX_BANDS);
+    const runs = tiles.filter((tile) => tile.band === MAX_BANDS);
+    expect(runs.length).toBeGreaterThan(0);
+    expect(runs.length).toBeLessThan(100);
   });
 });
