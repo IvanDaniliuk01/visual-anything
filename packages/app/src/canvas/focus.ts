@@ -69,7 +69,7 @@ const TABBABLE =
 /**
  * Keeps the focus inside a modal dialog while it is open: Tab from its last control goes to its first,
  * Shift+Tab from its first goes to its last, and a press on the backdrop around it leaves the focus
- * where it is. The dialog's parent is its backdrop.
+ * where it is. The dialog sits directly in its backdrop.
  */
 export function useModalFocus(dialog: RefObject<HTMLElement | null>): void {
   useEffect(() => {

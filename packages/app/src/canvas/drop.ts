@@ -246,16 +246,16 @@ export function landingCover(
   }
 
   let cover: { shape: ElementShape; rank: number } | undefined;
-  for (let level: ElementShape | undefined = place; level;) {
-    const rank = drawingRank(indexed, level);
-    for (const other of indexed.contentsIndex(level.containerShape ?? '').query(landing)) {
-      if (other.key === level.key || plan.carried.has(other.key)) continue;
+  // From the place it lands in out to World, one contents index at each container on the way.
+  for (let here: ElementShape | undefined = place; here;) {
+    const rank = drawingRank(indexed, here);
+    for (const other of indexed.contentsIndex(here.containerShape ?? '').query(landing)) {
+      if (other.key === here.key || plan.carried.has(other.key)) continue;
       const otherRank = drawingRank(indexed, other);
       if (otherRank <= rank || (cover && otherRank <= cover.rank)) continue;
       if (coversRect(indexed, other, landing)) cover = { shape: other, rank: otherRank };
     }
-    level =
-      level.containerShape === undefined ? undefined : indexed.byKey.get(level.containerShape);
+    here = here.containerShape === undefined ? undefined : indexed.byKey.get(here.containerShape);
   }
   return cover?.shape;
 }
@@ -340,7 +340,7 @@ export function dropCommand(
 }
 
 /**
- * The change that takes a shape out of the container it sits in, one level up: into that container's
+ * The change that takes a shape out of the container it sits in, one container out: into that container's
  * own container, through its first copy, or directly in World; beside the container it leaves.
  */
 export function takeOutCommand(
