@@ -110,6 +110,9 @@ _Avoid_: library, plugin, extension
 A package that comes with Visual Anything, such as "Systems". A project uses it by listing its id; it is never copied into the project folder.
 _Avoid_: default package, standard library
 
+**Image**:
+A picture a package defines, in SVG or as a small PNG, JPEG or WebP bitmap, that an appearance shows on shapes: as an icon beside the name, or as the shape's whole drawing, optionally as a silhouette of one color. It is data only: the core cleans it of anything that runs or refers to anything outside it before it is stored, and every reader sees only that cleaned picture.
+
 ### Dimensions
 
 **Dimension**:
