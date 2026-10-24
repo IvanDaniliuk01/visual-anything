@@ -9,6 +9,10 @@
  * Dragging shapes onto a container puts them inside it, and dragging them clear of theirs takes them
  * out: while they are dragged, the canvas outlines where they would go and a caption beside the
  * pointer says it; Alt only moves. A secondary press, Shift+F10 or the menu key opens a shape's menu.
+ *
+ * The toggle in a container's corner collapses or expands it, and so do Alt with − and Alt with + for
+ * the selected containers. Pointing goes past what the emphasis hides, as the canvas does not draw it.
+ * An aggregated relation stands for the relations it aggregates: pointing at it selects them all.
  */
 import {
   previewChangeContainer,
@@ -29,6 +33,7 @@ import {
   type Selectable,
   type Selection,
 } from '../editor/selection';
+import type { Emphasis } from '../editor/emphasis';
 import { IS_APPLE } from '../live/platform';
 import { describeRelation, describeSelection, nameOfEnd } from './announce';
 import {
@@ -55,7 +60,8 @@ import {
   type DropCaption,
   type DropPlan,
 } from './drop';
-import { boundsOf, centerOf, distance, type Point, type Rect } from './geometry';
+import { collapseActions, type CollapseAction } from './collapse';
+import { boundsOf, centerOf, distance, toggleRect, type Point, type Rect } from './geometry';
 import { carriedKeys, moveCommand, movingShapes } from './gestures';
 import { enclosedBy, hitAt, shapesAt, type Hit, type IndexedScene } from './hit';
 import {
@@ -103,6 +109,11 @@ export interface ControllerCallbacks {
    * shapes under the pointer, topmost first, when the menu was opened with it.
    */
   menu?(at: Point, shape: ElementShape, under?: readonly ElementShape[]): void;
+  /**
+   * Asks to collapse or expand containers, as the toggle on a container's shape and the keys do; the
+   * canvas sends I1's command and says what it did.
+   */
+  collapse?(action: CollapseAction, collapsed: boolean): void;
 }
 
 /** A change of container a drop makes, which waits to be confirmed. */
@@ -284,6 +295,8 @@ export class CanvasController {
   private menuKeyTime: number | undefined;
   /** Where the drop caption is written. */
   private readonly caption: HTMLElement | undefined;
+  /** The emphasis drawn, which pointing and selecting everything go past what it hides. */
+  private emphasis: Emphasis = {};
 
   constructor(
     private readonly host: HTMLElement,
@@ -330,6 +343,21 @@ export class CanvasController {
   setSelection(selection: Selection): void {
     this.selection = selection;
     this.refreshMarks();
+  }
+
+  /** Draws the emphasis (interface I2): pointing then goes past what it hides. */
+  setEmphasis(emphasis: Emphasis): void {
+    this.emphasis = emphasis;
+    this.renderer.setEmphasis(emphasis);
+    if (this.hovered && this.renderer.hiddenByEmphasis.has(this.hovered.key)) {
+      this.hovered = undefined;
+      this.refreshMarks();
+    }
+  }
+
+  /** The emphasis drawn now. */
+  get emphasized(): Emphasis {
+    return this.emphasis;
   }
 
   get camera(): Camera {
@@ -431,7 +459,7 @@ export class CanvasController {
    */
   private hit(world: Point, tolerance: number): Hit | undefined {
     if (!this.indexed) return undefined;
-    return hitAt(this.indexed, world, tolerance, this.exact);
+    return hitAt(this.indexed, world, tolerance, this.exact, this.renderer.hiddenByEmphasis);
   }
 
   private readonly onPointerDown = (event: PointerEvent): void => {
@@ -484,11 +512,16 @@ export class CanvasController {
       this.begin(event, { kind: 'box', pointer: event.pointerId, start: world, additive });
       return;
     }
+    // The toggle in a container's corner collapses or expands it, and changes nothing else.
+    if (hit.kind === 'shape' && !additive && this.onToggle(hit.shape, world)) {
+      this.toggleCollapse(hit.shape);
+      return;
+    }
     // The keys move on from what was pointed at.
     if (hit.kind !== 'relation') this.current = keyOf(hit);
-    const item = selectableOf(hit);
-    if (additive) this.select(toggle(this.selection, item));
-    else if (!isSelected(this.selection, item)) this.select(selectionOf([item]));
+    const items = selectablesOf(hit);
+    if (additive) this.select(toggleAll(this.selection, items));
+    else if (!allSelected(this.selection, items)) this.select(selectionOf(items));
     this.begin(event, {
       kind: 'press',
       pointer: event.pointerId,
@@ -517,7 +550,7 @@ export class CanvasController {
         if (
           !this.editable ||
           !draggable ||
-          (gesture.additive && !isSelected(this.selection, selectableOf(gesture.hit)))
+          (gesture.additive && !allSelected(this.selection, selectablesOf(gesture.hit)))
         ) {
           return;
         }
@@ -611,6 +644,8 @@ export class CanvasController {
             : hit
               ? 'pointer'
               : 'default';
+        if (shape && this.onToggle(shape, world)) this.host.title = toggleTitle(shape);
+        else if (this.host.title !== '') this.host.title = '';
         return;
       }
     }
@@ -637,10 +672,14 @@ export class CanvasController {
         this.host.style.cursor = this.spaceHeld ? 'grab' : 'default';
         return;
       case 'press': {
-        const item = selectableOf(gesture.hit);
+        const items = selectablesOf(gesture.hit);
         // A click on one of several selected things selects it alone.
-        if (!gesture.additive && sizeOf(this.selection) > 1 && isSelected(this.selection, item)) {
-          this.select(selectionOf([item]));
+        if (
+          !gesture.additive &&
+          sizeOf(this.selection) > items.length &&
+          allSelected(this.selection, items)
+        ) {
+          this.select(selectionOf(items));
         }
         return;
       }
@@ -655,7 +694,7 @@ export class CanvasController {
           if (!gesture.additive) this.select(EMPTY_SELECTION);
           return;
         }
-        const { shapes, notes, arrows } = enclosedBy(indexed, box);
+        const { shapes, notes, arrows } = enclosedBy(indexed, box, this.renderer.hiddenByEmphasis);
         const found = selectionOf([
           ...shapes.map((shape): Selectable => ({ kind: 'element', id: shape.element })),
           ...notes.map((note): Selectable => ({ kind: 'free-shape', id: note.id })),
@@ -767,6 +806,14 @@ export class CanvasController {
       this.onArrow(event, direction);
       return;
     }
+    // Alt with − collapses the selected containers and Alt with + expands them, by the key's place,
+    // which on Apple keyboards types another sign with ⌥; − and + alone zoom.
+    const folding = !command && event.altKey ? COLLAPSE_KEYS[event.code] : undefined;
+    if (folding !== undefined) {
+      event.preventDefault();
+      if (this.gesture.kind === 'idle') this.collapseSelection(folding);
+      return;
+    }
     // Some keyboards type [ and ] with AltGr, which browsers report as Ctrl and Alt together, and
     // as AltGraph. Otherwise, with Ctrl or ⌘, [ and ] are the stacking order's, which the canvas
     // area handles for the whole window; with Alt they are left alone.
@@ -831,8 +878,8 @@ export class CanvasController {
     this.stepping = undefined;
     if (hit) {
       if (hit.kind !== 'relation') this.current = keyOf(hit);
-      const item = selectableOf(hit);
-      if (!isSelected(this.selection, item)) this.select(selectionOf([item]));
+      const items = selectablesOf(hit);
+      if (!allSelected(this.selection, items)) this.select(selectionOf(items));
     }
     this.secondary = {
       at: screen,
@@ -847,7 +894,11 @@ export class CanvasController {
     const indexed = this.indexed;
     const shape = press.shape === undefined ? undefined : indexed?.byKey.get(press.shape);
     if (!indexed || !shape) return;
-    this.callbacks.menu?.(press.at, shape, shapesAt(indexed, press.world, this.exact));
+    this.callbacks.menu?.(
+      press.at,
+      shape,
+      shapesAt(indexed, press.world, this.exact, this.renderer.hiddenByEmphasis),
+    );
   }
 
   /** Opens the menu of the shape the keys act on, at its middle. */
@@ -1130,19 +1181,69 @@ export class CanvasController {
     this.refreshMarks();
   }
 
+  /** Selects everything the canvas draws: what the emphasis hides is left out. */
   private selectAll(): void {
     const scene = this.indexed?.scene;
     if (!scene) return;
+    const hidden = this.renderer.hiddenByEmphasis;
+    const elements = new Set<Id>();
+    for (const shape of scene.shapes) if (!hidden.has(shape.key)) elements.add(shape.element);
     this.choose(
       selectionOf([
-        ...[...new Set(scene.shapes.map((shape) => shape.element))].map((id): Selectable => ({
-          kind: 'element',
-          id,
-        })),
-        ...scene.notes.map((note): Selectable => ({ kind: 'free-shape', id: note.id })),
-        ...scene.arrows.map((arrow): Selectable => ({ kind: 'free-shape', id: arrow.id })),
+        ...[...elements].map((id): Selectable => ({ kind: 'element', id })),
+        ...scene.notes
+          .filter((note) => !hidden.has(note.id))
+          .map((note): Selectable => ({ kind: 'free-shape', id: note.id })),
+        ...scene.arrows
+          .filter((arrow) => !hidden.has(arrow.id))
+          .map((arrow): Selectable => ({ kind: 'free-shape', id: arrow.id })),
       ]),
     );
+  }
+
+  /** Whether a point is on the toggle in a container's corner, where the canvas draws it. */
+  private onToggle(shape: ElementShape, world: Point): boolean {
+    if (!this.editable || !this.renderer.showsOutline(shape.key)) return false;
+    const toggle = toggleRect(shape);
+    if (!toggle) return false;
+    // A few pixels around it count, so that the small square is easy to press.
+    const slack = 2 / this.camera.scale;
+    return (
+      world.x >= toggle.x - slack &&
+      world.x <= toggle.x + toggle.width + slack &&
+      world.y >= toggle.y - slack &&
+      world.y <= toggle.y + toggle.height + slack
+    );
+  }
+
+  /** The toggle of a container's shape: collapses it, or expands it when it is collapsed. */
+  private toggleCollapse(shape: ElementShape): void {
+    const collapsed = shape.collapsed === undefined;
+    const name = shape.name;
+    this.callbacks.collapse?.(
+      { elements: [shape.element], label: `${collapsed ? 'Collapse' : 'Expand'} "${name}"` },
+      collapsed,
+    );
+  }
+
+  /** Alt with − or +: collapses or expands the selected containers, or says why nothing does. */
+  private collapseSelection(collapsed: boolean): void {
+    const { indexed, project } = this;
+    if (!indexed || !project) return;
+    if (!this.editable) {
+      this.announce('The project cannot be changed now.');
+      return;
+    }
+    const actions = collapseActions(indexed, project, this.selection);
+    const action = collapsed ? actions.collapse : actions.expand;
+    if (action) this.callbacks.collapse?.(action, collapsed);
+    else {
+      this.announce(
+        collapsed
+          ? 'Select an expanded container to collapse it.'
+          : 'Select a collapsed container to expand it.',
+      );
+    }
   }
 
   /** Selects from the keyboard, and says what was selected. */
@@ -1411,29 +1512,23 @@ export class CanvasController {
     this.refreshMarks();
   }
 
-  /** The relations drawn from or to anything being carried, and those that end on them. */
+  /**
+   * The lines drawn from or to anything being carried, and those that end on them, by their keys:
+   * relations, and the aggregated relations drawn to a collapsed container that is carried.
+   */
   private relationsOn(keys: ReadonlySet<string>): Set<Id> {
     const indexed = this.indexed;
-    const project = this.project;
     const hidden = new Set<Id>();
-    if (!indexed || !project) return hidden;
-    const ends = new Set(
-      [...keys]
-        .map((key) => indexed.byKey.get(key)?.element)
-        .filter((id): id is Id => id !== undefined),
-    );
+    if (!indexed) return hidden;
+    const carried = (end: { kind: 'shape'; key: string } | { kind: 'relation'; relation: Id }) =>
+      end.kind === 'shape' ? keys.has(end.key) : hidden.has(end.relation);
     let grew = true;
     while (grew) {
       grew = false;
-      for (const relation of project.model.relations) {
-        if (hidden.has(relation.id)) continue;
-        if (
-          ends.has(relation.from) ||
-          ends.has(relation.to) ||
-          hidden.has(relation.from) ||
-          hidden.has(relation.to)
-        ) {
-          hidden.add(relation.id);
+      for (const line of indexed.scene.relations) {
+        if (hidden.has(line.relation) || !line.ends) continue;
+        if (carried(line.ends.from) || carried(line.ends.to)) {
+          hidden.add(line.relation);
           grew = true;
         }
       }
@@ -1574,17 +1669,49 @@ function cancelFrame(frame: number): void {
   else clearTimeout(frame);
 }
 
-function selectableOf(hit: Hit): Selectable {
+/** The keys that collapse (true) or expand (false) the selected containers, with Alt, by their place. */
+const COLLAPSE_KEYS: Partial<Record<string, boolean>> = {
+  Minus: true,
+  NumpadSubtract: true,
+  Equal: false,
+  NumpadAdd: false,
+};
+
+/** What a container's toggle says it does, when the pointer rests on it. */
+function toggleTitle(shape: ElementShape): string {
+  return shape.collapsed === undefined
+    ? `Collapse "${shape.name}" (Alt+−)`
+    : `Expand "${shape.name}" (Alt++)`;
+}
+
+/** What pointing at something selects: an aggregated relation selects every relation it stands for. */
+function selectablesOf(hit: Hit): Selectable[] {
   switch (hit.kind) {
     case 'shape':
-      return { kind: 'element', id: hit.shape.element };
+      return [{ kind: 'element', id: hit.shape.element }];
     case 'relation':
-      return { kind: 'relation', id: hit.line.relation };
+      return hit.line.aggregate
+        ? hit.line.aggregate.relations.map((id): Selectable => ({ kind: 'relation', id }))
+        : [{ kind: 'relation', id: hit.line.relation }];
     case 'note':
-      return { kind: 'free-shape', id: hit.note.id };
+      return [{ kind: 'free-shape', id: hit.note.id }];
     case 'arrow':
-      return { kind: 'free-shape', id: hit.arrow.id };
+      return [{ kind: 'free-shape', id: hit.arrow.id }];
   }
+}
+
+function allSelected(selection: Selection, items: readonly Selectable[]): boolean {
+  return items.every((item) => isSelected(selection, item));
+}
+
+/** The selection without these when it held them all, and with them all otherwise. */
+function toggleAll(selection: Selection, items: readonly Selectable[]): Selection {
+  if (items.length === 1) return toggle(selection, items[0] as Selectable);
+  const holding = allSelected(selection, items);
+  return items.reduce(
+    (next, item) => (isSelected(next, item) === holding ? toggle(next, item) : next),
+    selection,
+  );
 }
 
 function targetRect(hit: Hit) {

@@ -248,8 +248,9 @@ function overlaid<V>(
     const stack: ReadonlyMap<string, V>[] = [changes];
     let root: ReadonlyMap<string, V> = base;
     while (root instanceof Overlay) {
-      stack.push(root.changes);
-      root = root.base;
+      const layer = root as Overlay<V>;
+      stack.push(layer.changes);
+      root = layer.base;
     }
     const flat = new Map(root);
     for (let at = stack.length - 1; at >= 0; at--) {

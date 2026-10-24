@@ -62,7 +62,6 @@ import {
   planTiles,
   plannedTiles,
   replannedTiles,
-  type BandTile,
   type PlannedTile,
 } from './tiles';
 
@@ -849,13 +848,7 @@ export class CanvasRenderer {
         const entered = key === undefined ? undefined : this.tiles.get(key);
         if (entered?.kind === 'shapes') before.set(entered.key, entered);
       }
-      const planned = replannedTiles(
-        indexed,
-        before as ReadonlyMap<string, BandTile>,
-        changed,
-        hidden,
-        dimmed,
-      );
+      const planned = replannedTiles(indexed, before, changed, hidden, dimmed);
       for (const tile of before.values()) {
         for (const shape of tile.shapes) {
           if (this.tileOfShape.get(shape.key) === tile) this.tileOfShape.delete(shape.key);

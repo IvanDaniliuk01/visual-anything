@@ -288,7 +288,7 @@ function commandOf(edit: Edit, project: ProjectSnapshot, scene: Scene): Command 
         shape && {
           type: 'change-container',
           view: VIEW,
-          shapes: [{ element: shape.element, from: shape.container as Id }],
+          shapes: [{ element: shape.element, from: shape.container }],
         }
       );
     }
@@ -307,11 +307,12 @@ function toggleCollapsed(project: ProjectSnapshot, scene: Scene, number: number)
   const collapsed = new Set(collapsedIn(view));
   if (collapsed.has(shape.element)) collapsed.delete(shape.element);
   else collapsed.add(shape.element);
-  const { collapsed: _, ...rest } = view as ViewFile & { collapsed?: Id[] };
-  const next = collapsed.size === 0 ? rest : { ...rest, collapsed: [...collapsed].sort() };
+  const next: ViewFile & { collapsed?: Id[] } = { ...view };
+  if (collapsed.size === 0) delete next.collapsed;
+  else next.collapsed = [...collapsed].sort();
   return {
     ...project,
-    views: project.views.map((each) => (each.id === VIEW ? (next as ViewFile) : each)),
+    views: project.views.map((each) => (each.id === VIEW ? next : each)),
   };
 }
 
