@@ -222,7 +222,10 @@ export function updateComponent(draft: Draft, command: UpdateComponentCommand): 
   }
   if (fixes) applyFixes(draft, fixes);
   if (removed.length > 0) checkRemovedAttributesUnused(draft, current.id, removed);
-  afterComponentChange(draft, before, current.id);
+  afterComponentChange(draft, before, current.id, {
+    detail: isRecord(changes.appearance) && changes.appearance.detail !== undefined,
+    chain: changes.attributes !== undefined || changes.derivesFrom !== undefined,
+  });
   return onlyChange(changes, 'name')
     ? `Rename the component "${current.name}" to "${next.name}"`
     : `Edit the component "${next.name}"`;
@@ -529,6 +532,10 @@ function capitalized(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /** Whether the only change a command makes is to one key. */
 function onlyChange(changes: Record<string, unknown>, key: string): boolean {
   const named = Object.entries(changes).filter(([, value]) => value !== undefined);
@@ -602,10 +609,22 @@ function descendantsOf(
  * that of every component derived from it still name attributes they have; and the relations and
  * values it now affects are warned about, at most 20 of each kind.
  */
-function afterComponentChange(draft: Draft, before: ProjectSnapshot, id: Id): void {
+function afterComponentChange(
+  draft: Draft,
+  before: ProjectSnapshot,
+  id: Id,
+  changed: { detail: boolean; chain: boolean } = { detail: true, chain: true },
+): void {
   const definitions = draft.definitions;
   rejectCycle(definitions, id);
-  for (const each of [id, ...descendantsOf(definitions, id, 'component')]) {
+  // A detail is checked again only when it, or what it can name, changes: a problem a file already
+  // had, which opening it only warns about, does not block an unrelated change such as a fill.
+  const checked = changed.chain
+    ? [id, ...descendantsOf(definitions, id, 'component')]
+    : changed.detail
+      ? [id]
+      : [];
+  for (const each of checked) {
     const defined = definitions.components.get(each);
     const resolved = definitions.component(each);
     if (!defined || !resolved) continue;
