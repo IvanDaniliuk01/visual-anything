@@ -1,18 +1,21 @@
 import { executeCommand, type Command, type ProjectSnapshot } from '@visual-anything/core';
+import type { Id } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { syntheticProject } from '../bench/synthetic';
 import { selectionOf } from '../editor/selection';
 import { loadSample } from '../test/sample';
-import { indexScene } from './hit';
+import { indexScene, type IndexedScene } from './hit';
 import {
   carriedKeys,
   createAtCommand,
+  createBesideCommand,
   createInsideCommand,
   movingShapes,
   moveCommand,
   relationChoices,
 } from './gestures';
-import { buildScene } from './scene';
+import { buildScene, type ElementShape } from './scene';
+import { overlaps } from './spatial';
 
 const project = loadSample();
 const VIEW = 'system-overview';
@@ -299,6 +302,208 @@ describe('createInsideCommand', () => {
       views: project.views.map((view) => ({ ...view, nestingRelationTypes: [] })),
     };
     expect(createInsideCommand(flat, VIEW, 'systems.service', 'scheduling')).toBeUndefined();
+  });
+});
+
+describe('createBesideCommand', () => {
+  /** The new element's shape once `command` is done, with the scene it is drawn in. */
+  function created(state: ProjectSnapshot, command: Command | undefined) {
+    if (!command) throw new Error('no command');
+    const outcome = executeCommand(state, command);
+    if (!outcome.ok) throw new Error(outcome.problems.map((problem) => problem.message).join(' '));
+    const scene = indexScene(buildScene(outcome.state, VIEW));
+    const shape = scene.byElement.get(outcome.created[0]!)?.[0];
+    if (!shape) throw new Error('not drawn');
+    return { state: outcome.state, scene, shape };
+  }
+
+  /** Whether a shape overlaps any other shape that sits in its container. */
+  function overlapsASibling(scene: IndexedScene, shape: ElementShape): boolean {
+    return (scene.contentsOf.get(shape.containerShape ?? '') ?? []).some(
+      (other) => other.key !== shape.key && overlaps(other.extent, shape.rect),
+    );
+  }
+
+  it('creates an element directly in World, 40 to the right of a shape there, not pinned', () => {
+    // Nothing sits to the right of Clinic booking.
+    const booking = indexed.byKey.get('clinic-booking')!;
+    const command = createBesideCommand(indexed, project, VIEW, 'systems.service', booking);
+    expect(command).toEqual({
+      type: 'create-element',
+      element: { component: 'systems.service', name: 'Service' },
+      positions: [{ view: VIEW, x: 240 + 980 + 40, y: 40 }],
+    });
+    const { shape } = created(project, command);
+    expect(shape.container).toBeUndefined();
+    expect(shape.positioned).toBe('stored');
+  });
+
+  it('goes on to the right, by its own width and 40 each time, past the shapes it would overlap', () => {
+    // Beside Patient lies Clinic booking, from 240 to 1220: a Service, 180 wide, goes 220 further
+    // each time, from 220 to 1320.
+    const patient = indexed.byKey.get('patient')!;
+    const command = createBesideCommand(indexed, project, VIEW, 'systems.service', patient);
+    expect(command && 'positions' in command && command.positions).toEqual([
+      { view: VIEW, x: 1320, y: 200 },
+    ]);
+    const { scene, shape } = created(project, command);
+    expect(shape.rect).toEqual({ x: 1320, y: 200, width: 180, height: 72 });
+    expect(overlapsASibling(scene, shape)).toBe(false);
+  });
+
+  it('creates it inside the container of a shape there, beside it, overlapping nothing there', () => {
+    const api = indexed.byKey.get('clinic-booking/scheduling/appointments-api')!;
+    const command = createBesideCommand(indexed, project, VIEW, 'systems.service', api);
+    // Reminder service sits at 240, so the Service goes one step further.
+    expect(command).toEqual({
+      type: 'create-element',
+      element: { component: 'systems.service', name: 'Service' },
+      containers: [{ container: 'scheduling', relationType: 'systems.is-part-of' }],
+      positions: [{ view: VIEW, container: 'scheduling', x: 480, y: 104 }],
+    });
+    const { scene, shape } = created(project, command);
+    expect(shape.containerShape).toBe('clinic-booking/scheduling');
+    expect(shape.offset).toEqual({ x: 480, y: 104 });
+    expect(overlapsASibling(scene, shape)).toBe(false);
+  });
+
+  it('makes a row of elements added one after another, each beside the one before', () => {
+    for (const start of ['patient', 'clinic-booking/whatsapp']) {
+      let state = project;
+      let scene = indexed;
+      let beside = scene.byKey.get(start)!;
+      const added: ElementShape[] = [];
+      for (let each = 0; each < 3; each++) {
+        const next = created(
+          state,
+          createBesideCommand(scene, state, VIEW, 'systems.service', beside),
+        );
+        ({ state, scene } = next);
+        beside = next.shape;
+        added.push(next.shape);
+      }
+      const rects = added.map((shape) => scene.byKey.get(shape.key)!.rect);
+      for (const [at, rect] of rects.entries()) {
+        expect(rect.y).toBe(rects[0]!.y);
+        if (at > 0) expect(rect.x).toBe(rects[at - 1]!.x + 180 + 40);
+      }
+      for (const shape of added)
+        expect(overlapsASibling(scene, scene.byKey.get(shape.key)!)).toBe(false);
+      expect(new Set(added.map((shape) => shape.containerShape))).toEqual(
+        new Set([scene.byKey.get(start)!.containerShape]),
+      );
+    }
+  });
+
+  it('keeps the shapes the stand-in row placed beside it where they are drawn, in the same action', () => {
+    // Two Services added inside Clinic booking with no position, in its stand-in row.
+    let state = project;
+    const placed: Id[] = [];
+    for (let each = 0; each < 2; each++) {
+      const outcome = executeCommand(
+        state,
+        createInsideCommand(state, VIEW, 'systems.service', 'clinic-booking')!,
+      );
+      if (!outcome.ok) throw new Error('refused');
+      state = outcome.state;
+      placed.push(outcome.created[0]!);
+    }
+    const scene = indexScene(buildScene(state, VIEW));
+    const [first, second] = placed.map((id) => scene.byElement.get(id)![0]!);
+    expect([first!.offset, second!.offset]).toEqual([
+      { x: 24, y: 480 },
+      { x: 244, y: 480 },
+    ]);
+    expect(first!.positioned).toBe('placed');
+
+    const command = createBesideCommand(scene, state, VIEW, 'systems.service', first!);
+    expect(command).toEqual({
+      type: 'batch',
+      label: 'Create "Service"',
+      commands: [
+        {
+          type: 'set-positions',
+          view: VIEW,
+          positions: [
+            { element: placed[0], container: 'clinic-booking', x: 24, y: 480 },
+            { element: placed[1], container: 'clinic-booking', x: 244, y: 480 },
+          ],
+        },
+        {
+          type: 'create-element',
+          element: { component: 'systems.service', name: 'Service' },
+          containers: [{ container: 'clinic-booking', relationType: 'systems.is-part-of' }],
+          positions: [{ view: VIEW, container: 'clinic-booking', x: 464, y: 480 }],
+        },
+      ],
+    });
+    const { scene: drawn, shape } = created(state, command);
+    const kept = placed.map((id) => drawn.byElement.get(id)![0]!);
+    expect(kept.map((each) => [each.offset, each.positioned])).toEqual([
+      [{ x: 24, y: 480 }, 'stored'],
+      [{ x: 244, y: 480 }, 'stored'],
+    ]);
+    expect(shape.offset).toEqual({ x: 464, y: 480 });
+    expect(overlapsASibling(drawn, shape)).toBe(false);
+  });
+
+  it('takes the size the component gives its shapes', () => {
+    const booking = indexed.byKey.get('clinic-booking')!;
+    const { shape } = created(
+      project,
+      createBesideCommand(indexed, project, VIEW, 'systems.person', booking),
+    );
+    const person = indexed.byKey.get('patient')!;
+    expect([shape.rect.width, shape.rect.height]).toEqual([person.rect.width, person.rect.height]);
+  });
+
+  it('stops looking after a bounded number of places, and then stays next to the shape', () => {
+    const wide = after(project, {
+      type: 'set-positions',
+      view: VIEW,
+      positions: [{ element: 'clinic-booking', x: 240, y: 40, width: 1_000_000, height: 480 }],
+    });
+    const scene = indexScene(buildScene(wide, VIEW));
+    const command = createBesideCommand(
+      scene,
+      wide,
+      VIEW,
+      'systems.service',
+      scene.byKey.get('patient')!,
+    );
+    expect(command && 'positions' in command && command.positions).toEqual([
+      { view: VIEW, x: 220, y: 200 },
+    ]);
+  });
+
+  it('places it beside a shape in a view that nests nothing, and moves nothing there', () => {
+    const flat = {
+      ...project,
+      views: project.views.map((view) => ({ ...view, nestingRelationTypes: [] })),
+    };
+    const scene = indexScene(buildScene(flat, VIEW));
+    const command = createBesideCommand(
+      scene,
+      flat,
+      VIEW,
+      'systems.service',
+      scene.byKey.get('patient')!,
+    );
+    expect(JSON.stringify(command)).not.toContain('containers');
+    const { scene: drawn, shape } = created(flat, command);
+    expect(shape.container).toBeUndefined();
+    expect(overlapsASibling(drawn, shape)).toBe(false);
+    // The shapes that sit in containers elsewhere stand in World's row here, and stay where they are.
+    for (const each of scene.scene.shapes)
+      expect(drawn.byKey.get(each.key)?.rect).toEqual(each.rect);
+  });
+
+  it('creates nothing for an unknown component or view', () => {
+    const patient = indexed.byKey.get('patient')!;
+    expect(createBesideCommand(indexed, project, VIEW, 'systems.nothing', patient)).toBeUndefined();
+    expect(
+      createBesideCommand(indexed, project, 'nowhere', 'systems.service', patient),
+    ).toBeUndefined();
   });
 });
 
