@@ -1521,6 +1521,126 @@ export const ui: Catalog = {
   'draw.io file': 'Archivo de draw.io',
   'Plain or compressed, or inside a .drawio.svg or .drawio.png picture. Each page becomes a view; stencils and images are left out.':
     'Sin comprimir o comprimido, o dentro de una imagen .drawio.svg o .drawio.png. Cada página se vuelve una vista; los stencils y las imágenes se dejan fuera.',
+  // The exports of a view as SVG, PDF and text (M6b): what each writes, and what it could not hold.
+  'The view draws nothing.': 'La vista no dibuja nada.',
+  'A picture whose SVG could not be read back is left out.':
+    'Se omite una imagen cuyo SVG no se pudo volver a leer.',
+  'Pictures in {format} are left out: this format cannot hold them.':
+    'Se omiten las imágenes en {format}: este formato no puede contenerlas.',
+  'Bitmaps shown as silhouettes are drawn in their own colors.':
+    'Los mapas de bits que se muestran como silueta se dibujan en sus propios colores.',
+  'Its long description, an outline of every shape and relation, is the view exported as Markdown.':
+    'Su descripción larga, un esquema de cada forma y relación, es la vista exportada como Markdown.',
+  'Its long description, an outline of every shape and relation, is in “{file}”.':
+    'Su descripción larga, un esquema de cada forma y relación, está en “{file}”.',
+  'Drawn at {percent}% of its size, so that its page stays within 200 inches a side.':
+    'Dibujada al {percent} % de su tamaño, para que su página no pase de 200 pulgadas por lado.',
+  'The embedded font has no {characters}, which show as empty boxes.':
+    'La fuente incluida no tiene {characters}, que se ven como cuadros vacíos.',
+  '{count} parts of the drawing could not be drawn in the PDF.': {
+    one: 'Una parte del dibujo no se pudo dibujar en el PDF.',
+    other: '{count} partes del dibujo no se pudieron dibujar en el PDF.',
+  },
+  'The long description of the view: an outline of every shape and relation.':
+    'La descripción larga de la vista: un esquema de cada forma y relación.',
+  'Perspective: {perspective}.': 'Perspectiva: {perspective}.',
+  'An outline of the view “{view}” of the project “{project}”: what sits directly in World, what sits inside each container, and the relations drawn from each shape, in the model’s order.':
+    'Un esquema de la vista “{view}” del proyecto “{project}”: lo que está directamente en Mundo, lo que está dentro de cada contenedor y las relaciones que se dibujan desde cada forma, en el orden del modelo.',
+  '{name}, held by its row and not drawn': '{name}, que contiene su fila y no se dibuja',
+  'Shapes and relations': 'Formas y relaciones',
+  'The view draws no shape.': 'La vista no dibuja ninguna forma.',
+  Notes: 'Notas',
+  'What this outline leaves out': 'Lo que este esquema omite',
+  '{name} ({component}), collapsed, with {count} inside':
+    '{name} ({component}), contraído, con {count} dentro',
+  '{way} {count} relations “{type}” with {far}, aggregated': {
+    one: '{way} {count} relación “{type}” con {far}, agregada',
+    other: '{way} {count} relaciones “{type}” con {far}, agregadas',
+  },
+  '(no description)': '(sin descripción)',
+  'A relation that no longer exists: a broken step.':
+    'Una relación que ya no existe: un paso roto.',
+  'Takes in': 'Recibe',
+  Produces: 'Produce',
+  'Where each shape is, its size and its colors: the outline lists what the view shows, not how it draws it.':
+    'Dónde está cada forma, su tamaño y sus colores: el esquema enumera lo que la vista muestra, no cómo lo dibuja.',
+  'The routes of relations and their bend points.':
+    'Las rutas de las relaciones y sus puntos de quiebre.',
+  'Pictures.': 'Las imágenes.',
+  'Free arrows, which point at places rather than at shapes.':
+    'Las flechas libres, que señalan lugares y no formas.',
+  'What collapsed containers hold, as the view draws none of it.':
+    'Lo que contienen los contenedores contraídos, ya que la vista no dibuja nada de ello.',
+  'The view “{view}” of the project “{project}”, from Visual Anything.':
+    'La vista “{view}” del proyecto “{project}”, desde Visual Anything.',
+  'Lost: {what}': 'Se pierde: {what}',
+  'Mermaid lays the chart out itself: positions, sizes, routes and bend points are left out.':
+    'Mermaid organiza las formas por su cuenta: se omiten las posiciones, los tamaños, las rutas y los puntos de quiebre.',
+  'Details under names, badges among them, are left out.':
+    'Se omiten los detalles bajo los nombres, insignias incluidas.',
+  '{count} elements sit in more than one container: each is drawn once, in its first one.': {
+    one: 'Un elemento está en más de un contenedor: se dibuja una vez, en el primero.',
+    other:
+      '{count} elementos están en más de un contenedor: cada uno se dibuja una vez, en el primero.',
+  },
+  '{count} relations that end on relations are left out: Mermaid draws relations between shapes only.':
+    {
+      one: 'Se omite una relación que termina en una relación: Mermaid dibuja relaciones solo entre formas.',
+      other:
+        'Se omiten {count} relaciones que terminan en relaciones: Mermaid dibuja relaciones solo entre formas.',
+    },
+  '{count} shapes drawn as people are drawn as rounded rectangles.': {
+    one: 'Una forma dibujada como persona se dibuja como rectángulo redondeado.',
+    other: '{count} formas dibujadas como personas se dibujan como rectángulos redondeados.',
+  },
+  '{count} notes and free arrows are left out.': {
+    one: 'Se omite una nota o flecha libre.',
+    other: 'Se omiten {count} notas y flechas libres.',
+  },
+  '{count} pictures are left out.': {
+    one: 'Se omite una imagen.',
+    other: 'Se omiten {count} imágenes.',
+  },
+  '{count} elements of other packages than Systems are left out.': {
+    one: 'Se omite un elemento de un paquete que no es Sistemas.',
+    other: 'Se omiten {count} elementos de paquetes que no son Sistemas.',
+  },
+  '{count} elements sat deeper than C4 nests: each is a component beside the one that held it.': {
+    one: 'Un elemento estaba más adentro de lo que C4 anida: es un componente junto al que lo contenía.',
+    other:
+      '{count} elementos estaban más adentro de lo que C4 anida: cada uno es un componente junto al que lo contenía.',
+  },
+  '{count} people and systems sat inside other elements: they are at the top of the model.': {
+    one: 'Una persona o un sistema estaba dentro de otro elemento: está en lo más alto del modelo.',
+    other:
+      '{count} personas y sistemas estaban dentro de otros elementos: están en lo más alto del modelo.',
+  },
+  '{count} elements sit in more than one container: each is in its first one.': {
+    one: 'Un elemento está en más de un contenedor: está en el primero.',
+    other: '{count} elementos están en más de un contenedor: cada uno está en el primero.',
+  },
+  '{count} relations are left out: they end on relations, on elements left out, or on what holds them, which Structurizr does not take.':
+    {
+      one: 'Se omite una relación: termina en una relación, en un elemento omitido o en lo que la contiene, que Structurizr no admite.',
+      other:
+        'Se omiten {count} relaciones: terminan en relaciones, en elementos omitidos o en lo que las contiene, que Structurizr no admite.',
+    },
+  'Structurizr lays the views out itself: positions, sizes, routes and bend points are left out.':
+    'Structurizr organiza las vistas por su cuenta: se omiten las posiciones, los tamaños, las rutas y los puntos de quiebre.',
+  'The view shows no element of the Systems package.':
+    'La vista no muestra ningún elemento del paquete Sistemas.',
+  'Pictures are left out.': 'Se omiten las imágenes.',
+  'Scenarios are left out.': 'Se omiten los escenarios.',
+  'The whole view as the canvas draws it, without the selection, filters, focus or guidance.':
+    'Toda la vista como la dibuja el lienzo, sin la selección, los filtros, el foco ni la guía.',
+  'The whole view on one page, without the selection, filters, focus or guidance; WebP pictures and the colors of bitmap silhouettes are left out.':
+    'Toda la vista en una página, sin la selección, los filtros, el foco ni la guía; se omiten las imágenes WebP y los colores de las siluetas de mapas de bits.',
+  'Every shape and relation as text, and the scenarios; no positions, colors or pictures.':
+    'Cada forma y relación como texto, y los escenarios; sin posiciones, colores ni imágenes.',
+  'Shapes and relations for Mermaid to lay out; no positions, details, notes or pictures.':
+    'Formas y relaciones para que Mermaid las organice; sin posiciones, detalles, notas ni imágenes.',
+  'The C4 model of the view’s Systems components; no positions, notes, pictures or scenarios.':
+    'El modelo C4 de los componentes de Sistemas de la vista; sin posiciones, notas, imágenes ni escenarios.',
 };
 
 /**
