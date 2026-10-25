@@ -1530,7 +1530,8 @@ export class CanvasRenderer {
   private drawSelection(): void {
     const moving = this.movingMarks;
     const lineMarks = this.lineMarks;
-    for (const chunk of this.selectionChunks) chunk.clear();
+    // The chunks past those used were cleared when used last; clearing one makes PixiJS redo it.
+    for (const chunk of this.selectionChunks.slice(0, this.chunksUsed)) chunk.clear();
     moving.clear();
     lineMarks.clear();
     this.markCount = 0;
