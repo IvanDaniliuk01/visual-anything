@@ -5,11 +5,19 @@
  *
  * The session token never appears on screen or in an address: the browser is opened, or an address
  * printed, with a launch code that works once, within two minutes. In a terminal, `o` opens another
- * tab and `a` prints another such address.
+ * tab and `a` prints another such address. With `--view`, and `--select`, every such address also
+ * carries a view state (ADR-0030's addendum of 2026-10-25), which the tab applies once it has
+ * redeemed the code.
  */
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { PROTOCOL_VERSION } from '@visual-anything/core';
+import {
+  PROTOCOL_VERSION,
+  checkViewState,
+  viewStateProblems,
+  withViewState,
+  type ViewState,
+} from '@visual-anything/core';
 import { resolveAppSource } from './app-source';
 import { removeProgramRecord, writeProgramRecord } from './claude/discovery';
 import { errorCode, errorReason } from './errors';
@@ -20,13 +28,17 @@ import { startServer, type AppSource, type RunningServer } from './server';
 import { openSession } from './session';
 import { AppNotBuiltError } from './static';
 
-export const USAGE = `Usage: visual-anything [folder] [--port <n>] [--no-open] [--dev] [--stop-when-idle]
+export const USAGE = `Usage: visual-anything [open] [folder] [--view <id> [--select <id>]...] [--port <n>] [--no-open]
+                      [--dev] [--stop-when-idle]
        visual-anything mcp [folder] [--dev]
 
 Opens the project in folder (the current folder when left out) and serves the app on 127.0.0.1.
 With mcp, runs the MCP server Claude Code and Claude Desktop start instead; visual-anything mcp
---help says more. A folder named mcp is opened as ./mcp.
+--help says more. A folder named open or mcp is opened as ./open or ./mcp.
 
+  --view <id>       Open the app at this view.
+  --select <id>     Select this element, relation or free shape there; give it again, or a list
+                    joined by commas, for more. It needs --view.
   --port <n>        Listen on port n, from 0 to 65535 (default 0: any free port).
   --no-open         Print an address that works once, instead of opening the browser.
   --dev             Serve the app from its sources through Vite, with hot reload; only from the
@@ -46,6 +58,8 @@ export interface CommandLine {
   /** Whether to stop once nothing has been connected for a while. */
   stopWhenIdle: boolean;
   help: boolean;
+  /** The view state every launch address carries, from `--view` and `--select`; absent without. */
+  state?: ViewState;
 }
 
 /** The arguments read, or why they could not be. */
@@ -112,6 +126,8 @@ export function parseCommandLine(argv: readonly string[]): ParsedCommandLine {
         'no-open': { type: 'boolean' },
         dev: { type: 'boolean' },
         'stop-when-idle': { type: 'boolean' },
+        view: { type: 'string' },
+        select: { type: 'string', multiple: true },
         help: { type: 'boolean', short: 'h' },
       },
     });
@@ -132,6 +148,8 @@ export function parseCommandLine(argv: readonly string[]): ParsedCommandLine {
       message: `--port takes an integer from 0 to 65535, not ${JSON.stringify(values.port)}.`,
     };
   }
+  const state = stateOf(values.view, values.select ?? []);
+  if (!state.ok) return state;
   return {
     ok: true,
     value: {
@@ -141,8 +159,26 @@ export function parseCommandLine(argv: readonly string[]): ParsedCommandLine {
       dev: values.dev === true,
       stopWhenIdle: values['stop-when-idle'] === true,
       help: values.help === true,
+      ...(state.value === undefined ? {} : { state: state.value }),
     },
   };
+}
+
+/** The view state `--view` and `--select` ask for, checked as an address's is. */
+function stateOf(
+  view: string | undefined,
+  selected: readonly string[],
+): { ok: true; value: ViewState | undefined } | { ok: false; message: string } {
+  const select = selected.flatMap((each) => each.split(','));
+  if (view === undefined) {
+    return select.length === 0
+      ? { ok: true, value: undefined }
+      : { ok: false, message: '--select needs --view, the view to select in.' };
+  }
+  const checked = checkViewState({ view, ...(select.length === 0 ? {} : { select }) });
+  return checked.ok
+    ? { ok: true, value: checked.state }
+    : { ok: false, message: `--view and --select take ids: ${checked.message}` };
 }
 
 /**
@@ -184,6 +220,15 @@ export async function runCommand(
     return 1;
   }
   const { session } = opened;
+  const { state } = options;
+  const problems = state === undefined ? [] : viewStateProblems(session.snapshot, state);
+  if (problems.length > 0) {
+    environment.err(`Could not open "${session.snapshot.project.name}" there:`);
+    for (const problem of problems) environment.err(`  ${problem}`);
+    await session.close();
+    await preferences.close();
+    return 2;
+  }
 
   const stopper = new Stopper();
   const idle = options.stopWhenIdle
@@ -227,6 +272,9 @@ export async function runCommand(
     return 1;
   }
   stopper.onSignals(environment.signals);
+  // Every address that works once carries the view state asked for, beside its launch code.
+  const launchUrl = () =>
+    state === undefined ? server.launchUrl() : withViewState(server.launchUrl(), state);
   // Before saying it runs, so that Claude can attach as soon as it does.
   const record = await recordForClaude(environment, server, session.folder);
 
@@ -240,16 +288,16 @@ export async function runCommand(
   }
 
   if (options.open) {
-    void openBrowser(server.launchUrl()).catch(() => {});
+    void openBrowser(launchUrl()).catch(() => {});
   } else {
     environment.out(
-      `Open Visual Anything at this address, which works once, within two minutes: ${server.launchUrl()}`,
+      `Open Visual Anything at this address, which works once, within two minutes: ${launchUrl()}`,
     );
   }
   const stopKeys = environment.keys?.listen((key) => {
-    if (key === 'o') void openBrowser(server.launchUrl()).catch(() => {});
+    if (key === 'o') void openBrowser(launchUrl()).catch(() => {});
     else if (key === 'a') {
-      environment.out(`This address works once, within two minutes: ${server.launchUrl()}`);
+      environment.out(`This address works once, within two minutes: ${launchUrl()}`);
     } else if (key === '\u0003') stopper.stop();
   });
   if (stopKeys !== undefined) environment.out(KEY_HELP);
