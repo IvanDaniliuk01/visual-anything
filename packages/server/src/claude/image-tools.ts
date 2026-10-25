@@ -57,7 +57,7 @@ Then show it with an appearance's image trait, as an icon beside the name or as 
 
 Example: { "package": "clinic", "name": "Calendar icon", "svg": "<svg xmlns=\\"http://www.w3.org/2000/svg\\" viewBox=\\"0 0 24 24\\"><rect x=\\"3\\" y=\\"5\\" width=\\"18\\" height=\\"16\\" rx=\\"2\\" fill=\\"#2F6FDE\\"/></svg>", "source": "Drawn by Claude" }
 Example: { "package": "clinic", "name": "Dr. Ruiz", "format": "png", "data": "iVBORw0KGgoAAAANSUhEUgAA…" }
-Then: { "id": "booking-agent", "appearanceTraits": { "image": { "image": "clinic.calendar-icon", "placement": "icon" } } } with update_element.`,
+Then, with the id the answer gives, call update_element: { "id": "booking-agent", "appearanceTraits": { "image": { "image": "clinic.calendar-icon-k3f9q2", "placement": "icon" } } }`,
   input: {
     package: id().describe('One of the project’s own packages: create_package makes one.'),
     name: z.string().min(1).max(200),
@@ -166,10 +166,12 @@ Example: { "id": "clinic.dr-ruiz", "name": "Dr. Ana Ruiz" }`,
       async (answer) => {
         const now = await program.project();
         const replaced = imagesIn(now).image(definition.id);
+        // A picture kept as stored is cleaned again too, which says so when it changes it.
+        const cleaned = answer.warnings.some((each) => each.code === 'image-cleaned');
         return {
           image: definition.id,
           ...(replaced ? sizeOf(replaced.definition) : {}),
-          ...(changesContent ? { cleaned: cleanedSays(answer.warnings) } : {}),
+          ...(changesContent || cleaned ? { cleaned: cleanedSays(answer.warnings) } : {}),
           shownBy: usersOf(now, definition.id).map((each) => each.name),
         };
       },

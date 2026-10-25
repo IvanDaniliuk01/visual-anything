@@ -22,7 +22,7 @@ interface GuidanceLayerProps {
 }
 
 /** Shows Claude's guidance; mount it inside the canvas area, within the shell's editor. */
-export function GuidanceLayer({ scenarios }: GuidanceLayerProps = {}) {
+export function GuidanceLayer({ scenarios }: GuidanceLayerProps) {
   const live = useContext(LiveContext);
   const editor = useContext(EditorContext);
   const guidance = live?.guidance ?? NO_GUIDANCE;
