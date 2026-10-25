@@ -1026,7 +1026,7 @@ describe.each(MODES)('changes made outside the app, watching in %s mode', (mode)
       try {
         await fsp.symlink(outside, join(folder, 'views/overview.vaview'), 'junction');
       } catch {
-        context.skip();
+        context.skip('This user may not make a link to a folder here.');
       }
 
       const outcome = await session.execute(MOVE_CUSTOMER, 'user');

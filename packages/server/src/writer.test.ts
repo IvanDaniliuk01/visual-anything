@@ -226,7 +226,10 @@ describe('writeFileAtomic for project files only', () => {
     const outside = await mkdtemp(join(tmpdir(), 'va-outside-'));
     try {
       await writeFile(join(outside, 'secret'), 'secret');
-      if (!(await tryLink(join(outside, 'secret'), target, 'file'))) context.skip();
+      if (!(await tryLink(join(outside, 'secret'), target, 'file')))
+        context.skip(
+          'This user may not make symbolic links here: Windows lets only Developer Mode or an administrator make them.',
+        );
       await expect(writeFileAtomic(target, bytes('new'), { regularOnly: true })).rejects.toThrow(
         'model.vamodel is not a regular file; Visual Anything writes only regular files inside the project folder.',
       );
@@ -241,7 +244,8 @@ describe('writeFileAtomic for project files only', () => {
   it('never writes into a folder that is a link', async (context) => {
     const outside = await mkdtemp(join(tmpdir(), 'va-outside-'));
     try {
-      if (!(await tryLink(outside, join(folder, 'views'), 'junction'))) context.skip();
+      if (!(await tryLink(outside, join(folder, 'views'), 'junction')))
+        context.skip('This user may not make a link to a folder here.');
       await expect(
         writeFileAtomic(join(folder, 'views', 'a.vaview'), bytes('{}'), { regularOnly: true }),
       ).rejects.toThrow(
@@ -384,13 +388,14 @@ describe('writeFileAtomic for project files, when a folder is swapped while it w
 });
 
 describe('writeFileAtomic with a mode', () => {
-  it.skipIf(process.platform === 'win32')(
-    'gives the file the mode asked for, whatever the umask',
-    async () => {
-      await writeFileAtomic(target, bytes('secret'), { mode: 0o600 });
-      expect((await fsp.stat(target)).mode & 0o777).toBe(0o600);
-    },
-  );
+  it('gives the file the mode asked for, whatever the umask', async (context) => {
+    context.skip(
+      process.platform === 'win32',
+      'Windows files have no mode bits: who may read them comes from the access list of their folder.',
+    );
+    await writeFileAtomic(target, bytes('secret'), { mode: 0o600 });
+    expect((await fsp.stat(target)).mode & 0o777).toBe(0o600);
+  });
 });
 
 describe('removeFile', () => {

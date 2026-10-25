@@ -481,7 +481,9 @@ describe('loadProject reads only regular files within their caps', () => {
       if (
         !(await tryLink(join(outside, 'secret.vaview'), join(folder, 'views/a.vaview'), 'file'))
       ) {
-        context.skip();
+        context.skip(
+          'This user may not make symbolic links here: Windows lets only Developer Mode or an administrator make them.',
+        );
       }
       expect(errorsOf(await loadProject(folder))).toEqual([
         { file: 'views/a.vaview', pointer: '', message: `The file is a link; ${ONLY_REGULAR}` },
@@ -494,7 +496,7 @@ describe('loadProject reads only regular files within their caps', () => {
   it('refuses a project file that is a junction, as a problem of that file', async (context) => {
     await mkdir(join(folder, 'elsewhere'));
     if (!(await tryLink(join(folder, 'elsewhere'), join(folder, 'views/a.vaview'), 'junction'))) {
-      context.skip();
+      context.skip('This user may not make a link to a folder here.');
     }
     expect(errorsOf(await loadProject(folder))).toEqual([
       { file: 'views/a.vaview', pointer: '', message: `The file is a link; ${ONLY_REGULAR}` },
@@ -505,7 +507,8 @@ describe('loadProject reads only regular files within their caps', () => {
     const outside = await mkdtemp(join(tmpdir(), 'va-outside-'));
     try {
       await writeFile(join(outside, 'secret.vaview'), JSON.stringify(viewFile('secret')));
-      if (!(await tryLink(outside, join(folder, 'views'), 'junction'))) context.skip();
+      if (!(await tryLink(outside, join(folder, 'views'), 'junction')))
+        context.skip('This user may not make a link to a folder here.');
       expect(errorsOf(await loadProject(folder))).toEqual([
         {
           file: 'views',
@@ -535,22 +538,27 @@ describe('loadProject reads only regular files within their caps', () => {
     ]);
   });
 
-  it.skipIf(process.platform === 'win32')(
-    'refuses a FIFO among the views without waiting on it',
-    async () => {
-      await mkdir(join(folder, 'views'));
-      execFileSync('mkfifo', [join(folder, 'views/pipe.vaview')]);
-      expect(errorsOf(await loadProject(folder))).toEqual([
-        {
-          file: 'views/pipe.vaview',
-          pointer: '',
-          message: `The file is not a regular file; ${ONLY_REGULAR}`,
-        },
-      ]);
-    },
-  );
+  it('refuses a FIFO among the views without waiting on it', async (context) => {
+    context.skip(
+      process.platform === 'win32',
+      'Windows has no FIFOs: its named pipes are not files in a folder.',
+    );
+    await mkdir(join(folder, 'views'));
+    execFileSync('mkfifo', [join(folder, 'views/pipe.vaview')]);
+    expect(errorsOf(await loadProject(folder))).toEqual([
+      {
+        file: 'views/pipe.vaview',
+        pointer: '',
+        message: `The file is not a regular file; ${ONLY_REGULAR}`,
+      },
+    ]);
+  });
 
-  it.skipIf(process.platform === 'win32')('refuses a package linked to /dev/zero', async () => {
+  it('refuses a package linked to /dev/zero', async (context) => {
+    context.skip(
+      process.platform === 'win32',
+      'Windows has no /dev/zero, nor devices among the files of a folder.',
+    );
     await mkdir(join(folder, 'packages'));
     await symlink('/dev/zero', join(folder, 'packages/zero.vapackage'));
     expect(errorsOf(await loadProject(folder))).toEqual([
@@ -565,7 +573,7 @@ describe('loadProject reads only regular files within their caps', () => {
   it('leaves links out of the files it reads to look for changes', async (context) => {
     await mkdir(join(folder, 'elsewhere'));
     if (!(await tryLink(join(folder, 'elsewhere'), join(folder, 'views/a.vaview'), 'junction'))) {
-      context.skip();
+      context.skip('This user may not make a link to a folder here.');
     }
     expect([...(await readProjectFiles(folder)).keys()].sort()).toEqual([
       'model.vamodel',
@@ -575,7 +583,8 @@ describe('loadProject reads only regular files within their caps', () => {
 
   it('opens a project through a link to its folder', async (context) => {
     const link = `${folder}-link`;
-    if (!(await tryLink(folder, link, 'junction'))) context.skip();
+    if (!(await tryLink(folder, link, 'junction')))
+      context.skip('This user may not make a link to a folder here.');
     try {
       expect(snapshotOf(await loadProject(link)).project).toEqual(projectFile());
     } finally {
