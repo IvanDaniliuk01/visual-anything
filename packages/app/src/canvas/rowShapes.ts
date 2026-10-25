@@ -8,7 +8,8 @@ import type { Element, Id, ShapePosition } from '@visual-anything/schema';
 import type { Placement } from '@visual-anything/core';
 import { centerOf, type Point, type Rect, type ShapeKind } from './geometry';
 import { fitHeader, fitRow } from './fit';
-import { overlapHorizontally, sideToward, type SideEnd } from './rowRoutes';
+import { overlapHorizontally, sideToward, type AnyEnd, type SideEnd } from './rowRoutes';
+import type { RouteEnd } from './route';
 import {
   ROWS_HEADER,
   ROW_HEIGHT,
@@ -337,6 +338,47 @@ export function changedSides(before: RowSides | undefined, after: RowSides | und
     }
   }
   return changed;
+}
+
+/**
+ * The ends of a relation routed again while a drag moves one of them: an end on a row, or on a shape
+ * that draws rows, leaves beside it, as the scene routes it, on its first lane. `rectOf` gives a
+ * shape's rectangle where the drag draws it now.
+ */
+export function dragEnds(
+  ends: { from: { kind: string; key?: string }; to: { kind: string; key?: string } },
+  from: RouteEnd,
+  to: RouteEnd,
+  shapeOf: (key: string) => ElementShape | undefined,
+  rectOf: (key: string) => Rect | undefined,
+): [AnyEnd, AnyEnd] {
+  const beside = (end: { kind: string; key?: string }) => {
+    if (end.kind !== 'shape' || end.key === undefined) return undefined;
+    const shape = shapeOf(end.key);
+    if (!shape || !leavesBeside(shape)) return undefined;
+    const containerKey = shape.row === undefined ? shape.key : shape.containerShape;
+    const container = containerKey === undefined ? undefined : rectOf(containerKey);
+    const own = rectOf(shape.key);
+    if (!container || !own) return undefined;
+    const y = shape.row === undefined ? headerMiddle(container) : own.y + own.height / 2;
+    return { container, y };
+  };
+  const a = beside(ends.from);
+  const b = beside(ends.to);
+  if (!a && !b) return [from, to];
+  const middleOf = (end: RouteEnd) => ('rect' in end ? centerOf(end.rect) : end.point);
+  const both = a !== undefined && b !== undefined && overlapHorizontally(a.container, b.container);
+  const sideEnd = (at: { container: Rect; y: number }, other: Point): SideEnd => ({
+    kind: 'side',
+    container: at.container,
+    y: at.y,
+    lane: 0,
+    side: both ? 'right' : sideToward(at.container, other),
+  });
+  return [
+    a ? sideEnd(a, b ? centerOf(b.container) : middleOf(to)) : from,
+    b ? sideEnd(b, a ? centerOf(a.container) : middleOf(from)) : to,
+  ];
 }
 
 /**
