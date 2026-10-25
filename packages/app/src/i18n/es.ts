@@ -1454,6 +1454,73 @@ export const ui: Catalog = {
     one: 'Agregar su extremo a esta vista',
     other: 'Agregar sus {count} extremos a esta vista',
   },
+
+  // External identifiers, destinations and the element list (M8, ADR 0056).
+  destination: 'destino',
+  Add: 'Agregar',
+  'the view “{view}”': 'la vista “{view}”',
+  'the project in “{folder}”': 'el proyecto de “{folder}”',
+  'the view {view} of the project in “{folder}”': 'la vista {view} del proyecto de “{folder}”',
+  'a page of {host}': 'una página de {host}',
+  'the view {view}, which the project does not have': 'la vista {view}, que el proyecto no tiene',
+  'nothing, since this is not a destination': 'nada, porque esto no es un destino',
+  'This is not a destination, so it opens nothing.': 'Esto no es un destino, así que no abre nada.',
+  'This destination opens the view {view}, which the project does not have.':
+    'Este destino abre la vista {view}, que el proyecto no tiene.',
+  'This web address does not open: the browser reads it otherwise.':
+    'Esta dirección web no se abre: el navegador la lee de otra manera.',
+  'Another project opens only while Visual Anything is connected.':
+    'Otro proyecto solo se abre mientras Visual Anything está conectado.',
+  '“{name}” opens in a new tab.': '“{name}” se abre en una pestaña nueva.',
+  'The project in “{folder}” does not open: {why}': 'El proyecto de “{folder}” no se abre: {why}',
+  'Open a page of {host}?': '¿Abrir una página de {host}?',
+  'It opens in a new tab, which cannot reach this one. Its whole address:':
+    'Se abre en una pestaña nueva, que no puede llegar a esta. Su dirección completa:',
+  'Open the project in “{folder}”?': '¿Abrir el proyecto de “{folder}”?',
+  'Its folder is {path}, from this project’s folder. It opens in a tab of its own, through the Visual Anything that runs on it, which starts if none does.':
+    'Su carpeta es {path}, desde la carpeta de este proyecto. Se abre en una pestaña propia, a través del Visual Anything que corre sobre él, que se inicia si no hay ninguno.',
+  'It opens at its view {view}.': 'Se abre en su vista {view}.',
+  'Open the page': 'Abrir la página',
+  'Open the project': 'Abrir el proyecto',
+  Destinations: 'Destinos',
+  'Opens {what}': 'Abre {what}',
+  'Follow “{name}”, which opens {what}': 'Seguir “{name}”, que abre {what}',
+  Follow: 'Seguir',
+  'Follow “{name}”': 'Seguir “{name}”',
+  'Double-click, or press Alt+Enter, to open {opens}':
+    'Hacer doble clic, o presionar Alt+Enter, para abrir {opens}',
+  'Its menu lists its {count} destinations.': 'Su menú lista sus {count} destinos.',
+  'Alt+Enter': 'Alt+Enter',
+  'Follow the selected element’s destination, as double-clicking the mark in its bottom left corner does':
+    'Seguir el destino del elemento seleccionado, como lo hace un doble clic en la marca de su esquina inferior izquierda',
+  'An identifier has 1 to {n} characters, without line breaks.':
+    'Un identificador tiene de 1 a {n} caracteres, sin saltos de línea.',
+  'External identifiers': 'Identificadores externos',
+  'None yet. Add what it is in another catalog, such as uberon: UBERON:0002135.':
+    'Ninguno todavía. Agregar lo que es en otro catálogo, como uberon: UBERON:0002135.',
+  'A scheme is a short lowercase name, such as uberon, fma or wikidata.':
+    'Un catálogo es un nombre corto en minúsculas, como uberon, fma o wikidata.',
+  'It has a {scheme} identifier already; change that one.':
+    'Ya tiene un identificador de {scheme}; cambiar ese.',
+  'Add an external identifier': 'Agregar un identificador externo',
+  Scheme: 'Catálogo',
+  Identifier: 'Identificador',
+  'A view of this project': 'Una vista de este proyecto',
+  'Another project': 'Otro proyecto',
+  'A web address': 'Una dirección web',
+  'Folder, from this project’s folder': 'Carpeta, desde la carpeta de este proyecto',
+  'View id there, if any': 'Id de la vista allí, si hay',
+  'Web address, starting with https://': 'Dirección web, que empiece con https://',
+  'Choose a view': 'Elegir una vista',
+  '{view}, which the project does not have': '{view}, que el proyecto no tiene',
+  'It opens the whole view.': 'Abre la vista completa.',
+  'It selects {count} elements there.': {
+    one: 'Allí selecciona {count} elemento.',
+    other: 'Allí selecciona {count} elementos.',
+  },
+  'Focus on the selection': 'Enfocar en la selección',
+  'Open the whole view': 'Abrir la vista completa',
+  'This is not a destination: {why}': 'Esto no es un destino: {why}',
 };
 
 /**

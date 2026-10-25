@@ -8,6 +8,7 @@ import { createContext, useContext } from 'react';
 import type { SendCommand } from '../canvas/CanvasArea';
 import type { Scene } from '../canvas/scene';
 import type { Explore } from '../canvas/useExplorer';
+import type { Follower } from '../destinations/FollowProvider';
 import type { Selection } from './selection';
 
 export interface Editor {
@@ -41,6 +42,11 @@ export interface Editor {
    * the project is open. The shell always sets it; it is optional only so that tests can leave it out.
    */
   explore?: Explore;
+  /**
+   * Follows destinations (ADR 0056): a view of this project at once, another project or a web
+   * address after asking. The shell always sets it; it is optional so that tests can leave it out.
+   */
+  follow?: Follower;
 }
 
 export const EditorContext = createContext<Editor | undefined>(undefined);

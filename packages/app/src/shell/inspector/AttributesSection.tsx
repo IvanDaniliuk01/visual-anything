@@ -1,5 +1,5 @@
 import type { AttributeDefinition, Attributes, Id, JsonValue } from '@visual-anything/schema';
-import { useId, useRef, useState, type FormEvent } from 'react';
+import { useContext, useId, useRef, useState, type FormEvent } from 'react';
 import { useT } from '../../i18n';
 import {
   ATTRIBUTE_TYPES,
@@ -14,6 +14,8 @@ import {
   type AttributeType,
 } from './attributes';
 import { CheckboxControl, InlineProblem, TextControl } from './controls';
+import { DestinationControl } from '../../destinations/DestinationControl';
+import { EditorContext } from '../../editor/EditorContext';
 import { useFocusKeeper, type FocusKeeper } from './focus';
 import { Mark } from './parts';
 
@@ -55,6 +57,9 @@ export function AttributesSection({
   change,
 }: AttributesSectionProps) {
   const t = useT();
+  const editor = useContext(EditorContext);
+  // A new destination opens the open view at first, or else the project's first (ADR 0056).
+  const firstView = editor?.viewId ?? editor?.project.views[0]?.id;
   const headingId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
   // The row whose value takes the focus, until it has: a row that comes back later, after an undo, a
@@ -106,9 +111,14 @@ export function AttributesSection({
       {of === 'element' && (
         <NewAttribute
           names={rows.map((row) => row.name)}
+          types={
+            firstView === undefined
+              ? ATTRIBUTE_TYPES.filter((each) => each !== 'destination')
+              : ATTRIBUTE_TYPES
+          }
           disabled={disabled}
           onAdd={async (name, type) => {
-            const done = await change({ attributes: { [name]: initialValue(type) } });
+            const done = await change({ attributes: { [name]: initialValue(type, firstView) } });
             if (done) focusOn(name);
             return done;
           }}
@@ -283,6 +293,17 @@ function ValueControl({
           onCommit={(text) => onSet(text)}
         />
       );
+    case 'destination':
+      return (
+        <DestinationControl
+          key={kind}
+          id={id}
+          value={value}
+          disabled={disabled}
+          describedBy={describedBy}
+          onSet={onSet}
+        />
+      );
   }
 }
 
@@ -308,13 +329,15 @@ function problemIn(reading: { ok: true } | { ok: false; message: string }): stri
 interface NewAttributeProps {
   /** The attributes it has already. */
   names: readonly string[];
+  /** The types it may be of. */
+  types: readonly AttributeType[];
   disabled: boolean;
   /** Adds the attribute; resolves to whether it was added. */
   onAdd: (name: string, type: AttributeType) => Promise<boolean>;
 }
 
 /** Adds an attribute of the element's own, which its component does not define. */
-function NewAttribute({ names, disabled, onAdd }: NewAttributeProps) {
+function NewAttribute({ names, types, disabled, onAdd }: NewAttributeProps) {
   const t = useT();
   const titleId = useId();
   const nameId = useId();
@@ -390,7 +413,7 @@ function NewAttribute({ names, disabled, onAdd }: NewAttributeProps) {
             disabled={disabled}
             onChange={(event) => setType(event.target.value as AttributeType)}
           >
-            {ATTRIBUTE_TYPES.map((each) => (
+            {types.map((each) => (
               <option key={each} value={each}>
                 {t(typeName(each))}
               </option>

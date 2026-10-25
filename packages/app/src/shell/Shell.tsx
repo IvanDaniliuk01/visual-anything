@@ -1,6 +1,6 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
-import { useCallback, useContext, useId, useMemo, useState } from 'react';
+import { useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { ExportControl } from '../export/ExportControl';
@@ -18,6 +18,7 @@ import { ScenarioPanel } from '../scenarios/ScenarioPanel';
 import { ScenarioSession } from '../scenarios/session';
 import { usePreferences, useThemeHold } from '../theme/usePreferences';
 import { FindBar } from '../search/FindBar';
+import { useFollower, type GoToState } from '../destinations/FollowProvider';
 import type { CanvasCamera } from '../view-state/canvas';
 import { CopyAddress } from '../view-state/CopyAddress';
 import { useViewState } from '../view-state/useViewState';
@@ -63,6 +64,9 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   const [emphasis] = useState(() => new EmphasisStore());
   // The filters and focus of each view; they set the open view's emphasis.
   const explore = useExplorer({ project, viewId: view?.id, scene, selection, emphasis });
+  // Following destinations (ADR 0056): it goes to a view through the view state, set below.
+  const followGoTo = useRef<GoToState>(undefined);
+  const { follower, dialog: followDialog } = useFollower(project, followGoTo);
   const editor = useMemo<Editor>(
     () => ({
       project,
@@ -75,8 +79,10 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
       reveal,
       openView: setOpenViewId,
       explore,
+      follow: follower,
     }),
-    [project, definitions, view?.id, scene, selection, setSelection, onCommand, reveal, explore],
+    // prettier-ignore
+    [project, definitions, view?.id, scene, selection, setSelection, onCommand, reveal, explore, follower],
   );
   const canvasHeading = useId();
   // The scenario open in the scenario panel, with its playback and its recording on the canvas.
@@ -110,6 +116,9 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
     emphasis,
     canvas,
     notify: live?.notify,
+  });
+  useLayoutEffect(() => {
+    followGoTo.current = viewState.goTo;
   });
 
   return (
@@ -167,6 +176,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
             </main>
             <Inspector view={view} scene={scene} definitions={definitions} />
             <ScenarioPanel session={scenarios} />
+            {followDialog}
           </div>
         </EmphasisContext.Provider>
       </DefinitionProvider>

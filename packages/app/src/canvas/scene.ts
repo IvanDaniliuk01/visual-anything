@@ -19,6 +19,7 @@
  * nothing (`buildSceneAfresh`).
  */
 import {
+  destinationsOf,
   imagesIn,
   shownByScope,
   type ProjectSnapshot,
@@ -193,6 +194,11 @@ export interface ElementShape {
    * is written in. Routes, the selection and pointing go by it rather than by `rect`.
    */
   plate?: Rect;
+  /**
+   * How many destinations its element has (ADR 0056), which its mark says it has
+   * (`destinationMark.ts`); absent when it has none.
+   */
+  destinations?: number;
 }
 
 /** A relation drawn along an orthogonal route, or an aggregated relation standing for several. */
@@ -672,6 +678,8 @@ export interface Look {
   details: Map<string, string>;
   /** The image its shapes show, if any. */
   image: ImageLook | undefined;
+  /** How many destinations its element has, which its shapes mark (ADR 0056). */
+  destinations: number;
 }
 
 const NO_TYPES: ReadonlySet<Id> = new Set();
@@ -753,6 +761,7 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
       componentName: componentOrEssence(definitions, element.component).name,
       details: new Map(),
       image: imageLookOf(element, definitions),
+      destinations: destinationCount(element, definitions),
     };
     const dark = darkColorsOf(element, definitions);
     if (dark.fill !== look.appearance.fill || dark.stroke !== look.appearance.stroke) {
@@ -761,6 +770,18 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
     kept.set(element, look);
   }
   return look;
+}
+
+/**
+ * How many destinations an element has (ADR 0056): none at once for an element without attributes
+ * whose component defines no destination attribute, which most are.
+ */
+function destinationCount(element: Element, definitions: Definitions): number {
+  const attributes = definitions.component(element.component)?.attributes ?? [];
+  if (element.attributes === undefined && !attributes.some((each) => each.type === 'destination')) {
+    return 0;
+  }
+  return destinationsOf(element, attributes).length;
 }
 
 /** A placement with its size worked out, before it gets absolute coordinates. */
@@ -1345,7 +1366,8 @@ function shapeFor(
     before.points === points &&
     sameShapeImage(before.image, placed?.image) &&
     sameImageRect(before.plate, placed?.plate) &&
-    sameItems(before.leaving ?? NO_IDS, leaving ?? NO_IDS)
+    sameItems(before.leaving ?? NO_IDS, leaving ?? NO_IDS) &&
+    (before.destinations ?? 0) === look.destinations
   ) {
     return before;
   }
@@ -1382,6 +1404,7 @@ function shapeFor(
   if (placed) shape.image = placed.image;
   if (placed?.plate) shape.plate = placed.plate;
   if (leaving !== undefined && leaving.length > 0) shape.leaving = leaving;
+  if (look.destinations > 0) shape.destinations = look.destinations;
   return shape;
 }
 

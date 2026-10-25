@@ -37,6 +37,8 @@ import {
   type ComponentProps,
 } from 'react';
 import { useEmphasis, type Emphasis } from '../editor/emphasis';
+import { elementDestinations } from '../destinations/follow';
+import { useFollow } from '../destinations/FollowProvider';
 import { useLendRenderer } from '../export/source';
 import { t as translateNow, useT, type Translator } from '../i18n';
 import { EMPTY_SELECTION, selectionOf, sizeOf, type Selection } from '../editor/selection';
@@ -264,6 +266,13 @@ export function CanvasArea({
     latest.current = { project, view, indexed, selection, onSelect, onCommand, theme };
   });
   const themeShown = useEffectEvent((shown: ThemeName) => onThemeShown?.(shown));
+  // A destination's mark, Alt+Enter and the shape's menu follow it (ADR 0056).
+  const follower = useFollow();
+  const follow = useEffectEvent((element: Id) => {
+    const { project: now } = latest.current;
+    const [first] = elementDestinations(now, modelIndexOf(now).element(element));
+    if (first !== undefined) follower?.follow(first.destination);
+  });
 
   const announce = (text: string) => setAnnouncement((last) => ({ text, count: last.count + 1 }));
 
@@ -373,6 +382,7 @@ export function CanvasArea({
           })),
         addRow: (container, below) => addRowFromCanvas(container, below),
         themeShown: (shown) => themeShown(shown),
+        follow: (element) => follow(element),
       },
       // The canvas starts in the theme shown now, and follows it from then on.
       {
@@ -899,6 +909,14 @@ export function CanvasArea({
             onSelect(selectionOf([{ kind: 'element', id: other.element }]));
             controller()?.reveal(other.key);
           }}
+          {...(follower === undefined
+            ? {}
+            : {
+                onFollow: (destination) => {
+                  closeMenu();
+                  follower.follow(destination);
+                },
+              })}
           onClose={closeMenu}
         />
       )}

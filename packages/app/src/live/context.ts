@@ -1,6 +1,7 @@
 import type { Command, PreferenceChanges, Preferences } from '@visual-anything/core';
+import type { Id } from '@visual-anything/schema';
 import { createContext, useContext } from 'react';
-import type { CommandResult, LiveState, NoticeLevel } from './connection';
+import type { CommandResult, LiveState, NoticeLevel, OtherProjectResult } from './connection';
 
 /** How the local program answered a change of preferences: what it holds now, or why it refused. */
 export type PreferencesAnswer =
@@ -37,6 +38,11 @@ export interface Live extends LiveState {
    * session to carry them, as in tests that give components a session of their own.
    */
   setPreferences?: (changes: PreferenceChanges) => Promise<PreferencesAnswer>;
+  /**
+   * Asks the local program to open another project in a tab of its own program, as a destination
+   * names it (ADR 0056); absent where there is no live session to ask.
+   */
+  openOtherProject?: (project: string, view?: Id) => Promise<OtherProjectResult>;
 }
 
 /**

@@ -53,6 +53,10 @@ export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
     does: 'Go to the far end of the selected relation; on an element or a note, edit its text',
   },
   { keys: 'F2', does: 'Rename the selected element, or edit the selected note' },
+  {
+    keys: 'Alt+Enter',
+    does: 'Follow the selected element’s destination, as double-clicking the mark in its bottom left corner does',
+  },
   { keys: 'Shift+arrow keys', does: 'Move the selection one grid step' },
   {
     keys: 'Shift+Up, Shift+Down on a row',
