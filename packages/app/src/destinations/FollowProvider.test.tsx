@@ -13,7 +13,8 @@ import { LiveContext, type Live } from '../live/context';
 import { fakeLive } from '../test/fakeLive';
 import { loadSample } from '../test/sample';
 import type { GoTo } from '../view-state/applier';
-import { FollowProvider, useFollow } from './FollowProvider';
+import { useFollow } from './follower';
+import { FollowProvider } from './FollowProvider';
 
 const sample = loadSample();
 

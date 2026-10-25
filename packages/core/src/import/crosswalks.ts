@@ -119,7 +119,9 @@ function sanitized(element: PlannedElement): { ids?: ExternalIds; left: string[]
   const left: string[] = [];
   for (const [scheme, identifier] of Object.entries(given as Record<string, unknown>)) {
     if (!isScheme(scheme)) {
-      left.push(`"${scheme}" is not a scheme of identifiers, so it is imported without that one.`);
+      left.push(
+        `"${String(scheme)}" is not a scheme of identifiers, so it is imported without that one.`,
+      );
     } else if (!isExternalId(identifier)) {
       left.push(`Its ${scheme} identifier is not one, so it is imported without it.`);
     } else if (kept.length >= MAX_SCHEMES) {
@@ -160,7 +162,8 @@ export function matchByExternalIds(
     for (const why of left) {
       unmatched.push({ text: element.name, why });
     }
-    const { ids: _dropped, ...rest } = element;
+    const rest: PlannedElement = { ...element };
+    delete rest.ids;
     const ids = completedIds(given, tables);
     const next: PlannedElement = ids === undefined ? rest : { ...rest, ids };
     if (ids === undefined || next.existing !== undefined) return next;

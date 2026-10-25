@@ -12,11 +12,11 @@ import {
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { useMemo, useRef, useState } from 'react';
+import { createRef, useImperativeHandle, useMemo, useRef, useState, type Ref } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { SendCommand } from '../canvas/CanvasArea';
 import { buildScene } from '../canvas/scene';
-import type { Follower } from '../destinations/FollowProvider';
+import type { Follower } from '../destinations/follower';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { EMPTY_SELECTION, selectionOf, type Selection } from '../editor/selection';
 import { loadSample } from '../test/sample';
@@ -48,13 +48,19 @@ interface Run {
   selected: Selection[];
   revealed: string[];
   follow: ReturnType<typeof vi.fn<Follower['follow']>>;
+  /** Selects as the canvas would, once the list is drawn. */
   select: (selection: Selection) => void;
 }
 
-function Harness({ run, initial }: { run: Run; initial: ProjectSnapshot }) {
+/** What a test does to the harness from outside: select, as the canvas does. */
+interface Handle {
+  select: (selection: Selection) => void;
+}
+
+function Harness({ run, initial, ref }: { run: Run; initial: ProjectSnapshot; ref: Ref<Handle> }) {
   const [project, setProject] = useState(initial);
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
-  run.select = (next) => act(() => setSelection(next));
+  useImperativeHandle(ref, () => ({ select: setSelection }), []);
   const latest = useRef(initial);
   const definitions = useMemo(() => definitionsIn(project), [project]);
   const view = project.views[0];
@@ -89,14 +95,15 @@ function Harness({ run, initial }: { run: Run; initial: ProjectSnapshot }) {
 }
 
 function renderList() {
+  const handle = createRef<Handle>();
   const run: Run = {
     sent: [],
     selected: [],
     revealed: [],
     follow: vi.fn<Follower['follow']>(),
-    select: () => {},
+    select: (next) => act(() => handle.current?.select(next)),
   };
-  render(<Harness run={run} initial={linkedSample()} />);
+  render(<Harness run={run} initial={linkedSample()} ref={handle} />);
   const grid = screen.getByRole('grid', { name: 'Element list' });
   return { run, grid };
 }

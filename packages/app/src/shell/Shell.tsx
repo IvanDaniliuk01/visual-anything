@@ -18,8 +18,10 @@ import { ScenarioPanel } from '../scenarios/ScenarioPanel';
 import { ScenarioSession } from '../scenarios/session';
 import { usePreferences, useThemeHold } from '../theme/usePreferences';
 import { FindBar } from '../search/FindBar';
-import { useFollower, type GoToState } from '../destinations/FollowProvider';
-import { useElementList } from '../element-list/ElementList';
+import { useFollower, type GoToState } from '../destinations/follower';
+import { FollowDialog } from '../destinations/FollowDialog';
+import { ElementListPanel, ElementListToggle } from '../element-list/ElementListToggle';
+import { ElementListStore } from '../element-list/store';
 import type { CanvasCamera } from '../view-state/canvas';
 import { CopyAddress } from '../view-state/CopyAddress';
 import { useViewState } from '../view-state/useViewState';
@@ -67,7 +69,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   const explore = useExplorer({ project, viewId: view?.id, scene, selection, emphasis });
   // Following destinations (ADR 0056): it goes to a view through the view state, set below.
   const followGoTo = useRef<GoToState>(undefined);
-  const { follower, dialog: followDialog } = useFollower(project, followGoTo);
+  const { follower, asking } = useFollower(project, followGoTo);
   const editor = useMemo<Editor>(
     () => ({
       project,
@@ -122,7 +124,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
     followGoTo.current = viewState.goTo;
   });
   // The element list, below the canvas, and its toggle in the header (R42).
-  const elementList = useElementList();
+  const [elementList] = useState(() => new ElementListStore());
 
   return (
     <EditorContext.Provider value={editor}>
@@ -136,7 +138,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                 <>
                   {view && <CopyAddress link={viewState} />}
                   {exportTool}
-                  {elementList.toggle}
+                  <ElementListToggle store={elementList} />
                 </>
               }
             />
@@ -180,8 +182,14 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
             </main>
             <Inspector view={view} scene={scene} definitions={definitions} />
             <ScenarioPanel session={scenarios} />
-            {elementList.panel}
-            {followDialog}
+            <ElementListPanel store={elementList} />
+            {asking && (
+              <FollowDialog
+                plan={asking.plan}
+                onConfirm={asking.confirm}
+                onCancel={asking.cancel}
+              />
+            )}
           </div>
         </EmphasisContext.Provider>
       </DefinitionProvider>

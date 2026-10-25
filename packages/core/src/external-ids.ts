@@ -20,6 +20,7 @@ export const MAX_SCHEMES = 32;
 export const SCHEME_PATTERN = /^[a-z][a-z0-9_-]{0,31}$/;
 
 /** Control characters, which no identifier holds: they would break lines or hide text. */
+// eslint-disable-next-line no-control-regex -- control characters are what it refuses
 const CONTROL = /[\x00-\x1f\x7f]/;
 
 /** Whether a value is a scheme of external identifiers. */
@@ -46,7 +47,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function checkPair(scheme: string, identifier: unknown, of: string): void {
   if (!isScheme(scheme)) {
     invalid(
-      `The external identifiers of ${of} are by scheme, a short lowercase name such as "uberon"; "${scheme}" is not one.`,
+      `The external identifiers of ${of} are by scheme, a short lowercase name such as "uberon"; "${String(scheme)}" is not one.`,
     );
   }
   if (!isExternalId(identifier)) {

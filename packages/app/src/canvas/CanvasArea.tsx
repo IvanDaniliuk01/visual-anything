@@ -38,7 +38,7 @@ import {
 } from 'react';
 import { useEmphasis, type Emphasis } from '../editor/emphasis';
 import { elementDestinations } from '../destinations/follow';
-import { useFollow } from '../destinations/FollowProvider';
+import { useFollow } from '../destinations/follower';
 import { useLendRenderer } from '../export/source';
 import { t as translateNow, useT, type Translator } from '../i18n';
 import { EMPTY_SELECTION, selectionOf, sizeOf, type Selection } from '../editor/selection';

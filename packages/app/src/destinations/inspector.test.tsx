@@ -19,7 +19,7 @@ import { EditorContext, type Editor } from '../editor/EditorContext';
 import { selectionOf } from '../editor/selection';
 import { Inspector } from '../shell/Inspector';
 import { loadSample } from '../test/sample';
-import type { Follower } from './FollowProvider';
+import type { Follower } from './follower';
 
 const DB = 'appointments-db';
 

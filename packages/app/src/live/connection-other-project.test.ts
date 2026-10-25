@@ -42,7 +42,7 @@ describe('opening another project', () => {
     socket.receive(
       encodeServerMessage({
         type: 'other-project/opened',
-        requestId: socket.lastSent().requestId as string,
+        requestId: socket.lastSent().requestId,
         name: 'Billing',
       }),
     );
@@ -57,7 +57,7 @@ describe('opening another project', () => {
     socket.receive(
       encodeServerMessage({
         type: 'command/rejected',
-        requestId: socket.lastSent().requestId as string,
+        requestId: socket.lastSent().requestId,
         problems: [{ code: 'broken-destination', message: 'There is no folder.' }],
       }),
     );

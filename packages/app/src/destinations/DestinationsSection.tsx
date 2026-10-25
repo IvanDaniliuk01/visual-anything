@@ -9,7 +9,7 @@ import { useId } from 'react';
 import { useEditor } from '../editor/EditorContext';
 import { useT } from '../i18n';
 import { describeDestination } from './follow';
-import { useFollow } from './FollowProvider';
+import { useFollow } from './follower';
 import './destinations.css';
 
 interface DestinationsSectionProps {

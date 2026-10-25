@@ -7,7 +7,7 @@ import { executeCommand, type ProjectSnapshot } from '@visual-anything/core';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useMemo, useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Follower } from '../destinations/FollowProvider';
+import type { Follower } from '../destinations/follower';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { EMPTY_SELECTION, selectionOf, type Selection } from '../editor/selection';
 import { FakeApplication, FakeResizeObserver } from '../test/FakeApplication';

@@ -8,7 +8,7 @@ import { createContext, useContext } from 'react';
 import type { SendCommand } from '../canvas/CanvasArea';
 import type { Scene } from '../canvas/scene';
 import type { Explore } from '../canvas/useExplorer';
-import type { Follower } from '../destinations/FollowProvider';
+import type { Follower } from '../destinations/follower';
 import type { Selection } from './selection';
 
 export interface Editor {

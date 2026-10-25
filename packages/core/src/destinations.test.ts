@@ -79,6 +79,7 @@ describe('readDestination', () => {
           const read = readDestination({ url: value });
           if (!read.ok) continue;
           expect(value.startsWith('https://')).toBe(true);
+          // eslint-disable-next-line no-control-regex -- control characters are what it refuses
           expect(value).not.toMatch(/[\s\\\x00-\x1f\x7f]/);
           const host = webAddressHost(value);
           expect(host).toMatch(/^[a-z0-9.\-[\]:]+$/);

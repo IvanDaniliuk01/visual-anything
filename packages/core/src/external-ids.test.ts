@@ -38,6 +38,7 @@ function refusalOf(check: () => unknown): string[] {
 const scheme = fc.stringMatching(/^[a-z][a-z0-9_-]{0,31}$/);
 const identifier = fc
   .string({ minLength: 1, maxLength: 60, unit: 'grapheme' })
+  // eslint-disable-next-line no-control-regex -- control characters are what it leaves out
   .filter((text) => !/[\x00-\x1f\x7f]/.test(text));
 const ids = fc.dictionary(scheme, identifier, { minKeys: 1, maxKeys: 8 });
 

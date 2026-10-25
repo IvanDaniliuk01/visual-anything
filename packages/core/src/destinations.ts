@@ -8,7 +8,7 @@
  * character a browser would read otherwise than the confirmation names their host. Another project is
  * named by a path relative to this project's folder that never leads out of the folder holding it.
  */
-import type { AttributeDefinition, Attributes, Destination, Id } from '@visual-anything/schema';
+import type { AttributeDefinition, Attributes, Destination } from '@visual-anything/schema';
 import { isId } from './ids';
 
 /** The longest web address a destination holds, in characters. */
@@ -105,7 +105,7 @@ export function readDestination(value: unknown): DestinationRead {
       why: `What a destination focuses on is a list of 1 to ${MAX_DESTINATION_FOCUS} different element ids.`,
     };
   }
-  return { ok: true, destination: { view: value.view, focus: [...(focus as Id[])] } };
+  return { ok: true, destination: { view: value.view, focus: [...focus] } };
 }
 
 /** Whether a value is a destination, as {@link readDestination} reads it. */
@@ -125,6 +125,7 @@ const AUTHORITY = new RegExp(
 );
 
 /** What no web address a destination holds may have: space, control characters, a backslash. */
+// eslint-disable-next-line no-control-regex -- control characters are what it refuses
 const NEVER_IN_ADDRESS = /[\s\\\x00-\x1f\x7f]/;
 
 /**
@@ -187,6 +188,7 @@ export function projectPathProblem(path: string): string | undefined {
   if (path === '' || [...path].length > MAX_PROJECT_PATH_LENGTH) {
     return `A path to a project has 1 to ${MAX_PROJECT_PATH_LENGTH} characters.`;
   }
+  // eslint-disable-next-line no-control-regex -- control characters are what it refuses
   if (/[\x00-\x1f\x7f]/.test(path)) return 'A path to a project holds no control characters.';
   if (path.includes('\\')) return 'A path to a project is written with /, not \\.';
   if (path.startsWith('/') || path.includes(':')) {

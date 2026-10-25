@@ -212,16 +212,21 @@ export function sortElements(
       if (empty(a.value) && empty(b.value)) return a.at - b.at;
       return empty(a.value) ? 1 : -1;
     }
-    const compared = compare(a.value as JsonValue, b.value as JsonValue, collator);
+    const compared = compare(a.value, b.value, collator);
     return compared === 0 ? a.at - b.at : sign * compared;
   });
   return keyed.map((each) => each.element);
 }
 
-function compare(a: JsonValue, b: JsonValue, collator: Intl.Collator): number {
+function compare(
+  a: JsonValue | undefined,
+  b: JsonValue | undefined,
+  collator: Intl.Collator,
+): number {
   if (typeof a === 'number' && typeof b === 'number') return a - b;
   if (typeof a === 'boolean' && typeof b === 'boolean') return Number(a) - Number(b);
-  const text = (value: JsonValue) => (typeof value === 'string' ? value : JSON.stringify(value));
+  const text = (value: JsonValue | undefined) =>
+    typeof value === 'string' ? value : JSON.stringify(value ?? null);
   return collator.compare(text(a), text(b));
 }
 

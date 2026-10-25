@@ -21,12 +21,12 @@ import {
   type ReactNode,
 } from 'react';
 import { readDestination } from '@visual-anything/core';
-import { useFollow } from '../destinations/FollowProvider';
+import { useFollow } from '../destinations/follower';
 import { useEditor } from '../editor/EditorContext';
 import { selectionOf, type Selection } from '../editor/selection';
 import { useT } from '../i18n';
 import { LiveContext } from '../live/context';
-import { DismissIcon, TableIcon } from '../shell/icons';
+import { DismissIcon } from '../shell/icons';
 import { byPackage } from '../shell/inspector/describe';
 import { perform } from '../shell/inspector/send';
 import { cellsText, parseCells, pasteCommand, readCell } from './edit';
@@ -98,7 +98,10 @@ export function ElementList({ onClose }: { onClose: () => void }) {
   const [sort, setSort] = useState<{ column: string; direction: SortDirection }>();
   const [filter, setFilter] = useState('');
   const [within, setWithin] = useState('');
-  const [active, setActive] = useState<Cell>();
+  // The cell the keys are on, and the selection it was chosen under: when the canvas selects
+  // something else, the keys go on from the first row it selects.
+  const [chosen, setChosen] = useState<{ cell: Cell; under: Selection }>();
+  const setActive = (cell: Cell) => setChosen({ cell, under: selection });
   const [editing, setEditing] = useState<Editing>();
   const [said, setSaid] = useState({ text: '', count: 0 });
   const say = (text: string) => setSaid((last) => ({ text, count: last.count + 1 }));
@@ -141,6 +144,19 @@ export function ElementList({ onClose }: { onClose: () => void }) {
       cell === undefined ? -1 : columns.findIndex((each) => columnKey(each) === cell.column);
     return row === undefined || column < 0 ? { row: 0, column: 0 } : { row, column };
   };
+  const firstSelected = useMemo(
+    () => rows.find((element) => selection.elements.has(element.id)),
+    [rows, selection],
+  );
+  const active: Cell | undefined =
+    chosen !== undefined &&
+    (chosen.under === selection ||
+      firstSelected === undefined ||
+      selection.elements.has(chosen.cell.row))
+      ? chosen.cell
+      : firstSelected === undefined
+        ? undefined
+        : { row: firstSelected.id, column: chosen?.cell.column ?? 'name' };
   const at = placeOf(active);
   const cellAt = (row: number, column: number): Cell | undefined => {
     const element = rows[row];
@@ -164,32 +180,30 @@ export function ElementList({ onClose }: { onClose: () => void }) {
     return () => observer.disconnect();
   }, []);
 
-  /** Scrolls a row into sight, at once, so that it is drawn before it takes the focus. */
-  const bringIntoSight = (row: number) => {
+  /** Scrolls the body so that a row shows, and says where it scrolled to; nothing when it shows. */
+  const scrollToRow = (row: number): { top: number; height: number } | undefined => {
     const element = body.current;
-    if (!element) return;
+    if (!element) return undefined;
     const top = row * ROW_HEIGHT;
     const height = element.clientHeight || sight.height;
     let next = element.scrollTop;
     if (top < next) next = top;
     else if (top + ROW_HEIGHT > next + height) next = top + ROW_HEIGHT - height;
-    if (next !== element.scrollTop) {
-      element.scrollTop = next;
-      setSight({ top: next, height });
-    }
+    if (next === element.scrollTop) return undefined;
+    element.scrollTop = next;
+    return { top: next, height };
   };
 
-  // What the canvas selects comes into sight here, and the keys go on from it.
+  /** Scrolls a row into sight, at once, so that it is drawn before it takes the focus. */
+  const bringIntoSight = (row: number) => {
+    const scrolled = scrollToRow(row);
+    if (scrolled !== undefined) setSight(scrolled);
+  };
+
+  // What the canvas selects comes into sight here; the scroll draws the rows it brings in.
   useEffect(() => {
-    const [selected] = rows.filter((element) => selection.elements.has(element.id));
-    if (selected === undefined) return;
-    const row = rowAt.get(selected.id) as number;
-    bringIntoSight(row);
-    setActive((now) =>
-      now !== undefined && selection.elements.has(now.row)
-        ? now
-        : { row: selected.id, column: now?.column ?? 'name' },
-    );
+    if (firstSelected === undefined) return;
+    scrollToRow(rowAt.get(firstSelected.id) ?? 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the selection changes
   }, [selection]);
 
@@ -721,33 +735,4 @@ function CellEditor({ label, problemId, editing, onChange, onCommit, onCancel }:
       onDoubleClick={(event) => event.stopPropagation()}
     />
   );
-}
-
-/** The header's toggle of the element list, and the list while it is open. */
-export function useElementList(): { toggle: ReactNode; panel: ReactNode } {
-  const t = useT();
-  const [open, setOpen] = useState(false);
-  const button = useRef<HTMLButtonElement>(null);
-  const toggle = (
-    <button
-      ref={button}
-      type="button"
-      className="element-list-toggle"
-      aria-pressed={open}
-      title={t('List the elements with their attributes, to read and edit them as a table')}
-      onClick={() => setOpen((now) => !now)}
-    >
-      <TableIcon />
-      <span>{t('Element list')}</span>
-    </button>
-  );
-  const panel = open ? (
-    <ElementList
-      onClose={() => {
-        setOpen(false);
-        button.current?.focus();
-      }}
-    />
-  ) : null;
-  return { toggle, panel };
 }
