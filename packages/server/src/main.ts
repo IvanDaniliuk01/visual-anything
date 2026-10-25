@@ -125,6 +125,11 @@ export async function runMcp(
   });
   const server = createMcpServer(program);
   server.server.onclose = () => program.close();
+  // Claude ends the session by closing stdin, and waits for the entry point to exit: it lets go of
+  // the program, which keeps running for the app, and nothing is left to keep this process alive.
+  process.stdin.once('end', () => {
+    void server.close();
+  });
   await server.connect(new StdioServerTransport());
   return undefined;
 }
