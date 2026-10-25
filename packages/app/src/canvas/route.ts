@@ -129,6 +129,28 @@ export function midpointOf(route: Route): Point {
   return route[0] ?? { x: 0, y: 0 };
 }
 
+/**
+ * The point a fraction of the way along a route, measured along its segments: its start at 0, its
+ * end at 1; fractions beyond them stop at the ends.
+ */
+export function pointAlong(route: Route, fraction: number): Point {
+  const first = route[0] ?? { x: 0, y: 0 };
+  if (!(fraction > 0)) return first;
+  if (fraction >= 1) return route.at(-1) ?? first;
+  let left = lengthOf(route) * fraction;
+  for (let each = 1; each < route.length; each++) {
+    const a = route[each - 1] as Point;
+    const b = route[each] as Point;
+    const segment = distance(a, b);
+    if (segment >= left && segment > 0) {
+      const t = left / segment;
+      return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+    }
+    left -= segment;
+  }
+  return route.at(-1) ?? first;
+}
+
 /** The length of a route along its segments. */
 export function lengthOf(route: Route): number {
   let total = 0;

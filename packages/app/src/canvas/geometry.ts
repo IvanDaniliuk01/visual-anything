@@ -147,6 +147,45 @@ export function grow(rect: Rect, by: number): Rect {
   };
 }
 
+/** How large the toggle that collapses or expands a container is, in scene units. */
+export const TOGGLE_SIZE = 18;
+/** How far the toggle sits from its container's top and right sides. */
+const TOGGLE_INSET = 6;
+/** How far behind a collapsed container the sheet under it shows, which says that it holds more. */
+export const SHEET = 5;
+
+/**
+ * Where a collapsed container's own outline is drawn: its rectangle without the sheet that shows
+ * behind it, on the right and at the bottom.
+ */
+export function bodyOf(shape: { rect: Rect; collapsed?: unknown }): Rect {
+  const { rect } = shape;
+  if (shape.collapsed === undefined || rect.width <= 2 * SHEET || rect.height <= 2 * SHEET) {
+    return rect;
+  }
+  return { ...rect, width: rect.width - SHEET, height: rect.height - SHEET };
+}
+
+/**
+ * Where the toggle that collapses or expands a container sits: in the top right corner of its body.
+ * None for a shape that is not a container, or too small to hold the toggle beside its name.
+ */
+export function toggleRect(shape: {
+  rect: Rect;
+  holdsContents: boolean;
+  collapsed?: unknown;
+}): Rect | undefined {
+  if (!shape.holdsContents && shape.collapsed === undefined) return undefined;
+  const body = bodyOf(shape);
+  if (body.width < 3 * TOGGLE_SIZE || body.height < 2 * TOGGLE_SIZE) return undefined;
+  return {
+    x: body.x + body.width - TOGGLE_INSET - TOGGLE_SIZE,
+    y: body.y + TOGGLE_INSET,
+    width: TOGGLE_SIZE,
+    height: TOGGLE_SIZE,
+  };
+}
+
 /** How tall the ellipse is that closes a cylinder at the top and at the bottom, halved. */
 export function cylinderCap(rect: Rect): number {
   return Math.min(12, rect.height * 0.15);

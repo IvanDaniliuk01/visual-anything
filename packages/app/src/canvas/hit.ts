@@ -56,10 +56,10 @@ export interface IndexedScene {
 
 /** What only the shapes decide, shared by every scene drawn from the same shapes. */
 interface ShapeLookups {
-  byKey: Map<string, ElementShape>;
-  indexOfKey: Map<string, number>;
-  byElement: Map<string, ElementShape[]>;
-  contentsOf: Map<string, ElementShape[]>;
+  byKey: ReadonlyMap<string, ElementShape>;
+  indexOfKey: ReadonlyMap<string, number>;
+  byElement: ReadonlyMap<string, readonly ElementShape[]>;
+  contentsOf: ReadonlyMap<string, readonly ElementShape[]>;
   contentsIndexes: Map<string, SpatialIndex<ElementShape>>;
   identity: readonly number[];
 }
@@ -79,22 +79,55 @@ const relationIndexes = new WeakMap<readonly RelationLine[], SpatialIndex<number
 const noteIndexes = new WeakMap<readonly NoteShape[], SpatialIndex<number>>();
 const arrowIndexes = new WeakMap<readonly ArrowShape[], SpatialIndex<number>>();
 const outlyingShapes = new WeakMap<ElementShape, readonly ElementShape[]>();
+/** The last scene indexed, which the next one is indexed from when it keeps its shapes' keys. */
+let latest: IndexedScene | undefined;
 
 /**
  * Indexes a scene for hit testing. The same scene gives the same index, so the canvas and the
  * inspector share it; scenes that share their shapes, relations, notes or arrows share their indexes,
- * so a change of stacking order indexes only the shapes again.
+ * so a change of stacking order indexes only the shapes again. A scene whose shapes keep the keys and
+ * the drawing order of the last scene indexed, as after a move or a rename, is indexed from it: only
+ * the shapes that moved, and the shapes their bands depend on, are indexed again.
  */
 export function indexScene(scene: Scene): IndexedScene {
   const known = indexedScenes.get(scene);
   if (known) return known;
+  const indexed = (latest && reindexed(latest, scene)) ?? freshIndex(scene);
+  indexedScenes.set(scene, indexed);
+  latest = indexed;
+  return indexed;
+}
+
+/** The index of a scene made from nothing, sharing nothing with any other: for tests. */
+export function indexSceneAfresh(scene: Scene): IndexedScene {
+  return freshIndex({
+    ...scene,
+    shapes: [...scene.shapes],
+    relations: [...scene.relations],
+    notes: [...scene.notes],
+    arrows: [...scene.arrows],
+    ...(scene.drawing ? { drawing: [...scene.drawing] } : {}),
+  });
+}
+
+function freshIndex(scene: Scene): IndexedScene {
   const shapeLookups = lookupsOf(scene.shapes);
   const drawing = scene.drawing ?? shapeLookups.identity;
   const drawn = drawnIndexOf(scene.shapes, drawing);
-  const indexed: IndexedScene = {
+  return indexedOf(scene, shapeLookups, drawing, drawn, relationIndexOf(scene.relations));
+}
+
+function indexedOf(
+  scene: Scene,
+  shapeLookups: ShapeLookups,
+  drawing: readonly number[],
+  drawn: DrawnIndex,
+  relations: SpatialIndex<number>,
+): IndexedScene {
+  return {
     scene,
     shapes: drawn.index,
-    relations: cached(relationIndexes, scene.relations, indexRelations),
+    relations,
     notes: cached(noteIndexes, scene.notes, (notes) => indexRects(notes.map((note) => note.rect))),
     arrows: cached(arrowIndexes, scene.arrows, (arrows) =>
       indexRects(arrows.map((arrow) => rectAround([arrow.from, arrow.to]))),
@@ -108,55 +141,368 @@ export function indexScene(scene: Scene): IndexedScene {
     rankOf: drawn.rankOf,
     bands: drawn.bands,
   };
-  indexedScenes.set(scene, indexed);
-  return indexed;
 }
+
+/**
+ * The index of a scene made from the index of an earlier one, `base`, whose shapes have the same keys
+ * in the same order and are drawn in the same order; undefined when they are not, or when most of
+ * them changed. The base's indexes are copied before they change, so it stays as it was.
+ */
+function reindexed(base: IndexedScene, scene: Scene): IndexedScene | undefined {
+  const before = base.scene;
+  const { shapes } = scene;
+  if (before.shapes.length !== shapes.length) return undefined;
+  const changed: number[] = [];
+  if (before.shapes !== shapes) {
+    for (let at = 0; at < shapes.length; at++) {
+      const was = before.shapes[at] as ElementShape;
+      const now = shapes[at] as ElementShape;
+      if (was === now) continue;
+      if (was.key !== now.key) return undefined;
+      changed.push(at);
+    }
+  }
+  if (changed.length > shapes.length / 2) return undefined;
+  const baseLookups = lookupsOf(before.shapes);
+  const drawing = scene.drawing ?? baseLookups.identity;
+  if (drawing !== base.drawing && !sameNumbers(drawing, base.drawing)) return undefined;
+
+  const shapeLookups =
+    changed.length === 0
+      ? baseLookups
+      : (lookups.get(shapes) ?? updatedLookups(baseLookups, shapes, changed));
+  lookups.set(shapes, shapeLookups);
+  const moved = changed.filter(
+    (at) => !sameRect((before.shapes[at] as ElementShape).rect, (shapes[at] as ElementShape).rect),
+  );
+  const baseDrawn: DrawnIndex = {
+    shapes: before.shapes,
+    index: base.shapes,
+    rankOf: base.rankOf,
+    bands: base.bands,
+  };
+  const drawn =
+    moved.length === 0
+      ? { ...baseDrawn, shapes }
+      : redrawnIndex(baseDrawn, before.shapes, shapes, base.drawing, moved);
+  drawnIndexes.set(drawing, drawn);
+  const relations =
+    before.relations === scene.relations
+      ? base.relations
+      : (relationIndexes.get(scene.relations) ??
+        updatedRelationIndex(base.relations, before.relations, scene.relations) ??
+        relationIndexOf(scene.relations));
+  relationIndexes.set(scene.relations, relations);
+  return indexedOf(scene, shapeLookups, base.drawing, drawn, relations);
+}
+
+/** The lookups of shapes that keep the keys of `base`'s, where those at `changed` are new objects. */
+function updatedLookups(
+  base: ShapeLookups,
+  shapes: readonly ElementShape[],
+  changed: readonly number[],
+): ShapeLookups {
+  const byKey = new Map<string, ElementShape>();
+  const elements = new Set<string>();
+  const containers = new Set<string>();
+  for (const at of changed) {
+    const shape = shapes[at] as ElementShape;
+    byKey.set(shape.key, shape);
+    elements.add(shape.element);
+    containers.add(shape.containerShape ?? '');
+  }
+  const current = (shape: ElementShape) => byKey.get(shape.key) ?? shape;
+  const byElement = new Map<string, ElementShape[]>();
+  for (const element of elements) {
+    byElement.set(element, (base.byElement.get(element) ?? []).map(current));
+  }
+  const contentsOf = new Map<string, ElementShape[]>();
+  for (const container of containers) {
+    contentsOf.set(container, (base.contentsOf.get(container) ?? []).map(current));
+  }
+  return {
+    byKey: overlaid(base.byKey, byKey),
+    indexOfKey: base.indexOfKey,
+    byElement: overlaid(base.byElement, byElement),
+    contentsOf: overlaid(base.contentsOf, contentsOf),
+    contentsIndexes: new Map(),
+    identity: base.identity,
+  };
+}
+
+/** How many overlays may pile up before they are made one map again. */
+const MOST_OVERLAYS = 8;
+
+/**
+ * A map that reads `changes` over `base`, for the same keys: an edit that changes a few shapes of
+ * thousands copies nothing. Once overlays pile up, or the changes grow large, it is one map again.
+ */
+function overlaid<V>(
+  base: ReadonlyMap<string, V>,
+  changes: Map<string, V>,
+): ReadonlyMap<string, V> {
+  if (changes.size === 0) return base;
+  const piled = base instanceof Overlay ? base.piled + 1 : 1;
+  if (piled > MOST_OVERLAYS || changes.size * 8 > base.size) {
+    // Copied from the map under every overlay, with each overlay's changes in turn.
+    const stack: ReadonlyMap<string, V>[] = [changes];
+    let root: ReadonlyMap<string, V> = base;
+    while (root instanceof Overlay) {
+      const overlay = root as Overlay<V>;
+      stack.push(overlay.changes);
+      root = overlay.base;
+    }
+    const flat = new Map(root);
+    for (let at = stack.length - 1; at >= 0; at--) {
+      for (const [key, value] of stack[at] as ReadonlyMap<string, V>) flat.set(key, value);
+    }
+    return flat;
+  }
+  return new Overlay(base, changes, piled);
+}
+
+class Overlay<V> implements ReadonlyMap<string, V> {
+  constructor(
+    readonly base: ReadonlyMap<string, V>,
+    readonly changes: ReadonlyMap<string, V>,
+    /** How many overlays this one is, counting those under it. */
+    readonly piled: number,
+  ) {}
+
+  get size(): number {
+    return this.base.size;
+  }
+
+  get(key: string): V | undefined {
+    return this.changes.has(key) ? this.changes.get(key) : this.base.get(key);
+  }
+
+  has(key: string): boolean {
+    return this.changes.has(key) || this.base.has(key);
+  }
+
+  *entries(): MapIterator<[string, V]> {
+    for (const [key, value] of this.base) {
+      yield [key, this.changes.has(key) ? (this.changes.get(key) as V) : value];
+    }
+  }
+
+  *keys(): MapIterator<string> {
+    yield* this.base.keys();
+  }
+
+  *values(): MapIterator<V> {
+    for (const [, value] of this.entries()) yield value;
+  }
+
+  forEach(each: (value: V, key: string, map: ReadonlyMap<string, V>) => void): void {
+    for (const [key, value] of this.entries()) each(value, key, this);
+  }
+
+  [Symbol.iterator](): MapIterator<[string, V]> {
+    return this.entries();
+  }
+}
+
+/**
+ * The shape index and the bands of `base` with the shapes at `moved` in their new places: a moved
+ * shape's band is worked out again, and so is the band of every shape drawn after it that overlaps
+ * where it was or where it is, and after those, of every shape whose band then depends on theirs.
+ */
+function redrawnIndex(
+  base: DrawnIndex,
+  before: readonly ElementShape[],
+  shapes: readonly ElementShape[],
+  drawing: readonly number[],
+  moved: readonly number[],
+): DrawnIndex {
+  const index = base.index.clone();
+  const { rankOf } = base;
+  const bands = base.bands.slice();
+  const waiting = new RankHeap();
+  const after = (rect: Rect, rank: number) => {
+    for (const other of index.query(rect)) {
+      const otherRank = rankOf[other] as number;
+      if (otherRank > rank) waiting.push(otherRank);
+    }
+  };
+  const movedSet = new Set(moved);
+  for (const at of moved) {
+    const rank = rankOf[at] as number;
+    index.replace(rank, (shapes[at] as ElementShape).rect);
+    waiting.push(rank);
+    after((before[at] as ElementShape).rect, rank);
+  }
+  const bandOf = (at: number) => bands[at] as number;
+  for (let rank = waiting.pop(); rank !== undefined; rank = waiting.pop()) {
+    const at = drawing[rank] as number;
+    const { rect } = shapes[at] as ElementShape;
+    const band = index.highest(rect, bandOf, rank) + 1;
+    if (band !== bands[at] || movedSet.has(at)) {
+      bands[at] = band;
+      after(rect, rank);
+    }
+  }
+  return { shapes, index, rankOf, bands };
+}
+
+/** Ranks waiting to be looked at, smallest first, each once. */
+class RankHeap {
+  private readonly heap: number[] = [];
+  private readonly queued = new Set<number>();
+
+  push(rank: number): void {
+    if (this.queued.has(rank)) return;
+    this.queued.add(rank);
+    const heap = this.heap;
+    heap.push(rank);
+    for (let at = heap.length - 1; at > 0;) {
+      const up = (at - 1) >> 1;
+      if ((heap[up] as number) <= rank) break;
+      heap[at] = heap[up] as number;
+      heap[up] = rank;
+      at = up;
+    }
+  }
+
+  pop(): number | undefined {
+    const heap = this.heap;
+    const top = heap[0];
+    if (top === undefined) return undefined;
+    const last = heap.pop() as number;
+    if (heap.length > 0) {
+      heap[0] = last;
+      for (let at = 0; ;) {
+        const left = 2 * at + 1;
+        const right = left + 1;
+        let smallest = at;
+        if (left < heap.length && (heap[left] as number) < (heap[smallest] as number))
+          smallest = left;
+        if (right < heap.length && (heap[right] as number) < (heap[smallest] as number))
+          smallest = right;
+        if (smallest === at) break;
+        heap[at] = heap[smallest] as number;
+        heap[smallest] = last;
+        at = smallest;
+      }
+    }
+    this.queued.delete(top);
+    return top;
+  }
+}
+
+/**
+ * The relations index of `base` with the lines that changed in their new places, when the lines are
+ * those of `before`, by key, in the same order; undefined when they are not.
+ */
+function updatedRelationIndex(
+  base: SpatialIndex<number>,
+  before: readonly RelationLine[],
+  after: readonly RelationLine[],
+): SpatialIndex<number> | undefined {
+  if (before.length !== after.length) return undefined;
+  const changed: number[] = [];
+  for (let at = 0; at < after.length; at++) {
+    const was = before[at] as RelationLine;
+    const now = after[at] as RelationLine;
+    if (was === now || was.route === now.route) continue;
+    if (was.relation !== now.relation) return undefined;
+    changed.push(at);
+  }
+  if (changed.length > after.length / 2) return undefined;
+  if (changed.length === 0) return base;
+  const index = base.clone();
+  for (const at of changed) index.replaceParts(at, segmentsOf((after[at] as RelationLine).route));
+  return index;
+}
+
+function relationIndexOf(lines: readonly RelationLine[]): SpatialIndex<number> {
+  return cached(relationIndexes, lines, indexRelations);
+}
+
+const indexesWithout = new WeakMap<
+  IndexedScene,
+  { hidden: ReadonlySet<string>; indexed: IndexedScene }
+>();
+
+/**
+ * The index without the element shapes in `hidden`, by key, for what finds shapes through it alone,
+ * as aiming a drop does: what the canvas hides cannot be dropped onto. Made once for each set.
+ */
+export function withoutShapes(indexed: IndexedScene, hidden: ReadonlySet<string>): IndexedScene {
+  if (hidden.size === 0) return indexed;
+  const known = indexesWithout.get(indexed);
+  if (known?.hidden === hidden) return known.indexed;
+  const shapes = indexed.shapes.clone();
+  for (const key of hidden) {
+    const at = indexed.indexOfKey.get(key);
+    if (at !== undefined) shapes.remove(indexed.rankOf[at] as number);
+  }
+  const made: IndexedScene = { ...indexed, shapes };
+  indexesWithout.set(indexed, { hidden, indexed: made });
+  return made;
+}
+
+/** What hit testing leaves out: what the canvas does not draw, by the keys the emphasis uses. */
+export interface Skipped {
+  /** Element shapes by key, relations by their line's key, free shapes by id. */
+  has(key: string): boolean;
+}
+
+const NOTHING_SKIPPED: Skipped = { has: () => false };
 
 /**
  * What lies at a point of the scene. `tolerance` is how far, in scene units, a line may be from the
  * point and still count as under it. An element shape counts by its drawn outline where `exact` says
- * so for it, and by its rectangle otherwise, as while the canvas draws it as a plain block.
+ * so for it, and by its rectangle otherwise, as while the canvas draws it as a plain block. What
+ * `hidden` holds is not drawn, and is not found.
  */
 export function hitAt(
   indexed: IndexedScene,
   point: Point,
   tolerance: number,
   exact: (shape: ElementShape) => boolean = () => true,
+  hidden: Skipped = NOTHING_SKIPPED,
 ): Hit | undefined {
   const { scene } = indexed;
   const arrows = indexed.arrows.at(point, tolerance);
   for (let each = arrows.length - 1; each >= 0; each--) {
     const arrow = scene.arrows[arrows[each] as number] as ArrowShape;
+    if (hidden.has(arrow.id)) continue;
     if (distanceToRoute(point, [arrow.from, arrow.to]) <= tolerance)
       return { kind: 'arrow', arrow };
   }
   const notes = indexed.notes.at(point);
-  if (notes.length > 0)
-    return { kind: 'note', note: scene.notes[notes.at(-1) as number] as NoteShape };
+  for (let each = notes.length - 1; each >= 0; each--) {
+    const note = scene.notes[notes[each] as number] as NoteShape;
+    if (!hidden.has(note.id)) return { kind: 'note', note };
+  }
 
   let nearest: { line: RelationLine; distance: number } | undefined;
   for (const at of indexed.relations.at(point, tolerance)) {
     const line = scene.relations[at] as RelationLine;
+    if (hidden.has(line.relation)) continue;
     const distance = distanceToRoute(point, line.route);
     if (distance <= tolerance && (!nearest || distance < nearest.distance))
       nearest = { line, distance };
   }
   if (nearest) return { kind: 'relation', line: nearest.line };
 
-  const [shape] = shapesUnder(indexed, point, exact, 1);
+  const [shape] = shapesUnder(indexed, point, exact, 1, hidden);
   return shape ? { kind: 'shape', shape } : undefined;
 }
 
 /**
  * The element shapes under a point, the one drawn on top first, by the rule `hitAt` follows for
- * them. Notes and relations do not count.
+ * them. Notes and relations do not count, nor does what `hidden` holds.
  */
 export function shapesAt(
   indexed: IndexedScene,
   point: Point,
   exact: (shape: ElementShape) => boolean = () => true,
+  hidden: Skipped = NOTHING_SKIPPED,
 ): ElementShape[] {
-  return shapesUnder(indexed, point, exact, Infinity);
+  return shapesUnder(indexed, point, exact, Infinity, hidden);
 }
 
 function shapesUnder(
@@ -164,36 +510,39 @@ function shapesUnder(
   point: Point,
   exact: (shape: ElementShape) => boolean,
   most: number,
+  hidden: Skipped,
 ): ElementShape[] {
   const found: ElementShape[] = [];
   // The index lists shapes in drawing order, so the last one that holds the point is drawn on top.
   const under = indexed.shapes.at(point);
   for (let each = under.length - 1; each >= 0 && found.length < most; each--) {
     const shape = indexed.scene.shapes[under[each] as number] as ElementShape;
+    if (hidden.has(shape.key)) continue;
     if (!exact(shape) || holdsPoint(shape.kind, shape.rect, point)) found.push(shape);
   }
   return found;
 }
 
-/** What a dragged box encloses entirely: element shapes, notes and arrows. */
+/** What a dragged box encloses entirely: element shapes, notes and arrows, but what `hidden` holds. */
 export function enclosedBy(
   indexed: IndexedScene,
   box: Rect,
+  hidden: Skipped = NOTHING_SKIPPED,
 ): { shapes: ElementShape[]; notes: NoteShape[]; arrows: ArrowShape[] } {
   const { scene } = indexed;
   return {
     shapes: indexed.shapes
       .query(box)
       .map((at) => scene.shapes[at] as ElementShape)
-      .filter((shape) => within(shape.rect, box)),
+      .filter((shape) => !hidden.has(shape.key) && within(shape.rect, box)),
     notes: indexed.notes
       .query(box)
       .map((at) => scene.notes[at] as NoteShape)
-      .filter((note) => within(note.rect, box)),
+      .filter((note) => !hidden.has(note.id) && within(note.rect, box)),
     arrows: indexed.arrows
       .query(box)
       .map((at) => scene.arrows[at] as ArrowShape)
-      .filter((arrow) => within(rectAround([arrow.from, arrow.to]), box)),
+      .filter((arrow) => !hidden.has(arrow.id) && within(rectAround([arrow.from, arrow.to]), box)),
   };
 }
 
@@ -321,4 +670,14 @@ function append<K, V>(map: Map<K, V[]>, key: K, value: V): void {
   const list = map.get(key);
   if (list) list.push(value);
   else map.set(key, [value]);
+}
+
+function sameRect(a: Rect, b: Rect): boolean {
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
+function sameNumbers(a: readonly number[], b: readonly number[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let at = 0; at < a.length; at++) if (a[at] !== b[at]) return false;
+  return true;
 }
