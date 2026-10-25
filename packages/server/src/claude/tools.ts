@@ -26,7 +26,7 @@ import { EXPLORE_TOOLS } from './explore-tools';
 import { IMAGE_TOOLS } from './image-tools';
 import { RECIPES_IN_BRIEF } from './recipes';
 import { SCENARIO_TOOLS } from './scenario-tools';
-import { VIEW_STATE_TOOLS } from './view-tools';
+import { VIEW_STATE_TOOLS, openApp } from './view-tools';
 import {
   MAX_RESULTS,
   describeItem,
@@ -1046,20 +1046,6 @@ Example: {}`,
   input: {},
   hints: GUIDE,
   run: async (_args, program) => guide(program, { kind: 'clear' }),
-});
-
-const openApp = tool({
-  name: 'open_app',
-  title: 'Open the app',
-  description: `Opens Visual Anything on the project in the person's browser, on the computer it runs on, at an address that works once. Guidance shows only while the app is open. Use it when a guidance tool says no app is open, or when the person asks to see the project.
-
-Example: {}`,
-  input: {},
-  hints: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
-  run: async (_args, program) => {
-    await program.openApp();
-    return ok({ opened: 'The browser was asked to open Visual Anything on the project.' });
-  },
 });
 
 /** Every tool, in the order Claude reads them. */

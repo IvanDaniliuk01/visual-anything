@@ -593,6 +593,39 @@ describe('the Claude endpoint', () => {
     if (outcome.open) outcome.socket.close();
   });
 
+  it('opens the app at a view state, which the launch address carries after its code', async () => {
+    claude.send({
+      type: 'open-app',
+      requestId: 'o2',
+      state: { view: 'system-overview', select: ['appointments-api'] },
+    });
+    expect(await claude.answers('o2')).toEqual([{ type: 'app/opened', requestId: 'o2' }]);
+    expect(opened).toHaveLength(1);
+    const fragment = new URLSearchParams(new URL(opened[0] ?? '').hash.slice(1));
+    expect(fragment.get(LAUNCH_PARAM)).toMatch(/^[\w-]{16,}$/);
+    expect(fragment.get('view')).toBe('system-overview');
+    expect(fragment.get('select')).toBe('appointments-api');
+    expect(opened[0]).not.toContain(running.token);
+  });
+
+  it('refuses to open the app at a view state the project does not hold, or cannot be one', async () => {
+    claude.send({ type: 'open-app', requestId: 'o3', state: { view: 'nowhere' } });
+    expect(await claude.answers('o3')).toEqual([
+      {
+        type: 'command/rejected',
+        requestId: 'o3',
+        problems: [{ code: 'invalid-command', message: 'The project has no view "nowhere".' }],
+      },
+    ]);
+    claude.send({ type: 'open-app', requestId: 'o4', state: { view: 'system-overview', zoom: 2 } });
+    const [answer] = await claude.answers('o4');
+    expect(answer).toMatchObject({
+      type: 'command/rejected',
+      problems: [{ code: 'invalid-command' }],
+    });
+    expect(opened).toEqual([]);
+  });
+
   it('tells Claude about the person’s changes too', async () => {
     app.send({
       type: 'command',

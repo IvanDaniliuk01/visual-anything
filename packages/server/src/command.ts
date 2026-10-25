@@ -8,6 +8,10 @@
  * tab and `a` prints another such address. With `--view`, and `--select`, every such address also
  * carries a view state (ADR-0030's addendum of 2026-10-25), which the tab applies once it has
  * redeemed the code.
+ *
+ * When a program already runs on the folder, the command starts no second one: it asks that program
+ * to open a tab at the view state, as Claude's `open_app` does, or with `--no-open` prints its view
+ * address (ADR-0044).
  */
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -16,9 +20,11 @@ import {
   checkViewState,
   viewStateProblems,
   withViewState,
+  type ProjectSnapshot,
   type ViewState,
 } from '@visual-anything/core';
 import { resolveAppSource } from './app-source';
+import { OtherBuildError, ProgramBridge, ProgramUnavailableError } from './claude/bridge';
 import { removeProgramRecord, writeProgramRecord } from './claude/discovery';
 import { errorCode, errorReason } from './errors';
 import { toForwardSlashes } from './paths';
@@ -33,8 +39,9 @@ export const USAGE = `Usage: visual-anything [open] [folder] [--view <id> [--sel
        visual-anything mcp [folder] [--dev]
 
 Opens the project in folder (the current folder when left out) and serves the app on 127.0.0.1.
-With mcp, runs the MCP server Claude Code and Claude Desktop start instead; visual-anything mcp
---help says more. A folder named open or mcp is opened as ./open or ./mcp.
+When Visual Anything already runs on that folder, it opens a new tab there instead, at the view
+asked for. With mcp, runs the MCP server Claude Code and Claude Desktop start instead;
+visual-anything mcp --help says more. A folder named open or mcp is opened as ./open or ./mcp.
 
   --view <id>       Open the app at this view.
   --select <id>     Select this element, relation or free shape there; give it again, or a list
@@ -201,6 +208,9 @@ export async function runCommand(
     environment.out(USAGE);
     return 0;
   }
+  // A program running on the folder already opens the tab, so that one program owns its files.
+  const joined = await openInRunningProgram(environment, options);
+  if (joined !== undefined) return joined;
 
   const location = environment.preferences ?? { folder: null };
   if (location.warning !== undefined) environment.err(`Warning: ${location.warning}`);
@@ -320,6 +330,76 @@ export async function runCommand(
   }
   environment.out('Visual Anything stopped.');
   return 0;
+}
+
+/**
+ * When a program already runs on the command line's folder, asks it to open a tab at the view state
+ * asked for, through the interface Claude's `open_app` uses, or with `--no-open` prints its view
+ * address, rather than starting a second program on the same files (ADR-0044). Resolves with the exit
+ * code then, and with undefined when none runs or none answers, so that the command starts one.
+ */
+async function openInRunningProgram(
+  environment: CommandEnvironment,
+  options: CommandLine,
+): Promise<number | undefined> {
+  const runtime = environment.runtimeFolder;
+  if (runtime === undefined || runtime === null) return undefined;
+  const bridge = new ProgramBridge({
+    folder: resolve(environment.cwd, options.folder),
+    runtime,
+    attachOnly: true,
+  });
+  try {
+    let project: ProjectSnapshot;
+    let address: string;
+    try {
+      project = await bridge.project();
+      address = await bridge.address();
+    } catch (error) {
+      if (error instanceof OtherBuildError) {
+        environment.err(
+          'A Visual Anything of another build already runs on this project. Stop it, then start this one again.',
+        );
+        return 1;
+      }
+      // Nothing runs there, or nothing that answers: the command starts the program itself.
+      if (error instanceof ProgramUnavailableError) return undefined;
+      throw error;
+    }
+    const { state } = options;
+    const name = project.project.name;
+    const problems = state === undefined ? [] : viewStateProblems(project, state);
+    if (problems.length > 0) {
+      environment.err(`Could not open "${name}" there:`);
+      for (const problem of problems) environment.err(`  ${problem}`);
+      return 2;
+    }
+    if (!options.open) {
+      environment.out(`Visual Anything already runs on "${name}" at ${address}.`);
+      if (state !== undefined) {
+        environment.out(
+          `This view address opens it there, in the browser where the project is open: ${withViewState(address, state)}`,
+        );
+      }
+      environment.out(
+        'Run this again without --no-open to open a new tab there, or press a in the terminal where it runs to print an address that works once.',
+      );
+      return 0;
+    }
+    environment.out(
+      `Visual Anything already runs on "${name}" at ${address}, so it opens a new tab there.`,
+    );
+    try {
+      await bridge.openApp(state);
+    } catch (error) {
+      if (!(error instanceof ProgramUnavailableError)) throw error;
+      environment.err(`It could not open the tab: ${error.message}`);
+      return 1;
+    }
+    return 0;
+  } finally {
+    bridge.close();
+  }
 }
 
 /**

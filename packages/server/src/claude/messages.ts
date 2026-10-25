@@ -11,11 +11,13 @@
  */
 import {
   ProtocolError,
+  checkViewState,
   decodeServerMessage,
   readGuidance,
   type Command,
   type Guidance,
   type ServerMessage,
+  type ViewState,
 } from '@visual-anything/core';
 
 /** The path of the Claude endpoint. */
@@ -30,8 +32,11 @@ export type ClaudeMessage =
   | { type: 'command'; requestId: string; command: Command }
   /** Shows guidance in every open app. */
   | { type: 'guidance'; requestId: string; guidance: Guidance }
-  /** Opens the app in the browser, at an address that works once. */
-  | { type: 'open-app'; requestId: string };
+  /**
+   * Opens the app in the browser, at an address that works once; with a view state, the address
+   * carries it, and the tab opens the project there (ADR-0044).
+   */
+  | { type: 'open-app'; requestId: string; state?: ViewState };
 
 /** The answer to guidance: how many open apps it reached. */
 export interface GuidanceShownMessage {
@@ -70,8 +75,12 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
       return { type: 'command', requestId, command: message.command as unknown as Command };
     case 'guidance':
       return { type: 'guidance', requestId, guidance: readGuidance(message.guidance) };
-    case 'open-app':
-      return { type: 'open-app', requestId };
+    case 'open-app': {
+      if (message.state === undefined) return { type: 'open-app', requestId };
+      const checked = checkViewState(message.state);
+      if (!checked.ok) throw new ProtocolError(checked.message);
+      return { type: 'open-app', requestId, state: checked.state };
+    }
     default:
       throw new ProtocolError(
         `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance and opening the app. Undo and redo are the person's, in the app.`,

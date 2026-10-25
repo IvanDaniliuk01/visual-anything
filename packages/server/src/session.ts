@@ -88,6 +88,8 @@ export interface ConnectOptions {
 export interface LiveSession {
   /** The project folder, as an absolute path: dev mode serves no file inside it. */
   readonly folder?: string;
+  /** The project as it is now, as {@link Session.snapshot} gives it. */
+  readonly snapshot: ProjectSnapshot;
   /**
    * Greets an app that connects with the project, its history and its warnings, and sends it every
    * change from then on. Returns what to call when the app disconnects.

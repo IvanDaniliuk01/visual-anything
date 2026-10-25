@@ -3,7 +3,13 @@
  * runs its commands with Claude as their author, shows its guidance in the open apps and opens the
  * app when asked. It never answers with the session token, and refuses every other message.
  */
-import { ProtocolError, type Problem, type ServerMessage } from '@visual-anything/core';
+import {
+  ProtocolError,
+  viewStateProblems,
+  type Problem,
+  type ServerMessage,
+  type ViewState,
+} from '@visual-anything/core';
 import type { LiveSession, SessionClient } from '../session';
 import {
   decodeClaudeMessage,
@@ -14,8 +20,11 @@ import {
 
 /** What the program does for Claude beyond the session. */
 export interface ClaudeActions {
-  /** Opens the app in the browser at an address that works once; absent when it cannot. */
-  openApp?: () => Promise<void>;
+  /**
+   * Opens the app in the browser at an address that works once, carrying the view state when one is
+   * given; absent when it cannot.
+   */
+  openApp?: (state?: ViewState) => Promise<void>;
 }
 
 /** An attached Claude: what to call with each message it sends, and when it detaches. */
@@ -56,8 +65,17 @@ export function attachClaude(
           ]);
           return;
         }
+        const problems =
+          message.state === undefined ? [] : viewStateProblems(session.snapshot, message.state);
+        if (problems.length > 0) {
+          refuse(
+            message.requestId,
+            problems.map((each) => ({ code: 'invalid-command', message: each })),
+          );
+          return;
+        }
         try {
-          await actions.openApp();
+          await actions.openApp(message.state);
           send({ type: 'app/opened', requestId: message.requestId });
         } catch (error) {
           refuse(message.requestId, [

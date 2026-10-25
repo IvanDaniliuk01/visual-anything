@@ -1,6 +1,8 @@
 import { readViewState } from '@visual-anything/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import type { Program } from './bridge';
 import { startToolHarness, type ToolHarness } from './tool-harness';
+import { TOOLS, runTool } from './tools';
 
 let tools: ToolHarness;
 
@@ -13,14 +15,17 @@ afterEach(async () => {
 });
 
 describe('link_to', () => {
-  it('answers the view address of a view state, as the app writes it, changing nothing', async () => {
+  it('answers the full view address of a view state, as the app writes it, changing nothing', async () => {
     const before = tools.session.snapshot;
     const result = await tools.value('link_to', { view: 'overview', select: ['api', 'note'] });
     expect(result).toMatchObject({
-      address: '#view=overview&select=api,note',
+      address: `${tools.address}#view=overview&select=api,note`,
+      fragment: '#view=overview&select=api,note',
       viewState: { view: 'overview', select: ['api', 'note'] },
     });
-    expect(result.note).toMatch(/visual-anything open/);
+    expect(tools.address).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/$/);
+    expect(result.note).toMatch(/open_app/);
+    expect(JSON.stringify(result)).not.toMatch(/token|launch/);
     expect(tools.session.snapshot).toBe(before);
   });
 
@@ -39,7 +44,7 @@ describe('link_to', () => {
       scenario: 'request',
       step: 2,
     });
-    const read = readViewState(String(result.address));
+    const read = readViewState(String(result.fragment));
     expect(read).toEqual({
       ok: true,
       state: {
@@ -61,6 +66,22 @@ describe('link_to', () => {
     expect(result.address).not.toMatch(/token|launch/);
   });
 
+  it('answers the fragment alone when the program’s address is not known', async () => {
+    const unreachable = () => Promise.reject(new Error('Not reached.'));
+    const program: Program = {
+      project: () => Promise.resolve(tools.session.snapshot),
+      execute: unreachable,
+      guide: unreachable,
+      openApp: unreachable,
+    };
+    const linkTo = TOOLS.find((each) => each.name === 'link_to');
+    if (linkTo === undefined) throw new Error('There is no link_to.');
+    expect(await runTool(linkTo, { view: 'overview' }, program)).toMatchObject({
+      ok: true,
+      value: { address: '#view=overview', fragment: '#view=overview' },
+    });
+  });
+
   it('refuses what the project does not hold, saying what', async () => {
     expect(await tools.failure('link_to', { view: 'nowhere' })).toMatch(
       /^The project has no view "nowhere"\./,
@@ -74,5 +95,31 @@ describe('link_to', () => {
     expect(await tools.failure('link_to', { view: 'overview', step: 'read' })).toBe(
       'A step needs its scenario: give scenario too.',
     );
+  });
+});
+
+describe('open_app', () => {
+  it('opens the app in the browser at a view state, and never answers the launch address', async () => {
+    const result = await tools.value('open_app', { view: 'overview', select: ['api'] });
+    expect(result).toMatchObject({ viewState: { view: 'overview', select: ['api'] } });
+    expect(tools.opened).toHaveLength(1);
+    expect(tools.opened[0]).toMatch(/#launch=[\w-]+&view=overview&select=api$/);
+    expect(JSON.stringify(result)).not.toMatch(/launch=|token/);
+  });
+
+  it('opens the app with no view state when given none', async () => {
+    expect(await tools.value('open_app')).toMatchObject({ opened: expect.any(String) as string });
+    expect(tools.opened).toHaveLength(1);
+    expect(tools.opened[0]).toMatch(/#launch=[\w-]+$/);
+  });
+
+  it('refuses a view state the project does not hold, and a state without its view', async () => {
+    expect(await tools.failure('open_app', { view: 'nowhere' })).toMatch(
+      /^The project has no view "nowhere"\./,
+    );
+    expect(await tools.failure('open_app', { select: ['api'] })).toBe(
+      'A view state names its view: give view too.',
+    );
+    expect(tools.opened).toEqual([]);
   });
 });

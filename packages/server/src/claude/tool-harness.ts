@@ -28,6 +28,10 @@ export type ToolCall =
 export interface ToolHarness {
   /** The program's session, which owns the project. */
   readonly session: Session;
+  /** The address the program serves the app at: `http://127.0.0.1:<port>/`. */
+  readonly address: string;
+  /** The addresses the program opened the browser at, in order. */
+  readonly opened: readonly string[];
   /** Calls a tool through MCP, as Claude does. */
   call(name: string, args?: Record<string, unknown>): Promise<ToolCall>;
   /** The value of a call that worked; throws when it was refused. */
@@ -56,13 +60,18 @@ export async function startToolHarness(
   const appDir = join(profile, 'dist');
   await mkdir(appDir);
   await writeFile(join(appDir, 'index.html'), '<!doctype html><title>Visual Anything</title>');
-  const opened = await openSession(folder, { watch: false, out: () => {}, err: () => {} });
-  if (!opened.ok) throw new Error('The test project does not open.');
-  const { session } = opened;
+  const result = await openSession(folder, { watch: false, out: () => {}, err: () => {} });
+  if (!result.ok) throw new Error('The test project does not open.');
+  const { session } = result;
+  const opened: string[] = [];
   const server: RunningServer = await startServer({
     session,
     port: 0,
     app: { mode: 'static', dir: appDir },
+    openBrowser: (url) => {
+      opened.push(url);
+      return Promise.resolve();
+    },
   });
   const runtime = join(profile, 'run');
   const context = { ...currentContext(), home: profile };
@@ -104,6 +113,8 @@ export async function startToolHarness(
 
   return {
     session,
+    address: server.address,
+    opened,
     call,
     value: async (name, args) => {
       const outcome = await call(name, args);
