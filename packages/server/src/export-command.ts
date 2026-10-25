@@ -1,12 +1,14 @@
 /**
  * The command that exports a view (M6b):
  *
- *   visual-anything export <folder> --view <id> --format svg|pdf|md|mermaid|structurizr
+ *   visual-anything export <folder> --view <id> --format svg|pdf|md|mermaid|structurizr|page
  *                          [--theme light|dark] [--out <file>]
  *
  * It opens the project itself, with the same checks as the local program, and needs no program
  * running: CI can export the views of a repository for its README or a pull request. It writes only
  * the file it is given, atomically, or standard output without one, and never a file of the project.
+ * `page` writes the whole project's read-only page (ADR 0041), which opens at the view given, or at
+ * the first without one (`export-page.ts`).
  */
 import { lstat, stat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -19,21 +21,31 @@ import {
   isExportFormat,
   type ExportFormat,
 } from '@visual-anything/app/src/export/exports';
+import type { ViewerAssets } from '@visual-anything/app/src/viewer/page';
 import { errorCode, errorReason } from './errors';
+import { builtViewer, exportPage } from './export-page';
 import { formatProjectProblem, loadProject } from './project';
 import { writeFileAtomic } from './writer';
+
+/** The read-only page, which `export` writes besides the formats of a view. */
+const PAGE = 'page';
+
+/** What `--format` takes. */
+const FORMATS = [...EXPORT_FORMATS, PAGE] as const;
 
 export const EXPORT_USAGE = `Usage: visual-anything export <folder> --view <id> --format <format> [--theme light|dark]
                              [--out <file>]
 
 Writes one view of the project in folder as a file: svg and pdf draw it as the app does, md writes
 its outline in Markdown, mermaid a Mermaid flowchart and structurizr a Structurizr DSL workspace of
-its Systems components. It opens the project itself, with no Visual Anything running, and writes only
-the file it is given; what the format could not hold is said on standard error.
+its Systems components. page writes the read-only page of the whole project: one HTML file that
+opens offline in any browser, shows every view and plays every scenario. It opens the project
+itself, with no Visual Anything running, and writes only the file it is given; what the format could
+not hold is said on standard error.
 
-  --view <id>     The view to export, by its id.
-  --format <f>    ${EXPORT_FORMATS.join(', ')}.
-  --theme <t>     The colors to draw in: light, the default, or dark.
+  --view <id>     The view to export, by its id; for page, the view it opens at, the first by default.
+  --format <f>    ${FORMATS.join(', ')}.
+  --theme <t>     The colors to draw in: light, the default, or dark; a page follows its reader.
   --out <file>    The file to write, which is replaced when it exists; its folder must exist. Without
                   it, the export goes to standard output, but for a PDF to a terminal.
   -h, --help      Show this help.`;
@@ -41,8 +53,9 @@ the file it is given; what the format could not hold is said on standard error.
 /** What the export command line asks for. */
 export interface ExportCommandLine {
   folder: string;
-  view: string;
-  format: ExportFormat;
+  /** The view to export; for the page, the view it opens at, if any. */
+  view?: string;
+  format: ExportFormat | typeof PAGE;
   theme: ThemeName;
   out?: string;
 }
@@ -71,16 +84,17 @@ export function parseExportCommandLine(argv: readonly string[]): ParsedExportCom
           : `Give one project folder, not ${positionals.length}.`,
     };
   }
-  if (values.view === undefined || values.view === '') {
+  const page = values.format === PAGE;
+  if (values.view === '' || (values.view === undefined && !page)) {
     return { ok: false, message: 'Give the view to export with --view <id>.' };
   }
-  if (values.format === undefined || !isExportFormat(values.format)) {
+  if (values.format === undefined || !(page || isExportFormat(values.format))) {
     return {
       ok: false,
       message:
         values.format === undefined
-          ? `Give the format with --format: ${EXPORT_FORMATS.join(', ')}.`
-          : `"${values.format}" is no format to export to; give one of ${EXPORT_FORMATS.join(', ')}.`,
+          ? `Give the format with --format: ${FORMATS.join(', ')}.`
+          : `"${values.format}" is no format to export to; give one of ${FORMATS.join(', ')}.`,
     };
   }
   const theme = values.theme ?? 'light';
@@ -93,8 +107,8 @@ export function parseExportCommandLine(argv: readonly string[]): ParsedExportCom
     help: false,
     value: {
       folder: positionals[0] as string,
-      view: values.view,
-      format: values.format,
+      ...(values.view === undefined ? {} : { view: values.view }),
+      format: page ? PAGE : (values.format as ExportFormat),
       theme,
       ...(values.out === undefined ? {} : { out: values.out }),
     },
@@ -125,6 +139,10 @@ export interface ExportEnvironment {
   stdoutIsTerminal: boolean;
   /** Writes a line to standard error. */
   err: (line: string) => void;
+  /** The read-only page's viewer; the one the build holds by default. */
+  viewer?: () => Promise<ViewerAssets | undefined>;
+  /** When a page is made; now by default. */
+  now?: () => Date;
 }
 
 /** The extensions of project files, which an export never replaces. */
@@ -174,28 +192,49 @@ export async function runExport(argv: readonly string[], env: ExportEnvironment)
     return 1;
   }
   const { project } = loaded;
-  if (!project.views.some((view) => view.id === line.view)) {
-    const ids = project.views.map((view) => view.id);
+  const { view } = line;
+  if (view !== undefined && !project.views.some((each) => each.id === view)) {
+    const ids = project.views.map((each) => each.id);
     env.err(
-      `The project has no view "${line.view}".${ids.length === 0 ? ' It has no views.' : ` Its views: ${ids.join(', ')}.`}`,
+      `The project has no view "${view}".${ids.length === 0 ? ' It has no views.' : ` Its views: ${ids.join(', ')}.`}`,
     );
     return 1;
   }
 
-  const exported = await exportView(project, line.view, line.format, { theme: line.theme });
-  for (const lost of exported.lost) env.err(`Lost: ${lost}`);
-  const data = exported.bytes ?? new TextEncoder().encode(exported.text);
+  let written: { data: Uint8Array; out: string | Uint8Array; size: number };
+  if (line.format === PAGE) {
+    const page = await exportPage(project, {
+      ...(view === undefined ? {} : { view }),
+      viewer: await (env.viewer ?? (() => builtViewer()))(),
+      ...(env.now ? { now: env.now() } : {}),
+    });
+    if (!page.ok) {
+      env.err(page.message);
+      return 1;
+    }
+    // Past 25 MB it says so before the page is written (ADR 0041).
+    if (page.warning !== undefined) env.err(page.warning);
+    const data = new TextEncoder().encode(page.html);
+    written = { data, out: page.html, size: page.bytes };
+  } else {
+    const exported = await exportView(project, view as string, line.format, {
+      theme: line.theme,
+    });
+    for (const lost of exported.lost) env.err(`Lost: ${lost}`);
+    const data = exported.bytes ?? new TextEncoder().encode(exported.text);
+    written = { data, out: exported.bytes ?? exported.text, size: exported.size };
+  }
   if (out === undefined) {
-    env.stdout(exported.bytes ?? exported.text);
+    env.stdout(written.out);
     return 0;
   }
   try {
-    await writeFileAtomic(out, data);
+    await writeFileAtomic(out, written.data);
   } catch (error) {
     env.err(`${out} could not be written: ${errorReason(error)}`);
     return 1;
   }
-  env.err(`Wrote ${out} (${sizeOf(exported.size)}).`);
+  env.err(`Wrote ${out} (${sizeOf(written.size)}).`);
   return 0;
 }
 

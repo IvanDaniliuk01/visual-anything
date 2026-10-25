@@ -359,8 +359,6 @@ export const ui: Catalog = {
     one: '{count} paso dentro de “{container}”, que esta vista muestra contraído.',
     other: '{count} pasos dentro de “{container}”, que esta vista muestra contraído.',
   },
-  'Takes in': 'Recibe',
-  Produces: 'Produce',
   'A relation of this step is no longer in the model, so this step is broken.':
     'Una relación de este paso ya no está en el modelo, así que este paso está roto.',
   'Hide the data': 'Ocultar los datos',

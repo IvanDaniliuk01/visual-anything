@@ -3,18 +3,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { validateFile } from '@visual-anything/schema/validate';
 import { PAGE_DATA_ID, readPageData } from '@visual-anything/app/src/viewer/data';
-import { LARGE_PAGE } from '@visual-anything/app/src/viewer/page';
+import { LARGE_PAGE, type ViewerAssets } from '@visual-anything/app/src/viewer/page';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { EXPORT_USAGE, builtViewer, parseExportCommandLine, runExport } from './export-page';
-import { entryOf } from './main';
+import { parseExportCommandLine, runExport } from './export-command';
+import { NO_VIEWER, builtViewer } from './export-page';
 import { memoryFiles } from './static';
 import { testProject, writeProjectFolder, writeText } from './test-support';
 
-const VIEWER = { script: 'document.title = "viewer";', style: 'body{margin:0}' };
+const VIEWER: ViewerAssets = { script: 'document.title = "viewer";', style: 'body{margin:0}' };
 const MADE = new Date('2026-10-25T12:00:00Z');
 
 let folder = '';
-let out: string[] = [];
+let out: (string | Uint8Array)[] = [];
 let err: string[] = [];
 
 beforeEach(async () => {
@@ -28,10 +28,11 @@ afterEach(async () => {
 });
 
 /** Runs `export`, with the viewer given, or with none for `null`. */
-function run(argv: string[], viewer: typeof VIEWER | null = VIEWER) {
+function run(argv: string[], viewer: ViewerAssets | null = VIEWER) {
   return runExport(argv, {
     cwd: folder,
-    write: (text) => out.push(text),
+    stdout: (data) => out.push(data),
+    stdoutIsTerminal: false,
     err: (line) => err.push(line),
     viewer: () => Promise.resolve(viewer ?? undefined),
     now: () => MADE,
@@ -49,14 +50,6 @@ function pageProject(html: string) {
 }
 
 describe('visual-anything export --format page', () => {
-  it('is its own entry point', () => {
-    expect(entryOf(['export', 'shop', '--format', 'page'])).toEqual({
-      kind: 'export',
-      argv: ['shop', '--format', 'page'],
-    });
-    expect(entryOf(['./export'])).toEqual({ kind: 'program', argv: ['./export'] });
-  });
-
   it('writes the page of the whole project to the file given, and says how large it is', async () => {
     await writeProjectFolder(join(folder, 'shop'), testProject());
     expect(await run(['shop', '--format', 'page', '--out', 'shop.html'])).toBe(0);
@@ -68,9 +61,7 @@ describe('visual-anything export --format page', () => {
     expect(read.project.views.map((view) => view.id)).toEqual(['overview']);
     expect(read.made).toBe(MADE.toISOString());
     expect(read.start).toBeUndefined();
-    expect(err).toEqual([
-      expect.stringMatching(/^Wrote the read-only page of "Shop" to shop\.html: 0\.\d MB\.$/),
-    ]);
+    expect(err).toEqual([expect.stringMatching(/^Wrote .*shop\.html \(\d+(\.\d)? KB\)\.$/)]);
     // Only the file asked for is written, and no temporary file is left.
     expect((await readdir(folder)).sort()).toEqual(['shop', 'shop.html']);
   });
@@ -79,13 +70,13 @@ describe('visual-anything export --format page', () => {
     await writeProjectFolder(join(folder, 'shop'), testProject());
     expect(await run(['shop', '--format', 'page', '--view', 'overview'])).toBe(0);
     expect(out).toHaveLength(1);
-    expect(pageProject(out[0] ?? '').start).toBe('view=overview');
+    expect(pageProject(String(out[0])).start).toBe('view=overview');
   });
 
   it('refuses a view the project does not hold, and writes nothing', async () => {
     await writeProjectFolder(join(folder, 'shop'), testProject());
-    expect(await run(['shop', '--format', 'page', '--view', 'nowhere', '--out', 'x.html'])).toBe(2);
-    expect(err).toEqual(['The project has no view "nowhere".']);
+    expect(await run(['shop', '--format', 'page', '--view', 'nowhere', '--out', 'x.html'])).toBe(1);
+    expect(err).toEqual(['The project has no view "nowhere". Its views: overview.']);
     expect(await readdir(folder)).toEqual(['shop']);
   });
 
@@ -93,15 +84,14 @@ describe('visual-anything export --format page', () => {
     await writeProjectFolder(join(folder, 'shop'), testProject());
     await writeText(join(folder, 'shop'), 'model.vamodel', '{ "world": 1 }');
     expect(await run(['shop', '--format', 'page'])).toBe(1);
-    expect(err[0]).toBe('The project in shop cannot be opened:');
-    expect(err.length).toBeGreaterThan(1);
+    expect(err[0]).toMatch(/^The project in .*shop does not open:$/);
     expect(out).toEqual([]);
   });
 
   it('says what to do when the build holds no viewer', async () => {
     await writeProjectFolder(join(folder, 'shop'), testProject());
     expect(await run(['shop', '--format', 'page'], null)).toBe(1);
-    expect(err[0]).toMatch(/Run `pnpm build`/);
+    expect(err).toEqual([NO_VIEWER]);
   });
 
   it('says so before writing a page past 25 MB', async () => {
@@ -109,25 +99,23 @@ describe('visual-anything export --format page', () => {
     const big = { ...VIEWER, script: `/*${'x'.repeat(LARGE_PAGE)}*/` };
     expect(await run(['shop', '--format', 'page', '--out', 'big.html'], big)).toBe(0);
     expect(err[0]).toMatch(/^The page is 25\.\d MB, past 25\.0 MB: it may open slowly/);
-    expect(err[1]).toMatch(/^Wrote the read-only page/);
+    expect(err[1]).toMatch(/^Wrote .*big\.html/);
   });
 
-  it('refuses what it does not understand, with its usage', () => {
-    expect(parseExportCommandLine(['shop'])).toEqual({ ok: false, message: 'Give --format page.' });
-    expect(parseExportCommandLine(['--format', 'page'])).toEqual({
-      ok: false,
-      message: 'Give the project folder to export.',
+  it('takes the page without a view, and the other formats only with one', () => {
+    expect(parseExportCommandLine(['shop', '--format', 'page'])).toMatchObject({
+      ok: true,
+      value: { folder: 'shop', format: 'page' },
     });
-    expect(parseExportCommandLine(['shop', '--format', 'gif'])).toEqual({
+    expect(parseExportCommandLine(['shop', '--format', 'svg'])).toEqual({
       ok: false,
-      message: 'This build exports --format page; it has no format "gif".',
+      message: 'Give the view to export with --view <id>.',
     });
-    expect(parseExportCommandLine(['shop', '--format', 'page', '--wat']).ok).toBe(false);
-  });
-
-  it('shows its usage after a refusal', async () => {
-    expect(await run(['shop'])).toBe(2);
-    expect(err).toEqual(['Give --format page.', EXPORT_USAGE]);
+    expect(parseExportCommandLine(['shop', '--view', 'overview', '--format', 'gif'])).toEqual({
+      ok: false,
+      message:
+        '"gif" is no format to export to; give one of svg, pdf, md, mermaid, structurizr, page.',
+    });
   });
 });
 
