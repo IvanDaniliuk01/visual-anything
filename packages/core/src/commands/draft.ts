@@ -82,14 +82,17 @@ export class Draft {
 
   /**
    * Whether an element, relation, view, scenario, package or definition already has this id, or a step
-   * still names it: a broken step's relation id is never given to something new, so that the step
-   * never comes to mean it.
+   * or a view's route still names it: a broken step's relation id is never given to something new, so
+   * that the step never comes to mean it, and neither is a route's, so that no new relation takes over
+   * a route left for one that is gone.
    */
   isTaken(id: Id): boolean {
     const { state } = this;
     return (
       this.index.has(id) ||
-      state.views.some((view) => view.id === id) ||
+      state.views.some(
+        (view) => view.id === id || (view.routes !== undefined && Object.hasOwn(view.routes, id)),
+      ) ||
       state.scenarios.some(
         (scenario) =>
           scenario.id === id || scenario.steps.some((step) => step.relations.includes(id)),

@@ -212,6 +212,36 @@ describe('delete', () => {
     ).toEqual(['id-taken']);
   });
 
+  it('never gives the id of a route a view keeps to something new, even with no relation of that id', () => {
+    // A route left in a file for a relation that is gone, as after an edit by hand or a merge.
+    const state = testProject();
+    const view = state.views[0]!;
+    state.views[0] = { ...view, routes: { ghost: { style: 'curved' } } };
+    expect(
+      rejected(
+        {
+          type: 'create-relation',
+          relation: { id: 'ghost', relationType: 'test.reads', from: 'api', to: 'db' },
+        },
+        state,
+      ),
+    ).toEqual(['id-taken']);
+    const made = executeCommand(
+      state,
+      {
+        type: 'create-relation',
+        relation: { relationType: 'test.reads', from: 'api', to: 'db' },
+      },
+      {
+        newId: (() => {
+          const offered = ['ghost', 'fresh'];
+          return () => offered.shift() ?? 'last';
+        })(),
+      },
+    );
+    expect(made.ok && made.state.model.relations.at(-1)?.id).toBe('fresh');
+  });
+
   it('takes deleted elements out of stacking lists, and drops a deleted container’s list', () => {
     const project = testProject();
     const [view] = project.views;
