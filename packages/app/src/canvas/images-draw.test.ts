@@ -1,12 +1,15 @@
 import { cleanedImage, type CleanedImage } from '@visual-anything/core';
 import { Container, Graphics, Texture } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
-import type { Rect } from './geometry';
+import { syntheticProject } from '../bench/synthetic';
+import { boundsOf, type Rect } from './geometry';
+import { indexScene } from './hit';
 import { imageSerial } from './image-serials';
 import { IMAGE_LIMITS, type ImagePlatform } from './images';
 import { TileImages, type ImageTile, type ImageView } from './images-draw';
-import type { ElementShape } from './scene';
+import { buildScene, type ElementShape } from './scene';
 import { placeImage } from './shape-images';
+import { plannedTiles } from './tiles';
 
 const NS = 'xmlns="http://www.w3.org/2000/svg"';
 
@@ -169,7 +172,8 @@ describe('pictures in tiles', () => {
     const images = new TileImages(platform, () => (arrivals += 1));
     const tile = tileOf(shapeWith(svg(), 'icon', { x: 100, y: 100, width: 160, height: 80 }));
     images.show(tile.shapes);
-    images.frame([tile], view(1));
+    // It asks for its picture, and for the frame that starts loading it: at rest none would come.
+    expect(images.frame([tile], view(1))).toBe(true);
     const drawing = drawingOf(tile);
     expect(drawing).toBeDefined();
     expect(tile.container.getChildIndex(drawing?.group as Container)).toBe(1);
@@ -182,6 +186,8 @@ describe('pictures in tiles', () => {
     images.frame([tile], view(1));
     expect(textures(drawing?.icons)).toBe(1);
     expect(platform.loads).toBe(1);
+    // Drawn with what it asked for, it asks for no more frames.
+    expect(images.frame([tile], view(1))).toBe(false);
   });
 
   it('never rasterizes an SVG for the first time while the camera moves', async () => {
@@ -362,4 +368,55 @@ describe('pictures in tiles', () => {
     }
     expect(textures(drawingOf(tile)?.icons)).toBe(1);
   });
+});
+
+describe('the pictures of the "images" benchmark view', () => {
+  it('stay within the GPU budget through a full pan at scale 2 on a 2× screen', async () => {
+    const project = syntheticProject({ elements: 10_000, images: true });
+    const indexed = indexScene(buildScene(project, 'everything'));
+    const tiles: ImageTile[] = plannedTiles(indexed, new Set()).map((planned) => {
+      const container = new Container();
+      const full = new Graphics();
+      container.addChild(full);
+      return {
+        kind: 'shapes',
+        container,
+        full,
+        shapes: planned.shapes,
+        bounds: boundsOf(planned.shapes.map((shape) => shape.rect)) as Rect,
+      };
+    });
+    const platform = new FakePlatform();
+    const images = new TileImages(platform);
+    images.show(indexed.scene.shapes);
+    const bounds = indexed.scene.bounds as Rect;
+    // A 1,200 by 800 screen at scale 2 shows 600 by 400 units.
+    const screen = { width: 600, height: 400 };
+    let most = 0;
+    let frames = 0;
+    let spentIn = 0;
+    for (let y = bounds.y; y < bounds.y + bounds.height; y += bounds.height / 4) {
+      for (let x = bounds.x; x < bounds.x + bounds.width; x += screen.width / 2) {
+        frames += 1;
+        // Resting now and then, so that SVG icons are rasterized too.
+        const settled = frames % 8 === 0;
+        const began = performance.now();
+        images.frame(tiles, {
+          scale: 2,
+          shown: { x, y, ...screen },
+          resolution: 2,
+          settled,
+          spent: 0,
+        });
+        spentIn += performance.now() - began;
+        await arrived();
+        platform.time += 120;
+        most = Math.max(most, images.store.gpuBytes);
+      }
+    }
+    expect(platform.made).toBeGreaterThan(100);
+    // The image work of a frame, decoding aside, which the fake platform does at once.
+    expect(spentIn / frames).toBeLessThan(IMAGE_LIMITS.workAfter);
+    expect(most).toBeLessThanOrEqual(IMAGE_LIMITS.gpuBudget);
+  }, 60_000);
 });

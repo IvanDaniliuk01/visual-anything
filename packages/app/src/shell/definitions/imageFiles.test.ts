@@ -96,6 +96,27 @@ describe('preparing a bitmap file', () => {
     const { codec: used, decoded } = codec();
     const prepared = await prepareImageFile(file([gif], 'bomb.gif', 'image/gif'), used);
     expect(prepared.ok).toBe(false);
+    // An AVIF file's size is in its `ispe` box.
+    const be32 = (value: number) => [
+      value >>> 24,
+      (value >>> 16) & 255,
+      (value >>> 8) & 255,
+      value & 255,
+    ];
+    const text = (words: string) => [...words].map((each) => each.charCodeAt(0));
+    const ispe = [...be32(20), ...text('ispe'), ...be32(0), ...be32(30_000), ...be32(30_000)];
+    const avif = Uint8Array.from([
+      ...be32(20),
+      ...text('ftypavif'),
+      ...be32(0),
+      ...text('mif1'),
+      ...be32(8 + ispe.length),
+      ...text('meta'),
+      ...ispe,
+    ]);
+    expect(readImageHeader(avif)).toMatchObject({ format: 'avif', width: 30_000 });
+    const refused = await prepareImageFile(file([avif], 'bomb.avif', 'image/avif'), used);
+    expect(refused.ok).toBe(false);
     expect(decoded).toEqual([]);
   });
 
