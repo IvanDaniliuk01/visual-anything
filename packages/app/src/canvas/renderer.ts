@@ -619,7 +619,9 @@ export class CanvasRenderer {
       await this.app.init({
         preference: 'webgl',
         background: CANVAS_BACKGROUND,
-        antialias: true,
+        // Off: on the reference laptop it costs about 2.5 times the GPU's time far out, which keeps
+        // 10,000 elements from the frame budget; at density 2 its jagged edges hardly show (ADR 0014).
+        antialias: false,
         autoDensity: true,
         resolution: window.devicePixelRatio || 1,
         autoStart: false,
