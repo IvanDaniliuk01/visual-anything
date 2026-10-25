@@ -7,6 +7,11 @@
  * Appointments API". Inside the row of a relation come the relations that end on it, in the model's
  * order, so that a relation between two relations has a row inside each. World's tree follows the
  * model's containment instead.
+ *
+ * What the canvas hides, as filters and isolating do, has no row; a shape inside a hidden one is
+ * listed inside the nearest shape around it that shows. A collapsed container's row holds none of its
+ * contents, as the canvas draws none, and lists its aggregated relations: each stands for the
+ * relations it aggregates, which selecting it selects.
  */
 import {
   definitionsOf,
@@ -17,8 +22,16 @@ import {
 } from '@visual-anything/core';
 import type { Id, ModelFile, PackageFile } from '@visual-anything/schema';
 import { nameOfEnd } from '../canvas/announce';
-import { drawnRelations, farEnd } from '../canvas/navigation';
-import type { ArrowShape, ElementShape, NoteShape, RelationLine, Scene } from '../canvas/scene';
+import { NOTHING_HIDDEN, emphasize, type Hidden } from '../canvas/emphasize';
+import { drawnRelations, farEnd, hiddenIn } from '../canvas/navigation';
+import {
+  standsFor,
+  type ArrowShape,
+  type ElementShape,
+  type NoteShape,
+  type RelationLine,
+  type Scene,
+} from '../canvas/scene';
 import type { Selectable, Selection } from '../editor/selection';
 import { outerIdsOf, type TreeItems } from './tree';
 
@@ -49,6 +62,11 @@ export interface RelationItem {
   farName: string;
   /** The relation as a sentence: "Booking agent communicates with Appointments API". */
   sentence: string;
+  /**
+   * Present on the row of an aggregated relation: the relations it stands for, of which `relation`
+   * is the first. Selecting the row selects them all (`selectablesOf`).
+   */
+  stands?: readonly Id[];
 }
 
 export interface NoteItem {
@@ -103,6 +121,7 @@ interface OutlineInputs {
   arrows: readonly ArrowShape[];
   model: ModelFile;
   packages: readonly PackageFile[];
+  hidden: ReadonlySet<string> | undefined;
 }
 
 /** The outlines worked out, by the shapes of their scene. */
@@ -115,19 +134,25 @@ const outlines = new WeakMap<
  * The outline of a scene; worked out once for each scene, and each row's insides when first asked. A
  * new scene that keeps the parts the outline reads, as one the view's stacking order alone changed
  * does, keeps its outline too. The order of the relations around a shape, which the canvas works out,
- * is asked for only once the row of a shape with relations opens.
+ * is asked for only once the row of a shape with relations opens. `hidden` is what the canvas hides,
+ * by the emphasis's keys; by default, what it last said it hides in the scene (`hiddenIn`).
  */
-export function outlineOf(scene: Scene, project: ProjectSnapshot): Outline {
+export function outlineOf(
+  scene: Scene,
+  project: ProjectSnapshot,
+  hidden: ReadonlySet<string> | undefined = hiddenIn(scene),
+): Outline {
   const inputs: OutlineInputs = {
     relations: scene.relations,
     notes: scene.notes,
     arrows: scene.arrows,
     model: project.model,
     packages: project.packages,
+    hidden: hidden && hidden.size > 0 ? hidden : undefined,
   };
   const kept = outlines.get(scene.shapes);
   if (kept && sameInputs(kept.inputs, inputs)) return kept.outline;
-  const outline = buildOutline(scene, project);
+  const outline = buildOutline(scene, project, inputs.hidden);
   outlines.set(scene.shapes, { inputs, outline });
   return outline;
 }
@@ -138,8 +163,16 @@ function sameInputs(a: OutlineInputs, b: OutlineInputs): boolean {
     a.notes === b.notes &&
     a.arrows === b.arrows &&
     a.model === b.model &&
-    a.packages === b.packages
+    a.packages === b.packages &&
+    sameKeys(a.hidden, b.hidden)
   );
+}
+
+function sameKeys(a: ReadonlySet<string> | undefined, b: ReadonlySet<string> | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.size !== b.size) return false;
+  for (const key of a) if (!b.has(key)) return false;
+  return true;
 }
 
 const firstShapesCache = new WeakMap<readonly ElementShape[], ReadonlyMap<Id, ElementShape>>();
@@ -161,33 +194,76 @@ export function firstShapeOf(scene: Scene, element: Id): ElementShape | undefine
   return firstShapesOf(scene.shapes).get(element);
 }
 
-function buildOutline(scene: Scene, project: ProjectSnapshot): Outline {
+function buildOutline(
+  scene: Scene,
+  project: ProjectSnapshot,
+  hidden: ReadonlySet<string> | undefined,
+): Outline {
   const index = modelIndexOf(project);
   const definitions = definitionsOf(project.packages);
+  // What the canvas does not draw, with the lines drawn to it, which the canvas leaves out too.
+  const unseen: Hidden = hidden ? emphasize(scene, { hidden }).hidden : NOTHING_HIDDEN;
   const top: OutlineItem[] = [];
   const held = new Map<string, ShapeItem[]>();
   const containers = new Set<string>();
   const firstShapes = firstShapesOf(scene.shapes);
+  const byKey = new Map(scene.shapes.map((shape) => [shape.key, shape]));
+  /** The row a shape is listed in: its container's, or that of the nearest one around it that shows. */
+  const shownContainer = (shape: ElementShape): string | undefined => {
+    let key = shape.containerShape;
+    while (key !== undefined && unseen.shapes.has(key)) key = byKey.get(key)?.containerShape;
+    return key;
+  };
+  /** The rows a shape's row sits in, outermost first: those of the shapes around it that show. */
+  const outerOf = (shape: ElementShape): string[] => {
+    if (!hidden) return outerIdsOf(shape.key);
+    const outer: string[] = [];
+    for (let at = shownContainer(shape); at !== undefined;) {
+      outer.unshift(at);
+      const around = byKey.get(at);
+      at = around && shownContainer(around);
+    }
+    return outer;
+  };
   for (const shape of scene.shapes) {
+    if (unseen.shapes.has(shape.key)) continue;
     const item: ShapeItem = { kind: 'shape', id: shape.key, shape };
     if (shape.holdsContents) containers.add(shape.key);
-    if (shape.containerShape === undefined) {
+    const container = shownContainer(shape);
+    if (container === undefined) {
       top.push(item);
       continue;
     }
-    const list = held.get(shape.containerShape);
+    const list = held.get(container);
     if (list) list.push(item);
-    else held.set(shape.containerShape, [item]);
+    else held.set(container, [item]);
   }
   const notes = new Set<Id>();
   const arrows = new Set<Id>();
   for (const note of scene.notes) {
+    if (unseen.free.has(note.id)) continue;
     notes.add(note.id);
     top.push({ kind: 'note', id: noteRowId(note.id), note });
   }
   for (const arrow of scene.arrows) {
+    if (unseen.free.has(arrow.id)) continue;
     arrows.add(arrow.id);
     top.push({ kind: 'arrow', id: arrowRowId(arrow.id), arrow });
+  }
+
+  // The aggregated relations drawn on each shape, listed in its row after its relations; and, for
+  // each relation one stands for, where its row is.
+  const aggregatesOn = new Map<string, RelationLine[]>();
+  const aggregatedIn = new Map<Id, string>();
+  for (const line of scene.relations) {
+    if (!line.aggregate || !line.ends || unseen.relations.has(line.relation)) continue;
+    for (const end of [line.ends.from, line.ends.to]) {
+      if (end.kind !== 'shape') continue;
+      const list = aggregatesOn.get(end.key);
+      if (list) list.push(line);
+      else aggregatesOn.set(end.key, [line]);
+      for (const id of standsFor(line)) if (!aggregatedIn.has(id)) aggregatedIn.set(id, end.key);
+    }
   }
 
   // The relations drawn, how many are drawn from each element's first shape, and which end on each
@@ -196,6 +272,7 @@ function buildOutline(scene: Scene, project: ProjectSnapshot): Outline {
   const onElements = new Map<Id, number>();
   const onRelations = new Map<Id, Id[]>();
   for (const line of scene.relations) {
+    if (line.aggregate || unseen.relations.has(line.relation)) continue;
     drawn.add(line.relation);
     const relation = index.relation(line.relation);
     if (!relation) continue;
@@ -214,12 +291,46 @@ function buildOutline(scene: Scene, project: ProjectSnapshot): Outline {
   /** The relations drawn from a shape: those of its element, when it is the element's first shape. */
   const linesFrom = (shape: ElementShape): readonly RelationLine[] =>
     firstShapes.get(shape.element) === shape && onElements.has(shape.element)
-      ? drawnRelations(scene, project).around(shape.element)
+      ? drawnRelations(scene, project)
+          .around(shape.element)
+          .filter((line) => drawn.has(line.relation))
       : [];
 
-  /** How many relations a shape's row holds. */
+  /** How many relations a shape's row holds, aggregated ones included. */
   const relationsFrom = (shape: ElementShape): number =>
-    firstShapes.get(shape.element) === shape ? (onElements.get(shape.element) ?? 0) : 0;
+    (firstShapes.get(shape.element) === shape ? (onElements.get(shape.element) ?? 0) : 0) +
+    (aggregatesOn.get(shape.key)?.length ?? 0);
+
+  /** The row of an aggregated relation, inside the row of the shape at one of its ends. */
+  const aggregateItem = (rowId: string, shape: ElementShape, line: RelationLine): RelationItem => {
+    const aggregate = line.aggregate as NonNullable<RelationLine['aggregate']>;
+    const ends = line.ends as NonNullable<RelationLine['ends']>;
+    const fromHere = ends.from.kind === 'shape' && ends.from.key === shape.key;
+    const other = fromHere ? ends.to : ends.from;
+    const otherShape = other.kind === 'shape' ? byKey.get(other.key) : undefined;
+    const far = otherShape ? otherShape.element : other.kind === 'relation' ? other.relation : '';
+    const farName = otherShape ? otherShape.name : 'an aggregated relation';
+    const relationType = relationTypeOrRelatesTo(definitions, aggregate.relationType);
+    const count = aggregate.relations.length;
+    const [first] = aggregate.relations;
+    const [fromName, toName] = fromHere ? [shape.name, farName] : [farName, shape.name];
+    return {
+      kind: 'relation',
+      id: relationRowId(
+        rowId,
+        `aggregated.${aggregate.relationType}.${other.kind === 'shape' ? other.key : 'line'}`,
+      ),
+      relation: first as Id,
+      near: shape.element,
+      far,
+      way: relationType.direction === 'undirected' ? 'both' : fromHere ? 'out' : 'in',
+      relationType: relationType.name,
+      name: `×${count}`,
+      farName,
+      sentence: `${count === 1 ? '1 relation' : `${count} relations`} "${relationType.name}" from ${fromName} to ${toName}, aggregated`,
+      stands: aggregate.relations,
+    };
+  };
 
   /** The relations that end on a relation, inside its row: none that the row already sits inside. */
   const endingOn = (item: RelationItem): Id[] => {
@@ -256,6 +367,9 @@ function buildOutline(scene: Scene, project: ProjectSnapshot): Outline {
         const relations = new Set(linesFrom(item.shape).map((line) => line.relation));
         found = [
           ...[...relations].flatMap((id) => relationItem(item.id, item.shape.element, id) ?? []),
+          ...(aggregatesOn.get(item.id) ?? []).map((line) =>
+            aggregateItem(item.id, item.shape, line),
+          ),
           ...(held.get(item.id) ?? []),
         ];
       } else {
@@ -281,7 +395,7 @@ function buildOutline(scene: Scene, project: ProjectSnapshot): Outline {
       const ends = [relation.from, relation.to];
       const shape = ends.flatMap((end) => firstShapes.get(end) ?? [])[0];
       if (shape) {
-        place = { id: relationRowId(shape.key, at), outer: [...outerIdsOf(shape.key), shape.key] };
+        place = { id: relationRowId(shape.key, at), outer: [...outerOf(shape), shape.key] };
         for (let inner = reachedThrough.get(at); inner !== undefined;) {
           place = { id: relationRowId(place.id, inner), outer: [...place.outer, place.id] };
           inner = reachedThrough.get(inner);
@@ -316,10 +430,19 @@ function buildOutline(scene: Scene, project: ProjectSnapshot): Outline {
       switch (selectable.kind) {
         case 'element': {
           const shape = firstShapes.get(selectable.id);
-          return shape && { id: shape.key, outer: outerIdsOf(shape.key) };
+          if (!shape || unseen.shapes.has(shape.key)) return undefined;
+          return { id: shape.key, outer: outerOf(shape) };
         }
-        case 'relation':
-          return placeOfRelation(selectable.id);
+        case 'relation': {
+          const aggregated = drawn.has(selectable.id) ? undefined : aggregatedIn.get(selectable.id);
+          if (aggregated === undefined) return placeOfRelation(selectable.id);
+          // The row of the aggregated relation that stands for it.
+          const shape = byKey.get(aggregated) as ElementShape;
+          const row = inside({ kind: 'shape', id: shape.key, shape }).find(
+            (each) => each.kind === 'relation' && each.stands?.includes(selectable.id),
+          );
+          return row && { id: row.id, outer: [...outerOf(shape), shape.key] };
+        }
         case 'free-shape':
           if (notes.has(selectable.id)) return { id: noteRowId(selectable.id), outer: [] };
           if (arrows.has(selectable.id)) return { id: arrowRowId(selectable.id), outer: [] };
@@ -328,6 +451,25 @@ function buildOutline(scene: Scene, project: ProjectSnapshot): Outline {
     },
     shapeOf: (element) => firstShapes.get(element),
   };
+}
+
+/** What selecting a row selects: what it stands for, or every relation an aggregated one stands for. */
+export function selectablesOf(item: OutlineItem): Selectable[] {
+  if (item.kind === 'relation' && item.stands) {
+    return item.stands.map((id): Selectable => ({ kind: 'relation', id }));
+  }
+  return [selectableOf(item)];
+}
+
+/**
+ * What a shape's row says after its name: its component's name, and on a collapsed container that it
+ * is collapsed and how many shapes it holds.
+ */
+export function shapeNoteOf(item: ShapeItem): string {
+  const { shape } = item;
+  return shape.collapsed === undefined
+    ? shape.componentName
+    : `${shape.componentName}, collapsed: ${shape.collapsed.contents} inside`;
 }
 
 /** What a row stands for, as something that can be selected. */
@@ -350,7 +492,9 @@ export function isItemSelected(selection: Selection, item: OutlineItem): boolean
     case 'shape':
       return selection.elements.has(item.shape.element);
     case 'relation':
-      return selection.relations.has(item.relation);
+      return item.stands
+        ? item.stands.every((id) => selection.relations.has(id))
+        : selection.relations.has(item.relation);
     case 'note':
       return selection.freeShapes.has(item.note.id);
     case 'arrow':

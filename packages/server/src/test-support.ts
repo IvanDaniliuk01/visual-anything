@@ -2,6 +2,7 @@
  * Helpers for the tests: a small project and its folder, and clients that talk to a running local
  * program over HTTP and WebSocket.
  */
+import { realpathSync } from 'node:fs';
 import * as fsp from 'node:fs/promises';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { request, type IncomingHttpHeaders, type OutgoingHttpHeaders } from 'node:http';
@@ -17,6 +18,7 @@ import {
 import type { FileContentByKind, FileKind, PackageFile } from '@visual-anything/schema';
 import { formatFile } from '@visual-anything/schema/format';
 import { WebSocket, type RawData } from 'ws';
+import { CLAUDE_PATH, decodeProgramMessage, type ProgramMessage } from './claude/messages';
 import type { SessionClient } from './session';
 import { isTemporaryFile, type WriterFs } from './writer';
 
@@ -187,7 +189,10 @@ export class FakeClient implements SessionClient {
 export function recordingFs(folder: string) {
   const written: string[] = [];
   const deleted: string[] = [];
-  const project = (path: string) => relative(folder, path).replaceAll('\\', '/');
+  // The session writes through the folder's real path, which on Windows spells out a short name such
+  // as `PCDIM-~1` in full.
+  const real = realpathSync.native(folder);
+  const project = (path: string) => relative(real, path).replaceAll('\\', '/');
   const fs: WriterFs = {
     open: (path, flags) => fsp.open(path, flags),
     rename: async (from, to) => {
@@ -352,9 +357,16 @@ export interface LiveClient {
   close(): Promise<void>;
 }
 
-/** Opens the live connection from the app's own origin, with the session token. */
-export async function openLiveClient(port: number, token: string): Promise<LiveClient> {
-  const socket = new WebSocket(`ws://127.0.0.1:${port}/live?token=${token}`, {
+/**
+ * Opens the live connection from the app's own origin, with the session token, or with a launch code
+ * as a page that was just opened does (`param` `launch`).
+ */
+export async function openLiveClient(
+  port: number,
+  token: string,
+  param: 'token' | 'launch' = 'token',
+): Promise<LiveClient> {
+  const socket = new WebSocket(`ws://127.0.0.1:${port}/live?${param}=${token}`, {
     origin: `http://127.0.0.1:${port}`,
   });
   const messages: ServerMessage[] = [];
@@ -367,6 +379,47 @@ export async function openLiveClient(port: number, token: string): Promise<LiveC
   return {
     messages,
     send: (message) => socket.send(typeof message === 'string' ? message : JSON.stringify(message)),
+    close: async () => {
+      socket.close();
+      await closed;
+    },
+  };
+}
+
+/** Claude on the Claude endpoint, keeping every message the program sends it. */
+export interface ClaudeClient {
+  readonly messages: ProgramMessage[];
+  /** Sends a message: an object is sent as JSON, a string as it is. */
+  send(message: object | string): void;
+  /** The messages answering a request id, once there are `count` of them or after five seconds. */
+  answers(requestId: string, count?: number): Promise<ProgramMessage[]>;
+  close(): Promise<void>;
+}
+
+/** Opens the Claude endpoint as the MCP entry point does: no Origin, and the credential. */
+export async function openClaudeClient(port: number, credential: string): Promise<ClaudeClient> {
+  const socket = new WebSocket(`ws://127.0.0.1:${port}${CLAUDE_PATH}`, {
+    headers: { Authorization: `Bearer ${credential}` },
+  });
+  const messages: ProgramMessage[] = [];
+  socket.on('message', (data) => messages.push(decodeProgramMessage(textOf(data))));
+  await new Promise<void>((resolve, reject) => {
+    socket.once('open', () => resolve());
+    socket.once('error', reject);
+  });
+  const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
+  const answering = (requestId: string) =>
+    messages.filter((message) => 'requestId' in message && message.requestId === requestId);
+  return {
+    messages,
+    send: (message) => socket.send(typeof message === 'string' ? message : JSON.stringify(message)),
+    answers: async (requestId, count = 1) => {
+      const deadline = Date.now() + 5000;
+      while (answering(requestId).length < count && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      return answering(requestId);
+    },
     close: async () => {
       socket.close();
       await closed;

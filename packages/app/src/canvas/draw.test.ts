@@ -2,9 +2,11 @@ import { Container, Graphics, Texture, type GraphicsPath, type TextStyleOptions 
 import { describe, expect, it } from 'vitest';
 import { loadSample } from '../test/sample';
 import {
+  detailOf,
   drawPieceLines,
   drawRoutePieces,
   drawShapeBlocks,
+  drawShapeOutlines,
   fitText,
   labelRooms,
   writeNoteTexts,
@@ -12,7 +14,7 @@ import {
   writeShapeLabels,
   type TextFactory,
 } from './draw';
-import { arrowheadAt, type Point, type Rect } from './geometry';
+import { arrowheadAt, toggleRect, type Point, type Rect } from './geometry';
 import { midpointOf } from './route';
 import { buildScene, type ElementShape, type RelationLine } from './scene';
 import { routePieces } from './tiles';
@@ -252,5 +254,55 @@ describe('drawShapeBlocks', () => {
     const clinic = shapeOf('clinic-booking');
     const all = blocks([clinic, dark, pale]);
     expect(all.get(clinic.stroke)).toHaveLength(clinic.stroke === pale.stroke ? 2 : 1);
+  });
+});
+
+describe('containers, collapsed or not', () => {
+  const container = scene.shapes.find((shape) => shape.key === 'clinic-booking') as ElementShape;
+  const collapsed: ElementShape = {
+    ...container,
+    rect: { ...container.rect, width: 180, height: 72 },
+    holdsContents: false,
+    collapsed: { contents: 3 },
+  };
+
+  it('writes how many shapes a collapsed container holds in its detail, at its top', () => {
+    expect(detailOf(collapsed)).toBe('System · 3 inside');
+    expect(detailOf(container)).toBe('System');
+    const written = writeShapeLabels([collapsed], true, (options) => {
+      const label = new Container();
+      label.label = String(options.text);
+      label.position.set(options.x ?? 0, options.y ?? 0);
+      return label;
+    });
+    expect(written.map((label) => label.label)).toEqual(['Clinic booking', 'System · 3 inside']);
+    // At the top left of its body, as a container's name is, not in its middle.
+    expect(written[0]?.y).toBe(collapsed.rect.y + 8);
+    expect(labelRooms(collapsed)).toEqual({ name: 20, detail: 16 });
+  });
+
+  it('draws the toggle on every container, with + on a collapsed one, and a sheet behind it', () => {
+    const strokes = (shape: ElementShape) => {
+      const graphics = new Graphics();
+      drawShapeOutlines(graphics, [shape]);
+      return graphics.context.instructions.filter((each) => each.action === 'stroke').length;
+    };
+    const leaf = scene.shapes.find(
+      (shape) => !shape.holdsContents && shape.kind === 'rounded-rectangle',
+    ) as ElementShape;
+    // A body; a container adds its toggle's face and sign, and a collapsed one the sheet behind it.
+    expect(strokes(leaf)).toBe(1);
+    expect(strokes(container)).toBe(3);
+    expect(strokes(collapsed)).toBe(4);
+    expect(toggleRect(leaf)).toBeUndefined();
+    const toggle = toggleRect(collapsed) as Rect;
+    expect(toggle.x + toggle.width).toBeLessThanOrEqual(collapsed.rect.x + collapsed.rect.width);
+    expect(toggle.y).toBeGreaterThan(collapsed.rect.y);
+  });
+
+  it('outlines a collapsed container drawn as a plain block, as any container', () => {
+    const graphics = new Graphics();
+    drawShapeBlocks(graphics, [{ ...collapsed, fill: '#1D4F91' }]);
+    expect(graphics.context.instructions.filter((each) => each.action === 'fill')).toHaveLength(2);
   });
 });

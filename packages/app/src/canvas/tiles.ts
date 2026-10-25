@@ -2,16 +2,18 @@
  * Which tiles the canvas draws element shapes and relations in, and which tiles it can keep from the
  * last time.
  *
- * A shape goes in the tile of its band and of the cell its middle falls in. Shapes in one band never
- * overlap, so the order of the tiles of a band, and of the shapes in one, is invisible, and a tile's
- * signature does not depend on it. Shapes in bands beyond the last are drawn in runs of consecutive
- * shapes in drawing order that share a cell, above every band, and their order counts.
+ * A shape goes in the tile of its band and of the cell its middle falls in, and of whether it is
+ * dimmed: dimmed shapes are drawn faintly, in tiles of their own. Shapes in one band never overlap, so
+ * the order of the tiles of a band, and of the shapes in one, is invisible, and a tile's signature
+ * does not depend on it. Shapes in bands beyond the last are drawn in runs of consecutive shapes in
+ * drawing order that share a cell and whether they are dimmed, above every band, and their order
+ * counts.
  *
  * A relation is cut where its route passes from one cell to another, and each piece goes in the tile
- * of its cell, so that a tile spans about its cell however far its relations reach, and the tiles
- * off screen can be left out of the frame. Its arrowhead goes with the cell of its tip, and its name
- * with the cell of its middle. A route that would cross more cells than a bounded number is left
- * whole, in one tile.
+ * of its cell, and of whether the relation is dimmed, so that a tile spans about its cell however far
+ * its relations reach, and the tiles off screen can be left out of the frame. Its arrowhead goes with
+ * the cell of its tip, and its name with the cell of its middle. A route that would cross more cells
+ * than a bounded number is left whole, in one tile.
  */
 import type { Id } from '@visual-anything/schema';
 import {
@@ -35,12 +37,14 @@ export const MAX_RUN = 64;
 export const TILE = 1024;
 
 export interface PlannedTile {
-  /** `shapes ${band} ${cell}`, or `shapes over ${first shape's key}` beyond the bands. */
+  /** `shapes ${band} ${cell}`, ` dim` after it when dimmed, or `shapes over ${first shape's key}` beyond the bands. */
   key: string;
   /** 0 to MAX_BANDS - 1, or MAX_BANDS beyond them. */
   band: number;
   cell: string;
-  /** What the tile draws: equal signatures draw alike. */
+  /** Whether its shapes are dimmed, drawn faintly. */
+  dim: boolean;
+  /** What the tile draws: equal signatures draw alike, dimmed or not. */
   signature: string;
   /** In a band, by key; beyond the bands, in drawing order. */
   shapes: ElementShape[];
@@ -65,16 +69,20 @@ export interface RoutePiece {
 
 /** The relations a tile draws: the pieces of their routes in its cell, their arrowheads and names. */
 export interface RelationTile {
-  /** `relations ${cell}`. */
+  /** `relations ${cell}`, ` dim` after it when dimmed. */
   key: string;
   cell: string;
-  /** What the tile draws: equal signatures draw alike. */
+  /** Whether its relations are dimmed, drawn faintly. */
+  dim: boolean;
+  /** What the tile draws: equal signatures draw alike, dimmed or not. */
   signature: string;
   pieces: RoutePiece[];
   /** The relations whose arrowhead's tip lies in the cell. */
   ends: RelationLine[];
   /** The relations whose middle lies in the cell, where their names go. */
   lines: RelationLine[];
+  /** Every relation it draws something of, in the order given. */
+  touching: RelationLine[];
   /** Where what it draws lies, names included. */
   bounds: Rect;
 }
@@ -212,27 +220,50 @@ function cutsAlong(from: Point, to: Point): Cut[] {
   return [{ t: 0, point: from }, ...distinct, { t: 1, point: to }];
 }
 
-/** The tiles that draw the scene's relations, those in `hidden` left out. */
+/** The key of the tile of relations of a cell, dimmed or not. */
+export function relationTileKey(cell: string, dim: boolean): string {
+  return dim ? `relations ${cell} dim` : `relations ${cell}`;
+}
+
+/** The keys of the tiles a relation draws something in, dimmed or not. */
+export function relationTileKeysOf(line: RelationLine, dim: boolean): Set<string> {
+  const keys = new Set(routePieces(line).map((piece) => relationTileKey(piece.cell, dim)));
+  if (line.arrowhead) keys.add(relationTileKey(cellOf(line.arrowhead.tip), dim));
+  keys.add(relationTileKey(cellOf(line.middle), dim));
+  return keys;
+}
+
+/**
+ * The tiles that draw these relations, those in `hidden` left out and those in `dimmed` in tiles of
+ * their own; with `only`, just the tiles with those keys, from the relations given.
+ */
 export function relationTiles(
   lines: readonly RelationLine[],
   hidden: ReadonlySet<Id>,
+  dimmed: ReadonlySet<Id> = NONE,
+  only?: ReadonlySet<string>,
 ): RelationTile[] {
   const tiles = new Map<string, RelationTile & { drawn: Set<RelationLine>; around: Rect[] }>();
   const tileAt = (cell: string, line: RelationLine) => {
-    let tile = tiles.get(cell);
+    const dim = dimmed.has(line.relation);
+    const key = relationTileKey(cell, dim);
+    if (only && !only.has(key)) return undefined;
+    let tile = tiles.get(key);
     if (!tile) {
       tile = {
-        key: `relations ${cell}`,
+        key,
         cell,
+        dim,
         signature: '',
         pieces: [],
         ends: [],
         lines: [],
+        touching: [],
         bounds: { x: 0, y: 0, width: 0, height: 0 },
         drawn: new Set(),
         around: [],
       };
-      tiles.set(cell, tile);
+      tiles.set(key, tile);
     }
     tile.drawn.add(line);
     return tile;
@@ -241,18 +272,18 @@ export function relationTiles(
     if (hidden.has(line.relation)) continue;
     for (const piece of routePieces(line)) {
       const tile = tileAt(piece.cell, line);
-      tile.pieces.push(piece);
-      tile.around.push(grow(rectAround(piece.points), line.width));
+      tile?.pieces.push(piece);
+      tile?.around.push(grow(rectAround(piece.points), line.width));
     }
     if (line.arrowhead) {
       const { tip, left, right } = line.arrowhead;
       const tile = tileAt(cellOf(tip), line);
-      tile.ends.push(line);
-      tile.around.push(rectAround([tip, left, right]));
+      tile?.ends.push(line);
+      tile?.around.push(rectAround([tip, left, right]));
     }
     const named = tileAt(cellOf(line.middle), line);
-    named.lines.push(line);
-    named.around.push({
+    named?.lines.push(line);
+    named?.around.push({
       x: line.middle.x - NAME_ROOM.width / 2,
       y: line.middle.y - NAME_ROOM.height / 2,
       ...NAME_ROOM,
@@ -260,6 +291,7 @@ export function relationTiles(
   }
   return [...tiles.values()].map(({ drawn, around, ...tile }) => ({
     ...tile,
+    touching: [...drawn],
     signature: [...drawn].map(lineSignature).join('|'),
     bounds: boundsOf(around) as Rect,
   }));
@@ -286,20 +318,27 @@ export function lineSignature(line: RelationLine): string {
 }
 
 /** What to do with the tiles drawn before to draw the planned ones. */
-export interface TilePlan {
+export interface TilePlan<P = PlannedTile> {
   /** Tiles drawn before that draw what they drew, under the same key. */
   keep: string[];
   /** Tiles drawn before that draw what a planned tile draws, under another key or band. */
   move: { from: string; to: string }[];
   /** Planned tiles that no tile drawn before draws. */
-  make: PlannedTile[];
+  make: P[];
   /** Tiles drawn before that no planned tile needs. */
   drop: string[];
 }
 
+const NONE: ReadonlySet<string> = new Set();
+
 /** The cell a point falls in. */
 export function cellOf(point: Point): string {
   return `${Math.floor(point.x / TILE)},${Math.floor(point.y / TILE)}`;
+}
+
+/** The key of the tile of a band and a cell, dimmed or not. */
+export function bandTileKey(band: number, cell: string, dim: boolean): string {
+  return dim ? `shapes ${band} ${cell} dim` : `shapes ${band} ${cell}`;
 }
 
 const signatures = new WeakMap<ElementShape, string>();
@@ -320,7 +359,9 @@ export function shapeSignature(shape: ElementShape): string {
       shape.stroke,
       shape.name,
       shape.componentName,
+      shape.detail ?? '',
       shape.holdsContents ? 1 : 0,
+      shape.collapsed?.contents ?? -1,
     ].join(' ');
     signatures.set(shape, signature);
   }
@@ -328,7 +369,11 @@ export function shapeSignature(shape: ElementShape): string {
 }
 
 /** The tiles that draw the scene's element shapes, those in `hidden` left out. */
-export function plannedTiles(indexed: IndexedScene, hidden: ReadonlySet<string>): PlannedTile[] {
+export function plannedTiles(
+  indexed: IndexedScene,
+  hidden: ReadonlySet<string>,
+  dimmed: ReadonlySet<string> = NONE,
+): PlannedTile[] {
   const { scene, drawing, bands } = indexed;
   const inBands = new Map<string, PlannedTile>();
   const beyond: PlannedTile[] = [];
@@ -338,14 +383,15 @@ export function plannedTiles(indexed: IndexedScene, hidden: ReadonlySet<string>)
     if (hidden.has(shape.key)) return;
     const band = bands[at] as number;
     const cell = cellOf(centerOf(shape.rect));
+    const dim = dimmed.has(shape.key);
     if (band < MAX_BANDS) {
-      const key = `shapes ${band} ${cell}`;
+      const key = bandTileKey(band, cell, dim);
       const tile = inBands.get(key);
       if (tile) tile.shapes.push(shape);
-      else inBands.set(key, { key, band, cell, signature: '', shapes: [shape], rank });
+      else inBands.set(key, { key, band, cell, dim, signature: '', shapes: [shape], rank });
       return;
     }
-    if (run && run.cell === cell && run.shapes.length < MAX_RUN) {
+    if (run && run.cell === cell && run.dim === dim && run.shapes.length < MAX_RUN) {
       run.shapes.push(shape);
       return;
     }
@@ -353,18 +399,107 @@ export function plannedTiles(indexed: IndexedScene, hidden: ReadonlySet<string>)
       key: `shapes over ${shape.key}`,
       band: MAX_BANDS,
       cell,
+      dim,
       signature: '',
       shapes: [shape],
       rank,
     };
     beyond.push(run);
   });
-  for (const tile of inBands.values()) {
-    tile.shapes.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
-  }
+  for (const tile of inBands.values()) tile.shapes.sort(byKey);
   const planned = [...inBands.values(), ...beyond];
   for (const tile of planned) tile.signature = tile.shapes.map(shapeSignature).join('|');
   return planned;
+}
+
+/** The key of the tile in a band a shape goes in, by its index; none while it is hidden. */
+export function bandTileKeyOf(
+  indexed: IndexedScene,
+  at: number,
+  hidden: ReadonlySet<string>,
+  dimmed: ReadonlySet<string>,
+): string | undefined {
+  const shape = indexed.scene.shapes[at] as ElementShape;
+  if (hidden.has(shape.key)) return undefined;
+  return bandTileKey(
+    indexed.bands[at] as number,
+    cellOf(centerOf(shape.rect)),
+    dimmed.has(shape.key),
+  );
+}
+
+/** A tile in a band as drawn before: what it holds. */
+export interface BandTile {
+  key: string;
+  band: number;
+  cell: string;
+  shapes: readonly ElementShape[];
+}
+
+/**
+ * The tiles in bands to plan again when some shapes changed, moved, or were hidden, shown, dimmed or
+ * brightened: those the shapes left and those they now go in, each with the shapes it held that did
+ * not change, and the changed ones that now go in it. `before` holds those tiles as drawn before,
+ * where they were; `changed` holds the indexes of the shapes in the scene, all of them in bands
+ * before and now.
+ */
+export function replannedTiles(
+  indexed: IndexedScene,
+  before: ReadonlyMap<string, BandTile>,
+  changed: readonly number[],
+  hidden: ReadonlySet<string>,
+  dimmed: ReadonlySet<string>,
+): PlannedTile[] {
+  const { scene, bands, rankOf } = indexed;
+  const leaving = new Set<string>();
+  const arriving = new Map<string, ElementShape[]>();
+  const places = new Map<string, { band: number; cell: string; dim: boolean }>();
+  for (const at of changed) {
+    const shape = scene.shapes[at] as ElementShape;
+    leaving.add(shape.key);
+    if (hidden.has(shape.key)) continue;
+    const band = bands[at] as number;
+    const cell = cellOf(centerOf(shape.rect));
+    const dim = dimmed.has(shape.key);
+    const key = bandTileKey(band, cell, dim);
+    places.set(key, { band, cell, dim });
+    const list = arriving.get(key);
+    if (list) list.push(shape);
+    else arriving.set(key, [shape]);
+  }
+  const keys = new Set([...before.keys(), ...arriving.keys()]);
+  const planned: PlannedTile[] = [];
+  for (const key of keys) {
+    const was = before.get(key);
+    const shapes = [
+      ...(was?.shapes.filter((shape) => !leaving.has(shape.key)) ?? []),
+      ...(arriving.get(key) ?? []),
+    ];
+    if (shapes.length === 0) continue;
+    shapes.sort(byKey);
+    const place = places.get(key) ?? {
+      band: was?.band ?? 0,
+      cell: was?.cell ?? '',
+      dim: key.endsWith(' dim'),
+    };
+    let rank = Infinity;
+    for (const shape of shapes) {
+      const at = indexed.indexOfKey.get(shape.key);
+      if (at !== undefined) rank = Math.min(rank, rankOf[at] as number);
+    }
+    planned.push({
+      key,
+      ...place,
+      signature: shapes.map(shapeSignature).join('|'),
+      shapes,
+      rank: rank === Infinity ? 0 : rank,
+    });
+  }
+  return planned;
+}
+
+function byKey(a: ElementShape, b: ElementShape): number {
+  return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
 }
 
 /**
@@ -372,13 +507,13 @@ export function plannedTiles(indexed: IndexedScene, hidden: ReadonlySet<string>)
  * the same signature, and moved to a planned tile of its cell that draws the same; the planned tiles
  * left over are made and the tiles left over dropped.
  */
-export function planTiles(
+export function planTiles<P extends { key: string; cell: string; signature: string }>(
   previous: ReadonlyMap<string, { cell: string; signature: string }>,
-  planned: readonly PlannedTile[],
-): TilePlan {
-  const plan: TilePlan = { keep: [], move: [], make: [], drop: [] };
+  planned: readonly P[],
+): TilePlan<P> {
+  const plan: TilePlan<P> = { keep: [], move: [], make: [], drop: [] };
   const kept = new Set<string>();
-  const waiting: PlannedTile[] = [];
+  const waiting: P[] = [];
   for (const tile of planned) {
     if (previous.get(tile.key)?.signature === tile.signature) {
       plan.keep.push(tile.key);

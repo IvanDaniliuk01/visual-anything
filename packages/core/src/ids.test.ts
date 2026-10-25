@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { ID_PATTERN, freshId, isId, randomIds, slug } from './ids';
+import { ID_PATTERN, definitionIdFor, freshId, isId, randomIds, slug } from './ids';
 import projectSchema from '@visual-anything/schema/schemas/project.schema.json' with { type: 'json' };
 
 describe('slug', () => {
@@ -36,5 +36,51 @@ describe('ids', () => {
     let next = 0;
     const generate = (base: string) => `${base}-${(next += 1)}`;
     expect(freshId(generate, 'a', (id) => taken.has(id))).toBe('a-3');
+  });
+});
+
+describe('definitionIdFor', () => {
+  it("starts with its package's id, has a base made from the name, and ends in six base-36 characters", () => {
+    expect(
+      definitionIdFor(
+        'clinic',
+        'Message queue',
+        randomIds(() => 0.5),
+      ),
+    ).toBe('clinic.message-queue-iiiiii');
+    expect(definitionIdFor('clinic', '東京', randomIds())).toMatch(
+      /^clinic\.definition-[0-9a-z]{6}$/,
+    );
+  });
+
+  it('makes valid ids that never repeat one the project holds, whatever the names', () => {
+    fc.assert(
+      fc.property(
+        fc.stringMatching(/^[a-z0-9][a-z0-9-]{0,100}$/),
+        fc.string(),
+        fc.uniqueArray(fc.nat({ max: 5 }), { maxLength: 4 }),
+        (packageId, name, takenDraws) => {
+          let draw = 0;
+          const generate = (base: string) => `${base}-${String(draw++).padStart(6, '0')}`;
+          const taken = new Set(
+            takenDraws.map((at) => definitionIdFor(packageId, name, () => `x-${at}`)),
+          );
+          const all = new Set<string>();
+          for (let i = 0; i < 3; i += 1) {
+            const id = definitionIdFor(
+              packageId,
+              name,
+              generate,
+              (each) => taken.has(each) || all.has(each),
+            );
+            expect(isId(id)).toBe(true);
+            expect(id.startsWith(`${packageId}.`)).toBe(true);
+            expect(id).toMatch(/-[0-9a-z]{6}$/);
+            expect(taken.has(id) || all.has(id)).toBe(false);
+            all.add(id);
+          }
+        },
+      ),
+    );
   });
 });

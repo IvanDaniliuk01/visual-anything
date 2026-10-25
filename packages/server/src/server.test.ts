@@ -4,6 +4,7 @@ import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  LAUNCH_PARAM,
   LIVE_PATH,
   PROTOCOL_VERSION,
   TOKEN_PARAM,
@@ -13,9 +14,11 @@ import {
 } from '@visual-anything/core';
 import type { ModelFile } from '@visual-anything/schema';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { WORKER_POLICY, pagePolicy } from './policies';
 import { startServer, type RunningServer } from './server';
 import { openSession, type Session } from './session';
 import {
+  openClaudeClient,
   openLive,
   openLiveClient,
   readText,
@@ -23,6 +26,7 @@ import {
   sendRaw,
   sendUpgrade,
   textOf,
+  type ClaudeClient,
   type LiveClient,
   type Reply,
 } from './test-support';
@@ -88,19 +92,39 @@ afterAll(async () => {
   await rm(folder, { recursive: true, force: true, maxRetries: 10 });
 });
 
+/**
+ * The headers every response carries. Its content security policy is the page's for HTML, the
+ * worker policy for JavaScript, and `frame-ancestors 'none'` for everything else.
+ */
 function expectSecurityHeaders(reply: Reply) {
   expect(reply.headers['x-content-type-options']).toBe('nosniff');
   expect(reply.headers['referrer-policy']).toBe('no-referrer');
-  expect(reply.headers['content-security-policy']).toBe("frame-ancestors 'none'");
+  const type = reply.headers['content-type'] ?? '';
+  expect(reply.headers['content-security-policy']).toBe(
+    type.startsWith('text/html')
+      ? pagePolicy(server.port, { trustedTypes: true, scriptHashes: [] })
+      : type.startsWith('text/javascript')
+        ? WORKER_POLICY
+        : "frame-ancestors 'none'",
+  );
   expect(reply.headers['x-frame-options']).toBe('DENY');
 }
 
 describe('startServer', () => {
-  it('listens on 127.0.0.1 and gives a URL that carries the token in its fragment', async () => {
+  it('listens on 127.0.0.1 at an address that holds no secret', async () => {
     expect(server.port).toBeGreaterThan(0);
+    expect(server.address).toBe(`http://127.0.0.1:${server.port}/`);
     expect(server.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(server.url).toBe(`http://127.0.0.1:${server.port}/#${TOKEN_PARAM}=${server.token}`);
+    expect(server.credential).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(server.credential).not.toBe(server.token);
     expect((await send(server.port)).status).toBe(200);
+  });
+
+  it('makes launch addresses that carry a launch code, never the token', () => {
+    const url = new URL(server.launchUrl());
+    expect(url.origin).toBe(`http://127.0.0.1:${server.port}`);
+    expect(url.hash).toMatch(new RegExp(`^#${LAUNCH_PARAM}=[A-Za-z0-9_-]{22}$`));
+    expect(server.launchUrl()).not.toContain(server.token);
   });
 
   it.skipIf(externalAddress === undefined)(
@@ -326,6 +350,258 @@ describe('the live connection', () => {
     expect(socket.readyState).toBe(socket.OPEN);
     expect(answers).toEqual([]);
     socket.close();
+  });
+});
+
+describe('launch addresses with a theme', () => {
+  it('carry the theme the person chose beside the launch code, and ask for it each time', async () => {
+    let theme: 'light' | 'dark' | undefined = 'dark';
+    const themed = await startServer({
+      session,
+      port: 0,
+      app: { mode: 'static', dir: appDir },
+      themeHint: () => theme,
+    });
+    try {
+      const fragment = new URLSearchParams(new URL(themed.launchUrl()).hash.slice(1));
+      expect(fragment.get('theme')).toBe('dark');
+      expect(fragment.get(LAUNCH_PARAM)).toMatch(/^[A-Za-z0-9_-]{22}$/);
+      theme = undefined;
+      expect(new URL(themed.launchUrl()).hash).not.toContain('theme');
+    } finally {
+      await themed.close();
+    }
+  });
+});
+
+describe('launch addresses', () => {
+  const codeOf = (url: string) =>
+    new URLSearchParams(new URL(url).hash.slice(1)).get(LAUNCH_PARAM) ?? '';
+  const launch = (code: string) => `${LIVE_PATH}?${LAUNCH_PARAM}=${code}`;
+
+  it('open the live connection once, handing the page the session token', async () => {
+    const code = codeOf(server.launchUrl());
+    const outcome = await openLive(server.port, { path: launch(code), origin });
+    if (!outcome.open) throw new Error(`The live connection was refused: ${outcome.status}`);
+    expect(decodeServerMessage(outcome.firstMessage)).toEqual({
+      type: 'project/opened',
+      protocolVersion: PROTOCOL_VERSION,
+      project: snapshot,
+      history: {},
+      token: server.token,
+    });
+    outcome.socket.close();
+
+    expect(await openLive(server.port, { path: launch(code), origin })).toEqual({
+      open: false,
+      status: 401,
+    });
+  });
+
+  it('end when a newer one is made', async () => {
+    const older = codeOf(server.launchUrl());
+    const newer = codeOf(server.launchUrl());
+    expect(await openLive(server.port, { path: launch(older), origin })).toEqual({
+      open: false,
+      status: 401,
+    });
+    const outcome = await openLive(server.port, { path: launch(newer), origin });
+    expect(outcome.open).toBe(true);
+    if (outcome.open) outcome.socket.close();
+  });
+
+  it('are refused from another origin, which does not spend them', async () => {
+    const code = codeOf(server.launchUrl());
+    expect(
+      await openLive(server.port, { path: launch(code), origin: 'http://evil.example' }),
+    ).toEqual({ open: false, status: 403 });
+    const outcome = await openLive(server.port, { path: launch(code), origin });
+    expect(outcome.open).toBe(true);
+    if (outcome.open) outcome.socket.close();
+  });
+});
+
+describe('the Claude endpoint', () => {
+  let projectFolder: string;
+  let live: Session;
+  let running: RunningServer;
+  let app: LiveClient;
+  let claude: ClaudeClient;
+  let opened: string[];
+  let counts: number[];
+
+  beforeEach(async () => {
+    projectFolder = await mkdtemp(join(tmpdir(), 'va-claude-'));
+    live = await openSample(projectFolder);
+    opened = [];
+    counts = [];
+    running = await startServer({
+      session: live,
+      port: 0,
+      app: { mode: 'static', dir: appDir },
+      openBrowser: (url) => {
+        opened.push(url);
+        return Promise.resolve();
+      },
+      onConnections: (count) => counts.push(count),
+    });
+    app = await openLiveClient(running.port, running.token);
+    claude = await openClaudeClient(running.port, running.credential);
+    await expect.poll(() => [app.messages.length, claude.messages.length]).toEqual([1, 1]);
+  });
+
+  afterEach(async () => {
+    await claude.close();
+    await app.close();
+    await running.close();
+    await live.close();
+    await rm(projectFolder, { recursive: true, force: true, maxRetries: 10 });
+  });
+
+  const claudePath = '/claude';
+
+  it('greets Claude with the project, without the session token', () => {
+    expect(claude.messages[0]).toEqual({
+      type: 'project/opened',
+      protocolVersion: PROTOCOL_VERSION,
+      project: live.snapshot,
+      history: {},
+    });
+  });
+
+  it('counts the apps and Claudes connected', () => {
+    expect(counts).toEqual([1, 2]);
+  });
+
+  it.each([
+    ['our own origin', () => ({ Origin: origin, Authorization: `Bearer ${running.credential}` })],
+    [
+      'a foreign origin',
+      () => ({ Origin: 'http://evil.example', Authorization: `Bearer ${running.credential}` }),
+    ],
+  ])('refuses %s with 403, since only browsers send an origin', async (_case, headersOf) => {
+    const outcome = await sendUpgrade(running.port, claudePath, headersOf());
+    expect(outcome).toMatchObject({ upgraded: false, status: 403 });
+  });
+
+  it.each([
+    ['without the credential', () => ({})],
+    ['with the session token instead', () => ({ Authorization: `Bearer ${running.token}` })],
+    ['with the credential in the query', () => ({})],
+  ])('refuses Claude %s with 401', async (name, headersOf) => {
+    const path = name.includes('query') ? `${claudePath}?token=${running.credential}` : claudePath;
+    const outcome = await sendUpgrade(running.port, path, headersOf());
+    expect(outcome).toMatchObject({ upgraded: false, status: 401 });
+  });
+
+  it('refuses a foreign host before anything else', async () => {
+    const outcome = await sendUpgrade(running.port, claudePath, {
+      Host: `evil.example:${running.port}`,
+      Authorization: `Bearer ${running.credential}`,
+    });
+    expect(outcome).toMatchObject({ upgraded: false, status: 403 });
+  });
+
+  it('runs Claude’s command as Claude’s action, which the app sees and the person can undo', async () => {
+    claude.send({
+      type: 'command',
+      requestId: 'c1',
+      command: { type: 'update-element', id: 'patient', changes: { name: 'Client' } },
+    });
+
+    const [answer] = await claude.answers('c1');
+    expect(answer).toMatchObject({
+      type: 'project/changed',
+      kind: 'do',
+      author: 'claude',
+      label: 'Rename "Patient" to "Client"',
+      requestId: 'c1',
+    });
+    await expect.poll(() => app.messages.length).toBe(2);
+    expect(app.messages[1]).toMatchObject({ type: 'project/changed', author: 'claude' });
+    expect(app.messages[1] && 'requestId' in app.messages[1]).toBe(false);
+
+    app.send({ type: 'undo', requestId: 'u1' });
+    await expect.poll(() => claude.messages.length).toBe(3);
+    expect(claude.messages[2]).toMatchObject({
+      type: 'project/changed',
+      kind: 'undo',
+      author: 'claude',
+    });
+  });
+
+  it('runs a command as Claude’s whatever author it names', async () => {
+    claude.send({
+      type: 'command',
+      requestId: 'c2',
+      author: 'user',
+      command: { type: 'update-element', id: 'patient', changes: { name: 'Client' } },
+    });
+    const [answer] = await claude.answers('c2');
+    expect(answer).toMatchObject({ type: 'project/changed', author: 'claude' });
+  });
+
+  it.each([
+    ['undo', { type: 'undo', requestId: 'x1' }],
+    ['redo', { type: 'redo', requestId: 'x1' }],
+    ['preferences', { type: 'preferences/set', requestId: 'x1', changes: { theme: 'dark' } }],
+  ])('refuses %s, which are the person’s, and changes nothing', async (_case, message) => {
+    claude.send(message);
+    const [answer] = await claude.answers('x1');
+    expect(answer).toMatchObject({
+      type: 'command/rejected',
+      requestId: 'x1',
+      problems: [{ code: 'invalid-command' }],
+    });
+    expect(app.messages).toHaveLength(1);
+  });
+
+  it('shows guidance in the apps only, and says how many it reached', async () => {
+    const guidance = { kind: 'highlight', targets: ['patient'] };
+    claude.send({ type: 'guidance', requestId: 'g1', guidance });
+
+    expect(await claude.answers('g1')).toEqual([
+      { type: 'guidance/shown', requestId: 'g1', apps: 1 },
+    ]);
+    await expect.poll(() => app.messages.length).toBe(2);
+    expect(app.messages[1]).toEqual({ type: 'guidance', guidance });
+    expect(claude.messages.some((message) => message.type === 'guidance')).toBe(false);
+    expect(live.history).toEqual({});
+  });
+
+  it('refuses guidance it cannot read', async () => {
+    claude.send({ type: 'guidance', requestId: 'g2', guidance: { kind: 'explode' } });
+    const [answer] = await claude.answers('g2');
+    expect(answer).toMatchObject({
+      type: 'command/rejected',
+      problems: [{ code: 'invalid-command' }],
+    });
+    expect(app.messages).toHaveLength(1);
+  });
+
+  it('opens the app at an address that works once', async () => {
+    claude.send({ type: 'open-app', requestId: 'o1' });
+    expect(await claude.answers('o1')).toEqual([{ type: 'app/opened', requestId: 'o1' }]);
+    expect(opened).toHaveLength(1);
+    const url = new URL(opened[0] ?? '');
+    const code = new URLSearchParams(url.hash.slice(1)).get(LAUNCH_PARAM) ?? '';
+    const outcome = await openLive(running.port, {
+      path: `${LIVE_PATH}?${LAUNCH_PARAM}=${code}`,
+      origin: `http://127.0.0.1:${running.port}`,
+    });
+    expect(outcome.open).toBe(true);
+    if (outcome.open) outcome.socket.close();
+  });
+
+  it('tells Claude about the person’s changes too', async () => {
+    app.send({
+      type: 'command',
+      requestId: 'r1',
+      command: { type: 'update-element', id: 'patient', changes: { name: 'Client' } },
+    });
+    await expect.poll(() => claude.messages.length).toBe(2);
+    expect(claude.messages[1]).toMatchObject({ type: 'project/changed', author: 'user' });
+    expect(claude.messages[1] && 'requestId' in claude.messages[1]).toBe(false);
   });
 });
 

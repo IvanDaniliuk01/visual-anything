@@ -7,6 +7,10 @@
  *
  * The keys of the stacking order work wherever the focus is, except while typing: they are taken
  * for the whole window here, so that ⌘[ and ⌘] never leave the app.
+ *
+ * The canvas draws the emphasis that filters, focus, playback and guidance set (interface I2), and
+ * collapses and expands containers through one command (interface I1), from the shape menu, the
+ * toggle on a container's shape and the keys.
  */
 import {
   appearanceOf,
@@ -31,9 +35,19 @@ import {
   useSyncExternalStore,
   type ComponentProps,
 } from 'react';
+import { useEmphasis, type Emphasis } from '../editor/emphasis';
 import { EMPTY_SELECTION, selectionOf, sizeOf, type Selection } from '../editor/selection';
 import { isTextEntry } from '../live/shortcuts';
+import { RecordingCue } from '../scenarios/RecordingCue';
+import type { ScenarioSession } from '../scenarios/session';
+import { useCanvasRecording } from '../scenarios/useCanvasRecording';
 import type { Camera } from './camera';
+import {
+  collapseActions,
+  collapseDone,
+  setCollapsedCommand,
+  type CollapseAction,
+} from './collapse';
 import { CanvasController, type ChangeToConfirm } from './controller';
 import { CanvasToolbar, type AddPlace } from './CanvasToolbar';
 import { ContainerChooser } from './ContainerChooser';
@@ -41,8 +55,8 @@ import { DeleteDialog } from './DeleteDialog';
 import { confirmLabelOf, containerChangeLabel, moveToCommand, needsConfirmation } from './drop';
 import './drop.css';
 import type { Point } from './geometry';
-import { createAtCommand, createInsideCommand } from './gestures';
-import { indexScene, type IndexedScene } from './hit';
+import { createAtCommand, createBesideCommand, createInsideCommand } from './gestures';
+import { indexScene, withoutShapes, type IndexedScene } from './hit';
 import { InlineEditor } from './InlineEditor';
 import { KeyboardHelp } from './KeyboardHelp';
 import { CANVAS_KEYS_HINT } from './keys';
@@ -67,6 +81,8 @@ interface CanvasAreaProps {
   onCommand?: SendCommand;
   /** The shape to bring into sight; each new request moves the camera again. */
   revealed?: { key: string; request: number };
+  /** The scenario session, whose recording takes clicks on relations while it records. */
+  scenarios?: ScenarioSession;
 }
 
 /**
@@ -103,6 +119,8 @@ interface OpenMenu {
   under?: string[];
   /** Counts the openings, so that each one starts again from its first item. */
   opening: number;
+  /** The shapes the emphasis hid when it opened, which it looks past. */
+  hidden: ReadonlySet<string>;
 }
 
 /** The container chooser: for which element, from which container, and how it asks. */
@@ -113,6 +131,7 @@ interface Choosing {
 }
 
 const NOTE_SIZE = { width: 220, height: 90 };
+const NO_KEYS: ReadonlySet<string> = new Set();
 const ARROW_LENGTH = 160;
 const NOT_CONNECTED = 'Visual Anything is not connected, so nothing was changed.';
 
@@ -125,6 +144,7 @@ export function CanvasArea({
   onSelect,
   onCommand,
   revealed,
+  scenarios,
 }: CanvasAreaProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -148,6 +168,8 @@ export function CanvasArea({
   const [closedByItself, setClosedByItself] = useState(0);
   // The element just added, whose first shape the camera brings into sight once it is drawn.
   const revealNext = useRef<Id | undefined>(undefined);
+  // The emphasis to draw, kept for the controller made after it came.
+  const emphasis = useRef<Emphasis>({});
   const hint = useId();
   // A scene that cannot be indexed cannot be drawn either: the canvas area says so, and the rest of
   // the app keeps working.
@@ -176,6 +198,17 @@ export function CanvasArea({
     }
     return sendNow(command);
   };
+
+  /** Collapses or expands containers with I1's command, and says what it did once it is done. */
+  const collapse = (action: CollapseAction, collapsed: boolean) => {
+    void send(setCollapsedCommand(latest.current.view.id, action.elements, collapsed)).then(
+      (result) => {
+        if (result.ok) announce(collapseDone(action, collapsed));
+      },
+    );
+  };
+  // The toggle and the keys, from the controller, which lives as long as the canvas area.
+  const collapseFromCanvas = useEffectEvent(collapse);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -220,19 +253,25 @@ export function CanvasArea({
           setMenu((last) => ({
             at,
             shape: shape.key,
+            hidden: controllerRef.current?.renderer.hiddenShapes ?? NO_KEYS,
             ...(under ? { under: under.map((each) => each.key) } : {}),
             opening: (last?.opening ?? 0) + 1,
           })),
+        collapse: (action, collapsed) => collapseFromCanvas(action, collapsed),
       },
       caption ? { caption } : {},
     );
     controllerRef.current = controller;
+    controller.setEmphasis(emphasis.current);
     return () => {
       controller.destroy();
       controllerRef.current = null;
     };
     // The controller lives as long as the canvas area; `latest` gives it the current props.
   }, [cameras]);
+
+  // While a scenario records, clicks on relations record its steps.
+  const recording = useCanvasRecording(controllerRef, scenarios);
 
   useEffect(() => {
     if (indexed) controllerRef.current?.update(project, view.id, indexed, editable);
@@ -433,7 +472,9 @@ export function CanvasArea({
     if (!canvas) return;
     setAddTarget(undefined);
     let command: Command | undefined;
-    if (adding.inside !== undefined) {
+    if (adding.beside && indexed) {
+      command = createBesideCommand(indexed, project, view.id, component, adding.beside);
+    } else if (adding.inside !== undefined) {
       command = createInsideCommand(project, view.id, component, adding.inside);
     } else {
       const size = appearanceOf({ component }, definitionsOf(project.packages));
@@ -571,6 +612,12 @@ export function CanvasArea({
 
   return (
     <div ref={frameRef} className="canvas-frame">
+      <DrawnEmphasis
+        onEmphasis={(next) => {
+          emphasis.current = next;
+          controllerRef.current?.setEmphasis(next);
+        }}
+      />
       <ZoomedToolbar
         cameras={cameras}
         project={project}
@@ -605,6 +652,7 @@ export function CanvasArea({
         {announcement.count % 2 === 1 ? ' ' : ''}
       </div>
       <KeyboardHelp />
+      {recording && <RecordingCue />}
       {relating && (
         <RelationMenu
           project={project}
@@ -621,7 +669,8 @@ export function CanvasArea({
       {menu && menuShape && indexed && stacking && (
         <ShapeMenu
           key={menu.opening}
-          indexed={indexed}
+          // The shape to put this one inside is never one the emphasis hides.
+          indexed={withoutShapes(indexed, menu.hidden)}
           project={project}
           viewId={view.id}
           selection={selection}
@@ -631,6 +680,11 @@ export function CanvasArea({
             ? { under: menu.under.flatMap((key) => indexed.byKey.get(key) ?? []) }
             : {})}
           stacking={stacking}
+          collapse={collapseActions(indexed, project, selection)}
+          onCollapse={(action, collapsed) => {
+            closeMenu();
+            collapse(action, collapsed);
+          }}
           editable={editable}
           onRestack={(move) => {
             // A move that would change nothing says why, and leaves the menu open for another.
@@ -765,7 +819,8 @@ export function CanvasArea({
  * Where "Add element" puts the next element, and how the toolbar says it:
  * 1. inside the element set from its menu with Add inside "X"…, whatever it holds;
  * 2. inside the one element selected, when its first shape holds contents;
- * 3. next to the one element selected, inside the container its first shape sits in;
+ * 3. beside the first shape of the one element selected, when it holds nothing, in the container it
+ *    sits in or directly in World, so that adding one after another makes a row;
  * 4. otherwise directly in World, at the middle of the canvas.
  * In a view arranged by no relation type that nests, always directly in World.
  */
@@ -775,8 +830,13 @@ function addRuleOf(
   indexed: IndexedScene | undefined,
   selection: Selection,
   target: Id | undefined,
-): { inside?: Id; place?: AddPlace } {
-  if (nestingTypesInView(project, view).length === 0) return {};
+): { inside?: Id; beside?: ElementShape; place?: AddPlace } {
+  const [selected] = selection.elements;
+  const first =
+    sizeOf(selection) === 1 && selected !== undefined
+      ? indexed?.byElement.get(selected)?.[0]
+      : undefined;
+  if (nestingTypesInView(project, view).length === 0) return first ? { beside: first } : {};
   const index = modelIndexOf(project);
   const nameOf = (id: Id) => index.element(id)?.name ?? id;
   const inside = (container: Id, title: string): { inside: Id; place: AddPlace } => ({
@@ -793,16 +853,25 @@ function addRuleOf(
       `Adds the element inside "${nameOf(container)}". With nothing selected, elements are added directly in World.`,
     );
   if (target !== undefined && index.element(target)) return insideItself(target);
-  const [selected] = selection.elements;
-  if (sizeOf(selection) !== 1 || selected === undefined) return {};
-  const first = indexed?.byElement.get(selected)?.[0];
-  if (!first) return {};
+  if (!first || selected === undefined) return {};
   if (first.holdsContents) return insideItself(selected);
-  if (first.container === undefined) return {};
-  return inside(
-    first.container,
-    `Adds the element inside "${nameOf(first.container)}", where "${nameOf(selected)}" sits. To add inside "${nameOf(selected)}" itself, use Add inside "${nameOf(selected)}"… in its menu or in the inspector.`,
-  );
+  if (first.container === undefined) {
+    return {
+      beside: first,
+      place: {
+        option: 'Add element…',
+        label: 'Add an element',
+        title: `Adds the element directly in World, beside "${nameOf(selected)}". To add inside "${nameOf(selected)}" itself, use Add inside "${nameOf(selected)}"… in its menu or in the inspector.`,
+      },
+    };
+  }
+  return {
+    ...inside(
+      first.container,
+      `Adds the element inside "${nameOf(first.container)}", where "${nameOf(selected)}" sits. To add inside "${nameOf(selected)}" itself, use Add inside "${nameOf(selected)}"… in its menu or in the inspector.`,
+    ),
+    beside: first,
+  };
 }
 
 /** What a drop's label says after the label of its change, such as ", and move 2 other shapes". */
@@ -852,6 +921,19 @@ class CameraWatch {
   readonly current = (): Camera | undefined => this.camera;
 
   readonly scale = (): number | undefined => this.camera?.scale;
+}
+
+/**
+ * Hands the canvas the emphasis to draw. It renders on its own, so that markers moving every frame
+ * render nothing else.
+ */
+function DrawnEmphasis({ onEmphasis }: { onEmphasis: (emphasis: Emphasis) => void }) {
+  const emphasis = useEmphasis();
+  const draw = useEffectEvent(onEmphasis);
+  useEffect(() => {
+    draw(emphasis);
+  }, [emphasis]);
+  return null;
 }
 
 /** The toolbar, which shows the zoom: it renders again when the zoom changes, not on every pan. */

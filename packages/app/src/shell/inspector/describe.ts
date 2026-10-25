@@ -8,26 +8,26 @@ import {
 import type { Id, PackageFile, Relation } from '@visual-anything/schema';
 import type { Selection } from '../../editor/selection';
 
-/** How deep the names of relations that end on relations go before they stop. */
-const NAME_DEPTH = 3;
+/** How many hops a name makes, from a relation to a relation it ends on, before it stops. */
+const NAME_HOPS = 3;
 
 /**
  * What an end of a relation is called: an element's name, or a relation's name; a relation without a
  * name is called by its ends, in round brackets: "(Reminder service → HTTPS)".
  */
-export function endName(index: ModelIndex, id: Id, depth = 0): string {
+export function endName(index: ModelIndex, id: Id, hops = 0): string {
   const element = index.element(id);
   if (element) return element.name;
   const relation = index.relation(id);
   if (!relation) return id;
   if (relation.name !== undefined) return relation.name;
-  return depth < NAME_DEPTH ? `(${relationLabel(index, relation, depth + 1)})` : '(a relation)';
+  return hops < NAME_HOPS ? `(${relationLabel(index, relation, hops + 1)})` : '(a relation)';
 }
 
 /** What a relation is called: its name, or else its ends, as in "Patient → WhatsApp channel". */
-export function relationLabel(index: ModelIndex, relation: Relation, depth = 0): string {
+export function relationLabel(index: ModelIndex, relation: Relation, hops = 0): string {
   if (relation.name !== undefined) return relation.name;
-  return `${endName(index, relation.from, depth)} → ${endName(index, relation.to, depth)}`;
+  return `${endName(index, relation.from, hops)} → ${endName(index, relation.to, hops)}`;
 }
 
 /** A relation in words, with its relation type: "Appointments API is part of Scheduling". */

@@ -15,6 +15,7 @@ import { centerOf } from './geometry';
 import { indexScene } from './hit';
 import { CanvasRenderer, type Overlay } from './renderer';
 import { buildScene, type Scene } from './scene';
+import { overlaps } from './spatial';
 
 vi.mock('pixi.js', async (importOriginal) => {
   const pixi = await importOriginal<typeof import('pixi.js')>();
@@ -1021,10 +1022,15 @@ describe('Adding elements', () => {
       fireEvent.change(select, { target: { value: 'systems.service' } });
       await Promise.resolve();
     });
-    const beside = onCommand.mock.lastCall?.[0] as Extract<Command, { type: 'create-element' }>;
-    expect(beside).toMatchObject({ type: 'create-element', element: { name: 'Service' } });
-    expect(beside).not.toHaveProperty('containers');
-    expect(beside.positions?.[0]).not.toHaveProperty('container');
+    // Directly in World, 40 to the right of the System, top edges aligned, and not pinned.
+    const shown = buildScene(withEmptySystem, view.id).shapes.find(
+      (shape) => shape.key === 'empty-system',
+    );
+    expect(onCommand.mock.lastCall?.[0]).toEqual({
+      type: 'create-element',
+      element: { component: 'systems.service', name: 'Service' },
+      positions: [{ view: view.id, x: 40 + shown!.rect.width + 40, y: 700 }],
+    });
 
     fireEvent.keyDown(host, { key: 'F10', shiftKey: true });
     const menu = screen.getByRole('menu', { name: 'System' });
@@ -1041,11 +1047,19 @@ describe('Adding elements', () => {
       fireEvent.change(inside, { target: { value: 'systems.service' } });
       await Promise.resolve();
     });
-    expect(onCommand.mock.lastCall?.[0]).toEqual({
+    const insideIt = onCommand.mock.lastCall?.[0];
+    expect(insideIt).toEqual({
       type: 'create-element',
       element: { component: 'systems.service', name: 'Service' },
       containers: [{ container: 'empty-system', relationType: 'systems.is-part-of' }],
     });
+    // With no position, it lands at the start of the System, below its name.
+    const added = executeCommand(withEmptySystem, insideIt!);
+    if (!added.ok) throw new Error('refused');
+    const landed = buildScene(added.state, view.id).shapes.find(
+      (shape) => shape.element === added.created[0],
+    );
+    expect(landed).toMatchObject({ containerShape: 'empty-system', offset: { x: 24, y: 48 } });
     // The target served once.
     expect(screen.getByRole('combobox', { name: 'Add an element' })).toBeInTheDocument();
   });
@@ -1086,6 +1100,86 @@ describe('Adding elements', () => {
     expect(reveal).toHaveBeenCalledWith(`clinic-booking/${added}`);
   });
 
+  /** Adds a Service from the toolbar and names it, as someone adding one element after another does. */
+  async function addService(name: string): Promise<void> {
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: /^Add an element/ }), {
+        target: { value: 'systems.service' },
+      });
+      await Promise.resolve();
+    });
+    await answers();
+    const field = await screen.findByRole('textbox', { name: 'Name of Service' });
+    fireEvent.change(field, { target: { value: name } });
+    await act(async () => {
+      fireEvent.keyDown(field, { key: 'Enter' });
+      await Promise.resolve();
+    });
+    await answers();
+  }
+
+  /**
+   * The first shapes of the named elements, as the project draws them now, once checked to make a
+   * row: top edges aligned, each 40 to the right of the one before, none overlapping a shape beside it.
+   */
+  function rowOf(shown: ProjectSnapshot, names: readonly string[]) {
+    const drawn = buildScene(shown, view.id);
+    const shapes = names.map((name) => {
+      const element = shown.model.elements.find((each) => each.name === name);
+      const shape = drawn.shapes.find((each) => each.element === element?.id);
+      if (!shape) throw new Error(name);
+      return shape;
+    });
+    for (const [at, shape] of shapes.entries()) {
+      const before = shapes[at - 1];
+      if (before) {
+        expect(shape.rect.y).toBe(before.rect.y);
+        expect(shape.rect.x).toBe(before.rect.x + before.rect.width + 40);
+      }
+      const beside = drawn.shapes.filter(
+        (each) => each.containerShape === shape.containerShape && each.key !== shape.key,
+      );
+      for (const other of beside) {
+        expect(overlaps(other.extent, shape.rect), `${shape.name} on ${other.name}`).toBe(false);
+      }
+    }
+    return shapes;
+  }
+
+  it('makes a row of elements added one after another beside a shape directly in World', async () => {
+    const program = localProgram();
+    const { host, at } = await started(<program.Live />);
+    const patient = at('patient');
+    point('pointerdown', host, patient.x, patient.y);
+    point('pointerup', host, patient.x, patient.y);
+    const select = screen.getByRole('combobox', { name: 'Add an element' });
+    expect(within(select).getAllByRole('option')[0]).toHaveTextContent('Add element…');
+    expect(select).toHaveAttribute(
+      'title',
+      'Adds the element directly in World, beside "Patient". To add inside "Patient" itself, use Add inside "Patient"… in its menu or in the inspector.',
+    );
+
+    await addService('Billing');
+    // Beside Patient lies Clinic booking, so Billing goes on to the right until it is clear of it.
+    const [billing] = rowOf(program.project, ['Billing']);
+    expect(billing).toMatchObject({ rect: { x: 1320, y: 200 }, positioned: 'stored' });
+    expect(billing?.container).toBeUndefined();
+    await addService('Invoices');
+    rowOf(program.project, ['Billing', 'Invoices']);
+    await addService('Receipts');
+    const row = rowOf(program.project, ['Billing', 'Invoices', 'Receipts']);
+    expect(row.map((shape) => shape.container)).toEqual([undefined, undefined, undefined]);
+    const creates = program.onCommand.mock.calls
+      .map(([command]) => command)
+      .filter((command) => command.type === 'create-element');
+    expect(creates).toHaveLength(3);
+    for (const command of creates) {
+      expect(command.positions).toHaveLength(1);
+      expect(command).not.toHaveProperty('containers');
+      expect(command.positions?.[0]).not.toHaveProperty('pinned');
+    }
+  });
+
   it('makes siblings of elements added one after another, each named as it comes', async () => {
     const program = localProgram();
     const { host, on } = await started(<program.Live />);
@@ -1093,48 +1187,46 @@ describe('Adding elements', () => {
     point('pointerdown', host, booking.x, booking.y);
     point('pointerup', host, booking.x, booking.y);
 
-    const add = async (name: string) => {
-      await act(async () => {
-        fireEvent.change(screen.getByRole('combobox', { name: /^Add an element/ }), {
-          target: { value: 'systems.service' },
-        });
-        await Promise.resolve();
-      });
-      await answers();
-      const field = await screen.findByRole('textbox', { name: 'Name of Service' });
-      fireEvent.change(field, { target: { value: name } });
-      await act(async () => {
-        fireEvent.keyDown(field, { key: 'Enter' });
-        await Promise.resolve();
-      });
-      await answers();
-    };
     expect(
       screen.getByRole('combobox', { name: 'Add an element inside "Clinic booking"' }),
     ).toHaveAttribute(
       'title',
       'Adds the element inside "Clinic booking". With nothing selected, elements are added directly in World.',
     );
-    await add('Billing');
+    await addService('Billing');
     const select = screen.getByRole('combobox', { name: 'Add an element inside "Clinic booking"' });
     expect(select).toHaveAttribute(
       'title',
       'Adds the element inside "Clinic booking", where "Billing" sits. To add inside "Billing" itself, use Add inside "Billing"… in its menu or in the inspector.',
     );
-    await add('Invoices');
+    await addService('Invoices');
+    rowOf(program.project, ['Billing', 'Invoices']);
+    await addService('Receipts');
     const inClinic = (name: string) => {
       const element = program.project.model.elements.find((each) => each.name === name);
       return program.project.model.relations.some(
         (relation) => relation.from === element?.id && relation.to === 'clinic-booking',
       );
     };
-    expect(inClinic('Billing')).toBe(true);
-    expect(inClinic('Invoices')).toBe(true);
+    expect(['Billing', 'Invoices', 'Receipts'].map(inClinic)).toEqual([true, true, true]);
+    // Billing goes where Clinic booking puts new contents, below the ones it holds; each of the others
+    // goes beside the one before, and Billing keeps its place in the same action as Invoices.
+    const row = rowOf(program.project, ['Billing', 'Invoices', 'Receipts']);
+    expect(row.map((shape) => [shape.containerShape, shape.offset])).toEqual([
+      ['clinic-booking', { x: 24, y: 480 }],
+      ['clinic-booking', { x: 244, y: 480 }],
+      ['clinic-booking', { x: 464, y: 480 }],
+    ]);
     const creates = program.onCommand.mock.calls
       .map(([command]) => command)
+      .flatMap((command) => (command.type === 'batch' ? command.commands : [command]))
       .filter((command) => command.type === 'create-element');
-    expect(creates).toHaveLength(2);
-    for (const command of creates) expect(command).not.toHaveProperty('positions');
+    expect(creates).toHaveLength(3);
+    expect(creates[0]).not.toHaveProperty('positions');
+    expect(creates.slice(1).map((command) => command.positions)).toEqual([
+      [{ view: view.id, container: 'clinic-booking', x: 244, y: 480 }],
+      [{ view: view.id, container: 'clinic-booking', x: 464, y: 480 }],
+    ]);
   });
 });
 
@@ -1456,7 +1548,8 @@ describe('The user’s case, end to end', () => {
     expect(rank('clinic-booking/calendar')).toBeLessThan(rank('clinic-booking/scheduling'));
     expect(rank('clinic-booking/calendar')).toBeGreaterThan(rank('clinic-booking'));
 
-    // 8. Add element now puts the new element inside Clinic booking, next to Calendar.
+    // 8. Add element now puts the new element inside Clinic booking, next to Calendar: 40 to its
+    // right, and on past Scheduling, which it would overlap there.
     const add = screen.getByRole('combobox', { name: 'Add an element inside "Clinic booking"' });
     await act(async () => {
       fireEvent.change(add, { target: { value: 'systems.service' } });
@@ -1467,6 +1560,17 @@ describe('The user’s case, end to end', () => {
       type: 'create-element',
       element: { component: 'systems.service', name: 'Service' },
       containers: [{ container: 'clinic-booking', relationType: 'systems.is-part-of' }],
+      positions: [
+        { view: view.id, container: 'clinic-booking', x: 370 + 180 + 40 + 2 * 220, y: 320 },
+      ],
     });
+    const drawn = buildScene(program.project, view.id);
+    const added = drawn.shapes.find(
+      (shape) => shape.element === program.project.model.elements.at(-1)?.id,
+    );
+    expect(added?.containerShape).toBe('clinic-booking');
+    for (const other of drawn.shapes.filter((shape) => shape.containerShape === 'clinic-booking')) {
+      if (other !== added) expect(overlaps(other.extent, added!.rect)).toBe(false);
+    }
   });
 });

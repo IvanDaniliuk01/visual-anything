@@ -37,6 +37,7 @@ interface CheckedShape {
   element: Element;
   from: Id | undefined;
   at: { x: number; y: number; width?: number; height?: number } | undefined;
+  pinned: boolean;
 }
 
 export function changeContainer(draft: Draft, command: ChangeContainerCommand): string {
@@ -61,11 +62,11 @@ export function changeContainer(draft: Draft, command: ChangeContainerCommand): 
   }
 
   const before = draft.state;
-  const contents = new Map<Id, Id[]>();
-  const contentsOf = (key: Id): Id[] => {
+  const contents = new Map<Id, Set<Id>>();
+  const contentsOf = (key: Id): Set<Id> => {
     let ids = contents.get(key);
     if (!ids) {
-      ids = contentsInView(before, view, key === worldId ? undefined : key);
+      ids = new Set(contentsInView(before, view, key === worldId ? undefined : key));
       contents.set(key, ids);
     }
     return ids;
@@ -79,7 +80,7 @@ export function changeContainer(draft: Draft, command: ChangeContainerCommand): 
     }
     const from =
       shape.from === undefined || shape.from === worldId ? undefined : draft.element(shape.from);
-    if (!contentsOf(stackingKey(worldId, from?.id)).includes(element.id)) {
+    if (!contentsOf(stackingKey(worldId, from?.id)).has(element.id)) {
       reject('unknown-position', whereNot(element.name, from?.name, view), [element.id]);
     }
     const pair = JSON.stringify([from?.id ?? null, element.id]);
@@ -115,7 +116,12 @@ export function changeContainer(draft: Draft, command: ChangeContainerCommand): 
     if (to !== undefined && element.id === to.id) {
       reject('containment-cycle', `"${element.name}" cannot go inside itself.`, [element.id]);
     }
-    return { element, from: from?.id, at };
+    if (shape.pinned !== undefined && typeof shape.pinned !== 'boolean') {
+      reject('invalid-command', `Whether "${element.name}" is pinned is true or false.`, [
+        element.id,
+      ]);
+    }
+    return { element, from: from?.id, at, pinned: shape.pinned ?? true };
   });
 
   // The elements, in the order they first come; one enters when a shape of it leaves where it sits.
@@ -198,9 +204,9 @@ export function changeContainer(draft: Draft, command: ChangeContainerCommand): 
     }
   }
 
-  // Positions: where the shapes go, pinned, since someone put them there.
+  // Positions: where the shapes go, pinned unless the program chose the place.
   const inWorld = new Set(contentsInView(draft.state, view, undefined));
-  const positions: ShapePosition[] = checked.flatMap(({ element, at }) => {
+  const positions: ShapePosition[] = checked.flatMap(({ element, at, pinned }) => {
     if (at === undefined) return [];
     if (to === undefined && !inWorld.has(element.id)) return [];
     return [
@@ -208,7 +214,7 @@ export function changeContainer(draft: Draft, command: ChangeContainerCommand): 
         element: element.id,
         ...(to === undefined ? {} : { container: to.id }),
         ...at,
-        pinned: true,
+        ...(pinned ? { pinned: true } : {}),
       },
     ];
   });
@@ -217,11 +223,13 @@ export function changeContainer(draft: Draft, command: ChangeContainerCommand): 
   // Front: what entered comes in front of what was there, in the order given.
   const key = stackingKey(worldId, to?.id);
   const live = contentsInView(draft.state, view, to?.id);
-  const front = entering.map((element) => element.id).filter((id) => live.includes(id));
+  const shown = new Set(live);
+  const front = entering.map((element) => element.id).filter((id) => shown.has(id));
   if (front.length > 0) {
     const current = draft.view(view.id);
     const stored = storedStacking(current, key) ?? [];
-    const order = orderByStacking(live, (id) => id, stored).filter((id) => !front.includes(id));
+    const entered = new Set(front);
+    const order = orderByStacking(live, (id) => id, stored).filter((id) => !entered.has(id));
     order.push(...front);
     const collection = { name: 'stackingOrder' as const, view: view.id, container: key };
     const next = stackingListFor(order, modelRankOf(draft.state));

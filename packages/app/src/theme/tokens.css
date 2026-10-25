@@ -1,0 +1,139 @@
+/* Generated from src/theme/themes.ts and scale.ts by `pnpm exec tsx packages/app/src/theme/generate.ts`. Do not edit. */
+
+:root {
+  color-scheme: light;
+  --canvas: #ffffff;
+  --surface: #ffffff;
+  --panel: #f7f8fa;
+  --surface-raised: #ffffff;
+  --surface-hover: #eef1f4;
+  --surface-pressed: #e5e9ed;
+  --text: #1f2933;
+  --text-muted: #52606d;
+  --border: #d9dee5;
+  --control-border: #76828f;
+  --accent: #1d4f91;
+  --accent-soft: #e6eefa;
+  --accent-fill: #1d4f91;
+  --on-accent: #ffffff;
+  --selected: #2563eb;
+  --focus-ring: #2563eb;
+  --problem: #a61b1b;
+  --problem-soft: #fdecec;
+  --problem-fill: #a61b1b;
+  --problem-fill-hover: #8c1616;
+  --on-problem: #ffffff;
+  --warning: #6b4e00;
+  --warning-soft: #fff4d6;
+  --highlight: #c2410c;
+  --backdrop: rgb(16 24 40 / 35%);
+  --shadow-1: 0 1px 2px rgb(16 24 40 / 6%);
+  --shadow-2: 0 8px 24px rgb(16 24 40 / 16%);
+  --shadow-3: 0 16px 40px rgb(16 24 40 / 25%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --canvas: #16191e;
+    --surface: #16191e;
+    --panel: #1c2027;
+    --surface-raised: #242a33;
+    --surface-hover: #2b323c;
+    --surface-pressed: #333b46;
+    --text: #e4e7eb;
+    --text-muted: #a3adb8;
+    --border: #2f3640;
+    --control-border: #7c8896;
+    --accent: #8ab4f8;
+    --accent-soft: #1e3a5f;
+    --accent-fill: #8ab4f8;
+    --on-accent: #0f1b2d;
+    --selected: #4c8df6;
+    --focus-ring: #4c8df6;
+    --problem: #ff8a80;
+    --problem-soft: #3a1d1f;
+    --problem-fill: #c62828;
+    --problem-fill-hover: #b02020;
+    --on-problem: #ffffff;
+    --warning: #f2c14e;
+    --warning-soft: #3a2e10;
+    --highlight: #fb923c;
+    --backdrop: rgb(0 0 0 / 55%);
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 40%);
+    --shadow-2: 0 8px 24px rgb(0 0 0 / 50%);
+    --shadow-3: 0 16px 40px rgb(0 0 0 / 60%);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --canvas: #16191e;
+  --surface: #16191e;
+  --panel: #1c2027;
+  --surface-raised: #242a33;
+  --surface-hover: #2b323c;
+  --surface-pressed: #333b46;
+  --text: #e4e7eb;
+  --text-muted: #a3adb8;
+  --border: #2f3640;
+  --control-border: #7c8896;
+  --accent: #8ab4f8;
+  --accent-soft: #1e3a5f;
+  --accent-fill: #8ab4f8;
+  --on-accent: #0f1b2d;
+  --selected: #4c8df6;
+  --focus-ring: #4c8df6;
+  --problem: #ff8a80;
+  --problem-soft: #3a1d1f;
+  --problem-fill: #c62828;
+  --problem-fill-hover: #b02020;
+  --on-problem: #ffffff;
+  --warning: #f2c14e;
+  --warning-soft: #3a2e10;
+  --highlight: #fb923c;
+  --backdrop: rgb(0 0 0 / 55%);
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-2: 0 8px 24px rgb(0 0 0 / 50%);
+  --shadow-3: 0 16px 40px rgb(0 0 0 / 60%);
+}
+
+:root {
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.4rem;
+  --radius-lg: 0.6rem;
+  --radius-full: 999px;
+  --text-xs: 0.857rem;
+  --text-sm: 0.929rem;
+  --text-md: 1rem;
+  --text-lg: 1.143rem;
+  --text-xl: 1.286rem;
+  --weight-medium: 500;
+  --weight-strong: 600;
+  --weight-heading: 700;
+  --line-tight: 1.25;
+  --line-normal: 1.45;
+  --z-toolbar: 2;
+  --z-editor: 3;
+  --z-menu: 4;
+  --z-dialog: 10;
+  --z-notices: 20;
+  --control-sm: 1.75rem;
+  --control-md: 2.25rem;
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ruler-size: 20px;
+}
+
+/* Names kept for styles written before these tokens; they go once every branch has merged. */
+:root {
+  --notice: var(--warning);
+  --notice-soft: var(--warning-soft);
+}
