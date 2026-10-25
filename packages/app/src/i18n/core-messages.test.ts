@@ -615,6 +615,20 @@ const COMMANDS: readonly [string, Command][] = [
       { type: 'add-package', package: { ...shared('p', []), images: [{ id: 'p.i', name: 'I' }] } },
     ],
     ['update no package', { type: 'replace-package' }],
+    [
+      'add a package with a key no package has',
+      { type: 'add-package', package: { ...shared('p', []), code: 'alert(1)' } },
+    ],
+    [
+      'add a package with an image that has a key no image has',
+      {
+        type: 'add-package',
+        package: {
+          ...shared('p', []),
+          images: [{ kind: 'svg', id: 'p.i', name: 'I', svg: '<svg/>', onload: 'alert(1)' }],
+        },
+      },
+    ],
     ['description not text', { type: 'update-package', id: 'clinic', changes: { description: 5 } }],
     ['unreadable position', { type: 'set-positions', view: VIEW, positions: [null] }],
   ]),

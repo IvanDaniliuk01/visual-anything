@@ -139,12 +139,28 @@ function useBuiltIn(draft: Draft, ids: readonly Id[]): void {
   }
 }
 
+/** The keys a package file has. */
+const PACKAGE_KEYS: readonly string[] = [
+  'id',
+  'name',
+  'description',
+  'version',
+  'license',
+  'attribution',
+  'components',
+  'relationTypes',
+  'images',
+];
+
 /** A package as a command gives it: an object with an id, a name and lists of definitions. */
 function shapeOf(value: unknown, command: string): PackageFile {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     reject('invalid-command', `${command} needs the package, as its file holds it.`);
   }
   const file = value as Partial<Record<keyof PackageFile, unknown>>;
+  for (const key of Object.keys(file)) {
+    if (!PACKAGE_KEYS.includes(key)) reject('invalid-command', `A package has no "${key}".`);
+  }
   const lists = [file.components, file.relationTypes];
   if (lists.some((list) => !Array.isArray(list))) {
     reject('invalid-command', 'A package holds a list of components and one of relation types.');
@@ -237,22 +253,20 @@ function needsOf(state: ProjectSnapshot, file: PackageFile, name: string): Id[] 
 
 /** The images of a package, cleaned again, within what a package may hold, warning about what went. */
 function cleanedImages(draft: Draft, file: PackageFile, name: string): ImageDefinition[] {
-  const images = (file.images ?? []).map((image) => {
-    const kind: unknown = (image as { kind?: unknown }).kind;
-    if (kind !== 'svg' && kind !== 'bitmap') {
-      reject('invalid-command', 'An image is of the kind "svg" or "bitmap".');
-    }
-    const result = cleanedImage(image);
-    if (result.removed.length > 0) {
+  // Each image is checked as define-image checks one, keys, name, source and license included, then
+  // cleaned again: nothing from another project is taken as it comes.
+  const images = (file.images ?? []).map((given: unknown) => {
+    const { image, removed } = cleanedImage(given);
+    if (removed.length > 0) {
       draft.warnings.push(
         problem(
           'image-cleaned',
-          `Cleaning the image "${image.name}" removed: ${result.removed.join(', ')}.`,
+          `Cleaning the image "${image.name}" removed: ${removed.join(', ')}.`,
           [image.id],
         ),
       );
     }
-    return result.image;
+    return image;
   });
   checkImageCaps({ id: file.id, name }, images);
   return images;

@@ -65,6 +65,17 @@ describe('define-image', () => {
     ).toEqual(['invalid-command']);
   });
 
+  it('refuses keys an image does not have', () => {
+    const outcome = executeCommand(imageProject(), {
+      type: 'define-image',
+      package: 'clinic',
+      image: { name: 'Bell', svg: SQUARE, href: 'https://example.com/bell.svg' } as never,
+    });
+    expect(outcome.ok ? [] : outcome.problems.map((each) => each.message)).toEqual([
+      'An image has no "href".',
+    ]);
+  });
+
   it('stores SVG text as cleaning gives it, says what it removed, and undoes exactly', () => {
     const before = imageProject();
     const outcome = run(before, {

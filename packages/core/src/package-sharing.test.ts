@@ -239,6 +239,79 @@ describe('add-package', () => {
     expect(refused(doctype).map((each) => each.code)).toEqual(['invalid-image']);
   });
 
+  it('checks every image from another project as define-image checks one, before cleaning it', () => {
+    const image = SHOP.images![0]!;
+    const withImage = (bad: Record<string, unknown>) =>
+      add({ ...SHOP, images: [{ ...image, ...bad }] });
+    const cases: [Record<string, unknown>, string, string][] = [
+      [{ name: 'x'.repeat(201) }, 'invalid-command', "An image's name has at most 200 characters."],
+      [{ name: ' ' }, 'empty-name', 'An image needs a name.'],
+      [{ name: 5 }, 'empty-name', 'An image needs a name.'],
+      [
+        { source: { url: 'https://example.com' } },
+        'invalid-command',
+        'Where an image comes from is text of at most 500 characters.',
+      ],
+      [
+        { source: 's'.repeat(501) },
+        'invalid-command',
+        'Where an image comes from is text of at most 500 characters.',
+      ],
+      [
+        { license: 'CC BY-SA 4.0' },
+        'invalid-command',
+        'An image’s license is an SPDX license identifier, such as CC0-1.0 or MIT.',
+      ],
+      [
+        { license: ['MIT'] },
+        'invalid-command',
+        'An image’s license is an SPDX license identifier, such as CC0-1.0 or MIT.',
+      ],
+      [{ onload: 'alert(1)' }, 'invalid-command', 'An image has no "onload".'],
+      [{ href: 'https://example.com/a.svg' }, 'invalid-command', 'An image has no "href".'],
+      [{ data: 'iVBORw0KGgo=' }, 'invalid-command', 'An image has no "data".'],
+      [{ kind: 'html' }, 'invalid-command', 'An image is of the kind "svg" or "bitmap".'],
+      [{ svg: 5 }, 'invalid-command', 'An SVG image is given as text.'],
+    ];
+    for (const [bad, code, message] of cases) {
+      expect(refused(withImage(bad)), JSON.stringify(bad).slice(0, 60)).toEqual([
+        expect.objectContaining({ code, message }),
+      ]);
+    }
+    const bitmap = add({
+      ...SHOP,
+      components: [SHOP.components[1]!],
+      relationTypes: [],
+      images: [
+        {
+          kind: 'bitmap',
+          id: 'shop.photo',
+          name: 'Photo',
+          format: 'gif',
+          width: 1,
+          height: 1,
+          data: 'R0lGODlhAQABAAAAACw=',
+        } as never,
+      ],
+    });
+    expect(refused(bitmap).map((each) => each.code)).toEqual(['invalid-command']);
+    const updated = ok(add()).state;
+    expect(
+      refused(replace({ ...SHOP, images: [{ ...image, script: 'alert(1)' } as never] }), updated),
+    ).toEqual([expect.objectContaining({ message: 'An image has no "script".' })]);
+  });
+
+  it('refuses keys a package does not have', () => {
+    expect(refused(add({ ...SHOP, code: 'alert(1)' } as never))).toEqual([
+      expect.objectContaining({ code: 'invalid-command', message: 'A package has no "code".' }),
+    ]);
+  });
+
+  it('keeps an image’s width and height as cleaning finds them, never as it says', () => {
+    const outcome = ok(add({ ...SHOP, images: [{ ...SHOP.images![0]!, width: 9999, height: 1 }] }));
+    expect(outcome.state.packages.at(-1)?.images?.[0]).toMatchObject({ width: 24, height: 24 });
+  });
+
   it('checks the version, the license and the attribution', () => {
     expect(refused(add({ ...SHOP, version: 'v1' }))[0]?.message).toBe(
       'A package’s version is a semantic version, such as 1.2.0.',

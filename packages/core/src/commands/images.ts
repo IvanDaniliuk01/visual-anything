@@ -30,24 +30,7 @@ export function defineImage(draft: Draft, command: DefineImageCommand): string {
   if (typeof asked !== 'object' || asked === null) {
     reject('invalid-command', 'define-image needs the image to define.');
   }
-  const name = requireName(asked.name, 'An image');
-  if (name.length > IMAGE_CAPS.name) {
-    reject('invalid-command', `An image's name has at most ${IMAGE_CAPS.name} characters.`);
-  }
-  const source = asked.source;
-  if (source !== undefined && (typeof source !== 'string' || source.length > IMAGE_CAPS.source)) {
-    reject(
-      'invalid-command',
-      `Where an image comes from is text of at most ${IMAGE_CAPS.source} characters.`,
-    );
-  }
-  const license = asked.license;
-  if (license !== undefined && !isLicenseId(license)) {
-    reject(
-      'invalid-command',
-      'An image’s license is an SPDX license identifier, such as CC0-1.0 or MIT.',
-    );
-  }
+  const { name, source, license } = checkedImageAbout(asked, NEW_IMAGE_KEYS);
   const isSvg = asked.svg !== undefined;
   const isBitmap = asked.data !== undefined || asked.format !== undefined;
   if (isSvg === isBitmap) {
@@ -166,21 +149,79 @@ export interface ImageAbout {
   license?: string;
 }
 
+/** The keys `define-image` takes for an image. */
+const NEW_IMAGE_KEYS: readonly string[] = [
+  'id',
+  'name',
+  'source',
+  'license',
+  'svg',
+  'format',
+  'data',
+];
+
+/** The keys an image of each kind has, as a package file holds it. */
+const STORED_IMAGE_KEYS: Readonly<Record<ImageDefinition['kind'], readonly string[]>> = {
+  svg: ['kind', 'id', 'name', 'source', 'license', 'width', 'height', 'svg'],
+  bitmap: ['kind', 'id', 'name', 'source', 'license', 'format', 'width', 'height', 'data'],
+};
+
 /**
- * An image as a package holds it, cleaned again as `define-image` cleans one, with what cleaning
- * removed: an image that comes from another project is never trusted to be clean already.
+ * Checks what an image says about itself, as every command that stores one checks it, wherever the
+ * image comes from: only the keys given, a name of at most 200 characters, a source of text of at
+ * most 500, and a license written as an SPDX identifier.
  */
-export function cleanedImage(image: ImageDefinition): {
+function checkedImageAbout(
+  asked: Partial<Record<string, unknown>>,
+  keys: readonly string[],
+): { name: string; source?: string; license?: string } {
+  for (const key of Object.keys(asked)) {
+    if (!keys.includes(key)) reject('invalid-command', `An image has no "${key}".`);
+  }
+  const name = requireName(asked.name, 'An image');
+  if (name.length > IMAGE_CAPS.name) {
+    reject('invalid-command', `An image's name has at most ${IMAGE_CAPS.name} characters.`);
+  }
+  const source = asked.source;
+  if (source !== undefined && (typeof source !== 'string' || source.length > IMAGE_CAPS.source)) {
+    reject(
+      'invalid-command',
+      `Where an image comes from is text of at most ${IMAGE_CAPS.source} characters.`,
+    );
+  }
+  const license = asked.license;
+  if (license !== undefined && !isLicenseId(license)) {
+    reject(
+      'invalid-command',
+      'An image’s license is an SPDX license identifier, such as CC0-1.0 or MIT.',
+    );
+  }
+  return compact({ name, source, license });
+}
+
+/**
+ * An image as a package holds it, checked and cleaned again as `define-image` checks and cleans
+ * one, with what cleaning removed: an image that comes from another project is never trusted to be
+ * well formed or clean already. Its width and height are what cleaning finds, never what it says.
+ */
+export function cleanedImage(given: unknown): {
   image: ImageDefinition;
   removed: readonly string[];
 } {
-  const about: ImageAbout = compact({
-    id: image.id,
-    name: image.name,
-    source: image.source,
-    license: image.license,
-  });
-  return image.kind === 'svg'
+  if (typeof given !== 'object' || given === null || Array.isArray(given)) {
+    reject('invalid-command', 'Each definition and image of a package is an object.');
+  }
+  const image = given as Partial<Record<string, unknown>>;
+  const { kind } = image;
+  if (kind !== 'svg' && kind !== 'bitmap') {
+    reject('invalid-command', 'An image is of the kind "svg" or "bitmap".');
+  }
+  const { name, source, license } = checkedImageAbout(image, STORED_IMAGE_KEYS[kind]);
+  if (!isId(image.id)) {
+    reject('invalid-id', `${JSON.stringify(image.id) ?? 'undefined'} is not a valid id.`);
+  }
+  const about: ImageAbout = compact({ id: image.id, name, source, license });
+  return kind === 'svg'
     ? cleanedSvg(image.svg, about)
     : cleanedBitmap(image.format, image.data, about);
 }

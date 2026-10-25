@@ -1765,6 +1765,8 @@ export const messages: Catalog = {
   'Each definition and image of a package is an object.':
     'Cada definición e imagen de un paquete es un objeto JSON.',
   'An image is of the kind "svg" or "bitmap".': 'Una imagen es de la clase "svg" o "bitmap".',
+  'An image has no "{key}".': 'Una imagen no tiene "{key}".',
+  'A package has no "{key}".': 'Un paquete no tiene "{key}".',
   'A package’s version is a semantic version, such as 1.2.0.':
     'La versión de un paquete es una versión semántica, como 1.2.0.',
   'A package’s license is an SPDX license identifier, such as CC0-1.0 or MIT.':
