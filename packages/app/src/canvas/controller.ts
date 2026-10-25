@@ -78,9 +78,19 @@ import {
   type RelationStop,
   type Start,
 } from './navigation';
-import { CanvasRenderer, type Overlay } from './renderer';
+import { CanvasRenderer, type DragFrame, type GridOptions, type Overlay } from './renderer';
 import type { ElementShape, NoteShape } from './scene';
+import {
+  WORLD_FRAME,
+  aimFrame,
+  dragAnchor,
+  nudgeStep,
+  readoutText,
+  snapDrag,
+  type Anchor,
+} from './snapping';
 import { rectAround, rectBetween } from './spatial';
+import { t } from '../i18n';
 
 /** What the canvas asks of the rest of the app. */
 export interface ControllerCallbacks {
@@ -114,6 +124,8 @@ export interface ControllerCallbacks {
    * canvas sends I1's command and says what it did.
    */
   collapse?(action: CollapseAction, collapsed: boolean): void;
+  /** Asks to show or hide the grid or the rulers, as Shift+G and Shift+R do: preferences (A3). */
+  changeGrid?(changes: Partial<GridOptions>): void;
 }
 
 /**
@@ -137,6 +149,8 @@ export interface ChangeToConfirm {
 export interface ControllerOptions {
   /** Where the caption that says what a drop would do is written, beside the pointer. */
   caption?: HTMLElement;
+  /** The marks on the rulers that follow the pointer, across the top and down the left (A3). */
+  pointerMarks?: { across: HTMLElement; down: HTMLElement };
 }
 
 type Gesture =
@@ -156,8 +170,12 @@ interface DragGesture {
   pointer: number;
   /** Where the press was, in the scene. */
   world: Point;
-  /** How far the shapes have been dragged, in scene units. */
+  /** How far the shapes have been dragged, in canvas units, snapped to the grid while it snaps. */
   delta: Point;
+  /** How far the pointer has gone, in canvas units. */
+  raw: Point;
+  /** What snaps: the moving shape that carries the grabbed one, or the free shape grabbed (A3). */
+  anchor: Anchor | undefined;
   /** The renderer's drag, as `startDrag` named it: ending it leaves any later drag alone. */
   drag: number;
   /** What a drop into or out of a container may do; absent when the drag only moves shapes. */
@@ -214,10 +232,14 @@ interface SecondaryPress {
   shape?: string;
 }
 
-/** A press of Shift with an arrow key: the step, and what was selected when it was pressed. */
+/**
+ * A press of Shift with an arrow key: its direction, and what was selected and current when it was
+ * pressed; how far it moves is worked out when it is sent, from where the moves before it left things.
+ */
 interface Nudge {
-  step: Point;
+  direction: Direction;
   selection: Selection;
+  current: string | undefined;
 }
 
 /** How far the pointer moves before a press becomes a drag, in screen pixels. */
@@ -233,8 +255,6 @@ const RELATION_STEPS: Partial<Record<string, 1 | -1>> = { ']': 1, '[': -1, '.': 
 const KEY_ZOOM = 1.25;
 /** The scale a revealed shape is shown at, at least: large enough to read its name. */
 const REVEAL_SCALE = 0.75;
-/** How far Shift with an arrow key moves the selection, in scene units. */
-const NUDGE = 10;
 /** How many presses of Shift with an arrow key wait for the move before them, at most. */
 const MAX_WAITING_NUDGES = 8;
 /** How many rectangles show where dropped shapes land; more show as one around them all. */
@@ -251,13 +271,6 @@ const DIRECTIONS: Partial<Record<string, Direction>> = {
   ArrowRight: 'right',
   ArrowUp: 'up',
   ArrowDown: 'down',
-};
-
-const STEPS: Record<Direction, Point> = {
-  left: { x: -NUDGE, y: 0 },
-  right: { x: NUDGE, y: 0 },
-  up: { x: 0, y: -NUDGE },
-  down: { x: 0, y: NUDGE },
 };
 
 const TOWARDS: Record<Direction, string> = {
@@ -305,6 +318,13 @@ export class CanvasController {
   private emphasis: Emphasis = {};
   /** While a scenario records: a click on a relation, or Enter on a selected one, records it. */
   private recorder: Recorder | undefined;
+  /** Whether the grid, snapping and the rulers are on (A3). */
+  private grid: GridOptions = { grid: false, snapToGrid: true, rulers: false };
+  /** The rulers' marks of the pointer, and where it last was on screen. */
+  private readonly pointerMarks: { across: HTMLElement; down: HTMLElement } | undefined;
+  private pointerAt: Point | undefined;
+  /** Whether a drag let go with Alt held, whose Alt keyup Windows browsers would take for the menu. */
+  private altDragged = false;
 
   constructor(
     private readonly host: HTMLElement,
@@ -312,6 +332,8 @@ export class CanvasController {
     options: ControllerOptions = {},
   ) {
     this.caption = options.caption;
+    this.pointerMarks = options.pointerMarks;
+    this.markPointer(undefined);
     this.renderer = new CanvasRenderer(host, {
       onFailure: (error) => callbacks.failure(error),
       onCamera: (camera) => callbacks.camera(camera),
@@ -375,6 +397,21 @@ export class CanvasController {
    */
   setRecorder(recorder: Recorder | undefined): void {
     this.recorder = recorder;
+  }
+
+  /**
+   * Shows or hides the grid and the rulers, and says whether hand moves and new shapes snap to the
+   * grid, which they do only while it shows (A3).
+   */
+  setGrid(options: GridOptions): void {
+    this.grid = options;
+    this.renderer.setGrid(options);
+    this.gridUnder();
+  }
+
+  /** Whether hand moves and new shapes snap to the grid now: while it shows, with snapping on. */
+  get snapping(): boolean {
+    return this.grid.grid && this.grid.snapToGrid;
   }
 
   get camera(): Camera {
@@ -488,8 +525,10 @@ export class CanvasController {
       if (event.pointerId !== this.gesture.pointer) return;
       this.cancel();
     }
-    this.host.focus({ preventScroll: true });
     const screen = this.local(event);
+    // The rulers take no presses: what lies under them is pressed beside them.
+    if (this.renderer.rulersContain(screen)) return;
+    this.host.focus({ preventScroll: true });
     if (event.button === 1 || (event.button === 0 && this.spaceHeld)) {
       this.begin(event, {
         kind: 'pan',
@@ -563,6 +602,7 @@ export class CanvasController {
     const screen = this.local(event);
     const world = screenToWorld(this.camera, screen);
     const gesture = this.gesture;
+    this.markPointer(screen);
     switch (gesture.kind) {
       case 'pan':
         this.renderer.setCamera(
@@ -595,6 +635,8 @@ export class CanvasController {
           pointer: gesture.pointer,
           world: gesture.world,
           delta,
+          raw: delta,
+          anchor: dragAnchor(indexed, this.selection, gesture.hit),
           drag,
           ...(plan ? { plan } : {}),
           aim: { kind: 'stay' },
@@ -606,7 +648,8 @@ export class CanvasController {
           landingFrame: undefined,
         };
         this.gesture = dragged;
-        this.renderer.dragTo(delta);
+        this.renderer.showContainerGrid(undefined);
+        this.placeDrag(dragged);
         this.hovered = undefined;
         this.refreshMarks();
         // The drag drew over the drops still waiting: their marks show where they land.
@@ -615,10 +658,10 @@ export class CanvasController {
         return;
       }
       case 'drag': {
-        gesture.delta = { x: world.x - gesture.world.x, y: world.y - gesture.world.y };
+        gesture.raw = { x: world.x - gesture.world.x, y: world.y - gesture.world.y };
         gesture.at = screen;
         gesture.alt = event.altKey;
-        this.renderer.dragTo(gesture.delta);
+        this.placeDrag(gesture);
         this.aimDrop(gesture);
         return;
       }
@@ -642,6 +685,12 @@ export class CanvasController {
         return;
       }
       case 'idle': {
+        // Over a ruler nothing is hovered, and no handle or toggle shows.
+        if (this.renderer.rulersContain(screen)) {
+          this.idleOverRulers();
+          return;
+        }
+        this.gridUnder(world);
         const hit = this.hit(world, HIT_TOLERANCE / this.camera.scale);
         const shape = hit?.kind === 'shape' ? hit.shape : undefined;
         const handleShape = this.handleShape();
@@ -751,6 +800,8 @@ export class CanvasController {
   };
 
   private readonly onPointerLeave = (): void => {
+    this.markPointer(undefined);
+    if (this.gesture.kind === 'idle') this.renderer.showContainerGrid(undefined);
     if (this.gesture.kind === 'idle' && this.hovered) {
       this.hovered = undefined;
       this.refreshMarks();
@@ -770,10 +821,12 @@ export class CanvasController {
       this.renderer.setCamera(panBy(this.camera, -event.deltaX * scale, -event.deltaY * scale));
     }
     this.refreshMarks();
+    if (this.gesture.kind === 'idle') this.gridUnder();
   };
 
   private readonly onDoubleClick = (event: MouseEvent): void => {
     if (!this.indexed || !this.editable) return;
+    if (this.renderer.rulersContain(this.local(event))) return;
     const world = screenToWorld(this.camera, this.local(event));
     const hit = this.hit(world, HIT_TOLERANCE / this.camera.scale);
     if (hit?.kind === 'shape') this.callbacks.rename({ kind: 'element', shape: hit.shape });
@@ -788,10 +841,12 @@ export class CanvasController {
       event.preventDefault();
       if (!gesture.alt) {
         gesture.alt = true;
+        this.placeDrag(gesture);
         this.aimDrop(gesture);
       }
       return;
     }
+    if (this.toggleGrid(event)) return;
     if (
       event.key === 'ContextMenu' ||
       (event.key === 'F10' && event.shiftKey && !command && !event.altKey)
@@ -871,7 +926,12 @@ export class CanvasController {
     if (event.key === 'Alt' && gesture.kind === 'drag') {
       event.preventDefault();
       gesture.alt = false;
+      this.placeDrag(gesture);
       this.aimDrop(gesture);
+    } else if (event.key === 'Alt' && this.altDragged) {
+      // The Alt of a drag let go with it: kept from Windows browsers, which would focus their menu.
+      event.preventDefault();
+      this.altDragged = false;
     }
   };
 
@@ -883,6 +943,12 @@ export class CanvasController {
    */
   private readonly onContextMenu = (event: MouseEvent): void => {
     event.preventDefault();
+    // A secondary press on a ruler opens no menu.
+    const fromPointer = event.button === 2 || (IS_APPLE && event.ctrlKey);
+    if (fromPointer && this.renderer.rulersContain(this.local(event))) {
+      this.secondary = undefined;
+      return;
+    }
     const { menuKeyTime, secondary } = this;
     this.menuKeyTime = undefined;
     this.secondary = undefined;
@@ -965,6 +1031,7 @@ export class CanvasController {
    */
   private drop(gesture: DragGesture): void {
     this.endDropFeedback(gesture);
+    if (gesture.alt) this.altDragged = true;
     const { indexed, project, viewId, selection } = this;
     const { delta, drag, plan } = gesture;
     const dropped =
@@ -1053,6 +1120,8 @@ export class CanvasController {
     this.restOn(gesture, aim);
     if (first || !sameAim(aim, gesture.aim)) {
       gesture.aim = aim;
+      // Where the shapes land may snap in another container now.
+      if (!first) this.placeDrag(gesture);
       gesture.cover = landingCover(indexed, plan, aim, gesture.delta);
       this.showDrop(gesture);
     } else {
@@ -1522,7 +1591,7 @@ export class CanvasController {
    */
   private nudge(direction: Direction, repeated: boolean): void {
     if (!this.editable) return;
-    const nudge: Nudge = { step: STEPS[direction], selection: this.selection };
+    const nudge: Nudge = { direction, selection: this.selection, current: this.current };
     if (this.sent.length > 0 || this.nudges.length > 0) {
       if (!repeated && this.nudges.length < MAX_WAITING_NUDGES) this.nudges.push(nudge);
       return;
@@ -1538,17 +1607,29 @@ export class CanvasController {
     }
   }
 
-  private sendNudge({ step, selection }: Nudge): void {
+  private sendNudge({ direction, selection, current }: Nudge): void {
     const { indexed, project, viewId } = this;
     const command =
       indexed && project && viewId
-        ? moveCommand(indexed, project, viewId, selection, step)
+        ? moveCommand(
+            indexed,
+            project,
+            viewId,
+            selection,
+            nudgeStep(indexed, selection, current, direction, this.snapping),
+          )
         : undefined;
     if (project && command) this.send(command, { from: project, applied: false });
   }
 
   private revealRect(rect: Rect): void {
-    const camera = revealCamera(this.camera, this.renderer.viewport, rect, REVEAL_SCALE);
+    const camera = revealCamera(
+      this.camera,
+      this.renderer.viewport,
+      rect,
+      REVEAL_SCALE,
+      this.renderer.rulersInset,
+    );
     if (!camera) return;
     this.renderer.setCamera(camera);
     this.refreshMarks();
@@ -1613,6 +1694,90 @@ export class CanvasController {
       world.y >= handle.y - reach &&
       world.y <= handle.y + reach;
     return inRect || inStrip;
+  }
+
+  /**
+   * Moves the dragged shapes as far as the pointer went: while the grid snaps and Alt is not held, so
+   * that the anchor lands on the grid in the frame a release would put it in. The preview and the drop
+   * take the same distance.
+   */
+  private placeDrag(gesture: DragGesture): void {
+    const { anchor } = gesture;
+    const frame = aimFrame(gesture.plan ? gesture.aim : undefined, anchor?.home ?? WORLD_FRAME);
+    const snapping = this.snapping && !gesture.alt && anchor !== undefined;
+    gesture.delta = snapDrag(anchor, gesture.raw, frame, snapping);
+    const shown = this.grid.grid || this.grid.rulers;
+    const dragFrame: DragFrame = {
+      snapping,
+      ...(frame.container ? { container: frame.container.key } : {}),
+      ...(anchor && shown
+        ? { readout: { text: readoutText(anchor, gesture.delta, frame), at: gesture.at } }
+        : {}),
+    };
+    this.renderer.dragTo(gesture.delta, dragFrame);
+  }
+
+  /**
+   * Shows the grid on the innermost shape under the pointer that holds contents, while the grid shows;
+   * with no point, where the pointer last was.
+   */
+  private gridUnder(world?: Point): void {
+    const indexed = this.indexed;
+    const at =
+      world ??
+      (this.pointerAt === undefined ? undefined : screenToWorld(this.camera, this.pointerAt));
+    if (!this.grid.grid || !indexed || at === undefined || this.gesture.kind !== 'idle') {
+      this.renderer.showContainerGrid(undefined);
+      return;
+    }
+    const under = shapesAt(indexed, at, this.exact, this.renderer.hiddenByEmphasis);
+    const container = under.find((shape) => shape.holdsContents && shape.collapsed === undefined);
+    this.renderer.showContainerGrid(container?.key);
+  }
+
+  /** Over a ruler: nothing is hovered, and neither a handle nor a toggle shows. */
+  private idleOverRulers(): void {
+    this.renderer.showContainerGrid(undefined);
+    this.host.style.cursor = 'default';
+    if (this.host.title !== '') this.host.title = '';
+    if (this.hovered) {
+      this.hovered = undefined;
+      this.refreshMarks();
+    }
+  }
+
+  /** Moves the rulers' marks of the pointer, outside PixiJS; hides them once it leaves. */
+  private markPointer(at: Point | undefined): void {
+    this.pointerAt = at;
+    const marks = this.pointerMarks;
+    if (!marks) return;
+    marks.across.hidden = at === undefined;
+    marks.down.hidden = at === undefined;
+    if (!at) return;
+    marks.across.style.transform = `translateX(${Math.round(at.x)}px)`;
+    marks.down.style.transform = `translateY(${Math.round(at.y)}px)`;
+  }
+
+  /** Shift+G and Shift+R show or hide the grid and the rulers; says whether a key was one of them. */
+  private toggleGrid(event: KeyboardEvent): boolean {
+    if (!event.shiftKey || event.ctrlKey || event.metaKey || event.altKey) return false;
+    if (event.getModifierState('AltGraph')) return false;
+    const letter = event.key.toLowerCase();
+    if (letter !== 'g' && letter !== 'r') return false;
+    event.preventDefault();
+    const name = letter === 'g' ? 'grid' : 'rulers';
+    const shown = !this.grid[name];
+    this.callbacks.changeGrid?.({ [name]: shown });
+    this.announce(
+      name === 'grid'
+        ? shown
+          ? t('The grid shows.')
+          : t('The grid is hidden.')
+        : shown
+          ? t('The rulers show.')
+          : t('The rulers are hidden.'),
+    );
+    return true;
   }
 
   private refreshMarks(): void {

@@ -38,6 +38,7 @@ import {
 import { useEmphasis, type Emphasis } from '../editor/emphasis';
 import { EMPTY_SELECTION, selectionOf, sizeOf, type Selection } from '../editor/selection';
 import { isTextEntry } from '../live/shortcuts';
+import { usePreferences } from '../theme/usePreferences';
 import { RecordingCue } from '../scenarios/RecordingCue';
 import type { ScenarioSession } from '../scenarios/session';
 import { useCanvasRecording } from '../scenarios/useCanvasRecording';
@@ -56,6 +57,8 @@ import { confirmLabelOf, containerChangeLabel, moveToCommand, needsConfirmation 
 import './drop.css';
 import type { Point } from './geometry';
 import { createAtCommand, createBesideCommand, createInsideCommand } from './gestures';
+import { GRID_STEP, snap } from './grid';
+import type { GridOptions } from './renderer';
 import { indexScene, withoutShapes, type IndexedScene } from './hit';
 import { InlineEditor } from './InlineEditor';
 import { KeyboardHelp } from './KeyboardHelp';
@@ -150,6 +153,8 @@ export function CanvasArea({
   const frameRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const captionRef = useRef<HTMLDivElement>(null);
+  const acrossRef = useRef<HTMLDivElement>(null);
+  const downRef = useRef<HTMLDivElement>(null);
   const addSelect = useRef<HTMLSelectElement>(null);
   const controllerRef = useRef<CanvasController | null>(null);
   const [failure, setFailure] = useState<string>();
@@ -172,6 +177,23 @@ export function CanvasArea({
   // The emphasis to draw, kept for the controller made after it came.
   const emphasis = useRef<Emphasis>({});
   const hint = useId();
+  // The grid, snapping and the rulers: each person's preferences, which the canvas follows (A3).
+  const { preferences, change: changePreferences } = usePreferences();
+  const grid = useMemo<GridOptions>(
+    () => ({
+      grid: preferences.grid,
+      snapToGrid: preferences.snapToGrid,
+      rulers: preferences.rulers,
+    }),
+    [preferences.grid, preferences.snapToGrid, preferences.rulers],
+  );
+  const gridShown = useRef(grid);
+  useLayoutEffect(() => {
+    gridShown.current = grid;
+  });
+  /** A coordinate of something created by hand: whole, and on the grid while it snaps. */
+  const placed = (value: number) =>
+    grid.grid && grid.snapToGrid ? snap(value) : Math.round(value);
   // Layout: shapes without a position are laid out as they appear, and the toolbar's Layout lays out
   // on demand; what the canvas draws is a frame of a layout moving in, or else the scene.
   const layout = useLayout({
@@ -226,6 +248,8 @@ export function CanvasArea({
     const host = hostRef.current;
     if (!host) return;
     const caption = captionRef.current;
+    const across = acrossRef.current;
+    const down = downRef.current;
     const controller = new CanvasController(
       host,
       {
@@ -270,17 +294,26 @@ export function CanvasArea({
             opening: (last?.opening ?? 0) + 1,
           })),
         collapse: (action, collapsed) => collapseFromCanvas(action, collapsed),
+        changeGrid: (changes) => changePreferences(changes),
       },
-      caption ? { caption } : {},
+      {
+        ...(caption ? { caption } : {}),
+        ...(across && down ? { pointerMarks: { across, down } } : {}),
+      },
     );
     controllerRef.current = controller;
     controller.setEmphasis(emphasis.current);
+    controller.setGrid(gridShown.current);
     return () => {
       controller.destroy();
       controllerRef.current = null;
     };
     // The controller lives as long as the canvas area; `latest` gives it the current props.
-  }, [cameras]);
+  }, [cameras, changePreferences]);
+
+  useEffect(() => {
+    controllerRef.current?.setGrid(grid);
+  }, [grid]);
 
   // While a scenario records, clicks on relations record its steps.
   const recording = useCanvasRecording(controllerRef, scenarios);
@@ -497,6 +530,7 @@ export function CanvasArea({
         component,
         { x: center.x - size.width / 2, y: center.y - size.height / 2 },
         undefined,
+        grid.grid && grid.snapToGrid ? GRID_STEP : undefined,
       );
     }
     if (!command) return;
@@ -521,8 +555,8 @@ export function CanvasArea({
       view: view.id,
       shape: {
         kind: 'note',
-        x: Math.round(center.x - NOTE_SIZE.width / 2),
-        y: Math.round(center.y - NOTE_SIZE.height / 2),
+        x: placed(center.x - NOTE_SIZE.width / 2),
+        y: placed(center.y - NOTE_SIZE.height / 2),
         ...NOTE_SIZE,
         text: 'Note',
       },
@@ -537,15 +571,16 @@ export function CanvasArea({
   const addArrow = async () => {
     const center = controller()?.center;
     if (!center) return;
-    const y = Math.round(center.y);
+    const y = placed(center.y);
+    const x = placed(center.x - ARROW_LENGTH / 2);
     const unchanged = intent();
     const result = await send({
       type: 'create-free-shape',
       view: view.id,
       shape: {
         kind: 'arrow',
-        from: { x: Math.round(center.x - ARROW_LENGTH / 2), y },
-        to: { x: Math.round(center.x + ARROW_LENGTH / 2), y },
+        from: { x, y },
+        to: { x: x + ARROW_LENGTH, y },
       },
     });
     const id = result.created?.[0];
@@ -623,7 +658,7 @@ export function CanvasArea({
   };
 
   return (
-    <div ref={frameRef} className="canvas-frame">
+    <div ref={frameRef} className="canvas-frame" {...(grid.rulers ? { 'data-rulers': '' } : {})}>
       <DrawnEmphasis
         onEmphasis={(next) => {
           emphasis.current = next;
@@ -645,6 +680,8 @@ export function CanvasArea({
         addSelect={addSelect}
         onAddLeave={() => setAddTarget(undefined)}
         layout={layout.control}
+        grid={grid}
+        onGrid={changePreferences}
       />
       <div
         ref={hostRef}
@@ -657,6 +694,16 @@ export function CanvasArea({
         tabIndex={0}
       />
       <div ref={captionRef} className="canvas-drop-caption" aria-hidden="true" />
+      <div
+        ref={acrossRef}
+        className="canvas-ruler-pointer canvas-ruler-pointer-across"
+        aria-hidden="true"
+      />
+      <div
+        ref={downRef}
+        className="canvas-ruler-pointer canvas-ruler-pointer-down"
+        aria-hidden="true"
+      />
       <p id={hint} className="visually-hidden">
         {CANVAS_KEYS_HINT}
       </p>

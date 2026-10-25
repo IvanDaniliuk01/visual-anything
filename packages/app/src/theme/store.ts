@@ -39,11 +39,25 @@ export const NOT_CONNECTED =
 export const LANGUAGE_NOT_CONNECTED =
   'Your language applies to this tab only: Visual Anything is not connected.';
 
-/** What a change says while the tab is not connected: about the language, when it changes only that. */
+/** What a change of the grid, snapping or the rulers says while the tab is not connected (A3). */
+export const GRID_NOT_CONNECTED =
+  'The grid and the rulers apply to this tab only: Visual Anything is not connected.';
+
+/**
+ * What a change says while the tab is not connected: about the language, or the grid and the rulers,
+ * when it changes only that.
+ */
 function notConnected(changes: PreferenceChanges): string {
-  return changes.language !== undefined && changes.theme === undefined
-    ? LANGUAGE_NOT_CONNECTED
-    : NOT_CONNECTED;
+  if (changes.theme !== undefined) return NOT_CONNECTED;
+  if (changes.language !== undefined) return LANGUAGE_NOT_CONNECTED;
+  if (
+    changes.grid !== undefined ||
+    changes.snapToGrid !== undefined ||
+    changes.rulers !== undefined
+  ) {
+    return GRID_NOT_CONNECTED;
+  }
+  return NOT_CONNECTED;
 }
 
 const DARK_QUERY = '(prefers-color-scheme: dark)';

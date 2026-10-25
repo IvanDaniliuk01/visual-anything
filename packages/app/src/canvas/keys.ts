@@ -17,7 +17,7 @@ export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
     does: 'Go to the far end of the selected relation; on an element or a note, edit its text',
   },
   { keys: 'F2', does: 'Rename the selected element, or edit the selected note' },
-  { keys: 'Shift+arrow keys', does: 'Move the selection a small step' },
+  { keys: 'Shift+arrow keys', does: 'Move the selection one grid step' },
   {
     keys: 'Ctrl+↑ and Ctrl+↓ (⌘ on macOS), or Ctrl+] and Ctrl+[',
     does: 'Bring the selection forward or send it backward, past the next shape it overlaps; these keys work wherever the focus is, except while typing',
@@ -32,13 +32,15 @@ export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
   },
   {
     keys: 'Alt while dragging (⌥ on macOS)',
-    does: 'Move without putting shapes inside a container or taking them out',
+    does: 'Move without putting shapes inside a container or taking them out, and place them freely, without snapping to the grid',
   },
   { keys: 'Delete', does: 'Delete the selection, after showing what goes with it' },
   { keys: 'Escape', does: 'Clear the selection' },
   { keys: 'Ctrl+A or ⌘A', does: 'Select everything' },
   { keys: '+, − and 0', does: 'Zoom in, zoom out, and fit the view' },
   { keys: 'Alt+− and Alt++', does: 'Collapse or expand the selected containers' },
+  { keys: 'Shift+G', does: 'Show or hide the grid' },
+  { keys: 'Shift+R', does: 'Show or hide the rulers' },
   { keys: 'Space and drag', does: 'Pan' },
   { keys: 'Tab', does: 'Leave the canvas' },
 ];
