@@ -900,7 +900,7 @@ describe('Dropping shapes into and out of containers', () => {
     point('pointermove', host, scheduling.x, scheduling.y);
     expect(caption()).toEqual({ text: 'Put inside "Scheduling"', detail: 'Alt: move only' });
     const outlined = (overlays.mock.lastCall?.[0] as Overlay).drop;
-    expect(outlined?.into).toMatchObject({ x: 740, y: 100, width: 440, height: 380 });
+    expect(outlined?.into).toMatchObject({ x: 744, y: 104, width: 440, height: 384 });
 
     const agent = at('clinic-booking/booking-agent');
     point('pointermove', host, agent.x, agent.y);
@@ -962,8 +962,8 @@ describe('Dropping shapes into and out of containers', () => {
     expect(onCommand).not.toHaveBeenCalled();
     const ghost = (overlays.mock.lastCall?.[0] as Overlay).ghost ?? [];
     expect(ghost).toHaveLength(1);
-    expect(ghost[0]).toMatchObject({ width: 180, height: 72 });
-    expect(ghost[0]?.x).toBeCloseTo(10, 0);
+    expect(ghost[0]).toMatchObject({ width: 176, height: 72 });
+    expect(ghost[0]?.x).toBeCloseTo(12, 0);
 
     await act(async () => {
       fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
@@ -1166,7 +1166,7 @@ describe('Adding elements', () => {
     await addService('Billing');
     // Beside Patient lies Clinic booking, so Billing goes on to the right until it is clear of it.
     const [billing] = rowOf(program.project, ['Billing']);
-    expect(billing).toMatchObject({ rect: { x: 1320, y: 200 }, positioned: 'stored' });
+    expect(billing).toMatchObject({ rect: { x: 1304, y: 200 }, positioned: 'stored' });
     expect(billing?.container).toBeUndefined();
     await addService('Invoices');
     rowOf(program.project, ['Billing', 'Invoices']);
@@ -1217,9 +1217,9 @@ describe('Adding elements', () => {
     // goes beside the one before, and Billing keeps its place in the same action as Invoices.
     const row = rowOf(program.project, ['Billing', 'Invoices', 'Receipts']);
     expect(row.map((shape) => [shape.containerShape, shape.offset])).toEqual([
-      ['clinic-booking', { x: 24, y: 480 }],
-      ['clinic-booking', { x: 244, y: 480 }],
-      ['clinic-booking', { x: 464, y: 480 }],
+      ['clinic-booking', { x: 24, y: 488 }],
+      ['clinic-booking', { x: 240, y: 488 }],
+      ['clinic-booking', { x: 456, y: 488 }],
     ]);
     const creates = program.onCommand.mock.calls
       .map(([command]) => command)
@@ -1228,8 +1228,8 @@ describe('Adding elements', () => {
     expect(creates).toHaveLength(3);
     expect(creates[0]).not.toHaveProperty('positions');
     expect(creates.slice(1).map((command) => command.positions)).toEqual([
-      [{ view: view.id, container: 'clinic-booking', x: 244, y: 480 }],
-      [{ view: view.id, container: 'clinic-booking', x: 464, y: 480 }],
+      [{ view: view.id, container: 'clinic-booking', x: 240, y: 488 }],
+      [{ view: view.id, container: 'clinic-booking', x: 456, y: 488 }],
     ]);
   });
 });
@@ -1454,7 +1454,7 @@ describe('The shape menu', () => {
     await answers();
     expect(program.onCommand.mock.lastCall?.[0]).toMatchObject({
       type: 'change-container',
-      shapes: [{ element: 'whatsapp', from: 'clinic-booking', at: { x: 1260, y: 40 } }],
+      shapes: [{ element: 'whatsapp', from: 'clinic-booking', at: { x: 1264, y: 40 } }],
     });
     expect(said()).toBe('Take "WhatsApp channel" out of "Clinic booking".');
     expect(document.activeElement).toBe(host);
@@ -1518,7 +1518,7 @@ describe('The user’s case, end to end', () => {
     expect((overlays.mock.lastCall?.[0] as Overlay).drop?.into).toMatchObject({
       x: 240,
       y: 40,
-      width: 980,
+      width: 984,
       height: 480,
     });
 
@@ -1529,7 +1529,7 @@ describe('The user’s case, end to end', () => {
     expect(program.onCommand.mock.lastCall?.[0]).toMatchObject({
       type: 'change-container',
       to: 'clinic-booking',
-      shapes: [{ element: 'calendar', at: { x: 370, y: 320 } }],
+      shapes: [{ element: 'calendar', at: { x: 372, y: 320 } }],
     });
     expect(said()).toBe('Put "Calendar" inside "Clinic booking".');
     expect(program.project.model.relations).toContainEqual(
@@ -1565,7 +1565,7 @@ describe('The user’s case, end to end', () => {
       element: { component: 'systems.service', name: 'Service' },
       containers: [{ container: 'clinic-booking', relationType: 'systems.is-part-of' }],
       positions: [
-        { view: view.id, container: 'clinic-booking', x: 370 + 180 + 40 + 2 * 220, y: 320 },
+        { view: view.id, container: 'clinic-booking', x: 372 + 176 + 40 + 2 * 216, y: 320 },
       ],
     });
     const drawn = buildScene(program.project, view.id);

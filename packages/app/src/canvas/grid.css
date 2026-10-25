@@ -1,0 +1,72 @@
+/*
+ * The grid and the rulers (A3): the toolbar's toggles, the rulers' marks of the pointer, and room for
+ * the rulers along the canvas's top and left sides, which PixiJS draws.
+ */
+
+.canvas-toolbar-grid {
+  display: flex;
+  gap: 0.2rem;
+}
+
+.canvas-toolbar-grid button {
+  display: inline-grid;
+  place-items: center;
+  padding: 0.3rem 0.45rem;
+}
+
+.canvas-toolbar-grid svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+/* Snapping waits for the grid: while it cannot take effect, its toggle does not look pressed. */
+.canvas-toolbar-grid button:disabled[aria-pressed='true'] {
+  border-color: var(--control-border);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+}
+
+/*
+ * Where the pointer is, on each ruler: a line across its band. The controller moves them with
+ * `transform`, outside React, and hides them when the pointer leaves; they take no pointer.
+ */
+.canvas-ruler-pointer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: none;
+  background: var(--text-muted);
+  pointer-events: none;
+  will-change: transform;
+}
+
+.canvas-frame[data-rulers] .canvas-ruler-pointer:not([hidden]) {
+  display: block;
+}
+
+.canvas-ruler-pointer-across {
+  width: 1px;
+  height: var(--ruler-size);
+}
+
+.canvas-ruler-pointer-down {
+  width: var(--ruler-size);
+  height: 1px;
+}
+
+/* The rulers cover the canvas's top and left sides: what floats over the canvas moves in by them. */
+.canvas-frame[data-rulers] .canvas-toolbar {
+  top: calc(0.6rem + var(--ruler-size));
+  left: calc(0.6rem + var(--ruler-size));
+}
+
+.canvas-frame[data-rulers] .canvas-keys {
+  left: calc(0.6rem + var(--ruler-size));
+  max-width: calc(100% - 1.2rem - var(--ruler-size));
+}
+
+.canvas-frame[data-rulers] .canvas-message {
+  top: calc(50% + var(--ruler-size) / 2);
+  left: calc(50% + var(--ruler-size) / 2);
+}

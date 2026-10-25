@@ -18,6 +18,7 @@ import {
 import type { Arrow, FreeShape, Id, Note, ShapePosition, ViewFile } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
 import type { Point } from './geometry';
+import { snap } from './grid';
 import type { IndexedScene } from './hit';
 import type { ElementShape } from './scene';
 import { coversRect } from './stacking';
@@ -185,7 +186,8 @@ function asOneAction(commands: Command[], label: string): Command | undefined {
  * can. When the view does not nest by that relation type yet, the same action makes it. Its position
  * is stored but not pinned, since no one chose it by hand: layout may arrange it, and moving it pins
  * it. Inside a shape that draws its contents as rows, it stores no position: a row's place is its
- * place in the model's order.
+ * place in the model's order. With a `step`, while the grid snaps, its position inside its container
+ * is a multiple of it (A3).
  */
 export function createAtCommand(
   project: ProjectSnapshot,
@@ -193,6 +195,7 @@ export function createAtCommand(
   componentId: Id,
   at: Point,
   inside: ElementShape | undefined,
+  step?: number,
 ): Command | undefined {
   const view = project.views.find((each) => each.id === viewId);
   const component = definitionsIn(project).component(componentId);
@@ -212,12 +215,17 @@ export function createAtCommand(
       {
         view: view.id,
         ...(container ? { container: container.element } : {}),
-        x: Math.round(at.x - origin.x),
-        y: Math.round(at.y - origin.y),
+        x: placed(at.x - origin.x, step),
+        y: placed(at.y - origin.y, step),
       },
     ];
   }
   return asOneAction([...(nesting?.first ?? []), create], `Create "${component.name}"`);
+}
+
+/** A coordinate as stored: whole, and a multiple of `step` when there is one. */
+function placed(value: number, step: number | undefined): number {
+  return step === undefined ? Math.round(value) : snap(value, step);
 }
 
 /**

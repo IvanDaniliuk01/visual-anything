@@ -309,12 +309,12 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [x] Recolors restyle tiles in place; the scene keeps what did not change
 - [ ] The inspector edits colors for one shape, every shape of a definition and a selection, from a picker or a color code
 
-**A3 · Grid, rulers and snapping.** Done when the grid and rulers can be shown from the canvas toolbar and with Shift+G and Shift+R; with both shown, every benchmark phase meets the 60 frames per second target and the grid adds at most 0.5 ms per frame at the median; while the grid shows, a hand move stores the moved shapes at multiples of 8 canvas units inside their container and lands where its preview showed, a shape created by hand is stored at a multiple of 8, and Alt places freely; and Shift with an arrow key moves the selection by 8.
+**A3 · Grid, rulers and snapping.** Done when the grid and rulers can be shown from the canvas toolbar and with Shift+G and Shift+R; with both shown, every benchmark phase meets the 60 frames per second target and the grid adds at most 0.5 ms per frame at the median; while the grid shows and snapping is on, a hand move stores the moving shape that carries the pressed one at a multiple of 8 canvas units inside its container, pins it, keeps the rest of the selection's arrangement and lands where its preview showed, a shape created by hand is stored at a multiple of 8 and stays unpinned, and Alt places freely; and Shift with an arrow key moves the selection by 8.
 
-- [ ] One step of 8: built-in sizes, nudges and the sample
-- [ ] The grid, following the zoom, also on the container under the pointer
-- [ ] Snapping of drags, nudges and new shapes, with the container's grid and position while dragging
-- [ ] Rulers with the selection's extent
+- [x] One step of 8: built-in sizes, nudges and the sample
+- [x] The grid, following the zoom, also on the container under the pointer
+- [x] Snapping of drags, nudges and new shapes, with the container's grid and position while dragging
+- [x] Rulers with the selection's extent
 
 **A4 · Polish.** Done when no color, size, spacing, radius, shadow or z-index is written out in any stylesheet outside the generated tokens, every control has hover, pressed, disabled and focus-visible states, every icon comes from one icon set kept in the app, and every empty state says what to do next.
 

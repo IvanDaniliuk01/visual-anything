@@ -139,31 +139,40 @@ describe('buildScene with the sample project', () => {
   });
 
   it('resolves positions relative to the container’s shape into absolute rectangles', () => {
-    expect(shapeOf(overview, 'patient').rect).toEqual({ x: 40, y: 200, width: 140, height: 80 });
+    expect(shapeOf(overview, 'patient').rect).toEqual({ x: 40, y: 200, width: 144, height: 80 });
     expect(shapeOf(overview, 'clinic-booking').rect).toEqual({
       x: 240,
       y: 40,
-      width: 980,
+      width: 984,
       height: 480,
     });
     expect(shapeOf(overview, 'scheduling').rect).toEqual({
-      x: 740,
-      y: 100,
+      x: 744,
+      y: 104,
       width: 440,
-      height: 380,
+      height: 384,
     });
     expect(shapeOf(overview, 'appointments-api').rect).toEqual({
-      x: 780,
-      y: 204,
-      width: 180,
+      x: 784,
+      y: 208,
+      width: 176,
       height: 72,
     });
     expect(shapeOf(overview, 'appointments-db').rect).toEqual({
-      x: 780,
-      y: 364,
-      width: 180,
+      x: 784,
+      y: 368,
+      width: 176,
       height: 80,
     });
+  });
+
+  it('draws every shape and note of the sample on the grid’s step of 8 canvas units', () => {
+    const offGrid = (rect: { x: number; y: number; width: number; height: number }) =>
+      [rect.x, rect.y, rect.width, rect.height].some((value) => value % 8 !== 0);
+    expect(
+      overview.shapes.filter((shape) => offGrid(shape.rect)).map((shape) => shape.key),
+    ).toEqual([]);
+    expect(overview.notes.filter((note) => offGrid(note.rect)).map((note) => note.id)).toEqual([]);
   });
 
   it('records which container holds each shape', () => {
@@ -174,7 +183,7 @@ describe('buildScene with the sample project', () => {
 
   it('takes what a component leaves out from the component it derives from', () => {
     const whatsapp = shapeOf(overview, 'whatsapp');
-    expect(whatsapp.rect).toEqual({ x: 280, y: 204, width: 180, height: 72 });
+    expect(whatsapp.rect).toEqual({ x: 280, y: 208, width: 176, height: 72 });
     expect(whatsapp).toMatchObject({
       kind: 'rounded-rectangle',
       fill: '#D8F3E3',
@@ -274,14 +283,14 @@ describe('buildScene with the sample project', () => {
     expect(overview.notes).toEqual([
       {
         id: 'calendar-note',
-        rect: { x: 240, y: 560, width: 460, height: 72 },
+        rect: { x: 240, y: 560, width: 464, height: 72 },
         text: 'Scheduling owns the calendar: only the Appointments API reads and writes the Appointments DB.',
       },
     ]);
   });
 
   it('bounds everything it draws', () => {
-    expect(overview.bounds).toEqual({ x: 40, y: 40, width: 1180, height: 592 });
+    expect(overview.bounds).toEqual({ x: 40, y: 40, width: 1184, height: 592 });
   });
 });
 

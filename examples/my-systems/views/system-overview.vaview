@@ -20,28 +20,28 @@
       "element": "clinic-booking",
       "x": 240,
       "y": 40,
-      "width": 980,
+      "width": 984,
       "height": 480
     },
     {
       "element": "whatsapp",
       "container": "clinic-booking",
       "x": 40,
-      "y": 164
+      "y": 168
     },
     {
       "element": "booking-agent",
       "container": "clinic-booking",
-      "x": 260,
-      "y": 164
+      "x": 264,
+      "y": 168
     },
     {
       "element": "scheduling",
       "container": "clinic-booking",
-      "x": 500,
-      "y": 60,
+      "x": 504,
+      "y": 64,
       "width": 440,
-      "height": 380
+      "height": 384
     },
     {
       "element": "appointments-api",
@@ -68,7 +68,7 @@
       "id": "calendar-note",
       "x": 240,
       "y": 560,
-      "width": 460,
+      "width": 464,
       "height": 72,
       "text": "Scheduling owns the calendar: only the Appointments API reads and writes the Appointments DB."
     }

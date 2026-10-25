@@ -56,6 +56,10 @@ _Avoid_: property, field
 The surface where views and shapes are shown and edited.
 _Avoid_: board, sheet, page
 
+**Canvas unit**:
+The unit of positions and sizes on the canvas; at 100% zoom one canvas unit is one CSS pixel.
+_Avoid_: world unit, scene unit, pixel (for stored values)
+
 **Shape**:
 A visual mark on the canvas. It is either anchored or free.
 _Avoid_: figure, node
@@ -69,6 +73,18 @@ A shape that is drawing only and does not exist in the model: a note, an emphasi
 **Pinned shape**:
 A shape whose position was set by hand in a view; automatic layout arranges everything else around it.
 _Avoid_: locked, fixed
+
+**Grid**:
+Evenly spaced lines in canvas units behind the shapes on the canvas, also drawn on the fill of the container under the pointer or being moved in; their spacing follows the zoom. It belongs to no view and is not a shape.
+_Avoid_: mesh, world grid
+
+**Ruler**:
+A scale in canvas units along the top or the left side of the canvas, which also marks where the selection lies.
+_Avoid_: axis
+
+**Snapping**:
+Rounding the stored position of a shape moved or created by hand to a multiple of 8 canvas units inside its container's shape, while the grid shows and snapping is on; holding Alt places it freely. When several shapes move together, the one that carries the pressed shape is rounded and the others keep their places relative to it. A shape moved by hand is pinned, snapped or not; a created shape is snapped and stays unpinned. Layout results and Claude's changes are never snapped.
+_Avoid_: magnet, lock to grid
 
 **Row**:
 An element drawn as one line of its container's shape, because the container's appearance draws its contents as rows, as a table draws its columns. Rows follow the model's order, have no positions of their own in a view and move with their container.

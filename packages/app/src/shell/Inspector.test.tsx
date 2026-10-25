@@ -1799,7 +1799,7 @@ describe('Inspector, in this view', () => {
         {
           element: 'whatsapp',
           from: 'scheduling',
-          at: { x: 500 + 440 + 40, y: 60 },
+          at: { x: 504 + 440 + 40, y: 64 },
           pinned: false,
         },
       ],
