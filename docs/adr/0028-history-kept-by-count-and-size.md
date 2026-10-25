@@ -31,3 +31,11 @@ We chose this because every action the history shows as done is then on disk, an
 ## Consequences
 
 An undo history can hold fewer than 500 actions when they carry images; the oldest go first, as they did past 500.
+
+## Addendum, 2026-10-25: the history panel (R28)
+
+<!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
+
+- **Each action has an id and a time.** The local program gives every action it records an id and the time it was done. Ids keep counting across reloads, so an id from before a reload never names a new action. The core's history is unchanged; the ids and times live beside it in the session.
+- **The list goes to every app.** Protocol 5 adds the message `history/listed`, with each action's id, label, author, time and whether it is undone, oldest first: the actions done, then the undone ones, the next redo first. It is sent on connecting, once after each change, and after a reload, as an empty list. Claude's endpoint never gets it; Claude reads the history through its tools as before.
+- **Undo to here and Redo to here.** `undo` and `redo` take an optional `to`, an action's id, and step one action at a time in one turn of the program's queue, including that action. Each step is saved and announced like a single undo; only the last answers the request, and a step that cannot be saved stops there, with the steps before it kept.
