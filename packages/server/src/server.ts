@@ -1,10 +1,9 @@
 /**
  * The local program's HTTP server. It listens on 127.0.0.1 only, checks the Host and Origin of every
  * request, serves the app (its build, from a folder or from the single executable's assets, or its
- * sources through Vite in dev mode) and opens the live
- * connection for a page that holds the per-session token or a launch code that works once. Each live
- * connection is an app of the open project's session: it gets the project and every change, and its
- * messages go to the session. The Claude endpoint, on its own path and with its own credential,
+ * sources through Vite in dev mode) and opens the live connection for a page that holds the
+ * per-session token or a launch code that works once. Each live connection is an app of the open
+ * project's session: it gets the project and every change, and its messages go to the session. The Claude endpoint, on its own path and with its own credential,
  * attaches Claude's MCP entry point to the same session.
  */
 import { realpath } from 'node:fs/promises';
