@@ -282,7 +282,7 @@ _Avoid_: log, timeline, version history
 ### Preferences
 
 **Preference**:
-A choice a person makes for themselves on this computer: the theme, the language, whether the grid, snapping and the rulers are on, the colors they picked lately, the package code they approved, and the name and email their comments are signed with. The local program keeps preferences outside every project; they are never in project files, the undo history or Claude's tools.
+A choice a person makes for themselves on this computer: the theme, the language, whether the grid, snapping and the rulers are on, the colors they picked lately, the package code they approved, and the name and email their comments are signed with. The local program keeps preferences outside every project; they are never in project files, the undo history or Claude's tools, though each comment keeps the name and email it was signed with.
 _Avoid_: settings, profile
 
 **Language**:
