@@ -43,6 +43,14 @@ import {
   type NoteShape,
   type RelationLine,
 } from './scene';
+import {
+  bandRooms,
+  besideImage,
+  blockRectOf,
+  bodyRectOf,
+  headerShift,
+  nameBandOf,
+} from './shape-images';
 import type { RoutePiece } from './tiles';
 
 /** The fonts text is drawn in, first available first. */
@@ -134,15 +142,17 @@ export function drawShapeBlocks(
   const outlines = new Map<Color, Rect[]>();
   const fills = new Map<Color, Rect[]>();
   for (const shape of shapes) {
+    // A shape drawn by its picture is a block of its plate.
+    const rect = blockRectOf(shape);
     const outlined = isContainer(shape) || needsOutline(shape.fill);
-    const inner = outlined ? grow(shape.rect, -BLOCK_OUTLINE) : shape.rect;
+    const inner = outlined ? grow(rect, -BLOCK_OUTLINE) : rect;
     const filled = inner.width > 0 && inner.height > 0;
     if (inOrder) {
-      if (outlined) fillRects(graphics, shape.stroke, [shape.rect]);
+      if (outlined) fillRects(graphics, shape.stroke, [rect]);
       if (filled) fillRects(graphics, shape.fill, [inner]);
       continue;
     }
-    if (outlined) addRect(outlines, shape.stroke, shape.rect);
+    if (outlined) addRect(outlines, shape.stroke, rect);
     if (filled) addRect(fills, shape.fill, inner);
   }
   for (const [color, rects] of outlines) fillRects(graphics, color, rects);
@@ -185,7 +195,8 @@ export function drawShapeOutlines(graphics: Graphics, shapes: readonly ElementSh
       }
       drawBody(graphics, shape.kind, body, shape);
     } else {
-      drawBody(graphics, shape.kind, shape.rect, shape);
+      // Inside its plate for a shape drawn by its picture, which covers it once ready.
+      drawBody(graphics, shape.kind, bodyRectOf(shape), shape);
     }
     drawToggle(graphics, shape);
   }
@@ -220,20 +231,26 @@ function drawToggle(graphics: Graphics, shape: ElementShape): void {
 
 /**
  * Writes each shape's name and, with `details`, its component's name, each in the room its shape
- * gives it; a label the factory cannot fit is left out.
+ * gives it; a label the factory cannot fit is left out. `backdrop` gives what a shape drawn by its
+ * picture sits on, its container's fill or the canvas, which the name under the picture is written on.
  */
 export function writeShapeLabels(
   shapes: readonly ElementShape[],
   details: boolean,
   make: TextFactory = canvasText,
+  backdrop: (shape: ElementShape) => Color = () => CANVAS_BACKGROUND,
 ): Container[] {
   const texts: Container[] = [];
   for (const shape of shapes) {
-    writeShapeText(shape, (options, detail, room) => {
-      if (detail && !details) return;
-      const text = make(options, detail ? 'detail' : 'name', room);
-      if (text) texts.push(text);
-    });
+    writeShapeText(
+      shape,
+      (options, detail, room) => {
+        if (detail && !details) return;
+        const text = make(options, detail ? 'detail' : 'name', room);
+        if (text) texts.push(text);
+      },
+      backdrop,
+    );
   }
   return texts;
 }
@@ -418,6 +435,7 @@ export function detailOf(shape: ElementShape): string {
 function writeShapeText(
   shape: ElementShape,
   write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
+  backdrop: (shape: ElementShape) => Color = () => CANVAS_BACKGROUND,
 ): void {
   const colors = readableTextColors(shape.fill);
   const rooms = labelRooms(shape);
@@ -425,12 +443,14 @@ function writeShapeText(
     const { x, y, width } = bodyOf(shape);
     const toggle = toggleRect(shape);
     const beside = toggle ? toggle.width + 4 : 0;
-    const wrap = Math.max(1, width - 2 * TEXT_INSET - beside);
+    // Right of the icon its header may show.
+    const shift = headerShift(shape);
+    const wrap = Math.max(1, width - 2 * TEXT_INSET - beside - shift);
     if (rooms.name > 0) {
       write(
         {
           text: shape.name,
-          x: x + TEXT_INSET,
+          x: x + TEXT_INSET + shift,
           y: y + 8,
           style: textStyle(NAME_SIZE, colors.name, wrap, 'left', '600'),
         },
@@ -443,7 +463,7 @@ function writeShapeText(
       write(
         {
           text: detail,
-          x: x + TEXT_INSET,
+          x: x + TEXT_INSET + shift,
           y: y + 8 + NAME_SIZE + 6,
           style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'left'),
         },
@@ -453,7 +473,13 @@ function writeShapeText(
     }
     return;
   }
-  const area = labelArea(shape);
+  const band = nameBandOf(shape);
+  if (band) {
+    writeBandText(shape, band, rooms, readableTextColors(backdrop(shape)), write);
+    return;
+  }
+  // Right of the icon beside its name, when it shows one.
+  const area = besideImage(shape, labelArea(shape));
   const centerX = area.x + area.width / 2;
   const centerY = area.y + area.height / 2;
   const wrap = Math.max(1, area.width - TEXT_INSET);
@@ -487,11 +513,55 @@ function writeShapeText(
 }
 
 /**
+ * Writes the name and detail of a shape drawn by its picture in the band under its plate, centred
+ * across the shape, in colours that read on what it sits on: no text ever sits over a picture.
+ */
+function writeBandText(
+  shape: ElementShape,
+  band: Rect,
+  rooms: { name: number; detail: number },
+  colors: { name: Color; detail: Color },
+  write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
+): void {
+  const centerX = band.x + band.width / 2;
+  const wrap = Math.max(1, band.width - TEXT_INSET);
+  if (rooms.name > 0) {
+    write(
+      {
+        text: shape.name,
+        anchor: { x: 0.5, y: 0 },
+        x: centerX,
+        y: band.y + 1,
+        style: textStyle(NAME_SIZE, colors.name, wrap, 'center', '600'),
+      },
+      false,
+      rooms.name,
+    );
+  }
+  const detail = detailOf(shape);
+  if (rooms.detail > 0 && detail !== '') {
+    write(
+      {
+        text: detail,
+        anchor: { x: 0.5, y: 0 },
+        x: centerX,
+        y: band.y + 19,
+        style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'center'),
+      },
+      true,
+      rooms.detail,
+    );
+  }
+}
+
+/**
  * How tall a shape's name and its component's name may be, so that they stay inside it: in a
  * container, one line each in its header; elsewhere, the name above the middle of its label area and
  * the component's name below it.
  */
 export function labelRooms(shape: ElementShape): { name: number; detail: number } {
+  const band = nameBandOf(shape);
+  if (band) return bandRooms(band);
   if (isContainer(shape)) {
     const { height } = bodyOf(shape);
     return { name: Math.min(20, height - 12), detail: Math.min(16, height - 32) };
