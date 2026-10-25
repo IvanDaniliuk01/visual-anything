@@ -218,6 +218,30 @@ describe('destinationsOf', () => {
       ),
     ).toEqual([]);
   });
+
+  it('takes the element’s own attributes whose values are destinations, after the defined ones', () => {
+    expect(
+      destinationsOf(
+        {
+          attributes: {
+            wiki: { url: 'https://en.wikipedia.org/wiki/Heart' },
+            note: { url: 'http://not.example' },
+            data: { rows: 3 },
+          },
+        },
+        definitions,
+      ),
+    ).toEqual([
+      { attribute: 'see', destination: { view: 'overview' }, own: false },
+      { attribute: 'wiki', destination: { url: 'https://en.wikipedia.org/wiki/Heart' }, own: true },
+    ]);
+    // An attribute the definitions give another type is never one, whatever it holds.
+    expect(
+      destinationsOf({ attributes: { note: { url: 'https://x.example' } } }, definitions).map(
+        (each) => each.attribute,
+      ),
+    ).toEqual(['see']);
+  });
 });
 
 describe('commands that set destinations', () => {

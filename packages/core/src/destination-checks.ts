@@ -24,13 +24,12 @@ export function destinationWarnings(state: ProjectSnapshot, definitions: Definit
     item: { id: Id; name?: string; attributes?: Attributes },
     attributes: readonly AttributeDefinition[],
   ) => {
+    const of = `"${item.name ?? item.id}"`;
+    const values = item.attributes;
     for (const definition of attributes) {
       if (definition.type !== 'destination') continue;
-      const values = item.attributes;
-      const own = values !== undefined && Object.hasOwn(values, definition.name);
-      if (!own && definition.default === undefined) continue;
-      const of = `"${item.name ?? item.id}"`;
-      const read = readDestination(own ? values[definition.name] : definition.default);
+      if (values === undefined || !Object.hasOwn(values, definition.name)) continue;
+      const read = readDestination(values[definition.name]);
       if (!read.ok) {
         warnings.push(
           problem(
@@ -39,15 +38,15 @@ export function destinationWarnings(state: ProjectSnapshot, definitions: Definit
             [item.id],
           ),
         );
-        continue;
       }
-      const { destination } = read;
+    }
+    for (const { attribute, destination } of destinationsOf(item, attributes)) {
       if ('url' in destination || 'project' in destination) continue;
       if (!views.has(destination.view)) {
         warnings.push(
           problem(
             'broken-destination',
-            `The destination "${definition.name}" of ${of} opens the view "${destination.view}", which the project does not have; it is kept, and opens nothing until that view is back.`,
+            `The destination "${attribute}" of ${of} opens the view "${destination.view}", which the project does not have; it is kept, and opens nothing until that view is back.`,
             [item.id],
           ),
         );
@@ -58,7 +57,7 @@ export function destinationWarnings(state: ProjectSnapshot, definitions: Definit
         warnings.push(
           problem(
             'broken-destination',
-            `The destination "${definition.name}" of ${of} focuses on "${missing.join('", "')}", which the model does not have; the view opens without ${missing.length === 1 ? 'it' : 'them'}.`,
+            `The destination "${attribute}" of ${of} focuses on "${missing.join('", "')}", which the model does not have; the view opens without ${missing.length === 1 ? 'it' : 'them'}.`,
             [item.id],
           ),
         );

@@ -235,8 +235,11 @@ export interface FoundDestination {
 }
 
 /**
- * The destinations an element or a relation has, in the order its definitions give their attributes:
- * the values of attributes of type `destination`, its own or else the default, that are destinations.
+ * The destinations an element or a relation has: first, in the order its definitions give their
+ * attributes, the values of attributes of type `destination`, its own or else the default, that are
+ * destinations; then, in their own order, the values of attributes its definitions do not define that
+ * read as destinations, which an element can have without its component defining one. A value of any
+ * other attribute is never one.
  */
 export function destinationsOf(
   item: { attributes?: Attributes },
@@ -249,6 +252,15 @@ export function destinationsOf(
     const own = values !== undefined && Object.hasOwn(values, definition.name);
     const read = readDestination(own ? values[definition.name] : definition.default);
     if (read.ok) found.push({ attribute: definition.name, destination: read.destination, own });
+  }
+  if (values === undefined) return found;
+  for (const name of Object.keys(values)) {
+    const value = values[name];
+    // Only an object can be one, so the rest is passed by at once.
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) continue;
+    if (definitions.some((definition) => definition.name === name)) continue;
+    const read = readDestination(value);
+    if (read.ok) found.push({ attribute: name, destination: read.destination, own: true });
   }
   return found;
 }
