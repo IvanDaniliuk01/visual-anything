@@ -41,6 +41,13 @@
         "$ref": "#/definitions/RelationType"
       }
     },
+    "crosswalks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Crosswalk"
+      },
+      "description": "Tables that map one scheme of external identifiers to another, for importers (ADR 0056)."
+    },
     "images": {
       "type": "array",
       "items": {
@@ -110,6 +117,10 @@
         "description": {
           "type": "string"
         },
+        "ids": {
+          "$ref": "#/definitions/ExternalIds",
+          "description": "What it is in other catalogs, by scheme (ADR 0056); absent when it has none."
+        },
         "attributes": {
           "type": "array",
           "items": {
@@ -129,6 +140,26 @@
       "additionalProperties": false,
       "description": "The reusable definition of a kind of element. It inherits everything it does not redefine."
     },
+    "ExternalIds": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/ExternalId"
+      },
+      "propertyNames": {
+        "description": "A scheme of external identifiers: a short lowercase name for someone else's catalog, such as `uberon` or `fma`.",
+        "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+      },
+      "description": "What an element, a component or a relation type is in other catalogs, by scheme, such as `{ \"uberon\": \"UBERON:0002135\", \"fma\": \"FMA:7235\" }`. Search finds by them, importers match by them, and nothing ever follows them.",
+      "minProperties": 1,
+      "maxProperties": 32
+    },
+    "ExternalId": {
+      "type": "string",
+      "description": "An identifier in someone else's catalog, such as `UBERON:0002135`. It is data, never followed.",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\x00-\\x1f\\x7f]*$"
+    },
     "AttributeDefinition": {
       "type": "object",
       "properties": {
@@ -142,8 +173,10 @@
             "string",
             "number",
             "boolean",
-            "json"
-          ]
+            "json",
+            "destination"
+          ],
+          "description": "A `destination` holds a  {@link  Destination } : a value that opens something when followed."
         },
         "default": {
           "$ref": "#/definitions/JsonValue",
@@ -528,6 +561,10 @@
         "description": {
           "type": "string"
         },
+        "ids": {
+          "$ref": "#/definitions/ExternalIds",
+          "description": "What it is in other catalogs, by scheme (ADR 0056); absent when it has none."
+        },
         "direction": {
           "type": "string",
           "enum": [
@@ -622,6 +659,54 @@
       "description": "The ids of the components or relation types an end may be created from. An end created from one of them, or from anything derived from one of them, keeps within the limit.",
       "minItems": 1,
       "uniqueItems": true
+    },
+    "Crosswalk": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "$ref": "#/definitions/IdScheme",
+          "description": "The scheme its keys are in."
+        },
+        "to": {
+          "$ref": "#/definitions/IdScheme",
+          "description": "The scheme its values are in; never the same as `from`."
+        },
+        "source": {
+          "type": "string",
+          "description": "Where the table comes from, in words, such as the release of the crosswalk it was made from."
+        },
+        "entries": {
+          "$ref": "#/definitions/CrosswalkEntries",
+          "description": "Each identifier of `from` with the identifier of `to` it maps to."
+        }
+      },
+      "required": [
+        "from",
+        "to",
+        "entries"
+      ],
+      "additionalProperties": false,
+      "description": "A table that maps the identifiers of one scheme to another's, such as `uberon` to `fma`, used by importers to fill in the schemes a file lacks."
+    },
+    "IdScheme": {
+      "type": "string",
+      "description": "A scheme of external identifiers: a short lowercase name for someone else's catalog, such as `uberon` or `fma`.",
+      "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+    },
+    "CrosswalkEntries": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/ExternalId"
+      },
+      "propertyNames": {
+        "description": "An identifier in someone else's catalog, such as `UBERON:0002135`. It is data, never followed.",
+        "minLength": 1,
+        "maxLength": 200,
+        "pattern": "^[^\\x00-\\x1f\\x7f]*$"
+      },
+      "description": "A crosswalk's identifiers of one scheme, each with the one of the other scheme it maps to.",
+      "minProperties": 1,
+      "maxProperties": 100000
     },
     "ImageDefinition": {
       "type": "object",

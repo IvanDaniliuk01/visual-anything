@@ -1,6 +1,6 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
-import { useCallback, useContext, useId, useMemo, useState } from 'react';
+import { useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { ExportControl } from '../export/ExportControl';
@@ -26,6 +26,10 @@ import { ScenarioPanel } from '../scenarios/ScenarioPanel';
 import { ScenarioSession } from '../scenarios/session';
 import { usePreferences, useThemeHold } from '../theme/usePreferences';
 import { FindBar } from '../search/FindBar';
+import { useFollower, type GoToState } from '../destinations/follower';
+import { FollowDialog } from '../destinations/FollowDialog';
+import { ElementListPanel, ElementListToggle } from '../element-list/ElementListToggle';
+import { ElementListStore } from '../element-list/store';
 import type { CanvasCamera } from '../view-state/canvas';
 import { CopyAddress } from '../view-state/CopyAddress';
 import { useViewState } from '../view-state/useViewState';
@@ -79,6 +83,9 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   const explore = useExplorer({ project, viewId: view?.id, scene, selection, emphasis });
   // Package code (ADR 0054): its store, which the editor carries, filled below.
   const [code] = useState(() => new CodeStore());
+  // Following destinations (ADR 0056): it goes to a view through the view state, set below.
+  const followGoTo = useRef<GoToState>(undefined);
+  const { follower, asking } = useFollower(project, followGoTo);
   const editor = useMemo<Editor>(
     () => ({
       project,
@@ -92,6 +99,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
       openView: setOpenViewId,
       explore,
       code,
+      follow: follower,
     }),
     [
       project,
@@ -104,6 +112,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
       reveal,
       explore,
       code,
+      follower,
     ],
   );
   const canvasHeading = useId();
@@ -145,6 +154,11 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
       drawn={view && scene ? { view, scene, theme } : undefined}
     />
   );
+  useLayoutEffect(() => {
+    followGoTo.current = viewState.goTo;
+  });
+  // The element list, below the canvas, and its toggle in the header (R42).
+  const [elementList] = useState(() => new ElementListStore());
 
   return (
     <EditorContext.Provider value={editor}>
@@ -165,6 +179,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                       openView={setOpenViewId}
                     />
                     {exportTool}
+                    <ElementListToggle store={elementList} />
                   </>
                 }
               />
@@ -209,6 +224,14 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
               <Inspector view={view} scene={scene} definitions={definitions} />
               <ScenarioPanel session={scenarios} />
               <CodeApproval />
+              <ElementListPanel store={elementList} />
+              {asking && (
+                <FollowDialog
+                  plan={asking.plan}
+                  onConfirm={asking.confirm}
+                  onCancel={asking.cancel}
+                />
+              )}
             </div>
           </ZoomExpansionContext>
         </EmphasisContext.Provider>

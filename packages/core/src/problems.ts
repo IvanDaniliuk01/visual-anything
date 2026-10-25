@@ -65,6 +65,13 @@ export type ProblemCode =
   // Overlays (ADR 0055): one a view does not have, and a value outside what an overlay allows.
   | 'unknown-overlay'
   | 'invalid-overlay'
+  // External identifiers and destinations (ADR 0056): an identifier or a destination a command sets
+  // that is not one; and, only as warnings, elements sharing an identifier in one scheme and
+  // destinations that name what is missing or are not ones, kept and flagged.
+  | 'invalid-external-id'
+  | 'shared-external-id'
+  | 'invalid-destination'
+  | 'broken-destination'
   // Refusals of the local program, which keeps the history and the files.
   | 'nothing-to-undo'
   | 'nothing-to-redo'

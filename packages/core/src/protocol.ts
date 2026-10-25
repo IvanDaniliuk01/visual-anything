@@ -24,8 +24,9 @@ import type { ProjectSnapshot } from './snapshot';
  * 4: guidance that filters and focuses the open view, and plays a scenario in it.
  * 5: the history listed action by action, with each one's author and time, and undo or redo up to
  * one of them.
+ * 6: following a destination to another project, which that project's own program opens (ADR 0056).
  */
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';
@@ -61,7 +62,8 @@ export type ServerMessage =
   | PreferencesChangedMessage
   | GuidanceMessage
   | HistoryListedMessage
-  | StartOfferedMessage;
+  | StartOfferedMessage
+  | OtherProjectOpenedMessage;
 
 /**
  * Sent in place of `project/opened` while the local program runs on a folder that holds no project yet
@@ -471,7 +473,8 @@ export type AppMessage =
   | { type: 'undo'; requestId: string; to?: number }
   | { type: 'redo'; requestId: string; to?: number }
   | PreferencesSetMessage
-  | StartCreateMessage;
+  | StartCreateMessage
+  | OpenOtherProjectMessage;
 
 /** The longest name the start screen may give a new project or its first view. */
 export const MAX_START_NAME = 200;
@@ -488,6 +491,33 @@ export interface StartCreateMessage {
   /** For an empty project: its name, the folder's by default, and its first view's. */
   names?: { project?: string; view?: string };
 }
+
+/**
+ * Asks the local program to open another project, as a destination names it, in a tab of the program
+ * that runs on that project or of one it starts there (ADR 0044, ADR 0056); the tab asked the person
+ * first. It is answered with `other-project/opened`, or with `command/rejected` and why: a path that
+ * leads out of the folder holding this project's folder, a folder that holds no project, a view that
+ * project does not have. It changes nothing in this project.
+ */
+export interface OpenOtherProjectMessage {
+  type: 'project/open-other';
+  requestId: string;
+  /** The project's folder, relative to this project's folder, as the destination writes it. */
+  project: string;
+  /** The view to open there; absent, it opens where that project opens. */
+  view?: Id;
+}
+
+/** Sent to the app that asked, once the other project's program opened a tab on it. */
+export interface OtherProjectOpenedMessage {
+  type: 'other-project/opened';
+  requestId: string;
+  /** The other project's name, for the app to say where the tab opened. */
+  name: string;
+}
+
+/** The longest path to another project a message carries, as a destination holds it. */
+const MAX_OTHER_PROJECT_PATH = 1024;
 
 /**
  * Asks the local program to change some preferences. It is answered with `preferences/changed`, or
@@ -523,6 +553,7 @@ const SERVER_TYPES = new Set<string>([
   'guidance',
   'history/listed',
   'start/offered',
+  'other-project/opened',
 ]);
 
 /**
@@ -564,6 +595,11 @@ export function decodeServerMessage(text: string): ServerMessage {
       break;
     case 'start/offered':
       return readStartOffered(message);
+    case 'other-project/opened':
+      if (typeof message.requestId !== 'string' || typeof message.name !== 'string') {
+        throw new ProtocolError('The message names the request and the project that opened.');
+      }
+      return { type: 'other-project/opened', requestId: message.requestId, name: message.name };
   }
   return message as unknown as ServerMessage;
 }
@@ -604,6 +640,28 @@ export function decodeAppMessage(text: string): AppMessage {
       return message as unknown as AppMessage;
     case 'start/create':
       return readStartCreate(message, message.requestId);
+    case 'project/open-other': {
+      // The path itself is checked by the local program, against the real folders, where it is used.
+      const { project, view } = message;
+      if (
+        typeof project !== 'string' ||
+        project === '' ||
+        project.length > MAX_OTHER_PROJECT_PATH
+      ) {
+        throw new ProtocolError(
+          `The project to open is a path of 1 to ${MAX_OTHER_PROJECT_PATH} characters.`,
+        );
+      }
+      if (view !== undefined && !isId(view)) {
+        throw new ProtocolError('The view to open there is named by its id.');
+      }
+      return {
+        type: 'project/open-other',
+        requestId: message.requestId,
+        project,
+        ...(view === undefined ? {} : { view }),
+      };
+    }
     default:
       throw new ProtocolError(`Unknown message type: ${JSON.stringify(message.type)}.`);
   }

@@ -8,6 +8,8 @@ import { ESSENCE_ID, RELATES_TO_ID, SCHEMA_VERSION } from '@visual-anything/sche
 import { RESERVED_PACKAGE_IDS, builtinPackage } from './builtin';
 import { appearanceOf, isBuiltInDefinition, type Definitions } from './definitions';
 import { codeWarnings } from './code/check';
+import { destinationWarnings } from './destination-checks';
+import { duplicateExternalIdWarnings } from './external-ids';
 import { checkImages } from './images/check';
 import { overlayProblems } from './overlays/check';
 import { positionKey } from './operations';
@@ -325,6 +327,8 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
   const overlays = overlayProblems(state);
   errors.push(...overlays.errors);
   warnings.push(...overlays.warnings);
+  // Nor do external identifiers shared by several elements, or destinations that open nothing (ADR 0056).
+  warnings.push(...duplicateExternalIdWarnings(state), ...destinationWarnings(state, definitions));
   return { errors, warnings };
 }
 

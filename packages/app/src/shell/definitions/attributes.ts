@@ -2,7 +2,7 @@
  * Attribute definitions as the component editor changes them: one trait at a time, each change a
  * whole definition of the attribute that the core checks before anything is stored.
  */
-import { valueFitsType } from '@visual-anything/core';
+import { readDestination, valueFitsType } from '@visual-anything/core';
 import type { AttributeDefinition, JsonValue } from '@visual-anything/schema';
 import { t } from '../../i18n';
 import { readJson, readNumber, type AttributeType, type Reading } from '../inspector/attributes';
@@ -61,6 +61,17 @@ export function readDefault(text: string, type: AttributeType): Reading<JsonValu
         : { ok: false, message: t('Write true or false.') };
     case 'json':
       return readJson(text);
+    case 'destination': {
+      const read = readJson(text);
+      if (!read.ok) return read;
+      const destination = readDestination(read.value);
+      return destination.ok
+        ? { ok: true, value: read.value }
+        : {
+            ok: false,
+            message: t('This is not a destination: {why}', { why: t.message(destination.why) }),
+          };
+    }
   }
 }
 

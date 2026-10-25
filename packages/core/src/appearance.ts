@@ -19,6 +19,7 @@ import type {
 } from '@visual-anything/schema';
 import { ESSENCE_ID } from '@visual-anything/schema';
 import { ESSENCE } from './builtin/essence-and-relates-to';
+import { isDestination } from './destinations';
 import type { Definitions } from './definitions';
 
 /** What a shape writes under its element's name, with every part worked out. */
@@ -273,6 +274,8 @@ export function valueFitsType(value: JsonValue, type: AttributeDefinition['type'
       return typeof value === 'boolean';
     case 'json':
       return true;
+    case 'destination':
+      return isDestination(value);
   }
 }
 

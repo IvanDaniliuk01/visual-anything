@@ -9,6 +9,7 @@ import {
   ESSENCE_ID,
   RELATES_TO_ID,
   type Attributes,
+  type ExternalIds,
   type Id,
   type Point,
 } from '@visual-anything/schema';
@@ -77,6 +78,11 @@ export interface PlannedElement {
   kind: string;
   description?: string;
   attributes?: Attributes;
+  /**
+   * What it is in other catalogs, by scheme (ADR 0056). `matchByExternalIds` checks them, fills in
+   * the schemes the file lacks from crosswalks, and matches the element that shares one.
+   */
+  ids?: ExternalIds;
   /**
    * An element of the project this row of the file matched, by a key such as its id: its name and
    * attribute values are updated, and nothing else of it changes. Importing again uses it.
@@ -249,6 +255,7 @@ export function planToCommand(
         changes: {
           name: element.name,
           ...(element.attributes ? { attributes: element.attributes } : {}),
+          ...(element.ids ? { ids: element.ids } : {}),
         },
       });
       continue;
@@ -261,6 +268,7 @@ export function planToCommand(
         name: element.name,
         ...(element.description === undefined ? {} : { description: element.description }),
         ...(element.attributes ? { attributes: element.attributes } : {}),
+        ...(element.ids ? { ids: element.ids } : {}),
       },
     });
   }

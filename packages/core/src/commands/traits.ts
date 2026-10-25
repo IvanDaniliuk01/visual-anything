@@ -35,7 +35,7 @@ const SHAPES = ['rectangle', 'rounded-rectangle', 'ellipse', 'cylinder', 'person
 const NOT_FOR_ROWS: ReadonlySet<string> = new Set(['ellipse', 'cylinder', 'person']);
 const SIDES = ['top', 'right', 'bottom', 'left'] as const;
 const DASHES = ['solid', 'dashed', 'dotted'] as const;
-const ATTRIBUTE_TYPES = ['string', 'number', 'boolean', 'json'] as const;
+const ATTRIBUTE_TYPES = ['string', 'number', 'boolean', 'json', 'destination'] as const;
 
 /** Whether a value is a plain object, as JSON objects are. */
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -516,7 +516,7 @@ export function checkedAttributeDefinition(value: unknown, of: string): Attribut
   }
   if (!ATTRIBUTE_TYPES.includes(type as (typeof ATTRIBUTE_TYPES)[number])) {
     invalidAttribute(
-      `The attribute "${name}" of ${of} is of type "string", "number", "boolean" or "json".`,
+      `The attribute "${name}" of ${of} is of type "string", "number", "boolean", "json" or "destination".`,
     );
   }
   const attributeType = type as AttributeDefinition['type'];
@@ -524,7 +524,11 @@ export function checkedAttributeDefinition(value: unknown, of: string): Attribut
   if (Object.hasOwn(value, 'default') && value.default !== undefined) {
     const fallback = value.default as JsonValue;
     if (!isJson(fallback) || !valueFitsType(fallback, attributeType)) {
-      invalidAttribute(`The default of "${name}" of ${of} must be a ${attributeType} value.`);
+      invalidAttribute(
+        attributeType === 'destination'
+          ? `The default of "${name}" of ${of} must be a destination: a view, another project or an https: address.`
+          : `The default of "${name}" of ${of} must be a ${attributeType} value.`,
+      );
     }
     checked.default = fallback;
   }

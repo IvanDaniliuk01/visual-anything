@@ -47,3 +47,6 @@ export type { ImportRead } from './reading';
 export { MAX_IMPORTED_NAME, MAX_READ_CHARACTERS, MAX_UNMATCHED } from './reading';
 export { readStructurizr, readStructurizrJson } from './structurizr';
 export { XML_CAPS } from './xml';
+// Crosswalks, and matching by external identifier (ADR 0056).
+export type { CrosswalkTable } from './crosswalks';
+export { completedIds, crosswalksOf, matchByExternalIds } from './crosswalks';

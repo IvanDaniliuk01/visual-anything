@@ -1,0 +1,83 @@
+/*
+ * Destinations (ADR 0056): the dialog that asks before another project or a web address opens, and
+ * the lists of destinations and external identifiers in the inspector. Colors come from the tokens.
+ */
+
+/* The confirm button: it opens something outside this tab, and deletes nothing. */
+.follow-dialog .dialog-actions .dialog-confirm {
+  border-color: var(--accent-fill);
+  background: var(--accent-fill);
+  color: var(--on-accent);
+}
+
+/* The whole web address, as text, so that the person reads what opens. */
+.follow-address {
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+/* The inspector's destinations: what each opens, and the button that follows it. */
+.inspector-destinations {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inspector-destination {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-2);
+  align-items: center;
+}
+
+.inspector-destination-name {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.inspector-destination-opens {
+  overflow-wrap: anywhere;
+}
+
+/* The external identifiers: by scheme, each with its identifier. */
+.inspector-ids {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inspector-id {
+  display: grid;
+  grid-template-columns: minmax(4rem, auto) minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-2);
+  align-items: center;
+}
+
+.inspector-id-scheme {
+  color: var(--text-muted);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--text-xs);
+}
+
+.inspector-new-id {
+  display: grid;
+  grid-template-columns: minmax(4rem, 1fr) minmax(0, 2fr) auto;
+  gap: var(--space-1) var(--space-2);
+  align-items: end;
+  margin-top: var(--space-2);
+}
+
+/* The editor of a destination's value: what it opens, then where. */
+.destination-control {
+  display: grid;
+  gap: var(--space-1);
+}

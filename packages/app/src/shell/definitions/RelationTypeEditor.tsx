@@ -14,6 +14,8 @@ import { AttributeDefinitionsSection } from './AttributeDefinitionsSection';
 import { ColorRow } from './ColorRow';
 import { isBuiltInDefinition } from './commands';
 import { IdentitySection } from './IdentitySection';
+import { ExternalIdsSection } from '../../destinations/ExternalIdsSection';
+import { perform } from '../inspector/send';
 import { LimitsSection } from './LimitsSection';
 import { BuiltInNote, Gone, RemoveDefinition } from './parts';
 import { TraitRow } from './TraitRow';
@@ -93,6 +95,11 @@ export function RelationTypeEditor({ id, titleRef }: RelationTypeEditorProps) {
         lineage={relationType.lineage}
         readOnly={readOnly}
         update={(changes) => update(changes)}
+      />
+      <ExternalIdsSection
+        ids={definitions.relationTypes.get(id)?.definition.ids}
+        disabled={readOnly}
+        change={(changes) => perform(send, update({ ids: changes }))}
       />
       <BehaviorSection id={id} readOnly={readOnly} update={update} />
       <LineSection id={id} readOnly={readOnly} update={(appearance) => update({ appearance })} />

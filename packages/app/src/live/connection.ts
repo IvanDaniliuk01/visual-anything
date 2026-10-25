@@ -157,11 +157,19 @@ export type PreferencesResult =
 /** How many notices are shown at most; the oldest make way for newer ones. */
 export const MAX_NOTICES = 5;
 
+/**
+ * How the local program answered a request to open another project (ADR 0056): the name of the
+ * project a tab opened on, or why none did.
+ */
+export type OtherProjectResult =
+  { ok: true; name: string } | { ok: false; problems: RequestProblem[] };
+
 type RequestKind = 'command' | 'undo' | 'redo' | 'start';
 
 type Waiting =
   | { kind: RequestKind; resolve: (result: CommandResult) => void }
-  | { kind: 'preferences'; resolve: (result: PreferencesResult) => void };
+  | { kind: 'preferences'; resolve: (result: PreferencesResult) => void }
+  | { kind: 'other-project'; resolve: (result: OtherProjectResult) => void };
 
 /** Answers go back to the socket that asked, so request ids only need to be unique in the tab. */
 let requestCount = 0;
@@ -367,6 +375,28 @@ export class LiveConnection {
    */
   readonly startProject = (choice: StartChoice): Promise<CommandResult> =>
     this.request('start', (requestId) => ({ type: 'start/create', requestId, ...choice }));
+  /**
+   * Asks the local program to open another project, as a destination names it, in a tab of that
+   * project's own program (ADR 0056); the person agreed first. Resolves with the project's name once
+   * a tab opened there, or with why none did. Nothing in this project changes.
+   */
+  readonly openOtherProject = (project: string, view?: Id): Promise<OtherProjectResult> => {
+    const socket = this.socket;
+    if (socket === undefined || this.state.status !== 'open') {
+      return Promise.resolve(closedResult(NOT_CONNECTED));
+    }
+    const requestId = nextRequestId();
+    const text = encodeMessage({
+      type: 'project/open-other',
+      requestId,
+      project,
+      ...(view === undefined ? {} : { view }),
+    });
+    return new Promise((resolve) => {
+      this.waiting.set(requestId, { kind: 'other-project', resolve });
+      this.sendOn(socket, text, requestId, () => resolve(closedResult(NOT_CONNECTED)));
+    });
+  };
 
   /** Shows a notice. The same message at the same level is shown once, as the newest. */
   readonly notify = (level: NoticeLevel, message: string): void => {
@@ -526,6 +556,11 @@ export class LiveConnection {
       case 'history/listed':
         this.update({ actions: message.actions });
         break;
+      case 'other-project/opened': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'other-project') answered.resolve({ ok: true, name: message.name });
+        break;
+      }
       case 'guidance':
         this.guidanceCount += 1;
         this.update({
@@ -546,7 +581,8 @@ export class LiveConnection {
       return;
     }
     const taken = message.requestId === undefined ? undefined : this.take(message.requestId);
-    const answered = taken?.kind === 'preferences' ? undefined : taken;
+    const answered =
+      taken?.kind === 'preferences' || taken?.kind === 'other-project' ? undefined : taken;
     let next: ProjectSnapshot;
     try {
       next = applyOperations(project, message.operations).state;

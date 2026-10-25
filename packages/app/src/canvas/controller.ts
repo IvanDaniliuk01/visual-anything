@@ -87,6 +87,7 @@ import { rowMoveFor, rowTargetFor } from './rowKeys';
 import { headerMiddle } from './rows';
 import { relationLinesOf, type ElementShape, type NoteShape } from './scene';
 import { onLeavingMark } from './leavingMark';
+import { destinationTitle, onDestinationMark } from './destinationMark';
 import { leavingTitle } from './scope';
 import {
   WORLD_FRAME,
@@ -143,6 +144,8 @@ export interface ControllerCallbacks {
   addRow?(container: ElementShape, below?: Id): void;
   /** Says that the canvas shows a theme, in the frame that first shows it (ADR-0033). */
   themeShown?(theme: ThemeName): void;
+  /** Asks to follow the first destination of an element, from its mark or Alt+Enter (ADR 0056). */
+  follow?(element: Id): void;
 }
 
 /**
@@ -800,6 +803,9 @@ export class CanvasController {
         // The mark of the relations that leave the view says which (ADR-0040).
         else if (shape?.leaving && this.project && onLeavingMark(shape, world)) {
           this.host.title = leavingTitle(this.project, shape.leaving);
+        } else if (shape?.destinations && this.project && onDestinationMark(shape, world)) {
+          // The mark of a destination says what double-clicking it opens (ADR 0056).
+          this.host.title = destinationTitle(this.project, shape.element);
         } else if (this.host.title !== '') this.host.title = '';
         return;
       }
@@ -907,9 +913,16 @@ export class CanvasController {
   };
 
   private readonly onDoubleClick = (event: MouseEvent): void => {
-    if (!this.indexed || !this.editable) return;
+    if (!this.indexed) return;
     if (this.renderer.rulersContain(this.local(event))) return;
     const world = screenToWorld(this.camera, this.local(event));
+    // A double-click on a destination's mark follows it, also where nothing can be changed (ADR 0056).
+    const marked = this.hit(world, HIT_TOLERANCE / this.camera.scale);
+    if (marked?.kind === 'shape' && onDestinationMark(marked.shape, world)) {
+      this.callbacks.follow?.(marked.shape.element);
+      return;
+    }
+    if (!this.editable) return;
     // A double-click on a bend point removes it.
     if (this.routes.doubleClick(world)) return;
     const hit = this.hit(world, HIT_TOLERANCE / this.camera.scale);
@@ -993,6 +1006,15 @@ export class CanvasController {
       return;
     }
     if (command && !altGraph) return;
+    // Alt+Enter follows the destination of the selected element, as double-clicking its mark does.
+    if (event.altKey && !altGraph && event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      const reached = this.gesture.kind === 'idle' ? this.currentReachable() : undefined;
+      if (reached?.kind === 'shape' && reached.shape.destinations) {
+        this.callbacks.follow?.(reached.shape.element);
+      }
+      return;
+    }
     const step = RELATION_STEPS[event.key];
     if (step !== undefined && (altGraph || !event.altKey)) {
       event.preventDefault();

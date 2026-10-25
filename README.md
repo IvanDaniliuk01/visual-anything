@@ -48,6 +48,12 @@ A view shows the whole model, or the part its scope gives (ADR 0040): rules on c
 - **Playback** marks a step whose relations the view's scope shows none of as outside the view, and plays on.
 - **Claude** reads a scope with `get_scope`, sets it with `set_scope`, and changes it with `add_to_view` and `leave_out_of_view`; `read_view` says how many elements a view shows out of how many.
 
+## Identifiers, destinations and the element list
+
+- **External identifiers** say what an element, a component or a relation type is in someone else's catalog, by scheme, such as `uberon: UBERON:0002135` (ADR 0056). The inspector edits them; search finds by them, as `UBERON:0002135` or `uberon:UBERON:0002135`; importers match by them, filling in the schemes a file lacks from the crosswalks packages ship; and Claude's `find_elements` takes `id:<scheme>`. Nothing ever follows them.
+- **Destinations** are attribute values that open a view of this project, a view of another project, or an `https:` web address. A shape with one shows a mark in its bottom left corner: double-click it, or press Alt+Enter on the selected shape, to follow it; the shape's menu and the inspector list them all. Another project opens in a tab of its own Visual Anything, which starts if none runs there, and only from the folder that holds this project's folder; a web address opens in a new tab. Both ask first, naming the folder or the host.
+- **The element list**, from the header, lists what the open view shows or a component's elements, with their attributes and identifiers as columns. It sorts and filters; Enter, F2 or typing edits a cell, and a block of cells pasted from a spreadsheet is one action. Its rows select on the canvas, and follow what the canvas selects.
+
 ## Running the executable
 
 Visual Anything also comes as one executable file for each system, which needs nothing else installed: no Node.js, pnpm or repository (ADR 0037). Take yours from the assets of a release, or make it for the system you are on with `pnpm package`, which writes `dist-exe/visual-anything` (`visual-anything.exe` on Windows).

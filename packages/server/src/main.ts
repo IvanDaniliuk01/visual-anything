@@ -124,6 +124,7 @@ export async function runProgram(
     }
   }
   const keys = terminalKeys();
+  const runtime = runtimeFolder(process.platform, process.env, homedir());
   return command(argv, {
     cwd: process.cwd(),
     out: (line) => console.log(line),
@@ -132,7 +133,9 @@ export async function runProgram(
     signals: process,
     preferences: preferencesFolder(process.platform, process.env, homedir()),
     ...(keys === undefined ? {} : { keys }),
-    runtimeFolder: runtimeFolder(process.platform, process.env, homedir()),
+    runtimeFolder: runtime,
+    // The executable starts itself for another project a destination opens (ADR 0056).
+    ...(executable ? { startProgram: startProgramWith(runtime) } : {}),
   });
 }
 

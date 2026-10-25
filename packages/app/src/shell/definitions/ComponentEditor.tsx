@@ -21,6 +21,8 @@ import { isBuiltInDefinition } from './commands';
 import { ConnectionPointsSection } from './ConnectionPointsSection';
 import { DetailSection } from './DetailSection';
 import { IdentitySection } from './IdentitySection';
+import { ExternalIdsSection } from '../../destinations/ExternalIdsSection';
+import { perform } from '../inspector/send';
 import { componentImageAction } from './imageCommands';
 import { ImageControl } from './ImageControl';
 import { BuiltInNote, Gone, RemoveDefinition } from './parts';
@@ -91,6 +93,11 @@ export function ComponentEditor({ id, titleRef }: ComponentEditorProps) {
         lineage={component.lineage}
         readOnly={readOnly}
         update={(changes) => update(changes)}
+      />
+      <ExternalIdsSection
+        ids={definitions.components.get(id)?.definition.ids}
+        disabled={readOnly}
+        change={(changes) => perform(send, update({ ids: changes }))}
       />
       <AppearanceTraits id={id} readOnly={readOnly} update={appearance} />
       <DetailSection id={id} readOnly={readOnly} update={appearance} />

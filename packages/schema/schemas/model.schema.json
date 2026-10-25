@@ -47,6 +47,10 @@
         "description": {
           "type": "string"
         },
+        "ids": {
+          "$ref": "#/definitions/ExternalIds",
+          "description": "What it is in other catalogs, by scheme (ADR 0056); absent when it has none."
+        },
         "attributes": {
           "$ref": "#/definitions/Attributes",
           "description": "The element's attribute values. A value that differs from the default its component gives, or a value for an attribute its component does not define, is a particularity; a value for an attribute without a default is ordinary data."
@@ -68,6 +72,26 @@
       "type": "string",
       "description": "An identifier, generated once and never reused. Files refer to each other only by id. Element and relation ids share one namespace, because a relation can end on either. Component and relation type ids start with their package's id, as in `systems.service`.",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "ExternalIds": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/ExternalId"
+      },
+      "propertyNames": {
+        "description": "A scheme of external identifiers: a short lowercase name for someone else's catalog, such as `uberon` or `fma`.",
+        "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+      },
+      "description": "What an element, a component or a relation type is in other catalogs, by scheme, such as `{ \"uberon\": \"UBERON:0002135\", \"fma\": \"FMA:7235\" }`. Search finds by them, importers match by them, and nothing ever follows them.",
+      "minProperties": 1,
+      "maxProperties": 32
+    },
+    "ExternalId": {
+      "type": "string",
+      "description": "An identifier in someone else's catalog, such as `UBERON:0002135`. It is data, never followed.",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^\\x00-\\x1f\\x7f]*$"
     },
     "Attributes": {
       "type": "object",

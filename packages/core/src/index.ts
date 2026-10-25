@@ -237,6 +237,8 @@ export type { HistoryListedMessage, ListedAction } from './protocol';
 // The start screen of a folder that holds no project yet (ADR 0051).
 export type { OfferedSample, StartCreateMessage, StartOfferedMessage } from './protocol';
 export { MAX_START_NAME } from './protocol';
+// Following a destination to another project (version 6, ADR 0056).
+export type { OpenOtherProjectMessage, OtherProjectOpenedMessage } from './protocol';
 export { readListedActions } from './protocol';
 // The view state a view address carries (ADR 0030's addendum of 2026-10-25).
 export type {
@@ -278,3 +280,33 @@ export {
   partsAt,
   sortedLevels,
 } from './levels';
+// External identifiers and destinations (M8, ADR 0056).
+export {
+  MAX_EXTERNAL_ID_LENGTH,
+  MAX_SCHEMES,
+  SCHEME_PATTERN,
+  changedExternalIds,
+  checkedExternalIds,
+  duplicateExternalIdWarnings,
+  elementsWithExternalId,
+  externalIdQuery,
+  isExternalId,
+  isScheme,
+  matchesExternalId,
+  sameExternalIds,
+} from './external-ids';
+export type { DestinationKind, DestinationRead, FoundDestination } from './destinations';
+export {
+  MAX_DESTINATION_FOCUS,
+  MAX_PROJECT_PATH_LENGTH,
+  MAX_WEB_ADDRESS_LENGTH,
+  destinationKind,
+  destinationsOf,
+  isDestination,
+  projectPathProblem,
+  readDestination,
+  resolveProjectPath,
+  webAddressHost,
+  webAddressProblem,
+} from './destinations';
+export { destinationWarnings, projectDestinationPaths } from './destination-checks';

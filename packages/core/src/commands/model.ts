@@ -41,6 +41,8 @@ import type {
   UpdateRelationCommand,
 } from './types';
 import { putCollapsed } from './collapse';
+import { checkDestinationValues } from './destinations';
+import { changedExternalIds, checkedExternalIds } from '../external-ids';
 import { putScope } from './scopes';
 import { putPositions } from './views';
 
@@ -57,6 +59,7 @@ export function createElement(draft: Draft, command: CreateElementCommand): stri
   }
   const id = draft.idFor(element.id, slug(name, 'element'));
   const attributes = changedAttributes(undefined, element.attributes, undefined);
+  checkDestinationValues(attributes, component.attributes, `"${name}"`);
   const appearance =
     element.appearance === undefined
       ? undefined
@@ -67,6 +70,7 @@ export function createElement(draft: Draft, command: CreateElementCommand): stri
     component: element.component,
     name,
     description: element.description,
+    ids: element.ids === undefined ? undefined : checkedExternalIds(element.ids, `"${name}"`),
     attributes,
     appearance,
   });
@@ -140,7 +144,15 @@ export function updateElement(draft: Draft, command: UpdateElementCommand): stri
   );
   if (attributes === undefined) delete next.attributes;
   else next.attributes = attributes;
+  if (changes.ids !== undefined) {
+    const ids = changedExternalIds(current.ids, changes.ids, of);
+    if (ids === undefined) delete next.ids;
+    else next.ids = ids;
+  }
   const component = draft.definitions.component(next.component);
+  if (component !== undefined) {
+    checkDestinationValues(changes.attributes, component.attributes, of);
+  }
   if (
     component !== undefined &&
     (changes.appearance !== undefined || changes.appearanceTraits !== undefined)
@@ -172,6 +184,9 @@ export function updateElement(draft: Draft, command: UpdateElementCommand): stri
   }
   if (changes.name !== undefined && Object.keys(changes).length === 1) {
     return `Rename "${current.name}" to "${next.name}"`;
+  }
+  if (changes.ids !== undefined && Object.keys(changes).length === 1) {
+    return `Change the external identifiers of "${next.name}"`;
   }
   return onlyAppearance(changes)
     ? `${next.appearance === undefined ? 'Reset' : 'Change'} the appearance of "${next.name}"`
@@ -352,6 +367,7 @@ export function createRelation(draft: Draft, command: CreateRelationCommand): st
         ? undefined
         : checkedRelationAppearance(relation.appearance, of),
   });
+  checkDestinationValues(created.attributes, type.attributes, of);
   draft.apply({
     op: 'insert',
     collection: { name: 'relations' },
@@ -403,6 +419,8 @@ export function updateRelation(draft: Draft, command: UpdateRelationCommand): st
     );
   }
   const of = `the relation "${relationLabel(draft.index, current.id)}"`;
+  const type = draft.definitions.relationType(next.relationType);
+  if (type !== undefined) checkDestinationValues(changes.attributes, type.attributes, of);
   const appearance =
     changes.appearance === null
       ? undefined

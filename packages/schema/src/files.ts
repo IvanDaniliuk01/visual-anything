@@ -119,6 +119,8 @@ export interface Element {
   /** @minLength 1 */
   name: string;
   description?: string;
+  /** What it is in other catalogs, by scheme (ADR 0056); absent when it has none. */
+  ids?: ExternalIds;
   /**
    * The element's attribute values. A value that differs from the default its component gives, or a
    * value for an attribute its component does not define, is a particularity; a value for an attribute
@@ -177,6 +179,8 @@ export interface PackageFile {
   attribution?: string;
   components: Component[];
   relationTypes: RelationType[];
+  /** Tables that map one scheme of external identifiers to another, for importers (ADR 0056). */
+  crosswalks?: Crosswalk[];
   /**
    * The images its components' appearances, and elements' own appearances, show. Each is data only:
    * nothing in it runs or refers to anything outside it. Left out when there are none.
@@ -248,6 +252,8 @@ export interface Component {
   /** The component this one derives from: another component, or `essence`. */
   derivesFrom: Id;
   description?: string;
+  /** What it is in other catalogs, by scheme (ADR 0056); absent when it has none. */
+  ids?: ExternalIds;
   /** The attributes this component adds to the ones it inherits. */
   attributes?: AttributeDefinition[];
   appearance?: Appearance;
@@ -261,6 +267,8 @@ export interface RelationType {
   /** The relation type this one derives from: another relation type, or `relates-to`. */
   derivesFrom: Id;
   description?: string;
+  /** What it is in other catalogs, by scheme (ADR 0056); absent when it has none. */
+  ids?: ExternalIds;
   direction?: 'directed' | 'undirected';
   /** Whether its relations place their `from` element inside their `to` element, as "is part of" does. */
   nests?: boolean;
@@ -294,7 +302,8 @@ export interface RelationTypeLimits {
 export interface AttributeDefinition {
   /** @minLength 1 */
   name: string;
-  type: 'string' | 'number' | 'boolean' | 'json';
+  /** A `destination` holds a {@link Destination}: a value that opens something when followed. */
+  type: 'string' | 'number' | 'boolean' | 'json' | 'destination';
   /** The value an element or relation has when it does not set its own. */
   default?: JsonValue;
   description?: string;
@@ -1141,3 +1150,100 @@ export interface OpacityStop {
  * @maximum 1
  */
 export type OpacityValue = number;
+// External identifiers, crosswalks and destinations (M8, ADR 0056) ---------------------------------
+
+/**
+ * A scheme of external identifiers: a short lowercase name for someone else's catalog, such as
+ * `uberon` or `fma`.
+ *
+ * @pattern ^[a-z][a-z0-9_-]{0,31}$
+ */
+export type IdScheme = string;
+
+/**
+ * An identifier in someone else's catalog, such as `UBERON:0002135`. It is data, never followed.
+ *
+ * @minLength 1
+ * @maxLength 200
+ * @pattern ^[^\x00-\x1f\x7f]*$
+ */
+export type ExternalId = string;
+
+/**
+ * What an element, a component or a relation type is in other catalogs, by scheme, such as
+ * `{ "uberon": "UBERON:0002135", "fma": "FMA:7235" }`. Search finds by them, importers match by
+ * them, and nothing ever follows them.
+ *
+ * @minProperties 1
+ * @maxProperties 32
+ */
+export type ExternalIds = Record<IdScheme, ExternalId>;
+
+/**
+ * A table that maps the identifiers of one scheme to another's, such as `uberon` to `fma`, used by
+ * importers to fill in the schemes a file lacks.
+ */
+export interface Crosswalk {
+  /** The scheme its keys are in. */
+  from: IdScheme;
+  /** The scheme its values are in; never the same as `from`. */
+  to: IdScheme;
+  /** Where the table comes from, in words, such as the release of the crosswalk it was made from. */
+  source?: string;
+  /** Each identifier of `from` with the identifier of `to` it maps to. */
+  entries: CrosswalkEntries;
+}
+
+/**
+ * A crosswalk's identifiers of one scheme, each with the one of the other scheme it maps to.
+ *
+ * @minProperties 1
+ * @maxProperties 100000
+ */
+export type CrosswalkEntries = Record<ExternalId, ExternalId>;
+
+/**
+ * The value of a `destination` attribute: a view of this project, a view of another project, or a
+ * web address, opened when the destination is followed. Ids keep it valid across renames.
+ */
+export type Destination = ViewDestination | ProjectDestination | WebDestination;
+
+/** A view of this project, opened in the open tab and focused on some of its elements. */
+export interface ViewDestination {
+  view: Id;
+  /**
+   * The elements to select and show there.
+   *
+   * @minItems 1
+   * @maxItems 100
+   * @uniqueItems true
+   */
+  focus?: Id[];
+}
+
+/**
+ * Another project, opened by its own local program in a tab of its own, after the tab asks (ADR 0044).
+ */
+export interface ProjectDestination {
+  /**
+   * The project's folder, relative to this project's folder, written with `/`; it never leads out of
+   * the folder that holds this project's folder, such as `../billing`.
+   *
+   * @minLength 1
+   * @maxLength 1024
+   */
+  project: string;
+  /** The view to open there; absent, it opens where that project opens. */
+  view?: Id;
+}
+
+/** A web address, opened in a new tab only on a click, after a confirmation that names its host. */
+export interface WebDestination {
+  /**
+   * An `https:` address, without a user name or password; nothing ever fetches it.
+   *
+   * @maxLength 2048
+   * @pattern ^https://
+   */
+  url: string;
+}

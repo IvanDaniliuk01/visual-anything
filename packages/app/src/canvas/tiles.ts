@@ -454,6 +454,8 @@ export function shapeSignature(shape: ElementShape): string {
       imageSignature(shape),
       // The relations that leave the view, which its mark counts (ADR-0040).
       shape.leaving?.length ?? 0,
+      // Whether its mark says it has destinations (ADR 0056).
+      shape.destinations ?? 0,
     ].join(' ');
     signatures.set(shape, signature);
   }
