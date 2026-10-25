@@ -177,7 +177,7 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
           error instanceof LayoutStopped
             ? t('Layout stopped, and nothing moved.')
             : t('The layout failed: {why}', {
-                why: error instanceof Error ? error.message : String(error),
+                why: t.message(error instanceof Error ? error.message : String(error)),
               }),
         );
         return;

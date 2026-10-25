@@ -1969,6 +1969,70 @@ export const messages: Catalog = {
   'The scenario "{name}" plays over the view "{view}", not "{other}".':
     'El escenario "{name}" se reproduce sobre la vista "{view}", no sobre "{other}".',
   'The scenario "{name}" has no step "{id}".': 'El escenario "{name}" no tiene el paso "{id}".',
+
+  // What cleaning removed from an image, kind by kind, as the core counts it.
+  '1 processing instruction': '1 instrucción de procesamiento',
+  '{n} processing instructions': '{n} instrucciones de procesamiento',
+  '1 @ rule': '1 regla @',
+  '{n} @ rules': '{n} reglas @',
+  '1 style rule that selects by more than a class or an element name':
+    '1 regla de estilo que selecciona por algo más que una clase o un nombre de elemento',
+  '{n} style rules that select by more than a class or an element name':
+    '{n} reglas de estilo que seleccionan por algo más que una clase o un nombre de elemento',
+  '1 {element} element': '1 elemento {element}',
+  '{n} {element} elements': '{n} elementos {element}',
+  '1 {element} element unwrapped, its contents kept':
+    '1 elemento {element} desenvuelto, con su contenido conservado',
+  '{n} {element} elements unwrapped, their contents kept':
+    '{n} elementos {element} desenvueltos, con su contenido conservado',
+  '1 text element (turn text into paths to keep it)':
+    '1 elemento de texto (convertir el texto en trazados para conservarlo)',
+  '{n} text elements (turn text into paths to keep it)':
+    '{n} elementos de texto (convertir el texto en trazados para conservarlo)',
+  '1 attribute of another namespace': '1 atributo de otro espacio de nombres',
+  '{n} attributes of other namespaces': '{n} atributos de otros espacios de nombres',
+  '1 event handler attribute': '1 atributo de manejo de eventos',
+  '{n} event handler attributes': '{n} atributos de manejo de eventos',
+  '1 other attribute': '1 otro atributo',
+  '{n} other attributes': '{n} otros atributos',
+  '1 style declaration that is not paint': '1 declaración de estilo que no es de pintura',
+  '{n} style declarations that are not paint': '{n} declaraciones de estilo que no son de pintura',
+  '1 outside reference': '1 referencia externa',
+  '{n} outside references': '{n} referencias externas',
+  '1 id that is not allowed': '1 id no permitido',
+  '{n} ids that are not allowed': '{n} ids no permitidos',
+  '1 repeated id': '1 id repetido',
+  '{n} repeated ids': '{n} ids repetidos',
+  '1 value that is not allowed': '1 valor no permitido',
+  '{n} values that are not allowed': '{n} valores no permitidos',
+  '1 stroke dash pattern finer than the picture can show':
+    '1 patrón de guiones más fino de lo que la imagen puede mostrar',
+  '{n} stroke dash patterns finer than the picture can show':
+    '{n} patrones de guiones más finos de lo que la imagen puede mostrar',
+  '1 stroke width wider than the picture': '1 grosor de trazo más ancho que la imagen',
+  '{n} stroke widths wider than the picture': '{n} grosores de trazo más anchos que la imagen',
+  '1 {chunk} chunk': '1 bloque {chunk}',
+  '{n} {chunk} chunks': '{n} bloques {chunk}',
+  '1 byte after the end': '1 byte después del final',
+  '{n} bytes after the end': '{n} bytes después del final',
+  '1 EXIF or XMP segment': '1 segmento EXIF o XMP',
+  '{n} EXIF or XMP segments': '{n} segmentos EXIF o XMP',
+  '1 colour profile segment': '1 segmento de perfil de color',
+  '{n} colour profile segments': '{n} segmentos de perfil de color',
+  '1 comment': '1 comentario',
+  '{n} comments': '{n} comentarios',
+  '1 other segment': '1 otro segmento',
+  '{n} other segments': '{n} otros segmentos',
+  '1 {segment} segment': '1 segmento {segment}',
+  '{n} {segment} segments': '{n} segmentos {segment}',
+  '1 more kind of thing': '1 tipo de cosa más',
+  '{n} more kinds of thing': '{n} tipos de cosas más',
+
+  // Why the browser could not draw or read a picture, and why layout failed.
+  'This browser draws no 2D canvas.': 'Este navegador no dibuja lienzos 2D.',
+  'This browser encodes no picture.': 'Este navegador no codifica imágenes.',
+  'The layout worker failed: {why}.': 'El proceso de diseño automático falló: {why}.',
+  'The layout was stopped.': 'Se detuvo el diseño automático.',
 };
 
 /**

@@ -156,6 +156,7 @@ export const NESTED_VALUES: ReadonlySet<string> = new Set([
   'images',
   'scenarios',
   'choices',
+  'removed',
 ]);
 
 /**
@@ -328,7 +329,8 @@ function valueIn(language: Language, catalog: Catalog, value: string, depth: num
 /**
  * A list, as in "3 elements, 2 relations and 1 view" or `"A" or "B"`: each item translated, and joined
  * as the language joins lists, with the catalog's entries for " and " and " or ". Undefined unless every
- * item has an entry.
+ * item has an entry. A list whose items say "and" or "or" themselves, as in "1 EXIF or XMP segment, 2
+ * comments", is read by its commas alone.
  */
 function listIn(
   language: Language,
@@ -336,7 +338,20 @@ function listIn(
   value: string,
   depth: number,
 ): Translated | undefined {
-  const parts = value.split(/(, | and | or )/);
+  return (
+    listBy(/(, | and | or )/, language, catalog, value, depth) ??
+    listBy(/(, )/, language, catalog, value, depth)
+  );
+}
+
+function listBy(
+  separators: RegExp,
+  language: Language,
+  catalog: Catalog,
+  value: string,
+  depth: number,
+): Translated | undefined {
+  const parts = value.split(separators);
   if (parts.length < 3) return undefined;
   let text = '';
   for (const [at, part] of parts.entries()) {

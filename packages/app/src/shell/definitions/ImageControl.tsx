@@ -89,7 +89,8 @@ export function ImageControl({
         ? t('Cleaning removed nothing from “{name}”.', { name: prepared.name })
         : t('Cleaning removed from “{name}”: {removed}.', {
             name: prepared.name,
-            removed: prepared.removed.join(', '),
+            // Each kind cleaning removed is a message of the core's.
+            removed: prepared.removed.map((each) => t.message(each)).join(', '),
           }),
     ];
     if (prepared.shrunk) {

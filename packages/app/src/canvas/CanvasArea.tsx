@@ -1011,7 +1011,7 @@ export function CanvasArea({
       {(failure ?? indexing.error) !== undefined ? (
         <p className="canvas-message canvas-failure" role="alert">
           {t('The canvas could not draw this view: {why}', {
-            why: failure ?? indexing.error ?? '',
+            why: t.message(failure ?? indexing.error ?? ''),
           })}
         </p>
       ) : (
