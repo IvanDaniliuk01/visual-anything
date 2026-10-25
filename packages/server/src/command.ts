@@ -40,15 +40,17 @@ export const USAGE = `Usage: visual-anything [open] [folder] [--view <id> [--sel
        visual-anything mcp [folder] [--dev]
        visual-anything new <folder> [--from <sample>]
        visual-anything export <folder> --view <id> --format <format> [--theme light|dark] [--out <file>]
+       visual-anything import <folder> <file> [--map <kind>=<id>]... [--dry-run]
 
 Opens the project in folder (the current folder when left out) and serves the app on 127.0.0.1.
 When Visual Anything already runs on that folder, it opens a new tab there instead, at the view
 asked for. With mcp, runs the MCP server Claude Code and Claude Desktop start instead;
 visual-anything mcp --help says more. With new, starts a new project in a folder that holds
 nothing yet, from a sample or empty, then opens it; visual-anything new --help says more. With
-export, writes a view as SVG, PDF or text; visual-anything export --help says more. A folder that
-holds nothing yet opens on a start screen, which starts a project there. A folder named open, new,
-mcp or export is opened as ./open, ./new, ./mcp or ./export.
+export, writes a view as SVG, PDF or text; visual-anything export --help says more. With import,
+imports a file into the project as one action; visual-anything import --help says more. A folder
+that holds nothing yet opens on a start screen, which starts a project there. A folder named open,
+new, mcp, export or import is opened as ./open, ./new, ./mcp, ./export or ./import.
 
   --view <id>       Open the app at this view.
   --select <id>     Select this element, relation or free shape there; give it again, or a list

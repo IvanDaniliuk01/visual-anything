@@ -329,9 +329,9 @@ Eight milestones in build order, each ending in something you can use, and Track
   - the canvas and the outline offer Add to this view and Leave out of this view;
   - shapes count the relations that leave the view
 - [x] Claude's tools to read and set a scope, and to add to a view or leave out of it
-- [ ] The import pipeline (ADR 0042): the plan, the mapping dialog, one batch, the report; Import… in the header, `visual-anything import <folder> <file>`, and Claude's `import_file`
-- [ ] The Mermaid reader: flowcharts, C4, ER and class diagrams
-- [ ] The spreadsheet (CSV and TSV) and JSON readers, importing again by a key
+- [x] The import pipeline (ADR 0042): the plan, the mapping dialog, one batch, the report; Import… in the header, `visual-anything import <folder> <file>`, and Claude's `import_file`
+- [x] The Mermaid reader: flowcharts, C4, ER and class diagrams
+- [x] The spreadsheet (CSV and TSV) and JSON readers, importing again by a key
 - [x] The Structurizr workspace JSON and LikeC4 model readers, with their views as scopes
 - [x] The draw.io reader: compressed and plain files, `.drawio.svg` and `.drawio.png`, shapes, containers, edges with their waypoints, and pages as views
 - [x] License fields in the schema, and the license test (ADR 0047)

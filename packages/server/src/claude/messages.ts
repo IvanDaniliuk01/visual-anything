@@ -15,6 +15,7 @@ import {
   decodeServerMessage,
   readCodeApprovals,
   readGuidance,
+  type BatchCommand,
   type CodeApproval,
   type Command,
   type Guidance,
@@ -24,6 +25,9 @@ import {
 
 /** The path of the Claude endpoint. */
 export const CLAUDE_PATH = '/claude';
+
+/** The largest message Claude may send: a command creating thousands of elements fits. */
+export const CLAUDE_MAX_PAYLOAD = 8 * 1024 * 1024;
 
 /** The longest request id the program accepts. */
 const MAX_REQUEST_ID = 100;
@@ -43,7 +47,13 @@ export type ClaudeMessage =
    * Asks which code of the open project's packages the person approved (ADR 0054), so that Claude's
    * tools run only approved code. Claude can never approve code: only the person can, in the app.
    */
-  | { type: 'code-approvals'; requestId: string };
+  | { type: 'code-approvals'; requestId: string }
+  /**
+   * An import the person ran on the command line, `visual-anything import`, sent to the program that
+   * runs on its project (ADR-0049): a batch labelled as an import only, which runs with the person as
+   * its author. Claude's tools never send it.
+   */
+  | { type: 'import'; requestId: string; command: BatchCommand };
 
 /**
  * The answer to `code-approvals`: the person's approvals of the code the project's packages hold now,
@@ -54,6 +64,9 @@ export interface CodeApprovalsMessage {
   requestId: string;
   approvals: CodeApproval[];
 }
+
+/** The label every import's batch starts with (ADR-0042). */
+export const IMPORT_LABEL = /^Import "/;
 
 /** The answer to guidance: how many open apps it reached. */
 export interface GuidanceShownMessage {
@@ -93,6 +106,19 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
       return { type: 'command', requestId, command: message.command as unknown as Command };
     case 'guidance':
       return { type: 'guidance', requestId, guidance: readGuidance(message.guidance) };
+    case 'import': {
+      const command = message.command;
+      if (
+        !isRecord(command) ||
+        command.type !== 'batch' ||
+        typeof command.label !== 'string' ||
+        !IMPORT_LABEL.test(command.label) ||
+        !Array.isArray(command.commands)
+      ) {
+        throw new ProtocolError('The message has no import: a batch labelled as one.');
+      }
+      return { type: 'import', requestId, command: command as unknown as BatchCommand };
+    }
     case 'open-app': {
       if (message.state === undefined) return { type: 'open-app', requestId };
       const checked = checkViewState(message.state);
@@ -103,7 +129,7 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
       return { type: 'code-approvals', requestId };
     default:
       throw new ProtocolError(
-        `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance and opening the app. Undo and redo are the person's, in the app.`,
+        `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance, opening the app and imports from the command line. Undo and redo are the person's, in the app.`,
       );
   }
 }

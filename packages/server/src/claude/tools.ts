@@ -27,6 +27,7 @@ import { CODE_TOOLS } from './code-tools';
 import { EXPORT_TOOLS } from './export-tools';
 import { IMAGE_TOOLS } from './image-tools';
 import { OVERLAY_TOOLS } from './overlay-tools';
+import { IMPORT_TOOLS } from './import-tools';
 import { RECIPES_IN_BRIEF } from './recipes';
 import { SCENARIO_TOOLS } from './scenario-tools';
 import { SCOPE_TOOLS } from './scope-tools';
@@ -1117,6 +1118,7 @@ export const TOOLS: readonly Tool[] = [
   ...CODE_TOOLS,
   ...EXPLORE_TOOLS,
   ...VIEW_STATE_TOOLS,
+  ...IMPORT_TOOLS,
   // What a view shows of the model (ADR-0040).
   ...SCOPE_TOOLS,
   ...EXPORT_TOOLS,

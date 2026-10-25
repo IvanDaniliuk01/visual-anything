@@ -19,7 +19,7 @@ import {
 } from '@visual-anything/core';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import { attachClaude } from './claude/endpoint';
-import { CLAUDE_PATH, encodeClaudeMessage } from './claude/messages';
+import { CLAUDE_MAX_PAYLOAD, CLAUDE_PATH, encodeClaudeMessage } from './claude/messages';
 import { toForwardSlashes } from './paths';
 import { refuseUpgrade, sendText, setSecurityHeaders } from './responses';
 import {
@@ -48,9 +48,6 @@ import {
   serveAppFile,
   type AppFiles,
 } from './static';
-
-/** The largest message Claude may send: a command creating thousands of elements fits. */
-const CLAUDE_MAX_PAYLOAD = 8 * 1024 * 1024;
 
 /** The only address the local program listens on, so other machines cannot reach it. */
 export const HOST = '127.0.0.1';

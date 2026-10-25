@@ -16,6 +16,7 @@ import {
   ProtocolError,
   applyOperations,
   type CodeApproval,
+  type BatchCommand,
   type Command,
   type Guidance,
   type Problem,
@@ -155,6 +156,25 @@ export class ProgramBridge implements Program {
 
   async execute(command: Command): Promise<CommandAnswer> {
     const answer = await this.#request((requestId) => ({ type: 'command', requestId, command }));
+    if (answer.type === 'project/changed') {
+      return {
+        ok: true,
+        label: answer.label,
+        changed: answer.operations.length > 0,
+        created: answer.created,
+        warnings: answer.warnings,
+      };
+    }
+    if (answer.type === 'command/rejected') return { ok: false, problems: answer.problems };
+    throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  /**
+   * Runs an import the person ran on the command line as one action of the person's (ADR-0049); only
+   * `visual-anything import` calls it, never Claude's tools.
+   */
+  async importAsPerson(command: BatchCommand): Promise<CommandAnswer> {
+    const answer = await this.#request((requestId) => ({ type: 'import', requestId, command }));
     if (answer.type === 'project/changed') {
       return {
         ok: true,

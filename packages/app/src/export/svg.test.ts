@@ -267,7 +267,11 @@ describe('writeSvg', () => {
       ),
     };
     const drawing = writeSvg(recorded, SAMPLE_VIEW);
-    expect(drawing.attribution).toEqual(['Clinic · CC-BY-4.0 · Drawn by the clinic']);
+    // Every package the view draws from, the built-in Systems among them since W31 recorded its license.
+    expect(drawing.attribution).toEqual([
+      'Systems · CC0-1.0 · Visual Anything contributors',
+      'Clinic · CC-BY-4.0 · Drawn by the clinic',
+    ]);
     expect(readSvg(drawing.text).querySelector('metadata')?.textContent).toContain(
       'Clinic · CC-BY-4.0 · Drawn by the clinic',
     );

@@ -15,6 +15,7 @@ import {
 } from '@visual-anything/core';
 import type { Component, Element, Overlay, PackageFile, ViewFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
+import { importMessages } from '../test/importMessages';
 import { readerMessages } from '../test/reader-messages';
 import { loadSample } from '../test/sample';
 import { translateMessage, untranslatedParts } from './translate';
@@ -1110,6 +1111,25 @@ describe('the local program’s messages in Spanish', () => {
     ).toBe(
       'El componente "Calendar" no se puede quitar: lo usan 3 elementos, 1 relación y 2 vistas.',
     );
+  });
+});
+
+describe('what imports say, in Spanish', () => {
+  const said = importMessages();
+
+  it('says each thing a reader can say', () => {
+    expect(said.length).toBeGreaterThan(60);
+  });
+
+  it('has a Spanish template for every refusal, reason and label', () => {
+    const missing = [...new Set(said.map(({ message }) => message))].flatMap((message) =>
+      untranslatedParts('es', message),
+    );
+    expect([...new Set(missing)]).toEqual([]);
+  });
+
+  it('keeps the file’s name as written', () => {
+    expect(translateMessage('es', 'Import "checkout.mmd"')).toBe('Importar "checkout.mmd"');
   });
 });
 
