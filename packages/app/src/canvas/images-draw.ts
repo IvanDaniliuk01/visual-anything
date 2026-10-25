@@ -84,6 +84,8 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
   /** Whether the scene shown has any picture at all; when not, a frame costs nothing here. */
   #any = false;
   #shapes: readonly ElementShape[] | undefined;
+  /** Whether a drawing asked the store for a texture it does not have yet, since the last frame. */
+  #asked = false;
   /** The drawings of the drag under way, and the textures they use. */
   #dragged: { graphics: Graphics[]; keys: Set<string> } = { graphics: [], keys: new Set() };
 
@@ -173,7 +175,10 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
       const known = byId.get(id);
       if (known) this.#drop(known.drawing);
     }
-    return more;
+    // What a drawing asked for this frame is started in the next, which nothing else may bring.
+    const asked = this.#asked;
+    this.#asked = false;
+    return more || asked;
   }
 
   /**
@@ -317,6 +322,7 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
         tile,
       };
       const made = this.store.texture(request);
+      if (!made?.exact) this.#asked = true;
       if (!made) continue;
       keys.push(made.key);
       const into = isDrawing ? drawings : icons;
