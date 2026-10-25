@@ -530,11 +530,13 @@ export function enclosedBy(
   hidden: Skipped = NOTHING_SKIPPED,
 ): { shapes: ElementShape[]; notes: NoteShape[]; arrows: ArrowShape[] } {
   const { scene } = indexed;
+  const shapes = indexed.shapes
+    .query(box)
+    .map((at) => scene.shapes[at] as ElementShape)
+    .filter((shape) => !hidden.has(shape.key) && within(shape.rect, box));
   return {
-    shapes: indexed.shapes
-      .query(box)
-      .map((at) => scene.shapes[at] as ElementShape)
-      .filter((shape) => !hidden.has(shape.key) && within(shape.rect, box)),
+    // A box around a table selects the table, not its rows as well (ADR 0023).
+    shapes: withoutRowsOfEnclosed(shapes),
     notes: indexed.notes
       .query(box)
       .map((at) => scene.notes[at] as NoteShape)
@@ -544,6 +546,16 @@ export function enclosedBy(
       .map((at) => scene.arrows[at] as ArrowShape)
       .filter((arrow) => !hidden.has(arrow.id) && within(rectAround([arrow.from, arrow.to]), box)),
   };
+}
+
+/** The shapes without the rows whose container's shape is among them. */
+function withoutRowsOfEnclosed(shapes: ElementShape[]): ElementShape[] {
+  if (!shapes.some((shape) => shape.row !== undefined)) return shapes;
+  const keys = new Set(shapes.map((shape) => shape.key));
+  return shapes.filter(
+    (shape) =>
+      shape.row === undefined || shape.containerShape === undefined || !keys.has(shape.containerShape),
+  );
 }
 
 /**

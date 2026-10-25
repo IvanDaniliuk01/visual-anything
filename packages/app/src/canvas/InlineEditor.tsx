@@ -12,12 +12,15 @@ interface InlineEditorProps {
   label: string;
   onCommit: (value: string) => void;
   onCancel: () => void;
+  /** For a row's name: Ctrl+Enter (⌘Enter) commits it, then this adds the next row (ADR 0023). */
+  onNext?: () => void;
 }
 
 /**
  * Edits text in place, in an HTML field laid over the canvas where the text is drawn (ADR-0014).
- * Enter commits a name, and Ctrl+Enter a note; Escape cancels; leaving the field commits. While an
- * input method composes text, Enter and Escape are its own.
+ * Enter commits a name, and Ctrl+Enter a note; Ctrl+Enter in a row's name commits it and adds the
+ * next row; Escape cancels; leaving the field commits. While an input method composes text, Enter
+ * and Escape are its own.
  */
 export function InlineEditor({
   rect,
@@ -27,13 +30,15 @@ export function InlineEditor({
   label,
   onCommit,
   onCancel,
+  onNext,
 }: InlineEditorProps) {
   const [text, setText] = useState(value);
   const field = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const done = useRef(false);
 
   useEffect(() => {
-    field.current?.focus();
+    // The canvas brings what it edits into sight; the page itself never scrolls to the field.
+    field.current?.focus({ preventScroll: true });
     field.current?.select();
   }, []);
 
@@ -65,7 +70,11 @@ export function InlineEditor({
       // Safari ends a composition with a key press that no longer says it composes, but has code 229.
       if (event.nativeEvent.isComposing || event.keyCode === 229) return;
       if (event.key === 'Escape') finish(false);
-      else if (event.key === 'Enter' && (!multiline || event.ctrlKey || event.metaKey)) {
+      else if (event.key === 'Enter' && onNext && !multiline && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        finish(true);
+        onNext();
+      } else if (event.key === 'Enter' && (!multiline || event.ctrlKey || event.metaKey)) {
         event.preventDefault();
         finish(true);
       }

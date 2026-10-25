@@ -47,6 +47,22 @@ export function describeShape(
       : t('in {container}', { container: inside });
   const relations = drawnRelations(indexed.scene, project).around(shape.element).length;
   const component = modelIndexOf(project).element(shape.element)?.component;
+  // A row says its detail and its place among its container's rows (ADR 0023).
+  if (shape.row !== undefined && container?.rowCount !== undefined) {
+    const values = {
+      name: shape.name,
+      component:
+        component === undefined ? shape.componentName : t.definition(component, shape.componentName),
+      detail: shape.detail ?? '',
+      position: shape.row + 1,
+      count: container.rowCount,
+      container: container.name,
+      relations: relations === 0 ? t('no relations') : t(RELATIONS, { count: relations }),
+    };
+    return values.detail === ''
+      ? t('{name}, {component}, row {position} of {count} in {container}, {relations}.', values)
+      : t('{name}, {component}, {detail}, row {position} of {count} in {container}, {relations}.', values);
+  }
   return t('{name}, {component}, {where}, {relations}.', {
     name: shape.name,
     component:

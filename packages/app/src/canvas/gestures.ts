@@ -93,12 +93,29 @@ export function moveParts(
 
 /**
  * The element shapes a move takes along: every shape of every selected element, except the ones
- * inside a shape that moves too, which its container carries.
+ * inside a shape that moves too, which its container carries. A row has no position of its own, so
+ * it moves its container instead, once however many of its rows are selected (ADR 0023).
  */
 export function movingShapes(indexed: IndexedScene, selection: Selection): ElementShape[] {
   const selected = [...selection.elements].flatMap((id) => indexed.byElement.get(id) ?? []);
-  const keys = new Set(selected.map((shape) => shape.key));
-  return selected.filter((shape) => !insideAnyOf(shape.key, keys));
+  const unique = new Map<string, ElementShape>();
+  for (const shape of selected) {
+    const moved = containerOfRow(indexed, shape);
+    if (!unique.has(moved.key)) unique.set(moved.key, moved);
+  }
+  const keys = new Set(unique.keys());
+  return [...unique.values()].filter((shape) => !insideAnyOf(shape.key, keys));
+}
+
+/** The shape a move takes for a shape: its container's, for a row, however deep; itself otherwise. */
+function containerOfRow(indexed: IndexedScene, shape: ElementShape): ElementShape {
+  let moved = shape;
+  while (moved.row !== undefined && moved.containerShape !== undefined) {
+    const container = indexed.byKey.get(moved.containerShape);
+    if (!container) break;
+    moved = container;
+  }
+  return moved;
 }
 
 /**
@@ -288,7 +305,14 @@ export function createBesideCommand(
   };
   const label = `Create "${component.name}"`;
   const first = nesting?.first ?? [];
-  if (drawsRows(project, container)) return asOneAction([...first, create], label);
+  if (drawsRows(project, container)) {
+    // Below the row it is added beside, in the model's order, which is the order of rows.
+    const rows = indexed.contentsOf.get(beside.containerShape ?? '') ?? [];
+    const at = rows.findIndex((shape) => shape.key === beside.key);
+    const next = at === -1 ? undefined : rows[at + 1];
+    if (beside.row !== undefined && next !== undefined) create.before = next.element;
+    return asOneAction([...first, create], label);
+  }
 
   const { width, height } = appearanceOf({ component: componentId }, definitions);
   const at = besidePlace(indexed, beside, { width, height });

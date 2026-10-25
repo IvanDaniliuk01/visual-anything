@@ -79,6 +79,9 @@ import {
   type Start,
 } from './navigation';
 import { CanvasRenderer, type Overlay } from './renderer';
+import { t } from '../i18n';
+import { rowMoveFor, rowTargetFor } from './rowKeys';
+import { headerMiddle } from './rows';
 import type { ElementShape, NoteShape } from './scene';
 import { rectAround, rectBetween } from './spatial';
 
@@ -114,6 +117,11 @@ export interface ControllerCallbacks {
    * canvas sends I1's command and says what it did.
    */
   collapse?(action: CollapseAction, collapsed: boolean): void;
+  /**
+   * Asks to add a row to a shape that draws its contents as rows, below the row of `below` or at the
+   * end, and to edit its name in place, as Ctrl+Enter does (ADR 0023).
+   */
+  addRow?(container: ElementShape, below?: Id): void;
 }
 
 /**
@@ -512,7 +520,9 @@ export class CanvasController {
       this.editable &&
       handle &&
       handleShape &&
-      distance(world, handle) <= HANDLE_REACH / this.camera.scale
+      distance(world, handle) <= HANDLE_REACH / this.camera.scale &&
+      // Beside a row, a relation's line there is pressed rather than the handle (ADR 0023).
+      !(handleShape.row !== undefined && this.hit(world, HIT_TOLERANCE / this.camera.scale)?.kind === 'relation')
     ) {
       this.begin(event, {
         kind: 'connect',
@@ -845,6 +855,12 @@ export class CanvasController {
     // as AltGraph. Otherwise, with Ctrl or ⌘, [ and ] are the stacking order's, which the canvas
     // area handles for the whole window; with Alt they are left alone.
     const altGraph = event.getModifierState('AltGraph');
+    // Ctrl+Enter (⌘Enter) adds a row (ADR 0023).
+    if (command && !altGraph && event.key === 'Enter' && !event.altKey && !event.shiftKey) {
+      event.preventDefault();
+      if (this.gesture.kind === 'idle') this.addRowFromKeys();
+      return;
+    }
     if (command && !altGraph) return;
     const step = RELATION_STEPS[event.key];
     if (step !== undefined && (altGraph || !event.altKey)) {
@@ -1300,7 +1316,7 @@ export class CanvasController {
       if (direction === 'up') this.selectContainer();
       else this.selectInside();
     } else if (event.shiftKey) {
-      this.nudge(direction, event.repeat);
+      if (!this.moveRow(direction)) this.nudge(direction, event.repeat);
     } else {
       this.go(direction);
     }
@@ -1530,6 +1546,37 @@ export class CanvasController {
     this.sendNudge(nudge);
   }
 
+  /**
+   * Shift with an arrow key on a row, which has no position: Up and Down move it among its
+   * container's rows, and Left and Right do nothing. Says whether the current shape is a row.
+   */
+  private moveRow(direction: Direction): boolean {
+    const current = this.currentReachable();
+    const { project, viewId } = this;
+    if (current?.kind !== 'shape' || !project || viewId === undefined) return false;
+    const { handled, command } = rowMoveFor(project, viewId, current.shape, direction);
+    if (handled && command && this.editable) {
+      const { name } = current.shape;
+      void this.callbacks.command(command).then((done) => {
+        if (!done) return;
+        this.announce(
+          direction === 'up' ? t('“{name}” moved up.', { name }) : t('“{name}” moved down.', { name }),
+        );
+      });
+    }
+    return handled;
+  }
+
+  /** Ctrl+Enter: adds a row below the current row, or at the end of the current shape's rows. */
+  private addRowFromKeys(): void {
+    const current = this.currentReachable();
+    const indexed = this.indexed;
+    if (!this.editable || current?.kind !== 'shape' || !indexed) return;
+    const target = rowTargetFor(indexed, current.shape);
+    if (target) this.callbacks.addRow?.(target.container, target.below);
+    else this.announce(t('“{name}” draws no rows to add a row to.', { name: current.shape.name }));
+  }
+
   /** Sends the next press waiting, once no move is on its way; none waits once nothing can be changed. */
   private nudgeNext(): void {
     if (!this.editable) this.nudges = [];
@@ -1592,7 +1639,8 @@ export class CanvasController {
   private handleOf(shape: ElementShape): Point {
     return {
       x: shape.rect.x + shape.rect.width + HANDLE_OFFSET / this.camera.scale,
-      y: centerOf(shape.rect).y,
+      // Beside the header of a shape that draws rows, where its own relations attach.
+      y: shape.rowCount === undefined ? centerOf(shape.rect).y : headerMiddle(shape.rect),
     };
   }
 
