@@ -1,6 +1,10 @@
 /**
  * A uniform grid over the canvas that finds what lies at a point or across a rectangle by looking only
  * at the cells involved, so that pointing at one shape among 10,000 stays cheap.
+ *
+ * Each item has a slot, the order it was added in, which it keeps when it moves: a query lists items
+ * in slot order. A copy (`clone`) shares the cells with the index it was made from until either
+ * changes one, so that an edit that moves a few items copies only the cells they leave and enter.
  */
 import type { Point, Rect } from './geometry';
 
@@ -8,41 +12,89 @@ import type { Point, Rect } from './geometry';
 const ROWS = 1_048_576;
 
 export class SpatialIndex<T> {
-  private readonly items: T[] = [];
-  private readonly bounds: Rect[] = [];
+  private items: T[] = [];
+  /** Each slot's rectangle; undefined once its item is removed. */
+  private bounds: (Rect | undefined)[] = [];
   /** The rectangles an item covers when it covers several, such as the segments of a route. */
-  private readonly parts: (readonly Rect[] | undefined)[] = [];
-  private readonly cells = new Map<number, number[]>();
+  private parts: (readonly Rect[] | undefined)[] = [];
+  private cells = new Map<number, number[]>();
+  /**
+   * The cells whose lists this index may change in place; undefined when it may change them all.
+   * Cells shared with a copy are copied before they change.
+   */
+  private owned: Set<number> | undefined;
   /** Which query last found each item, so that a query lists each item once without a set. */
-  private readonly seen: number[] = [];
+  private seen: number[] = [];
   private queries = 0;
+  private live = 0;
 
   constructor(private readonly cellSize = 256) {}
 
   /** How many items it holds. */
   get size(): number {
-    return this.items.length;
+    return this.live;
   }
 
-  /** Adds an item that covers `rect`. */
-  insert(item: T, rect: Rect): void {
+  /** Adds an item that covers `rect`, and says its slot. */
+  insert(item: T, rect: Rect): number {
     const index = this.add(item, rect, undefined);
     this.enter(index, rect);
+    return index;
   }
 
   /**
    * Adds an item that covers several rectangles, such as a route by its segments: it is found where
    * any of them is, and enters only the cells they cover, not every cell of the rectangle around them.
+   * Says its slot; an item with no rectangle gets none, -1.
    */
-  insertParts(item: T, parts: readonly Rect[]): void {
+  insertParts(item: T, parts: readonly Rect[]): number {
     const [first] = parts;
-    if (!first) return;
-    if (parts.length === 1) {
-      this.insert(item, first);
-      return;
-    }
+    if (!first) return -1;
+    if (parts.length === 1) return this.insert(item, first);
     const index = this.add(item, enclosing(parts), parts);
     for (const part of parts) this.enter(index, part);
+    return index;
+  }
+
+  /** A copy that changes apart from this index, sharing its cells until either changes them. */
+  clone(): SpatialIndex<T> {
+    const copy = new SpatialIndex<T>(this.cellSize);
+    copy.items = this.items.slice();
+    copy.bounds = this.bounds.slice();
+    copy.parts = this.parts.slice();
+    copy.cells = new Map(this.cells);
+    copy.owned = new Set();
+    copy.seen = new Array<number>(this.items.length).fill(0);
+    copy.live = this.live;
+    // The lists are now shared both ways.
+    this.owned = new Set();
+    return copy;
+  }
+
+  /** Moves the item in a slot to cover `rect` instead, keeping its slot. */
+  replace(slot: number, rect: Rect): void {
+    this.replaceParts(slot, [rect]);
+  }
+
+  /** Moves the item in a slot to cover these rectangles instead, keeping its slot. */
+  replaceParts(slot: number, parts: readonly Rect[]): void {
+    if (this.bounds[slot] === undefined) return;
+    this.leave(slot);
+    const [first] = parts;
+    if (!first) {
+      this.bounds[slot] = undefined;
+      this.parts[slot] = undefined;
+      this.live -= 1;
+      return;
+    }
+    this.bounds[slot] = parts.length === 1 ? first : enclosing(parts);
+    this.parts[slot] = parts.length === 1 ? undefined : parts;
+    for (const part of parts) this.enter(slot, part);
+  }
+
+  /** Takes the item in a slot out; its slot stays empty. */
+  remove(slot: number): void {
+    this.replaceParts(slot, []);
   }
 
   /** The items whose rectangle meets `rect`, each once, in the order they were added. */
@@ -74,13 +126,14 @@ export class SpatialIndex<T> {
 
   /**
    * The highest score among the items that overlap `rect`, sharing more than a side with it; -1 when
-   * none does. It makes no list, so it can run once for each of thousands of items.
+   * none does. With `before`, only the items in slots before it count. It makes no list, so it can run
+   * once for each of thousands of items.
    */
-  highest(rect: Rect, score: (item: T) => number): number {
+  highest(rect: Rect, score: (item: T) => number, before = Infinity): number {
     let best = -1;
     this.eachCell(rect, (cell) => {
       for (const index of cell) {
-        if (!this.covers(index, rect, overlaps)) continue;
+        if (index >= before || !this.covers(index, rect, overlaps)) continue;
         const value = score(this.items[index] as T);
         if (value > best) best = value;
       }
@@ -94,20 +147,47 @@ export class SpatialIndex<T> {
     this.bounds.push(rect);
     this.parts.push(parts);
     this.seen.push(0);
+    this.live += 1;
     return index;
+  }
+
+  /** The list of a cell, copied first when it is shared with a copy of this index. */
+  private writable(key: number): number[] | undefined {
+    const cell = this.cells.get(key);
+    if (!cell || this.owned === undefined || this.owned.has(key)) return cell;
+    const copy = cell.slice();
+    this.cells.set(key, copy);
+    this.owned.add(key);
+    return copy;
   }
 
   private enter(index: number, rect: Rect): void {
     this.eachCellKey(rect, (key) => {
-      const cell = this.cells.get(key);
+      const cell = this.writable(key);
       // The parts of one item are entered one after another, so a repeat is always the last one.
-      if (!cell) this.cells.set(key, [index]);
-      else if (cell[cell.length - 1] !== index) cell.push(index);
+      if (!cell) {
+        this.cells.set(key, [index]);
+        this.owned?.add(key);
+      } else if (cell[cell.length - 1] !== index) cell.push(index);
     });
   }
 
+  /** Takes a slot out of every cell it is in. */
+  private leave(index: number): void {
+    const parts = this.parts[index] ?? [this.bounds[index] as Rect];
+    for (const part of parts) {
+      this.eachCellKey(part, (key) => {
+        if (!this.cells.get(key)?.includes(index)) return;
+        const cell = this.writable(key) as number[];
+        const at = cell.indexOf(index);
+        if (at >= 0) cell.splice(at, 1);
+      });
+    }
+  }
+
   private covers(index: number, rect: Rect, test: (a: Rect, b: Rect) => boolean): boolean {
-    if (!test(this.bounds[index] as Rect, rect)) return false;
+    const bounds = this.bounds[index];
+    if (bounds === undefined || !test(bounds, rect)) return false;
     const parts = this.parts[index];
     return parts === undefined || parts.some((part) => test(part, rect));
   }

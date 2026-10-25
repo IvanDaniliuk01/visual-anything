@@ -7,6 +7,10 @@
  *
  * The keys of the stacking order work wherever the focus is, except while typing: they are taken
  * for the whole window here, so that ⌘[ and ⌘] never leave the app.
+ *
+ * The canvas draws the emphasis that filters, focus, playback and guidance set (interface I2), and
+ * collapses and expands containers through one command (interface I1), from the shape menu, the
+ * toggle on a container's shape and the keys.
  */
 import {
   appearanceOf,
@@ -31,12 +35,19 @@ import {
   useSyncExternalStore,
   type ComponentProps,
 } from 'react';
+import { useEmphasis, type Emphasis } from '../editor/emphasis';
 import { EMPTY_SELECTION, selectionOf, sizeOf, type Selection } from '../editor/selection';
 import { isTextEntry } from '../live/shortcuts';
 import { RecordingCue } from '../scenarios/RecordingCue';
 import type { ScenarioSession } from '../scenarios/session';
 import { useCanvasRecording } from '../scenarios/useCanvasRecording';
 import type { Camera } from './camera';
+import {
+  collapseActions,
+  collapseDone,
+  setCollapsedCommand,
+  type CollapseAction,
+} from './collapse';
 import { CanvasController, type ChangeToConfirm } from './controller';
 import { CanvasToolbar, type AddPlace } from './CanvasToolbar';
 import { ContainerChooser } from './ContainerChooser';
@@ -45,7 +56,7 @@ import { confirmLabelOf, containerChangeLabel, moveToCommand, needsConfirmation 
 import './drop.css';
 import type { Point } from './geometry';
 import { createAtCommand, createBesideCommand, createInsideCommand } from './gestures';
-import { indexScene, type IndexedScene } from './hit';
+import { indexScene, withoutShapes, type IndexedScene } from './hit';
 import { InlineEditor } from './InlineEditor';
 import { KeyboardHelp } from './KeyboardHelp';
 import { CANVAS_KEYS_HINT } from './keys';
@@ -108,6 +119,8 @@ interface OpenMenu {
   under?: string[];
   /** Counts the openings, so that each one starts again from its first item. */
   opening: number;
+  /** The shapes the emphasis hid when it opened, which it looks past. */
+  hidden: ReadonlySet<string>;
 }
 
 /** The container chooser: for which element, from which container, and how it asks. */
@@ -118,6 +131,7 @@ interface Choosing {
 }
 
 const NOTE_SIZE = { width: 220, height: 90 };
+const NO_KEYS: ReadonlySet<string> = new Set();
 const ARROW_LENGTH = 160;
 const NOT_CONNECTED = 'Visual Anything is not connected, so nothing was changed.';
 
@@ -154,6 +168,8 @@ export function CanvasArea({
   const [closedByItself, setClosedByItself] = useState(0);
   // The element just added, whose first shape the camera brings into sight once it is drawn.
   const revealNext = useRef<Id | undefined>(undefined);
+  // The emphasis to draw, kept for the controller made after it came.
+  const emphasis = useRef<Emphasis>({});
   const hint = useId();
   // A scene that cannot be indexed cannot be drawn either: the canvas area says so, and the rest of
   // the app keeps working.
@@ -182,6 +198,17 @@ export function CanvasArea({
     }
     return sendNow(command);
   };
+
+  /** Collapses or expands containers with I1's command, and says what it did once it is done. */
+  const collapse = (action: CollapseAction, collapsed: boolean) => {
+    void send(setCollapsedCommand(latest.current.view.id, action.elements, collapsed)).then(
+      (result) => {
+        if (result.ok) announce(collapseDone(action, collapsed));
+      },
+    );
+  };
+  // The toggle and the keys, from the controller, which lives as long as the canvas area.
+  const collapseFromCanvas = useEffectEvent(collapse);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -226,13 +253,16 @@ export function CanvasArea({
           setMenu((last) => ({
             at,
             shape: shape.key,
+            hidden: controllerRef.current?.renderer.hiddenShapes ?? NO_KEYS,
             ...(under ? { under: under.map((each) => each.key) } : {}),
             opening: (last?.opening ?? 0) + 1,
           })),
+        collapse: (action, collapsed) => collapseFromCanvas(action, collapsed),
       },
       caption ? { caption } : {},
     );
     controllerRef.current = controller;
+    controller.setEmphasis(emphasis.current);
     return () => {
       controller.destroy();
       controllerRef.current = null;
@@ -582,6 +612,12 @@ export function CanvasArea({
 
   return (
     <div ref={frameRef} className="canvas-frame">
+      <DrawnEmphasis
+        onEmphasis={(next) => {
+          emphasis.current = next;
+          controllerRef.current?.setEmphasis(next);
+        }}
+      />
       <ZoomedToolbar
         cameras={cameras}
         project={project}
@@ -633,7 +669,8 @@ export function CanvasArea({
       {menu && menuShape && indexed && stacking && (
         <ShapeMenu
           key={menu.opening}
-          indexed={indexed}
+          // The shape to put this one inside is never one the emphasis hides.
+          indexed={withoutShapes(indexed, menu.hidden)}
           project={project}
           viewId={view.id}
           selection={selection}
@@ -643,6 +680,11 @@ export function CanvasArea({
             ? { under: menu.under.flatMap((key) => indexed.byKey.get(key) ?? []) }
             : {})}
           stacking={stacking}
+          collapse={collapseActions(indexed, project, selection)}
+          onCollapse={(action, collapsed) => {
+            closeMenu();
+            collapse(action, collapsed);
+          }}
           editable={editable}
           onRestack={(move) => {
             // A move that would change nothing says why, and leaves the menu open for another.
@@ -879,6 +921,19 @@ class CameraWatch {
   readonly current = (): Camera | undefined => this.camera;
 
   readonly scale = (): number | undefined => this.camera?.scale;
+}
+
+/**
+ * Hands the canvas the emphasis to draw. It renders on its own, so that markers moving every frame
+ * render nothing else.
+ */
+function DrawnEmphasis({ onEmphasis }: { onEmphasis: (emphasis: Emphasis) => void }) {
+  const emphasis = useEmphasis();
+  const draw = useEffectEvent(onEmphasis);
+  useEffect(() => {
+    draw(emphasis);
+  }, [emphasis]);
+  return null;
 }
 
 /** The toolbar, which shows the zoom: it renders again when the zoom changes, not on every pan. */
