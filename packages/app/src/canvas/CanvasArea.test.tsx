@@ -1,6 +1,7 @@
 import { executeCommand, type Command, type ProjectSnapshot } from '@visual-anything/core';
 import { RELATES_TO_ID } from '@visual-anything/schema';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import ELK from 'elkjs/lib/elk.bundled.js';
 import { Container } from 'pixi.js';
 import { Profiler, StrictMode, useEffect, useMemo, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,6 +14,9 @@ import { CanvasArea, type SendCommand } from './CanvasArea';
 import { CanvasController } from './controller';
 import { centerOf } from './geometry';
 import { indexScene } from './hit';
+import type { LayoutRunner } from './layout/client';
+import { layOut } from './layout/engine';
+import { LayoutRunnerContext } from './layout/useLayout';
 import { CanvasRenderer, type Overlay } from './renderer';
 import { buildScene, type Scene } from './scene';
 import { overlaps } from './spatial';
@@ -1572,5 +1576,63 @@ describe('The user’s case, end to end', () => {
     for (const other of drawn.shapes.filter((shape) => shape.containerShape === 'clinic-booking')) {
       if (other !== added) expect(overlaps(other.extent, added!.rect)).toBe(false);
     }
+  });
+});
+
+describe('Layout', () => {
+  /** How long to wait for ELK, which runs slowly on a loaded machine. */
+  const ELK_WAIT = { timeout: 15_000 };
+  /** Runs layouts in this thread, as the layout worker would. */
+  const inThread: LayoutRunner = {
+    layOut: (input) => layOut(input, new ELK()),
+    dispose: () => {},
+  };
+
+  it('lays out the view from the toolbar, as one action, and says what it did', async () => {
+    const program = localProgram();
+    await started(
+      <LayoutRunnerContext.Provider value={inThread}>
+        <program.Live />
+      </LayoutRunnerContext.Provider>,
+    );
+    const layout = screen.getByRole('button', { name: 'Layout' });
+    expect(layout).toHaveAttribute(
+      'title',
+      'Lay out "System overview": arrange every shape that is not pinned.',
+    );
+    fireEvent.click(layout);
+    await waitFor(() => expect(program.onCommand).toHaveBeenCalledTimes(1), ELK_WAIT);
+    expect(program.onCommand.mock.lastCall?.[0]).toMatchObject({
+      type: 'batch',
+      label: 'Lay out "System overview"',
+      commands: [{ type: 'set-positions', view: view.id }],
+    });
+    await waitFor(() => expect(said()).toMatch(/^Lay out "System overview": \d+ shapes moved\.$/));
+    // The pinned Patient stays; the rest is stored unpinned.
+    const positions = program.project.views[0]?.positions ?? [];
+    expect(positions.filter((position) => position.pinned).map((each) => each.element)).toEqual([
+      'patient',
+    ]);
+  });
+
+  it('lays out a shape that appears without a position, such as one Claude adds', async () => {
+    const program = localProgram();
+    await started(
+      <LayoutRunnerContext.Provider value={inThread}>
+        <program.Live />
+      </LayoutRunnerContext.Provider>,
+    );
+    await program.elsewhere({
+      type: 'create-element',
+      element: { id: 'billing', component: 'systems.service', name: 'Billing' },
+      containers: [{ container: 'clinic-booking', relationType: 'systems.is-part-of' }],
+    });
+    await waitFor(() => expect(program.onCommand).toHaveBeenCalledTimes(1), ELK_WAIT);
+    expect(program.onCommand.mock.lastCall?.[0]).toMatchObject({
+      label: 'Lay out "Billing" in "System overview"',
+    });
+    expect(program.project.views[0]?.positions).toContainEqual(
+      expect.objectContaining({ element: 'billing', container: 'clinic-booking' }),
+    );
   });
 });
