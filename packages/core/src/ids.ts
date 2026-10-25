@@ -71,8 +71,9 @@ export function definitionIdFor(
   name: string,
   generate: IdGenerator,
   taken: (id: Id) => boolean = () => false,
+  fallback = 'definition',
 ): Id {
   const room = ID_LENGTH - packageId.length - 1 - (SUFFIX_LENGTH + 1);
-  const base = slug(name, 'definition').slice(0, Math.max(1, room)).replace(/-+$/, '');
+  const base = slug(name, fallback).slice(0, Math.max(1, room)).replace(/-+$/, '');
   return freshId(generate, `${packageId}.${base === '' ? 'd' : base}`, taken);
 }

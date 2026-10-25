@@ -75,9 +75,12 @@ export class Draft {
     return freshId(this.generate, base, (id) => this.isTaken(id) || alsoTaken(id));
   }
 
-  /** A new id for a definition of a package, made from its name, unused by anything in the project. */
-  newDefinitionId(packageId: Id, name: string): Id {
-    return definitionIdFor(packageId, name, this.generate, (id) => this.isTaken(id));
+  /**
+   * A new id for a definition or an image of a package, made from its name, unused by anything in the
+   * project; `fallback` names it when its name gives no base.
+   */
+  newDefinitionId(packageId: Id, name: string, fallback?: string): Id {
+    return definitionIdFor(packageId, name, this.generate, (id) => this.isTaken(id), fallback);
   }
 
   /**

@@ -4,7 +4,7 @@
  * what cleaning gives.
  */
 import type { Appearance, Id, ImageDefinition } from '@visual-anything/schema';
-import { slug, isId } from '../ids';
+import { isId } from '../ids';
 import { decodeBase64, encodeBase64 } from '../images/base64';
 import { readBitmap } from '../images/bitmap';
 import { IMAGE_CAPS, imageUsers, imagesIn } from '../images/catalog';
@@ -74,7 +74,7 @@ export function defineImage(draft: Draft, command: DefineImageCommand): string {
     if (!existing && draft.isTaken(id))
       reject('id-taken', `The id "${id}" is already taken.`, [id]);
   } else {
-    id = draft.newId(`${file.id}.${slug(name, 'image')}`);
+    id = draft.newDefinitionId(file.id, name, 'image');
   }
 
   const { image, removed } = isSvg

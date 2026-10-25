@@ -78,6 +78,23 @@ describe('define-image', () => {
     expectUndoesExactly(before, outcome);
   });
 
+  it('makes the id of an image as of any definition, within the longest id, whatever its name', () => {
+    const long = run(imageProject(), {
+      type: 'define-image',
+      package: 'clinic',
+      image: { name: 'A very long name '.repeat(10), svg: SQUARE },
+    });
+    const [id] = long.created ?? [];
+    expect(id?.startsWith('clinic.a-very-long-name')).toBe(true);
+    expect(id?.length).toBeLessThanOrEqual(128);
+    const unnamed = run(imageProject(), {
+      type: 'define-image',
+      package: 'clinic',
+      image: { name: '★', svg: SQUARE },
+    });
+    expect(unnamed.created).toEqual(['clinic.image-1']);
+  });
+
   it('stores a bitmap without its metadata, with the size its header gives', () => {
     const withExif = bytesOf(
       png().subarray(0, 33),
