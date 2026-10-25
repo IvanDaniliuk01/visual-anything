@@ -8,7 +8,8 @@
  *   screen) and whether it is a silhouette, rasterized once in white and tinted on the GPU. No key
  *   holds a colour, so a theme switch rasterizes nothing.
  * - **Atlas.** Buckets of 64 pixels or less share 2048² atlas pages, with 4-pixel gutters whose edges
- *   are extruded and no mipmaps; larger ones get textures of their own, mipmapped.
+ *   are extruded and no mipmaps; larger ones get textures of their own, mipmapped. A page keeps its
+ *   pixels on the CPU, and a frame uploads only the rows of the cells drawn into since the last one.
  * - **Work per frame.** An SVG's cost is unknown until its first rasterization, which happens only
  *   while the camera rests, at the 32 bucket, timed; one that takes over 16 ms is broken for the
  *   session. During motion, an SVG is rasterized only at a bucket whose cost is known and that fits the
@@ -21,7 +22,7 @@
  * The renderer wires it in (wave 2): see `docs/designs/components.md` §5.7.
  */
 import type { CleanedImage } from '@visual-anything/core';
-import { CanvasSource, Rectangle, Texture } from 'pixi.js';
+import { BufferImageSource, CanvasSource, Rectangle, Texture } from 'pixi.js';
 import { imageSerial, pruneImageSerials } from './image-serials';
 
 /** The sizes textures are made at, in device pixels along the picture's longer side. */
@@ -800,13 +801,21 @@ export function extrudeEdges(
 type Canvas = HTMLCanvasElement | OffscreenCanvas;
 type Context = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
-function newCanvas(width: number, height: number): { canvas: Canvas; context: Context } {
-  const canvas =
-    typeof OffscreenCanvas === 'undefined'
-      ? Object.assign(document.createElement('canvas'), { width, height })
-      : new OffscreenCanvas(width, height);
-  const context = canvas.getContext('2d');
-  if (!context) throw new Error('This browser draws no 2D canvas.');
+function newCanvas(
+  width: number,
+  height: number,
+  settings?: CanvasRenderingContext2DSettings,
+): { canvas: Canvas; context: Context } {
+  const offscreen =
+    typeof OffscreenCanvas === 'undefined' ? undefined : new OffscreenCanvas(width, height);
+  const element = offscreen
+    ? undefined
+    : Object.assign(document.createElement('canvas'), { width, height });
+  const context = offscreen
+    ? offscreen.getContext('2d', settings)
+    : element?.getContext('2d', settings);
+  const canvas = offscreen ?? element;
+  if (!context || !canvas) throw new Error('This browser draws no 2D canvas.');
   return { canvas, context };
 }
 
@@ -845,24 +854,65 @@ function bytesFromBase64(base64: string): Uint8Array {
   return bytes;
 }
 
+/**
+ * An atlas page's pixels, kept apart from the GPU so that a frame uploads only the rows drawn into
+ * since the one before: a whole 2048² page is 16 MiB to upload, the rows of a cell about half a MiB.
+ */
+export class AtlasPage {
+  readonly data: Uint8Array<ArrayBuffer>;
+  #from = Infinity;
+  #to = -Infinity;
+
+  constructor(readonly side: number) {
+    this.data = new Uint8Array(side * side * 4);
+  }
+
+  /** Copies the RGBA pixels of a square cell, `cell` texels a side, with its top left at (x, y). */
+  put(pixels: Uint8ClampedArray | Uint8Array, cell: number, x: number, y: number): void {
+    const rowBytes = cell * 4;
+    for (let row = 0; row < cell; row++) {
+      this.data.set(
+        pixels.subarray(row * rowBytes, (row + 1) * rowBytes),
+        ((y + row) * this.side + x) * 4,
+      );
+    }
+    this.#from = Math.min(this.#from, y);
+    this.#to = Math.max(this.#to, y + cell);
+  }
+
+  /** The texels of the rows drawn into since it was last asked, then none until more are drawn. */
+  takeDirty(): { start: number; end: number } | undefined {
+    if (this.#to <= this.#from) return undefined;
+    const range = { start: this.#from * this.side, end: this.#to * this.side };
+    this.#from = Infinity;
+    this.#to = -Infinity;
+    return range;
+  }
+}
+
 /** The store's platform in the browser: PixiJS textures from canvases, pictures decoded off the main thread. */
 export function browserImagePlatform(): ImagePlatform<Texture, CanvasImageSource> {
   const { atlasPage: side, gutter } = IMAGE_LIMITS;
-  const pages = new Map<
-    number,
-    { canvas: Canvas; context: Context; source: CanvasSource; dirty: boolean }
-  >();
+  const pages = new Map<number, { pixels: AtlasPage; source: BufferImageSource }>();
+  // Where a cell is drawn before its pixels are copied into its page, read back often and so kept
+  // on the CPU.
+  const most = IMAGE_LIMITS.atlasBucket + 2 * gutter;
+  let scratch: { canvas: Canvas; context: Context } | undefined;
+  const scratchOf = () => (scratch ??= newCanvas(most, most, { willReadFrequently: true }));
   const pageOf = (number: number) => {
     let page = pages.get(number);
     if (!page) {
-      const { canvas, context } = newCanvas(side, side);
+      const pixels = new AtlasPage(side);
       // The bucket follows the size on screen within 2×, so atlas pages need no mipmaps.
-      const source = new CanvasSource({
-        resource: canvas,
+      const source = new BufferImageSource({
+        resource: pixels.data,
+        width: side,
+        height: side,
+        format: 'rgba8unorm',
         scaleMode: 'linear',
         autoGenerateMipmaps: false,
       });
-      page = { canvas, context, source, dirty: false };
+      page = { pixels, source };
       pages.set(number, page);
     }
     return page;
@@ -890,11 +940,12 @@ export function browserImagePlatform(): ImagePlatform<Texture, CanvasImageSource
     },
     atlasTexture: (slot, picture, width, height, silhouette) => {
       const page = pageOf(slot.page);
-      const { context, canvas } = page;
-      context.clearRect(slot.x - gutter, slot.y - gutter, slot.cell, slot.cell);
-      drawPicture(context, picture, slot.x, slot.y, width, height, silhouette);
-      extrudeEdges(context, canvas, slot.x, slot.y, width, height, gutter);
-      page.dirty = true;
+      const { canvas, context } = scratchOf();
+      context.clearRect(0, 0, slot.cell, slot.cell);
+      drawPicture(context, picture, gutter, gutter, width, height, silhouette);
+      extrudeEdges(context, canvas, gutter, gutter, width, height, gutter);
+      const cell = context.getImageData(0, 0, slot.cell, slot.cell);
+      page.pixels.put(cell.data, slot.cell, slot.x - gutter, slot.y - gutter);
       return new Texture({
         source: page.source,
         frame: new Rectangle(slot.x, slot.y, width, height),
@@ -902,9 +953,8 @@ export function browserImagePlatform(): ImagePlatform<Texture, CanvasImageSource
     },
     flush: () => {
       for (const page of pages.values()) {
-        if (!page.dirty) continue;
-        page.source.update();
-        page.dirty = false;
+        const dirty = page.pixels.takeDirty();
+        if (dirty) page.source.update(dirty.start, dirty.end);
       }
     },
     destroyTexture: (texture, own) => texture.destroy(own),

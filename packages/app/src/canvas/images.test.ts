@@ -3,6 +3,7 @@ import { SVG_ALLOWED, cleanSvg, cleanedImage, type CleanedImage } from '@visual-
 import { describe, expect, it, vi } from 'vitest';
 import {
   AtlasLayout,
+  AtlasPage,
   IMAGE_LIMITS,
   ImageStore,
   bucketFor,
@@ -534,6 +535,23 @@ describe('the image store', () => {
 });
 
 describe('the atlas', () => {
+  it('keeps a page’s pixels, and uploads only the rows of the cells drawn since the last upload', () => {
+    const page = new AtlasPage(64);
+    expect(page.takeDirty()).toBeUndefined();
+    const cell = new Uint8ClampedArray(8 * 8 * 4).fill(200);
+    page.put(cell, 8, 16, 24);
+    page.put(cell, 8, 40, 28);
+    // Rows 24 to 36, whole.
+    expect(page.takeDirty()).toEqual({ start: 24 * 64, end: 36 * 64 });
+    expect(page.takeDirty()).toBeUndefined();
+    const at = (x: number, y: number) => page.data[(y * 64 + x) * 4];
+    expect(at(16, 24)).toBe(200);
+    expect(at(23, 31)).toBe(200);
+    expect(at(24, 31)).toBe(0);
+    expect(at(15, 24)).toBe(0);
+    expect(at(47, 35)).toBe(200);
+  });
+
   it('places 16-pixel pictures in 24-pixel cells, 4-pixel gutters around each, row by row', () => {
     const atlas = new AtlasLayout();
     const slots = Array.from({ length: 90 }, () => atlas.place(16).slot);

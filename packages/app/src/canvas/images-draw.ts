@@ -100,8 +100,15 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
     const images = new Map<number, ShapeImage['image']>();
     for (const shape of shapes) if (shape.image) images.set(shape.image.serial, shape.image.image);
     this.#any = images.size > 0;
+    // An edit seldom changes which pictures the scene shows: the store is pruned only when it does.
+    const serials = [...images.keys()].sort((a, b) => a - b).join(' ');
+    if (serials === this.#serials) return;
+    this.#serials = serials;
     this.store.prune(images.values());
   }
+
+  /** The serials of the pictures the scene shown last showed, as `show` compares them. */
+  #serials: string | undefined;
 
   /**
    * Gives the tiles their image drawings for this frame, within its budget, and says whether there is
@@ -154,15 +161,17 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
     const began = view.spent;
     const clock = performance.now();
     const spent = () => began + performance.now() - clock;
+    // Zoomed out too far for any picture to show, nothing is decoded or uploaded meanwhile.
+    const shows = scale >= IMAGE_SCALES.drawingsFrom;
     // Pictures that just became ready first: their tiles show stand-ins or placeholders meanwhile.
-    for (const id of this.store.frame({ spent: spent(), moving: !view.settled })) {
+    for (const id of shows ? this.store.frame({ spent: spent(), moving: !view.settled }) : []) {
       const known = byId.get(id);
       if (!known || known.drawing.drawnFor === undefined) continue;
       this.#draw(known.tile, known.drawing, view, iconsShown, middle);
       rebuilt += 1;
     }
     waiting.sort((a, b) => a.distance - b.distance);
-    let more = this.store.more;
+    let more = shows && this.store.more;
     for (const each of waiting) {
       if (rebuilt >= IMAGE_LIMITS.tileRebuilds || spent() >= IMAGE_LIMITS.workAfter) {
         more = true;
