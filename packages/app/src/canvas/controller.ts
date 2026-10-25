@@ -522,7 +522,10 @@ export class CanvasController {
       handleShape &&
       distance(world, handle) <= HANDLE_REACH / this.camera.scale &&
       // Beside a row, a relation's line there is pressed rather than the handle (ADR 0023).
-      !(handleShape.row !== undefined && this.hit(world, HIT_TOLERANCE / this.camera.scale)?.kind === 'relation')
+      !(
+        handleShape.row !== undefined &&
+        this.hit(world, HIT_TOLERANCE / this.camera.scale)?.kind === 'relation'
+      )
     ) {
       this.begin(event, {
         kind: 'connect',
@@ -1560,7 +1563,9 @@ export class CanvasController {
       void this.callbacks.command(command).then((done) => {
         if (!done) return;
         this.announce(
-          direction === 'up' ? t('“{name}” moved up.', { name }) : t('“{name}” moved down.', { name }),
+          direction === 'up'
+            ? t('“{name}” moved up.', { name })
+            : t('“{name}” moved down.', { name }),
         );
       });
     }

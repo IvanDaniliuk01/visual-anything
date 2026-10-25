@@ -570,6 +570,21 @@ export class CanvasRenderer {
     return this.tileOfShape.get(key)?.full !== undefined;
   }
 
+  /**
+   * Whether the tile that draws the shape with this key is drawn in full, with every label the
+   * scale shows: what the benchmark's edit of one column waits for (ADR 0023).
+   */
+  shownInFull(key: string): boolean {
+    const tile = this.tileOfShape.get(key);
+    if (!tile?.full || (tile.coarse && tile.plainShown)) return false;
+    const level = levelWithRows(
+      tile.shapes,
+      wantedFor(tile.kind, this.detailNow().wanted),
+      this.camera.scale,
+    );
+    return level === 0 || (tile.level === level && tile.labelled >= labelCount(tile));
+  }
+
   /** Looks at the scene through this camera. */
   setCamera(camera: Camera): void {
     const zoomed = camera.scale !== this.camera.scale;

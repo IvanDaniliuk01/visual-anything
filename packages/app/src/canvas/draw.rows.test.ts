@@ -42,9 +42,11 @@ describe('drawing a table and its rows', () => {
       { kind: 'fill', color: hex(ROW_SEPARATOR) },
     ]);
     // A row draws no border of its own.
-    expect(fills((graphics) => drawShapeOutlines(graphics, [email])).some((each) => each.kind === 'stroke')).toBe(
-      false,
-    );
+    expect(
+      fills((graphics) => drawShapeOutlines(graphics, [email])).some(
+        (each) => each.kind === 'stroke',
+      ),
+    ).toBe(false);
   });
 
   it('draws a table as its body and its header far out, and its rows as nothing', () => {

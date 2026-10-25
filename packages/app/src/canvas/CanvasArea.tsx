@@ -243,11 +243,15 @@ export function CanvasArea({
     const { project: now, view: open } = latest.current;
     const made = addRowCommand(now, open.id, container.element, below);
     if (!made) return;
-    const unchanged = intent();
+    // As `intent` tells: an answer that comes after the person moved on changes nothing more.
+    const chosen = latest.current.selection;
+    const focused = document.activeElement;
     const result = await send(made.command);
-    if (!result.ok || !unchanged()) return;
+    if (!result.ok || latest.current.selection !== chosen || document.activeElement !== focused) {
+      return;
+    }
     const key = `${container.key}/${made.id}`;
-    onSelect(selectionOf([{ kind: 'element', id: made.id }]));
+    latest.current.onSelect(selectionOf([{ kind: 'element', id: made.id }]));
     setEditing({ kind: 'element', element: made.id, key, rows: container.key });
     if (latest.current.indexed?.byKey.has(key)) controllerRef.current?.reveal(key);
     else revealKey.current = key;
@@ -805,8 +809,12 @@ export function CanvasArea({
                 held: {
                   ...deletion.held,
                   onChange: (group: 'rows' | 'other', checked: boolean) =>
-                    setDeleting((last) =>
-                      last && { ...last, ...(group === 'rows' ? { rows: checked } : { others: checked }) },
+                    setDeleting(
+                      (last) =>
+                        last && {
+                          ...last,
+                          ...(group === 'rows' ? { rows: checked } : { others: checked }),
+                        },
                     ),
                 },
               }

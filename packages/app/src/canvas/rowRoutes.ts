@@ -96,7 +96,9 @@ function betweenSides(a: SideEnd, b: SideEnd, offset: number): Route {
     // A C at the lane further out.
     const sign = outward(a.side);
     const x =
-      sign > 0 ? Math.max(laneOf(a, offset), laneOf(b, offset)) : Math.min(laneOf(a, offset), laneOf(b, offset));
+      sign > 0
+        ? Math.max(laneOf(a, offset), laneOf(b, offset))
+        : Math.min(laneOf(a, offset), laneOf(b, offset));
     return [start, { x, y: start.y }, { x, y: end.y }, end];
   }
   const facing =

@@ -260,7 +260,9 @@ export function rowSidesOf(
     const at = shape.containerShape === undefined ? undefined : keyIndex.get(shape.containerShape);
     return at === undefined ? undefined : shapes[at];
   };
-  const besideOf = (end: PlannedEnd): { shape: ElementShape; container: ElementShape } | undefined => {
+  const besideOf = (
+    end: PlannedEnd,
+  ): { shape: ElementShape; container: ElementShape } | undefined => {
     if (end.kind !== 'shape') return undefined;
     const shape = shapes[end.at];
     if (!shape || !leavesBeside(shape)) return undefined;
@@ -325,10 +327,7 @@ export function rowSidesOf(
 /** The indexes of the lines whose ends leave by another side or lane than they did. */
 export function changedSides(before: RowSides | undefined, after: RowSides | undefined): number[] {
   if (before === after) return [];
-  const length = Math.max(
-    before?.from.length ?? 0,
-    after?.from.length ?? 0,
-  );
+  const length = Math.max(before?.from.length ?? 0, after?.from.length ?? 0);
   const changed: number[] = [];
   const same = (x: SideInfo | undefined, y: SideInfo | undefined) =>
     x === y || (x !== undefined && y !== undefined && x.side === y.side && x.lane === y.lane);

@@ -43,7 +43,10 @@ export interface HeldChoice {
   onChange: (group: 'rows' | 'other', checked: boolean) => void;
 }
 
-const HELD_ROWS_OF_ONE: PluralText = { one: 'Also delete its row', other: 'Also delete its {count} rows' };
+const HELD_ROWS_OF_ONE: PluralText = {
+  one: 'Also delete its row',
+  other: 'Also delete its {count} rows',
+};
 const HELD_ROWS_OF_SEVERAL: PluralText = {
   one: 'Also delete their row',
   other: 'Also delete their {count} rows',
@@ -319,16 +322,14 @@ function HeldContents({
             </label>
           </p>
           <List
-            items={others
-              .slice(0, LISTED)
-              .map((each) =>
-                each.elsewhere === undefined
-                  ? nameOf(each.element)
-                  : t('{name} is also in {container}', {
-                      name: nameOf(each.element),
-                      container: nameOf(each.elsewhere),
-                    }),
-              )}
+            items={others.slice(0, LISTED).map((each) =>
+              each.elsewhere === undefined
+                ? nameOf(each.element)
+                : t('{name} is also in {container}', {
+                    name: nameOf(each.element),
+                    container: nameOf(each.elsewhere),
+                  }),
+            )}
             total={others.length}
           />
         </section>

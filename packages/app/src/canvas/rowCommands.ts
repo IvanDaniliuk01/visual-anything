@@ -114,9 +114,7 @@ export function addRowCommand(
   const name = index.element(container)?.name ?? container;
   return {
     command:
-      commands.length === 1
-        ? create
-        : { type: 'batch', label: `Add a row to "${name}"`, commands },
+      commands.length === 1 ? create : { type: 'batch', label: `Add a row to "${name}"`, commands },
     id,
   };
 }
@@ -210,14 +208,12 @@ export function addColumnsCommand(
     definitions.componentDerives(element.component, TABLE),
   );
   const columnsOf = (target: Id): { id: Id; name: string; primaryKey: boolean }[] => {
-    const existing = index
-      .contentsOf(target)
-      .flatMap((id) => {
-        const element = index.element(id);
-        return element && definitions.componentDerives(element.component, COLUMN)
-          ? [{ id, name: element.name, primaryKey: element.attributes?.primaryKey === true }]
-          : [];
-      });
+    const existing = index.contentsOf(target).flatMap((id) => {
+      const element = index.element(id);
+      return element && definitions.componentDerives(element.component, COLUMN)
+        ? [{ id, name: element.name, primaryKey: element.attributes?.primaryKey === true }]
+        : [];
+    });
     const fresh =
       target === table
         ? added.map(({ id, column }) => ({
@@ -246,7 +242,10 @@ export function addColumnsCommand(
       const wanted = reference.column.toLowerCase();
       to = candidates.find((each) => each.name.toLowerCase() === wanted)?.id;
       if (to === undefined) {
-        unrelated.push({ text, reason: `no column named “${reference.column}” in “${target.name}”` });
+        unrelated.push({
+          text,
+          reason: `no column named “${reference.column}” in “${target.name}”`,
+        });
         continue;
       }
     } else {
@@ -263,7 +262,9 @@ export function addColumnsCommand(
         relationType: REFERENCES,
         from: id,
         to,
-        ...(reference.onDelete === undefined ? {} : { attributes: { onDelete: reference.onDelete } }),
+        ...(reference.onDelete === undefined
+          ? {}
+          : { attributes: { onDelete: reference.onDelete } }),
       },
     });
   }

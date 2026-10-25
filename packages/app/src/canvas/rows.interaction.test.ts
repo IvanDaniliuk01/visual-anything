@@ -17,7 +17,8 @@ const shape = (key: string) => indexed.byKey.get(key) as ElementShape;
 const users = shape('users');
 const id = shape('users/users-id');
 const email = shape('users/users-email');
-const select = (...ids: string[]) => selectionOf(ids.map((each) => ({ kind: 'element', id: each })));
+const select = (...ids: string[]) =>
+  selectionOf(ids.map((each) => ({ kind: 'element', id: each })));
 
 describe('pointing at rows', () => {
   it('selects the column under the pointer, and the table at its header', () => {

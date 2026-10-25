@@ -147,7 +147,10 @@ describe('a shape that draws its contents as rows', () => {
         },
       ],
     });
-    const table = shapeOf(buildScene(long, VIEW), 'a_table_with_a_name_far_too_long_to_fit_in_its_header');
+    const table = shapeOf(
+      buildScene(long, VIEW),
+      'a_table_with_a_name_far_too_long_to_fit_in_its_header',
+    );
     const fitted = table.fitted as { name: string; detail: string };
     expect(fitted.name.endsWith('…')).toBe(true);
     expect(estimateWidth(fitted.name, HEADER_NAME_SIZE, true)).toBeLessThanOrEqual(
@@ -289,7 +292,9 @@ describe('relations that end on rows', () => {
       ],
     });
     const drawn = buildScene(project, VIEW);
-    const [one, two] = ['one', 'two'].map((id) => drawn.relations.find((line) => line.relation === id));
+    const [one, two] = ['one', 'two'].map((id) =>
+      drawn.relations.find((line) => line.relation === id),
+    );
     // Facing stubs join in a Z through the middle of the gap, so each keeps its own vertical run.
     expect(one?.route).toHaveLength(4);
     expect(two?.route).toHaveLength(4);

@@ -69,7 +69,9 @@ export function RowsSection({ element }: { element: Element }) {
   const started = startedTypesByElement(project.model.relations);
   const detailOf = (id: Id) => {
     const row = index.element(id);
-    return row ? detailText(detailParts(row, definitionsIn(project), started.get(id) ?? new Set())) : '';
+    return row
+      ? detailText(detailParts(row, definitionsIn(project), started.get(id) ?? new Set()))
+      : '';
   };
 
   // What it holds through nesting relation types the view does not nest by.
@@ -193,7 +195,10 @@ export function RowsSection({ element }: { element: Element }) {
                     disabled={!editable}
                     aria-label={t('Remove “{name}”', { name: nameOf(row) })}
                     onClick={() =>
-                      setRemoving({ row, preview: previewDelete(project, { elements: [row] }, view.id) })
+                      setRemoving({
+                        row,
+                        preview: previewDelete(project, { elements: [row] }, view.id),
+                      })
                     }
                   >
                     {t('Remove')}
