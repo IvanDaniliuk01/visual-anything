@@ -1,6 +1,7 @@
 node_modules/
 dist/
 dist-bench/
+dist-exe/
 coverage/
 *.log
 .env

@@ -1,6 +1,7 @@
 pnpm-lock.yaml
 **/dist/
 **/dist-bench/
+dist-exe/
 **/coverage/
 .claude/
 # Prose keeps the formatting it was written with.
