@@ -8,7 +8,9 @@ import type { Scope, ViewFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { EMPTY_SELECTION, selectionOf } from '../editor/selection';
 import { loadSample } from '../test/sample';
+import { describeShape } from './announce';
 import { createAtCommand, createInsideCommand } from './gestures';
+import { indexScene } from './hit';
 import { leavingMarkRect, leavingText, onLeavingMark } from './leavingMark';
 import { buildScene, type ElementShape } from './scene';
 import {
@@ -174,11 +176,11 @@ describe('the perspective switcher', () => {
 });
 
 describe('the scene that the scope items act on', () => {
-  it('has the mark’s relations on the shapes', () => {
+  it('has the mark’s relations on the shapes, which the keys say', () => {
     const project = scoped({ leftOut: ['appointments-db'] });
-    const api = buildScene(project, VIEW).shapes.find(
-      (each) => each.element === 'appointments-api',
-    );
+    const indexed = indexScene(buildScene(project, VIEW));
+    const api = indexed.scene.shapes.find((each) => each.element === 'appointments-api');
     expect(api?.leaving).toEqual(['api-reads-db', 'api-writes-db']);
+    expect(describeShape(indexed, project, api!)).toMatch(/ 2 relations leave this view\.$/);
   });
 });
