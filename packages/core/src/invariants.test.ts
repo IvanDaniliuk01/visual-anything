@@ -733,7 +733,7 @@ function commandFor(state: ProjectSnapshot, wish: Intent): Command | undefined {
             type: 'set-relation-type-appearance',
             relationType,
             appearanceTraits: {
-              stroke: wish.value % 3 === 0 ? null : (pick(COLORS, wish.value) as string),
+              stroke: wish.value % 3 === 0 ? null : pick(COLORS, wish.value),
               width: wish.value % 2 === 0 ? null : 2,
             },
           };
@@ -747,7 +747,12 @@ function commandFor(state: ProjectSnapshot, wish: Intent): Command | undefined {
       const stroke = pick(COLORS, wish.value) as string;
       const changes = [
         { appearance: { stroke, ...(wish.value % 2 === 0 ? { width: 3 } : {}) } },
-        { appearanceTraits: { stroke: wish.value % 3 === 0 ? null : stroke, dash: 'dotted' as const } },
+        {
+          appearanceTraits: {
+            stroke: wish.value % 3 === 0 ? null : stroke,
+            dash: 'dotted' as const,
+          },
+        },
         { appearance: null },
       ][wish.form % 3] as UpdateRelationCommand['changes'];
       return { type: 'update-relation', id: relation, changes };

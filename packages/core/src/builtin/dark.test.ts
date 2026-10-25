@@ -20,7 +20,9 @@ const relationTypes = [
 describe('the dark shades of built-in colors', () => {
   it('give a shade to every color a built-in definition sets itself, and to nothing else', () => {
     for (const { id, appearance } of components) {
-      const set = (['fill', 'stroke'] as const).filter((trait) => appearance?.[trait] !== undefined);
+      const set = (['fill', 'stroke'] as const).filter(
+        (trait) => appearance?.[trait] !== undefined,
+      );
       expect(Object.keys(DARK_SHADES.components[id] ?? {}).sort(), id).toEqual(set.sort());
     }
     for (const { id, appearance } of relationTypes) {

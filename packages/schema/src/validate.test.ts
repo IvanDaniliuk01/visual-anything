@@ -184,7 +184,12 @@ describe('validateFile', () => {
       [
         'a relation type appearance with a trait of a component',
         { ...project, appearances: { relationTypes: { 'relates-to': { fill: '#FFFFFF' } } } },
-        [{ path: '/appearances/relationTypes/relates-to', message: 'must not have the key "fill"' }],
+        [
+          {
+            path: '/appearances/relationTypes/relates-to',
+            message: 'must not have the key "fill"',
+          },
+        ],
       ],
       [
         'project appearances for something other than definitions',

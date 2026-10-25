@@ -32,7 +32,10 @@ import type {
 
 type Kind = 'component' | 'relation-type';
 
-export function setComponentAppearance(draft: Draft, command: SetComponentAppearanceCommand): string {
+export function setComponentAppearance(
+  draft: Draft,
+  command: SetComponentAppearanceCommand,
+): string {
   const id = command.component;
   requireOneOf(command, `the component "${String(id)}"`);
   const definitions = draft.definitions;
@@ -41,7 +44,7 @@ export function setComponentAppearance(draft: Draft, command: SetComponentAppear
   const of = `the component "${resolved.name}"`;
 
   if (isBuiltInDefinition(definitions, 'component', id)) {
-    const current = projectAppearanceOf(draft.state, 'component', id) as Appearance | undefined;
+    const current = projectAppearanceOf(draft.state, 'component', id);
     const next =
       command.appearance === null
         ? undefined
@@ -85,9 +88,7 @@ export function setRelationTypeAppearance(
   const of = `the relation type "${resolved.name}"`;
 
   if (isBuiltInDefinition(definitions, 'relation-type', id)) {
-    const current = projectAppearanceOf(draft.state, 'relation-type', id) as
-      | RelationAppearance
-      | undefined;
+    const current = projectAppearanceOf(draft.state, 'relation-type', id);
     const next =
       command.appearance === null
         ? undefined
@@ -180,11 +181,9 @@ function forgetStale(draft: Draft, kind: Kind, id: Id, appearance: unknown): str
   if (kind === 'component') {
     reject('unknown-component', `No package in use defines the component "${String(id)}".`, [id]);
   }
-  reject(
-    'unknown-relation-type',
-    `No package in use defines the relation type "${String(id)}".`,
-    [id],
-  );
+  reject('unknown-relation-type', `No package in use defines the relation type "${String(id)}".`, [
+    id,
+  ]);
 }
 
 /** Sets or removes one entry of the project appearances, in one change to the project file. */
@@ -212,7 +211,10 @@ function putProjectAppearance(
         };
   draft.apply({
     op: 'set-project',
-    project: withAppearances(project, Object.keys(appearances).length === 0 ? undefined : appearances),
+    project: withAppearances(
+      project,
+      Object.keys(appearances).length === 0 ? undefined : appearances,
+    ),
   });
 }
 
@@ -238,7 +240,7 @@ function componentChanges(
           }
         : (value ?? null);
   }
-  return changes as AppearanceChanges;
+  return changes;
 }
 
 /** The changes, trait by trait, that turn a relation type's own appearance into a whole one. */
@@ -250,7 +252,7 @@ function relationTypeChanges(
   for (const trait of RELATION_APPEARANCE_TRAITS) {
     if (!sameJson(current?.[trait], next?.[trait])) changes[trait] = next?.[trait] ?? null;
   }
-  return changes as RelationAppearanceChanges;
+  return changes;
 }
 
 /** "Change the appearance of …", or "Reset …" when no appearance is left at that level. */

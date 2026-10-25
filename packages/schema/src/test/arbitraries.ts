@@ -114,7 +114,6 @@ const element: fc.Arbitrary<Element> = fc.record(
   { requiredKeys: ['id', 'component', 'name'], noNullPrototype: true },
 );
 
-
 const relation: fc.Arbitrary<Relation> = fc.record(
   {
     id,
@@ -157,7 +156,6 @@ const component: fc.Arbitrary<Component> = fc.record(
   },
   { requiredKeys: ['id', 'name', 'derivesFrom'], noNullPrototype: true },
 );
-
 
 /** A limit for one end: a list of at least one id, or `any`. */
 const limit = fc.oneof(ids(1), fc.constant('any' as const));

@@ -23,6 +23,16 @@ Paths are relative to the repository root. Line numbers are those of `e983c0b`. 
 - The generator is `src/theme/generate.ts` (`pnpm exec tsx packages/app/src/theme/generate.ts`). `tokens.css` is written in Prettier's own format, so `.prettierignore` is unchanged. `styles.css` imports it.
 - `CanvasTheme` also holds `refused`, `relationLabelText`, `relationLabelBack`, `rowsBody` and `rowSeparator`. `--notice` and `--notice-soft` stay one wave longer, as aliases.
 - The tab's title is set by `Header`, which has the project's name.
+
+**Built in wave 2a (W9, 2026-10-24): the core of A2.** Where the code differs from this design, the code holds:
+- ADR numbers: this design's 0023 is ADR-0034 (project appearances) and its 0024 is ADR-0035 (a relation's own appearance and the colors of free shapes).
+- `core/src/colors.ts` and `core/src/builtin/dark.ts` were built here, not in A1. `ThemeName` stays in `core/src/preferences.ts`. There is no `mixColors`. `colors.ts` also gives `noteColorsOf` and `arrowColorOf`, which take the theme's `noteFill`, `noteStroke` and `freeArrow` (a `CanvasTheme` can be passed whole) and say whether each color is the shape's own or the theme's.
+- The Data modeling package has dark shades too: Table #1A2A40 / #7CA6E8, Column #1E2329 / #7CA6E8, references #7CA6E8.
+- `TraitSource` stays W1's: the id of the definition a trait comes from, or `own`. Where it comes from in full is a `TraitOrigin` (`{ kind: 'own' }` or `{ kind: 'definition', id, via: 'definition' | 'project', builtIn }`): `ResolvedComponent.origins` and `ResolvedRelationType.origins`, `appearanceOriginsOf`, `relationAppearanceOriginsOf`, and `traitSources(…).origins`. `ResolvedComponent.darkColors` and `ResolvedRelationType.darkStroke` hold the dark theme's colors; `darkColorsOf`, `drawnColorsOf`, `relationAppearanceOf`, `relationDarkStrokeOf` and `drawnRelationAppearanceOf` work them out for one element or relation.
+- `set-component-appearance` and `set-relation-type-appearance` take a whole `appearance` or `appearanceTraits`, trait by trait, as ADR-0022 changes definitions; so does `update-relation`. The checks stay in W1's `commands/traits.ts`, with the `invalid-appearance` code; `checkedColor(value, trait, of, stored?)` writes capitals and keeps the stored spelling.
+- `editableAppearanceOf(state, 'component' | 'relation-type', id)` and `colorsInUse(state)` are in `core/src/project-appearances.ts`, with `projectAppearanceOf`.
+- A key of a project appearance that is not an id is reported at the map's path, naming the key, as W1 reports the keys of stacking orders; empty maps are refused on open.
+- Still to do outside the core: the app's call sites of `definitionsOf(project.packages)` (4.6) and the ESLint rule, the server's `Locations` (4.5), the sample's Booking agent stroke and its test pins (3.4), and T6 and T7.
 ---
 
 ## 1. Summary
