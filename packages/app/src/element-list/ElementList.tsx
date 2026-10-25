@@ -295,6 +295,13 @@ export function ElementList({ onClose }: { onClose: () => void }) {
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (editing !== undefined) return;
+    // Only the cells take these keys: a column's header is a button of its own.
+    if (
+      !(event.target instanceof HTMLElement) ||
+      event.target.getAttribute('role') !== 'gridcell'
+    ) {
+      return;
+    }
     const command = event.ctrlKey || event.metaKey;
     const page = Math.max(1, Math.floor(sight.height / ROW_HEIGHT) - 1);
     const moves: Record<string, () => void> = {

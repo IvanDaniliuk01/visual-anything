@@ -1,22 +1,29 @@
 /**
- * The inspector's list of an element's destinations (ADR 0056): what each opens, by the attribute that
- * holds it, with the button that follows it, as double-clicking the mark on its shape does. An
- * element without destinations shows no section.
+ * The inspector's list of an element's or a relation's destinations (ADR 0056): what each opens, by
+ * the attribute that holds it, with the button that follows it, as double-clicking the mark on an
+ * element's shape does. Without destinations, it shows no section.
  */
-import type { Element } from '@visual-anything/schema';
+import { destinationsOf, type FoundDestination } from '@visual-anything/core';
+import type { AttributeDefinition, Attributes } from '@visual-anything/schema';
 import { useId } from 'react';
 import { useEditor } from '../editor/EditorContext';
 import { useT } from '../i18n';
-import { describeDestination, elementDestinations } from './follow';
+import { describeDestination } from './follow';
 import { useFollow } from './FollowProvider';
 import './destinations.css';
 
-export function DestinationsSection({ element }: { element: Element }) {
+interface DestinationsSectionProps {
+  /** The element or relation, with the attributes its component or relation type defines. */
+  item: { attributes?: Attributes };
+  definitions: readonly AttributeDefinition[];
+}
+
+export function DestinationsSection({ item, definitions }: DestinationsSectionProps) {
   const t = useT();
   const { project } = useEditor();
   const follower = useFollow();
   const headingId = useId();
-  const found = elementDestinations(project, element);
+  const found: FoundDestination[] = destinationsOf(item, definitions);
   if (found.length === 0) return null;
   return (
     <section className="inspector-section" aria-labelledby={headingId}>

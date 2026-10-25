@@ -104,7 +104,7 @@ export function ElementInspector({
       <ViewSection element={element} />
       <ScopeSection element={element} />
       <RowsSection element={element} />
-      <DestinationsSection element={element} />
+      <DestinationsSection item={element} definitions={component.attributes} />
       <AttributesSection
         of="element"
         definitions={component.attributes}
