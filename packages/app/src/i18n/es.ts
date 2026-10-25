@@ -311,6 +311,10 @@ export const ui: Catalog = {
   'version {version}': 'versión {version}',
   'license {license}': 'licencia {license}',
   'Images: {sources}': 'Imágenes: {sources}',
+  '{count} relations leave this view: {list}.': {
+    one: '{count} relación sale de esta vista: {list}.',
+    other: '{count} relaciones salen de esta vista: {list}.',
+  },
 
   // The Export dialog's formats, and the read-only page among them (M6b).
   'Export “{view}”': 'Exportar “{view}”',

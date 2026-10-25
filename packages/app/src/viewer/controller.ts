@@ -23,6 +23,7 @@ import {
 import { collapseActions, type CollapseAction } from '../canvas/collapse';
 import { distance, toggleRect, type Point, type Rect } from '../canvas/geometry';
 import { hitAt, type Hit, type IndexedScene } from '../canvas/hit';
+import { onLeavingMark } from '../canvas/leavingMark';
 import {
   containerOf,
   drawnRelations,
@@ -51,6 +52,7 @@ import {
 } from '../editor/selection';
 import { t } from '../i18n';
 import type { CanvasTheme } from '../theme/themes';
+import { leavingTitleOf } from './leaving';
 
 /** What the canvas asks of the page. */
 export interface ViewerCallbacks {
@@ -395,14 +397,19 @@ export class ViewerController {
   }
 
   private hover(screen: Point): void {
-    const hit = this.hit(screenToWorld(this.camera, screen), HIT_TOLERANCE / this.camera.scale);
+    const world = screenToWorld(this.camera, screen);
+    const hit = this.hit(world, HIT_TOLERANCE / this.camera.scale);
     const shape = hit?.kind === 'shape' ? hit.shape : undefined;
+    // The toggle says what it does, and the mark of the relations that leave the view says which.
+    const title =
+      shape && this.onToggle(shape, world, 'mouse')
+        ? toggleTitle(shape)
+        : shape?.leaving && this.project && onLeavingMark(shape, world)
+          ? leavingTitleOf(this.project, shape.leaving)
+          : '';
+    if (this.host.title !== title) this.host.title = title;
     if (shape?.key === this.hovered?.key) return;
     this.hovered = shape;
-    this.host.title =
-      shape && this.onToggle(shape, screenToWorld(this.camera, screen), 'mouse')
-        ? toggleTitle(shape)
-        : '';
     this.refreshMarks();
   }
 

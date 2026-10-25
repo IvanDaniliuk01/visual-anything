@@ -30,7 +30,7 @@ import { useT, LanguageContext, type Translator } from '../i18n';
 import type { Language } from '../i18n/translate';
 import { PlaybackEmphasis } from '../scenarios/PlaybackEmphasis';
 import { FindBar } from '../search/FindBar';
-import { Outline } from '../shell/Outline';
+import { OutlineTree } from '../shell/OutlineTree';
 import { DismissIcon, FilterIcon, InfoIcon, ListIcon, PlayIcon, SearchIcon } from '../shell/icons';
 import type { CanvasCamera } from '../view-state/canvas';
 import { useViewState } from '../view-state/useViewState';
@@ -301,7 +301,7 @@ export function Viewer({ project: opened, made, preferences }: ViewerProps) {
           <div className="viewer-body">
             {panel === 'outline' && (
               <aside className="panel viewer-side" aria-label={t('Outline')}>
-                <Outline active />
+                <OutlineTree active />
               </aside>
             )}
             <main ref={canvasRef} className="canvas-area viewer-main" aria-labelledby={heading}>

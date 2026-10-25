@@ -10,10 +10,11 @@ import { useEditor } from '../editor/EditorContext';
 import { EMPTY_SELECTION, sizeOf } from '../editor/selection';
 import { useT, type Translator } from '../i18n';
 import { DismissIcon } from '../shell/icons';
+import { leavingTitleOf } from './leaving';
 
 export function Details() {
   const t = useT();
-  const { project, definitions, selection, select, viewId } = useEditor();
+  const { project, definitions, selection, select, viewId, scene } = useEditor();
   const size = sizeOf(selection);
   if (size === 0) return null;
   const close = (
@@ -36,6 +37,8 @@ export function Details() {
     const element = index.element(elementId);
     if (!element) return null;
     const component = componentOrEssence(definitions, element.component);
+    // The relations that leave the view through its scope, from the element's first shape (ADR-0040).
+    const leaving = scene?.shapes.find((shape) => shape.element === element.id)?.leaving;
     return (
       <section className="viewer-sheet viewer-details" aria-label={t('Selected')}>
         <div className="viewer-sheet-head">
@@ -47,6 +50,9 @@ export function Details() {
           <p>{element.description}</p>
         )}
         <AttributeList t={t} values={element.attributes} defined={component.attributes} />
+        {leaving !== undefined && leaving.length > 0 && (
+          <p className="viewer-note">{leavingTitleOf(project, leaving)}</p>
+        )}
       </section>
     );
   }

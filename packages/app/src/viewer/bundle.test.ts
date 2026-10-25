@@ -63,6 +63,12 @@ const NOT_IN_THE_PAGE = [
   'packages/app/src/shell/Inspector.tsx',
   'packages/app/src/shell/inspector/',
   'packages/app/src/shell/definitions/',
+  // What edits a view's scope (ADR-0040): the inspector's scope editor and section, and the
+  // outline's menu, with the app's outline that holds it; the page shows the outline's tree alone.
+  'packages/app/src/shell/inspector/ScopeEditor.tsx',
+  'packages/app/src/shell/inspector/ScopeSection.tsx',
+  'packages/app/src/shell/OutlineMenu.tsx',
+  'packages/app/src/shell/Outline.tsx',
   // The core's commands and history: nothing in the page changes the project.
   'packages/core/src/commands/index.ts',
   'packages/core/src/history.ts',

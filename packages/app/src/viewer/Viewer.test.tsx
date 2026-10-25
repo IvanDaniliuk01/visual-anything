@@ -178,3 +178,42 @@ describe('The read-only page', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('This page’s data is not a project.');
   });
 });
+
+describe('A view with a scope, in the read-only page', () => {
+  /** The sample, its view leaving the Reminder service out (ADR-0040). */
+  const scoped: ProjectSnapshot = {
+    ...sample,
+    views: sample.views.map((view) => ({ ...view, scope: { leftOut: ['reminder-service'] } })),
+  };
+
+  it('shows only what the scope shows, and says which relations leave the view', async () => {
+    await open(read(scoped), '#view=system-overview&select=appointments-api');
+    expect(canvas()).toHaveAccessibleName(/: 7 element shapes/);
+    const details = screen.getByRole('region', { name: 'Selected' });
+    expect(within(details).getByText(/^1 relation leaves this view: /)).toBeInTheDocument();
+  });
+
+  it('finds what the scope leaves out, and offers no way to add it to the view', async () => {
+    await open(read(scoped));
+    fireEvent.click(screen.getByRole('button', { name: 'Find' }));
+    const field = screen.getByRole('combobox', { name: 'Find in the project' });
+    fireEvent.change(field, { target: { value: 'Reminder' } });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+    expect(screen.getAllByRole('option').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('option', { name: /^Add to this view/ })).not.toBeInTheDocument();
+  });
+
+  it('shows the outline without a menu to leave anything out', async () => {
+    await open(read(scoped), '#view=system-overview&select=appointments-api');
+    fireEvent.click(screen.getByRole('button', { name: 'Outline' }));
+    const row = screen.getByRole('treeitem', { name: /^Appointments API/ });
+    fireEvent.keyDown(row, { key: 'F10', shiftKey: true });
+    fireEvent.contextMenu(row);
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitem', { name: /Leave out of this view/ }),
+    ).not.toBeInTheDocument();
+  });
+});
