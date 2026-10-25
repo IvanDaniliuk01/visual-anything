@@ -4,14 +4,17 @@
  * the tiles; and while an end is dragged, what it would attach to: the connection points of the shape
  * under the pointer, the one it snaps to filled, a tick across the border where it snaps to it, or the
  * whole outline when it would attach automatically.
+ *
+ * It is drawn in the theme shown (ADR 0033): the line through the theme's painter, over its casing in
+ * the canvas color as in the tiles, and the marks in the theme's selection color, with hollow handles
+ * filled as the relate handle is, so that they keep 3:1 against the canvas in both themes.
  */
 import type { Graphics } from 'pixi.js';
 import type { Color } from '@visual-anything/schema';
-import { drawRelationRoutes } from '../draw';
-import { grow, type Point, type Rect } from '../geometry';
-import { CANVAS_BACKGROUND } from '../palette';
+import { grow, untilArrowhead, type Point, type Rect } from '../geometry';
 import type { RelationLine } from '../scene';
-import { traceCurve, drawnAsCurve } from './curves';
+import { CASING_EXTRA, type Painter } from '../theme/painter';
+import { drawnAsCurve, drawnCurve, traceCurve } from './curves';
 import { normalOf, type Side } from './hand';
 import type { Handle } from './handles';
 
@@ -34,19 +37,6 @@ export interface RouteOverlay {
   refused?: Rect;
 }
 
-/** The colors route editing draws with: the selection's, the face of hollow handles, and refusals. */
-export interface RouteMarkColors {
-  selection: Color;
-  face: Color;
-  refused: Color;
-}
-
-export const ROUTE_MARK_COLORS: RouteMarkColors = {
-  selection: '#2563EB',
-  face: CANVAS_BACKGROUND,
-  refused: '#DC2626',
-};
-
 /** The sizes of the handles on screen, in pixels: an end's square, a bend point's and a middle's circle. */
 const END_SIZE = 9;
 const BEND_SIZE = 8;
@@ -54,17 +44,23 @@ const MIDDLE_SIZE = 6;
 const POINT_SIZE = 6;
 const TICK = 8;
 
-/** Draws a route edit at a scale, sizes kept on screen, over whatever `graphics` held. */
+/** Draws a route edit at a scale, sizes kept on screen, in a painter's theme, over what `graphics` held. */
 export function drawRouteOverlay(
   graphics: Graphics,
   overlay: RouteOverlay | undefined,
   scale: number,
-  colors: RouteMarkColors = ROUTE_MARK_COLORS,
+  painter: Painter,
 ): void {
   graphics.clear();
   if (!overlay) return;
   const px = (pixels: number) => pixels / scale;
-  const { selection, face, refused } = colors;
+  const {
+    selected: selection,
+    handleFill: face,
+    refused,
+    background,
+    selectedGlowAlpha,
+  } = painter.theme;
   if (overlay.outline) {
     const rect = grow(overlay.outline, px(3));
     graphics
@@ -77,17 +73,18 @@ export function drawRouteOverlay(
   }
   const preview = overlay.preview;
   if (preview) {
-    // Marked as selected lines are, under the line itself.
-    if (drawnAsCurve(preview) && preview.curve) traceCurve(graphics, preview.curve);
-    else tracePolyline(graphics, preview.route);
+    // As the tiles draw a line: over its casing, in the canvas color; then marked as selected.
+    traceLine(graphics, preview, true);
+    graphics.stroke({ color: background, width: preview.width + CASING_EXTRA, cap: 'butt' });
+    painter.relationRoutes(graphics, [preview]);
+    traceLine(graphics, preview, false);
     graphics.stroke({
       color: selection,
       width: preview.width + px(6),
-      alpha: 0.35,
+      alpha: selectedGlowAlpha,
       join: 'round',
       cap: 'round',
     });
-    drawRelationRoutes(graphics, [preview]);
   }
   for (const point of overlay.points ?? []) {
     graphics.circle(point.at.x, point.at.y, px(POINT_SIZE / 2));
@@ -157,8 +154,13 @@ function ring(
   graphics.circle(x, y, radius).stroke({ color, width });
 }
 
-function tracePolyline(graphics: Graphics, route: readonly Point[]): void {
-  const [first, ...rest] = route;
+/** Traces a line's path: its curve, or its route; up to the base of its arrowhead for a casing. */
+function traceLine(graphics: Graphics, line: RelationLine, casing: boolean): void {
+  if (drawnAsCurve(line) && line.curve) {
+    traceCurve(graphics, casing ? drawnCurve(line) : line.curve);
+    return;
+  }
+  const [first, ...rest] = casing ? untilArrowhead(line.route, line.arrowhead) : line.route;
   if (!first) return;
   graphics.moveTo(first.x, first.y);
   for (const point of rest) graphics.lineTo(point.x, point.y);
