@@ -10,6 +10,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import {
   PROTOCOL_VERSION,
+  type CodeApproval,
   type Command,
   type Guidance,
   type ProjectSnapshot,
@@ -53,6 +54,10 @@ export interface ToolHarness {
 /** Runs a program on a project and attaches an MCP client to it through the bridge. */
 export async function startToolHarness(
   project: ProjectSnapshot = testProject(),
+  options: {
+    /** The person's approvals of package code, as their preferences hold them (ADR 0054). */
+    codeApprovals?: () => readonly CodeApproval[];
+  } = {},
 ): Promise<ToolHarness> {
   const profile = await realpath(await mkdtemp(join(tmpdir(), 'va-tools-')));
   const folder = join(profile, 'project');
@@ -72,6 +77,7 @@ export async function startToolHarness(
       opened.push(url);
       return Promise.resolve();
     },
+    ...(options.codeApprovals === undefined ? {} : { codeApprovals: options.codeApprovals }),
   });
   const runtime = join(profile, 'run');
   const context = { ...currentContext(), home: profile };

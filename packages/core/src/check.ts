@@ -7,6 +7,7 @@ import type { Appearance, AttributeDefinition, Attributes, Id } from '@visual-an
 import { ESSENCE_ID, RELATES_TO_ID, SCHEMA_VERSION } from '@visual-anything/schema';
 import { RESERVED_PACKAGE_IDS, builtinPackage } from './builtin';
 import { appearanceOf, isBuiltInDefinition, type Definitions } from './definitions';
+import { codeWarnings } from './code/check';
 import { checkImages } from './images/check';
 import { positionKey } from './operations';
 import { problem, type Problem } from './problems';
@@ -39,6 +40,8 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
     );
   }
   warnings.push(...appearanceWarnings(state, definitions));
+  // Package code that cannot run (ADR 0054).
+  warnings.push(...codeWarnings(state));
   for (const file of state.packages) {
     if (RESERVED_PACKAGE_IDS.has(file.id) && builtinPackage(file.id) !== file) {
       warnings.push(

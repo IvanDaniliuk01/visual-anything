@@ -25,6 +25,9 @@ import { useViewState } from '../view-state/useViewState';
 import { Header } from './Header';
 import { Inspector } from './Inspector';
 import { ModelPanel } from './ModelPanel';
+import { CodeStore } from '../code/context';
+import { usePackageCode } from '../code/usePackageCode';
+import { CodeApproval } from '../code/ApprovalDialog';
 
 interface ShellProps {
   project: ProjectSnapshot;
@@ -64,6 +67,8 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   const [emphasis] = useState(() => new EmphasisStore());
   // The filters and focus of each view; they set the open view's emphasis.
   const explore = useExplorer({ project, viewId: view?.id, scene, selection, emphasis });
+  // Package code (ADR 0054): its store, which the editor carries, filled below.
+  const [code] = useState(() => new CodeStore());
   const editor = useMemo<Editor>(
     () => ({
       project,
@@ -76,8 +81,20 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
       reveal,
       openView: setOpenViewId,
       explore,
+      code,
     }),
-    [project, definitions, view?.id, scene, selection, setSelection, onCommand, reveal, explore],
+    [
+      project,
+      definitions,
+      view?.id,
+      scene,
+      selection,
+      setSelection,
+      onCommand,
+      reveal,
+      explore,
+      code,
+    ],
   );
   const canvasHeading = useId();
   // The scenario open in the scenario panel, with its playback and its recording on the canvas.
@@ -104,6 +121,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
     canvas,
     notify: live?.notify,
   });
+  usePackageCode({ store: code, project, viewId: view?.id, scene, canvas });
   // Export also writes the read-only page, which opens at the view state shown now (M6b).
   const exportTool = (
     <ExportControl
@@ -172,6 +190,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
             </main>
             <Inspector view={view} scene={scene} definitions={definitions} />
             <ScenarioPanel session={scenarios} />
+            <CodeApproval />
           </div>
         </EmphasisContext.Provider>
       </DefinitionProvider>

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "name": "Plant gauges",
+  "description": "A sample project whose package holds code (M7): a unit converter, a check and a gauge drawn inside each thermometer.",
+  "packages": [
+    "systems",
+    "plant"
+  ]
+}

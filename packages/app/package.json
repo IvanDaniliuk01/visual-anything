@@ -10,11 +10,14 @@
     "typecheck": "tsc"
   },
   "dependencies": {
+    "@jitl/quickjs-singlefile-browser-release-sync": "0.32.0",
+    "@jitl/quickjs-singlefile-mjs-release-sync": "0.32.0",
     "@visual-anything/core": "workspace:*",
     "@visual-anything/schema": "workspace:*",
     "elkjs": "^0.12.0",
     "pdfkit": "^0.20.2",
     "pixi.js": "^8.22.0",
+    "quickjs-emscripten-core": "0.32.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "svg-to-pdfkit": "0.1.8"

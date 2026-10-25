@@ -182,6 +182,12 @@ const PATTERN_MESSAGES = new Map([
     packageSchema.definitions.LicenseId.pattern,
     'must be an SPDX license identifier, such as CC0-1.0 or MIT',
   ],
+  // Package code (ADR 0054).
+  [packageSchema.definitions.CodeLine.pattern, 'must be one line, without a line break'],
+  [
+    packageSchema.definitions.Capability.pattern,
+    'must be "model:read", "time", or "network:" and one web origin, such as "network:https://status.example.com"',
+  ],
 ]);
 
 const TYPE_NAMES: Record<string, string> = {

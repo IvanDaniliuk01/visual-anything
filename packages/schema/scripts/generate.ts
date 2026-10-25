@@ -28,7 +28,8 @@ export function generateSchemas(): Record<FileKind, string> {
     tsconfig: fileURLToPath(new URL('tsconfig.generate.json', import.meta.url)),
     // Put the file's own type at the root, so its title and description describe the whole file.
     topRef: false,
-    // Unknown keys are errors, which also keeps arbitrary payloads, such as code, out of project files.
+    // Unknown keys are errors, which also keeps arbitrary payloads out of project files: package code
+    // lives only in a package's `code`, and runs only once the person approves it (ADR 0054).
     additionalProperties: false,
   });
   const schemas = {} as Record<FileKind, string>;

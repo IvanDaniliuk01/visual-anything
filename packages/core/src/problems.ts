@@ -53,6 +53,15 @@ export type ProblemCode =
   | 'image-too-large'
   | 'image-cleaned'
   | 'large-images'
+  // Package code (ADR 0054): code a command refuses or a project holds that cannot run, and what
+  // its hooks do that only warns.
+  | 'invalid-code'
+  | 'code-not-approved'
+  | 'code-failed'
+  | 'code-stopped'
+  | 'code-off'
+  | 'code-answer-dropped'
+  | 'code-check'
   // Refusals of the local program, which keeps the history and the files.
   | 'nothing-to-undo'
   | 'nothing-to-redo'

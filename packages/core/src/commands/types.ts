@@ -70,6 +70,7 @@ export type Command =
   | RemoveImageCommand
   | SetRouteCommand
   | ResetRouteCommand
+  | SetPackageCodeCommand
   | BatchCommand;
 
 /** The kinds of command. */
@@ -664,4 +665,24 @@ export interface ResetRouteCommand {
   type: 'reset-route';
   view: Id;
   relations: Id[];
+}
+
+/**
+ * Writes the code of one of the project's own packages, the capabilities it declares, or both, as one
+ * action (ADR 0054). Storing code runs nothing: it runs once the person approves it by its hash, and
+ * any change here changes the hash, so the person is asked again.
+ */
+export interface SetPackageCodeCommand {
+  type: 'set-package-code';
+  package: Id;
+  /**
+   * One module of JavaScript, as its text or as its lines; `null` removes it, with its capabilities.
+   * Left out, the code stays as it is.
+   */
+  code?: string | string[] | null;
+  /**
+   * What the code may reach beyond its element: `model:read`, `time`, `network:<origin>`; kept
+   * sorted. `null` or an empty list removes them; left out, they stay as they are.
+   */
+  capabilities?: string[] | null;
 }

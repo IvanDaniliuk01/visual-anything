@@ -1,6 +1,7 @@
 import { builtinPackage, type Command, type UpdatePackageCommand } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useId, useMemo, type MouseEvent, type Ref } from 'react';
+import { PackageCodeSection } from '../../code/PackageCodeSection';
 import { useEditor } from '../../editor/EditorContext';
 import { useT } from '../../i18n';
 import { InlineProblem, TextControl } from '../inspector/controls';
@@ -186,6 +187,7 @@ export function PackageEditor({ id, titleRef }: PackageEditorProps) {
           </button>
         </section>
       )}
+      <PackageCodeSection id={id} />
       {inUse ? (
         <StopUsing id={id} own={builtin === undefined} />
       ) : (

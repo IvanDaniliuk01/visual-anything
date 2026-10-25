@@ -30,6 +30,20 @@ export const LIVE_MAX_PAYLOAD = 4 * 1024 * 1024;
 export const WORKER_POLICY =
   "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'self'";
 
+/**
+ * The policy of the code worker's script, which runs package code in QuickJS (ADR 0054): the worker
+ * policy, and compiling WebAssembly, which the interpreter is, with `'wasm-unsafe-eval'`; still no
+ * connection, no code from text and no worker of its own. Only this script gets it.
+ */
+export const CODE_WORKER_POLICY =
+  "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'none'; worker-src 'none'";
+
+/** Whether a request names the code worker's script: built, `code.worker-<hash>.js`, or its source in dev mode. */
+export function isCodeWorkerPath(url: string | undefined): boolean {
+  const path = (url ?? '').split(/[?#]/, 1)[0] ?? '';
+  return /\/code\.worker(?:-[A-Za-z0-9_-]+)?\.(?:js|ts)$/.test(path);
+}
+
 /** What a page's policy allows beyond the app's own files. */
 export interface PagePolicyOptions {
   /** Whether the page must turn strings into HTML only through its `default` Trusted Types policy. */
@@ -91,6 +105,8 @@ export interface ContentPolicies {
   page: string;
   /** For JavaScript. */
   worker: string;
+  /** For the code worker's script, when it differs from the other JavaScript's (ADR 0054). */
+  codeWorker?: string;
 }
 
 /**
@@ -104,7 +120,11 @@ export function applyContentPolicies(response: ServerResponse, policies: Content
     const at = typeof rest[0] === 'string' ? 1 : 0;
     const headers = rest[at] as OutgoingHttpHeaders | OutgoingHttpHeader[] | undefined;
     const type = contentTypeIn(headers) ?? response.getHeader('content-type');
-    const policy = policyFor(type, policies);
+    const codeWorker =
+      policies.codeWorker !== undefined && isCodeWorkerPath(response.req?.url)
+        ? policies.codeWorker
+        : undefined;
+    const policy = policyFor(type, { ...policies, worker: codeWorker ?? policies.worker });
     if (policy !== undefined) {
       if (headers === undefined || Array.isArray(headers)) {
         response.setHeader('Content-Security-Policy', policy);

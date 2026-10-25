@@ -185,6 +185,26 @@ export interface PackageFile {
    * @maxItems 128
    */
   images?: ImageDefinition[];
+  // Package code (ADR 0054).
+  /**
+   * The package's code: one module of JavaScript, one item per line, which may export the hooks
+   * `attributes`, `check` and `draw`. The file only holds it: it runs only once the person approves
+   * it, by the SHA-256 of its text and its capabilities, in an interpreter inside WebAssembly, and
+   * never while the file is read. Left out when the package has none.
+   *
+   * @minItems 1
+   * @maxItems 20000
+   */
+  code?: CodeLine[];
+  /**
+   * What its code may reach beyond its element, each approved by the person on its own. Left out
+   * when it needs nothing more.
+   *
+   * @minItems 1
+   * @maxItems 16
+   * @uniqueItems true
+   */
+  capabilities?: Capability[];
 }
 
 /**
@@ -202,6 +222,23 @@ export type PackageVersion = string;
  * @pattern ^[A-Za-z0-9][A-Za-z0-9.+-]{0,63}$
  */
 export type LicenseId = string;
+
+/**
+ * One line of a package's code, without its line ending.
+ *
+ * @maxLength 10000
+ * @pattern ^[^\r\n]*$
+ */
+export type CodeLine = string;
+
+/**
+ * Something a package's code may reach beyond its element: `model:read`, the whole model, read-only;
+ * `time`, the clock; or `network:` and one web origin, such as `network:https://status.example.com`,
+ * fetched through the local program.
+ *
+ * @pattern ^(model:read|time|network:https?://[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?(:[0-9]{1,5})?)$
+ */
+export type Capability = string;
 
 /** The reusable definition of a kind of element. It inherits everything it does not redefine. */
 export interface Component {

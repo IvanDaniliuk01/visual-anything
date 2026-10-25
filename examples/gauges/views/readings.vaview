@@ -1,0 +1,59 @@
+{
+  "id": "readings",
+  "name": "Readings",
+  "description": "Every thermometer, with the gauge its package code draws.",
+  "perspective": {
+    "name": "Temperature",
+    "description": "What each sensor reads now."
+  },
+  "nestingRelationTypes": [
+    "systems.is-part-of"
+  ],
+  "positions": [
+    {
+      "element": "boiler-room",
+      "x": 40,
+      "y": 40,
+      "width": 480,
+      "height": 232,
+      "pinned": true
+    },
+    {
+      "element": "boiler",
+      "container": "boiler-room",
+      "x": 32,
+      "y": 64,
+      "pinned": true
+    },
+    {
+      "element": "water-tank",
+      "container": "boiler-room",
+      "x": 272,
+      "y": 64,
+      "pinned": true
+    },
+    {
+      "element": "freezer",
+      "x": 584,
+      "y": 104,
+      "pinned": true
+    },
+    {
+      "element": "spare",
+      "x": 816,
+      "y": 104,
+      "pinned": true
+    }
+  ],
+  "freeShapes": [
+    {
+      "kind": "note",
+      "id": "about-code",
+      "x": 40,
+      "y": 312,
+      "width": 512,
+      "height": 96,
+      "text": "The Plant package holds code. It runs only once you approve it: select a thermometer and choose Review the code in the inspector."
+    }
+  ]
+}

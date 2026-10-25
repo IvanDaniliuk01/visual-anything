@@ -346,12 +346,12 @@ Eight milestones in build order, each ending in something you can use, and Track
 - the hostile-code tests pass: loops, allocation bombs, reaching for `globalThis`, `fetch`, the page or another package;
 - Claude can read, write and run a package's code after your approval.
 
-- [ ] `PackageFile.code` and `capabilities` in the schema, and the hooks' types and the checks of their answers in the core, test-first
-- [ ] The worker: one QuickJS runtime per package, the limits, the messages, turning a failing package off
-- [ ] Approval by hash and by capability, kept in your preferences; the approval dialog; computed values marked as computed
+- [x] `PackageFile.code` and `capabilities` in the schema, and the hooks' types and the checks of their answers in the core, test-first
+- [x] The worker: one QuickJS runtime per package, the limits, the messages, turning a failing package off
+- [x] Approval by hash and by capability, kept in your preferences; the approval dialog; computed values marked as computed
 - [ ] `draw` answers drawn inside shapes through the declarative drawing format, within the frame budget
-- [ ] Claude's tools for package code, approved in the app
-- [ ] A sample package with code (a unit converter that computes an attribute, a check, and a gauge drawn inside its shape)
+- [x] Claude's tools for package code, approved in the app
+- [x] A sample package with code (a unit converter that computes an attribute, a check, and a gauge drawn inside its shape)
 
 **M8 · Detail and data.** Planned beside M7 and M11. Done when:
 
