@@ -9,6 +9,7 @@ import { SEND_DELAY_MS, resetPreferencesForTests } from '../theme/store';
 import { fakeLive } from '../test/fakeLive';
 import { browserLanguage, currentLanguage, resolveLanguage } from './language';
 import { LanguageProvider } from './LanguageProvider';
+import { t } from './t';
 import { useT } from './useT';
 
 afterEach(() => {
@@ -99,6 +100,26 @@ describe('the language provider', () => {
       </LanguageProvider>,
     );
     expect(screen.getByText('Deshacer')).toBeInTheDocument();
+  });
+
+  it('is the current language already while what it holds renders', () => {
+    // Code outside React that a component calls as it renders, such as a relation's sentence.
+    function Probe() {
+      useT();
+      return <p>{t('Redo')}</p>;
+    }
+    const { rerender } = render(
+      <LanguageProvider language="en">
+        <Probe />
+      </LanguageProvider>,
+    );
+    expect(screen.getByText('Redo')).toBeInTheDocument();
+    rerender(
+      <LanguageProvider language="es">
+        <Probe />
+      </LanguageProvider>,
+    );
+    expect(screen.getByText('Rehacer')).toBeInTheDocument();
   });
 });
 

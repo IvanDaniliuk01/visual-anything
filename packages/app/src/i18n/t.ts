@@ -33,17 +33,22 @@ const BUILTINS: Readonly<
   Record<Language, Readonly<Record<string, { name: string; description?: string }>> | undefined>
 > = { en: undefined, es: esBuiltins };
 
+/** What a language calls a built-in package or definition, by an id of its own. */
+function builtinIn(language: Language, id: Id): { name: string; description?: string } | undefined {
+  const names = BUILTINS[language];
+  return names !== undefined && Object.hasOwn(names, id) ? names[id] : undefined;
+}
+
 function makeTranslator(language: () => Language): Translator {
   const translator = (text: Text, values?: Values) => translate(language(), text, values);
   return Object.defineProperties(translator, {
     language: { get: language, enumerable: true },
     message: { value: (english: string) => translateMessage(language(), english) },
     definition: {
-      value: (id: Id, name: string) => BUILTINS[language()]?.[id]?.name ?? name,
+      value: (id: Id, name: string) => builtinIn(language(), id)?.name ?? name,
     },
     description: {
-      value: (id: Id, description: string) =>
-        BUILTINS[language()]?.[id]?.description ?? description,
+      value: (id: Id, description: string) => builtinIn(language(), id)?.description ?? description,
     },
   }) as Translator;
 }

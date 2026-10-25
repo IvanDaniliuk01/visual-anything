@@ -53,6 +53,14 @@ function templatesIn(language: Language): Template[] {
   return language === 'en' ? [] : templatesOf(CATALOGS[language].messages);
 }
 
+/**
+ * A catalog's entry for a key, if it has one of its own: a text such as "constructor" never finds
+ * what every object inherits.
+ */
+function entryOf(catalog: Catalog | undefined, key: string): Entry | undefined {
+  return catalog !== undefined && Object.hasOwn(catalog, key) ? catalog[key] : undefined;
+}
+
 /** The key a text has in a catalog: the text itself, or the "other" form of a plural. */
 export function keyOf(text: Text): string {
   return typeof text === 'string' ? text : text.other;
@@ -94,7 +102,7 @@ export function bracesOf(text: string): string[] {
  * form for the count and the values written in.
  */
 export function translate(language: Language, text: Text, values?: Values): string {
-  const found = catalogOf(language)?.[keyOf(text)];
+  const found = entryOf(catalogOf(language), keyOf(text));
   // A text with no entry shows in English, with English's form for the count.
   const [entry, rules] = found === undefined ? [text, 'en' as const] : [found, language];
   return fill(typeof entry === 'string' ? entry : pick(entry, rules, values), values);
@@ -119,13 +127,13 @@ function pick(entry: PluralText, language: Language, values: Values | undefined)
  */
 
 /**
- * The braces whose parts are messages themselves, such as the reason after "Could not undo:", or a
- * phrase the core builds, such as `the component "Service"` in "The fill of {of} must be a color".
+ * The braces whose parts are messages themselves, such as the reason after "Could not undo:", a phrase
+ * the core builds, such as `the component "Service"` in "The fill of {of} must be a color", or a list
+ * of such phrases, such as "3 elements, 2 relations and 1 view" or `"A" and "B"`.
  */
 export const NESTED_VALUES: ReadonlySet<string> = new Set([
   'of',
   'Of',
-  'what',
   'why',
   'things',
   'shapes',
@@ -134,6 +142,11 @@ export const NESTED_VALUES: ReadonlySet<string> = new Set([
   'owner',
   'users',
   'step',
+  'names',
+  'members',
+  'images',
+  'scenarios',
+  'choices',
 ]);
 
 /**
@@ -141,7 +154,7 @@ export const NESTED_VALUES: ReadonlySet<string> = new Set([
  * runs on from a quoted name's sentence into the next one.
  */
 function patternOf(name: string): string {
-  if (/^(n|number|total|position|first|last|amount|limit|rest)$/.test(name)) {
+  if (/^(n|m|number|total|position|first|last|amount|limit|rest)$/.test(name)) {
     return '(\\d+(?:[.,]\\d+)?)';
   }
   if (name === 'file' || name === 'path') return '(\\S+)';
@@ -261,7 +274,7 @@ function matchIn(
   text: string,
   depth: number,
 ): Translated | undefined {
-  const exact = catalog[text];
+  const exact = entryOf(catalog, text);
   if (exact !== undefined) {
     return { text: typeof exact === 'string' ? exact : exact.other, missing: [] };
   }
@@ -278,7 +291,7 @@ function matchIn(
         values[name] = value;
         return;
       }
-      const part = lineIn(language, catalog, value, depth + 1);
+      const part = valueIn(language, catalog, value, depth + 1);
       values[name] = part.text;
       missing.push(...part.missing);
     });
@@ -293,6 +306,41 @@ function matchIn(
     return { text: fillJoined(language, form, values), missing };
   }
   return undefined;
+}
+
+/**
+ * A part of a message that is a message itself: a list of such parts, when every item has an entry,
+ * so that `"A" or "B"` is not read as one name; or else as a whole.
+ */
+function valueIn(language: Language, catalog: Catalog, value: string, depth: number): Translated {
+  return listIn(language, catalog, value, depth) ?? lineIn(language, catalog, value, depth);
+}
+
+/**
+ * A list, as in "3 elements, 2 relations and 1 view" or `"A" or "B"`: each item translated, and joined
+ * as the language joins lists, with the catalog's entries for " and " and " or ". Undefined unless every
+ * item has an entry.
+ */
+function listIn(
+  language: Language,
+  catalog: Catalog,
+  value: string,
+  depth: number,
+): Translated | undefined {
+  const parts = value.split(/(, | and | or )/);
+  if (parts.length < 3) return undefined;
+  let text = '';
+  for (const [at, part] of parts.entries()) {
+    if (at % 2 === 1) {
+      const joiner = entryOf(catalog, part);
+      text += typeof joiner === 'string' ? joiner : part;
+      continue;
+    }
+    const item = matchIn(language, catalog, part, depth);
+    if (item === undefined || item.missing.length > 0) return undefined;
+    text += item.text;
+  }
+  return { text, missing: [] };
 }
 
 /** Writes the values in, joining each to the words before it as the language does. */

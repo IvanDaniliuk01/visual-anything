@@ -1,6 +1,6 @@
 import { useLayoutEffect, useSyncExternalStore, type ReactNode } from 'react';
 import { usePreferences } from '../theme/usePreferences';
-import { navigatorLanguages, resolveLanguage, setCurrentLanguage } from './language';
+import { adoptLanguage, navigatorLanguages, resolveLanguage, setCurrentLanguage } from './language';
 import type { Language } from './translate';
 import { LanguageContext } from './useT';
 
@@ -32,6 +32,8 @@ export function LanguageProvider({ language, children }: LanguageProviderProps) 
   const browser = useSyncExternalStore(subscribeToBrowser, browserSnapshot, () => '');
   const resolved =
     language ?? resolveLanguage(preferences.language, browser === '' ? [] : browser.split(','));
+  // Before the components inside render, so that what they call outside React reads in it too.
+  adoptLanguage(resolved);
   useLayoutEffect(() => {
     setCurrentLanguage(resolved);
   }, [resolved]);

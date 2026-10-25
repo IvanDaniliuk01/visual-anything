@@ -29,6 +29,17 @@ We chose this because the person wants to use Visual Anything in Spanish, while 
 - **The core returning message ids and values**: rejected for now. Every refusal and label in the core would change while other tasks change the core. Templates in the app give the same result. The core can move to structured messages later without changing what the person sees.
 - **Spanish strings in the components**: rejected. The repository is in English.
 
+## How L1 applies it
+
+<!-- Decided by Claude on 2026-10-24, building L1, under the user's standing delegation of design decisions. -->
+
+- **The browser's language** is the first of `navigator.languages` that the app reads, by its primary subtag: `es-AR` is Spanish, and `fr-FR, es` is Spanish too. With none, English.
+- **The first frame.** The tab keeps the language chosen in its session storage, as it keeps the theme, so that a reload starts in it. The address carries no language: a new tab reads in the browser's language until the local program sends the person's preferences, with the project.
+- **The Language control** is a select beside the Theme control. Each language is named in its own language, English and Español, and matching the browser says which language that is now.
+- **Two sections in the catalog.** `ui` holds what the app writes through `t()`. `messages` holds what is kept in English and translated where it is shown: the core's and the local program's messages, and the app's own notices and undo labels. Only `messages` entries are matched as templates, so that a loose text of the app such as `{from} to {to}` never takes a message apart.
+- **Parts that are messages.** A template's brace holds what people wrote, never translated, unless its name says it holds a message or a phrase the core builds, such as `{why}`, `{of}` or `{things}`; those are translated in turn, and lists of them, as in "3 elements, 2 relations and 1 view", are joined as the language joins lists. Spanish contracts "de el" and "a el" where such a phrase follows.
+- **Built-in names** are found by definition and package id, never by name. Attribute names are data, like ids, and are not translated.
+
 ## Consequences
 
 - New UI text goes through `t()` or `useT()`. A test fails when a component writes visible text outside them, once a file has moved to the catalog.

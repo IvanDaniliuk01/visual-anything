@@ -595,17 +595,520 @@ export const messages: Catalog = {
   'Move {step} down': 'Bajar {step}',
   'Delete {step}': 'Eliminar {step}',
 
-  // What the core and the local program write.
+  // What the core and the local program write. Phrases first, which the messages hold as parts.
+  ' and ': ' y ',
+  ' or ': ' o ',
   '"{name}"': '"{name}"',
   'the component "{name}"': 'el componente "{name}"',
+  'The component "{name}"': 'El componente "{name}"',
+  'the relation type "{name}"': 'el tipo de relación "{name}"',
+  'The relation type "{name}"': 'El tipo de relación "{name}"',
+  'the package "{name}"': 'el paquete "{name}"',
+  'The element "{name}"': 'El elemento "{name}"',
+  '1 element': '1 elemento',
+  '{n} elements': '{n} elementos',
+  '1 relation': '1 relación',
+  '{n} relations': '{n} relaciones',
+  '1 shape': '1 forma',
+  '{n} shapes': '{n} formas',
+  '1 container': '1 contenedor',
+  '{n} containers': '{n} contenedores',
+  '1 free shape': '1 forma libre',
+  '{n} free shapes': '{n} formas libres',
+  '1 view': '1 vista',
+  '{n} views': '{n} vistas',
+  '1 limit': '1 límite',
+  '{n} limits': '{n} límites',
+  '1 badge': '1 insignia',
+  '{n} badges': '{n} insignias',
+  '1 derived definition': '1 definición derivada',
+  '{n} derived definitions': '{n} definiciones derivadas',
+  '1 component or element': '1 componente o elemento',
+  '{n} components or elements': '{n} componentes o elementos',
+  '1 warning': '1 advertencia',
+  '{n} warnings': '{n} advertencias',
+
+  // The undo history's labels.
+  'Create "{name}"': 'Crear "{name}"',
   'Rename "{old}" to "{new}"': 'Cambiar el nombre de "{old}" a "{new}"',
+  'Edit "{name}"': 'Editar "{name}"',
+  'Delete "{name}"': 'Eliminar "{name}"',
+  'Delete the relation "{name}"': 'Eliminar la relación "{name}"',
+  'Delete {things}': 'Eliminar {things}',
+  'Add the relation "{name}"': 'Agregar la relación "{name}"',
+  'Edit the relation "{name}"': 'Editar la relación "{name}"',
+  'Collapse "{name}"': 'Contraer "{name}"',
+  'Expand "{name}"': 'Expandir "{name}"',
+  'Collapse {n} containers': 'Contraer {n} contenedores',
+  'Expand {n} containers': 'Expandir {n} contenedores',
+  'Move "{element}" in "{view}"': 'Mover "{element}" en "{view}"',
+  'Move {n} elements in "{view}"': 'Mover {n} elementos en "{view}"',
+  'Move {n} shapes in "{view}"': 'Mover {n} formas en "{view}"',
+  'Put "{element}" inside "{container}"': 'Poner "{element}" dentro de "{container}"',
+  'Move "{element}" from "{from}" into "{container}"':
+    'Mover "{element}" de "{from}" a "{container}"',
+  'Move "{element}" into "{container}"': 'Mover "{element}" a "{container}"',
+  'Take "{element}" out of "{from}"': 'Sacar "{element}" de "{from}"',
+  'Take "{element}" out of its containers': 'Sacar "{element}" de sus contenedores',
+  'Put {n} elements inside "{container}"': 'Poner {n} elementos dentro de "{container}"',
+  'Move {n} elements into "{container}"': 'Mover {n} elementos a "{container}"',
+  'Take {n} elements out of "{from}"': 'Sacar {n} elementos de "{from}"',
+  'Take {n} elements out of their containers': 'Sacar {n} elementos de sus contenedores',
+  '{base}, and move {n} other shape': '{base} y mover {n} forma más',
+  '{base}, and move {n} other shapes': '{base} y mover {n} formas más',
+  'Move {moved} to the end': 'Mover {moved} al final',
+  'Move {moved} before "{name}"': 'Mover {moved} antes de "{name}"',
+  'Create the package "{name}"': 'Crear el paquete "{name}"',
+  'Rename the package "{old}" to "{new}"': 'Cambiar el nombre del paquete "{old}" a "{new}"',
+  'Edit the package "{name}"': 'Editar el paquete "{name}"',
+  'Define the component "{name}"': 'Definir el componente "{name}"',
+  'Redefine the component "{name}"': 'Redefinir el componente "{name}"',
+  'Define the relation type "{name}"': 'Definir el tipo de relación "{name}"',
+  'Redefine the relation type "{name}"': 'Redefinir el tipo de relación "{name}"',
+  'Rename the component "{old}" to "{new}"': 'Cambiar el nombre del componente "{old}" a "{new}"',
+  'Edit the component "{name}"': 'Editar el componente "{name}"',
+  'Rename the relation type "{old}" to "{new}"':
+    'Cambiar el nombre del tipo de relación "{old}" a "{new}"',
+  'Edit the relation type "{name}"': 'Editar el tipo de relación "{name}"',
+  'Remove the component "{name}"': 'Quitar el componente "{name}"',
+  'Remove the relation type "{name}"': 'Quitar el tipo de relación "{name}"',
+  'Add the image "{name}"': 'Agregar la imagen "{name}"',
+  'Replace the image "{name}"': 'Reemplazar la imagen "{name}"',
+  'Remove the image "{name}"': 'Quitar la imagen "{name}"',
+  'Change the packages in use': 'Cambiar los paquetes en uso',
+  'Edit the project "{name}"': 'Editar el proyecto "{name}"',
+  'Create the scenario "{name}"': 'Crear el escenario "{name}"',
+  'Edit the scenario "{name}"': 'Editar el escenario "{name}"',
+  'Delete the scenario "{name}"': 'Eliminar el escenario "{name}"',
+  'Bring "{element}" to the front in "{view}"': 'Traer "{element}" al frente en "{view}"',
+  'Send "{element}" to the back in "{view}"': 'Enviar "{element}" al fondo en "{view}"',
+  'Bring "{element}" in front of "{other}" in "{view}"':
+    'Traer "{element}" delante de "{other}" en "{view}"',
+  'Send "{element}" behind "{other}" in "{view}"':
+    'Enviar "{element}" detrás de "{other}" en "{view}"',
+  'Bring {shapes} to the front in "{view}"': 'Traer {shapes} al frente en "{view}"',
+  'Send {shapes} to the back in "{view}"': 'Enviar {shapes} al fondo en "{view}"',
+  'Bring {shapes} forward in "{view}"': 'Traer {shapes} hacia adelante en "{view}"',
+  'Send {shapes} backward in "{view}"': 'Enviar {shapes} hacia atrás en "{view}"',
+  'Change the stacking order of {shapes} in "{view}"':
+    'Cambiar el orden de apilado de {shapes} en "{view}"',
+  'Create the view "{name}"': 'Crear la vista "{name}"',
+  'Edit the view "{name}"': 'Editar la vista "{name}"',
+  'Delete the view "{name}"': 'Eliminar la vista "{name}"',
+  'Let layout place "{element}" in "{view}"':
+    'Dejar que el diseño automático ubique "{element}" en "{view}"',
+  'Let layout place {n} shapes in "{view}"':
+    'Dejar que el diseño automático ubique {n} formas en "{view}"',
+  'Add a note to "{view}"': 'Agregar una nota a "{view}"',
+  'Add an arrow to "{view}"': 'Agregar una flecha a "{view}"',
+  'Edit a note in "{view}"': 'Editar una nota en "{view}"',
+  'Edit an arrow in "{view}"': 'Editar una flecha en "{view}"',
+  'Delete 1 free shape from "{view}"': 'Eliminar 1 forma libre de "{view}"',
+  'Delete {n} free shapes from "{view}"': 'Eliminar {n} formas libres de "{view}"',
+
+  // Why a change was refused, and what a change breaks that only warns.
   'There is nothing to undo.': 'No hay nada que deshacer.',
   'There is nothing to redo.': 'No hay nada que rehacer.',
   'There is no element "{id}".': 'No hay ningún elemento "{id}".',
   'There is no relation "{id}".': 'No hay ninguna relación "{id}".',
+  'There is no element or relation "{id}" to end on.':
+    'No hay ningún elemento ni relación "{id}" en el cual terminar.',
+  'There is no view "{id}".': 'No hay ninguna vista "{id}".',
+  'There is no scenario "{id}".': 'No hay ningún escenario "{id}".',
   'World cannot be deleted.': 'Mundo no se puede eliminar.',
+  'World cannot sit inside anything.': 'Mundo no puede estar dentro de nada.',
+  'World has no place in the model’s order.': 'Mundo no tiene lugar en el orden del modelo.',
+  'World holds everything and has no place in the model’s order.':
+    'Mundo contiene todo y no tiene lugar en el orden del modelo.',
+  'World has no shape; it is the canvas itself.': 'Mundo no tiene forma; es el propio lienzo.',
+  'World is the canvas itself; it cannot be collapsed.':
+    'Mundo es el propio lienzo; no se puede contraer.',
+  '"{id}" is not a valid id.': '"{id}" no es un id válido.',
+  'The id "{id}" is already taken.': 'El id "{id}" ya está en uso.',
+  'An element needs a name.': 'Un elemento necesita un nombre.',
+  'A relation needs a name.': 'Una relación necesita un nombre.',
+  'A batch needs a name.': 'Un lote necesita un nombre.',
+  'A package needs a name.': 'Un paquete necesita un nombre.',
+  'A component needs a name.': 'Un componente necesita un nombre.',
+  'A relation type needs a name.': 'Un tipo de relación necesita un nombre.',
+  'A project needs a name.': 'Un proyecto necesita un nombre.',
+  'A scenario needs a name.': 'Un escenario necesita un nombre.',
+  'An image needs a name.': 'Una imagen necesita un nombre.',
+  'A perspective needs a name.': 'Una perspectiva necesita un nombre.',
+  'An attribute needs a name.': 'Un atributo necesita un nombre.',
+  'A note needs text.': 'Una nota necesita texto.',
+  'A width must be a positive number.': 'Un ancho debe ser un número positivo.',
+  'A height must be a positive number.': 'Un alto debe ser un número positivo.',
+  'Command {n} of the batch: {why}': 'Comando {n} del lote: {why}',
+  'No package in use defines the component "{id}".':
+    'Ningún paquete en uso define el componente "{id}".',
+  'No package in use defines the relation type "{id}".':
+    'Ningún paquete en uso define el tipo de relación "{id}".',
+  'No package in use defines the image "{id}".': 'Ningún paquete en uso define la imagen "{id}".',
+  'The package "{id}" is built in and cannot be changed.':
+    'El paquete "{id}" es incorporado y no se puede cambiar.',
+  'The project uses no package "{id}".': 'El proyecto no usa ningún paquete "{id}".',
+  'Nothing to delete was given.': 'No se indicó nada para eliminar.',
+  'The relation "{name}" cannot end on itself, directly or through the relations that end on it.':
+    'La relación "{name}" no puede terminar en sí misma, ni directamente ni a través de las relaciones que terminan en ella.',
+  'A nesting relation places one element inside another, but "{name}" is a relation.':
+    'Una relación que anida ubica un elemento dentro de otro, pero "{name}" es una relación.',
+  'Placing "{from}" inside "{to}" would make containment form a cycle.':
+    'Ubicar "{from}" dentro de "{to}" haría que la contención forme un ciclo.',
+  'The change would make containment form a cycle.':
+    'El cambio haría que la contención forme un ciclo.',
+  '"{type}" expects its from end to be {names}, but "{name}" is not.':
+    '"{type}" espera que su extremo de origen sea {names}, pero "{name}" no lo es.',
+  '"{type}" expects its to end to be {names}, but "{name}" is not.':
+    '"{type}" espera que su extremo de destino sea {names}, pero "{name}" no lo es.',
+  '"{name}" has {value} for "{attribute}", which is not one of its choices.':
+    '"{name}" tiene {value} para "{attribute}", que no es una de sus opciones.',
+  '…and {n} more relation breaks limits.': '…y {n} relación más no cumple los límites.',
+  '…and {n} more relations break limits.': '…y {n} relaciones más no cumplen los límites.',
+  '…and {n} more value is outside their choices.': '…y {n} valor más está fuera de sus opciones.',
+  '…and {n} more values are outside their choices.':
+    '…y {n} valores más están fuera de sus opciones.',
+  'No containers were given to collapse or expand.':
+    'No se indicó ningún contenedor para contraer o expandir.',
+  '"{name}" is given twice.': '"{name}" se indica dos veces.',
+  'No shapes were given.': 'No se indicó ninguna forma.',
+  'The relation type "{type}" does not nest.': 'El tipo de relación "{type}" no anida.',
+  'The view "{view}" is not arranged by "{type}".':
+    'La vista "{view}" no se organiza por "{type}".',
+  '"{name}" is given twice from World.': '"{name}" se indica dos veces desde Mundo.',
+  '"{name}" is given twice from "{from}".': '"{name}" se indica dos veces desde "{from}".',
+  'The position of "{name}" is given twice.': 'La posición de "{name}" se indica dos veces.',
+  '"{name}" cannot go inside itself.': '"{name}" no puede ir dentro de sí mismo.',
+  'The view "{view}" is arranged by no relation type that nests, so nothing can be put inside anything in it.':
+    'La vista "{view}" no se organiza por ningún tipo de relación que anide, así que en ella no se puede poner nada dentro de nada.',
+  '"{name}" cannot go inside "{to}", which is inside "{name}" in the model.':
+    '"{name}" no puede ir dentro de "{to}", que está dentro de "{name}" en el modelo.',
+  '"{name}" cannot go inside "{to}", which is inside "{name}" in the model through "{type}".':
+    '"{name}" no puede ir dentro de "{to}", que está dentro de "{name}" en el modelo mediante "{type}".',
+  '"{name}" cannot go inside "{to}", which is inside "{name}" in the model through "{type}", which the view "{view}" does not show.':
+    '"{name}" no puede ir dentro de "{to}", que está dentro de "{name}" en el modelo mediante "{type}", que la vista "{view}" no muestra.',
+  'No elements were given to move.': 'No se indicó ningún elemento para mover.',
+  '"{name}" is moved, so the others cannot go before it.':
+    '"{name}" se mueve, así que los demás no pueden ir antes.',
+  'No moves were given.': 'No se indicó ningún movimiento.',
+  '"{name}" is moved twice.': '"{name}" se mueve dos veces.',
+  '"{name}" cannot go in front of or behind itself.':
+    '"{name}" no puede ir delante ni detrás de sí mismo.',
+  '"{element}" does not sit directly in World in the view "{view}".':
+    '"{element}" no está directamente en Mundo en la vista "{view}".',
+  '"{element}" does not sit inside "{container}" in the view "{view}".':
+    '"{element}" no está dentro de "{container}" en la vista "{view}".',
+  '"{element}" is a row of "{container}", which places its rows in the model\'s order; a row has no position of its own.':
+    '"{element}" es una fila de "{container}", que ubica sus filas en el orden del modelo; una fila no tiene posición propia.',
+  'No positions were given.': 'No se indicó ninguna posición.',
+  'The view "{view}" stores no position for "{key}".':
+    'La vista "{view}" no guarda ninguna posición para "{key}".',
+  'The view "{view}" has no free shape "{id}".':
+    'La vista "{view}" no tiene ninguna forma libre "{id}".',
+  'No free shapes were given.': 'No se indicó ninguna forma libre.',
+  'The nesting relation type "{name}" is given twice.':
+    'El tipo de relación que anida "{name}" se indica dos veces.',
+  'The view "{name}" cannot be deleted: {scenarios} play over it.':
+    'La vista "{name}" no se puede eliminar: {scenarios} se reproducen sobre ella.',
+  'A package is listed twice.': 'Un paquete figura dos veces.',
+  'The project cannot stop using the package "{id}": {n} of its elements, relations or definitions come from it.':
+    'El proyecto no puede dejar de usar el paquete "{id}": {n} de sus elementos, relaciones o definiciones vienen de él.',
+  'There is no built-in package "{id}" to use.':
+    'No hay ningún paquete incorporado "{id}" para usar.',
+  'Step {n} activates no relation; a step needs at least one.':
+    'El paso {n} no activa ninguna relación; un paso necesita al menos una.',
+  'Step {n} lists the same relation twice.': 'El paso {n} incluye la misma relación dos veces.',
+  'Step {n} uses "{id}", which is not a relation of the model.':
+    'El paso {n} usa "{id}", que no es una relación del modelo.',
+  'Step {n} needs a description.': 'El paso {n} necesita una descripción.',
+
+  // Packages, components and relation types.
+  'The id "{id}" is the built-in package "{name}"\'s; give the package another one.':
+    'El id "{id}" es el del paquete incorporado "{name}"; darle otro al paquete.',
+  'The id "{id}" is kept for a package Visual Anything plans to build in; give the package another one.':
+    'El id "{id}" está reservado para un paquete que Visual Anything planea incorporar; darle otro al paquete.',
+  'A package with the id "{id}" already exists.': 'Ya existe un paquete con el id "{id}".',
+  'The package "{package}" already has the component "{id}".':
+    'El paquete "{package}" ya tiene el componente "{id}".',
+  'The package "{package}" already has the relation type "{id}".':
+    'El paquete "{package}" ya tiene el tipo de relación "{id}".',
+  'The package "{package}" already defines "{id}".': 'El paquete "{package}" ya define "{id}".',
+  'The component "{name}" cannot be removed: {users} use it.':
+    'El componente "{name}" no se puede quitar: lo usan {users}.',
+  'The relation type "{name}" cannot be removed: {users} use it.':
+    'El tipo de relación "{name}" no se puede quitar: lo usan {users}.',
+  'A component has no "{key}".': 'Un componente no tiene "{key}".',
+  'A relation type has no "{key}".': 'Un tipo de relación no tiene "{key}".',
+  'The component "{id}" must start with "{prefix}.", the id of its package.':
+    'El componente "{id}" debe empezar con "{prefix}.", el id de su paquete.',
+  'The relation type "{id}" must start with "{prefix}.", the id of its package.':
+    'El tipo de relación "{id}" debe empezar con "{prefix}.", el id de su paquete.',
+  'The component "{id}" cannot derive from itself.':
+    'El componente "{id}" no puede derivar de sí mismo.',
+  'The relation type "{id}" cannot derive from itself.':
+    'El tipo de relación "{id}" no puede derivar de sí mismo.',
+  'The component "{id}" derives from "{parent}", which no package in use defines.':
+    'El componente "{id}" deriva de "{parent}", que ningún paquete en uso define.',
+  'The relation type "{id}" derives from "{parent}", which no package in use defines.':
+    'El tipo de relación "{id}" deriva de "{parent}", que ningún paquete en uso define.',
+  'The direction of {of} is "directed" or "undirected".':
+    'La dirección de {of} es "directed" o "undirected".',
+  '{Of} has no "{key}" to change.': '{Of} no tiene "{key}" para cambiar.',
+  'Limits are set for the "from" and "to" ends, not "{end}".':
+    'Los límites se fijan para los extremos "from" y "to", no "{end}".',
+  '{names} cannot stop nesting while {scenarios} nests by it; change the view first.':
+    '{names} no puede dejar de anidar mientras {scenarios} anida por él; primero cambiar la vista.',
+  '{names} cannot stop nesting while {scenarios} nest by it; change the view first.':
+    '{names} no puede dejar de anidar mientras {scenarios} anidan por él; primero cambiar las vistas.',
+  'The relation "{id}" would nest, but one of its ends is a relation.':
+    'La relación "{id}" anidaría, pero uno de sus extremos es una relación.',
+  'The component "{name}" already defines "{to}".': 'El componente "{name}" ya define "{to}".',
+  'The relation type "{name}" already defines "{to}".':
+    'El tipo de relación "{name}" ya define "{to}".',
+  '"{name}" already holds a value for "{to}".': '"{name}" ya tiene un valor para "{to}".',
+  'The relation "{name}" already holds a value for "{to}".':
+    'La relación "{name}" ya tiene un valor para "{to}".',
+  '{names} cannot be removed: the detail of {users} writes it.':
+    '{names} no se puede quitar: lo escribe el detalle de {users}.',
+  'The component "{id}" is built in; package "{package}" cannot define it.':
+    'El componente "{id}" es incorporado; el paquete "{package}" no puede definirlo.',
+  'The relation type "{id}" is built in; package "{package}" cannot define it.':
+    'El tipo de relación "{id}" es incorporado; el paquete "{package}" no puede definirlo.',
+  'The component "{id}" is defined by package "{first}" and again by "{package}".':
+    'El componente "{id}" lo define el paquete "{first}" y otra vez "{package}".',
+  'The relation type "{id}" is defined by package "{first}" and again by "{package}".':
+    'El tipo de relación "{id}" lo define el paquete "{first}" y otra vez "{package}".',
+  'The component "{id}" of package "{package}" should start with "{prefix}.".':
+    'El componente "{id}" del paquete "{package}" debería empezar con "{prefix}.".',
+  'The relation type "{id}" of package "{package}" should start with "{prefix}.".':
+    'El tipo de relación "{id}" del paquete "{package}" debería empezar con "{prefix}.".',
+  'The components {members} derive from each other in a cycle.':
+    'Los componentes {members} derivan unos de otros en un ciclo.',
+  'The relation types {members} derive from each other in a cycle.':
+    'Los tipos de relación {members} derivan unos de otros en un ciclo.',
+
+  // Appearances and attributes.
   'The fill of {of} must be a color written as #rrggbb.':
     'El relleno de {of} debe ser un color escrito como #rrggbb.',
+  'The stroke of {of} must be a color written as #rrggbb.':
+    'El borde de {of} debe ser un color escrito como #rrggbb.',
+  'The width of {of} must be a number above 0 and at most 100,000.':
+    'El ancho de {of} debe ser un número mayor que 0 y de 100.000 como máximo.',
+  'The height of {of} must be a number above 0 and at most 100,000.':
+    'El alto de {of} debe ser un número mayor que 0 y de 100.000 como máximo.',
+  'The shape of {of} must be one of {choices}.':
+    'La forma de {of} debe ser una de estas: {choices}.',
+  'The detail of {of} writes at most 8 attributes.':
+    'El detalle de {of} escribe como máximo 8 atributos.',
+  'The detail of {of} writes "{name}" twice.': 'El detalle de {of} escribe "{name}" dos veces.',
+  'A badge of {of} writes 1 to 4 characters.': 'Una insignia de {of} escribe de 1 a 4 caracteres.',
+  'A badge of {of} has no "{key}".': 'Una insignia de {of} no tiene "{key}".',
+  'The badge "{text}" of {of} names the attribute it is written for.':
+    'La insignia "{text}" de {of} nombra el atributo para el que se escribe.',
+  'The badge "{text}" of {of} names a relation type by its id.':
+    'La insignia "{text}" de {of} nombra un tipo de relación por su id.',
+  'The detail of {of} writes at most 8 badges.':
+    'El detalle de {of} escribe como máximo 8 insignias.',
+  'The detail of {of} has no "{key}".': 'El detalle de {of} no tiene "{key}".',
+  '{Of} has at most 32 connection points.': '{Of} tiene como máximo 32 puntos de conexión.',
+  'A connection point of {of} has no "{key}".': 'Un punto de conexión de {of} no tiene "{key}".',
+  'A connection point of {of} has a name of 1 to 32 characters.':
+    'Un punto de conexión de {of} tiene un nombre de 1 a 32 caracteres.',
+  '{Of} has two connection points named "{name}".':
+    '{Of} tiene dos puntos de conexión llamados "{name}".',
+  'The connection point "{name}" of {of} sits on the top, right, bottom or left side.':
+    'El punto de conexión "{name}" de {of} está en el lado superior, derecho, inferior o izquierdo.',
+  'The connection point "{name}" of {of} sits at a place from 0 to 1 along its side.':
+    'El punto de conexión "{name}" de {of} está en un lugar de 0 a 1 a lo largo de su lado.',
+  'The image of {of} must be "none" or an image named by its id.':
+    'La imagen de {of} debe ser "none" o una imagen nombrada por su id.',
+  'The image of {of} must name an image by its id.':
+    'La imagen de {of} debe nombrar una imagen por su id.',
+  'The image of {of} is placed as an icon or as a drawing.':
+    'La imagen de {of} se ubica como ícono o como dibujo.',
+  '{Of} cannot draw its contents as rows as a {shape}: only a rectangle or a rounded rectangle draws rows.':
+    '{Of} no puede dibujar su contenido como filas con la forma {shape}: solo un rectángulo o un rectángulo redondeado dibuja filas.',
+  'An appearance has no trait "{trait}".': 'Una apariencia no tiene el rasgo "{trait}".',
+  'The line width of {of} must be a number above 0.':
+    'El grosor de línea de {of} debe ser un número mayor que 0.',
+  'The dash of {of} must be "solid", "dashed" or "dotted".':
+    'El trazo de {of} debe ser "solid", "dashed" o "dotted".',
+  'How a relation is drawn has no trait "{trait}".':
+    'La forma de dibujar una relación no tiene el rasgo "{trait}".',
+  'An attribute definition has no "{key}".': 'Una definición de atributo no tiene "{key}".',
+  'An attribute of {of} needs a name.': 'Un atributo de {of} necesita un nombre.',
+  'The attribute "{name}" of {of} is of type "string", "number", "boolean" or "json".':
+    'El atributo "{name}" de {of} es de tipo "string", "number", "boolean" o "json".',
+  'The default of "{name}" of {of} must be a {type} value.':
+    'El valor predeterminado de "{name}" de {of} debe ser un valor {type}.',
+  'Only a string attribute has choices; "{name}" of {of} is a {type}.':
+    'Solo un atributo string tiene opciones; "{name}" de {of} es {type}.',
+  'The choices of "{name}" of {of} are 1 to 64 different texts.':
+    'Las opciones de "{name}" de {of} son de 1 a 64 textos distintos.',
+  'The default of "{name}" of {of} must be one of its choices.':
+    'El valor predeterminado de "{name}" de {of} debe ser una de sus opciones.',
+  'Only a number attribute has a unit; "{name}" of {of} is a {type}.':
+    'Solo un atributo number tiene unidad; "{name}" de {of} es {type}.',
+  'The unit of "{name}" of {of} has 1 to 16 characters.':
+    'La unidad de "{name}" de {of} tiene de 1 a 16 caracteres.',
+  '{Of} defines the attribute "{name}" twice.': '{Of} define el atributo "{name}" dos veces.',
+  'Attribute changes have no "{key}".': 'Los cambios de atributos no tienen "{key}".',
+  '{Of} does not define "{name}" itself, so it cannot rename it.':
+    '{Of} no define "{name}" por sí mismo, así que no puede cambiarle el nombre.',
+  '{Of} already has an attribute "{name}".': '{Of} ya tiene un atributo "{name}".',
+  '{Of} does not define "{name}" itself, so it cannot stop defining it.':
+    '{Of} no define "{name}" por sí mismo, así que no puede dejar de definirlo.',
+  '{Of} does not define "{name}" itself, so it cannot order it.':
+    '{Of} no define "{name}" por sí mismo, así que no puede ordenarlo.',
+  '"{name}" is ordered twice.': '"{name}" se ordena dos veces.',
+  'The {end} limit of {of} is a list of ids, or "any".':
+    'El límite {end} de {of} es una lista de ids, o "any".',
+  'The {end} limit of {of} names nothing: leave it out to inherit it, or write "any".':
+    'El límite {end} de {of} no nombra nada: omitirlo para heredarlo, o escribir "any".',
+  'The {end} limit of {of} names "{id}" twice.': 'El límite {end} de {of} nombra "{id}" dos veces.',
+  'The {end} limit of {of} names "{id}", which is no component or relation type of a package in use.':
+    'El límite {end} de {of} nombra "{id}", que no es ningún componente ni tipo de relación de un paquete en uso.',
+  'The detail of {of} writes "{name}", which {of} does not have.':
+    'El detalle de {of} escribe "{name}", que {of} no tiene.',
+  'The badge "{text}" of {of} is written while "{attribute}" is true, but {of} has no such attribute.':
+    'La insignia "{text}" de {of} se escribe mientras "{attribute}" es verdadero, pero {of} no tiene ese atributo.',
+  'The badge "{text}" of {of} is written while "{attribute}" is true, but it is not a boolean attribute.':
+    'La insignia "{text}" de {of} se escribe mientras "{attribute}" es verdadero, pero no es un atributo booleano.',
+  'The badge "{text}" of {of} names the relation type "{type}", which no package in use defines.':
+    'La insignia "{text}" de {of} nombra el tipo de relación "{type}", que ningún paquete en uso define.',
+
+  // Images.
+  "An image's name has at most {n} characters.":
+    'El nombre de una imagen tiene como máximo {n} caracteres.',
+  'Where an image comes from is text of at most {n} characters.':
+    'El origen de una imagen es un texto de {n} caracteres como máximo.',
+  'The image "{id}" must start with "{prefix}.", the id of its package.':
+    'La imagen "{id}" debe empezar con "{prefix}.", el id de su paquete.',
+  'The package "{name}" already has the image "{id}".':
+    'El paquete "{name}" ya tiene la imagen "{id}".',
+  'A package holds at most {n} images; "{name}" is full.':
+    'Un paquete contiene como máximo {n} imágenes; "{name}" está lleno.',
+  'The images of the package "{name}" would hold over 2 MiB; keep fewer or smaller pictures there.':
+    'Las imágenes del paquete "{name}" ocuparían más de 2 MiB; conviene tener ahí menos imágenes o más pequeñas.',
+  'Cleaning the image "{name}" removed: {removed}.':
+    'La limpieza de la imagen "{name}" quitó: {removed}.',
+  'The image "{name}" cannot be removed: {users} show it.':
+    'La imagen "{name}" no se puede quitar: la muestran {users}.',
+  'A bitmap is a PNG, a JPEG or a WebP picture: its format is "png", "jpeg" or "webp".':
+    'Un mapa de bits es una imagen PNG, JPEG o WebP: su formato es "png", "jpeg" o "webp".',
+  'The bitmap is far over 192 KiB; shrink it before adding it.':
+    'El mapa de bits supera por mucho los 192 KiB; achicarlo antes de agregarlo.',
+  'The image "{name}" is refused: its data is not base64.':
+    'La imagen "{name}" se rechaza: sus datos no están en base64.',
+  'The image "{name}" is refused: {why}': 'La imagen "{name}" se rechaza: {why}',
+  '{owner} cannot show the image "{id}": no package in use defines it.':
+    '{owner} no puede mostrar la imagen "{id}": ningún paquete en uso la define.',
+  'The image "{id}" cannot go: {users} still show it.':
+    'La imagen "{id}" no se puede quitar: {users} todavía la muestran.',
+  '{owner} can show an image by its id, as an icon or a drawing, with a #rrggbb tint, or show "none".':
+    '{owner} puede mostrar una imagen por su id, como ícono o como dibujo, con un tinte #rrggbb, o mostrar "none".',
+  'The image "{id}" is defined by package "{first}" and again by "{package}".':
+    'La imagen "{id}" la define el paquete "{first}" y otra vez "{package}".',
+  'The image "{id}" of package "{package}" should start with "{prefix}.".':
+    'La imagen "{id}" del paquete "{package}" debería empezar con "{prefix}.".',
+  'The image "{name}" ({id}) is not drawn: cleaning refuses it.':
+    'La imagen "{name}" ({id}) no se dibuja: la limpieza la rechaza.',
+  'The image "{name}" ({id}) holds what cleaning removes. It is shown cleaned; clean it to store it so.':
+    'La imagen "{name}" ({id}) contiene lo que la limpieza quita. Se muestra limpia; limpiarla para guardarla así.',
+  'The image "{name}" ({id}) holds what cleaning removes: {removed}. It is shown cleaned; clean it to store it so.':
+    'La imagen "{name}" ({id}) contiene lo que la limpieza quita: {removed}. Se muestra limpia; limpiarla para guardarla así.',
+  'The images of the package "{name}" hold {size}; keep them under 2 MiB, past which they are not drawn.':
+    'Las imágenes del paquete "{name}" ocupan {size}; conviene mantenerlas por debajo de 2 MiB, a partir de lo cual no se dibujan.',
+  'The images of the package "{name}" hold {size}, over 2 MiB; these are not drawn: {images}.':
+    'Las imágenes del paquete "{name}" ocupan {size}, más de 2 MiB; estas no se dibujan: {images}.',
+  '{owner} shows the image "{id}", which no package in use defines; it shows none.':
+    '{owner} muestra la imagen "{id}", que ningún paquete en uso define; no muestra ninguna.',
+
+  // What the core finds wrong with a project as it opens.
+  'This project was saved by a newer Visual Anything, format {n}. Update the program to open it.':
+    'Este proyecto se guardó con un Visual Anything más nuevo, formato {n}. Actualizar el programa para abrirlo.',
+  'The package "{id}" takes an id Visual Anything keeps for a package it plans to build in; rename it before that package ships.':
+    'El paquete "{id}" usa un id que Visual Anything reserva para un paquete que planea incorporar; cambiarle el nombre antes de que ese paquete salga.',
+  'The element "{name}" is created from "{component}", which no package in use defines.':
+    'El elemento "{name}" se creó a partir de "{component}", que ningún paquete en uso define.',
+  'The relation "{id}" is of "{type}", which no package in use defines.':
+    'La relación "{id}" es de "{type}", que ningún paquete en uso define.',
+  'The relation "{id}" ends on itself.': 'La relación "{id}" termina en sí misma.',
+  'The relation "{id}" ends on "{end}", which is no element or relation of the model.':
+    'La relación "{id}" termina en "{end}", que no es ningún elemento ni relación del modelo.',
+  'The relation "{id}" nests, so both its ends must be elements.':
+    'La relación "{id}" anida, así que sus dos extremos deben ser elementos.',
+  'Containment forms a cycle: {cycle}.': 'La contención forma un ciclo: {cycle}.',
+  'The view "{view}" is arranged by "{id}", which no package in use defines.':
+    'La vista "{view}" se organiza por "{id}", que ningún paquete en uso define.',
+  'The view "{view}" is arranged by "{type}", which does not nest.':
+    'La vista "{view}" se organiza por "{type}", que no anida.',
+  'The view "{view}" keeps a position for "{key}", but the model has no element "{missing}"; it is ignored.':
+    'La vista "{view}" guarda una posición para "{key}", pero el modelo no tiene ningún elemento "{missing}"; se ignora.',
+  'The view "{view}" keeps "{id}" collapsed, which is no element of the model; it is ignored.':
+    'La vista "{view}" mantiene contraído "{id}", que no es ningún elemento del modelo; se ignora.',
+  'The view "{view}" keeps a stacking order for "{container}", which is no element of the model; it is ignored.':
+    'La vista "{view}" guarda un orden de apilado para "{container}", que no es ningún elemento del modelo; se ignora.',
+  'The stacking order of "{holder}" in the view "{view}" names "{id}" more than once.':
+    'El orden de apilado de "{holder}" en la vista "{view}" nombra "{id}" más de una vez.',
+  'The stacking order of "{holder}" in the view "{view}" names "{id}", which is no element of the model; it is ignored.':
+    'El orden de apilado de "{holder}" en la vista "{view}" nombra "{id}", que no es ningún elemento del modelo; se ignora.',
+  'The scenario "{name}" plays over "{view}", which is no view of the project.':
+    'El escenario "{name}" se reproduce sobre "{view}", que no es ninguna vista del proyecto.',
+  'The detail of {of} writes "{name}", which it does not have.':
+    'El detalle de {of} escribe "{name}", que no tiene.',
+  'The badge "{text}" of {of} names "{type}", which no package in use defines.':
+    'La insignia "{text}" de {of} nombra "{type}", que ningún paquete en uso define.',
+  'The badge "{text}" of {of} is written while "{attribute}" is true, which it does not have.':
+    'La insignia "{text}" de {of} se escribe mientras "{attribute}" es verdadero, atributo que no tiene.',
+  '{Of} has two connection points named "{name}"; the first is used.':
+    '{Of} tiene dos puntos de conexión llamados "{name}"; se usa el primero.',
+  '{Of} draws its contents as rows on a {shape}; it is drawn as a rectangle.':
+    '{Of} dibuja su contenido como filas sobre la forma {shape}; se dibuja como rectángulo.',
+  'The {end} limit of the relation type "{name}" names "{named}", which no package in use defines; it is ignored.':
+    'El límite {end} del tipo de relación "{name}" nombra "{named}", que ningún paquete en uso define; se ignora.',
+  'More than one element or relation has the id "{key}".':
+    'Más de un elemento o relación tiene el id "{key}".',
+  'More than one position in the view "{view}" has the id "{key}".':
+    'Más de una posición en la vista "{view}" tiene el id "{key}".',
+  'More than one free shape in the view "{view}" has the id "{key}".':
+    'Más de una forma libre en la vista "{view}" tiene el id "{key}".',
+  'More than one step in the scenario "{name}" has the id "{key}".':
+    'Más de un paso en el escenario "{name}" tiene el id "{key}".',
+
+  // What the local program says.
+  'This program keeps no preferences.': 'Este programa no guarda preferencias.',
+  'Your preferences could not be changed: {why}': 'No se pudieron cambiar las preferencias: {why}',
+  'Your preference applies until Visual Anything stops: it could not be saved ({reason}).':
+    'La preferencia se aplica hasta que Visual Anything se detenga: no se pudo guardar ({reason}).',
+  'The command could not be run: {why}': 'No se pudo ejecutar el comando: {why}',
+  'The local program failed: {why}': 'El programa local falló: {why}',
+  'The project is closed.': 'El proyecto está cerrado.',
+  'The project has no file for {key}.': 'El proyecto no tiene ningún archivo para {key}.',
+  'The id "{id}" is taken: {holder} holds a package with that id, which the project does not use.':
+    'El id "{id}" está en uso: {holder} contiene un paquete con ese id, que el proyecto no usa.',
+  'The change would make {path} invalid: {errors}.':
+    'El cambio haría que {path} no sea válido: {errors}.',
+  'Could not save {path} ({reason}); nothing was changed.':
+    'No se pudo guardar {path} ({reason}); no se cambió nada.',
+  'Could not save {path} ({reason}), nor put back the files saved before it; the project is reloaded from the files.':
+    'No se pudo guardar {path} ({reason}), ni devolver los archivos guardados antes; el proyecto se vuelve a cargar desde los archivos.',
+  'Could not put {path} back as it was: {reason}':
+    'No se pudo devolver {path} a como estaba: {reason}',
+  "Could not check the project's files: {why}":
+    'No se pudieron revisar los archivos del proyecto: {why}',
+  '{files} changed on disk, so this change was not made; the project is reloaded from the files.':
+    'Hubo cambios en el disco en {files}, así que este cambio no se hizo; el proyecto se vuelve a cargar desde los archivos.',
+  '{files} changed on disk, but the project is not valid now, so the open project is kept:':
+    'Hubo cambios en el disco en {files}, pero el proyecto ahora no es válido, así que se conserva el proyecto abierto:',
+  '{files} changed on disk.': 'Hubo cambios en el disco en {files}.',
+  'Changes made outside the app will not be reloaded: {folder} cannot be watched ({reason}).':
+    'Los cambios hechos fuera de la app no se volverán a cargar: no se puede vigilar {folder} ({reason}).',
+  'Could not check the project for warnings: {why}':
+    'No se pudo revisar si el proyecto tiene advertencias: {why}',
+  'The project has {things}:': 'El proyecto tiene {things}:',
+  '{file}: {why}': '{file}: {why}',
+  '{file} {path}: {why}': '{file} {path}: {why}',
 };
 
 /** The built-in packages, components and relation types, by id. */
