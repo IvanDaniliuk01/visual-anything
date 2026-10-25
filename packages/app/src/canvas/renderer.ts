@@ -18,7 +18,7 @@ import type { Id } from '@visual-anything/schema';
 import type { Emphasis } from '../editor/emphasis';
 import type { Selection } from '../editor/selection';
 import { EMPTY_SELECTION } from '../editor/selection';
-import { visibleRect, type Camera, fitCamera } from './camera';
+import { visibleRect, type Camera, type Inset, fitCamera } from './camera';
 import {
   NOTHING_EMPHASIZED,
   NOTHING_HIDDEN,
@@ -50,6 +50,9 @@ import {
   type Size,
 } from './geometry';
 import type { IndexedScene, Skipped } from './hit';
+import { GridMarks } from './gridMarks';
+import { ScreenMarks, selectionBounds } from './screenMarks';
+import type { CanvasTheme } from '../theme/themes';
 import { bitmapText, installFonts } from './labels';
 import { CANVAS_BACKGROUND, DIMMED_ALPHA, HIGHLIGHT, MARKER_RING } from './palette';
 import { midpointOf, pointAlong, routeBetweenEnds, type RouteEnd } from './route';
@@ -169,6 +172,23 @@ export interface Overlay {
   };
   /** Where dropped shapes will be while their change waits to be confirmed. */
   ghost?: Rect[];
+}
+
+/** What the grid, snapping and the rulers do: each person's preferences (A3). */
+export interface GridOptions {
+  grid: boolean;
+  snapToGrid: boolean;
+  rulers: boolean;
+}
+
+/** Where a drag places its shapes, for the container's grid and the readout beside the pointer (A3). */
+export interface DragFrame {
+  /** Whether the drag snaps to the grid now; Alt places freely. */
+  snapping: boolean;
+  /** The key of the container's shape the moving shape lands in; absent in World. */
+  container?: string;
+  /** What the readout beside the pointer says, and where the pointer is on screen. */
+  readout?: { text: string; at: Point };
 }
 
 interface Tile {
@@ -327,6 +347,14 @@ export class CanvasRenderer {
   private fitted = false;
   private resolution = 1;
   camera: Camera = { x: 0, y: 0, scale: 1 };
+  /** The grid over the canvas and on one container, and the rulers and the readout (A3). */
+  private readonly gridMarks = new GridMarks();
+  private readonly screenMarks = new ScreenMarks();
+  private grid: GridOptions = { grid: false, snapToGrid: true, rulers: false };
+  /** The container under the pointer, whose grid shows while the camera rests, and a drag's frame. */
+  private gridHover: string | undefined;
+  private gridDrag: DragFrame | undefined;
+  private stopFollowingResolution: (() => void) | undefined;
 
   constructor(
     private readonly host: HTMLElement,
@@ -353,6 +381,7 @@ export class CanvasRenderer {
       this.dragged,
       this.marks,
     );
+    this.world.addChildAt(this.gridMarks.whole, 0);
     void this.start();
   }
 
@@ -377,6 +406,7 @@ export class CanvasRenderer {
       this.drawSelection();
       this.drawHover();
       this.drawEmphasis();
+      this.gridFollowsScene();
       this.requestRender();
     } catch (error) {
       this.callbacks.onFailure(error);
@@ -463,6 +493,7 @@ export class CanvasRenderer {
     if (selection !== this.selection) {
       this.selection = selection;
       this.drawSelection();
+      this.markExtent();
     }
     if (hovered !== this.hovered) {
       this.hovered = hovered;
@@ -515,11 +546,15 @@ export class CanvasRenderer {
     return id;
   }
 
-  /** Moves the dragged shapes by a distance in scene units. */
-  dragTo(delta: Point): void {
+  /**
+   * Moves the dragged shapes by a distance in canvas units; `frame` says where they land, for the
+   * container's grid and the readout (A3).
+   */
+  dragTo(delta: Point, frame?: DragFrame): void {
     this.dragged.position.set(delta.x, delta.y);
     this.movingMarks.position.set(delta.x, delta.y);
     if (this.drag) this.drag.delta = delta;
+    this.dragMarks(delta, frame);
     this.requestRender();
   }
 
@@ -536,6 +571,7 @@ export class CanvasRenderer {
     this.clearDrag();
     this.drag = undefined;
     this.hidden = NOTHING_HIDDEN;
+    this.dragMarks({ x: 0, y: 0 }, undefined);
     if (!redraw) {
       // How far the dragged shapes were drawn, for the tiles the next rebuild makes for them.
       this.endedReady = new Map([...(this.endedReady ?? []), ...ended.ready]);
@@ -589,8 +625,10 @@ export class CanvasRenderer {
       this.settled = true;
       this.sharpen();
       if (this.marksStale) this.drawSelection();
+      this.placeContainerGrid();
       this.requestRender();
     }, SETTLE_AFTER);
+    this.followGrid();
     this.callbacks.onCamera?.(camera);
     this.requestRender();
   }
@@ -600,12 +638,151 @@ export class CanvasRenderer {
     const { width, height } = this.viewport;
     if (width === 0 || height === 0 || !this.indexed) return;
     this.fitted = true;
-    this.setCamera(fitCamera(this.indexed.scene.bounds, { width, height }, FIT_MARGIN));
+    this.setCamera(
+      fitCamera(this.indexed.scene.bounds, { width, height }, FIT_MARGIN, this.rulersInset),
+    );
+  }
+
+  /**
+   * Shows or hides the grid and the rulers, and says whether shapes snap to the grid, which they do
+   * only while it shows (A3).
+   */
+  setGrid(options: GridOptions): void {
+    this.grid = options;
+    this.gridMarks.set({ shown: options.grid, snapping: options.grid && options.snapToGrid });
+    const rulers = this.screenMarks.rulersShown;
+    this.screenMarks.setRulers(options.rulers);
+    if (options.rulers && !rulers) this.markExtent();
+    this.followGrid();
+    this.placeContainerGrid();
+    this.requestRender();
+  }
+
+  /** Draws the grid, the rulers and the readout in a theme's colors (A3); the theme switch calls it. */
+  setGridTheme(theme: CanvasTheme): void {
+    this.gridMarks.setTheme(theme);
+    this.screenMarks.setTheme(theme);
+    this.followGrid();
+    this.placeContainerGrid();
+    this.requestRender();
+  }
+
+  /**
+   * Draws the grid on the fill of the shape with this key, the innermost under the pointer that holds
+   * contents, while the grid shows and the camera rests; nothing for `undefined` (A3).
+   */
+  showContainerGrid(key: string | undefined): void {
+    if (key === this.gridHover) return;
+    this.gridHover = key;
+    this.placeContainerGrid();
+    this.requestRender();
+  }
+
+  /** Whether a point on screen, relative to the canvas, lies on a ruler (A3). */
+  rulersContain(point: Point): boolean {
+    return this.screenMarks.contains(point);
+  }
+
+  /** How far in from the canvas's left and top the rulers cover it (A3). */
+  get rulersInset(): Inset {
+    return this.screenMarks.inset;
+  }
+
+  /** The grid and the rulers follow the camera, the canvas's size and its resolution. */
+  private followGrid(): void {
+    if (this.status !== 'ready') return;
+    const viewport = this.viewport;
+    this.gridMarks.follow(this.camera, viewport, this.resolution);
+    this.screenMarks.follow(this.camera, viewport, this.resolution);
+    this.placeContainerGrid();
+  }
+
+  /** A new scene can move the container whose grid shows, and what is selected. */
+  private gridFollowsScene(): void {
+    this.placeContainerGrid();
+    this.markExtent();
+  }
+
+  /**
+   * Shows the grid in the container a drag snaps in, or else, while the camera rests, in the one under
+   * the pointer: last in the band its shape is drawn in, so over its fill and under its contents.
+   */
+  private placeContainerGrid(): void {
+    const drag = this.gridDrag;
+    const key =
+      drag !== undefined
+        ? drag.snapping
+          ? drag.container
+          : undefined
+        : this.settled && this.drag === undefined
+          ? this.gridHover
+          : undefined;
+    const indexed = this.indexed;
+    const shape = key === undefined || !this.grid.grid ? undefined : indexed?.byKey.get(key);
+    const at = shape && indexed?.indexOfKey.get(shape.key);
+    const band = at === undefined ? undefined : indexed?.bands[at];
+    const drawn =
+      shape !== undefined &&
+      band !== undefined &&
+      band < MAX_BANDS &&
+      shape.holdsContents &&
+      shape.collapsed === undefined &&
+      !this.hiddenNow().shapes.has(shape.key);
+    this.gridMarks.showInside(
+      drawn ? { shape, parent: this.band(band).container } : undefined,
+      this.camera,
+      this.resolution,
+    );
+  }
+
+  /** Marks where the selection lies on the rulers, while they show. */
+  private markExtent(): void {
+    if (!this.screenMarks.rulersShown) return;
+    const indexed = this.indexed;
+    this.screenMarks.setExtent(
+      indexed && selectionBounds(indexed, this.selection, this.emphasized.hidden),
+    );
+  }
+
+  /** A drag moves the selection's marks on the rulers, the container's grid and the readout. */
+  private dragMarks(delta: Point, frame: DragFrame | undefined): void {
+    this.gridDrag = frame;
+    this.placeContainerGrid();
+    this.screenMarks.moveExtent(delta);
+    const readout = frame?.readout;
+    if (readout && (this.grid.grid || this.grid.rulers)) {
+      this.screenMarks.showReadout(readout.text, readout.at);
+    } else this.screenMarks.hideReadout();
+  }
+
+  /**
+   * Follows devicePixelRatio, which a browser zoom or a move to another screen changes: the canvas is
+   * drawn at the new resolution, its text sharpened and the grid drawn again (A3).
+   */
+  private followResolution(): void {
+    const view = this.host.ownerDocument.defaultView;
+    if (typeof view?.matchMedia !== 'function') return;
+    const query = view.matchMedia(`(resolution: ${view.devicePixelRatio || 1}dppx)`);
+    const changed = () => {
+      query.removeEventListener('change', changed);
+      if (this.status !== 'ready') return;
+      const resolution = view.devicePixelRatio || 1;
+      const { width, height } = this.viewport;
+      this.app.renderer.resize(Math.max(1, width), Math.max(1, height), resolution);
+      this.resolution = resolution;
+      this.sharpen();
+      this.followGrid();
+      this.requestRender();
+      this.followResolution();
+    };
+    query.addEventListener('change', changed);
+    this.stopFollowingResolution = () => query.removeEventListener('change', changed);
   }
 
   /** Releases the canvas, now or as soon as its start finishes. */
   destroy(): void {
     if (this.status === 'ready') {
+      this.stopFollowingResolution?.();
       this.observer?.disconnect();
       cancelFrame(this.frame);
       clearTimeout(this.settleTimer);
@@ -641,6 +818,8 @@ export class CanvasRenderer {
     this.status = 'ready';
     this.resolution = this.app.renderer.resolution;
     this.app.stage.addChild(this.world);
+    this.app.stage.addChild(this.screenMarks.container);
+    this.followResolution();
     this.app.canvas.style.display = 'block';
     this.host.appendChild(this.app.canvas);
     this.observer = new ResizeObserver(() => this.resize());
@@ -695,6 +874,7 @@ export class CanvasRenderer {
     if (renderer.screen.width !== width || renderer.screen.height !== height) {
       renderer.resize(width, height);
     }
+    this.followGrid();
     if (!this.fitted) this.fit();
     this.requestRender();
   }

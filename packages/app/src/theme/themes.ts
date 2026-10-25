@@ -83,6 +83,11 @@ export interface CanvasTheme {
   /** Grid lines, drawn at `gridStrength` alpha over the canvas (A3). */
   gridLine: Color;
   gridStrength: number;
+  /**
+   * While snapping, the alpha the lines 8 canvas units apart keep at least once they are 8 px apart on
+   * screen, so that the lines shapes snap to can be seen at 100% (A3).
+   */
+  gridSnapAlpha: number;
   /** The rulers' band, the line along its inner side, and its numbers (A3). */
   rulerBand: Color;
   rulerBorder: Color;
@@ -192,6 +197,7 @@ function canvasTheme(
     CanvasTheme,
     | 'gridLine'
     | 'gridStrength'
+    | 'gridSnapAlpha'
     | 'selectedGlowAlpha'
     | 'boxFillAlpha'
     | 'refused'
@@ -224,6 +230,7 @@ export const THEMES: Readonly<Record<ThemeName, { shell: ShellTheme; canvas: Can
     canvas: canvasTheme('light', LIGHT, {
       gridLine: LIGHT.colors.text,
       gridStrength: 0.16,
+      gridSnapAlpha: 0.05,
       selectedGlowAlpha: 0.35,
       boxFillAlpha: 0.08,
       refused: '#DC2626',
@@ -239,6 +246,7 @@ export const THEMES: Readonly<Record<ThemeName, { shell: ShellTheme; canvas: Can
     canvas: canvasTheme('dark', DARK, {
       gridLine: DARK.colors.text,
       gridStrength: 0.14,
+      gridSnapAlpha: 0.04,
       selectedGlowAlpha: 0.45,
       boxFillAlpha: 0.16,
       refused: '#F87171',
