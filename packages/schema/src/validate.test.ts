@@ -293,6 +293,37 @@ describe('validateFile', () => {
       expect(validateFile('model', model)).toEqual({ ok: true, value: model });
     });
 
+    it('accepts external identifiers on elements, by scheme (ADR 0056)', () => {
+      const valve = { ...db, ids: { uberon: 'UBERON:0002135', fma: 'FMA:7235', 'ta-2': 'A12.1' } };
+      const marked = { ...model, elements: [api, valve] };
+      expect(validateFile('model', marked)).toEqual({ ok: true, value: marked });
+    });
+
+    it.each([
+      [
+        'a scheme that is not a short lowercase name',
+        { Uberon: 'UBERON:0002135' },
+        'must have schemes as its keys, short lowercase names such as "uberon", and "Uberon" is not one',
+      ],
+      ['no identifier at all', {}, 'must not be empty'],
+      ['an empty identifier', { uberon: '' }, 'must not be empty'],
+      [
+        'an identifier over 200 characters',
+        { uberon: 'U'.repeat(201) },
+        'must have at most 200 characters',
+      ],
+      [
+        'an identifier with a line break',
+        { uberon: 'UBERON:\n0002135' },
+        'must be an identifier without line breaks or other control characters',
+      ],
+      ['an identifier that is not text', { uberon: 2135 }, 'must be a string'],
+    ])('refuses external identifiers with %s', (_, ids, message) => {
+      const problems = problemsIn('model', { ...model, elements: [{ ...db, ids }] });
+      expect(problems.map((each) => each.message)).toEqual([message]);
+      expect(problems[0]?.path).toMatch(/^\/elements\/0\/ids/);
+    });
+
     it('accepts a relation with an appearance of its own', () => {
       const marked = {
         ...model,
@@ -382,6 +413,41 @@ describe('validateFile', () => {
 
     it('accepts a valid one', () => {
       expect(validateFile('package', pkg)).toEqual({ ok: true, value: pkg });
+    });
+
+    it('accepts external identifiers on definitions, destination attributes and crosswalks (ADR 0056)', () => {
+      const anatomy = {
+        id: 'anatomy',
+        name: 'Anatomy',
+        components: [
+          {
+            ...service,
+            ids: { uberon: 'UBERON:0000948' },
+            attributes: [{ name: 'see', type: 'destination', default: { view: 'heart' } }],
+          },
+        ],
+        relationTypes: [{ ...isPartOf, ids: { ro: 'BFO:0000050' } }],
+        crosswalks: [
+          {
+            from: 'uberon',
+            to: 'fma',
+            source: 'HRA crosswalk, release 2.3',
+            entries: { 'UBERON:0002135': 'FMA:7235', 'UBERON:0000948': 'FMA:7088' },
+          },
+        ],
+      };
+      expect(validateFile('package', anatomy)).toEqual({ ok: true, value: anatomy });
+      const empty = { ...anatomy, crosswalks: [{ from: 'uberon', to: 'fma', entries: {} }] };
+      expect(problemsIn('package', empty)).toEqual([
+        { path: '/crosswalks/0/entries', message: 'must not be empty' },
+      ]);
+      const unnamed = {
+        ...anatomy,
+        crosswalks: [{ from: 'UBERON', to: 'fma', entries: { a: 'b' } }],
+      };
+      expect(problemsIn('package', unnamed).map((each) => each.path)).toEqual([
+        '/crosswalks/0/from',
+      ]);
     });
 
     /** A component that sets every appearance trait, and a relation type with every kind of limit. */
@@ -574,7 +640,7 @@ describe('validateFile', () => {
         [
           {
             path: '/components/0/attributes/0/type',
-            message: 'must be one of "string", "number", "boolean", "json"',
+            message: 'must be one of "string", "number", "boolean", "json", "destination"',
           },
         ],
       ],
