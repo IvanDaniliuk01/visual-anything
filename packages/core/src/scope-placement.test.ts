@@ -185,13 +185,18 @@ const scopedModels = fc
   .chain((size) =>
     fc.record({
       size: fc.constant(size),
-      nesting: fc.uniqueArray(
-        fc
-          .tuple(fc.integer({ min: 0, max: size - 1 }), fc.integer({ min: 0, max: size - 1 }))
-          .filter(([from, to]) => from > to),
-        { maxLength: size * 2, selector: ([from, to]) => `${from} ${to}` },
-      ),
-      leftOut: fc.uniqueArray(fc.integer({ min: 0, max: size - 1 }), { maxLength: size }),
+      // Each element after the first sits in up to two of the elements before it.
+      nesting: fc
+        .tuple(
+          ...Array.from({ length: size }, (_, from) =>
+            fc.subarray(
+              Array.from({ length: from }, (__, to) => to),
+              { maxLength: Math.min(2, from) },
+            ),
+          ),
+        )
+        .map((lists) => lists.flatMap((tos, from) => tos.map((to) => [from, to] as const))),
+      leftOut: fc.subarray(Array.from({ length: size }, (_, at) => at)),
       nestsInView: fc.boolean(),
     }),
   )
