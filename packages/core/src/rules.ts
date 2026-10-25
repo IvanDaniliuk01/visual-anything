@@ -122,6 +122,17 @@ export interface RemovedPosition {
   container?: Id;
 }
 
+/**
+ * A route a deletion removes with its relation, in a view; or one that keeps its relation and loses
+ * only its bend points, because the container they are relative to is deleted (ADR 0039).
+ */
+export interface RemovedRoute {
+  view: Id;
+  relation: Id;
+  /** Only its bend points go; the relation stays, and so do its attachments and style. */
+  bendPointsOnly?: true;
+}
+
 /** Everything a deletion would remove or break, shown before anything is deleted. */
 export interface DeletePreview {
   /** The elements that would be deleted, in model order. */
@@ -141,6 +152,11 @@ export interface DeletePreview {
   brokenSteps: { scenario: Id; step: Id }[];
   /** The deleted elements that views show collapsed, which leave those views' lists. */
   collapsed: { view: Id; element: Id }[];
+  /**
+   * The routes views keep that go with the deleted relations, and those that lose their bend points
+   * because the container they are relative to is deleted, view by view.
+   */
+  routes: RemovedRoute[];
   /**
    * What the deleted elements hold, directly or not, through any nesting relation type, that the
    * deletion does not already remove, in model order. None of it goes unless the deletion names it:
@@ -223,6 +239,7 @@ export function previewDelete(
         .filter((id) => askedElements.has(id))
         .map((element) => ({ view: each.id, element })),
     ),
+    routes: removedRoutes(state.views, relations, askedElements),
     contents: heldContents(
       state,
       index,
@@ -340,6 +357,28 @@ function removedStacking(
       const whole = elements.has(container);
       for (const element of list) {
         if (whole || elements.has(element)) removed.push({ view: view.id, container, element });
+      }
+    }
+  }
+  return removed;
+}
+
+function removedRoutes(
+  views: readonly ViewFile[],
+  relations: ReadonlySet<Id>,
+  elements: ReadonlySet<Id>,
+): RemovedRoute[] {
+  const removed: RemovedRoute[] = [];
+  for (const view of views) {
+    for (const [relation, route] of Object.entries(view.routes ?? {})) {
+      if (relations.has(relation)) {
+        removed.push({ view: view.id, relation });
+      } else if (
+        route.bendPoints !== undefined &&
+        route.container !== undefined &&
+        elements.has(route.container)
+      ) {
+        removed.push({ view: view.id, relation, bendPointsOnly: true });
       }
     }
   }

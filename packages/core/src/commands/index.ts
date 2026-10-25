@@ -26,6 +26,7 @@ import {
   updateRelation,
 } from './model';
 import { updateProject } from './project';
+import { resetRoute, setRoute, settleRoutes } from './routes';
 import { restack } from './stacking';
 import { changeContainer } from './containers';
 import { createScenario, deleteScenario, updateScenario } from './scenarios';
@@ -105,7 +106,19 @@ export function executeCommand(
   }
 }
 
+/**
+ * Runs one command on the draft, then keeps the views' routes true to what it changed (ADR 0039). A
+ * batch settles each of its commands as it runs them, so a later one keeps the routes it sets.
+ */
 function run(draft: Draft, command: Command): string {
+  const before = draft.state;
+  const start = draft.operations.length;
+  const label = dispatch(draft, command);
+  if (command.type !== 'batch') settleRoutes(draft, before, start);
+  return label;
+}
+
+function dispatch(draft: Draft, command: Command): string {
   if (typeof command !== 'object' || command === null || typeof command.type !== 'string') {
     reject('invalid-command', 'A command is an object with a type.');
   }
@@ -172,6 +185,10 @@ function run(draft: Draft, command: Command): string {
       return defineImage(draft, command);
     case 'remove-image':
       return removeImage(draft, command);
+    case 'set-route':
+      return setRoute(draft, command);
+    case 'reset-route':
+      return resetRoute(draft, command);
     case 'batch': {
       const label = requireName(command.label, 'A batch');
       const commands = requireList(command.commands, 'commands');
