@@ -10,6 +10,7 @@
 import type { ProjectSnapshot, RestackCommand, StackingPlace } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
+import { t } from '../i18n';
 import { IS_APPLE } from '../live/platform';
 import type { ShortcutKeys } from '../live/shortcuts';
 import type { Rect } from './geometry';
@@ -154,10 +155,10 @@ export function restackCommand(
   membership?: Membership,
 ): Restack {
   if (!editable || !project.views.some((view) => view.id === viewId)) {
-    return { reason: NOT_EDITABLE };
+    return { reason: t(NOT_EDITABLE) };
   }
   const shapes = stackedShapes(indexed, selection, membership);
-  if (shapes.length === 0) return { reason: SELECT_SHAPES };
+  if (shapes.length === 0) return { reason: t(SELECT_SHAPES) };
   const { restack } = outcomeOf(planOf(indexed, selection, shapes), viewId, move);
   return restack;
 }
@@ -181,14 +182,17 @@ export function stackingActions(
       StackingAction
     >;
   if (!editable || !project.views.some((view) => view.id === viewId)) {
-    return all(() => ({ enabled: false, description: NOT_EDITABLE }));
+    return all(() => ({ enabled: false, description: t(NOT_EDITABLE) }));
   }
   const counted = membership
     ? stackedShapes(indexed, selection, membership).length
     : countShapes(indexed, selection, EAGER_LIMIT + 1);
-  if (counted === 0) return all(() => ({ enabled: false, description: SELECT_SHAPES }));
+  if (counted === 0) return all(() => ({ enabled: false, description: t(SELECT_SHAPES) }));
   if (counted > EAGER_LIMIT) {
-    return all((move) => ({ enabled: true, description: withKeys(OF_THE_SELECTION[move], move) }));
+    return all((move) => ({
+      enabled: true,
+      description: withKeys(t(OF_THE_SELECTION[move]), move),
+    }));
   }
   const plan = planOf(indexed, selection, stackedShapes(indexed, selection, membership));
   return all((move) => {
@@ -375,13 +379,15 @@ function outcomeOf(
   if (moves.length === 0) {
     if (!only) {
       const reason = forward
-        ? 'The selection is already in front of everything it overlaps.'
-        : 'The selection is already behind everything it overlaps.';
+        ? t('The selection is already in front of everything it overlaps.')
+        : t('The selection is already behind everything it overlaps.');
       return { restack: { reason }, description: reason };
     }
-    const already = forward ? 'in front of' : 'behind';
+    const values = { name: only.shape.name, where: whereOf(plan, only) };
     const reason =
-      `"${only.shape.name}" is already ${already} everything it overlaps ${whereOf(plan, only)}.` +
+      (forward
+        ? t('"{name}" is already in front of everything it overlaps {where}.', values)
+        : t('"{name}" is already behind everything it overlaps {where}.', values)) +
       (forward ? coverFromOutside(plan.indexed, only) : '') +
       sitsOver(only);
     return { restack: { reason }, description: reason };
@@ -402,15 +408,15 @@ function outcomeOf(
     return {
       restack: {
         command,
-        done: forward ? 'The selection is now in front.' : 'The selection is now behind.',
+        done: forward ? t('The selection is now in front.') : t('The selection is now behind.'),
       },
-      description: withKeys(OF_THE_SELECTION[move], move),
+      description: withKeys(t(OF_THE_SELECTION[move]), move),
     };
   }
 
-  const name = `"${only.shape.name}"`;
+  const name = only.shape.name;
   const past = moves[0]?.past;
-  const pastName = `"${past?.name ?? ''}"`;
+  const pastName = past?.name ?? '';
   const pastHides = past !== undefined && within(only.shape.rect, past.rect);
   // After a send to the back every shape beside it is drawn after it: the first that holds it hides it.
   const hider = only.overlapping.find((other) => within(only.shape.rect, other.shape.rect))?.shape;
@@ -419,20 +425,28 @@ function outcomeOf(
   let description: string;
   switch (move) {
     case 'forward':
-      done = `${name} is now in front of ${pastName}.`;
-      description = `Bring forward, in front of ${pastName}`;
+      done = t('"{name}" is now in front of "{past}".', { name, past: pastName });
+      description = t('Bring forward, in front of "{past}"', { past: pastName });
       break;
     case 'backward':
-      done = `${name} is now behind ${pastName}${pastHides ? ', which hides it' : ''}.`;
-      description = `Send backward, behind ${pastName}${pastHides ? ', which hides it' : ''}`;
+      done = pastHides
+        ? t('"{name}" is now behind "{past}", which hides it.', { name, past: pastName })
+        : t('"{name}" is now behind "{past}".', { name, past: pastName });
+      description = pastHides
+        ? t('Send backward, behind "{past}", which hides it', { past: pastName })
+        : t('Send backward, behind "{past}"', { past: pastName });
       break;
     case 'front':
-      done = `${name} is now at the front.`;
-      description = `Bring to front, ${where}`;
+      done = t('"{name}" is now at the front.', { name });
+      description = t('Bring to front, {where}', { where });
       break;
     case 'back':
-      done = `${name} is now at the back.${hider ? ` "${hider.name}" hides it.` : ''}`;
-      description = `Send to back, ${where}${hider ? `; "${hider.name}" then hides it` : ''}`;
+      done =
+        t('"{name}" is now at the back.', { name }) +
+        (hider ? ` ${t('"{name}" hides it.', { name: hider.name })}` : '');
+      description = hider
+        ? t('Send to back, {where}; "{hider}" then hides it', { where, hider: hider.name })
+        : t('Send to back, {where}', { where });
       break;
   }
   return {
@@ -447,8 +461,8 @@ function withKeys(text: string, move: StackingMove): string {
 
 /** Where a shape sits: `inside "C"`, or `directly in World`. */
 function whereOf(plan: Plan, stacked: Stacked): string {
-  if (stacked.holder === '') return 'directly in World';
-  return `inside "${plan.indexed.byKey.get(stacked.holder)?.name ?? ''}"`;
+  if (stacked.holder === '') return t('directly in World');
+  return t('inside "{name}"', { name: plan.indexed.byKey.get(stacked.holder)?.name ?? '' });
 }
 
 /**
@@ -473,7 +487,10 @@ function coverFromOutside(indexed: IndexedScene, stacked: Stacked): string {
     key = holder.containerShape;
   }
   return found
-    ? ` "${found.cover.name}" is drawn in front of "${found.holder.name}", which holds it.`
+    ? ` ${t('"{cover}" is drawn in front of "{holder}", which holds it.', {
+        cover: found.cover.name,
+        holder: found.holder.name,
+      })}`
     : '';
 }
 
@@ -491,6 +508,9 @@ function sitsOver(stacked: Stacked): string {
     )
     .at(-1)?.shape;
   return under
-    ? ` It sits over "${under.name}" without being inside it; Put inside "${under.name}" orders it among the shapes there.`
+    ? ` ${t(
+        'It sits over "{name}" without being inside it; Put inside "{name}" orders it among the shapes there.',
+        { name: under.name },
+      )}`
     : '';
 }

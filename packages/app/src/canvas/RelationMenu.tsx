@@ -1,6 +1,7 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useEffect, useMemo, useRef } from 'react';
+import { useT } from '../i18n';
 import { menuKeyDown, useMenuInsideFrame, useOutsidePress } from './focus';
 import type { Point } from './geometry';
 import { relationChoices } from './gestures';
@@ -21,13 +22,14 @@ interface RelationMenuProps {
  * Dropped near the canvas's edge, it moves in, so that every item shows.
  */
 export function RelationMenu({ project, from, to, at, onChoose, onClose }: RelationMenuProps) {
+  const t = useT();
   const choices = useMemo(() => relationChoices(project, from, to), [project, from, to]);
   const menu = useMenuInsideFrame<HTMLDivElement>(at);
   const first = useRef<HTMLButtonElement>(null);
   const nameOf = (id: Id) =>
     project.model.elements.find((element) => element.id === id)?.name ??
     project.model.relations.find((relation) => relation.id === id)?.name ??
-    'the relation';
+    t('the relation');
 
   useEffect(() => {
     first.current?.focus();
@@ -39,7 +41,7 @@ export function RelationMenu({ project, from, to, at, onChoose, onClose }: Relat
       ref={menu}
       className="canvas-menu"
       role="menu"
-      aria-label={`Relate ${nameOf(from)} to ${nameOf(to)}`}
+      aria-label={t('Relate {from} to {to}', { from: nameOf(from), to: nameOf(to) })}
       style={{ left: at.x, top: at.y }}
       onKeyDown={(event) => {
         if (event.key === 'Escape') onClose();
@@ -58,8 +60,8 @@ export function RelationMenu({ project, from, to, at, onChoose, onClose }: Relat
           tabIndex={-1}
           onClick={() => onChoose(relationType.id)}
         >
-          {relationType.name}
-          {!fits && <span className="canvas-menu-hint"> · outside its limits</span>}
+          {t.definition(relationType.id, relationType.name)}
+          {!fits && <span className="canvas-menu-hint"> · {t('outside its limits')}</span>}
         </button>
       ))}
       <button
@@ -69,7 +71,7 @@ export function RelationMenu({ project, from, to, at, onChoose, onClose }: Relat
         className="canvas-menu-cancel"
         onClick={onClose}
       >
-        Cancel
+        {t('Cancel')}
       </button>
     </div>
   );

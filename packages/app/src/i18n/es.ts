@@ -336,6 +336,236 @@ export const ui: Catalog = {
   'Claude highlights {list}.': 'Claude resalta {list}.',
   'Claude focuses on {list}.': 'Claude se enfoca en {list}.',
   '{from} to {to}': '{from} a {to}',
+
+  // Exploring: the perspective switcher, the filters and focus.
+  Explore: 'Explorar',
+  Exploring: 'Explorando',
+  'Show everything': 'Mostrar todo',
+  'The open view’s perspective. Choose another view to see the same model from its perspective.':
+    'La perspectiva de la vista abierta. Elegir otra vista para ver el mismo modelo desde su perspectiva.',
+  'Hide shapes by component, relation type or attribute; nothing moves':
+    'Ocultar formas por componente, tipo de relación o atributo; nada se mueve',
+  Filters: 'Filtros',
+  'Filters ({count})': 'Filtros ({count})',
+  'Dim everything the selection does not reach through its relations':
+    'Atenuar todo lo que la selección no alcanza a través de sus relaciones',
+  Focus: 'Enfocar',
+  'Filters hide shapes; nothing moves.': 'Los filtros ocultan formas; nada se mueve.',
+  Components: 'Componentes',
+  'This view draws no elements.': 'Esta vista no dibuja ningún elemento.',
+  'Relation types': 'Tipos de relación',
+  'This view draws no relations.': 'Esta vista no dibuja ninguna relación.',
+  Attributes: 'Atributos',
+  'Show only what meets conditions on its attributes.':
+    'Mostrar solo lo que cumple condiciones sobre sus atributos.',
+  'Add a condition': 'Agregar una condición',
+  'Show all': 'Mostrar todos',
+  'Hide all': 'Ocultar todos',
+  'an attribute': 'un atributo',
+  Of: 'De',
+  Elements: 'Elementos',
+  Relations: 'Relaciones',
+  Attribute: 'Atributo',
+  attribute: 'atributo',
+  Test: 'Comparación',
+  Value: 'Valor',
+  value: 'valor',
+  is: 'es',
+  'is not': 'no es',
+  contains: 'contiene',
+  'is less than': 'es menor que',
+  'is more than': 'es mayor que',
+  'has a value': 'tiene un valor',
+  'has no value': 'no tiene valor',
+  'Remove the condition on {subject}': 'Quitar la condición sobre {subject}',
+  Remove: 'Quitar',
+  'Name an attribute.': 'Escribir el nombre de un atributo.',
+  'Type a value.': 'Escribir un valor.',
+  Degrees: 'Grados',
+  All: 'Todos',
+  Direction: 'Dirección',
+  'Both ways': 'En ambos sentidos',
+  Outgoing: 'Salientes',
+  Incoming: 'Entrantes',
+  Isolate: 'Aislar',
+  'End focus': 'Terminar el foco',
+  'the relation': 'la relación',
+  'Go to where it starts: {name}': 'Ir a donde empieza: {name}',
+  'Go to where it ends: {name}': 'Ir a donde termina: {name}',
+  'Follow the relation': 'Seguir la relación',
+  'Follow to': 'Seguir hasta',
+  'The filters hide nothing here.': 'Los filtros no ocultan nada aquí.',
+  'The filters hide {things}.': 'Los filtros ocultan {things}.',
+  'Focus: this view does not draw what is selected.': 'Foco: esta vista no dibuja lo seleccionado.',
+  'Focus: select an element or a relation.': 'Foco: seleccionar un elemento o una relación.',
+  'Focus on “{name}”': 'Foco en “{name}”',
+  'Focus on {things}': 'Foco en {things}',
+
+  // The question before a deletion, or before a change that deletes relations as it goes.
+  'a relation': 'una relación',
+  'Delete {things}?': '¿Eliminar {things}?',
+  '{question}?': '¿{question}?',
+  'Put inside': 'Poner dentro',
+  Move: 'Mover',
+  'This takes away the relation "{name}".': 'Esto quita la relación "{name}".',
+  'This takes away the {count} relations that place the shapes where they are:':
+    'Esto quita las {count} relaciones que ubican las formas donde están:',
+  'These {count} relations end on it, so they go too:': {
+    one: 'Esta relación termina en ella, así que también se va:',
+    other: 'Estas {count} relaciones terminan en ella, así que también se van:',
+  },
+  'These {count} relations end on them, so they go too:': {
+    one: 'Esta relación termina en ellas, así que también se va:',
+    other: 'Estas {count} relaciones terminan en ellas, así que también se van:',
+  },
+  'These {count} relations end on what you delete, so they go too:': {
+    one: 'Esta relación termina en lo que se elimina, así que también se va:',
+    other: 'Estas {count} relaciones terminan en lo que se elimina, así que también se van:',
+  },
+  'These {count} scenario steps use a relation that goes. They become broken steps and are kept, so you can fix them:':
+    {
+      one: 'Este paso de escenario usa una relación que se va. Se convierte en un paso roto y se conserva, para poder arreglarlo:',
+      other:
+        'Estos {count} pasos de escenario usan una relación que se va. Se convierten en pasos rotos y se conservan, para poder arreglarlos:',
+    },
+  '{count} stored positions in views go with the shapes.': {
+    one: '{count} posición guardada en vistas se va con las formas.',
+    other: '{count} posiciones guardadas en vistas se van con las formas.',
+  },
+  'You can undo this.': 'Se puede deshacer.',
+  '{count} of them have a name, a description or attributes of their own, which go with them.':
+    '{count} de ellas tienen un nombre, una descripción o atributos propios, que se van con ellas.',
+  'It has a name, a description or attributes of its own, which go with it.':
+    'Tiene un nombre, una descripción o atributos propios, que se van con ella.',
+  '"{name}" has a name, a description or attributes of its own, which go with it.':
+    '"{name}" tiene un nombre, una descripción o atributos propios, que se van con ella.',
+  'and {count} more': 'y {count} más',
+
+  // Choosing a container, and the relation type of a new relation.
+  'Directly in World': 'Directamente en Mundo',
+  'Put "{name}" inside…': 'Poner "{name}" dentro de…',
+  'Move "{name}" to…': 'Mover "{name}" a…',
+  'Relate {from} to {to}': 'Relacionar {from} con {to}',
+  'outside its limits': 'fuera de sus límites',
+
+  // What a drag says it would do.
+  '"{name}" sits in {count} containers in this view':
+    '"{name}" está en {count} contenedores en esta vista',
+  'Lands behind "{name}"': 'Queda detrás de "{name}"',
+  '⌥: move only': '⌥: solo mover',
+  'Alt: move only': 'Alt: solo mover',
+  '"{name}" moves with the shapes dragged': '"{name}" se mueve con las formas arrastradas',
+  '"{name}" is part of "{mover}" in the model through "{type}"':
+    '"{name}" es parte de "{mover}" en el modelo mediante "{type}"',
+  '"{name}" is part of "{mover}" in the model through "{type}", which this view does not show':
+    '"{name}" es parte de "{mover}" en el modelo mediante "{type}", que esta vista no muestra',
+  'Put inside "{target}"': 'Poner dentro de "{target}"',
+  'Put {count} elements inside "{target}"': 'Poner {count} elementos dentro de "{target}"',
+  'Move into "{target}"': 'Mover a "{target}"',
+  'Move {count} elements into "{target}"': 'Mover {count} elementos a "{target}"',
+  'Out of "{from}"': 'Fuera de "{from}"',
+  'Out of their containers': 'Fuera de sus contenedores',
+  'Take out of "{from}"': 'Sacar de "{from}"',
+  'Take {count} elements out of "{from}"': 'Sacar {count} elementos de "{from}"',
+  'Take {count} elements out of their containers': 'Sacar {count} elementos de sus contenedores',
+  'move only': 'solo mover',
+  'Hold still to put inside "{name}"': 'Mantener quieto para poner dentro de "{name}"',
+  'Release now: {then}': 'Soltar ahora: {then}',
+  'Cannot put inside "{name}"': 'No se puede poner dentro de "{name}"',
+  'Moves only': 'Solo se mueve',
+
+  // The stacking order.
+  'Bring to front': 'Traer al frente',
+  'Bring forward': 'Traer hacia adelante',
+  'Send backward': 'Enviar hacia atrás',
+  'Send to back': 'Enviar al fondo',
+  'Select shapes of elements to change their stacking order. Relations, notes and arrows are always drawn in front of them.':
+    'Seleccionar formas de elementos para cambiar su orden de apilado. Las relaciones, las notas y las flechas siempre se dibujan delante de ellas.',
+  'The project cannot be changed now.': 'El proyecto no se puede cambiar ahora.',
+  'Bring the selection to the front': 'Traer la selección al frente',
+  'Bring the selection forward': 'Traer la selección hacia adelante',
+  'Send the selection backward': 'Enviar la selección hacia atrás',
+  'Send the selection to the back': 'Enviar la selección al fondo',
+  'The selection is already in front of everything it overlaps.':
+    'La selección ya está delante de todo lo que se le superpone.',
+  'The selection is already behind everything it overlaps.':
+    'La selección ya está detrás de todo lo que se le superpone.',
+  '"{name}" is already in front of everything it overlaps {where}.':
+    '"{name}" ya está delante de todo lo que se le superpone {where}.',
+  '"{name}" is already behind everything it overlaps {where}.':
+    '"{name}" ya está detrás de todo lo que se le superpone {where}.',
+  'The selection is now in front.': 'La selección ahora está delante.',
+  'The selection is now behind.': 'La selección ahora está detrás.',
+  '"{name}" is now in front of "{past}".': '"{name}" ahora está delante de "{past}".',
+  'Bring forward, in front of "{past}"': 'Traer hacia adelante, delante de "{past}"',
+  '"{name}" is now behind "{past}", which hides it.':
+    '"{name}" ahora está detrás de "{past}", que la oculta.',
+  '"{name}" is now behind "{past}".': '"{name}" ahora está detrás de "{past}".',
+  'Send backward, behind "{past}", which hides it':
+    'Enviar hacia atrás, detrás de "{past}", que la oculta',
+  'Send backward, behind "{past}"': 'Enviar hacia atrás, detrás de "{past}"',
+  '"{name}" is now at the front.': '"{name}" ahora está al frente.',
+  'Bring to front, {where}': 'Traer al frente, {where}',
+  '"{name}" is now at the back.': '"{name}" ahora está al fondo.',
+  '"{name}" hides it.': '"{name}" la oculta.',
+  'Send to back, {where}; "{hider}" then hides it':
+    'Enviar al fondo, {where}; luego "{hider}" la oculta',
+  'Send to back, {where}': 'Enviar al fondo, {where}',
+  'directly in World': 'directamente en Mundo',
+  'inside "{name}"': 'dentro de "{name}"',
+  '"{cover}" is drawn in front of "{holder}", which holds it.':
+    '"{cover}" se dibuja delante de "{holder}", que la contiene.',
+  'It sits over "{name}" without being inside it; Put inside "{name}" orders it among the shapes there.':
+    'Está sobre "{name}" sin estar dentro; Poner dentro de "{name}" la ordena entre las formas de ahí.',
+
+  // The canvas's keyboard help.
+  Keyboard: 'Teclado',
+  'Arrow keys': 'Flechas',
+  'Select the nearest shape in that direction, going into the containers on the way':
+    'Seleccionar la forma más cercana en esa dirección, entrando en los contenedores del camino',
+  'Alt+Up, Alt+Down': 'Alt+Arriba, Alt+Abajo',
+  'Select the container of the selected shape, or the first shape inside it':
+    'Seleccionar el contenedor de la forma seleccionada, o la primera forma dentro de ella',
+  '] and [, or . and ,': '] y [, o . y ,',
+  'Select the next or the previous relation of the selected element':
+    'Seleccionar la relación siguiente o la anterior del elemento seleccionado',
+  'Go to the far end of the selected relation; on an element or a note, edit its text':
+    'Ir al otro extremo de la relación seleccionada; en un elemento o una nota, editar su texto',
+  'Rename the selected element, or edit the selected note':
+    'Cambiar el nombre del elemento seleccionado, o editar la nota seleccionada',
+  'Shift+arrow keys': 'Mayús+flechas',
+  'Move the selection a small step': 'Mover la selección un poco',
+  'Ctrl+↑ and Ctrl+↓ (⌘ on macOS), or Ctrl+] and Ctrl+[':
+    'Ctrl+↑ y Ctrl+↓ (⌘ en macOS), o Ctrl+] y Ctrl+[',
+  'Bring the selection forward or send it backward, past the next shape it overlaps; these keys work wherever the focus is, except while typing':
+    'Traer la selección hacia adelante o enviarla hacia atrás, más allá de la siguiente forma que se le superpone; estas teclas funcionan dondequiera que esté el foco, salvo mientras se escribe',
+  'Ctrl+Shift+↑ and Ctrl+Shift+↓, or Ctrl+} and Ctrl+{ (⌥⌘] and ⌥⌘[ on macOS)':
+    'Ctrl+Mayús+↑ y Ctrl+Mayús+↓, o Ctrl+} y Ctrl+{ (⌥⌘] y ⌥⌘[ en macOS)',
+  'Bring the selection to the front or send it to the back of its container':
+    'Traer la selección al frente o enviarla al fondo de su contenedor',
+  'Shift+F10 or the menu key': 'Mayús+F10 o la tecla de menú',
+  'Open the selected shape’s menu: stacking order, putting it inside a container or taking it out, adding inside it':
+    'Abrir el menú de la forma seleccionada: orden de apilado, ponerla dentro de un contenedor o sacarla, agregar dentro de ella',
+  'Alt while dragging (⌥ on macOS)': 'Alt mientras se arrastra (⌥ en macOS)',
+  'Move without putting shapes inside a container or taking them out':
+    'Mover sin poner formas dentro de un contenedor ni sacarlas',
+  'the Delete key': 'Supr',
+  'Delete the selection, after showing what goes with it':
+    'Eliminar la selección, después de mostrar lo que se va con ella',
+  Escape: 'Esc',
+  'Clear the selection': 'Quitar la selección',
+  'Ctrl+A or ⌘A': 'Ctrl+A o ⌘A',
+  'Select everything': 'Seleccionar todo',
+  '+, − and 0': '+, − y 0',
+  'Zoom in, zoom out, and fit the view': 'Acercar, alejar y ajustar la vista',
+  'Alt+− and Alt++': 'Alt+− y Alt++',
+  'Collapse or expand the selected containers':
+    'Contraer o expandir los contenedores seleccionados',
+  'Space and drag': 'Espacio y arrastrar',
+  Pan: 'Desplazar la vista',
+  'Leave the canvas': 'Salir del lienzo',
+  'The arrow keys select shapes, ] and [ (or . and ,) step through the selected element’s relations, and Enter follows a relation, and Shift+F10 opens the selected shape’s menu. Every key is listed under Keyboard, after the canvas.':
+    'Las flechas seleccionan formas, ] y [ (o . y ,) recorren las relaciones del elemento seleccionado, Enter sigue una relación y Mayús+F10 abre el menú de la forma seleccionada. Todas las teclas están en Teclado, después del lienzo.',
 };
 
 /**

@@ -1,6 +1,7 @@
 import { modelIndexOf, nestingTypesInView, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useT } from '../i18n';
 import './drop.css';
 import { useModalFocus } from './focus';
 
@@ -41,6 +42,7 @@ export function ContainerChooser({
   onChoose,
   onCancel,
 }: ContainerChooserProps) {
+  const t = useT();
   const titleId = useId();
   const listId = useId();
   const dialog = useRef<HTMLDivElement>(null);
@@ -59,8 +61,9 @@ export function ContainerChooser({
   const options = useMemo(() => {
     const typed = text.toLowerCase();
     const holds = (name: string) => name.toLowerCase().includes(typed);
+    const inWorld = t(IN_WORLD);
     const listed: Option[] =
-      mode === 'move' && holds(IN_WORLD) ? [{ container: undefined, name: IN_WORLD }] : [];
+      mode === 'move' && holds(inWorld) ? [{ container: undefined, name: inWorld }] : [];
     let elements = 0;
     for (const candidate of candidates) {
       if (elements === LISTED) break;
@@ -69,12 +72,13 @@ export function ContainerChooser({
       elements += 1;
     }
     return listed;
-  }, [candidates, text, mode]);
+  }, [candidates, text, mode, t]);
   const at = Math.min(active, options.length - 1);
   const chosen = options[at];
 
   const name = modelIndexOf(project).element(element)?.name ?? element;
-  const title = mode === 'put' ? `Put "${name}" inside…` : `Move "${name}" to…`;
+  const title =
+    mode === 'put' ? t('Put "{name}" inside…', { name }) : t('Move "{name}" to…', { name });
   const optionId = (index: number) => `${listId}-${index}`;
 
   return (
@@ -142,7 +146,7 @@ export function ContainerChooser({
         </ul>
         <div className="dialog-actions">
           <button type="button" onClick={onCancel}>
-            Cancel
+            {t('Cancel')}
           </button>
         </div>
       </div>

@@ -9,6 +9,7 @@ import type { Id } from '@visual-anything/schema';
 import { useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { selectionOf } from '../editor/selection';
+import { useT, type Translator } from '../i18n';
 import { SelectControl } from '../shell/inspector/controls';
 import {
   ALL_DEGREES,
@@ -50,16 +51,17 @@ const NO_CHOICES: FilterChoices = {
 
 /** The toolbar's explore controls: the perspective switcher, the filters and focus mode. */
 export function ExploreControls() {
+  const t = useT();
   const editor = useContext(EditorContext);
   const explore = editor?.explore;
   if (!editor || !explore || editor.viewId === undefined) return null;
   return (
-    <div className="canvas-toolbar-explore" role="group" aria-label="Explore">
+    <div className="canvas-toolbar-explore" role="group" aria-label={t('Explore')}>
       <PerspectiveSwitcher editor={editor} viewId={editor.viewId} />
       <FiltersControl editor={editor} explore={explore} />
       <FocusToggle explore={explore} />
       <p role="status" className="visually-hidden">
-        {statusOf(editor, explore)}
+        {statusOf(t, editor, explore)}
       </p>
     </div>
   );
@@ -70,6 +72,7 @@ export function ExploreControls() {
  * selected relation. Nothing while none of them applies.
  */
 export function ExploreStrip() {
+  const t = useT();
   const editor = useContext(EditorContext);
   const explore = editor?.explore;
   if (!editor || !explore || editor.viewId === undefined) return null;
@@ -77,13 +80,13 @@ export function ExploreStrip() {
   const filtering = isFiltering(explore.filters);
   if (!explore.focus.on && !filtering && following === undefined) return null;
   return (
-    <div className="explore-strip" role="group" aria-label="Exploring">
+    <div className="explore-strip" role="group" aria-label={t('Exploring')}>
       {explore.focus.on && <FocusSettingsRow editor={editor} explore={explore} />}
       {filtering && (
         <div className="explore-strip-part">
-          <span>{filterSummary(explore)}</span>
+          <span>{filterSummary(t, explore)}</span>
           <button type="button" onClick={() => explore.setFilters(NO_FILTERS)}>
-            Show everything
+            {t('Show everything')}
           </button>
         </div>
       )}
@@ -94,16 +97,19 @@ export function ExploreStrip() {
 
 /** A select of the project's views, each by its perspective, which opens the one chosen. */
 function PerspectiveSwitcher({ editor, viewId }: { editor: Editor; viewId: Id }) {
+  const t = useT();
   const id = useId();
   const { project, openView } = editor;
   if (!openView) return null;
   return (
     <span
       className="canvas-toolbar-perspective"
-      title="The open view’s perspective. Choose another view to see the same model from its perspective."
+      title={t(
+        'The open view’s perspective. Choose another view to see the same model from its perspective.',
+      )}
     >
       <label htmlFor={id} className="visually-hidden">
-        Perspective
+        {t('Perspective')}
       </label>
       <SelectControl
         id={id}
@@ -126,6 +132,7 @@ function PerspectiveSwitcher({ editor, viewId }: { editor: Editor; viewId: Id })
 
 /** The Filters button, and the panel it opens under it. */
 function FiltersControl({ editor, explore }: { editor: Editor; explore: Explore }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const wrapper = useRef<HTMLSpanElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -144,10 +151,10 @@ function FiltersControl({ editor, explore }: { editor: Editor; explore: Explore 
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        title="Hide shapes by component, relation type or attribute; nothing moves"
+        title={t('Hide shapes by component, relation type or attribute; nothing moves')}
         onClick={() => setOpen((last) => !last)}
       >
-        {count > 0 ? `Filters (${count})` : 'Filters'}
+        {count > 0 ? t('Filters ({count})', { count }) : t('Filters')}
       </button>
       {open && <FilterPanel id={panelId} editor={editor} explore={explore} onClose={close} />}
     </span>
@@ -156,15 +163,16 @@ function FiltersControl({ editor, explore }: { editor: Editor; explore: Explore 
 
 /** Focus mode, on and off. */
 function FocusToggle({ explore }: { explore: Explore }) {
+  const t = useT();
   const { focus } = explore;
   return (
     <button
       type="button"
       aria-pressed={focus.on}
-      title="Dim everything the selection does not reach through its relations"
+      title={t('Dim everything the selection does not reach through its relations')}
       onClick={() => (focus.on ? explore.setFocus({ on: false }) : explore.startFocus())}
     >
-      Focus
+      {t('Focus')}
     </button>
   );
 }
@@ -182,6 +190,7 @@ interface FilterPanelProps {
  * button.
  */
 function FilterPanel({ id, editor, explore, onClose }: FilterPanelProps) {
+  const t = useT();
   const { scene, project } = editor;
   const { filters, setFilters } = explore;
   const choices = useMemo(
@@ -217,7 +226,7 @@ function FilterPanel({ id, editor, explore, onClose }: FilterPanelProps) {
       ref={panel}
       id={id}
       role="dialog"
-      aria-label="Filters"
+      aria-label={t('Filters')}
       className="explore-panel"
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
@@ -226,25 +235,27 @@ function FilterPanel({ id, editor, explore, onClose }: FilterPanelProps) {
         }
       }}
     >
-      <p className="explore-panel-note">Filters hide shapes; nothing moves.</p>
+      <p className="explore-panel-note">{t('Filters hide shapes; nothing moves.')}</p>
       <ChoiceList
-        legend="Components"
+        legend={t('Components')}
         choices={choices.components}
         hidden={filters.components}
-        none="This view draws no elements."
+        none={t('This view draws no elements.')}
         onChange={(components) => setFilters({ ...filters, components })}
       />
       <ChoiceList
-        legend="Relation types"
+        legend={t('Relation types')}
         choices={choices.relationTypes}
         hidden={filters.relationTypes}
-        none="This view draws no relations."
+        none={t('This view draws no relations.')}
         onChange={(relationTypes) => setFilters({ ...filters, relationTypes })}
       />
       <fieldset className="explore-panel-group">
-        <legend>Attributes</legend>
+        <legend>{t('Attributes')}</legend>
         {filters.conditions.length === 0 ? (
-          <p className="explore-panel-note">Show only what meets conditions on its attributes.</p>
+          <p className="explore-panel-note">
+            {t('Show only what meets conditions on its attributes.')}
+          </p>
         ) : (
           <ul className="explore-conditions">
             {filters.conditions.map((condition, at) => (
@@ -281,7 +292,7 @@ function FilterPanel({ id, editor, explore, onClose }: FilterPanelProps) {
             ]);
           }}
         >
-          Add a condition
+          {t('Add a condition')}
         </button>
       </fieldset>
       <div className="explore-panel-actions">
@@ -290,10 +301,10 @@ function FilterPanel({ id, editor, explore, onClose }: FilterPanelProps) {
           disabled={!isFiltering(filters) && filters.conditions.length === 0}
           onClick={() => setFilters(NO_FILTERS)}
         >
-          Show everything
+          {t('Show everything')}
         </button>
         <button type="button" onClick={onClose}>
-          Close
+          {t('Close')}
         </button>
       </div>
     </div>
@@ -310,6 +321,7 @@ interface ChoiceListProps {
 
 /** A checkbox for each choice, checked while it is shown, with buttons to show or hide them all. */
 function ChoiceList({ legend, choices, hidden, none, onChange }: ChoiceListProps) {
+  const t = useT();
   const all = choices.map((choice) => choice.id);
   return (
     <fieldset className="explore-panel-group">
@@ -324,14 +336,14 @@ function ChoiceList({ legend, choices, hidden, none, onChange }: ChoiceListProps
               disabled={all.every((id) => !hidden.has(id))}
               onClick={() => onChange(new Set([...hidden].filter((id) => !all.includes(id))))}
             >
-              Show all
+              {t('Show all')}
             </button>
             <button
               type="button"
               disabled={all.every((id) => hidden.has(id))}
               onClick={() => onChange(new Set([...hidden, ...all]))}
             >
-              Hide all
+              {t('Hide all')}
             </button>
           </div>
           <ul className="explore-choices">
@@ -348,7 +360,7 @@ function ChoiceList({ legend, choices, hidden, none, onChange }: ChoiceListProps
                       onChange(next);
                     }}
                   />
-                  {choice.name}
+                  {t.definition(choice.id, choice.name)}
                   <span className="explore-choice-count">{choice.count}</span>
                 </label>
               </li>
@@ -369,28 +381,30 @@ interface ConditionRowProps {
 
 /** One condition: what it tests, which attribute, how, and against what value. */
 function ConditionRow({ condition, choices, onChange, onRemove }: ConditionRowProps) {
+  const t = useT();
   const list = useId();
   const needsValue = condition.test !== 'set' && condition.test !== 'unset';
   const names = choices.attributes[condition.of];
-  const subject = condition.attribute.trim() === '' ? 'an attribute' : `“${condition.attribute}”`;
+  const subject =
+    condition.attribute.trim() === '' ? t('an attribute') : `“${condition.attribute}”`;
   return (
     <li className="explore-condition">
       <select
-        aria-label="Of"
+        aria-label={t('Of')}
         value={condition.of}
         onChange={(event) =>
           onChange({ ...condition, of: event.target.value as AttributeCondition['of'] })
         }
       >
-        <option value="elements">Elements</option>
-        <option value="relations">Relations</option>
+        <option value="elements">{t('Elements')}</option>
+        <option value="relations">{t('Relations')}</option>
       </select>
       <input
         className="explore-condition-attribute"
-        aria-label="Attribute"
+        aria-label={t('Attribute')}
         list={list}
         value={condition.attribute}
-        placeholder="attribute"
+        placeholder={t('attribute')}
         onChange={(event) => onChange({ ...condition, attribute: event.target.value })}
       />
       <datalist id={list}>
@@ -399,7 +413,7 @@ function ConditionRow({ condition, choices, onChange, onRemove }: ConditionRowPr
         ))}
       </datalist>
       <select
-        aria-label="Test"
+        aria-label={t('Test')}
         value={condition.test}
         onChange={(event) =>
           onChange({ ...condition, test: event.target.value as AttributeCondition['test'] })
@@ -407,24 +421,28 @@ function ConditionRow({ condition, choices, onChange, onRemove }: ConditionRowPr
       >
         {ATTRIBUTE_TESTS.map(({ test, name }) => (
           <option key={test} value={test}>
-            {name}
+            {t(name)}
           </option>
         ))}
       </select>
       {needsValue && (
         <input
-          aria-label="Value"
+          aria-label={t('Value')}
           value={condition.value}
-          placeholder="value"
+          placeholder={t('value')}
           onChange={(event) => onChange({ ...condition, value: event.target.value })}
         />
       )}
-      <button type="button" aria-label={`Remove the condition on ${subject}`} onClick={onRemove}>
-        Remove
+      <button
+        type="button"
+        aria-label={t('Remove the condition on {subject}', { subject })}
+        onClick={onRemove}
+      >
+        {t('Remove')}
       </button>
       {!isComplete(condition) && (
         <span className="explore-panel-note">
-          {condition.attribute.trim() === '' ? 'Name an attribute.' : 'Type a value.'}
+          {condition.attribute.trim() === '' ? t('Name an attribute.') : t('Type a value.')}
         </span>
       )}
     </li>
@@ -433,13 +451,14 @@ function ConditionRow({ condition, choices, onChange, onRemove }: ConditionRowPr
 
 /** Focus's reach: what it starts from, its degrees and direction, isolating, and ending it. */
 function FocusSettingsRow({ editor, explore }: { editor: Editor; explore: Explore }) {
+  const t = useT();
   const { focus, setFocus } = explore;
   const degreesId = useId();
   const directionId = useId();
   return (
     <div className="explore-strip-part">
-      <span>{focusSummary(editor, explore)}</span>
-      <label htmlFor={degreesId}>Degrees</label>
+      <span>{focusSummary(t, editor, explore)}</span>
+      <label htmlFor={degreesId}>{t('Degrees')}</label>
       <select
         id={degreesId}
         value={focus.degrees === ALL_DEGREES ? 'all' : String(focus.degrees)}
@@ -454,9 +473,9 @@ function FocusSettingsRow({ editor, explore }: { editor: Editor; explore: Explor
             {degree}
           </option>
         ))}
-        <option value="all">All</option>
+        <option value="all">{t('All')}</option>
       </select>
-      <label htmlFor={directionId}>Direction</label>
+      <label htmlFor={directionId}>{t('Direction')}</label>
       <select
         id={directionId}
         value={focus.direction}
@@ -464,7 +483,7 @@ function FocusSettingsRow({ editor, explore }: { editor: Editor; explore: Explor
       >
         {DIRECTIONS.map(({ direction, name }) => (
           <option key={direction} value={direction}>
-            {name}
+            {t(name)}
           </option>
         ))}
       </select>
@@ -474,10 +493,10 @@ function FocusSettingsRow({ editor, explore }: { editor: Editor; explore: Explor
           checked={focus.isolate}
           onChange={(event) => setFocus({ isolate: event.target.checked })}
         />
-        Isolate
+        {t('Isolate')}
       </label>
       <button type="button" onClick={() => setFocus({ on: false })}>
-        End focus
+        {t('End focus')}
       </button>
     </div>
   );
@@ -485,25 +504,34 @@ function FocusSettingsRow({ editor, explore }: { editor: Editor; explore: Explor
 
 /** The two ends of the selected relation, each a button that follows the relation there. */
 function FollowRow({ editor, relation }: { editor: Editor; relation: Id }) {
+  const t = useT();
   const { scene, project } = editor;
   const ends = scene ? endsOf(scene, project, relation, hiddenIn(scene)) : {};
   const go = (end: FollowedEnd) => {
     editor.select(selectionOf([{ kind: end.kind, id: end.id }]));
     editor.reveal(end.key);
   };
-  const button = (end: FollowedEnd | undefined, where: string): ReactNode =>
+  const button = (end: FollowedEnd | undefined, starts: boolean): ReactNode =>
     end && (
-      <button type="button" title={`Go to ${where}: ${end.name}`} onClick={() => go(end)}>
-        {where === 'where it starts' ? '← ' : '→ '}
+      <button
+        type="button"
+        title={
+          starts
+            ? t('Go to where it starts: {name}', { name: end.name })
+            : t('Go to where it ends: {name}', { name: end.name })
+        }
+        onClick={() => go(end)}
+      >
+        {starts ? '← ' : '→ '}
         {end.name}
       </button>
     );
   if (!ends.from && !ends.to) return null;
   return (
-    <div className="explore-strip-part" role="group" aria-label="Follow the relation">
-      <span>Follow to</span>
-      {button(ends.from, 'where it starts')}
-      {button(ends.to, 'where it ends')}
+    <div className="explore-strip-part" role="group" aria-label={t('Follow the relation')}>
+      <span>{t('Follow to')}</span>
+      {button(ends.from, true)}
+      {button(ends.to, false)}
     </div>
   );
 }
@@ -525,19 +553,28 @@ function filterCount(filters: Filters): number {
   );
 }
 
+const ELEMENT_SHAPES = { one: '{count} element shape', other: '{count} element shapes' };
+const ELEMENTS = { one: '{count} element', other: '{count} elements' };
+const RELATIONS = { one: '{count} relation', other: '{count} relations' };
+
 /** What the filters hide, as the strip says it. */
-function filterSummary(explore: Explore): string {
+function filterSummary(t: Translator, explore: Explore): string {
   const { hiddenShapes, hiddenRelations } = explore.filtered;
-  if (hiddenShapes === 0 && hiddenRelations === 0) return 'The filters hide nothing here.';
-  const parts = [
-    hiddenShapes > 0 ? count(hiddenShapes, 'element shape') : undefined,
-    hiddenRelations > 0 ? count(hiddenRelations, 'relation') : undefined,
-  ].filter((part) => part !== undefined);
-  return `The filters hide ${parts.join(' and ')}.`;
+  if (hiddenShapes === 0 && hiddenRelations === 0) return t('The filters hide nothing here.');
+  const shapes = t(ELEMENT_SHAPES, { count: hiddenShapes });
+  const relations = t(RELATIONS, { count: hiddenRelations });
+  return t('The filters hide {things}.', {
+    things:
+      hiddenShapes > 0 && hiddenRelations > 0
+        ? t('{first} and {last}', { first: shapes, last: relations })
+        : hiddenShapes > 0
+          ? shapes
+          : relations,
+  });
 }
 
 /** What focus starts from, as the strip says it. */
-function focusSummary(editor: Editor, explore: Explore): string {
+function focusSummary(t: Translator, editor: Editor, explore: Explore): string {
   const { targets } = explore.focus;
   const { scene, project } = editor;
   // Both indexes are kept for each scene, so this looks at the targets only.
@@ -547,18 +584,23 @@ function focusSummary(editor: Editor, explore: Explore): string {
   const relations = [...targets.relations].filter((id) => lines?.line(id) !== undefined);
   if (elements.length + relations.length === 0) {
     return holdsTargets(editor.selection)
-      ? 'Focus: this view does not draw what is selected.'
-      : 'Focus: select an element or a relation.';
+      ? t('Focus: this view does not draw what is selected.')
+      : t('Focus: select an element or a relation.');
   }
   const [only] = elements;
   if (only !== undefined && elements.length === 1 && relations.length === 0) {
-    return `Focus on “${shapes?.get(only)?.[0]?.name ?? only}”`;
+    return t('Focus on “{name}”', { name: shapes?.get(only)?.[0]?.name ?? only });
   }
-  const parts = [
-    elements.length > 0 ? count(elements.length, 'element') : undefined,
-    relations.length > 0 ? count(relations.length, 'relation') : undefined,
-  ].filter((part) => part !== undefined);
-  return `Focus on ${parts.join(' and ')}`;
+  const someElements = t(ELEMENTS, { count: elements.length });
+  const someRelations = t(RELATIONS, { count: relations.length });
+  return t('Focus on {things}', {
+    things:
+      elements.length > 0 && relations.length > 0
+        ? t('{first} and {last}', { first: someElements, last: someRelations })
+        : elements.length > 0
+          ? someElements
+          : someRelations,
+  });
 }
 
 /** Each element's shapes in a scene; none for a scene that cannot be indexed, which the canvas reports. */
@@ -571,13 +613,9 @@ function indexedShapes(scene: Scene): IndexedScene['byElement'] | undefined {
 }
 
 /** What screen readers hear when the filters or focus change. */
-function statusOf(editor: Editor, explore: Explore): string {
+function statusOf(t: Translator, editor: Editor, explore: Explore): string {
   const said: string[] = [];
-  if (isFiltering(explore.filters)) said.push(filterSummary(explore));
-  if (explore.focus.on) said.push(`${focusSummary(editor, explore)}.`);
+  if (isFiltering(explore.filters)) said.push(filterSummary(t, explore));
+  if (explore.focus.on) said.push(`${focusSummary(t, editor, explore)}.`);
   return said.join(' ');
-}
-
-function count(amount: number, one: string): string {
-  return `${amount} ${amount === 1 ? one : `${one}s`}`;
 }

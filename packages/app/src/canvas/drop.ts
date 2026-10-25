@@ -24,6 +24,8 @@ import {
 } from '@visual-anything/core';
 import type { Id, Relation } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
+import { t } from '../i18n';
+import { fill } from '../i18n/translate';
 import { IS_APPLE } from '../live/platform';
 import { centerOf, holdsPoint, type Point, type Rect } from './geometry';
 import { carriedKeys, moveParts, movingShapes } from './gestures';
@@ -142,7 +144,10 @@ export function planDrop(
       (indexed.byElement.get(element) ?? []).map((shape) => shape.container ?? ''),
     );
     if (memberships.size > 1) {
-      onlyMoves = `"${index.element(element)?.name ?? element}" sits in ${memberships.size} containers in this view`;
+      onlyMoves = t('"{name}" sits in {count} containers in this view', {
+        name: index.element(element)?.name ?? element,
+        count: memberships.size,
+      });
       break;
     }
   }
@@ -294,15 +299,16 @@ export function dropCaption(
   cover: ElementShape | undefined,
 ): DropCaption | undefined {
   const own = captionOf(project, plan, aim);
-  if (!own) return cover ? { text: `Lands behind "${cover.name}"` } : undefined;
+  const behind = cover && t('Lands behind "{name}"', { name: cover.name });
+  if (!own) return behind ? { text: behind } : undefined;
   const parts = own.detail === undefined ? [] : [own.detail];
-  if (cover) parts.push(`Lands behind "${cover.name}"`);
+  if (behind) parts.push(behind);
   if (aim.kind === 'into' || aim.kind === 'pending') {
     const typeName = nestingTypeName(project, plan);
     if (typeName !== undefined) parts.push(typeName);
   }
   if (aim.kind === 'into' || aim.kind === 'out' || aim.kind === 'pending') {
-    parts.push(IS_APPLE ? '⌥: move only' : 'Alt: move only');
+    parts.push(IS_APPLE ? t('⌥: move only') : t('Alt: move only'));
   }
   return parts.length > 0 ? { text: own.text, detail: parts.join(' · ') } : { text: own.text };
 }
@@ -331,7 +337,10 @@ export function dropCommand(
   const placed = new Set(change.shapes.map((each) => each.element));
   const rest = moveParts(indexed, project, viewId, selection, delta, placed);
   if (!rest) return { command: change, change, label };
-  const batchLabel = `${label}, and move ${rest.shapes} other shape${rest.shapes === 1 ? '' : 's'}`;
+  const batchLabel = fill(
+    rest.shapes === 1 ? '{base}, and move {n} other shape' : '{base}, and move {n} other shapes',
+    { base: label, n: rest.shapes },
+  );
   return {
     command: { type: 'batch', label: batchLabel, commands: [change, ...rest.commands] },
     change,
@@ -457,17 +466,17 @@ export function moveToCommand(
   };
 }
 
-/** How the history names a change of container, as the core does. */
+/** How the history names a change of container, as the core does, in English as the core does. */
 export function containerChangeLabel(
   project: ProjectSnapshot,
   viewId: Id,
   change: ChangeContainerCommand,
 ): string {
   const index = modelIndexOf(project);
-  const nameOf = (id: Id) => `"${index.element(id)?.name ?? id}"`;
+  const nameOf = (id: Id) => index.element(id)?.name ?? id;
   const worldId = project.model.world.id;
   const inWorld = (id: Id | undefined) => (id === undefined || id === worldId ? undefined : id);
-  const viewName = `"${project.views.find((view) => view.id === viewId)?.name ?? viewId}"`;
+  const view = project.views.find((each) => each.id === viewId)?.name ?? viewId;
   const to = inWorld(change.to);
   const shapes = change.shapes.map((shape) => ({
     element: shape.element,
@@ -482,35 +491,43 @@ export function containerChangeLabel(
   const [only] = elements;
   if (entering.length === 0) {
     return elements.length === 1 && only !== undefined
-      ? `Move ${nameOf(only)} in ${viewName}`
-      : `Move ${elements.length} elements in ${viewName}`;
+      ? fill('Move "{element}" in "{view}"', { element: nameOf(only), view })
+      : fill('Move {n} elements in "{view}"', { n: elements.length, view });
   }
   if (elements.length === 1 && only !== undefined) {
+    const element = nameOf(only);
     const froms = [...fromsOf(only)];
     const [from] = froms;
     if (to !== undefined) {
-      if (froms.length === 1 && from === undefined)
-        return `Put ${nameOf(only)} inside ${nameOf(to)}`;
-      if (froms.length === 1 && from !== undefined) {
-        return `Move ${nameOf(only)} from ${nameOf(from)} into ${nameOf(to)}`;
+      const container = nameOf(to);
+      if (froms.length === 1 && from === undefined) {
+        return fill('Put "{element}" inside "{container}"', { element, container });
       }
-      return `Move ${nameOf(only)} into ${nameOf(to)}`;
+      if (froms.length === 1 && from !== undefined) {
+        return fill('Move "{element}" from "{from}" into "{container}"', {
+          element,
+          from: nameOf(from),
+          container,
+        });
+      }
+      return fill('Move "{element}" into "{container}"', { element, container });
     }
-    if (froms.length === 1 && from !== undefined)
-      return `Take ${nameOf(only)} out of ${nameOf(from)}`;
-    return `Take ${nameOf(only)} out of its containers`;
+    if (froms.length === 1 && from !== undefined) {
+      return fill('Take "{element}" out of "{from}"', { element, from: nameOf(from) });
+    }
+    return fill('Take "{element}" out of its containers', { element });
   }
   const allFroms = new Set(shapes.map((shape) => shape.from));
   const [onlyFrom] = allFroms;
-  const amount = `${elements.length} elements`;
+  const n = elements.length;
   if (to !== undefined) {
     return allFroms.size === 1 && onlyFrom === undefined
-      ? `Put ${amount} inside ${nameOf(to)}`
-      : `Move ${amount} into ${nameOf(to)}`;
+      ? fill('Put {n} elements inside "{container}"', { n, container: nameOf(to) })
+      : fill('Move {n} elements into "{container}"', { n, container: nameOf(to) });
   }
   return allFroms.size === 1 && onlyFrom !== undefined
-    ? `Take ${amount} out of ${nameOf(onlyFrom)}`
-    : `Take ${amount} out of their containers`;
+    ? fill('Take {n} elements out of "{from}"', { n, from: nameOf(onlyFrom) })
+    : fill('Take {n} elements out of their containers', { n });
 }
 
 /**
@@ -581,14 +598,22 @@ function refusalOf(plan: DropPlan, target: ElementShape): string {
       }
     }
   }
-  const name = `"${target.name}"`;
-  if (!through) return `${name} moves with the shapes dragged`;
+  if (!through) return t('"{name}" moves with the shapes dragged', { name: target.name });
   const { relation, mover } = through;
-  const typeName = definitions.relationType(relation.relationType)?.name ?? relation.relationType;
+  const type = t.definition(
+    relation.relationType,
+    definitions.relationType(relation.relationType)?.name ?? relation.relationType,
+  );
   const view = project.views.find((each) => each.id === plan.viewId);
   const shown =
     view !== undefined && nestingTypesInView(project, view).includes(relation.relationType);
-  return `${name} is part of "${index.element(mover)?.name ?? mover}" in the model through "${typeName}"${shown ? '' : ', which this view does not show'}`;
+  const values = { name: target.name, mover: index.element(mover)?.name ?? mover, type };
+  return shown
+    ? t('"{name}" is part of "{mover}" in the model through "{type}"', values)
+    : t(
+        '"{name}" is part of "{mover}" in the model through "{type}", which this view does not show',
+        values,
+      );
 }
 
 /** The caption's own line and detail for an aim, before what every caption adds. */
@@ -598,23 +623,31 @@ function captionOf(
   aim: DropAim,
 ): { text: string; detail?: string } | undefined {
   const index = modelIndexOf(project);
-  const nameOf = (id: Id) => `"${index.element(id)?.name ?? id}"`;
+  const nameOf = (id: Id) => index.element(id)?.name ?? id;
   switch (aim.kind) {
     case 'stay':
       return undefined;
     case 'into': {
-      const target = `"${aim.target.name}"`;
+      const target = aim.target.name;
       const count = plan.moving.length;
       const froms = new Set(plan.moving.map((mover) => mover.from));
       const [from] = froms;
       if (froms.size === 1 && from === undefined) {
         return {
-          text: count === 1 ? `Put inside ${target}` : `Put ${count} elements inside ${target}`,
+          text:
+            count === 1
+              ? t('Put inside "{target}"', { target })
+              : t('Put {count} elements inside "{target}"', { count, target }),
         };
       }
-      const text = count === 1 ? `Move into ${target}` : `Move ${count} elements into ${target}`;
-      if (froms.size === 1 && from !== undefined) return { text, detail: `Out of ${nameOf(from)}` };
-      return { text, detail: 'Out of their containers' };
+      const text =
+        count === 1
+          ? t('Move into "{target}"', { target })
+          : t('Move {count} elements into "{target}"', { count, target });
+      if (froms.size === 1 && from !== undefined) {
+        return { text, detail: t('Out of "{from}"', { from: nameOf(from) }) };
+      }
+      return { text, detail: t('Out of their containers') };
     }
     case 'out': {
       const leaving = plan.moving.filter((mover) => mover.from !== undefined);
@@ -624,26 +657,34 @@ function captionOf(
         return {
           text:
             leaving.length === 1
-              ? `Take out of ${nameOf(from)}`
-              : `Take ${leaving.length} elements out of ${nameOf(from)}`,
+              ? t('Take out of "{from}"', { from: nameOf(from) })
+              : t('Take {count} elements out of "{from}"', {
+                  count: leaving.length,
+                  from: nameOf(from),
+                }),
         };
       }
-      return { text: `Take ${leaving.length} elements out of their containers` };
+      return {
+        text: t('Take {count} elements out of their containers', { count: leaving.length }),
+      };
     }
     case 'pending': {
       const fallback = captionOf(project, plan, aim.fallback)?.text;
-      const then = fallback === undefined ? 'move only' : lowerFirst(fallback);
+      const then = fallback === undefined ? t('move only') : lowerFirst(fallback);
       return {
-        text: `Hold still to put inside "${aim.leaf.name}"`,
-        detail: `Release now: ${then}`,
+        text: t('Hold still to put inside "{name}"', { name: aim.leaf.name }),
+        detail: t('Release now: {then}', { then }),
       };
     }
     case 'refused':
-      return { text: `Cannot put inside "${aim.target.name}"`, detail: aim.reason };
+      return {
+        text: t('Cannot put inside "{name}"', { name: aim.target.name }),
+        detail: aim.reason,
+      };
     case 'only-moves':
       return aim.reason === undefined
-        ? { text: 'Moves only' }
-        : { text: 'Moves only', detail: aim.reason };
+        ? { text: t('Moves only') }
+        : { text: t('Moves only'), detail: aim.reason };
   }
 }
 
@@ -654,7 +695,7 @@ function nestingTypeName(project: ProjectSnapshot, plan: DropPlan): string | und
   const { shape, from } = plan.grabbedShape;
   const type = nestingTypeFor(project, view, leavingRelations(project, view, shape.element, from));
   if (type === undefined) return undefined;
-  return definitionsOf(project.packages).relationType(type)?.name ?? type;
+  return t.definition(type, definitionsOf(project.packages).relationType(type)?.name ?? type);
 }
 
 /** The change that puts every moving shape inside a target, where it is dropped, below its name. */
