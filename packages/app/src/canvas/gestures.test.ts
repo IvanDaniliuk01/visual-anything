@@ -67,10 +67,10 @@ describe('moveCommand', () => {
         {
           element: 'scheduling',
           container: 'clinic-booking',
-          x: 510,
-          y: 40,
+          x: 514,
+          y: 44,
           width: 440,
-          height: 380,
+          height: 384,
           pinned: true,
         },
       ],
@@ -210,7 +210,7 @@ describe('createAtCommand', () => {
       type: 'create-element',
       element: { component: 'systems.service', name: 'Service' },
       containers: [{ container: 'scheduling', relationType: 'systems.is-part-of' }],
-      positions: [{ view: VIEW, container: 'scheduling', x: 60, y: 400 }],
+      positions: [{ view: VIEW, container: 'scheduling', x: 56, y: 396 }],
     });
     expect(executeCommand(project, command!).ok).toBe(true);
   });
@@ -272,8 +272,8 @@ describe('createInsideCommand', () => {
     if (!outcome.ok) throw new Error('refused');
     const scene = indexScene(buildScene(outcome.state, VIEW));
     const shape = scene.byElement.get(outcome.created[0]!)?.[0];
-    // Scheduling, the lowest of them, ends at 60 + 380.
-    expect(shape?.offset).toEqual({ x: 24, y: 480 });
+    // Scheduling, the lowest of them, ends at 64 + 384, and the row starts 40 below it.
+    expect(shape?.offset).toEqual({ x: 24, y: 488 });
 
     // A content that sticks out of its container's top leaves the new shape below the name.
     const raised = after(project, {
@@ -421,7 +421,7 @@ describe('createBesideCommand', () => {
     expect(command).toEqual({
       type: 'create-element',
       element: { component: 'systems.service', name: 'Service' },
-      positions: [{ view: VIEW, x: 240 + 980 + 40, y: 40 }],
+      positions: [{ view: VIEW, x: 240 + 984 + 40, y: 40 }],
     });
     const { shape } = created(project, command);
     expect(shape.container).toBeUndefined();
@@ -429,15 +429,15 @@ describe('createBesideCommand', () => {
   });
 
   it('goes on to the right, by its own width and 40 each time, past the shapes it would overlap', () => {
-    // Beside Patient lies Clinic booking, from 240 to 1220: a Service, 180 wide, goes 220 further
-    // each time, from 220 to 1320.
+    // Beside Patient lies Clinic booking, from 240 to 1224: a Service, 176 wide, goes 216 further
+    // each time, from 224 to 1304.
     const patient = indexed.byKey.get('patient')!;
     const command = createBesideCommand(indexed, project, VIEW, 'systems.service', patient);
     expect(command && 'positions' in command && command.positions).toEqual([
-      { view: VIEW, x: 1320, y: 200 },
+      { view: VIEW, x: 1304, y: 200 },
     ]);
     const { scene, shape } = created(project, command);
-    expect(shape.rect).toEqual({ x: 1320, y: 200, width: 180, height: 72 });
+    expect(shape.rect).toEqual({ x: 1304, y: 200, width: 176, height: 72 });
     expect(overlapsASibling(scene, shape)).toBe(false);
   });
 
@@ -449,11 +449,11 @@ describe('createBesideCommand', () => {
       type: 'create-element',
       element: { component: 'systems.service', name: 'Service' },
       containers: [{ container: 'scheduling', relationType: 'systems.is-part-of' }],
-      positions: [{ view: VIEW, container: 'scheduling', x: 480, y: 104 }],
+      positions: [{ view: VIEW, container: 'scheduling', x: 472, y: 104 }],
     });
     const { scene, shape } = created(project, command);
     expect(shape.containerShape).toBe('clinic-booking/scheduling');
-    expect(shape.offset).toEqual({ x: 480, y: 104 });
+    expect(shape.offset).toEqual({ x: 472, y: 104 });
     expect(overlapsASibling(scene, shape)).toBe(false);
   });
 
@@ -475,7 +475,7 @@ describe('createBesideCommand', () => {
       const rects = added.map((shape) => scene.byKey.get(shape.key)!.rect);
       for (const [at, rect] of rects.entries()) {
         expect(rect.y).toBe(rects[0]!.y);
-        if (at > 0) expect(rect.x).toBe(rects[at - 1]!.x + 180 + 40);
+        if (at > 0) expect(rect.x).toBe(rects[at - 1]!.x + 176 + 40);
       }
       for (const shape of added)
         expect(overlapsASibling(scene, scene.byKey.get(shape.key)!)).toBe(false);
@@ -501,8 +501,8 @@ describe('createBesideCommand', () => {
     const scene = indexScene(buildScene(state, VIEW));
     const [first, second] = placed.map((id) => scene.byElement.get(id)![0]!);
     expect([first!.offset, second!.offset]).toEqual([
-      { x: 24, y: 480 },
-      { x: 244, y: 480 },
+      { x: 24, y: 488 },
+      { x: 240, y: 488 },
     ]);
     expect(first!.positioned).toBe('placed');
 
@@ -515,25 +515,25 @@ describe('createBesideCommand', () => {
           type: 'set-positions',
           view: VIEW,
           positions: [
-            { element: placed[0], container: 'clinic-booking', x: 24, y: 480 },
-            { element: placed[1], container: 'clinic-booking', x: 244, y: 480 },
+            { element: placed[0], container: 'clinic-booking', x: 24, y: 488 },
+            { element: placed[1], container: 'clinic-booking', x: 240, y: 488 },
           ],
         },
         {
           type: 'create-element',
           element: { component: 'systems.service', name: 'Service' },
           containers: [{ container: 'clinic-booking', relationType: 'systems.is-part-of' }],
-          positions: [{ view: VIEW, container: 'clinic-booking', x: 464, y: 480 }],
+          positions: [{ view: VIEW, container: 'clinic-booking', x: 456, y: 488 }],
         },
       ],
     });
     const { scene: drawn, shape } = created(state, command);
     const kept = placed.map((id) => drawn.byElement.get(id)![0]!);
     expect(kept.map((each) => [each.offset, each.positioned])).toEqual([
-      [{ x: 24, y: 480 }, 'stored'],
-      [{ x: 244, y: 480 }, 'stored'],
+      [{ x: 24, y: 488 }, 'stored'],
+      [{ x: 240, y: 488 }, 'stored'],
     ]);
-    expect(shape.offset).toEqual({ x: 464, y: 480 });
+    expect(shape.offset).toEqual({ x: 456, y: 488 });
     expect(overlapsASibling(drawn, shape)).toBe(false);
   });
 
@@ -562,7 +562,7 @@ describe('createBesideCommand', () => {
       scene.byKey.get('patient')!,
     );
     expect(command && 'positions' in command && command.positions).toEqual([
-      { view: VIEW, x: 220, y: 200 },
+      { view: VIEW, x: 224, y: 200 },
     ]);
   });
 

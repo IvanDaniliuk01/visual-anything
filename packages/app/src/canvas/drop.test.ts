@@ -248,7 +248,7 @@ describe('planDrop', () => {
     expect(drop?.command).toEqual({
       type: 'change-container',
       view: VIEW,
-      shapes: [{ element: 'appointments-api', from: 'scheduling', at: { x: 1310, y: 664 } }],
+      shapes: [{ element: 'appointments-api', from: 'scheduling', at: { x: 1312, y: 664 } }],
     });
     const outcome = executeCommand(project, drop!.command);
     expect(outcome.ok && outcome.label).toBe('Take "Appointments API" out of "Scheduling"');
@@ -272,7 +272,7 @@ describe('dropAimAt and dropCommand', () => {
         type: 'change-container',
         view: VIEW,
         to: 'clinic-booking',
-        shapes: [{ element: 'patient', at: { x: 90, y: 370 } }],
+        shapes: [{ element: 'patient', at: { x: 88, y: 370 } }],
       },
       change: drop?.command,
       label: 'Put "Patient" inside "Clinic booking"',
@@ -296,7 +296,7 @@ describe('dropAimAt and dropCommand', () => {
     expect(drop?.command).toEqual({
       type: 'change-container',
       view: VIEW,
-      shapes: [{ element: 'whatsapp', from: 'clinic-booking', at: { x: 280, y: 664 } }],
+      shapes: [{ element: 'whatsapp', from: 'clinic-booking', at: { x: 282, y: 664 } }],
     });
     expect(drop?.label).toBe('Take "WhatsApp channel" out of "Clinic booking"');
     const next = after(sample, drop!.command);
@@ -308,9 +308,9 @@ describe('dropAimAt and dropCommand', () => {
       element: 'whatsapp',
       container: 'clinic-booking',
       x: 40,
-      y: 164,
+      y: 168,
     });
-    expect(positions).toContainEqual({ element: 'whatsapp', x: 280, y: 664, pinned: true });
+    expect(positions).toContainEqual({ element: 'whatsapp', x: 282, y: 664, pinned: true });
     expect(captionOf(run, aim)).toEqual({
       text: 'Take out of "Clinic booking"',
       detail: 'Alt: move only',
@@ -357,7 +357,7 @@ describe('dropAimAt and dropCommand', () => {
     };
     // The second one below the first, with the pointer below the container.
     const below = drag(row(undefined), ['two'], 'empty-system/two', { x: 114, y: 1176 });
-    expect(below.delta).toEqual({ x: -220, y: 92 });
+    expect(below.delta).toEqual({ x: -218, y: 92 });
     expect(aimOf(below)).toEqual({ kind: 'stay' });
     // In an ellipse, with the pointer in the corner of its rectangle, outside the ellipse.
     const corner = drag(row('ellipse'), ['two'], 'empty-system/two', { x: 440, y: 1140 });
@@ -375,7 +375,7 @@ describe('dropAimAt and dropCommand', () => {
       type: 'change-container',
       view: VIEW,
       to: 'scheduling',
-      shapes: [{ element: 'whatsapp', from: 'clinic-booking', at: { x: 170, y: 284 } }],
+      shapes: [{ element: 'whatsapp', from: 'clinic-booking', at: { x: 168, y: 280 } }],
     });
     const outcome = executeCommand(sample, drop!.command);
     expect(outcome.ok && outcome.label).toBe(
@@ -501,7 +501,7 @@ describe('dropAimAt and dropCommand', () => {
     expect(aim).toEqual({ kind: 'into', target: copy });
     const drop = dropped(run, aim);
     expect(drop?.change?.shapes).toEqual([
-      { element: 'booking-agent', from: 'clinic-booking', at: { x: 146, y: 316 } },
+      { element: 'booking-agent', from: 'clinic-booking', at: { x: 148, y: 316 } },
     ]);
     expect(executeCommand(project, drop!.command).ok).toBe(true);
     expect(dropOverlay(run.indexed, run.plan, aim)).toEqual({
@@ -523,8 +523,8 @@ describe('dropAimAt and dropCommand', () => {
       view: VIEW,
       to: 'scheduling',
       shapes: [
-        { element: 'patient', at: { x: 24, y: 280 } },
-        { element: 'whatsapp', from: 'clinic-booking', at: { x: 264, y: 284 } },
+        { element: 'patient', at: { x: 24, y: 272 } },
+        { element: 'whatsapp', from: 'clinic-booking', at: { x: 264, y: 280 } },
       ],
     });
     const outcome = executeCommand(sample, drop!.command);
@@ -563,10 +563,10 @@ describe('dropAimAt and dropCommand', () => {
         {
           element: 'scheduling',
           container: 'clinic-booking',
-          x: 500,
-          y: 460,
+          x: 504,
+          y: 464,
           width: 440,
-          height: 380,
+          height: 384,
           pinned: true,
         },
       ],
@@ -668,7 +668,7 @@ describe('takeOutCommand', () => {
       view: VIEW,
       to: 'clinic-booking',
       shapes: [
-        { element: 'appointments-api', from: 'scheduling', at: { x: 980, y: 60 }, pinned: false },
+        { element: 'appointments-api', from: 'scheduling', at: { x: 984, y: 64 }, pinned: false },
       ],
     });
     expect(containerChangeLabel(sample, VIEW, up!)).toBe(
@@ -682,7 +682,7 @@ describe('takeOutCommand', () => {
       type: 'change-container',
       view: VIEW,
       shapes: [
-        { element: 'whatsapp', from: 'clinic-booking', at: { x: 1260, y: 40 }, pinned: false },
+        { element: 'whatsapp', from: 'clinic-booking', at: { x: 1264, y: 40 }, pinned: false },
       ],
     });
     expect(confirmLabelOf(sample, out!)).toBe('Take out');
@@ -725,7 +725,7 @@ describe('takeOutCommand', () => {
     const placed = done.views[0]?.positions.find(
       (each) => each.element === 'whatsapp' && each.container === undefined,
     );
-    expect(placed).toEqual({ element: 'whatsapp', x: 1260, y: 40 });
+    expect(placed).toEqual({ element: 'whatsapp', x: 1264, y: 40 });
     expect(shape(indexOf(done), 'whatsapp').positioned).toBe('stored');
   });
 });

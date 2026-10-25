@@ -131,7 +131,7 @@ interface Choosing {
   mode: 'put' | 'move';
 }
 
-const NOTE_SIZE = { width: 220, height: 90 };
+const NOTE_SIZE = { width: 224, height: 88 };
 const NO_KEYS: ReadonlySet<string> = new Set();
 const ARROW_LENGTH = 160;
 const NOT_CONNECTED = 'Visual Anything is not connected, so nothing was changed.';
