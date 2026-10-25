@@ -34,3 +34,7 @@ We chose this because a process Claude starts must reach a program the person ma
 - A record holds a secret that opens the Claude endpoint, so its folder must stay private (ADR-0030).
 - Layout run by Claude waits for ELK (ADR-0015), which runs in the app's worker; Claude can collapse and expand through the command of the collapse task once the core has it, and is told so until then.
 - The scenario tools of wave 2 build on the same tool interface (`Program` in `claude/bridge.ts`, `Tool` in `claude/tools.ts`).
+
+## Clarifications
+
+- 2026-10-24: guidance also filters and focuses the open view (`filter`, `focus-view`, `clear-explore`, ADR 0025) and opens, plays, pauses and steps through a scenario (`playback`, ADR 0031), with protocol version 4. The app applies them as if the person had: they show in the explore strip and the scenario panel, and the person ends them there. A new filter from Claude replaces the view's filters; for playback, and for each of filters and focus, only the latest request is kept, and a playback request whose scenario's timeline is not ready by the next change is dropped, so that nothing plays late. A request naming a view, or a scenario over another view, opens that view first. None of it is written to a view file or the history.

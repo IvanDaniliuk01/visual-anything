@@ -343,7 +343,7 @@ export function readView(state: ProjectSnapshot, viewId: Id) {
       }))
       .filter((each) => each.backToFront.length > 0),
   ];
-  const collapsed = (view as { collapsed?: Id[] }).collapsed;
+  const { collapsed, routes } = view;
   return {
     id: view.id,
     name: view.name,
@@ -355,6 +355,8 @@ export function readView(state: ProjectSnapshot, viewId: Id) {
     freeShapes: view.freeShapes,
     stacking,
     ...(collapsed === undefined ? {} : { collapsed }),
+    // The routes chosen by hand, by relation; every other relation is routed automatically.
+    ...(routes === undefined ? {} : { routes }),
   };
 }
 
