@@ -660,6 +660,39 @@ describe('routeOf', () => {
     // The API's first shape is inside the system, which comes first in the model's order.
     expect(routeOf(state, 'overview', 'api-reads-db')?.frame).toBe('system');
   });
+
+  it('takes the shapes a caller placed, as the scene does, without working them out again', () => {
+    const state = routed({
+      'api-reads-db': { from: viaOut, container: 'system', bendPoints: [{ x: 1, y: 2 }] },
+      'client-calls-api': { to: viaIn },
+    });
+    // Keys of the scene's first shapes, read as holders: here the DB is drawn in the zone instead.
+    const keys: Record<string, string> = {
+      system: 'system',
+      api: 'system/api',
+      db: 'zone/db',
+      client: 'client',
+      zone: 'zone',
+    };
+    const elements = new Map(state.model.elements.map((element) => [element.id, element]));
+    const relations = new Map(state.model.relations.map((relation) => [relation.id, relation]));
+    const shapes = {
+      holdersOf: (id: string) => keys[id]?.split('/'),
+      lookups: {
+        world: state.model.world,
+        element: (id: string) => elements.get(id),
+        relation: (id: string) => relations.get(id),
+      },
+    };
+    const between = routeOf(state, 'overview', 'api-reads-db', shapes);
+    expect(between).toMatchObject({ bendPoints: [], from: { kind: 'connection-point' } });
+    expect(between?.frame).toBeUndefined();
+    // An element the caller draws no shape for takes no attachment.
+    const unplaced = { ...shapes, holdersOf: (id: string) => (id === 'api' ? undefined : [id]) };
+    expect(routeOf(state, 'overview', 'client-calls-api', unplaced)?.to).toEqual({
+      kind: 'automatic',
+    });
+  });
 });
 
 describe('routes follow the model', () => {
