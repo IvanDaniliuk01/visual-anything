@@ -241,6 +241,22 @@ describe('pictures in tiles', () => {
     expect(texture?.data.style).toBe(0xff0000);
   });
 
+  it('decode and upload nothing while zoomed out too far for any picture to show', async () => {
+    const platform = new FakePlatform();
+    const images = new TileImages(platform);
+    const tile = tileOf(shapeWith(bitmap(), 'icon', { x: 0, y: 0, width: 160, height: 80 }));
+    images.show(tile.shapes);
+    // Asked for at names' scale, then zoomed far out before anything was decoded.
+    images.frame([tile], view(1, false));
+    for (let frame = 0; frame < 4; frame++) {
+      images.frame([tile], view(0.1, false));
+      await arrived();
+    }
+    expect(platform.decodes).toBe(0);
+    images.frame([tile], view(1, false));
+    expect(platform.decodes).toBe(1);
+  });
+
   it('hide below their scales: icons below names, drawings with the plain blocks', async () => {
     const platform = new FakePlatform();
     const images = new TileImages(platform);
