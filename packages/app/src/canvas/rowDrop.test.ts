@@ -250,8 +250,10 @@ describe('dropping a shape onto a table', () => {
 
   it('makes the view nest by the relation type that holds the row, in the same action', () => {
     const project = withLoose(['systems.is-part-of']);
-    const { aim, drop } = dropAt(project, 'loose', { x: 100, y: 40 });
+    const { aim, drop, caption } = dropAt(project, 'loose', { x: 100, y: 40 });
     expect(aim.kind).toBe('into');
+    // The table draws none of its columns until the view nests by "is column of": it goes last.
+    expect(caption?.detail).toBe('After its last row · is column of · Alt: move only');
     const command = drop?.command;
     expect(command?.type).toBe('batch');
     if (command?.type !== 'batch') return;
@@ -261,7 +263,7 @@ describe('dropping a shape onto a table', () => {
       changes: { nestingRelationTypes: ['systems.is-part-of', 'data-modeling.is-column-of'] },
     });
     const next = after(project, command);
-    expect(rowsOf(next, 'users')).toContain('loose');
+    expect(rowsOf(next, 'users')).toEqual(['users-id', 'users-email', 'users-name', 'loose']);
   });
 
   it('only moves with Alt, as every drop', () => {

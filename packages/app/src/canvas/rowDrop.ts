@@ -161,9 +161,17 @@ export function rowSlotAt(
     nesting.push({ element, ...found });
   }
   const view = project.views.find((each) => each.id === viewId) as ViewFile;
-  const rows = rowsInView(project, view, target.element);
+  // The rows it holds once the view nests by the relation types that hold them, as the drop makes it.
+  const added = nesting.filter((each) => each.addToView).map((each) => each.relationType);
+  const rows = rowsInView(
+    project,
+    added.length === 0
+      ? view
+      : { ...view, nestingRelationTypes: [...nestingTypesInView(project, view), ...added] },
+    target.element,
+  );
   const count = rows.length;
-  // A collapsed one shows no rows: what is dropped on it goes last.
+  // A collapsed one shows no rows, nor one the view does not nest by yet: what is dropped goes last.
   const drawn = target.collapsed === undefined ? (target.rowCount ?? 0) : 0;
   const at =
     drawn === 0

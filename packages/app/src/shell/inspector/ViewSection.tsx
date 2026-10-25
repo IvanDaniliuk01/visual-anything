@@ -184,35 +184,31 @@ export function ViewSection({ element }: { element: Element }) {
       <h4 id={headingId}>In this view</h4>
       {!nests && <p className="inspector-notes">{NESTS_NOTHING}</p>}
       <ul className="inspector-memberships">
-        {[...memberships.values()].map((shape) =>
-          shape.row !== undefined ? (
-            <RowMembership key={shape.container ?? ''} shape={shape} indexed={indexed} />
-          ) : (
-            <MembershipRow
-              key={shape.container ?? ''}
-              shape={shape}
-              indexed={indexed}
-              index={index}
-              nests={nests}
-              editable={editable}
-              stacking={stackingActions(indexed, project, view.id, own, editable, {
-                container: shape.container,
-              })}
-              onTakeOut={(control) => {
-                started.current = control;
-                change(takeOutCommand(indexed, project, view.id, shape));
-              }}
-              onChoose={(control, mode) => {
-                started.current = control;
-                setChoosing({
-                  ...(shape.container === undefined ? {} : { container: shape.container }),
-                  mode,
-                });
-              }}
-              onRestack={(move) => restack(move, shape.container)}
-            />
-          ),
-        )}
+        {[...memberships.values()].map((shape) => (
+          <MembershipRow
+            key={shape.container ?? ''}
+            shape={shape}
+            indexed={indexed}
+            index={index}
+            nests={nests}
+            editable={editable}
+            stacking={stackingActions(indexed, project, view.id, own, editable, {
+              container: shape.container,
+            })}
+            onTakeOut={(control) => {
+              started.current = control;
+              change(takeOutCommand(indexed, project, view.id, shape));
+            }}
+            onChoose={(control, mode) => {
+              started.current = control;
+              setChoosing({
+                ...(shape.container === undefined ? {} : { container: shape.container }),
+                mode,
+              });
+            }}
+            onRestack={(move) => restack(move, shape.container)}
+          />
+        ))}
       </ul>
       {collapsing && (
         <div className="inspector-collapse">
@@ -331,6 +327,7 @@ function MembershipRow({
   onChoose,
   onRestack,
 }: MembershipRowProps) {
+  if (shape.row !== undefined) return <RowMembership shape={shape} indexed={indexed} />;
   const where =
     shape.container === undefined
       ? 'Directly in World'
