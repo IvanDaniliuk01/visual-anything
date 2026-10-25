@@ -17,6 +17,11 @@ import { lineFollowsTheme, noteFollowsTheme, shapeFollowsTheme } from './paint';
 
 /** How long a frame may spend drawing tiles again, in milliseconds; labels take what is left of it. */
 export const RESTYLE_BUDGET = 6;
+/**
+ * How long a frame may spend drawing again, while the camera rests, the tiles that do not show: when
+ * nothing moves, a longer frame is not seen, and they are ready sooner for when the camera moves.
+ */
+export const CATCH_UP_BUDGET = 12;
 /** How many frames a switch or a recolor waits for the tiles on screen before it shows anyway. */
 export const SWAP_WITHIN = 30;
 

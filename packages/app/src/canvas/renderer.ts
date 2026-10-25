@@ -77,6 +77,7 @@ import {
   type Painter,
 } from './theme/painter';
 import {
+  CATCH_UP_BUDGET,
   RESTYLE_BUDGET,
   SWAP_WITHIN,
   drawingsFollowTheme,
@@ -2083,6 +2084,7 @@ export class CanvasRenderer {
     }
     let hiddenLeft = false;
     let labelsLeft = false;
+    let shownSpent = performance.now() - began;
     if (!this.pending) {
       // Labels are tinted again for what shows, before they show.
       const lookups = this.lookups();
@@ -2097,10 +2099,11 @@ export class CanvasRenderer {
           labelsLeft = true;
         }
       }
-      // The rest while the camera rests, nearest the screen first.
+      shownSpent = performance.now() - began;
+      // The rest while the camera rests, nearest the screen first, on a clock of its own.
       hidden.sort((a, b) => a.distance - b.distance);
       for (const work of hidden) {
-        if (!this.settled || spent()) {
+        if (!this.settled || performance.now() - began > CATCH_UP_BUDGET) {
           hiddenLeft = true;
           break;
         }
@@ -2110,7 +2113,8 @@ export class CanvasRenderer {
     }
     this.restyling = this.pending !== undefined || left || hiddenLeft || labelsLeft;
     if (this.pending || left || (this.settled && hiddenLeft)) this.requestRender();
-    return performance.now() - began;
+    // Labels share the clock of what shows, not that of catching up while the camera rests.
+    return shownSpent;
   }
 
   /** Draws again, for `painter`'s theme, the given drawings of a tile, behind the ones showing. */
