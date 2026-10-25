@@ -1,0 +1,295 @@
+/**
+ * Layout on the canvas: shapes that appear without a position are laid out automatically, and the
+ * toolbar's Layout lays out the view, or the selected container's contents, on demand. Every layout
+ * runs in the layout worker; its result is stored as one undoable action, unpinned, and moves in on
+ * the canvas unless the system asks for reduced motion (ADR-0009, ADR-0015).
+ *
+ * Automatic layout places the shapes that the view shows without a position when it opens, and each
+ * new one after that, such as the elements Claude adds. A shape whose position an undo took away is
+ * not new, so it stays where the canvas puts it, and undo can go on past the layout.
+ */
+import { modelIndexOf, type Command, type ProjectSnapshot } from '@visual-anything/core';
+import type { Id, ViewFile } from '@visual-anything/schema';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { sizeOf, type Selection } from '../../editor/selection';
+import type { Scene } from '../scene';
+import { LayoutStopped, sharedRunner, type LayoutRunner } from './client';
+import { layoutCommand } from './command';
+import { layoutInput, type LayoutScope } from './input';
+import {
+  frameAt,
+  prefersReducedMotion,
+  TRANSITION_MS,
+  transitionBetween,
+  type Transition,
+} from './transition';
+import type { LayoutProgress } from './types';
+
+/**
+ * What runs the canvas's layouts: by default (null) the layout worker every canvas shares; tests give
+ * a runner of their own, and undefined turns layout off.
+ */
+export const LayoutRunnerContext = createContext<LayoutRunner | null | undefined>(null);
+
+/** How long automatic layout waits for more new shapes before it runs, in milliseconds. */
+export const AUTO_DELAY = 120;
+
+/** The toolbar's Layout control. */
+export interface LayoutControl {
+  /** What the button says: Layout, or Stop layout with how far the layout under way has come. */
+  label: string;
+  /** What it lays out now, how far a layout under way has come, or why it cannot lay out. */
+  title: string;
+  enabled: boolean;
+  /** Whether a layout is under way, asked for or automatic. */
+  busy: boolean;
+  /** Lays out; while a layout is under way, stops it. */
+  run: () => void;
+}
+
+/** A layout under way: how many shapes it arranges, how far it has come, and how to stop it. */
+interface Running {
+  shapes: number;
+  progress: LayoutProgress | undefined;
+  stop: () => void;
+}
+
+export interface LayoutOptions {
+  project: ProjectSnapshot;
+  view: ViewFile;
+  /** The scene of the view as the project has it now. */
+  scene: Scene;
+  selection: Selection;
+  /** Sends a command; absent while the project cannot be changed. */
+  send: ((command: Command) => Promise<{ ok: boolean }>) | undefined;
+  /** Says something to screen readers. */
+  announce: (text: string) => void;
+}
+
+/** A layout's change on its way: the scene it was made from, to move in from once it is drawn. */
+interface Armed {
+  before: Scene;
+  project: ProjectSnapshot;
+  view: Id;
+  animate: boolean;
+}
+
+/**
+ * Layout for one canvas: the scene to draw, which is a frame of a layout moving in or else `scene`,
+ * and the toolbar's control.
+ */
+export function useLayout({ project, view, scene, selection, send, announce }: LayoutOptions): {
+  scene: Scene;
+  control: LayoutControl;
+} {
+  const given = useContext(LayoutRunnerContext);
+  const [shared] = useState(() => (given === null ? sharedRunner() : undefined));
+  const runner = given === null ? shared : given;
+  const editable = send !== undefined;
+
+  const latest = useRef({ project, view, scene, send, announce });
+  useLayoutEffect(() => {
+    latest.current = { project, view, scene, send, announce };
+  });
+
+  const [running, setRunning] = useState<Running>();
+  const [armed, setArmed] = useState<Armed>();
+  const [moving, setMoving] = useState<{ transition: Transition; progress: number }>();
+  const queue = useRef<Promise<void>>(Promise.resolve());
+
+  // Once a layout's change is drawn, it moves in from the scene it was made from.
+  if (armed && (armed.view !== view.id || (project !== armed.project && scene !== armed.before))) {
+    setArmed(undefined);
+    const transition =
+      armed.animate && armed.view === view.id ? transitionBetween(armed.before, scene) : undefined;
+    setMoving(transition && { transition, progress: 0 });
+  } else if (moving && moving.transition.to !== scene) {
+    // Something else changed the view meanwhile: it shows as it is now.
+    setMoving(undefined);
+  }
+
+  const transition = moving?.transition;
+  useEffect(() => {
+    if (!transition) return;
+    let start: number | undefined;
+    const tick = (time: number) => {
+      start ??= time;
+      const progress = (time - start) / TRANSITION_MS;
+      if (progress >= 1) {
+        setMoving(undefined);
+        return;
+      }
+      setMoving({ transition, progress });
+      frame = requestAnimationFrame(tick);
+    };
+    let frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [transition]);
+
+  const drawn = useMemo(
+    () =>
+      moving && moving.transition.to === scene
+        ? frameAt(moving.transition, moving.progress)
+        : scene,
+    [moving, scene],
+  );
+
+  /** Runs one layout after the ones asked for before it, and stores its result as one action. */
+  const enqueue = (scope: LayoutScope, automatic: boolean): Promise<void> => {
+    const run = queue.current.then(async () => {
+      const asked = latest.current;
+      if (!runner || !asked.send) return;
+      const input = layoutInput(asked.scene, asked.project, scope);
+      if (!input) {
+        if (!automatic) asked.announce('Every shape there is pinned, so layout leaves them all.');
+        return;
+      }
+      // While it runs, the control shows how far it has come, and stops it when pressed.
+      const stopper = new AbortController();
+      const shown: Running = {
+        shapes: input.shapes.filter((shape) => shape.free).length,
+        progress: undefined,
+        stop: () => stopper.abort(),
+      };
+      const ours = (current: Running | undefined) => current?.stop === shown.stop;
+      setRunning(shown);
+      let laidOut;
+      try {
+        laidOut = await runner.layOut(input, {
+          signal: stopper.signal,
+          onProgress: (progress) =>
+            setRunning((current) => (ours(current) ? { ...shown, progress } : current)),
+        });
+      } catch (error) {
+        latest.current.announce(
+          error instanceof LayoutStopped
+            ? 'Layout stopped, and nothing moved.'
+            : `The layout failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        return;
+      } finally {
+        setRunning((current) => (ours(current) ? undefined : current));
+      }
+      const now = latest.current;
+      if (now.view.id !== asked.view.id || !now.send) return;
+      const action = layoutCommand(now.project, now.view.id, now.scene, scope, laidOut.shapes);
+      if (!action) {
+        if (!automatic) now.announce('Layout leaves every shape where it is.');
+        return;
+      }
+      setArmed({
+        before: now.scene,
+        project: now.project,
+        view: now.view.id,
+        animate: typeof requestAnimationFrame === 'function' && !prefersReducedMotion(),
+      });
+      const sent = await now.send(action.command);
+      if (!sent.ok) {
+        setArmed(undefined);
+        return;
+      }
+      if (!automatic) {
+        const shapes = action.moved === 1 ? '1 shape moved' : `${action.moved} shapes moved`;
+        latest.current.announce(`${labelOf(action.command)}: ${shapes}.`);
+      }
+    });
+    queue.current = run.catch(() => undefined);
+    return run;
+  };
+
+  // Shapes without a position, when the view opens and as they appear, wait for automatic layout,
+  // which runs once no more have come for a moment.
+  const seen = useRef<{ view: Id; keys: Set<string> } | undefined>(undefined);
+  const waiting = useRef(new Set<string>());
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const layOutSoon = useEffectEvent(() => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      // While the project cannot be changed, they wait on, for when it can again.
+      if (!latest.current.send) return;
+      const keys = waiting.current;
+      waiting.current = new Set();
+      void enqueue({ kind: 'new', keys }, true);
+    }, AUTO_DELAY);
+  });
+  useEffect(() => {
+    const last = seen.current;
+    const opened = last === undefined || last.view !== view.id;
+    if (opened) waiting.current = new Set();
+    const keys = new Set<string>();
+    for (const shape of scene.shapes) {
+      keys.add(shape.key);
+      if (shape.positioned === 'placed' && (opened || !last.keys.has(shape.key))) {
+        waiting.current.add(shape.key);
+      }
+    }
+    seen.current = { view: view.id, keys };
+    if (waiting.current.size > 0 && editable && runner) layOutSoon();
+  }, [scene, view.id, editable, runner]);
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  const target = useMemo(() => targetOf(scene, selection), [scene, selection]);
+  const nameOf = (id: Id) => modelIndexOf(project).element(id)?.name ?? id;
+  let control: LayoutControl;
+  if (running) {
+    const { done = 0, total = 0 } = running.progress ?? {};
+    const percent = total > 0 ? Math.round((100 * done) / total) : undefined;
+    const shapes = running.shapes === 1 ? '1 shape' : `${running.shapes} shapes`;
+    control = {
+      label: percent === undefined ? 'Stop layout' : `Stop layout (${percent}%)`,
+      title: `Laying out ${shapes}${percent === undefined ? '' : `: ${percent}% done`}. Press to stop it; nothing moves then.`,
+      enabled: true,
+      busy: true,
+      run: running.stop,
+    };
+  } else {
+    const enabled = runner !== undefined && editable;
+    const title = !runner
+      ? 'Layout needs web workers, which this browser does not offer.'
+      : !editable
+        ? 'Visual Anything is not connected, so nothing can be laid out.'
+        : target.kind === 'contents'
+          ? `Lay out the contents of "${nameOf(target.container)}": arrange the shapes inside it that are not pinned.`
+          : `Lay out "${view.name}": arrange every shape that is not pinned.`;
+    control = {
+      label: 'Layout',
+      title,
+      enabled,
+      busy: false,
+      run: () => {
+        // Pressed while it cannot lay out, it says why, as the stacking buttons do.
+        if (!enabled) {
+          announce(title);
+          return;
+        }
+        void enqueue(target, false);
+      },
+    };
+  }
+
+  return { scene: drawn, control };
+}
+
+/**
+ * What Layout lays out: the contents of the one element selected when its shape holds contents, and
+ * the whole view otherwise.
+ */
+function targetOf(scene: Scene, selection: Selection): LayoutScope {
+  const [only] = selection.elements;
+  if (sizeOf(selection) !== 1 || only === undefined) return { kind: 'view' };
+  const holds = scene.shapes.some((shape) => shape.element === only && shape.holdsContents);
+  return holds ? { kind: 'contents', container: only } : { kind: 'view' };
+}
+
+function labelOf(command: Command): string {
+  return command.type === 'batch' ? command.label : 'Lay out';
+}

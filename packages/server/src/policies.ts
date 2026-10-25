@@ -24,9 +24,11 @@ export const LIVE_MAX_PAYLOAD = 4 * 1024 * 1024;
 /**
  * The policy of every JavaScript response. A policy on a script's response applies only when the script
  * runs as a worker, so the layout worker, which holds a copy of the project, can make no connection.
+ * It may start workers of the page's own origin only: the layout worker runs ELK in workers of its own
+ * (ADR 0015).
  */
 export const WORKER_POLICY =
-  "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'none'";
+  "default-src 'none'; script-src 'self'; connect-src 'none'; worker-src 'self'";
 
 /** What a page's policy allows beyond the app's own files. */
 export interface PagePolicyOptions {

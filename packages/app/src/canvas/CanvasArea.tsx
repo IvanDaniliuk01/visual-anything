@@ -60,6 +60,7 @@ import { indexScene, withoutShapes, type IndexedScene } from './hit';
 import { InlineEditor } from './InlineEditor';
 import { KeyboardHelp } from './KeyboardHelp';
 import { CANVAS_KEYS_HINT } from './keys';
+import { useLayout } from './layout/useLayout';
 import { RelationMenu } from './RelationMenu';
 import type { ElementShape, Scene } from './scene';
 import { ShapeMenu } from './ShapeMenu';
@@ -171,15 +172,26 @@ export function CanvasArea({
   // The emphasis to draw, kept for the controller made after it came.
   const emphasis = useRef<Emphasis>({});
   const hint = useId();
+  // Layout: shapes without a position are laid out as they appear, and the toolbar's Layout lays out
+  // on demand; what the canvas draws is a frame of a layout moving in, or else the scene.
+  const layout = useLayout({
+    project,
+    view,
+    scene,
+    selection,
+    send: onCommand,
+    announce: (text) => setAnnouncement((last) => ({ text, count: last.count + 1 })),
+  });
   // A scene that cannot be indexed cannot be drawn either: the canvas area says so, and the rest of
   // the app keeps working.
+  const drawn = layout.scene;
   const indexing = useMemo(() => {
     try {
-      return { indexed: indexScene(scene) };
+      return { indexed: indexScene(drawn) };
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error) };
     }
-  }, [scene]);
+  }, [drawn]);
   const indexed = indexing.indexed;
   const editable = onCommand !== undefined;
   const latest = useRef({ project, view, indexed, selection, onSelect, onCommand });
@@ -632,6 +644,7 @@ export function CanvasArea({
         onRestack={restack}
         addSelect={addSelect}
         onAddLeave={() => setAddTarget(undefined)}
+        layout={layout.control}
       />
       <div
         ref={hostRef}
