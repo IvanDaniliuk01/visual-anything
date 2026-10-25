@@ -9,6 +9,7 @@ import type {
   AttributeDefinition,
   Attributes,
   Badge,
+  Color,
   ConnectionPoint,
   DetailRules,
   Id,
@@ -18,6 +19,7 @@ import type {
 } from '@visual-anything/schema';
 import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
 import { valueFitsType } from '../appearance';
+import { isColor, storedColor } from '../colors';
 import type { Definitions } from '../definitions';
 import { isId } from '../ids';
 import { reject } from './draft';
@@ -31,7 +33,6 @@ const NOT_FOR_ROWS: ReadonlySet<string> = new Set(['ellipse', 'cylinder', 'perso
 const SIDES = ['top', 'right', 'bottom', 'left'] as const;
 const DASHES = ['solid', 'dashed', 'dotted'] as const;
 const ATTRIBUTE_TYPES = ['string', 'number', 'boolean', 'json'] as const;
-const COLOR = /^#[0-9a-fA-F]{6}$/;
 
 /** Whether a value is a plain object, as JSON objects are. */
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -58,11 +59,18 @@ function invalid(message: string): never {
   reject('invalid-appearance', message);
 }
 
-function checkedColor(value: unknown, trait: string, of: string): string {
-  if (typeof value !== 'string' || !COLOR.test(value)) {
-    invalid(`The ${trait} of ${of} must be a color written as #rrggbb.`);
+/**
+ * A color a command stores, checked and written as the core writes colors: in capitals, or in the
+ * spelling of `stored`, the color already stored in that place, when it is the same color, so that
+ * picking the color shown changes nothing (ADR-0033).
+ */
+export function checkedColor(value: unknown, trait: string, of: string, stored?: unknown): Color {
+  if (!isColor(value)) {
+    invalid(
+      `The ${trait} of ${of} must be a color written as #RRGGBB, not ${JSON.stringify(value) ?? String(value)}.`,
+    );
   }
-  return value;
+  return storedColor(value, isColor(stored) ? stored : undefined);
 }
 
 function checkedSize(value: unknown, trait: string, of: string): number {
@@ -208,15 +216,19 @@ function capitalized(text: string): string {
 }
 
 /**
- * How each trait of an appearance is checked. It names every trait: adding one to `Appearance`
- * without a check here does not compile.
+ * How each trait of an appearance is checked, given the value stored for it, if any. It names every
+ * trait: adding one to `Appearance` without a check here does not compile.
  */
 const TRAIT_CHECKS: {
-  [K in keyof Appearance]-?: (value: unknown, of: string) => NonNullable<Appearance[K]>;
+  [K in keyof Appearance]-?: (
+    value: unknown,
+    of: string,
+    stored: Appearance[K] | undefined,
+  ) => NonNullable<Appearance[K]>;
 } = {
   shape: checkedShape,
-  fill: (value, of) => checkedColor(value, 'fill', of),
-  stroke: (value, of) => checkedColor(value, 'stroke', of),
+  fill: (value, of, stored) => checkedColor(value, 'fill', of, stored),
+  stroke: (value, of, stored) => checkedColor(value, 'stroke', of, stored),
   width: (value, of) => checkedSize(value, 'width', of),
   height: (value, of) => checkedSize(value, 'height', of),
   detail: checkedDetail,
@@ -234,20 +246,44 @@ function checkRowsShape(appearance: Appearance, of: string): void {
   }
 }
 
+/** Checks a trait's value against its kind, given the value stored for it. */
+function checkedTrait(trait: keyof Appearance, value: unknown, of: string, stored: unknown) {
+  const check = TRAIT_CHECKS[trait] as (value: unknown, of: string, stored: unknown) => unknown;
+  return check(value, of, stored);
+}
+
 /**
  * A whole appearance a command sets, checked trait by trait. `of` names whose it is in messages, as
- * in `the component "Queue"`.
+ * in `the component "Queue"`; `stored` is the appearance stored in that place, whose spelling of a
+ * color is kept when the same color is set again. A trait set to `null` is refused.
  */
-export function checkedAppearance(value: unknown, of: string): Appearance {
+export function checkedAppearance(value: unknown, of: string, stored?: Appearance): Appearance {
   if (!isRecord(value)) invalid(`The appearance of ${of} must be an object.`);
   const appearance: Record<string, unknown> = {};
   for (const [trait, traitValue] of Object.entries(value)) {
-    if (!Object.hasOwn(TRAIT_CHECKS, trait)) invalid(`An appearance has no trait "${trait}".`);
+    if (!Object.hasOwn(TRAIT_CHECKS, trait)) {
+      invalid(`The appearance of ${of} has no trait "${trait}".`);
+    }
     if (traitValue === undefined) continue;
-    appearance[trait] = TRAIT_CHECKS[trait as keyof Appearance](traitValue, of);
+    appearance[trait] = checkedTrait(
+      trait as keyof Appearance,
+      traitValue,
+      of,
+      stored?.[trait as keyof Appearance],
+    );
   }
   checkRowsShape(appearance, of);
   return appearance;
+}
+
+/** A whole appearance a command sets, checked; `undefined` when it sets no trait, as `{}` does. */
+export function checkedAppearanceOrNone(
+  value: unknown,
+  of: string,
+  stored?: Appearance,
+): Appearance | undefined {
+  const appearance = checkedAppearance(value, of, stored);
+  return Object.keys(appearance).length === 0 ? undefined : appearance;
 }
 
 /**
@@ -263,7 +299,9 @@ export function changedAppearance(
   if (!isRecord(changes)) invalid(`The changes to the appearance of ${of} must be an object.`);
   const next: Record<string, unknown> = { ...own };
   for (const [trait, value] of Object.entries(changes)) {
-    if (!Object.hasOwn(TRAIT_CHECKS, trait)) invalid(`An appearance has no trait "${trait}".`);
+    if (!Object.hasOwn(TRAIT_CHECKS, trait)) {
+      invalid(`The appearance of ${of} has no trait "${trait}".`);
+    }
     if (value === undefined) continue;
     if (value === null) {
       delete next[trait];
@@ -272,7 +310,12 @@ export function changedAppearance(
       if (detail === undefined) delete next.detail;
       else next.detail = detail;
     } else {
-      next[trait] = TRAIT_CHECKS[trait as keyof Appearance](value, of);
+      next[trait] = checkedTrait(
+        trait as keyof Appearance,
+        value,
+        of,
+        own?.[trait as keyof Appearance],
+      );
     }
   }
   if (Object.hasOwn(changes, 'shape') || Object.hasOwn(changes, 'contentsAsRows')) {
@@ -307,9 +350,10 @@ const RELATION_TRAIT_CHECKS: {
   [K in keyof RelationAppearance]-?: (
     value: unknown,
     of: string,
+    stored: RelationAppearance[K] | undefined,
   ) => NonNullable<RelationAppearance[K]>;
 } = {
-  stroke: (value, of) => checkedColor(value, 'stroke', of),
+  stroke: (value, of, stored) => checkedColor(value, 'stroke', of, stored),
   width: (value, of) => {
     if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
       invalid(`The line width of ${of} must be a number above 0.`);
@@ -324,9 +368,47 @@ const RELATION_TRAIT_CHECKS: {
   },
 };
 
-/** How a relation type's relations are drawn, as a command sets it whole, checked trait by trait. */
-export function checkedRelationAppearance(value: unknown, of: string): RelationAppearance {
-  return changedRelationAppearance(undefined, value, of) ?? {};
+/** Checks a relation appearance trait's value against its kind, given the value stored for it. */
+function checkedRelationTrait(
+  trait: keyof RelationAppearance,
+  value: unknown,
+  of: string,
+  stored: unknown,
+) {
+  const check = RELATION_TRAIT_CHECKS[trait] as (
+    value: unknown,
+    of: string,
+    stored: unknown,
+  ) => unknown;
+  return check(value, of, stored);
+}
+
+/**
+ * How a relation, or a relation type's relations, are drawn, as a command sets it whole, checked
+ * trait by trait; `stored` is the appearance stored in that place, whose spelling of a color is kept
+ * when the same color is set again. A trait set to `null` is refused; `undefined` when it sets no
+ * trait, as `{}` does.
+ */
+export function checkedRelationAppearance(
+  value: unknown,
+  of: string,
+  stored?: RelationAppearance,
+): RelationAppearance | undefined {
+  if (!isRecord(value)) invalid(`The appearance of ${of} must be an object.`);
+  const appearance: Record<string, unknown> = {};
+  for (const [trait, traitValue] of Object.entries(value)) {
+    if (!Object.hasOwn(RELATION_TRAIT_CHECKS, trait)) {
+      invalid(`How ${of} is drawn has no trait "${trait}".`);
+    }
+    if (traitValue === undefined) continue;
+    appearance[trait] = checkedRelationTrait(
+      trait as keyof RelationAppearance,
+      traitValue,
+      of,
+      stored?.[trait as keyof RelationAppearance],
+    );
+  }
+  return Object.keys(appearance).length === 0 ? undefined : appearance;
 }
 
 /** How a relation type's relations are drawn after changes, trait by trait; `undefined` when empty. */
@@ -339,11 +421,18 @@ export function changedRelationAppearance(
   const next: Record<string, unknown> = { ...own };
   for (const [trait, value] of Object.entries(changes)) {
     if (!Object.hasOwn(RELATION_TRAIT_CHECKS, trait)) {
-      invalid(`How a relation is drawn has no trait "${trait}".`);
+      invalid(`How ${of} is drawn has no trait "${trait}".`);
     }
     if (value === undefined) continue;
     if (value === null) delete next[trait];
-    else next[trait] = RELATION_TRAIT_CHECKS[trait as keyof RelationAppearance](value, of);
+    else {
+      next[trait] = checkedRelationTrait(
+        trait as keyof RelationAppearance,
+        value,
+        of,
+        own?.[trait as keyof RelationAppearance],
+      );
+    }
   }
   return Object.keys(next).length === 0 ? undefined : next;
 }

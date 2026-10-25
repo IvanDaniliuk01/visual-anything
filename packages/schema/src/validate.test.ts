@@ -13,7 +13,7 @@ function problemsIn(kind: FileKind, data: unknown): ValidationError[] {
 
 const ID_MESSAGE =
   'must be an id: 1 to 128 letters, digits, ".", "_" or "-", starting with a letter or digit';
-const COLOR_MESSAGE = 'must be a color written as #rrggbb';
+const COLOR_MESSAGE = 'must be a color written as #RRGGBB';
 
 describe('parseFile', () => {
   it('reports text that is not JSON as one error on the whole file', () => {
@@ -120,6 +120,96 @@ describe('validateFile', () => {
       expect(validateFile('project', project)).toEqual({ ok: true, value: project });
     });
 
+    it('accepts the project appearances it gives to definitions it cannot change', () => {
+      const withAppearances = {
+        ...project,
+        appearances: {
+          components: {
+            'systems.service': { fill: '#FFE8D6', stroke: '#b4531a' },
+            essence: { shape: 'rounded-rectangle', width: 176 },
+          },
+          relationTypes: {
+            'systems.writes-to': { stroke: '#B42318', width: 3 },
+            'relates-to': { dash: 'dotted' },
+          },
+        },
+      };
+      expect(validateFile('project', withAppearances)).toEqual({
+        ok: true,
+        value: withAppearances,
+      });
+      const componentsOnly = { ...project, appearances: { components: { essence: {} } } };
+      expect(validateFile('project', componentsOnly)).toEqual({
+        ok: true,
+        value: componentsOnly,
+      });
+    });
+
+    it('reports each key of a project appearance that is not an id on its own', () => {
+      expect(
+        problemsIn('project', {
+          ...project,
+          appearances: {
+            components: { 'a service': { fill: '#FFFFFF' }, 'a/b': {}, essence: {} },
+          },
+        }),
+      ).toEqual([
+        {
+          path: '/appearances/components',
+          message: 'must have ids as its keys, and "a service" is not one',
+        },
+        {
+          path: '/appearances/components',
+          message: 'must have ids as its keys, and "a/b" is not one',
+        },
+      ]);
+    });
+
+    it.each([
+      [
+        'a project appearance with a trait no appearance has',
+        { ...project, appearances: { components: { 'systems.service': { opacity: 0.5 } } } },
+        [
+          {
+            path: '/appearances/components/systems.service',
+            message: 'must not have the key "opacity"',
+          },
+        ],
+      ],
+      [
+        'a project appearance with a color that has an alpha',
+        { ...project, appearances: { components: { 'systems.service': { fill: '#FFE8D6CC' } } } },
+        [{ path: '/appearances/components/systems.service/fill', message: COLOR_MESSAGE }],
+      ],
+      [
+        'a relation type appearance with a trait of a component',
+        { ...project, appearances: { relationTypes: { 'relates-to': { fill: '#FFFFFF' } } } },
+        [
+          {
+            path: '/appearances/relationTypes/relates-to',
+            message: 'must not have the key "fill"',
+          },
+        ],
+      ],
+      [
+        'project appearances for something other than definitions',
+        { ...project, appearances: { elements: {} } },
+        [{ path: '/appearances', message: 'must not have the key "elements"' }],
+      ],
+      [
+        'empty project appearances',
+        { ...project, appearances: {} },
+        [{ path: '/appearances', message: 'must not be empty' }],
+      ],
+      [
+        'an empty map of project appearances',
+        { ...project, appearances: { relationTypes: {} } },
+        [{ path: '/appearances/relationTypes', message: 'must not be empty' }],
+      ],
+    ])('rejects %s', (_, data, errors) => {
+      expect(problemsIn('project', data)).toEqual(errors);
+    });
+
     it.each([
       [
         'a missing required property',
@@ -203,6 +293,14 @@ describe('validateFile', () => {
       expect(validateFile('model', model)).toEqual({ ok: true, value: model });
     });
 
+    it('accepts a relation with an appearance of its own', () => {
+      const marked = {
+        ...model,
+        relations: [{ ...reads, appearance: { stroke: '#D6336C', width: 3, dash: 'dashed' } }],
+      };
+      expect(validateFile('model', marked)).toEqual({ ok: true, value: marked });
+    });
+
     it.each([
       [
         'a missing required property',
@@ -238,6 +336,16 @@ describe('validateFile', () => {
         'a World without a component',
         { ...model, world: { id: 'world', name: 'My systems' } },
         [{ path: '/world', message: 'must have the key "component"' }],
+      ],
+      [
+        'a relation appearance with a color that is not #RRGGBB',
+        { ...model, relations: [{ ...reads, appearance: { stroke: 'red' } }] },
+        [{ path: '/relations/0/appearance/stroke', message: COLOR_MESSAGE }],
+      ],
+      [
+        'a relation appearance with a trait of an element',
+        { ...model, relations: [{ ...reads, appearance: { fill: '#FFFFFF' } }] },
+        [{ path: '/relations/0/appearance', message: 'must not have the key "fill"' }],
       ],
     ])('rejects %s', (_, data, errors) => {
       expect(problemsIn('model', data)).toEqual(errors);
@@ -517,6 +625,18 @@ describe('validateFile', () => {
       expect(validateFile('view', view)).toEqual({ ok: true, value: view });
     });
 
+    it('accepts notes and arrows with colors of their own', () => {
+      const colored = {
+        ...view,
+        freeShapes: [
+          { ...note, fill: '#DCEBFF', stroke: '#1d4f91' },
+          { ...note, id: 'stroked', stroke: '#1D4F91' },
+          { ...arrow, stroke: '#B42318' },
+        ],
+      };
+      expect(validateFile('view', colored)).toEqual({ ok: true, value: colored });
+    });
+
     it('accepts the containers it keeps collapsed', () => {
       const collapsed = { ...view, collapsed: ['clinic-booking', 'scheduling'] };
       expect(validateFile('view', collapsed)).toEqual({ ok: true, value: collapsed });
@@ -567,6 +687,16 @@ describe('validateFile', () => {
         'a note that is not positive in size',
         { ...view, freeShapes: [{ ...note, height: -10 }] },
         [{ path: '/freeShapes/0/height', message: 'must be greater than 0' }],
+      ],
+      [
+        'a note whose fill is not #RRGGBB',
+        { ...view, freeShapes: [{ ...note, fill: '#FFF' }] },
+        [{ path: '/freeShapes/0/fill', message: COLOR_MESSAGE }],
+      ],
+      [
+        'an arrow with a fill',
+        { ...view, freeShapes: [{ ...arrow, fill: '#FFFFFF' }] },
+        [{ path: '/freeShapes/0', message: 'must not have the key "fill"' }],
       ],
       [
         'an empty stacking order',

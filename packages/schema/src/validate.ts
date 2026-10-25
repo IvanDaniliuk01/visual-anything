@@ -176,7 +176,7 @@ const PATTERN_MESSAGES = new Map([
     projectSchema.definitions.Id.pattern,
     'must be an id: 1 to 128 letters, digits, ".", "_" or "-", starting with a letter or digit',
   ],
-  [modelSchema.definitions.Color.pattern, 'must be a color written as #rrggbb'],
+  [modelSchema.definitions.Color.pattern, 'must be a color written as #RRGGBB'],
 ]);
 
 const TYPE_NAMES: Record<string, string> = {

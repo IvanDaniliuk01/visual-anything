@@ -19,8 +19,10 @@ import {
   requireList,
   requireName,
   requireNumber,
+  sameJson,
   type Draft,
 } from './draft';
+import { checkedColor } from './traits';
 import type {
   CreateFreeShapeCommand,
   CreateViewCommand,
@@ -192,7 +194,7 @@ export function createFreeShape(draft: Draft, command: CreateFreeShapeCommand): 
   const id = draft.idFor(command.shape.id, command.shape.kind ?? 'shape', (each) =>
     taken.has(each),
   );
-  const shape = checkedFreeShape({ ...command.shape, id });
+  const shape = checkedFreeShape({ ...command.shape, id }, view.name);
   draft.apply({
     op: 'insert',
     collection: { name: 'freeShapes', view: view.id },
@@ -205,14 +207,31 @@ export function createFreeShape(draft: Draft, command: CreateFreeShapeCommand): 
 
 export function updateFreeShape(draft: Draft, command: UpdateFreeShapeCommand): string {
   const view = draft.view(command.view);
-  const shape = checkedFreeShape(command.shape);
-  if (!view.freeShapes.some((each) => each.id === shape.id)) {
+  const current = view.freeShapes.find((each) => each.id === command.shape?.id);
+  const shape = checkedFreeShape(command.shape, view.name, current);
+  if (current === undefined) {
     reject('unknown-free-shape', `The view "${view.name}" has no free shape "${shape.id}".`, [
       shape.id,
     ]);
   }
   draft.apply({ op: 'replace', collection: { name: 'freeShapes', view: view.id }, item: shape });
+  const colorsOnly =
+    current.kind === shape.kind &&
+    !sameJson(current, shape) &&
+    sameJson(withoutColors(current), withoutColors(shape));
+  if (colorsOnly) {
+    return shape.kind === 'note'
+      ? `Change the colors of a note in "${view.name}"`
+      : `Change the color of an arrow in "${view.name}"`;
+  }
   return `Edit ${shape.kind === 'note' ? 'a note' : 'an arrow'} in "${view.name}"`;
+}
+
+/** A free shape without its colors, to tell a change of color from any other change. */
+function withoutColors(shape: FreeShape): object {
+  return Object.fromEntries(
+    Object.entries(shape).filter(([key]) => key !== 'fill' && key !== 'stroke'),
+  );
 }
 
 export function deleteFreeShapes(draft: Draft, command: DeleteFreeShapesCommand): string {
@@ -286,10 +305,22 @@ function perspectiveOf(perspective: { name: string; description?: string } | und
   });
 }
 
-function checkedFreeShape(shape: FreeShape | NewFreeShape): FreeShape {
+/**
+ * A free shape a command sets, checked, with the colors of its own: a note's fill and stroke and an
+ * arrow's stroke, kept in the spelling `stored`, the shape as it is, gives the same color (ADR-0035).
+ */
+function checkedFreeShape(
+  shape: FreeShape | NewFreeShape,
+  viewName: string,
+  stored?: FreeShape,
+): FreeShape {
+  const color = (value: unknown, trait: string, of: string, kept: unknown) =>
+    value === undefined ? undefined : checkedColor(value, trait, of, kept);
   if (shape.kind === 'note') {
     if (typeof shape.text !== 'string') reject('invalid-command', 'A note needs text.');
-    return {
+    const of = `a note in "${viewName}"`;
+    const before = stored?.kind === 'note' ? stored : undefined;
+    return compact({
       kind: 'note',
       id: (shape as FreeShape).id,
       x: requireNumber(shape.x, 'x'),
@@ -297,15 +328,23 @@ function checkedFreeShape(shape: FreeShape | NewFreeShape): FreeShape {
       width: requireNumber(shape.width, 'A width', true),
       height: requireNumber(shape.height, 'A height', true),
       text: shape.text,
-    };
+      fill: color(shape.fill, 'fill', of, before?.fill),
+      stroke: color(shape.stroke, 'stroke', of, before?.stroke),
+    });
   }
   if (shape.kind === 'arrow') {
-    return {
+    const of = `an arrow in "${viewName}"`;
+    if ((shape as { fill?: unknown }).fill !== undefined) {
+      reject('invalid-appearance', `An arrow has no fill; give ${of} a stroke instead.`);
+    }
+    const before = stored?.kind === 'arrow' ? stored : undefined;
+    return compact({
       kind: 'arrow',
       id: (shape as FreeShape).id,
       from: { x: requireNumber(shape.from?.x, 'x'), y: requireNumber(shape.from?.y, 'y') },
       to: { x: requireNumber(shape.to?.x, 'x'), y: requireNumber(shape.to?.y, 'y') },
-    };
+      stroke: color(shape.stroke, 'stroke', of, before?.stroke),
+    });
   }
   reject('invalid-command', 'A free shape is a note or an arrow.');
 }

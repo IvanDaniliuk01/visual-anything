@@ -127,7 +127,7 @@ A project is a folder of JSON files with Visual Anything's own extensions, valid
 
 ```text
 my-systems/
-  project.vaproject          name, schema version, packages in use
+  project.vaproject          name, schema version, packages in use, project appearances
   model.vamodel              World, elements, relations, attributes, particularities
   packages/
     systems.vapackage        components and relation types

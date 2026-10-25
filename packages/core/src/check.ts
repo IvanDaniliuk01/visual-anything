@@ -6,7 +6,7 @@
 import type { Appearance, AttributeDefinition, Attributes, Id } from '@visual-anything/schema';
 import { ESSENCE_ID, RELATES_TO_ID, SCHEMA_VERSION } from '@visual-anything/schema';
 import { RESERVED_PACKAGE_IDS, builtinPackage } from './builtin';
-import { appearanceOf, type Definitions } from './definitions';
+import { appearanceOf, isBuiltInDefinition, type Definitions } from './definitions';
 import { checkImages } from './images/check';
 import { positionKey } from './operations';
 import { problem, type Problem } from './problems';
@@ -366,6 +366,46 @@ function appearanceWarnings(state: ProjectSnapshot, definitions: Definitions): P
       );
     }
   };
+
+  // Project appearances: those of definitions the project cannot change are checked as appearances;
+  // any other has no effect.
+  const unused = (kind: 'component' | 'relation-type', id: Id) => {
+    const defined =
+      kind === 'component' ? definitions.components.get(id) : definitions.relationTypes.get(id);
+    warnings.push(
+      problem(
+        'appearance-not-used',
+        defined === undefined
+          ? `The project gives "${id}" an appearance, but no package in use defines it; it is ignored.`
+          : `The project gives "${defined.definition.name}" an appearance, but it belongs to the project’s package "${defined.package}"; set it there. This entry is ignored.`,
+        [id],
+      ),
+    );
+  };
+  for (const [id, appearance] of Object.entries(state.project.appearances?.components ?? {})) {
+    const resolved = definitions.component(id);
+    if (resolved === undefined || !isBuiltInDefinition(definitions, 'component', id)) {
+      unused('component', id);
+      continue;
+    }
+    check(
+      appearance,
+      {
+        attributes: resolved.attributes,
+        shape: resolved.appearance.shape,
+        rows: resolved.appearance.contentsAsRows,
+      },
+      undefined,
+      `the project appearance of "${resolved.name}"`,
+      id,
+    );
+  }
+  for (const id of Object.keys(state.project.appearances?.relationTypes ?? {})) {
+    const resolved = definitions.relationType(id);
+    if (resolved === undefined || !isBuiltInDefinition(definitions, 'relation-type', id)) {
+      unused('relation-type', id);
+    }
+  }
 
   for (const [id, { definition }] of definitions.components) {
     const resolved = definitions.component(id);

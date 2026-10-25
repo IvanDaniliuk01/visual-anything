@@ -23,7 +23,7 @@ A thing in the model with its own identity: a table, a neuron, a service, a tran
 _Avoid_: node, object, entity, instance
 
 **Particularity**:
-A trait of a single element: an attribute value that differs from the default its component gives, an attribute its component does not define, or an appearance of its own. A value for an attribute whose component gives no default is the element's ordinary data, not a particularity.
+A trait of a single element or relation: an attribute value that differs from the default its component or relation type gives, an attribute its component or relation type does not define, or an appearance of its own. A value for an attribute whose component or relation type gives no default is the element's or relation's ordinary data, not a particularity.
 _Avoid_: override, exception
 
 **Relation**:
@@ -113,8 +113,12 @@ The reusable definition of a kind of element: how it looks, which attributes it 
 _Avoid_: plugin, widget, template, class
 
 **Appearance**:
-How the shapes of a component's elements, or of one element, look: their shape (rectangle, rounded rectangle, ellipse, cylinder or person), colours and size, the image and detail they show, where relations attach and whether they draw their contents as rows. Whatever an appearance leaves out is inherited.
-_Avoid_: skin
+How the shapes of a component's elements, or of one element, look: their shape (rectangle, rounded rectangle, ellipse, cylinder or person), fill, stroke and size, the image and detail they show, where relations attach and whether they draw their contents as rows; for a relation type's relations, or one relation, their stroke, width and dash. Whatever an appearance leaves out is inherited. An element or a relation can have an appearance of its own, which is a particularity, and a project can give one to a definition it cannot change, which is a project appearance. Colors are written #RRGGBB.
+_Avoid_: look and style (for this data), skin
+
+**Project appearance**:
+The appearance a project gives to a component or relation type it uses but cannot change, such as Service from the built-in Systems package, Essence or "relates to". It is kept in the project file and reaches whatever derives from that definition without setting the same trait; an element's or relation's own appearance still comes first.
+_Avoid_: override, theme
 
 **Connection point**:
 A named place on the border of a component's shapes, set by its appearance, where relations attach: a relation attaches to the connection point that faces its other end, or anywhere on the border when the shape has none. A row has one on each side.
