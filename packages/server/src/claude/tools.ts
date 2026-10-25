@@ -26,6 +26,7 @@ import { EXPLORE_TOOLS } from './explore-tools';
 import { IMAGE_TOOLS } from './image-tools';
 import { RECIPES_IN_BRIEF } from './recipes';
 import { SCENARIO_TOOLS } from './scenario-tools';
+import { SCOPE_TOOLS } from './scope-tools';
 import { VIEW_STATE_TOOLS, openApp } from './view-tools';
 import {
   MAX_RESULTS,
@@ -213,7 +214,7 @@ Example: { "id": "booking-agent" }`,
 const readViewTool = tool({
   name: 'read_view',
   title: 'Read a view',
-  description: `Reads a view: its perspective, the nesting relation types that arrange it, the positions it stores (each relative to the container shape it sits in; pinned ones were set by hand), its free shapes (notes and arrows), the containers it shows collapsed, the routes chosen by hand for its relations (every other relation is routed automatically), and, for World and every container, the order it draws the shapes directly inside, back to front. An element without a position is placed by layout.
+  description: `Reads a view: its perspective, the nesting relation types that arrange it, the positions it stores (each relative to the container shape it sits in; pinned ones were set by hand), its free shapes (notes and arrows), the containers it shows collapsed, the routes chosen by hand for its relations (every other relation is routed automatically), and, for World and every container, the order it draws the shapes directly inside, back to front. An element without a position is placed by layout. It also says how many elements and relations the view shows out of the model's (shows), and its scope when it has one: get_scope says more.
 
 Example: { "view": "system-overview" }`,
   input: { view: id() },
@@ -670,7 +671,7 @@ const createView = tool({
   title: 'Create a view',
   description: `Creates a view, as one undoable action. A view shows the model from exactly one perspective, such as "Data flow", "Ownership" or "Security", and is arranged by the nesting relation types it lists; without them, every relation type that nests arranges it. A new view has no positions: layout places every shape until you set some.
 
-Every view shows the whole model, so what an import adds shows in the views already there. After an import, create a view when the material brings a perspective none of them has, such as a draw.io page, a Structurizr deployment or a SQL schema's tables, arranged by the nesting relation types that material uses.
+A new view shows the whole model, so what an import adds shows in the views without a scope; set_scope gives a view a scope, the part of the model it shows. After an import, create a view when the material brings a perspective none of them has, such as a draw.io page, a Structurizr deployment or a SQL schema's tables, arranged by the nesting relation types that material uses.
 
 Example: { "name": "Who owns what", "perspective": { "name": "Ownership", "description": "Which team runs each service." }, "nestingRelationTypes": ["systems.is-part-of"] }`,
   input: {
@@ -1095,6 +1096,8 @@ export const TOOLS: readonly Tool[] = [
   ...IMAGE_TOOLS,
   ...EXPLORE_TOOLS,
   ...VIEW_STATE_TOOLS,
+  // What a view shows of the model (ADR-0040).
+  ...SCOPE_TOOLS,
 ];
 
 /** Runs a tool, turning a program that cannot be reached into an outcome Claude reads. */
