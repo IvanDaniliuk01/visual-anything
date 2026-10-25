@@ -260,6 +260,14 @@ To compute a behavior from parameters the user changes: learning rate and loss c
 **Edit**:
 To change the model or the canvas: create, move, put inside or take out of a container, connect, change the stacking order, delete.
 
+**Action**:
+One edit as the history keeps it: what a command, a batch or a pasted list did, with its label, its author (the person or Claude) and when it was done. Undo and redo take back or bring back one action at a time.
+_Avoid_: transaction, change set
+
+**History**:
+The actions of the open project since it was opened or last reloaded from disk, the ones undone among them, which the local program keeps in its memory (ADR 0028). The history panel lists them, newest first, and undoes or redoes up to any one of them.
+_Avoid_: log, timeline, version history
+
 ### Preferences
 
 **Preference**:
