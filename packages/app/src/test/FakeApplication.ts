@@ -19,6 +19,20 @@ export class FakeApplication {
     resize: (width: number, height: number): void => {
       this.renderer.screen = { width, height };
     },
+    /** What PixiJS gives once `init` is done, from the `background` it was given. */
+    background: undefined as { color: unknown } | undefined,
+    /** Counts the drawings whose geometry was built ahead of their first render. */
+    graphicsContext: {
+      built: 0,
+      buffered: 0,
+      updateGpuContext: (): { isBatchable: boolean } => {
+        this.renderer.graphicsContext.built += 1;
+        return { isBatchable: false };
+      },
+      getContextRenderData: (): void => {
+        this.renderer.graphicsContext.buffered += 1;
+      },
+    },
   };
   renders = 0;
   destroyed = false;
@@ -49,6 +63,7 @@ export class FakeApplication {
 
   /** Lets a pending `init` succeed. */
   finishInit(): void {
+    this.renderer.background = { color: this.initOptions?.background };
     this.settle?.resolve();
   }
 

@@ -13,7 +13,8 @@
  * what it hides leaves the tiles, what it dims goes in tiles drawn faintly, and what it highlights and
  * the markers it moves along relations are drawn above the scene, apart from the tiles.
  */
-import { Application, Container, Graphics, Text } from 'pixi.js';
+import { Application, Container, Graphics, Text, type GraphicsContext } from 'pixi.js';
+import type { ThemeName } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import type { Emphasis } from '../editor/emphasis';
 import type { Selection } from '../editor/selection';
@@ -26,19 +27,7 @@ import {
   type Emphasized,
   type Hidden,
 } from './emphasize';
-import {
-  drawFreeShapes,
-  drawPieceLines,
-  drawRelationLines,
-  drawRelationRoutes,
-  drawRoutePieces,
-  drawShapeBlocks,
-  drawShapeOutlines,
-  writeNoteTexts,
-  writeRelationLabels,
-  writeShapeLabels,
-  type TextFactory,
-} from './draw';
+import type { TextFactory } from './draw';
 import {
   arrowheadAt,
   boundsOf,
@@ -51,7 +40,8 @@ import {
 } from './geometry';
 import type { IndexedScene, Skipped } from './hit';
 import { bitmapText, installFonts } from './labels';
-import { CANVAS_BACKGROUND, DIMMED_ALPHA, HIGHLIGHT, MARKER_RING } from './palette';
+import { THEMES, type CanvasTheme } from '../theme/themes';
+import { DIMMED_ALPHA } from './colors';
 import { midpointOf, pointAlong, routeBetweenEnds, type RouteEnd } from './route';
 import {
   relationLinesOf,
@@ -78,6 +68,25 @@ import {
   type RelationTile,
   type RoutePiece,
 } from './tiles';
+import { ARROW_PAINT, LINE_PAINT, NOTE_PAINT, SHAPE_PAINT, sameListButPaint } from './theme/paint';
+import {
+  buildGeometry,
+  painterOf,
+  type GeometryBuilder,
+  type LabelPaint,
+  type Painter,
+} from './theme/painter';
+import {
+  RESTYLE_BUDGET,
+  SWAP_WITHIN,
+  drawingsFollowTheme,
+  labelsFollowTheme,
+  shownDrawings,
+  stampOf,
+  takeRepaints,
+  type Drawing,
+  type RestyleStats,
+} from './theme/restyle';
 
 /** Names show from this scale on, and component names and relation labels from the next. */
 export const NAMES_FROM = 0.45;
@@ -140,9 +149,11 @@ const SETTLE_AFTER = 180;
 /** Where a frame measured with the GPU reads its one pixel back. */
 const ONE_PIXEL = new Uint8Array(4);
 
-const SELECTED = '#2563EB';
-const HOVERED = '#60A5FA';
-const REFUSED = '#DC2626';
+/**
+ * The selection's marks are drawn in white and tinted to the theme's selection color, so that a theme
+ * switch only tints them, however many they are.
+ */
+const MARK = '#FFFFFF';
 
 /** The marks a gesture draws above the scene, in scene coordinates. */
 export interface Overlay {
@@ -205,6 +216,23 @@ interface Tile {
   level: 0 | 1 | 2;
   /** How many of its shapes or relations have their labels at `level`; the rest come later. */
   labelled: number;
+  /** For free shapes: the arrows it draws. */
+  arrows: readonly ArrowShape[];
+  /** For relations drawn in full: the casings under their lines, in white, tinted to the canvas. */
+  casing?: Graphics;
+  /**
+   * How many times the colors of what it draws changed, and what its drawings and labels were made
+   * for, as `theme/restyle.ts` stamps them; and drawings made for another stamp, until they show.
+   */
+  paints: number;
+  coarseStamp: string;
+  fullStamp: string;
+  labelStamp: string;
+  prepared?: { stamp: string; coarse?: GraphicsContext; full?: GraphicsContext };
+  /** Each label written, with what its tint follows. */
+  labelPaint: LabelPaint[];
+  /** Whether it had a full drawing when the colors of what it draws last changed. */
+  hadFull?: boolean;
 }
 
 /** How far a shape was drawn before an edit: in full, and named for which detail, or not yet. */
@@ -231,11 +259,15 @@ export interface RendererCallbacks {
   onFailure(error: unknown): void;
   /** The camera moved or zoomed. */
   onCamera?(camera: Camera): void;
+  /** The canvas shows a theme it did not show before: called in the frame that first shows it. */
+  onThemeShown?(theme: ThemeName): void;
 }
 
 export interface RendererOptions {
   /** Makes the labels; bitmap text by default. */
   text?: TextFactory;
+  /** The theme to draw in from the start; the light theme by default. */
+  theme?: CanvasTheme;
 }
 
 type Status = 'starting' | 'ready' | 'failed' | 'destroyed';
@@ -285,6 +317,18 @@ export class CanvasRenderer {
   /** The tiles each relation draws something in: the pieces of its route, its arrowhead, its name. */
   private readonly tilesOfLine = new Map<string, Set<Tile>>();
   private readonly text: TextFactory;
+  /** Draws in the theme the canvas shows; a switch draws in the next one until it shows (ADR-0033). */
+  private painter: Painter;
+  /** A switch or a recolor being drawn, all shown in one frame once the screen is ready for it. */
+  private pending: { theme: CanvasTheme; opened: number } | undefined;
+  /** Whether a drawing or a label may be stale, for a theme or colors no longer current. */
+  private restyling = false;
+  /** Frames drawn while restyling, which time a switch or a recolor. */
+  private restyleFrames = 0;
+  /** Drawings replaced by restyles, destroyed once the frame that replaced them is rendered. */
+  private retired: GraphicsContext[] = [];
+  /** What restyles did, for the benchmark. */
+  readonly stats: RestyleStats = { fallbacks: 0, staleShown: 0, swapAfter: [] };
   private status: Status = 'starting';
   private indexed: IndexedScene | undefined;
   private selection: Selection = EMPTY_SELECTION;
@@ -334,6 +378,8 @@ export class CanvasRenderer {
     options: RendererOptions = {},
   ) {
     this.text = options.text ?? bitmapText;
+    this.painter = painterOf(options.theme ?? THEMES.light.canvas);
+    this.tintMarks();
     this.elementShapes.addChild(this.overflowBand);
     this.rerouted.addChild(this.reroutedLines);
     this.selectionMarks.addChild(this.lineMarks);
@@ -618,7 +664,7 @@ export class CanvasRenderer {
     try {
       await this.app.init({
         preference: 'webgl',
-        background: CANVAS_BACKGROUND,
+        background: this.painter.theme.background,
         // Off: on the reference laptop it costs about 2.5 times the GPU's time far out, which keeps
         // 10,000 elements from the frame budget; at density 2 its jagged edges hardly show (ADR 0014).
         antialias: false,
@@ -646,6 +692,9 @@ export class CanvasRenderer {
     this.observer = new ResizeObserver(() => this.resize());
     this.observer.observe(this.host);
     this.resize();
+    // The theme may have changed while the canvas started: it shows from the first frame.
+    this.app.renderer.background.color = this.painter.theme.background;
+    this.callbacks.onThemeShown?.(this.painter.name);
     if (this.indexed) this.show(this.indexed);
     // The label fonts take a moment to draw, and PixiJS prepares how to draw each kind of drawing
     // the first time it draws one: done now, both are ready before the first zoom.
@@ -664,19 +713,20 @@ export class CanvasRenderer {
   private warmUp(): void {
     const { shapes, lines, notes } = SAMPLE_DRAWINGS;
     const sample = new Container();
+    const { painter } = this;
     const outlines = new Graphics();
-    drawShapeOutlines(outlines, shapes);
-    drawRelationRoutes(outlines, lines);
-    drawFreeShapes(outlines, notes, []);
+    painter.shapeOutlines(outlines, shapes);
+    painter.relationRoutes(outlines, lines);
+    painter.freeShapes(outlines, notes, []);
     const blocks = batched(new Graphics());
-    drawShapeBlocks(blocks, shapes);
-    drawRelationLines(blocks, lines);
+    painter.shapeBlocks(blocks, shapes);
+    painter.relationLines(blocks, lines);
     sample.addChild(
       blocks,
       outlines,
-      ...writeShapeLabels(shapes, true, this.text),
-      ...writeRelationLabels(lines, this.text),
-      ...writeNoteTexts(notes),
+      ...painter.shapeLabels(shapes, true, this.text),
+      ...painter.relationLabels(lines, this.text),
+      ...painter.noteTexts(notes),
     );
     sample.position.set(-100_000, -100_000);
     this.app.stage.addChild(sample);
@@ -772,6 +822,10 @@ export class CanvasRenderer {
     budget: { left: number },
   ): Tile[] {
     const plan = planTiles(previous, planned);
+    // Tiles made again only for new colors are kept, and restyled in place.
+    const repaints = takeRepaints(plan, (key, next) =>
+      sameListButPaint((previous.get(key) as Tile).shapes, next.shapes, SHAPE_PAINT),
+    );
     const { coarse, wanted } = this.detailNow();
     // How far each shape was drawn before this edit, for the tiles it makes.
     const ready = plan.make.length > 0 && !coarse ? this.readiness(previous, extra) : undefined;
@@ -786,6 +840,14 @@ export class CanvasRenderer {
       if (tile.band === MAX_BANDS && tile.rank !== next.rank) reorder = true;
       tile.rank = next.rank;
       dimTile(tile, next.dim);
+      touched.push(tile);
+    }
+    for (const next of repaints) {
+      const tile = previous.get(next.key) as Tile;
+      if (tile.band === MAX_BANDS && tile.rank !== next.rank) reorder = true;
+      Object.assign(tile, { shapes: next.shapes, signature: next.signature, rank: next.rank });
+      dimTile(tile, next.dim);
+      this.repaint(tile);
       touched.push(tile);
     }
     // A key can pass from one tile to another, so the tiles that move leave their keys first.
@@ -883,6 +945,10 @@ export class CanvasRenderer {
     }
     const byKey = new Map(planned.map((tile) => [tile.key, tile]));
     const plan = planTiles(previous, planned);
+    // Tiles made again only for new colors are kept, and restyled in place.
+    const repaints = takeRepaints(plan, (key, next) =>
+      sameListButPaint((previous.get(key) as Tile).touching, next.touching, LINE_PAINT),
+    );
     const { coarse, wanted: detail } = this.detailNow();
     for (const tile of previous.values()) {
       for (const line of tile.touching) this.tilesOfLine.get(line.relation)?.delete(tile);
@@ -900,6 +966,14 @@ export class CanvasRenderer {
       const next = byKey.get(key) as RelationTile;
       contentOf(tile, next);
       dimTile(tile, next.dim);
+      touched.push(tile);
+    }
+    for (const next of repaints) {
+      const tile = previous.get(next.key) as Tile;
+      contentOf(tile, next);
+      tile.signature = next.signature;
+      dimTile(tile, next.dim);
+      this.repaint(tile);
       touched.push(tile);
     }
     const moving = plan.move.map(({ from: was, to }) => {
@@ -968,6 +1042,16 @@ export class CanvasRenderer {
       const existing = this.tiles.get(key);
       const signature = JSON.stringify([shownNotes, shownArrows]);
       if (existing?.signature === signature) continue;
+      // Free shapes that changed only their colors are restyled in place.
+      if (
+        existing &&
+        sameListButPaint(existing.notes, shownNotes, NOTE_PAINT) &&
+        sameListButPaint(existing.arrows, shownArrows, ARROW_PAINT)
+      ) {
+        Object.assign(existing, { notes: shownNotes, arrows: shownArrows, signature });
+        this.repaint(existing);
+        continue;
+      }
       if (existing) {
         this.tiles.delete(key);
         destroyTile(existing);
@@ -1059,7 +1143,7 @@ export class CanvasRenderer {
     // Shapes start with their plain drawing, which is cheap to make; the full one is made when the
     // tile is first seen close up.
     const coarse = batched(new Graphics());
-    drawShapeBlocks(coarse, planned.shapes, planned.band === MAX_BANDS);
+    this.painter.shapeBlocks(coarse, planned.shapes, planned.band === MAX_BANDS);
     return this.tileOf({
       key: planned.key,
       signature: planned.signature,
@@ -1075,7 +1159,7 @@ export class CanvasRenderer {
 
   private makeRelationTile(planned: RelationTile): Tile {
     const coarse = batched(new Graphics());
-    drawPieceLines(coarse, planned.pieces);
+    this.painter.pieceLines(coarse, planned.pieces);
     return this.tileOf({
       key: planned.key,
       signature: planned.signature,
@@ -1097,12 +1181,13 @@ export class CanvasRenderer {
     arrows: readonly ArrowShape[],
   ): Tile {
     const full = new Graphics();
-    drawFreeShapes(full, notes, arrows);
+    this.painter.freeShapes(full, notes, arrows);
     return this.tileOf({
       key,
       signature,
       kind: 'free',
       notes,
+      arrows,
       full,
       bounds: boundsOf(
         notes.map((note) => note.rect),
@@ -1125,6 +1210,7 @@ export class CanvasRenderer {
           | 'ends'
           | 'touching'
           | 'notes'
+          | 'arrows'
           | 'coarse'
           | 'full'
         >
@@ -1136,7 +1222,7 @@ export class CanvasRenderer {
     const container = new Container();
     if (parts.full) container.addChild(parts.full);
     const { bounds, ...rest } = parts;
-    return {
+    const tile: Tile = {
       band: 0,
       cell: '',
       rank: 0,
@@ -1147,22 +1233,36 @@ export class CanvasRenderer {
       ends: [],
       touching: [],
       notes: [],
+      arrows: [],
       plainShown: true,
       ...rest,
       container,
       bounds: grow(bounds ?? { x: 0, y: 0, width: 0, height: 0 }, 16),
       level: 0,
       labelled: 0,
+      paints: 0,
+      coarseStamp: '',
+      fullStamp: '',
+      labelStamp: '',
+      labelPaint: [],
     };
+    // Drawn in the theme shown.
+    const stamp = this.stampFor(tile, this.painter.name, 'drawings');
+    tile.coarseStamp = stamp;
+    tile.fullStamp = stamp;
+    return tile;
   }
 
   /** Makes the full drawing of a tile, over its plain drawing and under its labels. */
   private drawFully(tile: Tile): void {
     const full = new Graphics();
-    if (tile.kind === 'shapes') drawShapeOutlines(full, tile.shapes);
-    else drawRoutePieces(full, tile.pieces, tile.ends);
-    tile.container.addChildAt(full, tile.coarse?.parent === tile.container ? 1 : 0);
+    if (tile.kind === 'shapes') this.painter.shapeOutlines(full, tile.shapes);
+    else this.painter.routePieces(full, tile.pieces, tile.ends);
+    const at = tile.coarse?.parent === tile.container ? 1 : 0;
+    if (tile.kind === 'relations') tile.container.addChildAt(this.casingOf(tile), at);
+    tile.container.addChildAt(full, tile.casing ? at + 1 : at);
     tile.full = full;
+    tile.fullStamp = this.stampFor(tile, this.painter.name, 'drawings');
     showPlain(tile, false);
   }
 
@@ -1188,16 +1288,19 @@ export class CanvasRenderer {
       tile.container.addChild(tile.labels);
       tile.level = wanted;
       tile.labelled = 0;
+      tile.labelPaint = [];
+      tile.labelStamp = this.stampFor(tile, this.painter.name, 'labels');
     }
     const from = tile.labelled;
     const to = Math.min(labelCount(tile), until);
     if (to <= from) return 0;
+    const { painter } = this;
     const texts =
       tile.kind === 'shapes'
-        ? writeShapeLabels(tile.shapes.slice(from, to), wanted === 2, this.text)
+        ? painter.shapeLabels(tile.shapes.slice(from, to), wanted === 2, this.text, tile.labelPaint)
         : tile.kind === 'relations'
-          ? writeRelationLabels(tile.lines.slice(from, to), this.text)
-          : writeNoteTexts(tile.notes);
+          ? painter.relationLabels(tile.lines.slice(from, to), this.text, tile.labelPaint)
+          : painter.noteTexts(tile.notes, tile.labelPaint);
     for (const text of texts) {
       if (text instanceof Text) text.resolution = this.textResolution();
       tile.labels.addChild(text);
@@ -1228,6 +1331,8 @@ export class CanvasRenderer {
    * first and within a budget per frame, so that zooming never stalls.
    */
   private updateDetail(): void {
+    // Restyles first: what shows a theme or colors no longer current comes before any other work.
+    const restyled = this.restyle();
     const { coarse, wanted: detail } = this.detailNow();
     const { scale } = this.camera;
     const shown = visibleRect(this.camera, this.viewport);
@@ -1298,7 +1403,8 @@ export class CanvasRenderer {
 
     const began = performance.now();
     let written = 0;
-    const spent = () => performance.now() - began > LABEL_BUDGET || written >= LABELS_PER_FRAME;
+    const spent = () =>
+      performance.now() - began > LABEL_BUDGET - restyled || written >= LABELS_PER_FRAME;
     labelling: for (const { tile, wanted } of work) {
       if (wanted === 0 || (tile.coarse && !tile.full)) continue;
       // A few at a time, so that no frame goes much over the budget, however full the tile.
@@ -1375,7 +1481,7 @@ export class CanvasRenderer {
       const room = Math.max(0, DRAG_DETAIL - names);
       names += Math.min(room, wanted.length);
       try {
-        return writeShapeLabels(wanted.slice(0, room), details, this.text);
+        return this.painter.shapeLabels(wanted.slice(0, room), details, this.text);
       } catch {
         // Without fonts, the shapes move unnamed.
         return [];
@@ -1384,11 +1490,11 @@ export class CanvasRenderer {
     for (const band of [...inBands.keys()].sort((a, b) => a - b)) {
       const shapes = inBands.get(band) as ElementShape[];
       const graphics = new Graphics();
-      drawShapeBlocks(
+      this.painter.shapeBlocks(
         graphics,
         shapes.filter((shape) => !inFull(shape)),
       );
-      drawShapeOutlines(graphics, shapes.filter(inFull));
+      this.painter.shapeOutlines(graphics, shapes.filter(inFull));
       this.dragged.addChild(graphics, ...label(shapes));
     }
     // Beyond the bands, one after another, each over the names of those before it.
@@ -1398,8 +1504,8 @@ export class CanvasRenderer {
         graphics = new Graphics();
         this.dragged.addChild(graphics);
       }
-      if (inFull(shape)) drawShapeOutlines(graphics, [shape]);
-      else drawShapeBlocks(graphics, [shape], true);
+      if (inFull(shape)) this.painter.shapeOutlines(graphics, [shape]);
+      else this.painter.shapeBlocks(graphics, [shape], true);
       const names = label([shape]);
       if (names.length > 0) {
         this.dragged.addChild(...names);
@@ -1433,8 +1539,8 @@ export class CanvasRenderer {
     drag.routed = lines.filter((line) => motionOf(line) === 'routed');
     if (rigid.length > 0) {
       const drawn = new Graphics();
-      if (coarse) drawRelationLines(drawn, rigid);
-      else drawRelationRoutes(drawn, rigid);
+      if (coarse) this.painter.relationLines(drawn, rigid);
+      else this.painter.relationRoutes(drawn, rigid);
       this.dragged.addChild(drawn);
     }
 
@@ -1446,11 +1552,11 @@ export class CanvasRenderer {
     );
     if (notes.length > 0 || arrows.length > 0) {
       const free = new Graphics();
-      drawFreeShapes(free, notes, arrows);
+      this.painter.freeShapes(free, notes, arrows);
       this.dragged.addChild(free);
       if (named) {
-        for (const text of writeNoteTexts(notes)) {
-          text.resolution = this.textResolution();
+        for (const text of this.painter.noteTexts(notes)) {
+          if (text instanceof Text) text.resolution = this.textResolution();
           this.dragged.addChild(text);
         }
       }
@@ -1510,8 +1616,8 @@ export class CanvasRenderer {
       return next;
     };
     const lines = drag.routed.map(lineFor);
-    if (this.camera.scale < COARSE_BELOW) drawRelationLines(this.reroutedLines, lines);
-    else drawRelationRoutes(this.reroutedLines, lines);
+    if (this.camera.scale < COARSE_BELOW) this.painter.relationLines(this.reroutedLines, lines);
+    else this.painter.relationRoutes(this.reroutedLines, lines);
   }
 
   private clearDrag(): void {
@@ -1575,7 +1681,7 @@ export class CanvasRenderer {
       if ('rect' in shape) box(shape.rect, hidden.free.has(id));
       else arrows.push(shape);
     }
-    if (carriedBoxes > 0) moving.stroke({ color: SELECTED, width });
+    if (carriedBoxes > 0) moving.stroke({ color: MARK, width });
 
     // A relation an aggregated relation stands for marks that line, once however many are selected.
     const lines = relationLinesOf(scene);
@@ -1597,9 +1703,9 @@ export class CanvasRenderer {
     }
     for (const [lineWidth, { still, moving: carried }] of byWidth) {
       const style = {
-        color: SELECTED,
+        color: MARK,
         width: lineWidth + 6 / scale,
-        alpha: 0.35,
+        alpha: this.painter.theme.selectedGlowAlpha,
         join: 'round',
         cap: 'round',
       } as const;
@@ -1621,7 +1727,12 @@ export class CanvasRenderer {
     ] as const) {
       if (each.length === 0) continue;
       for (const arrow of each) traceRoute(graphics, [arrow.from, arrow.to]);
-      graphics.stroke({ color: SELECTED, width: 8 / scale, alpha: 0.35, cap: 'round' });
+      graphics.stroke({
+        color: MARK,
+        width: 8 / scale,
+        alpha: this.painter.theme.selectedGlowAlpha,
+        cap: 'round',
+      });
     }
     this.markCount += this.markRects.length + carriedBoxes + arrows.length;
     this.drawChunks();
@@ -1650,7 +1761,7 @@ export class CanvasRenderer {
         const { x, y, width, height } = rects[at] as Rect;
         chunk.rect(x - gap, y - gap, width + 2 * gap, height + 2 * gap);
       }
-      chunk.stroke({ color: SELECTED, width: this.markWidth });
+      chunk.stroke({ color: MARK, width: this.markWidth });
       this.marksDrawn = until;
       this.chunksUsed += 1;
     }
@@ -1674,7 +1785,8 @@ export class CanvasRenderer {
     const { shapes, lines, notes, arrows } = this.emphasized.highlighted;
     if (shapes.length + lines.length + notes.length + arrows.length === 0) return;
     const { scale } = this.camera;
-    const halo = { color: HIGHLIGHT, alpha: 0.28, join: 'round', cap: 'round' } as const;
+    const { highlight } = this.painter.theme;
+    const halo = { color: highlight, alpha: 0.28, join: 'round', cap: 'round' } as const;
     const rects = [...shapes.map((shape) => shape.rect), ...notes.map((note) => note.rect)];
     for (const rect of rects) {
       const around = grow(rect, 5 / scale);
@@ -1685,9 +1797,9 @@ export class CanvasRenderer {
       const around = grow(rect, 5 / scale);
       marks.rect(around.x, around.y, around.width, around.height);
     }
-    if (rects.length > 0) marks.stroke({ color: HIGHLIGHT, width: 2.5 / scale });
+    if (rects.length > 0) marks.stroke({ color: highlight, width: 2.5 / scale });
     for (const rect of rects) traceCorners(marks, grow(rect, 11 / scale), 14 / scale);
-    if (rects.length > 0) marks.stroke({ color: HIGHLIGHT, width: 3 / scale, cap: 'square' });
+    if (rects.length > 0) marks.stroke({ color: highlight, width: 3 / scale, cap: 'square' });
 
     const routes = [
       ...lines.map((line) => ({ route: line.route, width: line.width })),
@@ -1697,17 +1809,17 @@ export class CanvasRenderer {
       traceRoute(marks, route);
       marks.stroke({ ...halo, width: width + 12 / scale });
       traceRoute(marks, route);
-      marks.stroke({ color: HIGHLIGHT, width: width + 2 / scale, join: 'round', cap: 'round' });
+      marks.stroke({ color: highlight, width: width + 2 / scale, join: 'round', cap: 'round' });
     }
     for (const { route } of routes) {
       for (const end of [route[0], route.at(-1)]) {
         if (end) marks.circle(end.x, end.y, 4 / scale);
       }
     }
-    if (routes.length > 0) marks.fill(HIGHLIGHT);
+    if (routes.length > 0) marks.fill(highlight);
   }
 
-  /** Draws the markers travelling along relations: discs ringed in white, above the selection. */
+  /** Draws the markers travelling along relations: discs ringed in the canvas color, above the selection. */
   private drawMarkers(): void {
     const marks = this.markerMarks;
     marks.clear();
@@ -1718,7 +1830,8 @@ export class CanvasRenderer {
       const at = pointAlong(line.route, along);
       marks.circle(at.x, at.y, 7 / scale);
     }
-    marks.fill(HIGHLIGHT).stroke({ color: MARKER_RING, width: 2.5 / scale });
+    const { highlight, background } = this.painter.theme;
+    marks.fill(highlight).stroke({ color: background, width: 2.5 / scale });
   }
 
   /** Marks the shape under the pointer, under the selection's marks. */
@@ -1730,7 +1843,7 @@ export class CanvasRenderer {
     const rect = grow(shape.rect, 3 / this.camera.scale);
     mark
       .rect(rect.x, rect.y, rect.width, rect.height)
-      .stroke({ color: HOVERED, width: 1.5 / this.camera.scale });
+      .stroke({ color: this.painter.theme.selected, width: 1 / this.camera.scale });
   }
 
   private drawGesture(): void {
@@ -1738,51 +1851,52 @@ export class CanvasRenderer {
     marks.clear();
     const { box, connect, handle, target, drop, ghost } = this.overlay;
     const width = 1.5 / this.camera.scale;
+    const { selected, refused, handleFill, boxFillAlpha } = this.painter.theme;
     const outline = (rect: Rect, color: string, lineWidth: number) =>
       marks.rect(rect.x, rect.y, rect.width, rect.height).stroke({ color, width: lineWidth });
     for (const rect of ghost ?? []) {
       marks
         .rect(rect.x, rect.y, rect.width, rect.height)
-        .fill({ color: SELECTED, alpha: 0.08 })
-        .stroke({ color: SELECTED, width });
+        .fill({ color: selected, alpha: boxFillAlpha })
+        .stroke({ color: selected, width });
     }
     if (drop?.into) {
       const rect = drop.into;
       marks
         .rect(rect.x, rect.y, rect.width, rect.height)
-        .fill({ color: SELECTED, alpha: 0.06 })
-        .stroke({ color: SELECTED, width: width * 2 });
+        .fill({ color: selected, alpha: boxFillAlpha * 0.75 })
+        .stroke({ color: selected, width: width * 2 });
     }
-    for (const rect of drop?.copies ?? []) outline(rect, SELECTED, width);
-    if (drop?.leaving) outline(drop.leaving, HOVERED, width * 1.5);
-    if (drop?.pending) outline(drop.pending, HOVERED, width);
-    if (drop?.refused) outline(drop.refused, REFUSED, width * 2);
+    for (const rect of drop?.copies ?? []) outline(rect, selected, width);
+    if (drop?.leaving) outline(drop.leaving, selected, width);
+    if (drop?.pending) outline(drop.pending, selected, width * 0.75);
+    if (drop?.refused) outline(drop.refused, refused, width * 2);
     if (box) {
       marks
         .rect(box.x, box.y, box.width, box.height)
-        .fill({ color: SELECTED, alpha: 0.08 })
-        .stroke({ color: SELECTED, width });
+        .fill({ color: selected, alpha: boxFillAlpha })
+        .stroke({ color: selected, width });
     }
-    if (target) outline(grow(target, 4 / this.camera.scale), SELECTED, width * 2);
+    if (target) outline(grow(target, 4 / this.camera.scale), selected, width * 2);
     if (connect) {
       marks
         .moveTo(connect.from.x, connect.from.y)
         .lineTo(connect.to.x, connect.to.y)
-        .stroke({ color: SELECTED, width: width * 1.5 });
-      marks.circle(connect.to.x, connect.to.y, 4 / this.camera.scale).fill(SELECTED);
+        .stroke({ color: selected, width: width * 1.5 });
+      marks.circle(connect.to.x, connect.to.y, 4 / this.camera.scale).fill(selected);
     }
     if (handle) {
       marks
         .circle(handle.x, handle.y, 7 / this.camera.scale)
-        .fill('#FFFFFF')
-        .stroke({ color: SELECTED, width: width * 1.5 });
+        .fill(handleFill)
+        .stroke({ color: selected, width: width * 1.5 });
       const arm = 3.5 / this.camera.scale;
       marks
         .moveTo(handle.x - arm, handle.y)
         .lineTo(handle.x + arm, handle.y)
         .moveTo(handle.x, handle.y - arm)
         .lineTo(handle.x, handle.y + arm)
-        .stroke({ color: SELECTED, width });
+        .stroke({ color: selected, width });
     }
   }
 
@@ -1833,7 +1947,9 @@ export class CanvasRenderer {
       const drag = this.drag;
       if (drag && drag.routed.length > 0 && drag.routedAt !== drag.delta) this.routeDrag();
       this.cull();
+      this.countStale();
       this.app.render();
+      for (const context of this.retired.splice(0)) context.destroy();
       if (waitForGpu) this.waitForGpu();
     } catch (error) {
       this.callbacks.onFailure(error);
@@ -1856,6 +1972,308 @@ export class CanvasRenderer {
       this.renderNow();
     });
   }
+
+  /** The theme the canvas shows: during a switch, the one it shows until the switch does. */
+  get theme(): ThemeName {
+    return this.painter.name;
+  }
+
+  /** Whether a theme switch or a recolor is being drawn, and has not shown yet. */
+  get switching(): boolean {
+    return this.pending !== undefined;
+  }
+
+  /**
+   * Draws the canvas in this theme (ADR-0033). The tiles on screen that follow the theme are drawn
+   * again behind the ones showing, within the frame's clock, and then the canvas shows the new theme in
+   * one frame, its background, tiles, labels and marks together, and says so with `onThemeShown`; the
+   * tiles off screen are drawn again before they show. The scene is never built again. Before the
+   * canvas has started, the theme is only kept, and the canvas starts in it.
+   */
+  setTheme(theme: CanvasTheme): void {
+    const target = this.pending?.theme ?? this.painter.theme;
+    if (theme === target) return;
+    if (this.status !== 'ready') {
+      this.painter = painterOf(theme);
+      this.pending = undefined;
+      this.tintMarks();
+      return;
+    }
+    this.pending = { theme, opened: this.restyleFrames };
+    this.restyling = true;
+    this.requestRender();
+  }
+
+  /** Restyles in place a tile whose shapes, lines or notes changed only their colors. */
+  private repaint(tile: Tile): void {
+    tile.paints += 1;
+    tile.hadFull = tile.full !== undefined;
+    this.pending ??= { theme: this.painter.theme, opened: this.restyleFrames };
+    this.restyling = true;
+  }
+
+  /** What a tile's drawings or labels show in a theme, as `theme/restyle.ts` stamps them. */
+  private stampFor(tile: Tile, theme: ThemeName, of: 'drawings' | 'labels'): string {
+    const follows = of === 'drawings' ? drawingsFollowTheme(tile) : labelsFollowTheme(tile);
+    return stampOf(follows, theme, tile.paints);
+  }
+
+  /**
+   * Draws again the drawings that show a theme or colors no longer current (`theme/restyle.ts`), and
+   * says how long it took. While a switch or a recolor is drawn, those on screen are drawn behind the
+   * ones showing, nearest the middle first and at least one a frame; once none is left, or after
+   * `SWAP_WITHIN` frames, all show at once. Then what comes near the screen is drawn again before it
+   * shows, and the rest while the camera rests.
+   */
+  private restyle(): number {
+    if (!this.restyling) return 0;
+    const began = performance.now();
+    const spent = () => performance.now() - began > RESTYLE_BUDGET;
+    this.restyleFrames += 1;
+    const painter = this.pending ? painterOf(this.pending.theme) : this.painter;
+    const coarse = this.camera.scale < COARSE_BELOW;
+    const screen = visibleRect(this.camera, this.viewport);
+    const near = grow(
+      screen,
+      this.settled
+        ? Math.max(screen.width, screen.height) / 2
+        : Math.max(64 / this.camera.scale, TILE / 2),
+    );
+    const middle = centerOf(screen);
+    interface Work {
+      tile: Tile;
+      drawings: Drawing[];
+      distance: number;
+      onScreen: boolean;
+    }
+    const shown: Work[] = [];
+    const hidden: Work[] = [];
+    for (const tile of this.tiles.values()) {
+      const stamp = this.stampFor(tile, painter.name, 'drawings');
+      const stale = staleDrawings(tile, stamp);
+      if (stale.length === 0) continue;
+      const center = centerOf(tile.bounds);
+      const distance = Math.hypot(center.x - middle.x, center.y - middle.y);
+      const onScreen = meets(tile.bounds, screen);
+      const showing =
+        onScreen || meets(tile.bounds, near)
+          ? shownDrawings(tile, coarse).filter((drawing) => stale.includes(drawing))
+          : [];
+      if (showing.length > 0) shown.push({ tile, drawings: showing, distance, onScreen });
+      const rest = stale.filter((drawing) => !showing.includes(drawing));
+      if (rest.length > 0) hidden.push({ tile, drawings: rest, distance, onScreen: false });
+    }
+    // What is on screen first, then what is near it, each nearest the middle first.
+    shown.sort((a, b) =>
+      a.onScreen === b.onScreen ? a.distance - b.distance : a.onScreen ? -1 : 1,
+    );
+    let next = 0;
+    for (; next < shown.length; next++) {
+      if (next > 0 && spent()) break;
+      const work = shown[next] as Work;
+      this.prepare(work.tile, work.drawings, painter);
+      if (!this.pending) this.showPrepared(work.tile);
+    }
+    const left = next < shown.length;
+    const pending = this.pending;
+    if (pending) {
+      const onScreenLeft = shown.slice(next).some((work) => work.onScreen);
+      if (!onScreenLeft || this.restyleFrames - pending.opened >= SWAP_WITHIN) this.swap(painter);
+    }
+    let hiddenLeft = false;
+    let labelsLeft = false;
+    if (!this.pending) {
+      // Labels are tinted again for what shows, before they show.
+      const lookups = this.lookups();
+      for (const tile of this.tiles.values()) {
+        if (!tile.labels) continue;
+        const stamp = this.stampFor(tile, this.painter.name, 'labels');
+        if (tile.labelStamp === stamp) continue;
+        if (this.settled || !tile.container.culled || meets(tile.bounds, near)) {
+          this.painter.retint(tile.labelPaint, lookups);
+          tile.labelStamp = stamp;
+        } else {
+          labelsLeft = true;
+        }
+      }
+      // The rest while the camera rests, nearest the screen first.
+      hidden.sort((a, b) => a.distance - b.distance);
+      for (const work of hidden) {
+        if (!this.settled || spent()) {
+          hiddenLeft = true;
+          break;
+        }
+        this.prepare(work.tile, work.drawings, this.painter);
+        this.showPrepared(work.tile);
+      }
+    }
+    this.restyling = this.pending !== undefined || left || hiddenLeft || labelsLeft;
+    if (this.pending || left || (this.settled && hiddenLeft)) this.requestRender();
+    return performance.now() - began;
+  }
+
+  /** Draws again, for `painter`'s theme, the given drawings of a tile, behind the ones showing. */
+  private prepare(tile: Tile, drawings: readonly Drawing[], painter: Painter): void {
+    const stamp = this.stampFor(tile, painter.name, 'drawings');
+    if (tile.prepared && tile.prepared.stamp !== stamp) dropPrepared(tile);
+    const prepared = (tile.prepared ??= { stamp });
+    for (const drawing of drawings) {
+      if (prepared[drawing] || !tile[drawing]) continue;
+      const graphics = new Graphics();
+      if (drawing === 'coarse') {
+        graphics.context.batchMode = 'batch';
+        if (tile.kind === 'shapes') {
+          painter.shapeBlocks(graphics, tile.shapes, tile.band === MAX_BANDS);
+        } else {
+          painter.pieceLines(graphics, tile.pieces);
+        }
+      } else if (tile.kind === 'shapes') {
+        painter.shapeOutlines(graphics, tile.shapes);
+      } else if (tile.kind === 'relations') {
+        painter.routePieces(graphics, tile.pieces, tile.ends);
+      } else {
+        painter.freeShapes(graphics, tile.notes, tile.arrows);
+      }
+      const { context } = graphics;
+      graphics.destroy({ context: false });
+      // Its geometry is built now, inside the clock, rather than when it is first rendered.
+      buildGeometry(this.geometryBuilder(), context);
+      prepared[drawing] = context;
+    }
+  }
+
+  /** Shows a tile's drawings made again in place of the ones showing, which go once rendered. */
+  private showPrepared(tile: Tile): void {
+    const prepared = tile.prepared;
+    if (!prepared) return;
+    tile.prepared = undefined;
+    for (const drawing of ['coarse', 'full'] as const) {
+      const context = prepared[drawing];
+      if (!context) continue;
+      const graphics = tile[drawing];
+      if (!graphics) {
+        this.retired.push(context);
+        continue;
+      }
+      this.retired.push(graphics.context);
+      graphics.context = context;
+      if (drawing === 'coarse') tile.coarseStamp = prepared.stamp;
+      else tile.fullStamp = prepared.stamp;
+    }
+  }
+
+  /**
+   * Shows a switch or a recolor: every drawing made for it, and, for a switch, the new theme's canvas,
+   * casings and marks, all in this frame.
+   */
+  private swap(painter: Painter): void {
+    const pending = this.pending;
+    if (!pending) return;
+    for (const tile of this.tiles.values()) {
+      if (!tile.prepared) continue;
+      if (tile.prepared.stamp === this.stampFor(tile, painter.name, 'drawings')) {
+        this.showPrepared(tile);
+      } else {
+        dropPrepared(tile);
+      }
+    }
+    const before = this.painter;
+    this.painter = painter;
+    this.pending = undefined;
+    this.stats.swapAfter.push(this.restyleFrames - pending.opened);
+    if (before === painter) return;
+    const { theme } = painter;
+    this.app.renderer.background.color = theme.background;
+    for (const tile of this.tiles.values()) if (tile.casing) tile.casing.tint = theme.background;
+    this.tintMarks();
+    // Many marks keep their tint, and take the new theme's glow once the camera rests.
+    if (this.markCount <= MARKS_WHILE_MOVING) this.drawSelection();
+    else this.marksStale = true;
+    this.drawHover();
+    this.drawGesture();
+    this.drawEmphasis();
+    this.redrawDrag();
+    if (before.name !== painter.name) this.callbacks.onThemeShown?.(painter.name);
+  }
+
+  /** Draws again what a drag carries, where it is now, as at a switch. */
+  private redrawDrag(): void {
+    const { drag, indexed } = this;
+    if (!drag || !indexed) return;
+    for (const child of this.dragged.removeChildren()) {
+      child.destroy({ children: true, context: true });
+    }
+    this.drawDrag(indexed, drag);
+  }
+
+  /** Tints the selection's marks, drawn in white, to the theme's selection color. */
+  private tintMarks(): void {
+    this.selectionMarks.tint = this.painter.theme.selected;
+    this.movingMarks.tint = this.painter.theme.selected;
+  }
+
+  /** The casings under a tile's relations: white, tinted to the canvas, the same in every theme. */
+  private casingOf(tile: Tile): Graphics {
+    const casing = new Graphics();
+    this.painter.casings(casing, tile.pieces, tile.ends);
+    casing.tint = this.painter.theme.background;
+    tile.casing = casing;
+    return casing;
+  }
+
+  /** Where a retint finds the shapes and notes as the scene shown holds them. */
+  private lookups(): { shape(key: string): ElementShape | undefined; note(id: Id): NoteShape | undefined } {
+    const indexed = this.indexed;
+    return {
+      shape: (key) => indexed?.byKey.get(key),
+      note: (id) => {
+        const free = indexed && freeShapesById(indexed.scene.notes, indexed.scene.arrows).get(id);
+        return free && 'rect' in free ? free : undefined;
+      },
+    };
+  }
+
+  /** What builds drawings' geometry ahead of their first render, where the renderer has one. */
+  private geometryBuilder(): GeometryBuilder | undefined {
+    const system = (this.app.renderer as { graphicsContext?: Partial<GeometryBuilder> })
+      .graphicsContext;
+    return typeof system?.updateGpuContext === 'function' &&
+      typeof system.getContextRenderData === 'function'
+      ? (system as GeometryBuilder)
+      : undefined;
+  }
+
+  /** Counts the tiles that show stale drawings once a switch or a recolor has shown, for `stats`. */
+  private countStale(): void {
+    if (!this.restyling || this.pending) return;
+    const coarse = this.camera.scale < COARSE_BELOW;
+    const screen = visibleRect(this.camera, this.viewport);
+    for (const tile of this.tiles.values()) {
+      if (tile.container.culled || !meets(tile.bounds, screen)) continue;
+      const stamp = this.stampFor(tile, this.painter.name, 'drawings');
+      const stale = shownDrawings(tile, coarse).some(
+        (drawing) => (drawing === 'coarse' ? tile.coarseStamp : tile.fullStamp) !== stamp,
+      );
+      if (stale) this.stats.staleShown += 1;
+      if (!coarse && tile.hadFull && !tile.full) this.stats.fallbacks += 1;
+    }
+  }
+}
+
+/** The drawings of a tile made for another stamp than `stamp`, and not made again for it yet. */
+function staleDrawings(tile: Tile, stamp: string): Drawing[] {
+  const stale: Drawing[] = [];
+  const prepared = tile.prepared?.stamp === stamp ? tile.prepared : undefined;
+  if (tile.coarse && tile.coarseStamp !== stamp && !prepared?.coarse) stale.push('coarse');
+  if (tile.full && tile.fullStamp !== stamp && !prepared?.full) stale.push('full');
+  return stale;
+}
+
+/** Drops a tile's drawings made for a stamp it no longer needs. */
+function dropPrepared(tile: Tile): void {
+  tile.prepared?.coarse?.destroy();
+  tile.prepared?.full?.destroy();
+  tile.prepared = undefined;
 }
 
 /** One drawing of each kind: a shape of each kind, a container, relations of each dash, a note. */
@@ -1972,6 +2390,8 @@ function batched(graphics: Graphics): Graphics {
 
 /** Destroys a tile with all it drew, its drawings' geometry included, its plain drawing wherever it is. */
 function destroyTile(tile: Tile): void {
+  tile.prepared?.coarse?.destroy();
+  tile.prepared?.full?.destroy();
   tile.coarse?.destroy({ context: true });
   tile.container.destroy({ children: true, context: true });
 }

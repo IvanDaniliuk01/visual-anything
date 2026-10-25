@@ -5,6 +5,7 @@
  * metrics beyond that. The canvas draws a scene in tiles with these building blocks.
  */
 import { Container, Graphics, Text, type CanvasTextOptions, type TextStyleOptions } from 'pixi.js';
+import { CANVAS_BACKGROUNDS } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
 import type { Dash } from './geometry';
 import {
@@ -24,17 +25,14 @@ import {
 } from './geometry';
 import {
   ARROW_STROKE,
-  CANVAS_BACKGROUND,
   NOTE_FILL,
   NOTE_STROKE,
   NOTE_TEXT,
   RELATION_LABEL_HALO,
   RELATION_LABEL_TEXT,
-  TOGGLE_FACE,
-  TOGGLE_SIGN,
   contrastRatio,
   readableTextColors,
-} from './palette';
+} from './colors';
 import { patternMatrix, patternTexture } from './patterns';
 import {
   ARROW_WIDTH,
@@ -106,11 +104,16 @@ export function fitText<T extends FittingText>(label: T, room: number | undefine
 
 const outlinedFills = new Map<Color, boolean>();
 
-/** Whether a block of this fill needs an outline to be told apart from the canvas. */
+/**
+ * Whether a block of this fill needs an outline to be told apart from the canvas: from either theme's,
+ * so that a block in stored colors is drawn alike in both themes (ADR-0033).
+ */
 function needsOutline(fill: Color): boolean {
   let outlined = outlinedFills.get(fill);
   if (outlined === undefined) {
-    outlined = contrastRatio(fill, CANVAS_BACKGROUND) < BLOCK_CONTRAST;
+    outlined =
+      contrastRatio(fill, CANVAS_BACKGROUNDS.light) < BLOCK_CONTRAST ||
+      contrastRatio(fill, CANVAS_BACKGROUNDS.dark) < BLOCK_CONTRAST;
     outlinedFills.set(fill, outlined);
   }
   return outlined;
@@ -198,7 +201,8 @@ function isContainer(shape: ElementShape): boolean {
 
 /**
  * Draws a container's toggle: a small square in its top right corner, with − on an expanded one
- * and + on a collapsed one, so that the sign says what pressing it does.
+ * and + on a collapsed one, so that the sign says what pressing it does. It is drawn in the
+ * container's colors, its sign in the text that reads on them, so that it follows them in each theme.
  */
 function drawToggle(graphics: Graphics, shape: ElementShape): void {
   const toggle = toggleRect(shape);
@@ -206,7 +210,7 @@ function drawToggle(graphics: Graphics, shape: ElementShape): void {
   const { x, y, width, height } = toggle;
   graphics
     .roundRect(x, y, width, height, 3)
-    .fill(TOGGLE_FACE)
+    .fill(shape.fill)
     .stroke({ color: shape.stroke, width: 1 });
   const middleX = x + width / 2;
   const middleY = y + height / 2;
@@ -215,7 +219,7 @@ function drawToggle(graphics: Graphics, shape: ElementShape): void {
   if (shape.collapsed !== undefined) {
     graphics.moveTo(middleX, middleY - arm).lineTo(middleX, middleY + arm);
   }
-  graphics.stroke({ color: TOGGLE_SIGN, width: 1.5 });
+  graphics.stroke({ color: readableTextColors(shape.fill).name, width: 1.5 });
 }
 
 /**
@@ -283,10 +287,14 @@ export function drawPieceLines(graphics: Graphics, pieces: readonly RoutePiece[]
   }
 }
 
-/** Writes the names of the relations that have one, at the middle of their routes. */
+/**
+ * Writes the names of the relations that have one, at the middle of their routes, in `colors`: the
+ * text, and what is drawn behind it, which the light theme's by default.
+ */
 export function writeRelationLabels(
   lines: readonly RelationLine[],
   make: TextFactory = canvasText,
+  colors: { text: Color; back: Color } = { text: RELATION_LABEL_TEXT, back: RELATION_LABEL_HALO },
 ): Container[] {
   return lines.flatMap((line) => {
     const text =
@@ -300,8 +308,8 @@ export function writeRelationLabels(
           style: {
             fontFamily: FONT_FAMILY,
             fontSize: 12,
-            fill: RELATION_LABEL_TEXT,
-            stroke: { color: RELATION_LABEL_HALO, width: 4, join: 'round' },
+            fill: colors.text,
+            stroke: { color: colors.back, width: 4, join: 'round' },
           },
         },
         'relation',
@@ -310,7 +318,7 @@ export function writeRelationLabels(
   });
 }
 
-/** Draws notes and free arrows. */
+/** Draws notes and free arrows, in their own colors or else the light theme's. */
 export function drawFreeShapes(
   graphics: Graphics,
   notes: readonly NoteShape[],
@@ -318,29 +326,37 @@ export function drawFreeShapes(
 ): void {
   for (const note of notes) {
     const { x, y, width, height } = note.rect;
-    graphics.rect(x, y, width, height).fill(NOTE_FILL).stroke({ color: NOTE_STROKE, width: 1 });
+    graphics
+      .rect(x, y, width, height)
+      .fill(note.fill ?? NOTE_FILL)
+      .stroke({ color: note.stroke ?? NOTE_STROKE, width: 1 });
   }
   for (const arrow of arrows) {
+    const color = arrow.stroke ?? ARROW_STROKE;
     strokeRoute(graphics, [arrow.from, arrow.to], arrow.arrowhead, {
-      color: ARROW_STROKE,
+      color,
       width: ARROW_WIDTH,
       dash: 'solid',
     });
-    fillArrowhead(graphics, arrow.arrowhead, ARROW_STROKE);
+    fillArrowhead(graphics, arrow.arrowhead, color);
   }
 }
 
-/** Writes the text of notes. */
+/**
+ * Writes the text of notes: in white, tinted to the color that reads on the note's fill, so that a new
+ * theme or a new fill only tints it again.
+ */
 export function writeNoteTexts(notes: readonly NoteShape[]): Text[] {
-  return notes.map(
-    (note) =>
-      new Text({
-        text: note.text,
-        x: note.rect.x + TEXT_INSET,
-        y: note.rect.y + 10,
-        style: textStyle(13, NOTE_TEXT, Math.max(1, note.rect.width - 2 * TEXT_INSET), 'left'),
-      }),
-  );
+  return notes.map((note) => {
+    const text = new Text({
+      text: note.text,
+      x: note.rect.x + TEXT_INSET,
+      y: note.rect.y + 10,
+      style: textStyle(13, '#FFFFFF', Math.max(1, note.rect.width - 2 * TEXT_INSET), 'left'),
+    });
+    text.tint = note.fill === undefined ? NOTE_TEXT : readableTextColors(note.fill).name;
+    return text;
+  });
 }
 
 /** Draws a shape's body in a rectangle, filled and stroked, approximating each kind of shape. */
