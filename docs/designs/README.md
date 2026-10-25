@@ -6,6 +6,7 @@ The detailed designs behind milestones and tracks, written before their code. Th
 - `look-and-feel.md`: Track A, themes, colors, the grid, rulers and snapping, and polish. Its ADR numbers were drafts: they take the next free numbers when Track A starts.
 - `components.md`: tables (M3), component configuration (M3), images and SVG (M3b), and package code (M7). Its ADR numbers were drafts too.
 - `relation-routing.md`: relations routed by hand per view, as in draw.io: ends, bend points, straight, orthogonal or curved routes (M3, ADR 0039).
+- `benchmark-2.md`: the second benchmark, with most of v0.1 built: the state of R1 to R24, a capability matrix against 15 tools, new gaps, and R25 to R50 with the milestones after v0.1 in waves.
 - `benchmark.md`: what Visual Anything needs to represent anything complex, such as the human body, from a review of more than 60 tools and data sets; it sets the order of the milestones after v0.1, and its section 7 drafts the ADR that M10 needs. Translated from the Spanish original.
 
 Each was checked against the branch it names at the time it was written, and paths are relative to that worktree. When a milestone starts, its plan checks the design against the code as it stands and follows the code where they differ.

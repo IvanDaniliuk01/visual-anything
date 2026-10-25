@@ -583,7 +583,6 @@ export const ui: Catalog = {
   'It was shrunk to {width} by {height} pixels.': 'Se redujo a {width} por {height} píxeles.',
   'Use the component’s image': 'Usar la imagen del componente',
   'Show no image': 'No mostrar ninguna imagen',
-  'its own': 'propia',
 };
 
 /**

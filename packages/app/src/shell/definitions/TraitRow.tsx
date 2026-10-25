@@ -23,6 +23,8 @@ interface TraitRowProps {
   readOnly: boolean;
   /** The command that takes the trait out, so that it is inherited again; none offers no way back. */
   inherit?: (() => Command) | undefined;
+  /** What the way back is called, such as "Use the inherited color"; "Use the inherited value" by default. */
+  inheritLabel?: string;
   /** A note under the control, such as why it is disabled. */
   note?: string | undefined;
   /**
@@ -44,6 +46,7 @@ export function TraitRow({
   own,
   readOnly,
   inherit,
+  inheritLabel = 'Use the inherited value',
   note,
   group = false,
   children,
@@ -95,10 +98,10 @@ export function TraitRow({
         <button
           type="button"
           className="inspector-action"
-          aria-label={`Use the inherited value for ${label}`}
+          aria-label={`${inheritLabel} for ${label}`}
           onClick={() => void sender.send(inherit())}
         >
-          Use the inherited value
+          {inheritLabel}
         </button>
       )}
       {sender.problem !== undefined && <InlineProblem id={problemId} text={sender.problem} />}

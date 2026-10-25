@@ -1,5 +1,5 @@
 import {
-  definitionsOf,
+  definitionsIn,
   executeCommand,
   type Command,
   type ProjectSnapshot,
@@ -13,6 +13,7 @@ import { buildScene } from '../canvas/scene';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { selectionOf, type Selectable, type Selection } from '../editor/selection';
 import { loadSample } from '../test/sample';
+import { appliedPreferences, changePreferences, resetPreferencesForTests } from '../theme/store';
 import { Inspector } from './Inspector';
 import { COLOR_FORMS } from '../color';
 
@@ -127,7 +128,12 @@ function Harness({ project: initial, selected, editable, send, select, onReplace
       setProject(next);
     });
   }, [onReplace]);
-  const definitions = useMemo(() => definitionsOf(project.packages), [project.packages]);
+  // As the shell does: the definitions follow the packages and the project appearances only.
+  const definitions = useMemo(
+    () => definitionsIn(project),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- as in Shell.tsx
+    [project.packages, project.project.appearances],
+  );
   const view = project.views[0];
   const scene = useMemo(() => (view ? buildScene(project, view.id) : undefined), [project, view]);
   const apply: SendCommand = async (command) => {
@@ -219,6 +225,8 @@ function outsideButton(): HTMLButtonElement {
 
 afterEach(() => {
   for (const each of outside.splice(0)) each.remove();
+  // The recent colors are a preference, which a test may have changed.
+  resetPreferencesForTests();
 });
 
 /** The commands sent so far. */
@@ -664,7 +672,7 @@ describe('Inspector', () => {
   });
 
   describe('appearance', () => {
-    it('shows shape, fill and stroke, marking those that are the element’s own', () => {
+    it('shows shape, fill and stroke, each saying where it comes from', () => {
       renderInspector({ selected: [element('booking-agent')] });
       const shape = screen.getByRole('combobox', { name: 'Shape' });
       const fill = screen.getByLabelText('Fill');
@@ -672,15 +680,22 @@ describe('Inspector', () => {
       expect(shape).toHaveValue('rounded-rectangle');
       expect(fill).toHaveValue('#f8e1ec');
       expect(stroke).toHaveValue('#5b3a9e');
-      expect(fill).toHaveAccessibleDescription(/Particularity/);
-      expect(shape).not.toHaveAccessibleDescription(/Particularity/);
-      expect(stroke).not.toHaveAccessibleDescription(/Particularity/);
+      expect(fill).toHaveAccessibleDescription('its own');
+      expect(shape).toHaveAccessibleDescription('built in, from Box');
+      expect(stroke).toHaveAccessibleDescription('built in, from AI agent');
+      expect(
+        screen.getByRole('button', { name: 'Use the inherited color for Fill' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Use the inherited color for Stroke' }),
+      ).not.toBeInTheDocument();
     });
 
-    it('marks nothing and offers no reset for an element that looks like its component', () => {
+    it('offers no way back and no reset for an element that looks like its component', () => {
       renderInspector({ selected: [element('patient')] });
       expect(screen.getByRole('combobox', { name: 'Shape' })).toHaveValue('person');
-      expect(screen.queryByText('Particularity')).not.toBeInTheDocument();
+      expect(screen.queryByText('its own')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Use the inherited/ })).not.toBeInTheDocument();
       expect(
         screen.queryByRole('button', { name: 'Use the component’s appearance' }),
       ).not.toBeInTheDocument();
@@ -701,9 +716,9 @@ describe('Inspector', () => {
         },
       ]);
       expect(screen.getByRole('combobox', { name: 'Shape' })).toHaveAccessibleDescription(
-        /Particularity/,
+        'its own',
       );
-      expect(screen.getByLabelText('Fill')).toHaveAccessibleDescription(/Particularity/);
+      expect(screen.getByLabelText('Fill')).toHaveAccessibleDescription('its own');
     });
 
     it('says what its shapes write under its name, and its badges', () => {
@@ -725,7 +740,7 @@ describe('Inspector', () => {
       ).toBeInTheDocument();
     });
 
-    it('sends a colour when it is chosen, not on every input', async () => {
+    it('sends a color when it is chosen, not on every input', async () => {
       const { send } = renderInspector({ selected: [element('booking-agent')] });
       const stroke = screen.getByLabelText('Stroke');
       fireEvent.input(stroke, { target: { value: '#112233' } });
@@ -743,26 +758,26 @@ describe('Inspector', () => {
       expect(stroke).toHaveValue('#334455');
     });
 
-    it('takes a colour written as a code, such as #f3f5f8', async () => {
+    it('takes a color written as a code, such as #f3f5f8, and shows it in capitals', async () => {
       const { send } = renderInspector({ selected: [element('booking-agent')] });
-      const code = screen.getByRole('textbox', { name: 'Fill colour code' });
-      expect(code).toHaveValue('#f8e1ec');
-      fireEvent.change(code, { target: { value: '#F3F5F8' } });
+      const code = screen.getByRole('textbox', { name: 'Fill color code' });
+      expect(code).toHaveValue('#F8E1EC');
+      fireEvent.change(code, { target: { value: '#f3f5f8' } });
       await settle(() => fireEvent.keyDown(code, { key: 'Enter' }));
       expect(sent(send)).toEqual([
         {
           type: 'update-element',
           id: 'booking-agent',
-          changes: { appearanceTraits: { fill: '#f3f5f8' } },
+          changes: { appearanceTraits: { fill: '#F3F5F8' } },
         },
       ]);
       expect(screen.getByLabelText('Fill')).toHaveValue('#f3f5f8');
-      expect(code).toHaveValue('#f3f5f8');
+      expect(code).toHaveValue('#F3F5F8');
     });
 
-    it('reads rgb() and the short form, and says how to write a colour it cannot read', async () => {
+    it('reads rgb() and the short form, and says how to write a color it cannot read', async () => {
       const { send } = renderInspector({ selected: [element('booking-agent')] });
-      const code = screen.getByRole('textbox', { name: 'Stroke colour code' });
+      const code = screen.getByRole('textbox', { name: 'Stroke color code' });
       fireEvent.change(code, { target: { value: '#12345' } });
       await settle(() => fireEvent.blur(code));
       expect(code).toHaveAttribute('aria-invalid', 'true');
@@ -780,14 +795,17 @@ describe('Inspector', () => {
       expect(code).not.toHaveAttribute('aria-invalid');
     });
 
-    it('cancels a colour code with Escape, and sends nothing for the same colour', async () => {
+    it('cancels a color code with Escape, and sends nothing for the same color', async () => {
       const { send } = renderInspector({ selected: [element('booking-agent')] });
-      const code = screen.getByRole('textbox', { name: 'Fill colour code' });
+      const code = screen.getByRole('textbox', { name: 'Fill color code' });
       fireEvent.change(code, { target: { value: '#000' } });
       fireEvent.keyDown(code, { key: 'Escape' });
-      expect(code).toHaveValue('#f8e1ec');
-      fireEvent.change(code, { target: { value: 'F8E1EC' } });
+      expect(code).toHaveValue('#F8E1EC');
+      fireEvent.change(code, { target: { value: 'f8e1ec' } });
       await settle(() => fireEvent.keyDown(code, { key: 'Enter' }));
+      await settle(() =>
+        fireEvent.change(screen.getByLabelText('Fill'), { target: { value: '#f8e1ec' } }),
+      );
       expect(send).not.toHaveBeenCalled();
     });
 
@@ -800,8 +818,210 @@ describe('Inspector', () => {
         { type: 'update-element', id: 'booking-agent', changes: { appearance: null } },
       ]);
       expect(screen.getByLabelText('Fill')).toHaveValue('#ede4ff');
-      expect(screen.queryByText('Particularity')).not.toBeInTheDocument();
+      expect(screen.queryByText('its own')).not.toBeInTheDocument();
       expect(screen.getByRole('combobox', { name: 'Shape' })).toHaveFocus();
+    });
+
+    it('takes back its own color when the inherited one is picked, instead of storing a copy', async () => {
+      const { send } = renderInspector({ selected: [element('booking-agent')] });
+      await settle(() =>
+        fireEvent.change(screen.getByLabelText('Fill'), { target: { value: '#ede4ff' } }),
+      );
+      expect(sent(send)).toEqual([
+        {
+          type: 'update-element',
+          id: 'booking-agent',
+          changes: { appearanceTraits: { fill: null } },
+        },
+      ]);
+      expect(screen.getByLabelText('Fill')).toHaveAccessibleDescription('built in, from AI agent');
+    });
+
+    it('uses the inherited color for one trait with one command', async () => {
+      const { send } = renderInspector({ selected: [element('booking-agent')] });
+      await settle(() =>
+        fireEvent.click(screen.getByRole('button', { name: 'Use the inherited color for Fill' })),
+      );
+      expect(sent(send)).toEqual([
+        {
+          type: 'update-element',
+          id: 'booking-agent',
+          changes: { appearanceTraits: { fill: null } },
+        },
+      ]);
+      expect(screen.getByLabelText('Fill')).toHaveValue('#ede4ff');
+    });
+
+    it('recolors every element of a built-in component through the project’s appearance', async () => {
+      const { send } = renderInspector({ selected: [element('appointments-api')] });
+      const appearance = screen.getByRole('region', { name: 'Appearance' });
+      await settle(() =>
+        fireEvent.click(within(appearance).getByRole('radio', { name: 'Every Service' })),
+      );
+      expect(
+        within(appearance).getByText(
+          'Saved in this project; the built-in package Systems stays as it is.',
+        ),
+      ).toBeInTheDocument();
+      const fill = within(appearance).getByLabelText('Fill');
+      expect(fill).toHaveAccessibleDescription('built in');
+      await settle(() => fireEvent.change(fill, { target: { value: '#ffe3e3' } }));
+      expect(sent(send)).toEqual([
+        {
+          type: 'set-component-appearance',
+          component: 'systems.service',
+          appearanceTraits: { fill: '#FFE3E3' },
+        },
+      ]);
+      expect(within(appearance).getByLabelText('Fill')).toHaveAccessibleDescription(
+        'set in this project',
+      );
+      // Every Service follows, and AI agent, which sets its own fill, does not.
+      await settle(() =>
+        fireEvent.click(within(appearance).getByRole('radio', { name: 'Only this element' })),
+      );
+      expect(within(appearance).getByLabelText('Fill')).toHaveValue('#ffe3e3');
+      expect(within(appearance).getByLabelText('Fill')).toHaveAccessibleDescription(
+        'from Service, set in this project',
+      );
+      // The element has no fill of its own to take back.
+      expect(
+        within(appearance).queryByRole('button', { name: 'Use the inherited color for Fill' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('takes a built-in component’s project color back with “Use the inherited color”', async () => {
+      const recolored = executeCommand(PROJECT, {
+        type: 'set-component-appearance',
+        component: 'systems.service',
+        appearanceTraits: { fill: '#FFE3E3' },
+      });
+      if (!recolored.ok) throw new Error('The project appearance was refused.');
+      const { send } = renderInspector({
+        project: recolored.state,
+        selected: [element('appointments-api')],
+      });
+      const appearance = screen.getByRole('region', { name: 'Appearance' });
+      await settle(() =>
+        fireEvent.click(within(appearance).getByRole('radio', { name: 'Every Service' })),
+      );
+      await settle(() =>
+        fireEvent.click(
+          within(appearance).getByRole('button', { name: 'Use the inherited color for Fill' }),
+        ),
+      );
+      expect(sent(send)).toEqual([
+        {
+          type: 'set-component-appearance',
+          component: 'systems.service',
+          appearanceTraits: { fill: null },
+        },
+      ]);
+      expect(within(appearance).getByLabelText('Fill')).toHaveValue('#dcebff');
+      expect(within(appearance).getByLabelText('Fill')).toHaveAccessibleDescription('built in');
+    });
+
+    it('recolors every element of a component of the project’s own in its package', async () => {
+      const { send } = renderInspector({ selected: [element('appointments-db')] });
+      const appearance = screen.getByRole('region', { name: 'Appearance' });
+      await settle(() =>
+        fireEvent.click(within(appearance).getByRole('radio', { name: 'Every Calendar' })),
+      );
+      expect(within(appearance).getByText('Saved in the package Clinic.')).toBeInTheDocument();
+      const stroke = within(appearance).getByLabelText('Stroke');
+      expect(stroke).toHaveAccessibleDescription('built in, from Database');
+      await settle(() => fireEvent.change(stroke, { target: { value: '#112233' } }));
+      expect(sent(send)).toEqual([
+        {
+          type: 'set-component-appearance',
+          component: 'clinic.calendar',
+          appearanceTraits: { stroke: '#112233' },
+        },
+      ]);
+      expect(within(appearance).getByLabelText('Stroke')).toHaveAccessibleDescription('its own');
+    });
+
+    it('takes back the element’s own color in the same action when its component is recolored', async () => {
+      const { send } = renderInspector({ selected: [element('booking-agent')] });
+      const appearance = screen.getByRole('region', { name: 'Appearance' });
+      await settle(() =>
+        fireEvent.click(within(appearance).getByRole('radio', { name: 'Every AI agent' })),
+      );
+      const fill = within(appearance).getByLabelText('Fill');
+      expect(fill).toHaveValue('#ede4ff');
+      expect(fill).toHaveAccessibleDescription(
+        /built in.*This element has a fill of its own: a change here takes it back/,
+      );
+      await settle(() => fireEvent.change(fill, { target: { value: '#112233' } }));
+      expect(sent(send)).toEqual([
+        {
+          type: 'batch',
+          label: 'Change the appearance of the component "AI agent"',
+          commands: [
+            {
+              type: 'set-component-appearance',
+              component: 'systems.ai-agent',
+              appearanceTraits: { fill: '#112233' },
+            },
+            {
+              type: 'update-element',
+              id: 'booking-agent',
+              changes: { appearanceTraits: { fill: null } },
+            },
+          ],
+        },
+      ]);
+    });
+
+    it('points out colors that blend into a canvas, without refusing them', async () => {
+      const { send } = renderInspector({ selected: [element('patient')] });
+      const fill = screen.getByLabelText('Fill');
+      const stroke = screen.getByLabelText('Stroke');
+      await settle(() => fireEvent.change(fill, { target: { value: '#ffffff' } }));
+      await settle(() => fireEvent.change(stroke, { target: { value: '#f3f5f8' } }));
+      expect(sent(send)).toHaveLength(2);
+      const hint =
+        'Blends into the light canvas: neither its fill nor its stroke reaches 3:1 on it.';
+      expect(screen.getByText(hint)).toBeInTheDocument();
+      expect(screen.getByLabelText('Fill')).toHaveAccessibleDescription(new RegExp(hint));
+    });
+
+    it('offers recent colors first, then the project’s, and remembers a committed color', async () => {
+      changePreferences({ recentColors: ['#112233'] });
+      const { send } = renderInspector({ selected: [element('patient')] });
+      const fill = within(rowOf(screen.getByLabelText('Fill')));
+      const swatches = fill.getByRole('group', { name: 'Recent and project colors for fill' });
+      expect(
+        within(swatches)
+          .getAllByRole('button')
+          .map((button) => button.getAttribute('aria-label')),
+      ).toEqual(['Use #112233', 'Use #F8E1EC']);
+      await settle(() =>
+        fireEvent.click(within(swatches).getByRole('button', { name: 'Use #F8E1EC' })),
+      );
+      expect(sent(send)).toEqual([
+        {
+          type: 'update-element',
+          id: 'patient',
+          changes: { appearanceTraits: { fill: '#F8E1EC' } },
+        },
+      ]);
+      expect(appliedPreferences().preferences.recentColors).toEqual(['#F8E1EC', '#112233']);
+    });
+
+    it('moves between the swatches with the arrow keys, as one Tab stop', () => {
+      changePreferences({ recentColors: ['#112233', '#445566', '#778899'] });
+      renderInspector({ selected: [element('patient')] });
+      const swatches = within(rowOf(screen.getByLabelText('Fill'))).getAllByRole('button', {
+        name: /^Use #/,
+      });
+      expect(swatches.map((swatch) => swatch.tabIndex)).toEqual([0, -1, -1, -1]);
+      act(() => swatches[0]?.focus());
+      fireEvent.keyDown(swatches[0] as HTMLElement, { key: 'ArrowRight' });
+      expect(swatches[1]).toHaveFocus();
+      fireEvent.keyDown(swatches[1] as HTMLElement, { key: 'End' });
+      expect(swatches.at(-1)).toHaveFocus();
+      expect(swatches.map((swatch) => swatch.tabIndex)).toEqual([-1, -1, -1, 0]);
     });
   });
 
@@ -939,6 +1159,62 @@ describe('Inspector', () => {
       await enter(screen.getByRole('textbox', { name: 'Name' }), 'Reads reminders');
       expect(send).toHaveBeenCalledTimes(1);
     });
+
+    it('gives the relation a stroke of its own, and takes it back', async () => {
+      const { send } = renderInspector({ selected: [relation('api-reads-db')] });
+      const appearance = screen.getByRole('region', { name: 'Appearance' });
+      const stroke = within(appearance).getByLabelText('Stroke');
+      expect(stroke).toHaveValue('#3d4651');
+      expect(stroke).toHaveAccessibleDescription('built in, from reads from');
+      await settle(() => fireEvent.change(stroke, { target: { value: '#d6336c' } }));
+      expect(sent(send)).toEqual([
+        {
+          type: 'update-relation',
+          id: 'api-reads-db',
+          changes: { appearanceTraits: { stroke: '#D6336C' } },
+        },
+      ]);
+      expect(within(appearance).getByLabelText('Stroke')).toHaveAccessibleDescription('its own');
+      await settle(() =>
+        fireEvent.click(
+          within(appearance).getByRole('button', { name: 'Use the inherited color for Stroke' }),
+        ),
+      );
+      expect(sent(send).at(-1)).toEqual({
+        type: 'update-relation',
+        id: 'api-reads-db',
+        changes: { appearanceTraits: { stroke: null } },
+      });
+      expect(within(appearance).getByLabelText('Stroke')).toHaveValue('#3d4651');
+    });
+
+    it('recolors every relation of a built-in relation type, and points out a line hard to see', async () => {
+      const { send } = renderInspector({ selected: [relation('api-reads-db')] });
+      const appearance = screen.getByRole('region', { name: 'Appearance' });
+      await settle(() =>
+        fireEvent.click(within(appearance).getByRole('radio', { name: 'Every reads from' })),
+      );
+      expect(
+        within(appearance).getByText(
+          'Saved in this project; the built-in package Systems stays as it is.',
+        ),
+      ).toBeInTheDocument();
+      await settle(() =>
+        fireEvent.change(within(appearance).getByLabelText('Stroke'), {
+          target: { value: '#fff3c9' },
+        }),
+      );
+      expect(sent(send)).toEqual([
+        {
+          type: 'set-relation-type-appearance',
+          relationType: 'systems.reads-from',
+          appearanceTraits: { stroke: '#FFF3C9' },
+        },
+      ]);
+      expect(
+        within(appearance).getByText('Hard to see on the light canvas (1.1:1); lines need 3:1.'),
+      ).toBeInTheDocument();
+    });
   });
 
   describe('free shapes and several things', () => {
@@ -951,7 +1227,64 @@ describe('Inspector', () => {
         ),
       ).toBeInTheDocument();
       expect(screen.getByText('Edit its text on the canvas.')).toBeInTheDocument();
-      expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+      // Only its colors are written here, as codes.
+      expect(screen.getAllByRole('textbox').map((box) => box.getAttribute('aria-label'))).toEqual([
+        'Fill color code',
+        'Stroke color code',
+      ]);
+    });
+
+    it('gives a note colors of its own, and takes them back for the theme’s', async () => {
+      const { send } = renderInspector({ selected: [freeShape('calendar-note')] });
+      const fill = screen.getByLabelText('Fill');
+      expect(fill).toHaveValue('#fff7d1');
+      expect(fill).toHaveAccessibleDescription('the theme’s');
+      await settle(() => fireEvent.change(fill, { target: { value: '#e7f5ff' } }));
+      const note = PROJECT.views[0]?.freeShapes.find((shape) => shape.id === 'calendar-note');
+      expect(sent(send)).toEqual([
+        {
+          type: 'update-free-shape',
+          view: 'system-overview',
+          shape: { ...note, fill: '#E7F5FF' },
+        },
+      ]);
+      expect(screen.getByLabelText('Fill')).toHaveAccessibleDescription('its own');
+      await settle(() =>
+        fireEvent.click(screen.getByRole('button', { name: 'Use the theme’s color for Fill' })),
+      );
+      expect(sent(send).at(-1)).toEqual({
+        type: 'update-free-shape',
+        view: 'system-overview',
+        shape: note,
+      });
+      expect(screen.getByLabelText('Fill')).toHaveValue('#fff7d1');
+    });
+
+    it('gives an arrow a stroke of its own', async () => {
+      const [view] = PROJECT.views;
+      if (!view) throw new Error('The sample has no view.');
+      const arrow = {
+        kind: 'arrow' as const,
+        id: 'emphasis',
+        from: { x: 0, y: 0 },
+        to: { x: 120, y: 0 },
+      };
+      const project: ProjectSnapshot = {
+        ...PROJECT,
+        views: [{ ...view, freeShapes: [...view.freeShapes, arrow] }],
+      };
+      const { send } = renderInspector({ project, selected: [freeShape('emphasis')] });
+      expect(screen.queryByLabelText('Fill')).not.toBeInTheDocument();
+      await settle(() =>
+        fireEvent.change(screen.getByLabelText('Stroke'), { target: { value: '#c92a2a' } }),
+      );
+      expect(sent(send)).toEqual([
+        {
+          type: 'update-free-shape',
+          view: 'system-overview',
+          shape: { ...arrow, stroke: '#C92A2A' },
+        },
+      ]);
     });
 
     it('says what an arrow is', () => {
@@ -988,7 +1321,50 @@ describe('Inspector', () => {
       expect(
         within(inspector).getByText('2 elements, 1 relation and 1 free shape are selected.'),
       ).toBeInTheDocument();
-      expect(within(inspector).queryByRole('textbox')).not.toBeInTheDocument();
+      // Only their colors are edited together.
+      expect(
+        within(inspector)
+          .getAllByRole('textbox')
+          .map((box) => box.getAttribute('aria-label')),
+      ).toEqual(['Fill color code', 'Stroke color code']);
+    });
+
+    it('recolors several selected shapes as one action, showing what they share', async () => {
+      const { send, inspector } = renderInspector({
+        selected: [
+          element('patient'),
+          element('booking-agent'),
+          relation('api-reads-db'),
+          freeShape('calendar-note'),
+        ],
+      });
+      const appearance = within(inspector).getByRole('region', { name: 'Appearance of 4 shapes' });
+      const fillCode = within(appearance).getByRole('textbox', { name: 'Fill color code' });
+      expect(fillCode).toHaveValue('');
+      expect(fillCode).toHaveAttribute('placeholder', 'Mixed');
+      expect(within(appearance).getByLabelText('Fill')).toHaveAccessibleDescription(
+        /For the 3 shapes with a fill\..*Mixed/,
+      );
+      await settle(() =>
+        fireEvent.change(within(appearance).getByLabelText('Stroke'), {
+          target: { value: '#c92a2a' },
+        }),
+      );
+      const [command] = sent(send);
+      expect(command?.type === 'batch' && command.label).toBe('Change the appearance of 4 shapes');
+      expect(command?.type === 'batch' && command.commands).toHaveLength(4);
+      expect(within(appearance).getByRole('textbox', { name: 'Stroke color code' })).toHaveValue(
+        '#C92A2A',
+      );
+      expect(
+        within(appearance).getByRole('textbox', { name: 'Stroke color code' }),
+      ).not.toHaveAttribute('placeholder');
+    });
+
+    it('offers no fill for a selection of relations and arrows', () => {
+      renderInspector({ selected: [relation('api-reads-db'), relation('api-writes-db')] });
+      expect(screen.queryByLabelText('Fill')).not.toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: 'Stroke color code' })).toHaveValue('#3D4651');
     });
   });
 
@@ -998,7 +1374,10 @@ describe('Inspector', () => {
         selected: [element('appointments-db')],
         editable: false,
       });
-      const controls = inspector.querySelectorAll('input, textarea, select');
+      // Where the appearance controls make their changes is no change to the project.
+      const controls = inspector.querySelectorAll(
+        'input:not([type="radio"]), textarea, select, .inspector-swatch',
+      );
       expect(controls.length).toBeGreaterThan(10);
       for (const control of controls) expect(control).toBeDisabled();
       for (const name of [
@@ -1021,7 +1400,7 @@ describe('Inspector', () => {
         selected: [relation('agent-to-api')],
         editable: false,
       });
-      const controls = inspector.querySelectorAll('input, textarea, select');
+      const controls = inspector.querySelectorAll('input:not([type="radio"]), textarea, select');
       expect(controls.length).toBeGreaterThan(3);
       for (const control of controls) expect(control).toBeDisabled();
       expect(screen.getByRole('button', { name: 'Booking agent, AI agent' })).toBeEnabled();
@@ -1126,9 +1505,9 @@ describe('Inspector problems', () => {
     expect(within(form).getByRole('textbox', { name: 'Attribute name' })).toHaveFocus();
   });
 
-  it('says a problem with a colour code as it appears', async () => {
+  it('says a problem with a color code as it appears', async () => {
     renderInspector({ selected: [element('booking-agent')] });
-    const code = screen.getByRole('textbox', { name: 'Stroke colour code' });
+    const code = screen.getByRole('textbox', { name: 'Stroke color code' });
     fireEvent.change(code, { target: { value: '#12345' } });
     await settle(() => fireEvent.blur(code));
     expect(screen.getByRole('alert')).toHaveTextContent(COLOR_FORMS);
@@ -1171,7 +1550,7 @@ describe('Inspector, while answers are on their way', () => {
     expect(description).toHaveValue(original);
   });
 
-  it('sends a colour picked back while the first pick is on its way', async () => {
+  it('sends a color picked back while the first pick is on its way', async () => {
     const { send } = renderInspector({ selected: [element('booking-agent')] });
     const { answerNext } = holdAnswers(send);
     const fill = screen.getByLabelText('Fill');
@@ -1181,7 +1560,7 @@ describe('Inspector, while answers are on their way', () => {
       sent(send).map((command) => command.type === 'update-element' && command.changes),
     ).toEqual([
       { appearanceTraits: { fill: '#445566' } },
-      { appearanceTraits: { fill: '#f8e1ec' } },
+      { appearanceTraits: { fill: '#F8E1EC' } },
     ]);
     await answerNext();
     await answerNext();

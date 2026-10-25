@@ -1,12 +1,11 @@
-import { imageShownBy } from '@visual-anything/core';
-import type { Element } from '@visual-anything/schema';
-import { useId } from 'react';
+import { appearanceOriginsOf, componentOrEssence, imageShownBy } from '@visual-anything/core';
+import type { Element, Id } from '@visual-anything/schema';
 import { useEditor } from '../../editor/EditorContext';
 import { useT } from '../../i18n';
-import { Mark } from '../inspector/parts';
-import { perform } from '../inspector/send';
+import { originText } from '../inspector/colors';
 import { elementImageAction, imageChanges } from './imageCommands';
 import { ImageControl } from './ImageControl';
+import { TraitRow } from './TraitRow';
 
 interface ElementImageTraitProps {
   element: Element;
@@ -14,65 +13,55 @@ interface ElementImageTraitProps {
 }
 
 /**
- * The picture one element's shapes show, as a trait of its appearance in the inspector: its
+ * The picture one element's shapes show, as a trait of its own appearance in the inspector: its
  * component's, or one of its own, which is a particularity, chosen with the image picker. Its own
  * picture goes in one of the project's own packages, with a new one made when there is none.
  */
 export function ElementImageTrait({ element, disabled }: ElementImageTraitProps) {
   const t = useT();
   const { project, definitions, send } = useEditor();
-  const labelId = useId();
-  const markId = useId();
   const own = element.appearance?.image;
   const shown = imageShownBy(element, definitions);
+  const origin = appearanceOriginsOf(element, definitions).image;
+  const nameOf = (id: Id) => componentOrEssence(definitions, id).name;
   const off = disabled || send === undefined;
-  const setOwn = (image: 'none' | null) =>
-    perform(send, {
-      type: 'update-element',
-      id: element.id,
-      changes: { appearanceTraits: imageChanges(image) },
-    });
+  const setOwn = (image: 'none' | null) => ({
+    type: 'update-element' as const,
+    id: element.id,
+    changes: { appearanceTraits: imageChanges(image) },
+  });
 
   return (
-    <li className="inspector-trait inspector-image-trait">
-      <span id={labelId} className="inspector-trait-label">
-        {t('Image')}
-      </span>
-      <span
-        className="inspector-trait-control"
-        role="group"
-        aria-labelledby={labelId}
-        aria-describedby={own === undefined ? undefined : markId}
-      >
-        <ImageControl
-          project={project}
-          shown={shown}
-          disabled={off}
-          send={(command) => perform(send, command)}
-          actionFor={(choice, options) => elementImageAction(project, element, choice, options)}
-        />
-        {own !== undefined && (
-          <button
-            type="button"
-            className="inspector-action"
+    <TraitRow
+      label={t('Image')}
+      group
+      source={originText(origin, nameOf)}
+      own={own !== undefined}
+      readOnly={off}
+      inherit={() => setOwn(null)}
+      inheritLabel={t('Use the component’s image')}
+    >
+      {({ send: sendTrait, describedBy }) => (
+        <>
+          <ImageControl
+            project={project}
+            shown={shown}
             disabled={off}
-            onClick={() => void setOwn(null)}
-          >
-            {t('Use the component’s image')}
-          </button>
-        )}
-        {own !== 'none' && shown !== undefined && (
-          <button
-            type="button"
-            className="inspector-action"
-            disabled={off}
-            onClick={() => void setOwn('none')}
-          >
-            {t('Show no image')}
-          </button>
-        )}
-      </span>
-      {own !== undefined && <Mark id={markId} reason={t('its own')} />}
-    </li>
+            describedBy={describedBy}
+            send={sendTrait}
+            actionFor={(choice, options) => elementImageAction(project, element, choice, options)}
+          />
+          {own !== 'none' && shown !== undefined && !off && (
+            <button
+              type="button"
+              className="inspector-action"
+              onClick={() => void sendTrait(setOwn('none'))}
+            >
+              {t('Show no image')}
+            </button>
+          )}
+        </>
+      )}
+    </TraitRow>
   );
 }
