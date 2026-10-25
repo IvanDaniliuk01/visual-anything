@@ -33,7 +33,7 @@ const DIRECTIONS = [
 ] as const satisfies readonly ViewFocus['direction'][];
 
 /** The parts of a view state beside its view, as `link_to` and `open_app` take them. */
-const STATE_PARTS = {
+export const STATE_PARTS = {
   camera: z
     .object({
       x: z.number().describe('Canvas units: the point at the middle of the canvas.'),
@@ -74,10 +74,10 @@ const STATE_PARTS = {
 };
 
 /** A view state's parts, as the tools take them. */
-type StateArgs = z.infer<z.ZodObject<typeof STATE_PARTS>> & { view: string };
+export type StateArgs = z.infer<z.ZodObject<typeof STATE_PARTS>> & { view: string };
 
 /** What `link_to` and `open_app` say a view state holds, after the view. */
-const STATE_HELP = `camera is the point of the view at the middle of the canvas, in canvas units, and the zoom (1 is 100%). select names elements, relations and free shapes of the view. focus starts from the selection unless from names where it starts. step names a step of the scenario by its id or its number from 1; the scenario must play over the view.`;
+export const STATE_HELP = `camera is the point of the view at the middle of the canvas, in canvas units, and the zoom (1 is 100%). select names elements, relations and free shapes of the view. focus starts from the selection unless from names where it starts. step names a step of the scenario by its id or its number from 1; the scenario must play over the view.`;
 
 const linkTo = tool({
   name: 'link_to',
@@ -137,8 +137,11 @@ Example: { "view": "system-overview", "select": ["appointments-api"] }`,
   },
 });
 
-/** The view state the arguments ask for, checked as an address's is and against the project. */
-function askedState(
+/**
+ * The view state the arguments ask for, checked as an address's is and against the project. The tour
+ * tools take view states the same way (ADR 0058).
+ */
+export function askedState(
   args: StateArgs,
   project: ProjectSnapshot,
 ): { ok: true; state: ViewState } | { ok: false; message: string } {

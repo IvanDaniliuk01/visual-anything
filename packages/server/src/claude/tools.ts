@@ -29,6 +29,7 @@ import { IMAGE_TOOLS } from './image-tools';
 import { RECIPES_IN_BRIEF } from './recipes';
 import { SCENARIO_TOOLS } from './scenario-tools';
 import { SCOPE_TOOLS } from './scope-tools';
+import { TOUR_TOOLS } from './tour-tools';
 import { VIEW_STATE_TOOLS, openApp } from './view-tools';
 import {
   MAX_RESULTS,
@@ -1112,6 +1113,8 @@ export const TOOLS: readonly Tool[] = [
   clearGuidance,
   openApp,
   ...SCENARIO_TOOLS,
+  // Tours (ADR 0058).
+  ...TOUR_TOOLS,
   ...IMAGE_TOOLS,
   ...CODE_TOOLS,
   ...EXPLORE_TOOLS,

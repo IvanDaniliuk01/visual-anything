@@ -8,6 +8,7 @@ import {
   brokenStepsOf,
   builtinPackage,
   definitionsIn,
+  isBrokenTourStep,
   isOutside,
   modelIndexOf,
   nestingTypesInView,
@@ -65,6 +66,13 @@ export function summarizeProject(state: ProjectSnapshot) {
       brokenSteps: scenario.steps.filter((step) =>
         step.relations.some((relation) => !relationIds.has(relation)),
       ).length,
+    })),
+    // Tours (ADR 0058): a step that names what was deleted is kept, flagged as broken.
+    tours: state.tours.map((tour) => ({
+      id: tour.id,
+      name: tour.name,
+      steps: tour.steps.length,
+      brokenSteps: tour.steps.filter((step) => isBrokenTourStep(state, step)).length,
     })),
     directlyInWorld: {
       total: topLevel.length,
