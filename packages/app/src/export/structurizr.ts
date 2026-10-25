@@ -34,9 +34,11 @@ import type { TextExport } from './outline';
 /** What a Systems component becomes in the C4 model. */
 type Kind = 'person' | 'softwareSystem' | 'container' | 'component';
 
-const PERSON = 'systems.person';
-const SYSTEM = 'systems.system';
-const BOX = 'systems.box';
+// The Systems package's components, and the C4 starter package's (ADR 0051). A C4 deployment node
+// has no place in a static view, so it is left out, as anything else is.
+const PERSON = ['systems.person', 'c4.person'];
+const SYSTEM = ['systems.system', 'c4.software-system'];
+const BOX = ['systems.box', 'c4.container', 'c4.component'];
 
 const OTHER_PACKAGES: PluralText = {
   one: 'One element of another package than Systems is left out.',
@@ -94,9 +96,11 @@ export interface StructurizrOptions {
 
 /** Whether a component is one of the Systems package's, and what it becomes in C4. */
 function kindOf(definitions: Definitions, component: Id): 'person' | 'system' | 'box' | undefined {
-  if (definitions.componentDerives(component, PERSON)) return 'person';
-  if (definitions.componentDerives(component, SYSTEM)) return 'system';
-  if (definitions.componentDerives(component, BOX)) return 'box';
+  const derives = (ids: readonly Id[]) =>
+    ids.some((id) => definitions.componentDerives(component, id));
+  if (derives(PERSON)) return 'person';
+  if (derives(SYSTEM)) return 'system';
+  if (derives(BOX)) return 'box';
   return undefined;
 }
 

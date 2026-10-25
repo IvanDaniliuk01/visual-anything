@@ -184,6 +184,18 @@ describe('writeStructurizr', () => {
     });
   });
 
+  it('writes the C4 starter package’s people, software systems and containers too', () => {
+    const c4 = loadSample('c4-architecture');
+    const view = c4.views.find((each) => each.id === 'containers')!;
+    expect(structurizrApplies(c4, view.id)).toBe(true);
+    const { text } = writeStructurizr(c4, view.id);
+    const kinds = new Set(
+      [...readWorkspace(text).elements.values()].map((element) => element.kind),
+    );
+    expect(kinds.has('softwareSystem')).toBe(true);
+    expect(kinds.has('container')).toBe(true);
+  });
+
   it('applies only to views that show Systems components', () => {
     expect(structurizrApplies(loadSample(), SAMPLE_VIEW)).toBe(true);
     const tables = usersAndOrders();
