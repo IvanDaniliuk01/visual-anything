@@ -38,6 +38,13 @@ export interface LayoutShape {
   baseHeight?: number;
   /** Where relations attach to it; absent when they attach anywhere on its border. */
   points?: readonly LayoutConnectionPoint[];
+  /**
+   * On a row (ADR 0023): the middle of its row, from the top of the shape that draws it, where the
+   * relations that end on it attach beside that shape. A row never moves.
+   */
+  rowAt?: number;
+  /** On a shape that draws its contents as rows: the middle of its header, where its own relations attach. */
+  headerAt?: number;
 }
 
 /** A drawn relation between two shapes, by their indexes. */

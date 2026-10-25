@@ -69,7 +69,7 @@ export function RowsSection({ element }: { element: Element }) {
   const started = startedTypesByElement(project.model.relations);
   const detailOf = (id: Id) => {
     const row = index.element(id);
-    return row ? detailText(detailParts(row, definitionsIn(project), started.get(id))) : '';
+    return row ? detailText(detailParts(row, definitionsIn(project), started.get(id) ?? new Set())) : '';
   };
 
   // What it holds through nesting relation types the view does not nest by.

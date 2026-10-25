@@ -222,6 +222,10 @@ export const ui: Catalog = {
   // What the canvas says about what it selected.
   'in {container} and {others}': 'en {container} y {others}',
   'in {container}': 'en {container}',
+  '{name}, {component}, row {position} of {count} in {container}, {relations}.':
+    '{name}, {component}, fila {position} de {count} en {container}, {relations}.',
+  '{name}, {component}, {detail}, row {position} of {count} in {container}, {relations}.':
+    '{name}, {component}, {detail}, fila {position} de {count} en {container}, {relations}.',
   '{count} other containers': { one: '{count} contenedor más', other: '{count} contenedores más' },
   'no relations': 'ninguna relación',
   'A relation that no longer exists.': 'Una relación que ya no existe.',
@@ -404,6 +408,23 @@ export const ui: Catalog = {
   // The question before a deletion, or before a change that deletes relations as it goes.
   'a relation': 'una relación',
   'Delete {things}?': '¿Eliminar {things}?',
+  'Also delete its {count} rows': {
+    one: 'Eliminar también su fila',
+    other: 'Eliminar también sus {count} filas',
+  },
+  'Also delete their {count} rows': {
+    one: 'Eliminar también su fila',
+    other: 'Eliminar también sus {count} filas',
+  },
+  'Also delete {count} more elements it holds:': {
+    one: 'Eliminar también {count} elemento más que contiene:',
+    other: 'Eliminar también {count} elementos más que contiene:',
+  },
+  'Also delete {count} more elements they hold:': {
+    one: 'Eliminar también {count} elemento más que contienen:',
+    other: 'Eliminar también {count} elementos más que contienen:',
+  },
+  '{name} is also in {container}': '{name} también está en {container}',
   '{question}?': '¿{question}?',
   'Put inside': 'Poner dentro',
   Move: 'Mover',
@@ -545,6 +566,7 @@ export const ui: Catalog = {
   'Add a column': 'Agregar una columna',
   'Add a row': 'Agregar una fila',
   'Added a row to “{name}”.': 'Se agregó una fila a “{name}”.',
+  '“{name}” draws no rows to add a row to.': '“{name}” no dibuja filas a las que agregar una.',
   'Type or paste columns': 'Escribir o pegar columnas',
   'id uuid pk, or a CREATE TABLE statement': 'id uuid pk, o una instrucción CREATE TABLE',
   'Columns to add': 'Columnas que se agregan',
@@ -580,6 +602,12 @@ export const ui: Catalog = {
     'Cambiar el nombre del elemento seleccionado, o editar la nota seleccionada',
   'Shift+arrow keys': 'Mayús+flechas',
   'Move the selection a small step': 'Mover la selección un poco',
+  'Shift+Up, Shift+Down on a row': 'Mayús+Arriba, Mayús+Abajo en una fila',
+  'Move the row up or down among the rows of its table, in the model’s order':
+    'Subir o bajar la fila entre las filas de su tabla, en el orden del modelo',
+  'Ctrl+Enter (⌘Enter on macOS)': 'Ctrl+Enter (⌘Enter en macOS)',
+  'On a table, add a row at its end; on a row, add one below it; then edit its name, where Ctrl+Enter adds the next row and Escape stops':
+    'En una tabla, agregar una fila al final; en una fila, agregar otra debajo; después editar su nombre, donde Ctrl+Enter agrega la fila siguiente y Esc termina',
   'Ctrl+↑ and Ctrl+↓ (⌘ on macOS), or Ctrl+] and Ctrl+[':
     'Ctrl+↑ y Ctrl+↓ (⌘ en macOS), o Ctrl+] y Ctrl+[',
   'Bring the selection forward or send it backward, past the next shape it overlaps; these keys work wherever the focus is, except while typing':
