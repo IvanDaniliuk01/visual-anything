@@ -611,7 +611,9 @@ export const readClassDiagram: DiagramReader = (all, makeBuilder) => {
     builder.report(text, NOT_READ);
   }
   if (body !== undefined) {
-    return { problems: [`The block of "${body.key}" that starts on line ${body.line} never ends.`] };
+    return {
+      problems: [`The block of "${body.key}" that starts on line ${body.line} never ends.`],
+    };
   }
   if (namespace !== undefined) {
     return {

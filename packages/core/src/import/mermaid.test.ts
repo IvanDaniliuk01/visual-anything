@@ -305,7 +305,10 @@ describe('a Mermaid C4 diagram', () => {
 
   it('reports links, styles and layout it does not follow or read', () => {
     expect(plan.unmatched).toEqual([
-      { text: '$link="https://example.com/api"', why: 'Web addresses and callbacks are never followed.' },
+      {
+        text: '$link="https://example.com/api"',
+        why: 'Web addresses and callbacks are never followed.',
+      },
       {
         text: 'UpdateRelStyle(patient, whatsapp, $textColor="blue")',
         why: 'Styles are not read: the components’ appearances draw the shapes.',
@@ -448,7 +451,10 @@ describe('a Mermaid class diagram', () => {
         text: 'link Fish "https://example.com/fish"',
         why: 'Web addresses and callbacks are never followed.',
       },
-      { text: 'callback Animal "showAnimal"', why: 'Web addresses and callbacks are never followed.' },
+      {
+        text: 'callback Animal "showAnimal"',
+        why: 'Web addresses and callbacks are never followed.',
+      },
     ]);
   });
 });
