@@ -36,6 +36,23 @@ const viewFile = (id: string) => ({
   freeShapes: [],
 });
 const scenarioFile = (id: string, view = 'overview') => ({ id, name: id, view, steps: [] });
+const tourFile = (id: string, view = 'overview') => ({
+  id,
+  name: id,
+  steps: [{ id: 'start', viewState: { view }, caption: { title: 'Start here' } }],
+});
+const commentFile = (id: string, element = 'world') => ({
+  id,
+  anchor: { kind: 'element', element },
+  comments: [
+    {
+      id: 'first',
+      author: { kind: 'person', name: 'Ana' },
+      time: '2026-10-25T09:30:00.000Z',
+      text: 'Why here?',
+    },
+  ],
+});
 
 let folder: string;
 
@@ -86,6 +103,8 @@ describe('loadProject', () => {
     expect(project.packages.map((p) => p.id)).toEqual(['systems', 'clinic']);
     expect(project.views.map((view) => view.id)).toEqual(['system-overview']);
     expect(project.scenarios.map((scenario) => scenario.id)).toEqual(['patient-books-appointment']);
+    expect(project.tours.map((tour) => tour.id)).toEqual(['how-booking-works']);
+    expect(project.comments.map((thread) => thread.id)).toEqual(['reminder-timing']);
   });
 
   it('opens the sample without warnings', async () => {
@@ -103,6 +122,8 @@ describe('loadProject', () => {
       'packages/shop.vapackage': packageFile('shop'),
       'views/overview.vaview': viewFile('overview'),
       'scenarios/request.vascenario': scenarioFile('request'),
+      'tours/walk.vatour': tourFile('walk'),
+      'comments/why.vacomment': commentFile('why'),
     });
 
     expect(snapshotOf(await loadProject(folder))).toEqual({
@@ -111,16 +132,144 @@ describe('loadProject', () => {
       packages: [packageFile('shop')],
       views: [viewFile('overview')],
       scenarios: [scenarioFile('request')],
+      tours: [tourFile('walk')],
+      comments: [commentFile('why')],
     });
   });
 
-  it('treats a missing packages, views or scenarios folder as holding none', async () => {
+  it('treats a missing packages, views, scenarios, tours or comments folder as holding none', async () => {
     await write({ 'project.vaproject': projectFile(), 'model.vamodel': modelFile() });
 
     const project = snapshotOf(await loadProject(folder));
     expect(project.packages).toEqual([]);
     expect(project.views).toEqual([]);
     expect(project.scenarios).toEqual([]);
+    expect(project.tours).toEqual([]);
+    expect(project.comments).toEqual([]);
+  });
+
+  // Tours and threads of comments, each in a file of its own (ADR 0058, ADR 0059).
+  describe('with tours and comments', () => {
+    it('reads each tour and each thread from its folder, by file path, and where it lives', async () => {
+      await write({
+        'project.vaproject': projectFile(),
+        'model.vamodel': modelFile(),
+        'views/overview.vaview': viewFile('overview'),
+        'tours/b.vatour': tourFile('second'),
+        'tours/a.vatour': tourFile('first'),
+        'tours/notes.txt': 'not a tour',
+        'comments/z.vacomment': commentFile('later'),
+        'comments/y.vacomment': commentFile('earlier'),
+      });
+
+      const loaded = loadedOf(await loadProject(folder));
+      expect(loaded.project.tours.map((tour) => tour.id)).toEqual(['first', 'second']);
+      expect(loaded.project.comments.map((thread) => thread.id)).toEqual(['earlier', 'later']);
+      expect(loaded.files.tours).toEqual(
+        new Map([
+          ['first', 'tours/a.vatour'],
+          ['second', 'tours/b.vatour'],
+        ]),
+      );
+      expect(loaded.files.comments).toEqual(
+        new Map([
+          ['earlier', 'comments/y.vacomment'],
+          ['later', 'comments/z.vacomment'],
+        ]),
+      );
+      expect([...loaded.contents.keys()]).toEqual(
+        expect.arrayContaining(['tours/a.vatour', 'comments/y.vacomment']),
+      );
+    });
+
+    it('reports a tour or a thread that does not match its schema, at its pointer', async () => {
+      await write({
+        'project.vaproject': projectFile(),
+        'model.vamodel': modelFile(),
+        'tours/bad.vatour': {
+          id: 'bad',
+          name: 'Bad',
+          steps: [{ id: 's', caption: { title: 'T' } }],
+        },
+        'comments/bad.vacomment': { ...commentFile('bad'), comments: [] },
+      });
+
+      expect(errorsOf(await loadProject(folder))).toEqual([
+        {
+          file: 'tours/bad.vatour',
+          pointer: '/steps/0',
+          message: 'must have the key "viewState"',
+        },
+        {
+          file: 'comments/bad.vacomment',
+          pointer: '/comments',
+          message: 'must have at least 1 item',
+        },
+      ]);
+    });
+
+    it('reports two tours, or two threads, with one id', async () => {
+      await write({
+        'project.vaproject': projectFile(),
+        'model.vamodel': modelFile(),
+        'views/overview.vaview': viewFile('overview'),
+        'tours/one.vatour': tourFile('walk'),
+        'tours/two.vatour': tourFile('walk'),
+        'comments/one.vacomment': commentFile('why'),
+        'comments/two.vacomment': commentFile('why'),
+      });
+
+      expect(errorsOf(await loadProject(folder))).toEqual([
+        {
+          file: 'tours/two.vatour',
+          pointer: '/id',
+          message: 'The tour id "walk" is already used by tours/one.vatour.',
+        },
+        {
+          file: 'comments/two.vacomment',
+          pointer: '/id',
+          message: 'The thread id "why" is already used by comments/one.vacomment.',
+        },
+      ]);
+    });
+
+    it('refuses a tours or comments name that is a file, not a folder', async () => {
+      await write({
+        'project.vaproject': projectFile(),
+        'model.vamodel': modelFile(),
+        tours: 'a file',
+        comments: 'another file',
+      });
+
+      expect(errorsOf(await loadProject(folder))).toEqual([
+        {
+          file: 'tours',
+          pointer: '',
+          message: 'tours is not a folder; .vatour files go in tours/.',
+        },
+        {
+          file: 'comments',
+          pointer: '',
+          message: 'comments is not a folder; .vacomment files go in comments/.',
+        },
+      ]);
+    });
+
+    it('reads tours and threads in readProjectFiles too', async () => {
+      await write({
+        'project.vaproject': projectFile(),
+        'model.vamodel': modelFile(),
+        'tours/walk.vatour': tourFile('walk'),
+        'comments/why.vacomment': commentFile('why'),
+      });
+
+      expect([...(await readProjectFiles(folder)).keys()].sort()).toEqual([
+        'comments/why.vacomment',
+        'model.vamodel',
+        'project.vaproject',
+        'tours/walk.vatour',
+      ]);
+    });
   });
 
   it('keeps the packages in the order the project lists them, and leaves out unlisted ones', async () => {
@@ -538,6 +687,66 @@ describe('loadProject reads only regular files within their caps', () => {
     ]);
   });
 
+  it('refuses a tour over 8 MiB and a thread over 1 MiB, unread', async () => {
+    await write({
+      'tours/big.vatour': `${JSON.stringify(tourFile('big'))}${' '.repeat(8 * 1024 * 1024)}`,
+      'comments/big.vacomment': `${JSON.stringify(commentFile('big'))}${' '.repeat(1024 * 1024)}`,
+    });
+    expect(errorsOf(await loadProject(folder))).toEqual([
+      {
+        file: 'tours/big.vatour',
+        pointer: '',
+        message: 'The file holds more than 8 MiB, the most a file of this kind may hold.',
+      },
+      {
+        file: 'comments/big.vacomment',
+        pointer: '',
+        message: 'The file holds more than 1 MiB, the most a file of this kind may hold.',
+      },
+    ]);
+  });
+
+  it('refuses a comments folder that is a link, without reading what it points to', async (context) => {
+    const outside = await mkdtemp(join(tmpdir(), 'va-outside-'));
+    try {
+      await writeFile(join(outside, 'secret.vacomment'), JSON.stringify(commentFile('secret')));
+      if (!(await tryLink(outside, join(folder, 'comments'), 'junction')))
+        context.skip('This user may not make a link to a folder here.');
+      expect(errorsOf(await loadProject(folder))).toEqual([
+        {
+          file: 'comments',
+          pointer: '',
+          message: `comments is a link; Visual Anything opens only real folders and regular files inside the project folder.`,
+        },
+      ]);
+      expect([...(await readProjectFiles(folder)).keys()].sort()).toEqual([
+        'model.vamodel',
+        'project.vaproject',
+      ]);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a tour that is a link to a file outside the folder', async (context) => {
+    const outside = await mkdtemp(join(tmpdir(), 'va-outside-'));
+    try {
+      await writeFile(join(outside, 'secret.vatour'), JSON.stringify(tourFile('secret')));
+      if (
+        !(await tryLink(join(outside, 'secret.vatour'), join(folder, 'tours/a.vatour'), 'file'))
+      ) {
+        context.skip(
+          'This user may not make symbolic links here: Windows lets only Developer Mode or an administrator make them.',
+        );
+      }
+      expect(errorsOf(await loadProject(folder))).toEqual([
+        { file: 'tours/a.vatour', pointer: '', message: `The file is a link; ${ONLY_REGULAR}` },
+      ]);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
   it('refuses a FIFO among the views without waiting on it', async (context) => {
     context.skip(
       process.platform === 'win32',
@@ -823,6 +1032,8 @@ describe('where each file lives', () => {
       ]),
       views: new Map([['overview', 'views/first.vaview']]),
       scenarios: new Map([['request', 'scenarios/s.vascenario']]),
+      tours: new Map(),
+      comments: new Map(),
       unlistedPackages: new Map([['old', 'packages/old.vapackage']]),
     });
   });

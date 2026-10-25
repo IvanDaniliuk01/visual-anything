@@ -932,4 +932,226 @@ describe('validateFile', () => {
       expect(problemsIn('scenario', data)).toEqual(errors);
     });
   });
+
+  // Tours (ADR 0058).
+  describe('of a tour file', () => {
+    const tour = {
+      id: 'how-booking-works',
+      name: 'How booking works',
+      description: 'From the patient to the reminder.',
+      steps: [
+        {
+          id: 'overview',
+          viewState: { view: 'system-overview', camera: { x: 120, y: -40, zoom: 0.75 } },
+          caption: {
+            title: 'The clinic',
+            text: 'Three parts:\n\n- the bot\n- the API\n- the database',
+          },
+        },
+        {
+          id: 'api',
+          viewState: {
+            view: 'system-overview',
+            select: ['booking-api'],
+            filters: {
+              components: ['clinic.reminder'],
+              conditions: [{ of: 'elements', attribute: 'tier', test: 'is', value: 'core' }],
+            },
+            focus: { degrees: 1, direction: 'both', isolate: true },
+            scenario: 'patient-books-appointment',
+            step: 'ask',
+          },
+          caption: { title: 'The booking API' },
+          marks: ['booking-api', 'api-writes-db'],
+          play: { scenario: 'patient-books-appointment', from: 'ask', to: 'book' },
+          notes: 'Mention the retries.',
+        },
+      ],
+    };
+
+    it('accepts a valid one', () => {
+      expect(validateFile('tour', tour)).toEqual({ ok: true, value: tour });
+    });
+
+    it('keeps a step whose marks name what no longer exists, which it plays without', () => {
+      const kept = {
+        ...tour,
+        steps: [{ ...tour.steps[1], marks: ['deleted'], viewState: { view: 'gone' } }],
+      };
+      expect(validateFile('tour', kept)).toEqual({ ok: true, value: kept });
+    });
+
+    const step = tour.steps[0] as object;
+    it.each([
+      [
+        'a step without its view state',
+        { ...tour, steps: [{ id: 's', caption: { title: 'T' } }] },
+        [{ path: '/steps/0', message: 'must have the key "viewState"' }],
+      ],
+      [
+        'a view state without its view',
+        { ...tour, steps: [{ ...step, viewState: { camera: { x: 0, y: 0, zoom: 1 } } }] },
+        [{ path: '/steps/0/viewState', message: 'must have the key "view"' }],
+      ],
+      [
+        'a caption without a title',
+        { ...tour, steps: [{ ...step, caption: { title: '' } }] },
+        [{ path: '/steps/0/caption/title', message: 'must not be empty' }],
+      ],
+      [
+        'a caption with HTML in a key of its own',
+        { ...tour, steps: [{ ...step, caption: { title: 'T', html: '<b>T</b>' } }] },
+        [{ path: '/steps/0/caption', message: 'must not have the key "html"' }],
+      ],
+      [
+        'a camera zoomed past its limits',
+        {
+          ...tour,
+          steps: [{ ...step, viewState: { view: 'v', camera: { x: 0, y: 0, zoom: 0 } } }],
+        },
+        [{ path: '/steps/0/viewState/camera/zoom', message: 'must be at least 0.001' }],
+      ],
+      [
+        'focus that reaches past five degrees',
+        {
+          ...tour,
+          steps: [
+            {
+              ...step,
+              viewState: { view: 'v', focus: { degrees: 6, direction: 'both' } },
+            },
+          ],
+        },
+        [{ path: '/steps/0/viewState/focus/degrees', message: 'must be at most 5' }],
+      ],
+      [
+        'filters that hide nothing',
+        { ...tour, steps: [{ ...step, viewState: { view: 'v', filters: {} } }] },
+        [{ path: '/steps/0/viewState/filters', message: 'must not be empty' }],
+      ],
+      [
+        'a mark named twice',
+        { ...tour, steps: [{ ...step, marks: ['a', 'a'] }] },
+        [
+          {
+            path: '/steps/0/marks',
+            message: 'must not have duplicate items (items 0 and 1 are the same)',
+          },
+        ],
+      ],
+      [
+        'a playback without its scenario',
+        { ...tour, steps: [{ ...step, play: { from: 'ask' } }] },
+        [{ path: '/steps/0/play', message: 'must have the key "scenario"' }],
+      ],
+      [
+        'more steps than a tour holds',
+        { ...tour, steps: Array.from({ length: 1001 }, (_, at) => ({ ...step, id: `s${at}` })) },
+        [{ path: '/steps', message: 'must have at most 1000 items' }],
+      ],
+    ])('rejects %s', (_, data, errors) => {
+      expect(problemsIn('tour', data)).toEqual(errors);
+    });
+  });
+
+  // Comments (ADR 0059).
+  describe('of a comment file', () => {
+    const thread = {
+      id: 'booking-api-k3f9q2',
+      anchor: { kind: 'element', element: 'booking-api' },
+      comments: [
+        {
+          id: 'first',
+          author: { kind: 'person', name: 'Ana', email: 'ana@example.com' },
+          time: '2026-10-25T14:03:00.000Z',
+          text: 'Does this retry?',
+        },
+        {
+          id: 'answer',
+          author: { kind: 'claude' },
+          time: '2026-10-25T14:04:10Z',
+          edited: '2026-10-25T14:05:00.5Z',
+          text: 'Yes, three times.',
+        },
+      ],
+    };
+
+    it('accepts a valid one', () => {
+      expect(validateFile('comment', thread)).toEqual({ ok: true, value: thread });
+    });
+
+    it.each([
+      { kind: 'relation', relation: 'api-writes-db' },
+      { kind: 'view', view: 'system-overview' },
+      { kind: 'point', view: 'system-overview', x: -120.5, y: 300 },
+    ])('accepts a thread anchored to a $kind', (anchor) => {
+      const value = { ...thread, anchor, resolved: true };
+      expect(validateFile('comment', value)).toEqual({ ok: true, value });
+    });
+
+    const comment = thread.comments[0] as object;
+    it.each([
+      [
+        'a thread without comments',
+        { ...thread, comments: [] },
+        [{ path: '/comments', message: 'must have at least 1 item' }],
+      ],
+      [
+        'an anchor of an unknown kind',
+        { ...thread, anchor: { kind: 'file', path: 'a.txt' } },
+        [
+          {
+            path: '/anchor/kind',
+            message: 'must be one of "element", "relation", "view", "point"',
+          },
+        ],
+      ],
+      [
+        'a point far off the canvas',
+        { ...thread, anchor: { kind: 'point', view: 'v', x: 1e8, y: 0 } },
+        [{ path: '/anchor/x', message: 'must be at most 10000000' }],
+      ],
+      [
+        'a time that is not in UTC',
+        { ...thread, comments: [{ ...comment, time: '2026-10-25 14:03' }] },
+        [
+          {
+            path: '/comments/0/time',
+            message:
+              'must be a time in UTC as ISO 8601 writes it, such as 2026-10-25T14:03:00.000Z',
+          },
+        ],
+      ],
+      [
+        'an email that is not one',
+        {
+          ...thread,
+          comments: [{ ...comment, author: { kind: 'person', name: 'Ana', email: 'ana' } }],
+        },
+        [
+          {
+            path: '/comments/0/author/email',
+            message: 'must be an email address, such as ana@example.com',
+          },
+        ],
+      ],
+      [
+        'a person without a name',
+        { ...thread, comments: [{ ...comment, author: { kind: 'person', name: '' } }] },
+        [{ path: '/comments/0/author/name', message: 'must not be empty' }],
+      ],
+      [
+        'Claude with a name of its own',
+        { ...thread, comments: [{ ...comment, author: { kind: 'claude', name: 'Mallory' } }] },
+        [{ path: '/comments/0/author', message: 'must not have the key "name"' }],
+      ],
+      [
+        'an empty comment',
+        { ...thread, comments: [{ ...comment, text: '' }] },
+        [{ path: '/comments/0/text', message: 'must not be empty' }],
+      ],
+    ])('rejects %s', (_, data, errors) => {
+      expect(problemsIn('comment', data)).toEqual(errors);
+    });
+  });
 });

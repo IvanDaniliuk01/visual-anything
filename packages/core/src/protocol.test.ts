@@ -26,6 +26,8 @@ const project: ProjectSnapshot = {
   packages: [],
   views: [],
   scenarios: [],
+  tours: [],
+  comments: [],
 };
 
 describe('PROTOCOL_VERSION', () => {

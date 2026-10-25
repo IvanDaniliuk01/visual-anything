@@ -1,8 +1,10 @@
 import type {
+  CommentFile,
   ModelFile,
   PackageFile,
   ProjectFile,
   ScenarioFile,
+  TourFile,
   ViewFile,
 } from '@visual-anything/schema';
 
@@ -14,4 +16,8 @@ export interface ProjectSnapshot {
   packages: PackageFile[];
   views: ViewFile[];
   scenarios: ScenarioFile[];
+  /** Its tours, one per file in `tours/` (ADR 0058). */
+  tours: TourFile[];
+  /** Its threads of comments, one per file in `comments/` (ADR 0059). */
+  comments: CommentFile[];
 }

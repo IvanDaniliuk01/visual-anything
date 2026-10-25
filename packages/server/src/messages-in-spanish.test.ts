@@ -198,6 +198,36 @@ describe('the problems that keep a project from opening', () => {
     expect(problems.flatMap(inEnglish)).toEqual([]);
   });
 
+  // Tours and threads of comments (ADR 0058, ADR 0059).
+  it('reads tours and threads that are not valid, or whose ids are used twice', async () => {
+    const tour = {
+      id: 'walk',
+      name: 'A walk',
+      steps: [{ id: 'start', viewState: { view: 'overview' }, caption: { title: 'Start' } }],
+    };
+    const thread = {
+      id: 'why',
+      anchor: { kind: 'element', element: 'api' },
+      comments: [
+        { id: 'c', author: { kind: 'claude' }, time: '2026-10-25T09:30:00Z', text: 'Why?' },
+      ],
+    };
+    const problems = await problemsOf(testProject(), {
+      'tours/a.vatour': JSON.stringify(tour),
+      'tours/b.vatour': JSON.stringify(tour),
+      'tours/c.vatour': JSON.stringify({ ...tour, id: 'other', steps: [{ id: 's' }] }),
+      'comments/a.vacomment': JSON.stringify(thread),
+      'comments/b.vacomment': JSON.stringify(thread),
+      'comments/c.vacomment': JSON.stringify({
+        ...thread,
+        id: 'other',
+        comments: [{ id: 'c', author: { kind: 'person', name: 'Ana', email: 'no' }, time: 'now' }],
+      }),
+    });
+    expect(problems.length).toBeGreaterThan(5);
+    expect(problems.flatMap(inEnglish)).toEqual([]);
+  });
+
   it('reads a folder of views that is a file', async () => {
     const state = testProject();
     await writeProjectFolder(folder, { ...state, views: [], scenarios: [] });

@@ -52,6 +52,9 @@ export interface ProjectFiles {
   packages: ReadonlyMap<Id, string>;
   views: ReadonlyMap<Id, string>;
   scenarios: ReadonlyMap<Id, string>;
+  tours: ReadonlyMap<Id, string>;
+  /** The file of each thread of comments, by thread id. */
+  comments: ReadonlyMap<Id, string>;
   /** The package files in `packages/` that the project does not list, by package id. */
   unlistedPackages: ReadonlyMap<Id, string>;
 }
@@ -80,6 +83,8 @@ const REPORT_ORDER: readonly Concern[] = [
   'package',
   'view',
   'scenario',
+  'tour',
+  'comment',
 ];
 
 const FOLDER_KINDS = Object.keys(FOLDERS) as FolderKind[];
@@ -96,8 +101,9 @@ interface Read<K extends FileKind> {
 
 /**
  * Opens the project in a folder. The folder holds exactly one `.vaproject` and one `.vamodel` file;
- * packages, views and scenarios sit in its `packages/`, `views/` and `scenarios/` folders. Every
- * problem is collected before returning; the core's rules are checked once every file is valid.
+ * packages, views, scenarios, tours and threads of comments sit in its `packages/`, `views/`,
+ * `scenarios/`, `tours/` and `comments/` folders. Every problem is collected before returning; the
+ * core's rules are checked once every file is valid.
  */
 export async function loadProject(folder: string): Promise<LoadProjectResult> {
   const given = resolve(folder);
@@ -116,17 +122,21 @@ export async function loadProject(folder: string): Promise<LoadProjectResult> {
   // the folder that changes meanwhile cannot send one read somewhere else.
   const projectFolder = await realFolder(given);
 
-  const [project, model, packages, views, scenarios] = await Promise.all([
+  const [project, model, packages, views, scenarios, tours, comments] = await Promise.all([
     readTopLevelFile(projectFolder, names.names, 'project', problems),
     readTopLevelFile(projectFolder, names.names, 'model', problems),
     readSubfolder(projectFolder, 'package', problems),
     readSubfolder(projectFolder, 'view', problems),
     readSubfolder(projectFolder, 'scenario', problems),
+    readSubfolder(projectFolder, 'tour', problems),
+    readSubfolder(projectFolder, 'comment', problems),
   ]);
 
   requireUniqueIds(packages, 'package', problems);
   requireUniqueIds(views, 'view', problems);
   requireUniqueIds(scenarios, 'scenario', problems);
+  requireUniqueIds(tours, 'tour', problems);
+  requireUniqueIds(comments, 'comment', problems);
   const listedPackages = project ? findListedPackages(project, packages, problems) : [];
 
   if (!project || !model || problems.size > 0) return { ok: false, errors: problems.list() };
@@ -137,6 +147,8 @@ export async function loadProject(folder: string): Promise<LoadProjectResult> {
     packages: listedPackages.map((listed) => listed.value),
     views: views.map((view) => view.value),
     scenarios: scenarios.map((scenario) => scenario.value),
+    tours: tours.map((tour) => tour.value),
+    comments: comments.map((thread) => thread.value),
   };
   const listed = new Set(project.value.packages);
   const files: ProjectFiles = {
@@ -147,6 +159,8 @@ export async function loadProject(folder: string): Promise<LoadProjectResult> {
     ),
     views: new Map(views.map(({ value, file }) => [value.id, file])),
     scenarios: new Map(scenarios.map(({ value, file }) => [value.id, file])),
+    tours: new Map(tours.map(({ value, file }) => [value.id, file])),
+    comments: new Map(comments.map(({ value, file }) => [value.id, file])),
     unlistedPackages: new Map(
       packages
         .filter(({ value }) => !listed.has(value.id))
@@ -159,7 +173,7 @@ export async function loadProject(folder: string): Promise<LoadProjectResult> {
     return { ok: false, errors: locateProblems(check.errors, snapshot, files) };
   }
   const contents = new Map<string, Buffer>();
-  for (const read of [project, model, ...packages, ...views, ...scenarios]) {
+  for (const read of [project, model, ...packages, ...views, ...scenarios, ...tours, ...comments]) {
     contents.set(read.file, read.bytes);
   }
   return {
@@ -302,8 +316,8 @@ async function listFiles(folder: string): Promise<Listing> {
 }
 
 /**
- * Lists the folder of packages, views or scenarios, which must be a real folder: a link to one is
- * refused with the code `ELINK`, and what it points to is never listed.
+ * Lists the folder of packages, views, scenarios, tours or comments, which must be a real folder: a
+ * link to one is refused with the code `ELINK`, and what it points to is never listed.
  */
 async function listSubfolder(projectFolder: string, subfolder: string): Promise<Listing> {
   const path = join(projectFolder, subfolder);
@@ -441,7 +455,7 @@ function requireUniqueIds(files: Read<FolderKind>[], kind: FolderKind, problems:
       problems.add(kind, {
         file,
         pointer: '/id',
-        message: `The ${kind} id "${value.id}" is already used by ${first}.`,
+        message: `The ${kind === 'comment' ? 'thread' : kind} id "${value.id}" is already used by ${first}.`,
       });
     }
   }
@@ -570,6 +584,8 @@ class Locations {
     const wholeFiles: [Concern, ReadonlyMap<Id, string>][] = [
       ['view', files.views],
       ['scenario', files.scenarios],
+      ['tour', files.tours],
+      ['comment', files.comments],
       ['package', files.packages],
     ];
     for (const [concern, paths] of wholeFiles) {

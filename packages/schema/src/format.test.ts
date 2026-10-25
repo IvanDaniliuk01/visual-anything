@@ -1,10 +1,12 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
+import commentSchema from '../schemas/comment.schema.json' with { type: 'json' };
 import modelSchema from '../schemas/model.schema.json' with { type: 'json' };
 import packageSchema from '../schemas/package.schema.json' with { type: 'json' };
 import projectSchema from '../schemas/project.schema.json' with { type: 'json' };
 import scenarioSchema from '../schemas/scenario.schema.json' with { type: 'json' };
+import tourSchema from '../schemas/tour.schema.json' with { type: 'json' };
 import viewSchema from '../schemas/view.schema.json' with { type: 'json' };
 import type { ModelFile, PackageFile, ProjectFile, ScenarioFile, ViewFile } from './files';
 import { formatFile } from './format';
@@ -775,7 +777,15 @@ function subschemasOf(schema: unknown): Record<string, unknown>[] {
 }
 
 describe('the published schemas', () => {
-  const schemas = [projectSchema, modelSchema, packageSchema, viewSchema, scenarioSchema];
+  const schemas = [
+    projectSchema,
+    modelSchema,
+    packageSchema,
+    viewSchema,
+    scenarioSchema,
+    tourSchema,
+    commentSchema,
+  ];
   const subschemas = schemas.flatMap(subschemasOf);
 
   it('use only keywords that formatFile reads or that cannot change the order of keys', () => {

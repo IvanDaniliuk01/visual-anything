@@ -161,6 +161,8 @@ export function syntheticProject(options: SyntheticOptions): ProjectSnapshot {
       },
     ],
     scenarios: [],
+    tours: [],
+    comments: [],
   };
 }
 
@@ -402,6 +404,8 @@ export function syntheticTables(elements: number, images = false): ProjectSnapsh
       },
     ],
     scenarios: [],
+    tours: [],
+    comments: [],
   };
 }
 

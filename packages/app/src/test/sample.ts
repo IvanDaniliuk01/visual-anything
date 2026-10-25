@@ -2,10 +2,12 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { builtinPackage, type ProjectSnapshot } from '@visual-anything/core';
 import type {
+  CommentFile,
   ModelFile,
   PackageFile,
   ProjectFile,
   ScenarioFile,
+  TourFile,
   ViewFile,
 } from '@visual-anything/schema';
 
@@ -47,5 +49,7 @@ export function loadSample(name = 'my-systems'): ProjectSnapshot {
     }),
     views: readAll<ViewFile>(folder, 'views', '.vaview'),
     scenarios: readAll<ScenarioFile>(folder, 'scenarios', '.vascenario'),
+    tours: readAll<TourFile>(folder, 'tours', '.vatour'),
+    comments: readAll<CommentFile>(folder, 'comments', '.vacomment'),
   };
 }

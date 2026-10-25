@@ -167,6 +167,8 @@ describe('Shell', () => {
       model: { ...sample.model, elements: [], relations: [] },
       views: [],
       scenarios: [],
+      tours: [],
+      comments: [],
     };
     render(<Shell project={empty} />);
     expect(

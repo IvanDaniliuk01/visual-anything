@@ -84,5 +84,7 @@ export function imageProject(images?: ImageDefinition[]): ProjectSnapshot {
     ],
     views: [],
     scenarios: [],
+    tours: [],
+    comments: [],
   };
 }

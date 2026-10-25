@@ -5,10 +5,12 @@
  */
 import type { DefinedError, ValidateFunction } from 'ajv';
 import { Ajv } from 'ajv';
+import commentSchema from '../schemas/comment.schema.json' with { type: 'json' };
 import modelSchema from '../schemas/model.schema.json' with { type: 'json' };
 import packageSchema from '../schemas/package.schema.json' with { type: 'json' };
 import projectSchema from '../schemas/project.schema.json' with { type: 'json' };
 import scenarioSchema from '../schemas/scenario.schema.json' with { type: 'json' };
+import tourSchema from '../schemas/tour.schema.json' with { type: 'json' };
 import viewSchema from '../schemas/view.schema.json' with { type: 'json' };
 import { SCHEMA_VERSION } from './files';
 import type { FileContentByKind, FileKind } from './kinds';
@@ -87,6 +89,8 @@ const SCHEMAS = {
   package: packageSchema,
   view: viewSchema,
   scenario: scenarioSchema,
+  tour: tourSchema,
+  comment: commentSchema,
 } satisfies Record<FileKind, object>;
 
 let ajv: Ajv | undefined;
@@ -187,6 +191,15 @@ const PATTERN_MESSAGES = new Map([
   [
     packageSchema.definitions.Capability.pattern,
     'must be "model:read", "time", or "network:" and one web origin, such as "network:https://status.example.com"',
+  ],
+  // Comments (ADR 0059).
+  [
+    commentSchema.definitions.CommentTime.pattern,
+    'must be a time in UTC as ISO 8601 writes it, such as 2026-10-25T14:03:00.000Z',
+  ],
+  [
+    commentSchema.definitions.PersonAuthor.properties.email.pattern,
+    'must be an email address, such as ana@example.com',
   ],
 ]);
 

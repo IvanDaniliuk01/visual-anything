@@ -25,6 +25,8 @@ const project: ProjectSnapshot = {
   packages: [],
   views: [],
   scenarios: [],
+  tours: [],
+  comments: [],
 };
 
 const INDEX = [

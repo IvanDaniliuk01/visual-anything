@@ -18,6 +18,8 @@ const ROOT_TYPES: Record<FileKind, string> = {
   package: 'PackageFile',
   view: 'ViewFile',
   scenario: 'ScenarioFile',
+  tour: 'TourFile',
+  comment: 'CommentFile',
 };
 
 /** Generates the JSON Schema of every kind of project file, as the text of its file in `schemas/`. */

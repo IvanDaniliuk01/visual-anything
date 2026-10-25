@@ -428,6 +428,8 @@ const project: ProjectSnapshot = {
       steps: [{ id: 'write', description: 'Writes', relations: ['api-db'] }],
     },
   ],
+  tours: [],
+  comments: [],
 };
 
 describe('viewStateProblems', () => {

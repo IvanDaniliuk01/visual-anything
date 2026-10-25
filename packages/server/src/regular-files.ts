@@ -31,6 +31,8 @@ export const SIZE_CAPS: Readonly<Record<FileKind, number>> = {
   package: 8 * MIB,
   view: 64 * MIB,
   scenario: 64 * MIB,
+  tour: 8 * MIB,
+  comment: 1 * MIB,
 };
 
 /** The most bytes a project file of a kind may hold. */

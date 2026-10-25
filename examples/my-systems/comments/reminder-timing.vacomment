@@ -1,0 +1,18 @@
+{
+  "id": "reminder-timing",
+  "anchor": {
+    "kind": "element",
+    "element": "reminder-service"
+  },
+  "comments": [
+    {
+      "id": "reminder-timing-question",
+      "author": {
+        "kind": "person",
+        "name": "Ana"
+      },
+      "time": "2026-10-25T09:30:00.000Z",
+      "text": "Is one day ahead the right time for the reminder? Some patients book for the next morning."
+    }
+  ]
+}

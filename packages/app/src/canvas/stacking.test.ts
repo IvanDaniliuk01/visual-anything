@@ -101,6 +101,8 @@ function project(
       },
     ],
     scenarios: [],
+    tours: [],
+    comments: [],
   };
 }
 

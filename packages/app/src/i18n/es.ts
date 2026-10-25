@@ -92,6 +92,11 @@
  * | capability              | capacidad                        |
  * | approve, approval       | aprobar, aprobación              |
  * | computed (value)        | calculado                        |
+ * | tour                    | recorrido                        |
+ * | full-screen playback    | reproducción a pantalla completa |
+ * | speaker notes           | notas del orador                 |
+ * | thread                  | hilo                             |
+ * | comment                 | comentario                       |
  *
  * The words CONTEXT.md avoids are not used for its terms either: no "nodo", "objeto" or "instancia"
  * for an element, "propiedad" or "campo" for an attribute, "capa" for the stacking order, "enlace" or
@@ -2552,6 +2557,11 @@ export const messages: Catalog = {
   'must be a semantic version, such as 1.2.0': 'debe ser una versión semántica, como 1.2.0',
   'must be an SPDX license identifier, such as CC0-1.0 or MIT':
     'debe ser un identificador de licencia SPDX, como CC0-1.0 o MIT',
+  // What the schema says of a comment's time and author (ADR 0059).
+  'must be a time in UTC as ISO 8601 writes it, such as 2026-10-25T14:03:00.000Z':
+    'debe ser una hora en UTC tal como la escribe ISO 8601, como 2026-10-25T14:03:00.000Z',
+  'must be an email address, such as ana@example.com':
+    'debe ser una dirección de correo electrónico, como ana@example.com',
   'must not be empty': 'no debe estar vacío',
   'must have at least {n} characters': 'debe tener al menos {n} caracteres',
   'must have at least 1 item': 'debe tener al menos 1 entrada',
@@ -2603,6 +2613,9 @@ export const messages: Catalog = {
   'The view id "{id}" is already used by {file}.': 'El id de vista "{id}" ya lo usa {file}.',
   'The scenario id "{id}" is already used by {file}.':
     'El id de escenario "{id}" ya lo usa {file}.',
+  // Tours and threads of comments in their folders (ADR 0058, ADR 0059).
+  'The tour id "{id}" is already used by {file}.': 'El id de recorrido "{id}" ya lo usa {file}.',
+  'The thread id "{id}" is already used by {file}.': 'El id de hilo "{id}" ya lo usa {file}.',
   '{file} takes the id "{id}", which Visual Anything keeps for its built-in {name} package. Give it another id: {how}':
     '{file} usa el id "{id}", que Visual Anything reserva para su paquete incorporado {name}. Darle otro id: {how}',
   '{file} takes the id "{id}", which Visual Anything keeps for a built-in package to come. Rename it before that package ships: {how}':

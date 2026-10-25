@@ -54,7 +54,7 @@ import {
   type FileContent,
   type FileKey,
 } from './file-plan';
-import { FOLDERS, newFilePath } from './layout';
+import { FOLDERS, newFilePath, type FolderKind } from './layout';
 import type { PreferencesStore } from './preferences';
 import { toForwardSlashes } from './paths';
 import {
@@ -294,7 +294,7 @@ export class Session implements LiveSession {
       if (path === undefined) throw new Error(`The project has no file for ${key}.`);
       return path;
     };
-    const byId = (kind: 'package' | 'view' | 'scenario', ids: readonly Id[]) =>
+    const byId = (kind: FolderKind, ids: readonly Id[]) =>
       new Map(
         ids.flatMap((id) => {
           const path = this.#paths.get(`${kind}:${id}`);
@@ -315,6 +315,14 @@ export class Session implements LiveSession {
       scenarios: byId(
         'scenario',
         this.#state.scenarios.map((scenario) => scenario.id),
+      ),
+      tours: byId(
+        'tour',
+        this.#state.tours.map((tour) => tour.id),
+      ),
+      comments: byId(
+        'comment',
+        this.#state.comments.map((thread) => thread.id),
       ),
       unlistedPackages: new Map(this.#unlisted),
     };
@@ -1001,6 +1009,8 @@ export class Session implements LiveSession {
     for (const [id, path] of files.packages) this.#paths.set(`package:${id}`, path);
     for (const [id, path] of files.views) this.#paths.set(`view:${id}`, path);
     for (const [id, path] of files.scenarios) this.#paths.set(`scenario:${id}`, path);
+    for (const [id, path] of files.tours) this.#paths.set(`tour:${id}`, path);
+    for (const [id, path] of files.comments) this.#paths.set(`comment:${id}`, path);
     this.#unlisted = new Map(files.unlistedPackages);
     this.#known = new Map(contents);
     this.#originals = new Map();
@@ -1110,6 +1120,9 @@ const WRITE_RANK: Record<FileKind, number> = {
   model: 2,
   view: 3,
   scenario: 4,
+  // Tours name views and scenarios, and threads name what they are about (ADR 0058, ADR 0059).
+  tour: 5,
+  comment: 6,
 };
 
 /** New files first, then the files that change, then the deletions, each by {@link WRITE_RANK}. */

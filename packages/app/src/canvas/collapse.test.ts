@@ -89,6 +89,8 @@ function fixture({ elements, relations = [], view = {} }: Fixture): ProjectSnaps
       },
     ],
     scenarios: [],
+    tours: [],
+    comments: [],
   };
 }
 

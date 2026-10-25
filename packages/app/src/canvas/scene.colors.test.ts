@@ -166,6 +166,8 @@ describe('the scene’s relation lines', () => {
         },
       ],
       scenarios: [],
+      tours: [],
+      comments: [],
     };
     const scene = buildScene(project, 'v');
     const aggregated = scene.relations.find((line) => line.aggregate !== undefined);

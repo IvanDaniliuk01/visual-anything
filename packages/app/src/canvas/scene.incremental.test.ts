@@ -111,6 +111,8 @@ function tables(): ProjectSnapshot {
       },
     ],
     scenarios: [],
+    tours: [],
+    comments: [],
   };
 }
 

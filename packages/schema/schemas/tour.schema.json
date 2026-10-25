@@ -1,0 +1,325 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:visual-anything:schema:tour",
+  "title": "Visual Anything tour file",
+  "description": "The contents of a `.vatour` file: a tour, steps that each take the canvas to a view state and explain it with a caption, played full screen to walk someone through a concept (ADR 0058).",
+  "type": "object",
+  "properties": {
+    "id": {
+      "$ref": "#/definitions/Id"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 4000
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/TourStep"
+      },
+      "description": "The steps in order. A step that names something deleted is kept, and played without it.",
+      "maxItems": 1000
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "steps"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "Id": {
+      "type": "string",
+      "description": "An identifier, generated once and never reused. Files refer to each other only by id. Element and relation ids share one namespace, because a relation can end on either. Component and relation type ids start with their package's id, as in `systems.service`.",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "TourStep": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "viewState": {
+          "$ref": "#/definitions/SavedViewState",
+          "description": "Where the step takes the canvas and how it reads there; everything but its view is optional."
+        },
+        "caption": {
+          "$ref": "#/definitions/TourCaption",
+          "description": "What the caption card says while the step shows."
+        },
+        "marks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "description": "The elements and relations the step highlights, as guidance highlights them. Left out when it highlights none.",
+          "minItems": 1,
+          "maxItems": 500,
+          "uniqueItems": true
+        },
+        "play": {
+          "$ref": "#/definitions/TourPlayback",
+          "description": "A scenario played while the step shows, over the step's view."
+        },
+        "notes": {
+          "type": "string",
+          "description": "What the person presenting reads while the step shows, in the speaker notes window only: plain text, as a caption's.",
+          "minLength": 1,
+          "maxLength": 20000
+        }
+      },
+      "required": [
+        "id",
+        "viewState",
+        "caption"
+      ],
+      "additionalProperties": false,
+      "description": "One step of a tour: where it takes the canvas, what it says there, and what it marks."
+    },
+    "SavedViewState": {
+      "type": "object",
+      "properties": {
+        "view": {
+          "$ref": "#/definitions/Id",
+          "description": "The view open on the canvas."
+        },
+        "camera": {
+          "$ref": "#/definitions/SavedCamera",
+          "description": "Where the canvas looks; left out, the canvas shows the selection, or else the whole view."
+        },
+        "select": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "description": "What is selected: elements, relations and free shapes.",
+          "minItems": 1,
+          "maxItems": 500,
+          "uniqueItems": true
+        },
+        "filters": {
+          "$ref": "#/definitions/SavedFilters",
+          "description": "What the filters hide (ADR 0025)."
+        },
+        "focus": {
+          "$ref": "#/definitions/SavedFocus",
+          "description": "Focus mode; left out, it is off."
+        },
+        "scenario": {
+          "$ref": "#/definitions/Id",
+          "description": "The scenario open in the scenario panel, which plays over this view."
+        },
+        "step": {
+          "$ref": "#/definitions/Id",
+          "description": "The step of that scenario playback is on, by its id; it needs `scenario`."
+        }
+      },
+      "required": [
+        "view"
+      ],
+      "additionalProperties": false,
+      "description": "A view state as a project file keeps it (ADR 0030's addendum): the view and, each optional, where the canvas looks, what is selected, the filters, focus mode, and the scenario open and its step. Everything is named by id, so that renames do not break it."
+    },
+    "SavedCamera": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": -1000000000,
+          "maximum": 1000000000
+        },
+        "y": {
+          "type": "number",
+          "minimum": -1000000000,
+          "maximum": 1000000000
+        },
+        "zoom": {
+          "type": "number",
+          "description": "How large one canvas unit shows, in screen pixels.",
+          "minimum": 0.001,
+          "maximum": 1000
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "zoom"
+      ],
+      "additionalProperties": false,
+      "description": "Where the canvas looks: the point of the view at its middle, in canvas units, and the zoom."
+    },
+    "SavedFilters": {
+      "type": "object",
+      "properties": {
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "minItems": 1,
+          "maxItems": 500,
+          "uniqueItems": true
+        },
+        "relationTypes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "minItems": 1,
+          "maxItems": 500,
+          "uniqueItems": true
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SavedCondition"
+          },
+          "minItems": 1,
+          "maxItems": 32
+        }
+      },
+      "additionalProperties": false,
+      "description": "What a view state's filters hide: the elements created from some components, the relations of some relation types, and whatever does not meet some conditions.",
+      "minProperties": 1
+    },
+    "SavedCondition": {
+      "type": "object",
+      "properties": {
+        "of": {
+          "type": "string",
+          "enum": [
+            "elements",
+            "relations"
+          ]
+        },
+        "attribute": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "test": {
+          "type": "string",
+          "enum": [
+            "is",
+            "is-not",
+            "contains",
+            "below",
+            "above",
+            "set",
+            "unset"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "description": "What the value is compared with; left out for `set` and `unset`.",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [
+        "of",
+        "attribute",
+        "test"
+      ],
+      "additionalProperties": false,
+      "description": "A condition on an attribute that elements, or relations, must meet to stay shown."
+    },
+    "SavedFocus": {
+      "type": "object",
+      "properties": {
+        "degrees": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/FocusDegrees"
+            },
+            {
+              "type": "string",
+              "const": "all"
+            }
+          ],
+          "description": "How many relations away it reaches, or every degree."
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "both",
+            "outgoing",
+            "incoming"
+          ]
+        },
+        "isolate": {
+          "type": "boolean",
+          "description": "Whether it hides what it does not reach, instead of drawing it faintly."
+        },
+        "from": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "description": "The elements and relations it starts from; left out, it starts from the selection.",
+          "minItems": 1,
+          "maxItems": 500,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "degrees",
+        "direction"
+      ],
+      "additionalProperties": false,
+      "description": "Focus mode: how far it reaches, which way, whether it isolates, and what it starts from."
+    },
+    "FocusDegrees": {
+      "type": "integer",
+      "description": "How many relations away focus reaches.",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "TourCaption": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "additionalProperties": false,
+      "description": "What a step's caption card says: a title and a text. Both are plain text, never HTML: a blank line starts a paragraph, and lines that start with \"- \", or with a number and \". \", make a list."
+    },
+    "TourPlayback": {
+      "type": "object",
+      "properties": {
+        "scenario": {
+          "$ref": "#/definitions/Id"
+        },
+        "from": {
+          "$ref": "#/definitions/Id",
+          "description": "The step it starts on; its first step when left out."
+        },
+        "to": {
+          "$ref": "#/definitions/Id",
+          "description": "The step it stops on; its last step when left out."
+        }
+      },
+      "required": [
+        "scenario"
+      ],
+      "additionalProperties": false,
+      "description": "A scenario a step plays, from one of its steps to another."
+    }
+  }
+}

@@ -95,6 +95,27 @@ describe.each(MODES)('watchProject, watching in %s mode', (mode) => {
     await reported(() => put('scenarios/request.vascenario', 'scenario, edited'));
   });
 
+  // Tours and threads of comments (ADR 0058, ADR 0059).
+  it('reports the tours and comments folders as they appear, and the files put in them', async () => {
+    await reported(() => mkdir(join(folder, 'tours')));
+    await reported(() => put('tours/walk.vatour', 'tour'));
+    await reported(() => put('tours/walk.vatour', 'tour, edited'));
+    await reported(() => put('comments/why.vacomment', 'thread'));
+    await reported(() => unlink(join(folder, 'comments', 'why.vacomment')));
+  });
+
+  it('ignores what the tours and comments folders hold that is no tour or thread', async () => {
+    await put('tours/notes.txt', 'not a tour');
+    await put('comments/why.vatour', 'a tour in the wrong folder');
+    await settled();
+    const before = reports;
+    await put('tours/notes.txt', 'still not a tour');
+    await put('comments/why.vatour', 'still in the wrong folder');
+
+    await delay(QUIET);
+    expect(reports).toBe(before);
+  });
+
   it('keeps watching a folder of the project that is removed and made again', async () => {
     await reported(() => rm(join(folder, 'views'), { recursive: true }));
     await reported(() => put('views/c.vaview', 'view c'));

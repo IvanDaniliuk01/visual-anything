@@ -99,6 +99,8 @@ describe('the starter packages', () => {
       packages: [...BUILTIN_PACKAGES],
       views: [],
       scenarios: [],
+      tours: [],
+      comments: [],
     };
     expect(checkProject(project)).toEqual({ errors: [], warnings: [] });
   });

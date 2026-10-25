@@ -817,3 +817,318 @@ export interface Step {
   /** What the step produces. */
   dataOut?: JsonValue;
 }
+
+// ——— Tours (ADR 0058) ———
+
+/**
+ * The contents of a `.vatour` file: a tour, steps that each take the canvas to a view state and
+ * explain it with a caption, played full screen to walk someone through a concept (ADR 0058).
+ *
+ * @title Visual Anything tour file
+ */
+export interface TourFile {
+  id: Id;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name: string;
+  /** @maxLength 4000 */
+  description?: string;
+  /**
+   * The steps in order. A step that names something deleted is kept, and played without it.
+   *
+   * @maxItems 1000
+   */
+  steps: TourStep[];
+}
+
+/** One step of a tour: where it takes the canvas, what it says there, and what it marks. */
+export interface TourStep {
+  id: Id;
+  /** Where the step takes the canvas and how it reads there; everything but its view is optional. */
+  viewState: SavedViewState;
+  /** What the caption card says while the step shows. */
+  caption: TourCaption;
+  /**
+   * The elements and relations the step highlights, as guidance highlights them. Left out when it
+   * highlights none.
+   *
+   * @minItems 1
+   * @maxItems 500
+   * @uniqueItems true
+   */
+  marks?: Id[];
+  /** A scenario played while the step shows, over the step's view. */
+  play?: TourPlayback;
+  /**
+   * What the person presenting reads while the step shows, in the speaker notes window only: plain
+   * text, as a caption's.
+   *
+   * @minLength 1
+   * @maxLength 20000
+   */
+  notes?: string;
+}
+
+/**
+ * What a step's caption card says: a title and a text. Both are plain text, never HTML: a blank line
+ * starts a paragraph, and lines that start with "- ", or with a number and ". ", make a list.
+ */
+export interface TourCaption {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  title: string;
+  /**
+   * @minLength 1
+   * @maxLength 4000
+   */
+  text?: string;
+}
+
+/** A scenario a step plays, from one of its steps to another. */
+export interface TourPlayback {
+  scenario: Id;
+  /** The step it starts on; its first step when left out. */
+  from?: Id;
+  /** The step it stops on; its last step when left out. */
+  to?: Id;
+}
+
+/**
+ * A view state as a project file keeps it (ADR 0030's addendum): the view and, each optional, where
+ * the canvas looks, what is selected, the filters, focus mode, and the scenario open and its step.
+ * Everything is named by id, so that renames do not break it.
+ */
+export interface SavedViewState {
+  /** The view open on the canvas. */
+  view: Id;
+  /** Where the canvas looks; left out, the canvas shows the selection, or else the whole view. */
+  camera?: SavedCamera;
+  /**
+   * What is selected: elements, relations and free shapes.
+   *
+   * @minItems 1
+   * @maxItems 500
+   * @uniqueItems true
+   */
+  select?: Id[];
+  /** What the filters hide (ADR 0025). */
+  filters?: SavedFilters;
+  /** Focus mode; left out, it is off. */
+  focus?: SavedFocus;
+  /** The scenario open in the scenario panel, which plays over this view. */
+  scenario?: Id;
+  /** The step of that scenario playback is on, by its id; it needs `scenario`. */
+  step?: Id;
+}
+
+/** Where the canvas looks: the point of the view at its middle, in canvas units, and the zoom. */
+export interface SavedCamera {
+  /**
+   * @minimum -1000000000
+   * @maximum 1000000000
+   */
+  x: number;
+  /**
+   * @minimum -1000000000
+   * @maximum 1000000000
+   */
+  y: number;
+  /**
+   * How large one canvas unit shows, in screen pixels.
+   *
+   * @minimum 0.001
+   * @maximum 1000
+   */
+  zoom: number;
+}
+
+/**
+ * What a view state's filters hide: the elements created from some components, the relations of some
+ * relation types, and whatever does not meet some conditions.
+ *
+ * @minProperties 1
+ */
+export interface SavedFilters {
+  /**
+   * @minItems 1
+   * @maxItems 500
+   * @uniqueItems true
+   */
+  components?: Id[];
+  /**
+   * @minItems 1
+   * @maxItems 500
+   * @uniqueItems true
+   */
+  relationTypes?: Id[];
+  /**
+   * @minItems 1
+   * @maxItems 32
+   */
+  conditions?: SavedCondition[];
+}
+
+/** A condition on an attribute that elements, or relations, must meet to stay shown. */
+export interface SavedCondition {
+  of: 'elements' | 'relations';
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  attribute: string;
+  test: 'is' | 'is-not' | 'contains' | 'below' | 'above' | 'set' | 'unset';
+  /**
+   * What the value is compared with; left out for `set` and `unset`.
+   *
+   * @minLength 1
+   * @maxLength 200
+   */
+  value?: string;
+}
+
+/** Focus mode: how far it reaches, which way, whether it isolates, and what it starts from. */
+export interface SavedFocus {
+  /** How many relations away it reaches, or every degree. */
+  degrees: FocusDegrees | 'all';
+  direction: 'both' | 'outgoing' | 'incoming';
+  /** Whether it hides what it does not reach, instead of drawing it faintly. */
+  isolate?: boolean;
+  /**
+   * The elements and relations it starts from; left out, it starts from the selection.
+   *
+   * @minItems 1
+   * @maxItems 500
+   * @uniqueItems true
+   */
+  from?: Id[];
+}
+
+/**
+ * How many relations away focus reaches.
+ *
+ * @minimum 1
+ * @maximum 5
+ * @asType integer
+ */
+export type FocusDegrees = number;
+
+// ——— Comments (ADR 0059) ———
+
+/**
+ * The contents of a `.vacomment` file: one thread, the comments about one element, relation, view or
+ * point of a view, kept until it is resolved (ADR 0059). Each thread has a file of its own, so that
+ * threads added in two branches merge without a conflict.
+ *
+ * @title Visual Anything comment file
+ */
+export interface CommentFile {
+  id: Id;
+  /** What the thread is about. A thread whose anchor is deleted is kept, as a detached thread. */
+  anchor: CommentAnchor;
+  /** Whether the thread is resolved; left out while it is open. */
+  resolved?: boolean;
+  /**
+   * The comments, oldest first.
+   *
+   * @minItems 1
+   * @maxItems 1000
+   */
+  comments: ThreadComment[];
+}
+
+/**
+ * What a thread is about: an element, a relation, a view, or a point of a view.
+ *
+ * @discriminator kind
+ */
+export type CommentAnchor = ElementAnchor | RelationAnchor | ViewAnchor | PointAnchor;
+
+/** A thread about an element, shown on its shapes in every view that shows it. */
+export interface ElementAnchor {
+  kind: 'element';
+  element: Id;
+}
+
+/** A thread about a relation, shown on its line in every view that shows it. */
+export interface RelationAnchor {
+  kind: 'relation';
+  relation: Id;
+}
+
+/** A thread about a view as a whole. */
+export interface ViewAnchor {
+  kind: 'view';
+  view: Id;
+}
+
+/** A thread about a point of a view, in canvas units. */
+export interface PointAnchor {
+  kind: 'point';
+  view: Id;
+  /**
+   * @minimum -10000000
+   * @maximum 10000000
+   */
+  x: number;
+  /**
+   * @minimum -10000000
+   * @maximum 10000000
+   */
+  y: number;
+}
+
+/** A remark in a thread, with its author and time. */
+export interface ThreadComment {
+  id: Id;
+  author: CommentAuthor;
+  /** When it was written. */
+  time: CommentTime;
+  /** When it was last edited, if it was. */
+  edited?: CommentTime;
+  /**
+   * Plain text, never HTML: a blank line starts a paragraph, and lines that start with "- ", or with
+   * a number and ". ", make a list.
+   *
+   * @minLength 1
+   * @maxLength 20000
+   */
+  text: string;
+}
+
+/**
+ * A time in UTC, as ISO 8601 writes it, such as `2026-10-25T14:03:00.000Z`.
+ *
+ * @pattern ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,3})?Z$
+ */
+export type CommentTime = string;
+
+/**
+ * Who wrote a comment: a person, by the name and email in their preferences, or Claude.
+ *
+ * @discriminator kind
+ */
+export type CommentAuthor = PersonAuthor | ClaudeAuthor;
+
+/** A person, as their preferences name them (ADR 0032). */
+export interface PersonAuthor {
+  kind: 'person';
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name: string;
+  /**
+   * @maxLength 254
+   * @pattern ^[^\s@]+@[^\s@]+$
+   */
+  email?: string;
+}
+
+/** Claude. */
+export interface ClaudeAuthor {
+  kind: 'claude';
+}

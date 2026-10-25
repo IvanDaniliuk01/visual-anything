@@ -119,6 +119,8 @@ function fixture({
       },
     ],
     scenarios: [],
+    tours: [],
+    comments: [],
   };
 }
 
