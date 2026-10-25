@@ -78,6 +78,12 @@ export const pageSafety = {
           },
           { name: 'pixi.js/text-html', message: NO_MARKUP },
           { name: 'pixi.js/dom', message: NO_MARKUP },
+          {
+            name: '@visual-anything/core',
+            importNames: ['definitionsOf'],
+            message:
+              'Use definitionsIn(project), which applies the project appearances (ADR 0034).',
+          },
         ],
       },
     ],

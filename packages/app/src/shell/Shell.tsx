@@ -8,7 +8,7 @@ import { GuidanceLayer } from '../guidance/GuidanceLayer';
 import { useSelection } from '../editor/useSelection';
 import { buildScene, type Scene } from '../canvas/scene';
 import { useExplorer } from '../canvas/useExplorer';
-import { definitionsOf } from '@visual-anything/core';
+import { definitionsIn } from '@visual-anything/core';
 import { ScenarioPanel } from '../scenarios/ScenarioPanel';
 import { ScenarioSession } from '../scenarios/session';
 import { Header } from './Header';
@@ -33,7 +33,11 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   const view = project.views.find((each) => each.id === openViewId) ?? project.views[0];
   // What an edit removed, from here or elsewhere, drops out of the selection.
   const [selection, setSelection] = useSelection(project, view);
-  const definitions = useMemo(() => definitionsOf(project.packages), [project.packages]);
+  const definitions = useMemo(
+    () => definitionsIn(project),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the definitions follow the packages and the project appearances only
+    [project.packages, project.project.appearances],
+  );
   const scene = useMemo(() => (view ? buildScene(project, view.id) : undefined), [project, view]);
   const [revealed, setRevealed] = useState<{ key: string; request: number }>();
   const reveal = useCallback((key: string) => {

@@ -14,7 +14,7 @@
  * relations it aggregates, which selecting it selects.
  */
 import {
-  definitionsOf,
+  definitionsIn,
   modelIndexOf,
   relationTypeOrRelatesTo,
   type Placement,
@@ -200,7 +200,7 @@ function buildOutline(
   hidden: ReadonlySet<string> | undefined,
 ): Outline {
   const index = modelIndexOf(project);
-  const definitions = definitionsOf(project.packages);
+  const definitions = definitionsIn(project);
   // What the canvas does not draw, with the lines drawn to it, which the canvas leaves out too.
   const unseen: Hidden = hidden ? emphasize(scene, { hidden }).hidden : NOTHING_HIDDEN;
   const top: OutlineItem[] = [];

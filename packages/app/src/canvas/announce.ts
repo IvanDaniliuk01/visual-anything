@@ -4,7 +4,7 @@
  * as "Booking agent communicates with Appointments API"; a free shape; or how much a selection holds.
  */
 import {
-  definitionsOf,
+  definitionsIn,
   modelIndexOf,
   relationTypeOrRelatesTo,
   type ModelIndex,
@@ -100,10 +100,7 @@ export function describeSelection(
 
 /** "Patient communicates with WhatsApp channel": the ends named one level deep only. */
 function sentenceOf(index: ModelIndex, project: ProjectSnapshot, relation: Relation): string {
-  const relationType = relationTypeOrRelatesTo(
-    definitionsOf(project.packages),
-    relation.relationType,
-  );
+  const relationType = relationTypeOrRelatesTo(definitionsIn(project), relation.relationType);
   return `${shortNameIn(index, project, relation.from)} ${relationType.name} ${shortNameIn(index, project, relation.to)}`;
 }
 
@@ -111,10 +108,7 @@ function sentenceOf(index: ModelIndex, project: ProjectSnapshot, relation: Relat
 function shortNameIn(index: ModelIndex, project: ProjectSnapshot, id: Id): string {
   const relation = index.relation(id);
   if (!relation) return nameIn(index, id);
-  const relationType = relationTypeOrRelatesTo(
-    definitionsOf(project.packages),
-    relation.relationType,
-  );
+  const relationType = relationTypeOrRelatesTo(definitionsIn(project), relation.relationType);
   return relation.name ? `${relationType.name} “${relation.name}”` : relationType.name;
 }
 
