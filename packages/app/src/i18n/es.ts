@@ -58,6 +58,11 @@
  * | Essence                 | Esencia                          |
  * | package                 | paquete                          |
  * | built-in package        | paquete incorporado              |
+ * | starter package         | paquete inicial                  |
+ * | sample project          | proyecto de ejemplo              |
+ * | start screen            | pantalla de inicio               |
+ * | shared package          | paquete compartido               |
+ * | license, attribution    | licencia, atribución             |
  * | image                   | imagen                           |
  * | explore                 | explorar                         |
  * | filter                  | filtro, filtrar                  |

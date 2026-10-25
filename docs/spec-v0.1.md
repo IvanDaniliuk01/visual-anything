@@ -334,9 +334,9 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [ ] The spreadsheet (CSV and TSV) and JSON readers, importing again by a key
 - [ ] The Structurizr workspace JSON and LikeC4 model readers, with their views as scopes
 - [ ] The draw.io reader: compressed and plain files, `.drawio.svg` and `.drawio.png`, shapes, containers, edges with their waypoints, and pages as views
-- [ ] License fields in the schema, and the license test (ADR 0047)
-- [ ] Starter packages for C4 architecture and data-science pipelines, each with icons, a sample project and a scenario, in English and Spanish; New project from a sample
-- [ ] A package added from another project, with its version and attribution, and updated from it after a preview
+- [x] License fields in the schema, and the license test (ADR 0047)
+- [x] Starter packages for C4 architecture and data-science pipelines, each with icons, a sample project and a scenario, in English and Spanish; New project from a sample
+- [x] A package added from another project, with its version and attribution, and updated from it after a preview
 
 **Track A · Look and feel**, beside the milestones: A1 right after M2 and before M3's app tasks; A2's core before M3's commands for collapse, expand and filters, and A2 tagged before M4's write tools are fixed; A3 after M3's canvas tasks; A4 before M4's UI tasks. Its commits start with `A<n>:`, and each stage is tagged `a<n>` when its Done when holds.
 
