@@ -17,7 +17,7 @@ import { useT, type Translator } from '../i18n';
 import { DownloadIcon } from '../shell/icons';
 import { LARGE_PAGE, type ViewerAssets, type WrittenPage } from '../viewer/page';
 import './export.css';
-import { FILE_EXPORTS, type FileExport, type FileExportContext } from './formats';
+import { FILE_EXPORTS, type FileExport, type FileExportContext, type MadeFile } from './formats';
 import {
   ImageError,
   MAX_IMAGE_PIXELS,
@@ -189,8 +189,9 @@ function ExportDialog({
   const [drawing, setDrawing] = useState<Drawing>({ state: 'idle' });
   const busy = drawing.state === 'drawing';
   const number = useMemo(() => new Intl.NumberFormat(t.language), [t.language]);
-  // The files of the writers and the page, made once each is chosen, to say their size.
-  const [madeFiles, setMadeFiles] = useState<Record<string, Made<Blob>>>({});
+  // The files of the writers and the page, made once each is chosen, to say their size; a slow
+  // one, a PDF, once it is saved.
+  const [madeFiles, setMadeFiles] = useState<Record<string, Made<MadeFile>>>({});
   const [openAtNow, setOpenAtNow] = useState(true);
   const [madePage, setMadePage] = useState<Made<WrittenPage> & { openAtNow: boolean }>();
   const offered = files.length > 0 || page !== undefined;
@@ -203,21 +204,59 @@ function ExportDialog({
     chosen.kind === 'file' ? files.find((each) => each.format.id === chosen.id) : undefined;
   const fileMade = chosenFile ? madeFiles[chosenFile.format.id] : undefined;
 
-  /** Makes a writer's file once it is chosen, so that its size shows before it is saved. */
-  const makeFile = (id: string) => {
+  // Which request each writer's file answers: stopping, or closing the dialog, drops one on its way.
+  const fileRequests = useRef(new Map<string, number>());
+  const open = useRef(true);
+  useEffect(() => {
+    open.current = true;
+    return () => {
+      open.current = false;
+    };
+  }, []);
+
+  /**
+   * Makes a writer's file: when it is chosen, so that its size shows before it is saved, or for a
+   * slow one when it is saved, which then saves it once it is made.
+   */
+  const makeFile = (id: string, saveWhenMade = false) => {
     const chosenWriter = files.find((each) => each.format.id === id);
-    if (!chosenWriter || madeFiles[id]) return;
+    const already = madeFiles[id];
+    if (!chosenWriter || already?.state === 'making' || already?.state === 'made') return;
+    const request = (fileRequests.current.get(id) ?? 0) + 1;
+    fileRequests.current.set(id, request);
+    const current = () => open.current && fileRequests.current.get(id) === request;
     const { format, context } = chosenWriter;
     setMadeFiles((all) => ({ ...all, [id]: { state: 'making' } }));
     format.make(context).then(
-      (blob) =>
-        setMadeFiles((all) => ({ ...all, [id]: { state: 'made', value: blob, bytes: blob.size } })),
-      (error: unknown) =>
+      (made) => {
+        if (!current()) return;
+        setMadeFiles((all) => ({
+          ...all,
+          [id]: { state: 'made', value: made, bytes: made.blob.size },
+        }));
+        if (saveWhenMade) {
+          save(made.blob, made.fileName);
+          onClose();
+        }
+      },
+      (error: unknown) => {
+        if (!current()) return;
         setMadeFiles((all) => ({
           ...all,
           [id]: { state: 'failed', why: error instanceof Error ? error.message : String(error) },
-        })),
+        }));
+      },
     );
+  };
+
+  /** Stops waiting for a writer's file: what it makes meanwhile is dropped. */
+  const stopMaking = (id: string) => {
+    fileRequests.current.set(id, (fileRequests.current.get(id) ?? 0) + 1);
+    setMadeFiles((all) => {
+      const left = { ...all };
+      delete left[id];
+      return left;
+    });
   };
 
   // The page is written once it is chosen, and again when where it opens changes; only the answer
@@ -269,21 +308,26 @@ function ExportDialog({
           ? planned.problem
           : undefined;
   const pageMade = pageChosen && madePage?.state === 'made' ? madePage : undefined;
+  const fileUnavailable = chosenFile?.format.unavailable(chosenFile.context);
   const savable =
     !busy &&
     (chosen.kind === 'png'
       ? planned?.ok !== false
-      : chosen.kind === 'file'
-        ? fileMade?.state === 'made'
+      : chosenFile
+        ? fileMade?.state === 'made' ||
+          (chosenFile.format.slow && fileUnavailable === undefined && fileMade === undefined)
         : pageMade !== undefined);
   const large = pageMade?.value.large === true;
 
   async function draw(): Promise<void> {
     if (!savable) return;
     if (chosen.kind === 'file') {
-      if (chosenFile && fileMade?.state === 'made') {
-        save(fileMade.value, fileNameOf(projectName, viewName, chosenFile.format.extension));
+      if (!chosenFile) return;
+      if (fileMade?.state === 'made') {
+        save(fileMade.value.blob, fileMade.value.fileName);
         onClose();
+      } else if (chosenFile.format.slow) {
+        makeFile(chosenFile.format.id, true);
       }
       return;
     }
@@ -320,8 +364,13 @@ function ExportDialog({
   const choose = (next: Chosen) => {
     setChosen(next);
     setDrawing({ state: 'idle' });
-    if (next.kind === 'file') makeFile(next.id);
-    else if (next.kind === 'page') writePageAt(openAtNow);
+    if (next.kind === 'file') {
+      const writer = files.find((each) => each.format.id === next.id);
+      // A slow file is made when it is saved; one the view cannot give is not made at all.
+      if (writer && !writer.format.slow && !writer.format.unavailable(writer.context)) {
+        makeFile(next.id);
+      }
+    } else if (next.kind === 'page') writePageAt(openAtNow);
   };
   const formatGroup = `${titleId}-format`;
 
@@ -353,15 +402,19 @@ function ExportDialog({
               onChoose={() => choose({ kind: 'png' })}
               group={formatGroup}
             />
-            {files.map(({ format }) => {
+            {files.map(({ format, context }) => {
               const made = madeFiles[format.id];
+              const why = format.unavailable(context);
               return (
                 <FormatChoice
                   key={format.id}
                   name={format.name(t)}
-                  hint={made?.state === 'made' ? sizeText(t.language, made.bytes) : format.hint(t)}
+                  hint={
+                    why ??
+                    (made?.state === 'made' ? sizeText(t.language, made.bytes) : format.hint(t))
+                  }
                   checked={chosen.kind === 'file' && chosen.id === format.id}
-                  disabled={busy}
+                  disabled={busy || why !== undefined}
                   onChoose={() => choose({ kind: 'file', id: format.id })}
                   group={formatGroup}
                 />
@@ -451,9 +504,33 @@ function ExportDialog({
         {chosenFile && (
           <>
             <p className="export-status" role="status">
-              {fileMade?.state === 'making' ? t('Writing the file…') : ''}
+              {fileMade?.state === 'making'
+                ? chosenFile.format.slow
+                  ? t('Making the file… A large view can take a while.')
+                  : t('Writing the file…')
+                : ''}
             </p>
+            {fileMade?.state === 'making' && chosenFile.format.slow && (
+              <button
+                type="button"
+                className="export-stop"
+                onClick={() => stopMaking(chosenFile.format.id)}
+              >
+                {t('Stop making it')}
+              </button>
+            )}
+            {fileUnavailable !== undefined && <p className="dialog-note">{fileUnavailable}</p>}
             <LeavesOut items={chosenFile.format.leavesOut(chosenFile.context, t)} />
+            {fileMade?.state === 'made' && fileMade.value.lost.length > 0 && (
+              <div className="export-leaves-out">
+                <p className="dialog-note">{t('It could not hold:')}</p>
+                <ul className="dialog-note">
+                  {fileMade.value.lost.map((lost) => (
+                    <li key={lost}>{lost}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {fileMade?.state === 'failed' && (
               <p className="export-problem" role="alert">
                 {t('The file could not be written: {why}', { why: fileMade.why })}
@@ -580,11 +657,6 @@ function LeavesOut({ items }: { items: readonly string[] }) {
       </ul>
     </div>
   );
-}
-
-/** The name a writer's file is saved under: the project's and the view's, with its extension. */
-function fileNameOf(project: string, view: string, extension: string): string {
-  return `${imageFileName(project, view).slice(0, -'.png'.length)}.${extension}`;
 }
 
 /** How large a size makes the image, or that it is too large. */

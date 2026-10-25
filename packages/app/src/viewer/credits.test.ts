@@ -7,10 +7,12 @@ const sample = loadSample();
 
 describe('The credits of a page’s packages', () => {
   it('name each package the project uses, in its order, and say which are built in', () => {
-    expect(creditsOf(sample)).toEqual([
-      { id: 'systems', name: 'Systems', builtIn: true, imageSources: [] },
-      { id: 'clinic', name: 'Clinic', builtIn: false, imageSources: [] },
-    ]);
+    const [systems, clinic] = creditsOf(sample);
+    // A built-in package says its license and attribution, as every one that ships does (ADR 0047).
+    expect(systems).toMatchObject({ id: 'systems', name: 'Systems', builtIn: true });
+    expect(systems?.license).toEqual(expect.any(String));
+    expect(systems?.attribution).toEqual(expect.any(String));
+    expect(clinic).toEqual({ id: 'clinic', name: 'Clinic', builtIn: false, imageSources: [] });
   });
 
   it('give a package’s version, license and attribution, and its images’ sources, where it has them', () => {

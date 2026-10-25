@@ -7,7 +7,7 @@ import { loadSample } from '../test/sample';
 import { PAGE_DATA_ID } from '../viewer/data';
 import { LARGE_PAGE, type ViewerAssets } from '../viewer/page';
 import { ExportControl } from './ExportControl';
-import type { FileExport } from './formats';
+import { FILE_EXPORTS, type FileExport } from './formats';
 import {
   ViewerMissing,
   fetchViewerAssets,
@@ -70,15 +70,31 @@ function dialog(): HTMLElement {
   return screen.getByRole('dialog');
 }
 
-async function settle(): Promise<void> {
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 60));
-  });
+/**
+ * Lets the dialog's work run: a moment, then, when `until` is given, more moments until it holds,
+ * for a machine too busy to finish within the first.
+ */
+async function settle(until?: () => boolean): Promise<void> {
+  for (let waited = 0; waited < 10_000; waited += 60) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    });
+    if (!until || until()) return;
+  }
+}
+
+/** Whether the dialog has written its page, or said why it could not. */
+function pageWritten(): boolean {
+  const page = screen.queryByRole('radio', { name: /^(Read-only page|Página de solo lectura)/ });
+  return (
+    /\d\s?(byte|kB|MB)$/.test(page?.closest('label')?.textContent ?? '') ||
+    screen.queryByRole('alert') !== null
+  );
 }
 
 async function choosePage(): Promise<void> {
   fireEvent.click(within(dialog()).getByRole('radio', { name: /^Read-only page/ }));
-  await settle();
+  await settle(pageWritten);
 }
 
 describe('Export, with the read-only page', () => {
@@ -128,7 +144,7 @@ describe('Export, with the read-only page', () => {
     fireEvent.click(
       within(dialog()).getByRole('checkbox', { name: /^Open at what the canvas shows now/ }),
     );
-    await settle();
+    await settle(pageWritten);
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Save the page' }));
     const html = await save.mock.calls[0]![0].text();
     expect(html).not.toContain('"start"');
@@ -169,7 +185,7 @@ describe('Export, with the read-only page', () => {
     renderControl({ language: 'es' });
     expect(dialog()).toHaveAccessibleName('Exportar “System overview”');
     fireEvent.click(within(dialog()).getByRole('radio', { name: /^Página de solo lectura/ }));
-    await settle();
+    await settle(pageWritten);
     expect(within(dialog()).getByRole('button', { name: 'Guardar la página' })).toBeInTheDocument();
   });
 });
@@ -180,21 +196,129 @@ describe('Export, with the files of a writer', () => {
     name: () => 'SVG drawing',
     hint: () => 'A drawing that scales',
     extension: 'svg',
+    slow: false,
+    unavailable: () => undefined,
     leavesOut: () => ['Nothing it draws'],
-    make: () => Promise.resolve(new Blob(['<svg/>'], { type: 'image/svg+xml' })),
+    make: () =>
+      Promise.resolve({
+        blob: new Blob(['<svg/>'], { type: 'image/svg+xml' }),
+        fileName: 'My systems - System overview.svg',
+        lost: ['A picture that could not be read'],
+      }),
   };
 
-  it('offers each writer’s file, makes it to say its size, and saves it with its extension', async () => {
+  /** A slow writer, as the PDF's is, whose file comes when the test says. */
+  function slowWriter() {
+    let finish: () => void = () => {};
+    const made = vi.fn();
+    const pdf: FileExport = {
+      ...svg,
+      id: 'pdf',
+      name: () => 'PDF document',
+      hint: () => 'Made when saved',
+      extension: 'pdf',
+      slow: true,
+      make: () => {
+        made();
+        return new Promise((resolve) => {
+          finish = () =>
+            resolve({ blob: new Blob(['%PDF']), fileName: 'My systems.pdf', lost: [] });
+        });
+      },
+    };
+    return { pdf, made, finish: () => finish() };
+  }
+
+  it('offers each writer’s file, makes it to say its size, and saves it under its name', async () => {
     const { save } = renderControl({ files: [svg] });
     const formats = within(dialog()).getByRole('group', { name: 'Format' });
     fireEvent.click(
       within(formats).getByRole('radio', { name: 'SVG drawing A drawing that scales' }),
     );
-    await settle();
+    await settle(() => screen.queryByRole('radio', { name: 'SVG drawing 6 byte' }) !== null);
     expect(within(formats).getByRole('radio', { name: 'SVG drawing 6 byte' })).toBeChecked();
     expect(within(dialog()).getByText('Nothing it draws')).toBeInTheDocument();
+    expect(within(dialog()).getByText('A picture that could not be read')).toBeInTheDocument();
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Save SVG' }));
     expect(save).toHaveBeenCalledWith(expect.any(Blob), 'My systems - System overview.svg');
+  });
+
+  it('makes a slow file only when it is saved, says so, and saves it once it is made', async () => {
+    const { pdf, made, finish } = slowWriter();
+    const { save } = renderControl({ files: [pdf] });
+    fireEvent.click(within(dialog()).getByRole('radio', { name: /^PDF document/ }));
+    await settle();
+    expect(made).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Save PDF' }));
+    await settle();
+    expect(made).toHaveBeenCalledTimes(1);
+    expect(within(dialog()).getByRole('status')).toHaveTextContent(/^Making the file/);
+    finish();
+    await settle(() => save.mock.calls.length > 0);
+    expect(save).toHaveBeenCalledWith(expect.any(Blob), 'My systems.pdf');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('stops waiting for a slow file, and saves nothing of it', async () => {
+    const { pdf, finish } = slowWriter();
+    const { save } = renderControl({ files: [pdf] });
+    fireEvent.click(within(dialog()).getByRole('radio', { name: /^PDF document/ }));
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Save PDF' }));
+    await settle();
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Stop making it' }));
+    finish();
+    await settle();
+    expect(save).not.toHaveBeenCalled();
+    expect(within(dialog()).getByRole('status')).toHaveTextContent('');
+    expect(within(dialog()).getByRole('button', { name: 'Save PDF' })).not.toHaveAttribute(
+      'aria-disabled',
+    );
+  });
+
+  it('says why a view cannot give a format, and does not offer it', () => {
+    const none: FileExport = {
+      ...svg,
+      id: 'structurizr',
+      name: () => 'Structurizr DSL',
+      unavailable: () => 'The view shows no element of the Systems package.',
+    };
+    renderControl({ files: [none] });
+    expect(
+      within(dialog()).getByRole('radio', {
+        name: 'Structurizr DSL The view shows no element of the Systems package.',
+      }),
+    ).toBeDisabled();
+  });
+
+  it('lists the writers of SVG, PDF and the text exports by default', () => {
+    renderControl({ files: FILE_EXPORTS });
+    const formats = within(dialog()).getByRole('group', { name: 'Format' });
+    const names = within(formats)
+      .getAllByRole('radio')
+      .map((radio) => radio.closest('label')?.querySelector('.export-choice-name')?.textContent);
+    expect(names).toEqual([
+      'PNG image',
+      'SVG drawing',
+      'PDF document',
+      'Outline in Markdown',
+      'Mermaid flowchart',
+      'Structurizr DSL',
+      'Read-only page',
+    ]);
+  });
+
+  it('writes the SVG of the view with W32’s writer', async () => {
+    const { save } = renderControl({ files: FILE_EXPORTS });
+    fireEvent.click(within(dialog()).getByRole('radio', { name: /^SVG drawing/ }));
+    await settle(() =>
+      /\d\s?(byte|kB|MB)$/.test(
+        screen.getByRole('radio', { name: /^SVG drawing/ }).closest('label')?.textContent ?? '',
+      ),
+    );
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Save SVG' }));
+    const [blob, name] = save.mock.calls[0]!;
+    expect(name).toBe('My systems - System overview.svg');
+    expect(await blob.text()).toMatch(/^<svg|^<\?xml/);
   });
 });
 

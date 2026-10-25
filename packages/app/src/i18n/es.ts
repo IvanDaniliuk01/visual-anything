@@ -410,6 +410,25 @@ export const ui: Catalog = {
   'The page could not be written: {why}': 'No se pudo escribir la página: {why}',
   'Save the page': 'Guardar la página',
   'Save the page anyway': 'Guardar la página de todos modos',
+  'SVG drawing': 'Dibujo SVG',
+  'The view as a drawing that scales, for pages and documents':
+    'La vista como un dibujo que se escala, para páginas y documentos',
+  'PDF document': 'Documento PDF',
+  'The view on one page, to print or attach; made when saved':
+    'La vista en una página, para imprimir o adjuntar; se hace al guardarla',
+  'Outline in Markdown': 'Esquema en Markdown',
+  'The view as text, which is also its long description':
+    'La vista como texto, que es también su descripción larga',
+  'Mermaid flowchart': 'Flujograma de Mermaid',
+  'For GitHub, wikis and other tools that draw Mermaid':
+    'Para GitHub, wikis y otras herramientas que dibujan Mermaid',
+  'Structurizr DSL': 'DSL de Structurizr',
+  'A C4 workspace of the view’s Systems components':
+    'Un espacio de trabajo C4 de los componentes de Systems de la vista',
+  'Making the file… A large view can take a while.':
+    'Haciendo el archivo… Una vista grande puede tardar un rato.',
+  'Stop making it': 'Dejar de hacerlo',
+  'It could not hold:': 'No pudo contener:',
 
   // The model panel's tabs.
   'Outline and model': 'Esquema y modelo',

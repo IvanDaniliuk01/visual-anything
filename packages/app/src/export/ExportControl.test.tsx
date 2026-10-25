@@ -55,10 +55,17 @@ function dialog(): HTMLElement {
   return screen.getByRole('dialog');
 }
 
-async function settle(): Promise<void> {
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 60));
-  });
+/**
+ * Lets the dialog's drawing run: a moment, then, when `until` is given, more moments until it holds,
+ * for a machine too busy to draw within the first.
+ */
+async function settle(until?: () => boolean): Promise<void> {
+  for (let waited = 0; waited < 5000; waited += 60) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    });
+    if (!until || until()) return;
+  }
 }
 
 describe('ExportControl', () => {
@@ -93,7 +100,7 @@ describe('ExportControl', () => {
     fireEvent.click(within(dialog()).getByRole('radio', { name: /^1×/ }));
 
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Save PNG' }));
-    await settle();
+    await settle(() => save.mock.calls.length > 0);
 
     expect(exportImage).toHaveBeenCalledWith({ area: 'visible', scale: 1 });
     expect(save).toHaveBeenCalledWith(PNG, 'My systems - System overview.png');
@@ -110,7 +117,7 @@ describe('ExportControl', () => {
     const saveButton = within(dialog()).getByRole('button', { name: 'Save PNG' });
 
     fireEvent.click(saveButton);
-    await settle();
+    await settle(() => exportImage.mock.calls.length > 0);
     fireEvent.click(saveButton);
     await settle();
 
@@ -147,7 +154,7 @@ describe('ExportControl', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Export…' }));
 
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Save PNG' }));
-    await settle();
+    await settle(() => screen.queryByRole('alert') !== null);
 
     expect(within(dialog()).getByRole('alert')).toHaveTextContent(
       'The canvas is not ready yet. Try again in a moment.',

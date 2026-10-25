@@ -267,7 +267,11 @@ describe('writeSvg', () => {
       ),
     };
     const drawing = writeSvg(recorded, SAMPLE_VIEW);
-    expect(drawing.attribution).toEqual(['Clinic · CC-BY-4.0 · Drawn by the clinic']);
+    // The built-in Systems package carries its own attribution since W31 (ADR 0047).
+    expect(drawing.attribution).toEqual([
+      expect.stringMatching(/^Systems · /),
+      'Clinic · CC-BY-4.0 · Drawn by the clinic',
+    ]);
     expect(readSvg(drawing.text).querySelector('metadata')?.textContent).toContain(
       'Clinic · CC-BY-4.0 · Drawn by the clinic',
     );
