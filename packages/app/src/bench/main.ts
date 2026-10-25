@@ -6,6 +6,10 @@
  * size, `?overlap=stairs`, `grid` or `cascade` makes shapes overlap (see `synthetic.ts`), and
  * `?theme=dark` runs it in the dark theme. It also switches the theme back and forth at three scales,
  * pans and zooms after a switch, selects everything in the dark theme, and recolors every Service.
+ * `?grid=on` runs every phase with the grid and the rulers shown (A3); otherwise the pan and zoom of
+ * the whole view are measured again with them, and the grid's cost per frame at the median, which
+ * must stay within 0.5 ms, is measured in blocks of frames with and without it, one after another, so
+ * that a machine busy with something else weighs on both alike. `?only=grid` measures only these.
  *
  * Work mode, the default, measures the work of each frame: it moves the camera, draws the frame and
  * waits until the GPU has drawn it, so the result does not depend on how often the browser offers
@@ -61,6 +65,8 @@ interface Timed {
 
 /** How long a restack may take, from the command to the frame drawn, at the 95th percentile. */
 const RESTACK_MARK = 100;
+/** How much the grid may add to a frame, at the median, in milliseconds (A3). */
+const GRID_MARK = 0.5;
 const VIEW = 'everything';
 /** How many times each phase of switches switches the theme. */
 const SWITCHES = 6;
@@ -71,6 +77,9 @@ const search = new URLSearchParams(location.search);
 const size = Number(search.get('elements') ?? 10_000);
 const mode: 'work' | 'frames' = search.get('mode') === 'frames' ? 'frames' : 'work';
 const overlap: Overlap = OVERLAPS.find((each) => each === search.get('overlap')) ?? 'none';
+/** Whether every phase runs with the grid and the rulers shown, and whether only the grid's are run. */
+const gridOn = search.get('grid') === 'on';
+const onlyGrid = search.get('only') === 'grid';
 const startTheme: ThemeName = search.get('theme') === 'dark' ? 'dark' : 'light';
 // The page's panel follows the canvas's theme, as the app's do.
 document.documentElement.setAttribute('data-theme', startTheme);
@@ -102,6 +111,7 @@ const controller = new CanvasController(
   { theme: THEMES[startTheme].canvas },
 );
 controller.update(project, VIEW, indexed, false);
+if (gridOn) controller.setGrid({ grid: true, snapToGrid: true, rulers: true });
 // For looking into the benchmark from the browser's console.
 Object.assign(window, { benchmark: { controller, project, scene, indexed, THEMES } });
 
@@ -119,16 +129,31 @@ async function run(): Promise<void> {
 
   controller.fit();
   await settle(300);
-  phases.push(
-    await measure('Pan, whole view', 180, (frame) =>
-      move(panBy(controller.camera, frame < 90 ? 6 : -6, 0)),
-    ),
-  );
-  phases.push(
-    await measure('Zoom, whole view', 180, (frame) =>
-      move(zoomAt(controller.camera, middle, frame < 90 ? 1.02 : 1 / 1.02)),
-    ),
-  );
+  const pan = (frame: number) => move(panBy(controller.camera, frame < 90 ? 6 : -6, 0));
+  const zoom = (frame: number) =>
+    move(zoomAt(controller.camera, middle, frame < 90 ? 1.02 : 1 / 1.02));
+  phases.push(await measure('Pan, whole view', 180, pan));
+  phases.push(await measure('Zoom, whole view', 180, zoom));
+  // The same with the grid, then with the rulers too, from the same camera (A3).
+  const withGrid: Phase[] = [];
+  if (!gridOn) {
+    controller.setGrid({ grid: true, snapToGrid: true, rulers: false });
+    await settle(300);
+    withGrid.push(await measure('Pan with the grid', 180, pan));
+    withGrid.push(await measure('Zoom with the grid', 180, zoom));
+    controller.setGrid({ grid: true, snapToGrid: true, rulers: true });
+    await settle(300);
+    withGrid.push(await measure('Pan with the grid and rulers', 180, pan));
+    withGrid.push(await measure('Zoom with the grid and rulers', 180, zoom));
+    controller.setGrid({ grid: false, snapToGrid: true, rulers: false });
+    await settle(300);
+    phases.push(...withGrid);
+    gridCost = await measureGridCost(pan, zoom);
+  }
+  if (onlyGrid) {
+    report(phases, [], [], []);
+    return;
+  }
 
   // Between the scale names show at and the one details show at, on any window.
   move(cameraAt(NAMES_FROM * 1.3));
@@ -360,6 +385,44 @@ async function measureRecolors(count: number): Promise<{ phase: Phase; note: str
   return {
     phase: { name: 'Recolor every Service, frames after it', frames, restyling: true },
     note: `Recolor every Service: scene ${average(parts.build)} ms and index ${average(parts.index)} ms on average, then the applying frame ${average(parts.apply)} ms; ${restyleNote(counts)}`,
+  };
+}
+
+/** What the grid adds to a frame at the median, panning and zooming, once measured. */
+let gridCost: { pan: number; zoom: number } | undefined;
+
+/**
+ * What the grid adds to a frame at the median, panning and zooming the whole view: frames with it
+ * against frames without it, in blocks of 30 that take turns, starting each round with the other.
+ */
+async function measureGridCost(
+  pan: (frame: number) => void,
+  zoom: (frame: number) => void,
+): Promise<{ pan: number; zoom: number }> {
+  const frames = {
+    pan: { on: [] as number[], off: [] as number[] },
+    zoom: { on: [] as number[], off: [] as number[] },
+  };
+  for (let round = 0; round < 8; round++) {
+    for (const on of round % 2 === 0 ? [false, true] : [true, false]) {
+      controller.setGrid({ grid: on, snapToGrid: true, rulers: false });
+      await settle(50);
+      // Half a block one way and half back, so that the camera ends where it started.
+      const there = (step: (frame: number) => void) => (frame: number) => step(frame < 15 ? 0 : 90);
+      frames.pan[on ? 'on' : 'off'].push(
+        ...(await measure('Grid cost, pan', 30, there(pan))).frames,
+      );
+      frames.zoom[on ? 'on' : 'off'].push(
+        ...(await measure('Grid cost, zoom', 30, there(zoom))).frames,
+      );
+    }
+  }
+  controller.setGrid({ grid: false, snapToGrid: true, rulers: false });
+  await settle(300);
+  const median = (values: number[]) => percentile(values, 0.5);
+  return {
+    pan: median(frames.pan.on) - median(frames.pan.off),
+    zoom: median(frames.zoom.on) - median(frames.zoom.off),
   };
 }
 
@@ -605,7 +668,9 @@ function report(phases: Phase[], timed: Timed[], latency: number[], themeNotes: 
         : average <= SHOWN.average && p95 <= SHOWN.p95 && worst <= WORK.worst;
     return { name, average, p95, worst, passes };
   });
-  const passed = rows.every((row) => row.passes);
+  const grid = gridCost;
+  const gridPasses = !grid || Math.max(grid.pan, grid.zoom) <= GRID_MARK;
+  const passed = rows.every((row) => row.passes) && gridPasses;
   const body = document.querySelector('#table tbody') as HTMLElement;
   for (const row of rows) {
     addRow(body, row.passes ? 'pass' : 'fail', [
@@ -638,6 +703,13 @@ function report(phases: Phase[], timed: Timed[], latency: number[], themeNotes: 
   const notes = document.getElementById('notes') as HTMLElement;
   notes.textContent = [
     bands,
+    ...(gridOn
+      ? ['Every phase ran with the grid and the rulers shown.']
+      : grid
+        ? [
+            `The grid adds ${grid.pan.toFixed(2)} ms per frame at the median panning and ${grid.zoom.toFixed(2)} ms zooming (at most ${GRID_MARK} ms): ${gridPasses ? 'passes' : 'fails'}.`,
+          ]
+        : []),
     ...actions.flatMap((action) => (action.note ? [`${action.name}: ${action.note}.`] : [])),
     ...themeNotes.map((note) => `${note}.`),
   ].join('\n');
@@ -667,6 +739,7 @@ function report(phases: Phase[], timed: Timed[], latency: number[], themeNotes: 
       })),
       bands,
       selection,
+      grid: gridOn ? 'on' : grid,
       theme: startTheme,
       themeNotes,
       restyles: controller.renderer.stats,

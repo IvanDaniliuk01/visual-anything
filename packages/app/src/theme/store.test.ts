@@ -5,6 +5,7 @@ import {
 } from '@visual-anything/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  GRID_NOT_CONNECTED,
   HOLD_TIMEOUT_MS,
   LANGUAGE_NOT_CONNECTED,
   LANGUAGE_STORAGE_KEY,
@@ -129,6 +130,17 @@ describe('startPreferences', () => {
     expect(link.notify).toHaveBeenCalledWith('info', LANGUAGE_NOT_CONNECTED);
     changePreferences({ theme: 'dark' });
     expect(link.notify).toHaveBeenLastCalledWith('info', NOT_CONNECTED);
+  });
+
+  it('says that the grid, snapping or the rulers turned on while not connected apply to this tab only', () => {
+    startPreferences(window);
+    const { link } = fakeLink({ status: 'closed' });
+    linkPreferences(link);
+    changePreferences({ grid: true });
+    expect(link.notify).toHaveBeenLastCalledWith('info', GRID_NOT_CONNECTED);
+    changePreferences({ rulers: true });
+    expect(link.notify).toHaveBeenLastCalledWith('info', GRID_NOT_CONNECTED);
+    expect(appliedPreferences().preferences).toMatchObject({ grid: true, rulers: true });
   });
 
   it('ignores a kept language it does not know', () => {

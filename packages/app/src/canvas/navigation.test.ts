@@ -70,7 +70,7 @@ describe('nearestInDirection', () => {
   it('leaves the containers it starts in, which surround it rather than lie in a direction', () => {
     expect(from(API, 'left')).toBe(AGENT);
     expect(from(WHATSAPP, 'left')).toBe(PATIENT);
-    expect(from(API, 'up')).toBeUndefined();
+    expect([SCHEDULING, CLINIC]).not.toContain(from(API, 'up'));
   });
 
   it('goes up and down between rows', () => {

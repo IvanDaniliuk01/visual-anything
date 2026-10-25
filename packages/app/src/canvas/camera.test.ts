@@ -20,6 +20,22 @@ describe('revealCamera', () => {
     expect(shown.y + shown.height / 2).toBeCloseTo(1536);
   });
 
+  it('keeps a shape out from under the rulers, revealing it within the room they leave', () => {
+    const inset = { left: 20, top: 20 };
+    // Under the left ruler: shown, but not whole in the room beside it.
+    const under = { x: 4, y: 100, width: 160, height: 72 };
+    expect(revealCamera(camera, viewport, under, 0.75)).toBeUndefined();
+    const moved = revealCamera(camera, viewport, under, 0.75, inset);
+    expect(moved).toBeDefined();
+    const shown = visibleRect(moved!, viewport);
+    // Centered in the room right of and below the rulers.
+    expect((under.x + under.width / 2) * moved!.scale + moved!.x).toBeCloseTo(20 + (800 - 20) / 2);
+    expect((under.y + under.height / 2) * moved!.scale + moved!.y).toBeCloseTo(20 + (600 - 20) / 2);
+    expect(under.x).toBeGreaterThan(shown.x + 20 / moved!.scale);
+    // Clear of them, it stays put.
+    expect(revealCamera(camera, viewport, { ...under, x: 30 }, 0.75, inset)).toBeUndefined();
+  });
+
   it('zooms in on a shape too small to read', () => {
     const far = { x: 0, y: 0, scale: 0.2 };
     const next = revealCamera(far, viewport, { x: 100, y: 100, width: 160, height: 72 }, 0.75);
@@ -35,6 +51,15 @@ describe('fitCamera', () => {
     const shown = visibleRect(camera, viewport);
     expect(shown.x + shown.width / 2).toBeCloseTo(1100);
     expect(shown.y + shown.height / 2).toBeCloseTo(350);
+  });
+
+  it('fits the scene in the room the rulers leave', () => {
+    const bounds = { x: 0, y: 0, width: 1000, height: 500 };
+    const fit = fitCamera(bounds, { width: 1020, height: 620 }, 10, { left: 20, top: 20 });
+    expect(fit.scale).toBeCloseTo(1000 / 1000 - 0.02, 2);
+    expect(bounds.x * fit.scale + fit.x).toBeGreaterThanOrEqual(20 + 10 - 1e-9);
+    expect(bounds.y * fit.scale + fit.y).toBeGreaterThanOrEqual(20 + 10 - 1e-9);
+    expect((bounds.x + bounds.width) * fit.scale + fit.x).toBeLessThanOrEqual(1020 - 10 + 1e-9);
   });
 
   it('centers a scene too large to fit at the smallest scale, rather than its corner', () => {

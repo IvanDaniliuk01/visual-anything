@@ -348,7 +348,7 @@ describe('Editing from the keyboard', () => {
     expect(screen.getByRole('textbox', { name: 'Name of Patient' })).toBeInTheDocument();
   });
 
-  it('moves the selection a small step with Shift and an arrow key, one move a press', async () => {
+  it('moves the selection one grid step with Shift and an arrow key, one move a press', async () => {
     const onCommand = vi.fn<SendCommand>(() => Promise.resolve({ ok: true }));
     const { host, at, rerender } = await started({ onCommand });
     clickOn(host, at('patient'));
@@ -357,7 +357,7 @@ describe('Editing from the keyboard', () => {
       await Promise.resolve();
     });
     expect(onCommand).toHaveBeenCalledTimes(1);
-    expect(onCommand.mock.lastCall?.[0]).toEqual(movedTo(50, 200));
+    expect(onCommand.mock.lastCall?.[0]).toEqual(movedTo(48, 200));
 
     // A press made before the move comes back waits for it, then moves on from where it left.
     await act(async () => {
@@ -366,11 +366,11 @@ describe('Editing from the keyboard', () => {
     });
     expect(onCommand).toHaveBeenCalledTimes(1);
     await act(async () => {
-      rerender(<Harness onCommand={onCommand} project={withPatientAt(50, 200)} />);
+      rerender(<Harness onCommand={onCommand} project={withPatientAt(48, 200)} />);
       await Promise.resolve();
     });
     expect(onCommand).toHaveBeenCalledTimes(2);
-    expect(onCommand.mock.lastCall?.[0]).toEqual(movedTo(50, 210));
+    expect(onCommand.mock.lastCall?.[0]).toEqual(movedTo(48, 208));
   });
 
   it('waits with a press for a drop still on its way, and moves on from where the drop left the shapes', async () => {
@@ -412,7 +412,7 @@ describe('Editing from the keyboard', () => {
       await Promise.resolve();
     });
     expect(onCommand).toHaveBeenCalledTimes(2);
-    expect(onCommand.mock.lastCall?.[0]).toEqual(movedTo(dropped.x, 210));
+    expect(onCommand.mock.lastCall?.[0]).toEqual(movedTo(dropped.x, 208));
   });
 
   it('moves nothing when it cannot send commands, and the arrows still select', async () => {
@@ -435,11 +435,11 @@ describe('Moving with Shift and an arrow key, through the local program', () => 
     const program = await openApp();
     clickOn(program.host, program.at('patient'));
     press(program.host, 'ArrowRight', { shiftKey: true });
-    expect(program.commands()).toEqual([movedTo(50, 200)]);
+    expect(program.commands()).toEqual([movedTo(48, 200)]);
 
     await program.answer();
     press(program.host, 'ArrowDown', { shiftKey: true });
-    expect(program.commands().at(-1)).toEqual(movedTo(50, 210));
+    expect(program.commands().at(-1)).toEqual(movedTo(48, 208));
 
     // A press made before the move comes back waits for it; a held key's repeats do not.
     press(program.host, 'ArrowLeft', { shiftKey: true });
@@ -447,7 +447,7 @@ describe('Moving with Shift and an arrow key, through the local program', () => 
     expect(program.commands()).toHaveLength(2);
     await program.answer();
     expect(program.commands()).toHaveLength(3);
-    expect(program.commands().at(-1)).toEqual(movedTo(40, 210));
+    expect(program.commands().at(-1)).toEqual(movedTo(40, 208));
     await program.answer();
     expect(program.commands()).toHaveLength(3);
   });
@@ -459,7 +459,7 @@ describe('Moving with Shift and an arrow key, through the local program', () => 
     press(program.host, 'ArrowDown', { shiftKey: true });
     clickOn(program.host, program.at('clinic-booking/booking-agent'));
     await program.answer();
-    expect(program.commands()).toEqual([movedTo(50, 200), movedTo(50, 210)]);
+    expect(program.commands()).toEqual([movedTo(48, 200), movedTo(48, 208)]);
     // A change made elsewhere sends nothing more.
     await program.changeElsewhere({
       type: 'update-element',

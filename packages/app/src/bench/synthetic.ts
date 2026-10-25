@@ -38,7 +38,7 @@ const COMPONENTS = [
 const RELATION_TYPES = ['systems.communicates-with', 'systems.reads-from', 'systems.writes-to'];
 /** What every third relation is called, so that relation labels are drawn too. */
 const RELATION_NAMES = ['HTTPS', 'gRPC', 'events', 'SQL', 'webhook'];
-const CELL = { width: 200, height: 110 };
+const CELL = { width: 200, height: 112 };
 const SYSTEM_PADDING = { left: 24, top: 56, right: 24, bottom: 24 };
 /** How far each shape of a staircase or of the cascade sits from the one before it. */
 const STAIR = { x: 40, y: 16 };

@@ -41,6 +41,37 @@ const STACKING: Record<StackingMove, StackingAction> = {
 };
 
 describe('CanvasToolbar', () => {
+  it('toggles the grid, snapping and the rulers, pressed as the preferences say', () => {
+    const onGrid = vi.fn();
+    toolbar({ grid: { grid: false, snapToGrid: true, rulers: true }, onGrid });
+    const group = screen.getByRole('group', { name: 'Grid and rulers' });
+    const grid = within(group).getByRole('button', { name: 'Grid' });
+    const snapping = within(group).getByRole('button', { name: 'Snap to grid' });
+    const rulers = within(group).getByRole('button', { name: 'Rulers' });
+    expect(grid).toHaveAttribute('aria-pressed', 'false');
+    expect(grid).toHaveAttribute('title', 'Show the grid (Shift+G)');
+    expect(grid).toHaveAttribute('aria-keyshortcuts', 'Shift+G');
+    // Snapping waits for the grid to show.
+    expect(snapping).toBeDisabled();
+    expect(snapping).toHaveAttribute('aria-pressed', 'true');
+    expect(rulers).toHaveAttribute('aria-pressed', 'true');
+    expect(rulers).toHaveAttribute('title', 'Show the rulers (Shift+R)');
+    fireEvent.click(grid);
+    expect(onGrid).toHaveBeenLastCalledWith({ grid: true });
+    fireEvent.click(rulers);
+    expect(onGrid).toHaveBeenLastCalledWith({ rulers: false });
+  });
+
+  it('lets snapping be turned off once the grid shows', () => {
+    const onGrid = vi.fn();
+    toolbar({ grid: { grid: true, snapToGrid: true, rulers: false }, onGrid });
+    const snapping = screen.getByRole('button', { name: 'Snap to grid' });
+    expect(snapping).toBeEnabled();
+    expect(snapping).toHaveAttribute('title', 'Snap shapes to the grid; hold Alt to place freely');
+    fireEvent.click(snapping);
+    expect(onGrid).toHaveBeenLastCalledWith({ snapToGrid: false });
+  });
+
   it('renders as before without the new props', () => {
     toolbar();
     const select = screen.getByRole('combobox', { name: 'Add an element' });

@@ -3,7 +3,9 @@ import type { Id } from '@visual-anything/schema';
 import { useMemo, useRef, useState, type KeyboardEvent, type Ref } from 'react';
 import './drop.css';
 import { ExploreControls, ExploreStrip } from './ExploreBar';
+import { GridToggles } from './GridToggles';
 import type { LayoutControl } from './layout/useLayout';
+import type { GridOptions } from './renderer';
 import {
   STACKING_KEYS,
   STACKING_MOVES,
@@ -45,6 +47,9 @@ export interface CanvasToolbarProps {
   onAddLeave?: () => void;
   /** Layout of the view or of the selected container's contents; absent, the toolbar has no Layout. */
   layout?: LayoutControl;
+  /** The grid, snapping and the rulers, and how to change them (A3); absent, no toggles. */
+  grid?: GridOptions;
+  onGrid?: (changes: Partial<GridOptions>) => void;
 }
 
 const IN_WORLD = 'With nothing selected, elements are added directly in World.';
@@ -69,6 +74,8 @@ export function CanvasToolbar({
   addSelect,
   onAddLeave,
   layout,
+  grid,
+  onGrid,
 }: CanvasToolbarProps) {
   return (
     <div className="canvas-toolbar" role="toolbar" aria-label="Canvas">
@@ -119,6 +126,7 @@ export function CanvasToolbar({
           {layout.label}
         </button>
       )}
+      {grid && onGrid && <GridToggles grid={grid} onGrid={onGrid} />}
       <span className="canvas-toolbar-spacer" />
       <button type="button" aria-label="Zoom out" onClick={() => onZoom(1 / 1.25)}>
         −

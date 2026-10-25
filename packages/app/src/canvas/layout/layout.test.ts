@@ -94,8 +94,8 @@ describe('layout of the sample', () => {
     for (const position of positions.filter((each) => each.element !== 'patient')) {
       expect(position.pinned).toBeUndefined();
     }
-    expect(of('clinic-booking')).toMatchObject({ width: 980, height: 480 });
-    expect(of('scheduling')).toMatchObject({ width: 440, height: 380 });
+    expect(of('clinic-booking')).toMatchObject({ width: 984, height: 480 });
+    expect(of('scheduling')).toMatchObject({ width: 440, height: 384 });
     expectLaidOut(after, action, notes);
   });
 
