@@ -231,7 +231,7 @@ function LineSection({
       <ul className="definition-traits">
         {/* The color changes at the level the project can change, so a built-in one's too. */}
         <ColorRow kind="relation-type" id={id} trait="stroke" label={t('Stroke')} hints />
-        <TraitRow label={t('Width')} {...row('width')} inherit={() => update({ width: null })}>
+        <TraitRow label={t('Line width')} {...row('width')} inherit={() => update({ width: null })}>
           {({ id: controlId, describedBy, send }) => (
             <TextControl
               id={controlId}

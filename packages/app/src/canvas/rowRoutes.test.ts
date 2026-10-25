@@ -96,6 +96,22 @@ function apart(a: Rect, b: Rect): boolean {
 }
 
 describe('routeWithSides between two rows', () => {
+  it('goes through the gap between two tables, one over the other, whose facing sides are in line', () => {
+    // The left side of the lower table and the right side of the upper one are at the same x.
+    const lower = { x: 1765, y: 100, width: 120, height: 60 };
+    const upper = { x: 1643, y: 0, width: 122, height: 60 };
+    const from = sideEnd(lower, 0, 0, centerOf(upper));
+    const to = sideEnd(upper, 0, 0, centerOf(lower));
+    const route = routeWithSides(from, to);
+    expect(orthogonal(route)).toBe(true);
+    for (let at = 1; at < route.length; at++) {
+      const [p, q] = [route[at - 1] as Point, route[at] as Point];
+      expect(crossesInside(p, q, lower)).toBe(false);
+      expect(crossesInside(p, q, upper)).toBe(false);
+    }
+    expect(route.some((point) => point.y === 80)).toBe(true);
+  });
+
   it('joins two rows of one table in a C, at the lane further out', () => {
     const users = table(0, 0, 10);
     const from: SideEnd = {

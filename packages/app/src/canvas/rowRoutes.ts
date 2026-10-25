@@ -105,10 +105,30 @@ function betweenSides(a: SideEnd, b: SideEnd, offset: number): Route {
     (a.side === 'right' && end.x >= start.x) || (a.side === 'left' && end.x <= start.x);
   if (facing) {
     if (start.y === end.y) return [start, end];
-    // A Z through the middle of the gap; each stub runs at most half of it.
     const low = Math.min(start.x, end.x);
     const high = Math.max(start.x, end.x);
-    const x = clamp((low + high) / 2 + offset * SIBLING_SHARE, low + 1, high - 1);
+    if (high - low >= 2) {
+      // A Z through the middle of the gap; each stub runs at most half of it.
+      const x = clamp((low + high) / 2 + offset * SIBLING_SHARE, low + 1, high - 1);
+      return [start, { x, y: start.y }, { x, y: end.y }, end];
+    }
+    // No room between the two sides, as when one container stands over the other with their sides in
+    // line: out to each lane, and across through the gap between them.
+    const across = gapBetween(a.container, b.container);
+    if (across !== undefined) {
+      const ax = laneOf(a, offset);
+      const bx = laneOf(b, offset);
+      return [
+        start,
+        { x: ax, y: start.y },
+        { x: ax, y: across },
+        { x: bx, y: across },
+        { x: bx, y: end.y },
+        end,
+      ];
+    }
+    // Side by side with no gap: along the seam they share.
+    const x = (low + high) / 2;
     return [start, { x, y: start.y }, { x, y: end.y }, end];
   }
   // Facing away: around both containers, above or below them, whichever is nearer.
@@ -202,6 +222,13 @@ function straightThrough(a: Point, middle: Point, b: Point): boolean {
 function alongSide(start: number, length: number, wanted: number): number {
   const inset = Math.min(INSET, length / 2);
   return clamp(wanted, start + inset, start + length - inset);
+}
+
+/** The middle of the gap between two containers when one stands above the other; `undefined` when none does. */
+function gapBetween(a: Rect, b: Rect): number | undefined {
+  if (bottomOf(a) <= b.y) return (bottomOf(a) + b.y) / 2;
+  if (bottomOf(b) <= a.y) return (bottomOf(b) + a.y) / 2;
+  return undefined;
 }
 
 function clamp(value: number, low: number, high: number): number {

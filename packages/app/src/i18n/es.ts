@@ -674,6 +674,10 @@ export const ui: Catalog = {
   // A table's columns, and any shape's rows, in the inspector.
   Columns: 'Columnas',
   Rows: 'Filas',
+  // Attribute types, as the inspector names them; project files keep writing them in English.
+  string: 'texto',
+  number: 'número',
+  boolean: 'booleano',
   'This view does not nest by “{type}”, so its {count} columns sit loose.': {
     one: 'Esta vista no anida por “{type}”, así que su columna queda suelta.',
     other: 'Esta vista no anida por “{type}”, así que sus {count} columnas quedan sueltas.',
@@ -1195,6 +1199,7 @@ export const ui: Catalog = {
   'While it draws rows, its shapes are a rectangle or a rounded rectangle.':
     'Mientras dibuja filas, sus formas son un rectángulo o un rectángulo redondeado.',
   Width: 'Ancho',
+  'Line width': 'Grosor',
   Height: 'Alto',
   'Its height follows its rows.': 'Su alto sigue a sus filas.',
   'Draw what its elements hold as rows': 'Dibujar como filas lo que contienen sus elementos',

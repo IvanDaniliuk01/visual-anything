@@ -23,7 +23,7 @@ import {
   type DropAim,
 } from './drop';
 import { indexScene, type IndexedScene } from './hit';
-import { rowNestingFor } from './rowDrop';
+import { rowNestingFor, rowNestingForAdd } from './rowDrop';
 import { buildScene, type ElementShape } from './scene';
 
 function after(project: ProjectSnapshot, command: Command | undefined): ProjectSnapshot {
@@ -282,5 +282,18 @@ describe('dropping a shape onto a table', () => {
       true,
     );
     expect(aim.kind).toBe('only-moves');
+  });
+});
+
+describe('adding from the palette to a shape that draws rows', () => {
+  it('takes only what can be a row of it, as a drop does, and leaves other shapes to the usual rules', () => {
+    const project = usersAndOrders();
+    const indexed = indexScene(buildScene(project, VIEW));
+    expect(rowNestingForAdd(indexed, project, VIEW, 'data-modeling.column', 'users')).toEqual(
+      expect.objectContaining({ relationType: 'data-modeling.is-column-of' }),
+    );
+    const refused = rowNestingForAdd(indexed, project, VIEW, 'systems.service', 'users');
+    expect(refused && 'reason' in refused && refused.reason).toMatch(/can be a row of "users"/);
+    expect(rowNestingForAdd(indexed, project, VIEW, 'systems.service', undefined)).toBeUndefined();
   });
 });

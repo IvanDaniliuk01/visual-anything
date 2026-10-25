@@ -141,7 +141,7 @@ export function RowsSection({ element }: { element: Element }) {
           <p className="inspector-notes">
             {t(table ? LOOSE_COLUMNS : LOOSE_ROWS, {
               count: looseCount,
-              type: typeName(looseType),
+              type: t(typeName(looseType)),
             })}
           </p>
           <button

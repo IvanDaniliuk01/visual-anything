@@ -112,6 +112,24 @@ export function rowNestingFor(
   return { reason: refusal(project, naming, holder.name) };
 }
 
+/**
+ * The nesting relation type that makes a new element of `component` a row of `holder`, where the
+ * palette adds it, when `holder` draws its contents as rows in the view drawn; or why it cannot be one.
+ * `undefined` when `holder` is no such shape, and the usual rules apply.
+ */
+export function rowNestingForAdd(
+  indexed: IndexedScene | undefined,
+  project: ProjectSnapshot,
+  viewId: Id,
+  component: Id,
+  holder: Id | undefined,
+): RowNesting | { reason: string } | undefined {
+  if (holder === undefined || indexed?.byElement.get(holder)?.[0]?.rowCount === undefined) {
+    return undefined;
+  }
+  return rowNestingFor(project, viewId, component, holder);
+}
+
 /** Why an element cannot be a row of a container: what the relation types that name it take. */
 function refusal(project: ProjectSnapshot, naming: readonly Id[], target: string): string {
   const definitions = definitionsIn(project);

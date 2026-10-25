@@ -174,8 +174,9 @@ function nestingInside(
   view: ViewFile,
   componentId: Id,
   container: Id,
+  chosen?: ChosenNesting,
 ): { relationType: Id; first: Command[] } | undefined {
-  const choice = nestingTypeFor(project, view, componentId, container);
+  const choice = chosen ?? nestingTypeFor(project, view, componentId, container);
   if (!choice) return undefined;
   const first: Command[] = choice.addToView
     ? [
@@ -189,6 +190,12 @@ function nestingInside(
       ]
     : [];
   return { relationType: choice.relationType, first };
+}
+
+/** A nesting relation type chosen for a new element, and whether the view must start nesting by it. */
+export interface ChosenNesting {
+  relationType: Id;
+  addToView: boolean;
 }
 
 /** Whether an element's shapes draw what it holds as rows, which have no positions of their own. */
@@ -264,11 +271,12 @@ export function createInsideCommand(
   viewId: Id,
   componentId: Id,
   container: Id,
+  chosen?: ChosenNesting,
 ): Command | undefined {
   const view = project.views.find((each) => each.id === viewId);
   const component = definitionsIn(project).component(componentId);
   if (!view || !component || container === project.model.world.id) return undefined;
-  const nesting = nestingInside(project, view, componentId, container);
+  const nesting = nestingInside(project, view, componentId, container, chosen);
   if (!nesting) return undefined;
   const create: CreateElementCommand = {
     type: 'create-element',
@@ -304,6 +312,7 @@ export function createBesideCommand(
   viewId: Id,
   componentId: Id,
   beside: ElementShape,
+  chosen?: ChosenNesting,
 ): Command | undefined {
   const view = project.views.find((each) => each.id === viewId);
   const definitions = definitionsIn(project);
@@ -311,7 +320,9 @@ export function createBesideCommand(
   if (!view || !component) return undefined;
   const { container } = beside;
   const nesting =
-    container === undefined ? undefined : nestingInside(project, view, componentId, container);
+    container === undefined
+      ? undefined
+      : nestingInside(project, view, componentId, container, chosen);
   if (container !== undefined && !nesting) return undefined;
   const create: CreateElementCommand = {
     type: 'create-element',

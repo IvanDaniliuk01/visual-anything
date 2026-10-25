@@ -61,7 +61,13 @@ import { DeleteDialog } from './DeleteDialog';
 import { confirmLabelOf, containerChangeLabel, moveToCommand, needsConfirmation } from './drop';
 import './drop.css';
 import type { Point } from './geometry';
-import { createAtCommand, createBesideCommand, createInsideCommand } from './gestures';
+import {
+  createAtCommand,
+  createBesideCommand,
+  createInsideCommand,
+  type ChosenNesting,
+} from './gestures';
+import { rowNestingForAdd } from './rowDrop';
 import { GRID_STEP, snap } from './grid';
 import type { GridOptions } from './renderer';
 import { addRowCommand } from './rowCommands';
@@ -618,11 +624,19 @@ export function CanvasArea({
     const canvas = controller();
     if (!canvas) return;
     setAddTarget(undefined);
+    // A shape that draws rows takes only what can be one of its rows, as a drop onto it does (ADR 0023).
+    const holder = adding.inside ?? adding.beside?.container;
+    const nesting = rowNestingForAdd(indexed, project, view.id, component, holder);
+    if (nesting && 'reason' in nesting) {
+      announce(nesting.reason);
+      return;
+    }
+    const chosen: ChosenNesting | undefined = nesting;
     let command: Command | undefined;
     if (adding.beside && indexed) {
-      command = createBesideCommand(indexed, project, view.id, component, adding.beside);
+      command = createBesideCommand(indexed, project, view.id, component, adding.beside, chosen);
     } else if (adding.inside !== undefined) {
-      command = createInsideCommand(project, view.id, component, adding.inside);
+      command = createInsideCommand(project, view.id, component, adding.inside, chosen);
     } else {
       const size = appearanceOf({ component }, definitionsIn(project));
       const center = canvas.center;

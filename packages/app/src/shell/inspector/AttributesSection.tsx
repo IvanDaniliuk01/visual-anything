@@ -161,7 +161,7 @@ function AttributeItem({
     row.mismatched
       ? row.type === 'json'
         ? t('Its value is not JSON.')
-        : t('Its value is not a {type}.', { type: row.type })
+        : t('Its value is not a {type}.', { type: t(typeName(row.type)) })
       : '',
   ]
     .filter((note) => note !== undefined && note !== '')
@@ -172,7 +172,7 @@ function AttributeItem({
       <div className="inspector-attribute-head">
         <label htmlFor={controlId}>{row.name}</label>
         <span id={typeId} className="inspector-type">
-          {typeName(row.type)}
+          {t(typeName(row.type))}
         </span>
         {particularity && (
           <Mark
@@ -392,7 +392,7 @@ function NewAttribute({ names, disabled, onAdd }: NewAttributeProps) {
           >
             {ATTRIBUTE_TYPES.map((each) => (
               <option key={each} value={each}>
-                {typeName(each)}
+                {t(typeName(each))}
               </option>
             ))}
           </select>

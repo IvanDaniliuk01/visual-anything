@@ -134,7 +134,7 @@ function OwnAttribute({
     <li className="definition-attribute">
       <div className="definition-attribute-head">
         <span className="definition-attribute-name">{name}</span>
-        <span className="inspector-type">{typeName(type)}</span>
+        <span className="inspector-type">{t(typeName(type))}</span>
         <span className="definition-source is-own">
           {redefines ? t('redefined here') : t('its own')}
         </span>
@@ -166,7 +166,7 @@ function OwnAttribute({
           >
             {ATTRIBUTE_TYPES.map((each) => (
               <option key={each} value={each}>
-                {typeName(each)}
+                {t(typeName(each))}
               </option>
             ))}
           </SelectControl>
@@ -355,7 +355,7 @@ function InheritedAttribute({
     <li className="definition-attribute">
       <div className="definition-attribute-head">
         <span className="definition-attribute-name">{name}</span>
-        <span className="inspector-type">{typeName(type)}</span>
+        <span className="inspector-type">{t(typeName(type))}</span>
         <span className="definition-source">{source}</span>
       </div>
       {attribute.description !== undefined && (
@@ -450,7 +450,7 @@ function NewAttribute({
           >
             {ATTRIBUTE_TYPES.map((each) => (
               <option key={each} value={each}>
-                {typeName(each)}
+                {t(typeName(each))}
               </option>
             ))}
           </select>
