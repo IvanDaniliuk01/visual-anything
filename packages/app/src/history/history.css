@@ -55,13 +55,13 @@
   font-size: var(--text-xs);
 }
 
-.history-author {
+.history-item-author {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
 }
 
-.history-author-claude {
+.history-item-claude {
   padding: 0 var(--space-2);
   border-radius: var(--radius-full);
   background: var(--accent-soft);

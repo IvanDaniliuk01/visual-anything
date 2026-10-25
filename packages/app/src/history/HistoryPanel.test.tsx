@@ -94,9 +94,9 @@ describe('HistoryPanel', () => {
     renderPanel(liveWith([RENAME, CREATE]));
 
     const [created, renamed] = rows() as [HTMLElement, HTMLElement];
-    expect(created.querySelector('.history-author-claude')).toHaveTextContent('Claude');
-    expect(created.querySelector('.history-author-claude svg')).toBeInTheDocument();
-    expect(renamed.querySelector('.history-author-claude')).toBeNull();
+    expect(created.querySelector('.history-item-claude')).toHaveTextContent('Claude');
+    expect(created.querySelector('.history-item-claude svg')).toBeInTheDocument();
+    expect(renamed.querySelector('.history-item-claude')).toBeNull();
   });
 
   it('offers to undo each action done up to there, and to redo each one undone', async () => {

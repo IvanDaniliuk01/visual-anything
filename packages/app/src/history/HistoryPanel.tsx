@@ -161,12 +161,12 @@ function HistoryList({ live, active }: { live: Live; active: boolean }) {
 function Author({ author }: { author: ListedAction['author'] }) {
   const t = useT();
   return author === 'claude' ? (
-    <span className="history-author history-author-claude">
+    <span className="history-item-author history-item-claude">
       <SparklesIcon size={12} />
       Claude
     </span>
   ) : (
-    <span className="history-author">{t('You')}</span>
+    <span className="history-item-author">{t('You')}</span>
   );
 }
 

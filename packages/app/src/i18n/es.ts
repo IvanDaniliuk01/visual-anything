@@ -161,6 +161,30 @@ export const ui: Catalog = {
   '{view}, from the {perspective} perspective: {shapes}, {relations} and {free}.':
     '{view}, desde la perspectiva {perspective}: {shapes}, {relations} y {free}.',
 
+  // Export as PNG, in the header.
+  'Export…': 'Exportar…',
+  'There is no view to export.': 'No hay ninguna vista para exportar.',
+  'Export “{view}” as PNG': 'Exportar “{view}” como PNG',
+  Show: 'Mostrar',
+  'The whole view': 'Toda la vista',
+  'Everything the view draws': 'Todo lo que dibuja la vista',
+  'What is visible': 'Lo que se ve',
+  'As the canvas shows it now': 'Como lo muestra ahora el lienzo',
+  Size: 'Tamaño',
+  '{width} × {height} pixels': '{width} × {height} píxeles',
+  'Too large: {width} × {height} pixels': 'Demasiado grande: {width} × {height} píxeles',
+  'Drawn in the theme the canvas shows, without the selection. The browser saves it.':
+    'Se dibuja en el tema que muestra el lienzo, sin la selección. La guarda el navegador.',
+  'Drawing the image…': 'Dibujando la imagen…',
+  'Save PNG': 'Guardar PNG',
+  'The canvas is not ready yet. Try again in a moment.':
+    'El lienzo todavía no está listo. Volver a intentarlo en un momento.',
+  'The view draws nothing yet, so there is no image to save.':
+    'La vista todavía no dibuja nada, así que no hay imagen para guardar.',
+  'At {width} × {height} pixels this image is too large: the most is {side} pixels a side and {megapixels} megapixels. Choose 1×, or what is visible.':
+    'Con {width} × {height} píxeles, esta imagen es demasiado grande: lo máximo son {side} píxeles por lado y {megapixels} megapíxeles. Elegir 1× o lo que se ve.',
+  'The image could not be drawn: {why}': 'No se pudo dibujar la imagen: {why}',
+
   // The model panel's tabs.
   'Outline and model': 'Esquema y modelo',
   Model: 'Modelo',
