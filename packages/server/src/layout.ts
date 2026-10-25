@@ -3,7 +3,7 @@
  * and packages, views and scenarios each in their own folder. Paths are relative to the project folder
  * and written with forward slashes.
  */
-import { FILE_EXTENSIONS, fileKindOf, type Id } from '@visual-anything/schema';
+import { FILE_EXTENSIONS, type Id } from '@visual-anything/schema';
 
 /** The folders that hold packages, views and scenarios, inside the project folder. */
 export const FOLDERS = { package: 'packages', view: 'views', scenario: 'scenarios' } as const;
@@ -20,22 +20,6 @@ const FOLDER_KINDS = Object.keys(FOLDERS) as FolderKind[];
 export function folderKindOf(name: string): FolderKind | undefined {
   const lower = name.toLowerCase();
   return FOLDER_KINDS.find((kind) => FOLDERS[kind] === lower);
-}
-
-/**
- * Whether a path may name a project file, or a folder that holds them: what opening the project
- * reads. The project folder itself (an empty path) counts, since a change to it may concern anything.
- */
-export function isProjectPath(path: string): boolean {
-  const segments = path.split('/').filter((segment) => segment !== '' && segment !== '.');
-  const [first, second] = segments;
-  if (first === undefined) return true;
-  if (second === undefined) {
-    const kind = fileKindOf(first);
-    return kind === 'project' || kind === 'model' || folderKindOf(first) !== undefined;
-  }
-  const kind = folderKindOf(first);
-  return segments.length === 2 && kind !== undefined && fileKindOf(second) === kind;
 }
 
 /**

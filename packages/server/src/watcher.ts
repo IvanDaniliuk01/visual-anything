@@ -3,9 +3,10 @@
  * reports once things have been quiet for a moment, since a pull touches many files, and it ignores
  * every file that opening the project would not read, the writer's temporary files among them.
  */
-import { statSync, watch, type FSWatcher } from 'node:fs';
+import { readdirSync, statSync, watch, type FSWatcher } from 'node:fs';
 import { join } from 'node:path';
-import { FOLDERS, folderKindOf, isProjectPath, type FolderKind } from './layout';
+import { fileKindOf } from '@visual-anything/schema';
+import { FOLDERS, folderKindOf, type FolderKind } from './layout';
 import { toForwardSlashes } from './paths';
 
 /**
@@ -48,7 +49,9 @@ type OnEvent = (eventType: string, path: string | null) => void;
 
 /**
  * Watches the project files in a folder and calls `onChange` once they have been quiet for `delay`
- * milliseconds after a change. It throws when the folder cannot be watched at all.
+ * milliseconds after a change. A change is a difference from the files as they were when it started
+ * or last reported, so it is started before they are read. It throws when the folder cannot be watched
+ * at all.
  */
 export function watchProject(
   folder: string,
@@ -63,18 +66,21 @@ export function watchProject(
   /** When the oldest change not yet reported happened. */
   let pendingSince: number | undefined;
 
+  // What the project files were when last reported. An event only says when to look again: macOS can
+  // name a file under another name, tell only of its folder, or tell late of a file written before the
+  // watcher started, so a change is reported only when the project files differ from these.
+  let last = filesOf(folder);
   const report = () => {
     timer = undefined;
     pendingSince = undefined;
-    if (!closed) onChange();
-  };
-  const onEvent: OnEvent = (eventType, path) => {
     if (closed) return;
-    if (path !== null) {
-      // A folder's own times change along with its files, which report themselves.
-      if (eventType === 'change' && isFolderPath(path)) return;
-      if (!isProjectPath(path)) return;
-    }
+    const now = filesOf(folder);
+    if (now === last) return;
+    last = now;
+    onChange();
+  };
+  const onEvent: OnEvent = () => {
+    if (closed) return;
     const now = Date.now();
     pendingSince ??= now;
     clearTimeout(timer);
@@ -85,6 +91,8 @@ export function watchProject(
     (options.mode ?? defaultWatchMode()) === 'recursive'
       ? watchRecursively(folder, onEvent, onError)
       : watchFolders(folder, onEvent, onError);
+  // A native watcher can start a moment after it is made, as macOS's does: look once more then.
+  onEvent('rename', null);
   return {
     close: () => {
       if (closed) return;
@@ -161,9 +169,42 @@ function watchFolders(folder: string, onEvent: OnEvent, onError: (error: unknown
   };
 }
 
-/** Whether a path names one of the folders of packages, views or scenarios. */
-function isFolderPath(path: string): boolean {
-  return !path.includes('/') && folderKindOf(path) !== undefined;
+/**
+ * The size, times and inode of every file opening the project reads, in one string, so that two are
+ * equal only when none of those files changed.
+ */
+function filesOf(folder: string): string {
+  const lines: string[] = [];
+  const add = (path: string) => {
+    try {
+      const stats = statSync(join(folder, path));
+      if (stats.isFile()) {
+        lines.push(`${path} ${stats.size} ${stats.mtimeMs} ${stats.ctimeMs} ${stats.ino}`);
+      }
+    } catch {
+      // Gone between listing and reading: its absence is the change.
+    }
+  };
+  const list = (path: string): string[] => {
+    try {
+      return readdirSync(join(folder, path));
+    } catch {
+      return [];
+    }
+  };
+  for (const name of list('')) {
+    const kind = fileKindOf(name);
+    if (kind === 'project' || kind === 'model') add(name);
+  }
+  for (const kind of FOLDER_KINDS) {
+    // A folder of the project that appears, goes or is replaced counts too, even while empty.
+    const inode = folderInode(join(folder, FOLDERS[kind]));
+    if (inode !== undefined) lines.push(`${FOLDERS[kind]}/ ${inode}`);
+    for (const name of list(FOLDERS[kind])) {
+      if (fileKindOf(name) === kind) add(`${FOLDERS[kind]}/${name}`);
+    }
+  }
+  return lines.sort().join('\n');
 }
 
 /** The inode of a folder, which changes when the folder is replaced; `undefined` when there is none. */

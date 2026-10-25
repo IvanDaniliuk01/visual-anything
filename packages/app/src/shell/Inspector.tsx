@@ -7,9 +7,11 @@ import { selectionOf, sizeOf, type Selectable } from '../editor/selection';
 import { DefinitionInspector } from './definitions/DefinitionInspector';
 import { countsOf } from './inspector/describe';
 import { ElementInspector } from './inspector/ElementInspector';
+import { FreeShapeAppearance } from './inspector/FreeShapeAppearance';
 import { inspectedKey, inspectedOf } from './inspector/inspected';
 import { Detail } from './inspector/parts';
 import { RelationInspector } from './inspector/RelationInspector';
+import { SelectionAppearance } from './inspector/SelectionAppearance';
 import './inspector.css';
 
 interface InspectorProps {
@@ -81,12 +83,14 @@ export function Inspector({ view, scene, definitions }: InspectorProps) {
             <h3 className="inspector-title">Note</h3>
             <p className="inspector-note-text">{inspected.note.text}</p>
             <p className="inspector-notes">Edit its text on the canvas.</p>
+            <FreeShapeAppearance key={inspected.note.id} shape={inspected.note} />
           </>
         )}
         {inspected.kind === 'arrow' && (
           <>
             <h3 className="inspector-title">Arrow</h3>
             <p className="inspector-notes">A free shape: drawing only, not part of the model.</p>
+            <FreeShapeAppearance key={inspected.arrow.id} shape={inspected.arrow} />
           </>
         )}
         {inspected.kind === 'several' && (
@@ -94,7 +98,8 @@ export function Inspector({ view, scene, definitions }: InspectorProps) {
             <p className="inspector-selection">
               {countsOf(selection)} {sizeOf(selection) === 1 ? 'is' : 'are'} selected.
             </p>
-            <p className="inspector-notes">Select only one to see and edit it.</p>
+            <SelectionAppearance />
+            <p className="inspector-notes">Select only one to see and edit the rest of it.</p>
           </>
         )}
       </DefinitionInspector>
