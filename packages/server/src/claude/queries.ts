@@ -5,10 +5,12 @@
  * broken steps. Pure functions over a project, returning plain JSON for the read tools.
  */
 import {
+  brokenStepsOf,
   builtinPackage,
   definitionsIn,
   modelIndexOf,
   nestingTypesInView,
+  scenarioTimeline,
   stackingOrderOf,
   type ProjectSnapshot,
 } from '@visual-anything/core';
@@ -361,12 +363,25 @@ export function readScenario(state: ProjectSnapshot, scenarioId: Id) {
   const scenario = state.scenarios.find((each) => each.id === scenarioId);
   if (!scenario) return undefined;
   const index = modelIndexOf(state);
+  const timeline = scenarioTimeline(state, scenario);
+  const aggregated = timeline.entries.flatMap((entry) =>
+    entry.kind === 'aggregated'
+      ? [
+          {
+            steps: Array.from({ length: entry.count }, (_, at) => entry.first + at + 1),
+            container: entry.container,
+            containerName: index.element(entry.container)?.name ?? entry.container,
+          },
+        ]
+      : [],
+  );
+  const broken = brokenStepsOf(state, scenario);
   return {
     id: scenario.id,
     name: scenario.name,
     ...(scenario.description === undefined ? {} : { description: scenario.description }),
     view: scenario.view,
-    steps: scenario.steps.map((step) => {
+    steps: scenario.steps.map((step, at) => {
       const relations = step.relations.map((id) => {
         const relation = index.relation(id);
         return relation
@@ -378,6 +393,7 @@ export function readScenario(state: ProjectSnapshot, scenarioId: Id) {
           : { id, missing: true };
       });
       return {
+        number: at + 1,
         id: step.id,
         description: step.description,
         relations,
@@ -386,6 +402,13 @@ export function readScenario(state: ProjectSnapshot, scenarioId: Id) {
         ...(step.dataOut === undefined ? {} : { dataOut: step.dataOut }),
       };
     }),
+    brokenSteps: broken.map((each) => ({
+      number: each.index + 1,
+      step: each.step,
+      missing: each.missing,
+    })),
+    // How it plays over its view now: consecutive steps inside a collapsed container play as one.
+    playsAs: { steps: timeline.entries.length, aggregated },
   };
 }
 

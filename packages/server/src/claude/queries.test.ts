@@ -248,6 +248,7 @@ describe('readScenario', () => {
     const scenario = readScenario(broken, 'request');
     expect(scenario?.steps).toEqual([
       {
+        number: 1,
         id: 'call',
         description: 'The customer calls the API.',
         relations: [
@@ -264,6 +265,7 @@ describe('readScenario', () => {
         broken: false,
       },
       {
+        number: 2,
         id: 'read',
         description: 'The API reads the DB.',
         relations: [{ id: 'api-reads-db', missing: true }],
@@ -271,6 +273,19 @@ describe('readScenario', () => {
         dataOut: { rows: 3 },
       },
     ]);
+    expect(scenario?.brokenSteps).toEqual([{ number: 2, step: 'read', missing: ['api-reads-db'] }]);
+    expect(scenario?.playsAs).toEqual({ steps: 2, aggregated: [] });
+  });
+
+  it('says which steps play as one inside a container the view collapses', () => {
+    const collapsed: ProjectSnapshot = {
+      ...shop,
+      views: shop.views.map((view) => ({ ...view, collapsed: ['system'] })),
+    };
+    expect(readScenario(collapsed, 'request')?.playsAs).toEqual({
+      steps: 2,
+      aggregated: [{ steps: [2], container: 'system', containerName: 'Shop system' }],
+    });
   });
 });
 
