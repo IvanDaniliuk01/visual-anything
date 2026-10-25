@@ -13,7 +13,7 @@ import { useT, type Translator } from '../i18n';
 import { LiveContext, type Live } from '../live/context';
 import { SparklesIcon } from '../shell/icons';
 import './history.css';
-import { actionTime } from './time';
+import { actionTime, useToday } from './time';
 
 interface HistoryPanelProps {
   /** Whether the panel shows; it says what is added only while it does. */
@@ -50,7 +50,7 @@ function HistoryList({ live, active }: { live: Live; active: boolean }) {
   const stop = shown.some((each) => each.id === focused)
     ? focused
     : (shown.find((each) => !each.undone) ?? shown[0])?.id;
-  const now = Date.now();
+  const today = useToday();
 
   async function goTo(action: ListedAction): Promise<void> {
     const ask = action.undone ? live.redoTo : live.undoTo;
@@ -117,7 +117,7 @@ function HistoryList({ live, active }: { live: Live; active: boolean }) {
                     <Author author={action.author} />
                     <span className="visually-hidden">, </span>
                     <time dateTime={new Date(action.time).toISOString()}>
-                      {actionTime(action.time, now, t.language)}
+                      {actionTime(action.time, today, t.language)}
                     </time>
                     {action.undone && (
                       <>
