@@ -134,7 +134,7 @@ describe('planToCommand', () => {
     expect(!loose.ok && loose.problems).toContain(
       'The relation "x" ends on something the plan does not hold.',
     );
-    const nowhere = planToCommand(state, plan(), { ...MAPPING, nesting: undefined } as never);
+    const nowhere = planToCommand(state, plan(), { ...MAPPING, nesting: undefined });
     expect(!nowhere.ok && nowhere.problems).toContain(
       'No relation type that nests is chosen for what sits inside what.',
     );
