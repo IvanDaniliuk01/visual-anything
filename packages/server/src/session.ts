@@ -223,10 +223,28 @@ export class Session implements LiveSession {
     // The real path, worked out once: every later read and write goes there, whatever a link on the
     // way to it comes to point to.
     const projectFolder = await realpath(resolve(folder)).catch(() => resolve(folder));
+    // Watched before it is read: the watcher then never takes the files as newer than those read,
+    // and a change made while reading them is reported too.
+    // Until the session exists, a change is only noted.
+    let changedWhileOpening = false;
+    let onChange = () => {
+      changedWhileOpening = true;
+    };
+    const watcher =
+      options.watch === false
+        ? undefined
+        : watchFolder(projectFolder, options.watch ?? {}, options.err ?? console.error, () =>
+            onChange(),
+          );
     const loaded = await loadProject(projectFolder);
-    if (!loaded.ok) return { ok: false, errors: loaded.errors };
+    if (!loaded.ok) {
+      watcher?.close();
+      return { ok: false, errors: loaded.errors };
+    }
     const session = new Session(projectFolder, loaded, options);
-    if (options.watch !== false) session.#watch(options.watch ?? {});
+    session.#watcher = watcher;
+    onChange = () => session.#scanSoon();
+    if (changedWhileOpening) session.#scanSoon();
     return { ok: true, session };
   }
 
@@ -883,29 +901,32 @@ export class Session implements LiveSession {
     }
   }
 
-  #watch(settings: { delay?: number; mode?: WatchMode }): void {
-    try {
-      this.#watcher = watchProject(this.folder, () => this.#scanSoon(), {
-        ...settings,
-        onError: (error) =>
-          this.#err(`Watching ${toForwardSlashes(this.folder)} failed: ${reasonOf(error)}`),
-      });
-    } catch (error) {
-      this.#err(
-        `Changes made outside the app will not be reloaded: ${toForwardSlashes(this.folder)} cannot be watched (${reasonOf(error)}).`,
-      );
-      return;
-    }
-    // What changed between reading the files and watching them.
-    this.#scanSoon();
-  }
-
   #out(line: string): void {
     (this.#options.out ?? console.log)(line);
   }
 
   #err(line: string): void {
     (this.#options.err ?? console.error)(line);
+  }
+}
+
+/** Watches a project folder for changes made outside the app; `undefined` when it cannot be watched. */
+function watchFolder(
+  folder: string,
+  settings: { delay?: number; mode?: WatchMode },
+  err: (line: string) => void,
+  onChange: () => void,
+): ProjectWatcher | undefined {
+  try {
+    return watchProject(folder, onChange, {
+      ...settings,
+      onError: (error) => err(`Watching ${toForwardSlashes(folder)} failed: ${reasonOf(error)}`),
+    });
+  } catch (error) {
+    err(
+      `Changes made outside the app will not be reloaded: ${toForwardSlashes(folder)} cannot be watched (${reasonOf(error)}).`,
+    );
+    return undefined;
   }
 }
 
