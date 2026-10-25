@@ -24,18 +24,30 @@ import { useT } from '../i18n';
 import type { CanvasCamera } from '../view-state/canvas';
 import { aboutText } from './about';
 import { pinsOf, type Pin } from './pins';
-import { useComments, type CommentFilters } from './store';
+import { CommentsContext, useComments, type CommentFilters, type CommentsStore } from './store';
 import './comments.css';
 
 /** How large a pin is on screen, in CSS pixels: the --control-sm token at the root size. */
 const PIN_SIZE = 28;
 
 interface CommentPinsProps {
+  /** The tab's comments, which the shell keeps; absent, those of the context around. */
+  store?: CommentsStore | undefined;
   /** The canvas's camera, once the canvas is made; no pin shows before. */
   canvas: CanvasCamera | undefined;
 }
 
-export function CommentPins({ canvas }: CommentPinsProps) {
+export function CommentPins({ store, canvas }: CommentPinsProps) {
+  return store ? (
+    <CommentsContext value={store}>
+      <Pins canvas={canvas} />
+    </CommentsContext>
+  ) : (
+    <Pins canvas={canvas} />
+  );
+}
+
+function Pins({ canvas }: { canvas: CanvasCamera | undefined }) {
   const t = useT();
   const editor = useContext(EditorContext);
   const [store, state] = useComments();

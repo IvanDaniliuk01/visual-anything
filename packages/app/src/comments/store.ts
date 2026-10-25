@@ -5,7 +5,7 @@
  * the tab's own, as filters are (ADR 0025): nothing here changes the project.
  */
 import type { CommentAnchor, Id } from '@visual-anything/schema';
-import { createContext, useContext, useEffect, useSyncExternalStore } from 'react';
+import { createContext, useContext, useEffect, useState, useSyncExternalStore } from 'react';
 import type { GoTo } from '../view-state/applier';
 
 /** Which threads show: open ones, resolved ones, or both. */
@@ -119,12 +119,20 @@ export class CommentsStore {
 /** The tab's comments store, which the shell provides. */
 export const CommentsContext = createContext<CommentsStore | undefined>(undefined);
 
+/** The shell's comments store, made once, lent the view state's `goTo` as it changes. */
+export function useCommentsStore(goTo: CommentsActions['goTo']): CommentsStore {
+  const [store] = useState(() => new CommentsStore());
+  useEffect(() => {
+    store.link({ goTo });
+  }, [store, goTo]);
+  return store;
+}
+
 /**
- * Calls `onShown` each time something asks for the comments tab to come forward, as a pin chosen on
+ * Calls `onShown` each time something asks a store's comments tab to come forward, as a pin chosen on
  * the canvas does; `onShown` should not change from one render to the next.
  */
-export function useWhenCommentsShown(onShown: () => void): void {
-  const store = useContext(CommentsContext);
+export function useWhenCommentsShown(store: CommentsStore | undefined, onShown: () => void): void {
   useEffect(() => {
     if (!store) return undefined;
     let last = store.getState().shown;

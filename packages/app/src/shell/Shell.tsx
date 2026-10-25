@@ -1,6 +1,6 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
-import { useCallback, useContext, useEffect, useId, useMemo, useState } from 'react';
+import { useCallback, useContext, useId, useMemo, useState } from 'react';
 import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { ExportControl } from '../export/ExportControl';
@@ -28,7 +28,7 @@ import { CodeStore } from '../code/context';
 import { usePackageCode } from '../code/usePackageCode';
 import { CodeApproval } from '../code/ApprovalDialog';
 import { CommentPins } from '../comments/CommentPins';
-import { CommentsContext, CommentsStore } from '../comments/store';
+import { useCommentsStore } from '../comments/store';
 
 interface ShellProps {
   project: ProjectSnapshot;
@@ -131,72 +131,72 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
     notify: live?.notify,
   });
   usePackageCode({ store: code, project, viewId: view?.id, scene, canvas });
-  // Threads of comments (ADR 0059): what the tab does with them, and where they take the canvas.
-  const [comments] = useState(() => new CommentsStore());
-  useEffect(() => {
-    comments.link({ goTo: viewState.goTo });
-  }, [comments, viewState.goTo]);
+  // Threads of comments (ADR 0059): what the tab does with them, lent the view state's goTo.
+  const comments = useCommentsStore(viewState.goTo);
 
   return (
     <EditorContext.Provider value={editor}>
       <DefinitionProvider>
         <EmphasisContext.Provider value={emphasis}>
-          <CommentsContext.Provider value={comments}>
-            <div className="shell">
-              <Header
-                projectName={project.project.name}
-                viewName={view?.name}
-                actions={
-                  <>
-                    {view && <CopyAddress link={viewState} />}
-                    {exportTool}
-                  </>
-                }
-              />
-              {notice !== undefined && (
-                <p className="shell-notice" role="alert">
-                  {notice}
-                </p>
+          <div className="shell">
+            <Header
+              projectName={project.project.name}
+              viewName={view?.name}
+              actions={
+                <>
+                  {view && <CopyAddress link={viewState} />}
+                  {exportTool}
+                </>
+              }
+            />
+            {notice !== undefined && (
+              <p className="shell-notice" role="alert">
+                {notice}
+              </p>
+            )}
+            <ModelPanel
+              project={project}
+              definitions={definitions}
+              openViewId={view?.id}
+              comments={comments}
+            />
+            <main className="canvas-area" aria-labelledby={canvasHeading}>
+              <h2 id={canvasHeading} className="visually-hidden">
+                {view ? view.name : t('Canvas')}
+              </h2>
+              {view && scene ? (
+                <ImageSourceContext value={images}>
+                  <CanvasArea
+                    project={project}
+                    view={view}
+                    scene={scene}
+                    label={describeDrawing(t, view, scene)}
+                    selection={selection}
+                    onSelect={setSelection}
+                    {...(onCommand ? { onCommand } : {})}
+                    {...(revealed ? { revealed } : {})}
+                    scenarios={scenarios}
+                    theme={theme}
+                    onThemeShown={onThemeShown}
+                    onCanvas={setCanvas}
+                  />
+                </ImageSourceContext>
+              ) : (
+                <p className="canvas-message">{t('There is no view to draw.')}</p>
               )}
-              <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
-              <main className="canvas-area" aria-labelledby={canvasHeading}>
-                <h2 id={canvasHeading} className="visually-hidden">
-                  {view ? view.name : t('Canvas')}
-                </h2>
-                {view && scene ? (
-                  <ImageSourceContext value={images}>
-                    <CanvasArea
-                      project={project}
-                      view={view}
-                      scene={scene}
-                      label={describeDrawing(t, view, scene)}
-                      selection={selection}
-                      onSelect={setSelection}
-                      {...(onCommand ? { onCommand } : {})}
-                      {...(revealed ? { revealed } : {})}
-                      scenarios={scenarios}
-                      theme={theme}
-                      onThemeShown={onThemeShown}
-                      onCanvas={setCanvas}
-                    />
-                  </ImageSourceContext>
-                ) : (
-                  <p className="canvas-message">{t('There is no view to draw.')}</p>
-                )}
-                <CommentPins canvas={canvas} />
-                <GuidanceLayer scenarios={scenarios} />
-                <FindBar
-                  project={project}
-                  definitions={definitions}
-                  viewId={view?.id}
-                  goTo={viewState.goTo}
-                />
-              </main>
-              <Inspector view={view} scene={scene} definitions={definitions} />
-              <ScenarioPanel session={scenarios} />
-              <CodeApproval />
-            </div>
-          </CommentsContext.Provider>
+              <CommentPins store={comments} canvas={canvas} />
+              <GuidanceLayer scenarios={scenarios} />
+              <FindBar
+                project={project}
+                definitions={definitions}
+                viewId={view?.id}
+                goTo={viewState.goTo}
+              />
+            </main>
+            <Inspector view={view} scene={scene} definitions={definitions} />
+            <ScenarioPanel session={scenarios} />
+            <CodeApproval />
+          </div>
         </EmphasisContext.Provider>
       </DefinitionProvider>
     </EditorContext.Provider>

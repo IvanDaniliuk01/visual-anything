@@ -2,7 +2,7 @@ import type { Definitions, ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useCallback, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { CommentsTab } from '../comments/CommentsTab';
-import { useWhenCommentsShown } from '../comments/store';
+import { CommentsContext, useWhenCommentsShown, type CommentsStore } from '../comments/store';
 import { HistoryPanel } from '../history/HistoryPanel';
 import { useT } from '../i18n';
 import { ComponentsTab } from './ComponentsTab';
@@ -15,6 +15,8 @@ interface ModelPanelProps {
   definitions: Definitions;
   /** The view drawn on the canvas, if any. */
   openViewId: Id | undefined;
+  /** The tab's comments (ADR 0059), which the shell keeps; absent, the Comments tab keeps its own. */
+  comments?: CommentsStore | undefined;
 }
 
 type Tab = 'outline' | 'model' | 'components' | 'history' | 'comments';
@@ -35,7 +37,7 @@ const TABS: readonly { tab: Tab; name: string }[] = [
  * undo and redo go through; and the threads of comments (ADR 0059). Each tab keeps its rows open or
  * closed while another one shows.
  */
-export function ModelPanel({ project, definitions, openViewId }: ModelPanelProps) {
+export function ModelPanel({ project, definitions, openViewId, comments }: ModelPanelProps) {
   const t = useT();
   const [tab, setTab] = useState<Tab>('outline');
   const heading = useId();
@@ -48,7 +50,10 @@ export function ModelPanel({ project, definitions, openViewId }: ModelPanelProps
   };
   const buttons = useRef(new Map<Tab, HTMLButtonElement>());
   // A pin chosen on the canvas brings the comments tab forward.
-  useWhenCommentsShown(useCallback(() => setTab('comments'), []));
+  useWhenCommentsShown(
+    comments,
+    useCallback(() => setTab('comments'), []),
+  );
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const at = TABS.findIndex((each) => each.tab === tab);
@@ -141,7 +146,9 @@ export function ModelPanel({ project, definitions, openViewId }: ModelPanelProps
         hidden={tab !== 'comments'}
         className="panel-tab-content"
       >
-        <CommentsTab active={tab === 'comments'} />
+        <CommentsContext value={comments}>
+          <CommentsTab active={tab === 'comments'} />
+        </CommentsContext>
       </div>
     </aside>
   );
