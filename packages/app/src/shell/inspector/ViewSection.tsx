@@ -39,6 +39,7 @@ import {
 } from '../../canvas/stacking';
 import { useEditor } from '../../editor/EditorContext';
 import { selectionOf } from '../../editor/selection';
+import { useT } from '../../i18n';
 
 /** How many of the shapes that overlap it each line names. */
 const NEIGHBOURS_NAMED = 3;
@@ -183,31 +184,35 @@ export function ViewSection({ element }: { element: Element }) {
       <h4 id={headingId}>In this view</h4>
       {!nests && <p className="inspector-notes">{NESTS_NOTHING}</p>}
       <ul className="inspector-memberships">
-        {[...memberships.values()].map((shape) => (
-          <MembershipRow
-            key={shape.container ?? ''}
-            shape={shape}
-            indexed={indexed}
-            index={index}
-            nests={nests}
-            editable={editable}
-            stacking={stackingActions(indexed, project, view.id, own, editable, {
-              container: shape.container,
-            })}
-            onTakeOut={(control) => {
-              started.current = control;
-              change(takeOutCommand(indexed, project, view.id, shape));
-            }}
-            onChoose={(control, mode) => {
-              started.current = control;
-              setChoosing({
-                ...(shape.container === undefined ? {} : { container: shape.container }),
-                mode,
-              });
-            }}
-            onRestack={(move) => restack(move, shape.container)}
-          />
-        ))}
+        {[...memberships.values()].map((shape) =>
+          shape.row !== undefined ? (
+            <RowMembership key={shape.container ?? ''} shape={shape} indexed={indexed} />
+          ) : (
+            <MembershipRow
+              key={shape.container ?? ''}
+              shape={shape}
+              indexed={indexed}
+              index={index}
+              nests={nests}
+              editable={editable}
+              stacking={stackingActions(indexed, project, view.id, own, editable, {
+                container: shape.container,
+              })}
+              onTakeOut={(control) => {
+                started.current = control;
+                change(takeOutCommand(indexed, project, view.id, shape));
+              }}
+              onChoose={(control, mode) => {
+                started.current = control;
+                setChoosing({
+                  ...(shape.container === undefined ? {} : { container: shape.container }),
+                  mode,
+                });
+              }}
+              onRestack={(move) => restack(move, shape.container)}
+            />
+          ),
+        )}
       </ul>
       {collapsing && (
         <div className="inspector-collapse">
@@ -397,6 +402,31 @@ function MembershipRow({
           </button>
         ))}
       </div>
+    </li>
+  );
+}
+
+/**
+ * A container the element sits in as a row (ADR 0023): its place among the rows, in the model's
+ * order. A row has no stacking order of its own and moves with its container, so it offers neither
+ * the stacking moves nor Take out and Move to; its container's Rows or Columns section reorders it.
+ */
+function RowMembership({ shape, indexed }: { shape: ElementShape; indexed: IndexedScene }) {
+  const t = useT();
+  const holder =
+    shape.containerShape === undefined ? undefined : indexed.byKey.get(shape.containerShape);
+  return (
+    <li className="inspector-membership">
+      <p className="inspector-stacking-place">
+        {t('In "{container}": row {place} of {count}, in the model’s order', {
+          container: holder?.name ?? shape.container ?? '',
+          place: (shape.row ?? 0) + 1,
+          count: holder?.rowCount ?? (shape.row ?? 0) + 1,
+        })}
+      </p>
+      <p className="inspector-notes">
+        {t('A row moves with its container, and keeps its place among the rows.')}
+      </p>
     </li>
   );
 }

@@ -2,11 +2,7 @@
  * The picker's recent colors are the `recentColors` preference, which the local program keeps for each
  * person (ADR-0032): a committed color goes to it through `preferences/set`, as every preference does.
  */
-import {
-  DEFAULT_PREFERENCES,
-  type PreferenceChanges,
-  type PreferencesAnswer,
-} from '@visual-anything/core';
+import { DEFAULT_PREFERENCES, type PreferenceChanges } from '@visual-anything/core';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -15,6 +11,7 @@ import {
   linkPreferences,
   resetPreferencesForTests,
   startPreferences,
+  type PreferencesAnswer,
 } from '../../theme/store';
 import { useColorChoices } from './useColorChoices';
 

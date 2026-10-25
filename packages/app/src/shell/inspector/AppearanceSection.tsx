@@ -13,8 +13,10 @@ import {
 import { ESSENCE_ID, type Element, type Id } from '@visual-anything/schema';
 import { useId, useState } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { useT } from '../../i18n';
 import { ElementImageTrait } from '../definitions/ElementImageTrait';
 import { TraitRow } from '../definitions/TraitRow';
+import { drawnOnlyAsRows } from './asRow';
 import { ColorHints, ScopeChoice } from './colorParts';
 import { idsOf, originText, savedIn, shapeHints, wayBack, type ColorTrait } from './colors';
 import { ColorControl, SelectControl } from './controls';
@@ -109,8 +111,12 @@ function OwnTraits({
   update,
 }: TraitsProps & { update: AppearanceSectionProps['update'] }) {
   const hintId = useId();
+  const rowId = useId();
   const [focusShape, setFocusShape] = useState(0);
   const theme = useShownTheme();
+  const t = useT();
+  // A row is a band of its container, in its fill: its shape, stroke and size do not show here.
+  const asRow = drawnOnlyAsRows(useEditor().scene, element.id);
   const own = element.appearance ?? {};
   const shown = appearanceOf(element, definitions);
   // The colors the canvas draws in the theme shown.
@@ -147,8 +153,12 @@ function OwnTraits({
           id={id}
           label={label}
           value={drawn[trait]}
-          disabled={disabled}
-          describedBy={idsOf(describedBy, hints.length > 0 ? hintId : undefined)}
+          disabled={disabled || (asRow && trait === 'stroke')}
+          describedBy={idsOf(
+            describedBy,
+            asRow && trait === 'stroke' ? rowId : undefined,
+            hints.length > 0 ? hintId : undefined,
+          )}
           onCommit={(color, { waiting }) => {
             const command = elementColorCommand(element, trait, color, definitions, {
               always: waiting,
@@ -163,6 +173,13 @@ function OwnTraits({
 
   return (
     <>
+      {asRow && (
+        <p id={rowId} className="inspector-notes">
+          {t(
+            'Drawn as a row here: a band as wide as its container, with no border of its own, so its shape, stroke and size apply only where a view draws it as a shape.',
+          )}
+        </p>
+      )}
       <ul className="definition-traits">
         <TraitRow
           label="Shape"
@@ -176,8 +193,8 @@ function OwnTraits({
             <SelectControl
               id={id}
               value={shown.shape}
-              disabled={disabled}
-              describedBy={describedBy}
+              disabled={disabled || asRow}
+              describedBy={idsOf(describedBy, asRow ? rowId : undefined)}
               focusRequest={focusShape}
               onCommit={async (shape) => {
                 if (isShape(shape)) await send(changing({ shape }));
