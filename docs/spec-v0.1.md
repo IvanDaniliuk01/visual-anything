@@ -343,7 +343,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 
 ## After v0.1
 
-The order below follows the two benchmarks of what Visual Anything needs to represent anything complex ( and ): the model already holds what is hardest to add later, so what comes next is getting content out and in, control of detail and data, explanation, appearance beyond boxes, versions, and physical space. Milestones run in parallel waves; each gets its tasks, and the ADRs it needs, when it is planned.
+The order below follows the two benchmarks of what Visual Anything needs to represent anything complex (`docs/designs/benchmark.md` and `docs/designs/benchmark-2.md`): the model already holds what is hardest to add later, so what comes next is getting content out and in, control of detail and data, explanation, appearance beyond boxes, versions, and physical space. Milestones run in parallel waves; each gets its tasks, and the ADRs it needs, when it is planned.
 
 | Wave | Milestone |
 | --- | --- |
