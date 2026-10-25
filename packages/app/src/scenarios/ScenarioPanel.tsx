@@ -31,6 +31,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { useEditor } from '../editor/EditorContext';
+import { useT, type Translator } from '../i18n';
 import {
   createScenarioCommand,
   deleteScenarioCommand,
@@ -45,7 +46,10 @@ import { StepDetails } from './StepDetails';
 
 const NOT_CONNECTED = 'Visual Anything is not connected, so nothing was changed.';
 
+const STEPS_OVER = { one: '{count} step over {view}', other: '{count} steps over {view}' };
+
 export function ScenarioPanel({ session }: { session: ScenarioSession }) {
+  const t = useT();
   const editor = useEditor();
   const { project, viewId, send } = editor;
   const state = useSyncExternalStore(session.subscribe, session.getState);
@@ -74,14 +78,14 @@ export function ScenarioPanel({ session }: { session: ScenarioSession }) {
   const sendCommand = useCallback(
     async (command: Command, done?: string): Promise<boolean> => {
       if (!send) {
-        announce(NOT_CONNECTED);
+        announce(t(NOT_CONNECTED));
         return false;
       }
       const result = await send(command);
       if (result.ok && done !== undefined) announce(done);
       return result.ok;
     },
-    [send, announce],
+    [send, announce, t],
   );
 
   const view = active ? project.views.find((each) => each.id === scenario.view) : undefined;
@@ -89,7 +93,7 @@ export function ScenarioPanel({ session }: { session: ScenarioSession }) {
   return (
     <aside className="panel scenario-panel" aria-labelledby={heading}>
       <h2 id={heading} ref={headingRef} tabIndex={-1}>
-        Scenarios
+        {t('Scenarios')}
       </h2>
       {scenario && timeline ? (
         <OpenScenario
@@ -121,6 +125,7 @@ export function ScenarioPanel({ session }: { session: ScenarioSession }) {
 
 /** The project's scenarios, to open one, and a way to create one over the open view. */
 function ScenarioList({ session }: { session: ScenarioSession }) {
+  const t = useT();
   const editor = useEditor();
   const { project, viewId } = editor;
   const nameId = useId();
@@ -148,14 +153,16 @@ function ScenarioList({ session }: { session: ScenarioSession }) {
   return (
     <>
       {project.scenarios.length > 0 ? (
-        <ul className="scenario-list" aria-label="Scenarios of the project">
+        <ul className="scenario-list" aria-label={t('Scenarios of the project')}>
           {project.scenarios.map((scenario) => (
             <li key={scenario.id}>
               <button type="button" className="scenario-open" onClick={() => open(scenario)}>
                 <span className="scenario-open-name">{scenario.name}</span>
                 <span className="scenario-open-detail">
-                  {counted(scenario.steps.length, 'step', 'steps')} over{' '}
-                  {viewNames.get(scenario.view) ?? scenario.view}
+                  {t(STEPS_OVER, {
+                    count: scenario.steps.length,
+                    view: viewNames.get(scenario.view) ?? scenario.view,
+                  })}
                 </span>
               </button>
             </li>
@@ -163,8 +170,9 @@ function ScenarioList({ session }: { session: ScenarioSession }) {
         </ul>
       ) : (
         <p className="panel-empty">
-          This project has no scenarios yet. Create one, then click relations on the canvas in the
-          order they happen.
+          {t(
+            'This project has no scenarios yet. Create one, then click relations on the canvas in the order they happen.',
+          )}
         </p>
       )}
       {creating === undefined ? (
@@ -172,14 +180,18 @@ function ScenarioList({ session }: { session: ScenarioSession }) {
           type="button"
           className="scenario-button"
           disabled={!editor.send || viewId === undefined}
-          title={openView === undefined ? 'Open a view to create a scenario over it.' : undefined}
+          title={
+            openView === undefined ? t('Open a view to create a scenario over it.') : undefined
+          }
           onClick={() => setCreating(newScenarioName(project.scenarios))}
         >
-          New scenario
+          {t('New scenario')}
         </button>
       ) : (
         <form className="scenario-form" onSubmit={(event) => void create(event)}>
-          <label htmlFor={nameId}>Name of the new scenario over “{openView}”</label>
+          <label htmlFor={nameId}>
+            {t('Name of the new scenario over “{view}”', { view: openView ?? '' })}
+          </label>
           <input
             id={nameId}
             value={creating}
@@ -192,19 +204,19 @@ function ScenarioList({ session }: { session: ScenarioSession }) {
           />
           <div className="scenario-actions">
             <button type="submit" className="scenario-button" disabled={!creating.trim()}>
-              Create and record
+              {t('Create and record')}
             </button>
             <button
               type="button"
               className="scenario-button"
               onClick={() => setCreating(undefined)}
             >
-              Cancel
+              {t('Cancel')}
             </button>
           </div>
         </form>
       )}
-      {editor.send === undefined && <p className="panel-empty">{NOT_CONNECTED}</p>}
+      {editor.send === undefined && <p className="panel-empty">{t(NOT_CONNECTED)}</p>}
     </>
   );
 }
@@ -228,6 +240,7 @@ function OpenScenario({
   /** Gives the focus a place once the scenario closes, or is deleted. */
   onClosed: () => void;
 }) {
+  const t = useT();
   const editor = useEditor();
   const { project } = editor;
   const editable = editor.send !== undefined;
@@ -255,12 +268,16 @@ function OpenScenario({
     const name = renaming?.trim();
     stopRenaming();
     if (!name || name === scenario.name) return;
-    await send(renameScenarioCommand(scenario, name), `Renamed to “${name}”.`);
+    await send(renameScenarioCommand(scenario, name), t('Renamed to “{name}”.', { name }));
   };
 
   const remove = async () => {
     setDeleting(false);
-    if (await send(deleteScenarioCommand(scenario), `Deleted “${scenario.name}”.`)) onClosed();
+    if (
+      await send(deleteScenarioCommand(scenario), t('Deleted “{name}”.', { name: scenario.name }))
+    ) {
+      onClosed();
+    }
   };
 
   return (
@@ -277,7 +294,7 @@ function OpenScenario({
               disabled={!editable}
               onClick={() => setRenaming(scenario.name)}
             >
-              Rename
+              {t('Rename')}
             </button>
             <button
               type="button"
@@ -285,7 +302,7 @@ function OpenScenario({
               disabled={!editable}
               onClick={() => setDeleting(true)}
             >
-              Delete
+              {t('Delete')}
             </button>
             <button
               type="button"
@@ -295,13 +312,13 @@ function OpenScenario({
                 onClosed();
               }}
             >
-              Close
+              {t('Close')}
             </button>
           </div>
         </div>
       ) : (
         <form className="scenario-form" onSubmit={(event) => void rename(event)}>
-          <label htmlFor={renameId}>Name of the scenario</label>
+          <label htmlFor={renameId}>{t('Name of the scenario')}</label>
           <input
             id={renameId}
             value={renaming}
@@ -314,19 +331,24 @@ function OpenScenario({
           />
           <div className="scenario-actions">
             <button type="submit" className="scenario-button" disabled={!renaming.trim()}>
-              Rename
+              {t('Rename')}
             </button>
             <button type="button" className="scenario-button" onClick={stopRenaming}>
-              Cancel
+              {t('Cancel')}
             </button>
           </div>
         </form>
       )}
       {deleting && (
-        <div className="scenario-confirm" role="alertdialog" aria-label="Delete the scenario?">
+        <div className="scenario-confirm" role="alertdialog" aria-label={t('Delete the scenario?')}>
           <p>
-            Delete “{scenario.name}” and its {counted(scenario.steps.length, 'step', 'steps')}? You
-            can undo it.
+            {t(
+              {
+                one: 'Delete “{name}” and its {count} step? You can undo it.',
+                other: 'Delete “{name}” and its {count} steps? You can undo it.',
+              },
+              { name: scenario.name, count: scenario.steps.length },
+            )}
           </p>
           <div className="scenario-actions">
             <button
@@ -336,7 +358,7 @@ function OpenScenario({
               autoFocus
               onClick={() => void remove()}
             >
-              Delete scenario
+              {t('Delete scenario')}
             </button>
             <button
               type="button"
@@ -346,7 +368,7 @@ function OpenScenario({
                 setTitleRequest((count) => count + 1);
               }}
             >
-              Cancel
+              {t('Cancel')}
             </button>
           </div>
         </div>
@@ -356,25 +378,25 @@ function OpenScenario({
       )}
       {!active && (
         <p className="scenario-elsewhere">
-          It plays over “{viewName}”.{' '}
+          {t('It plays over “{view}”.', { view: viewName })}{' '}
           <button
             type="button"
             className="scenario-button"
             onClick={() => editor.openView?.(scenario.view)}
           >
-            Open “{viewName}”
+            {t('Open “{view}”', { view: viewName })}
           </button>
         </p>
       )}
 
-      <div className="scenario-transport" role="group" aria-label="Playback">
+      <div className="scenario-transport" role="group" aria-label={t('Playback')}>
         <button
           type="button"
           className="scenario-button"
           disabled={!active || at === undefined}
           onClick={() => session.previous()}
         >
-          Previous
+          {t('Previous')}
         </button>
         <button
           type="button"
@@ -382,7 +404,7 @@ function OpenScenario({
           disabled={!active || timeline.steps === 0}
           onClick={() => session.toggle()}
         >
-          {state.mode === 'playing' ? 'Pause' : finished ? 'Play again' : 'Play'}
+          {state.mode === 'playing' ? t('Pause') : finished ? t('Play again') : t('Play')}
         </button>
         <button
           type="button"
@@ -390,12 +412,12 @@ function OpenScenario({
           disabled={!active || at === undefined || at >= timeline.entries.length - 1}
           onClick={() => session.next()}
         >
-          Next
+          {t('Next')}
         </button>
-        <span className="scenario-position">{positionOf(entry, timeline)}</span>
+        <span className="scenario-position">{positionOf(t, entry, timeline)}</span>
       </div>
       <div className="scenario-options">
-        <label htmlFor={speedId}>Speed</label>
+        <label htmlFor={speedId}>{t('Speed')}</label>
         <select
           id={speedId}
           value={state.speed}
@@ -414,16 +436,23 @@ function OpenScenario({
           disabled={!active || !editable}
           onClick={() => session.setRecording(!state.recording)}
         >
-          {state.recording ? 'Stop recording' : 'Record'}
+          {state.recording ? t('Stop recording') : t('Record')}
         </button>
       </div>
       {state.recording && (
         <p className="scenario-hint scenario-recording-hint">
-          {state.canRecord
-            ? `Click relations on the canvas in the order they happen: each click adds a step after ${
-                timeline.steps === 0 ? 'the start' : `step ${state.step + 1}`
-              }. Shift+click adds a relation to that step. From the keyboard, ] and [ select a relation, Enter records it and follows it, and Shift+Enter adds it to the step.`
-            : 'Recording waits until the scenario’s view is open and Visual Anything is connected.'}
+          {!state.canRecord
+            ? t(
+                'Recording waits until the scenario’s view is open and Visual Anything is connected.',
+              )
+            : timeline.steps === 0
+              ? t(
+                  'Click relations on the canvas in the order they happen: each click adds a step after the start. Shift+click adds a relation to that step. From the keyboard, ] and [ select a relation, Enter records it and follows it, and Shift+Enter adds it to the step.',
+                )
+              : t(
+                  'Click relations on the canvas in the order they happen: each click adds a step after step {n}. Shift+click adds a relation to that step. From the keyboard, ] and [ select a relation, Enter records it and follows it, and Shift+Enter adds it to the step.',
+                  { n: state.step + 1 },
+                )}
         </p>
       )}
 
@@ -441,10 +470,16 @@ function OpenScenario({
 }
 
 /** "Step 2 of 5", or "Steps 4–5 of 5" for an aggregated step. */
-function positionOf(entry: TimelineEntry | undefined, timeline: Timeline): string {
-  if (!entry) return 'No steps yet';
-  if (entry.count === 1) return `Step ${entry.first + 1} of ${timeline.steps}`;
-  return `Steps ${entry.first + 1}–${entry.first + entry.count} of ${timeline.steps}`;
+function positionOf(t: Translator, entry: TimelineEntry | undefined, timeline: Timeline): string {
+  if (!entry) return t('No steps yet');
+  if (entry.count === 1) {
+    return t('Step {n} of {total}', { n: entry.first + 1, total: timeline.steps });
+  }
+  return t('Steps {first}–{last} of {total}', {
+    first: entry.first + 1,
+    last: entry.first + entry.count,
+    total: timeline.steps,
+  });
 }
 
 /**
@@ -468,6 +503,7 @@ function StepList({
   active: boolean;
   send: (command: Command, done?: string) => Promise<boolean>;
 }) {
+  const t = useT();
   const editor = useEditor();
   const { project } = editor;
   const heading = useId();
@@ -479,7 +515,7 @@ function StepList({
   if (timeline.entries.length === 0) {
     return (
       <p className="panel-empty">
-        No steps yet. Turn on Record, then click relations on the canvas in order.
+        {t('No steps yet. Turn on Record, then click relations on the canvas in order.')}
       </p>
     );
   }
@@ -517,7 +553,7 @@ function StepList({
   return (
     <>
       <h3 id={heading} className="scenario-steps-heading">
-        Steps
+        {t('Steps')}
       </h3>
       <ol className="scenario-steps" aria-labelledby={heading}>
         {timeline.entries.map((each, at) => {
@@ -525,8 +561,14 @@ function StepList({
           const broken = isBroken(each);
           const description =
             each.kind === 'aggregated'
-              ? `${counted(each.count, 'step', 'steps')} inside “${nameOf(each.container)}”`
-              : scenario.steps[each.first]?.description || 'No description yet';
+              ? t(
+                  {
+                    one: '{count} step inside “{container}”',
+                    other: '{count} steps inside “{container}”',
+                  },
+                  { count: each.count, container: nameOf(each.container) },
+                )
+              : scenario.steps[each.first]?.description || t('No description yet');
           return (
             <li
               key={each.steps[0]}
@@ -551,7 +593,9 @@ function StepList({
                     : `${each.first + 1}–${each.first + each.count}`}
                 </span>
                 <span className="scenario-step-text">{description}</span>
-                {broken && <span className="scenario-badge scenario-badge-broken">Broken</span>}
+                {broken && (
+                  <span className="scenario-badge scenario-badge-broken">{t('Broken')}</span>
+                )}
                 {each.kind === 'aggregated' && (
                   <span className="scenario-badge" aria-hidden="true">
                     ×{each.count}
@@ -573,8 +617,4 @@ function StepList({
       </ol>
     </>
   );
-}
-
-function counted(amount: number, one: string, many: string): string {
-  return `${amount} ${amount === 1 ? one : many}`;
 }

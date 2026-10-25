@@ -7,6 +7,7 @@ import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import type { Scene } from '../canvas/scene';
 import type { Emphasis } from '../editor/emphasis';
+import { t as currentT, type Translator } from '../i18n';
 import type { GuidanceMarks } from './state';
 
 /** How many names a description gives before it counts the rest. */
@@ -57,17 +58,26 @@ export function revealKeyFor(target: Id, scene: Scene): string | undefined {
 }
 
 /** Claude's marks in words, for the screen reader and the caption's title. */
-export function describeMarks(marks: GuidanceMarks, project: ProjectSnapshot): string {
-  const names = marks.targets.map((id) => `“${nameOf(id, project)}”`);
+export function describeMarks(
+  marks: GuidanceMarks,
+  project: ProjectSnapshot,
+  t: Translator = currentT,
+): string {
+  const names = marks.targets.map((id) => `“${nameOf(id, project, t)}”`);
   const shown = names.slice(0, NAMES_SHOWN);
   const more = names.length - shown.length;
   const list =
     more > 0
-      ? `${shown.join(', ')} and ${more} more`
+      ? t('{first} and {count} more', { first: shown.join(', '), count: more })
       : shown.length > 1
-        ? `${shown.slice(0, -1).join(', ')} and ${shown.at(-1) ?? ''}`
+        ? t('{first} and {last}', {
+            first: shown.slice(0, -1).join(', '),
+            last: shown.at(-1) ?? '',
+          })
         : (shown[0] ?? '');
-  return marks.kind === 'highlight' ? `Claude highlights ${list}.` : `Claude focuses on ${list}.`;
+  return marks.kind === 'highlight'
+    ? t('Claude highlights {list}.', { list })
+    : t('Claude focuses on {list}.', { list });
 }
 
 /** The keys the scene draws the targets with: every shape of an element, a relation, a free shape. */
@@ -81,17 +91,17 @@ function keysOf(targets: ReadonlySet<Id>, scene: Scene): string[] {
 }
 
 /** What a target is called: an element's or a relation's name, a note's text, or its id. */
-function nameOf(id: Id, project: ProjectSnapshot): string {
+function nameOf(id: Id, project: ProjectSnapshot, t: Translator): string {
   const { world, elements, relations } = project.model;
   if (world.id === id) return world.name;
   const element = elements.find((each) => each.id === id);
   if (element) return element.name;
   const relation = relations.find((each) => each.id === id);
-  if (relation) return relation.name ?? relationName(relation.from, relation.to, project);
+  if (relation) return relation.name ?? relationName(relation.from, relation.to, project, t);
   return id;
 }
 
-function relationName(from: Id, to: Id, project: ProjectSnapshot): string {
+function relationName(from: Id, to: Id, project: ProjectSnapshot, t: Translator): string {
   const name = (id: Id) => project.model.elements.find((each) => each.id === id)?.name ?? id;
-  return `${name(from)} to ${name(to)}`;
+  return t('{from} to {to}', { from: name(from), to: name(to) });
 }
