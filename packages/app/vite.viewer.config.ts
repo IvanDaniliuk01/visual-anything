@@ -33,6 +33,8 @@ export const MODULES_LIST = 'VISUAL_ANYTHING_VIEWER_MODULES';
 
 export default defineConfig({
   plugins: [react(), validators(), scriptAndStyleOnly(), listModules(process.env[MODULES_LIST])],
+  // The app package, wherever the build is started from.
+  root: fileURLToPath(new URL('.', import.meta.url)),
   base: './',
   publicDir: false,
   build: {
