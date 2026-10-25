@@ -1,0 +1,36 @@
+// @vitest-environment node
+// The exports bundled for the browser, as the app's build bundles them: PDFKit's browser build, and
+// nothing that only Node has.
+import { build } from 'esbuild';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+
+describe('the exports in the browser', () => {
+  it('bundle with PDFKit’s browser build and no module of Node', async () => {
+    const result = await build({
+      entryPoints: [join(import.meta.dirname, 'exports.ts')],
+      bundle: true,
+      platform: 'browser',
+      format: 'esm',
+      splitting: true,
+      outdir: 'out',
+      write: false,
+      metafile: true,
+      logLevel: 'silent',
+    });
+    expect(result.errors).toEqual([]);
+    const inputs = Object.keys(result.metafile.inputs);
+    expect(inputs.some((input) => input.endsWith('pdfkit/js/pdfkit.browser.mjs'))).toBe(true);
+    expect(inputs.some((input) => input.includes('pdfkit.node'))).toBe(false);
+    expect(inputs.some((input) => /node_modules\/(pixi\.js|react-dom)\//.test(input))).toBe(false);
+    // PDFKit, the converter and the fonts load only when a PDF is made: in chunks of their own.
+    const entry = Object.entries(result.metafile.outputs).find(([, output]) => output.entryPoint);
+    const imported = entry?.[1].imports ?? [];
+    expect(imported.filter((each) => each.kind === 'dynamic-import').length).toBeGreaterThanOrEqual(
+      3,
+    );
+    expect(Object.keys(entry?.[1].inputs ?? {}).some((input) => input.includes('pdfkit'))).toBe(
+      false,
+    );
+  }, 60_000);
+});

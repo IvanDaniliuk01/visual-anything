@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Visual Anything · exports benchmark</title>
+    <style>
+      body {
+        margin: 1rem;
+        font-family: system-ui, sans-serif;
+        color: var(--text);
+        background: var(--surface);
+      }
+      table {
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 0.25rem 0.6rem;
+        border-bottom: 1px solid var(--border);
+        text-align: right;
+      }
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Exports benchmark</h1>
+    <p id="status" aria-live="polite">Building the synthetic project…</p>
+    <table id="table" hidden>
+      <thead>
+        <tr>
+          <th>Format</th>
+          <th>p50 ms</th>
+          <th>p95 ms</th>
+          <th>Size</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <script type="module" src="/src/bench/exports-main.ts"></script>
+  </body>
+</html>
