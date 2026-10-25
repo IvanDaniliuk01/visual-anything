@@ -306,7 +306,7 @@ _Avoid_: deep link, permalink
 ### What leaves and enters a project
 
 **Read-only page**:
-One HTML file made from a project that shows its views and plays its scenarios in any browser, offline and on a phone, without the local program. It changes nothing, holds no token and connects nowhere (ADR 0041).
+One HTML file made from a project that shows its views and plays its scenarios and tours in any browser, offline and on a phone, without the local program; its threads of comments stay out. It changes nothing, holds no token and connects nowhere (ADR 0041).
 _Avoid_: static site, viewer, export (alone)
 
 **Import**:
