@@ -299,6 +299,30 @@ describe('CanvasRenderer frames', () => {
     expect(shapeTiles(renderer).every((tile) => !tile.container.culled)).toBe(true);
   });
 
+  it('leaves out a tile’s full drawing once it is an eighth of a screen off, and a region half a screen', async () => {
+    // Two shapes side by side: one tile, in one region.
+    const shapes = [
+      shapeAt('a', { x: 0, y: 0, width: 100, height: 50 }),
+      shapeAt('b', { x: 200, y: 0, width: 100, height: 50 }),
+    ];
+    const renderer = await started();
+    renderer.show(indexScene(sceneOf(shapes)));
+    renderer.setCamera({ x: 0, y: 0, scale: 1 });
+    renderer.renderNow();
+    const [tile] = shapeTiles(renderer) as (TileView & { bounds: Rect })[];
+    const region = tile?.coarse?.parent as Container;
+    expect(tile?.container.culled).toBe(false);
+    // The screen, 1200 wide, starts 400 past the tile: more than an eighth of its width, less than half.
+    const right = (tile?.bounds.x ?? 0) + (tile?.bounds.width ?? 0);
+    renderer.setCamera({ x: -(right + 400), y: 0, scale: 1 });
+    renderer.renderNow();
+    expect(tile?.container.culled).toBe(true);
+    expect(region.culled).toBe(false);
+    renderer.setCamera({ x: -(right + 700), y: 0, scale: 1 });
+    renderer.renderNow();
+    expect(region.culled).toBe(true);
+  });
+
   it('leaves out of the frame whole regions of plain drawings, never one tile’s alone', async () => {
     const renderer = await started();
     renderer.show(withCalendar());
