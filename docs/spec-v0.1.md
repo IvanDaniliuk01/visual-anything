@@ -323,12 +323,12 @@ Eight milestones in build order, each ending in something you can use, and Track
 
 **Track D · Distribution**, beside the milestones, starting now (ADR 0037). Its commits start with `D<n>:`, and each stage is tagged `d<n>` when its Done when holds.
 
-**D1 · Every system, every change.** Done when the test suite, typecheck, lint and build run in CI on Windows, macOS and Linux for every change, and pass.
+**D1 · Every system.** Done when the test suite, typecheck, lint and build run in CI on Linux for every push, and on Windows, macOS and Linux for every pull request to `master` (ADR 0037 says why), and pass.
 
 - [ ] CI on Windows, macOS and Linux, with Node 22 and 24 on Linux
 - [ ] Whatever differs between the three systems fixed where the suite finds it: paths, file locks, line endings, opening the browser
 
-**D2 · One executable per system.** Done when CI builds, for every change to the default branch, single executables for Windows x64, macOS arm64 and x64, and Linux x64 and arm64; each one, started on its own system with no Node installed, opens a sample project, serves it on 127.0.0.1 and opens the browser; `visual-anything mcp` lists the MCP tools; and the README says how to set up Claude Desktop and Claude Code with the executable.
+**D2 · One executable per system.** Done when CI builds, for every tag `v*` and on demand, single executables for Windows x64, macOS arm64 and x64, and Linux x64 and arm64; each one, started on its own system with no Node installed, opens a sample project, serves it on 127.0.0.1 and opens the browser; `visual-anything mcp` lists the MCP tools; and the README says how to set up Claude Desktop and Claude Code with the executable.
 
 - [ ] The server bundled into one script, and the built app read from embedded assets
 - [ ] Node single executable applications built and smoke-tested in CI on each system, macOS ones signed ad hoc
