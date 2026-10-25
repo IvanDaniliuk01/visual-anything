@@ -27,6 +27,7 @@ v0.1 covers the model, views, layout, tables, the component editor, images, them
 | Components and relation types | Built-in "Systems" and "Data modeling" packages; your own, derived and changed in the component editor or written in JSON, by hand or by Claude | Programmable ones (case 4) |
 | Tables | A component that draws what its elements hold as rows, as a table draws its columns; columns added on the canvas, typed or pasted | Importing many tables at once |
 | Images | SVG pictures and small PNG, JPEG or WebP bitmaps kept in packages, shown on components and single elements as an icon or as the whole shape | Large photos kept as files; images as free shapes; SVG with named parts as shapes (after v0.1) |
+| Languages | English and Spanish for everything the app shows, following the browser unless you choose (ADR 0038) | More languages |
 | Themes | Light and dark for the app and the canvas, following the system unless you choose; kept by the local program for each person | More themes, such as high contrast |
 | Appearance editing | Any #RRGGBB fill and stroke for elements, components and relation types (built-in ones through project appearances), one relation, notes and free arrows; from the inspector or by Claude | Transparency, gradients; colors that depend on an attribute's value |
 | Grid and rulers | A grid that follows the zoom, rulers in canvas units, and snapping of hand moves to 8 canvas units | Custom spacing, guides dragged from rulers, alignment guides |
@@ -43,7 +44,7 @@ v0.1 covers the model, views, layout, tables, the component editor, images, them
 | Export (image, PDF, shareable page) | — | SVG and PNG first (after v0.1) |
 | HTML | — | Static HTML imported as a cleaned drawing (after v0.1); HTML that runs only with a new ADR |
 | Collaboration | Git on the project files | No real-time editing |
-| Platforms | Desktop browsers | Mobile out of scope |
+| Platforms | Windows, macOS and Linux: the local program as one executable for each (ADR 0037), or from npm, with the app in any desktop browser | Mobile out of scope; installers and updates (Track D) |
 | Embedded chat | — | Optional package |
 | draw.io import | — | Not planned |
 
@@ -113,7 +114,7 @@ flowchart TB
 
 The browser and Claude never write files: both send commands to the core, which checks the rules, records each change in one undo history and saves it. Claude's live guidance goes straight to the open view without touching the model.
 
-- **Local program** (Node, listening only on 127.0.0.1): serves the app, owns the model and its history, reads and writes the project folder, and exposes the MCP server.
+- **Local program** (Node, listening only on 127.0.0.1): serves the app, owns the model and its history, reads and writes the project folder, keeps each person's preferences outside every project (ADR 0032), and exposes the MCP server.
 - **Browser app** (React, PixiJS, ELK in a worker): renders the open view, turns your gestures into commands and shows Claude's live guidance. Drags and other continuous gestures update the canvas locally and send a single command when they end.
 - **Claude** (Desktop or Code): connects through an MCP stdio entry point that attaches to the running local program, starting it if needed.
 - **Core**: the same TypeScript package runs in both places, so a read-only demo can run in the browser alone.
@@ -153,6 +154,7 @@ The canvas draws one view at a time with WebGL, and every layout decision is kep
 - **Layout**: ELK runs in a worker for shapes without a position and on demand; pinned shapes are fixed inputs, and results animate in when ready.
 - **Edit**: create from the component palette, directly in World, inside the selected container or next to the selected element, or inside any element from its menu; connect; move, putting shapes inside a container by dropping them on it and taking them out by dragging them clear of it (hold Alt to move only), or from the shape menu and the inspector; bring to front, bring forward, send backward and send to back; rename inline; edit attributes and particularities in the inspector; and delete with a preview of what cascades; undo and redo.
 - **Text**: edited in an HTML layer placed over the shape, then drawn back on the canvas.
+- **Themes**: the app and the canvas are drawn light or dark, following the system unless you choose, and change together; built-in colors have a shade for each theme, and every color you set is drawn as set in both (ADR 0033).
 
 ## Scenarios
 
@@ -181,14 +183,15 @@ Through MCP, Claude can do everything you can do in v0.1, and each of its write 
 - Guidance never changes the model; it only moves and marks the open view.
 - Writing programmable code waits until after v0.1, and will need your approval before it runs.
 - Tool descriptions include examples, because they are how Claude learns to use the tools well.
+- Preferences, such as the theme, are each person's own: Claude's tools neither read nor change them; "everything you can do" means everything you can do to the project.
 
 ## Quality bar
 
 These hold at every milestone, not only at the end.
 
-- **Performance**: 10,000 elements in one view pan, zoom and select smoothly, with a 60 frames per second target; layout never blocks interaction.
+- **Performance**: 10,000 elements in one view pan, zoom and select smoothly, with a 60 frames per second target; a theme switch never stalls a frame; layout never blocks interaction.
 - **Security**: project files never run code and are validated when opened. The local program listens only on 127.0.0.1, checks the origin of every request and requires a per-session token for the live connection, so other websites cannot drive it. The core has no network access.
-- **Accessibility**: keyboard navigation between shapes and along relations, an outline panel that mirrors the view, sufficient contrast, and reduced motion during playback when the system asks for it.
+- **Accessibility**: keyboard navigation between shapes and along relations, an outline panel that mirrors the view, contrast in both themes of 4.5:1 for text and 3:1 for lines, marks, control boundaries and focus rings, and reduced motion for every animation when the system asks for it.
 - **Reliability**: atomic writes, reload on outside changes, and property tests for the core rules: undo exactly reverses every command, containment never forms a cycle, and deletes cascade as specified.
 
 ## Decisions settled while writing
@@ -247,6 +250,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [ ] Filters and focus mode, by degrees and by direction, with isolating the selection
 - [ ] ELK layout in a worker, pinned shapes as fixed inputs, re-layout on demand; each table as one block with a connection point for each related row
 - [ ] Connection points from components, in a format that leaves room for free geometry: relations attach to them, and ELK takes them as ports
+- [ ] Relations routed by hand, per view, as in draw.io: each end attached to a connection point or to any point of a shape's border, chosen by dragging it; bend points added, moved and removed; orthogonal segments dragged; straight, orthogonal or curved; Reset route goes back to the automatic route
 - [ ] Tables on the canvas: rows, relations to rows, drawing within the budget; columns added on the canvas, typed or pasted; the tables benchmark
 
 **M3b · Component editor and images.** Done when you derive a component from a built-in one in the component editor, change its shape, colors, detail and attributes, give it an SVG icon from a file, give one element a PNG of its own and another element a picture already in the project, and undo each step one at a time; an SVG holding a script or an outside reference is cleaned before it is saved and never runs; the built app shows no content security policy violation; and a view of 10,000 elements with tables and images still pans, zooms and selects at the 60 frames per second target. It runs after M3, and can run beside M4 in a second session.
@@ -308,6 +312,29 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [ ] Rulers with the selection's extent
 
 **A4 · Polish.** Done when no color, size, spacing, radius, shadow or z-index is written out in any stylesheet outside the generated tokens, every control has hover, pressed, disabled and focus-visible states, every icon comes from one icon set kept in the app, and every empty state says what to do next.
+
+**Track L · Languages**, beside the milestones, starting now (ADR 0038). Its commits start with `L<n>:`.
+
+**L1 · The app in English and Spanish.** Done when every text the app shows (panels, menus, dialogs, captions, announcements, keyboard help, built-in components and relation types, the history's labels and the local program's and the core's messages) reads in Spanish when Spanish is chosen or the browser asks for it, and in English otherwise; the choice is a preference kept by the local program; and the tests of the catalog and of the core's templates pass.
+
+- [ ] The catalog, `t()` and `useT()`, plurals, the language preference and the header's control
+- [ ] The app's own text, file by file, as each task that owns a file finishes
+- [ ] The core's and the local program's messages, through templates, and the built-in packages' names
+
+**Track D · Distribution**, beside the milestones, starting now (ADR 0037). Its commits start with `D<n>:`, and each stage is tagged `d<n>` when its Done when holds.
+
+**D1 · Every system, every change.** Done when the test suite, typecheck, lint and build run in CI on Windows, macOS and Linux for every change, and pass.
+
+- [ ] CI on Windows, macOS and Linux, with Node 22 and 24 on Linux
+- [ ] Whatever differs between the three systems fixed where the suite finds it: paths, file locks, line endings, opening the browser
+
+**D2 · One executable per system.** Done when CI builds, for every change to the default branch, single executables for Windows x64, macOS arm64 and x64, and Linux x64 and arm64; each one, started on its own system with no Node installed, opens a sample project, serves it on 127.0.0.1 and opens the browser; `visual-anything mcp` lists the MCP tools; and the README says how to set up Claude Desktop and Claude Code with the executable.
+
+- [ ] The server bundled into one script, and the built app read from embedded assets
+- [ ] Node single executable applications built and smoke-tested in CI on each system, macOS ones signed ad hoc
+- [ ] Release artifacts attached to a tag, with checksums
+
+**D3 · Installers and signing** (when Visual Anything is published). An MSI for Windows, a signed and notarized macOS app, a Linux AppImage or package, and updates.
 
 ## After v0.1
 

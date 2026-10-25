@@ -3,7 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
     <title>Visual Anything</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Writes the theme on the page before its first paint (ADR-0032). A file of the page's own
+         origin, not inline, so that the page's content security policy needs no hash for it. -->
+    <script src="/theme.js"></script>
   </head>
   <body>
     <div id="root"></div>

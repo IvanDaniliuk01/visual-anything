@@ -1,13 +1,16 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { builtinPackage } from '@visual-anything/core';
 import {
   formatProjectProblem,
   loadProject,
   locateProblems,
   readProjectFiles,
+  reservedPackageIds,
   type LoadProjectResult,
 } from './project';
 
@@ -315,9 +318,27 @@ describe('loadProject', () => {
       {
         file: 'packages/systems.vapackage',
         pointer: '/id',
-        message: 'The package "systems" is built into Visual Anything; give this one another id.',
+        message:
+          'packages/systems.vapackage takes the id "systems", which Visual Anything keeps for its built-in Systems package. Give it another id: change "id" in this file, the start of every component and relation type id in it, and every reference to them, and rename the file to match.',
       },
     ]);
+  });
+
+  it('warns about a package of the project whose id is kept for a built-in package to come', async () => {
+    const reserved = reservedPackageIds().find((id) => builtinPackage(id) === undefined);
+    if (reserved === undefined) return;
+    await write({
+      'project.vaproject': projectFile([reserved]),
+      'model.vamodel': modelFile(),
+      [`packages/${reserved}.vapackage`]: packageFile(reserved),
+    });
+
+    const { warnings } = loadedOf(await loadProject(folder));
+    expect(warnings).toContainEqual({
+      file: `packages/${reserved}.vapackage`,
+      pointer: '/id',
+      message: `packages/${reserved}.vapackage takes the id "${reserved}", which Visual Anything keeps for a built-in package to come. Rename it before that package ships: change "id" in this file, the start of every component and relation type id in it, and every reference to them, and rename the file to match.`,
+    });
   });
 
   it('reports a package listed twice', async () => {
@@ -435,6 +456,134 @@ describe('loadProject', () => {
   });
 });
 
+/** Makes a symbolic link or a junction, or says this user may not make one here. */
+async function tryLink(target: string, path: string, type: 'file' | 'junction'): Promise<boolean> {
+  try {
+    await mkdir(dirname(path), { recursive: true });
+    await symlink(target, path, type);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const ONLY_REGULAR = 'Visual Anything opens only regular files inside the project folder.';
+
+describe('loadProject reads only regular files within their caps', () => {
+  beforeEach(async () => {
+    await write({ 'project.vaproject': projectFile(), 'model.vamodel': modelFile() });
+  });
+
+  it('refuses a view that is a link to a file outside the folder, as a problem of that file', async (context) => {
+    const outside = await mkdtemp(join(tmpdir(), 'va-outside-'));
+    try {
+      await writeFile(join(outside, 'secret.vaview'), JSON.stringify(viewFile('secret')));
+      if (
+        !(await tryLink(join(outside, 'secret.vaview'), join(folder, 'views/a.vaview'), 'file'))
+      ) {
+        context.skip();
+      }
+      expect(errorsOf(await loadProject(folder))).toEqual([
+        { file: 'views/a.vaview', pointer: '', message: `The file is a link; ${ONLY_REGULAR}` },
+      ]);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a project file that is a junction, as a problem of that file', async (context) => {
+    await mkdir(join(folder, 'elsewhere'));
+    if (!(await tryLink(join(folder, 'elsewhere'), join(folder, 'views/a.vaview'), 'junction'))) {
+      context.skip();
+    }
+    expect(errorsOf(await loadProject(folder))).toEqual([
+      { file: 'views/a.vaview', pointer: '', message: `The file is a link; ${ONLY_REGULAR}` },
+    ]);
+  });
+
+  it('refuses a views folder that is a link, without reading what it points to', async (context) => {
+    const outside = await mkdtemp(join(tmpdir(), 'va-outside-'));
+    try {
+      await writeFile(join(outside, 'secret.vaview'), JSON.stringify(viewFile('secret')));
+      if (!(await tryLink(outside, join(folder, 'views'), 'junction'))) context.skip();
+      expect(errorsOf(await loadProject(folder))).toEqual([
+        {
+          file: 'views',
+          pointer: '',
+          message: `views is a link; Visual Anything opens only real folders and regular files inside the project folder.`,
+        },
+      ]);
+      expect([...(await readProjectFiles(folder)).keys()].sort()).toEqual([
+        'model.vamodel',
+        'project.vaproject',
+      ]);
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a file that holds more than its kind may', async () => {
+    await write({
+      'project.vaproject': `${JSON.stringify(projectFile())}${' '.repeat(1024 * 1024)}`,
+    });
+    expect(errorsOf(await loadProject(folder))).toEqual([
+      {
+        file: 'project.vaproject',
+        pointer: '',
+        message: 'The file holds more than 1 MiB, the most a file of this kind may hold.',
+      },
+    ]);
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'refuses a FIFO among the views without waiting on it',
+    async () => {
+      await mkdir(join(folder, 'views'));
+      execFileSync('mkfifo', [join(folder, 'views/pipe.vaview')]);
+      expect(errorsOf(await loadProject(folder))).toEqual([
+        {
+          file: 'views/pipe.vaview',
+          pointer: '',
+          message: `The file is not a regular file; ${ONLY_REGULAR}`,
+        },
+      ]);
+    },
+  );
+
+  it.skipIf(process.platform === 'win32')('refuses a package linked to /dev/zero', async () => {
+    await mkdir(join(folder, 'packages'));
+    await symlink('/dev/zero', join(folder, 'packages/zero.vapackage'));
+    expect(errorsOf(await loadProject(folder))).toEqual([
+      {
+        file: 'packages/zero.vapackage',
+        pointer: '',
+        message: `The file is a link; ${ONLY_REGULAR}`,
+      },
+    ]);
+  });
+
+  it('leaves links out of the files it reads to look for changes', async (context) => {
+    await mkdir(join(folder, 'elsewhere'));
+    if (!(await tryLink(join(folder, 'elsewhere'), join(folder, 'views/a.vaview'), 'junction'))) {
+      context.skip();
+    }
+    expect([...(await readProjectFiles(folder)).keys()].sort()).toEqual([
+      'model.vamodel',
+      'project.vaproject',
+    ]);
+  });
+
+  it('opens a project through a link to its folder', async (context) => {
+    const link = `${folder}-link`;
+    if (!(await tryLink(folder, link, 'junction'))) context.skip();
+    try {
+      expect(snapshotOf(await loadProject(link)).project).toEqual(projectFile());
+    } finally {
+      await rm(link, { force: true, recursive: false }).catch(() => {});
+    }
+  });
+});
+
 describe('loadProject with the rules of the core', () => {
   it('refuses a project that breaks them, reporting each error against its file', async () => {
     await write({
@@ -483,6 +632,30 @@ describe('loadProject with the rules of the core', () => {
         message: 'The scenario "request" plays over "elsewhere", which is no view of the project.',
       },
     ]);
+  });
+
+  it('warns about a stacking order that names what is not there, against its view file', async () => {
+    await write({
+      'project.vaproject': projectFile(),
+      'model.vamodel': {
+        ...modelFile(),
+        elements: [{ id: 'box', component: 'essence', name: 'Box' }],
+      },
+      'views/overview.vaview': {
+        ...viewFile('overview'),
+        stackingOrder: { world: ['box', 'gone'], missing: ['box'] },
+      },
+    });
+
+    const loaded = loadedOf(await loadProject(folder));
+    // One for the id that is gone, one for the list kept for what is no element.
+    expect(loaded.warnings).toHaveLength(2);
+    const messages = loaded.warnings.map((warning) => warning.message).join(' ');
+    expect(messages).toContain('"gone"');
+    expect(messages).toContain('"missing"');
+    expect(new Set(loaded.warnings.map((warning) => warning.file))).toEqual(
+      new Set(['views/overview.vaview']),
+    );
   });
 
   it('reports a containment cycle once, against the whole model file', async () => {

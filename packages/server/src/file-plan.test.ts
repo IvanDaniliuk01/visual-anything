@@ -92,6 +92,26 @@ describe('affectedFiles', () => {
     ).toEqual(['model', 'view:overview']);
   });
 
+  it('saves the model and the view for a change of container, and only the view for a restack', () => {
+    // Putting the Customer inside the Shop system relates them, and places it and orders it there.
+    expect(
+      affected({
+        type: 'change-container',
+        view: 'overview',
+        to: 'system',
+        shapes: [{ element: 'customer', at: { x: 24, y: 48 } }],
+      }).files,
+    ).toEqual(['model', 'view:overview']);
+    // Taking the API out deletes the relation that placed it, and brings it to World's front.
+    expect(
+      affected({
+        type: 'change-container',
+        view: 'overview',
+        shapes: [{ element: 'api', from: 'system' }],
+      }).files,
+    ).toEqual(['model', 'view:overview']);
+  });
+
   it('saves the files that a delete cascades to', () => {
     expect(affected({ type: 'delete', elements: ['db'] }).files).toEqual([
       'model',

@@ -3,10 +3,14 @@
  * from. They are built into Visual Anything and belong to no package, so they give the defaults that
  * everything inherits when nothing nearer defines a trait.
  */
-import type { Appearance, RelationAppearance, RelationType } from '@visual-anything/schema';
+import type { RelationAppearance, RelationType } from '@visual-anything/schema';
 import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
+import type { ResolvedAppearance } from '../appearance';
 
-/** Essence, with every trait it gives to the components that derive from it. */
+/**
+ * Essence, with every trait it gives to the components that derive from it: a plain rectangle that
+ * writes its component's name, with no badges, no connection points and no rows.
+ */
 export const ESSENCE = {
   id: ESSENCE_ID,
   name: 'Essence',
@@ -17,7 +21,10 @@ export const ESSENCE = {
     stroke: '#52606D',
     width: 160,
     height: 72,
-  } satisfies Required<Appearance>,
+    detail: { componentName: true, attributes: [], badges: [] },
+    contentsAsRows: false,
+    connectionPoints: [],
+  } satisfies ResolvedAppearance as ResolvedAppearance,
 } as const;
 
 /** "Relates to", with every trait it gives to the relation types that derive from it. */

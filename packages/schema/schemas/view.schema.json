@@ -42,6 +42,10 @@
     "stackingOrder": {
       "$ref": "#/definitions/StackingOrder",
       "description": "The order in which this view draws the anchored shapes that sit directly inside each container, or directly in World, by the id of the container, or World's id. Each list goes from back to front: the shapes it does not name are drawn in front of the ones it names, in model order, so without a list every shape there is drawn in model order and a new shape comes in front. Every copy of a container draws its contents in the same order. An id whose element does not sit there is ignored."
+    },
+    "collapsed": {
+      "$ref": "#/definitions/CollapsedList",
+      "description": "The containers this view shows collapsed, by element id, sorted. A collapsed container's shapes show none of its contents, and the relations to and from them are drawn as aggregated relations. An id that is no element of the model is ignored."
     }
   },
   "required": [
@@ -266,6 +270,15 @@
         "$ref": "#/definitions/Id"
       },
       "description": "Element ids, from back to front.",
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "CollapsedList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Id"
+      },
+      "description": "Element ids, sorted, each once.",
       "minItems": 1,
       "uniqueItems": true
     }

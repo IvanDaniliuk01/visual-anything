@@ -7,6 +7,7 @@ import {
 import type { Id } from '@visual-anything/schema';
 import { useEffect, useId } from 'react';
 import type { Selection } from '../editor/selection';
+import type { CollapseAction, CollapseActions } from './collapse';
 import './drop.css';
 import { putInsideCommand, putInsideTarget, takeOutCommand } from './drop';
 import { menuKeyDown, useMenuInsideFrame, useOutsidePress } from './focus';
@@ -44,6 +45,10 @@ export interface ShapeMenuProps {
   /** Select "S", from the shapes under the pointer. */
   onSelectShape: (shape: ElementShape) => void;
   onClose: () => void;
+  /** What collapsing and expanding offer for the selection (`collapseActions`). */
+  collapse?: CollapseActions;
+  /** Collapse "X" or Expand "X", for the selected containers, through I1's command. */
+  onCollapse?: (action: CollapseAction, collapsed: boolean) => void;
 }
 
 /** How many of the other shapes under the pointer the menu lists. */
@@ -74,6 +79,8 @@ export function ShapeMenu({
   onAddInside,
   onSelectShape,
   onClose,
+  collapse,
+  onCollapse,
 }: ShapeMenuProps) {
   const menu = useMenuInsideFrame<HTMLDivElement>(at);
   const underId = useId();
@@ -130,31 +137,52 @@ export function ShapeMenu({
           onPress={() => onRestack(move)}
         />
       ))}
+      {onCollapse && (collapse?.collapse || collapse?.expand) && (
+        <>
+          <div role="separator" className="canvas-menu-separator" />
+          {collapse.collapse && (
+            <Item
+              label={collapse.collapse.label}
+              title="Draws none of what it holds; their relations become aggregated relations. Alt+−"
+              readOnly={!editable}
+              onPress={() => onCollapse(collapse.collapse as CollapseAction, true)}
+            />
+          )}
+          {collapse.expand && (
+            <Item
+              label={collapse.expand.label}
+              title="Draws again what it holds. Alt++"
+              readOnly={!editable}
+              onPress={() => onCollapse(collapse.expand as CollapseAction, false)}
+            />
+          )}
+        </>
+      )}
       {containment && (
         <>
           <div role="separator" className="canvas-menu-separator" />
           {target && (
             <Item
               label={fromWorld ? `Put inside "${target.name}"` : `Move into "${target.name}"`}
-              locked={!editable}
+              readOnly={!editable}
               onPress={change(() => putInsideCommand(indexed, project, viewId, shape, target))}
             />
           )}
           <Item
             label={fromWorld ? 'Put inside…' : 'Move to…'}
-            locked={!editable}
+            readOnly={!editable}
             onPress={() => onChooseContainer(fromWorld ? 'put' : 'move')}
           />
           {takeOutOf !== undefined && (
             <Item
               label={`Take out of "${takeOutOf}"`}
-              locked={!editable}
+              readOnly={!editable}
               onPress={change(() => takeOutCommand(indexed, project, viewId, shape))}
             />
           )}
           <Item
             label={`Add inside "${shape.name}"…`}
-            locked={!editable}
+            readOnly={!editable}
             onPress={() => onAddInside(shape.element)}
           />
         </>
@@ -181,20 +209,20 @@ export function ShapeMenu({
 }
 
 /**
- * One item. A `disabled` one is pressed all the same, to say why it changes nothing; a `locked` one,
+ * One item. A `disabled` one is pressed all the same, to say why it changes nothing; a `readOnly` one,
  * while the project cannot be changed, does nothing.
  */
 function Item({
   label,
   title,
   disabled = false,
-  locked = false,
+  readOnly = false,
   onPress,
 }: {
   label: string;
   title?: string;
   disabled?: boolean;
-  locked?: boolean;
+  readOnly?: boolean;
   onPress: () => void;
 }) {
   return (
@@ -202,9 +230,9 @@ function Item({
       type="button"
       role="menuitem"
       tabIndex={-1}
-      title={locked ? NOT_EDITABLE : title}
-      aria-disabled={disabled || locked ? true : undefined}
-      onClick={locked ? undefined : onPress}
+      title={readOnly ? NOT_EDITABLE : title}
+      aria-disabled={disabled || readOnly ? true : undefined}
+      onClick={readOnly ? undefined : onPress}
     >
       {label}
     </button>

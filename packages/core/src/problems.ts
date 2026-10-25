@@ -28,6 +28,23 @@ export type ProblemCode =
   | 'defined-twice'
   | 'built-in-package'
   | 'in-use'
+  // A value a command sets that is outside what its trait or attribute allows.
+  | 'invalid-appearance'
+  | 'invalid-attribute'
+  | 'unknown-attribute'
+  | 'name-taken'
+  | 'position-of-row'
+  // A value outside the choices of its attribute: only a warning.
+  | 'choice-broken'
+  // A project saved by a newer Visual Anything.
+  | 'newer-format'
+  // Images (M3b), which a package defines and appearances show.
+  | 'unknown-image'
+  | 'invalid-image'
+  | 'image-not-clean'
+  | 'image-too-large'
+  | 'image-cleaned'
+  | 'large-images'
   // Refusals of the local program, which keeps the history and the files.
   | 'nothing-to-undo'
   | 'nothing-to-redo'

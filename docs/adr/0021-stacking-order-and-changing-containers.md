@@ -42,3 +42,8 @@ We chose this because a shape that looks inside a container without being part o
 - The first time an older shape comes in front of newer ones in a container, the list names every shape there drawn behind it, up to all of that container's contents, such as 399 ids in a World of 400 shapes; later changes add or remove single ids.
 - A view that lists a relation type that no package defines, or that no longer nests, draws no containment through it.
 - Builds older than this refuse view files that hold `stackingOrder`, and the live protocol version is 2.
+
+## Clarifications
+
+- 2026-10-24: where a change of container leaves a shape. A drop keeps the place it was dropped on, pinned, since a person chose it. The shape menu and the inspector choose the place themselves: beside the container when taking a shape out, and its place relative to the container when putting it inside. They store it unpinned unless it already was pinned, so that layout may still move it (ADR-0009); `change-container` takes `pinned: false` on a shape for this.
+- 2026-10-24: reordering elements in the model, which M3 adds, changes the model order that unlisted shapes follow. Such a command rewrites, in the same action, the stacking list of every view and container whose drawing it would otherwise change, so that no view draws differently.

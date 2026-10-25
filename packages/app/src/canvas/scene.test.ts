@@ -3,7 +3,14 @@ import type { Component, Element, Relation, RelationType, ViewFile } from '@visu
 import { describe, expect, it } from 'vitest';
 import { loadSample } from '../test/sample';
 import { distance, type Point, type Rect } from './geometry';
-import { buildScene, type ElementShape, type RelationLine, type Scene } from './scene';
+import {
+  buildScene,
+  buildSceneAfresh,
+  type DrawnEnd,
+  type ElementShape,
+  type RelationLine,
+  type Scene,
+} from './scene';
 
 const sample = loadSample();
 const overview = buildScene(sample, 'system-overview');
@@ -582,6 +589,7 @@ describe('buildScene and the stacking order', () => {
       expect(scene.relations).toBe(first.relations);
       expect(scene.notes).toBe(first.notes);
     }
+    // Laid out again, a view that draws the same keeps every shape and line it drew.
     for (const change of [
       (view: ViewFile) => ({ ...view, perspective: { name: 'Other' } }),
       (view: ViewFile) => ({ ...view, nestingRelationTypes: [...view.nestingRelationTypes] }),
@@ -589,11 +597,52 @@ describe('buildScene and the stacking order', () => {
       (view: ViewFile) => ({ ...view, extra: true }) as ViewFile,
     ]) {
       const scene = buildScene(sampleWith(change), 'system-overview');
-      expect(scene.shapes).not.toBe(first.shapes);
-      expect(scene.shapes).toEqual(first.shapes);
+      expect(scene.shapes).toBe(first.shapes);
+      expect(scene.relations).toBe(first.relations);
+      expect(scene).toEqual(buildSceneAfresh(sampleWith(change), 'system-overview'));
     }
     const model = { ...sample.model };
-    expect(buildScene({ ...sample, model }, 'system-overview').shapes).not.toBe(first.shapes);
+    expect(buildScene({ ...sample, model }, 'system-overview').shapes).toBe(first.shapes);
+  });
+
+  it('makes again only the shapes and lines a change touches', () => {
+    const first = buildScene(sample, 'system-overview');
+    const renamed = {
+      ...sample,
+      model: {
+        ...sample.model,
+        elements: sample.model.elements.map((element) =>
+          element.id === 'whatsapp' ? { ...element, name: 'WhatsApp Business' } : element,
+        ),
+      },
+    };
+    const scene = buildScene(renamed, 'system-overview');
+    const changed = scene.shapes.filter((shape, at) => shape !== first.shapes[at]);
+    expect(changed.map((shape) => shape.key)).toEqual(['clinic-booking/whatsapp']);
+    expect(scene.relations).toBe(first.relations);
+    expect(scene.drawing).toBe(first.drawing);
+    expect(scene).toEqual(buildSceneAfresh(renamed, 'system-overview'));
+
+    const moved = {
+      ...renamed,
+      views: renamed.views.map((view) => ({
+        ...view,
+        positions: view.positions.map((position) =>
+          position.element === 'patient' ? { ...position, x: position.x - 80 } : position,
+        ),
+      })),
+    };
+    const after = buildScene(moved, 'system-overview');
+    expect(
+      after.shapes.filter((shape, at) => shape !== scene.shapes[at]).map((shape) => shape.key),
+    ).toEqual(['patient']);
+    const rerouted = after.relations.filter((line, at) => line !== scene.relations[at]);
+    expect(rerouted.length).toBeGreaterThan(0);
+    const onPatient = (end: DrawnEnd | undefined) => end?.kind === 'shape' && end.key === 'patient';
+    expect(rerouted.every((line) => onPatient(line.ends?.from) || onPatient(line.ends?.to))).toBe(
+      true,
+    );
+    expect(after).toEqual(buildSceneAfresh(moved, 'system-overview'));
   });
 
   it('draws nothing inside containers through a listed type that no longer nests, but its relations as lines', () => {

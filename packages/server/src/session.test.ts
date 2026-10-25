@@ -277,6 +277,29 @@ describe('execute', () => {
     expect(written).toEqual([]);
   });
 
+  it('writes only the view file for a restack, records none that changes nothing, and undoes to the exact bytes', async () => {
+    const original = await filesIn(folder);
+    const { fs, written } = recordingFs(folder);
+    const session = await open({ writer: { fs } });
+    // The Cart, the newest shape directly in World, is already drawn in front.
+    const front = await session.execute(
+      { type: 'restack', view: 'overview', moves: [{ shape: { element: 'cart' }, to: 'front' }] },
+      'user',
+    );
+    expect(front).toMatchObject({ ok: true, recorded: false, operations: [] });
+    expect(written).toEqual([]);
+
+    const back = await session.execute(
+      { type: 'restack', view: 'overview', moves: [{ shape: { element: 'cart' }, to: 'back' }] },
+      'user',
+    );
+    expect(back).toMatchObject({ ok: true, recorded: true });
+    expect(written).toHaveLength(1);
+    expect(written[0]).toMatch(/\.vaview$/);
+    await session.undo();
+    expect(await filesIn(folder)).toEqual(original);
+  });
+
   it('refuses a command that would make a file invalid, and writes nothing', async () => {
     const before = await filesIn(folder);
     const { fs, written } = recordingFs(folder);
@@ -288,7 +311,8 @@ describe('execute', () => {
         element: {
           component: 'systems.service',
           name: 'Odd',
-          appearance: { shape: 'triangle' as 'rectangle' },
+          // A value the core does not check, which only the file's schema refuses.
+          description: 7 as unknown as string,
         },
       },
       'user',
@@ -299,7 +323,7 @@ describe('execute', () => {
     expect(outcome.problems).toHaveLength(1);
     expect(outcome.problems[0]?.code).toBe('invalid-file');
     expect(outcome.problems[0]?.message).toMatch(
-      /^The change would make model\.vamodel invalid: \/elements\/5\/appearance\/shape must be one of /,
+      /^The change would make model\.vamodel invalid: \/elements\/5\/description must be a string/,
     );
     expect(written).toEqual([]);
     expect(session.snapshot).toEqual(testProject());
@@ -991,6 +1015,30 @@ describe.each(MODES)('changes made outside the app, watching in %s mode', (mode)
     await received(client, 'project/reloaded');
     expect(session.snapshot.model).toEqual(renamedModel());
     expect(await readText(folder, 'model.vamodel')).toBe(formatFile('model', renamedModel()));
+  });
+
+  it('never writes through a view file that became a link, and keeps the open project', async (context) => {
+    await writeProjectFolder(folder, testProject());
+    const session = await open();
+    const outside = await mkdtemp(join(tmpdir(), 'va-outside-'));
+    try {
+      await fsp.rm(join(folder, 'views/overview.vaview'));
+      try {
+        await fsp.symlink(outside, join(folder, 'views/overview.vaview'), 'junction');
+      } catch {
+        context.skip();
+      }
+
+      const outcome = await session.execute(MOVE_CUSTOMER, 'user');
+
+      expect(outcome).toMatchObject({ ok: false, problems: [{ code: 'changed-on-disk' }] });
+      await session.idle();
+      expect(await fsp.readdir(outside)).toEqual([]);
+      expect(session.snapshot.views.map((view) => view.id)).toEqual(['overview']);
+      expect(logs.err.join('\n')).toContain('views/overview.vaview: The file is a link');
+    } finally {
+      await rm(outside, { recursive: true, force: true });
+    }
   });
 });
 

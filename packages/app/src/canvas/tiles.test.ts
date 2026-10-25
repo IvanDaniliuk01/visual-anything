@@ -141,6 +141,7 @@ describe('planTiles', () => {
     key,
     band: 0,
     cell,
+    dim: false,
     signature,
     shapes: [],
     rank: 0,

@@ -3,10 +3,18 @@
  * a project; after every step the project keeps its rules, and every action undoes exactly.
  */
 import fc from 'fast-check';
-import type { Id, ViewFile } from '@visual-anything/schema';
+import type { FileKind, Id, LimitList, ViewFile } from '@visual-anything/schema';
+import { validateFile } from '@visual-anything/schema/validate';
 import { describe, expect, it } from 'vitest';
 import { checkProject } from './check';
-import { executeCommand, type Command } from './commands';
+import {
+  executeCommand,
+  previewChangeContainer,
+  type Command,
+  type ContainerChangePreview,
+  type UpdateComponentCommand,
+  type UpdateRelationTypeCommand,
+} from './commands';
 import { EMPTY_HISTORY, record, redo, undo, type History } from './history';
 import { randomIds } from './ids';
 import { containmentCycles, previewDelete } from './rules';
@@ -71,6 +79,11 @@ type Intent =
       positioned: boolean;
       relationType: number | null;
     }
+  | { kind: 'update-component'; at: number; change: number; value: number }
+  | { kind: 'update-relation-type'; at: number; change: number; value: number }
+  | { kind: 'update-package'; value: number }
+  | { kind: 'reorder'; picks: number[]; before: number | null }
+  | { kind: 'collapse'; at: number; picks: number[]; collapsed: boolean }
   | { kind: 'undo' }
   | { kind: 'redo' };
 
@@ -100,6 +113,11 @@ const COMMAND_TYPES: readonly Command['type'][] = [
   'update-project',
   'restack',
   'change-container',
+  'update-component',
+  'update-relation-type',
+  'update-package',
+  'reorder-elements',
+  'set-collapsed',
   'batch',
 ];
 
@@ -195,9 +213,90 @@ const intent: fc.Arbitrary<Intent> = fc.oneof(
     at: index,
     picks: fc.array(index, { minLength: 1, maxLength: 3 }),
   }),
+  {
+    arbitrary: fc.record({
+      kind: fc.constant('update-component'),
+      at: index,
+      change: index,
+      value: index,
+    }),
+    weight: 2,
+  },
+  {
+    arbitrary: fc.record({
+      kind: fc.constant('update-relation-type'),
+      at: index,
+      change: index,
+      value: index,
+    }),
+    weight: 2,
+  },
+  fc.record({ kind: fc.constant('update-package'), value: index }),
+  {
+    arbitrary: fc.record({
+      kind: fc.constant('reorder'),
+      picks: fc.array(index, { minLength: 1, maxLength: 3 }),
+      before: fc.option(index),
+    }),
+    weight: 2,
+  },
+  fc.record({
+    kind: fc.constant('collapse'),
+    at: index,
+    picks: fc.array(index, { minLength: 1, maxLength: 3 }),
+    collapsed: fc.boolean(),
+  }),
   { arbitrary: fc.constant({ kind: 'undo' as const }), weight: 2 },
   { arbitrary: fc.constant({ kind: 'redo' as const }), weight: 1 },
 );
+
+/** Changes to a component's traits and attributes, one of which an intent picks. */
+function componentChange(change: number, value: number): UpdateComponentCommand['changes'] {
+  const colors = ['#112233', '#AABBCC', '#FFFFFF'];
+  const changes: UpdateComponentCommand['changes'][] = [
+    { appearance: { fill: pick(colors, value) ?? null } },
+    { appearance: { width: value % 3 === 0 ? null : 40 + (value % 400) } },
+    { appearance: { shape: pick(['rectangle', 'rounded-rectangle', null] as const, value) } },
+    { appearance: { contentsAsRows: pick([true, false, null] as const, value) } },
+    { appearance: { detail: { componentName: value % 2 === 0, attributes: ['owner'] } } },
+    { appearance: { detail: null, connectionPoints: value % 2 === 0 ? [] : null } },
+    {
+      attributes: {
+        set: [{ name: 'tier', type: 'string', choices: ['gold', 'silver'], default: 'gold' }],
+      },
+    },
+    { attributes: { remove: ['tier'] } },
+    { attributes: { rename: [{ from: 'owner', to: pick(['team', 'owner2'], value) ?? 'team' }] } },
+    { attributes: { rename: [{ from: 'team', to: 'owner' }] } },
+    { name: pick(['Renamed', 'Again'], value) ?? 'Renamed', description: null },
+    { derivesFrom: pick(COMPONENTS, value) ?? 'essence' },
+  ];
+  return pick(changes, change) ?? {};
+}
+
+/** Changes to a relation type, one of which an intent picks. */
+function relationTypeChange(change: number, value: number): UpdateRelationTypeCommand['changes'] {
+  const changes: UpdateRelationTypeCommand['changes'][] = [
+    { nests: pick([true, false, null] as const, value) },
+    { direction: pick(['directed', 'undirected', null] as const, value) },
+    {
+      limits: {
+        from: pick<LimitList | 'any' | null>(['any', null, ['test.service'], ['test.box']], value),
+      },
+    },
+    { limits: { to: pick<LimitList | 'any' | null>(['any', null, ['test.database']], value) } },
+    {
+      appearance: {
+        dash: pick(['dashed', null] as const, value),
+        width: value % 2 === 0 ? 3 : null,
+      },
+    },
+    { attributes: { set: [{ name: 'weight', type: 'number', unit: 'kg' }] } },
+    { attributes: { rename: [{ from: 'weight', to: 'mass' }] } },
+    { name: 'renamed', derivesFrom: pick(RELATION_TYPES, value) ?? 'relates-to' },
+  ];
+  return pick(changes, change) ?? {};
+}
 
 function pick<T>(list: readonly T[], at: number): T | undefined {
   return list.length === 0 ? undefined : list[at % list.length];
@@ -492,6 +591,55 @@ function commandFor(state: ProjectSnapshot, wish: Intent): Command | undefined {
         })),
       };
     }
+    case 'update-component': {
+      const component = pick(ownPackage(state).components, wish.at);
+      return (
+        component && {
+          type: 'update-component',
+          id: component.id,
+          changes: componentChange(wish.change, wish.value),
+        }
+      );
+    }
+    case 'update-relation-type': {
+      const relationType = pick(ownPackage(state).relationTypes, wish.at);
+      return (
+        relationType && {
+          type: 'update-relation-type',
+          id: relationType.id,
+          changes: relationTypeChange(wish.change, wish.value),
+        }
+      );
+    }
+    case 'update-package':
+      return {
+        type: 'update-package',
+        id: 'test',
+        changes:
+          wish.value % 2 === 0
+            ? { name: `Test ${wish.value % 5}` }
+            : { description: wish.value % 3 === 0 ? null : 'Ours.' },
+      };
+    case 'reorder': {
+      if (elements.length === 0) return undefined;
+      const moving = [...new Set(wish.picks.map((at) => pick(elements, at) as Id))];
+      const before = wish.before === null ? undefined : pick(elements, wish.before);
+      return {
+        type: 'reorder-elements',
+        elements: moving,
+        ...(before === undefined ? {} : { before }),
+      };
+    }
+    case 'collapse': {
+      const view = pick(state.views, wish.at);
+      if (!view || elements.length === 0) return undefined;
+      return {
+        type: 'set-collapsed',
+        view: view.id,
+        elements: [...new Set(wish.picks.map((at) => pick(elements, at) as Id))],
+        collapsed: wish.collapsed,
+      };
+    }
     case 'undo':
     case 'redo':
       return undefined;
@@ -531,21 +679,54 @@ function expectRulesKept(state: ProjectSnapshot) {
   for (const relation of state.model.relations) {
     expect(model.has(relation.from) && model.has(relation.to)).toBe(true);
   }
-  // A stacking order is never empty, nor any list in it, and no list names anything twice.
+  // A stacking order is never empty, nor any list in it, and no list names anything twice. Each list
+  // is kept for World or an element, and names only elements.
+  const elements = new Set(state.model.elements.map((element) => element.id));
   for (const view of state.views) {
     if (!('stackingOrder' in view)) continue;
     const order = view.stackingOrder ?? {};
     expect(Object.keys(order).length).toBeGreaterThan(0);
-    for (const list of Object.values(order)) {
+    for (const [container, list] of Object.entries(order)) {
+      expect(container === state.model.world.id || elements.has(container)).toBe(true);
       expect(list.length).toBeGreaterThan(0);
       expect(new Set(list).size).toBe(list.length);
+      for (const id of list) expect(elements.has(id)).toBe(true);
     }
+  }
+  // The containers a view keeps collapsed: never an empty list, sorted, each once, only elements.
+  for (const view of state.views) {
+    if (!('collapsed' in view)) continue;
+    const collapsed = view.collapsed ?? [];
+    expect(collapsed.length).toBeGreaterThan(0);
+    expect(collapsed).toEqual([...new Set(collapsed)].sort());
+    for (const id of collapsed) expect(elements.has(id)).toBe(true);
+  }
+  // Every value a command set is one the published schema accepts, so every save succeeds. A file an
+  // action left alone keeps its object, so each object is checked once.
+  const files: [FileKind, object][] = [
+    ['model', state.model],
+    ...state.packages.map((file): [FileKind, object] => ['package', file]),
+    ...state.views.map((view): [FileKind, object] => ['view', view]),
+  ];
+  for (const [kind, file] of files) {
+    if (validated.has(file)) continue;
+    expect(validateFile(kind, file)).toEqual({ ok: true, value: file });
+    validated.add(file);
   }
 }
 
+/** The file contents already found valid. */
+const validated = new WeakSet<object>();
+
 describe('the rules of the core', () => {
   it('hold after any sequence of commands, undos and redos, and every action undoes exactly', () => {
-    const seen = { applied: 0, deletes: 0, undos: 0, kinds: new Set<string>() };
+    const seen = {
+      applied: 0,
+      deletes: 0,
+      containerChanges: 0,
+      undos: 0,
+      kinds: new Set<string>(),
+    };
     fc.assert(
       fc.property(
         fc.array(intent, { minLength: 10, maxLength: 60 }),
@@ -571,7 +752,15 @@ describe('the rules of the core', () => {
             const command = commandFor(state, wish);
             if (!command) continue;
             const preview = command.type === 'delete' ? previewDelete(state, command) : undefined;
+            const containerPreview =
+              command.type === 'change-container'
+                ? previewChangeContainer(state, command)
+                : undefined;
             const outcome = executeCommand(state, command, { newId });
+            // A change of container the preview lets through is never refused, and one it stops is.
+            if (containerPreview) {
+              expect(outcome.ok).toBe(containerPreview.problems.length === 0);
+            }
             // Relation type limits only warn: a relation that does not nest, of a relation type
             // that exists, between ends that exist, is never refused.
             const definitions = definitionsIn(state);
@@ -589,6 +778,10 @@ describe('the rules of the core', () => {
             if (preview) {
               expectDeletedExactly(before, after, preview);
               seen.deletes += 1;
+            }
+            if (containerPreview) {
+              expectContainerChangedExactly(before, after, containerPreview);
+              seen.containerChanges += 1;
             }
             seen.applied += 1;
             seen.kinds.add(command.type);
@@ -615,10 +808,12 @@ describe('the rules of the core', () => {
     // The sequences must do things, not only be refused.
     expect(seen.applied).toBeGreaterThan(1000);
     expect(seen.deletes).toBeGreaterThan(100);
+    expect(seen.containerChanges).toBeGreaterThan(20);
     expect(seen.undos).toBeGreaterThan(100);
     // And every kind of command among them.
     expect([...seen.kinds].sort()).toEqual([...COMMAND_TYPES].sort());
-  });
+    // Thousands of actions: on a loaded machine this takes longer than a test's default 5 seconds.
+  }, 60_000);
 
   it('never lets containment form a cycle, however nesting is attempted', () => {
     fc.assert(
@@ -705,4 +900,30 @@ function expectDeletedExactly(
       false,
     );
   }
+}
+
+/**
+ * A change of container deletes exactly the relations its preview listed, and no element; the steps
+ * that played them stay, broken, as the preview said.
+ */
+function expectContainerChangedExactly(
+  before: ProjectSnapshot,
+  after: ProjectSnapshot,
+  preview: ContainerChangePreview,
+) {
+  const left = new Set(after.model.relations.map((relation) => relation.id));
+  const removed = before.model.relations
+    .map((relation) => relation.id)
+    .filter((id) => !left.has(id));
+  expect(removed).toEqual(preview.relations);
+  expect(preview.elements).toEqual([]);
+  expect(after.model.elements).toEqual(before.model.elements);
+  expect(after.scenarios).toEqual(before.scenarios);
+  const gone = new Set(removed);
+  const broken = before.scenarios.flatMap((scenario) =>
+    scenario.steps
+      .filter((step) => step.relations.some((id) => gone.has(id)))
+      .map((step) => ({ scenario: scenario.id, step: step.id })),
+  );
+  expect(preview.brokenSteps).toEqual(broken);
 }
