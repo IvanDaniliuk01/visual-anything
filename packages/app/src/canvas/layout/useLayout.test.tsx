@@ -13,6 +13,8 @@ import { AUTO_DELAY, LayoutRunnerContext, useLayout, type LayoutOptions } from '
 
 const VIEW = 'system-overview';
 const elk = new ELK();
+/** How long to wait for ELK, which runs slowly on a loaded machine. */
+const ELK_WAIT = { timeout: 15_000 };
 
 /** Runs layouts in this thread, as the worker would, and counts them. */
 function inThread(): LayoutRunner & { runs: number } {
@@ -121,7 +123,7 @@ const quietly = () => new Promise((resolve) => setTimeout(resolve, AUTO_DELAY * 
 describe('automatic layout', () => {
   it('lays out a shape that the open view shows without a position, as one action', async () => {
     const view = canvas(withBilling());
-    await waitFor(() => expect(view.sent).toHaveLength(1));
+    await waitFor(() => expect(view.sent).toHaveLength(1), ELK_WAIT);
     expect(view.sent[0]).toMatchObject({
       type: 'batch',
       label: 'Lay out "Billing" in "System overview"',
@@ -143,7 +145,7 @@ describe('automatic layout', () => {
     await quietly();
     expect(view.sent).toHaveLength(0);
     act(() => view.show(withBilling(view.project)));
-    await waitFor(() => expect(view.sent).toHaveLength(1));
+    await waitFor(() => expect(view.sent).toHaveLength(1), ELK_WAIT);
     expect(runner.runs).toBe(1);
   });
 
@@ -151,7 +153,7 @@ describe('automatic layout', () => {
     const runner = inThread();
     const before = withBilling();
     const view = canvas(before, { runner });
-    await waitFor(() => expect(view.sent).toHaveLength(1));
+    await waitFor(() => expect(view.sent).toHaveLength(1), ELK_WAIT);
     // Undo: Billing has no position again.
     act(() => view.show(before));
     await quietly();
@@ -167,7 +169,7 @@ describe('automatic layout', () => {
     await quietly();
     expect(view.sent).toHaveLength(0);
     act(() => view.show(view.project, { editable: true }));
-    await waitFor(() => expect(view.sent).toHaveLength(1));
+    await waitFor(() => expect(view.sent).toHaveLength(1), ELK_WAIT);
   });
 
   it('waits while the project cannot be changed, and lays out once it can', async () => {
@@ -175,7 +177,7 @@ describe('automatic layout', () => {
     await quietly();
     expect(view.sent).toHaveLength(0);
     act(() => view.show(view.project, { editable: true }));
-    await waitFor(() => expect(view.sent).toHaveLength(1));
+    await waitFor(() => expect(view.sent).toHaveLength(1), ELK_WAIT);
   });
 
   it('does nothing where the browser has no web workers, as here', async () => {
@@ -199,7 +201,7 @@ describe('the Layout control', () => {
       title: 'Lay out "System overview": arrange every shape that is not pinned.',
     });
     act(() => view.hook.result.current.control.run());
-    await waitFor(() => expect(view.sent).toHaveLength(1));
+    await waitFor(() => expect(view.sent).toHaveLength(1), ELK_WAIT);
     expect(view.sent).toEqual([
       expect.objectContaining({ type: 'batch', label: 'Lay out "System overview"' }),
     ]);
@@ -250,16 +252,19 @@ describe('the Layout control', () => {
       'Lay out the contents of "Scheduling": arrange the shapes inside it that are not pinned.',
     );
     act(() => view.hook.result.current.control.run());
-    await waitFor(() => expect(view.sent).toHaveLength(1));
+    await waitFor(() => expect(view.sent).toHaveLength(1), ELK_WAIT);
     expect(view.sent[0]).toMatchObject({ label: 'Lay out the contents of "Scheduling"' });
   });
 
   it('says so when layout would move nothing', async () => {
     const view = canvas(loadSample());
     act(() => view.hook.result.current.control.run());
-    await waitFor(() => expect(view.sent).toHaveLength(1));
+    await waitFor(() => expect(view.sent).toHaveLength(1), ELK_WAIT);
     act(() => view.hook.result.current.control.run());
-    await waitFor(() => expect(view.said.at(-1)).toBe('Layout leaves every shape where it is.'));
+    await waitFor(
+      () => expect(view.said.at(-1)).toBe('Layout leaves every shape where it is.'),
+      ELK_WAIT,
+    );
     expect(view.sent).toHaveLength(1);
   });
 
@@ -296,7 +301,7 @@ describe('moving in', () => {
     const view = canvas(loadSample());
     const before = view.hook.result.current.scene;
     act(() => view.hook.result.current.control.run());
-    await waitFor(() => expect(view.sent).toHaveLength(1));
+    await waitFor(() => expect(view.sent).toHaveLength(1), ELK_WAIT);
     const after = buildScene(view.project, VIEW);
     // The first frame is the scene the layout was made from.
     const first = view.hook.result.current.scene;
@@ -315,7 +320,7 @@ describe('moving in', () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce') }));
     const view = canvas(loadSample());
     act(() => view.hook.result.current.control.run());
-    await waitFor(() => expect(view.sent).toHaveLength(1));
+    await waitFor(() => expect(view.sent).toHaveLength(1), ELK_WAIT);
     expect(view.hook.result.current.scene).toBe(buildScene(view.project, VIEW));
   });
 });

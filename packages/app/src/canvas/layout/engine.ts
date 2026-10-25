@@ -44,6 +44,8 @@ export interface LayOutOptions {
   timeLimit?: number;
   /** Called each time more of the containers it arranges are done. */
   onProgress?: (progress: LayoutProgress) => void;
+  /** How much work one ELK run gets; `CHUNK_WORK` by default. */
+  chunkWork?: number;
   now?: () => number;
 }
 
@@ -99,9 +101,10 @@ export interface Lifted {
 }
 
 /**
- * Arranges the free shapes of `input`, and says where each goes. Given several ELK engines, as the
- * layout worker gives one per ELK worker it runs, the containers of one depth are shared out among
- * them, each its own run at the same time; the result is the same as with one.
+ * Arranges the free shapes of `input`, and says where each goes. The containers of one depth go to
+ * ELK in chunks of about `CHUNK_WORK` each, which the engines take in turn: given several, as the
+ * layout worker gives one per ELK worker it runs, they arrange chunks at the same time. Each chunk
+ * done is progress, and the result is the same however many engines there are.
  *
  * It is bounded twice. At each level, ELK gets at most `ELK_WORK_BUDGET` of work
  * (`strongestRelations`). And ELK runs `timeLimit` in all: a run still going then is stopped, and
@@ -135,31 +138,35 @@ export async function layOut(
   };
 
   /**
-   * Runs the graphs of blocks in ELK, shared out among the engines, and gives each block's graph that
-   * came back in time.
+   * Runs the graphs of blocks in ELK, a chunk at a time on each engine, and gives each block's graph
+   * that came back in time.
    */
   const run = async (graphs: readonly ElkNode[]): Promise<Map<string, ElkNode>> => {
-    const left = ends - now();
-    if (left <= 0) return new Map();
-    const shares = shareOut(graphs, engines.length);
+    const laid = new Map<string, ElkNode>();
+    const chunks = chunksOf(graphs, options.chunkWork ?? CHUNK_WORK);
+    let next = 0;
     const runStarted = now();
-    const results = await Promise.all(
-      shares.map(async (share, at) => {
-        const engine = engines[at] as ElkEngine;
+    const take = async (engine: ElkEngine): Promise<void> => {
+      for (let chunk = chunks[next]; chunk !== undefined; chunk = chunks[next]) {
+        const left = ends - now();
+        if (left <= 0) return;
+        next += 1;
+        stats.elkRuns += 1;
         const result = await within(
-          engine.layout({ id: 'run', layoutOptions: RUN_OPTIONS, children: share }),
+          engine.layout({ id: 'run', layoutOptions: RUN_OPTIONS, children: chunk }),
           left,
         );
-        if (result === undefined) engine.stop?.();
-        else report(share.length);
-        return result;
-      }),
-    );
-    stats.elkRuns += shares.length;
+        if (result === undefined) {
+          engine.stop?.();
+          return;
+        }
+        for (const graph of result.children ?? []) laid.set(graph.id, graph);
+        report(chunk.length);
+      }
+    };
+    await Promise.all(engines.slice(0, chunks.length).map(take));
     stats.elkMs += now() - runStarted;
-    return new Map(
-      results.flatMap((result) => result?.children ?? []).map((graph) => [graph.id, graph]),
-    );
+    return laid;
   };
 
   /** Arranges the levels given, in ELK at once, and records their contents' new places. */
@@ -379,25 +386,32 @@ async function within<T>(promise: Promise<T>, ms: number): Promise<T | undefined
 }
 
 /**
- * Shares graphs out among `count` runs, at most one per graph, each run as close to the same work as
- * can be: the largest first, each to the run with the least so far. Work is counted as shapes and
- * relations, which is roughly what ELK's time follows.
+ * About how much work one ELK run gets, counted as shapes plus relations: some dozen containers of
+ * two dozen shapes. A run costs tens of milliseconds besides its work, so chunks this size keep that
+ * small, while each one done is a step of progress, and a run stopped for time loses little.
  */
-export function shareOut(graphs: readonly ElkNode[], count: number): ElkNode[][] {
-  const runs = Math.max(1, Math.min(count, graphs.length));
-  const shares: ElkNode[][] = Array.from({ length: runs }, () => []);
-  const work = new Array<number>(runs).fill(0);
-  const weightOf = (graph: ElkNode) => (graph.children?.length ?? 0) + (graph.edges?.length ?? 0);
-  const order = graphs.map((graph, at) => ({ graph, at, weight: weightOf(graph) }));
-  order.sort((a, b) => b.weight - a.weight || a.at - b.at);
-  for (const { graph, weight } of order) {
-    let least = 0;
-    for (let at = 1; at < runs; at++)
-      if ((work[at] as number) < (work[least] as number)) least = at;
-    (shares[least] as ElkNode[]).push(graph);
-    work[least] = (work[least] as number) + weight;
+export const CHUNK_WORK = 600;
+
+/**
+ * Cuts graphs into chunks, in order, each of at most `work` shapes and relations, or of one graph
+ * when that graph alone is more.
+ */
+export function chunksOf(graphs: readonly ElkNode[], work: number): ElkNode[][] {
+  const chunks: ElkNode[][] = [];
+  let chunk: ElkNode[] = [];
+  let weight = 0;
+  for (const graph of graphs) {
+    const own = (graph.children?.length ?? 0) + (graph.edges?.length ?? 0);
+    if (chunk.length > 0 && weight + own > work) {
+      chunks.push(chunk);
+      chunk = [];
+      weight = 0;
+    }
+    chunk.push(graph);
+    weight += own;
   }
-  return shares;
+  if (chunk.length > 0) chunks.push(chunk);
+  return chunks;
 }
 
 /**
