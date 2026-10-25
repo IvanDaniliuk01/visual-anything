@@ -98,6 +98,11 @@ export {
 export type { ModelIndex } from './model-index';
 export { indexModel } from './model-index';
 export { definitionsIn, modelIndexOf } from './state';
+// What a view shows through its scope, and the scope's limits (ADR 0040).
+export { shownByScope, type ShownByScope } from './scope';
+export { MAX_SCOPE_DEPTH, MAX_SCOPE_RULES } from './commands/scopes';
+// How filters and scopes test an attribute (ADR 0025, ADR 0040).
+export { meetsCondition, type AttributeTest } from './conditions';
 // A relation in words, as the history names it.
 export { relationLabel } from './commands/model';
 

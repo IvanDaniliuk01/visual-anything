@@ -3,7 +3,14 @@
  * a project; after every step the project keeps its rules, and every action undoes exactly.
  */
 import fc from 'fast-check';
-import type { FileKind, FreeShape, Id, LimitList, ViewFile } from '@visual-anything/schema';
+import type {
+  FileKind,
+  FreeShape,
+  Id,
+  LimitList,
+  ScopeRule,
+  ViewFile,
+} from '@visual-anything/schema';
 import { validateFile } from '@visual-anything/schema/validate';
 import { describe, expect, it } from 'vitest';
 import { checkProject } from './check';
@@ -20,6 +27,7 @@ import {
 import { EMPTY_HISTORY, record, redo, undo, type History } from './history';
 import { randomIds } from './ids';
 import { containmentCycles, previewDelete } from './rules';
+import { shownByScope } from './scope';
 import type { ProjectSnapshot } from './snapshot';
 import { containmentTree, type Placement } from './containment';
 import { nestingTypesInView } from './containers';
@@ -86,6 +94,8 @@ type Intent =
   | { kind: 'update-package'; value: number }
   | { kind: 'reorder'; picks: number[]; before: number | null }
   | { kind: 'collapse'; at: number; picks: number[]; collapsed: boolean }
+  | { kind: 'scope'; at: number; rule: number; picks: number[]; clear: boolean }
+  | { kind: 'in-view'; at: number; picks: number[]; out: boolean }
   | { kind: 'component-appearance'; at: number; form: number; value: number }
   | { kind: 'relation-type-appearance'; at: number; form: number; value: number }
   | { kind: 'relation-appearance'; relation: number; form: number; value: number }
@@ -133,6 +143,9 @@ const COMMAND_TYPES: readonly Command['type'][] = [
   'update-package',
   'reorder-elements',
   'set-collapsed',
+  'set-scope',
+  'add-to-view',
+  'leave-out-of-view',
   'set-component-appearance',
   'set-relation-type-appearance',
   'batch',
@@ -263,6 +276,22 @@ const intent: fc.Arbitrary<Intent> = fc.oneof(
     picks: fc.array(index, { minLength: 1, maxLength: 3 }),
     collapsed: fc.boolean(),
   }),
+  fc.record({
+    kind: fc.constant('scope'),
+    at: index,
+    rule: index,
+    picks: fc.array(index, { maxLength: 2 }),
+    clear: fc.boolean(),
+  }),
+  {
+    arbitrary: fc.record({
+      kind: fc.constant('in-view'),
+      at: index,
+      picks: fc.array(index, { minLength: 1, maxLength: 2 }),
+      out: fc.boolean(),
+    }),
+    weight: 2,
+  },
   {
     arbitrary: fc.record({
       kind: fc.constant('component-appearance'),
@@ -688,6 +717,45 @@ function commandFor(state: ProjectSnapshot, wish: Intent): Command | undefined {
         collapsed: wish.collapsed,
       };
     }
+    case 'scope': {
+      const view = pick(state.views, wish.at);
+      if (!view) return undefined;
+      if (wish.clear) return { type: 'set-scope', view: view.id, scope: null };
+      const definitions = definitionsIn(state);
+      const components = [...definitions.components.keys()];
+      const relationTypes = [...definitions.relationTypes.keys()];
+      const container = pick(elements, wish.rule);
+      const rules: ScopeRule[] = [
+        { kind: 'component', component: pick(components, wish.rule) as Id },
+        ...(relationTypes.length > 0
+          ? [{ kind: 'relation-type' as const, relationType: pick(relationTypes, wish.rule) as Id }]
+          : []),
+        ...(container === undefined
+          ? []
+          : [{ kind: 'contents' as const, container, depth: 1 + (wish.rule % 3) }]),
+        { kind: 'attribute', attribute: 'owner', test: 'set' },
+      ];
+      const added = [
+        ...new Set(wish.picks.map((at) => pick(elements, at)).filter((id) => id !== undefined)),
+      ];
+      return {
+        type: 'set-scope',
+        view: view.id,
+        scope: {
+          include: [pick(rules, wish.rule) as ScopeRule],
+          ...(added.length > 0 ? { added } : {}),
+        },
+      };
+    }
+    case 'in-view': {
+      const view = pick(state.views, wish.at);
+      if (!view || elements.length === 0) return undefined;
+      return {
+        type: wish.out ? 'leave-out-of-view' : 'add-to-view',
+        view: view.id,
+        elements: [...new Set(wish.picks.map((at) => pick(elements, at) as Id))],
+      };
+    }
     case 'component-appearance': {
       const component = pick(APPEARANCE_TARGETS, wish.at) as Id;
       const color = (shift: number) => pick(COLORS, wish.value + shift) as string;
@@ -879,6 +947,26 @@ function expectRulesKept(state: ProjectSnapshot) {
     expect(collapsed.length).toBeGreaterThan(0);
     expect(collapsed).toEqual([...new Set(collapsed)].sort());
     for (const id of collapsed) expect(elements.has(id)).toBe(true);
+  }
+  // A scope's lists: sorted, each once, apart from each other, and naming only elements, never World.
+  for (const view of state.views) {
+    const scope = view.scope;
+    if (!scope) continue;
+    expect(Object.keys(scope).length).toBeGreaterThan(0);
+    for (const list of [scope.added, scope.leftOut]) {
+      if (list === undefined) continue;
+      expect(list.length).toBeGreaterThan(0);
+      expect(list).toEqual([...new Set(list)].sort());
+      for (const id of list) expect(elements.has(id)).toBe(true);
+    }
+    const added = new Set(scope.added ?? []);
+    for (const id of scope.leftOut ?? []) expect(added.has(id)).toBe(false);
+    // What the view shows is what the scope gives, and a relation shows while its ends do.
+    const shown = shownByScope(state, view);
+    for (const relation of state.model.relations) {
+      const end = (id: Id): boolean => (model.element(id) ? shown.element(id) : shown.relation(id));
+      expect(shown.relation(relation.id)).toBe(end(relation.from) && end(relation.to));
+    }
   }
   // Every value a command set is one the published schema accepts, so every save succeeds. A file an
   // action left alone keeps its object, so each object is checked once.

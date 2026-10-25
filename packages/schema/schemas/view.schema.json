@@ -50,6 +50,10 @@
     "routes": {
       "$ref": "#/definitions/Routes",
       "description": "The relations this view routes by hand, by relation id, each with only what differs from its automatic route: where its ends attach, the points it bends at, and its style. A relation it does not name is routed automatically, and a route whose relation is no relation of the model is ignored."
+    },
+    "scope": {
+      "$ref": "#/definitions/Scope",
+      "description": "The part of the model this view shows (ADR 0040). Without it, the view shows the whole model."
     }
   },
   "required": [
@@ -470,6 +474,232 @@
       ],
       "additionalProperties": false,
       "description": "The line attaches at a fixed place on the end's border, which follows the shape as it moves and resizes."
+    },
+    "Scope": {
+      "type": "object",
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ScopeRule"
+          },
+          "minItems": 1,
+          "maxItems": 64
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ScopeRule"
+          },
+          "minItems": 1,
+          "maxItems": 64
+        },
+        "added": {
+          "$ref": "#/definitions/ScopeList",
+          "description": "Elements shown whatever the rules say: ids, sorted, each once, none of them in `leftOut`."
+        },
+        "leftOut": {
+          "$ref": "#/definitions/ScopeList",
+          "description": "Elements left out whatever the rules say: ids, sorted, each once, none of them in `added`."
+        }
+      },
+      "additionalProperties": false,
+      "description": "The part of the model a view shows: the elements that meet one of its `include` rules, or every element when it has none, and none of its `exclude` rules; then those it adds, less those it leaves out. World always shows, and a relation shows while both its ends do.",
+      "minProperties": 1
+    },
+    "ScopeRule": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "component",
+            "relation-type",
+            "contents",
+            "attribute"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "component"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/ComponentRule"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "relation-type"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/RelationTypeRule"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "contents"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/ContentsRule"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "attribute"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/AttributeRule"
+          }
+        }
+      ],
+      "description": "A rule of a scope: which elements it takes."
+    },
+    "ComponentRule": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "component"
+        },
+        "component": {
+          "$ref": "#/definitions/Id"
+        },
+        "exactly": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "component"
+      ],
+      "additionalProperties": false,
+      "description": "The elements created from a component, and from every component derived from it unless `exactly`."
+    },
+    "RelationTypeRule": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "relation-type"
+        },
+        "relationType": {
+          "$ref": "#/definitions/Id"
+        },
+        "exactly": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "relationType"
+      ],
+      "additionalProperties": false,
+      "description": "The elements at either end of a relation of a relation type, or of one derived from it unless `exactly`."
+    },
+    "ContentsRule": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "contents"
+        },
+        "container": {
+          "$ref": "#/definitions/Id"
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        }
+      },
+      "required": [
+        "kind",
+        "container"
+      ],
+      "additionalProperties": false,
+      "description": "A container and what sits inside it through the view's nesting relation types: `depth` levels down, or every level without it."
+    },
+    "AttributeRule": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "attribute"
+        },
+        "attribute": {
+          "type": "string",
+          "minLength": 1
+        },
+        "test": {
+          "type": "string",
+          "enum": [
+            "is",
+            "is-not",
+            "contains",
+            "below",
+            "above",
+            "set",
+            "unset"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "description": "What the value is compared with; left out for `set` and `unset`."
+        }
+      },
+      "required": [
+        "kind",
+        "attribute",
+        "test"
+      ],
+      "additionalProperties": false,
+      "description": "The elements whose attribute meets a test, as filters test it, with its component's default when unset."
+    },
+    "ScopeList": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Id"
+      },
+      "description": "Element ids, sorted, each once.",
+      "minItems": 1,
+      "maxItems": 100000,
+      "uniqueItems": true
     }
   }
 }

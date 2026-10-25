@@ -16,6 +16,7 @@ import {
 } from './definitions';
 import { reorderElements } from './order';
 import { setCollapsed } from './collapse';
+import { addToView, leaveOutOfView, setScope } from './scopes';
 import { Draft, Rejection, reject, requireList, requireName } from './draft';
 import { checkImageReferences, defineImage, removeImage } from './images';
 import {
@@ -186,6 +187,12 @@ function dispatch(draft: Draft, command: Command): string {
       return reorderElements(draft, command);
     case 'set-collapsed':
       return setCollapsed(draft, command);
+    case 'set-scope':
+      return setScope(draft, command);
+    case 'add-to-view':
+      return addToView(draft, command);
+    case 'leave-out-of-view':
+      return leaveOutOfView(draft, command);
     case 'define-image':
       return defineImage(draft, command);
     case 'remove-image':

@@ -19,7 +19,7 @@ ADR-0025 said that in v0.1 every view shows the whole model, and that a saved fi
 - **The rules.** Each is one of:
   - a component, optionally with every component derived from it;
   - a relation type, which takes the elements at either end of a relation of that type;
-  - the contents of a container, to a depth or to every depth, through the view's nesting relation types;
+  - a container with what sits inside it, to a depth or to every depth, through the view's nesting relation types;
   - a condition on an attribute, with the same tests as filters (`is`, `is not`, `contains`, `below`, `above`, `set`, `unset`).
 - **Which elements show.**
   - With no `include` rule, every element meets the inclusion; otherwise it must meet one of them.

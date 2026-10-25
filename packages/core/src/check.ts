@@ -205,6 +205,47 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
         );
       }
     }
+    // A scope's lists and rules may name what is gone, as a hand-edited file may (ADR 0040).
+    for (const list of ['added', 'leftOut'] as const) {
+      for (const id of view.scope?.[list] ?? []) {
+        if (id === index.world.id || !index.element(id)) {
+          warnings.push(
+            problem(
+              'unknown-element',
+              `The scope of the view "${view.name}" names "${id}", which is no element of the model; it is ignored.`,
+              [view.id],
+            ),
+          );
+        }
+      }
+    }
+    for (const rule of [...(view.scope?.include ?? []), ...(view.scope?.exclude ?? [])]) {
+      if (rule.kind === 'component' && !definitions.component(rule.component)) {
+        warnings.push(
+          problem(
+            'unknown-component',
+            `A rule of the scope of the view "${view.name}" names the component "${rule.component}", which no package in use defines; it takes nothing.`,
+            [view.id],
+          ),
+        );
+      } else if (rule.kind === 'relation-type' && !definitions.relationType(rule.relationType)) {
+        warnings.push(
+          problem(
+            'unknown-relation-type',
+            `A rule of the scope of the view "${view.name}" names the relation type "${rule.relationType}", which no package in use defines; it takes nothing.`,
+            [view.id],
+          ),
+        );
+      } else if (rule.kind === 'contents' && !index.element(rule.container)) {
+        warnings.push(
+          problem(
+            'unknown-element',
+            `A rule of the scope of the view "${view.name}" names the container "${rule.container}", which is no element of the model; it takes nothing.`,
+            [view.id],
+          ),
+        );
+      }
+    }
     // Stacking lists name the shapes of a container, or of World, by element id. The problems are
     // the view's: its file is where the list is written.
     for (const [container, list] of Object.entries(view.stackingOrder ?? {})) {

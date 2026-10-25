@@ -182,6 +182,36 @@ const COMMANDS: readonly [string, Command][] = [
     'send to back',
     { type: 'restack', view: VIEW, moves: [{ shape: { element: 'patient' }, to: 'back' }] },
   ],
+  // What a view shows (ADR 0040).
+  [
+    'scope a view',
+    {
+      type: 'set-scope',
+      view: VIEW,
+      scope: { include: [{ kind: 'component', component: 'systems.service' }] },
+    },
+  ],
+  ['add to a view', { type: 'add-to-view', view: VIEW, elements: ['appointments-db'] }],
+  [
+    'add two to a view',
+    { type: 'add-to-view', view: VIEW, elements: ['appointments-db', 'patient'] },
+  ],
+  ['leave out of a view', { type: 'leave-out-of-view', view: VIEW, elements: ['patient'] }],
+  [
+    'leave two out of a view',
+    { type: 'leave-out-of-view', view: VIEW, elements: ['patient', 'appointments-db'] },
+  ],
+  ['leave World out', { type: 'leave-out-of-view', view: VIEW, elements: ['world'] }],
+  ['leave nothing out', { type: 'leave-out-of-view', view: VIEW, elements: [] }],
+  [
+    'scope with a bad rule',
+    { type: 'set-scope', view: VIEW, scope: { include: [{ kind: 'nothing' } as never] } },
+  ],
+  [
+    'scope both ways',
+    { type: 'set-scope', view: VIEW, scope: { added: ['patient'], leftOut: ['patient'] } },
+  ],
+  ['show the whole model', { type: 'set-scope', view: VIEW, scope: null }],
   // Routes drawn by hand (ADR 0039).
   ['curve a route', { type: 'set-route', view: VIEW, relation: 'api-writes-db', style: 'curved' }],
   [

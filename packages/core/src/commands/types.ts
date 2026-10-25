@@ -22,6 +22,7 @@ import type {
   Point,
   RelationAppearance,
   RelationType,
+  Scope,
   ShapePosition,
   Step,
 } from '@visual-anything/schema';
@@ -59,6 +60,9 @@ export type Command =
   | UpdatePackageCommand
   | ReorderElementsCommand
   | SetCollapsedCommand
+  | SetScopeCommand
+  | AddToViewCommand
+  | LeaveOutOfViewCommand
   | DefineImageCommand
   | RemoveImageCommand
   | SetRouteCommand
@@ -94,6 +98,11 @@ export interface CreateElementCommand {
    * last. Every view still draws its shape in front of the shapes beside it.
    */
   before?: Id;
+  /**
+   * The view it is made in, as the app sends it: when that view's scope would not show it, it goes
+   * into the scope's `added` list in the same action (ADR 0040). The views of its positions count too.
+   */
+  inView?: Id;
 }
 
 /** Changes an element, World included. `null` removes an optional trait. */
@@ -265,6 +274,36 @@ export interface SetCollapsedCommand {
   view: Id;
   elements: Id[];
   collapsed: boolean;
+}
+
+/**
+ * Gives a view a scope, the part of the model it shows (ADR 0040), or takes it away with `null`, so
+ * that the view shows the whole model. It changes only the view's file.
+ */
+export interface SetScopeCommand {
+  type: 'set-scope';
+  view: Id;
+  scope: Scope | null;
+}
+
+/**
+ * Shows elements in a view whatever its scope's rules say: they leave its `leftOut` list, and go into
+ * its `added` list unless the rules show them already. A view without a scope shows them already.
+ */
+export interface AddToViewCommand {
+  type: 'add-to-view';
+  view: Id;
+  elements: Id[];
+}
+
+/**
+ * Leaves elements out of a view, never out of the model: they leave its scope's `added` list, and go
+ * into its `leftOut` list unless the rules leave them out already. A view without a scope gets one.
+ */
+export interface LeaveOutOfViewCommand {
+  type: 'leave-out-of-view';
+  view: Id;
+  elements: Id[];
 }
 
 /** Deletes elements and relations, and every relation that ends on anything deleted. */

@@ -413,6 +413,89 @@ export interface ViewFile {
    * ignored.
    */
   routes?: Routes;
+  /**
+   * The part of the model this view shows (ADR 0040). Without it, the view shows the whole model.
+   */
+  scope?: Scope;
+}
+
+/**
+ * The part of the model a view shows: the elements that meet one of its `include` rules, or every
+ * element when it has none, and none of its `exclude` rules; then those it adds, less those it leaves
+ * out. World always shows, and a relation shows while both its ends do.
+ *
+ * @minProperties 1
+ */
+export interface Scope {
+  /**
+   * @minItems 1
+   * @maxItems 64
+   */
+  include?: ScopeRule[];
+  /**
+   * @minItems 1
+   * @maxItems 64
+   */
+  exclude?: ScopeRule[];
+  /** Elements shown whatever the rules say: ids, sorted, each once, none of them in `leftOut`. */
+  added?: ScopeList;
+  /** Elements left out whatever the rules say: ids, sorted, each once, none of them in `added`. */
+  leftOut?: ScopeList;
+}
+
+/**
+ * Element ids, sorted, each once.
+ *
+ * @minItems 1
+ * @maxItems 100000
+ * @uniqueItems true
+ */
+export type ScopeList = Id[];
+
+/**
+ * A rule of a scope: which elements it takes.
+ *
+ * @discriminator kind
+ */
+export type ScopeRule = ComponentRule | RelationTypeRule | ContentsRule | AttributeRule;
+
+/** The elements created from a component, and from every component derived from it unless `exactly`. */
+export interface ComponentRule {
+  kind: 'component';
+  component: Id;
+  exactly?: boolean;
+}
+
+/** The elements at either end of a relation of a relation type, or of one derived from it unless `exactly`. */
+export interface RelationTypeRule {
+  kind: 'relation-type';
+  relationType: Id;
+  exactly?: boolean;
+}
+
+/**
+ * A container and what sits inside it through the view's nesting relation types: `depth` levels down,
+ * or every level without it.
+ */
+export interface ContentsRule {
+  kind: 'contents';
+  container: Id;
+  /**
+   * @minimum 1
+   * @maximum 1000
+   * @asType integer
+   */
+  depth?: number;
+}
+
+/** The elements whose attribute meets a test, as filters test it, with its component's default when unset. */
+export interface AttributeRule {
+  kind: 'attribute';
+  /** @minLength 1 */
+  attribute: string;
+  test: 'is' | 'is-not' | 'contains' | 'below' | 'above' | 'set' | 'unset';
+  /** What the value is compared with; left out for `set` and `unset`. */
+  value?: string;
 }
 
 /**

@@ -25,6 +25,8 @@ import type {
   RelationType,
   RelationTypeLimits,
   ScenarioFile,
+  Scope,
+  ScopeRule,
   ShapePosition,
   Step,
   ViewFile,
@@ -271,6 +273,57 @@ const stackingOrder = fc.dictionary(id, fc.uniqueArray(id, { minLength: 1, maxLe
   noNullPrototype: true,
 });
 
+/** A rule of a scope, of each kind (ADR 0040). */
+const scopeRule: fc.Arbitrary<ScopeRule> = fc.oneof(
+  fc.record(
+    { kind: fc.constant('component' as const), component: id, exactly: fc.boolean() },
+    { requiredKeys: ['kind', 'component'], noNullPrototype: true },
+  ),
+  fc.record(
+    { kind: fc.constant('relation-type' as const), relationType: id, exactly: fc.boolean() },
+    { requiredKeys: ['kind', 'relationType'], noNullPrototype: true },
+  ),
+  fc.record(
+    {
+      kind: fc.constant('contents' as const),
+      container: id,
+      depth: fc.integer({ min: 1, max: 1000 }),
+    },
+    { requiredKeys: ['kind', 'container'], noNullPrototype: true },
+  ),
+  fc.record(
+    {
+      kind: fc.constant('attribute' as const),
+      attribute: name,
+      test: fc.constantFrom('is', 'is-not', 'contains', 'below', 'above', 'set', 'unset' as const),
+      value: text,
+    },
+    { requiredKeys: ['kind', 'attribute', 'test'], noNullPrototype: true },
+  ),
+);
+
+/** A scope with at least one part; its id lists sorted and apart, as the commands keep them. */
+const scope: fc.Arbitrary<Scope> = fc
+  .record(
+    {
+      include: fc.array(scopeRule, { minLength: 1, maxLength: 3 }),
+      exclude: fc.array(scopeRule, { minLength: 1, maxLength: 2 }),
+      ids: fc.uniqueArray(id, { minLength: 1, maxLength: 4 }),
+      split: fc.nat(4),
+    },
+    { requiredKeys: ['ids', 'split'], noNullPrototype: true },
+  )
+  .map(({ include, exclude, ids: named, split }) => {
+    const added = named.slice(0, split).sort();
+    const leftOut = named.slice(split).sort();
+    return {
+      ...(include ? { include } : {}),
+      ...(exclude ? { exclude } : {}),
+      ...(added.length > 0 ? { added } : {}),
+      ...(leftOut.length > 0 ? { leftOut } : {}),
+    };
+  });
+
 const view: fc.Arbitrary<ViewFile> = fc.record(
   {
     id,
@@ -282,6 +335,7 @@ const view: fc.Arbitrary<ViewFile> = fc.record(
     freeShapes: list(freeShape),
     stackingOrder,
     collapsed: fc.uniqueArray(id, { minLength: 1, maxLength: 3 }).map((each) => each.sort()),
+    scope,
   },
   {
     requiredKeys: ['id', 'name', 'perspective', 'nestingRelationTypes', 'positions', 'freeShapes'],

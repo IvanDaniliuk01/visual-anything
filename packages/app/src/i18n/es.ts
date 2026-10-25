@@ -41,6 +41,8 @@
  * | collapsed container     | contenedor contraído             |
  * | view                    | vista                            |
  * | perspective             | perspectiva                      |
+ * | scope                   | alcance                          |
+ * | outside the view        | fuera de la vista                |
  * | component               | componente                       |
  * | component palette       | paleta de componentes            |
  * | appearance              | apariencia                       |
@@ -1432,6 +1434,42 @@ export const messages: Catalog = {
   'Expand "{name}"': 'Expandir "{name}"',
   'Collapse {n} containers': 'Contraer {n} contenedores',
   'Expand {n} containers': 'Expandir {n} contenedores',
+  // What a view shows, its scope (ADR 0040).
+  'Set what "{view}" shows': 'Definir qué muestra "{view}"',
+  'Show the whole model in "{view}"': 'Mostrar todo el modelo en "{view}"',
+  'Add "{name}" to "{view}"': 'Agregar "{name}" a "{view}"',
+  'Add {n} elements to "{view}"': 'Agregar {n} elementos a "{view}"',
+  'Leave "{name}" out of "{view}"': 'Dejar "{name}" fuera de "{view}"',
+  'Leave {n} elements out of "{view}"': 'Dejar {n} elementos fuera de "{view}"',
+  'A scope is an object, or null to show the whole model.':
+    'Un alcance es un objeto, o null para mostrar todo el modelo.',
+  'A scope holds include, exclude, added and leftOut, not "{key}".':
+    'Un alcance tiene include, exclude, added y leftOut, no "{key}".',
+  "A scope's {part} holds at most {n} rules.":
+    'El {part} de un alcance tiene como máximo {n} reglas.',
+  "A scope's {part} must be a list.": 'El {part} de un alcance debe ser una lista.',
+  'A rule of a scope is an object with a kind.':
+    'Una regla de un alcance es un objeto con un kind.',
+  'Whether a rule takes exactly its own kind is true or false.':
+    'Si una regla toma exactamente su propio tipo es verdadero o falso.',
+  'How deep a rule reaches is a whole number from 1 to {n}.':
+    'La profundidad de una regla es un número entero de 1 a {n}.',
+  'A rule on an attribute names the attribute.': 'Una regla sobre un atributo nombra el atributo.',
+  'A rule on an attribute tests it with one of: {tests}.':
+    'Una regla sobre un atributo lo prueba con uno de: {tests}.',
+  'A rule on an attribute that compares it gives the value to compare with.':
+    'Una regla sobre un atributo que lo compara da el valor con el que comparar.',
+  'A rule of a scope takes a component, a relation type, a container’s contents or a condition on an attribute.':
+    'Una regla de un alcance toma un componente, un tipo de relación, el contenido de un contenedor o una condición sobre un atributo.',
+  '"{name}" is both added to the view and left out of it.':
+    '"{name}" está a la vez agregado a la vista y fuera de ella.',
+  'No elements were given to add to the view.':
+    'No se dio ningún elemento para agregar a la vista.',
+  'No elements were given to leave out of the view.':
+    'No se dio ningún elemento para dejar fuera de la vista.',
+  'No elements were given.': 'No se dio ningún elemento.',
+  'World is the canvas itself; every view shows it.':
+    'Mundo es el propio lienzo; toda vista lo muestra.',
   'Move "{element}" in "{view}"': 'Mover "{element}" en "{view}"',
   'Move {n} elements in "{view}"': 'Mover {n} elementos en "{view}"',
   'Move {n} shapes in "{view}"': 'Mover {n} formas en "{view}"',
@@ -1905,6 +1943,14 @@ export const messages: Catalog = {
     'La vista "{view}" guarda una posición para "{key}", pero el modelo no tiene ningún elemento "{missing}"; se ignora.',
   'The view "{view}" keeps "{id}" collapsed, which is no element of the model; it is ignored.':
     'La vista "{view}" mantiene contraído "{id}", que no es ningún elemento del modelo; se ignora.',
+  'The scope of the view "{view}" names "{id}", which is no element of the model; it is ignored.':
+    'El alcance de la vista "{view}" nombra "{id}", que no es ningún elemento del modelo; se ignora.',
+  'A rule of the scope of the view "{view}" names the component "{id}", which no package in use defines; it takes nothing.':
+    'Una regla del alcance de la vista "{view}" nombra el componente "{id}", que ningún paquete en uso define; no toma nada.',
+  'A rule of the scope of the view "{view}" names the relation type "{id}", which no package in use defines; it takes nothing.':
+    'Una regla del alcance de la vista "{view}" nombra el tipo de relación "{id}", que ningún paquete en uso define; no toma nada.',
+  'A rule of the scope of the view "{view}" names the container "{id}", which is no element of the model; it takes nothing.':
+    'Una regla del alcance de la vista "{view}" nombra el contenedor "{id}", que no es ningún elemento del modelo; no toma nada.',
   'The view "{view}" keeps a stacking order for "{container}", which is no element of the model; it is ignored.':
     'La vista "{view}" guarda un orden de apilado para "{container}", que no es ningún elemento del modelo; se ignora.',
   'The stacking order of "{holder}" in the view "{view}" names "{id}" more than once.':

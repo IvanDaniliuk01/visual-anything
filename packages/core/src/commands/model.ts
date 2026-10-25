@@ -3,6 +3,7 @@ import type { Element, Id, Relation, RelationRoute, ShapePosition } from '@visua
 import { slug } from '../ids';
 import { indexModel, type ModelIndex } from '../model-index';
 import { BULK, positionKey } from '../operations';
+import { shownByScope } from '../scope';
 import { storedStacking } from '../stacking';
 import {
   choiceWarnings,
@@ -40,6 +41,7 @@ import type {
   UpdateRelationCommand,
 } from './types';
 import { putCollapsed } from './collapse';
+import { putScope } from './scopes';
 import { putPositions } from './views';
 
 export function createElement(draft: Draft, command: CreateElementCommand): string {
@@ -91,6 +93,14 @@ export function createElement(draft: Draft, command: CreateElementCommand): stri
   for (const [view, positions] of byView) putPositions(draft, view, positions);
   // Placed before other elements in the model's order, it would be drawn behind them.
   if (command.before !== undefined) bringNewToFront(draft, id);
+  // A view with a scope shows what is made in it, whatever its rules say (ADR 0040).
+  const madeIn = new Set(byView.keys());
+  if (command.inView !== undefined) madeIn.add(draft.view(command.inView).id);
+  for (const viewId of madeIn) {
+    const view = draft.view(viewId);
+    if (view.scope === undefined || shownByScope(draft.state, view).element(id)) continue;
+    putScope(draft, view, { ...view.scope, added: [...(view.scope.added ?? []), id] });
+  }
   return `Create "${name}"`;
 }
 
@@ -247,6 +257,16 @@ export function applyDeletion(draft: Draft, preview: DeletePreview): void {
       view,
       (view.collapsed ?? []).filter((id) => !deleted.has(id)),
     );
+  }
+  for (const viewId of new Set(preview.scopes.map((entry) => entry.view))) {
+    const view = draft.view(viewId);
+    const scope = view.scope;
+    if (scope === undefined) continue;
+    putScope(draft, view, {
+      ...scope,
+      added: (scope.added ?? []).filter((id) => !deleted.has(id)),
+      leftOut: (scope.leftOut ?? []).filter((id) => !deleted.has(id)),
+    });
   }
   removeRoutes(draft, preview.routes);
   removeFromModel(draft, 'relations', preview.relations);

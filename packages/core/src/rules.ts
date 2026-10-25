@@ -152,6 +152,8 @@ export interface DeletePreview {
   brokenSteps: { scenario: Id; step: Id }[];
   /** The deleted elements that views show collapsed, which leave those views' lists. */
   collapsed: { view: Id; element: Id }[];
+  /** The deleted elements that a view's scope adds or leaves out by hand, which leave those lists (ADR 0040). */
+  scopes: { view: Id; list: 'added' | 'leftOut'; element: Id }[];
   /**
    * The routes views keep that go with the deleted relations, and those that lose their bend points
    * because the container they are relative to is deleted, view by view.
@@ -238,6 +240,13 @@ export function previewDelete(
       (each.collapsed ?? [])
         .filter((id) => askedElements.has(id))
         .map((element) => ({ view: each.id, element })),
+    ),
+    scopes: state.views.flatMap((each) =>
+      (['added', 'leftOut'] as const).flatMap((list) =>
+        (each.scope?.[list] ?? [])
+          .filter((id) => askedElements.has(id))
+          .map((element) => ({ view: each.id, list, element })),
+      ),
     ),
     routes: removedRoutes(state.views, relations, askedElements),
     contents: heldContents(
