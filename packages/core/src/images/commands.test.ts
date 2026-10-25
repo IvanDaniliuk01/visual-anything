@@ -44,6 +44,27 @@ function imagesOfClinic(state: ProjectSnapshot): readonly ImageDefinition[] | un
 }
 
 describe('define-image', () => {
+  it('keeps the license an image is under, by its SPDX identifier (ADR 0047)', () => {
+    const before = imageProject();
+    const outcome = run(before, {
+      type: 'define-image',
+      package: 'clinic',
+      image: { name: 'Bell', source: 'Drawn by hand', license: 'CC0-1.0', svg: SQUARE },
+    });
+    expect(imagesOfClinic(outcome.state)?.at(-1)).toMatchObject({
+      source: 'Drawn by hand',
+      license: 'CC0-1.0',
+    });
+    expectUndoesExactly(before, outcome);
+    expect(
+      refusal(before, {
+        type: 'define-image',
+        package: 'clinic',
+        image: { name: 'Bell', license: 'CC BY 4.0', svg: SQUARE },
+      }),
+    ).toEqual(['invalid-command']);
+  });
+
   it('stores SVG text as cleaning gives it, says what it removed, and undoes exactly', () => {
     const before = imageProject();
     const outcome = run(before, {

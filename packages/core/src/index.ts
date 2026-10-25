@@ -108,6 +108,29 @@ export { relationLabel } from './commands/model';
 
 export type { Problem, ProblemCode } from './problems';
 
+// What ships with Visual Anything carries a license that lets it ship (ADR 0047).
+export type { ShippableLicense } from './licenses';
+export {
+  LICENSE_PATTERN,
+  MAX_ATTRIBUTION,
+  SHIPPABLE_LICENSES,
+  VERSION_PATTERN,
+  isLicenseId,
+  isPackageVersion,
+  isShippableLicense,
+  shippingProblems,
+} from './licenses';
+// Packages shared between projects (ADR 0051).
+export type {
+  ListChanges,
+  NamedItem,
+  PackageChanges,
+  PackageNeeds,
+  PackageProperty,
+  PropertyChange,
+} from './package-sharing';
+export { compareVersions, packageChanges, packageNeeds } from './package-sharing';
+
 export type { IdGenerator } from './ids';
 export { ID_PATTERN, definitionIdFor, freshId, isId, randomIds, slug } from './ids';
 

@@ -11,6 +11,7 @@ import {
   type Command,
   type ProjectSnapshot,
 } from '@visual-anything/core';
+import type { Component, PackageFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { loadSample } from '../test/sample';
 import { translateMessage, untranslatedParts } from './translate';
@@ -57,6 +58,42 @@ function run(start: ProjectSnapshot, commands: readonly [string, Command][]): Ou
 
 const VIEW = 'system-overview';
 const IS_PART_OF = 'systems.is-part-of';
+
+/** A component of a package shared between projects, as its file holds it. */
+function kiosk(id: string, derivesFrom = 'systems.box'): Component {
+  return { id, name: 'Kiosk', derivesFrom };
+}
+
+/** A package from another project, with the components given. */
+function shared(id: string, components: Partial<Component>[]): PackageFile {
+  return {
+    id,
+    name: 'Plaza',
+    components: components.map((each) => ({ ...kiosk(each.id ?? `${id}.kiosk`), ...each })),
+    relationTypes: [],
+  };
+}
+
+/** A package from another project, with an image that needs cleaning. */
+const MALL: PackageFile = {
+  id: 'mall',
+  name: 'Mall',
+  version: '1.0.0',
+  license: 'MIT',
+  attribution: 'Jane Doe',
+  components: [kiosk('mall.kiosk')],
+  relationTypes: [],
+  images: [
+    {
+      kind: 'svg',
+      id: 'mall.logo',
+      name: 'Logo',
+      width: 1,
+      height: 1,
+      svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><script>alert(1)</script><path d="M0 0h1v1z"/></svg>',
+    },
+  ],
+};
 
 const COMMANDS: readonly [string, Command][] = [
   // Elements and relations.
@@ -309,6 +346,111 @@ const COMMANDS: readonly [string, Command][] = [
   ['remove relation type', { type: 'remove-relation-type', id: 'clinic.reminds' }],
   ['edit project', { type: 'update-project', changes: { description: 'A clinic.' } }],
   ['stop using a package', { type: 'update-project', changes: { packages: ['systems'] } }],
+  // Packages shared between projects (ADR 0051).
+  ['add package', { type: 'add-package', package: MALL }],
+  ['add a package again', { type: 'add-package', package: MALL }],
+  [
+    'make an id a package takes',
+    {
+      type: 'create-element',
+      element: { id: 'arcade.hall', component: 'systems.box', name: 'Hall' },
+    },
+  ],
+  [
+    'add a package whose ids are taken',
+    { type: 'add-package', package: shared('arcade', [{ id: 'arcade.hall' }]) },
+  ],
+  [
+    'add a package with ids outside it',
+    { type: 'add-package', package: shared('plaza', [{ id: 'mall.stall' }]) },
+  ],
+  [
+    'add a package using an id twice',
+    { type: 'add-package', package: shared('plaza', [{ id: 'plaza.a' }, { id: 'plaza.a' }]) },
+  ],
+  [
+    'add a package that needs more',
+    {
+      type: 'add-package',
+      package: shared('plaza', [{ id: 'plaza.a', derivesFrom: 'gone.base' }]),
+    },
+  ],
+  [
+    'add a package with a bad version',
+    { type: 'add-package', package: { ...shared('plaza', []), version: 'v1' } },
+  ],
+  [
+    'add a package with a bad license',
+    { type: 'add-package', package: { ...shared('plaza', []), license: 'CC BY 4.0' } },
+  ],
+  [
+    'add a package with a bad attribution',
+    { type: 'add-package', package: { ...shared('plaza', []), attribution: '' } },
+  ],
+  [
+    'update package',
+    {
+      type: 'replace-package',
+      package: {
+        ...MALL,
+        version: '1.1.0',
+        relationTypes: [{ id: 'mall.sells', name: 'sells', derivesFrom: 'relates-to' }],
+      },
+    },
+  ],
+  ['use a kiosk', { type: 'create-element', element: { component: 'mall.kiosk', name: 'Kiosk' } }],
+  [
+    'sell at a kiosk',
+    {
+      type: 'create-relation',
+      relation: { relationType: 'mall.sells', from: 'patient', to: 'appointments-api' },
+    },
+  ],
+  [
+    'update removing a used component',
+    { type: 'replace-package', package: { ...MALL, components: [] } },
+  ],
+  [
+    'update removing a used relation type',
+    { type: 'replace-package', package: { ...MALL, relationTypes: [] } },
+  ],
+  [
+    'make an id the mall takes',
+    {
+      type: 'create-element',
+      element: { id: 'mall.taken', component: 'systems.box', name: 'Taken' },
+    },
+  ],
+  [
+    'update with a taken id',
+    {
+      type: 'replace-package',
+      package: {
+        ...MALL,
+        relationTypes: [{ id: 'mall.sells', name: 'sells', derivesFrom: 'relates-to' }],
+        components: [...MALL.components, kiosk('mall.taken')],
+      },
+    },
+  ],
+  [
+    'update with an id outside it',
+    {
+      type: 'replace-package',
+      package: {
+        ...MALL,
+        relationTypes: [{ id: 'mall.sells', name: 'sells', derivesFrom: 'relates-to' }],
+        components: [...MALL.components, kiosk('plaza.stall')],
+      },
+    },
+  ],
+  [
+    'image with a bad license',
+    {
+      type: 'define-image',
+      package: 'clinic',
+      image: { name: 'Bell', license: 'CC BY', svg: '<svg viewBox="0 0 1 1"/>' },
+    },
+  ],
   // A batch.
   [
     'batch',
@@ -458,6 +600,21 @@ const COMMANDS: readonly [string, Command][] = [
       },
     ],
     ['image without one', { type: 'define-image', package: 'clinic' }],
+    ['add no package', { type: 'add-package' }],
+    ['add a package without lists', { type: 'add-package', package: { id: 'p', name: 'P' } }],
+    [
+      'add a package whose images are no list',
+      { type: 'add-package', package: { ...shared('p', []), images: 5 } },
+    ],
+    [
+      'add a package with a definition that is no object',
+      { type: 'add-package', package: { ...shared('p', []), components: [5] } },
+    ],
+    [
+      'add a package with an image of no kind',
+      { type: 'add-package', package: { ...shared('p', []), images: [{ id: 'p.i', name: 'I' }] } },
+    ],
+    ['update no package', { type: 'replace-package' }],
     ['description not text', { type: 'update-package', id: 'clinic', changes: { description: 5 } }],
     ['unreadable position', { type: 'set-positions', view: VIEW, positions: [null] }],
   ]),

@@ -18,6 +18,7 @@ import type {
   Id,
   LimitList,
   Note,
+  PackageFile,
   Perspective,
   Point,
   RelationAppearance,
@@ -58,6 +59,8 @@ export type Command =
   | SetComponentAppearanceCommand
   | SetRelationTypeAppearanceCommand
   | UpdatePackageCommand
+  | AddPackageCommand
+  | ReplacePackageCommand
   | ReorderElementsCommand
   | SetCollapsedCommand
   | SetScopeCommand
@@ -243,11 +246,41 @@ export interface SetRelationTypeAppearanceCommand {
   appearanceTraits?: RelationAppearanceChanges;
 }
 
-/** Changes the name or description of one of the project's own packages. */
+/**
+ * Changes the name, description, version, license or attribution of one of the project's own
+ * packages; `null` takes one out.
+ */
 export interface UpdatePackageCommand {
   type: 'update-package';
   id: Id;
-  changes: { name?: string; description?: string | null };
+  changes: {
+    name?: string;
+    description?: string | null;
+    version?: string | null;
+    license?: string | null;
+    attribution?: string | null;
+  };
+}
+
+/**
+ * Adds a copy of a package from another project, as that project holds it: its components, relation
+ * types and images, keeping their ids, and starts using it, with the built-in packages it needs, as
+ * one action (R39, ADR 0051). Its images are cleaned, as `define-image` cleans them. A clash of ids
+ * with the project is refused, saying every id that clashes.
+ */
+export interface AddPackageCommand {
+  type: 'add-package';
+  package: PackageFile;
+}
+
+/**
+ * Updates one of the project's own packages to another version of it, such as the one in the project
+ * it was copied from, as one action: its properties, components, relation types and images become
+ * those given. Removing what the project still uses, or a clash of ids, is refused.
+ */
+export interface ReplacePackageCommand {
+  type: 'replace-package';
+  package: PackageFile;
 }
 
 /**
@@ -354,7 +387,14 @@ export interface UpdateRelationCommand {
 /** Creates an empty package of the project's own and starts using it. */
 export interface CreatePackageCommand {
   type: 'create-package';
-  package: { id: Id; name: string; description?: string };
+  package: {
+    id: Id;
+    name: string;
+    description?: string;
+    version?: string;
+    license?: string;
+    attribution?: string;
+  };
 }
 
 /** A new component or relation type: without an id, the core makes one with `definitionIdFor`. */
@@ -564,7 +604,7 @@ export interface BatchCommand {
  * A new image, as SVG text or as a bitmap's format and bytes in base64; the core cleans it before
  * storing it. Without an id, the core makes one from its package's id and its name.
  */
-export type NewImage = { id?: Id; name: string; source?: string } & (
+export type NewImage = { id?: Id; name: string; source?: string; license?: string } & (
   { svg: string } | { format: BitmapImage['format']; data: string }
 );
 

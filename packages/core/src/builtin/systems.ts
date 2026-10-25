@@ -3,6 +3,7 @@
  * run, from the people who use them to the services and data stores they are made of.
  */
 import type { PackageFile } from '@visual-anything/schema';
+import { OWN_CREDITS } from './credits';
 
 const OWNER = { name: 'owner', type: 'string', description: 'The team that runs it.' } as const;
 const TECHNOLOGY = {
@@ -16,6 +17,7 @@ export const SYSTEMS: PackageFile = {
   name: 'Systems',
   description:
     'People, systems, services and data stores, and how they communicate, read, write and nest.',
+  ...OWN_CREDITS,
   components: [
     {
       id: 'systems.box',

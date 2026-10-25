@@ -1490,6 +1490,8 @@ export const messages: Catalog = {
   'Create the package "{name}"': 'Crear el paquete "{name}"',
   'Rename the package "{old}" to "{new}"': 'Cambiar el nombre del paquete "{old}" a "{new}"',
   'Edit the package "{name}"': 'Editar el paquete "{name}"',
+  'Add the package "{name}"': 'Agregar el paquete "{name}"',
+  'Update the package "{name}"': 'Actualizar el paquete "{name}"',
   'Define the component "{name}"': 'Definir el componente "{name}"',
   'Redefine the component "{name}"': 'Redefinir el componente "{name}"',
   'Define the relation type "{name}"': 'Definir el tipo de relación "{name}"',
@@ -1731,6 +1733,46 @@ export const messages: Catalog = {
     'El componente "{name}" no se puede quitar: lo usan {users}.',
   'The relation type "{name}" cannot be removed: {users} use it.':
     'El tipo de relación "{name}" no se puede quitar: lo usan {users}.',
+
+  // Packages shared between projects (ADR 0051).
+  'The package "{name}" cannot be added: this project already has a package with the id "{id}".':
+    'El paquete "{name}" no se puede agregar: este proyecto ya tiene un paquete con el id "{id}".',
+  'The package "{name}" cannot be added: this project already uses these ids of it: {ids}.':
+    'El paquete "{name}" no se puede agregar: este proyecto ya usa estos ids suyos: {ids}.',
+  'The package "{name}" cannot be updated: this project already uses these ids of it: {ids}.':
+    'El paquete "{name}" no se puede actualizar: este proyecto ya usa estos ids suyos: {ids}.',
+  'The package "{name}" cannot be added: these ids of it do not start with "{id}.", the id of the package: {ids}.':
+    'El paquete "{name}" no se puede agregar: estos ids suyos no empiezan con "{id}.", el id del paquete: {ids}.',
+  'The package "{name}" cannot be updated: these ids of it do not start with "{id}.", the id of the package: {ids}.':
+    'El paquete "{name}" no se puede actualizar: estos ids suyos no empiezan con "{id}.", el id del paquete: {ids}.',
+  'The package "{name}" cannot be added: it uses these ids more than once: {ids}.':
+    'El paquete "{name}" no se puede agregar: usa estos ids más de una vez: {ids}.',
+  'The package "{name}" cannot be updated: it uses these ids more than once: {ids}.':
+    'El paquete "{name}" no se puede actualizar: usa estos ids más de una vez: {ids}.',
+  'The package "{name}" needs what no package in use, and no built-in package, defines; add the packages that define it first: {ids}.':
+    'El paquete "{name}" necesita lo que no define ningún paquete en uso ni ningún paquete incorporado; agregar primero los paquetes que lo definen: {ids}.',
+  'The update of "{name}" removes the component "{component}", which is still used here by {users}; change or delete what uses it first.':
+    'La actualización de "{name}" quita el componente "{component}", que aquí todavía usan {users}; primero cambiar o eliminar lo que lo usa.',
+  'The update of "{name}" removes the relation type "{type}", which is still used here by {users}; change or delete what uses it first.':
+    'La actualización de "{name}" quita el tipo de relación "{type}", que aquí todavía usan {users}; primero cambiar o eliminar lo que lo usa.',
+  'add-package needs the package, as its file holds it.':
+    'add-package necesita el paquete, tal como lo guarda su archivo.',
+  'replace-package needs the package, as its file holds it.':
+    'replace-package necesita el paquete, tal como lo guarda su archivo.',
+  'A package holds a list of components and one of relation types.':
+    'Un paquete tiene una lista de componentes y otra de tipos de relación.',
+  'A package’s images are a list.': 'Las imágenes de un paquete son una lista.',
+  'Each definition and image of a package is an object.':
+    'Cada definición e imagen de un paquete es un objeto JSON.',
+  'An image is of the kind "svg" or "bitmap".': 'Una imagen es de la clase "svg" o "bitmap".',
+  'A package’s version is a semantic version, such as 1.2.0.':
+    'La versión de un paquete es una versión semántica, como 1.2.0.',
+  'A package’s license is an SPDX license identifier, such as CC0-1.0 or MIT.':
+    'La licencia de un paquete es un identificador de licencia SPDX, como CC0-1.0 o MIT.',
+  'A package’s attribution is text of 1 to 2,000 characters.':
+    'La atribución de un paquete es un texto de 1 a 2000 caracteres.',
+  'An image’s license is an SPDX license identifier, such as CC0-1.0 or MIT.':
+    'La licencia de una imagen es un identificador de licencia SPDX, como CC0-1.0 o MIT.',
   'A component has no "{key}".': 'Un componente no tiene "{key}".',
   'A relation type has no "{key}".': 'Un tipo de relación no tiene "{key}".',
   'The component "{id}" must start with "{prefix}.", the id of its package.':
