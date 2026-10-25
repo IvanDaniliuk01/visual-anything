@@ -170,7 +170,7 @@ export function ScopeEditor({ view }: { view: ViewFile }) {
           void run(addToViewCommand(view.id, [id]), scopeLabel('add', view, [id], nameOf))
         }
       />
-      <p role="status" className="visually-hidden">
+      <p className="visually-hidden" aria-live="polite">
         {message.text}
         {message.count % 2 === 1 ? ' ' : ''}
       </p>

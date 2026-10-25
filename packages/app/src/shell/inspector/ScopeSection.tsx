@@ -139,7 +139,7 @@ export function ScopeSection({ element }: { element: Element }) {
           )}
         </>
       )}
-      <p role="status" className="visually-hidden">
+      <p className="visually-hidden" aria-live="polite">
         {message.text}
         {message.count % 2 === 1 ? ' ' : ''}
       </p>
