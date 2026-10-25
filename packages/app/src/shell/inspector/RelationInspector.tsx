@@ -17,6 +17,7 @@ import { AttributesSection } from './AttributesSection';
 import { byPackage, relationLabel } from './describe';
 import { SelectControl, TextControl } from './controls';
 import { Detail, End, Lineage, Title } from './parts';
+import { RelationAppearanceSection } from './RelationAppearanceSection';
 import { perform } from './send';
 import { sameOptionalText } from './text';
 
@@ -31,7 +32,7 @@ interface RelationInspectorProps {
 
 /**
  * One relation: its relation type, the limits of that type it breaks, which only warn, its ends, its
- * name and description, and the attributes its relation type defines.
+ * name and description, the attributes its relation type defines, and how its line is drawn.
  */
 export function RelationInspector({
   relation,
@@ -102,6 +103,11 @@ export function RelationInspector({
         values={relation.attributes}
         disabled={disabled}
         change={update}
+      />
+      <RelationAppearanceSection
+        relation={relation}
+        definitions={definitions}
+        disabled={disabled}
       />
     </>
   );
