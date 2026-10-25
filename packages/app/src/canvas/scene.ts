@@ -41,6 +41,7 @@ import {
   startedTypesByElement,
   nestingTypesInView,
   orderByStacking,
+  relationAppearanceOf,
   relationTypeOrRelatesTo,
   storedStacking,
   type Definitions,
@@ -134,6 +135,10 @@ export interface RelationLine {
   middle: Point;
   /** Present when the relation type is directed; its tip is `to`. */
   arrowhead?: Arrowhead;
+  /**
+   * How the line is drawn: the relation's own appearance over its relation type's, colors as stored
+   * (ADR-0035); an aggregated relation is drawn as its relation type, a little wider.
+   */
   stroke: Color;
   width: number;
   dash: Dash;
@@ -169,6 +174,10 @@ export interface NoteShape {
   id: Id;
   rect: Rect;
   text: string;
+  /** Its own fill, as stored; absent when it takes the theme's (ADR-0035). */
+  fill?: Color;
+  /** Its own stroke, as stored; absent when it takes the theme's. */
+  stroke?: Color;
 }
 
 /** An arrow: a free shape pointing from one place on the canvas to another. */
@@ -177,6 +186,8 @@ export interface ArrowShape {
   from: Point;
   to: Point;
   arrowhead: Arrowhead;
+  /** Its own color, as stored; absent when it takes the theme's (ADR-0035). */
+  stroke?: Color;
 }
 
 /** The line width of free arrows. */
@@ -292,7 +303,8 @@ const NOT_LAID_OUT: ReadonlySet<string> = new Set(['stackingOrder', 'name', 'des
 
 /**
  * The last build of each view, by its positions: a change that leaves the positions, the model, the
- * packages and every other field of the view as they were reuses it.
+ * definitions (the packages and the project appearances) and every other field of the view as they
+ * were reuses it.
  */
 const exactly = new WeakMap<ViewFile['positions'], Built>();
 /** The last build of each view, by its id, which the next build starts from. */
@@ -350,6 +362,8 @@ function redrawn(kept: Built, project: ProjectSnapshot, view: ViewFile): Scene {
 function laidOutFrom(kept: Built, project: ProjectSnapshot, view: ViewFile): boolean {
   if (kept.viewId !== view.id || kept.model !== project.model) return false;
   if (kept.packages !== project.packages) return false;
+  // The project appearances change how shapes and lines are drawn without changing the packages.
+  if (kept.definitions !== definitionsIn(project)) return false;
   const before = kept.view as unknown as Record<string, unknown>;
   const now = view as unknown as Record<string, unknown>;
   const keys = (fields: Record<string, unknown>) =>
@@ -1616,9 +1630,13 @@ function lineBetween(
   if (!directionOf(beforeEnd, end)) return undefined;
 
   const relationType = relationTypeOrRelatesTo(definitions, spec.relationType);
-  const { stroke, dash } = relationType.appearance;
-  const width =
-    relationType.appearance.width + (members ? aggregatedExtraWidth(members.length) : 0);
+  // A relation's own appearance comes first; an aggregated relation is drawn as its relation type.
+  const appearance =
+    relation === undefined || members
+      ? relationType.appearance
+      : relationAppearanceOf(relation, definitions);
+  const { stroke, dash } = appearance;
+  const width = appearance.width + (members ? aggregatedExtraWidth(members.length) : 0);
   const label = members ? `×${members.length}` : relation?.name;
   const line: RelationLine = {
     relation: spec.key,
@@ -1664,17 +1682,27 @@ function isArrow(shape: FreeShape): shape is Arrow {
 }
 
 function noteShape(note: Note): NoteShape {
-  return {
+  const shape: NoteShape = {
     id: note.id,
     rect: { x: note.x, y: note.y, width: note.width, height: note.height },
     text: note.text,
   };
+  if (note.fill !== undefined) shape.fill = note.fill;
+  if (note.stroke !== undefined) shape.stroke = note.stroke;
+  return shape;
 }
 
 function arrowShape(arrow: Arrow): ArrowShape {
   const from = { x: arrow.from.x, y: arrow.from.y };
   const to = { x: arrow.to.x, y: arrow.to.y };
-  return { id: arrow.id, from, to, arrowhead: arrowheadAt(from, to, ARROW_WIDTH) };
+  const shape: ArrowShape = {
+    id: arrow.id,
+    from,
+    to,
+    arrowhead: arrowheadAt(from, to, ARROW_WIDTH),
+  };
+  if (arrow.stroke !== undefined) shape.stroke = arrow.stroke;
+  return shape;
 }
 
 const lineBounds = new WeakMap<RelationLine, Rect>();
