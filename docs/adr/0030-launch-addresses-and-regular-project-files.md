@@ -50,3 +50,30 @@ We chose this because a cloned project is data from someone else: a link in it m
 - An older build's address, with `#token=`, no longer opens the app: it is removed from the address and the tab says how to open the app again.
 - Every read of a project file costs an `lstat`, a `realpath` and two `stat`s more, and every write a hard link and a few looks more; a project has few files, so this does not show.
 - CLAUDE.md's rules on project files and on the server should say this; the main session makes those edits.
+
+## Addendum 2026-10-25: view addresses
+
+<!-- Decided by Claude on 2026-10-25, building W21, under the user's standing delegation of design decisions. -->
+
+The second benchmark's R26 asks for addresses that open a project at a view state. They are built on this ADR's launch addresses and keep its rule: the session token never leaves the program.
+
+- **One view state.** The core's `view-state.ts` defines it: the view; the camera, as the point of the view at the middle of the canvas and the zoom, so that an address shows the same place in any window; the selection; the filters (ADR-0025); focus mode, with what it starts from when that is not the selection; and the scenario open and the step it is on, by the step's id, so that an address survives steps added before it. Everything is named by id, so an address survives renames.
+- **Its fragment.** `#view=…&camera=…&select=…&filters=…&focus=…&scenario=…&step=…`, written and read by the core. Reading refuses anything malformed with a message and never throws; writing and reading give back exactly the same value, also after another page re-encodes the fragment as `URLSearchParams` does. Reading leaves out `launch`, `theme` and `token`, and writing never writes them, so a view address holds no secret.
+- **A launch address can carry one**, after its code and theme: `http://127.0.0.1:<port>/#launch=<code>&theme=dark&view=…&select=…`. The page takes the code out at once, as before, and keeps the rest. The state applies only once the code is redeemed: the shell mounts only when `project/opened` has come, and applies the state then.
+- **The app keeps its own address in step**, a moment after the view state last changed, by replacing the history entry, never adding one, so that Back still leaves the app. A reload therefore comes back to the same view state, and Copy address, in the header, copies it. An address pasted into the tab's address bar applies as one opened.
+- **The command line.** `visual-anything [open] <folder> --view <id> [--select <id>]…` opens the browser at, or with `--no-open` prints, a launch address that carries the view state; so does every launch address of that run, from `o` and `a` too. A view or an id the project does not hold stops it before it starts, with exit code 2.
+- **Claude.** `link_to` answers the fragment of a view state, never a launch address: a launch code in Claude's transcript would let whatever reads it open a whole session, which can undo and change the person's preferences, as Claude's endpoint may not (ADR-0029).
+
+### Options considered for view addresses
+
+- **The view state in the query string**: rejected. A query reaches the program and its logs; a fragment never leaves the browser.
+- **The view state as JSON in the fragment**: rejected. It is long and unreadable, and it has to be encoded twice over anyway.
+- **A new history entry for each change**: rejected. Back would step through every pan and zoom.
+- **Steps by their index**: rejected. Adding a step before it would make an address show another one.
+
+### What remains of view addresses
+
+- A view address opened in a new tab finds no session there: the tab says how to open the app again. A new tab opens a view state only through a launch address, from `visual-anything open`.
+- The port changes from one run to the next unless `--port` fixes it, so what lasts of a view address is its fragment.
+- A selection of more than 500 things is left out of the address, and Copy address says so.
+- Tours (R45), comments (R46) and the read-only page (R32) are to reuse the same value.
