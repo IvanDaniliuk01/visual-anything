@@ -170,9 +170,7 @@ function nestingInside(
 function drawsRows(project: ProjectSnapshot, container: Id | undefined): boolean {
   if (container === undefined) return false;
   const element = modelIndexOf(project).element(container);
-  return (
-    element !== undefined && appearanceOf(element, definitionsOf(project.packages)).contentsAsRows
-  );
+  return element !== undefined && appearanceOf(element, definitionsIn(project)).contentsAsRows;
 }
 
 /** The commands as one action: alone when it is one, otherwise a batch labelled `label`. */

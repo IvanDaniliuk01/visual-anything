@@ -1,6 +1,6 @@
 import {
   applyOperations,
-  definitionsOf,
+  definitionsIn,
   executeCommand,
   modelIndexOf,
   type Operation,
@@ -72,7 +72,7 @@ export function DefinitionsHarness({
       },
     });
   }, [onReady]);
-  const definitions = useMemo(() => definitionsOf(project.packages), [project.packages]);
+  const definitions = useMemo(() => definitionsIn(project), [project]);
   const view = project.views[0];
   const scene = useMemo(() => (view ? buildScene(project, view.id) : undefined), [project, view]);
   const apply: SendCommand = async (command) => {

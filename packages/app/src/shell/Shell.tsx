@@ -3,6 +3,7 @@ import type { Id, ViewFile } from '@visual-anything/schema';
 import { useCallback, useId, useMemo, useState } from 'react';
 import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
 import { EditorContext, type Editor } from '../editor/EditorContext';
+import { DefinitionProvider } from './definitions/DefinitionProvider';
 import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
 import { GuidanceLayer } from '../guidance/GuidanceLayer';
 import { useSelection } from '../editor/useSelection';
@@ -68,40 +69,42 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
 
   return (
     <EditorContext.Provider value={editor}>
-      <EmphasisContext.Provider value={emphasis}>
-        <div className="shell">
-          <Header projectName={project.project.name} viewName={view?.name} />
-          {notice !== undefined && (
-            <p className="shell-notice" role="alert">
-              {notice}
-            </p>
-          )}
-          <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
-          <main className="canvas-area" aria-labelledby={canvasHeading}>
-            <h2 id={canvasHeading} className="visually-hidden">
-              {view ? view.name : 'Canvas'}
-            </h2>
-            {view && scene ? (
-              <CanvasArea
-                project={project}
-                view={view}
-                scene={scene}
-                label={describeDrawing(view, scene)}
-                selection={selection}
-                onSelect={setSelection}
-                {...(onCommand ? { onCommand } : {})}
-                {...(revealed ? { revealed } : {})}
-                scenarios={scenarios}
-              />
-            ) : (
-              <p className="canvas-message">There is no view to draw.</p>
+      <DefinitionProvider>
+        <EmphasisContext.Provider value={emphasis}>
+          <div className="shell">
+            <Header projectName={project.project.name} viewName={view?.name} />
+            {notice !== undefined && (
+              <p className="shell-notice" role="alert">
+                {notice}
+              </p>
             )}
-            <GuidanceLayer />
-          </main>
-          <Inspector view={view} scene={scene} definitions={definitions} />
-          <ScenarioPanel session={scenarios} />
-        </div>
-      </EmphasisContext.Provider>
+            <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
+            <main className="canvas-area" aria-labelledby={canvasHeading}>
+              <h2 id={canvasHeading} className="visually-hidden">
+                {view ? view.name : 'Canvas'}
+              </h2>
+              {view && scene ? (
+                <CanvasArea
+                  project={project}
+                  view={view}
+                  scene={scene}
+                  label={describeDrawing(view, scene)}
+                  selection={selection}
+                  onSelect={setSelection}
+                  {...(onCommand ? { onCommand } : {})}
+                  {...(revealed ? { revealed } : {})}
+                  scenarios={scenarios}
+                />
+              ) : (
+                <p className="canvas-message">There is no view to draw.</p>
+              )}
+              <GuidanceLayer />
+            </main>
+            <Inspector view={view} scene={scene} definitions={definitions} />
+            <ScenarioPanel session={scenarios} />
+          </div>
+        </EmphasisContext.Provider>
+      </DefinitionProvider>
     </EditorContext.Provider>
   );
 }
