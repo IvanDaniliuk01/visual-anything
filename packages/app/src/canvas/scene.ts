@@ -18,7 +18,7 @@
  * resizes, the lines are kept as they were. A build is always equal, field by field, to one made from
  * nothing (`buildSceneAfresh`).
  */
-import type { ProjectSnapshot } from '@visual-anything/core';
+import { imagesIn, type ProjectSnapshot } from '@visual-anything/core';
 import type {
   Arrow,
   Color,
@@ -51,6 +51,16 @@ import { collapsedIn } from './collapse';
 import type { Dash, ShapeKind } from './geometry';
 import { arrowheadAt, directionOf, type Arrowhead, type Point, type Rect } from './geometry';
 import { midpointOf, routeBetweenEnds, type RouteEnd } from './route';
+import {
+  imageLookOf,
+  movedImage,
+  placeImage,
+  sameRect as sameImageRect,
+  sameShapeImage,
+  setImageCatalog,
+  type ImageLook,
+  type ShapeImage,
+} from './shape-images';
 
 /** Everything a view draws. */
 export interface Scene {
@@ -113,6 +123,13 @@ export interface ElementShape {
    * expands.
    */
   collapsed?: { contents: number };
+  /** The image its appearance shows, placed on it (`shape-images.ts`). */
+  image?: ShapeImage;
+  /**
+   * Present when its image is its whole drawing: the plate the picture sits on, with the band its name
+   * is written in. Routes, the selection and pointing go by it rather than by `rect`.
+   */
+  plate?: Rect;
 }
 
 /** A relation drawn along an orthogonal route, or an aggregated relation standing for several. */
@@ -383,6 +400,7 @@ function layOut(
   const { model, packages } = project;
   const worldId = model.world.id;
   const definitions = definitionsIn(project);
+  setImageCatalog(definitions, imagesIn(project));
   // Only the listed types that a package defines and that nest arrange the view, as in the core.
   const listed = nestingTypesInView(project, view);
   const nesting =
@@ -523,6 +541,8 @@ interface Look {
   appearance: ResolvedAppearance;
   componentName: string;
   details: Map<string, string>;
+  /** The image its shapes show, if any. */
+  image: ImageLook | undefined;
 }
 
 const NO_TYPES: ReadonlySet<Id> = new Set();
@@ -595,6 +615,7 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
       appearance: appearanceOf(element, definitions),
       componentName: componentOrEssence(definitions, element.component).name,
       details: new Map(),
+      image: imageLookOf(element, definitions),
     };
     kept.set(element, look);
   }
@@ -968,6 +989,7 @@ function replaceShapes(
       ...(offset && !samePoint(offset, shape.offset) ? { offset } : {}),
       rect: { ...shape.rect, x: shape.rect.x + dx, y: shape.rect.y + dy },
       extent: { ...shape.extent, x: shape.extent.x + dx, y: shape.extent.y + dy },
+      ...movedImage(shape, dx, dy),
     });
     for (const inner of contents[at] as number[]) translate(inner, dx, dy, undefined);
   };
@@ -1089,6 +1111,17 @@ function shapeFor(
   const positioned = position ? (position.pinned ? 'pinned' : 'stored') : 'placed';
   const container = box.placement.container;
   const holdsContents = parts.contents.length > 0;
+  const placed = placeImage(
+    look.image,
+    {
+      kind: appearance.shape,
+      rect: { x, y, width, height },
+      holdsContents,
+      ...(folded === undefined ? {} : { collapsed: true }),
+      rows: appearance.contentsAsRows,
+    },
+    detail !== '',
+  );
   if (
     before &&
     before.key === key &&
@@ -1115,7 +1148,9 @@ function shapeFor(
     before.extent.width === x2 - x1 &&
     before.extent.height === y2 - y1 &&
     before.holdsContents === holdsContents &&
-    before.collapsed?.contents === folded
+    before.collapsed?.contents === folded &&
+    sameShapeImage(before.image, placed?.image) &&
+    sameImageRect(before.plate, placed?.plate)
   ) {
     return before;
   }
@@ -1146,6 +1181,8 @@ function shapeFor(
     if (position.height !== undefined) shape.storedSize.height = position.height;
   }
   if (folded !== undefined) shape.collapsed = { contents: folded };
+  if (placed) shape.image = placed.image;
+  if (placed?.plate) shape.plate = placed.plate;
   return shape;
 }
 
@@ -1554,7 +1591,10 @@ function routeEndOf(
   plan: RelationPlan,
   lineAt: (at: number) => RelationLine | undefined,
 ): RouteEnd | undefined {
-  if (end.kind === 'shape') return { rect: (shapes[end.at] as ElementShape).rect };
+  if (end.kind === 'shape') {
+    const shape = shapes[end.at] as ElementShape;
+    return { rect: shape.plate ?? shape.rect };
+  }
   const at = plan.byKey.get(end.key);
   const line = at === undefined ? undefined : lineAt(at);
   return line && { point: line.middle };

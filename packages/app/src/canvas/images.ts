@@ -22,6 +22,7 @@
  */
 import type { CleanedImage } from '@visual-anything/core';
 import { CanvasSource, Rectangle, Texture } from 'pixi.js';
+import { imageSerial, pruneImageSerials } from './image-serials';
 
 /** The sizes textures are made at, in device pixels along the picture's longer side. */
 export const BUCKETS = [16, 32, 64, 128, 256, 512] as const;
@@ -66,38 +67,8 @@ const MIPMAPS = 1.33;
 
 // --- Serials -------------------------------------------------------------------------------------
 
-const serialsByContent = new Map<string, number>();
-const serialsByImage = new WeakMap<CleanedImage, number>();
-let lastSerial = 0;
-
-function contentKey(image: CleanedImage): string {
-  return image.kind === 'svg' ? `svg:${image.svg}` : `${image.format}:${image.data}`;
-}
-
-/**
- * The serial of a cleaned image's content: equal content has one serial, across reloads that bring new
- * image objects, and changed content gets a new one. It is looked up once per image object.
- */
-export function imageSerial(image: CleanedImage): number {
-  let serial = serialsByImage.get(image);
-  if (serial === undefined) {
-    const key = contentKey(image);
-    serial = serialsByContent.get(key);
-    if (serial === undefined) {
-      serial = ++lastSerial;
-      serialsByContent.set(key, serial);
-    }
-    serialsByImage.set(image, serial);
-  }
-  return serial;
-}
-
-/** Forgets the serials of content the project no longer holds, as after a reload. */
-export function pruneImageSerials(images: Iterable<CleanedImage>): void {
-  const present = new Set<string>();
-  for (const image of images) present.add(contentKey(image));
-  for (const key of serialsByContent.keys()) if (!present.has(key)) serialsByContent.delete(key);
-}
+// Kept apart, in a module without PixiJS, so that the scene can name pictures by them.
+export { imageSerial, pruneImageSerials } from './image-serials';
 
 // --- Buckets and keys ----------------------------------------------------------------------------
 
@@ -325,12 +296,27 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
   readonly #usedBy = new Map<string, Set<string>>();
   readonly #outSince = new Map<string, number>();
   readonly #rebuild: string[] = [];
-  readonly #atlas = new AtlasLayout();
+  #atlas = new AtlasLayout();
   #pageBytes = 0;
   #textureBytes = 0;
+  readonly #onArrive: (() => void) | undefined;
+  #more = false;
 
-  constructor(platform: ImagePlatform<T, P>) {
+  /**
+   * `onArrive` is called when a picture finishes loading or decoding, or fails to, off the frame: the
+   * canvas then draws a frame to make its texture.
+   */
+  constructor(platform: ImagePlatform<T, P>, onArrive?: () => void) {
     this.#platform = platform;
+    this.#onArrive = onArrive;
+  }
+
+  /**
+   * Whether the last frame left work it could have done but for its limits, so that the next frame
+   * should come soon; work that waits for the camera to rest, or for a picture to load, does not count.
+   */
+  get more(): boolean {
+    return this.#more;
   }
 
   /**
@@ -442,31 +428,44 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
     let uploads = 0;
     let loads = 0;
     let rasterized = 0;
+    let more = false;
     for (const wanted of nearest) {
-      if (spent() >= IMAGE_LIMITS.workAfter) break;
+      if (spent() >= IMAGE_LIMITS.workAfter) {
+        more = true;
+        break;
+      }
       if (this.#broken.has(wanted.serial)) {
         this.#wanted.delete(wanted.key);
         continue;
       }
       if (wanted.image.kind === 'bitmap') {
-        if (wanted.state === 'new' && decodes < IMAGE_LIMITS.bitmapDecodes) {
-          decodes += 1;
-          this.#decode(wanted);
-        } else if (wanted.state === 'ready' && uploads < IMAGE_LIMITS.bitmapUploads) {
-          uploads += 1;
-          this.#make(wanted);
+        if (wanted.state === 'new') {
+          if (decodes < IMAGE_LIMITS.bitmapDecodes) {
+            decodes += 1;
+            this.#decode(wanted);
+          } else more = true;
+        } else if (wanted.state === 'ready') {
+          if (uploads < IMAGE_LIMITS.bitmapUploads) {
+            uploads += 1;
+            this.#make(wanted);
+          } else more = true;
         }
         continue;
       }
       if (!this.#mayRasterize(wanted, frame.moving, spent())) continue;
-      if (wanted.state === 'new' && loads < IMAGE_LIMITS.svgLoads) {
-        loads += 1;
-        this.#load(wanted);
-      } else if (wanted.state === 'ready' && rasterized < IMAGE_LIMITS.svgRasterizations) {
-        rasterized += 1;
-        this.#rasterize(wanted);
+      if (wanted.state === 'new') {
+        if (loads < IMAGE_LIMITS.svgLoads) {
+          loads += 1;
+          this.#load(wanted);
+        } else more = true;
+      } else if (wanted.state === 'ready') {
+        if (rasterized < IMAGE_LIMITS.svgRasterizations) {
+          rasterized += 1;
+          this.#rasterize(wanted);
+        } else more = true;
       }
     }
+    this.#more = more || this.#rebuild.length > IMAGE_LIMITS.tileRebuilds;
     platform.flush();
     this.#evict();
     return this.#rebuild.splice(0, IMAGE_LIMITS.tileRebuilds);
@@ -502,6 +501,25 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
       if (wanted.picture !== undefined) this.#platform.releasePicture(wanted.picture);
     }
     this.#wanted.clear();
+  }
+
+  /**
+   * Starts again from nothing: every texture and picture goes, and what it learned of each SVG's cost,
+   * and that some pictures cannot be drawn, is forgotten. The tiles must draw their pictures again, as
+   * the benchmark's cold runs do.
+   */
+  clear(): void {
+    this.destroy();
+    this.#costs.clear();
+    this.#broken.clear();
+    this.#uses.clear();
+    this.#usedBy.clear();
+    this.#outSince.clear();
+    this.#rebuild.length = 0;
+    this.#atlas = new AtlasLayout();
+    this.#pageBytes = 0;
+    this.#textureBytes = 0;
+    this.#more = false;
   }
 
   #want(request: ImageRequest, serial: number, bucket: Bucket, key: string): void {
@@ -569,7 +587,7 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
     this.#platform
       .decodeBitmap(bytes, `image/${wanted.image.format}`, size.width, size.height)
       .then((picture) => this.#arrived(wanted, picture))
-      .catch(() => this.#break(wanted.serial));
+      .catch(() => this.#failed(wanted.serial));
   }
 
   #load(wanted: Wanted<P>): void {
@@ -579,7 +597,7 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
     this.#platform
       .loadSvg(wanted.image.svg, size.width, size.height)
       .then((picture) => this.#arrived(wanted, picture))
-      .catch(() => this.#break(wanted.serial));
+      .catch(() => this.#failed(wanted.serial));
   }
 
   #arrived(wanted: Wanted<P>, picture: P): void {
@@ -589,6 +607,13 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
     }
     wanted.picture = picture;
     wanted.state = 'ready';
+    this.#onArrive?.();
+  }
+
+  /** A picture that does not load or decode is broken for the session; its tiles draw again. */
+  #failed(serial: number): void {
+    this.#break(serial);
+    this.#onArrive?.();
   }
 
   #rasterize(wanted: Wanted<P>): void {

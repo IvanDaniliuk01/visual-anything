@@ -7,9 +7,10 @@
  * so the canvas draws the bands in order and draws every overlapping pair in drawing order, and the
  * shape under the pointer is the last one in that order that holds it: the one drawn on top.
  */
-import { holdsPoint, type Point, type Rect } from './geometry';
+import { type Point, type Rect } from './geometry';
 import { distanceToRoute } from './route';
 import type { ArrowShape, ElementShape, NoteShape, RelationLine, Scene } from './scene';
+import { holdsDrawn } from './shape-images';
 import { SpatialIndex, overlaps, rectAround, segmentsOf, within } from './spatial';
 
 /** What lies at a point, topmost first: free shapes over relations over element shapes. */
@@ -518,7 +519,7 @@ function shapesUnder(
   for (let each = under.length - 1; each >= 0 && found.length < most; each--) {
     const shape = indexed.scene.shapes[under[each] as number] as ElementShape;
     if (hidden.has(shape.key)) continue;
-    if (!exact(shape) || holdsPoint(shape.kind, shape.rect, point)) found.push(shape);
+    if (!exact(shape) || holdsDrawn(shape, point)) found.push(shape);
   }
   return found;
 }

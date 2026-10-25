@@ -27,6 +27,7 @@ import {
 } from './geometry';
 import type { IndexedScene } from './hit';
 import type { ElementShape, RelationLine } from './scene';
+import { imageSignature } from './shape-images';
 import { rectAround } from './spatial';
 
 /** How many bands have tiles of their own. */
@@ -362,6 +363,7 @@ export function shapeSignature(shape: ElementShape): string {
       shape.detail ?? '',
       shape.holdsContents ? 1 : 0,
       shape.collapsed?.contents ?? -1,
+      imageSignature(shape),
     ].join(' ');
     signatures.set(shape, signature);
   }
