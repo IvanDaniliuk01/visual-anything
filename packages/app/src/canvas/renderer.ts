@@ -2040,6 +2040,7 @@ export class CanvasRenderer {
         : Math.max(64 / this.camera.scale, TILE / 2),
     );
     const middle = centerOf(screen);
+    const pixels = this.camera.scale * this.resolution;
     interface Work {
       tile: Tile;
       drawings: Drawing[];
@@ -2057,7 +2058,7 @@ export class CanvasRenderer {
       const onScreen = meets(tile.bounds, screen);
       const showing =
         onScreen || meets(tile.bounds, near)
-          ? shownDrawings(tile, coarse).filter((drawing) => stale.includes(drawing))
+          ? shownDrawings(tile, coarse, pixels).filter((drawing) => stale.includes(drawing))
           : [];
       if (showing.length > 0) shown.push({ tile, drawings: showing, distance, onScreen });
       const rest = stale.filter((drawing) => !showing.includes(drawing));
@@ -2254,7 +2255,7 @@ export class CanvasRenderer {
     for (const tile of this.tiles.values()) {
       if (tile.container.culled || !meets(tile.bounds, screen)) continue;
       const stamp = this.stampFor(tile, this.painter.name, 'drawings');
-      const stale = shownDrawings(tile, coarse).some(
+      const stale = shownDrawings(tile, coarse, this.camera.scale * this.resolution).some(
         (drawing) => (drawing === 'coarse' ? tile.coarseStamp : tile.fullStamp) !== stamp,
       );
       if (stale) this.stats.staleShown += 1;
