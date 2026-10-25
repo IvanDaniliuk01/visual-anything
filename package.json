@@ -13,10 +13,10 @@
     "start": "pnpm build && tsx packages/server/src/cli.ts examples/my-systems",
     "build": "pnpm --recursive --if-present run build",
     "bench": "pnpm --filter @visual-anything/app run bench",
-    "test": "vitest run",
+    "test": "vitest run --reporter=default --reporter=./scripts/skipped-tests-reporter.ts",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "typecheck": "tsc && pnpm --recursive --if-present run typecheck"
+    "typecheck": "tsc && tsc -p scripts && pnpm --recursive --if-present run typecheck"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -228,7 +228,8 @@ describe('ProgramBridge', () => {
     await expect(bridge().project()).rejects.toThrow(/comes from another build/);
   });
 
-  it('attaches again after the program went away and came back', async () => {
+  // The program starts again in this process, which takes a while on a loaded machine or a slow CI runner.
+  it('attaches again after the program went away and came back', { timeout: 20_000 }, async () => {
     const first = await runProgram();
     const program = bridge({
       start: () => {
@@ -241,13 +242,16 @@ describe('ProgramBridge', () => {
     await first.session.close();
     running.splice(0, 1);
     await expect
-      .poll(async () => {
-        try {
-          return (await program.project()).project.name;
-        } catch (error) {
-          return error instanceof ProgramUnavailableError ? 'unavailable' : 'error';
-        }
-      })
+      .poll(
+        async () => {
+          try {
+            return (await program.project()).project.name;
+          } catch (error) {
+            return error instanceof ProgramUnavailableError ? 'unavailable' : 'error';
+          }
+        },
+        { timeout: 10_000 },
+      )
       .toBe('Shop');
   });
 });

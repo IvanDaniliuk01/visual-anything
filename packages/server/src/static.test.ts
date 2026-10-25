@@ -80,7 +80,7 @@ describe('folderFiles', () => {
       await symlink(join(folder, 'secret.txt'), join(dist, 'secret.txt'), 'file');
     } catch {
       context.skip(
-        'This user may not make symbolic links here, as on Windows without Developer Mode.',
+        'This user may not make symbolic links here: Windows lets only Developer Mode or an administrator make them.',
       );
     }
     expect(await folderFiles(dist).read('secret.txt')).toBeUndefined();
