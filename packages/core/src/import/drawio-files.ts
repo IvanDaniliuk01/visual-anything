@@ -31,6 +31,8 @@ export function isPng(bytes: Uint8Array): boolean {
 export function drawioPages(content: string | Uint8Array): {
   container: DrawioContainer;
   pages: DrawioPage[];
+  /** The names of the pages past the views an import brings, which are not read. */
+  leftOut: string[];
 } {
   const budget = new InflateBudget(IMPORT_LIMITS.inflatedBytes);
   let container: DrawioContainer = 'drawio';
@@ -52,7 +54,7 @@ export function drawioPages(content: string | Uint8Array): {
     }
     root = readXml(diagramText(inside, budget));
   }
-  return { container, pages: pagesOf(root, budget) };
+  return { container, ...pagesOf(root, budget) };
 }
 
 function tooLarge(): never {
@@ -64,8 +66,12 @@ function localName(name: string): string {
 }
 
 /** The pages of an `mxfile`, or the one page of a bare `mxGraphModel`. */
-function pagesOf(root: XmlElement, budget: InflateBudget): DrawioPage[] {
-  if (root.name === 'mxGraphModel') return [{ name: undefined, model: root }];
+function pagesOf(
+  root: XmlElement,
+  budget: InflateBudget,
+): { pages: DrawioPage[]; leftOut: string[] } {
+  if (root.name === 'mxGraphModel')
+    return { pages: [{ name: undefined, model: root }], leftOut: [] };
   if (root.name !== 'mxfile') {
     refuse(
       `The file is not a draw.io diagram: its outermost element is "${root.name}", not "mxfile".`,
@@ -73,7 +79,11 @@ function pagesOf(root: XmlElement, budget: InflateBudget): DrawioPage[] {
   }
   const diagrams = root.children.filter((child) => child.name === 'diagram');
   if (diagrams.length === 0) refuse('The draw.io file has no page.');
-  return diagrams.map((diagram) => {
+  // Pages past the views an import brings are neither inflated nor read.
+  const leftOut = diagrams
+    .slice(IMPORT_LIMITS.views)
+    .map((diagram, at) => diagram.attributes.get('name') ?? `Page-${IMPORT_LIMITS.views + at + 1}`);
+  const pages = diagrams.slice(0, IMPORT_LIMITS.views).map((diagram) => {
     const name = diagram.attributes.get('name');
     const plain = diagram.children.find((child) => child.name === 'mxGraphModel');
     if (plain) return { name, model: plain };
@@ -85,6 +95,7 @@ function pagesOf(root: XmlElement, budget: InflateBudget): DrawioPage[] {
     }
     return { name, model };
   });
+  return { pages, leftOut };
 }
 
 function emptyModel(): XmlElement {

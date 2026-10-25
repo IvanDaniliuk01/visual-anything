@@ -4,7 +4,8 @@
  * that container too, and on the canvas when the view shows none of its containers. A shape whose own
  * container is out of the view but some container further out shows sits in that one, where no
  * position can be stored for it (ADR-0019 keys positions by the container an element sits in); layout
- * places it.
+ * places it. Everything here takes time in proportion to the shapes shown and the containers above
+ * them, once each.
  */
 import { MAX_COORDINATE } from '../commands/draft';
 import type { PlannedPosition } from './plan';
@@ -55,46 +56,48 @@ export function placesInView(
     }
   }
 
-  const resolved = new Map<string, Box>();
-  for (const key of deepestFirst(showing, placedIn)) {
-    const inside = contents.get(key);
-    const fitted = fit && inside !== undefined ? fittedAround(inside, resolved) : undefined;
-    const box = fitted ?? boxes.get(key);
-    if (box !== undefined) resolved.set(key, box);
+  // Only containers that hold shown shapes are fitted, those deepest inside others first.
+  const fitted = new Map<string, Box>();
+  const boxOf = (key: string) => fitted.get(key) ?? boxes.get(key);
+  if (fit) {
+    for (const key of deepestFirst([...contents.keys()], placedIn)) {
+      const around = fittedAround(contents.get(key) as string[], boxOf);
+      if (around !== undefined) fitted.set(key, around);
+    }
   }
 
   const positions: PlannedPosition[] = [];
   for (const key of showing) {
     const container = placedIn.get(key);
-    const box = resolved.get(key);
+    const box = boxOf(key);
     if (container === undefined || box === undefined) continue;
     let { x, y } = box;
     if (container !== null) {
-      const outer = resolved.get(container);
+      const outer = boxOf(container);
       if (outer === undefined) continue;
       x -= outer.x;
       y -= outer.y;
     }
-    positions.push({
-      element: key,
-      ...(container === null ? {} : { container }),
-      x: coordinate(x),
-      y: coordinate(y),
-      ...size('width', box.width),
-      ...size('height', box.height),
-    });
+    const position: PlannedPosition =
+      container === null
+        ? { element: key, x: coordinate(x), y: coordinate(y) }
+        : { element: key, container, x: coordinate(x), y: coordinate(y) };
+    const width = size(box.width);
+    if (width !== undefined) position.width = width;
+    const height = size(box.height);
+    if (height !== undefined) position.height = height;
+    positions.push(position);
   }
   return positions;
 }
 
-/** Whether a container, or one it sits in further out, is shown. */
+/** Whether a container, or one it sits in further out, is shown; each container's answer is kept. */
 function anyShown(
   container: string,
   containerOf: ReadonlyMap<string, string>,
   showing: ReadonlySet<string>,
   known: Map<string, boolean>,
 ): boolean {
-  // Each container's answer is kept, so that many shapes under one long chain walk it once.
   const chain: string[] = [];
   const seen = new Set<string>();
   let found = false;
@@ -116,50 +119,46 @@ function anyShown(
   return found;
 }
 
-/** The shown shapes, those deepest inside others in the view first. */
+/** Containers in an order in which each comes after the shown containers it holds. */
 function deepestFirst(
-  showing: ReadonlySet<string>,
+  containers: readonly string[],
   placedIn: ReadonlyMap<string, string | null>,
 ): string[] {
+  // How many containers deep each is, counted from the canvas, memoized along each chain.
   const depth = new Map<string, number>();
-  const depthOf = (start: string): number => {
+  for (const start of containers) {
     const chain: string[] = [];
-    let at: string | null | undefined = start;
     let base = 0;
-    while (at !== null && at !== undefined) {
+    for (let at: string | null | undefined = start; at !== null && at !== undefined;) {
       const known = depth.get(at);
       if (known !== undefined) {
         base = known;
         break;
       }
       chain.push(at);
+      // A plan's containment has no cycle, but a chain is never followed past every container.
+      if (chain.length > containers.length + 1) break;
       at = placedIn.get(at);
-      // The containment a plan holds has no cycle, but a chain is never followed twice regardless.
-      if (chain.length > showing.size) break;
     }
     for (let i = chain.length - 1; i >= 0; i--) {
       base += 1;
       depth.set(chain[i] as string, base);
     }
-    return depth.get(start) as number;
-  };
-  return [...showing]
-    .map((key) => [key, depthOf(key)] as const)
-    .sort((a, b) => b[1] - a[1])
-    .map(([key]) => key);
+  }
+  return [...containers].sort((a, b) => (depth.get(b) ?? 0) - (depth.get(a) ?? 0));
 }
 
 /** The box around shapes, with room for their container's name; undefined when none has a box. */
 function fittedAround(
   keys: readonly string[],
-  resolved: ReadonlyMap<string, Box>,
+  boxOf: (key: string) => Box | undefined,
 ): Box | undefined {
   let left = Infinity;
   let top = Infinity;
   let right = -Infinity;
   let bottom = -Infinity;
   for (const key of keys) {
-    const box = resolved.get(key);
+    const box = boxOf(key);
     if (box === undefined) continue;
     left = Math.min(left, box.x);
     top = Math.min(top, box.y);
@@ -181,11 +180,8 @@ export function coordinate(value: number): number {
   return rounded(Math.max(-MAX_COORDINATE, Math.min(MAX_COORDINATE, value)));
 }
 
-function size(
-  name: 'width' | 'height',
-  value: number | undefined,
-): { width?: number; height?: number } {
-  if (value === undefined || !Number.isFinite(value) || value < 1) return {};
-  const kept = rounded(Math.min(MAX_COORDINATE, value));
-  return name === 'width' ? { width: kept } : { height: kept };
+/** A size within the canvas the file format allows; none when the file gives none that is positive. */
+function size(value: number | undefined): number | undefined {
+  if (value === undefined || !Number.isFinite(value) || value < 1) return undefined;
+  return rounded(Math.min(MAX_COORDINATE, value));
 }

@@ -16,7 +16,13 @@ import type { Attributes, Id, JsonValue, Point } from '@visual-anything/schema';
 import { MAX_BEND_POINTS } from '../routes';
 import { drawioPages, type DrawioPage } from './drawio-files';
 import { plainTextOfHtml } from './markup-text';
-import type { ImportPlan, PlannedElement, PlannedRelation, PlannedView } from './plan';
+import {
+  IMPORT_LIMITS,
+  type ImportPlan,
+  type PlannedElement,
+  type PlannedRelation,
+  type PlannedView,
+} from './plan';
 import {
   KindCounter,
   MAX_IMPORTED_NAME,
@@ -47,8 +53,8 @@ export function readDrawio(
   options?: ReadOptions,
 ): ImportRead {
   return reading(() => {
-    const { container, pages } = drawioPages(content);
-    return planOf(pages, container, source, options);
+    const { container, pages, leftOut } = drawioPages(content);
+    return planOf(pages, leftOut, container, source, options);
   });
 }
 
@@ -305,6 +311,7 @@ function edgeSuggestions(kind: string): Id[] {
 
 function planOf(
   pages: readonly DrawioPage[],
+  leftOut: readonly string[],
   container: string,
   source: string,
   options: ReadOptions | undefined,
@@ -487,6 +494,12 @@ function planOf(
     });
   });
 
+  for (const page of leftOut) {
+    unmatched.add(
+      page,
+      `The page is left out: an import brings at most ${IMPORT_LIMITS.views.toLocaleString('en')} views.`,
+    );
+  }
   for (const [kind, count] of stencils) {
     unmatched.add(
       kind,

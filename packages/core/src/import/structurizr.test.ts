@@ -289,3 +289,67 @@ describe('readStructurizr, on hostile workspaces', () => {
     ).toBe(true);
   });
 });
+
+describe('readStructurizr, on workspaces at the limits', () => {
+  /** A workspace of people in a chain of relationships, with these views. */
+  function large(count: number, views: object): string {
+    const people = Array.from({ length: count }, (_, at) => ({
+      id: `p${at}`,
+      name: `Person ${at}`,
+      tags: 'Element,Person',
+      ...(at + 1 < count
+        ? { relationships: [{ id: `r${at}`, sourceId: `p${at}`, destinationId: `p${at + 1}` }] }
+        : {}),
+    }));
+    return JSON.stringify({ model: { people }, views });
+  }
+
+  it('reads a view of 20,000 elements and hundreds of filtered views of it, within the shapes views may show', () => {
+    const all = {
+      key: 'Everyone',
+      elements: Array.from({ length: 20_000 }, (_, at) => ({ id: `p${at}`, x: at, y: at })),
+      relationships: [],
+    };
+    const filtered = Array.from({ length: 600 }, (_, at) => ({
+      key: `Filtered ${at}`,
+      baseViewKey: 'Everyone',
+      mode: 'Exclude',
+      tags: ['Nobody has this tag'],
+    }));
+    const text = large(20_000, { systemLandscapeViews: [all], filteredViews: filtered });
+    const started = Date.now();
+    const plan = read(text);
+    const elapsed = Date.now() - started;
+    // The base view and nine filtered views show 200,000 shapes; the rest are left out and reported.
+    expect(plan.views).toHaveLength(10);
+    expect(plan.views.reduce((sum, each) => sum + (each.shows?.length ?? 0), 0)).toBe(200_000);
+    expect(plan.unmatched[0]).toEqual({
+      text: 'Everyone',
+      why: '19,999 relationships between what the view shows are not in it, but a view shows every relation between what it shows.',
+    });
+    expect(plan.unmatched.filter((each) => each.why.startsWith('The view is left out'))[0]).toEqual(
+      {
+        text: 'Filtered 9',
+        why: 'The view is left out: the views would show over 200,000 shapes in all.',
+      },
+    );
+    // A pass per view over every relationship, and filtering every filtered view, would take minutes.
+    expect(elapsed).toBeLessThan(10_000);
+  }, 60_000);
+
+  it('brings at most 500 views, and refuses past the elements an import brings', () => {
+    const views = Array.from({ length: 501 }, (_, at) => ({
+      key: `View ${at}`,
+      elements: [{ id: `p${at % 10}` }],
+    }));
+    const plan = read(large(10, { systemLandscapeViews: views }));
+    expect(plan.views).toHaveLength(500);
+    expect(plan.unmatched.at(-1)).toEqual({
+      text: 'View 500',
+      why: 'The view is left out: an import brings at most 500 views.',
+    });
+    expect(refusal(large(20_001, {}))).toBe(
+      'The file holds 20,001 elements; an import brings at most 20,000.',
+    );
+  }, 60_000);
+});

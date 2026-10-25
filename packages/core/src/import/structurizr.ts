@@ -21,7 +21,13 @@
 import type { Id, JsonValue, Point } from '@visual-anything/schema';
 import { MAX_BEND_POINTS } from '../routes';
 import { JsonReader, own, ownEntries, parseJson, type JsonObject } from './json-read';
-import type { ImportPlan, PlannedElement, PlannedRelation, PlannedView } from './plan';
+import {
+  IMPORT_LIMITS,
+  type ImportPlan,
+  type PlannedElement,
+  type PlannedRelation,
+  type PlannedView,
+} from './plan';
 import {
   KindCounter,
   Unmatched,
@@ -233,6 +239,20 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
     element(item, path, 'Custom Element', undefined),
   );
 
+  // Past the limits, the import would be refused; refusing now keeps every later step within them.
+  if (elements.length > IMPORT_LIMITS.elements) {
+    refuse(
+      `The file holds ${elements.length.toLocaleString('en')} elements; an import brings at most ${IMPORT_LIMITS.elements.toLocaleString('en')}.`,
+    );
+  }
+  const relationCount =
+    relationships.length + elements.filter((read) => read.parent !== undefined).length;
+  if (relationCount > IMPORT_LIMITS.relations) {
+    refuse(
+      `The file holds ${relationCount.toLocaleString('en')} relations, those that put one thing inside another included; an import brings at most ${IMPORT_LIMITS.relations.toLocaleString('en')}.`,
+    );
+  }
+
   // Styles by tag, for shapes and sizes.
   const viewsObject = json.objectOr(own(root, 'views'), 'views');
   const configuration = json.objectOr(own(viewsObject, 'configuration'), 'views.configuration');
@@ -258,9 +278,19 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
     const logical = read.instanceOf === undefined ? undefined : byId.get(read.instanceOf);
     return [...(logical?.tags ?? []), ...read.tags];
   };
+  const styleCache = new Map<ReadElement, Style>();
   const styleOf = (read: ReadElement): Style => {
-    let style: Style = {};
-    for (const tag of tagsWithLogical(read)) style = { ...style, ...styleByTag.get(tag) };
+    const known = styleCache.get(read);
+    if (known !== undefined) return known;
+    const style: Style = {};
+    for (const tag of tagsWithLogical(read)) {
+      const found = styleByTag.get(tag);
+      if (found === undefined) continue;
+      if (found.shape !== undefined) style.shape = found.shape;
+      if (found.width !== undefined) style.width = found.width;
+      if (found.height !== undefined) style.height = found.height;
+    }
+    styleCache.set(read, style);
     return style;
   };
 
@@ -359,7 +389,7 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
     });
   }
 
-  // Views.
+  // Views, within the views an import brings and the shapes they show in all.
   const views: PlannedView[] = [];
   interface ReadView {
     name: string;
@@ -370,6 +400,14 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
   }
   const byKey = new Map<string, ReadView>();
   const tagsById = new Map(elements.map((read) => [read.id, new Set(tagsWithLogical(read))]));
+  // Each element's relationships, by their from end, so that a view looks only at what it shows.
+  const outgoing = new Map<string, ReadRelationship[]>();
+  for (const relationship of plannedRelationships.values()) {
+    const list = outgoing.get(relationship.from);
+    if (list) list.push(relationship);
+    else outgoing.set(relationship.from, [relationship]);
+  }
+  let shapesLeft = IMPORT_LIMITS.places;
   const sizeOf = (read: ReadElement) => {
     const style = styleOf(read);
     return {
@@ -377,36 +415,58 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
       height: style.height ?? DEFAULT_SIZE.height,
     };
   };
-  const addView = (key: string, read: ReadView) => {
+  /** Whether a view may be added: within the views an import brings and the shapes they show. */
+  const room = (name: string, shapes: number): boolean => {
+    if (views.length >= IMPORT_LIMITS.views) {
+      unmatched.add(
+        name,
+        `The view is left out: an import brings at most ${IMPORT_LIMITS.views.toLocaleString('en')} views.`,
+      );
+      return false;
+    }
+    if (shapes > shapesLeft) {
+      unmatched.add(
+        name,
+        `The view is left out: the views would show over ${IMPORT_LIMITS.places.toLocaleString('en')} shapes in all.`,
+      );
+      return false;
+    }
+    shapesLeft -= shapes;
+    return true;
+  };
+  const addView = (read: ReadView) => {
     const shown = read.shows.map(keyOf);
     const positions =
       read.boxes === undefined ? [] : placesInView(shown, containerOf, read.boxes, true);
+    const showing = new Set(read.shows);
     const bendPoints: { relation: string; points: Point[] }[] = [];
-    for (const [id, points] of read.vertices) {
-      if (!plannedRelationships.has(id) || points.length === 0) continue;
-      if (points.length > MAX_BEND_POINTS) {
-        unmatched.add(
-          id,
-          `Its ${points.length} waypoints are left out: a route bends at most ${MAX_BEND_POINTS} times.`,
-        );
-        continue;
+    let left = 0;
+    for (const from of read.shows) {
+      for (const relationship of outgoing.get(from) ?? []) {
+        if (!showing.has(relationship.to)) continue;
+        if (!read.listed.has(relationship.id)) {
+          left += 1;
+          continue;
+        }
+        const points = read.vertices.get(relationship.id);
+        if (points === undefined || points.length === 0) continue;
+        if (points.length > MAX_BEND_POINTS) {
+          unmatched.add(
+            relationship.id,
+            `Its ${points.length} waypoints are left out: a route bends at most ${MAX_BEND_POINTS} times.`,
+          );
+          continue;
+        }
+        bendPoints.push({ relation: `r:${relationship.id}`, points });
       }
-      bendPoints.push({ relation: `r:${id}`, points });
     }
     views.push({
-      key,
+      key: `view:${views.length + 1}`,
       name: read.name,
       shows: shown,
       ...(positions.length === 0 ? {} : { positions }),
       ...(bendPoints.length === 0 ? {} : { bendPoints }),
     });
-    const showing = new Set(read.shows);
-    const left = [...plannedRelationships.values()].filter(
-      (relationship) =>
-        showing.has(relationship.from) &&
-        showing.has(relationship.to) &&
-        !read.listed.has(relationship.id),
-    ).length;
     if (left > 0) {
       unmatched.add(
         read.name,
@@ -428,6 +488,7 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
         unmatched,
       );
       const shows: string[] = [];
+      const shownIds = new Set<string>();
       const places: { id: string; x: number; y: number }[] = [];
       each(own(view, 'elements'), `${path}.elements`, (entry, entryPath) => {
         const placed = json.object(entry, entryPath);
@@ -436,7 +497,8 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
           unmatched.add(id, `The view "${name}" shows "${id}", which the workspace does not hold.`);
           return;
         }
-        if (shows.includes(id)) return;
+        if (shownIds.has(id)) return;
+        shownIds.add(id);
         shows.push(id);
         places.push({
           id,
@@ -487,7 +549,8 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
         vertices: laidOut ? vertices : new Map<string, Point[]>(),
       };
       if (!byKey.has(key)) byKey.set(key, read);
-      addView(`view:${views.length + 1}`, read);
+      if (!room(name, shows.length)) return;
+      addView(read);
       if (list === 'dynamicViews') {
         unmatched.add(
           name,
@@ -506,15 +569,36 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
       unmatched.add(name, `Its base view "${baseKey}" is not in the workspace.`);
       return;
     }
+    // Past the views an import brings, it is left out before anything is filtered.
+    if (views.length >= IMPORT_LIMITS.views) {
+      room(name, 0);
+      return;
+    }
     const include = (json.textOr(own(view, 'mode'), `${path}.mode`) ?? 'Include') === 'Include';
-    const tags = json
-      .list(own(view, 'tags'), `${path}.tags`)
-      .map((tag, at) => json.text(tag, `${path}.tags[${at}]`));
-    const shows = base.shows.filter((id) => {
-      const has = tags.some((tag) => tagsById.get(id)?.has(tag) ?? false);
-      return include ? has : !has;
-    });
-    addView(`view:${views.length + 1}`, { ...base, name, shows });
+    const tags = new Set(
+      json
+        .list(own(view, 'tags'), `${path}.tags`)
+        .map((tag, at) => json.text(tag, `${path}.tags[${at}]`)),
+    );
+    const shows: string[] = [];
+    for (const id of base.shows) {
+      const elementTags = tagsById.get(id) ?? new Set<string>();
+      const [small, large] =
+        elementTags.size <= tags.size ? [elementTags, tags] : [tags, elementTags];
+      let has = false;
+      for (const tag of small) {
+        if (large.has(tag)) {
+          has = true;
+          break;
+        }
+      }
+      if (has !== include) continue;
+      shows.push(id);
+      // Past what the views may still show, it is left out without filtering further.
+      if (shows.length > shapesLeft) break;
+    }
+    if (!room(name, shows.length)) return;
+    addView({ ...base, name, shows });
   });
   each(own(viewsObject, 'imageViews'), 'views.imageViews', (item, path) => {
     const view = json.object(item, path);

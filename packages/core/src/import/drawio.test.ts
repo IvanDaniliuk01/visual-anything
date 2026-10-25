@@ -474,6 +474,24 @@ describe('readDrawio, on hostile files', () => {
     );
   }, 15_000);
 
+  it('brings at most 500 pages, and neither inflates nor reads the rest', () => {
+    const diagrams = Array.from(
+      { length: 502 },
+      (_, at) =>
+        `<diagram name="P${at}"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/>${vertex(`v${at}`, `V${at}`)}</root></mxGraphModel></diagram>`,
+    ).join('');
+    // The last page is not even valid base64: it is never read.
+    const plan = read(`<mxfile>${diagrams}<diagram name="Broken">not base64!</diagram></mxfile>`);
+    expect(plan.views).toHaveLength(500);
+    expect(plan.elements).toHaveLength(500);
+    expect(plan.unmatched).toEqual(
+      ['P500', 'P501', 'Broken'].map((text) => ({
+        text,
+        why: 'The page is left out: an import brings at most 500 views.',
+      })),
+    );
+  });
+
   it('cuts a name of a megabyte, and reports it', () => {
     const plan = read(page(vertex('a', 'x'.repeat(1024 * 1024))));
     expect(plan.elements[0]?.name).toHaveLength(MAX_IMPORTED_NAME);
