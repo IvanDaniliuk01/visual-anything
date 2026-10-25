@@ -6,6 +6,7 @@
  */
 import type {
   ConnectionPoint,
+  Element,
   EndAttachment,
   Id,
   ModelFile,
@@ -69,18 +70,41 @@ const AUTOMATIC: ResolvedAttachment = { kind: 'automatic' };
 export const MAX_BEND_POINTS = 64;
 
 /**
+ * The shapes a caller has already placed, such as the scene: for each element, the ids of the
+ * elements whose shapes hold its first shape, from World's contents down to the element itself, as
+ * that shape's key reads them (`key.split('/')`); `undefined` when the view draws no shape for it.
+ * Given these, nothing works out the view's containment again.
+ */
+export interface RouteShapes {
+  holdersOf(element: Id): readonly Id[] | undefined;
+  /**
+   * Elements, World included, and the relations the caller draws, by id, when it has them already;
+   * otherwise maps are made once for each model. A relation it leaves out has no route.
+   */
+  readonly lookups?: RouteLookups;
+}
+
+/**
  * How a view routes a relation: where its line attaches to each end, the bend points that apply and
  * its style, from what the view keeps for it, or automatically. `undefined` for an unknown view or
- * relation, and for a relation the view draws as containment rather than as a line.
+ * relation, and for a relation the view draws as containment rather than as a line. The scene passes
+ * the shapes it placed, so that each call costs only the depth of the two ends.
  */
 export function routeOf(
   state: ProjectSnapshot,
   view: ViewFile | Id,
   relation: Id,
+  shapes?: RouteShapes,
 ): ResolvedRoute | undefined {
   const found = typeof view === 'string' ? state.views.find((each) => each.id === view) : view;
   if (found === undefined) return undefined;
-  const context = routeContext(state, found);
+  const context = routeContext(
+    state,
+    found,
+    shapes === undefined
+      ? {}
+      : { shapes, ...(shapes.lookups === undefined ? {} : { lookups: shapes.lookups }) },
+  );
   const routed = context.index.relation(relation);
   if (routed === undefined || context.drawsAsContainment(routed)) return undefined;
   const stored = storedRoute(found, relation);
@@ -112,16 +136,22 @@ export function storedRoute(view: ViewFile, relation: Id): RelationRoute | undef
 
 /** What a line can attach to at one end of a relation, in a view. */
 export type EndShape =
-  /** Nothing it can attach to by hand: World, a relation, an element inside a row, or no end at all. */
-  | { kind: 'none'; why: 'world' | 'relation' | 'inside-row' | 'unknown' }
+  /**
+   * Nothing it can attach to by hand: World, a relation, an element inside a row, an element the
+   * caller draws no shape for, or no end at all.
+   */
+  | { kind: 'none'; why: 'world' | 'relation' | 'inside-row' | 'no-shape' | 'unknown' }
   /** A row, or a shape that draws its contents as rows: lines attach beside it, left or right. */
   | { kind: 'rows' }
   /** A shape of its own, with the connection points of its appearance. */
   | { kind: 'shape'; points: readonly ConnectionPoint[] };
 
+/** What routes look elements and relations up in: a model index, or the lighter lookups below. */
+export type RouteLookups = Pick<ModelIndex, 'world' | 'element' | 'relation'>;
+
 /** What the routes of one view are worked out from. */
 export interface RouteContext {
-  readonly index: ModelIndex;
+  readonly index: RouteLookups;
   readonly definitions: Definitions;
   /** Whether the view draws a relation as containment, through one of its nesting relation types. */
   drawsAsContainment(relation: Relation): boolean;
@@ -136,14 +166,33 @@ export interface RouteContext {
   endShape(end: Id): EndShape;
 }
 
-/** What the routes of a view are worked out from, made once for each question. */
-export function routeContext(state: ProjectSnapshot, view: ViewFile): RouteContext {
-  const index = modelIndexOf(state);
+/**
+ * What the routes of a view are worked out from, made once for each question. Without `shapes`, the
+ * first shapes come from the view's containment, worked out once for each model; without `lookups`,
+ * elements and relations are looked up by id in maps made once for each model.
+ */
+export function routeContext(
+  state: ProjectSnapshot,
+  view: ViewFile,
+  options: { shapes?: RouteShapes; lookups?: RouteLookups } = {},
+): RouteContext {
+  const index = options.lookups ?? lookupsOf(state.model);
   const definitions = definitionsIn(state);
   const nesting = nestingTypesInView(state, view);
   const nests = new Set(nesting);
-  const first = firstContainers(state.model, nesting);
+  const { shapes } = options;
+  const first = shapes === undefined ? firstContainers(state.model, nesting) : undefined;
   const holders = new Map<Id, readonly Id[]>();
+  const drawn = (element: Id): readonly Id[] | undefined => {
+    if (shapes !== undefined) return shapes.holdersOf(element);
+    const path: Id[] = [element];
+    const seen = new Set<Id>(path);
+    for (let at = first?.get(element); at !== undefined && !seen.has(at); at = first?.get(at)) {
+      path.push(at);
+      seen.add(at);
+    }
+    return path.reverse();
+  };
   const resolving = new Set<Id>();
   const drawsRows = (id: Id): boolean => {
     const element = index.element(id);
@@ -157,13 +206,7 @@ export function routeContext(state: ProjectSnapshot, view: ViewFile): RouteConte
     if (end === index.world.id) {
       result = [];
     } else if (index.element(end) !== undefined) {
-      const path: Id[] = [end];
-      const seen = new Set<Id>(path);
-      for (let at = first.get(end); at !== undefined && !seen.has(at); at = first.get(at)) {
-        path.push(at);
-        seen.add(at);
-      }
-      result = path.reverse();
+      result = drawn(end) ?? [];
     } else {
       const relation = index.relation(end);
       // A relation that ends on itself, through others, has no line to sit anywhere.
@@ -190,6 +233,7 @@ export function routeContext(state: ProjectSnapshot, view: ViewFile): RouteConte
       }
       // Its holders: the containers of its first shape from World's contents down, then itself.
       const path = holdersOf(end);
+      if (path.length === 0) return { kind: 'none', why: 'no-shape' };
       if (path.slice(0, -2).some(drawsRows)) return { kind: 'none', why: 'inside-row' };
       const container = path.at(-2);
       if ((container !== undefined && drawsRows(container)) || drawsRows(end)) {
@@ -275,6 +319,29 @@ function firstContainers(model: ModelFile, nesting: readonly Id[]): ReadonlyMap<
 
 const firstContainersByModel = new WeakMap<ModelFile, Map<string, ReadonlyMap<Id, Id>>>();
 
+/** Elements, World included, and relations by id, made once for each model. */
+function lookupsOf(model: ModelFile): RouteLookups {
+  const kept = lookupsByModel.get(model);
+  if (kept !== undefined) return kept;
+  const elements = new Map<Id, Element>([[model.world.id, model.world]]);
+  for (const element of model.elements) {
+    if (!elements.has(element.id)) elements.set(element.id, element);
+  }
+  const relations = new Map<Id, Relation>();
+  for (const relation of model.relations) {
+    if (!relations.has(relation.id)) relations.set(relation.id, relation);
+  }
+  const lookups: RouteLookups = {
+    world: model.world,
+    element: (id) => elements.get(id),
+    relation: (id) => relations.get(id),
+  };
+  lookupsByModel.set(model, lookups);
+  return lookups;
+}
+
+const lookupsByModel = new WeakMap<ModelFile, RouteLookups>();
+
 /** "start" for a relation's `from` end, "end" for its `to` end, as messages name them. */
 export function endWord(end: 'from' | 'to'): string {
   return end === 'from' ? 'start' : 'end';
@@ -288,10 +355,10 @@ export function endWord(end: 'from' | 'to'): string {
  */
 export function routeWarnings(state: ProjectSnapshot): Problem[] {
   const warnings: Problem[] = [];
+  const index = modelIndexOf(state);
   for (const view of state.views) {
     if (view.routes === undefined) continue;
-    const context = routeContext(state, view);
-    const { index } = context;
+    const context = routeContext(state, view, { lookups: index });
     for (const [id, route] of Object.entries(view.routes)) {
       const relation = index.relation(id);
       if (relation === undefined) {

@@ -35,7 +35,7 @@ export function setRoute(draft: Draft, command: SetRouteCommand): string {
   const view = draft.view(command.view);
   const relation = draft.relation(command.relation);
   const label = relationLabel(draft.index, relation.id);
-  const context = routeContext(draft.state, view);
+  const context = routeContext(draft.state, view, { lookups: draft.index });
   if (context.drawsAsContainment(relation)) {
     reject(
       'not-drawn-as-line',
@@ -158,7 +158,7 @@ function bendFrame(
   if (!common.includes(asked)) {
     reject(
       'unknown-position',
-      `"${nameOf(context.index, asked)}" does not hold both ends of "${label}" in the view "${view.name}", so its bend points cannot be relative to it.`,
+      `"${nameOf(draft.index, asked)}" does not hold both ends of "${label}" in the view "${view.name}", so its bend points cannot be relative to it.`,
       [asked, relation],
     );
   }
@@ -201,12 +201,13 @@ function checkedAttachment(
   }
 
   const shape = context.endShape(end);
-  const name = nameOf(context.index, end);
+  const name = context.index.element(end)?.name ?? end;
   if (shape.kind === 'none') {
     const why = {
       world: 'World has no shape to attach to',
       relation: 'that end is a relation, whose line it meets in the middle',
       'inside-row': `"${name}" sits inside a row and has no shape of its own`,
+      'no-shape': `"${name}" has no shape in this view`,
       unknown: `there is no "${end}"`,
     }[shape.why];
     reject('end-does-not-fit', `The line cannot attach by hand at ${which}: ${why}.`, [end]);
@@ -388,7 +389,7 @@ export function settleRoutes(draft: Draft, before: ProjectSnapshot, start: numbe
       ) {
         const gone =
           index.element(container) === undefined && earlier.element(container) !== undefined;
-        context ??= routeContext(draft.state, view);
+        context ??= routeContext(draft.state, view, { lookups: index });
         const left = endsChanged && !context.commonHolders(relation).includes(container);
         if (gone || left) {
           const edited = edit();
