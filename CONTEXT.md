@@ -210,7 +210,7 @@ A way of acting on the model or a view. There are four: explore, play, simulate 
 To move through a model without changing it: expand, collapse, filter, focus, follow a relation.
 
 **Filter**:
-A choice, kept by the open app for one view, of components, relation types and conditions on attributes whose shapes the view hides; nothing moves. A relation shows only while both its ends do, and a container that holds a shape still shown stays, drawn faintly.
+A choice, kept by the open app for one view, of components, relation types, conditions on attributes and a time range whose shapes the view hides; nothing moves. A relation shows only while both its ends do, and a container that holds a shape still shown stays, drawn faintly.
 _Avoid_: query, hide rule, layer
 
 **Focus**:
@@ -355,8 +355,12 @@ An attribute value that names a view of this project, a view of another project 
 _Avoid_: link, hyperlink, reference
 
 **Live value**:
-An attribute's value that comes from outside while the app is open, shown with its mark and age, and never saved or put in the history (ADR 0057).
+An attribute's value that comes from outside while the app is open, from Claude, the command line or package code granted an origin, shown over the stored value with its mark and age, fading once older than its sender's freshness, and never saved or put in the history (ADR 0057, ADR 0063).
 _Avoid_: telemetry, metric, live data
+
+**Time range**:
+A filter of a view on a date, time or number attribute, or on a period between two, that hides what falls outside the range and keeps what has no value; moved with sliders and played, and kept by the open app with the view's filters (ADR 0025).
+_Avoid_: timeline, time slider, time window
 
 **Element list**:
 A panel that lists elements, by component or by scope, with their attributes as columns, edited in place.

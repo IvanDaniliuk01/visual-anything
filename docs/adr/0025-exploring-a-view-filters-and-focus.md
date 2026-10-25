@@ -42,3 +42,10 @@ We chose these because exploring is reading, not editing (CONTEXT.md, "Explore")
 ## Superseded in part, 2026-10-25
 
 ADR 0040 supersedes the line that every view shows the whole model: a view can show part of it through its scope. The perspective switcher then lists the views with the same scope first. Filters and focus stay as this ADR says: they hide or dim what the scope shows, belong to the open app, and are never stored.
+
+## Clarifications, 2026-10-25 (W37)
+
+<!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
+
+- **Time ranges (R43)** are part of a view's filters, kept by the app with them and never written: a range on one date, time or number attribute of elements or of relations, or on a period from one attribute to another. What falls outside it is hidden, as by a condition, and what has no value for it stays shown, and the strip says how many. Numbers are read as numbers, dates and date-times written as ISO 8601 as instants in UTC, and times of day written `HH:MM` or `HH:MM:SS` as seconds since midnight; an attribute is offered when every value it has in the view reads as one kind. The filter panel chooses what the range is on; the strip under the toolbar moves it with two sliders and plays it, moving it on by a fortieth of its reach each half second at the scenarios' four speeds, keeping its width, until its end. Show everything ends it with the other filters; a view address does not carry it yet.
+- **Conditions and time ranges read attributes through the app's attribute lookup** (ADR-0063): a live value over a computed one, a computed one over the stored one, and the stored one over its default. The filters offer the attributes only live values or package code give.
