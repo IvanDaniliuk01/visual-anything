@@ -249,7 +249,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [x] Collapse and expand with aggregated relations (count and line weight), also for what a row holds
 - [x] Filters and focus mode, by degrees and by direction, with isolating the selection
 - [x] ELK layout in a worker, pinned shapes as fixed inputs, re-layout on demand; each table as one block with a connection point for each related row
-- [ ] Connection points from components, in a format that leaves room for free geometry: relations attach to them, and ELK takes them as ports
+- [x] Connection points from components, in a format that leaves room for free geometry: relations attach to them, and ELK takes them as ports
 - [ ] Relations routed by hand, per view, as in draw.io: each end attached to a connection point or to any point of a shape's border, chosen by dragging it; bend points added, moved and removed; orthogonal segments dragged; straight, orthogonal or curved; Reset route goes back to the automatic route
 - [ ] Tables on the canvas: rows, relations to rows, drawing within the budget; columns added on the canvas, typed or pasted; the tables benchmark
 
@@ -282,8 +282,8 @@ Eight milestones in build order, each ending in something you can use, and Track
 **M6 · Dogfooding and v0.1.** Done when your own system is modeled end to end, with two views and one real scenario, and every success criterion above holds.
 
 - [ ] Model your system (case 1) together with Claude
-- [ ] Search and jump: a find field (Ctrl+F) over names, ids, components and attribute values, results grouped by view, Enter selects and shows
-- [ ] View addresses built on one view state (view, camera, selection, filters, focus, scenario step), kept in the address's fragment, with Copy address
+- [x] Search and jump: a find field (Ctrl+F) over names, ids, components and attribute values, results grouped by view, Enter selects and shows
+- [x] View addresses built on one view state (view, camera, selection, filters, focus, scenario step), kept in the address's fragment, with Copy address
 - [x] PNG export of the open view or the whole view, at 1× or 2×, in the current theme
 - [x] A history panel: each action's label, author (you or Claude) and time, and Undo to here
 - [x] Recipes for Claude to build models, views and scenarios from what exists (Mermaid, PlantUML, draw.io, Structurizr, SQL, OpenAPI, Terraform, Kubernetes, docker-compose, a repository, logs and traces) with its tools, as MCP prompts (`build_from_…`)
@@ -330,8 +330,8 @@ Eight milestones in build order, each ending in something you can use, and Track
 
 **D1 · Every system.** Done when the test suite, typecheck, lint and build run in CI on Linux for every push, and on Windows, macOS and Linux for every pull request to `master` (ADR 0037 says why), and pass.
 
-- [ ] CI on Windows, macOS and Linux, with Node 22 and 24 on Linux
-- [ ] Whatever differs between the three systems fixed where the suite finds it: paths, file locks, line endings, opening the browser
+- [x] CI on Windows, macOS and Linux, with Node 22 and 24 on Linux
+- [x] Whatever differs between the three systems fixed where the suite finds it: paths, file locks, line endings, opening the browser
 
 **D2 · One executable per system.** Done when CI builds, for every tag `v*` and on demand, single executables for Windows x64, macOS arm64 and x64, and Linux x64 and arm64; each one, started on its own system with no Node installed, opens a sample project, serves it on 127.0.0.1 and opens the browser; `visual-anything mcp` lists the MCP tools; and the README says how to set up Claude Desktop and Claude Code with the executable.
 
