@@ -385,3 +385,104 @@ describe('ScenarioSession, recording', () => {
     expect(setup.session.getState()).toMatchObject({ recording: false, mode: 'playing' });
   });
 });
+
+describe('ScenarioSession guided by Claude', () => {
+  /** The sample with a second scenario over the same view. */
+  function withSecond(): ProjectSnapshot {
+    const created = executeCommand(loadSample(), {
+      type: 'create-scenario',
+      scenario: {
+        id: 'second',
+        name: 'Second',
+        view: VIEW,
+        steps: [{ description: 'Reply.', relations: ['agent-to-api'] }],
+      },
+    });
+    if (!created.ok) throw new Error('The second scenario is not valid.');
+    return created.state;
+  }
+
+  it('opens a scenario at its first step, paused, even the one open', () => {
+    const setup = setUp();
+    open(setup);
+    setup.session.goTo(2);
+    setup.session.guide({ scenario: SCENARIO, action: 'open' });
+    expect(setup.session.getState()).toMatchObject({ scenario: SCENARIO, step: 0, mode: 'paused' });
+  });
+
+  it('plays the open scenario at once', () => {
+    const setup = setUp();
+    open(setup);
+    setup.session.guide({ scenario: SCENARIO, action: 'play' });
+    expect(setup.session.getState().mode).toBe('playing');
+  });
+
+  it('opens a scenario first, and plays it once its timeline comes', () => {
+    const setup = setUp();
+    setup.session.guide({ scenario: SCENARIO, action: 'play' });
+    expect(setup.session.getState()).toMatchObject({ scenario: SCENARIO, mode: 'paused' });
+    setup.sync();
+    expect(setup.session.getState()).toMatchObject({ scenario: SCENARIO, mode: 'playing' });
+  });
+
+  it('waits for the timeline of the scenario it opens, not the one open before', () => {
+    const setup = setUp(withSecond());
+    setup.session.open('second');
+    setup.sync();
+    setup.session.guide({ scenario: SCENARIO, action: 'go-to-step', step: 3 });
+    expect(setup.session.getState()).toMatchObject({ scenario: SCENARIO, step: 0 });
+    setup.sync();
+    expect(setup.session.getState()).toMatchObject({ step: 3, mode: 'stepping' });
+  });
+
+  it('plays once the scenario’s view opens', () => {
+    const setup = setUp();
+    setup.openView('elsewhere');
+    open(setup);
+    setup.session.guide({ scenario: SCENARIO, action: 'play' });
+    expect(setup.session.getState().mode).toBe('paused');
+    setup.openView(VIEW);
+    expect(setup.session.getState().mode).toBe('playing');
+  });
+
+  it('forgets what it was asked when the view does not open with the next change', () => {
+    const setup = setUp();
+    setup.openView('elsewhere');
+    setup.session.guide({ scenario: SCENARIO, action: 'play' });
+    setup.sync();
+    setup.openView(VIEW);
+    expect(setup.session.getState().mode).toBe('paused');
+  });
+
+  it('pauses, goes to a step, and steps forwards and back, as the person would', () => {
+    const setup = setUp();
+    open(setup);
+    const { session } = setup;
+    session.guide({ scenario: SCENARIO, action: 'play' });
+    session.guide({ scenario: SCENARIO, action: 'pause' });
+    expect(session.getState().mode).toBe('paused');
+    session.guide({ scenario: SCENARIO, action: 'go-to-step', step: 2 });
+    expect(session.getState()).toMatchObject({ step: 2, mode: 'stepping' });
+    session.guide({ scenario: SCENARIO, action: 'next-step' });
+    expect(session.getState().step).toBe(3);
+    session.guide({ scenario: SCENARIO, action: 'previous-step' });
+    session.guide({ scenario: SCENARIO, action: 'previous-step' });
+    expect(session.getState().step).toBe(1);
+  });
+
+  it('goes to the nearest step for one past the last', () => {
+    const setup = setUp();
+    open(setup);
+    setup.session.goToStep(99);
+    expect(setup.session.getState().step).toBe(4);
+  });
+
+  it('lets the person pause what Claude plays', () => {
+    const setup = setUp();
+    open(setup);
+    setup.session.guide({ scenario: SCENARIO, action: 'play' });
+    setup.session.toggle();
+    expect(setup.session.getState().mode).toBe('paused');
+    expect(setup.time.running).toBe(false);
+  });
+});

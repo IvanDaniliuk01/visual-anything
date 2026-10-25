@@ -2,22 +2,32 @@
  * Claude's live guidance on the open view. Its marks go to the canvas through the emphasis store, as
  * the "guidance" source; a move goes through the editor's `reveal`; and its caption, or what its marks
  * say when there is no caption, shows over the canvas with a way to dismiss it. Guidance names a view
- * when Claude wants it seen there: that view opens first. Nothing here changes the project.
+ * when Claude wants it seen there: that view opens first. Filters, focus mode and playback go to the
+ * explorer and the scenario session, as the person's would. Nothing here changes the project.
  */
 import type { ProjectSnapshot } from '@visual-anything/core';
 import { useContext, useEffect, useMemo, useRef } from 'react';
 import { EditorContext } from '../editor/EditorContext';
 import { useEmphasisSource } from '../editor/emphasis';
 import { LiveContext } from '../live/context';
+import type { ScenarioSession } from '../scenarios/session';
 import { NO_GUIDANCE } from './state';
 import { describeMarks, guidanceEmphasis, revealKeyFor } from './targets';
+import { useGuidedRequests } from './useGuidedRequests';
 import './guidance.css';
 
+interface GuidanceLayerProps {
+  /** The tab's scenario session, which Claude's playback guidance plays; absent, it is ignored. */
+  scenarios?: ScenarioSession;
+}
+
 /** Shows Claude's guidance; mount it inside the canvas area, within the shell's editor. */
-export function GuidanceLayer() {
+export function GuidanceLayer({ scenarios }: GuidanceLayerProps) {
   const live = useContext(LiveContext);
   const editor = useContext(EditorContext);
-  const { marks, panTo, caption } = live?.guidance ?? NO_GUIDANCE;
+  const guidance = live?.guidance ?? NO_GUIDANCE;
+  const { marks, panTo, caption } = guidance;
+  useGuidedRequests(guidance, editor, scenarios);
   const project = editor?.project;
   const scene = editor?.scene;
   const viewId = editor?.viewId;
