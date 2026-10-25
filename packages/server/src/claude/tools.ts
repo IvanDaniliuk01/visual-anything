@@ -315,6 +315,11 @@ Example: {
         }),
       )
       .optional(),
+    view: id()
+      .optional()
+      .describe(
+        'The view the person is building in: in a view with a scope, the new elements show there even where its rules would leave them out.',
+      ),
     label: z
       .string()
       .min(1)
@@ -1300,6 +1305,7 @@ function buildAdditions(
         appearance: element.appearance,
       }),
       ...(containers.length === 0 ? {} : { containers }),
+      ...(args.view === undefined ? {} : { inView: args.view }),
       ...(element.positions === undefined
         ? {}
         : {

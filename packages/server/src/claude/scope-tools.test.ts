@@ -135,3 +135,22 @@ describe('add_to_view and leave_out_of_view', () => {
     );
   });
 });
+
+describe('add_to_model in a view with a scope', () => {
+  it('shows what it makes in the view it is given, where the rules would leave it out', async () => {
+    await tools.value('set_scope', {
+      view: 'overview',
+      scope: { include: [{ kind: 'component', component: 'systems.service' }] },
+    });
+    const made = (await tools.value('add_to_model', {
+      view: 'overview',
+      elements: [{ ref: 'cache', component: 'systems.database', name: 'Cache' }],
+    })) as { ids: Record<string, string> };
+    expect(overview()?.scope?.added).toEqual([made.ids.cache]);
+    // Without a view, the rules alone decide.
+    const loose = (await tools.value('add_to_model', {
+      elements: [{ ref: 'queue', component: 'systems.database', name: 'Queue' }],
+    })) as { ids: Record<string, string> };
+    expect(overview()?.scope?.added).not.toContain(loose.ids.queue);
+  });
+});
