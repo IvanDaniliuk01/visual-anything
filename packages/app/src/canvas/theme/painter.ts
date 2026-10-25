@@ -28,7 +28,13 @@ import {
 } from '../draw';
 import type { Arrowhead } from '../geometry';
 import { RelationLabel } from '../labels';
-import { ARROW_WIDTH, type ArrowShape, type ElementShape, type NoteShape, type RelationLine } from '../scene';
+import {
+  ARROW_WIDTH,
+  type ArrowShape,
+  type ElementShape,
+  type NoteShape,
+  type RelationLine,
+} from '../scene';
 import type { RoutePiece } from '../tiles';
 import {
   noteColors,
@@ -84,7 +90,11 @@ export class Painter {
   }
 
   /** The pieces of routes in one tile, and the arrowheads of `ends`. */
-  routePieces(graphics: Graphics, pieces: readonly RoutePiece[], ends: readonly RelationLine[]): void {
+  routePieces(
+    graphics: Graphics,
+    pieces: readonly RoutePiece[],
+    ends: readonly RelationLine[],
+  ): void {
     drawRoutePieces(graphics, this.pieces(pieces), this.lines(ends));
   }
 
@@ -145,14 +155,17 @@ export class Painter {
     const recording: TextFactory | undefined = records
       ? (options, kind, room) => {
           const label = make(options, kind, room);
-          if (label) records.push({ label, role: kind === 'detail' ? 'detail' : 'name', shape: current });
+          if (label)
+            records.push({ label, role: kind === 'detail' ? 'detail' : 'name', shape: current });
           return label;
         }
       : undefined;
     const written: Container[] = [];
     for (const shape of shapes) {
       current = shape.key;
-      written.push(...writeShapeLabels([paintedShape(shape, this.name)], details, recording ?? make));
+      written.push(
+        ...writeShapeLabels([paintedShape(shape, this.name)], details, recording ?? make),
+      );
     }
     return written;
   }
@@ -187,7 +200,8 @@ export class Painter {
       const { label } = record;
       if (label.destroyed) continue;
       if (record.role === 'relation') {
-        if (label instanceof RelationLabel) label.paint(theme.relationLabelText, theme.relationLabelBack);
+        if (label instanceof RelationLabel)
+          label.paint(theme.relationLabelText, theme.relationLabelBack);
         else label.tint = theme.relationLabelText;
         continue;
       }
@@ -246,7 +260,10 @@ export interface GeometryBuilder {
  * Builds a drawing's geometry now, inside the frame's clock, rather than when it is first rendered:
  * its tessellation, and the buffers of one drawn on its own.
  */
-export function buildGeometry(builder: GeometryBuilder | undefined, context: GraphicsContext): void {
+export function buildGeometry(
+  builder: GeometryBuilder | undefined,
+  context: GraphicsContext,
+): void {
   if (!builder) return;
   if (!builder.updateGpuContext(context).isBatchable) builder.getContextRenderData(context);
 }
