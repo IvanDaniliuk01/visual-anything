@@ -322,13 +322,13 @@ Eight milestones in build order, each ending in something you can use, and Track
 - a package can be added from another project.
 
 - [x] Scopes in the schema and the core, test-first with property tests (ADR 0040): the rules, `added` and `leftOut`, the commands `set-scope`, `add-to-view` and `leave-out-of-view`, and new elements added to the scope of the view they were made in
-- [ ] Scopes on the canvas:
+- [x] Scopes on the canvas:
   - the scene, layout, aggregation, search and the perspective switcher follow the scope;
   - playback marks steps outside the view;
   - the inspector edits the scope;
   - the canvas and the outline offer Add to this view and Leave out of this view;
   - shapes count the relations that leave the view
-- [ ] Claude's tools to read and set a scope, and to add to a view or leave out of it
+- [x] Claude's tools to read and set a scope, and to add to a view or leave out of it
 - [ ] The import pipeline (ADR 0042): the plan, the mapping dialog, one batch, the report; Import… in the header, `visual-anything import <folder> <file>`, and Claude's `import_file`
 - [ ] The Mermaid reader: flowcharts, C4, ER and class diagrams
 - [ ] The spreadsheet (CSV and TSV) and JSON readers, importing again by a key
