@@ -264,6 +264,20 @@
             }
           ],
           "description": "The image its shapes show; `none` shows none, whatever is inherited."
+        },
+        "levels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LevelOfDetail"
+          },
+          "description": "What its shapes show as the canvas zooms (ADR 0055): levels by the scale each starts at, the highest reached winning, and below the first a silhouette. An empty list follows the canvas's own steps, whatever is inherited; left out, they are inherited.",
+          "maxItems": 8
+        },
+        "expandFrom": {
+          "type": "number",
+          "description": "The scale from which a collapsed container of this appearance expands while the canvas looks into it, collapsing again below 90% of it (ADR 0055). Neither is stored: the view keeps it collapsed.",
+          "exclusiveMinimum": 0,
+          "maximum": 8
         }
       },
       "additionalProperties": false,
@@ -458,6 +472,44 @@
       ],
       "additionalProperties": false,
       "description": "A picture an appearance shows."
+    },
+    "LevelOfDetail": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "number",
+          "description": "The scale it starts at, where 1 is 100%: it is entered there, and left only 10% below it.",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "shows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/LevelPart"
+          },
+          "description": "What shows from it: a silhouette only, or any of the name, the detail (its attributes and badges, written under the name), the contents or rows, and the image.",
+          "minItems": 1,
+          "maxItems": 5,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "from",
+        "shows"
+      ],
+      "additionalProperties": false,
+      "description": "What shapes show from a scale up."
+    },
+    "LevelPart": {
+      "type": "string",
+      "enum": [
+        "silhouette",
+        "name",
+        "detail",
+        "contents",
+        "image"
+      ],
+      "description": "One thing a shape shows at a level of detail."
     },
     "RelationType": {
       "type": "object",

@@ -264,3 +264,17 @@ export {
 export { MAX_FILTER_CONDITIONS, MAX_FILTER_TEXT } from './protocol';
 // Package code (ADR 0054): the hooks' types, the checks of their answers, the hash and the approvals.
 export * from './code';
+// Overlays, their legend, and levels of detail (ADR 0055).
+export * from './overlays';
+export { MAX_OVERLAY_CASES, MAX_OVERLAY_STOPS } from './commands/overlays';
+export {
+  LEVEL_EXIT,
+  LEVEL_PARTS,
+  MAX_LEVELS,
+  MAX_LEVEL_SCALE,
+  expandedAt,
+  levelAt,
+  levelsKey,
+  partsAt,
+  sortedLevels,
+} from './levels';

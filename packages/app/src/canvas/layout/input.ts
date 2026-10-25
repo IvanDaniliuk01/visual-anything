@@ -13,6 +13,7 @@ import type { Id } from '@visual-anything/schema';
 import { ESSENCE_ID } from '@visual-anything/schema';
 import { boundsOf, type Rect } from '../geometry';
 import { headerMiddle } from '../rows';
+import { laidOutRect } from '../overlays/decorate';
 import type { ElementShape, Scene } from '../scene';
 import { connectionPointsOf, handPortsOf } from './ports';
 import type { LayoutConnectionPoint, LayoutInput, LayoutRelation, LayoutShape } from './types';
@@ -100,8 +101,9 @@ export function layoutInput(
       free: isFree,
       x: shape.offset.x,
       y: shape.offset.y,
-      width: shape.rect.width,
-      height: shape.rect.height,
+      // Layout never sees an overlay's size (ADR 0055): the rectangle it gave the shape.
+      width: laidOutRect(shape).width,
+      height: laidOutRect(shape).height,
     };
     const stored = shape.storedSize;
     if (stored?.width !== undefined) laidShape.storedWidth = stored.width;

@@ -359,6 +359,22 @@ export interface Appearance {
   connectionPoints?: ConnectionPoint[];
   /** The image its shapes show; `none` shows none, whatever is inherited. */
   image?: AppearanceImage | 'none';
+  /**
+   * What its shapes show as the canvas zooms (ADR 0055): levels by the scale each starts at, the
+   * highest reached winning, and below the first a silhouette. An empty list follows the canvas's own
+   * steps, whatever is inherited; left out, they are inherited.
+   *
+   * @maxItems 8
+   */
+  levels?: LevelOfDetail[];
+  /**
+   * The scale from which a collapsed container of this appearance expands while the canvas looks into
+   * it, collapsing again below 90% of it (ADR 0055). Neither is stored: the view keeps it collapsed.
+   *
+   * @exclusiveMinimum 0
+   * @maximum 8
+   */
+  expandFrom?: number;
 }
 
 /** What a shape writes under its element's name, on one line. */
@@ -490,6 +506,11 @@ export interface ViewFile {
    * The part of the model this view shows (ADR 0040). Without it, the view shows the whole model.
    */
   scope?: Scope;
+  /**
+   * How this view colors, sizes, marks or fades its shapes by their attributes, in order (ADR 0055):
+   * each channel of a shape is set by the first overlay that sets it. Left out when it has none.
+   */
+  overlays?: Overlays;
 }
 
 /**
@@ -817,3 +838,306 @@ export interface Step {
   /** What the step produces. */
   dataOut?: JsonValue;
 }
+
+// ——— Overlays and levels of detail (ADR 0055) ———————————————————————————————————————————————————
+
+/** What shapes show from a scale up. */
+export interface LevelOfDetail {
+  /**
+   * The scale it starts at, where 1 is 100%: it is entered there, and left only 10% below it.
+   *
+   * @minimum 0
+   * @maximum 8
+   */
+  from: number;
+  /**
+   * What shows from it: a silhouette only, or any of the name, the detail (its attributes and badges,
+   * written under the name), the contents or rows, and the image.
+   *
+   * @minItems 1
+   * @maxItems 5
+   * @uniqueItems true
+   */
+  shows: LevelPart[];
+}
+
+/** One thing a shape shows at a level of detail. */
+export type LevelPart = 'silhouette' | 'name' | 'detail' | 'contents' | 'image';
+
+/**
+ * A view's overlays, in order.
+ *
+ * @minItems 1
+ * @maxItems 16
+ */
+export type Overlays = Overlay[];
+
+/**
+ * A rule of a view that colors, sizes, marks or fades its shapes by one attribute, which its legend
+ * explains (ADR 0055). It maps the attribute to one channel.
+ *
+ * @discriminator channel
+ */
+export type Overlay = FillOverlay | StrokeOverlay | SizeOverlay | BadgeOverlay | OpacityOverlay;
+
+/** What every overlay holds besides its channel and its mapping. */
+export interface OverlayParts {
+  /** Unique among the view's overlays. */
+  id: Id;
+  /**
+   * What the legend calls it; without one, the attribute's name.
+   *
+   * @minLength 1
+   * @maxLength 64
+   */
+  name?: string;
+  /** Whether it reads the attributes of elements and changes their shapes, or of relations and changes their lines. */
+  of: 'elements' | 'relations';
+  /**
+   * The attribute it reads: an element's or relation's own value, or the default its component or
+   * relation type gives.
+   *
+   * @minLength 1
+   */
+  attribute: string;
+  /** Whether it is turned off: kept in the view, it changes nothing and its legend is left out. */
+  off?: boolean;
+}
+
+/** Fills shapes with a color by the attribute; relations have no fill. */
+export interface FillOverlay extends OverlayParts {
+  channel: 'fill';
+  mapping: ColorMapping;
+}
+
+/** Strokes shapes, or relations' lines, with a color by the attribute. */
+export interface StrokeOverlay extends OverlayParts {
+  channel: 'stroke';
+  mapping: ColorMapping;
+}
+
+/**
+ * Sizes shapes, or relations' lines, by the attribute: a factor on a shape's width and height, around
+ * its middle, or on a line's width. Layout never sees it, and a shape that shows contents or rows, or
+ * is a row, keeps its size.
+ */
+export interface SizeOverlay extends OverlayParts {
+  channel: 'size';
+  mapping: SizeMapping;
+}
+
+/** Writes a short text by the attribute in a shape's detail, or after a relation's name. */
+export interface BadgeOverlay extends OverlayParts {
+  channel: 'badge';
+  mapping: BadgeMapping;
+}
+
+/** Fades shapes, or relations' lines, by the attribute, toward what they are drawn on. */
+export interface OpacityOverlay extends OverlayParts {
+  channel: 'opacity';
+  mapping: OpacityMapping;
+}
+
+/**
+ * A value an overlay compares an attribute with, as filters compare: text without minding case or the
+ * spaces around it, and numbers as numbers, so that "12" names 12 and "true" names true.
+ */
+export type CaseValue = string;
+
+/**
+ * What the legend says for a value or a stop; without it, the value.
+ *
+ * @minLength 1
+ * @maxLength 64
+ */
+export type LegendLabel = string;
+
+/**
+ * How an overlay of fill or stroke colors what it changes.
+ *
+ * @discriminator kind
+ */
+export type ColorMapping = ColorCases | ColorRamp | Passthrough;
+
+/** Values to colors, and the color of any other value, a missing one included. */
+export interface ColorCases {
+  kind: 'discrete';
+  /**
+   * @minItems 1
+   * @maxItems 64
+   */
+  cases: ColorCase[];
+  /** The color of any value no case names; left out, such a shape keeps its own. */
+  otherwise?: Color;
+}
+
+/** One value and its color. */
+export interface ColorCase {
+  value: CaseValue;
+  color: Color;
+  label?: LegendLabel;
+}
+
+/**
+ * Numbers to colors along a ramp: up to the first stop its color, from the last its color, and
+ * between two stops their colors mixed. A value that is no number keeps its own.
+ */
+export interface ColorRamp {
+  kind: 'continuous';
+  /**
+   * In increasing order of `at`, each at a number of its own.
+   *
+   * @minItems 2
+   * @maxItems 16
+   */
+  stops: ColorStop[];
+}
+
+/** A number and its color on a ramp. */
+export interface ColorStop {
+  at: number;
+  color: Color;
+  label?: LegendLabel;
+}
+
+/** The value is what the channel takes: a color written as #RRGGBB, or a badge's text. */
+export interface Passthrough {
+  kind: 'passthrough';
+}
+
+/**
+ * How an overlay of size sizes what it changes.
+ *
+ * @discriminator kind
+ */
+export type SizeMapping = SizeCases | SizeRamp;
+
+/** Values to sizes, and the size of any other value, a missing one included. */
+export interface SizeCases {
+  kind: 'discrete';
+  /**
+   * @minItems 1
+   * @maxItems 64
+   */
+  cases: SizeCase[];
+  otherwise?: SizeFactor;
+}
+
+/** One value and its size. */
+export interface SizeCase {
+  value: CaseValue;
+  size: SizeFactor;
+  label?: LegendLabel;
+}
+
+/** Numbers to sizes along a range: up to the first stop its size, from the last its size, between them in proportion. */
+export interface SizeRamp {
+  kind: 'continuous';
+  /**
+   * In increasing order of `at`, each at a number of its own.
+   *
+   * @minItems 2
+   * @maxItems 16
+   */
+  stops: SizeStop[];
+}
+
+/** A number and its size. */
+export interface SizeStop {
+  at: number;
+  size: SizeFactor;
+  label?: LegendLabel;
+}
+
+/**
+ * A factor on a shape's width and height, or on a line's width.
+ *
+ * @minimum 0.5
+ * @maximum 2
+ */
+export type SizeFactor = number;
+
+/**
+ * How an overlay of badges marks what it changes.
+ *
+ * @discriminator kind
+ */
+export type BadgeMapping = BadgeCases | Passthrough;
+
+/** Values to texts, and the text of any other value, a missing one included. */
+export interface BadgeCases {
+  kind: 'discrete';
+  /**
+   * @minItems 1
+   * @maxItems 64
+   */
+  cases: BadgeCase[];
+  otherwise?: OverlayBadgeText;
+}
+
+/** One value and the text it writes. */
+export interface BadgeCase {
+  value: CaseValue;
+  text: OverlayBadgeText;
+  label?: LegendLabel;
+}
+
+/**
+ * The short text an overlay writes.
+ *
+ * @minLength 1
+ * @maxLength 12
+ */
+export type OverlayBadgeText = string;
+
+/**
+ * How an overlay of opacity fades what it changes.
+ *
+ * @discriminator kind
+ */
+export type OpacityMapping = OpacityCases | OpacityRamp;
+
+/** Values to opacities, and the opacity of any other value, a missing one included. */
+export interface OpacityCases {
+  kind: 'discrete';
+  /**
+   * @minItems 1
+   * @maxItems 64
+   */
+  cases: OpacityCase[];
+  otherwise?: OpacityValue;
+}
+
+/** One value and its opacity. */
+export interface OpacityCase {
+  value: CaseValue;
+  opacity: OpacityValue;
+  label?: LegendLabel;
+}
+
+/** Numbers to opacities along a range: up to the first stop its opacity, from the last its opacity, between them in proportion. */
+export interface OpacityRamp {
+  kind: 'continuous';
+  /**
+   * In increasing order of `at`, each at a number of its own.
+   *
+   * @minItems 2
+   * @maxItems 16
+   */
+  stops: OpacityStop[];
+}
+
+/** A number and its opacity. */
+export interface OpacityStop {
+  at: number;
+  opacity: OpacityValue;
+  label?: LegendLabel;
+}
+
+/**
+ * How much of a shape or a line shows: from 0.1, faint, to 1, as it is.
+ *
+ * @minimum 0.1
+ * @maximum 1
+ */
+export type OpacityValue = number;

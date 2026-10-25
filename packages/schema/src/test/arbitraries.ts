@@ -14,7 +14,10 @@ import type {
   Element,
   FreeShape,
   JsonValue,
+  LevelOfDetail,
+  LevelPart,
   ModelFile,
+  Overlay,
   PackageFile,
   Perspective,
   Point,
@@ -98,6 +101,24 @@ const connectionPoint: fc.Arbitrary<ConnectionPoint> = fc.record(
   { noNullPrototype: true },
 );
 
+/** A scale of the canvas, from 0 to 8, as levels of detail start at (ADR 0055). */
+const scale = fc.double({ min: 0, max: 8, noNaN: true }).map((n) => (n === 0 ? 0 : n));
+
+/** A level of detail: a silhouette only, or some of the other parts, each once. */
+const level: fc.Arbitrary<LevelOfDetail> = fc.record(
+  {
+    from: scale,
+    shows: fc.oneof(
+      fc.constant<LevelPart[]>(['silhouette']),
+      fc.uniqueArray(fc.constantFrom<LevelPart>('name', 'detail', 'contents', 'image'), {
+        minLength: 1,
+        maxLength: 4,
+      }),
+    ),
+  },
+  { noNullPrototype: true },
+);
+
 const appearance: fc.Arbitrary<Appearance> = fc.record(
   {
     shape: fc.constantFrom('rectangle', 'rounded-rectangle', 'ellipse', 'cylinder', 'person'),
@@ -108,6 +129,8 @@ const appearance: fc.Arbitrary<Appearance> = fc.record(
     detail,
     contentsAsRows: fc.boolean(),
     connectionPoints: fc.array(connectionPoint, { maxLength: 3 }),
+    levels: fc.array(level, { maxLength: 3 }),
+    expandFrom: fc.double({ min: Number.MIN_VALUE, max: 8, noNaN: true }),
   },
   { requiredKeys: [], noNullPrototype: true },
 );
@@ -324,6 +347,81 @@ const scope: fc.Arbitrary<Scope> = fc
     };
   });
 
+/** A value an overlay compares an attribute with. */
+const caseValue = fc.oneof(text, finite.map(String), fc.boolean().map(String));
+const legendLabel = fc.string({ unit: 'binary', minLength: 1, maxLength: 64 });
+
+/** Stops of an overlay's range: two to four, at numbers in increasing order. */
+const stopsOf = <T>(value: fc.Arbitrary<T>) =>
+  fc
+    .uniqueArray(finite, { minLength: 2, maxLength: 4 })
+    .chain((ats) =>
+      fc.tuple(...ats.sort((a, b) => a - b).map((at) => value.map((to) => ({ at, to })))),
+    );
+
+/** A mapping of one channel: values to what the channel takes, a range of numbers, or the value itself. */
+function mappingOf<K extends string>(
+  key: K,
+  value: fc.Arbitrary<unknown>,
+  ranged: boolean,
+  passthrough: boolean,
+): fc.Arbitrary<unknown> {
+  const cases = fc.record(
+    {
+      kind: fc.constant('discrete' as const),
+      cases: fc.array(
+        fc.record(
+          { value: caseValue, [key]: value, label: legendLabel },
+          { requiredKeys: ['value', key], noNullPrototype: true },
+        ),
+        { minLength: 1, maxLength: 3 },
+      ),
+      otherwise: value,
+    },
+    { requiredKeys: ['kind', 'cases'], noNullPrototype: true },
+  );
+  const range = stopsOf(value).map((stops) => ({
+    kind: 'continuous' as const,
+    stops: stops.map(({ at, to }) => ({ at, [key]: to })),
+  }));
+  return fc.oneof(
+    cases,
+    ...(ranged ? [range] : []),
+    ...(passthrough ? [fc.constant({ kind: 'passthrough' as const })] : []),
+  );
+}
+
+const sizeFactor = fc.double({ min: 0.5, max: 2, noNaN: true });
+const opacityValue = fc.double({ min: 0.1, max: 1, noNaN: true });
+const overlayBadge = fc.string({ unit: 'binary', minLength: 1, maxLength: 12 });
+
+/** An overlay of each channel (ADR 0055). */
+const overlay: fc.Arbitrary<Overlay> = fc
+  .record(
+    {
+      id,
+      name: fc.string({ unit: 'binary', minLength: 1, maxLength: 64 }),
+      of: fc.constantFrom('elements' as const, 'relations' as const),
+      attribute: name,
+      off: fc.boolean(),
+      channelAndMapping: fc.oneof(
+        mappingOf('color', color, true, true).map((mapping) => ({ channel: 'fill', mapping })),
+        mappingOf('color', color, true, true).map((mapping) => ({ channel: 'stroke', mapping })),
+        mappingOf('size', sizeFactor, true, false).map((mapping) => ({ channel: 'size', mapping })),
+        mappingOf('text', overlayBadge, false, true).map((mapping) => ({
+          channel: 'badge',
+          mapping,
+        })),
+        mappingOf('opacity', opacityValue, true, false).map((mapping) => ({
+          channel: 'opacity',
+          mapping,
+        })),
+      ),
+    },
+    { requiredKeys: ['id', 'of', 'attribute', 'channelAndMapping'], noNullPrototype: true },
+  )
+  .map(({ channelAndMapping, ...rest }) => ({ ...rest, ...channelAndMapping }) as Overlay);
+
 const view: fc.Arbitrary<ViewFile> = fc.record(
   {
     id,
@@ -336,6 +434,7 @@ const view: fc.Arbitrary<ViewFile> = fc.record(
     stackingOrder,
     collapsed: fc.uniqueArray(id, { minLength: 1, maxLength: 3 }).map((each) => each.sort()),
     scope,
+    overlays: fc.array(overlay, { minLength: 1, maxLength: 3 }),
   },
   {
     requiredKeys: ['id', 'name', 'perspective', 'nestingRelationTypes', 'positions', 'freeShapes'],

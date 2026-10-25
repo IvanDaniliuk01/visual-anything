@@ -1,0 +1,82 @@
+/* The open view's overlays in the inspector (ADR 0055). */
+
+.inspector-overlay-list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inspector-overlay {
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+}
+
+.inspector-overlay-head {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.inspector-overlay-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.inspector-overlay-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.inspector-overlay-form {
+  display: grid;
+  gap: 0.1rem;
+  margin-top: 0.6rem;
+  padding: 0.55rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.35rem;
+}
+
+.inspector-overlay-rows {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.6rem 0 0;
+  padding: 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+}
+
+.inspector-overlay-rows > legend {
+  padding: 0 0.25rem;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.inspector-overlay-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.inspector-overlay-row input[type='color'] {
+  width: 2.2rem;
+  height: 1.8rem;
+  padding: 0;
+  border: 1px solid var(--control-border);
+  border-radius: 0.3rem;
+  background: var(--surface);
+}
+
+.inspector-overlay-row input[type='number'] {
+  width: 4.5rem;
+}
+
+.inspector-overlay-row label {
+  grid-column: 1 / 3;
+  color: var(--text);
+  font-size: var(--text-xs);
+}

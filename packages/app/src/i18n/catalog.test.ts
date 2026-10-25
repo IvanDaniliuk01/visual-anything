@@ -84,7 +84,8 @@ describe('the Spanish catalog', () => {
     expect([...keys].filter(([, times]) => times > 1).map(([key]) => key)).toEqual([]);
   });
 
-  it('warns about entries no code uses', () => {
+  // This and the next read every source file of the app, which takes seconds on a busy machine.
+  it('warns about entries no code uses', { timeout: 30_000 }, () => {
     const used = literalsOf(appSources());
     const unused = Object.keys(ui).filter((key) => !used.has(key));
     if (unused.length > 0) {
@@ -93,7 +94,7 @@ describe('the Spanish catalog', () => {
     expect(Array.isArray(unused)).toBe(true);
   });
 
-  it('has an entry for every text given to t() as it is written', () => {
+  it('has an entry for every text given to t() as it is written', { timeout: 30_000 }, () => {
     const catalog = { ...ui, ...messages };
     const missing = [...textsGivenToT(appSources())].filter(
       (key) => catalog[key] === undefined && !SAME_IN_SPANISH.has(key),

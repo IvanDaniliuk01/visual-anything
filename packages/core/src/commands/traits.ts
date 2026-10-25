@@ -14,6 +14,8 @@ import type {
   DetailRules,
   Id,
   JsonValue,
+  LevelOfDetail,
+  LevelPart,
   RelationAppearance,
   RelationTypeLimits,
 } from '@visual-anything/schema';
@@ -22,6 +24,7 @@ import { valueFitsType } from '../appearance';
 import { isColor, storedColor } from '../colors';
 import type { Definitions } from '../definitions';
 import { isId } from '../ids';
+import { LEVEL_PARTS, MAX_LEVELS, MAX_LEVEL_SCALE } from '../levels';
 import { reject } from './draft';
 
 /** The largest width or height an appearance may give. */
@@ -216,6 +219,62 @@ function capitalized(text: string): string {
 }
 
 /**
+ * The levels of detail an appearance declares (ADR 0055), stored in increasing order of the scale
+ * each starts at: at most 8, each at a scale of its own from 0 to 8, showing a silhouette only or
+ * some of the other parts, each once.
+ */
+function checkedLevels(value: unknown, of: string): LevelOfDetail[] {
+  if (!Array.isArray(value)) invalid(`The levels of ${of} must be a list.`);
+  if (value.length > MAX_LEVELS) {
+    invalid(`${capitalized(of)} declares at most ${MAX_LEVELS} levels.`);
+  }
+  const starts = new Set<number>();
+  const levels = value.map((level: unknown): LevelOfDetail => {
+    if (!isRecord(level)) invalid(`A level of ${of} must be an object.`);
+    onlyKeys(level, ['from', 'shows'], (key) => invalid(`A level of ${of} has no "${key}".`));
+    const { from, shows } = level;
+    if (typeof from !== 'number' || !Number.isFinite(from) || from < 0 || from > MAX_LEVEL_SCALE) {
+      invalid(`A level of ${of} starts at a scale from 0 to ${MAX_LEVEL_SCALE}.`);
+    }
+    if (starts.has(from)) invalid(`Two levels of ${of} start at ${from}.`);
+    starts.add(from);
+    const parts = LEVEL_PARTS as readonly unknown[];
+    if (
+      !Array.isArray(shows) ||
+      shows.length === 0 ||
+      !shows.every((part) => parts.includes(part))
+    ) {
+      invalid(
+        `The level at ${from} of ${of} shows a silhouette, or some of the name, the detail, the contents and the image.`,
+      );
+    }
+    const seen = new Set<unknown>();
+    for (const part of shows) {
+      if (seen.has(part)) invalid(`The level at ${from} of ${of} shows "${String(part)}" twice.`);
+      seen.add(part);
+    }
+    if (seen.has('silhouette') && seen.size > 1) {
+      invalid(`The level at ${from} of ${of} shows a silhouette only, with nothing else.`);
+    }
+    return { from, shows: [...(shows as LevelPart[])] };
+  });
+  return levels.sort((a, b) => a.from - b.from);
+}
+
+/** The scale from which an appearance's collapsed shapes expand as the canvas zooms into them. */
+function checkedExpandFrom(value: unknown, of: string): number {
+  if (
+    typeof value !== 'number' ||
+    !Number.isFinite(value) ||
+    value <= 0 ||
+    value > MAX_LEVEL_SCALE
+  ) {
+    invalid(`${capitalized(of)} expands from a scale above 0 and at most ${MAX_LEVEL_SCALE}.`);
+  }
+  return value;
+}
+
+/**
  * How each trait of an appearance is checked, given the value stored for it, if any. It names every
  * trait: adding one to `Appearance` without a check here does not compile.
  */
@@ -235,6 +294,8 @@ const TRAIT_CHECKS: {
   contentsAsRows: (value, of) => checkedBoolean(value, 'draws its contents as rows', of),
   connectionPoints: checkedConnectionPoints,
   image: checkedImage,
+  levels: checkedLevels,
+  expandFrom: checkedExpandFrom,
 };
 
 /** Refuses an appearance that draws rows on a shape that cannot, both set in it. */

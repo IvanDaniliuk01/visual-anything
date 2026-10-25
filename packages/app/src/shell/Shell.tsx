@@ -10,6 +10,12 @@ import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
 import { GuidanceLayer } from '../guidance/GuidanceLayer';
 import { useSelection } from '../editor/useSelection';
 import { buildScene, type Scene } from '../canvas/scene';
+import {
+  ZoomExpansion,
+  ZoomExpansionContext,
+  useExpandedByZoom,
+  useFollowZoom,
+} from '../canvas/overlays/useZoomExpansion';
 import { useExplorer } from '../canvas/useExplorer';
 import { definitionsIn } from '@visual-anything/core';
 import { useT, type Translator } from '../i18n';
@@ -52,11 +58,14 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the definitions follow the packages and the project appearances only
     [project.packages, project.project.appearances],
   );
+  // The collapsed containers the canvas shows expanded as it zooms into them (ADR 0055).
+  const [zoom] = useState(() => new ZoomExpansion());
+  const expanded = useExpandedByZoom(zoom, view?.id);
   const scene = useMemo(
-    () => (view ? buildScene(project, view.id) : undefined),
+    () => (view ? buildScene(project, view.id, expanded) : undefined),
     // The canvas writes built-in names and its own words in the language read in (ADR-0038).
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the language is read by buildScene
-    [project, view, t.language],
+    [project, view, t.language, expanded],
   );
   const [revealed, setRevealed] = useState<{ key: string; request: number }>();
   const reveal = useCallback((key: string) => {
@@ -114,6 +123,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   // The view state: what the tab's address holds and Copy address copies, and where search jumps.
   const live = useContext(LiveContext);
   const [canvas, setCanvas] = useState<CanvasCamera>();
+  useFollowZoom(zoom, project, view, scene, canvas);
   const viewState = useViewState({
     project,
     viewId: view?.id,
@@ -134,59 +144,61 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
     <EditorContext.Provider value={editor}>
       <DefinitionProvider>
         <EmphasisContext.Provider value={emphasis}>
-          <div className="shell">
-            <Header
-              projectName={project.project.name}
-              viewName={view?.name}
-              actions={
-                <>
-                  {view && <CopyAddress link={viewState} />}
-                  {exportTool}
-                </>
-              }
-            />
-            {notice !== undefined && (
-              <p className="shell-notice" role="alert">
-                {notice}
-              </p>
-            )}
-            <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
-            <main className="canvas-area" aria-labelledby={canvasHeading}>
-              <h2 id={canvasHeading} className="visually-hidden">
-                {view ? view.name : t('Canvas')}
-              </h2>
-              {view && scene ? (
-                <ImageSourceContext value={images}>
-                  <CanvasArea
-                    project={project}
-                    view={view}
-                    scene={scene}
-                    label={describeDrawing(t, view, scene)}
-                    selection={selection}
-                    onSelect={setSelection}
-                    {...(onCommand ? { onCommand } : {})}
-                    {...(revealed ? { revealed } : {})}
-                    scenarios={scenarios}
-                    theme={theme}
-                    onThemeShown={onThemeShown}
-                    onCanvas={setCanvas}
-                  />
-                </ImageSourceContext>
-              ) : (
-                <p className="canvas-message">{t('There is no view to draw.')}</p>
-              )}
-              <GuidanceLayer scenarios={scenarios} />
-              <FindBar
-                project={project}
-                definitions={definitions}
-                viewId={view?.id}
-                goTo={viewState.goTo}
+          <ZoomExpansionContext value={zoom}>
+            <div className="shell">
+              <Header
+                projectName={project.project.name}
+                viewName={view?.name}
+                actions={
+                  <>
+                    {view && <CopyAddress link={viewState} />}
+                    {exportTool}
+                  </>
+                }
               />
-            </main>
-            <Inspector view={view} scene={scene} definitions={definitions} />
-            <ScenarioPanel session={scenarios} />
-            <CodeApproval />
-          </div>
+              {notice !== undefined && (
+                <p className="shell-notice" role="alert">
+                  {notice}
+                </p>
+              )}
+              <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
+              <main className="canvas-area" aria-labelledby={canvasHeading}>
+                <h2 id={canvasHeading} className="visually-hidden">
+                  {view ? view.name : t('Canvas')}
+                </h2>
+                {view && scene ? (
+                  <ImageSourceContext value={images}>
+                    <CanvasArea
+                      project={project}
+                      view={view}
+                      scene={scene}
+                      label={describeDrawing(t, view, scene)}
+                      selection={selection}
+                      onSelect={setSelection}
+                      {...(onCommand ? { onCommand } : {})}
+                      {...(revealed ? { revealed } : {})}
+                      scenarios={scenarios}
+                      theme={theme}
+                      onThemeShown={onThemeShown}
+                      onCanvas={setCanvas}
+                    />
+                  </ImageSourceContext>
+                ) : (
+                  <p className="canvas-message">{t('There is no view to draw.')}</p>
+                )}
+                <GuidanceLayer scenarios={scenarios} />
+                <FindBar
+                  project={project}
+                  definitions={definitions}
+                  viewId={view?.id}
+                  goTo={viewState.goTo}
+                />
+              </main>
+              <Inspector view={view} scene={scene} definitions={definitions} />
+              <ScenarioPanel session={scenarios} />
+              <CodeApproval />
+            </div>
+          </ZoomExpansionContext>
         </EmphasisContext.Provider>
       </DefinitionProvider>
     </EditorContext.Provider>

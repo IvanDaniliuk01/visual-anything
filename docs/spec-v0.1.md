@@ -364,7 +364,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 - the reading benchmark of 100,000 elements and 200,000 relations meets its marks.
 
 - [ ] Overlays in the schema and the core (discrete, continuous and passthrough mappings to fill, stroke, size, badge and opacity), with their commands; the scene applies them; the legend on the canvas and in exports; Claude's tools
-- [ ] Levels of detail in appearances, with their inheritance and hysteresis; the renderer switches levels by tile; expanding and collapsing by zoom
+- [x] Levels of detail in appearances, with their inheritance and hysteresis; the renderer switches levels by tile; expanding and collapsing by zoom
 - [ ] External identifiers in the schema; search by identifier; crosswalk tables for importers
 - [ ] The destination attribute type: the mark, following it, the confirmation, opening another project at a view state through its own program, and the checks on opening
 - [ ] Live values: protocol version 6, the program's store and limits, the app's lookup with marks and age, Keep as attribute, `set_live_values` and `visual-anything live`

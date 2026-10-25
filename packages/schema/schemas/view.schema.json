@@ -54,6 +54,10 @@
     "scope": {
       "$ref": "#/definitions/Scope",
       "description": "The part of the model this view shows (ADR 0040). Without it, the view shows the whole model."
+    },
+    "overlays": {
+      "$ref": "#/definitions/Overlays",
+      "description": "How this view colors, sizes, marks or fades its shapes by their attributes, in order (ADR 0055): each channel of a shape is set by the first overlay that sets it. Left out when it has none."
     }
   },
   "required": [
@@ -700,6 +704,927 @@
       "minItems": 1,
       "maxItems": 100000,
       "uniqueItems": true
+    },
+    "Overlays": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Overlay"
+      },
+      "description": "A view's overlays, in order.",
+      "minItems": 1,
+      "maxItems": 16
+    },
+    "Overlay": {
+      "type": "object",
+      "properties": {
+        "channel": {
+          "enum": [
+            "fill",
+            "stroke",
+            "size",
+            "badge",
+            "opacity"
+          ]
+        }
+      },
+      "required": [
+        "channel"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "channel": {
+                "type": "string",
+                "const": "fill"
+              }
+            },
+            "required": [
+              "channel"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/FillOverlay"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "channel": {
+                "type": "string",
+                "const": "stroke"
+              }
+            },
+            "required": [
+              "channel"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/StrokeOverlay"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "channel": {
+                "type": "string",
+                "const": "size"
+              }
+            },
+            "required": [
+              "channel"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/SizeOverlay"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "channel": {
+                "type": "string",
+                "const": "badge"
+              }
+            },
+            "required": [
+              "channel"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/BadgeOverlay"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "channel": {
+                "type": "string",
+                "const": "opacity"
+              }
+            },
+            "required": [
+              "channel"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/OpacityOverlay"
+          }
+        }
+      ],
+      "description": "A rule of a view that colors, sizes, marks or fades its shapes by one attribute, which its legend explains (ADR 0055). It maps the attribute to one channel."
+    },
+    "FillOverlay": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id",
+          "description": "Unique among the view's overlays."
+        },
+        "name": {
+          "type": "string",
+          "description": "What the legend calls it; without one, the attribute's name.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "of": {
+          "type": "string",
+          "enum": [
+            "elements",
+            "relations"
+          ],
+          "description": "Whether it reads the attributes of elements and changes their shapes, or of relations and changes their lines."
+        },
+        "attribute": {
+          "type": "string",
+          "description": "The attribute it reads: an element's or relation's own value, or the default its component or relation type gives.",
+          "minLength": 1
+        },
+        "off": {
+          "type": "boolean",
+          "description": "Whether it is turned off: kept in the view, it changes nothing and its legend is left out."
+        },
+        "channel": {
+          "type": "string",
+          "const": "fill"
+        },
+        "mapping": {
+          "$ref": "#/definitions/ColorMapping"
+        }
+      },
+      "required": [
+        "attribute",
+        "channel",
+        "id",
+        "mapping",
+        "of"
+      ],
+      "additionalProperties": false,
+      "description": "Fills shapes with a color by the attribute; relations have no fill."
+    },
+    "ColorMapping": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "discrete",
+            "continuous",
+            "passthrough"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "discrete"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/ColorCases"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "continuous"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/ColorRamp"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "passthrough"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/Passthrough"
+          }
+        }
+      ],
+      "description": "How an overlay of fill or stroke colors what it changes."
+    },
+    "ColorCases": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "discrete"
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ColorCase"
+          },
+          "minItems": 1,
+          "maxItems": 64
+        },
+        "otherwise": {
+          "$ref": "#/definitions/Color",
+          "description": "The color of any value no case names; left out, such a shape keeps its own."
+        }
+      },
+      "required": [
+        "kind",
+        "cases"
+      ],
+      "additionalProperties": false,
+      "description": "Values to colors, and the color of any other value, a missing one included."
+    },
+    "ColorCase": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "$ref": "#/definitions/CaseValue"
+        },
+        "color": {
+          "$ref": "#/definitions/Color"
+        },
+        "label": {
+          "$ref": "#/definitions/LegendLabel"
+        }
+      },
+      "required": [
+        "value",
+        "color"
+      ],
+      "additionalProperties": false,
+      "description": "One value and its color."
+    },
+    "CaseValue": {
+      "type": "string",
+      "description": "A value an overlay compares an attribute with, as filters compare: text without minding case or the spaces around it, and numbers as numbers, so that \"12\" names 12 and \"true\" names true."
+    },
+    "LegendLabel": {
+      "type": "string",
+      "description": "What the legend says for a value or a stop; without it, the value.",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "ColorRamp": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "continuous"
+        },
+        "stops": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ColorStop"
+          },
+          "description": "In increasing order of `at`, each at a number of its own.",
+          "minItems": 2,
+          "maxItems": 16
+        }
+      },
+      "required": [
+        "kind",
+        "stops"
+      ],
+      "additionalProperties": false,
+      "description": "Numbers to colors along a ramp: up to the first stop its color, from the last its color, and between two stops their colors mixed. A value that is no number keeps its own."
+    },
+    "ColorStop": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": "number"
+        },
+        "color": {
+          "$ref": "#/definitions/Color"
+        },
+        "label": {
+          "$ref": "#/definitions/LegendLabel"
+        }
+      },
+      "required": [
+        "at",
+        "color"
+      ],
+      "additionalProperties": false,
+      "description": "A number and its color on a ramp."
+    },
+    "Passthrough": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "passthrough"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "additionalProperties": false,
+      "description": "The value is what the channel takes: a color written as #RRGGBB, or a badge's text."
+    },
+    "StrokeOverlay": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id",
+          "description": "Unique among the view's overlays."
+        },
+        "name": {
+          "type": "string",
+          "description": "What the legend calls it; without one, the attribute's name.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "of": {
+          "type": "string",
+          "enum": [
+            "elements",
+            "relations"
+          ],
+          "description": "Whether it reads the attributes of elements and changes their shapes, or of relations and changes their lines."
+        },
+        "attribute": {
+          "type": "string",
+          "description": "The attribute it reads: an element's or relation's own value, or the default its component or relation type gives.",
+          "minLength": 1
+        },
+        "off": {
+          "type": "boolean",
+          "description": "Whether it is turned off: kept in the view, it changes nothing and its legend is left out."
+        },
+        "channel": {
+          "type": "string",
+          "const": "stroke"
+        },
+        "mapping": {
+          "$ref": "#/definitions/ColorMapping"
+        }
+      },
+      "required": [
+        "attribute",
+        "channel",
+        "id",
+        "mapping",
+        "of"
+      ],
+      "additionalProperties": false,
+      "description": "Strokes shapes, or relations' lines, with a color by the attribute."
+    },
+    "SizeOverlay": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id",
+          "description": "Unique among the view's overlays."
+        },
+        "name": {
+          "type": "string",
+          "description": "What the legend calls it; without one, the attribute's name.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "of": {
+          "type": "string",
+          "enum": [
+            "elements",
+            "relations"
+          ],
+          "description": "Whether it reads the attributes of elements and changes their shapes, or of relations and changes their lines."
+        },
+        "attribute": {
+          "type": "string",
+          "description": "The attribute it reads: an element's or relation's own value, or the default its component or relation type gives.",
+          "minLength": 1
+        },
+        "off": {
+          "type": "boolean",
+          "description": "Whether it is turned off: kept in the view, it changes nothing and its legend is left out."
+        },
+        "channel": {
+          "type": "string",
+          "const": "size"
+        },
+        "mapping": {
+          "$ref": "#/definitions/SizeMapping"
+        }
+      },
+      "required": [
+        "attribute",
+        "channel",
+        "id",
+        "mapping",
+        "of"
+      ],
+      "additionalProperties": false,
+      "description": "Sizes shapes, or relations' lines, by the attribute: a factor on a shape's width and height, around its middle, or on a line's width. Layout never sees it, and a shape that shows contents or rows, or is a row, keeps its size."
+    },
+    "SizeMapping": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "discrete",
+            "continuous"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "discrete"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/SizeCases"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "continuous"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/SizeRamp"
+          }
+        }
+      ],
+      "description": "How an overlay of size sizes what it changes."
+    },
+    "SizeCases": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "discrete"
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SizeCase"
+          },
+          "minItems": 1,
+          "maxItems": 64
+        },
+        "otherwise": {
+          "$ref": "#/definitions/SizeFactor"
+        }
+      },
+      "required": [
+        "kind",
+        "cases"
+      ],
+      "additionalProperties": false,
+      "description": "Values to sizes, and the size of any other value, a missing one included."
+    },
+    "SizeCase": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "$ref": "#/definitions/CaseValue"
+        },
+        "size": {
+          "$ref": "#/definitions/SizeFactor"
+        },
+        "label": {
+          "$ref": "#/definitions/LegendLabel"
+        }
+      },
+      "required": [
+        "value",
+        "size"
+      ],
+      "additionalProperties": false,
+      "description": "One value and its size."
+    },
+    "SizeFactor": {
+      "type": "number",
+      "description": "A factor on a shape's width and height, or on a line's width.",
+      "minimum": 0.5,
+      "maximum": 2
+    },
+    "SizeRamp": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "continuous"
+        },
+        "stops": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SizeStop"
+          },
+          "description": "In increasing order of `at`, each at a number of its own.",
+          "minItems": 2,
+          "maxItems": 16
+        }
+      },
+      "required": [
+        "kind",
+        "stops"
+      ],
+      "additionalProperties": false,
+      "description": "Numbers to sizes along a range: up to the first stop its size, from the last its size, between them in proportion."
+    },
+    "SizeStop": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": "number"
+        },
+        "size": {
+          "$ref": "#/definitions/SizeFactor"
+        },
+        "label": {
+          "$ref": "#/definitions/LegendLabel"
+        }
+      },
+      "required": [
+        "at",
+        "size"
+      ],
+      "additionalProperties": false,
+      "description": "A number and its size."
+    },
+    "BadgeOverlay": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id",
+          "description": "Unique among the view's overlays."
+        },
+        "name": {
+          "type": "string",
+          "description": "What the legend calls it; without one, the attribute's name.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "of": {
+          "type": "string",
+          "enum": [
+            "elements",
+            "relations"
+          ],
+          "description": "Whether it reads the attributes of elements and changes their shapes, or of relations and changes their lines."
+        },
+        "attribute": {
+          "type": "string",
+          "description": "The attribute it reads: an element's or relation's own value, or the default its component or relation type gives.",
+          "minLength": 1
+        },
+        "off": {
+          "type": "boolean",
+          "description": "Whether it is turned off: kept in the view, it changes nothing and its legend is left out."
+        },
+        "channel": {
+          "type": "string",
+          "const": "badge"
+        },
+        "mapping": {
+          "$ref": "#/definitions/BadgeMapping"
+        }
+      },
+      "required": [
+        "attribute",
+        "channel",
+        "id",
+        "mapping",
+        "of"
+      ],
+      "additionalProperties": false,
+      "description": "Writes a short text by the attribute in a shape's detail, or after a relation's name."
+    },
+    "BadgeMapping": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "discrete",
+            "passthrough"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "discrete"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/BadgeCases"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "passthrough"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/Passthrough"
+          }
+        }
+      ],
+      "description": "How an overlay of badges marks what it changes."
+    },
+    "BadgeCases": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "discrete"
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/BadgeCase"
+          },
+          "minItems": 1,
+          "maxItems": 64
+        },
+        "otherwise": {
+          "$ref": "#/definitions/OverlayBadgeText"
+        }
+      },
+      "required": [
+        "kind",
+        "cases"
+      ],
+      "additionalProperties": false,
+      "description": "Values to texts, and the text of any other value, a missing one included."
+    },
+    "BadgeCase": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "$ref": "#/definitions/CaseValue"
+        },
+        "text": {
+          "$ref": "#/definitions/OverlayBadgeText"
+        },
+        "label": {
+          "$ref": "#/definitions/LegendLabel"
+        }
+      },
+      "required": [
+        "value",
+        "text"
+      ],
+      "additionalProperties": false,
+      "description": "One value and the text it writes."
+    },
+    "OverlayBadgeText": {
+      "type": "string",
+      "description": "The short text an overlay writes.",
+      "minLength": 1,
+      "maxLength": 12
+    },
+    "OpacityOverlay": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id",
+          "description": "Unique among the view's overlays."
+        },
+        "name": {
+          "type": "string",
+          "description": "What the legend calls it; without one, the attribute's name.",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "of": {
+          "type": "string",
+          "enum": [
+            "elements",
+            "relations"
+          ],
+          "description": "Whether it reads the attributes of elements and changes their shapes, or of relations and changes their lines."
+        },
+        "attribute": {
+          "type": "string",
+          "description": "The attribute it reads: an element's or relation's own value, or the default its component or relation type gives.",
+          "minLength": 1
+        },
+        "off": {
+          "type": "boolean",
+          "description": "Whether it is turned off: kept in the view, it changes nothing and its legend is left out."
+        },
+        "channel": {
+          "type": "string",
+          "const": "opacity"
+        },
+        "mapping": {
+          "$ref": "#/definitions/OpacityMapping"
+        }
+      },
+      "required": [
+        "attribute",
+        "channel",
+        "id",
+        "mapping",
+        "of"
+      ],
+      "additionalProperties": false,
+      "description": "Fades shapes, or relations' lines, by the attribute, toward what they are drawn on."
+    },
+    "OpacityMapping": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "discrete",
+            "continuous"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "discrete"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/OpacityCases"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "continuous"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/OpacityRamp"
+          }
+        }
+      ],
+      "description": "How an overlay of opacity fades what it changes."
+    },
+    "OpacityCases": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "discrete"
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/OpacityCase"
+          },
+          "minItems": 1,
+          "maxItems": 64
+        },
+        "otherwise": {
+          "$ref": "#/definitions/OpacityValue"
+        }
+      },
+      "required": [
+        "kind",
+        "cases"
+      ],
+      "additionalProperties": false,
+      "description": "Values to opacities, and the opacity of any other value, a missing one included."
+    },
+    "OpacityCase": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "$ref": "#/definitions/CaseValue"
+        },
+        "opacity": {
+          "$ref": "#/definitions/OpacityValue"
+        },
+        "label": {
+          "$ref": "#/definitions/LegendLabel"
+        }
+      },
+      "required": [
+        "value",
+        "opacity"
+      ],
+      "additionalProperties": false,
+      "description": "One value and its opacity."
+    },
+    "OpacityValue": {
+      "type": "number",
+      "description": "How much of a shape or a line shows: from 0.1, faint, to 1, as it is.",
+      "minimum": 0.1,
+      "maximum": 1
+    },
+    "OpacityRamp": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "continuous"
+        },
+        "stops": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/OpacityStop"
+          },
+          "description": "In increasing order of `at`, each at a number of its own.",
+          "minItems": 2,
+          "maxItems": 16
+        }
+      },
+      "required": [
+        "kind",
+        "stops"
+      ],
+      "additionalProperties": false,
+      "description": "Numbers to opacities along a range: up to the first stop its opacity, from the last its opacity, between them in proportion."
+    },
+    "OpacityStop": {
+      "type": "object",
+      "properties": {
+        "at": {
+          "type": "number"
+        },
+        "opacity": {
+          "$ref": "#/definitions/OpacityValue"
+        },
+        "label": {
+          "$ref": "#/definitions/LegendLabel"
+        }
+      },
+      "required": [
+        "at",
+        "opacity"
+      ],
+      "additionalProperties": false,
+      "description": "A number and its opacity."
     }
   }
 }

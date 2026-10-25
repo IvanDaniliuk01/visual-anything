@@ -62,6 +62,9 @@ export type ProblemCode =
   | 'code-off'
   | 'code-answer-dropped'
   | 'code-check'
+  // Overlays (ADR 0055): one a view does not have, and a value outside what an overlay allows.
+  | 'unknown-overlay'
+  | 'invalid-overlay'
   // Refusals of the local program, which keeps the history and the files.
   | 'nothing-to-undo'
   | 'nothing-to-redo'
