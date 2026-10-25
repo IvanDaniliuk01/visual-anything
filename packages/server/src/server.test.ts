@@ -764,6 +764,8 @@ describe('closing', () => {
       app: { mode: 'static', dir: appDir },
     });
     const socket = connect({ host: '127.0.0.1', port: running.port });
+    // Closing may reset the connection, as macOS does; that is the close this test waits for.
+    socket.on('error', () => undefined);
     await new Promise<void>((resolve) => socket.once('connect', () => resolve()));
     const closed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
 
