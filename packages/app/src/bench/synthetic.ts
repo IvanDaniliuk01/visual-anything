@@ -9,9 +9,14 @@
  * - `grid`: Services directly in World, side by side and touching, a hundred to a row.
  * - `cascade`: four fifths of the elements in systems, and the rest Services directly in World below
  *   them, in one cascade where each overlaps the ones before it.
+ *
+ * With `images`, the project's own packages hold pictures and its elements show them (`images.ts`
+ * beside this file): 20 distinct SVG icons, 4 of them at the cleaner's caps on drawing cost, and 300
+ * distinct bitmaps placed as drawings.
  */
 import { SYSTEMS, type ProjectSnapshot } from '@visual-anything/core';
-import type { Element, Relation, ShapePosition } from '@visual-anything/schema';
+import type { Element, PackageFile, Relation, ShapePosition } from '@visual-anything/schema';
+import { withSyntheticImages } from './images';
 
 /** How the synthetic shapes overlap. */
 export type Overlap = 'none' | 'stairs' | 'grid' | 'cascade';
@@ -27,6 +32,8 @@ export interface SyntheticOptions {
   relationsPerElement?: number;
   /** How the shapes overlap; by default, only through containment. */
   overlap?: Overlap;
+  /** Whether its elements show pictures, from packages of the project's own. */
+  images?: boolean;
 }
 
 const COMPONENTS = [
@@ -107,10 +114,21 @@ export function syntheticProject(options: SyntheticOptions): ProjectSnapshot {
     relations.push({ id: `relation-${each}`, relationType, from, to, ...(name ? { name } : {}) });
   }
 
+  const pictured = options.images
+    ? withSyntheticImages(elements, services)
+    : { elements, packages: [] as PackageFile[] };
   return {
-    project: { schemaVersion: 1, name: `${options.elements} elements`, packages: ['systems'] },
-    model: { world: { id: 'world', component: 'essence', name: 'World' }, elements, relations },
-    packages: [SYSTEMS],
+    project: {
+      schemaVersion: 1,
+      name: `${options.elements} elements`,
+      packages: ['systems', ...pictured.packages.map((file) => file.id)],
+    },
+    model: {
+      world: { id: 'world', component: 'essence', name: 'World' },
+      elements: pictured.elements,
+      relations,
+    },
+    packages: [SYSTEMS, ...pictured.packages],
     views: [
       {
         id: 'everything',

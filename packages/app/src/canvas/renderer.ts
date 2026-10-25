@@ -634,6 +634,11 @@ export class CanvasRenderer {
     this.requestRender();
   }
 
+  /** How many textures the pictures take now, and the estimate of their GPU memory, in bytes. */
+  get imageMemory(): { textures: number; bytes: number } {
+    return { textures: this.pictures.store.size, bytes: this.pictures.store.gpuBytes };
+  }
+
   /** How the canvas is seen now, for the image drawings, the frame having spent `spent` ms so far. */
   private imageView(spent: number): ImageView {
     return {
