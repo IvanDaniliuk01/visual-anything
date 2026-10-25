@@ -1,0 +1,475 @@
+{
+  "_stage": "layouted",
+  "projectId": "shop",
+  "project": { "id": "shop", "title": "Shop" },
+  "specification": {
+    "tags": { "next": {} },
+    "elements": {
+      "actor": { "style": { "shape": "person" } },
+      "system": { "style": {} },
+      "container": { "style": {} },
+      "component": { "style": {} },
+      "store": { "style": { "shape": "storage" } }
+    },
+    "relationships": { "async": { "line": "dashed" } },
+    "deployments": { "environment": { "style": {} }, "vm": { "style": {} } }
+  },
+  "elements": {
+    "customer": {
+      "id": "customer",
+      "kind": "actor",
+      "title": "Customer",
+      "description": { "txt": "Someone who buys from the shop." },
+      "style": { "shape": "person" }
+    },
+    "shop": {
+      "id": "shop",
+      "kind": "system",
+      "title": "Shop",
+      "summary": { "txt": "Sells things online." },
+      "style": {}
+    },
+    "shop.frontend": {
+      "id": "shop.frontend",
+      "kind": "container",
+      "title": "Frontend",
+      "technology": "React",
+      "tags": ["next"],
+      "links": [
+        { "url": "https://example.com/frontend", "title": "Repository" },
+        { "url": "vscode://file/frontend" }
+      ],
+      "metadata": { "owner": "Web team", "regions": ["eu", "us"] },
+      "style": {}
+    },
+    "shop.backend": {
+      "id": "shop.backend",
+      "kind": "container",
+      "title": "Backend",
+      "technology": "Node.js",
+      "style": {}
+    },
+    "shop.backend.api": {
+      "id": "shop.backend.api",
+      "kind": "component",
+      "title": "API",
+      "description": { "md": "Serves the **frontend**." },
+      "style": {}
+    },
+    "shop.db": {
+      "id": "shop.db",
+      "kind": "store",
+      "title": "Orders",
+      "style": { "shape": "storage" }
+    },
+    "payments": { "id": "payments", "kind": "system", "title": "Payments", "style": {} }
+  },
+  "relations": {
+    "r1": {
+      "id": "r1",
+      "source": { "model": "customer" },
+      "target": { "model": "shop.frontend" },
+      "title": "uses"
+    },
+    "r2": {
+      "id": "r2",
+      "source": { "model": "shop.frontend" },
+      "target": { "model": "shop.backend.api" },
+      "title": "calls",
+      "technology": "REST"
+    },
+    "r3": {
+      "id": "r3",
+      "source": { "model": "shop.backend.api" },
+      "target": { "model": "shop.db" },
+      "title": "reads and writes"
+    },
+    "r4": {
+      "id": "r4",
+      "source": { "model": "shop.backend" },
+      "target": { "model": "payments" },
+      "kind": "async",
+      "title": "charges",
+      "tags": ["next"]
+    }
+  },
+  "globals": { "predicates": {}, "dynamicPredicates": {}, "styles": {} },
+  "imports": {},
+  "deployments": {
+    "elements": {
+      "prod": { "id": "prod", "kind": "environment", "title": "Production", "style": {} },
+      "prod.vm1": {
+        "id": "prod.vm1",
+        "kind": "vm",
+        "title": "VM 1",
+        "technology": "Ubuntu",
+        "style": {}
+      },
+      "prod.vm1.api": { "id": "prod.vm1.api", "element": "shop.backend", "style": {} },
+      "prod.vm2": { "id": "prod.vm2", "kind": "vm", "title": "VM 2", "style": {} },
+      "prod.vm2.db": {
+        "id": "prod.vm2.db",
+        "element": "shop.db",
+        "title": "Primary orders",
+        "style": {}
+      }
+    },
+    "relations": {
+      "d1": {
+        "id": "d1",
+        "source": { "deployment": "prod.vm1.api" },
+        "target": { "deployment": "prod.vm2.db" },
+        "title": "replicates to",
+        "technology": "TCP"
+      }
+    }
+  },
+  "views": {
+    "index": {
+      "_stage": "layouted",
+      "_type": "element",
+      "id": "index",
+      "title": "Landscape",
+      "description": null,
+      "autoLayout": { "direction": "TB" },
+      "bounds": { "x": 0, "y": 0, "width": 820, "height": 580 },
+      "nodes": [
+        {
+          "id": "customer",
+          "parent": null,
+          "children": [],
+          "kind": "actor",
+          "title": "Customer",
+          "modelRef": "customer",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 180
+        },
+        {
+          "id": "shop",
+          "parent": null,
+          "children": [],
+          "kind": "system",
+          "title": "Shop",
+          "modelRef": "shop",
+          "x": 0,
+          "y": 400,
+          "width": 320,
+          "height": 180
+        },
+        {
+          "id": "payments",
+          "parent": null,
+          "children": [],
+          "kind": "system",
+          "title": "Payments",
+          "modelRef": "payments",
+          "x": 500,
+          "y": 400,
+          "width": 320,
+          "height": 180
+        }
+      ],
+      "edges": [
+        {
+          "id": "customer:shop",
+          "parent": null,
+          "source": "customer",
+          "target": "shop",
+          "label": "uses",
+          "relations": ["r1"],
+          "points": [
+            [160, 180],
+            [160, 400]
+          ]
+        },
+        {
+          "id": "shop:payments",
+          "parent": null,
+          "source": "shop",
+          "target": "payments",
+          "label": "charges",
+          "relations": ["r4"],
+          "points": [
+            [320, 490],
+            [500, 490]
+          ]
+        }
+      ]
+    },
+    "shop": {
+      "_stage": "layouted",
+      "_type": "element",
+      "id": "shop",
+      "title": "Shop containers",
+      "viewOf": "shop",
+      "nodes": [
+        {
+          "id": "customer",
+          "parent": null,
+          "children": [],
+          "kind": "actor",
+          "title": "Customer",
+          "modelRef": "customer",
+          "x": 40,
+          "y": 0,
+          "width": 320,
+          "height": 180
+        },
+        {
+          "id": "shop",
+          "parent": null,
+          "children": ["shop.frontend", "shop.backend", "shop.db"],
+          "kind": "system",
+          "title": "Shop",
+          "modelRef": "shop",
+          "x": 0,
+          "y": 260,
+          "width": 1200,
+          "height": 300
+        },
+        {
+          "id": "shop.frontend",
+          "parent": "shop",
+          "children": [],
+          "kind": "container",
+          "title": "Frontend",
+          "modelRef": "shop.frontend",
+          "x": 40,
+          "y": 320,
+          "width": 320,
+          "height": 180
+        },
+        {
+          "id": "shop.backend",
+          "parent": "shop",
+          "children": [],
+          "kind": "container",
+          "title": "Backend",
+          "modelRef": "shop.backend",
+          "x": 440,
+          "y": 320,
+          "width": 320,
+          "height": 180
+        },
+        {
+          "id": "shop.db",
+          "parent": "shop",
+          "children": [],
+          "kind": "store",
+          "title": "Orders",
+          "modelRef": "shop.db",
+          "x": 840,
+          "y": 320,
+          "width": 320,
+          "height": 180
+        },
+        {
+          "id": "@gr1",
+          "parent": null,
+          "children": ["payments"],
+          "kind": "@group",
+          "title": "Third parties",
+          "x": 1300,
+          "y": 260,
+          "width": 400,
+          "height": 300
+        },
+        {
+          "id": "payments",
+          "parent": "@gr1",
+          "children": [],
+          "kind": "system",
+          "title": "Payments",
+          "modelRef": "payments",
+          "x": 1340,
+          "y": 320,
+          "width": 320,
+          "height": 180
+        }
+      ],
+      "edges": [
+        {
+          "id": "customer:shop.frontend",
+          "parent": null,
+          "source": "customer",
+          "target": "shop.frontend",
+          "label": "uses",
+          "relations": ["r1"],
+          "points": [
+            [200, 180],
+            [200, 320]
+          ],
+          "controlPoints": [{ "x": 200, "y": 240 }]
+        },
+        {
+          "id": "shop.frontend:shop.backend",
+          "parent": "shop",
+          "source": "shop.frontend",
+          "target": "shop.backend",
+          "label": "calls",
+          "relations": ["r2"],
+          "points": [
+            [360, 410],
+            [440, 410]
+          ]
+        },
+        {
+          "id": "shop.backend:payments",
+          "parent": null,
+          "source": "shop.backend",
+          "target": "payments",
+          "label": "charges",
+          "relations": ["r4"],
+          "points": [
+            [760, 410],
+            [1340, 410]
+          ]
+        }
+      ]
+    },
+    "checkout": {
+      "_stage": "layouted",
+      "_type": "dynamic",
+      "id": "checkout",
+      "title": "Checkout flow",
+      "nodes": [
+        {
+          "id": "customer",
+          "parent": null,
+          "children": [],
+          "kind": "actor",
+          "title": "Customer",
+          "modelRef": "customer",
+          "x": 0,
+          "y": 0,
+          "width": 320,
+          "height": 180
+        },
+        {
+          "id": "shop.frontend",
+          "parent": null,
+          "children": [],
+          "kind": "container",
+          "title": "Frontend",
+          "modelRef": "shop.frontend",
+          "x": 500,
+          "y": 0,
+          "width": 320,
+          "height": 180
+        }
+      ],
+      "edges": [
+        {
+          "id": "step-01",
+          "parent": null,
+          "source": "customer",
+          "target": "shop.frontend",
+          "label": "opens the shop",
+          "relations": ["r1"],
+          "points": [
+            [320, 90],
+            [500, 90]
+          ]
+        },
+        {
+          "id": "step-02",
+          "parent": null,
+          "source": "shop.frontend",
+          "target": "customer",
+          "label": "shows the cart",
+          "relations": [],
+          "points": [
+            [500, 120],
+            [320, 120]
+          ]
+        }
+      ]
+    },
+    "prod": {
+      "_stage": "layouted",
+      "_type": "deployment",
+      "id": "prod",
+      "title": "Production",
+      "nodes": [
+        {
+          "id": "prod",
+          "parent": null,
+          "children": ["prod.vm1", "prod.vm2"],
+          "kind": "environment",
+          "title": "Production",
+          "deploymentRef": "prod",
+          "x": 0,
+          "y": 0,
+          "width": 900,
+          "height": 400
+        },
+        {
+          "id": "prod.vm1",
+          "parent": "prod",
+          "children": ["prod.vm1.api"],
+          "kind": "vm",
+          "title": "VM 1",
+          "deploymentRef": "prod.vm1",
+          "x": 40,
+          "y": 60,
+          "width": 380,
+          "height": 300
+        },
+        {
+          "id": "prod.vm1.api",
+          "parent": "prod.vm1",
+          "children": [],
+          "kind": "container",
+          "title": "Backend",
+          "deploymentRef": "prod.vm1.api",
+          "modelRef": "shop.backend",
+          "x": 70,
+          "y": 120,
+          "width": 320,
+          "height": 180
+        },
+        {
+          "id": "prod.vm2",
+          "parent": "prod",
+          "children": ["prod.vm2.db"],
+          "kind": "vm",
+          "title": "VM 2",
+          "deploymentRef": "prod.vm2",
+          "x": 480,
+          "y": 60,
+          "width": 380,
+          "height": 300
+        },
+        {
+          "id": "prod.vm2.db",
+          "parent": "prod.vm2",
+          "children": [],
+          "kind": "store",
+          "title": "Primary orders",
+          "deploymentRef": "prod.vm2.db",
+          "modelRef": "shop.db",
+          "x": 510,
+          "y": 120,
+          "width": 320,
+          "height": 180
+        }
+      ],
+      "edges": [
+        {
+          "id": "prod.vm1.api:prod.vm2.db",
+          "parent": "prod",
+          "source": "prod.vm1.api",
+          "target": "prod.vm2.db",
+          "label": "replicates to",
+          "relations": ["d1"],
+          "points": [
+            [390, 210],
+            [510, 210]
+          ]
+        }
+      ]
+    }
+  }
+}

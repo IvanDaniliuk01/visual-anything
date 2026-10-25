@@ -1511,6 +1511,16 @@ export const ui: Catalog = {
     one: 'Agregar su extremo a esta vista',
     other: 'Agregar sus {count} extremos a esta vista',
   },
+  // The import dialog's help for Structurizr, LikeC4 and draw.io files (import/diagram-formats.ts).
+  'Structurizr workspace': 'Espacio de trabajo de Structurizr',
+  'A workspace in JSON. Workspace DSL is not read: export it to JSON first with the Structurizr CLI, as in structurizr-cli export -workspace workspace.dsl -format json.':
+    'Un espacio de trabajo en JSON. El DSL de Structurizr no se lee: primero hay que exportarlo a JSON con la CLI de Structurizr, como en structurizr-cli export -workspace workspace.dsl -format json.',
+  'LikeC4 model': 'Modelo de LikeC4',
+  'The model likec4 export json writes, with the positions of its views.':
+    'El modelo que escribe likec4 export json, con las posiciones de sus vistas.',
+  'draw.io file': 'Archivo de draw.io',
+  'Plain or compressed, or inside a .drawio.svg or .drawio.png picture. Each page becomes a view; stencils and images are left out.':
+    'Sin comprimir o comprimido, o dentro de una imagen .drawio.svg o .drawio.png. Cada página se vuelve una vista; los stencils y las imágenes se dejan fuera.',
 };
 
 /**
@@ -2662,6 +2672,153 @@ export const messages: Catalog = {
   '"recentColors" holds {n} colors, more than {limit}.':
     '"recentColors" tiene {n} colores, más de {limit}.',
   '"{name}" must be true or false, not {value}.': '"{name}" debe ser true o false, no {value}.',
+
+  // Why the Structurizr, LikeC4 and draw.io readers refuse a file, and what they leave out (ADR 0042).
+  'The file nests too deeply to be read.': 'El archivo anida demasiado hondo para leerse.',
+  'The file is not JSON.': 'El archivo no es JSON.',
+  'The file is over 32 MiB, the most an import reads.':
+    'El archivo tiene más de 32 MiB, lo máximo que lee una importación.',
+  'The file holds {count} elements; an import brings at most 20,000.':
+    'El archivo tiene {count} elementos; una importación trae como máximo 20.000.',
+  'The file holds {count} relations, those that put one thing inside another included; an import brings at most 50,000.':
+    'El archivo tiene {count} relaciones, contando las que ponen una cosa dentro de otra; una importación trae como máximo 50.000.',
+  'The name is over 1,000 characters; it is cut there.':
+    'El nombre tiene más de 1.000 caracteres; se corta ahí.',
+  'One more thing matched nothing; the list stops here.':
+    'Una cosa más no coincidió con nada; la lista se detiene aquí.',
+  '{count} more things matched nothing; the list stops here.':
+    '{count} cosas más no coincidieron con nada; la lista se detiene aquí.',
+  'A link that is not a web address is left out.':
+    'Se deja fuera una referencia que no es una dirección web.',
+  'Its {n} bend points are left out: a route bends at most 64 times.':
+    'Se dejan fuera sus {n} puntos de quiebre: una ruta se quiebra como máximo 64 veces.',
+  'The view is left out: an import brings at most 500 views.':
+    'Se deja fuera la vista: una importación trae como máximo 500 vistas.',
+  'The view is left out: the views would show over 200,000 shapes in all.':
+    'Se deja fuera la vista: las vistas mostrarían más de 200.000 formas en total.',
+  'The order of its steps is left out; a scenario can be recorded over the view.':
+    'Se deja fuera el orden de sus pasos; se puede grabar un escenario sobre la vista.',
+  'The XML has text outside its outermost element.':
+    'El XML tiene texto fuera de su elemento exterior.',
+  'The XML has an unfinished processing instruction.':
+    'El XML tiene una instrucción de procesamiento sin terminar.',
+  'The XML has an unfinished comment.': 'El XML tiene un comentario sin terminar.',
+  'The XML has an unfinished CDATA section.': 'El XML tiene una sección CDATA sin terminar.',
+  'The XML has a DOCTYPE out of place.': 'El XML tiene un DOCTYPE fuera de lugar.',
+  'The XML has a DOCTYPE with declarations of its own, which is not read.':
+    'El XML tiene un DOCTYPE con declaraciones propias, que no se lee.',
+  'The XML has a declaration, such as an ENTITY, outside a DOCTYPE; it is not read.':
+    'El XML tiene una declaración, como un ENTITY, fuera de un DOCTYPE; no se lee.',
+  'The XML has an unfinished declaration.': 'El XML tiene una declaración sin terminar.',
+  'The XML has an unfinished end tag.': 'El XML tiene una etiqueta de cierre sin terminar.',
+  'The XML closes "{name}" out of order.': 'El XML cierra "{name}" fuera de orden.',
+  'The XML has more than one outermost element.': 'El XML tiene más de un elemento exterior.',
+  'The XML has over 500,000 elements.': 'El XML tiene más de 500.000 elementos.',
+  'The XML nests elements over 256 deep.': 'El XML anida elementos a más de 256 niveles.',
+  'The XML leaves "{name}" open.': 'El XML deja "{name}" abierto.',
+  'The XML has no element.': 'El XML no tiene ningún elemento.',
+  'The XML leaves the tag "{name}" unfinished.': 'El XML deja la etiqueta "{name}" sin terminar.',
+  'The tag "{name}" has over 1,024 attributes.':
+    'La etiqueta "{name}" tiene más de 1.024 atributos.',
+  'The XML has a malformed tag.': 'El XML tiene una etiqueta mal formada.',
+  'The XML has an "&" that starts no reference.':
+    'El XML tiene un "&" que no empieza ninguna referencia.',
+  'The XML uses the entity "&{name};", which is not read.':
+    'El XML usa la entidad "&{name};", que no se lee.',
+  'The XML refers to a character XML does not allow (&{name};).':
+    'El XML se refiere a un carácter que XML no permite (&{name};).',
+  'The compressed content is not valid deflate data.':
+    'El contenido comprimido no son datos deflate válidos.',
+  'The compressed content inflates to over 32 MiB, the most an import reads.':
+    'El contenido comprimido se descomprime en más de 32 MiB, lo máximo que lee una importación.',
+  'The compressed content is not valid base64.': 'El contenido comprimido no es base64 válido.',
+  'The compressed content is not valid URI-encoded text.':
+    'El contenido comprimido no es texto codificado como URI válido.',
+  'The SVG picture holds no draw.io diagram: its outermost element has no content.':
+    'La imagen SVG no contiene ningún dibujo de draw.io: su elemento exterior no tiene content.',
+  'The file is not a draw.io diagram: its outermost element is "{name}", not "mxfile".':
+    'El archivo no es un dibujo de draw.io: su elemento exterior es "{name}", no "mxfile".',
+  'The draw.io file has no page.': 'El archivo de draw.io no tiene ninguna página.',
+  'A page of the draw.io file holds "{name}", not "mxGraphModel".':
+    'Una página del archivo de draw.io contiene "{name}", no "mxGraphModel".',
+  'A chunk of the PNG picture is damaged.': 'Un bloque de la imagen PNG está dañado.',
+  'The PNG picture holds no draw.io diagram.':
+    'La imagen PNG no contiene ningún dibujo de draw.io.',
+  'A cell on the page "{page}" has no id.': 'Una celda de la página "{page}" no tiene id.',
+  'The page "{page}" holds the id "{id}" twice.':
+    'La página "{page}" tiene el id "{id}" dos veces.',
+  'Its placeholders are filled in up to 64 of them and 4,000 characters; the rest stay as written.':
+    'Sus marcadores de posición se completan hasta 64 de ellos y 4.000 caracteres; el resto queda como está escrito.',
+  'Placeholders are filled in up to 1,000,000 characters across the file; the rest stay as written.':
+    'Los marcadores de posición se completan hasta 1.000.000 de caracteres en todo el archivo; el resto queda como está escrito.',
+  'Its container "{id}" is not on the page, so it sits directly in World.':
+    'Su contenedor "{id}" no está en la página, así que queda directamente en Mundo.',
+  'It sits inside itself through its containers, so it sits directly in World.':
+    'Queda dentro de sí mismo a través de sus contenedores, así que queda directamente en Mundo.',
+  'A line that is not connected at both ends becomes no relation.':
+    'Una línea que no está conectada en ambos extremos no se vuelve una relación.',
+  'It ends on "{id}", which the page does not hold.': 'Termina en "{id}", que la página no tiene.',
+  'It ends on the page itself, which is no element.':
+    'Termina en la página misma, que no es un elemento.',
+  'Its relations end on each other in a loop, so none of them becomes a relation.':
+    'Sus relaciones terminan unas en otras en un ciclo, así que ninguna se vuelve una relación.',
+  'It ends on a line that becomes no relation, so it becomes none either.':
+    'Termina en una línea que no se vuelve una relación, así que tampoco se vuelve una.',
+  'The page is left out: an import brings at most 500 views.':
+    'Se deja fuera la página: una importación trae como máximo 500 vistas.',
+  'A shape draws this draw.io stencil, which is left out; the component chosen for it draws it.':
+    'Una forma dibuja este stencil de draw.io, que se deja fuera; la dibuja el componente elegido para ella.',
+  '{count} shapes draw this draw.io stencil, which is left out; the component chosen for them draws them.':
+    '{count} formas dibujan este stencil de draw.io, que se deja fuera; las dibuja el componente elegido para ellas.',
+  'A shape shows an image, which is left out: images in imports are left out, and the component chosen for it draws it.':
+    'Una forma muestra una imagen, que se deja fuera: las imágenes de las importaciones se dejan fuera, y la dibuja el componente elegido para ella.',
+  '{count} shapes show an image, which is left out: images in imports are left out, and the component chosen for them draws them.':
+    '{count} formas muestran una imagen, que se deja fuera: las imágenes de las importaciones se dejan fuera, y las dibuja el componente elegido para ellas.',
+  'The workspace\'s "{where}" is not what Structurizr writes.':
+    'El "{where}" del espacio de trabajo no es lo que escribe Structurizr.',
+  'The file is not a Structurizr workspace: it has no model.':
+    'El archivo no es un espacio de trabajo de Structurizr: no tiene modelo.',
+  'The workspace holds the id "{id}" twice.': 'El espacio de trabajo tiene el id "{id}" dos veces.',
+  'The workspace nests its deployment over 64 levels deep.':
+    'El espacio de trabajo anida su despliegue a más de 64 niveles.',
+  'It ends on "{id}", which the workspace does not hold.':
+    'Termina en "{id}", que el espacio de trabajo no tiene.',
+  'It is deployed from "{id}", which the workspace does not hold.':
+    'Se despliega a partir de "{id}", que el espacio de trabajo no tiene.',
+  'A relationship between what the view shows is not in it, but a view shows every relation between what it shows.':
+    'Una relación entre lo que muestra la vista no está en ella, pero una vista muestra todas las relaciones entre lo que muestra.',
+  '{count} relationships between what the view shows are not in it, but a view shows every relation between what it shows.':
+    '{count} relaciones entre lo que muestra la vista no están en ella, pero una vista muestra todas las relaciones entre lo que muestra.',
+  'The view "{view}" shows "{id}", which the workspace does not hold.':
+    'La vista "{view}" muestra "{id}", que el espacio de trabajo no tiene.',
+  'Its base view "{view}" is not in the workspace.':
+    'Su vista de base "{view}" no está en el espacio de trabajo.',
+  'Image views are left out: images in imports are left out.':
+    'Se dejan fuera las vistas de imagen: las imágenes de las importaciones se dejan fuera.',
+  'Documentation and decisions are left out.': 'Se dejan fuera la documentación y las decisiones.',
+  'The LikeC4 model\'s "{where}" is not what LikeC4 writes.':
+    'El "{where}" del modelo de LikeC4 no es lo que escribe LikeC4.',
+  'The file is not a LikeC4 model: it has no elements.':
+    'El archivo no es un modelo de LikeC4: no tiene elementos.',
+  'The LikeC4 model holds a name over 256 characters or 32 levels deep: "{name}".':
+    'El modelo de LikeC4 tiene un nombre de más de 256 caracteres o 32 niveles: "{name}".',
+  'The LikeC4 model holds the element "{name}" twice.':
+    'El modelo de LikeC4 tiene el elemento "{name}" dos veces.',
+  'The LikeC4 model holds the deployment element "{name}" twice.':
+    'El modelo de LikeC4 tiene el elemento de despliegue "{name}" dos veces.',
+  'The LikeC4 model holds the relation "{id}" twice.':
+    'El modelo de LikeC4 tiene la relación "{id}" dos veces.',
+  'It ends on "{id}", which the model does not hold.': 'Termina en "{id}", que el modelo no tiene.',
+  'It ends inside a deployed element, so it ends on the deployed element.':
+    'Termina dentro de un elemento desplegado, así que termina en el elemento desplegado.',
+  'The view "{view}" shows "{id}", which the model does not hold.':
+    'La vista "{view}" muestra "{id}", que el modelo no tiene.',
+  'Groups are left out; what they hold sits in the view without them.':
+    'Se dejan fuera los grupos; lo que contienen queda en la vista sin ellos.',
+  'A step that no relation of the model stands for is left out.':
+    'Se deja fuera un paso que no representa ninguna relación del modelo.',
+  'It is drawn between containers of its ends; it shows in views that show its ends.':
+    'Se dibuja entre contenedores de sus extremos; se muestra en las vistas que muestran sus extremos.',
 };
 
 /**

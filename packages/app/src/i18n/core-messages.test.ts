@@ -13,6 +13,7 @@ import {
 } from '@visual-anything/core';
 import type { Component, PackageFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
+import { readerMessages } from '../test/reader-messages';
 import { loadSample } from '../test/sample';
 import { translateMessage, untranslatedParts } from './translate';
 
@@ -772,5 +773,29 @@ describe('the local program’s messages in Spanish', () => {
     ).toBe(
       'El componente "Calendar" no se puede quitar: lo usan 3 elementos, 1 relación y 2 vistas.',
     );
+  });
+});
+
+describe('the Structurizr, LikeC4 and draw.io readers’ messages in Spanish', () => {
+  const said = readerMessages();
+
+  it('says what each hostile file is made to say', () => {
+    expect(said.length).toBeGreaterThan(80);
+  });
+
+  it('has a Spanish template for every refusal and for why each thing matched nothing', () => {
+    expect(said.flatMap((message) => untranslatedParts('es', message))).toEqual([]);
+  });
+
+  it('keeps what the file wrote as it wrote it', () => {
+    expect(translateMessage('es', 'It ends on "ghost", which the page does not hold.')).toBe(
+      'Termina en "ghost", que la página no tiene.',
+    );
+    expect(
+      translateMessage(
+        'es',
+        `The workspace's "model.people[0].name" is not what Structurizr writes.`,
+      ),
+    ).toBe('El "model.people[0].name" del espacio de trabajo no es lo que escribe Structurizr.');
   });
 });

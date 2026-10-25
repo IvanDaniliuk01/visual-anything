@@ -332,8 +332,8 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [ ] The import pipeline (ADR 0042): the plan, the mapping dialog, one batch, the report; Import… in the header, `visual-anything import <folder> <file>`, and Claude's `import_file`
 - [ ] The Mermaid reader: flowcharts, C4, ER and class diagrams
 - [ ] The spreadsheet (CSV and TSV) and JSON readers, importing again by a key
-- [ ] The Structurizr workspace JSON and LikeC4 model readers, with their views as scopes
-- [ ] The draw.io reader: compressed and plain files, `.drawio.svg` and `.drawio.png`, shapes, containers, edges with their waypoints, and pages as views
+- [x] The Structurizr workspace JSON and LikeC4 model readers, with their views as scopes
+- [x] The draw.io reader: compressed and plain files, `.drawio.svg` and `.drawio.png`, shapes, containers, edges with their waypoints, and pages as views
 - [x] License fields in the schema, and the license test (ADR 0047)
 - [x] Starter packages for C4 architecture and data-science pipelines, each with icons, a sample project and a scenario, in English and Spanish; New project from a sample
 - [x] A package added from another project, with its version and attribution, and updated from it after a preview
