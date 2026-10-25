@@ -3,13 +3,14 @@ import { executeCommand } from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
 import { selectionOf } from '../editor/selection';
 import { VIEW, usersAndOrders } from '../test/tables';
-import { centerOf } from './geometry';
+import { centerOf, grow, type Rect } from './geometry';
 import { createBesideCommand, moveCommand, movingShapes } from './gestures';
 import { enclosedBy, hitAt, indexScene } from './hit';
 import { rowMoveFor, rowTargetFor } from './rowKeys';
 import { rowsInView } from './rowCommands';
+import { rowMiddle } from './rows';
+import { dragEnds } from './rowShapes';
 import { buildScene, type ElementShape } from './scene';
-import { grow } from './geometry';
 
 const project = usersAndOrders();
 const indexed = indexScene(buildScene(project, VIEW));
@@ -98,5 +99,25 @@ describe('adding beside a row', () => {
     if (!outcome?.ok) throw new Error('Refused.');
     const view = outcome.state.views[0];
     expect(view && rowsInView(outcome.state, view, 'users')[1]).not.toBe('users-email');
+  });
+});
+
+describe('relations on rows while a table is dragged', () => {
+  it('leave beside the row, where the table is drawn now', () => {
+    const [fk] = indexed.scene.relations;
+    if (!fk?.ends) throw new Error('No reference drawn.');
+    const delta = 300;
+    const rectOf = (key: string): Rect | undefined => {
+      const found = indexed.byKey.get(key);
+      if (!found) return undefined;
+      const dragged = key === 'users' || key.startsWith('users/');
+      return dragged ? { ...found.rect, y: found.rect.y + delta } : found.rect;
+    };
+    const keyOf = (end: { kind: string; key?: string }) => (end.kind === 'shape' ? end.key : '');
+    const from = { rect: rectOf(keyOf(fk.ends.from) ?? '') as Rect };
+    const to = { rect: rectOf(keyOf(fk.ends.to) ?? '') as Rect };
+    const [start, stop] = dragEnds(fk.ends, from, to, (key) => indexed.byKey.get(key), rectOf);
+    expect(start).toMatchObject({ kind: 'side', y: rowMiddle(shape('orders').rect, 1) });
+    expect(stop).toMatchObject({ kind: 'side', y: rowMiddle(users.rect, 0) + delta });
   });
 });

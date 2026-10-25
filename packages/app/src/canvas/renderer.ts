@@ -52,7 +52,9 @@ import {
 import type { IndexedScene, Skipped } from './hit';
 import { bitmapText, installFonts } from './labels';
 import { CANVAS_BACKGROUND, DIMMED_ALPHA, HIGHLIGHT, MARKER_RING } from './palette';
-import { midpointOf, pointAlong, routeBetweenEnds, type RouteEnd } from './route';
+import { midpointOf, pointAlong, type RouteEnd } from './route';
+import { routeWithSides } from './rowRoutes';
+import { dragEnds } from './rowShapes';
 import { levelWithRows } from './rowsDraw';
 import {
   relationLinesOf,
@@ -1509,7 +1511,18 @@ export class CanvasRenderer {
       resolving.delete(line.relation);
       let next = line;
       if (from && to) {
-        const route = routeBetweenEnds(from, to, line.ends.offset);
+        // Rows and the shapes that draw them are left beside them, as the scene does (ADR 0023).
+        const [start, stop] = dragEnds(
+          line.ends,
+          from,
+          to,
+          (key) => indexed.byKey.get(key),
+          (key) => {
+            const shape = indexed.byKey.get(key);
+            return shape && (hidden.shapes.has(key) ? moved(shape.rect, delta) : shape.rect);
+          },
+        );
+        const route = routeWithSides(start, stop, line.ends.offset);
         const end = route.at(-1) as Point;
         const beforeEnd = route.at(-2) as Point;
         if (directionOf(beforeEnd, end)) {
