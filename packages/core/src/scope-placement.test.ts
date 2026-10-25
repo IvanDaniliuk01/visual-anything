@@ -162,6 +162,19 @@ describe('the commands, in a view whose scope lifts a shape out of its container
     expect(shapesInView(outcome.state, viewOf(outcome.state)).containersOf('api')).toEqual([]);
   });
 
+  it('still move an element the scope leaves out, through where it sits in the model', () => {
+    const state = regional({ leftOut: ['db'] });
+    const outcome = run(
+      {
+        type: 'change-container',
+        view: VIEW,
+        shapes: [{ element: 'db', from: 'system' }],
+      },
+      state,
+    );
+    expect(outcome.state.model.relations.some((each) => each.id === 'db-in-system')).toBe(false);
+  });
+
   it('move it from where it sits into another container', () => {
     const state = regional({ leftOut: ['system'] });
     const outcome = run(
