@@ -24,7 +24,11 @@ export type DefinitionForm =
    */
   | { kind: 'derive'; of: DefinitionKind; base: Id; useFor?: Id }
   /** Creates a package of the project's own. */
-  | { kind: 'new-package' };
+  | { kind: 'new-package' }
+  /** Adds a package from another project (ADR 0051). */
+  | { kind: 'add-package' }
+  /** Updates one of the project's own packages from the project it came from (ADR 0051). */
+  | { kind: 'update-package'; id: Id };
 
 /** What the inspector shows in place of the selection. */
 export type Opened = DefinitionTarget | DefinitionForm;
@@ -122,6 +126,10 @@ export function openedKey(opened: Opened | undefined): string | undefined {
       return `derive:${opened.of}:${opened.base}:${opened.useFor ?? ''}`;
     case 'new-package':
       return 'new-package';
+    case 'add-package':
+      return 'add-package';
+    case 'update-package':
+      return `update-package:${opened.id}`;
     default:
       return `${opened.kind}:${opened.id}`;
   }

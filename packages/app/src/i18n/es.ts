@@ -116,6 +116,47 @@ export const ui: Catalog = {
     'Usa el paquete incorporado Sistemas y tiene una vista; la pestaña Componentes agrega más paquetes.',
   'Start an empty project': 'Empezar un proyecto vacío',
   Overview: 'Vista general',
+
+  // A package from another project (ADR 0051), and what a package is shared under (ADR 0047).
+  'Add from another project…': 'Agregar de otro proyecto…',
+  'Update from another project…': 'Actualizar desde otro proyecto…',
+  'Add a package from another project': 'Agregar un paquete de otro proyecto',
+  'Update “{name}” from another project': 'Actualizar “{name}” desde otro proyecto',
+  'Choose the folder of another project, then one of its packages: it is copied here with its images, keeping its ids, so that it can be updated from there later.':
+    'Elegir la carpeta de otro proyecto y luego uno de sus paquetes: se copia aquí con sus imágenes y sus mismos ids, para poder actualizarlo desde allí más adelante.',
+  'Choose the folder of the project this package came from: what changed there is listed before anything changes here.':
+    'Elegir la carpeta del proyecto del que vino este paquete: lo que cambió allí se lista antes de que cambie nada aquí.',
+  'Choose a project folder…': 'Elegir la carpeta de un proyecto…',
+  'Reading the folder…': 'Leyendo la carpeta…',
+  'A folder with no project file': 'Una carpeta sin archivo de proyecto',
+  '{path} could not be read: {why}': 'No se pudo leer {path}: {why}',
+  'The file is over 4 MiB.': 'El archivo pesa más de 4 MiB.',
+  'The file is not valid JSON.': 'El archivo no es JSON válido.',
+  'The file holds no package.': 'El archivo no contiene ningún paquete.',
+  'That project has no package of its own.': 'Ese proyecto no tiene ningún paquete propio.',
+  'Its packages': 'Sus paquetes',
+  'That project has no package “{id}”.': 'Ese proyecto no tiene ningún paquete “{id}”.',
+  'Add this package': 'Agregar este paquete',
+  'Apply the update': 'Aplicar la actualización',
+  Holds: 'Contiene',
+  '{components}, {relationTypes} and {images}': '{components}, {relationTypes} y {images}',
+  'It needs the built-in packages {names}, which the project starts using with it.':
+    'Necesita los paquetes incorporados {names}, que el proyecto empieza a usar con él.',
+  Version: 'Versión',
+  License: 'Licencia',
+  Attribution: 'Atribución',
+  'An SPDX identifier, such as CC0-1.0, CC-BY-4.0 or MIT.':
+    'Un identificador SPDX, como CC0-1.0, CC-BY-4.0 o MIT.',
+  'Nothing differs: the package is the same there.':
+    'No hay diferencias: el paquete es el mismo allí.',
+  none: 'ninguno',
+  'The version there, {there}, is older than this one, {here}.':
+    'La versión de allí, {there}, es anterior a esta, {here}.',
+  '{before} → {after}': '{before} → {after}',
+  'Added: “{name}”': 'Se agrega: “{name}”',
+  'Changed: “{name}”': 'Cambia: “{name}”',
+  'Removed: “{name}”': 'Se quita: “{name}”',
+  'In another order': 'En otro orden',
   // Words many screens use.
   Cancel: 'Cancelar',
   Create: 'Crear',
