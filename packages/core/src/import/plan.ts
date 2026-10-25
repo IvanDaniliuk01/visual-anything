@@ -5,7 +5,13 @@
  * back the whole import. Readers live beside this file, one for each format, and never run, fetch or
  * follow anything in what they read.
  */
-import { ESSENCE_ID, type Attributes, type Id, type Point } from '@visual-anything/schema';
+import {
+  ESSENCE_ID,
+  type Attributes,
+  type ExternalIds,
+  type Id,
+  type Point,
+} from '@visual-anything/schema';
 import { Draft } from '../commands/draft';
 import type { BatchCommand, Command } from '../commands/types';
 import { freshId, isId, randomIds, slug, type IdGenerator } from '../ids';
@@ -65,6 +71,11 @@ export interface PlannedElement {
   kind: string;
   description?: string;
   attributes?: Attributes;
+  /**
+   * What it is in other catalogs, by scheme (ADR 0056). `matchByExternalIds` checks them, fills in
+   * the schemes the file lacks from crosswalks, and matches the element that shares one.
+   */
+  ids?: ExternalIds;
   /**
    * An element of the project this row of the file matched, by a key such as its id: its name and
    * attribute values are updated, and nothing else of it changes. Importing again uses it.
@@ -203,6 +214,7 @@ export function planToCommand(
         changes: {
           name: element.name,
           ...(element.attributes ? { attributes: element.attributes } : {}),
+          ...(element.ids ? { ids: element.ids } : {}),
         },
       });
       continue;
@@ -215,6 +227,7 @@ export function planToCommand(
         name: element.name,
         ...(element.description === undefined ? {} : { description: element.description }),
         ...(element.attributes ? { attributes: element.attributes } : {}),
+        ...(element.ids ? { ids: element.ids } : {}),
       },
     });
   }

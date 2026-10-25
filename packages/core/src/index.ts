@@ -234,3 +234,33 @@ export {
 } from './view-state';
 // The limits a view state's filters share with guidance's.
 export { MAX_FILTER_CONDITIONS, MAX_FILTER_TEXT } from './protocol';
+// External identifiers and destinations (M8, ADR 0056).
+export {
+  MAX_EXTERNAL_ID_LENGTH,
+  MAX_SCHEMES,
+  SCHEME_PATTERN,
+  changedExternalIds,
+  checkedExternalIds,
+  duplicateExternalIdWarnings,
+  elementsWithExternalId,
+  externalIdQuery,
+  isExternalId,
+  isScheme,
+  matchesExternalId,
+  sameExternalIds,
+} from './external-ids';
+export type { DestinationKind, DestinationRead, FoundDestination } from './destinations';
+export {
+  MAX_DESTINATION_FOCUS,
+  MAX_PROJECT_PATH_LENGTH,
+  MAX_WEB_ADDRESS_LENGTH,
+  destinationKind,
+  destinationsOf,
+  isDestination,
+  projectPathProblem,
+  readDestination,
+  resolveProjectPath,
+  webAddressHost,
+  webAddressProblem,
+} from './destinations';
+export { destinationWarnings, projectDestinationPaths } from './destination-checks';

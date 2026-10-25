@@ -14,6 +14,8 @@ import type {
   Component,
   ConnectionPoint,
   EndAttachment,
+  ExternalId,
+  ExternalIds,
   FreeShape,
   Id,
   LimitList,
@@ -26,6 +28,9 @@ import type {
   ShapePosition,
   Step,
 } from '@visual-anything/schema';
+
+/** Changes to external identifiers by scheme: a text sets one, `null` takes it out (ADR 0056). */
+export type ExternalIdChanges = Record<string, ExternalId | null>;
 
 /** A request to change the project. */
 export type Command =
@@ -80,6 +85,8 @@ export interface NewElement {
   description?: string;
   attributes?: Attributes;
   appearance?: Appearance;
+  /** What it is in other catalogs, by scheme (ADR 0056). */
+  ids?: ExternalIds;
 }
 
 /** Creates an element, optionally inside containers and with its shapes placed in views. */
@@ -121,6 +128,8 @@ export interface UpdateElementCommand {
     attributes?: Attributes;
     /** Attributes to remove. */
     removeAttributes?: string[];
+    /** Its external identifiers by scheme: a text sets one, `null` takes it out; `null` takes all out. */
+    ids?: ExternalIdChanges | null;
   };
 }
 
@@ -187,6 +196,8 @@ export interface UpdateComponentCommand {
     derivesFrom?: Id;
     appearance?: AppearanceChanges;
     attributes?: AttributeChanges;
+    /** Its external identifiers by scheme: a text sets one, `null` takes it out; `null` takes all out. */
+    ids?: ExternalIdChanges | null;
   };
 }
 
@@ -209,6 +220,8 @@ export interface UpdateRelationTypeCommand {
     attributes?: AttributeChanges;
     /** Per end: a list or `any` sets its own limit; `null` inherits it again. */
     limits?: { from?: LimitList | 'any' | null; to?: LimitList | 'any' | null };
+    /** Its external identifiers by scheme: a text sets one, `null` takes it out; `null` takes all out. */
+    ids?: ExternalIdChanges | null;
   };
 }
 

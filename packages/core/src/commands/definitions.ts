@@ -17,6 +17,7 @@ import type {
 import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
 import { RESERVED_PACKAGE_IDS, builtinPackage } from '../builtin';
 import type { Definitions } from '../definitions';
+import { changedExternalIds, checkedExternalIds } from '../external-ids';
 import { isId } from '../ids';
 import { indexModel } from '../model-index';
 import type { PackageProperties } from '../operations';
@@ -187,7 +188,7 @@ export function updateComponent(draft: Draft, command: UpdateComponentCommand): 
   const of = `the component "${current.name}"`;
   const changes = changesOf(
     command.changes,
-    ['name', 'description', 'derivesFrom', 'appearance', 'attributes'],
+    ['name', 'description', 'derivesFrom', 'appearance', 'attributes', 'ids'],
     of,
   );
   const before = draft.state;
@@ -202,6 +203,7 @@ export function updateComponent(draft: Draft, command: UpdateComponentCommand): 
     if (appearance === undefined) delete next.appearance;
     else next.appearance = appearance;
   }
+  setExternalIds(next, current, changes.ids, of);
   let renamed: { from: string; to: string }[] = [];
   if (changes.attributes !== undefined) {
     const chain = draft.definitions.component(current.id)?.attributes ?? [];
@@ -226,6 +228,9 @@ export function updateComponent(draft: Draft, command: UpdateComponentCommand): 
     detail: isRecord(changes.appearance) && changes.appearance.detail !== undefined,
     chain: changes.attributes !== undefined || changes.derivesFrom !== undefined,
   });
+  if (onlyChange(changes, 'ids')) {
+    return `Change the external identifiers of the component "${next.name}"`;
+  }
   return onlyChange(changes, 'name')
     ? `Rename the component "${current.name}" to "${next.name}"`
     : `Edit the component "${next.name}"`;
@@ -254,6 +259,7 @@ export function updateRelationType(draft: Draft, command: UpdateRelationTypeComm
       'appearance',
       'attributes',
       'limits',
+      'ids',
     ],
     of,
   );
@@ -279,6 +285,7 @@ export function updateRelationType(draft: Draft, command: UpdateRelationTypeComm
     if (limits === undefined) delete next.limits;
     else next.limits = limits;
   }
+  setExternalIds(next, current, changes.ids, of);
   let renamed: { from: string; to: string }[] = [];
   if (changes.attributes !== undefined) {
     const chain = draft.definitions.relationType(current.id)?.attributes ?? [];
@@ -298,6 +305,9 @@ export function updateRelationType(draft: Draft, command: UpdateRelationTypeComm
   }
   if (fixes) applyFixes(draft, fixes);
   afterRelationTypeChange(draft, before, current.id);
+  if (onlyChange(changes, 'ids')) {
+    return `Change the external identifiers of the relation type "${next.name}"`;
+  }
   return onlyChange(changes, 'name')
     ? `Rename the relation type "${current.name}" to "${next.name}"`
     : `Edit the relation type "${next.name}"`;
@@ -366,6 +376,7 @@ function checkedComponent(draft: Draft, file: PackageFile, value: unknown): Comp
     'name',
     'derivesFrom',
     'description',
+    'ids',
     'attributes',
     'appearance',
   ]);
@@ -379,6 +390,7 @@ function checkedComponent(draft: Draft, file: PackageFile, value: unknown): Comp
     name,
     derivesFrom: checkedParent(draft, id, given.derivesFrom, 'component'),
     description,
+    ids: given.ids === undefined ? undefined : checkedExternalIds(given.ids, of),
     attributes:
       given.attributes === undefined
         ? undefined
@@ -399,6 +411,7 @@ function checkedRelationType(draft: Draft, file: PackageFile, value: unknown): R
     'description',
     'direction',
     'nests',
+    'ids',
     'attributes',
     'appearance',
     'limits',
@@ -412,6 +425,7 @@ function checkedRelationType(draft: Draft, file: PackageFile, value: unknown): R
     name,
     derivesFrom: checkedParent(draft, id, given.derivesFrom, 'relation type'),
     description: checkedDescription(given.description, of),
+    ids: given.ids === undefined ? undefined : checkedExternalIds(given.ids, of),
     direction: given.direction === undefined ? undefined : checkedDirection(given.direction, of),
     nests: given.nests === undefined ? undefined : checkedNests(given.nests, of),
     attributes:
@@ -546,6 +560,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function onlyChange(changes: Record<string, unknown>, key: string): boolean {
   const named = Object.entries(changes).filter(([, value]) => value !== undefined);
   return named.length === 1 && named[0]?.[0] === key;
+}
+
+/** Changes a definition's external identifiers, when the changes name them (ADR 0056). */
+function setExternalIds(
+  next: { ids?: Component['ids'] },
+  current: { ids?: Component['ids'] },
+  changes: unknown,
+  of: string,
+): void {
+  if (changes === undefined) return;
+  const ids = changedExternalIds(current.ids, changes, of);
+  if (ids === undefined) delete next.ids;
+  else next.ids = ids;
 }
 
 function setDescription(definition: { description?: string }, value: unknown, of: string): void {

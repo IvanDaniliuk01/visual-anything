@@ -10,3 +10,6 @@ export type {
   PlannedView,
 } from './plan';
 export { IMPORT_LIMITS, planProblems, planToCommand } from './plan';
+// Crosswalks, and matching by external identifier (ADR 0056).
+export type { CrosswalkTable } from './crosswalks';
+export { completedIds, crosswalksOf, matchByExternalIds } from './crosswalks';

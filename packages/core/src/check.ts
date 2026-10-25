@@ -7,6 +7,8 @@ import type { Appearance, AttributeDefinition, Attributes, Id } from '@visual-an
 import { ESSENCE_ID, RELATES_TO_ID, SCHEMA_VERSION } from '@visual-anything/schema';
 import { RESERVED_PACKAGE_IDS, builtinPackage } from './builtin';
 import { appearanceOf, isBuiltInDefinition, type Definitions } from './definitions';
+import { destinationWarnings } from './destination-checks';
+import { duplicateExternalIdWarnings } from './external-ids';
 import { checkImages } from './images/check';
 import { positionKey } from './operations';
 import { problem, type Problem } from './problems';
@@ -317,6 +319,8 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
   warnings.push(...images.warnings);
   // Routes chosen by hand never keep a project from opening (ADR 0039).
   warnings.push(...routeWarnings(state));
+  // Nor do external identifiers shared by several elements, or destinations that open nothing (ADR 0056).
+  warnings.push(...duplicateExternalIdWarnings(state), ...destinationWarnings(state, definitions));
   return { errors, warnings };
 }
 
