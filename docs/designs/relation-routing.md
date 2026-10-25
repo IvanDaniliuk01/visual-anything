@@ -174,10 +174,28 @@ export interface ResolvedRoute {
 }
 
 /** `undefined` for an unknown view or relation, and for a relation the view draws as containment. */
-export function routeOf(state: ProjectSnapshot, view: ViewFile | Id, relation: Id): ResolvedRoute | undefined;
+export function routeOf(
+  state: ProjectSnapshot,
+  view: ViewFile | Id,
+  relation: Id,
+  shapes?: RouteShapes,
+): ResolvedRoute | undefined;
+
+/** What a caller that has placed the shapes already, such as the scene, hands over. */
+export interface RouteShapes {
+  /** The element ids from World's contents down to the element, as its first shape's key reads them; `undefined` when it has no shape. */
+  holdersOf(element: Id): readonly Id[] | undefined;
+  /** Elements, World included, and the relations it draws, by id; otherwise maps made once per model. */
+  readonly lookups?: RouteLookups;
+}
+
+/** A model index, or anything that looks elements and relations up by id the same way. */
+export type RouteLookups = Pick<ModelIndex, 'world' | 'element' | 'relation'>;
 ```
 
-**Which shapes.** A relation is drawn between the first shapes of its ends, in containment order, as the scene does today and ADR 0023 says. The core works out, once per model and set of nesting relation types (cached on the model object), the container of each element's first shape. The holders of an end are the containers of its first shape from World's contents down, followed by the end itself when it is an element, since a shape holds itself; the holders of a relation that is an end are the holders both of its own ends share. The **common holders** of a relation are the longest common prefix of its two ends' holders, and its **frame** is the last of them, absent for World. So a relation between two services inside "Scheduling" has the frame Scheduling, a relation between a service and its own container has that container, and a relation from a contract to a relation has the frame of that relation's line.
+**What it costs.** Measured at 10,000 elements with 100 routes, on the development machine: with the scene's shapes and lookups, resolving all 100 routes on a model just changed takes about 1.5 ms; without them, the first call on a new model works out the view's containment and the id maps (about 70 to 130 ms there), and later calls on the same model take about 2 ms for the 100. Commands pay that first cost only for `set-route` after a model change and for `settleRoutes` when a relation's end changed.
+
+**Which shapes.** A relation is drawn between the first shapes of its ends, in containment order, as the scene does today and ADR 0023 says. The core works out, once per model and set of nesting relation types (cached on the model object), the container of each element's first shape; a caller that has placed the shapes passes their holders instead (`RouteShapes`), read from the shapes' keys. The holders of an end are the containers of its first shape from World's contents down, followed by the end itself when it is an element, since a shape holds itself; the holders of a relation that is an end are the holders both of its own ends share. The **common holders** of a relation are the longest common prefix of its two ends' holders, and its **frame** is the last of them, absent for World. So a relation between two services inside "Scheduling" has the frame Scheduling, a relation between a service and its own container has that container, and a relation from a contract to a relation has the frame of that relation's line.
 
 **Which bend points apply.** The stored ones, when `container` is absent (the canvas), is World's id, or is among the common holders; otherwise none, and the route keeps them.
 
@@ -261,9 +279,9 @@ Both are undone exactly by their operations' inverses, and both reach Claude thr
 1. Its relation is gone: the route goes (deletes already did this; this keeps the rule for any future command).
 2. An end of its relation changed: that end's attachment goes; the bend points go unless their container still holds both ends.
 3. A connection point it names was on the end before the command and is not after: it becomes the point at the same side and `at`, or a border attachment there.
-4. Its bend points' container is no element: the bend points go.
+4. Its bend points' container was an element before the command and is not after: the bend points go.
 
-A name that was already unknown before the command, which only a hand-edited file holds, stays as it was and resolves to automatic; checking the project warns about it. So, from a project that opens without such warnings, no sequence of commands, undos and redos ever leaves a route naming a relation or a connection point that is gone, which the property test checks.
+A name, a relation or a container that was already unknown before the command, which only a hand-edited file holds, stays as it was and resolves to automatic or is ignored; checking the project warns about it. Measured at 10,000 elements with 100 routes, settling adds under 1 ms to an edit (best of 15 runs: 27.0 ms without routes, 27.9 ms with). So, from a project that opens without such warnings, no sequence of commands, undos and redos ever leaves a route naming a relation or a connection point that is gone, which the property test checks.
 
 ### 4.6 Deletes (`rules.ts`, `commands/model.ts`)
 
@@ -296,7 +314,7 @@ What commands can legitimately leave (an attachment on an element that has since
 
 ### 4.8 Exports, problem codes, protocol, server and Claude
 
-- `@visual-anything/core` exports `routeOf`, `ResolvedRoute`, `ResolvedAttachment`, `RouteStyle`, `RouteEntry`, `RemovedRoute`, and the two commands' types.
+- `@visual-anything/core` exports `routeOf`, `MAX_BEND_POINTS` (64), `ResolvedRoute`, `ResolvedAttachment`, `RouteShapes`, `RouteLookups`, `Side`, `RouteStyle`, `RouteEntry`, `RemovedRoute`, and the two commands' types.
 - Problem codes `unknown-connection-point`, `end-does-not-fit` and `not-drawn-as-line` join `ProblemCode`.
 - The live protocol's operations can now change a view's routes, so the next protocol version should say so (section 10).
 - `server/src/file-plan.ts` saves the view file for the `routes` list.
@@ -324,7 +342,7 @@ What commands can legitimately leave (an attachment on an element that has since
 
 ### 6.1 Scene (`scene.ts`)
 
-For every relation it draws as a line whose id `view.routes` names, the scene calls `routeOf(project, view, relation)` (relations the view does not route need no call) and routes the line by hand:
+For every relation it draws as a line whose id `view.routes` names, the scene calls `routeOf(project, view, relation, shapes)` (relations the view does not route need no call), with `shapes.holdersOf = (id) => firstShapes.get(id)?.key.split('/')` and `shapes.lookups` made from the `elements` map and the relations it draws, which it has already, and routes the line by hand:
 
 1. **Ends.** A chosen attachment on a shape is the point at its side and `at` on the shape's rectangle (its plate for a drawing), as connection points are placed until shapes have free geometry (M8): top `(x + at·w, y)`, right `(x + w, y + at·h)`, bottom `(x + at·w, y + h)`, left `(x, y + at·h)`. On a row or a row container it is §3.5's side end on the chosen side, whose stub runs to its lane as usual. An end on a relation is that relation's `middle`, as drawn with its own route. An automatic end next to hand-made parts faces its neighbour: the first bend point (the last, for the `to` end), or else the other end's attachment point, or else the other shape's centre.
 2. **Bend points** are `routeOf().bendPoints`, offset by the scene position of the first shape of `bendPointsIn` (the canvas origin when absent). That shape holds both end shapes, since first shapes nest in first shapes.
@@ -353,7 +371,7 @@ For every relation it draws as a line whose id `view.routes` names, the scene ca
 5. **Siblings.** Today's 24-unit offset between relations with the same ends applies only to lines that are automatic at both ends and have no bend points.
 6. **Collapse, filters and focus.** An aggregated relation takes no route. A hidden line is hidden and a dimmed one dimmed, route and all.
 7. **Copies.** As 4.4 says: the line between the first shapes takes the route; a line between other copies takes it when one copy of the frame container's shape holds both of its end shapes, and only the chosen ends otherwise.
-8. **What a change costs.** A change to `routes` alone keeps every shape: the scene re-routes only the lines whose route changed and the lines that end on them, and reuses the rest (the incremental path of §3.9 of `components.md`), so a route edit at 10,000 elements stays within the 50 ms an edit may take. Routing one line is linear in its bend points, at most 64, and flattening a curve at most 24 points a span.
+8. **What a change costs.** A change to `routes` alone keeps every shape: the scene re-routes only the lines whose route changed and the lines that end on them, and reuses the rest (the incremental path of §3.9 of `components.md`), so a route edit at 10,000 elements stays within the 50 ms an edit may take. Resolving 100 routes with the scene's shapes takes about 1.5 ms (4.2); routing one line is linear in its bend points, at most 64, and flattening a curve at most 24 points a span.
 
 The pure routing goes in `route.ts`, next to today's:
 
@@ -482,6 +500,7 @@ Example: { "view": "system-overview", "relations": ["booking-agent-calls-api-k3f
 - **`commands/views.ts`:** `viewProperties()` should also leave out `routes`, so that `set-view` operations stop carrying a stale copy of them; the operation already ignores it.
 - **`server/src/claude/queries.ts`:** `read_view` should list the view's routes, so Claude can read what `set_route` writes.
 - **`docs/designs/README.md`:** list this file.
+- **`commands/draft.ts`, optional:** `isTaken` could count the relation ids a view's routes are keyed by, as it counts the ids broken steps name. Commands never leave such a key behind, but a hand-edited file can keep a route for a relation that does not exist, which would then route a new relation created with that exact id.
 
 ---
 
