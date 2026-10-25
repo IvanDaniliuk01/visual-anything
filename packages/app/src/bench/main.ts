@@ -47,6 +47,7 @@ import '../theme/tokens.css';
 import { THEMES } from '../theme/themes';
 import { RESTYLING, SHOWN, TARGET_FPS, WORK, addRow, percentile, showVerdict } from './report';
 import { measureScopeChanges } from './scope';
+import { measureElementList } from './elementList';
 import {
   LARGE_TABLE,
   LARGE_TABLE_COLUMNS,
@@ -356,6 +357,8 @@ async function run(): Promise<void> {
   if (!tables) {
     const bench = { project: () => project, show: showProject, settle, view: VIEW };
     timed.push(...(await measureScopeChanges(bench, 4)));
+    // The element list and destination marks (R42, ADR 0056): `elementList.ts` beside this file.
+    timed.push(...(await measureElementList(bench, 4)));
   }
   if (!tables && (overlap === 'none' || overlap === 'stairs'))
     timed.push(await measureRestacks(20));
