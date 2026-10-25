@@ -152,6 +152,7 @@ export type { ProjectCheck } from './check';
 export { checkProject } from './check';
 
 export * from './images';
+export * from './import';
 
 export type {
   AppMessage,

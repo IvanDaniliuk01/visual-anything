@@ -321,7 +321,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 - the C4 and data-science starter packages ship with icons whose licenses pass the license test (ADR 0047), each with a sample project and a scenario, and New project from a sample starts from them;
 - a package can be added from another project.
 
-- [ ] Scopes in the schema and the core, test-first with property tests (ADR 0040): the rules, `added` and `leftOut`, the commands `set-scope`, `add-to-view` and `leave-out-of-view`, and new elements added to the scope of the view they were made in
+- [x] Scopes in the schema and the core, test-first with property tests (ADR 0040): the rules, `added` and `leftOut`, the commands `set-scope`, `add-to-view` and `leave-out-of-view`, and new elements added to the scope of the view they were made in
 - [ ] Scopes on the canvas:
   - the scene, layout, aggregation, search and the perspective switcher follow the scope;
   - playback marks steps outside the view;

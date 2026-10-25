@@ -66,3 +66,7 @@ ADR-0025 said that in v0.1 every view shows the whole model, and that a saved fi
   - leaving out and adding back restores exactly.
 - The scene, layout, aggregation and playback take a view's scope into account, and stay within the budget at 10,000 elements.
 - CONTEXT.md gains **Scope** and **Outside the view**.
+
+## Clarifications
+
+- 2026-10-25: a view that shows only the elements it adds by hand, as an import's page or view does (ADR 0042), excludes Essence, from which every component derives, and adds those elements. It needs no fifth kind of rule.
