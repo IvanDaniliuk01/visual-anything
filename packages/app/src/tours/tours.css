@@ -6,16 +6,22 @@
 
 /* ——— Full-screen playback ——— */
 
-/* The panels hide and the canvas fills the window. */
-.shell.tour-playing {
+/*
+ * The panels hide and the canvas fills the window. `:root` puts this before the layouts that panels
+ * give the shell, such as the scenario panel's, whatever order the stylesheets load in.
+ */
+:root .shell.tour-playing {
   grid-template: 'canvas' minmax(0, 1fr) / minmax(0, 1fr);
 }
 
-.shell.tour-playing > :not(.canvas-area, .notices, .dialog-backdrop) {
+:root .shell.tour-playing > :not(.canvas-area, .notices, .dialog-backdrop) {
   display: none;
 }
 
-.shell.tour-playing .canvas-area :is(.canvas-toolbar, .explore-strip, .canvas-keys, .find-bar) {
+:root
+  .shell.tour-playing
+  .canvas-area
+  :is(.canvas-toolbar, .explore-strip, .canvas-keys, .find-bar) {
   display: none;
 }
 
