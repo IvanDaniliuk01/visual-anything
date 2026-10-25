@@ -94,6 +94,7 @@ export default defineConfig(
   globalIgnores([
     '**/dist/',
     '**/dist-bench/',
+    'dist-exe/',
     '**/coverage/',
     '.claude/',
     'packages/schema/schemas/',

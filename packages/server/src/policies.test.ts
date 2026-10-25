@@ -127,7 +127,7 @@ describe('servesProjectFile', () => {
     try {
       await symlink(project, link, 'junction');
     } catch {
-      context.skip();
+      context.skip('This user may not make a link to a folder here.');
     }
     expect(
       await servesProjectFile({ url: fsPath(join(link, 'model.vamodel')) }, { project, root }),

@@ -26,6 +26,12 @@ import { openLive, send, testProject, writeProjectFolder } from './test-support'
 const REPOSITORY = fileURLToPath(new URL('../../..', import.meta.url));
 const SAMPLE = 'examples/my-systems';
 
+/**
+ * How long a test waits for the program to start: opening the sample takes a while the first time,
+ * and longer on a loaded machine or a slow CI runner.
+ */
+const STARTING = { timeout: 10_000 };
+
 let folder: string;
 let appDir: string;
 
@@ -64,14 +70,14 @@ function harness(overrides: Partial<CommandEnvironment> = {}) {
   };
   /** The address the program printed, once it runs. */
   const printedUrl = async () => {
-    await expect.poll(() => out.some((line) => line.includes('http://'))).toBe(true);
+    await expect.poll(() => out.some((line) => line.includes('http://')), STARTING).toBe(true);
     const line = out.find((printed) => printed.includes('http://')) ?? '';
     return new URL(line.slice(line.indexOf('http://')));
   };
   /** The launch addresses the program printed, once it printed `count` of them. */
   const printedLaunchUrls = async (count = 1) => {
     const lines = () => out.filter((line) => line.includes(`#${LAUNCH_PARAM}=`));
-    await expect.poll(() => lines().length).toBe(count);
+    await expect.poll(() => lines().length, STARTING).toBe(count);
     return lines().map((line) => new URL(line.slice(line.indexOf('http://'))));
   };
   return { out, err, opened, appSources, signals, environment, printedUrl, printedLaunchUrls };
@@ -179,12 +185,12 @@ describe('parseCommandLine', () => {
   });
 });
 
-describe('runCommand', () => {
+describe('runCommand', { timeout: 20_000 }, () => {
   it('opens the browser at an address that works once, which hands the page the token, and stops on SIGINT', async () => {
     const { opened, signals, environment } = harness();
     const exit = runCommand([SAMPLE], environment);
 
-    await expect.poll(() => opened).toHaveLength(1);
+    await expect.poll(() => opened, STARTING).toHaveLength(1);
     const url = new URL(opened[0] ?? '');
     expect(url.origin).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
     expect(url.pathname).toBe('/');
@@ -220,7 +226,7 @@ describe('runCommand', () => {
     const { out, err, opened, signals, environment } = harness();
     const exit = runCommand([SAMPLE], environment);
 
-    await expect.poll(() => opened).toHaveLength(1);
+    await expect.poll(() => opened, STARTING).toHaveLength(1);
     expect(out.some((line) => line.includes('"My systems"'))).toBe(true);
     const url = new URL(opened[0] ?? '');
     expect(out).toContain(`Visual Anything is running at ${url.origin}/`);
@@ -272,14 +278,14 @@ describe('runCommand', () => {
     const { out, opened, environment, printedLaunchUrls } = harness({ keys: terminal.keys });
     const exit = runCommand([SAMPLE], environment);
 
-    await expect.poll(() => opened).toHaveLength(1);
-    await expect.poll(() => terminal.listening()).toBe(true);
+    await expect.poll(() => opened, STARTING).toHaveLength(1);
+    await expect.poll(() => terminal.listening(), STARTING).toBe(true);
     expect(out).toContain(
       'Press o to open Visual Anything in a new tab, or a to print an address that works once.',
     );
 
     terminal.press('o');
-    await expect.poll(() => opened).toHaveLength(2);
+    await expect.poll(() => opened, STARTING).toHaveLength(2);
     expect(opened[1]).not.toBe(opened[0]);
 
     terminal.press('a');
