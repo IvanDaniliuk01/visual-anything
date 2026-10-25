@@ -384,6 +384,28 @@ describe('CanvasRenderer recolors', () => {
     expect(shown).toEqual([]);
   });
 
+  it('restyles in place the tile of free shapes when a note changes only its colors', async () => {
+    const renderer = await ready(makeRenderer());
+    renderer.show(sampleIndexed());
+    renderer.setCamera({ x: 0, y: 0, scale: 1 });
+    settleFrames(renderer);
+    const free = tiles(renderer).find((tile) => tile.kind === 'free') as TileView;
+    const context = free.full?.context;
+    const view = sample.views.find((each) => each.id === VIEW);
+    const note = view?.freeShapes.find((shape) => shape.kind === 'note');
+    if (!note) throw new Error('The sample has no note.');
+    const recolored = applied(sample, {
+      type: 'update-free-shape',
+      view: VIEW,
+      shape: { ...note, fill: '#D3F9D8' },
+    });
+    renderer.show(sampleIndexed(recolored));
+    expect(tiles(renderer).find((tile) => tile.kind === 'free')).toBe(free);
+    expect(free.full?.context).toBe(context);
+    untilShown(renderer);
+    expect(colorsOf(free.full?.context as GraphicsContext)).toContain('#D3F9D8');
+  });
+
   it('makes a tile again when what it draws moved, as before', async () => {
     const renderer = await ready(makeRenderer());
     renderer.show(sampleIndexed());
