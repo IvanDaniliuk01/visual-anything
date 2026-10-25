@@ -38,7 +38,7 @@ export const SYSTEMS: PackageFile = {
       derivesFrom: 'systems.box',
       description: 'A running program that others call.',
       attributes: [TECHNOLOGY],
-      appearance: { fill: '#DCEBFF', stroke: '#1D4F91', width: 180, height: 72 },
+      appearance: { fill: '#DCEBFF', stroke: '#1D4F91', width: 176, height: 72 },
     },
     {
       id: 'systems.chat-channel',
@@ -87,14 +87,14 @@ export const SYSTEMS: PackageFile = {
       attributes: [
         { name: 'engine', type: 'string', description: 'Such as "postgres" or "mysql".' },
       ],
-      appearance: { shape: 'cylinder', fill: '#FFF3C9', stroke: '#7A5C00', width: 180, height: 80 },
+      appearance: { shape: 'cylinder', fill: '#FFF3C9', stroke: '#7A5C00', width: 176, height: 80 },
     },
     {
       id: 'systems.object-storage',
       name: 'Object storage',
       derivesFrom: 'systems.box',
       description: 'A store of files and blobs, such as S3 buckets.',
-      appearance: { shape: 'cylinder', fill: '#E7EAF6', stroke: '#2E3A87', width: 180, height: 80 },
+      appearance: { shape: 'cylinder', fill: '#E7EAF6', stroke: '#2E3A87', width: 176, height: 80 },
     },
     {
       id: 'systems.person',
@@ -104,7 +104,7 @@ export const SYSTEMS: PackageFile = {
       attributes: [
         { name: 'role', type: 'string', description: 'What they do, such as "patient".' },
       ],
-      appearance: { shape: 'person', fill: '#FDE8CC', stroke: '#8A5A12', width: 140, height: 80 },
+      appearance: { shape: 'person', fill: '#FDE8CC', stroke: '#8A5A12', width: 144, height: 80 },
     },
   ],
   relationTypes: [

@@ -58,7 +58,7 @@ describe('project appearances', () => {
       fill: '#FFE8D6',
       stroke: '#7A5C00',
       shape: 'rounded-rectangle',
-      width: 180,
+      width: 176,
     });
     expect(appearanceOf({ component: 'clinic.calendar' }, definitions).fill).toBe('#FFE8D6');
     expect(
@@ -99,7 +99,7 @@ describe('project appearances', () => {
     const definitions = definitionsOf(PACKAGES, {
       components: { essence: { stroke: '#222222', width: 120 } },
     });
-    expect(definitions.component('systems.person')?.appearance.width).toBe(140);
+    expect(definitions.component('systems.person')?.appearance.width).toBe(144);
     expect(definitions.component('systems.box')?.appearance.width).toBe(120);
     expect(definitions.component('systems.box')?.appearance.stroke).toBe('#52606D');
     expect(appearanceOf({ component: 'nowhere.thing' }, definitions)).toMatchObject({

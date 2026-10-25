@@ -45,6 +45,30 @@ describe('the built-in Systems package', () => {
     expect([...definitions.nestingRelationTypes]).toEqual(['systems.is-part-of']);
   });
 
+  it('gives every component, and Essence, a size on the grid’s step of 8 canvas units', () => {
+    const definitions = definitionsOf(BUILTIN_PACKAGES);
+    const ids = [
+      'essence',
+      ...BUILTIN_PACKAGES.flatMap((file) => file.components.map((c) => c.id)),
+    ];
+    for (const id of ids) {
+      const appearance = definitions.component(id)?.appearance;
+      expect({
+        id,
+        width: (appearance?.width ?? 0) % 8,
+        height: (appearance?.height ?? 0) % 8,
+      }).toEqual({ id, width: 0, height: 0 });
+    }
+    expect(definitions.component('systems.service')?.appearance).toMatchObject({
+      width: 176,
+      height: 72,
+    });
+    expect(definitions.component('systems.person')?.appearance).toMatchObject({
+      width: 144,
+      height: 80,
+    });
+  });
+
   it('is one of the built-in packages', () => {
     expect(BUILTIN_PACKAGES).toContain(SYSTEMS);
     expect(builtinPackage('systems')).toBe(SYSTEMS);

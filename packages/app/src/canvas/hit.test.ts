@@ -94,7 +94,7 @@ const keyAt = (
 
 describe('hitAt', () => {
   it('finds the shape drawn on top under a point', () => {
-    // The Appointments API sits at (780, 204), 180 × 72, inside Scheduling inside Clinic booking.
+    // The Appointments API sits at (784, 208), 176 × 72, inside Scheduling inside Clinic booking.
     expect(hitAt(indexed, { x: 800, y: 220 }, 4)).toMatchObject({
       kind: 'shape',
       shape: { key: 'clinic-booking/scheduling/appointments-api' },
