@@ -166,12 +166,29 @@ export function readText(folder: string, path: string): Promise<string> {
   return readFile(join(folder, path), 'utf8');
 }
 
-/** An app that keeps every message the local program sends it. */
+/**
+ * Whether a test keeps the history list (protocol 5), which follows every change an app hears of: the
+ * tests about the history do, and the others read every other message as they did before it.
+ */
+export interface HistoryKept {
+  history?: boolean;
+}
+
+/** Whether a message is one a client keeps. */
+function kept(message: ServerMessage, { history = false }: HistoryKept): boolean {
+  return history || message.type !== 'history/listed';
+}
+
+/**
+ * An app that keeps every message the local program sends it, the history list only when asked to.
+ */
 export class FakeClient implements SessionClient {
   readonly messages: ServerMessage[] = [];
 
+  constructor(private readonly keeps: HistoryKept = {}) {}
+
   send(message: ServerMessage): void {
-    this.messages.push(message);
+    if (kept(message, this.keeps)) this.messages.push(message);
   }
 
   /** The messages of one type, in the order they came. */
@@ -348,7 +365,10 @@ export function textOf(data: RawData): string {
   return data.toString('utf8');
 }
 
-/** An app on the live connection that keeps every message the local program sends it. */
+/**
+ * An app on the live connection that keeps every message the local program sends it, the history
+ * list only when asked to.
+ */
 export interface LiveClient {
   readonly messages: ServerMessage[];
   /** Sends a message: an object is sent as JSON, a string as it is. */
@@ -365,12 +385,16 @@ export async function openLiveClient(
   port: number,
   token: string,
   param: 'token' | 'launch' = 'token',
+  keeps: HistoryKept = {},
 ): Promise<LiveClient> {
   const socket = new WebSocket(`ws://127.0.0.1:${port}/live?${param}=${token}`, {
     origin: `http://127.0.0.1:${port}`,
   });
   const messages: ServerMessage[] = [];
-  socket.on('message', (data) => messages.push(decodeServerMessage(textOf(data))));
+  socket.on('message', (data) => {
+    const message = decodeServerMessage(textOf(data));
+    if (kept(message, keeps)) messages.push(message);
+  });
   await new Promise<void>((resolve, reject) => {
     socket.once('open', () => resolve());
     socket.once('error', reject);
