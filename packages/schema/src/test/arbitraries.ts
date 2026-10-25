@@ -18,6 +18,7 @@ import type {
   PackageFile,
   Perspective,
   Point,
+  ProjectAppearances,
   ProjectFile,
   Relation,
   RelationAppearance,
@@ -103,13 +104,27 @@ const appearance: fc.Arbitrary<Appearance> = fc.record(
   { requiredKeys: [], noNullPrototype: true },
 );
 
+const relationAppearance: fc.Arbitrary<RelationAppearance> = fc.record(
+  { stroke: color, width: size, dash: fc.constantFrom('solid', 'dashed', 'dotted') },
+  { requiredKeys: [], noNullPrototype: true },
+);
+
 const element: fc.Arbitrary<Element> = fc.record(
   { id, component: id, name, description: text, attributes, appearance },
   { requiredKeys: ['id', 'component', 'name'], noNullPrototype: true },
 );
 
 const relation: fc.Arbitrary<Relation> = fc.record(
-  { id, relationType: id, from: id, to: id, name, description: text, attributes },
+  {
+    id,
+    relationType: id,
+    from: id,
+    to: id,
+    name,
+    description: text,
+    attributes,
+    appearance: relationAppearance,
+  },
   { requiredKeys: ['id', 'relationType', 'from', 'to'], noNullPrototype: true },
 );
 
@@ -142,11 +157,6 @@ const component: fc.Arbitrary<Component> = fc.record(
   { requiredKeys: ['id', 'name', 'derivesFrom'], noNullPrototype: true },
 );
 
-const relationAppearance: fc.Arbitrary<RelationAppearance> = fc.record(
-  { stroke: color, width: size, dash: fc.constantFrom('solid', 'dashed', 'dotted') },
-  { requiredKeys: [], noNullPrototype: true },
-);
-
 /** A limit for one end: a list of at least one id, or `any`. */
 const limit = fc.oneof(ids(1), fc.constant('any' as const));
 
@@ -175,8 +185,29 @@ const packageFile: fc.Arbitrary<PackageFile> = fc.record(
   { requiredKeys: ['id', 'name', 'components', 'relationTypes'], noNullPrototype: true },
 );
 
+/** Project appearances: never an empty map, and keyed by ids. */
+const projectAppearances: fc.Arbitrary<ProjectAppearances> = fc
+  .record(
+    {
+      components: fc.dictionary(id, appearance, { minKeys: 1, maxKeys: 3, noNullPrototype: true }),
+      relationTypes: fc.dictionary(id, relationAppearance, {
+        minKeys: 1,
+        maxKeys: 3,
+        noNullPrototype: true,
+      }),
+    },
+    { requiredKeys: [], noNullPrototype: true },
+  )
+  .filter((each) => Object.keys(each).length > 0);
+
 const project: fc.Arbitrary<ProjectFile> = fc.record(
-  { schemaVersion: fc.constant(1 as const), name, description: text, packages: ids() },
+  {
+    schemaVersion: fc.constant(1 as const),
+    name,
+    description: text,
+    packages: ids(),
+    appearances: projectAppearances,
+  },
   { requiredKeys: ['schemaVersion', 'name', 'packages'], noNullPrototype: true },
 );
 
@@ -210,12 +241,17 @@ const freeShape: fc.Arbitrary<FreeShape> = fc.oneof(
       width: size,
       height: size,
       text,
+      fill: color,
+      stroke: color,
     },
-    { noNullPrototype: true },
+    {
+      requiredKeys: ['kind', 'id', 'x', 'y', 'width', 'height', 'text'],
+      noNullPrototype: true,
+    },
   ),
   fc.record(
-    { kind: fc.constant('arrow' as const), id, from: point, to: point },
-    { noNullPrototype: true },
+    { kind: fc.constant('arrow' as const), id, from: point, to: point, stroke: color },
+    { requiredKeys: ['kind', 'id', 'from', 'to'], noNullPrototype: true },
   ),
 );
 

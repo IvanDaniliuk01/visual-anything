@@ -133,23 +133,93 @@ export function resolveAppearance(
  */
 export type TraitSource = Id;
 
+/**
+ * Where a trait's value comes from, as the inspector and Claude say it: the element's or relation's
+ * own appearance, or a definition, either through the definition itself or through the project
+ * appearance the project gives it. `builtIn` is true for Essence, "relates to" and the definitions of
+ * built-in packages, whose colors take their dark shades while they come through the definition.
+ */
+export type TraitOrigin =
+  { kind: 'own' } | { kind: 'definition'; id: Id; via: 'definition' | 'project'; builtIn: boolean };
+
+/** One appearance an appearance is worked out from, and where its traits come from. */
+export interface AppearanceMember {
+  appearance: Appearance | undefined;
+  origin: TraitOrigin;
+}
+
+/** The value an appearance gives a trait path, such as `detail.badges`; `undefined` when it sets none. */
+export function traitValue(appearance: Appearance | undefined, path: TraitPath): unknown {
+  const [trait, part] = path.split('.') as [AppearanceTrait, keyof DetailRules | undefined];
+  const value = part === undefined ? appearance?.[trait] : appearance?.detail?.[part];
+  return value === null ? undefined : value;
+}
+
+/**
+ * An appearance worked out from its members, nearest first, over `base`, and where each trait comes
+ * from: the first member that sets it, or `baseOrigin` when none does.
+ */
+export function resolveAppearanceWithOrigins(
+  members: readonly AppearanceMember[],
+  base: ResolvedAppearance,
+  baseOrigin: TraitOrigin,
+): { appearance: ResolvedAppearance; origins: Readonly<Record<TraitPath, TraitOrigin>> } {
+  const appearance = resolveAppearance(
+    members.map((member) => member.appearance),
+    base,
+  );
+  const origins = Object.fromEntries(
+    TRAIT_PATHS.map((path) => [
+      path,
+      members.find((member) => traitValue(member.appearance, path) !== undefined)?.origin ??
+        baseOrigin,
+    ]),
+  ) as Record<TraitPath, TraitOrigin>;
+  return { appearance, origins };
+}
+
+/** Origins with the traits an element's own appearance sets as its own. */
+export function withOwnOrigins(
+  origins: Readonly<Record<TraitPath, TraitOrigin>>,
+  own: Appearance | undefined,
+): Readonly<Record<TraitPath, TraitOrigin>> {
+  if (own === undefined) return origins;
+  return Object.fromEntries(
+    TRAIT_PATHS.map((path) => [
+      path,
+      traitValue(own, path) === undefined ? origins[path] : { kind: 'own' },
+    ]),
+  ) as Record<TraitPath, TraitOrigin>;
+}
+
 /** Where every trait of a component, or of one element, comes from, and where each attribute does. */
 export interface TraitSources {
   traits: Readonly<Record<TraitPath, TraitSource>>;
+  /** The same, saying also whether a project appearance sets it and whether it is built in. */
+  origins: Readonly<Record<TraitPath, TraitOrigin>>;
   /** For each attribute the component has, the nearest definition that defines it. */
   attributes: ReadonlyMap<string, Id>;
 }
 
 /**
  * Where each trait of a component comes from, and each of its attributes: `own` for what `own`, an
- * element's own appearance, sets; otherwise the id of the nearest definition that sets it, or Essence.
- * The component editor shows them as "its own", "from Database" or "from Essence".
+ * element's own appearance, sets; otherwise the id of the nearest definition that sets it, itself or
+ * through the project appearance given to it, or Essence. The component editor shows them as "its
+ * own", "from Database" or "from Essence".
  */
 export function traitSources(
   definitions: Definitions,
   componentId: Id,
   own?: Appearance,
 ): TraitSources {
+  const component = definitions.component(componentId) ?? definitions.component(ESSENCE_ID);
+  const origins = withOwnOrigins(component?.origins ?? ESSENCE_ORIGINS, own);
+  const traits = Object.fromEntries(
+    TRAIT_PATHS.map((path) => {
+      const origin = origins[path];
+      return [path, origin.kind === 'own' ? 'own' : origin.id];
+    }),
+  ) as Record<TraitPath, TraitSource>;
   const lineage = (definitions.component(componentId)?.lineage ?? []).filter(
     (id) => id !== ESSENCE_ID,
   );
@@ -157,28 +227,6 @@ export function traitSources(
     const definition = definitions.components.get(id)?.definition;
     return definition === undefined ? [] : [{ id, definition }];
   });
-  const members: { source: TraitSource; appearance: Appearance | undefined }[] = [
-    ...(own === undefined ? [] : [{ source: 'own' as const, appearance: own }]),
-    ...chain.map(({ id, definition }) => ({ source: id, appearance: definition.appearance })),
-  ];
-  const sourceOf = (read: (appearance: Appearance) => unknown): TraitSource => {
-    for (const member of members) {
-      const value = member.appearance === undefined ? undefined : read(member.appearance);
-      if (value !== undefined && value !== null) return member.source;
-    }
-    return ESSENCE_ID;
-  };
-  const traits = Object.fromEntries(
-    TRAIT_PATHS.map((path) => {
-      const [trait, part] = path.split('.') as [AppearanceTrait, keyof DetailRules | undefined];
-      return [
-        path,
-        sourceOf((appearance) =>
-          part === undefined ? appearance[trait] : appearance.detail?.[part],
-        ),
-      ];
-    }),
-  ) as Record<TraitPath, TraitSource>;
   const attributes = new Map<string, Id>();
   for (const name of (definitions.component(componentId)?.attributes ?? []).map((a) => a.name)) {
     const definer = chain.find(({ definition }) =>
@@ -186,8 +234,16 @@ export function traitSources(
     );
     if (definer !== undefined) attributes.set(name, definer.id);
   }
-  return { traits, attributes };
+  return { traits, origins, attributes };
 }
+
+/** Every trait as Essence gives it, when nothing nearer sets it. */
+const ESSENCE_ORIGINS = Object.fromEntries(
+  TRAIT_PATHS.map((path) => [
+    path,
+    { kind: 'definition', id: ESSENCE_ID, via: 'definition', builtIn: true },
+  ]),
+) as Record<TraitPath, TraitOrigin>;
 
 /** Whether a value fits an attribute type. */
 export function valueFitsType(value: JsonValue, type: AttributeDefinition['type']): boolean {
@@ -261,7 +317,7 @@ export function detailParts(
   const component = definitions.component(element.component);
   const detail = resolveAppearance(
     [element.appearance],
-    component?.appearance ?? ESSENCE.appearance,
+    (component ?? definitions.component(ESSENCE_ID))?.appearance ?? ESSENCE.appearance,
   ).detail;
   const parts: DetailPart[] = [];
   if (detail.componentName) {

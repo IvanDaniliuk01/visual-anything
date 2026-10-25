@@ -36,6 +36,9 @@ export type ProblemCode =
   | 'position-of-row'
   // A value outside the choices of its attribute: only a warning.
   | 'choice-broken'
+  // A project appearance for a definition the project defines itself, or that no package defines,
+  // which has no effect: only a warning.
+  | 'appearance-not-used'
   // A project saved by a newer Visual Anything.
   | 'newer-format'
   // Images (M3b), which a package defines and appearances show.

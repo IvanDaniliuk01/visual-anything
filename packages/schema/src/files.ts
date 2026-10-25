@@ -24,7 +24,9 @@ export type JsonValue =
 export type Attributes = Record<string, JsonValue>;
 
 /**
- * A color written as `#rrggbb`.
+ * A color written as `#RRGGBB`: no alpha, no short form and no names. Files may write the digits in
+ * either case; the program writes new colors in capitals and keeps a color's spelling when it is set
+ * to the same color again.
  *
  * @pattern ^#[0-9a-fA-F]{6}$
  */
@@ -40,7 +42,8 @@ export const RELATES_TO_ID = 'relates-to';
 export const SCHEMA_VERSION = 1;
 
 /**
- * The contents of a project's `.vaproject` file: its name, schema version and the packages in use.
+ * The contents of a project's `.vaproject` file: its name, schema version, the packages in use and
+ * the project appearances it gives to definitions it cannot change.
  *
  * @title Visual Anything project file
  */
@@ -56,7 +59,41 @@ export interface ProjectFile {
    * @uniqueItems true
    */
   packages: Id[];
+  /**
+   * How the project draws the components and relation types it uses but cannot change: those of
+   * built-in packages, Essence and "relates to". Absent when it gives none an appearance.
+   */
+  appearances?: ProjectAppearances;
 }
+
+/**
+ * Project appearances, by the id of the definition they belong to. Each sets only the traits it
+ * lists, for that definition and for whatever derives from it without setting them itself; an
+ * element's or a relation's own appearance still comes first. An entry for one of the project's own
+ * definitions, or for one no package in use defines, has no effect.
+ *
+ * @minProperties 1
+ */
+export interface ProjectAppearances {
+  /** By component id, `essence` included. */
+  components?: ComponentAppearances;
+  /** By relation type id, `relates-to` included. */
+  relationTypes?: RelationTypeAppearances;
+}
+
+/**
+ * Project appearances of components, by component id.
+ *
+ * @minProperties 1
+ */
+export type ComponentAppearances = Record<Id, Appearance>;
+
+/**
+ * Project appearances of relation types, by relation type id.
+ *
+ * @minProperties 1
+ */
+export type RelationTypeAppearances = Record<Id, RelationAppearance>;
 
 /**
  * The contents of a project's `.vamodel` file: World, every other element, and every relation.
@@ -104,6 +141,8 @@ export interface Relation {
   name?: string;
   description?: string;
   attributes?: Attributes;
+  /** An appearance of its own, which is a particularity. Whatever it leaves out comes from the relation type. */
+  appearance?: RelationAppearance;
 }
 
 /**
@@ -442,6 +481,10 @@ export interface Note {
   /** @exclusiveMinimum 0 */
   height: number;
   text: string;
+  /** Its fill; without one, the theme's note color. */
+  fill?: Color;
+  /** Its stroke; without one, the theme's. */
+  stroke?: Color;
 }
 
 /** A free shape that points from one place on the canvas to another. */
@@ -450,6 +493,8 @@ export interface Arrow {
   id: Id;
   from: Point;
   to: Point;
+  /** Its color; without one, the theme's arrow color. */
+  stroke?: Color;
 }
 
 /** A point on the canvas, in canvas units. */

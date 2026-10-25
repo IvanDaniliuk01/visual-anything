@@ -3,7 +3,7 @@
  * a project; after every step the project keeps its rules, and every action undoes exactly.
  */
 import fc from 'fast-check';
-import type { FileKind, Id, LimitList, ViewFile } from '@visual-anything/schema';
+import type { FileKind, FreeShape, Id, LimitList, ViewFile } from '@visual-anything/schema';
 import { validateFile } from '@visual-anything/schema/validate';
 import { describe, expect, it } from 'vitest';
 import { checkProject } from './check';
@@ -13,6 +13,8 @@ import {
   type Command,
   type ContainerChangePreview,
   type UpdateComponentCommand,
+  type UpdateElementCommand,
+  type UpdateRelationCommand,
   type UpdateRelationTypeCommand,
 } from './commands';
 import { EMPTY_HISTORY, record, redo, undo, type History } from './history';
@@ -84,8 +86,21 @@ type Intent =
   | { kind: 'update-package'; value: number }
   | { kind: 'reorder'; picks: number[]; before: number | null }
   | { kind: 'collapse'; at: number; picks: number[]; collapsed: boolean }
+  | { kind: 'component-appearance'; at: number; form: number; value: number }
+  | { kind: 'relation-type-appearance'; at: number; form: number; value: number }
+  | { kind: 'relation-appearance'; relation: number; form: number; value: number }
+  | { kind: 'element-appearance'; element: number; form: number; value: number }
+  | { kind: 'shape-color'; at: number; arrow: boolean; value: number }
   | { kind: 'undo' }
   | { kind: 'redo' };
+
+/** The intents that set colors: run again with their colors in lower case, they change nothing. */
+const RECOLORS: ReadonlySet<Intent['kind']> = new Set([
+  'component-appearance',
+  'relation-type-appearance',
+  'relation-appearance',
+  'element-appearance',
+]);
 
 /** Every kind of command, each of which the random actions must manage to apply. */
 const COMMAND_TYPES: readonly Command['type'][] = [
@@ -118,6 +133,8 @@ const COMMAND_TYPES: readonly Command['type'][] = [
   'update-package',
   'reorder-elements',
   'set-collapsed',
+  'set-component-appearance',
+  'set-relation-type-appearance',
   'batch',
 ];
 
@@ -246,6 +263,37 @@ const intent: fc.Arbitrary<Intent> = fc.oneof(
     picks: fc.array(index, { minLength: 1, maxLength: 3 }),
     collapsed: fc.boolean(),
   }),
+  {
+    arbitrary: fc.record({
+      kind: fc.constant('component-appearance'),
+      at: index,
+      form: index,
+      value: index,
+    }),
+    weight: 2,
+  },
+  {
+    arbitrary: fc.record({
+      kind: fc.constant('relation-type-appearance'),
+      at: index,
+      form: index,
+      value: index,
+    }),
+    weight: 2,
+  },
+  fc.record({
+    kind: fc.constant('relation-appearance'),
+    relation: index,
+    form: index,
+    value: index,
+  }),
+  fc.record({
+    kind: fc.constant('element-appearance'),
+    element: index,
+    form: index,
+    value: index,
+  }),
+  fc.record({ kind: fc.constant('shape-color'), at: index, arrow: fc.boolean(), value: index }),
   { arbitrary: fc.constant({ kind: 'undo' as const }), weight: 2 },
   { arbitrary: fc.constant({ kind: 'redo' as const }), weight: 1 },
 );
@@ -640,10 +688,141 @@ function commandFor(state: ProjectSnapshot, wish: Intent): Command | undefined {
         collapsed: wish.collapsed,
       };
     }
+    case 'component-appearance': {
+      const component = pick(APPEARANCE_TARGETS, wish.at) as Id;
+      const color = (shift: number) => pick(COLORS, wish.value + shift) as string;
+      switch (wish.form % 3) {
+        case 0:
+          return {
+            type: 'set-component-appearance',
+            component,
+            appearance: {
+              fill: color(0),
+              ...(wish.value % 2 === 0 ? { stroke: color(1) } : {}),
+              ...(wish.value % 3 === 0 ? { width: 40 + (wish.value % 300) } : {}),
+            },
+          };
+        case 1:
+          return {
+            type: 'set-component-appearance',
+            component,
+            appearanceTraits: {
+              fill: wish.value % 3 === 0 ? null : color(0),
+              stroke: wish.value % 4 === 0 ? null : color(2),
+            },
+          };
+        default:
+          return { type: 'set-component-appearance', component, appearance: null };
+      }
+    }
+    case 'relation-type-appearance': {
+      const relationType = pick(RELATION_APPEARANCE_TARGETS, wish.at) as Id;
+      switch (wish.form % 3) {
+        case 0:
+          return {
+            type: 'set-relation-type-appearance',
+            relationType,
+            appearance: {
+              stroke: pick(COLORS, wish.value) as string,
+              ...(wish.value % 2 === 0 ? { dash: 'dashed' as const } : {}),
+              ...(wish.value % 3 === 0 ? { width: 1 + (wish.value % 5) } : {}),
+            },
+          };
+        case 1:
+          return {
+            type: 'set-relation-type-appearance',
+            relationType,
+            appearanceTraits: {
+              stroke: wish.value % 3 === 0 ? null : pick(COLORS, wish.value),
+              width: wish.value % 2 === 0 ? null : 2,
+            },
+          };
+        default:
+          return { type: 'set-relation-type-appearance', relationType, appearance: null };
+      }
+    }
+    case 'relation-appearance': {
+      const relation = pick(relations, wish.relation);
+      if (relation === undefined) return undefined;
+      const stroke = pick(COLORS, wish.value) as string;
+      const changes = [
+        { appearance: { stroke, ...(wish.value % 2 === 0 ? { width: 3 } : {}) } },
+        {
+          appearanceTraits: {
+            stroke: wish.value % 3 === 0 ? null : stroke,
+            dash: 'dotted' as const,
+          },
+        },
+        { appearance: null },
+      ][wish.form % 3] as UpdateRelationCommand['changes'];
+      return { type: 'update-relation', id: relation, changes };
+    }
+    case 'element-appearance': {
+      const element = pick([state.model.world.id, ...elements], wish.element) as Id;
+      const fill = pick(COLORS, wish.value) as string;
+      const changes = [
+        { appearance: { fill, ...(wish.value % 2 === 0 ? { shape: 'ellipse' as const } : {}) } },
+        { appearanceTraits: { stroke: wish.value % 3 === 0 ? null : fill } },
+        { appearance: null },
+      ][wish.form % 3] as UpdateElementCommand['changes'];
+      return { type: 'update-element', id: element, changes };
+    }
+    case 'shape-color': {
+      const view = pick(state.views, wish.at);
+      if (!view) return undefined;
+      const color = pick(COLORS, wish.value) as string;
+      const kind = wish.arrow ? 'arrow' : 'note';
+      const shape = view.freeShapes.find((each) => each.kind === kind);
+      if (shape === undefined) {
+        return wish.arrow
+          ? {
+              type: 'create-free-shape',
+              view: view.id,
+              shape: { kind: 'arrow', from: { x: 0, y: 0 }, to: { x: 40, y: 8 }, stroke: color },
+            }
+          : undefined;
+      }
+      const rest = Object.fromEntries(
+        Object.entries(shape).filter(([key]) => key !== 'fill' && key !== 'stroke'),
+      ) as FreeShape;
+      const colors =
+        wish.value % 3 === 0
+          ? {}
+          : shape.kind === 'note'
+            ? { fill: color, ...(wish.value % 2 === 0 ? { stroke: color } : {}) }
+            : { stroke: color };
+      return { type: 'update-free-shape', view: view.id, shape: { ...rest, ...colors } };
+    }
     case 'undo':
     case 'redo':
       return undefined;
   }
+}
+
+/** Colors the actions set, some written in lower case, which commands store in capitals. */
+const COLORS = ['#112233', '#aabbcc', '#FFFFFF', '#d6336c'];
+/** Components whose appearance the actions change: own, built in, and one no package defines. */
+const APPEARANCE_TARGETS = [
+  'test.box',
+  'test.service',
+  'essence',
+  'systems.service',
+  'systems.ai-agent',
+  'nowhere.thing',
+];
+const RELATION_APPEARANCE_TARGETS = [
+  'test.calls',
+  'test.reads',
+  'relates-to',
+  'systems.writes-to',
+  'test.inside',
+];
+
+/** A command with every color in it written in lower case. */
+function lowerCased(command: Command): Command {
+  return JSON.parse(
+    JSON.stringify(command).replace(/#[0-9A-F]{6}/gi, (color) => color.toLowerCase()),
+  ) as Command;
 }
 
 /** Every anchored shape of a view: an element, and the container it sits in there. */
@@ -704,6 +883,7 @@ function expectRulesKept(state: ProjectSnapshot) {
   // Every value a command set is one the published schema accepts, so every save succeeds. A file an
   // action left alone keeps its object, so each object is checked once.
   const files: [FileKind, object][] = [
+    ['project', state.project],
     ['model', state.model],
     ...state.packages.map((file): [FileKind, object] => ['package', file]),
     ...state.views.map((view): [FileKind, object] => ['view', view]),
@@ -711,6 +891,10 @@ function expectRulesKept(state: ProjectSnapshot) {
   for (const [kind, file] of files) {
     if (validated.has(file)) continue;
     expect(validateFile(kind, file)).toEqual({ ok: true, value: file });
+    // Every color a command stored is written in capitals: the project starts with no other.
+    for (const color of JSON.stringify(file).match(/#[0-9A-Fa-f]{6}\b/g) ?? []) {
+      expect(color).toBe(color.toUpperCase());
+    }
     validated.add(file);
   }
 }
@@ -724,6 +908,7 @@ describe('the rules of the core', () => {
       applied: 0,
       deletes: 0,
       containerChanges: 0,
+      recolors: 0,
       undos: 0,
       kinds: new Set<string>(),
     };
@@ -783,6 +968,12 @@ describe('the rules of the core', () => {
               expectContainerChangedExactly(before, after, containerPreview);
               seen.containerChanges += 1;
             }
+            // Picking the same colors again, in another case, changes nothing.
+            if (RECOLORS.has(wish.kind)) {
+              const again = executeCommand(after, lowerCased(command), { newId });
+              expect(again.ok && again.state).toStrictEqual(after);
+              seen.recolors += 1;
+            }
             seen.applied += 1;
             seen.kinds.add(command.type);
 
@@ -809,6 +1000,7 @@ describe('the rules of the core', () => {
     expect(seen.applied).toBeGreaterThan(1000);
     expect(seen.deletes).toBeGreaterThan(100);
     expect(seen.containerChanges).toBeGreaterThan(20);
+    expect(seen.recolors).toBeGreaterThan(100);
     expect(seen.undos).toBeGreaterThan(100);
     // And every kind of command among them.
     expect([...seen.kinds].sort()).toEqual([...COMMAND_TYPES].sort());
