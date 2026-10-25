@@ -29,13 +29,7 @@ import {
 import { updateProject } from './project';
 import { setComponentAppearance, setRelationTypeAppearance } from './appearance';
 import { resetRoute, setRoute, settleRoutes } from './routes';
-import {
-  addOverlay,
-  moveOverlay,
-  removeOverlays,
-  setOverlays,
-  updateOverlay,
-} from './overlays';
+import { addOverlay, moveOverlay, removeOverlays, setOverlays, updateOverlay } from './overlays';
 import { restack } from './stacking';
 import { changeContainer } from './containers';
 import { createScenario, deleteScenario, updateScenario } from './scenarios';
