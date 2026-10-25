@@ -15,6 +15,7 @@ import { THEMES, type CanvasTheme } from '../../theme/themes';
 import { readableTextColors } from '../colors';
 import {
   drawFreeShapes,
+  drawPieceCasings,
   drawPieceLines,
   drawRelationLines,
   drawRelationRoutes,
@@ -133,14 +134,16 @@ export class Painter {
    * drawing they are in is tinted to the canvas. They depend on no theme.
    */
   casings(graphics: Graphics, pieces: readonly RoutePiece[], ends: readonly RelationLine[]): void {
-    drawPieceLines(
-      graphics,
-      pieces.map((piece) => ({
-        ...piece,
-        line: { ...piece.line, stroke: CASING, width: piece.line.width + CASING_EXTRA },
-      })),
-    );
-    for (const line of ends) if (line.arrowhead) arrowheadCasing(graphics, line.arrowhead, CASING);
+    // All in one color: a path for each width, and one for every arrowhead, in any order.
+    drawPieceCasings(graphics, pieces, CASING, CASING_EXTRA);
+    let any = false;
+    for (const line of ends) {
+      if (!line.arrowhead) continue;
+      const { tip, left, right } = line.arrowhead;
+      graphics.poly([tip.x, tip.y, left.x, left.y, right.x, right.y]);
+      any = true;
+    }
+    if (any) graphics.fill(CASING).stroke({ color: CASING, width: CASING_EXTRA, join: 'round' });
   }
 
   /**

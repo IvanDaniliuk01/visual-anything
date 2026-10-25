@@ -12,7 +12,9 @@ import { FakeApplication, FakeResizeObserver } from '../test/FakeApplication';
 import type { TextFactory } from './draw';
 import { indexScene } from './hit';
 import { CanvasRenderer } from './renderer';
-import { buildScene } from './scene';
+import { buildScene, type ElementShape } from './scene';
+import { meets } from './spatial';
+import { TILE } from './tiles';
 
 vi.mock('pixi.js', async (importOriginal) => {
   const pixi = await importOriginal<typeof import('pixi.js')>();
@@ -22,6 +24,7 @@ vi.mock('pixi.js', async (importOriginal) => {
 
 interface TileView {
   kind: 'shapes' | 'relations' | 'free';
+  shapes: ElementShape[];
   container: Container;
   bounds: { x: number; y: number; width: number; height: number };
   full?: Graphics;
@@ -176,6 +179,34 @@ describe('CanvasRenderer.exportImage', () => {
     expect(rendered[0]).toMatchObject({ culled: 0, unnamed: 0, plain: 0 });
     expect(rendered[0]?.transform).toMatchObject({ a: 1, d: 1 });
     expect([...tiles.values()].map((tile) => tile.container.culled)).toEqual(culledBefore);
+  });
+
+  it('plans every cell for an image of the whole view, and lets go after of what it drew far off', async () => {
+    const { renderer } = await started();
+    renderer.show(indexed);
+    renderer.setCamera({ x: 0, y: 0, scale: 1 });
+    // Every shape made again where it was: the cells away from the screen are planned only later.
+    const again = indexScene({
+      ...indexed.scene,
+      shapes: indexed.scene.shapes.map((shape) => ({ ...shape })),
+    });
+    renderer.show(again);
+    renderer.renderNow();
+    const tiles = () => [...inside(renderer).tiles.values()];
+    const shapes = new Set(again.scene.shapes);
+    const current = () => tiles().every((tile) => tile.shapes.every((each) => shapes.has(each)));
+    expect(current()).toBe(false);
+
+    await renderer.exportImage({ area: 'view', scale: 1 });
+
+    // Drawn whole, in full and named, from the scene as it is.
+    expect(rendered[0]).toMatchObject({ culled: 0, unnamed: 0, plain: 0 });
+    expect(current()).toBe(true);
+    // Only the tiles near the screen keep what the image drew of them: the screen, half a cell around.
+    const near = { x: -TILE / 2, y: -TILE / 2, width: 1200 + TILE, height: 800 + TILE };
+    const kept = tiles().filter((tile) => tile.full || tile.labels);
+    expect(kept.length).toBeGreaterThan(0);
+    expect(kept.every((tile) => meets(tile.bounds, near))).toBe(true);
   });
 
   it('draws no mark of the selection, and shows them again after', async () => {

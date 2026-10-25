@@ -6,9 +6,12 @@
  * the theme, and how many times the tile's colors changed. A drawing whose stamp is not the one the
  * canvas should show is stale. Stale drawings on screen are drawn again behind the ones showing, the
  * nearest the middle of the screen first, within a clock of their own each frame; once none is left
- * on screen, or after `SWAP_WITHIN` frames, they are shown in one frame, with the new theme's canvas,
- * marks and label tints. Drawings off screen are drawn again before they show, and while the camera
- * rests. A drawing is never dropped for being stale: it shows until the new one is ready.
+ * on screen they are shown in one frame, with the new theme's canvas, marks and label tints. Drawings
+ * off screen are drawn again while the camera rests, in what a frame's own work leaves of its time and
+ * never in the frame that shows a switch, a region at a time, shown together once the region is
+ * drawn again; any that comes near the screen first is shown, or drawn again, before it shows,
+ * whatever the clock says, so that no tile ever shows a theme or colors no longer current. A drawing
+ * is never dropped for being stale: it shows until the new one is ready.
  */
 import type { ThemeName } from '@visual-anything/core';
 import type { ArrowShape, ElementShape, NoteShape, RelationLine } from '../scene';
@@ -16,15 +19,41 @@ import { nameBandOf } from '../shape-images';
 import type { TilePlan } from '../tiles';
 import { lineFollowsTheme, noteFollowsTheme, shapeFollowsTheme } from './paint';
 
-/** How long a frame may spend drawing tiles again, in milliseconds; labels take what is left of it. */
+/**
+ * How long a frame may spend drawing tiles again and tinting labels again, in milliseconds: with the
+ * rest of a frame's drawing and the GPU's, the frames of a switch stay within 16.7 ms.
+ */
 export const RESTYLE_BUDGET = 6;
 /**
- * How long a frame may spend drawing again, while the camera rests, the tiles that do not show: when
- * nothing moves, a longer frame is not seen, and they are ready sooner for when the camera moves.
+ * How many frames a switch or a recolor draws its tiles on screen within the clock before it draws
+ * the rest of them at once, in the frame that shows it: a camera that keeps moving keeps bringing
+ * new ones, and the switch shows anyway, never with a stale tile.
  */
-export const CATCH_UP_BUDGET = 12;
-/** How many frames a switch or a recolor waits for the tiles on screen before it shows anyway. */
-export const SWAP_WITHIN = 30;
+export const SWAP_WITHIN = 60;
+
+/**
+ * What drawing a tile again is expected to cost, in milliseconds for each shape, piece of a route or
+ * note it draws, learned from the drawings made so far, so that a frame stops before one that would
+ * overrun its clock rather than after it.
+ */
+export class RestyleCosts {
+  private readonly perItem = new Map<string, number>();
+
+  constructor(private readonly initial = 0.02) {}
+
+  /** What drawing `items` items of this kind of drawing is expected to take. */
+  estimate(kind: string, items: number): number {
+    return (this.perItem.get(kind) ?? this.initial) * Math.max(1, items);
+  }
+
+  /** Learns from a drawing of `items` items that took `spent` milliseconds. */
+  learn(kind: string, items: number, spent: number): void {
+    const measured = spent / Math.max(1, items);
+    const known = this.perItem.get(kind);
+    // Leaning on the latest, so that a slower machine or a heavier scene is followed within a frame.
+    this.perItem.set(kind, known === undefined ? measured : known * 0.6 + measured * 0.4);
+  }
+}
 
 /** What the benchmark checks of restyles. */
 export interface RestyleStats {
@@ -42,9 +71,18 @@ export interface RestyleStats {
 /** The drawings of a tile: its plain drawing, shown far out, and its full drawing. */
 export type Drawing = 'coarse' | 'full';
 
+/** The stamps made so far, by theme (or "any") and count of paints: every frame of a switch asks. */
+const stamps = new Map<string, string[]>();
+
 /** The stamp of drawings made in `theme`, of a tile whose colors changed `paints` times. */
 export function stampOf(followsTheme: boolean, theme: ThemeName, paints: number): string {
-  return followsTheme ? `${theme} ${paints}` : `any ${paints}`;
+  const of = followsTheme ? theme : 'any';
+  let known = stamps.get(of);
+  if (!known) {
+    known = [];
+    stamps.set(of, known);
+  }
+  return (known[paints] ??= `${of} ${paints}`);
 }
 
 /** What a tile draws, as far as the theme goes. */
