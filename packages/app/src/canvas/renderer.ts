@@ -54,9 +54,12 @@ import { ScreenMarks, selectionBounds } from './screenMarks';
 import { bitmapText, installFonts } from './labels';
 import { THEMES, type CanvasTheme } from '../theme/themes';
 import { DIMMED_ALPHA } from './colors';
-import { midpointOf, pointAlong, routeBetweenEnds, type RouteEnd } from './route';
+import { midpointOf, pointAlong, type RouteEnd } from './route';
 import { drawRouteOverlay, type RouteOverlay } from './routing/overlay';
 import { rerouted } from './routing/scene-routes';
+import { routeWithSides } from './rowRoutes';
+import { dragEnds } from './rowShapes';
+import { levelWithRows } from './rowsDraw';
 import {
   relationLinesOf,
   type ArrowShape,
@@ -707,6 +710,21 @@ export class CanvasRenderer {
     return this.tileOfShape.get(key)?.full !== undefined;
   }
 
+  /**
+   * Whether the tile that draws the shape with this key is drawn in full, with every label the
+   * scale shows: what the benchmark's edit of one column waits for (ADR 0023).
+   */
+  shownInFull(key: string): boolean {
+    const tile = this.tileOfShape.get(key);
+    if (!tile?.full || (tile.coarse && tile.plainShown)) return false;
+    const level = levelWithRows(
+      tile.shapes,
+      wantedFor(tile.kind, this.detailNow().wanted),
+      this.camera.scale,
+    );
+    return level === 0 || (tile.level === level && tile.labelled >= labelCount(tile));
+  }
+
   /** Looks at the scene through this camera. */
   setCamera(camera: Camera): void {
     const zoomed = camera.scale !== this.camera.scale;
@@ -834,6 +852,8 @@ export class CanvasRenderer {
       band < MAX_BANDS &&
       shape.holdsContents &&
       shape.collapsed === undefined &&
+      // Rows are stacked by their table, never placed on a grid (ADR 0023).
+      shape.rowCount === undefined &&
       !this.hiddenNow().shapes.has(shape.key);
     this.gridMarks.showInside(
       drawn ? { shape, parent: this.band(band).container } : undefined,
@@ -1239,11 +1259,12 @@ export class CanvasRenderer {
       this.place(tile);
       dimTile(tile, next.dim);
       if (next.band === MAX_BANDS) reorder = true;
+      const shown = levelWithRows(next.shapes, wanted, this.camera.scale);
       const wasReady =
-        ready !== undefined && next.shapes.every((shape) => isReady(ready.get(shape.key), wanted));
+        ready !== undefined && next.shapes.every((shape) => isReady(ready.get(shape.key), shown));
       if (wasReady && budget.left > 0) {
         budget.left -= next.shapes.length;
-        this.drawAtOnce(tile, wanted);
+        this.drawAtOnce(tile, shown);
       }
       touched.push(tile);
     }
@@ -1712,7 +1733,7 @@ export class CanvasRenderer {
       // A tile left out of the frame shows what it should once it is near again, as this runs
       // before culling: changing what it shows now would only make PixiJS gather its region again.
       if (!near && tile.container.culled) continue;
-      const wanted = wantedFor(tile.kind, detail);
+      const wanted = levelWithRows(tile.shapes, wantedFor(tile.kind, detail), scale);
       const full = !coarse && tile.full !== undefined;
       showPlain(tile, !full);
       if (tile.full) tile.full.visible = full || !tile.coarse;
@@ -1958,9 +1979,20 @@ export class CanvasRenderer {
       resolving.delete(line.relation);
       let next = line;
       if (from && to) {
+        // Rows and the shapes that draw them are left beside them, as the scene does (ADR 0023).
+        const [start, stop] = dragEnds(
+          line.ends,
+          from,
+          to,
+          (key) => indexed.byKey.get(key),
+          (key) => {
+            const shape = indexed.byKey.get(key);
+            return shape && (hidden.shapes.has(key) ? moved(shape.rect, delta) : shape.rect);
+          },
+        );
         // Routed by hand, through its bend points, or to connection points, where it is so.
-        const byHand = rerouted(line, from, to, shapeOf(line.ends.from), shapeOf(line.ends.to));
-        const route = byHand?.route ?? routeBetweenEnds(from, to, line.ends.offset);
+        const byHand = rerouted(line, start, stop, shapeOf(line.ends.from), shapeOf(line.ends.to));
+        const route = byHand?.route ?? routeWithSides(start, stop, line.ends.offset);
         const end = route.at(-1) as Point;
         const beforeEnd = route.at(-2) as Point;
         if (directionOf(beforeEnd, end)) {

@@ -228,7 +228,9 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
     const keys = new Set<string>();
     for (const shape of scene.shapes) {
       keys.add(shape.key);
-      if (shape.positioned === 'placed' && (opened || !last.keys.has(shape.key))) {
+      // A row is placed by its container's rows, never by layout (ADR 0023).
+      const waits = shape.positioned === 'placed' && shape.row === undefined;
+      if (waits && (opened || !last.keys.has(shape.key))) {
         waiting.current.add(shape.key);
       }
     }
@@ -286,7 +288,10 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
 function targetOf(scene: Scene, selection: Selection): LayoutScope {
   const [only] = selection.elements;
   if (sizeOf(selection) !== 1 || only === undefined) return { kind: 'view' };
-  const holds = scene.shapes.some((shape) => shape.element === only && shape.holdsContents);
+  // A shape that draws rows has nothing inside it to lay out: its rows are placed in order.
+  const holds = scene.shapes.some(
+    (shape) => shape.element === only && shape.holdsContents && shape.rowCount === undefined,
+  );
   return holds ? { kind: 'contents', container: only } : { kind: 'view' };
 }
 

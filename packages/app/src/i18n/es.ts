@@ -272,6 +272,10 @@ export const ui: Catalog = {
   // What the canvas says about what it selected.
   'in {container} and {others}': 'en {container} y {others}',
   'in {container}': 'en {container}',
+  '{name}, {component}, row {position} of {count} in {container}, {relations}.':
+    '{name}, {component}, fila {position} de {count} en {container}, {relations}.',
+  '{name}, {component}, {detail}, row {position} of {count} in {container}, {relations}.':
+    '{name}, {component}, {detail}, fila {position} de {count} en {container}, {relations}.',
   '{count} other containers': { one: '{count} contenedor más', other: '{count} contenedores más' },
   'no relations': 'ninguna relación',
   'A relation that no longer exists.': 'Una relación que ya no existe.',
@@ -454,6 +458,23 @@ export const ui: Catalog = {
   // The question before a deletion, or before a change that deletes relations as it goes.
   'a relation': 'una relación',
   'Delete {things}?': '¿Eliminar {things}?',
+  'Also delete its {count} rows': {
+    one: 'Eliminar también su fila',
+    other: 'Eliminar también sus {count} filas',
+  },
+  'Also delete their {count} rows': {
+    one: 'Eliminar también su fila',
+    other: 'Eliminar también sus {count} filas',
+  },
+  'Also delete {count} more elements it holds:': {
+    one: 'Eliminar también {count} elemento más que contiene:',
+    other: 'Eliminar también {count} elementos más que contiene:',
+  },
+  'Also delete {count} more elements they hold:': {
+    one: 'Eliminar también {count} elemento más que contienen:',
+    other: 'Eliminar también {count} elementos más que contienen:',
+  },
+  '{name} is also in {container}': '{name} también está en {container}',
   '{question}?': '¿{question}?',
   'Put inside': 'Poner dentro',
   Move: 'Mover',
@@ -583,6 +604,51 @@ export const ui: Catalog = {
   'The grid is hidden.': 'Se ocultó la cuadrícula.',
   'The rulers show.': 'Se muestran las reglas.',
   'The rulers are hidden.': 'Se ocultaron las reglas.',
+  // A table's columns, and any shape's rows, in the inspector.
+  Columns: 'Columnas',
+  Rows: 'Filas',
+  'This view does not nest by “{type}”, so its {count} columns sit loose.': {
+    one: 'Esta vista no anida por “{type}”, así que su columna queda suelta.',
+    other: 'Esta vista no anida por “{type}”, así que sus {count} columnas quedan sueltas.',
+  },
+  'This view does not nest by “{type}”, so its {count} rows sit loose.': {
+    one: 'Esta vista no anida por “{type}”, así que su fila queda suelta.',
+    other: 'Esta vista no anida por “{type}”, así que sus {count} filas quedan sueltas.',
+  },
+  'Show them as rows': 'Mostrarlas como filas',
+  'The columns show as rows.': 'Las columnas se muestran como filas.',
+  'The rows show as rows.': 'Las filas se muestran como filas.',
+  'No columns yet.': 'Todavía no hay columnas.',
+  'No rows yet.': 'Todavía no hay filas.',
+  'Move “{name}” up': 'Subir “{name}”',
+  'Move “{name}” down': 'Bajar “{name}”',
+  '“{name}” moved up.': '“{name}” subió.',
+  '“{name}” moved down.': '“{name}” bajó.',
+  Up: 'Subir',
+  Down: 'Bajar',
+  'Remove “{name}”': 'Quitar “{name}”',
+  '“{name}” was removed.': 'Se quitó “{name}”.',
+  'Add a column': 'Agregar una columna',
+  'Add a row': 'Agregar una fila',
+  'Added a row to “{name}”.': 'Se agregó una fila a “{name}”.',
+  '“{name}” draws no rows to add a row to.': '“{name}” no dibuja filas a las que agregar una.',
+  'Type or paste columns': 'Escribir o pegar columnas',
+  'id uuid pk, or a CREATE TABLE statement': 'id uuid pk, o una instrucción CREATE TABLE',
+  'Columns to add': 'Columnas que se agregan',
+  'Add {count} columns': { one: 'Agregar {count} columna', other: 'Agregar {count} columnas' },
+  'Added {count} columns to “{name}”.': {
+    one: 'Se agregó {count} columna a “{name}”.',
+    other: 'Se agregaron {count} columnas a “{name}”.',
+  },
+  'Skipped: {text}: {reason}': 'Omitido: {text}: {reason}',
+  'Not related: {text}: {reason}': 'Sin relacionar: {text}: {reason}',
+  'an index, not a column': 'un índice, no una columna',
+  'a check, not a column': 'una verificación, no una columna',
+  'not a column': 'no es una columna',
+  'a unique key over several columns': 'una clave única de varias columnas',
+  'names no column': 'no nombra ninguna columna',
+  'a foreign key it cannot read': 'una clave foránea que no se puede leer',
+  'could not be read': 'no se pudo leer',
 
   // The canvas's keyboard help.
   Keyboard: 'Teclado',
@@ -601,6 +667,12 @@ export const ui: Catalog = {
     'Cambiar el nombre del elemento seleccionado, o editar la nota seleccionada',
   'Shift+arrow keys': 'Mayús+flechas',
   'Move the selection one grid step': 'Mover la selección un paso de la cuadrícula',
+  'Shift+Up, Shift+Down on a row': 'Mayús+Arriba, Mayús+Abajo en una fila',
+  'Move the row up or down among the rows of its table, in the model’s order':
+    'Subir o bajar la fila entre las filas de su tabla, en el orden del modelo',
+  'Ctrl+Enter (⌘Enter on macOS)': 'Ctrl+Enter (⌘Enter en macOS)',
+  'On a table, add a row at its end; on a row, add one below it; then edit its name, where Ctrl+Enter adds the next row and Escape stops':
+    'En una tabla, agregar una fila al final; en una fila, agregar otra debajo; después editar su nombre, donde Ctrl+Enter agrega la fila siguiente y Esc termina',
   'Ctrl+↑ and Ctrl+↓ (⌘ on macOS), or Ctrl+] and Ctrl+[':
     'Ctrl+↑ y Ctrl+↓ (⌘ en macOS), o Ctrl+] y Ctrl+[',
   'Bring the selection forward or send it backward, past the next shape it overlaps; these keys work wherever the focus is, except while typing':
@@ -862,6 +934,9 @@ export const messages: Catalog = {
   'Add an arrow to "{view}"': 'Agregar una flecha a "{view}"',
   'Edit a note in "{view}"': 'Editar una nota en "{view}"',
   'Edit an arrow in "{view}"': 'Editar una flecha en "{view}"',
+  'Add 1 column to "{name}"': 'Agregar 1 columna a "{name}"',
+  'Add {n} columns to "{name}"': 'Agregar {n} columnas a "{name}"',
+  'Add a row to "{name}"': 'Agregar una fila a "{name}"',
   'Delete 1 free shape from "{view}"': 'Eliminar 1 forma libre de "{view}"',
   'Delete {n} free shapes from "{view}"': 'Eliminar {n} formas libres de "{view}"',
   'Route "{relation}" by hand in "{view}"': 'Trazar "{relation}" a mano en "{view}"',

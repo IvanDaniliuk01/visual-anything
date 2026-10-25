@@ -12,6 +12,7 @@ import { arrowColorOf, noteColorsOf, type ThemeName } from '@visual-anything/cor
 import type { Color } from '@visual-anything/schema';
 import type { CanvasTheme } from '../../theme/themes';
 import { readableTextColors } from '../colors';
+import { rowsFollowTheme } from '../rowsDraw';
 import type { ArrowShape, ElementShape, NoteShape, RelationLine } from '../scene';
 import type { RoutePiece } from '../tiles';
 
@@ -43,9 +44,12 @@ export function arrowStroke(arrow: ArrowShape, theme: CanvasTheme): Color {
   return arrowColorOf(arrow, theme).color;
 }
 
-/** Whether a shape is drawn in other colors in the dark theme than in the light one. */
+/**
+ * Whether a shape is drawn in other colors in the dark theme than in the light one: in built-in
+ * colors, or as a row or a shape that draws rows, whose body and separators are the theme's.
+ */
 export function shapeFollowsTheme(shape: ElementShape): boolean {
-  return shape.dark !== undefined;
+  return shape.dark !== undefined || rowsFollowTheme(shape);
 }
 
 export function lineFollowsTheme(line: RelationLine): boolean {

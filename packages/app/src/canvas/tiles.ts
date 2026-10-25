@@ -371,6 +371,10 @@ export function shapeSignature(shape: ElementShape): string {
       shape.detail ?? '',
       shape.holdsContents ? 1 : 0,
       shape.collapsed?.contents ?? -1,
+      // Rows and the shapes that draw them (ADR 0023).
+      shape.rowCount ?? -1,
+      shape.row ?? -1,
+      shape.fitted ? `${shape.fitted.name}\u0000${shape.fitted.detail}` : '',
     ].join(' ');
     signatures.set(shape, signature);
   }

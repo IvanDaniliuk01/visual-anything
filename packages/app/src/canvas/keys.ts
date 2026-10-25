@@ -55,6 +55,14 @@ export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
   { keys: 'F2', does: 'Rename the selected element, or edit the selected note' },
   { keys: 'Shift+arrow keys', does: 'Move the selection one grid step' },
   {
+    keys: 'Shift+Up, Shift+Down on a row',
+    does: 'Move the row up or down among the rows of its table, in the model’s order',
+  },
+  {
+    keys: 'Ctrl+Enter (⌘Enter on macOS)',
+    does: 'On a table, add a row at its end; on a row, add one below it; then edit its name, where Ctrl+Enter adds the next row and Escape stops',
+  },
+  {
     keys: 'Ctrl+↑ and Ctrl+↓ (⌘ on macOS), or Ctrl+] and Ctrl+[',
     does: 'Bring the selection forward or send it backward, past the next shape it overlaps; these keys work wherever the focus is, except while typing',
   },

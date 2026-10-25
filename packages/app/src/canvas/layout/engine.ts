@@ -103,6 +103,12 @@ export interface Lifted {
   /** Where the end on the content itself is fixed by hand, as a port (ADR 0039). */
   uPort?: LayoutPort;
   vPort?: LayoutPort;
+  /**
+   * For an end on a row of the content, or on the header of a content that draws rows: where it
+   * attaches beside the content, from its top (ADR 0023). The content then gets a port there.
+   */
+  uAt?: number;
+  vAt?: number;
 }
 
 /**
@@ -296,13 +302,33 @@ export function blockGraph(
 ): ElkNode {
   const back = backRelations(nodes, lifted);
   const ports = new Map<number, Map<number | string, ElkPort>>();
+  // The ports beside rows and headers (ADR 0023): one on each side of each that a relation ends on.
+  const besidePorts = new Map<number, Map<string, ElkPort>>();
   const endOf = (
     node: number,
     direct: boolean,
     toward: 'east' | 'west',
     fixed?: LayoutPort,
+    beside?: number,
   ): string => {
     const size = sizes.get(node);
+    // An end on a row, or on the header of a content that draws rows, is a port beside it.
+    if (beside !== undefined && size) {
+      const portId = `s${node}:${toward}:${beside}`;
+      const own = besidePorts.get(node) ?? new Map<string, ElkPort>();
+      besidePorts.set(node, own);
+      if (!own.has(portId)) {
+        own.set(portId, {
+          id: portId,
+          x: toward === 'east' ? size.width : 0,
+          y: beside,
+          width: 0,
+          height: 0,
+          layoutOptions: { 'elk.port.side': toward === 'east' ? 'EAST' : 'WEST' },
+        });
+      }
+      return portId;
+    }
     // An end chosen by hand is a port where it was put.
     if (direct && fixed && size) {
       const key = `${fixed.side} ${fixed.at}`;
@@ -344,8 +370,8 @@ export function blockGraph(
   lifted.forEach((each, at) => {
     if (each.u === each.v) return;
     const reversed = back.has(at);
-    const source = endOf(each.u, each.uDirect, reversed ? 'west' : 'east', each.uPort);
-    const target = endOf(each.v, each.vDirect, reversed ? 'east' : 'west', each.vPort);
+    const source = endOf(each.u, each.uDirect, reversed ? 'west' : 'east', each.uPort, each.uAt);
+    const target = endOf(each.v, each.vDirect, reversed ? 'east' : 'west', each.vPort, each.vAt);
     const key = `${source}\u0000${target}`;
     if (seen.has(key)) return;
     seen.add(key);
@@ -358,16 +384,20 @@ export function blockGraph(
     children: nodes.map((node) => {
       const size = sizes.get(node) ?? { width: 1, height: 1 };
       const own = ports.get(node);
+      const beside = besidePorts.get(node);
       return {
         id: `s${node}`,
         width: size.width,
         height: size.height,
-        ...(own
+        ...(own || beside
           ? {
               layoutOptions: { 'elk.portConstraints': 'FIXED_POS' },
-              ports: [...own.entries()]
-                .sort(([a], [b]) => String(a).localeCompare(String(b), 'en', { numeric: true }))
-                .map(([, port]) => port),
+              ports: [
+                ...[...(own ?? new Map<number | string, ElkPort>()).entries()]
+                  .sort(([a], [b]) => String(a).localeCompare(String(b), 'en', { numeric: true }))
+                  .map(([, port]) => port),
+                ...(beside?.values() ?? []),
+              ],
             }
           : {}),
       };
@@ -673,6 +703,8 @@ class Tree {
       const list = this.lifted.get(level) ?? [];
       const uDirect = belowA === from;
       const vDirect = belowB === to;
+      const uAt = this.besideAt(from, belowA);
+      const vAt = this.besideAt(to, belowB);
       list.push({
         u,
         v,
@@ -680,6 +712,8 @@ class Tree {
         vDirect,
         ...(uDirect && ends?.fromPort ? { uPort: ends.fromPort } : {}),
         ...(vDirect && ends?.toPort ? { vPort: ends.toPort } : {}),
+        ...(uAt === undefined ? {} : { uAt }),
+        ...(vAt === undefined ? {} : { vAt }),
       });
       this.lifted.set(level, list);
     } else if (uFree !== vFree) {
@@ -688,6 +722,18 @@ class Tree {
       else flow.out += 1;
       this.flows.set(level, flow);
     }
+  }
+
+  /**
+   * Where a relation that ends on `end` attaches beside `below`, the content of the level that holds
+   * it: beside the header when the end is that content and draws rows, beside the row when the end
+   * is one of its rows; nowhere particular otherwise (ADR 0023).
+   */
+  private besideAt(end: number, below: number): number | undefined {
+    const shape = this.input.shapes[end];
+    if (!shape) return undefined;
+    if (end === below) return shape.headerAt;
+    return shape.rowAt !== undefined && this.parentOf(end) === below ? shape.rowAt : undefined;
   }
 
   private readonly contents = new Map<number, Map<string, number>>();

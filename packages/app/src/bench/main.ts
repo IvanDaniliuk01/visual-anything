@@ -10,6 +10,7 @@
  * the whole view are measured again with them, and the grid's cost per frame at the median, which
  * must stay within 0.5 ms, is measured in blocks of frames with and without it, one after another, so
  * that a machine busy with something else weighs on both alike. `?only=grid` measures only these.
+ * `?tables` draws a view of tables instead (`syntheticTables`), and adds the edit of one column.
  *
  * Work mode, the default, measures the work of each frame: it moves the camera, draws the frame and
  * waits until the GPU has drawn it, so the result does not depend on how often the browser offers
@@ -40,7 +41,14 @@ import { MAX_BANDS, plannedTiles } from '../canvas/tiles';
 import '../theme/tokens.css';
 import { THEMES } from '../theme/themes';
 import { RESTYLING, SHOWN, TARGET_FPS, WORK, addRow, percentile, showVerdict } from './report';
-import { OVERLAPS, seeded, syntheticProject, type Overlap } from './synthetic';
+import {
+  LARGE_TABLE,
+  LARGE_TABLE_COLUMNS,
+  OVERLAPS,
+  seeded,
+  syntheticProject,
+  type Overlap,
+} from './synthetic';
 
 interface Phase {
   name: string;
@@ -73,7 +81,11 @@ const GRID_MARK = 0.5;
 const ROUTE_EDIT_MARK = 50;
 /** How long each frame of a route drag may take at most, in milliseconds: one frame at 60 fps. */
 const ROUTE_DRAG_MARK = 1000 / 60;
-const VIEW = 'everything';
+/** How long one edit, an edit of one column on screen, and a whole layout may take, from the
+ * operations to the frame drawn, at the 95th percentile (components.md §3.9). */
+const EDIT_MARK = 50;
+const COLUMN_MARK = 100;
+const LAYOUT_MARK = 150;
 /** How many times each phase of switches switches the theme. */
 const SWITCHES = 6;
 /** How many times the recolor phase gives every Service other colors. */
@@ -95,7 +107,12 @@ const host = document.getElementById('canvas') as HTMLElement;
 const status = document.getElementById('status') as HTMLElement;
 
 const started = performance.now();
-let project: ProjectSnapshot = syntheticProject({ elements: size, overlap });
+// `?tables` measures a view of tables instead (ADR 0023): see `syntheticTables`.
+const tables = search.has('tables');
+let project: ProjectSnapshot = syntheticProject({ elements: size, overlap, tables });
+const VIEW = project.views[0]?.id ?? 'everything';
+// What the recolor phase recolors: every Service, or in a view of tables every Column.
+const RECOLORED = tables ? 'Column' : 'Service';
 let indexed: IndexedScene = indexScene(buildScene(project, VIEW));
 const prepared = performance.now() - started;
 const { scene } = indexed;
@@ -311,8 +328,11 @@ async function run(): Promise<void> {
   move(cameraAt(NAMES_FROM * 1.3));
   await settle(300);
   const timed: Timed[] = [await measureEdits(10)];
-  if (overlap === 'none' || overlap === 'stairs') timed.push(await measureRestacks(20));
-  if (routeCount > 0) await measureRoutes(phases, timed);
+  if (tables) timed.push(await measureColumnEdits(10));
+  timed.push(await measureLayouts(4));
+  if (!tables && (overlap === 'none' || overlap === 'stairs'))
+    timed.push(await measureRestacks(20));
+  if (!tables && routeCount > 0) await measureRoutes(phases, timed);
 
   report(phases, timed, latency, themeNotes);
 }
@@ -352,7 +372,7 @@ function restyleNote(from: ReturnType<typeof restyleCounts>): string {
  * frame that applies it (the scene's build and index apart), the frames until it shows and 30 after.
  */
 async function measureRecolors(count: number): Promise<{ phase: Phase; note: string }> {
-  performance.mark('phase Recolor every Service');
+  performance.mark(`phase Recolor every ${RECOLORED}`);
   const { renderer } = controller;
   const counts = restyleCounts();
   const frames: number[] = [];
@@ -365,7 +385,7 @@ async function measureRecolors(count: number): Promise<{ phase: Phase; note: str
   for (let each = 0; each < count; each++) {
     const outcome = executeCommand(project, {
       type: 'set-component-appearance',
-      component: 'systems.service',
+      component: tables ? 'data-modeling.column' : 'systems.service',
       appearance: each % 2 === 0 ? { fill: '#E7F5FF', stroke: '#0B7285' } : null,
     });
     if (!outcome.ok) throw new Error(outcome.problems.map((problem) => problem.message).join(' '));
@@ -392,8 +412,8 @@ async function measureRecolors(count: number): Promise<{ phase: Phase; note: str
   }
   const average = (total: number) => (total / Math.max(1, count)).toFixed(0);
   return {
-    phase: { name: 'Recolor every Service, frames after it', frames, restyling: true },
-    note: `Recolor every Service: scene ${average(parts.build)} ms and index ${average(parts.index)} ms on average, then the applying frame ${average(parts.apply)} ms; ${restyleNote(counts)}`,
+    phase: { name: `Recolor every ${RECOLORED}, frames after it`, frames, restyling: true },
+    note: `Recolor every ${RECOLORED}: scene ${average(parts.build)} ms and index ${average(parts.index)} ms on average, then the applying frame ${average(parts.apply)} ms; ${restyleNote(counts)}`,
   };
 }
 
@@ -577,7 +597,108 @@ async function measureEdits(count: number): Promise<Timed> {
   return {
     name: 'One edit: a rename or a move',
     times,
+    mark: EDIT_MARK,
     note: `scene ${average(parts.build)} ms, index ${average(parts.index)} ms, tiles and frame ${average(parts.draw)} ms on average`,
+  };
+}
+
+/**
+ * Edits the type of a column of the large table on screen, close enough for its rows to show their
+ * texts, one edit after another, and times each from the scene's build until the tile of its row is
+ * drawn again with every text it shows (ADR 0023).
+ */
+async function measureColumnEdits(count: number): Promise<Timed> {
+  const { renderer } = controller;
+  const large = indexed.byElement.get(LARGE_TABLE)?.[0];
+  const rows = large ? (indexed.contentsOf.get(large.key) ?? []) : [];
+  const row = rows[Math.floor(rows.length / 2)];
+  if (!large || !row)
+    return { name: 'Edit one column of a large table', times: [], mark: COLUMN_MARK };
+  const { width, height } = renderer.viewport;
+  const scale = 1;
+  move({
+    scale,
+    x: width / 2 - (row.rect.x + row.rect.width / 2) * scale,
+    y: height / 2 - (row.rect.y + row.rect.height / 2) * scale,
+  });
+  // Until what shows is drawn and named, as someone who stops to look would see it.
+  for (let frame = 0; frame < 600 && !renderer.shownInFull(row.key); frame++) {
+    renderer.renderNow(true);
+  }
+  await settle(300);
+  performance.mark('phase Edit one column');
+  const times: number[] = [];
+  let frames = 0;
+  for (let each = 0; each < count; each++) {
+    const outcome = executeCommand(project, {
+      type: 'update-element',
+      id: row.element,
+      changes: { attributes: { type: `varchar(${16 + each})` } },
+    });
+    if (!outcome.ok) throw new Error(outcome.problems.map((problem) => problem.message).join(' '));
+    const began = performance.now();
+    showProject(outcome.state);
+    let more = 0;
+    while (!renderer.shownInFull(row.key) && more < 60) {
+      renderer.renderNow(true);
+      more += 1;
+    }
+    times.push(performance.now() - began);
+    frames += 1 + more;
+    await settle(50);
+  }
+  return {
+    name: 'Edit one column of a large table',
+    times,
+    mark: COLUMN_MARK,
+    note: `${LARGE_TABLE_COLUMNS} columns, ${(frames / Math.max(1, count)).toFixed(1)} frames on average until its row's tile shows every text`,
+  };
+}
+
+/**
+ * Applies a layout that moves every shape with a position of its own one step, as a layout result
+ * comes back, and times each from the scene's build to the frame drawn with it.
+ */
+async function measureLayouts(count: number): Promise<Timed> {
+  performance.mark('phase Apply a layout');
+  const times: number[] = [];
+  const parts = { build: 0, index: 0, draw: 0 };
+  let moved = 0;
+  for (let each = 0; each < count; each++) {
+    const step = each % 2 === 0 ? 8 : -8;
+    const seen = new Set<string>();
+    const positions = indexed.scene.shapes.flatMap((shape) => {
+      // Rows have no position of their own; copies of a container share their contents'.
+      if (shape.row !== undefined) return [];
+      const key = `${shape.element}\u0000${shape.container ?? ''}`;
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [
+        {
+          element: shape.element,
+          ...(shape.container === undefined ? {} : { container: shape.container }),
+          x: shape.offset.x + step,
+          y: shape.offset.y,
+          ...shape.storedSize,
+        },
+      ];
+    });
+    moved = positions.length;
+    const outcome = executeCommand(project, { type: 'set-positions', view: VIEW, positions });
+    if (!outcome.ok) throw new Error(outcome.problems.map((problem) => problem.message).join(' '));
+    const taken = showProject(outcome.state);
+    parts.build += taken.build;
+    parts.index += taken.index;
+    parts.draw += taken.draw;
+    times.push(taken.build + taken.index + taken.draw);
+    await settle(100);
+  }
+  const average = (total: number) => (total / Math.max(1, times.length)).toFixed(0);
+  return {
+    name: 'Apply a layout: every shape moves',
+    times,
+    mark: LAYOUT_MARK,
+    note: `${moved.toLocaleString()} positions; scene ${average(parts.build)} ms, index ${average(parts.index)} ms, tiles and frame ${average(parts.draw)} ms on average`,
   };
 }
 
@@ -759,7 +880,9 @@ function shapeInTheMiddle(): ElementShape | undefined {
       height: 2 * reach,
     });
     const shapes = near.map((at) => indexed.scene.shapes[at] as ElementShape);
-    const found = shapes.find((shape) => !shape.holdsContents) ?? shapes[0];
+    // A row has no position to move: in a view of tables, a table is moved.
+    const movable = shapes.filter((shape) => shape.row === undefined);
+    const found = movable.find((shape) => !shape.holdsContents) ?? movable[0];
     if (found) return found;
   }
   return undefined;

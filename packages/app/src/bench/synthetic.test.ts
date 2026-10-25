@@ -4,7 +4,13 @@ import { centerOf } from '../canvas/geometry';
 import { indexScene, type IndexedScene } from '../canvas/hit';
 import { buildScene } from '../canvas/scene';
 import { MAX_BANDS, cellOf, plannedTiles } from '../canvas/tiles';
-import { syntheticProject, type Overlap } from './synthetic';
+import {
+  LARGE_TABLE,
+  LARGE_TABLE_COLUMNS,
+  TABLE_COLUMNS,
+  syntheticProject,
+  type Overlap,
+} from './synthetic';
 
 /** Builds and indexes a mode at 10,000 elements, and how long that took. */
 function built(overlap: Overlap): { indexed: IndexedScene; elapsed: number } {
@@ -115,5 +121,31 @@ describe('syntheticProject', () => {
     const runs = tiles.filter((tile) => tile.band === MAX_BANDS);
     expect(runs.length).toBeGreaterThan(0);
     expect(runs.length).toBeLessThan(100);
+  });
+});
+
+describe('syntheticProject with tables', () => {
+  const project = syntheticProject({ elements: 10_000, tables: true });
+
+  it('holds 400 tables of 24 columns, one of 300, and 1,000 references, and keeps the rules', () => {
+    const tables = project.model.elements.filter(
+      (element) => element.component === 'data-modeling.table',
+    );
+    expect(tables).toHaveLength(401);
+    expect(project.model.elements).toHaveLength(401 + 400 * TABLE_COLUMNS + LARGE_TABLE_COLUMNS);
+    const references = project.model.relations.filter(
+      (relation) => relation.relationType === 'data-modeling.references',
+    );
+    expect(references.length).toBeGreaterThan(900);
+    expect(references.length).toBeLessThanOrEqual(1_000);
+    expect(checkProject(project).errors).toEqual([]);
+  });
+
+  it('draws each table with its rows, its rows one band above it', () => {
+    const scene = buildScene(project, 'tables');
+    const large = scene.shapes.find((shape) => shape.element === LARGE_TABLE);
+    expect(large?.rowCount).toBe(LARGE_TABLE_COLUMNS);
+    expect(maximumBand(indexScene(scene))).toBe(1);
+    expect(scene.relations.length).toBeGreaterThan(900);
   });
 });
