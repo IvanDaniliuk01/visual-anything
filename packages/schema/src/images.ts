@@ -2,7 +2,7 @@
  * The images a package defines and the appearances that show them. An image is data only: the core
  * cleans it before a command stores it, so nothing in it runs or refers to anything outside it.
  */
-import type { Color, Id } from './files';
+import type { Color, Id, LicenseId } from './files';
 
 /**
  * A picture a package defines, kept as the core cleaned it.
@@ -22,11 +22,16 @@ export interface SvgImage {
    */
   name: string;
   /**
-   * Where it comes from and under which licence, such as "Simple Icons, CC0-1.0".
+   * Where it comes from, such as "Simple Icons" or "Drawn for Visual Anything".
    *
    * @maxLength 500
    */
   source?: string;
+  /**
+   * The license it is shared under, by its SPDX identifier (ADR 0047). Every image of a built-in
+   * package says, with one of the licenses ADR 0047 allows.
+   */
+  license?: LicenseId;
   /**
    * The width of its view box, which with its height gives its proportions.
    *
@@ -63,11 +68,13 @@ export interface BitmapImage {
    */
   name: string;
   /**
-   * Where it comes from and under which licence.
+   * Where it comes from.
    *
    * @maxLength 500
    */
   source?: string;
+  /** The license it is shared under, by its SPDX identifier (ADR 0047). */
+  license?: LicenseId;
   format: 'png' | 'jpeg' | 'webp';
   /**
    * Its width in pixels, as its header gives it.

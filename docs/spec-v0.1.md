@@ -334,9 +334,9 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [ ] The spreadsheet (CSV and TSV) and JSON readers, importing again by a key
 - [ ] The Structurizr workspace JSON and LikeC4 model readers, with their views as scopes
 - [ ] The draw.io reader: compressed and plain files, `.drawio.svg` and `.drawio.png`, shapes, containers, edges with their waypoints, and pages as views
-- [ ] License fields in the schema, and the license test (ADR 0047)
-- [ ] Starter packages for C4 architecture and data-science pipelines, each with icons, a sample project and a scenario, in English and Spanish; New project from a sample
-- [ ] A package added from another project, with its version and attribution, and updated from it after a preview
+- [x] License fields in the schema, and the license test (ADR 0047)
+- [x] Starter packages for C4 architecture and data-science pipelines, each with icons, a sample project and a scenario, in English and Spanish; New project from a sample
+- [x] A package added from another project, with its version and attribution, and updated from it after a preview
 
 **M7 · Package code.** It is planned here so that it can run in the second wave after v0.1. Done when:
 

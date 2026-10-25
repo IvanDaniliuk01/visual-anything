@@ -287,7 +287,8 @@ describe('translateMessage', () => {
  * is where the word means something else, as a name a built-in definition has in English too.
  */
 const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
-  { word: /\bnodos?\b/i },
+  // C4's "Deployment node" is a component's name, and names no element.
+  { word: /\bnodos?\b/i, unless: /\bnodos? de despliegue\b/i },
   { word: /\binstancias?\b/i },
   { word: /\bpropiedad(es)?\b/i },
   { word: /\bcapas?\b/i, unless: /\bcapa semántica\b/i },

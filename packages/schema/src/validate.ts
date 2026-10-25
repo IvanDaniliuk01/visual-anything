@@ -177,6 +177,11 @@ const PATTERN_MESSAGES = new Map([
     'must be an id: 1 to 128 letters, digits, ".", "_" or "-", starting with a letter or digit',
   ],
   [modelSchema.definitions.Color.pattern, 'must be a color written as #RRGGBB'],
+  [packageSchema.definitions.PackageVersion.pattern, 'must be a semantic version, such as 1.2.0'],
+  [
+    packageSchema.definitions.LicenseId.pattern,
+    'must be an SPDX license identifier, such as CC0-1.0 or MIT',
+  ],
 ]);
 
 const TYPE_NAMES: Record<string, string> = {

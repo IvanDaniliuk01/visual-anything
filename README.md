@@ -11,6 +11,21 @@ Make any concept or system visual and explore it interactively. Private, work in
 
 Run `pnpm dev` (or `pnpm start`) at the repository root. Visual Anything opens your browser on the sample project at an address that works once, within two minutes. In the terminal where it runs, press `o` to open another tab, or `a` to print another such address; with `--no-open` it prints one at start. The session token never appears on screen or in an address: the tab gets it when it opens and keeps it for reloads.
 
+## Starting a new project
+
+`visual-anything new <folder>` starts a new project in a folder that does not exist yet or holds nothing, then opens it; with `--from c4-architecture` or `--from data-science-pipeline` it starts from a sample project (ADR 0051). From the repository, run `pnpm exec tsx packages/server/src/cli.ts new <folder> --from <sample>`. Opening a folder that holds nothing yet, as `visual-anything <folder>`, shows a start screen in the browser instead, with the same choices.
+
+A package of another project comes in from the Components tab, with **Add from another project…**: choose that project's folder, then one of its packages. It is copied with its images, keeping its ids; a package of the project's own updates from there with **Update from another project…**, which lists what changed before it applies.
+
+### Starter packages
+
+Each starter package is built in, with its icons and a sample project in `examples/` that plays a scenario. Everything they ship is CC0-1.0, credited to the Visual Anything contributors (ADR 0047).
+
+- **C4 architecture** (`c4`): Person, Software system, Container, Component and Deployment node; uses, runs in, delivers to, and is part of. Sample: `examples/c4-architecture`, a bank's internet banking system with its system context, containers and deployment, and a customer signing in. Its icons were drawn for Visual Anything, as plain SVG.
+- **Data science pipelines** (`data-science`): Source, Transform, Feature store, Model and Dashboard; feeds and trains. Sample: `examples/data-science-pipeline`, a churn prediction pipeline with its training view, and the nightly run. Its icons were drawn for Visual Anything, as plain SVG.
+
+After changing a sample, run `pnpm --filter @visual-anything/server samples` so that the program holds the new version, and commit both.
+
 ## View addresses
 
 Every tab keeps its address in step with where you are: the open view, where the canvas looks, the selection, the filters, focus mode and the scenario step played, all by id, as in `http://127.0.0.1:47123/#view=system-overview&select=appointments-api`. A view address holds no secret, so it is safe to paste anywhere.

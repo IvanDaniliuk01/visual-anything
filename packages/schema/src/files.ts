@@ -155,6 +155,26 @@ export interface PackageFile {
   /** @minLength 1 */
   name: string;
   description?: string;
+  /**
+   * Which version of the package this is, as a semantic version such as `1.2.0`. A package copied
+   * from another project keeps it, so that updating it from there can say what changed.
+   */
+  version?: PackageVersion;
+  /**
+   * The license its components, relation types and images are shared under (ADR 0047). What ships with
+   * Visual Anything always says, with one of the licenses ADR 0047 allows; a project's own packages may
+   * leave it out.
+   */
+  license?: LicenseId;
+  /**
+   * Who made it and where it comes from, as its license asks them to be credited, such as "Icons by
+   * Jane Doe, CC-BY-4.0". The app shows it with the package, and exports carry it for the packages a
+   * view uses.
+   *
+   * @minLength 1
+   * @maxLength 2000
+   */
+  attribution?: string;
   components: Component[];
   relationTypes: RelationType[];
   /**
@@ -166,6 +186,22 @@ export interface PackageFile {
    */
   images?: ImageDefinition[];
 }
+
+/**
+ * A semantic version: three numbers, as in `1.2.0`, optionally followed by a pre-release after a
+ * hyphen, as in `2.0.0-beta.1`.
+ *
+ * @pattern ^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})(-[0-9A-Za-z-]{1,32}(\.[0-9A-Za-z-]{1,32}){0,7})?$
+ */
+export type PackageVersion = string;
+
+/**
+ * A license, by its SPDX identifier, such as `CC0-1.0`, `CC-BY-4.0`, `MIT` or `Apache-2.0`, or a
+ * `LicenseRef-` name of one's own.
+ *
+ * @pattern ^[A-Za-z0-9][A-Za-z0-9.+-]{0,63}$
+ */
+export type LicenseId = string;
 
 /** The reusable definition of a kind of element. It inherits everything it does not redefine. */
 export interface Component {

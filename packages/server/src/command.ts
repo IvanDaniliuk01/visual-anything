@@ -31,17 +31,22 @@ import { toForwardSlashes } from './paths';
 import { openPreferences, themeHintOf, type PreferencesLocation } from './preferences';
 import { formatProjectProblem } from './project';
 import { startServer, type AppSource, type RunningServer } from './server';
-import { openSession } from './session';
+import { openSession, type Session } from './session';
+import { StartingSession, startingOn } from './start';
 import { AppNotBuiltError } from './static';
 
 export const USAGE = `Usage: visual-anything [open] [folder] [--view <id> [--select <id>]...] [--port <n>] [--no-open]
                       [--dev] [--stop-when-idle]
        visual-anything mcp [folder] [--dev]
+       visual-anything new <folder> [--from <sample>]
 
 Opens the project in folder (the current folder when left out) and serves the app on 127.0.0.1.
 When Visual Anything already runs on that folder, it opens a new tab there instead, at the view
 asked for. With mcp, runs the MCP server Claude Code and Claude Desktop start instead;
-visual-anything mcp --help says more. A folder named open or mcp is opened as ./open or ./mcp.
+visual-anything mcp --help says more. With new, starts a new project in a folder that holds
+nothing yet, from a sample or empty, then opens it; visual-anything new --help says more. A folder
+that holds nothing yet opens on a start screen, which starts a project there. A folder named open,
+new or mcp is opened as ./open, ./new or ./mcp.
 
   --view <id>       Open the app at this view.
   --select <id>     Select this element, relation or free shape there; give it again, or a list
@@ -218,19 +223,39 @@ export async function runCommand(
   if (warning !== undefined) environment.err(`Warning: ${warning}`);
 
   const folder = resolve(environment.cwd, options.folder);
-  const opened = await openSession(folder, {
-    out: (line) => environment.out(line),
-    err: (line) => environment.err(line),
+  const sessionOptions = {
+    out: (line: string) => environment.out(line),
+    err: (line: string) => environment.err(line),
     preferences,
-  });
-  if (!opened.ok) {
-    environment.err(`Could not open the project in ${toForwardSlashes(folder)}:`);
-    for (const error of opened.errors) environment.err(formatProjectProblem(error));
-    await preferences.close();
-    return 1;
-  }
-  const { session } = opened;
+  };
   const { state } = options;
+  // A folder that holds nothing yet gets the start screen, from which the person starts a project
+  // there, from a sample or empty (ADR 0051).
+  const starting = await startingOn(
+    folder,
+    (each) => openSession(each, sessionOptions),
+    preferences,
+  );
+  if (starting !== undefined && state !== undefined) {
+    environment.err(
+      `${toForwardSlashes(folder)} holds no project yet, so it has no view to open: leave out --view, and start a project in the browser.`,
+    );
+    await preferences.close();
+    return 2;
+  }
+  let session: Session | StartingSession;
+  if (starting !== undefined) {
+    session = starting;
+  } else {
+    const opened = await openSession(folder, sessionOptions);
+    if (!opened.ok) {
+      environment.err(`Could not open the project in ${toForwardSlashes(folder)}:`);
+      for (const error of opened.errors) environment.err(formatProjectProblem(error));
+      await preferences.close();
+      return 1;
+    }
+    session = opened.session;
+  }
   const problems = state === undefined ? [] : viewStateProblems(session.snapshot, state);
   if (problems.length > 0) {
     environment.err(`Could not open "${session.snapshot.project.name}" there:`);
@@ -286,11 +311,24 @@ export async function runCommand(
   const launchUrl = () =>
     state === undefined ? server.launchUrl() : withViewState(server.launchUrl(), state);
   // Before saying it runs, so that Claude can attach as soon as it does.
-  const record = await recordForClaude(environment, server, session.folder);
-
-  environment.out(`Opened "${session.snapshot.project.name}" from ${toForwardSlashes(folder)}.`);
-  for (const warning of session.warnings()) {
-    environment.err(`Warning: ${formatProjectProblem(warning)}`);
+  let record: string | undefined;
+  if (session instanceof StartingSession) {
+    environment.out(
+      `${toForwardSlashes(folder)} holds no project yet: start one in the browser, from a sample or empty.`,
+    );
+    // Claude can attach once there is a project to attach to.
+    void session.started.then(async (started) => {
+      environment.out(
+        `Started "${started.snapshot.project.name}" in ${toForwardSlashes(started.folder)}.`,
+      );
+      record = await recordForClaude(environment, server, started.folder);
+    });
+  } else {
+    record = await recordForClaude(environment, server, session.folder);
+    environment.out(`Opened "${session.snapshot.project.name}" from ${toForwardSlashes(folder)}.`);
+    for (const warning of session.warnings()) {
+      environment.err(`Warning: ${formatProjectProblem(warning)}`);
+    }
   }
   environment.out(`Visual Anything is running at ${server.address}`);
   if (options.dev) {

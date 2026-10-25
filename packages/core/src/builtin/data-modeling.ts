@@ -7,11 +7,13 @@
  * (ADR 0018).
  */
 import type { PackageFile } from '@visual-anything/schema';
+import { OWN_CREDITS } from './credits';
 
 export const DATA_MODELING: PackageFile = {
   id: 'data-modeling',
   name: 'Data modeling',
   description: 'Tables and their columns, and the references between columns.',
+  ...OWN_CREDITS,
   components: [
     {
       id: 'data-modeling.table',

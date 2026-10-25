@@ -17,6 +17,7 @@ import {
   type CommandRejectedMessage,
   type HistorySummary,
   type ListedAction,
+  type OfferedSample,
   type PreferenceChanges,
   type Preferences,
   type Problem,
@@ -94,6 +95,25 @@ export interface LiveState {
    * browser for the session (ADR-0043).
    */
   readonly joining?: boolean | undefined;
+  /**
+   * What a new project can start from, while the local program runs on a folder that holds no project
+   * yet (ADR 0051); absent otherwise, and once a project is open.
+   */
+  readonly start?: StartOffer | undefined;
+}
+
+/** The start screen's offer: the folder a new project goes in, and the samples it can start from. */
+export interface StartOffer {
+  /** The folder's name. */
+  readonly folder: string;
+  readonly samples: readonly OfferedSample[];
+}
+
+/** How to start the new project: from a sample, or empty when `sample` is left out. */
+export interface StartChoice {
+  sample?: string;
+  /** For an empty project: its name, and its first view's, in the language the app reads in. */
+  names?: { project?: string; view?: string };
 }
 
 /** How a connection hears of what the local program hands it. */
@@ -137,7 +157,7 @@ export type PreferencesResult =
 /** How many notices are shown at most; the oldest make way for newer ones. */
 export const MAX_NOTICES = 5;
 
-type RequestKind = 'command' | 'undo' | 'redo';
+type RequestKind = 'command' | 'undo' | 'redo' | 'start';
 
 type Waiting =
   | { kind: RequestKind; resolve: (result: CommandResult) => void }
@@ -341,6 +361,13 @@ export class LiveConnection {
     });
   };
 
+  /**
+   * Starts the project the start screen offers (ADR 0051): resolves once the local program has written
+   * and opened it, which every tab then shows, or with why it could not.
+   */
+  readonly startProject = (choice: StartChoice): Promise<CommandResult> =>
+    this.request('start', (requestId) => ({ type: 'start/create', requestId, ...choice }));
+
   /** Shows a notice. The same message at the same level is shown once, as the newest. */
   readonly notify = (level: NoticeLevel, message: string): void => {
     this.noticeCount += 1;
@@ -457,7 +484,22 @@ export class LiveConnection {
         if (message.token !== undefined && this.options.onToken !== undefined) {
           this.url = this.options.onToken(message.token);
         }
-        this.update({ status: 'open', project: message.project, history: message.history });
+        this.update({
+          status: 'open',
+          project: message.project,
+          history: message.history,
+          start: undefined,
+        });
+        this.started();
+        break;
+      case 'start/offered':
+        if (message.token !== undefined && this.options.onToken !== undefined) {
+          this.url = this.options.onToken(message.token);
+        }
+        this.update({
+          status: 'open',
+          start: { folder: message.folder, samples: message.samples },
+        });
         break;
       case 'project/changed':
         this.change(message);
@@ -557,6 +599,15 @@ export class LiveConnection {
       this.notify('error', notice);
     }
     answered.resolve({ ok: false, problems: message.problems });
+  }
+
+  /** The project the start screen asked for is open: every start request waiting is done. */
+  private started(): void {
+    for (const [requestId, each] of this.waiting) {
+      if (each.kind !== 'start') continue;
+      this.waiting.delete(requestId);
+      each.resolve({ ok: true, created: [], warnings: [] });
+    }
   }
 
   /** The request with this id, which stops waiting. */

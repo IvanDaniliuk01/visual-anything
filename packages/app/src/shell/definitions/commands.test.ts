@@ -118,10 +118,16 @@ describe('startUsingPackageCommand', () => {
 
 describe('unusedBuiltInPackages', () => {
   it('lists the built-in packages the project does not use yet', () => {
-    expect(unusedBuiltInPackages(project).map((file) => file.id)).toEqual(['data-modeling']);
+    expect(unusedBuiltInPackages(project).map((file) => file.id)).toEqual([
+      'data-modeling',
+      'c4',
+      'data-science',
+    ]);
     expect(
-      unusedBuiltInPackages(after(project, startUsingPackageCommand(project, 'data-modeling')!)),
-    ).toEqual([]);
+      unusedBuiltInPackages(
+        after(project, startUsingPackageCommand(project, 'data-modeling')!),
+      ).map((file) => file.id),
+    ).toEqual(['c4', 'data-science']);
   });
 });
 

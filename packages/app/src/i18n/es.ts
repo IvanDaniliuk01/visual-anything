@@ -58,6 +58,11 @@
  * | Essence                 | Esencia                          |
  * | package                 | paquete                          |
  * | built-in package        | paquete incorporado              |
+ * | starter package         | paquete inicial                  |
+ * | sample project          | proyecto de ejemplo              |
+ * | start screen            | pantalla de inicio               |
+ * | shared package          | paquete compartido               |
+ * | license, attribution    | licencia, atribución             |
  * | image                   | imagen                           |
  * | explore                 | explorar                         |
  * | filter                  | filtro, filtrar                  |
@@ -96,6 +101,67 @@ import type { Catalog } from './translate';
 
 /** The app's own texts, keyed by the exact English given to `t()`. */
 export const ui: Catalog = {
+  // The start screen of a folder that holds no project yet (ADR 0051).
+  'Start a project in “{folder}”': 'Empezar un proyecto en “{folder}”',
+  'This folder holds no project yet. Start one from a sample, or empty; everything can be changed afterwards.':
+    'Esta carpeta todavía no tiene ningún proyecto. Empezar uno a partir de un ejemplo, o vacío; después se puede cambiar todo.',
+  'Ways to start': 'Formas de empezar',
+  'C4 architecture: internet banking': 'Arquitectura C4: banca por internet',
+  'A bank’s internet banking system, from the people who use it down to its components and the servers it runs on, with a scenario of a customer signing in.':
+    'El sistema de banca por internet de un banco, desde las personas que lo usan hasta sus componentes y los servidores en los que se ejecuta, con un escenario de un cliente que inicia sesión.',
+  'Data science pipeline: churn prediction':
+    'Canalización de ciencia de datos: predicción de bajas',
+  'The data a subscription business turns into a churn model, and the dashboards it feeds, with a scenario of the nightly run.':
+    'Los datos que un negocio de suscripciones convierte en un modelo de bajas, y los paneles de indicadores que alimenta, con un escenario de la ejecución nocturna.',
+  'Start from the sample “{name}”': 'Empezar a partir del ejemplo “{name}”',
+  'Start from this sample': 'Empezar a partir de este ejemplo',
+  'Starting…': 'Empezando…',
+  'An empty project': 'Un proyecto vacío',
+  'It uses the built-in Systems package and has one view; the Components tab adds more packages.':
+    'Usa el paquete incorporado Sistemas y tiene una vista; la pestaña Componentes agrega más paquetes.',
+  'Start an empty project': 'Empezar un proyecto vacío',
+  Overview: 'Vista general',
+
+  // A package from another project (ADR 0051), and what a package is shared under (ADR 0047).
+  'Add from another project…': 'Agregar de otro proyecto…',
+  'Update from another project…': 'Actualizar desde otro proyecto…',
+  'Add a package from another project': 'Agregar un paquete de otro proyecto',
+  'Update “{name}” from another project': 'Actualizar “{name}” desde otro proyecto',
+  'Choose the folder of another project, then one of its packages: it is copied here with its images, keeping its ids, so that it can be updated from there later.':
+    'Elegir la carpeta de otro proyecto y luego uno de sus paquetes: se copia aquí con sus imágenes y sus mismos ids, para poder actualizarlo desde allí más adelante.',
+  'Choose the folder of the project this package came from: what changed there is listed before anything changes here.':
+    'Elegir la carpeta del proyecto del que vino este paquete: lo que cambió allí se lista antes de que cambie nada aquí.',
+  'Choose a project folder…': 'Elegir la carpeta de un proyecto…',
+  'Reading the folder…': 'Leyendo la carpeta…',
+  'A folder with no project file': 'Una carpeta sin archivo de proyecto',
+  '{path} could not be read: {why}': 'No se pudo leer {path}: {why}',
+  'The file is over 4 MiB.': 'El archivo pesa más de 4 MiB.',
+  'The file is not valid JSON.': 'El archivo no es JSON válido.',
+  'The file holds no package.': 'El archivo no contiene ningún paquete.',
+  'That project has no package of its own.': 'Ese proyecto no tiene ningún paquete propio.',
+  'Its packages': 'Sus paquetes',
+  'That project has no package “{id}”.': 'Ese proyecto no tiene ningún paquete “{id}”.',
+  'Add this package': 'Agregar este paquete',
+  'Apply the update': 'Aplicar la actualización',
+  Holds: 'Contiene',
+  '{components}, {relationTypes} and {images}': '{components}, {relationTypes} y {images}',
+  'It needs the built-in packages {names}, which the project starts using with it.':
+    'Necesita los paquetes incorporados {names}, que el proyecto empieza a usar con él.',
+  Version: 'Versión',
+  License: 'Licencia',
+  Attribution: 'Atribución',
+  'An SPDX identifier, such as CC0-1.0, CC-BY-4.0 or MIT.':
+    'Un identificador SPDX, como CC0-1.0, CC-BY-4.0 o MIT.',
+  'Nothing differs: the package is the same there.':
+    'No hay diferencias: el paquete es el mismo allí.',
+  none: 'ninguno',
+  'The version there, {there}, is older than this one, {here}.':
+    'La versión de allí, {there}, es anterior a esta, {here}.',
+  '{before} → {after}': '{before} → {after}',
+  'Added: “{name}”': 'Se agrega: “{name}”',
+  'Changed: “{name}”': 'Cambia: “{name}”',
+  'Removed: “{name}”': 'Se quita: “{name}”',
+  'In another order': 'En otro orden',
   // Words many screens use.
   Cancel: 'Cancelar',
   Create: 'Crear',
@@ -1578,6 +1644,8 @@ export const messages: Catalog = {
   'Create the package "{name}"': 'Crear el paquete "{name}"',
   'Rename the package "{old}" to "{new}"': 'Cambiar el nombre del paquete "{old}" a "{new}"',
   'Edit the package "{name}"': 'Editar el paquete "{name}"',
+  'Add the package "{name}"': 'Agregar el paquete "{name}"',
+  'Update the package "{name}"': 'Actualizar el paquete "{name}"',
   'Define the component "{name}"': 'Definir el componente "{name}"',
   'Redefine the component "{name}"': 'Redefinir el componente "{name}"',
   'Define the relation type "{name}"': 'Definir el tipo de relación "{name}"',
@@ -1819,6 +1887,48 @@ export const messages: Catalog = {
     'El componente "{name}" no se puede quitar: lo usan {users}.',
   'The relation type "{name}" cannot be removed: {users} use it.':
     'El tipo de relación "{name}" no se puede quitar: lo usan {users}.',
+
+  // Packages shared between projects (ADR 0051).
+  'The package "{name}" cannot be added: this project already has a package with the id "{id}".':
+    'El paquete "{name}" no se puede agregar: este proyecto ya tiene un paquete con el id "{id}".',
+  'The package "{name}" cannot be added: this project already uses these ids of it: {ids}.':
+    'El paquete "{name}" no se puede agregar: este proyecto ya usa estos ids suyos: {ids}.',
+  'The package "{name}" cannot be updated: this project already uses these ids of it: {ids}.':
+    'El paquete "{name}" no se puede actualizar: este proyecto ya usa estos ids suyos: {ids}.',
+  'The package "{name}" cannot be added: these ids of it do not start with "{id}.", the id of the package: {ids}.':
+    'El paquete "{name}" no se puede agregar: estos ids suyos no empiezan con "{id}.", el id del paquete: {ids}.',
+  'The package "{name}" cannot be updated: these ids of it do not start with "{id}.", the id of the package: {ids}.':
+    'El paquete "{name}" no se puede actualizar: estos ids suyos no empiezan con "{id}.", el id del paquete: {ids}.',
+  'The package "{name}" cannot be added: it uses these ids more than once: {ids}.':
+    'El paquete "{name}" no se puede agregar: usa estos ids más de una vez: {ids}.',
+  'The package "{name}" cannot be updated: it uses these ids more than once: {ids}.':
+    'El paquete "{name}" no se puede actualizar: usa estos ids más de una vez: {ids}.',
+  'The package "{name}" needs what no package in use, and no built-in package, defines; add the packages that define it first: {ids}.':
+    'El paquete "{name}" necesita lo que no define ningún paquete en uso ni ningún paquete incorporado; agregar primero los paquetes que lo definen: {ids}.',
+  'The update of "{name}" removes the component "{component}", which is still used here by {users}; change or delete what uses it first.':
+    'La actualización de "{name}" quita el componente "{component}", que aquí todavía usan {users}; primero cambiar o eliminar lo que lo usa.',
+  'The update of "{name}" removes the relation type "{type}", which is still used here by {users}; change or delete what uses it first.':
+    'La actualización de "{name}" quita el tipo de relación "{type}", que aquí todavía usan {users}; primero cambiar o eliminar lo que lo usa.',
+  'add-package needs the package, as its file holds it.':
+    'add-package necesita el paquete, tal como lo guarda su archivo.',
+  'replace-package needs the package, as its file holds it.':
+    'replace-package necesita el paquete, tal como lo guarda su archivo.',
+  'A package holds a list of components and one of relation types.':
+    'Un paquete tiene una lista de componentes y otra de tipos de relación.',
+  'A package’s images are a list.': 'Las imágenes de un paquete son una lista.',
+  'Each definition and image of a package is an object.':
+    'Cada definición e imagen de un paquete es un objeto JSON.',
+  'An image is of the kind "svg" or "bitmap".': 'Una imagen es de la clase "svg" o "bitmap".',
+  'An image has no "{key}".': 'Una imagen no tiene "{key}".',
+  'A package has no "{key}".': 'Un paquete no tiene "{key}".',
+  'A package’s version is a semantic version, such as 1.2.0.':
+    'La versión de un paquete es una versión semántica, como 1.2.0.',
+  'A package’s license is an SPDX license identifier, such as CC0-1.0 or MIT.':
+    'La licencia de un paquete es un identificador de licencia SPDX, como CC0-1.0 o MIT.',
+  'A package’s attribution is text of 1 to 2,000 characters.':
+    'La atribución de un paquete es un texto de 1 a 2000 caracteres.',
+  'An image’s license is an SPDX license identifier, such as CC0-1.0 or MIT.':
+    'La licencia de una imagen es un identificador de licencia SPDX, como CC0-1.0 o MIT.',
   'A component has no "{key}".': 'Un componente no tiene "{key}".',
   'A relation type has no "{key}".': 'Un tipo de relación no tiene "{key}".',
   'The component "{id}" must start with "{prefix}.", the id of its package.':
@@ -2069,6 +2179,18 @@ export const messages: Catalog = {
     'Más de un paso en el escenario "{name}" tiene el id "{key}".',
 
   // What the local program says.
+  'No project is open here yet: choose how to start one first.':
+    'Todavía no hay ningún proyecto abierto aquí: primero elegir cómo empezar uno.',
+  'The project here is being started already.': 'El proyecto de aquí ya se está empezando.',
+  'There is no sample "{id}" to start from.': 'No hay ningún ejemplo "{id}" del que partir.',
+  '{folder} already holds files, or is no folder; a new project starts in an empty folder.':
+    '{folder} ya tiene archivos, o no es una carpeta; un proyecto nuevo empieza en una carpeta vacía.',
+  'The new project could not be written in {folder}: {reason}':
+    'No se pudo escribir el proyecto nuevo en {folder}: {reason}',
+  'The new project could not be opened: {why}': 'No se pudo abrir el proyecto nuevo: {why}',
+  'The new project could not be started: {reason}':
+    'No se pudo empezar el proyecto nuevo: {reason}',
+  'A project is open here already.': 'Ya hay un proyecto abierto aquí.',
   'This program keeps no preferences.': 'Este programa no guarda preferencias.',
   'Your preferences could not be changed: {why}': 'No se pudieron cambiar las preferencias: {why}',
   'Your preference applies until Visual Anything stops: it could not be saved ({reason}).':
@@ -2244,6 +2366,9 @@ export const messages: Catalog = {
   'must be an id: 1 to 128 letters, digits, ".", "_" or "-", starting with a letter or digit':
     'debe ser un id: de 1 a 128 letras, dígitos, ".", "_" o "-", que empiece con una letra o un dígito',
   'must be a color written as #RRGGBB': 'debe ser un color escrito como #RRGGBB',
+  'must be a semantic version, such as 1.2.0': 'debe ser una versión semántica, como 1.2.0',
+  'must be an SPDX license identifier, such as CC0-1.0 or MIT':
+    'debe ser un identificador de licencia SPDX, como CC0-1.0 o MIT',
   'must not be empty': 'no debe estar vacío',
   'must have at least {n} characters': 'debe tener al menos {n} caracteres',
   'must have at least 1 item': 'debe tener al menos 1 entrada',
@@ -2668,5 +2793,106 @@ export const builtins: Readonly<
       onDelete:
         'Qué pasa con los registros que tienen este valor cuando se elimina el registro al que se refieren.',
     },
+  },
+  c4: {
+    name: 'Arquitectura C4',
+    description:
+      'Personas, sistemas de software, contenedores, componentes y nodos de despliegue, como el modelo C4 dibuja la arquitectura de software.',
+  },
+  'c4.person': {
+    name: 'Persona',
+    description: 'Alguien que usa los sistemas de software, como un cliente o un operador.',
+    attributes: { external: 'Si queda fuera de la organización cuyos sistemas se modelan.' },
+  },
+  'c4.software-system': {
+    name: 'Sistema de software',
+    description:
+      'Algo que da valor a sus usuarios como un todo, hecho de contenedores; el nivel más alto del modelo C4.',
+    attributes: { external: 'Si queda fuera de la organización cuyos sistemas se modelan.' },
+  },
+  'c4.container': {
+    name: 'Contenedor',
+    description:
+      'Algo que se ejecuta por sí mismo y tiene código o datos, como una aplicación web, una app móvil o una base de datos.',
+    attributes: { technology: 'Con qué está hecho, como "Java y Spring Boot" o "PostgreSQL".' },
+  },
+  'c4.component': {
+    name: 'Componente',
+    description:
+      'Un grupo de funciones relacionadas detrás de una interfaz, dentro de un contenedor.',
+    attributes: { technology: 'Con qué está hecho, como "Java y Spring Boot" o "PostgreSQL".' },
+  },
+  'c4.deployment-node': {
+    name: 'Nodo de despliegue',
+    description:
+      'Donde se ejecuta el software, como un servidor, un dispositivo, un clúster o todo un centro de datos.',
+    attributes: { technology: 'Con qué está hecho, como "Java y Spring Boot" o "PostgreSQL".' },
+  },
+  'c4.uses': {
+    name: 'usa',
+    description:
+      'Depende de otro elemento para hacer su trabajo, como llamar a su API o leer sus datos.',
+    attributes: { technology: 'Cómo, como "JSON sobre HTTPS" o "SQL".' },
+  },
+  'c4.runs-in': {
+    name: 'se ejecuta en',
+    description:
+      'Ubica un sistema de software, un contenedor o un nodo de despliegue en el nodo de despliegue en el que se ejecuta.',
+  },
+  'c4.delivers-to': {
+    name: 'entrega a',
+    description: 'Envía algo a una persona, como un correo electrónico o una página para leer.',
+    attributes: { technology: 'Cómo, como "SMTP" o "HTTPS".' },
+  },
+  'c4.is-part-of': {
+    name: 'es parte de',
+    description: 'Ubica un contenedor en su sistema de software, o un componente en su contenedor.',
+  },
+  'data-science': {
+    name: 'Canalizaciones de ciencia de datos',
+    description:
+      'Fuentes, transformaciones, almacenes de características, modelos y paneles de indicadores, y cómo los datos los alimentan y entrenan modelos.',
+  },
+  'data-science.source': {
+    name: 'Fuente',
+    description:
+      'De donde vienen los datos, como una base de datos, una API, archivos o un flujo de eventos.',
+    attributes: { system: 'Qué los guarda, como "PostgreSQL", "Kafka" o "S3".' },
+  },
+  'data-science.transform': {
+    name: 'Transformación',
+    description: 'Un paso que limpia, combina o reorganiza datos para dar otros datos.',
+    attributes: {
+      engine: 'Qué la ejecuta, como "dbt", "Spark" o "pandas".',
+      schedule: 'Cuándo se ejecuta, como "cada hora" o "con cada evento".',
+    },
+  },
+  'data-science.feature-store': {
+    name: 'Almacén de características',
+    description:
+      'Un almacén de características, calculadas una vez y servidas igual al entrenamiento y a las predicciones.',
+    attributes: { engine: 'Como "Feast" o "Tecton".' },
+  },
+  'data-science.model': {
+    name: 'Modelo',
+    description: 'Un modelo entrenado con datos, que predice, clasifica o genera.',
+    attributes: {
+      framework: 'Con qué está hecho, como "PyTorch" o "scikit-learn".',
+      metric: 'Cómo se lo evalúa, como "AUC 0.91".',
+    },
+  },
+  'data-science.dashboard': {
+    name: 'Panel de indicadores',
+    description: 'Donde las personas leen los resultados: gráficos, tablas y alertas.',
+    attributes: { tool: 'Como "Superset", "Grafana" o "Streamlit".' },
+  },
+  'data-science.feeds': {
+    name: 'alimenta',
+    description: 'Pasa datos al paso siguiente.',
+    attributes: { format: 'Como "Parquet", "JSON" o "Avro".' },
+  },
+  'data-science.trains': {
+    name: 'entrena',
+    description: 'Le da a un modelo los datos con los que aprende.',
   },
 };

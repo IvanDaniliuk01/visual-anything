@@ -1,0 +1,95 @@
+{
+  "id": "nightly-run",
+  "name": "The nightly run",
+  "description": "Yesterday’s data becomes features, a retrained model and today’s list of customers at risk.",
+  "view": "pipeline",
+  "steps": [
+    {
+      "id": "clean",
+      "description": "Yesterday’s events are cleaned and grouped into sessions.",
+      "relations": [
+        "events-to-cleaning"
+      ],
+      "dataIn": {
+        "events": 1250000
+      },
+      "dataOut": {
+        "sessions": 84000
+      }
+    },
+    {
+      "id": "join",
+      "description": "Customers, tickets and invoices are joined, one row per customer.",
+      "relations": [
+        "crm-to-join",
+        "billing-to-join"
+      ],
+      "dataOut": {
+        "customers": 52000
+      }
+    },
+    {
+      "id": "compute",
+      "description": "Features are computed for each customer.",
+      "relations": [
+        "sessions-to-features",
+        "customers-to-features"
+      ],
+      "dataOut": {
+        "features": 37
+      }
+    },
+    {
+      "id": "store",
+      "description": "The features are written to the feature store.",
+      "relations": [
+        "features-to-store"
+      ]
+    },
+    {
+      "id": "train",
+      "description": "The churn model is trained again on the last 12 months.",
+      "relations": [
+        "store-trains-model"
+      ],
+      "dataIn": {
+        "rows": 610000
+      },
+      "dataOut": {
+        "auc": 0.87
+      }
+    },
+    {
+      "id": "monitor",
+      "description": "Its metrics reach the monitoring dashboard.",
+      "relations": [
+        "model-to-monitoring"
+      ],
+      "dataOut": {
+        "auc": 0.87,
+        "drift": "low"
+      }
+    },
+    {
+      "id": "score",
+      "description": "Every active customer is scored with today’s features.",
+      "relations": [
+        "store-to-scoring",
+        "model-to-scoring"
+      ],
+      "dataOut": {
+        "scored": 52000
+      }
+    },
+    {
+      "id": "publish",
+      "description": "The customers most at risk show on the churn dashboard.",
+      "relations": [
+        "scores-to-dashboard"
+      ],
+      "dataOut": {
+        "atRisk": 1830
+      }
+    }
+  ]
+}

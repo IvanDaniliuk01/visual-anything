@@ -64,11 +64,12 @@ describe('the built-in Data modeling package', () => {
   });
 
   it('is built in, and its id is reserved with those of the domains planned next', () => {
-    expect(BUILTIN_PACKAGES).toEqual([SYSTEMS, DATA_MODELING]);
+    expect(BUILTIN_PACKAGES.slice(0, 2)).toEqual([SYSTEMS, DATA_MODELING]);
     expect(builtinPackage('data-modeling')).toBe(DATA_MODELING);
     expect([...RESERVED_PACKAGE_IDS]).toEqual([
       'systems',
       'data-modeling',
+      'c4',
       'data-science',
       'neuroscience',
       'physical-ai',

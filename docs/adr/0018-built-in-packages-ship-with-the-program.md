@@ -14,3 +14,9 @@ The packages built into Visual Anything, starting with Systems, live in the prog
 ## Consequences
 
 Sharing a project assumes the recipient's Visual Anything has the built-in packages it lists. Changing a built-in package in a way that breaks projects needs a version and a migration, which v0.1 does not have.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
+
+- 2026-10-25 (W31): the built-in packages are Systems, Data modeling and the starter packages C4 architecture (`c4`) and Data science pipelines (`data-science`) (ADR 0051). `c4` joins the reserved package ids, before `data-science`, `neuroscience` and `physical-ai`. A package copied from another project (ADR 0051) is a package of the project's own, in its folder, and may never take a built-in or reserved id.
