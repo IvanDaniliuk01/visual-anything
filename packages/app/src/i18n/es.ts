@@ -2111,6 +2111,240 @@ export const messages: Catalog = {
     'cambiar "id" en este archivo, el comienzo de cada id de componente y de tipo de relación que tiene, y cada referencia a ellos, y cambiar el nombre del archivo para que coincida.',
   'The package "{id}" is listed, but neither packages/ nor the built-in packages hold it.':
     'El paquete "{id}" figura en la lista, pero no está ni en packages/ ni entre los paquetes incorporados.',
+
+  // More phrases the core builds, which its messages hold as parts.
+  'the relation "{name}"': 'la relación "{name}"',
+  'a note in "{view}"': 'una nota en "{view}"',
+  'A note in "{view}"': 'Una nota en "{view}"',
+  'an arrow in "{view}"': 'una flecha en "{view}"',
+  'An arrow in "{view}"': 'Una flecha en "{view}"',
+  'World has no shape to attach to': 'Mundo no tiene forma a la que conectarse',
+  'that end is a relation, whose line it meets in the middle':
+    'ese extremo es una relación, cuya línea encuentra en el medio',
+  '"{name}" sits inside a row and has no shape of its own':
+    '"{name}" está dentro de una fila y no tiene forma propia',
+  '"{name}" has no shape in this view': '"{name}" no tiene forma en esta vista',
+  'there is no "{end}"': 'no hay ningún "{end}"',
+
+  // Why the core refuses a command that is not as commands are written.
+  'A command is an object with a type.': 'Un comando es un objeto JSON con un tipo.',
+  'A batch needs at least one command.': 'Un lote necesita al menos un comando.',
+  '"{type}" is not a command.': '"{type}" no es un comando.',
+  '{key} must be a list.': '{key} debe ser una lista.',
+  '"{key}" must be a list.': '"{key}" debe ser una lista.',
+  'Bend points must be a list.': 'Los puntos de quiebre deben ser una lista.',
+  'The relations of a step must be a list.': 'Las relaciones de un paso deben ser una lista.',
+  'x must be a number.': 'x debe ser un número.',
+  'y must be a number.': 'y debe ser un número.',
+  'The x of a bend point must be a number.': 'La x de un punto de quiebre debe ser un número.',
+  'The y of a bend point must be a number.': 'La y de un punto de quiebre debe ser un número.',
+  'Where an end attaches along its side must be a number.':
+    'El lugar donde un extremo se conecta a lo largo de su lado debe ser un número.',
+  'Whether the containers are collapsed is true or false.':
+    'Si los contenedores están contraídos es verdadero o falso.',
+  'Whether "{name}" is pinned is true or false.': 'Si "{name}" está fijada es verdadero o falso.',
+  'Whether {of} nests is true or false.': 'Si {of} anida es verdadero o falso.',
+  'Whether {of} writes its component’s name is true or false.':
+    'Si {of} escribe el nombre de su componente es verdadero o falso.',
+  'Whether {of} draws its contents as rows is true or false.':
+    'Si {of} dibuja su contenido como filas es verdadero o falso.',
+  'A package’s description is text.': 'La descripción de un paquete es texto.',
+  'A component must be an object.': 'Un componente debe ser un objeto JSON.',
+  'A relation type must be an object.': 'Un tipo de relación debe ser un objeto JSON.',
+  'A component names what it derives from by its id.':
+    'Un componente nombra aquello de lo que deriva por su id.',
+  'A relation type names what it derives from by its id.':
+    'Un tipo de relación nombra aquello de lo que deriva por su id.',
+  'The description of {of} is text.': 'La descripción de {of} es texto.',
+  'The changes to {of} must be an object.': 'Los cambios de {of} deben ser un objeto JSON.',
+  'The changes to the limits of {of} must be an object.':
+    'Los cambios de los límites de {of} deben ser un objeto JSON.',
+  'Give {of} either a whole "appearance" or "appearanceTraits" to change, not both.':
+    'Dar a {of} una "appearance" entera o unos "appearanceTraits" para cambiar, no ambas cosas.',
+  'Give {of} either a whole "appearance" or "appearanceTraits" to change, not neither.':
+    'Dar a {of} una "appearance" entera o unos "appearanceTraits" para cambiar, alguna de las dos.',
+  'An element’s appearance is replaced whole or changed trait by trait, not both at once.':
+    'La apariencia de un elemento se reemplaza entera o se cambia rasgo por rasgo, no ambas cosas a la vez.',
+  'A relation’s appearance is replaced whole or changed trait by trait, not both at once.':
+    'La apariencia de una relación se reemplaza entera o se cambia rasgo por rasgo, no ambas cosas a la vez.',
+  'define-image needs the image to define.': 'define-image necesita la imagen que define.',
+  'An image is SVG text, or a bitmap’s format and base64 data, and not both.':
+    'Una imagen es texto SVG, o el formato y los datos en base64 de un mapa de bits, y no ambas cosas.',
+  'An SVG image is given as text.': 'Una imagen SVG se da como texto.',
+  'A bitmap is given as its bytes in base64.': 'Un mapa de bits se da como sus bytes en base64.',
+  'A container is given only with bend points relative to it.':
+    'Un contenedor se da solo con puntos de quiebre relativos a él.',
+  'A route has at most {limit} bend points, and {n} were given.':
+    'Una ruta tiene como máximo {limit} puntos de quiebre, y se dieron {n}.',
+  'A route is orthogonal, straight or curved, not {style}.':
+    'Una ruta es ortogonal, recta o curva, no {style}.',
+  'No relations were given to route again.': 'No se indicó ninguna relación para volver a trazar.',
+  'A relation is given by its id.': 'Una relación se da por su id.',
+  'An attachment is a connection point or a place on the border.':
+    'Una conexión es un punto de conexión o un lugar del borde.',
+  'A side is top, right, bottom or left, not {side}.':
+    'Un lado es top, right, bottom o left, no {side}.',
+  'Where an end attaches along its side goes from 0 to 1, not {at}.':
+    'El lugar donde un extremo se conecta a lo largo de su lado va de 0 a 1, no {at}.',
+  'A connection point is given by its name.': 'Un punto de conexión se da por su nombre.',
+  'A move goes to "front", "back", { inFrontOf } or { behind }.':
+    'Un movimiento va a "front", "back", { inFrontOf } o { behind }.',
+  'A free shape is a note or an arrow.': 'Una forma libre es una nota o una flecha.',
+  'A rename gives the attribute "from" and its new name "to".':
+    'Un cambio de nombre da el atributo "from" y su nombre nuevo "to".',
+  'The attributes the detail of {of} writes must be a list.':
+    'Los atributos que escribe el detalle de {of} deben ser una lista.',
+  'The detail of {of} names attributes by their names.':
+    'El detalle de {of} nombra los atributos por sus nombres.',
+  'A badge of {of} must be an object.': 'Una insignia de {of} debe ser un objeto JSON.',
+  'A badge of {of} is written "when" an "attribute" is true or at a "from-end".':
+    'Una insignia de {of} se escribe "when" un "attribute" es verdadero o en un "from-end".',
+  'The badges of {of} must be a list.': 'Las insignias de {of} deben ser una lista.',
+  'The detail of {of} must be an object.': 'El detalle de {of} debe ser un objeto JSON.',
+  'The connection points of {of} must be a list.':
+    'Los puntos de conexión de {of} deben ser una lista.',
+  'A connection point of {of} must be an object.':
+    'Un punto de conexión de {of} debe ser un objeto JSON.',
+  'The image of {of} holds only its image, its placement and its tint.':
+    'La imagen de {of} tiene solo su imagen, su ubicación y su tinte.',
+  'The appearance of {of} must be an object.': 'La apariencia de {of} debe ser un objeto JSON.',
+  'The appearance of {of} has no trait "{trait}".':
+    'La apariencia de {of} no tiene el rasgo "{trait}".',
+  'The changes to the appearance of {of} must be an object.':
+    'Los cambios de la apariencia de {of} deben ser un objeto JSON.',
+  'The changes to the detail of {of} must be an object.':
+    'Los cambios del detalle de {of} deben ser un objeto JSON.',
+  'How {of} is drawn has no trait "{trait}".':
+    'La forma de dibujar {of} no tiene el rasgo "{trait}".',
+  'An attribute of {of} must be an object.': 'Un atributo de {of} debe ser un objeto JSON.',
+  'The description of "{name}" of {of} must be text.':
+    'La descripción de "{name}" de {of} debe ser texto.',
+  'The attributes of {of} must be a list.': 'Los atributos de {of} deben ser una lista.',
+  'The attribute changes of {of} must be an object.':
+    'Los cambios de atributos de {of} deben ser un objeto JSON.',
+  'The limits of {of} must be an object.': 'Los límites de {of} deben ser un objeto JSON.',
+  'An arrow has no fill; give {of} a stroke instead.':
+    'Una flecha no tiene relleno; dar a {of} un trazo en su lugar.',
+
+  // Why the core refuses a route or an attachment drawn by hand, and what it ignores in one.
+  'The view "{view}" draws "{name}" as containment, not as a line, so it has no route to choose.':
+    'La vista "{view}" dibuja "{name}" como contención, no como una línea, así que no tiene ruta para elegir.',
+  '"{container}" does not hold both ends of "{name}" in the view "{view}", so its bend points cannot be relative to it.':
+    '"{container}" no contiene los dos extremos de "{name}" en la vista "{view}", así que sus puntos de quiebre no pueden ser relativos a él.',
+  'The line cannot attach by hand at the start of "{name}": {why}.':
+    'La línea no se puede conectar a mano en el inicio de "{name}": {why}.',
+  'The line cannot attach by hand at the end of "{name}": {why}.':
+    'La línea no se puede conectar a mano en el final de "{name}": {why}.',
+  '"{name}" is drawn as a row, or draws its contents as rows: lines attach beside it, on its left or right side.':
+    '"{name}" se dibuja como fila, o dibuja su contenido como filas: las líneas se conectan a su lado, en su lado izquierdo o derecho.',
+  '"{name}" has no connection point named "{point}".':
+    '"{name}" no tiene ningún punto de conexión llamado "{point}".',
+  'The view "{view}" keeps a route for "{id}", which is no relation of the model; it is ignored.':
+    'La vista "{view}" guarda una ruta para "{id}", que no es ninguna relación del modelo; se ignora.',
+  'The view "{view}" attaches the start of "{name}" by hand, but that end is World, which has no shape; it attaches automatically.':
+    'La vista "{view}" conecta a mano el inicio de "{name}", pero ese extremo es Mundo, que no tiene forma; se conecta automáticamente.',
+  'The view "{view}" attaches the end of "{name}" by hand, but that end is World, which has no shape; it attaches automatically.':
+    'La vista "{view}" conecta a mano el final de "{name}", pero ese extremo es Mundo, que no tiene forma; se conecta automáticamente.',
+  'The view "{view}" attaches the start of "{name}" by hand, but that end is a relation, whose line it meets in the middle; it attaches automatically.':
+    'La vista "{view}" conecta a mano el inicio de "{name}", pero ese extremo es una relación, cuya línea encuentra en el medio; se conecta automáticamente.',
+  'The view "{view}" attaches the end of "{name}" by hand, but that end is a relation, whose line it meets in the middle; it attaches automatically.':
+    'La vista "{view}" conecta a mano el final de "{name}", pero ese extremo es una relación, cuya línea encuentra en el medio; se conecta automáticamente.',
+  'The view "{view}" attaches the start of "{name}" at the connection point "{point}", which "{owner}" does not have; it attaches automatically.':
+    'La vista "{view}" conecta el inicio de "{name}" en el punto de conexión "{point}", que "{owner}" no tiene; se conecta automáticamente.',
+  'The view "{view}" attaches the end of "{name}" at the connection point "{point}", which "{owner}" does not have; it attaches automatically.':
+    'La vista "{view}" conecta el final de "{name}" en el punto de conexión "{point}", que "{owner}" no tiene; se conecta automáticamente.',
+  'The view "{view}" keeps the bend points of "{name}" relative to "{container}", which is no element of the model; they are ignored.':
+    'La vista "{view}" guarda los puntos de quiebre de "{name}" relativos a "{container}", que no es ningún elemento del modelo; se ignoran.',
+
+  // Why the core cannot read a picture.
+  'A bitmap is bytes.': 'Un mapa de bits son bytes.',
+  'The bytes are not a PNG, JPEG or WebP picture.':
+    'Los bytes no son una imagen PNG, JPEG ni WebP.',
+  'The picture is a {actual} file, not a {format} file.':
+    'La imagen es un archivo {actual}, no un archivo {format}.',
+  'The picture has no size.': 'La imagen no tiene tamaño.',
+  'The PNG picture is cut short.': 'La imagen PNG está cortada.',
+  'The PNG picture is damaged.': 'La imagen PNG está dañada.',
+  'The PNG picture has no header.': 'La imagen PNG no tiene encabezado.',
+  'The PNG picture does not start with its header.': 'La imagen PNG no empieza con su encabezado.',
+  'The PNG picture is cut short: it has no end.': 'La imagen PNG está cortada: no tiene final.',
+  'The PNG picture is animated; keep its first frame as a picture of its own.':
+    'La imagen PNG es animada; conservar su primer cuadro como una imagen aparte.',
+  'The PNG picture has no image data.': 'La imagen PNG no tiene datos de imagen.',
+  'The PNG picture is damaged: its {chunk} chunk does not match its checksum.':
+    'La imagen PNG está dañada: su bloque {chunk} no coincide con su suma de verificación.',
+  'The JPEG picture is damaged.': 'La imagen JPEG está dañada.',
+  'The JPEG picture has no frame header.': 'La imagen JPEG no tiene encabezado de cuadro.',
+  'The JPEG picture is cut short.': 'La imagen JPEG está cortada.',
+  'The JPEG picture has two frame headers.': 'La imagen JPEG tiene dos encabezados de cuadro.',
+  'The JPEG picture has a scan before its frame header.':
+    'La imagen JPEG tiene un barrido antes de su encabezado de cuadro.',
+  'The JPEG picture is cut short: it has no end.': 'La imagen JPEG está cortada: no tiene final.',
+  'The JPEG picture has no image data.': 'La imagen JPEG no tiene datos de imagen.',
+  'The WebP picture is cut short.': 'La imagen WebP está cortada.',
+  'The WebP picture is damaged.': 'La imagen WebP está dañada.',
+  'The WebP picture has no image data.': 'La imagen WebP no tiene datos de imagen.',
+  'The WebP picture is animated; keep its first frame as a picture of its own.':
+    'La imagen WebP es animada; conservar su primer cuadro como una imagen aparte.',
+  'The WebP picture must hold exactly one image.':
+    'La imagen WebP debe contener exactamente una imagen.',
+  'Its data is not base64.': 'Sus datos no están en base64.',
+  'An SVG picture is text.': 'Una imagen SVG es texto.',
+  'The outermost element is not an SVG element.': 'El elemento exterior no es un elemento SVG.',
+  'The SVG text has text outside its outermost element.':
+    'El texto SVG tiene texto fuera de su elemento exterior.',
+  'The SVG text has an unfinished processing instruction.':
+    'El texto SVG tiene una instrucción de procesamiento sin terminar.',
+  'The XML declaration is out of place.': 'La declaración XML está fuera de lugar.',
+  'The SVG text has an unfinished comment.': 'El texto SVG tiene un comentario sin terminar.',
+  'The SVG text has an unfinished CDATA section.':
+    'El texto SVG tiene una sección CDATA sin terminar.',
+  'The SVG text has a declaration, such as a DOCTYPE or an ENTITY; it is not read.':
+    'El texto SVG tiene una declaración, como un DOCTYPE o un ENTITY; no se lee.',
+  'The SVG text has an unfinished end tag.':
+    'El texto SVG tiene una etiqueta de cierre sin terminar.',
+  'The SVG text closes "{name}" out of order.': 'El texto SVG cierra "{name}" fuera de orden.',
+  'The SVG text has more than one outermost element.':
+    'El texto SVG tiene más de un elemento exterior.',
+  'The SVG text leaves "{name}" open.': 'El texto SVG deja "{name}" abierto.',
+  'The SVG text has no element.': 'El texto SVG no tiene ningún elemento.',
+  'The SVG text leaves the tag "{name}" unfinished.':
+    'El texto SVG deja la etiqueta "{name}" sin terminar.',
+  'The tag "{name}" runs its attributes together.':
+    'La etiqueta "{name}" junta sus atributos sin separarlos.',
+  'The attribute "{attribute}" of "{name}" has no value.':
+    'El atributo "{attribute}" de "{name}" no tiene valor.',
+  'The attribute "{attribute}" of "{name}" has an unquoted value.':
+    'El atributo "{attribute}" de "{name}" tiene un valor sin comillas.',
+  'The attribute "{attribute}" of "{name}" is unfinished.':
+    'El atributo "{attribute}" de "{name}" está sin terminar.',
+  'The attribute "{attribute}" of "{name}" holds "<".':
+    'El atributo "{attribute}" de "{name}" contiene "<".',
+  'The tag "{name}" has the attribute "{attribute}" twice.':
+    'La etiqueta "{name}" tiene el atributo "{attribute}" dos veces.',
+  'The SVG text has a malformed tag.': 'El texto SVG tiene una etiqueta mal formada.',
+  'The SVG text has an "&" that starts no reference.':
+    'El texto SVG tiene un "&" que no empieza ninguna referencia.',
+  'The SVG text uses the entity "&{name};", which is not read.':
+    'El texto SVG usa la entidad "&{name};", que no se lee.',
+  'The SVG text refers to a character XML does not allow (&{name};).':
+    'El texto SVG se refiere a un carácter que XML no permite (&{name};).',
+  'The SVG picture has no usable view box.': 'La imagen SVG no tiene un viewBox que se pueda usar.',
+  'Nothing drawable is left in the SVG picture.': 'No queda nada dibujable en la imagen SVG.',
+
+  // Why the local program refuses a preference the app sends.
+  '"theme" must be "system", "light" or "dark", not {value}.':
+    '"theme" debe ser "system", "light" o "dark", no {value}.',
+  '"language" must be "system", "en" or "es", not {value}.':
+    '"language" debe ser "system", "en" o "es", no {value}.',
+  '"recentColors" must be a list of colors written #RRGGBB.':
+    '"recentColors" debe ser una lista de colores escritos #RRGGBB.',
+  '"recentColors" must hold colors written #RRGGBB, not {value}.':
+    '"recentColors" debe contener colores escritos #RRGGBB, no {value}.',
+  '"recentColors" holds {color} twice.': '"recentColors" tiene {color} dos veces.',
+  '"recentColors" holds {n} colors, more than {limit}.':
+    '"recentColors" tiene {n} colores, más de {limit}.',
+  '"{name}" must be true or false, not {value}.': '"{name}" debe ser true o false, no {value}.',
 };
 
 /**

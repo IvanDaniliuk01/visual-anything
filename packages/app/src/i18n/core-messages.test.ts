@@ -1,7 +1,8 @@
 /**
  * The core's messages through the Spanish templates (ADR-0038): commands run on the sample project,
- * and each label, refusal and warning they produce must read in Spanish, but for the messages listed
- * below, which stay English for now. The list is printed, so that it shrinks rather than grows.
+ * well formed and not, and each label, refusal and warning they produce must read in Spanish, but for
+ * the messages listed below, which must stay English. The list is printed, and each of its patterns
+ * must still match a message, so that it never holds more than it has to.
  */
 import {
   checkProject,
@@ -15,18 +16,11 @@ import { loadSample } from '../test/sample';
 import { translateMessage, untranslatedParts } from './translate';
 
 /**
- * What may stay English for now: refusals of commands that are not well formed, which the app never
- * sends and Claude reads in English, and the details of cleaning an image.
+ * What must stay English: a command the core cannot even read, whose reason is the JavaScript
+ * engine's own words. Only a command written by hand, as Claude's can be, comes to it, and the app
+ * never sends one.
  */
-const STAYS_ENGLISH: readonly RegExp[] = [
-  /^The command is not well formed: /,
-  / must be (a list|an object)\.$/,
-  /^"[^"]*" is not a command\.$/,
-  /^A command is an object with a type\.$/,
-  /^A batch needs at least one command\.$/,
-  /^Whether .* is true or false\.$/,
-  /^x must be a number\.$|^y must be a number\.$/,
-];
+const STAYS_ENGLISH: readonly RegExp[] = [/^The command is not well formed: /];
 
 const sample = loadSample();
 
@@ -294,7 +288,155 @@ const COMMANDS: readonly [string, Command][] = [
       commands: [{ type: 'update-element', id: 'nobody', changes: { name: 'X' } }],
     },
   ],
+  // Commands written by hand that are not as commands are written, as Claude's can be.
+  ...malformed([
+    ['no type', { name: 'X' }],
+    ['unknown type', { type: 'paint' }],
+    ['empty batch', { type: 'batch', label: 'Nothing', commands: [] }],
+    ['elements not a list', { type: 'delete', elements: 'patient' }],
+    [
+      'x not a number',
+      { type: 'set-positions', view: VIEW, positions: [{ element: 'patient', x: 'one', y: 2 }] },
+    ],
+    [
+      'collapsed not a flag',
+      { type: 'set-collapsed', view: VIEW, elements: ['scheduling'], collapsed: 'yes' },
+    ],
+    [
+      'nests not a flag',
+      { type: 'update-relation-type', id: 'clinic.reminds', changes: { nests: 'yes' } },
+    ],
+    ['changes not an object', { type: 'update-component', id: 'clinic.calendar', changes: 'all' }],
+    ['component not an object', { type: 'define-component', package: 'clinic', component: 5 }],
+    [
+      'appearance not an object',
+      { type: 'update-component', id: 'clinic.calendar', changes: { appearance: 'blue' } },
+    ],
+    [
+      'badges not a list',
+      {
+        type: 'update-component',
+        id: 'clinic.calendar',
+        changes: { appearance: { detail: { badges: 'PK' } } },
+      },
+    ],
+    [
+      'detail not an object',
+      {
+        type: 'update-component',
+        id: 'clinic.calendar',
+        changes: { appearance: { detail: 'name' } },
+      },
+    ],
+    [
+      'rows not a flag',
+      {
+        type: 'update-component',
+        id: 'clinic.calendar',
+        changes: { appearance: { contentsAsRows: 'yes' } },
+      },
+    ],
+    [
+      'component name not a flag',
+      {
+        type: 'update-component',
+        id: 'clinic.calendar',
+        changes: { appearance: { detail: { componentName: 'yes' } } },
+      },
+    ],
+    [
+      'connection points not a list',
+      {
+        type: 'update-component',
+        id: 'clinic.calendar',
+        changes: { appearance: { connectionPoints: 'top' } },
+      },
+    ],
+    [
+      'unknown trait',
+      { type: 'update-element', id: 'patient', changes: { appearanceTraits: { glow: true } } },
+    ],
+    [
+      'both appearances',
+      {
+        type: 'update-element',
+        id: 'patient',
+        changes: { appearance: {}, appearanceTraits: { fill: '#FFFFFF' } },
+      },
+    ],
+    [
+      'attributes not a list',
+      { type: 'update-component', id: 'clinic.calendar', changes: { attributes: { set: 'all' } } },
+    ],
+    [
+      'rename without names',
+      {
+        type: 'update-component',
+        id: 'clinic.calendar',
+        changes: { attributes: { rename: [{}] } },
+      },
+    ],
+    [
+      'unknown route style',
+      { type: 'set-route', view: VIEW, relation: 'api-writes-db', style: 'wavy' },
+    ],
+    [
+      'bend points not a list',
+      { type: 'set-route', view: VIEW, relation: 'api-writes-db', bendPoints: 'here' },
+    ],
+    [
+      'bend point not a number',
+      { type: 'set-route', view: VIEW, relation: 'api-writes-db', bendPoints: [{ x: 'a', y: 1 }] },
+    ],
+    [
+      'unknown side',
+      {
+        type: 'set-route',
+        view: VIEW,
+        relation: 'api-writes-db',
+        from: { kind: 'border', side: 'middle', at: 0.5 },
+      },
+    ],
+    [
+      'attached past the side',
+      {
+        type: 'set-route',
+        view: VIEW,
+        relation: 'api-writes-db',
+        from: { kind: 'border', side: 'top', at: 2 },
+      },
+    ],
+    [
+      'unknown attachment',
+      { type: 'set-route', view: VIEW, relation: 'api-writes-db', from: { kind: 'magnet' } },
+    ],
+    ['no relations to reset', { type: 'reset-route', view: VIEW, relations: [] }],
+    [
+      'unknown stacking move',
+      { type: 'restack', view: VIEW, moves: [{ shape: { element: 'patient' }, to: 'up' }] },
+    ],
+    [
+      'unknown free shape',
+      { type: 'create-free-shape', view: VIEW, shape: { kind: 'star', x: 0, y: 0 } },
+    ],
+    [
+      'arrow with a fill',
+      {
+        type: 'create-free-shape',
+        view: VIEW,
+        shape: { kind: 'arrow', from: { x: 0, y: 0 }, to: { x: 9, y: 9 }, fill: '#FFFFFF' },
+      },
+    ],
+    ['image without one', { type: 'define-image', package: 'clinic' }],
+    ['description not text', { type: 'update-package', id: 'clinic', changes: { description: 5 } }],
+    ['unreadable position', { type: 'set-positions', view: VIEW, positions: [null] }],
+  ]),
 ];
+
+/** Commands written by hand, which the core reads as it reads any; their types say nothing of them. */
+function malformed(commands: readonly [string, unknown][]): [string, Command][] {
+  return commands.map(([name, command]) => [name, command as Command]);
+}
 
 /** Everything the commands said, and what the project and a deletion's preview say. */
 function allMessages(): Outcome[] {
@@ -323,6 +465,13 @@ describe('the core’s messages in Spanish', () => {
 
   it('runs the commands it means to', () => {
     expect(said.length).toBeGreaterThan(COMMANDS.length);
+  });
+
+  it('lists only what it has to as staying English', () => {
+    const unused = STAYS_ENGLISH.filter(
+      (pattern) => !said.some(({ message }) => pattern.test(message)),
+    );
+    expect(unused).toEqual([]);
   });
 
   it('has a Spanish template for every label, refusal and warning, but those listed', () => {
@@ -359,6 +508,40 @@ describe('the core’s messages in Spanish', () => {
     expect(limits && translateMessage('es', limits.message)).toBe(
       '"reads from" espera que su extremo de destino sea "Database" o "Object storage", pero "WhatsApp channel" no lo es.',
     );
+  });
+});
+
+describe('the app’s own labels and notices in Spanish', () => {
+  it.each([
+    'Delete the selection',
+    'Collapsed "Scheduling".',
+    'Expanded 3 containers.',
+    'Lay out',
+    'Lay out "System overview"',
+    'Lay out the contents of "Scheduling"',
+    'Lay out "Patient" in "System overview"',
+    'Lay out 4 new shapes in "System overview"',
+    'Change the appearance of the component "Service"',
+    'Change the appearance of the relation type "reads from"',
+    'Change the appearance of 3 shapes',
+    'Use the package "Systems"',
+    'Define the component "Ward"',
+    'Derive the component "Ward"',
+    'Define the relation type "pays"',
+    'Derive the relation type "pays"',
+    'Stop using the package "Data modeling"',
+    'Move 3 shapes in "System overview"',
+    'Create "Service"',
+    'Add a row to "Users"',
+    'Add 1 column to "Users"',
+    'Add 3 columns to "Users"',
+    'Set the image of "Patient"',
+    'Draw 2 relations curved in "System overview"',
+    'Route "Books" by hand in "System overview"',
+    'Reset the route of "Books" in "System overview"',
+    'Reconnect "Books" to "Patient"',
+  ])('reads %j', (label) => {
+    expect(untranslatedParts('es', label)).toEqual([]);
   });
 });
 
