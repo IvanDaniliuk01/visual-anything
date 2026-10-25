@@ -67,12 +67,16 @@ export function watchProject(
   // What the project files were when last reported: a platform may tell of changes that touch none of
   // them, as macOS tells of the folder itself, so only a real change is reported.
   let last = filesOf(folder);
+  /** Whether a change since the last report named a file the project reads, which always counts. */
+  let namedAFile = false;
   const report = () => {
     timer = undefined;
     pendingSince = undefined;
     if (closed) return;
     const now = filesOf(folder);
-    if (now === last) return;
+    const named = namedAFile;
+    namedAFile = false;
+    if (!named && now === last) return;
     last = now;
     onChange();
   };
@@ -82,6 +86,8 @@ export function watchProject(
       // A folder's own times change along with its files, which report themselves.
       if (eventType === 'change' && isFolderPath(path)) return;
       if (!isProjectPath(path)) return;
+      // The folder itself, '' or '.', and the folders of the project name no file.
+      if (fileKindOf(path.split('/').pop() ?? '') !== undefined) namedAFile = true;
     }
     const now = Date.now();
     pendingSince ??= now;
