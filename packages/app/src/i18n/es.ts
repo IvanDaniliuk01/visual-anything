@@ -897,6 +897,8 @@ export const messages: Catalog = {
   'The relation type "{name}"': 'El tipo de relación "{name}"',
   'the package "{name}"': 'el paquete "{name}"',
   'The element "{name}"': 'El elemento "{name}"',
+  'the project appearance of "{name}"': 'la apariencia que el proyecto le da a "{name}"',
+  'The project appearance of "{name}"': 'La apariencia que el proyecto le da a "{name}"',
   '1 element': '1 elemento',
   '{n} elements': '{n} elementos',
   '1 relation': '1 relación',

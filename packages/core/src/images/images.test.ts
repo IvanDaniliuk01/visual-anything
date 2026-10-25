@@ -200,6 +200,23 @@ describe('checkProject on images', () => {
     ]);
   });
 
+  it('warns about a project appearance that shows an image no package defines', () => {
+    const state = imageProject();
+    state.project = {
+      ...state.project,
+      appearances: { components: { 'systems.service': { image: { image: 'clinic.nowhere' } } } },
+    };
+    const check = checkProject(state);
+    expect(check.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'unknown-image', subjects: ['systems.service'] }),
+      ]),
+    );
+    expect(check.warnings.find((each) => each.code === 'unknown-image')?.message).toContain(
+      'The project appearance of "systems.service" shows the image "clinic.nowhere"',
+    );
+  });
+
   it('warns from 1 MiB of images in a package, and names the images past 2 MiB, which are not drawn', () => {
     const big = (i: number) =>
       svgImage(

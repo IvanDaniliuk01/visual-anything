@@ -166,18 +166,24 @@ export function imageIdOf(appearance: Appearance | undefined): Id | undefined {
   return image === undefined || image === 'none' ? undefined : image.image;
 }
 
-/** What names an image in its appearance: components of any package, and elements, World included. */
+/**
+ * What names an image in its appearance: components of any package, the components the project gives
+ * an appearance of its own (ADR 0034), and elements, World included. Each once.
+ */
 export function imageUsers(state: ProjectSnapshot, imageId: Id): Id[] {
-  const users: Id[] = [];
+  const users = new Set<Id>();
   for (const file of state.packages) {
     for (const component of file.components) {
-      if (imageIdOf(component.appearance) === imageId) users.push(component.id);
+      if (imageIdOf(component.appearance) === imageId) users.add(component.id);
     }
   }
-  for (const element of elementsOf(state)) {
-    if (imageIdOf(element.appearance) === imageId) users.push(element.id);
+  for (const [id, appearance] of Object.entries(state.project.appearances?.components ?? {})) {
+    if (imageIdOf(appearance) === imageId) users.add(id);
   }
-  return users;
+  for (const element of elementsOf(state)) {
+    if (imageIdOf(element.appearance) === imageId) users.add(element.id);
+  }
+  return [...users];
 }
 
 /** World and every other element. */

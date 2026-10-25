@@ -78,6 +78,12 @@ export function checkImages(state: ProjectSnapshot): { errors: Problem[]; warnin
       }
     }
   }
+  for (const [owner, appearance] of Object.entries(state.project.appearances?.components ?? {})) {
+    const id = imageIdOf(appearance);
+    if (id !== undefined && !catalog.image(id)) {
+      warnings.push(unknown(id, owner, `The project appearance of "${owner}"`));
+    }
+  }
   for (const element of elementsOf(state)) {
     const id = imageIdOf(element.appearance);
     if (id !== undefined && !catalog.image(id)) {

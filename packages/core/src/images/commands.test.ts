@@ -303,6 +303,17 @@ describe('remove-image', () => {
       'unknown-image',
     ]);
   });
+
+  it('refuses an image that a project appearance shows, naming its component', () => {
+    const state = imageProject();
+    state.project = {
+      ...state.project,
+      appearances: { components: { 'systems.service': { image: { image: DESK.id } } } },
+    };
+    const outcome = executeCommand(state, { type: 'remove-image', id: DESK.id });
+    expect(outcome.ok).toBe(false);
+    expect(!outcome.ok && outcome.problems[0]?.subjects).toContain('systems.service');
+  });
 });
 
 describe('every command that sets an image', () => {
