@@ -22,6 +22,10 @@
  * | contents                | contenido                        |
  * | attribute               | atributo                         |
  * | canvas                  | lienzo                           |
+ * | canvas unit             | unidad del lienzo                |
+ * | grid                    | cuadrícula                       |
+ * | ruler                   | regla                            |
+ * | snapping, snap          | ajuste, ajustar a la cuadrícula  |
  * | shape                   | forma                            |
  * | anchored shape          | forma anclada                    |
  * | free shape              | forma libre                      |
@@ -140,6 +144,8 @@ export const ui: Catalog = {
   'Visual Anything is not connected': 'Visual Anything no está conectado',
   Language: 'Idioma',
   'Match the browser ({language})': 'Usar el idioma del navegador ({language})',
+  'The grid and the rulers apply to this tab only: Visual Anything is not connected.':
+    'La cuadrícula y las reglas se aplican solo a esta pestaña: Visual Anything no está conectado.',
   'Your language applies to this tab only: Visual Anything is not connected.':
     'El idioma se aplica solo a esta pestaña: Visual Anything no está conectado.',
   Theme: 'Tema',
@@ -518,6 +524,22 @@ export const ui: Catalog = {
   'It sits over "{name}" without being inside it; Put inside "{name}" orders it among the shapes there.':
     'Está sobre "{name}" sin estar dentro; Poner dentro de "{name}" la ordena entre las formas de ahí.',
 
+  // The grid, the rulers and snapping (A3).
+  '{x}, {y} in {container}': '{x}, {y} en {container}',
+  'Grid and rulers': 'Cuadrícula y reglas',
+  Grid: 'Cuadrícula',
+  'Show the grid (Shift+G)': 'Mostrar la cuadrícula (Mayús+G)',
+  'Snap to grid': 'Ajustar a la cuadrícula',
+  'Snap shapes to the grid; hold Alt to place freely':
+    'Ajustar las formas a la cuadrícula; mantener Alt para ubicarlas libremente',
+  'Show the grid to snap shapes to it': 'Mostrar la cuadrícula para ajustar las formas a ella',
+  Rulers: 'Reglas',
+  'Show the rulers (Shift+R)': 'Mostrar las reglas (Mayús+R)',
+  'The grid shows.': 'Se muestra la cuadrícula.',
+  'The grid is hidden.': 'Se ocultó la cuadrícula.',
+  'The rulers show.': 'Se muestran las reglas.',
+  'The rulers are hidden.': 'Se ocultaron las reglas.',
+
   // The canvas's keyboard help.
   Keyboard: 'Teclado',
   'Arrow keys': 'Flechas',
@@ -534,7 +556,7 @@ export const ui: Catalog = {
   'Rename the selected element, or edit the selected note':
     'Cambiar el nombre del elemento seleccionado, o editar la nota seleccionada',
   'Shift+arrow keys': 'Mayús+flechas',
-  'Move the selection a small step': 'Mover la selección un poco',
+  'Move the selection one grid step': 'Mover la selección un paso de la cuadrícula',
   'Ctrl+↑ and Ctrl+↓ (⌘ on macOS), or Ctrl+] and Ctrl+[':
     'Ctrl+↑ y Ctrl+↓ (⌘ en macOS), o Ctrl+] y Ctrl+[',
   'Bring the selection forward or send it backward, past the next shape it overlaps; these keys work wherever the focus is, except while typing':
@@ -547,8 +569,8 @@ export const ui: Catalog = {
   'Open the selected shape’s menu: stacking order, putting it inside a container or taking it out, adding inside it':
     'Abrir el menú de la forma seleccionada: orden de apilado, ponerla dentro de un contenedor o sacarla, agregar dentro de ella',
   'Alt while dragging (⌥ on macOS)': 'Alt mientras se arrastra (⌥ en macOS)',
-  'Move without putting shapes inside a container or taking them out':
-    'Mover sin poner formas dentro de un contenedor ni sacarlas',
+  'Move without putting shapes inside a container or taking them out, and place them freely, without snapping to the grid':
+    'Mover sin poner formas dentro de un contenedor ni sacarlas, y ubicarlas libremente, sin ajustarlas a la cuadrícula',
   'the Delete key': 'Supr',
   'Delete the selection, after showing what goes with it':
     'Eliminar la selección, después de mostrar lo que se va con ella',
@@ -561,6 +583,10 @@ export const ui: Catalog = {
   'Alt+− and Alt++': 'Alt+− y Alt++',
   'Collapse or expand the selected containers':
     'Contraer o expandir los contenedores seleccionados',
+  'Shift+G': 'Mayús+G',
+  'Show or hide the grid': 'Mostrar u ocultar la cuadrícula',
+  'Shift+R': 'Mayús+R',
+  'Show or hide the rulers': 'Mostrar u ocultar las reglas',
   'Space and drag': 'Espacio y arrastrar',
   Pan: 'Desplazar la vista',
   'Leave the canvas': 'Salir del lienzo',

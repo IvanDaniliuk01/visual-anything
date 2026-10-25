@@ -215,6 +215,25 @@ describe('createAtCommand', () => {
     expect(executeCommand(project, command!).ok).toBe(true);
   });
 
+  it('snaps the new position to the grid inside its container when given a step, still unpinned', () => {
+    const scheduling = indexed.byKey.get('clinic-booking/scheduling');
+    const command = createAtCommand(
+      project,
+      VIEW,
+      'systems.service',
+      { x: 800, y: 500 },
+      scheduling,
+      8,
+    );
+    // 800 - 744 = 56 and 500 - 104 = 396, which snaps to 400.
+    expect(command && 'positions' in command && command.positions).toEqual([
+      { view: VIEW, container: 'scheduling', x: 56, y: 400 },
+    ]);
+    expect(
+      createAtCommand(project, VIEW, 'systems.person', { x: -101, y: 43 }, undefined, 8),
+    ).toMatchObject({ positions: [{ view: VIEW, x: -104, y: 40 }] });
+  });
+
   it('creates it directly in World when no shape is given', () => {
     const command = createAtCommand(project, VIEW, 'systems.person', { x: -100, y: 40 }, undefined);
     expect(command && 'positions' in command && command.positions).toEqual([
