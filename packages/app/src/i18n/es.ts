@@ -97,6 +97,8 @@
  * | speaker notes           | notas del orador                 |
  * | thread                  | hilo                             |
  * | comment                 | comentario                       |
+ * | detached (thread)       | desvinculado                     |
+ * | resolve, reopen         | resolver, reabrir                |
  *
  * The words CONTEXT.md avoids are not used for its terms either: no "nodo", "objeto" or "instancia"
  * for an element, "propiedad" or "campo" for an attribute, "capa" for the stacking order, "enlace" or
@@ -1695,6 +1697,92 @@ export const ui: Catalog = {
   'Review and approve the code…': 'Revisar y aprobar el código…',
   'The package “{name}” holds code that is not approved, so it does not run. Review it from one of its elements in the inspector, or from the package in the Components tab.':
     'El paquete “{name}” tiene código que no está aprobado, así que no se ejecuta. Revisarlo desde uno de sus elementos en el inspector, o desde el paquete en la pestaña Componentes.',
+
+  // Threads of comments (ADR 0059): the comments tab, a thread whole, and the pins on the canvas.
+  Comments: 'Comentarios',
+  '“{id}”, deleted': '“{id}”, eliminado',
+  'The view “{id}”, deleted': 'La vista “{id}”, eliminada',
+  'The view “{name}”': 'La vista “{name}”',
+  'A point of the view “{id}”, deleted': 'Un punto de la vista “{id}”, eliminada',
+  'A point of “{name}”': 'Un punto de “{name}”',
+  'Select “{name}”': 'Seleccionar “{name}”',
+  'Plain text: a blank line starts a paragraph, “- ” a list. Ctrl+Enter sends it.':
+    'Texto simple: una línea en blanco empieza un párrafo, “- ” una lista. Ctrl+Enter lo envía.',
+  'Mention the selection': 'Mencionar la selección',
+  'Give your name.': 'Indicar el nombre.',
+  'A name holds at most 200 characters.': 'Un nombre tiene como máximo 200 caracteres.',
+  'That is not an email address.': 'Esa no es una dirección de correo electrónico.',
+  'Your comments are signed with your name, kept on this computer for every project.':
+    'Los comentarios se firman con el nombre, que se guarda en esta computadora para todos los proyectos.',
+  'Your name': 'Nombre',
+  'Email (optional)': 'Correo electrónico (opcional)',
+  'Sign my comments': 'Firmar los comentarios',
+  'Signed as {name}': 'Comentarios firmados como {name}',
+  'Change the name': 'Cambiar el nombre',
+  'Give your name above to comment.': 'Indicar el nombre arriba para comentar.',
+  'Thread: {about}': 'Hilo: {about}',
+  '← All threads': '← Todos los hilos',
+  'Select what the thread is about': 'Seleccionar aquello sobre lo que trata el hilo',
+  Resolved: 'Resuelto',
+  'What this thread is about was deleted. The thread is kept: undoing the deletion brings it back.':
+    'Aquello sobre lo que trata este hilo se eliminó. El hilo se conserva: deshacer la eliminación lo recupera.',
+  'Edit your comment': 'Editar el comentario',
+  Save: 'Guardar',
+  Edit: 'Editar',
+  Reply: 'Responder',
+  'Reply and reopen': 'Responder y reabrir',
+  Resolve: 'Resolver',
+  Reopen: 'Reabrir',
+  'Delete thread…': 'Eliminar el hilo…',
+  'Delete the thread?': '¿Eliminar el hilo?',
+  'Delete this thread and its {count} comments? You can undo it.': {
+    one: '¿Eliminar este hilo y su {count} comentario? Se puede deshacer.',
+    other: '¿Eliminar este hilo y sus {count} comentarios? Se puede deshacer.',
+  },
+  'Delete thread': 'Eliminar el hilo',
+  '(edited {time})': '(editado {time})',
+  'New thread': 'Hilo nuevo',
+  'Select one element or one relation first.': 'Seleccionar primero un elemento o una relación.',
+  'Comment on the selection': 'Comentar la selección',
+  'Comment on this view': 'Comentar esta vista',
+  'Comment on a point…': 'Comentar un punto…',
+  'Click on the canvas where the comment goes, or press Enter for its middle. Escape gives up.':
+    'Hacer clic en el lienzo donde va el comentario, o pulsar Enter para ubicarlo en el centro. Escape cancela.',
+  'New thread: {about}': 'Hilo nuevo: {about}',
+  'Your comment': 'Comentario',
+  Comment: 'Comentar',
+  'Which threads show': 'Qué hilos se muestran',
+  Where: 'Dónde',
+  'This view': 'Esta vista',
+  'All views': 'Todas las vistas',
+  State: 'Estado',
+  'Open threads': 'Hilos abiertos',
+  'Resolved threads': 'Hilos resueltos',
+  'Open and resolved': 'Abiertos y resueltos',
+  Author: 'Autor',
+  Everyone: 'Todos',
+  'Only the threads on: {about}': 'Solo los hilos sobre: {about}',
+  'Show every thread': 'Mostrar todos los hilos',
+  'Detached threads': 'Hilos desvinculados',
+  Detached: 'Desvinculados',
+  'What these threads are about was deleted. They are kept: resolve or delete them, or undo the deletion.':
+    'Aquello sobre lo que tratan estos hilos se eliminó. Se conservan: resolverlos o eliminarlos, o deshacer la eliminación.',
+  '{count} comments': { one: '{count} comentario', other: '{count} comentarios' },
+  'last by {name}, {time}': 'el último de {name}, {time}',
+  'No comments yet. Select an element or a relation and comment on it, or comment on this view.':
+    'Todavía no hay comentarios. Seleccionar un elemento o una relación y comentarlo, o comentar esta vista.',
+  'No comments yet.': 'Todavía no hay comentarios.',
+  'No open threads here. Show resolved ones, or every view’s.':
+    'No hay hilos abiertos aquí. Mostrar los resueltos, o los de todas las vistas.',
+  'No threads match. Show every view’s, or everyone’s.':
+    'Ningún hilo coincide. Mostrar los de todas las vistas, o los de todos.',
+  '{count} resolved threads: {about}': {
+    one: '{count} hilo resuelto: {about}',
+    other: '{count} hilos resueltos: {about}',
+  },
+  '{count} threads: {about}': { one: '{count} hilo: {about}', other: '{count} hilos: {about}' },
+  'Place the comment: click where it goes, or press Enter for the middle of the canvas. Escape gives up.':
+    'Ubicar el comentario: hacer clic donde va, o pulsar Enter para ubicarlo en el centro del lienzo. Escape cancela.',
 };
 
 /**

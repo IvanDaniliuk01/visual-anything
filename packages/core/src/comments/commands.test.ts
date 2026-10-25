@@ -116,7 +116,7 @@ describe('create-thread', () => {
 
   it('anchors to a relation, a view and a point of a view', () => {
     const anchors = [
-      [{ kind: 'relation', relation: 'api-reads-db' }, 'Comment on "api-reads-db"'],
+      [{ kind: 'relation', relation: 'api-reads-db' }, 'Comment on "API → DB"'],
       [{ kind: 'view', view: 'overview' }, 'Comment on the view "Overview"'],
       [
         { kind: 'point', view: 'overview', x: 120.5, y: -40 },

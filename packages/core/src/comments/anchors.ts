@@ -85,15 +85,28 @@ export function anchorPhrase(state: ProjectSnapshot, anchor: CommentAnchor): str
   switch (anchor.kind) {
     case 'element':
       return `"${index.element(anchor.element)?.name ?? anchor.element}"`;
-    case 'relation': {
-      const relation = index.relation(anchor.relation);
-      return `"${relation?.name ?? relation?.id ?? anchor.relation}"`;
-    }
+    case 'relation':
+      return `"${relationWords(index, anchor.relation)}"`;
     case 'view':
       return `the view "${viewName(state, anchor.view)}"`;
     case 'point':
       return `a point of the view "${viewName(state, anchor.view)}"`;
   }
+}
+
+/**
+ * A relation in words, as the history names one: its name, or its ends, as in "API → DB"; an end that
+ * is a relation is put in parentheses. Its id when it is gone.
+ */
+function relationWords(index: ModelIndex, id: Id, depth = 0): string {
+  const relation = index.relation(id);
+  if (!relation) return id;
+  if (relation.name !== undefined) return relation.name;
+  const end = (each: Id) =>
+    index.relation(each) && depth < 3
+      ? `(${relationWords(index, each, depth + 1)})`
+      : (index.element(each)?.name ?? each);
+  return `${end(relation.from)} → ${end(relation.to)}`;
 }
 
 function viewName(state: ProjectSnapshot, id: Id): string {

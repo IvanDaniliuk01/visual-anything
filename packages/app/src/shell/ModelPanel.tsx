@@ -1,6 +1,8 @@
 import type { Definitions, ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
-import { useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useId, useRef, useState, type KeyboardEvent } from 'react';
+import { CommentsTab } from '../comments/CommentsTab';
+import { useWhenCommentsShown } from '../comments/store';
 import { HistoryPanel } from '../history/HistoryPanel';
 import { useT } from '../i18n';
 import { ComponentsTab } from './ComponentsTab';
@@ -15,27 +17,38 @@ interface ModelPanelProps {
   openViewId: Id | undefined;
 }
 
-type Tab = 'outline' | 'model' | 'components' | 'history';
+type Tab = 'outline' | 'model' | 'components' | 'history' | 'comments';
 
 const TABS: readonly { tab: Tab; name: string }[] = [
   { tab: 'outline', name: 'Outline' },
   { tab: 'model', name: 'Model' },
   { tab: 'components', name: 'Components' },
   { tab: 'history', name: 'History' },
+  // Threads of comments (ADR 0059).
+  { tab: 'comments', name: 'Comments' },
 ];
 
 /**
- * The panel left of the canvas, in four tabs: the outline of the open view, which mirrors what the
+ * The panel left of the canvas, in five tabs: the outline of the open view, which mirrors what the
  * canvas draws; the model's contents with the project's views and scenarios; the components,
- * relation types and packages, which open in the component editor; and the history, the actions that
- * undo and redo go through. Each tab keeps its rows open or closed while another one shows.
+ * relation types and packages, which open in the component editor; the history, the actions that
+ * undo and redo go through; and the threads of comments (ADR 0059). Each tab keeps its rows open or
+ * closed while another one shows.
  */
 export function ModelPanel({ project, definitions, openViewId }: ModelPanelProps) {
   const t = useT();
   const [tab, setTab] = useState<Tab>('outline');
   const heading = useId();
-  const ids = { outline: useId(), model: useId(), components: useId(), history: useId() };
+  const ids = {
+    outline: useId(),
+    model: useId(),
+    components: useId(),
+    history: useId(),
+    comments: useId(),
+  };
   const buttons = useRef(new Map<Tab, HTMLButtonElement>());
+  // A pin chosen on the canvas brings the comments tab forward.
+  useWhenCommentsShown(useCallback(() => setTab('comments'), []));
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const at = TABS.findIndex((each) => each.tab === tab);
@@ -120,6 +133,15 @@ export function ModelPanel({ project, definitions, openViewId }: ModelPanelProps
         className="panel-tab-content"
       >
         <HistoryPanel active={tab === 'history'} />
+      </div>
+      <div
+        role="tabpanel"
+        id={`${ids.comments}-panel`}
+        aria-labelledby={`${ids.comments}-tab`}
+        hidden={tab !== 'comments'}
+        className="panel-tab-content"
+      >
+        <CommentsTab active={tab === 'comments'} />
       </div>
     </aside>
   );
