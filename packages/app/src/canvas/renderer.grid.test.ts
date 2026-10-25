@@ -155,6 +155,30 @@ describe('the grid in the renderer', () => {
     expect(gridMarks.lineCount).toBeLessThanOrEqual(MAX_GRID_LINES);
   });
 
+  it('stretches while a zoom goes on, and is drawn exactly for the scale once the camera rests', async () => {
+    vi.useFakeTimers();
+    const renderer = await started();
+    renderer.show(overview());
+    rest(renderer);
+    const { gridMarks } = inside(renderer);
+    renderer.setGrid({ grid: true, snapToGrid: true, rulers: false });
+    const drawn = gridMarks.draws;
+    const { x, y, scale } = renderer.camera;
+    // A few frames of a zoom by 2% each: stretched, not drawn again, until the scale passes 5%.
+    renderer.setCamera({ x, y, scale: scale * 1.02 });
+    renderer.setCamera({ x, y, scale: scale * 1.02 * 1.02 });
+    expect(gridMarks.draws).toBe(drawn);
+    expect(gridMarks.whole.scale.x).toBeCloseTo(1 / scale);
+    renderer.setCamera({ x, y, scale: scale * 1.02 ** 3 });
+    expect(gridMarks.draws).toBe(drawn + 1);
+    vi.advanceTimersByTime(500);
+    expect(gridMarks.draws).toBe(drawn + 2);
+    expect(gridMarks.whole.scale.x).toBeCloseTo(1 / renderer.camera.scale);
+    // Resting again where it was drawn exactly draws nothing.
+    vi.advanceTimersByTime(500);
+    expect(gridMarks.draws).toBe(drawn + 2);
+  });
+
   it('is drawn again at the new resolution when devicePixelRatio changes', async () => {
     vi.stubGlobal('devicePixelRatio', 1);
     const renderer = await started();

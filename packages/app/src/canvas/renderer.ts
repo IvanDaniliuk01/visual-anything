@@ -626,7 +626,7 @@ export class CanvasRenderer {
       this.settled = true;
       this.sharpen();
       if (this.marksStale) this.drawSelection();
-      this.placeContainerGrid();
+      this.followGrid(true);
       this.requestRender();
     }, SETTLE_AFTER);
     this.followGrid();
@@ -689,11 +689,14 @@ export class CanvasRenderer {
     return this.screenMarks.inset;
   }
 
-  /** The grid and the rulers follow the camera, the canvas's size and its resolution. */
-  private followGrid(): void {
+  /**
+   * The grid and the rulers follow the camera, the canvas's size and its resolution; with `rest`, the
+   * camera rests, and the grid is drawn exactly for it.
+   */
+  private followGrid(rest = false): void {
     if (this.status !== 'ready') return;
     const viewport = this.viewport;
-    this.gridMarks.follow(this.camera, viewport, this.resolution);
+    this.gridMarks.follow(this.camera, viewport, this.resolution, rest);
     this.screenMarks.follow(this.camera, viewport, this.resolution);
     this.placeContainerGrid();
   }

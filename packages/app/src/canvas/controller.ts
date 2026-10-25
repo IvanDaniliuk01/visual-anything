@@ -526,7 +526,7 @@ export class CanvasController {
       this.cancel();
     }
     const screen = this.local(event);
-    // The rulers take no presses: what lies under them is pressed beside them.
+    // The rulers take no presses: what lies under them is pressed once the camera brings it out.
     if (this.renderer.rulersContain(screen)) return;
     this.host.focus({ preventScroll: true });
     if (event.button === 1 || (event.button === 0 && this.spaceHeld)) {
