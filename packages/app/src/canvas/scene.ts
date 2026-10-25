@@ -319,7 +319,11 @@ const latest = new Map<Id, Built>();
 export function buildScene(project: ProjectSnapshot, viewId: Id): Scene {
   const view = viewOf(project, viewId);
   const kept = exactly.get(view.positions);
-  if (kept && laidOutFrom(kept, project, view)) return redrawn(kept, project, view);
+  // An older build, as an undo past the last change brings back, would give shapes equal to those of
+  // the last build as other objects: the next build starts from the last one instead.
+  if (kept && kept === latest.get(view.id) && laidOutFrom(kept, project, view)) {
+    return redrawn(kept, project, view);
+  }
   const built = layOut(project, view, latest.get(view.id));
   exactly.set(view.positions, built);
   latest.set(view.id, built);
