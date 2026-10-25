@@ -41,6 +41,8 @@ export function LiveProvider({ token, children }: LiveProviderProps) {
       send: connection.send,
       undo: connection.undo,
       redo: connection.redo,
+      undoTo: connection.undoTo,
+      redoTo: connection.redoTo,
       notify: connection.notify,
       dismiss: connection.dismiss,
       clearGuidance: connection.clearGuidance,

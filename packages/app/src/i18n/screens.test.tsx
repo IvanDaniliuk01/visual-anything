@@ -27,7 +27,7 @@ function renderInSpanish() {
 describe('the shell in Spanish', () => {
   it('names World, the views and the scenarios, and the built-in components', () => {
     renderInSpanish();
-    fireEvent.click(screen.getByRole('tab', { name: 'Model' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Modelo' }));
     expect(screen.getByRole('heading', { name: 'Mundo' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Vistas' })).toBeInTheDocument();
     const world = screen.getByRole('tree', { name: 'Mundo' });
@@ -42,7 +42,7 @@ describe('the shell in Spanish', () => {
 
   it('opens a view’s settings in Spanish, with the nesting relation types by their Spanish names', () => {
     renderInSpanish();
-    fireEvent.click(screen.getByRole('tab', { name: 'Model' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Modelo' }));
     fireEvent.click(screen.getByRole('button', { name: 'Ajustes de "System overview"' }));
     const settings = screen.getByRole('group', { name: 'Ajustes de "System overview"' });
     expect(within(settings).getByLabelText('Nombre')).toHaveValue('System overview');
@@ -67,7 +67,7 @@ describe('the shell in Spanish', () => {
 
   it('shows the outline in Spanish', () => {
     renderInSpanish();
-    fireEvent.click(screen.getByRole('tab', { name: 'Outline' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Esquema' }));
     const outline = screen.getByRole('tree', { name: 'Esquema de System overview' });
     expect(within(outline).getAllByRole('treeitem')[0]).toHaveTextContent(/, (Persona|Sistema)/);
   });

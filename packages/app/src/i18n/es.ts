@@ -167,6 +167,50 @@ export const ui: Catalog = {
   '{view}, from the {perspective} perspective: {shapes}, {relations} and {free}.':
     '{view}, desde la perspectiva {perspective}: {shapes}, {relations} y {free}.',
 
+  // Export as PNG, in the header.
+  'Export…': 'Exportar…',
+  'There is no view to export.': 'No hay ninguna vista para exportar.',
+  'Export “{view}” as PNG': 'Exportar “{view}” como PNG',
+  Show: 'Mostrar',
+  'The whole view': 'Toda la vista',
+  'Everything the view draws': 'Todo lo que dibuja la vista',
+  'What is visible': 'Lo que se ve',
+  'As the canvas shows it now': 'Como lo muestra ahora el lienzo',
+  Size: 'Tamaño',
+  '{width} × {height} pixels': '{width} × {height} píxeles',
+  'Too large: {width} × {height} pixels': 'Demasiado grande: {width} × {height} píxeles',
+  'Drawn in the theme the canvas shows, without the selection. The browser saves it.':
+    'Se dibuja en el tema que muestra el lienzo, sin la selección. La guarda el navegador.',
+  'Drawing the image…': 'Dibujando la imagen…',
+  'Save PNG': 'Guardar PNG',
+  'The canvas is not ready yet. Try again in a moment.':
+    'El lienzo todavía no está listo. Volver a intentarlo en un momento.',
+  'The view draws nothing yet, so there is no image to save.':
+    'La vista todavía no dibuja nada, así que no hay imagen para guardar.',
+  'At {width} × {height} pixels this image is too large: the most is {side} pixels a side and {megapixels} megapixels. Choose 1×, or what is visible.':
+    'Con {width} × {height} píxeles, esta imagen es demasiado grande: lo máximo son {side} píxeles por lado y {megapixels} megapíxeles. Elegir 1× o lo que se ve.',
+  'The image could not be drawn: {why}': 'No se pudo dibujar la imagen: {why}',
+
+  // The model panel's tabs.
+  'Outline and model': 'Esquema y modelo',
+  Model: 'Modelo',
+  History: 'Historial',
+
+  // The history panel.
+  'The history shows while Visual Anything is connected.':
+    'El historial se muestra mientras Visual Anything está conectado.',
+  'Nothing is done yet. What you and Claude change shows here, newest first, and can be undone from here, many actions at once.':
+    'Todavía no hay acciones. Los cambios propios y los de Claude aparecen aquí, de la más reciente a la más antigua, y se pueden deshacer desde aquí, varias acciones a la vez.',
+  'Actions, newest first': 'Acciones, de la más reciente a la más antigua',
+  // A badge: the action is undone, and can be redone.
+  Undone: 'Deshecha',
+  'Undo to here': 'Deshacer hasta aquí',
+  'Redo to here': 'Rehacer hasta aquí',
+  // Who did an action: the person, beside Claude.
+  You: 'Usted',
+  '{action}, by Claude': '{action}, por Claude',
+  '{action}, by you': '{action}, por usted',
+
   // The Model tab.
   'World holds no elements yet.': 'Mundo todavía no contiene elementos.',
   Views: 'Vistas',
@@ -735,6 +779,14 @@ export const messages: Catalog = {
   // Why a change was refused, and what a change breaks that only warns.
   'There is nothing to undo.': 'No hay nada que deshacer.',
   'There is nothing to redo.': 'No hay nada que rehacer.',
+  'That action is undone already, so nothing was undone.':
+    'Esa acción ya está deshecha, así que no se deshizo nada.',
+  'That action is no longer in the history, so nothing was undone.':
+    'Esa acción ya no está en el historial, así que no se deshizo nada.',
+  'That action is not undone, so nothing was redone.':
+    'Esa acción no está deshecha, así que no se rehízo nada.',
+  'That action is no longer in the history, so nothing was redone.':
+    'Esa acción ya no está en el historial, así que no se rehízo nada.',
   'There is no element "{id}".': 'No hay ningún elemento "{id}".',
   'There is no relation "{id}".': 'No hay ninguna relación "{id}".',
   'There is no element or relation "{id}" to end on.':
