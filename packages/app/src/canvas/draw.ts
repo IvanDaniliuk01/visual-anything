@@ -35,6 +35,7 @@ import {
   contrastRatio,
   readableTextColors,
 } from './colors';
+import { drawLeavingMark, writeLeavingMark } from './leavingMark';
 import { patternMatrix, patternTexture } from './patterns';
 import { drawnAsCurve, drawnCurve, strokeCurve } from './routing/curves';
 import { LIGHT_ROWS, drawRowsShape, rowsBlocks, writeRowsText, type RowColors } from './rowsDraw';
@@ -215,6 +216,7 @@ export function drawShapeOutlines(
   for (const shape of shapes) {
     if (drawRowsShape(graphics, shape, rowColors)) {
       drawToggle(graphics, shape);
+      drawLeavingMark(graphics, shape);
       continue;
     }
     if (shape.collapsed !== undefined) {
@@ -228,6 +230,7 @@ export function drawShapeOutlines(
       drawBody(graphics, shape.kind, bodyRectOf(shape), shape);
     }
     drawToggle(graphics, shape);
+    drawLeavingMark(graphics, shape);
   }
 }
 
@@ -272,15 +275,13 @@ export function writeShapeLabels(
 ): Container[] {
   const texts: Container[] = [];
   for (const shape of shapes) {
-    writeShapeText(
-      shape,
-      (options, detail, room) => {
-        if (detail && !details) return;
-        const text = make(options, detail ? 'detail' : 'name', room);
-        if (text) texts.push(text);
-      },
-      backdrop,
-    );
+    const write = (options: CanvasTextOptions, detail: boolean, room: number) => {
+      if (detail && !details) return;
+      const text = make(options, detail ? 'detail' : 'name', room);
+      if (text) texts.push(text);
+    };
+    writeShapeText(shape, write, backdrop);
+    writeLeavingMark(shape, write);
   }
   return texts;
 }
@@ -335,6 +336,34 @@ export function drawPieceLines(graphics: Graphics, pieces: readonly RoutePiece[]
     const { line } = piece;
     const points = piece.last && line.arrowhead ? [...piece.points, line.to] : piece.points;
     strokeLine(graphics, points, { color: line.stroke, width: line.width, dash: 'solid' }, piece);
+  }
+}
+
+/**
+ * Draws the pieces of relations' routes as `drawPieceLines` does, all in one color, each `extra`
+ * wider than its line: one path a width, since in one color the order they are drawn in shows not.
+ */
+export function drawPieceCasings(
+  graphics: Graphics,
+  pieces: readonly RoutePiece[],
+  color: Color,
+  extra: number,
+): void {
+  const byWidth = new Map<number, RoutePiece[]>();
+  for (const piece of pieces) {
+    const width = piece.line.width + extra;
+    const same = byWidth.get(width);
+    if (same) same.push(piece);
+    else byWidth.set(width, [piece]);
+  }
+  for (const [width, same] of byWidth) {
+    let traced = false;
+    for (const piece of same) {
+      const { line } = piece;
+      const points = piece.last && line.arrowhead ? [...piece.points, line.to] : piece.points;
+      traced = traceSolid(graphics, points, width, piece) || traced;
+    }
+    if (traced) graphics.stroke({ color, width, cap: 'butt', join: 'miter' });
   }
 }
 
@@ -709,15 +738,7 @@ function strokeLine(
   if (!first || rest.length === 0) return;
   const { color, width, dash } = style;
   if (dash === 'solid') {
-    const from = bendAtStart ? reachedPast(points[1] as Point, first, width / 2) : first;
-    graphics.moveTo(from.x, from.y);
-    rest.forEach((point, at) => {
-      const to =
-        bendAtEnd && at === rest.length - 1
-          ? reachedPast(points.at(-2) as Point, point, width / 2)
-          : point;
-      graphics.lineTo(to.x, to.y);
-    });
+    traceSolid(graphics, points, width, { bendAtStart, bendAtEnd });
     graphics.stroke({ color, width, cap: 'butt', join: 'miter' });
     return;
   }
@@ -745,6 +766,30 @@ function strokeLine(
       });
     travelled += length;
   }
+}
+
+/**
+ * Traces a solid line through `points`, ends at a bend reaching half a width past it, as inner
+ * corners do, so that the outside of the bend is filled; says whether there was a line to trace.
+ */
+function traceSolid(
+  graphics: Graphics,
+  points: readonly Point[],
+  width: number,
+  { bendAtStart = false, bendAtEnd = false }: { bendAtStart?: boolean; bendAtEnd?: boolean },
+): boolean {
+  const [first, ...rest] = points;
+  if (!first || rest.length === 0) return false;
+  const from = bendAtStart ? reachedPast(points[1] as Point, first, width / 2) : first;
+  graphics.moveTo(from.x, from.y);
+  rest.forEach((point, at) => {
+    const to =
+      bendAtEnd && at === rest.length - 1
+        ? reachedPast(points.at(-2) as Point, point, width / 2)
+        : point;
+    graphics.lineTo(to.x, to.y);
+  });
+  return true;
 }
 
 /** `to`, moved `by` further along the line from `from`. */

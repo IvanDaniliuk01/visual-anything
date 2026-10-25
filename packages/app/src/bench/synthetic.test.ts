@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { centerOf } from '../canvas/geometry';
 import { indexScene, type IndexedScene } from '../canvas/hit';
 import { buildScene } from '../canvas/scene';
-import { MAX_BANDS, cellOf, plannedTiles } from '../canvas/tiles';
+import { MAX_BANDS, MAX_TILE_SHAPES, cellOf, chunkBase, plannedTiles } from '../canvas/tiles';
 import { SYNTHETIC_IMAGES } from './images';
 import {
   LARGE_TABLE,
@@ -95,10 +95,21 @@ describe('syntheticProject', () => {
     },
   );
 
-  it('draws a grid of touching shapes in one band, one tile to a cell', () => {
+  it('draws a grid of touching shapes in one band, a cell’s shapes shared out in chunks', () => {
     const { indexed } = mode('grid');
     expect(maximumBand(indexed)).toBe(0);
-    expect(plannedTiles(indexed, new Set())).toHaveLength(50);
+    const tiles = plannedTiles(indexed, new Set());
+    // Fifty cells, each of them crowded: a tile draws at most a chunk of a cell's shapes.
+    const cells = new Map<string, number>();
+    for (const tile of tiles) {
+      cells.set(chunkBase(tile.key), (cells.get(chunkBase(tile.key)) ?? 0) + tile.shapes.length);
+    }
+    expect(cells.size).toBe(50);
+    expect(tiles.every((tile) => tile.shapes.length <= MAX_TILE_SHAPES)).toBe(true);
+    for (const [base, shapes] of cells) {
+      const chunks = tiles.filter((tile) => chunkBase(tile.key) === base);
+      expect(chunks).toHaveLength(Math.ceil(shapes / MAX_TILE_SHAPES));
+    }
   });
 
   it('draws staircases one band higher for each step', () => {

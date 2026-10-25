@@ -1,6 +1,13 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { SVG_ALLOWED, SVG_CAPS, cleanSvg, pathCommandCount, type CleanedSvg } from './svg';
+import {
+  SVG_ALLOWED,
+  SVG_CAPS,
+  calledNames,
+  cleanSvg,
+  pathCommandCount,
+  type CleanedSvg,
+} from './svg';
 
 const NS = 'xmlns="http://www.w3.org/2000/svg"';
 const SQUARE = '<path d="M0 0h1v1z"/>';
@@ -741,5 +748,28 @@ describe('cleanSvg, fuzzed', () => {
       }),
       { numRuns: 400 },
     );
+  });
+});
+
+describe('reading the functions a value calls', () => {
+  it('finds what a pattern tried at every position finds, on any short value', () => {
+    const pattern = /([A-Za-z_][\w-]*)\s*\(/g;
+    fc.assert(
+      fc.property(fc.stringMatching(/^[a1_ (\t-]{0,24}$/), (value) => {
+        expect(calledNames(value)).toEqual([...value.matchAll(pattern)].map((match) => match[1]));
+      }),
+      { numRuns: 2000 },
+    );
+  });
+
+  it('stays linear on long path data, which a pattern tried at every position does not', () => {
+    const d = `M0 0${'h1v1'.repeat(10_000)}`;
+    const text = `<svg viewBox="0 0 10 10" ${NS}><path d="${d}"/></svg>`;
+    expect(text.length).toBeLessThanOrEqual(SVG_CAPS.input);
+    const { ms } = timed(text);
+    expect(ms).toBeLessThan(BOUND_MS);
+    const start = Date.now();
+    expect(calledNames(`${'a'.repeat(100_000)}(`)).toEqual(['a'.repeat(100_000)]);
+    expect(Date.now() - start).toBeLessThan(BOUND_MS);
   });
 });

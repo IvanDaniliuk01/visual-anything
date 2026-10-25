@@ -5,7 +5,8 @@
  * hide, and the two ends of the selected relation, which a press follows. Each part shows only inside
  * the shell, which keeps the editor and the explorer.
  */
-import type { Id } from '@visual-anything/schema';
+import type { Id, ViewFile } from '@visual-anything/schema';
+import { viewsByScope } from './scope';
 import { useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { selectionOf } from '../editor/selection';
@@ -95,6 +96,29 @@ export function ExploreStrip() {
   );
 }
 
+/**
+ * The switcher's options: first the views with the same scope as the open one, which show the same
+ * part of the model from other perspectives, then the others (ADR-0040); in the project's order in
+ * each. Only when there are both are they grouped under their headings.
+ */
+function PerspectiveOptions({ project, viewId }: { project: Editor['project']; viewId: Id }) {
+  const t = useT();
+  const { same, others } = viewsByScope(project.views, viewId);
+  const options = (views: readonly ViewFile[]) =>
+    views.map((view) => (
+      <option key={view.id} value={view.id}>
+        {perspectiveOption(view)}
+      </option>
+    ));
+  if (others.length === 0) return <>{options(same)}</>;
+  return (
+    <>
+      <optgroup label={t('Same part of the model')}>{options(same)}</optgroup>
+      <optgroup label={t('Other parts of the model')}>{options(others)}</optgroup>
+    </>
+  );
+}
+
 /** A select of the project's views, each by its perspective, which opens the one chosen. */
 function PerspectiveSwitcher({ editor, viewId }: { editor: Editor; viewId: Id }) {
   const t = useT();
@@ -120,11 +144,7 @@ function PerspectiveSwitcher({ editor, viewId }: { editor: Editor; viewId: Id })
           return Promise.resolve();
         }}
       >
-        {project.views.map((view) => (
-          <option key={view.id} value={view.id}>
-            {perspectiveOption(view)}
-          </option>
-        ))}
+        <PerspectiveOptions project={project} viewId={viewId} />
       </SelectControl>
     </span>
   );

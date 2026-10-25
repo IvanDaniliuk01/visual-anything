@@ -1444,6 +1444,94 @@ export const ui: Catalog = {
     one: 'La vista {names} anida por él.',
     other: 'Las vistas {names} anidan por él.',
   },
+
+  // A view's scope on the canvas, in the panels and in search (ADR 0040, M6c).
+  '{count} relations leave this view: {list}. The inspector lists them, with Add to this view.': {
+    one: '{count} relación sale de esta vista: {list}. El inspector la muestra, con Agregar a esta vista.',
+    other:
+      '{count} relaciones salen de esta vista: {list}. El inspector las muestra, con Agregar a esta vista.',
+  },
+  '{count} relations leave this view': {
+    one: '{count} relación sale de esta vista',
+    other: '{count} relaciones salen de esta vista',
+  },
+  'Leave "{name}" out of this view': 'Dejar "{name}" fuera de esta vista',
+  'Leave {count} elements out of this view': {
+    one: 'Dejar {count} elemento fuera de esta vista',
+    other: 'Dejar {count} elementos fuera de esta vista',
+  },
+  'Add to this view the {count} elements they relate to': {
+    one: 'Agregar a esta vista el elemento con el que se relacionan',
+    other: 'Agregar a esta vista los {count} elementos con los que se relacionan',
+  },
+  'Deletes nothing: it stays in the model and in the other views.':
+    'No elimina nada: sigue en el modelo y en las otras vistas.',
+  'Brings in the far ends of the relations that leave this view from it.':
+    'Trae los otros extremos de las relaciones que salen de esta vista desde aquí.',
+  'Scope of this view': 'Alcance de esta vista',
+  'This view shows the whole model.': 'Esta vista muestra todo el modelo.',
+  'Leave out of this view': 'Dejar fuera de esta vista',
+  'Add to this view': 'Agregar a esta vista',
+  '“{view}” leaves it out: its scope does not show it.':
+    '“{view}” lo deja fuera: su alcance no lo muestra.',
+  'Add “{name}” to this view': 'Agregar “{name}” a esta vista',
+  'Add all {count} to this view': 'Agregar los {count} a esta vista',
+  'What it shows': 'Qué muestra',
+  'The whole model: {count} elements.': {
+    one: 'Todo el modelo: {count} elemento.',
+    other: 'Todo el modelo: {count} elementos.',
+  },
+  '{shown} of {total} elements, as its scope gives them.':
+    '{shown} de {total} elementos, según su alcance.',
+  'Show the whole model': 'Mostrar todo el modelo',
+  'Show by a rule…': 'Mostrar según una regla…',
+  'Leave out by a rule…': 'Dejar fuera según una regla…',
+  'Show by a rule': 'Mostrar según una regla',
+  'Leave out by a rule': 'Dejar fuera según una regla',
+  'Added by hand': 'Agregados a mano',
+  'Stop adding': 'Dejar de agregar',
+  'Stop adding “{name}” by hand': 'Dejar de agregar “{name}” a mano',
+  'Left out by hand': 'Dejados fuera a mano',
+  'Add back': 'Volver a agregar',
+  'Add “{name}” back to this view': 'Volver a agregar “{name}” a esta vista',
+  'Shows the elements that meet one of these rules':
+    'Muestra los elementos que cumplen una de estas reglas',
+  'Leaves out the elements that meet any of these rules':
+    'Deja fuera los elementos que cumplen alguna de estas reglas',
+  'Remove the rule {rule}': 'Quitar la regla {rule}',
+  'Contents of a container': 'Contenido de un contenedor',
+  Container: 'Contenedor',
+  '“{name}” only': 'solo “{name}”',
+  '“{name}”, and what derives from it': '“{name}”, y lo que deriva de él',
+  'the ends of “{name}” only': 'los extremos de “{name}” solamente',
+  'the ends of “{name}”, and of what derives from it':
+    'los extremos de “{name}”, y de lo que deriva de él',
+  '“{name}” and what sits inside it, at every level':
+    '“{name}” y lo que está dentro, en todos los niveles',
+  '“{name}” and what sits inside it, {count} levels down': {
+    one: '“{name}” y lo que está dentro, {count} nivel hacia abajo',
+    other: '“{name}” y lo que está dentro, {count} niveles hacia abajo',
+  },
+  'this view nests nothing': 'esta vista no anida nada',
+  'There is nothing of this kind to choose.': 'No hay nada de este tipo para elegir.',
+  'How deep is a whole number from 1 to 1000, or nothing for every level.':
+    'La profundidad es un número entero de 1 a 1000, o nada para todos los niveles.',
+  'Name the attribute the rule tests.': 'Nombrar el atributo que prueba la regla.',
+  'Kind of rule': 'Tipo de regla',
+  'And what derives from it': 'Y lo que deriva de él',
+  'How many levels down (empty: every level)':
+    'Cuántos niveles hacia abajo (vacío: todos los niveles)',
+  'Add the rule': 'Agregar la regla',
+  'Same part of the model': 'La misma parte del modelo',
+  'Other parts of the model': 'Otras partes del modelo',
+  'Add to this view, “{view}”': 'Agregar a esta vista, “{view}”',
+  'Outside the view': 'Fuera de la vista',
+  'The scope of “{view}” shows none of this step’s relations, so nothing is marked for it there. It plays all the same.':
+    'El alcance de “{view}” no muestra ninguna de las relaciones de este paso, así que allí no se marca nada para él. Se reproduce igual.',
+  'Add its {count} ends to this view': {
+    one: 'Agregar su extremo a esta vista',
+    other: 'Agregar sus {count} extremos a esta vista',
+  },
 };
 
 /**

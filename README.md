@@ -23,6 +23,16 @@ Every tab keeps its address in step with where you are: the open view, where the
 
 The port changes from one run to the next unless `--port` fixes it, so what lasts of a view address is the part from `#` on.
 
+## Views that show part of the model
+
+A view shows the whole model, or the part its scope gives (ADR 0040): rules on components, relation types, a container's contents or an attribute, and elements added or left out by hand. Leaving an element out of a view never deletes it.
+
+- **The inspector**, with nothing selected, shows how much of the model the open view shows, edits its rules and what it adds and leaves out by hand, and offers Show the whole model.
+- **The shape menu and the outline's menu** offer Leave out of this view, for the shape or the selection, and Add to this view for what the relations that leave the view reach. A shape with relations whose other end is out of scope counts them on a mark in its corner; pointing at it names them, and the inspector lists them with Add to this view.
+- **Search** finds what the open view leaves out, under the views that show it, with Add to this view; the perspective switcher lists first the views with the same scope.
+- **Playback** marks a step whose relations the view's scope shows none of as outside the view, and plays on.
+- **Claude** reads a scope with `get_scope`, sets it with `set_scope`, and changes it with `add_to_view` and `leave_out_of_view`; `read_view` says how many elements a view shows out of how many.
+
 ## Running the executable
 
 Visual Anything also comes as one executable file for each system, which needs nothing else installed: no Node.js, pnpm or repository (ADR 0037). Take yours from the assets of a release, or make it for the system you are on with `pnpm package`, which writes `dist-exe/visual-anything` (`visual-anything.exe` on Windows).

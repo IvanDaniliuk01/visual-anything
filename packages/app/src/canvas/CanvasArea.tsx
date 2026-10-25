@@ -861,6 +861,10 @@ export function CanvasArea({
             closeMenu();
             collapse(action, collapsed);
           }}
+          onScope={(action) => {
+            closeMenu();
+            void sendChange(action.command, action.done);
+          }}
           editable={editable}
           onRestack={(move) => {
             // A move that would change nothing says why, and leaves the menu open for another.

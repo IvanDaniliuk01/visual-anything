@@ -18,6 +18,7 @@ import { DIMMED_ALPHA } from './colors';
 import { CanvasRenderer, emphasize } from './renderer';
 import { pointAlong } from './route';
 import { buildScene, shapeKeyOf, shownBy, standsFor, type Scene } from './scene';
+import { MAX_TILE_LINES, MAX_TILE_SHAPES } from './tiles';
 
 vi.mock('pixi.js', async (importOriginal) => {
   const pixi = await importOriginal<typeof import('pixi.js')>();
@@ -73,8 +74,12 @@ async function started(): Promise<CanvasRenderer> {
   return renderer;
 }
 
-/** What the tiles draw, in an order that does not depend on how they were made. */
+/**
+ * What the tiles draw, in an order that does not depend on how they were made, once every cell is
+ * planned: a change that plans only the cells near the screen plans the others later.
+ */
 function drawnBy(renderer: CanvasRenderer): string[] {
+  (renderer as unknown as { planEverything(): void }).planEverything();
   const { tiles, tileOfShape, tilesOfLine } = inside(renderer);
   const rows = [...tiles.values()].map(
     (tile) =>
@@ -121,6 +126,82 @@ describe('CanvasRenderer after an edit', () => {
     fresh.show(indexScene(buildScene(renamed.state, 'everything')));
     expect(drawnBy(renderer)).toEqual(drawnBy(fresh));
   });
+
+  it('shares out a crowded cell in chunks, and draws what a renderer made afresh draws after edits', async () => {
+    // Two hundred Services to a cell, side by side: each cell's tiles are drawn in chunks.
+    let project = syntheticProject({ elements: 1_200, overlap: 'grid' });
+    const renderer = await started();
+    renderer.show(indexScene(buildScene(project, 'everything')));
+    const tiles = [...inside(renderer).tiles.values()];
+    expect(tiles.some((tile) => tile.key.includes(' #'))).toBe(true);
+    expect(tiles.every((tile) => tile.shapes.length <= MAX_TILE_SHAPES)).toBe(true);
+    expect(
+      tiles
+        .filter((tile) => tile.kind === 'relations')
+        .every((tile) => tile.lines.length <= MAX_TILE_LINES),
+    ).toBe(true);
+    const step = fc.oneof(
+      fc.record({
+        kind: fc.constant('move' as const),
+        shape: fc.nat(1_199),
+        dx: fc.integer({ min: -1_500, max: 1_500 }),
+        dy: fc.integer({ min: -300, max: 300 }),
+      }),
+      fc.record({ kind: fc.constant('rename' as const), element: fc.nat(1_199) }),
+      fc.record({ kind: fc.constant('delete' as const), element: fc.nat(1_199) }),
+    );
+    await fc.assert(
+      fc.asyncProperty(fc.array(step, { minLength: 1, maxLength: 6 }), async (steps) => {
+        project = syntheticProject({ elements: 1_200, overlap: 'grid' });
+        renderer.show(indexScene(buildScene(project, 'everything')));
+        for (const each of steps) {
+          const scene = buildScene(project, 'everything');
+          const elements = project.model.elements;
+          let command: Command | undefined;
+          if (each.kind === 'move') {
+            const shape = scene.shapes[each.shape % scene.shapes.length];
+            if (shape) {
+              command = {
+                type: 'set-positions',
+                view: 'everything',
+                positions: [
+                  {
+                    element: shape.element,
+                    x: shape.offset.x + each.dx,
+                    y: shape.offset.y + each.dy,
+                    ...shape.storedSize,
+                    pinned: true,
+                  },
+                ],
+              };
+            }
+          } else {
+            const element = elements[each.element % elements.length];
+            if (element) {
+              command =
+                each.kind === 'rename'
+                  ? {
+                      type: 'update-element',
+                      id: element.id,
+                      changes: { name: `${element.name}!` },
+                    }
+                  : { type: 'delete', elements: [element.id] };
+            }
+          }
+          if (command) {
+            const outcome = executeCommand(project, command);
+            if (outcome.ok) project = applyOperations(project, outcome.operations).state;
+          }
+          renderer.show(indexScene(buildScene(project, 'everything')));
+          const fresh = await started();
+          fresh.show(indexScene(buildScene(project, 'everything')));
+          expect(drawnBy(renderer)).toEqual(drawnBy(fresh));
+          fresh.destroy();
+        }
+      }),
+      { numRuns: 8 },
+    );
+  }, 120_000);
 
   it('draws what a renderer made afresh draws, after any edits and emphasis', async () => {
     const renderer = await started();

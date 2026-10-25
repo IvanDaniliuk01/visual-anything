@@ -86,6 +86,8 @@ import { sameSlot } from './rowDrop';
 import { rowMoveFor, rowTargetFor } from './rowKeys';
 import { headerMiddle } from './rows';
 import { relationLinesOf, type ElementShape, type NoteShape } from './scene';
+import { onLeavingMark } from './leavingMark';
+import { leavingTitle } from './scope';
 import {
   WORLD_FRAME,
   aimFrame,
@@ -795,7 +797,10 @@ export class CanvasController {
                   : 'pointer'
                 : 'default';
         if (shape && this.onToggle(shape, world)) this.host.title = toggleTitle(shape);
-        else if (this.host.title !== '') this.host.title = '';
+        // The mark of the relations that leave the view says which (ADR-0040).
+        else if (shape?.leaving && this.project && onLeavingMark(shape, world)) {
+          this.host.title = leavingTitle(this.project, shape.leaving);
+        } else if (this.host.title !== '') this.host.title = '';
         return;
       }
     }

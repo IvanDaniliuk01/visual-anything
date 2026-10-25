@@ -12,9 +12,10 @@
  * - Escape closes that list, then the field, and gives the focus back: to the canvas once something
  *   was brought into sight there.
  */
-import type { Definitions, ProjectSnapshot } from '@visual-anything/core';
+import { modelIndexOf, type Definitions, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
 import {
+  useContext,
   useDeferredValue,
   useEffect,
   useId,
@@ -29,7 +30,18 @@ import { IS_APPLE } from '../live/platform';
 import { DismissIcon, SearchIcon } from '../shell/icons';
 import type { GoTo } from '../view-state/applier';
 import { MOST_FOUND, find, type Entry, type Found } from './find';
-import { groupsOf, kindOf, matchedText, shownText, titleOf, viewsDrawing } from './groups';
+import { addToViewCommand, toAdd } from '../canvas/scope';
+import { scopeLabel } from '../canvas/scopeActions';
+import { EditorContext } from '../editor/EditorContext';
+import {
+  groupsOf,
+  kindOf,
+  matchedText,
+  shownText,
+  titleOf,
+  viewShows,
+  viewsDrawing,
+} from './groups';
 import { IndexSource } from './source';
 import { isFindShortcut, useFindShortcut } from './useFindShortcut';
 import './search.css';
@@ -49,7 +61,9 @@ interface FindBarProps {
  */
 type Option =
   | { kind: 'found'; found: Found; view: ViewFile | undefined; group: number; key: string }
-  | { kind: 'view'; found: Found; view: ViewFile; group: number; key: string };
+  | { kind: 'view'; found: Found; view: ViewFile; group: number; key: string }
+  // Add to this view: brings what the open view's scope leaves out into it (ADR-0040).
+  | { kind: 'add'; found: Found; view: ViewFile; group: number; key: string };
 
 const SHORTCUT = IS_APPLE ? '⌘F' : 'Ctrl+F';
 
@@ -82,6 +96,7 @@ export function FindBar({ project, definitions, viewId, goTo }: FindBarProps) {
     [index, searched],
   );
   const groups = useMemo(() => groupsOf(result.found, project, viewId), [result, project, viewId]);
+  const openView = project.views.find((view) => view.id === viewId);
   const options = useMemo(() => {
     const list: Option[] = [];
     groups.forEach((group, at) => {
@@ -93,10 +108,13 @@ export function FindBar({ project, definitions, viewId, goTo }: FindBarProps) {
             list.push({ kind: 'view', found, view, group: at, key: `${key} in ${view.id}` });
           }
         }
+        if (openView && addable(project, openView, found.entry)) {
+          list.push({ kind: 'add', found, view: openView, group: at, key: `${key} add` });
+        }
       }
     });
     return list;
-  }, [groups, listing, project]);
+  }, [groups, listing, project, openView]);
   const current = options[Math.min(active, options.length - 1)];
 
   const say = (text: string) => setSaid((last) => ({ text, count: last.count + 1 }));
@@ -129,11 +147,15 @@ export function FindBar({ project, definitions, viewId, goTo }: FindBarProps) {
   };
 
   const jump = (found: Found, view: ViewFile | undefined) => {
-    const { entry } = found;
     if (!view) {
-      say(t('No view draws {name}.', { name: titleOf(t, project, entry) }));
+      say(t('No view draws {name}.', { name: titleOf(t, project, found.entry) }));
       return;
     }
+    goToIn(found, view);
+  };
+  /** Goes to what was found in a view that draws it, and says so once it is in sight. */
+  const goToIn = (found: Found, view: ViewFile) => {
+    const { entry } = found;
     jumped.current = true;
     goTo({
       kind: 'jump',
@@ -143,7 +165,38 @@ export function FindBar({ project, definitions, viewId, goTo }: FindBarProps) {
     });
   };
 
-  const choose = (option: Option) => jump(option.found, option.view);
+  // What was added to the open view from here, to go to once the view shows it (ADR-0040).
+  const editor = useContext(EditorContext);
+  const [adding, setAdding] = useState<{ found: Found; view: Id }>();
+  const wentTo = useRef<object>(undefined);
+  useEffect(() => {
+    if (!adding || wentTo.current === adding || adding.view !== viewId) return;
+    const view = project.views.find((each) => each.id === adding.view);
+    if (!view || !viewShows(project, view, adding.found.entry)) return;
+    wentTo.current = adding;
+    goToIn(adding.found, view);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once the project shows what was added
+  }, [project, adding, viewId]);
+
+  const add = async (found: Found, view: ViewFile) => {
+    const send = editor?.send;
+    const { entry } = found;
+    const elements = toAdd(
+      project,
+      view,
+      entry.kind === 'element' ? { elements: [entry.id] } : { relations: [entry.id] },
+    );
+    if (!send || elements.length === 0) return;
+    const result = await send(addToViewCommand(view.id, elements));
+    if (!result.ok) return;
+    say(`${t.message(scopeLabel('add', view, elements, (id) => nameOfElement(project, id)))}.`);
+    setAdding({ found, view: view.id });
+  };
+
+  const choose = (option: Option) => {
+    if (option.kind === 'add') void add(option.found, option.view);
+    else jump(option.found, option.view);
+  };
 
   /** Stops listing the views of a found thing, which becomes the chosen line again. */
   const unlist = () => {
@@ -278,7 +331,7 @@ export function FindBar({ project, definitions, viewId, goTo }: FindBarProps) {
                     role="option"
                     aria-selected={option === current}
                     className={
-                      option.kind === 'view' ? 'find-option find-option-view' : 'find-option'
+                      option.kind === 'found' ? 'find-option' : 'find-option find-option-view'
                     }
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => {
@@ -288,6 +341,8 @@ export function FindBar({ project, definitions, viewId, goTo }: FindBarProps) {
                   >
                     {option.kind === 'view' ? (
                       t('Open in {view}', { view: option.view.name })
+                    ) : option.kind === 'add' ? (
+                      t('Add to this view, “{view}”', { view: option.view.name })
                     ) : (
                       <>
                         <span className="find-name">{titleOf(t, project, option.found.entry)}</span>
@@ -320,6 +375,21 @@ export function FindBar({ project, definitions, viewId, goTo }: FindBarProps) {
 function groupName(t: ReturnType<typeof useT>, view: ViewFile | undefined, open: boolean): string {
   if (!view) return t('In no view');
   return open ? t('In {view}, open now', { view: view.name }) : t('In {view}', { view: view.name });
+}
+
+/**
+ * Whether the open view can add what an entry stands for: an element or a relation its scope leaves
+ * out, of which adding brings in an element (ADR-0040).
+ */
+function addable(project: ProjectSnapshot, view: ViewFile, entry: Entry): boolean {
+  if (view.scope === undefined || entry.kind === 'free-shape') return false;
+  if (viewShows(project, view, entry)) return false;
+  const items = entry.kind === 'element' ? { elements: [entry.id] } : { relations: [entry.id] };
+  return toAdd(project, view, items).length > 0;
+}
+
+function nameOfElement(project: ProjectSnapshot, id: Id): string {
+  return modelIndexOf(project).element(id)?.name ?? id;
 }
 
 /** A found thing's key among the options. */

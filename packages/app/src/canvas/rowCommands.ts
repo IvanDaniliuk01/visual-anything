@@ -25,6 +25,7 @@ import {
 import type { Attributes, Id, ViewFile } from '@visual-anything/schema';
 import { t } from '../i18n';
 import type { ParsedColumn } from '../shell/inspector/columns';
+import { madeIn } from './scope';
 
 /** The component every table derives from, and the one its columns are made from. */
 export const TABLE = 'data-modeling.table';
@@ -108,6 +109,7 @@ export function addRowCommand(
   const create: CreateElementCommand = {
     type: 'create-element',
     element: { id, component, name: t.definition(component, definition.name) },
+    ...madeIn(view),
     containers: [{ container, relationType: nesting.relationType }],
     ...(before === undefined ? {} : { before }),
   };
@@ -201,6 +203,7 @@ export function addColumnsCommand(
         ...(Object.keys(attributes).length > 0 ? { attributes } : {}),
       },
       containers: [{ container: table, relationType: nesting.relationType }],
+      ...madeIn(view),
     });
   }
 

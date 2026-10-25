@@ -79,8 +79,9 @@ describe('curved routes in the themes', () => {
     const pieces = routePieces(line);
     const graphics = new Graphics();
     painterOf(THEMES.dark.canvas).casings(graphics, pieces, [line]);
+    // In one color, one path for the pieces of each width and one for the arrowheads.
     const drawn = strokes(graphics);
-    expect(drawn.length).toBe(pieces.length + 1);
+    expect(drawn.length).toBe(2);
     expect(drawn.every((stroke) => stroke.color === hex('#FFFFFF'))).toBe(true);
   });
 

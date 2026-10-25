@@ -25,10 +25,10 @@ Each package is named `@visual-anything/<folder>`, such as `@visual-anything/cor
 
 - Only `core` changes the model, and only through commands. Every command is undoable and records its author: the user or Claude.
 - Enforce and test these invariants in `core`: every element comes from exactly one component; components and relation types derive from exactly one parent, up to Essence and "relates to"; containment never forms a cycle; deleting a relation also deletes the relations that end on it, after a preview; relation-type limits only warn; scenario steps whose relation is deleted become broken steps and are never deleted.
-- Project files are JSON with the extensions `.vaproject`, `.vamodel`, `.vapackage`, `.vaview` and `.vascenario`. Validate them on open, write them with a stable key order, write atomically (temporary file, then rename), and never store code that runs.
+- Project files are JSON with the extensions `.vaproject`, `.vamodel`, `.vapackage`, `.vaview` and `.vascenario`, and, from M11, `.vatour` and `.vacomment`. Validate them on open, write them with a stable key order, write atomically (temporary file, then rename). Nothing in them runs, except package code the person has approved by its hash, sandboxed (ADR 0054).
 - The server binds to 127.0.0.1 only, checks the Origin and Host of every request, and requires a per-session token on the WebSocket. `core` has no network access.
 - What leaves the app never carries a token: an exported read-only page connects nowhere (ADR 0041). What enters is read strictly and nothing in it runs (ADR 0042).
-- Performance budget: a view with 10,000 elements pans, zooms and selects at a 60 fps target; a theme switch never stalls a frame; layout never blocks the main thread.
+- Performance budget: a view with 10,000 elements pans, zooms and selects at a 60 fps target; a theme switch never stalls a frame; layout never blocks the main thread. From M8, a model of 100,000 elements opens with its containers collapsed and reads at 60 fps while fewer than 10,000 shapes show.
 
 ## Workflow
 
