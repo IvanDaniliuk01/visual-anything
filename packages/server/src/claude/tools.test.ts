@@ -93,10 +93,12 @@ describe('the tools', () => {
     }
   });
 
-  it('say which only read: those that get, list, find, read or preview', () => {
+  it('say which only read: those that get, list, find, read, preview or link to', () => {
     const readOnly = TOOLS.filter((each) => each.hints.readOnlyHint).map((each) => each.name);
     expect(readOnly).toEqual(
-      TOOLS.map((each) => each.name).filter((name) => /^(get|list|find|read|preview)_/.test(name)),
+      TOOLS.map((each) => each.name).filter((name) =>
+        /^(get|list|find|read|preview|link)_/.test(name),
+      ),
     );
     expect(readOnly).toEqual(
       expect.arrayContaining(['get_project', 'read_scenario', 'list_images']),

@@ -25,6 +25,7 @@ import { ProgramUnavailableError, type CommandAnswer, type Program } from './bri
 import { EXPLORE_TOOLS } from './explore-tools';
 import { IMAGE_TOOLS } from './image-tools';
 import { SCENARIO_TOOLS } from './scenario-tools';
+import { VIEW_STATE_TOOLS } from './view-tools';
 import {
   MAX_RESULTS,
   describeItem,
@@ -1095,6 +1096,7 @@ export const TOOLS: readonly Tool[] = [
   ...SCENARIO_TOOLS,
   ...IMAGE_TOOLS,
   ...EXPLORE_TOOLS,
+  ...VIEW_STATE_TOOLS,
 ];
 
 /** Runs a tool, turning a program that cannot be reached into an outcome Claude reads. */
