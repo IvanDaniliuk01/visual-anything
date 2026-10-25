@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "name": "Churn prediction",
+  "description": "A sample of the data-science pipelines package: the data a subscription business turns into a churn model, and the dashboards it feeds.",
+  "packages": [
+    "data-science"
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "id": "containers",
+  "name": "Containers",
+  "description": "What the internet banking system is made of, and the components of its API.",
+  "perspective": {
+    "name": "Containers"
+  },
+  "nestingRelationTypes": [
+    "c4.is-part-of"
+  ],
+  "positions": [
+    {
+      "element": "sign-in-controller",
+      "container": "api-app",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "accounts-controller",
+      "container": "api-app",
+      "x": 24,
+      "y": 160
+    },
+    {
+      "element": "security-component",
+      "container": "api-app",
+      "x": 280,
+      "y": 48
+    },
+    {
+      "element": "mainframe-facade",
+      "container": "api-app",
+      "x": 280,
+      "y": 160
+    },
+    {
+      "element": "web-app",
+      "container": "internet-banking",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "spa",
+      "container": "internet-banking",
+      "x": 24,
+      "y": 216
+    },
+    {
+      "element": "mobile-app",
+      "container": "internet-banking",
+      "x": 24,
+      "y": 336
+    },
+    {
+      "element": "api-app",
+      "container": "internet-banking",
+      "x": 296,
+      "y": 168
+    },
+    {
+      "element": "database",
+      "container": "internet-banking",
+      "x": 856,
+      "y": 256
+    },
+    {
+      "element": "customer",
+      "x": 0,
+      "y": 8
+    },
+    {
+      "element": "internet-banking",
+      "x": 240,
+      "y": 56
+    },
+    {
+      "element": "mainframe",
+      "x": 1392,
+      "y": 312
+    },
+    {
+      "element": "email-system",
+      "x": 1392,
+      "y": 0
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "exclude": [
+      {
+        "kind": "component",
+        "component": "c4.deployment-node"
+      }
+    ]
+  }
+}
