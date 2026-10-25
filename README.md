@@ -127,6 +127,16 @@ Scenarios, images and exploring work through Claude too:
 
 Try, for example: "Turn this log into a scenario and play it", "Give the Calendar component this SVG icon", or "Show me only the services and what they write to".
 
+### Importing a file
+
+A Mermaid diagram (flowchart, C4, ER or class), a spreadsheet (CSV or TSV) or JSON comes in as one action you can undo:
+
+- **In the app**, Import… in the header reads a file or pasted text in the tab. It shows what the file will create, maps each kind of thing in it to a component or relation type, with suggestions chosen at first, and lists what matched nothing.
+- **From the command line**, `visual-anything import <folder> <file>` imports it. Use `--map <kind>=<id>` to map a kind yourself, and `--dry-run` to see the mapping first. When Visual Anything runs on the project, the import goes through it.
+- **With Claude**, ask it to import a file: it shows you the mapping with `preview_import`, then imports with `import_file`.
+
+A spreadsheet holds elements with `id`, `name`, `component` and `container` columns, and relations with `from`, `to` and `relation type` columns, in tables separated by a blank line. Every other column is an attribute. Importing it again updates the elements it matches by `id`, or by another column you choose. Nothing in a file runs, and links in it are never followed.
+
 ### Building from what you already have
 
 Claude can build a model, views and scenarios from material you already have, with the same tools, following a recipe for each kind of material. Each recipe is a prompt of the MCP server, which you pick:
