@@ -98,7 +98,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
               ) : (
                 <p className="canvas-message">There is no view to draw.</p>
               )}
-              <GuidanceLayer />
+              <GuidanceLayer scenarios={scenarios} />
             </main>
             <Inspector view={view} scene={scene} definitions={definitions} />
             <ScenarioPanel session={scenarios} />

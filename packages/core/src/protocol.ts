@@ -21,8 +21,9 @@ import type { ProjectSnapshot } from './snapshot';
  * 2: operations can change a view's stacking order.
  * 3: guidance; and a page opens the connection with a launch code that works once, for which
  * `project/opened` hands it the session token.
+ * 4: guidance that filters and focuses the open view, and plays a scenario in it.
  */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';
@@ -142,13 +143,87 @@ export type Guidance =
   /** Shows a short text over the canvas, as plain text; an empty one takes the caption away. */
   | { kind: 'caption'; text: string }
   /** Takes away every mark and the caption Claude made. */
-  | { kind: 'clear' };
+  | { kind: 'clear' }
+  /**
+   * Sets the filters of the open view, replacing the ones it has, as if the person had set them
+   * (ADR-0025): the app shows them as the person's, and the person can end them. Nothing is written
+   * to the view.
+   */
+  | { kind: 'filter'; filters: GuidedFilters; view?: Id }
+  /**
+   * Turns focus mode on in the open view, as if the person had, starting from the targets, which
+   * are elements and relations, and reaching some degrees in a direction. It follows the person's
+   * selection from then on, as focus does.
+   */
+  | ({ kind: 'focus-view'; targets: Id[]; view?: Id } & GuidedFocus)
+  /** Ends the filters and the focus of the open view, whoever set them. */
+  | { kind: 'clear-explore'; view?: Id }
+  /**
+   * Opens a scenario in the app's scenario panel, and its view, and plays, pauses or steps it there,
+   * as the person would; playing changes nothing. `step`, for `go-to-step` only, is the index of a
+   * step among the scenario's steps, from 0.
+   */
+  | { kind: 'playback'; scenario: Id; action: PlaybackAction; step?: number };
+
+/** What filters hide in a view, as the app's explorer holds them (ADR-0025), in lists. */
+export interface GuidedFilters {
+  /** The components whose elements are hidden: exactly the component each one is created from. */
+  components: Id[];
+  /** The relation types whose relations are hidden. */
+  relationTypes: Id[];
+  /** Conditions every element, or every relation, must meet to stay shown. */
+  conditions: GuidedCondition[];
+}
+
+/** How a filter tests an attribute's value, as the app's filters do. */
+export const FILTER_TESTS = ['is', 'is-not', 'contains', 'below', 'above', 'set', 'unset'] as const;
+
+/** A condition on an attribute that elements, or relations, must meet to stay shown. */
+export interface GuidedCondition {
+  of: 'elements' | 'relations';
+  attribute: string;
+  test: (typeof FILTER_TESTS)[number];
+  /** What the value is compared with; empty for `set` and `unset`, which do not use it. */
+  value: string;
+}
+
+/** How far focus reaches, and what it does with the rest, as the app's focus mode does. */
+export interface GuidedFocus {
+  /** How many relations away it reaches, from 1 to {@link MAX_FOCUS_DEGREES}, or every degree. */
+  degrees: number | 'all';
+  direction: (typeof FOCUS_DIRECTIONS)[number];
+  /** Hides what it does not reach, instead of dimming it. */
+  isolate: boolean;
+}
+
+/** Which way focus follows relations: both ways, along them, or back. */
+export const FOCUS_DIRECTIONS = ['both', 'outgoing', 'incoming'] as const;
+
+/** The most degrees focus reaches short of every degree, as the app's focus mode offers. */
+export const MAX_FOCUS_DEGREES = 5;
+
+/** What Claude can ask of a scenario's playback in the open app. */
+export const PLAYBACK_ACTIONS = [
+  'open',
+  'play',
+  'pause',
+  'go-to-step',
+  'next-step',
+  'previous-step',
+] as const;
+export type PlaybackAction = (typeof PLAYBACK_ACTIONS)[number];
 
 /** The longest caption, in UTF-16 code units. */
 export const MAX_CAPTION_LENGTH = 280;
 
 /** The most targets one guidance names. */
 export const MAX_GUIDANCE_TARGETS = 500;
+
+/** The most conditions one guidance's filters hold. */
+export const MAX_FILTER_CONDITIONS = 32;
+
+/** The longest attribute name, or value, in a condition of guidance's filters. */
+export const MAX_FILTER_TEXT = 200;
 
 /** Sent to every open app when Claude guides; nothing else changes. */
 export interface GuidanceMessage {
@@ -193,9 +268,109 @@ export function readGuidance(value: unknown): Guidance {
       return { kind: 'caption', text: value.text };
     case 'clear':
       return { kind: 'clear' };
+    case 'filter':
+      return { kind: 'filter', filters: readFilters(value.filters), ...view() };
+    case 'focus-view':
+      return { kind: 'focus-view', targets: targets(), ...readFocus(value), ...view() };
+    case 'clear-explore':
+      return { kind: 'clear-explore', ...view() };
+    case 'playback':
+      return readPlayback(value);
     default:
       throw new ProtocolError(`Unknown kind of guidance: ${JSON.stringify(value.kind)}.`);
   }
+}
+
+/** Reads the filters of guidance, filling in the lists left out. */
+function readFilters(value: unknown): GuidedFilters {
+  if (!isRecord(value)) throw new ProtocolError('Filters are an object.');
+  const ids = (list: unknown, what: string): Id[] => {
+    if (list === undefined) return [];
+    if (!Array.isArray(list) || !list.every(isId)) {
+      throw new ProtocolError(`The ${what} of filters are a list of ids.`);
+    }
+    if (list.length > MAX_GUIDANCE_TARGETS) {
+      throw new ProtocolError(`Filters name at most ${MAX_GUIDANCE_TARGETS} ${what}.`);
+    }
+    return [...list];
+  };
+  const conditions = value.conditions ?? [];
+  if (!Array.isArray(conditions)) throw new ProtocolError('The conditions of filters are a list.');
+  if (conditions.length > MAX_FILTER_CONDITIONS) {
+    throw new ProtocolError(`Filters hold at most ${MAX_FILTER_CONDITIONS} conditions.`);
+  }
+  return {
+    components: ids(value.components, 'components'),
+    relationTypes: ids(value.relationTypes, 'relation types'),
+    conditions: conditions.map(readCondition),
+  };
+}
+
+function readCondition(value: unknown): GuidedCondition {
+  if (!isRecord(value)) throw new ProtocolError('A condition of filters is an object.');
+  const { of, attribute, test } = value;
+  if (of !== 'elements' && of !== 'relations') {
+    throw new ProtocolError('A condition is on elements or on relations.');
+  }
+  if (typeof attribute !== 'string' || attribute.trim() === '') {
+    throw new ProtocolError('A condition names an attribute.');
+  }
+  if (!FILTER_TESTS.some((each) => each === test)) {
+    throw new ProtocolError(`A condition tests with one of: ${FILTER_TESTS.join(', ')}.`);
+  }
+  const tested = test as GuidedCondition['test'];
+  const needsValue = tested !== 'set' && tested !== 'unset';
+  const given = value.value ?? (needsValue ? undefined : '');
+  if (typeof given !== 'string' || (needsValue && given.trim() === '')) {
+    throw new ProtocolError(`A condition that tests with "${tested}" needs a value, as text.`);
+  }
+  if (attribute.length > MAX_FILTER_TEXT || given.length > MAX_FILTER_TEXT) {
+    throw new ProtocolError(
+      `A condition's attribute and value hold at most ${MAX_FILTER_TEXT} characters.`,
+    );
+  }
+  return { of, attribute, test: tested, value: needsValue ? given : '' };
+}
+
+/** Reads how far focus guidance reaches: one degree, both ways, dimming, unless it says. */
+function readFocus(value: Record<string, unknown>): GuidedFocus {
+  const degrees = value.degrees ?? 1;
+  if (
+    degrees !== 'all' &&
+    !(
+      Number.isInteger(degrees) &&
+      (degrees as number) >= 1 &&
+      (degrees as number) <= MAX_FOCUS_DEGREES
+    )
+  ) {
+    throw new ProtocolError(`Focus reaches 1 to ${MAX_FOCUS_DEGREES} degrees, or "all".`);
+  }
+  const direction = value.direction ?? 'both';
+  if (!FOCUS_DIRECTIONS.some((each) => each === direction)) {
+    throw new ProtocolError(`Focus goes one of these ways: ${FOCUS_DIRECTIONS.join(', ')}.`);
+  }
+  const isolate = value.isolate ?? false;
+  if (typeof isolate !== 'boolean') throw new ProtocolError('Whether focus isolates is a boolean.');
+  return {
+    degrees: degrees as GuidedFocus['degrees'],
+    direction: direction as GuidedFocus['direction'],
+    isolate,
+  };
+}
+
+function readPlayback(value: Record<string, unknown>): Guidance {
+  if (!isId(value.scenario)) throw new ProtocolError('Playback names its scenario by id.');
+  const { action, step } = value;
+  if (!PLAYBACK_ACTIONS.some((each) => each === action)) {
+    throw new ProtocolError(`Playback does one of: ${PLAYBACK_ACTIONS.join(', ')}.`);
+  }
+  if (action !== 'go-to-step') {
+    return { kind: 'playback', scenario: value.scenario, action: action as PlaybackAction };
+  }
+  if (!Number.isSafeInteger(step) || (step as number) < 0) {
+    throw new ProtocolError('Going to a step needs the index of the step, from 0.');
+  }
+  return { kind: 'playback', scenario: value.scenario, action, step: step as number };
 }
 
 /** A message the app sends to the local program. */

@@ -10,6 +10,7 @@
 import {
   PLAYBACK_START,
   advance,
+  entryOfStep,
   goTo,
   isFinished,
   modelIndexOf,
@@ -19,6 +20,7 @@ import {
   previous,
   recordRelation,
   type Command,
+  type Guidance,
   type Playback,
   type PlaybackMode,
   type ProjectSnapshot,
@@ -32,6 +34,12 @@ import { recordedLabel, stepsCommand } from './commands';
 
 /** Sends a command; resolves with whether the local program applied it. */
 export type SendScenarioCommand = (command: Command) => Promise<{ ok: boolean; created?: Id[] }>;
+
+/**
+ * What Claude's guidance asks of playback: to open a scenario, play or pause it, or move it to a
+ * step, by the step's index among the scenario's steps, or to the next or the previous one.
+ */
+export type PlaybackGuidance = Omit<Extract<Guidance, { kind: 'playback' }>, 'kind'>;
 
 /** What the session shows; a new object whenever any of it changes, but not on every frame. */
 export interface ScenarioState {
@@ -125,6 +133,8 @@ export class ScenarioSession {
    * project holding it comes, and only one that was there and is gone was deleted.
    */
   private seen = false;
+  /** What Claude asked of playback, waiting for the scenario's timeline until the next sync. */
+  private guided: PlaybackGuidance | undefined;
 
   constructor(private readonly clock: Clock = FRAME_CLOCK) {}
 
@@ -170,6 +180,28 @@ export class ScenarioSession {
     this.publish();
     this.recordNext();
     this.keepMoving();
+    this.applyGuided();
+  }
+
+  /**
+   * Does what Claude's guidance asks of playback, as the person would from the panel: opening the
+   * scenario first when it is not the open one, which also goes to its first step, paused. What needs
+   * the timeline happens at once when the scenario's view is open, and otherwise with the next sync,
+   * once the tab has opened the scenario and its view; when the timeline has not come by then, it is
+   * forgotten. The person can pause, step or close the scenario at any time, as ever.
+   */
+  guide(request: PlaybackGuidance): void {
+    const opening = request.action === 'open' || this.state.scenario !== request.scenario;
+    if (opening) this.open(request.scenario);
+    this.guided = request.action === 'open' ? undefined : request;
+    if (!opening && this.context?.timeline) this.applyGuided();
+  }
+
+  /** Goes to the entry that plays a step, by the step's index among the scenario's steps. */
+  goToStep(step: number): void {
+    const timeline = this.context?.timeline;
+    const entry = timeline ? entryOfStep(timeline, step) : undefined;
+    if (entry !== undefined) this.goTo(entry);
   }
 
   /** Opens a scenario, at its first step, paused. */
@@ -269,11 +301,41 @@ export class ScenarioSession {
     return this.context?.project.scenarios.find((each) => each.id === scenario);
   }
 
+  /** Does what Claude asked of playback, if the timeline is the open scenario's, then forgets it. */
+  private applyGuided(): void {
+    const guided = this.guided;
+    if (!guided) return;
+    this.guided = undefined;
+    const scenario = this.openScenario();
+    const timeline = this.context?.timeline;
+    if (scenario?.id !== guided.scenario || !timeline || !isTimelineOf(timeline, scenario)) return;
+    switch (guided.action) {
+      case 'open':
+        return;
+      case 'play':
+        this.play();
+        return;
+      case 'pause':
+        this.pause();
+        return;
+      case 'go-to-step':
+        this.goToStep(guided.step ?? 0);
+        return;
+      case 'next-step':
+        this.next();
+        return;
+      case 'previous-step':
+        this.previous();
+        return;
+    }
+  }
+
   private reset(scenario: Id | undefined): void {
     this.stop();
     this.playback = PLAYBACK_START;
     this.clicks = [];
     this.sent = undefined;
+    this.guided = undefined;
     this.state = { ...this.state, scenario, recording: false };
     this.seen = this.openScenario() !== undefined;
     this.publish();
@@ -414,6 +476,16 @@ export class ScenarioSession {
     if (this.playback.mode === 'paused') this.lastFrame = undefined;
     else this.frame = this.clock.request(this.onFrame);
   };
+}
+
+/** Whether a timeline plays this scenario's steps, as they are now. */
+function isTimelineOf(timeline: Timeline, scenario: ScenarioFile): boolean {
+  return (
+    timeline.steps === scenario.steps.length &&
+    timeline.entries.every((entry) =>
+      entry.steps.every((id, at) => scenario.steps[entry.first + at]?.id === id),
+    )
+  );
 }
 
 /** What recording a click says: "Recorded step 3: Booking agent communicates with Appointments API." */
