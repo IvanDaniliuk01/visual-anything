@@ -2,11 +2,20 @@
  * What runs in each package's context before its code (ADR 0054), as JavaScript text the interpreter
  * evaluates. It takes away making code from text, the clock unless `time` is granted, and keeps the
  * intrinsics it needs before the package's code can replace them. It gives back `run`, which calls one
- * hook with a frozen copy of its input and writes its answer as JSON, refusing what is not plain data.
+ * hook with a frozen copy of its input and writes its answer as JSON, refusing what is not plain data,
+ * and `describe`, which says what a thrown value is.
  *
- * `run` answers a string of JSON, or a number saying why the answer is not plain data. Whatever it
- * answers, the app checks it again: this only spares copying what cannot be kept.
+ * Everything that reads a value the package's code made, its answers and what it throws, runs here,
+ * inside the call and under its deadline: a getter or a proxy that never ends is stopped like any
+ * loop. The app reads back only strings and numbers, which run nothing, and checks what it reads again.
+ *
+ * `run` answers `A` and the answer's JSON, a number saying why the answer is not plain data, or `E`
+ * and what `describe` says of what the hook threw. `describe` answers `N` for something that is not
+ * an error, or `M` and the JSON of its name and message, read from data properties only.
  */
+
+/** What `describe` answers for a thrown value that is not an error, or that reads as one only through getters. */
+export const NOT_AN_ERROR = 'it threw something that is not an error';
 
 /** Why `run` refused an answer, by the number it gives. */
 export const REFUSED: Readonly<Record<number, (limit: number) => string>> = {
@@ -21,7 +30,7 @@ export const ANSWER_DEPTH = 16;
 
 /**
  * A function expression of `(global, grantTime)`: it locks the context down and gives back
- * `run(hook, inputJson, limit, readModel)`.
+ * `[run(hook, inputJson, limit, readModel), describe(thrown)]`.
  */
 export const PRELUDE = String.raw`(function (global, grantTime) {
   'use strict';
@@ -31,14 +40,17 @@ export const PRELUDE = String.raw`(function (global, grantTime) {
   const keysOf = Object.keys;
   const protoOf = Object.getPrototypeOf;
   const isArray = Array.isArray;
-  const hasOwn = Object.prototype.hasOwnProperty;
+  const own = Object.hasOwn;
+  const descriptorOf = Object.getOwnPropertyDescriptor;
   const defineProperty = Object.defineProperty;
   const construct = Reflect.construct;
   const objectProto = Object.prototype;
   const arrayProto = Array.prototype;
   const isFinite = Number.isFinite;
-  const call = Function.prototype.call;
-  const own = (value, key) => call.call(hasOwn, value, key);
+  const isError = Error.isError;
+  const toText = String;
+  const apply = Reflect.apply;
+  const sliceText = String.prototype.slice;
 
   // No code made from text: neither eval nor any kind of Function constructor.
   const blocked = function Function() {
@@ -146,16 +158,66 @@ export const PRELUDE = String.raw`(function (global, grantTime) {
     });
   }
 
-  return function run(hook, inputJson, limit, readModel) {
-    const input = parse(inputJson);
-    const element = input[0];
-    const context = input[1];
-    if (readModel !== undefined) context.model = modelOf(readModel);
-    deepFreeze(input, 0);
-    const answer = hook(element, context);
-    if (answer === undefined) return 'null';
-    const out = { text: '', limit: limit, error: 0 };
-    write(answer, 0, out);
-    return out.error !== 0 ? out.error : out.text;
-  };
+  // The longest description of a thrown value.
+  const LONGEST = 1000;
+
+  // A text property of a thrown value, from its own data properties or its prototypes': undefined when
+  // it has none, and null when one is a getter or a setter, which would run the code to read it.
+  function textProperty(value, key) {
+    let at = value;
+    for (let depth = 0; depth < 8 && at !== null && typeof at === 'object'; depth += 1) {
+      const descriptor = descriptorOf(at, key);
+      if (descriptor !== undefined) {
+        if (!own(descriptor, 'value')) return null;
+        const found = descriptor.value;
+        return typeof found === 'string' ? found : undefined;
+      }
+      at = protoOf(at);
+    }
+    return undefined;
+  }
+
+  function cut(text) {
+    return text.length > LONGEST ? apply(sliceText, text, [0, LONGEST]) : text;
+  }
+
+  // What a thrown value is, read without running a getter: errors made by the engine or by
+  // constructors only, never a proxy, which Error.isError tells apart without running its traps.
+  function describe(thrown) {
+    try {
+      if (typeof thrown === 'string') return 'M' + quote('') + ',' + quote(cut(thrown));
+      if (typeof thrown === 'number' || typeof thrown === 'boolean') {
+        return 'M' + quote('') + ',' + quote(toText(thrown));
+      }
+      if (typeof thrown !== 'object' || thrown === null) return 'N';
+      if (typeof isError === 'function' && !isError(thrown)) return 'N';
+      const name = textProperty(thrown, 'name');
+      const message = textProperty(thrown, 'message');
+      if (name === null || message === null) return 'N';
+      return 'M' + quote(cut(name === undefined ? '' : name)) + ',' + quote(cut(message === undefined ? '' : message));
+    } catch (error) {
+      return 'N';
+    }
+  }
+
+  function run(hook, inputJson, limit, readModel) {
+    try {
+      const input = parse(inputJson);
+      const element = input[0];
+      const context = input[1];
+      if (readModel !== undefined) {
+        defineProperty(context, 'model', { value: modelOf(readModel), enumerable: true });
+      }
+      deepFreeze(input, 0);
+      const answer = hook(element, context);
+      if (answer === undefined) return 'Anull';
+      const out = { text: '', limit: limit, error: 0 };
+      write(answer, 0, out);
+      return out.error !== 0 ? out.error : 'A' + out.text;
+    } catch (error) {
+      return 'E' + describe(error);
+    }
+  }
+
+  return [run, describe];
 })`;

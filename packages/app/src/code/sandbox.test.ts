@@ -19,9 +19,15 @@ beforeAll(async () => {
 const project = codeProject();
 const input = hookInputOf(project, 'oven') as HookInput;
 
+/**
+ * How long a call may run in these tests: longer than the app's 50 ms, so that a busy machine never
+ * stops a call that is not about time; the calls that are about time stop all the same.
+ */
+const CALL_MS = 250;
+
 /** A sandbox with one package whose module is `code`, granted `granted`. */
 function sandboxWith(code: string, granted: string[] = []) {
-  const sandbox = new CodeSandbox(engine);
+  const sandbox = new CodeSandbox(engine, { callMs: CALL_MS });
   const loaded = sandbox.load({ package: 'gauges', code, granted });
   return { sandbox, loaded };
 }
@@ -158,11 +164,14 @@ describe('hostile code', () => {
       ok: false,
       failure: { kind: 'threw', message: 'InternalError: stack overflow' },
     });
-    expect(
-      attributes(
-        'let o = {}; let c = o; for (let i = 0; i < 5000; i++) { c.a = {}; c = c.a; } return { n: JSON.stringify(o).length };',
-      ),
-    ).toMatchObject({ ok: false, failure: { kind: 'threw' } });
+    // Native recursion the interpreter cannot interrupt: its own stack overflow, or past its time
+    // when the machine is slow, but never a failure of the interpreter itself.
+    const deep = attributes(
+      'let o = {}; let c = o; for (let i = 0; i < 10000; i++) { c.a = {}; c = c.a; } return { n: JSON.stringify(o).length };',
+    );
+    expect(deep.ok).toBe(false);
+    expect(deep).not.toHaveProperty('crashed');
+    expect(['threw', 'time']).toContain(!deep.ok && deep.failure.kind);
   });
 
   it('finds no page, no network, no files, no workers and no host on globalThis', () => {
@@ -296,8 +305,72 @@ describe('hostile code', () => {
     });
   });
 
+  it('reads what the code throws without running it past its time: getters and proxies included', () => {
+    const notAnError = {
+      ok: false,
+      failure: { kind: 'threw', message: 'it threw something that is not an error' },
+    };
+    const started = performance.now();
+    // A thrown object whose message is a getter that never ends.
+    expect(attributes('throw { get message() { for (;;) {} } };')).toMatchObject(notAnError);
+    // An error whose own message is such a getter, and one whose prototype's name is.
+    expect(
+      attributes(
+        'const error = new Error("x"); Object.defineProperty(error, "message", { get() { for (;;) {} } }); throw error;',
+      ),
+    ).toMatchObject(notAnError);
+    expect(
+      attributes(
+        'Object.defineProperty(Error.prototype, "name", { get() { for (;;) {} } }); throw new Error("x");',
+      ),
+    ).toMatchObject(notAnError);
+    // A proxy, of an error or of anything, whose traps never end.
+    const traps =
+      '{ get() { for (;;) {} }, getOwnPropertyDescriptor() { for (;;) {} }, getPrototypeOf() { for (;;) {} }, ownKeys() { for (;;) {} } }';
+    expect(attributes(`throw new Proxy(new Error("x"), ${traps});`)).toMatchObject(notAnError);
+    expect(attributes(`throw new Proxy({}, ${traps});`)).toMatchObject(notAnError);
+    // A module that throws such a proxy as it loads.
+    expect(sandboxWith(`throw new Proxy({}, ${traps});\nexport const a = 1;`).loaded).toEqual({
+      ok: false,
+      ...notAnError,
+    });
+    // Plain values thrown read as what they are.
+    expect(attributes('throw "plain text";')).toMatchObject({
+      failure: { kind: 'threw', message: 'plain text' },
+    });
+    expect(performance.now() - started).toBeLessThan(2000);
+  });
+
+  it('still tells a call stopped for time when the code hid the name of its errors', () => {
+    expect(
+      attributes(
+        'Object.defineProperty(Object.getPrototypeOf(new InternalError("")), "name", { get() { for (;;) {} } }); for (;;) {}',
+      ),
+    ).toMatchObject({ ok: false, failure: { kind: 'time' } });
+  });
+
+  it('reads an answer with getters inside the call, once, and stops one that never ends', () => {
+    expect(answer('let reads = 0; return { get value() { reads += 1; return reads; } };')).toEqual({
+      value: 1,
+    });
+    expect(attributes('return { get value() { for (;;) {} } };')).toMatchObject({
+      ok: false,
+      failure: { kind: 'time' },
+    });
+    expect(attributes('return new Proxy({ a: 1 }, { ownKeys() { for (;;) {} } });')).toMatchObject({
+      ok: false,
+      failure: { kind: 'time' },
+    });
+    // Intrinsics replaced by the code change nothing of how the answer is written.
+    expect(
+      answer(
+        'JSON.stringify = () => "{}"; Object.keys = () => ["evil"]; Array.prototype.toJSON = () => 1; String.prototype.slice = () => "x"; return { list: [1, 2] };',
+      ),
+    ).toEqual({ list: [1, 2] });
+  });
+
   it('keeps one package from reaching another', () => {
-    const sandbox = new CodeSandbox(engine);
+    const sandbox = new CodeSandbox(engine, { callMs: CALL_MS });
     expect(
       sandbox.load({
         package: 'first',
@@ -350,5 +423,20 @@ describe('capabilities', () => {
         ['model:read'],
       ),
     ).toEqual({ db: 'DB', none: null, frozen: true, count: 7, relations: 1 });
+  });
+});
+
+describe('the limit of a call', () => {
+  it('is 50 ms in the app', () => {
+    const sandbox = new CodeSandbox(engine);
+    sandbox.load({
+      package: 'gauges',
+      code: 'export function attributes() { for (;;) {} }',
+      granted: [],
+    });
+    const outcome = sandbox.call('gauges', 'attributes', input);
+    expect(outcome).toMatchObject({ ok: false, failure: { kind: 'time' } });
+    expect(outcome.ms).toBeGreaterThanOrEqual(CODE_LIMITS.callMs);
+    sandbox.dispose();
   });
 });

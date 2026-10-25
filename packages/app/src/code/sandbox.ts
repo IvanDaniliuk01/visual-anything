@@ -17,7 +17,7 @@ import type {
   QuickJSRuntime,
   QuickJSWASMModule,
 } from 'quickjs-emscripten-core';
-import { PRELUDE, REFUSED } from './prelude';
+import { NOT_AN_ERROR, PRELUDE, REFUSED } from './prelude';
 
 /**
  * The stack QuickJS may use, in bytes. Native recursion, such as `JSON.stringify` of a deeply nested
@@ -54,6 +54,7 @@ interface Loaded {
   runtime: QuickJSRuntime;
   context: QuickJSContext;
   run: QuickJSHandle;
+  describe: QuickJSHandle;
   hooks: Map<HookName, QuickJSHandle>;
   granted: ReadonlySet<Capability>;
   readModel: QuickJSHandle | undefined;
@@ -108,21 +109,23 @@ export class CodeSandbox {
         error: new Error('Package code imports nothing: it is one module on its own.'),
       }));
       const context = runtime.newContext();
-      const run = this.prelude(context, request.granted.includes('time'));
+      const { run, describe } = this.prelude(context, request.granted.includes('time'));
       this.deadline = this.now() + this.callMs;
       const evaluated = context.evalCode(request.code, `${request.package}.js`, {
         type: 'module',
         strict: true,
       });
-      this.deadline = Infinity;
       if (evaluated.error) {
-        const failure = failureOf(context, evaluated.error);
+        const failure = this.thrownFailure(context, describe, evaluated.error);
+        this.deadline = Infinity;
         evaluated.error.dispose();
         run.dispose();
+        describe.dispose();
         context.dispose();
         runtime.dispose();
         return { ok: false, failure };
       }
+      this.deadline = Infinity;
       const namespace = evaluated.value;
       const state = context.getPromiseState(namespace);
       if (state.type !== 'fulfilled' || state.notAPromise !== true) {
@@ -130,6 +133,7 @@ export class CodeSandbox {
         if (state.type === 'rejected') state.error.dispose();
         namespace.dispose();
         run.dispose();
+        describe.dispose();
         context.dispose();
         runtime.dispose();
         return {
@@ -152,6 +156,7 @@ export class CodeSandbox {
         runtime,
         context,
         run,
+        describe,
         hooks,
         granted,
         readModel: undefined,
@@ -182,6 +187,7 @@ export class CodeSandbox {
       for (const hook of loaded.hooks.values()) hook.dispose();
       loaded.readModel?.dispose();
       loaded.run.dispose();
+      loaded.describe.dispose();
       loaded.context.dispose();
       loaded.runtime.dispose();
     } catch {
@@ -222,12 +228,14 @@ export class CodeSandbox {
         loaded.readModel !== undefined && reader !== undefined
           ? loaded.readModel
           : context.undefined;
+      // The deadline stays in force until everything is read back: whatever reads a value the code
+      // made runs inside `run`, and a getter or a proxy trap that never ends is stopped there.
       this.deadline = started + this.callMs;
       const result = context.callFunction(loaded.run, context.undefined, handle, json, limit, read);
-      this.deadline = Infinity;
       const ms = this.now() - started;
       if (result.error) {
-        const failure = failureOf(context, result.error);
+        // Only what the interpreter itself throws gets past `run`: it was stopped, or ran out.
+        const failure = escapedFailure(context, result.error);
         result.error.dispose();
         return { ok: false, failure, ms };
       }
@@ -244,26 +252,62 @@ export class CodeSandbox {
       if (type !== 'string') {
         return { ok: false, failure: { kind: 'answer', reason: 'it is not plain data' }, ms };
       }
-      // Its length is read before the text, so that a long one is never copied out.
-      const lengthHandle = context.getProp(value, 'length');
-      handles.push(lengthHandle);
-      const length =
-        context.typeof(lengthHandle) === 'number' ? context.getNumber(lengthHandle) : Infinity;
-      if (length > CODE_LIMITS.answerText) {
+      // A primitive string: its length is read before its text, so a long one is never copied out.
+      const length = lengthOf(context, value, handles);
+      if (length > CODE_LIMITS.answerText + 1 + LONGEST_DESCRIPTION) {
         return {
           ok: false,
           failure: { kind: 'answer', reason: REFUSED[3]?.(CODE_LIMITS.answerText) ?? '' },
           ms,
         };
       }
-      return { ok: true, answer: JSON.parse(context.getString(value)) as unknown, ms };
+      const text = context.getString(value);
+      if (text.startsWith('E')) return { ok: false, failure: describedFailure(text.slice(1)), ms };
+      if (!text.startsWith('A') || text.length - 1 > CODE_LIMITS.answerText) {
+        return {
+          ok: false,
+          failure: { kind: 'answer', reason: REFUSED[3]?.(CODE_LIMITS.answerText) ?? '' },
+          ms,
+        };
+      }
+      return { ok: true, answer: JSON.parse(text.slice(1)) as unknown, ms };
     } catch (error) {
       this.deadline = Infinity;
       this.spent = true;
       return crashedCall(messageOf(error), this.now() - started);
     } finally {
+      this.deadline = Infinity;
       loaded.reader = undefined;
       if (!this.spent) for (const each of handles) each.dispose();
+    }
+  }
+
+  /**
+   * What a value the module threw as it loaded is, as `describe` reads it inside the interpreter,
+   * under a short deadline of its own: past it, the value counts as having stopped for time.
+   */
+  private thrownFailure(
+    context: QuickJSContext,
+    describe: QuickJSHandle,
+    thrown: QuickJSHandle,
+  ): CodeFailure {
+    // Whatever the module threw, the engine's interrupt included, is read inside the interpreter.
+    this.deadline = this.now() + DESCRIBE_MS;
+    const described = context.callFunction(describe, context.undefined, thrown);
+    if (described.error) {
+      const failure = escapedFailure(context, described.error);
+      described.error.dispose();
+      return failure.kind === 'memory' ? failure : { kind: 'time' };
+    }
+    const handles: QuickJSHandle[] = [described.value];
+    try {
+      if (context.typeof(described.value) !== 'string') return notAnError();
+      if (lengthOf(context, described.value, handles) > 1 + 2 * LONGEST_DESCRIPTION + 16) {
+        return notAnError();
+      }
+      return describedFailure(context.getString(described.value));
+    } finally {
+      for (const each of handles) each.dispose();
     }
   }
 
@@ -272,16 +316,27 @@ export class CodeSandbox {
     for (const id of [...this.packages.keys()]) this.unload(id);
   }
 
-  /** Runs the prelude in a fresh context, and keeps its `run`. */
-  private prelude(context: QuickJSContext, grantTime: boolean): QuickJSHandle {
+  /**
+   * Runs the prelude in a fresh context, before any of the package's code, and keeps its `run` and
+   * its `describe`.
+   */
+  private prelude(
+    context: QuickJSContext,
+    grantTime: boolean,
+  ): { run: QuickJSHandle; describe: QuickJSHandle } {
     this.deadline = Infinity;
     const made = context.evalCode(PRELUDE, 'prelude.js', { type: 'global', strict: true });
     const make = context.unwrapResult(made);
     try {
       const flag = grantTime ? context.true : context.false;
-      return context.unwrapResult(
+      const pair = context.unwrapResult(
         context.callFunction(make, context.undefined, context.global, flag),
       );
+      try {
+        return { run: context.getProp(pair, 0), describe: context.getProp(pair, 1) };
+      } finally {
+        pair.dispose();
+      }
     } finally {
       make.dispose();
     }
@@ -309,31 +364,59 @@ export class CodeSandbox {
   }
 }
 
-/** What an error the interpreter threw says: stopped for time or memory, or the code's own error. */
-function failureOf(context: QuickJSContext, error: QuickJSHandle): CodeFailure {
-  let name = '';
-  let message = '';
+/** How long `describe` may take to read what a module threw as it loaded, in milliseconds. */
+const DESCRIBE_MS = 5;
+
+/** The longest name or message `describe` gives, as the prelude cuts them. */
+const LONGEST_DESCRIPTION = 1000;
+
+/** The length of a primitive string, read without running anything: strings' own length. */
+function lengthOf(context: QuickJSContext, text: QuickJSHandle, handles: QuickJSHandle[]): number {
+  const length = context.getProp(text, 'length');
+  handles.push(length);
+  return context.typeof(length) === 'number' ? context.getNumber(length) : Infinity;
+}
+
+/**
+ * What got past `run`, which catches whatever the code can throw: what only the interpreter throws,
+ * stopping the code for time or because it ran out of memory. Only the message is read, which the
+ * engine sets on the error as its own data, never the name, which a prototype could hide behind a
+ * getter; a value of any other kind reads as something that is not an error.
+ */
+function escapedFailure(context: QuickJSContext, error: QuickJSHandle): CodeFailure {
+  if (context.typeof(error) !== 'object') return notAnError();
+  const message = context.getProp(error, 'message');
   try {
-    if (context.typeof(error) === 'object') {
-      const nameHandle = context.getProp(error, 'name');
-      const messageHandle = context.getProp(error, 'message');
-      if (context.typeof(nameHandle) === 'string') name = context.getString(nameHandle);
-      if (context.typeof(messageHandle) === 'string') message = context.getString(messageHandle);
-      nameHandle.dispose();
-      messageHandle.dispose();
-    } else if (context.typeof(error) === 'string') {
-      message = context.getString(error);
-    }
-  } catch {
-    message = 'it threw something that cannot be read';
+    if (context.typeof(message) !== 'string') return notAnError();
+    const text = context.getString(message);
+    if (text === 'interrupted') return { kind: 'time' };
+    if (text === 'out of memory') return { kind: 'memory' };
+    return { kind: 'threw', message: text.slice(0, LONGEST_DESCRIPTION) };
+  } finally {
+    message.dispose();
   }
+}
+
+/** What `describe` said of a thrown value: stopped for time or memory, or the code's own error. */
+function describedFailure(described: string): CodeFailure {
+  if (!described.startsWith('M')) return notAnError();
+  let parts: unknown;
+  try {
+    parts = JSON.parse(`[${described.slice(1)}]`);
+  } catch {
+    return notAnError();
+  }
+  if (!Array.isArray(parts) || parts.length !== 2) return notAnError();
+  const [name, message] = parts as unknown[];
+  if (typeof name !== 'string' || typeof message !== 'string') return notAnError();
   if (name === 'InternalError' && message === 'interrupted') return { kind: 'time' };
   if (name === 'InternalError' && message === 'out of memory') return { kind: 'memory' };
   const text = name === '' ? message : message === '' ? name : `${name}: ${message}`;
-  return {
-    kind: 'threw',
-    message: text === '' ? 'it threw nothing that says why' : text.slice(0, 1000),
-  };
+  return { kind: 'threw', message: text === '' ? 'it threw nothing that says why' : text };
+}
+
+function notAnError(): CodeFailure {
+  return { kind: 'threw', message: NOT_AN_ERROR };
 }
 
 function crashedLoad(why: string): LoadOutcome {
