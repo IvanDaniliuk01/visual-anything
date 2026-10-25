@@ -70,38 +70,35 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   const canvasHeading = useId();
   // The scenario open in the scenario panel, with its playback and its recording on the canvas.
   const [scenarios] = useState(() => new ScenarioSession());
-  // What the header's Export draws with: the canvas lends it its renderer.
+  // The header's Export, which draws with the renderer the canvas lends it (R27).
   const [images] = useState(() => new ImageSource());
+  const exportTool = (
+    <ExportControl
+      source={images}
+      projectName={project.project.name}
+      viewName={view?.name}
+      bounds={scene?.bounds}
+    />
+  );
 
   return (
     <EditorContext.Provider value={editor}>
       <DefinitionProvider>
         <EmphasisContext.Provider value={emphasis}>
-          <ImageSourceContext value={images}>
-            <div className="shell">
-              <Header
-                projectName={project.project.name}
-                viewName={view?.name}
-                tools={
-                  <ExportControl
-                    source={images}
-                    projectName={project.project.name}
-                    viewName={view?.name}
-                    bounds={scene?.bounds}
-                  />
-                }
-              />
-              {notice !== undefined && (
-                <p className="shell-notice" role="alert">
-                  {notice}
-                </p>
-              )}
-              <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
-              <main className="canvas-area" aria-labelledby={canvasHeading}>
-                <h2 id={canvasHeading} className="visually-hidden">
-                  {view ? view.name : t('Canvas')}
-                </h2>
-                {view && scene ? (
+          <div className="shell">
+            <Header projectName={project.project.name} viewName={view?.name} tools={exportTool} />
+            {notice !== undefined && (
+              <p className="shell-notice" role="alert">
+                {notice}
+              </p>
+            )}
+            <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
+            <main className="canvas-area" aria-labelledby={canvasHeading}>
+              <h2 id={canvasHeading} className="visually-hidden">
+                {view ? view.name : t('Canvas')}
+              </h2>
+              {view && scene ? (
+                <ImageSourceContext value={images}>
                   <CanvasArea
                     project={project}
                     view={view}
@@ -113,15 +110,15 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                     {...(revealed ? { revealed } : {})}
                     scenarios={scenarios}
                   />
-                ) : (
-                  <p className="canvas-message">{t('There is no view to draw.')}</p>
-                )}
-                <GuidanceLayer scenarios={scenarios} />
-              </main>
-              <Inspector view={view} scene={scene} definitions={definitions} />
-              <ScenarioPanel session={scenarios} />
-            </div>
-          </ImageSourceContext>
+                </ImageSourceContext>
+              ) : (
+                <p className="canvas-message">{t('There is no view to draw.')}</p>
+              )}
+              <GuidanceLayer scenarios={scenarios} />
+            </main>
+            <Inspector view={view} scene={scene} definitions={definitions} />
+            <ScenarioPanel session={scenarios} />
+          </div>
         </EmphasisContext.Provider>
       </DefinitionProvider>
     </EditorContext.Provider>
