@@ -10,6 +10,7 @@ import { useSelection } from '../editor/useSelection';
 import { buildScene, type Scene } from '../canvas/scene';
 import { useExplorer } from '../canvas/useExplorer';
 import { definitionsIn } from '@visual-anything/core';
+import { useT, type Translator } from '../i18n';
 import { ScenarioPanel } from '../scenarios/ScenarioPanel';
 import { ScenarioSession } from '../scenarios/session';
 import { Header } from './Header';
@@ -30,6 +31,7 @@ interface ShellProps {
  * is deleted.
  */
 export function Shell({ project, notice, onCommand }: ShellProps) {
+  const t = useT();
   const [openViewId, setOpenViewId] = useState<Id>();
   const view = project.views.find((each) => each.id === openViewId) ?? project.views[0];
   // What an edit removed, from here or elsewhere, drops out of the selection.
@@ -81,14 +83,14 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
             <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
             <main className="canvas-area" aria-labelledby={canvasHeading}>
               <h2 id={canvasHeading} className="visually-hidden">
-                {view ? view.name : 'Canvas'}
+                {view ? view.name : t('Canvas')}
               </h2>
               {view && scene ? (
                 <CanvasArea
                   project={project}
                   view={view}
                   scene={scene}
-                  label={describeDrawing(view, scene)}
+                  label={describeDrawing(t, view, scene)}
                   selection={selection}
                   onSelect={setSelection}
                   {...(onCommand ? { onCommand } : {})}
@@ -96,7 +98,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                   scenarios={scenarios}
                 />
               ) : (
-                <p className="canvas-message">There is no view to draw.</p>
+                <p className="canvas-message">{t('There is no view to draw.')}</p>
               )}
               <GuidanceLayer scenarios={scenarios} />
             </main>
@@ -110,11 +112,24 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
 }
 
 /** The canvas's text alternative: the view, its perspective and how much it draws. */
-function describeDrawing(view: ViewFile, scene: Scene): string {
-  const count = (amount: number, one: string, many: string) =>
-    `${amount} ${amount === 1 ? one : many}`;
-  const shapes = count(scene.shapes.length, 'element shape', 'element shapes');
-  const relations = count(scene.relations.length, 'relation', 'relations');
-  const free = count(scene.notes.length + scene.arrows.length, 'free shape', 'free shapes');
-  return `${view.name}, from the ${view.perspective.name} perspective: ${shapes}, ${relations} and ${free}.`;
+function describeDrawing(t: Translator, view: ViewFile, scene: Scene): string {
+  const shapes = t(
+    { one: '{count} element shape', other: '{count} element shapes' },
+    { count: scene.shapes.length },
+  );
+  const relations = t(
+    { one: '{count} relation', other: '{count} relations' },
+    { count: scene.relations.length },
+  );
+  const free = t(
+    { one: '{count} free shape', other: '{count} free shapes' },
+    { count: scene.notes.length + scene.arrows.length },
+  );
+  return t('{view}, from the {perspective} perspective: {shapes}, {relations} and {free}.', {
+    view: view.name,
+    perspective: view.perspective.name,
+    shapes,
+    relations,
+    free,
+  });
 }

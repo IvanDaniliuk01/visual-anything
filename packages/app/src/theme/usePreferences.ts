@@ -67,15 +67,9 @@ export function useThemeHold(active: boolean): (theme: ThemeName) => void {
   }, []);
 }
 
-/** What the store needs of a live session that may not carry preferences yet. */
-type MaybeWithPreferences = Live & {
-  preferences?: Preferences | undefined;
-  setPreferences?: PreferencesLink['setPreferences'];
-};
-
 function linkOf(live: Live | null): PreferencesLink | undefined {
   if (live === null) return undefined;
-  const { status, preferences, setPreferences, notify } = live as MaybeWithPreferences;
+  const { status, preferences, setPreferences, notify } = live;
   return {
     status,
     preferences,

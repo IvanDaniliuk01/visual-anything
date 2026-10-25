@@ -44,6 +44,7 @@ export function LiveProvider({ token, children }: LiveProviderProps) {
       notify: connection.notify,
       dismiss: connection.dismiss,
       clearGuidance: connection.clearGuidance,
+      setPreferences: connection.setPreferences,
     }),
     [state, connection],
   );
