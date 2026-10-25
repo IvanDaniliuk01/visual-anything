@@ -11,6 +11,8 @@ import { RELATES_TO_ID, type Relation } from '@visual-anything/schema';
 import { useId, type Ref } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import type { Selectable } from '../../editor/selection';
+import { isBuiltInDefinition } from '../definitions/commands';
+import { useOpenDefinition } from '../definitions/opened';
 import { AttributesSection } from './AttributesSection';
 import { byPackage, relationLabel } from './describe';
 import { SelectControl, TextControl } from './controls';
@@ -117,7 +119,8 @@ interface RelationTypeSectionProps {
  * The relation's relation type, among those of the packages in use. Each choice says when the ends
  * would break its limits, which only warns. A relation type that nests cannot be chosen where the core
  * would refuse it: it needs two elements as ends, World sits inside nothing, and containment never
- * forms a cycle.
+ * forms a cycle. It leads into the component editor: editing a relation type of the project's own,
+ * or deriving one from a built-in relation type, which the relation can then be of.
  */
 function RelationTypeSection({
   relation,
@@ -127,6 +130,7 @@ function RelationTypeSection({
   update,
 }: RelationTypeSectionProps) {
   const { project } = useEditor();
+  const { open } = useOpenDefinition();
   const headingId = useId();
   const selectId = useId();
   const relationType = relationTypeOrRelatesTo(definitions, relation.relationType);
@@ -197,6 +201,38 @@ function RelationTypeSection({
           ))}
         </ul>
       )}
+      {open !== undefined &&
+        (known || relation.relationType === RELATES_TO_ID) &&
+        (isBuiltInDefinition(definitions, 'relation-type', relation.relationType) ? (
+          <button
+            type="button"
+            className="inspector-action"
+            disabled={disabled}
+            onClick={() =>
+              open(
+                {
+                  kind: 'derive',
+                  of: 'relation-type',
+                  base: relation.relationType,
+                  useFor: relation.id,
+                },
+                { focus: true },
+              )
+            }
+          >
+            Derive a relation type from “{relationType.name}”
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="inspector-action"
+            onClick={() =>
+              open({ kind: 'relation-type', id: relation.relationType }, { focus: true })
+            }
+          >
+            Edit “{relationType.name}”
+          </button>
+        ))}
     </section>
   );
 }

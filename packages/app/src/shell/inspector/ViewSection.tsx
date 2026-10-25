@@ -9,6 +9,12 @@ import {
 import type { Element, Id } from '@visual-anything/schema';
 import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ComponentSelect } from '../../canvas/CanvasToolbar';
+import {
+  collapseActions,
+  collapseDone,
+  insideCount,
+  setCollapsedCommand,
+} from '../../canvas/collapse';
 import { ContainerChooser } from '../../canvas/ContainerChooser';
 import { DeleteDialog } from '../../canvas/DeleteDialog';
 import {
@@ -158,6 +164,13 @@ export function ViewSection({ element }: { element: Element }) {
     }
   };
 
+  // Whether it is a container the view draws collapsed or expanded, and the action that changes it.
+  const collapse = collapseActions(indexed, project, own);
+  const collapsing = collapse.expand ?? collapse.collapse;
+  const collapsedNow = collapse.expand !== undefined;
+  const firstShape = shapes[0];
+  const inside = firstShape === undefined ? undefined : insideCount(firstShape);
+
   const [problem] = changePreview?.problems ?? [];
   if (changing && (!editable || problem)) {
     setChanging(undefined);
@@ -196,6 +209,28 @@ export function ViewSection({ element }: { element: Element }) {
           />
         ))}
       </ul>
+      {collapsing && (
+        <div className="inspector-collapse">
+          <span>
+            {collapsedNow
+              ? `Collapsed${inside === undefined ? '' : `, with ${inside}`}: its contents are not drawn.`
+              : 'Expanded: its contents are drawn.'}
+          </span>
+          <button
+            type="button"
+            className="inspector-action"
+            disabled={!editable}
+            onClick={() =>
+              void perform(
+                setCollapsedCommand(view.id, collapsing.elements, !collapsedNow),
+                collapseDone(collapsing, !collapsedNow),
+              )
+            }
+          >
+            {collapsedNow ? 'Expand' : 'Collapse'}
+          </button>
+        </div>
+      )}
       {nests && (
         <div className="inspector-control">
           <label>

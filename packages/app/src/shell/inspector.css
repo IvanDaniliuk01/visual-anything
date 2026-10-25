@@ -400,3 +400,25 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Whether a container is collapsed in the open view, and the button that changes it */
+
+.inspector-collapse {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.4rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.inspector-collapse span {
+  flex: 1 1 8rem;
+}
+
+/* What its shapes write under its name */
+
+.inspector-detail {
+  margin-top: 0.5rem;
+}
