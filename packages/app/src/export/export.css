@@ -81,3 +81,8 @@
   color: var(--text-muted);
   cursor: not-allowed;
 }
+
+/* What a format leaves out of the view, as a short list under its choices. */
+.export-leaves-out ul {
+  margin-top: 0;
+}
