@@ -2,6 +2,7 @@ import type { Command } from '@visual-anything/core';
 import { ESSENCE_ID, RELATES_TO_ID, type Id } from '@visual-anything/schema';
 import { useId } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { useT } from '../../i18n';
 import { SelectControl, TextControl } from '../inspector/controls';
 import { byPackage } from '../inspector/describe';
 import { Detail, Lineage } from '../inspector/parts';
@@ -45,6 +46,7 @@ export function IdentitySection({
   readOnly,
   update,
 }: IdentitySectionProps) {
+  const t = useT();
   const { project, definitions } = useEditor();
   const headingId = useId();
   const derivesFrom = lineage[1];
@@ -60,12 +62,13 @@ export function IdentitySection({
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>Identity</h4>
-      <Field label="Name">
+      <h4 id={headingId}>{t('Identity')}</h4>
+      <Field label={t('Name')}>
         {({ id: controlId, describedBy, send }) => (
           <TextControl
             id={controlId}
-            value={name}
+            // A built-in one, which cannot change, reads in the language read in.
+            value={t.definition(id, name)}
             disabled={readOnly}
             describedBy={describedBy}
             onCommit={async (text) => {
@@ -75,11 +78,11 @@ export function IdentitySection({
           />
         )}
       </Field>
-      <Field label="Description">
+      <Field label={t('Description')}>
         {({ id: controlId, describedBy, send }) => (
           <TextControl
             id={controlId}
-            value={description ?? ''}
+            value={description === undefined ? '' : t.description(id, description)}
             multiline
             disabled={readOnly}
             describedBy={describedBy}
@@ -91,13 +94,13 @@ export function IdentitySection({
         )}
       </Field>
       <dl className="details">
-        <Detail term="Package">{packageName ?? 'Built into Visual Anything'}</Detail>
-        <Detail term="Id">
+        <Detail term={t('Package')}>{packageName ?? t('Built into Visual Anything')}</Detail>
+        <Detail term={t('Id')}>
           <code>{id}</code>
         </Detail>
       </dl>
       {derivesFrom !== undefined && (
-        <Field label="Derives from">
+        <Field label={t('Derives from')}>
           {({ id: controlId, describedBy, send }) => (
             <SelectControl
               id={controlId}
@@ -108,7 +111,7 @@ export function IdentitySection({
             >
               <option value={root}>{nameOf(definitions, kind, root)}</option>
               {offered.map((from) => (
-                <optgroup key={from.id} label={from.name}>
+                <optgroup key={from.id} label={t.definition(from.id, from.name)}>
                   {from.members.map((other) => (
                     <option key={other} value={other}>
                       {nameOf(definitions, kind, other)}
@@ -124,8 +127,8 @@ export function IdentitySection({
         names={lineage.slice(1).map((each) => nameOf(definitions, kind, each))}
         none={
           kind === 'component'
-            ? 'It derives from no other component: every component derives from it.'
-            : 'It derives from no other relation type: every relation type derives from it.'
+            ? t('It derives from no other component: every component derives from it.')
+            : t('It derives from no other relation type: every relation type derives from it.')
         }
       />
     </section>

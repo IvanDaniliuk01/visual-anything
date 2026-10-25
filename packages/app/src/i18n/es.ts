@@ -38,12 +38,20 @@
  * | stacking order          | orden de apilado                 |
  * | outline                 | esquema                          |
  * | aggregated relation     | relación agregada                |
+ * | collapsed container     | contenedor contraído             |
  * | view                    | vista                            |
  * | perspective             | perspectiva                      |
  * | component               | componente                       |
  * | component palette       | paleta de componentes            |
  * | appearance              | apariencia                       |
+ * | fill, stroke            | relleno, trazo                   |
+ * | dash                    | patrón de línea                  |
  * | connection point        | punto de conexión                |
+ * | attach (a relation end) | conectar                         |
+ * | route                   | ruta                             |
+ * | bend point              | punto de quiebre                 |
+ * | layout, lay out         | diseño automático, organizar     |
+ * | fit (the view)          | encuadrar                        |
  * | component editor        | editor de componentes            |
  * | Essence                 | Esencia                          |
  * | package                 | paquete                          |
@@ -69,7 +77,15 @@
  * | view address            | dirección de vista               |
  * | find, search            | buscar, búsqueda                 |
  * | undo, redo              | deshacer, rehacer                |
+ * | action, history         | acción, historial                |
+ * | language                | idioma                           |
+ * | settings (of a view)    | opciones                         |
  * | the local program       | el programa local                |
+ *
+ * The words CONTEXT.md avoids are not used for its terms either: no "nodo", "objeto" or "instancia"
+ * for an element, "propiedad" or "campo" for an attribute, "capa" for the stacking order, "enlace" or
+ * "vínculo" for a relation, nor "ajustes" for options, since "ajuste" is snapping. A JSON object is
+ * "objeto JSON" and a file system link "enlace simbólico", which are neither.
  *
  * Element, relation, view and scenario names are what people wrote and are never translated; they
  * keep their quotes as the English has them.
@@ -276,8 +292,8 @@ export const ui: Catalog = {
   'Open "{name}" on the canvas': 'Abrir "{name}" en el lienzo',
   // A badge: the view is open.
   Open: 'Abierta',
-  'Settings of "{name}"': 'Ajustes de "{name}"',
-  Settings: 'Ajustes',
+  'Settings of "{name}"': 'Opciones de "{name}"',
+  Settings: 'Opciones',
   'A view needs a name.': 'Una vista necesita un nombre.',
   'A perspective needs a name, such as Security.':
     'Una perspectiva necesita un nombre, como Seguridad.',
@@ -298,11 +314,11 @@ export const ui: Catalog = {
   'Delete view…': 'Eliminar vista…',
   'Give the view a name.': 'La vista necesita un nombre.',
   'Name the perspective it is seen from, such as Security or Ownership.':
-    'Nombrar la perspectiva desde la que se ve, como Seguridad o Propiedad.',
+    'Nombrar la perspectiva desde la que se ve, como Seguridad o Responsables.',
   'Security overview': 'Resumen de seguridad',
   Security: 'Seguridad',
   'Every relation type that nests arranges it at first; its settings change that.':
-    'Al principio la organizan todos los tipos de relación que anidan; sus ajustes lo cambian.',
+    'Al principio la organizan todos los tipos de relación que anidan; sus opciones lo cambian.',
 
   // The outline.
   'There is no view to outline.': 'No hay ninguna vista para mostrar en el esquema.',
@@ -724,7 +740,7 @@ export const ui: Catalog = {
   Keyboard: 'Teclado',
   'Arrow keys': 'Flechas',
   'Select the nearest shape in that direction, going into the containers on the way':
-    'Seleccionar la forma más cercana en esa dirección, entrando en los contenedores del camino',
+    'Seleccionar la forma más cercana en esa dirección, entrando en los contenedores que encuentra',
   'Alt+Up, Alt+Down': 'Alt+Arriba, Alt+Abajo',
   'Select the container of the selected shape, or the first shape inside it':
     'Seleccionar el contenedor de la forma seleccionada, o la primera forma dentro de ella',
@@ -765,7 +781,7 @@ export const ui: Catalog = {
   'Ctrl+A or ⌘A': 'Ctrl+A o ⌘A',
   'Select everything': 'Seleccionar todo',
   '+, − and 0': '+, − y 0',
-  'Zoom in, zoom out, and fit the view': 'Acercar, alejar y ajustar la vista',
+  'Zoom in, zoom out, and fit the view': 'Acercar, alejar y encuadrar la vista',
   'Alt+− and Alt++': 'Alt+− y Alt++',
   'Collapse or expand the selected containers':
     'Contraer o expandir los contenedores seleccionados',
@@ -886,6 +902,454 @@ export const ui: Catalog = {
   'It was shrunk to {width} by {height} pixels.': 'Se redujo a {width} por {height} píxeles.',
   'Use the component’s image': 'Usar la imagen del componente',
   'Show no image': 'No mostrar ninguna imagen',
+
+  // The canvas toolbar, and where a new element goes.
+  'Add an element': 'Agregar un elemento',
+  'Add element…': 'Agregar elemento…',
+  'With nothing selected, elements are added directly in World.':
+    'Sin nada seleccionado, los elementos se agregan directamente en Mundo.',
+  'Add inside "{name}"…': 'Agregar dentro de "{name}"…',
+  'Add an element inside "{name}"': 'Agregar un elemento dentro de "{name}"',
+  'Adds the element inside "{name}". With nothing selected, elements are added directly in World.':
+    'Agrega el elemento dentro de "{name}". Sin nada seleccionado, los elementos se agregan directamente en Mundo.',
+  'Adds the element directly in World, beside "{name}". To add inside "{name}" itself, use Add inside "{name}"… in its menu or in the inspector.':
+    'Agrega el elemento directamente en Mundo, junto a "{name}". Para agregarlo dentro del propio "{name}", usar Agregar dentro de "{name}"… en su menú o en el inspector.',
+  'Adds the element inside "{container}", where "{name}" sits. To add inside "{name}" itself, use Add inside "{name}"… in its menu or in the inspector.':
+    'Agrega el elemento dentro de "{container}", donde está "{name}". Para agregarlo dentro del propio "{name}", usar Agregar dentro de "{name}"… en su menú o en el inspector.',
+  'Stacking order': 'Orden de apilado',
+  'Zoom out': 'Alejar',
+  Zoom: 'Zoom',
+  'Zoom in': 'Acercar',
+  Fit: 'Encuadrar',
+
+  // The canvas itself, and what it says.
+  canvas: 'lienzo',
+  Selection: 'Selección',
+  'Name of {name}': 'Nombre de {name}',
+  'Text of the note': 'Texto de la nota',
+  'The canvas could not draw this view: {why}': 'El lienzo no pudo dibujar esta vista: {why}',
+  '{name} is no longer in this view, so its name was not changed.':
+    '{name} ya no está en esta vista, así que no se cambió su nombre.',
+  'The note is no longer in this view, so its text was not changed.':
+    'La nota ya no está en esta vista, así que no se cambió su texto.',
+  'Select an expanded container to collapse it.':
+    'Seleccionar un contenedor expandido para contraerlo.',
+  'Select a collapsed container to expand it.':
+    'Seleccionar un contenedor contraído para expandirlo.',
+  'No shape {towards}.': 'No hay ninguna forma {towards}.',
+  'to the left': 'a la izquierda',
+  'to the right': 'a la derecha',
+  above: 'arriba',
+  below: 'abajo',
+  '{name} sits directly in World.': '{name} está directamente en Mundo.',
+  '{name} holds no shapes.': '{name} no contiene formas.',
+  '{name} has no relations in this view.': '{name} no tiene relaciones en esta vista.',
+  'Collapse "{name}" (Alt+−)': 'Contraer "{name}" (Alt+−)',
+  'Expand "{name}" (Alt++)': 'Expandir "{name}" (Alt++)',
+
+  // What the canvas writes on a collapsed container.
+  '{count} inside': '{count} dentro',
+
+  // The shape menu.
+  'Draws none of what it holds; their relations become aggregated relations. Alt+−':
+    'No dibuja nada de lo que contiene; sus relaciones pasan a ser relaciones agregadas. Alt+−',
+  'Draws again what it holds. Alt++': 'Vuelve a dibujar lo que contiene. Alt++',
+  'Put inside…': 'Poner dentro de…',
+  'Move to…': 'Mover a…',
+  'Under the pointer': 'Bajo el puntero',
+  'Select "{name}"': 'Seleccionar "{name}"',
+
+  // Layout, from the toolbar.
+  Layout: 'Organizar',
+  'Every shape there is pinned, so layout leaves them all.':
+    'Todas las formas de ahí están fijadas, así que el diseño automático las deja a todas.',
+  'Layout stopped, and nothing moved.': 'El diseño automático se detuvo y nada se movió.',
+  'The layout failed: {why}': 'El diseño automático falló: {why}',
+  'Layout leaves every shape where it is.': 'El diseño automático deja cada forma donde está.',
+  '{action}: {count} shapes moved.': {
+    one: '{action}: se movió {count} forma.',
+    other: '{action}: se movieron {count} formas.',
+  },
+  'Stop layout': 'Detener el diseño automático',
+  'Stop layout ({percent}%)': 'Detener el diseño automático ({percent} %)',
+  'Laying out {count} shapes. Press to stop it; nothing moves then.': {
+    one: 'Organizando {count} forma. Presionar para detenerlo; entonces nada se mueve.',
+    other: 'Organizando {count} formas. Presionar para detenerlo; entonces nada se mueve.',
+  },
+  'Laying out {count} shapes: {percent}% done. Press to stop it; nothing moves then.': {
+    one: 'Organizando {count} forma: {percent} % hecho. Presionar para detenerlo; entonces nada se mueve.',
+    other:
+      'Organizando {count} formas: {percent} % hecho. Presionar para detenerlo; entonces nada se mueve.',
+  },
+  'Layout needs web workers, which this browser does not offer.':
+    'El diseño automático necesita web workers, que este navegador no ofrece.',
+  'Visual Anything is not connected, so nothing can be laid out.':
+    'Visual Anything no está conectado, así que no se puede organizar nada.',
+  'Lay out the contents of "{name}": arrange the shapes inside it that are not pinned.':
+    'Organizar el contenido de "{name}": acomodar las formas que tiene dentro y que no están fijadas.',
+  'Lay out "{name}": arrange every shape that is not pinned.':
+    'Organizar "{name}": acomodar todas las formas que no están fijadas.',
+
+  // Why the browser could not draw an image to export.
+  'the browser has no canvas to draw it on.': 'el navegador no tiene un lienzo donde dibujarla.',
+  'the browser could not make a PNG.': 'el navegador no pudo crear un PNG.',
+
+  // The inspector.
+  Inspector: 'Inspector',
+  'Edit its text on the canvas.': 'Editar su texto en el lienzo.',
+  'A free shape: drawing only, not part of the model.':
+    'Una forma libre: solo dibujo, no forma parte del modelo.',
+  '{things} are selected.': 'Selección: {things}.',
+  'Select only one to see and edit the rest of it.':
+    'Seleccionar solo uno para ver y editar el resto.',
+  'No view is open.': 'No hay ninguna vista abierta.',
+  None: 'Ninguno',
+  'Element shapes': 'Formas de elementos',
+  'Free shapes': 'Formas libres',
+  Nothing: 'Nada',
+  '(a relation)': '(una relación)',
+  Particularity: 'Particularidad',
+  'Derives from': 'Deriva de',
+  '{shown} of {count} shown.': 'Se muestran {shown} de {count}.',
+  'Show all {count} {many}': 'Mostrar todo: {count} {many}',
+  containers: 'contenedores',
+  relations: 'relaciones',
+
+  // An element, a relation and their relation types in the inspector.
+  Component: 'Componente',
+  'It derives from no other component.': 'No deriva de ningún otro componente.',
+  'Its chain stops before Essence, because a component in it is missing.':
+    'Su cadena se corta antes de Esencia, porque falta uno de sus componentes.',
+  'No package in use defines the component “{id}”, so it looks like Essence.':
+    'Ningún paquete en uso define el componente “{id}”, así que se ve como Esencia.',
+  'Derive a component from “{name}”': 'Derivar un componente de “{name}”',
+  'Edit “{name}”': 'Editar “{name}”',
+  Containers: 'Contenedores',
+  'World contains every other element.': 'Mundo contiene todos los demás elementos.',
+  'It sits directly in World.': 'Está directamente en Mundo.',
+  'No relation ends on it.': 'Ninguna relación termina en él.',
+  Ends: 'Extremos',
+  From: 'Origen',
+  To: 'Destino',
+  'Relation type': 'Tipo de relación',
+  'It derives from no other relation type.': 'No deriva de ningún otro tipo de relación.',
+  'Its chain stops before “relates to”, because a relation type in it is missing.':
+    'Su cadena se corta antes de “se relaciona con”, porque falta uno de sus tipos de relación.',
+  'No package in use defines the relation type “{id}”, so it behaves like “relates to”.':
+    'Ningún paquete en uso define el tipo de relación “{id}”, así que se comporta como “se relaciona con”.',
+  Warnings: 'Advertencias',
+  'Derive a relation type from “{name}”': 'Derivar un tipo de relación de “{name}”',
+  'needs two elements': 'necesita dos elementos',
+  'World cannot sit inside anything': 'Mundo no puede estar dentro de nada',
+  'would make containment form a cycle': 'haría que la contención forme un ciclo',
+
+  // Attributes in the inspector.
+  component: 'componente',
+  'relation type': 'tipo de relación',
+  'Its {definer} defines no attributes.': 'Su {definer} no define atributos.',
+  'Not defined by its {definer}.': 'No lo define su {definer}.',
+  'No default.': 'Sin valor predeterminado.',
+  'Default: {value}.': 'Valor predeterminado: {value}.',
+  'Its value is not JSON.': 'Su valor no es JSON.',
+  'Its value is not a {type}.': 'Su valor no es de tipo {type}.',
+  'its value differs from its {definer}’s': 'su valor difiere del de su {definer}',
+  'Use the {definer}’s value': 'Usar el valor del {definer}',
+  Clear: 'Vaciar',
+  'for {name}': 'para {name}',
+  'Give the attribute a name.': 'El atributo necesita un nombre.',
+  'It already has an attribute named “{name}”.': 'Ya tiene un atributo llamado “{name}”.',
+  'Add an attribute of its own': 'Agregar un atributo propio',
+  'Attribute name': 'Nombre del atributo',
+  'Attribute type': 'Tipo del atributo',
+  'Add attribute': 'Agregar atributo',
+  'Enter a JSON value, such as null.': 'Escribir un valor JSON, como null.',
+  'Enter a number.': 'Escribir un número.',
+
+  // Appearance in the inspector: shapes, colors, where each comes from and the contrast hints.
+  Appearance: 'Apariencia',
+  'Only this element': 'Solo este elemento',
+  'Only this relation': 'Solo esta relación',
+  'Every {name}': 'Cada {name}',
+  Change: 'Aplicar a',
+  Detail: 'Detalle',
+  'Nothing under its name': 'Nada debajo de su nombre',
+  Badges: 'Insignias',
+  Shape: 'Forma',
+  shape: 'forma',
+  Fill: 'Relleno',
+  Stroke: 'Trazo',
+  Rectangle: 'Rectángulo',
+  'Rounded rectangle': 'Rectángulo redondeado',
+  Ellipse: 'Elipse',
+  Cylinder: 'Cilindro',
+  Person: 'Persona',
+  'Use the inherited value': 'Usar el valor heredado',
+  'Use the inherited color': 'Usar el color heredado',
+  'Use the inherited shape': 'Usar la forma heredada',
+  'Use the theme’s color': 'Usar el color del tema',
+  '{action} for {name}': '{action}: {name}',
+  'It also sets its own size: {width} by {height}.':
+    'También define su propio tamaño: {width} por {height}.',
+  'Use the component’s appearance': 'Usar la apariencia del componente',
+  'This element has a {what} of its own: a change here takes it back, so that it follows.':
+    'Este elemento tiene su propio valor de {what}: un cambio aquí lo quita, para que lo siga.',
+  'This relation has a stroke of its own: a change here takes it back, so that it follows.':
+    'Esta relación tiene su propio trazo: un cambio aquí lo quita, para que lo siga.',
+  'its own': 'propio',
+  'the theme’s': 'del tema',
+  'set in this project': 'definido en este proyecto',
+  'from {name}, set in this project': 'de {name}, definido en este proyecto',
+  'built in': 'incorporado',
+  'built in, from {name}': 'incorporado, de {name}',
+  'from {name}': 'de {name}',
+  'Saved in this project.': 'Se guarda en este proyecto.',
+  'Saved in this project; the built-in package {name} stays as it is.':
+    'Se guarda en este proyecto; el paquete incorporado {name} queda como está.',
+  'Saved in the package {name}.': 'Se guarda en el paquete {name}.',
+  'Hard to see on the light canvas ({ratio}); lines need 3:1.':
+    'Difícil de ver sobre el lienzo claro ({ratio}); las líneas necesitan 3:1.',
+  'Hard to see on the dark canvas ({ratio}); lines need 3:1.':
+    'Difícil de ver sobre el lienzo oscuro ({ratio}); las líneas necesitan 3:1.',
+  'Blends into the light canvas: neither its fill nor its stroke reaches 3:1 on it.':
+    'Se confunde con el lienzo claro: ni su relleno ni su trazo llegan a 3:1 sobre él.',
+  'Blends into the dark canvas: neither its fill nor its stroke reaches 3:1 on it.':
+    'Se confunde con el lienzo oscuro: ni su relleno ni su trazo llegan a 3:1 sobre él.',
+  Mixed: 'Varios',
+  '{label} color code': 'Código de color: {label}',
+  'Recent and project colors for {label}': 'Colores recientes y del proyecto para {label}',
+  'Use {color}': 'Usar {color}',
+  'Write a color as #RRGGBB, #RGB or rgb(r, g, b), such as #F3F5F8.':
+    'Escribir un color como #RRGGBB, #RGB o rgb(r, g, b), por ejemplo #F3F5F8.',
+  'Appearance of {count} shapes': {
+    one: 'Apariencia de {count} forma',
+    other: 'Apariencia de {count} formas',
+  },
+  'For the {count} shapes with a fill.': {
+    one: 'Para la única forma con relleno.',
+    other: 'Para las {count} formas con relleno.',
+  },
+  'Enter a size above 0, at most 100,000.':
+    'Escribir un tamaño mayor que 0, de 100.000 como máximo.',
+  'Enter a width above 0.': 'Escribir un grosor mayor que 0.',
+
+  // Where an element sits in the open view, in the inspector.
+  'This view puts nothing inside containers: it is arranged by no relation type that nests.':
+    'Esta vista no pone nada dentro de contenedores: no la organiza ningún tipo de relación que anide.',
+  'In this view': 'En esta vista',
+  'Collapsed: its contents are not drawn.': 'Contraído: su contenido no se dibuja.',
+  'Collapsed, with {inside}: its contents are not drawn.':
+    'Contraído, con {inside}: su contenido no se dibuja.',
+  'Expanded: its contents are drawn.': 'Expandido: su contenido se dibuja.',
+  Expand: 'Expandir',
+  Collapse: 'Contraer',
+  'In "{name}"': 'En "{name}"',
+  '{where}: {place} of {count}, from the back': '{where}: {place} de {count}, desde el fondo',
+  'In front of it: {names}': 'Delante: {names}',
+  'Behind it: {names}': 'Detrás: {names}',
+
+  // Columns typed or pasted into a table, that cannot be read or related.
+  'no column named “{name}”': 'ninguna columna se llama “{name}”',
+  'no table named “{name}”': 'ninguna tabla se llama “{name}”',
+  'no column named “{column}” in “{table}”': 'ninguna columna de “{table}” se llama “{column}”',
+  'no single primary key column in “{name}”':
+    '“{name}” no tiene una única columna de clave primaria',
+
+  // The Components tab.
+  'Built-in package': 'Paquete incorporado',
+  Package: 'Paquete',
+  'Component, derives from {name}': 'Componente, deriva de {name}',
+  'Relation type, derives from {name}': 'Tipo de relación, deriva de {name}',
+  'In use': 'En uso',
+  'The project uses no package yet.': 'El proyecto todavía no usa ningún paquete.',
+  'Not in use yet': 'Todavía sin usar',
+  'The project uses every built-in package.': 'El proyecto usa todos los paquetes incorporados.',
+  New: 'Nuevo',
+  'New component': 'Nuevo componente',
+  'New relation type': 'Nuevo tipo de relación',
+  'New package': 'Nuevo paquete',
+  'Use the package “{name}”': 'Usar el paquete “{name}”',
+  Use: 'Usar',
+
+  // The component editor: what it shows of every component, relation type and package.
+  'Back to the selection': 'Volver a la selección',
+  'It is built into Visual Anything, so only its colors can be changed here, for this project. Derive a {noun} from it to have one of the project’s own that you can change.':
+    'Está incorporado en Visual Anything, así que aquí solo se pueden cambiar sus colores, para este proyecto. Derivar un {noun} de él para tener uno propio del proyecto que se pueda cambiar.',
+  'No package in use defines {what} any more.': 'Ningún paquete en uso define ya {what}.',
+  'Remove the {noun}': 'Quitar el {noun}',
+  'the component “{id}”': 'el componente “{id}”',
+  'the relation type “{id}”': 'el tipo de relación “{id}”',
+  'the package “{id}”': 'el paquete “{id}”',
+  'Built-in component': 'Componente incorporado',
+  'Built-in relation type': 'Tipo de relación incorporado',
+  Identity: 'Identidad',
+  'Built into Visual Anything': 'Incorporado en Visual Anything',
+  Id: 'Id',
+  'It derives from no other component: every component derives from it.':
+    'No deriva de ningún otro componente: todos los componentes derivan de él.',
+  'It derives from no other relation type: every relation type derives from it.':
+    'No deriva de ningún otro tipo de relación: todos los tipos de relación derivan de él.',
+
+  // A component's appearance, detail and connection points in the component editor.
+  '{name}, as its drawing': '{name}, como su dibujo',
+  '{name}, as an icon': '{name}, como ícono',
+  'While it draws rows, its shapes are a rectangle or a rounded rectangle.':
+    'Mientras dibuja filas, sus formas son un rectángulo o un rectángulo redondeado.',
+  Width: 'Ancho',
+  Height: 'Alto',
+  'Its height follows its rows.': 'Su alto sigue a sus filas.',
+  'Draw what its elements hold as rows': 'Dibujar como filas lo que contienen sus elementos',
+  'Write the component’s name': 'Escribir el nombre del componente',
+  'Attributes written': 'Atributos escritos',
+  'It has no attributes to write.': 'No tiene atributos para escribir.',
+  '(it has no such attribute)': '(no tiene ese atributo)',
+  'Write “{name}” earlier': 'Escribir “{name}” antes',
+  'Write “{name}” later': 'Escribir “{name}” después',
+  'while “{name}” is true': 'mientras “{name}” es verdadero',
+  'while it is the from end of “{name}”': 'mientras es el extremo de origen de “{name}”',
+  'No badges.': 'Sin insignias.',
+  'Remove the badge “{text}”': 'Quitar la insignia “{text}”',
+  'Give the badge a text, such as PK.': 'La insignia necesita un texto, como PK.',
+  'New badge': 'Nueva insignia',
+  'Badge text': 'Texto de la insignia',
+  Written: 'Se escribe',
+  'Add the badge': 'Agregar la insignia',
+  'point {count}': 'punto {count}',
+  'Enter a number from 0 to 1.': 'Escribir un número de 0 a 1.',
+  'Connection points': 'Puntos de conexión',
+  'Where relations attach': 'Dónde se conectan las relaciones',
+  'None: relations attach anywhere on the border.':
+    'Ninguno: las relaciones se conectan en cualquier lugar del borde.',
+  'Add a connection point': 'Agregar un punto de conexión',
+  'Attach anywhere on the border': 'Conectar en cualquier lugar del borde',
+  Side: 'Lado',
+  Top: 'Superior',
+  Right: 'Derecho',
+  Bottom: 'Inferior',
+  Left: 'Izquierdo',
+  'Along the side, from 0 to 1': 'A lo largo del lado, de 0 a 1',
+  'Remove the connection point “{name}”': 'Quitar el punto de conexión “{name}”',
+
+  // A relation type in the component editor: how its relations behave and are drawn, and its limits.
+  'Inherited ({value})': 'Heredado ({value})',
+  directed: 'dirigida',
+  undirected: 'no dirigida',
+  Directed: 'Dirigida',
+  Undirected: 'No dirigida',
+  Nests: 'Anida',
+  'It cannot stop nesting while {views} nest by it.': {
+    one: 'No puede dejar de anidar mientras {views} anida por él.',
+    other: 'No puede dejar de anidar mientras {views} anidan por él.',
+  },
+  'Inherited (nests)': 'Heredado (anida)',
+  'Inherited (does not nest)': 'Heredado (no anida)',
+  'Nests: places its from end inside its to end':
+    'Anida: ubica su extremo de origen dentro de su extremo de destino',
+  'Does not nest': 'No anida',
+  Line: 'Línea',
+  Dash: 'Patrón de línea',
+  Solid: 'Continua',
+  Dashed: 'Discontinua',
+  Dotted: 'Punteada',
+  Limits: 'Límites',
+  'Inherited (any)': 'Heredado (cualquiera)',
+  'Inherited ({names})': 'Heredado ({names})',
+  'From end': 'Extremo de origen',
+  'To end': 'Extremo de destino',
+  Any: 'Cualquiera',
+  'Only these…': 'Solo estos…',
+  'The last one stays: choose Any to lift the limit, or the inherited one.':
+    'El último se queda: elegir Cualquiera para quitar el límite, o el heredado.',
+
+  // Attributes in the component editor.
+  'It has no attributes yet.': 'Todavía no tiene atributos.',
+  'An inherited attribute cannot be removed or moved here: redefine it to change it, or derive from a definition nearer the one that defines it.':
+    'Un atributo heredado no se puede quitar ni mover aquí: redefinirlo para cambiarlo, o derivar de una definición más cercana a la que lo define.',
+  'redefined here': 'redefinido aquí',
+  'A redefinition keeps its name.': 'Una redefinición conserva su nombre.',
+  Type: 'Tipo',
+  'Choices, one per line': 'Opciones, una por línea',
+  Unit: 'Unidad',
+  'Use the inherited definition of “{name}”': 'Usar la definición heredada de “{name}”',
+  'Use the inherited definition': 'Usar la definición heredada',
+  Default: 'Valor predeterminado',
+  'No default': 'Sin valor predeterminado',
+  'Default: {value}': 'Valor predeterminado: {value}',
+  'Choices: {choices}': 'Opciones: {choices}',
+  'Unit: {unit}': 'Unidad: {unit}',
+  'Redefine “{name}” here': 'Redefinir “{name}” aquí',
+  'Redefine here': 'Redefinir aquí',
+  'It already has the attribute “{name}”.': 'Ya tiene el atributo “{name}”.',
+  'New attribute': 'Nuevo atributo',
+  'Add the attribute': 'Agregar el atributo',
+  'Write true or false.': 'Escribir true o false.',
+
+  // Deriving a definition, and making a package.
+  'Derive a component': 'Derivar un componente',
+  'Derive a relation type': 'Derivar un tipo de relación',
+  'Give the component a name.': 'El componente necesita un nombre.',
+  'Give the relation type a name.': 'El tipo de relación necesita un nombre.',
+  'Give the new package a name.': 'El paquete nuevo necesita un nombre.',
+  'A new package': 'Un paquete nuevo',
+  'Name of the new package': 'Nombre del paquete nuevo',
+  'Its id': 'Su id',
+  'Use it for “{name}”': 'Usarlo para “{name}”',
+  'Define the component': 'Definir el componente',
+  'Derive the component': 'Derivar el componente',
+  'Define the relation type': 'Definir el tipo de relación',
+  'Derive the relation type': 'Derivar el tipo de relación',
+  'A package needs an id.': 'Un paquete necesita un id.',
+  'An id is letters, digits, dots, dashes and underscores, starting with a letter or a digit.':
+    'Un id tiene letras, dígitos, puntos, guiones y guiones bajos, y empieza con una letra o un dígito.',
+  'The id "{id}" is the built-in package {name}’s. Give the package another one.':
+    'El id "{id}" es el del paquete incorporado {name}. Darle otro al paquete.',
+  'Visual Anything keeps the id "{id}" for a package it plans to build in. Give the package another one.':
+    'Visual Anything reserva el id "{id}" para un paquete que planea incorporar. Darle otro al paquete.',
+  'The project already has the package "{id}".': 'El proyecto ya tiene el paquete "{id}".',
+  'Something in the project already has the id "{id}".': 'Algo del proyecto ya tiene el id "{id}".',
+  'Give the package a name.': 'El paquete necesita un nombre.',
+  'Create the package': 'Crear el paquete',
+
+  // A package in the component editor, and what uses a definition.
+  'It is built into Visual Anything, so it cannot be changed here.':
+    'Está incorporado en Visual Anything, así que no se puede cambiar aquí.',
+  'It is built into Visual Anything, so it cannot be changed here. The project does not use it yet.':
+    'Está incorporado en Visual Anything, así que no se puede cambiar aquí. El proyecto todavía no lo usa.',
+  Images: 'Imágenes',
+  '{count} images': { one: '{count} imagen', other: '{count} imágenes' },
+  'It defines no components.': 'No define componentes.',
+  'It defines no relation types.': 'No define tipos de relación.',
+  'Use this package': 'Usar este paquete',
+  '{count} components': { one: '{count} componente', other: '{count} componentes' },
+  '{count} relation types': { one: '{count} tipo de relación', other: '{count} tipos de relación' },
+  'Remove this package': 'Quitar este paquete',
+  'Stop using this package': 'Dejar de usar este paquete',
+  'Its file goes, with the {defines} it defines; Undo brings them back.':
+    'Se va su archivo, con {defines} que define; Deshacer los recupera.',
+  'Used by': 'Usado por',
+  'Nothing uses it yet.': 'Nada lo usa todavía.',
+  'World is created from it.': 'Mundo se crea a partir de él.',
+  '{count} elements are created from it.': {
+    one: '{count} elemento se crea a partir de él.',
+    other: '{count} elementos se crean a partir de él.',
+  },
+  'Select it': 'Seleccionarlo',
+  'Select them': 'Seleccionarlos',
+  '{count} relations are of it.': {
+    one: '{count} relación es de este tipo.',
+    other: '{count} relaciones son de este tipo.',
+  },
+  'Components derived from it': 'Componentes derivados de él',
+  'Relation types derived from it': 'Tipos de relación derivados de él',
+  'Relation types whose limits name it': 'Tipos de relación cuyos límites lo nombran',
+  'Components whose badges name it': 'Componentes cuyas insignias lo nombran',
+  'The own appearance of {count} elements has a badge that names it.': {
+    one: 'La apariencia propia de {count} elemento tiene una insignia que lo nombra.',
+    other: 'La apariencia propia de {count} elementos tiene una insignia que lo nombra.',
+  },
+  'The views {names} nest by it.': {
+    one: 'La vista {names} anida por él.',
+    other: 'Las vistas {names} anidan por él.',
+  },
 };
 
 /**
@@ -1054,6 +1518,28 @@ export const messages: Catalog = {
   'Draw {n} relations straight in "{view}"': 'Dibujar {n} relaciones rectas en "{view}"',
   'Draw {n} relations orthogonal in "{view}"': 'Dibujar {n} relaciones ortogonales en "{view}"',
   'Reconnect "{relation}" to "{end}"': 'Reconectar "{relation}" con "{end}"',
+
+  // The labels of what the canvas does, and what it says once it is done.
+  'Delete the selection': 'Eliminar la selección',
+  'Collapsed "{name}".': 'Se contrajo "{name}".',
+  'Expanded "{name}".': 'Se expandió "{name}".',
+  'Collapsed {n} containers.': 'Se contrajeron {n} contenedores.',
+  'Expanded {n} containers.': 'Se expandieron {n} contenedores.',
+  'Lay out': 'Organizar',
+  'Lay out "{view}"': 'Organizar "{view}"',
+  'Lay out the contents of "{name}"': 'Organizar el contenido de "{name}"',
+  'Lay out "{element}" in "{view}"': 'Organizar "{element}" en "{view}"',
+  'Lay out {n} new shapes in "{view}"': 'Organizar {n} formas nuevas en "{view}"',
+
+  // The labels of what the inspector changes.
+  'Change the appearance of {of}': 'Cambiar la apariencia de {of}',
+  'Change the appearance of {n} shapes': 'Cambiar la apariencia de {n} formas',
+
+  // The labels of what the component editor and the Components tab change.
+  'Use the package "{name}"': 'Usar el paquete "{name}"',
+  'Derive the component "{name}"': 'Derivar el componente "{name}"',
+  'Derive the relation type "{name}"': 'Derivar el tipo de relación "{name}"',
+  'Stop using the package "{name}"': 'Dejar de usar el paquete "{name}"',
 
   // Why a change was refused, and what a change breaks that only warns.
   'There is nothing to undo.': 'No hay nada que deshacer.',
@@ -1256,7 +1742,7 @@ export const messages: Catalog = {
   'The fill of {of} must be a color written as #RRGGBB, not {value}.':
     'El relleno de {of} debe ser un color escrito como #RRGGBB, no {value}.',
   'The stroke of {of} must be a color written as #RRGGBB, not {value}.':
-    'El borde de {of} debe ser un color escrito como #RRGGBB, no {value}.',
+    'El trazo de {of} debe ser un color escrito como #RRGGBB, no {value}.',
   'The tint of {of} must be a color written as #RRGGBB, not {value}.':
     'El tinte de {of} debe ser un color escrito como #RRGGBB, no {value}.',
   'The width of {of} must be a number above 0 and at most 100,000.':
@@ -1299,7 +1785,7 @@ export const messages: Catalog = {
   'The line width of {of} must be a number above 0.':
     'El grosor de línea de {of} debe ser un número mayor que 0.',
   'The dash of {of} must be "solid", "dashed" or "dotted".':
-    'El trazo de {of} debe ser "solid", "dashed" o "dotted".',
+    'El patrón de línea de {of} debe ser "solid", "dashed" o "dotted".',
   'How a relation is drawn has no trait "{trait}".':
     'La forma de dibujar una relación no tiene el rasgo "{trait}".',
   'An attribute definition has no "{key}".': 'Una definición de atributo no tiene "{key}".',
@@ -1535,17 +2021,402 @@ export const messages: Catalog = {
   'The scenario "{name}" plays over the view "{view}", not "{other}".':
     'El escenario "{name}" se reproduce sobre la vista "{view}", no sobre "{other}".',
   'The scenario "{name}" has no step "{id}".': 'El escenario "{name}" no tiene el paso "{id}".',
+
+  // What cleaning removed from an image, kind by kind, as the core counts it.
+  '1 processing instruction': '1 instrucción de procesamiento',
+  '{n} processing instructions': '{n} instrucciones de procesamiento',
+  '1 @ rule': '1 regla @',
+  '{n} @ rules': '{n} reglas @',
+  '1 style rule that selects by more than a class or an element name':
+    '1 regla de estilo que selecciona por algo más que una clase o un nombre de elemento',
+  '{n} style rules that select by more than a class or an element name':
+    '{n} reglas de estilo que seleccionan por algo más que una clase o un nombre de elemento',
+  '1 {element} element': '1 elemento {element}',
+  '{n} {element} elements': '{n} elementos {element}',
+  '1 {element} element unwrapped, its contents kept':
+    '1 elemento {element} desenvuelto, con su contenido conservado',
+  '{n} {element} elements unwrapped, their contents kept':
+    '{n} elementos {element} desenvueltos, con su contenido conservado',
+  '1 text element (turn text into paths to keep it)':
+    '1 elemento de texto (convertir el texto en trazados para conservarlo)',
+  '{n} text elements (turn text into paths to keep it)':
+    '{n} elementos de texto (convertir el texto en trazados para conservarlo)',
+  '1 attribute of another namespace': '1 atributo de otro espacio de nombres',
+  '{n} attributes of other namespaces': '{n} atributos de otros espacios de nombres',
+  '1 event handler attribute': '1 atributo de manejo de eventos',
+  '{n} event handler attributes': '{n} atributos de manejo de eventos',
+  '1 other attribute': '1 otro atributo',
+  '{n} other attributes': '{n} otros atributos',
+  '1 style declaration that is not paint': '1 declaración de estilo que no es de pintura',
+  '{n} style declarations that are not paint': '{n} declaraciones de estilo que no son de pintura',
+  '1 outside reference': '1 referencia externa',
+  '{n} outside references': '{n} referencias externas',
+  '1 id that is not allowed': '1 id no permitido',
+  '{n} ids that are not allowed': '{n} ids no permitidos',
+  '1 repeated id': '1 id repetido',
+  '{n} repeated ids': '{n} ids repetidos',
+  '1 value that is not allowed': '1 valor no permitido',
+  '{n} values that are not allowed': '{n} valores no permitidos',
+  '1 stroke dash pattern finer than the picture can show':
+    '1 patrón de guiones más fino de lo que la imagen puede mostrar',
+  '{n} stroke dash patterns finer than the picture can show':
+    '{n} patrones de guiones más finos de lo que la imagen puede mostrar',
+  '1 stroke width wider than the picture': '1 grosor de trazo más ancho que la imagen',
+  '{n} stroke widths wider than the picture': '{n} grosores de trazo más anchos que la imagen',
+  '1 {chunk} chunk': '1 bloque {chunk}',
+  '{n} {chunk} chunks': '{n} bloques {chunk}',
+  '1 byte after the end': '1 byte después del final',
+  '{n} bytes after the end': '{n} bytes después del final',
+  '1 EXIF or XMP segment': '1 segmento EXIF o XMP',
+  '{n} EXIF or XMP segments': '{n} segmentos EXIF o XMP',
+  '1 colour profile segment': '1 segmento de perfil de color',
+  '{n} colour profile segments': '{n} segmentos de perfil de color',
+  '1 comment': '1 comentario',
+  '{n} comments': '{n} comentarios',
+  '1 other segment': '1 otro segmento',
+  '{n} other segments': '{n} otros segmentos',
+  '1 {segment} segment': '1 segmento {segment}',
+  '{n} {segment} segments': '{n} segmentos {segment}',
+  '1 more kind of thing': '1 tipo de cosa más',
+  '{n} more kinds of thing': '{n} tipos de cosas más',
+
+  // Why the browser could not draw or read a picture, and why layout failed.
+  'This browser draws no 2D canvas.': 'Este navegador no dibuja lienzos 2D.',
+  'This browser encodes no picture.': 'Este navegador no codifica imágenes.',
+  'The layout worker failed: {why}.': 'El proceso de diseño automático falló: {why}.',
+  'The layout was stopped.': 'Se detuvo el diseño automático.',
+
+  // What is wrong with a project file, as the schema reads it, value by value.
+  'Not valid JSON: {reason}': 'No es JSON válido: {reason}',
+  'must have the key "{key}"': 'debe tener la clave "{key}"',
+  'must not have the key "{key}"': 'no debe tener la clave "{key}"',
+  'must be {n}': 'debe ser {n}',
+  'must be "{value}"': 'debe ser "{value}"',
+  'must be {kinds}': 'debe ser {kinds}',
+  'a string': 'un texto',
+  'a number': 'un número',
+  'an integer': 'un número entero',
+  'true or false': 'verdadero o falso',
+  'an object': 'un objeto JSON',
+  'an array': 'una lista',
+  null: 'null',
+  'must be one of {values}': 'debe ser uno de estos: {values}',
+  'must match the pattern {pattern}': 'debe coincidir con el patrón {pattern}',
+  'must be an id: 1 to 128 letters, digits, ".", "_" or "-", starting with a letter or digit':
+    'debe ser un id: de 1 a 128 letras, dígitos, ".", "_" o "-", que empiece con una letra o un dígito',
+  'must be a color written as #RRGGBB': 'debe ser un color escrito como #RRGGBB',
+  'must not be empty': 'no debe estar vacío',
+  'must have at least {n} characters': 'debe tener al menos {n} caracteres',
+  'must have at least 1 item': 'debe tener al menos 1 entrada',
+  'must have at least {n} items': 'debe tener al menos {n} entradas',
+  'must have at most 1 item': 'debe tener como máximo 1 entrada',
+  'must have at most {n} items': 'debe tener como máximo {n} entradas',
+  'must have at most 1 character': 'debe tener como máximo 1 carácter',
+  'must have at most {n} characters': 'debe tener como máximo {n} caracteres',
+  'must have at least {n} keys': 'debe tener al menos {n} claves',
+  'must have ids as its keys, and "{key}" is not one':
+    'debe tener ids como claves, y "{key}" no lo es',
+  'must not have duplicate items (items {first} and {last} are the same)':
+    'no debe tener entradas repetidas (las entradas {first} y {last} son iguales)',
+  'must be less than {n}': 'debe ser menor que {n}',
+  'must be at most {n}': 'debe ser como máximo {n}',
+  'must be greater than {n}': 'debe ser mayor que {n}',
+  'must be at least {n}': 'debe ser al menos {n}',
+  'does not satisfy "{keyword}"': 'no cumple "{keyword}"',
+
+  // What keeps the files of a project folder from opening, as the local program reads them.
+  'The file is not valid UTF-8.': 'El archivo no es UTF-8 válido.',
+  'There is no such file.': 'No existe ese archivo.',
+  'The file could not be read: {reason}': 'No se pudo leer el archivo: {reason}',
+  'The file is a link; Visual Anything opens only regular files inside the project folder.':
+    'El archivo es un enlace simbólico; Visual Anything solo abre archivos comunes dentro de la carpeta del proyecto.',
+  'The file is not a regular file; Visual Anything opens only regular files inside the project folder.':
+    'El archivo no es un archivo común; Visual Anything solo abre archivos comunes dentro de la carpeta del proyecto.',
+  'The file lies outside the project folder; Visual Anything opens only regular files inside the project folder.':
+    'El archivo está fuera de la carpeta del proyecto; Visual Anything solo abre archivos comunes dentro de la carpeta del proyecto.',
+  'The file changed while it was being opened; Visual Anything opens only regular files inside the project folder.':
+    'El archivo cambió mientras se abría; Visual Anything solo abre archivos comunes dentro de la carpeta del proyecto.',
+  'The file holds more than {size}, the most a file of this kind may hold.':
+    'El archivo ocupa más de {size}, lo máximo que puede ocupar un archivo de este tipo.',
+  'The folder has no {extension} file; a project has exactly one.':
+    'La carpeta no tiene ningún archivo {extension}; un proyecto tiene exactamente uno.',
+  'The folder has {n} {extension} files ({files}); a project has exactly one.':
+    'La carpeta tiene {n} archivos {extension} ({files}); un proyecto tiene exactamente uno.',
+  'The folder {folder} does not exist.': 'La carpeta {folder} no existe.',
+  '{folder} is not a folder.': '{folder} no es una carpeta.',
+  'The folder {folder} could not be read: {reason}':
+    'No se pudo leer la carpeta {folder}: {reason}',
+  'The folder {folder}/ could not be read: {reason}':
+    'No se pudo leer la carpeta {folder}/: {reason}',
+  '{folder} is not a folder; {extension} files go in {folder}/.':
+    '{folder} no es una carpeta; los archivos {extension} van en {folder}/.',
+  '{folder} is a link; Visual Anything opens only real folders and regular files inside the project folder.':
+    '{folder} es un enlace simbólico; Visual Anything solo abre carpetas reales y archivos comunes dentro de la carpeta del proyecto.',
+  'The package id "{id}" is already used by {file}.': 'El id de paquete "{id}" ya lo usa {file}.',
+  'The view id "{id}" is already used by {file}.': 'El id de vista "{id}" ya lo usa {file}.',
+  'The scenario id "{id}" is already used by {file}.':
+    'El id de escenario "{id}" ya lo usa {file}.',
+  '{file} takes the id "{id}", which Visual Anything keeps for its built-in {name} package. Give it another id: {how}':
+    '{file} usa el id "{id}", que Visual Anything reserva para su paquete incorporado {name}. Darle otro id: {how}',
+  '{file} takes the id "{id}", which Visual Anything keeps for a built-in package to come. Rename it before that package ships: {how}':
+    '{file} usa el id "{id}", que Visual Anything reserva para un paquete incorporado que vendrá. Cambiarlo antes de que ese paquete salga: {how}',
+  'change "id" in this file, the start of every component and relation type id in it, and every reference to them, and rename the file to match.':
+    'cambiar "id" en este archivo, el comienzo de cada id de componente y de tipo de relación que tiene, y cada referencia a ellos, y cambiar el nombre del archivo para que coincida.',
+  'The package "{id}" is listed, but neither packages/ nor the built-in packages hold it.':
+    'El paquete "{id}" figura en la lista, pero no está ni en packages/ ni entre los paquetes incorporados.',
+
+  // More phrases the core builds, which its messages hold as parts.
+  'the relation "{name}"': 'la relación "{name}"',
+  'a note in "{view}"': 'una nota en "{view}"',
+  'A note in "{view}"': 'Una nota en "{view}"',
+  'an arrow in "{view}"': 'una flecha en "{view}"',
+  'An arrow in "{view}"': 'Una flecha en "{view}"',
+  'World has no shape to attach to': 'Mundo no tiene forma a la que conectarse',
+  'that end is a relation, whose line it meets in the middle':
+    'ese extremo es una relación, cuya línea encuentra en el medio',
+  '"{name}" sits inside a row and has no shape of its own':
+    '"{name}" está dentro de una fila y no tiene forma propia',
+  '"{name}" has no shape in this view': '"{name}" no tiene forma en esta vista',
+  'there is no "{end}"': 'no hay ningún "{end}"',
+
+  // Why the core refuses a command that is not as commands are written.
+  'A command is an object with a type.': 'Un comando es un objeto JSON con un tipo.',
+  'A batch needs at least one command.': 'Un lote necesita al menos un comando.',
+  '"{type}" is not a command.': '"{type}" no es un comando.',
+  '{key} must be a list.': '{key} debe ser una lista.',
+  '"{key}" must be a list.': '"{key}" debe ser una lista.',
+  'Bend points must be a list.': 'Los puntos de quiebre deben ser una lista.',
+  'The relations of a step must be a list.': 'Las relaciones de un paso deben ser una lista.',
+  'x must be a number.': 'x debe ser un número.',
+  'y must be a number.': 'y debe ser un número.',
+  'The x of a bend point must be a number.': 'La x de un punto de quiebre debe ser un número.',
+  'The y of a bend point must be a number.': 'La y de un punto de quiebre debe ser un número.',
+  'Where an end attaches along its side must be a number.':
+    'El lugar donde un extremo se conecta a lo largo de su lado debe ser un número.',
+  'Whether the containers are collapsed is true or false.':
+    'Si los contenedores están contraídos es verdadero o falso.',
+  'Whether "{name}" is pinned is true or false.': 'Si "{name}" está fijada es verdadero o falso.',
+  'Whether {of} nests is true or false.': 'Si {of} anida es verdadero o falso.',
+  'Whether {of} writes its component’s name is true or false.':
+    'Si {of} escribe el nombre de su componente es verdadero o falso.',
+  'Whether {of} draws its contents as rows is true or false.':
+    'Si {of} dibuja su contenido como filas es verdadero o falso.',
+  'A package’s description is text.': 'La descripción de un paquete es texto.',
+  'A component must be an object.': 'Un componente debe ser un objeto JSON.',
+  'A relation type must be an object.': 'Un tipo de relación debe ser un objeto JSON.',
+  'A component names what it derives from by its id.':
+    'Un componente nombra aquello de lo que deriva por su id.',
+  'A relation type names what it derives from by its id.':
+    'Un tipo de relación nombra aquello de lo que deriva por su id.',
+  'The description of {of} is text.': 'La descripción de {of} es texto.',
+  'The changes to {of} must be an object.': 'Los cambios de {of} deben ser un objeto JSON.',
+  'The changes to the limits of {of} must be an object.':
+    'Los cambios de los límites de {of} deben ser un objeto JSON.',
+  'Give {of} either a whole "appearance" or "appearanceTraits" to change, not both.':
+    'Dar a {of} una "appearance" entera o unos "appearanceTraits" para cambiar, no ambas cosas.',
+  'Give {of} either a whole "appearance" or "appearanceTraits" to change, not neither.':
+    'Dar a {of} una "appearance" entera o unos "appearanceTraits" para cambiar, alguna de las dos.',
+  'An element’s appearance is replaced whole or changed trait by trait, not both at once.':
+    'La apariencia de un elemento se reemplaza entera o se cambia rasgo por rasgo, no ambas cosas a la vez.',
+  'A relation’s appearance is replaced whole or changed trait by trait, not both at once.':
+    'La apariencia de una relación se reemplaza entera o se cambia rasgo por rasgo, no ambas cosas a la vez.',
+  'define-image needs the image to define.': 'define-image necesita la imagen que define.',
+  'An image is SVG text, or a bitmap’s format and base64 data, and not both.':
+    'Una imagen es texto SVG, o el formato y los datos en base64 de un mapa de bits, y no ambas cosas.',
+  'An SVG image is given as text.': 'Una imagen SVG se da como texto.',
+  'A bitmap is given as its bytes in base64.': 'Un mapa de bits se da como sus bytes en base64.',
+  'A container is given only with bend points relative to it.':
+    'Un contenedor se da solo con puntos de quiebre relativos a él.',
+  'A route has at most {limit} bend points, and {n} were given.':
+    'Una ruta tiene como máximo {limit} puntos de quiebre, y se dieron {n}.',
+  'A route is orthogonal, straight or curved, not {style}.':
+    'Una ruta es ortogonal, recta o curva, no {style}.',
+  'No relations were given to route again.': 'No se indicó ninguna relación para volver a trazar.',
+  'A relation is given by its id.': 'Una relación se da por su id.',
+  'An attachment is a connection point or a place on the border.':
+    'Una conexión es un punto de conexión o un lugar del borde.',
+  'A side is top, right, bottom or left, not {side}.':
+    'Un lado es top, right, bottom o left, no {side}.',
+  'Where an end attaches along its side goes from 0 to 1, not {at}.':
+    'El lugar donde un extremo se conecta a lo largo de su lado va de 0 a 1, no {at}.',
+  'A connection point is given by its name.': 'Un punto de conexión se da por su nombre.',
+  'A move goes to "front", "back", { inFrontOf } or { behind }.':
+    'Un movimiento va a "front", "back", { inFrontOf } o { behind }.',
+  'A free shape is a note or an arrow.': 'Una forma libre es una nota o una flecha.',
+  'A rename gives the attribute "from" and its new name "to".':
+    'Un cambio de nombre da el atributo "from" y su nombre nuevo "to".',
+  'The attributes the detail of {of} writes must be a list.':
+    'Los atributos que escribe el detalle de {of} deben ser una lista.',
+  'The detail of {of} names attributes by their names.':
+    'El detalle de {of} nombra los atributos por sus nombres.',
+  'A badge of {of} must be an object.': 'Una insignia de {of} debe ser un objeto JSON.',
+  'A badge of {of} is written "when" an "attribute" is true or at a "from-end".':
+    'Una insignia de {of} se escribe "when" un "attribute" es verdadero o en un "from-end".',
+  'The badges of {of} must be a list.': 'Las insignias de {of} deben ser una lista.',
+  'The detail of {of} must be an object.': 'El detalle de {of} debe ser un objeto JSON.',
+  'The connection points of {of} must be a list.':
+    'Los puntos de conexión de {of} deben ser una lista.',
+  'A connection point of {of} must be an object.':
+    'Un punto de conexión de {of} debe ser un objeto JSON.',
+  'The image of {of} holds only its image, its placement and its tint.':
+    'La imagen de {of} tiene solo su imagen, su ubicación y su tinte.',
+  'The appearance of {of} must be an object.': 'La apariencia de {of} debe ser un objeto JSON.',
+  'The appearance of {of} has no trait "{trait}".':
+    'La apariencia de {of} no tiene el rasgo "{trait}".',
+  'The changes to the appearance of {of} must be an object.':
+    'Los cambios de la apariencia de {of} deben ser un objeto JSON.',
+  'The changes to the detail of {of} must be an object.':
+    'Los cambios del detalle de {of} deben ser un objeto JSON.',
+  'How {of} is drawn has no trait "{trait}".':
+    'La forma de dibujar {of} no tiene el rasgo "{trait}".',
+  'An attribute of {of} must be an object.': 'Un atributo de {of} debe ser un objeto JSON.',
+  'The description of "{name}" of {of} must be text.':
+    'La descripción de "{name}" de {of} debe ser texto.',
+  'The attributes of {of} must be a list.': 'Los atributos de {of} deben ser una lista.',
+  'The attribute changes of {of} must be an object.':
+    'Los cambios de atributos de {of} deben ser un objeto JSON.',
+  'The limits of {of} must be an object.': 'Los límites de {of} deben ser un objeto JSON.',
+  'An arrow has no fill; give {of} a stroke instead.':
+    'Una flecha no tiene relleno; dar a {of} un trazo en su lugar.',
+
+  // Why the core refuses a route or an attachment drawn by hand, and what it ignores in one.
+  'The view "{view}" draws "{name}" as containment, not as a line, so it has no route to choose.':
+    'La vista "{view}" dibuja "{name}" como contención, no como una línea, así que no tiene ruta para elegir.',
+  '"{container}" does not hold both ends of "{name}" in the view "{view}", so its bend points cannot be relative to it.':
+    '"{container}" no contiene los dos extremos de "{name}" en la vista "{view}", así que sus puntos de quiebre no pueden ser relativos a él.',
+  'The line cannot attach by hand at the start of "{name}": {why}.':
+    'La línea no se puede conectar a mano en el inicio de "{name}": {why}.',
+  'The line cannot attach by hand at the end of "{name}": {why}.':
+    'La línea no se puede conectar a mano en el final de "{name}": {why}.',
+  '"{name}" is drawn as a row, or draws its contents as rows: lines attach beside it, on its left or right side.':
+    '"{name}" se dibuja como fila, o dibuja su contenido como filas: las líneas se conectan a su lado, en su lado izquierdo o derecho.',
+  '"{name}" has no connection point named "{point}".':
+    '"{name}" no tiene ningún punto de conexión llamado "{point}".',
+  'The view "{view}" keeps a route for "{id}", which is no relation of the model; it is ignored.':
+    'La vista "{view}" guarda una ruta para "{id}", que no es ninguna relación del modelo; se ignora.',
+  'The view "{view}" attaches the start of "{name}" by hand, but that end is World, which has no shape; it attaches automatically.':
+    'La vista "{view}" conecta a mano el inicio de "{name}", pero ese extremo es Mundo, que no tiene forma; se conecta automáticamente.',
+  'The view "{view}" attaches the end of "{name}" by hand, but that end is World, which has no shape; it attaches automatically.':
+    'La vista "{view}" conecta a mano el final de "{name}", pero ese extremo es Mundo, que no tiene forma; se conecta automáticamente.',
+  'The view "{view}" attaches the start of "{name}" by hand, but that end is a relation, whose line it meets in the middle; it attaches automatically.':
+    'La vista "{view}" conecta a mano el inicio de "{name}", pero ese extremo es una relación, cuya línea encuentra en el medio; se conecta automáticamente.',
+  'The view "{view}" attaches the end of "{name}" by hand, but that end is a relation, whose line it meets in the middle; it attaches automatically.':
+    'La vista "{view}" conecta a mano el final de "{name}", pero ese extremo es una relación, cuya línea encuentra en el medio; se conecta automáticamente.',
+  'The view "{view}" attaches the start of "{name}" at the connection point "{point}", which "{owner}" does not have; it attaches automatically.':
+    'La vista "{view}" conecta el inicio de "{name}" en el punto de conexión "{point}", que "{owner}" no tiene; se conecta automáticamente.',
+  'The view "{view}" attaches the end of "{name}" at the connection point "{point}", which "{owner}" does not have; it attaches automatically.':
+    'La vista "{view}" conecta el final de "{name}" en el punto de conexión "{point}", que "{owner}" no tiene; se conecta automáticamente.',
+  'The view "{view}" keeps the bend points of "{name}" relative to "{container}", which is no element of the model; they are ignored.':
+    'La vista "{view}" guarda los puntos de quiebre de "{name}" relativos a "{container}", que no es ningún elemento del modelo; se ignoran.',
+
+  // Why the core cannot read a picture.
+  'A bitmap is bytes.': 'Un mapa de bits son bytes.',
+  'The bytes are not a PNG, JPEG or WebP picture.':
+    'Los bytes no son una imagen PNG, JPEG ni WebP.',
+  'The picture is a {actual} file, not a {format} file.':
+    'La imagen es un archivo {actual}, no un archivo {format}.',
+  'The picture has no size.': 'La imagen no tiene tamaño.',
+  'The PNG picture is cut short.': 'La imagen PNG está cortada.',
+  'The PNG picture is damaged.': 'La imagen PNG está dañada.',
+  'The PNG picture has no header.': 'La imagen PNG no tiene encabezado.',
+  'The PNG picture does not start with its header.': 'La imagen PNG no empieza con su encabezado.',
+  'The PNG picture is cut short: it has no end.': 'La imagen PNG está cortada: no tiene final.',
+  'The PNG picture is animated; keep its first frame as a picture of its own.':
+    'La imagen PNG es animada; conservar su primer cuadro como una imagen aparte.',
+  'The PNG picture has no image data.': 'La imagen PNG no tiene datos de imagen.',
+  'The PNG picture is damaged: its {chunk} chunk does not match its checksum.':
+    'La imagen PNG está dañada: su bloque {chunk} no coincide con su suma de verificación.',
+  'The JPEG picture is damaged.': 'La imagen JPEG está dañada.',
+  'The JPEG picture has no frame header.': 'La imagen JPEG no tiene encabezado de cuadro.',
+  'The JPEG picture is cut short.': 'La imagen JPEG está cortada.',
+  'The JPEG picture has two frame headers.': 'La imagen JPEG tiene dos encabezados de cuadro.',
+  'The JPEG picture has a scan before its frame header.':
+    'La imagen JPEG tiene un barrido antes de su encabezado de cuadro.',
+  'The JPEG picture is cut short: it has no end.': 'La imagen JPEG está cortada: no tiene final.',
+  'The JPEG picture has no image data.': 'La imagen JPEG no tiene datos de imagen.',
+  'The WebP picture is cut short.': 'La imagen WebP está cortada.',
+  'The WebP picture is damaged.': 'La imagen WebP está dañada.',
+  'The WebP picture has no image data.': 'La imagen WebP no tiene datos de imagen.',
+  'The WebP picture is animated; keep its first frame as a picture of its own.':
+    'La imagen WebP es animada; conservar su primer cuadro como una imagen aparte.',
+  'The WebP picture must hold exactly one image.':
+    'La imagen WebP debe contener exactamente una imagen.',
+  'Its data is not base64.': 'Sus datos no están en base64.',
+  'An SVG picture is text.': 'Una imagen SVG es texto.',
+  'The outermost element is not an SVG element.': 'El elemento exterior no es un elemento SVG.',
+  'The SVG text has text outside its outermost element.':
+    'El texto SVG tiene texto fuera de su elemento exterior.',
+  'The SVG text has an unfinished processing instruction.':
+    'El texto SVG tiene una instrucción de procesamiento sin terminar.',
+  'The XML declaration is out of place.': 'La declaración XML está fuera de lugar.',
+  'The SVG text has an unfinished comment.': 'El texto SVG tiene un comentario sin terminar.',
+  'The SVG text has an unfinished CDATA section.':
+    'El texto SVG tiene una sección CDATA sin terminar.',
+  'The SVG text has a declaration, such as a DOCTYPE or an ENTITY; it is not read.':
+    'El texto SVG tiene una declaración, como un DOCTYPE o un ENTITY; no se lee.',
+  'The SVG text has an unfinished end tag.':
+    'El texto SVG tiene una etiqueta de cierre sin terminar.',
+  'The SVG text closes "{name}" out of order.': 'El texto SVG cierra "{name}" fuera de orden.',
+  'The SVG text has more than one outermost element.':
+    'El texto SVG tiene más de un elemento exterior.',
+  'The SVG text leaves "{name}" open.': 'El texto SVG deja "{name}" abierto.',
+  'The SVG text has no element.': 'El texto SVG no tiene ningún elemento.',
+  'The SVG text leaves the tag "{name}" unfinished.':
+    'El texto SVG deja la etiqueta "{name}" sin terminar.',
+  'The tag "{name}" runs its attributes together.':
+    'La etiqueta "{name}" junta sus atributos sin separarlos.',
+  'The attribute "{attribute}" of "{name}" has no value.':
+    'El atributo "{attribute}" de "{name}" no tiene valor.',
+  'The attribute "{attribute}" of "{name}" has an unquoted value.':
+    'El atributo "{attribute}" de "{name}" tiene un valor sin comillas.',
+  'The attribute "{attribute}" of "{name}" is unfinished.':
+    'El atributo "{attribute}" de "{name}" está sin terminar.',
+  'The attribute "{attribute}" of "{name}" holds "<".':
+    'El atributo "{attribute}" de "{name}" contiene "<".',
+  'The tag "{name}" has the attribute "{attribute}" twice.':
+    'La etiqueta "{name}" tiene el atributo "{attribute}" dos veces.',
+  'The SVG text has a malformed tag.': 'El texto SVG tiene una etiqueta mal formada.',
+  'The SVG text has an "&" that starts no reference.':
+    'El texto SVG tiene un "&" que no empieza ninguna referencia.',
+  'The SVG text uses the entity "&{name};", which is not read.':
+    'El texto SVG usa la entidad "&{name};", que no se lee.',
+  'The SVG text refers to a character XML does not allow (&{name};).':
+    'El texto SVG se refiere a un carácter que XML no permite (&{name};).',
+  'The SVG picture has no usable view box.': 'La imagen SVG no tiene un viewBox que se pueda usar.',
+  'Nothing drawable is left in the SVG picture.': 'No queda nada dibujable en la imagen SVG.',
+
+  // Why the local program refuses a preference the app sends.
+  '"theme" must be "system", "light" or "dark", not {value}.':
+    '"theme" debe ser "system", "light" o "dark", no {value}.',
+  '"language" must be "system", "en" or "es", not {value}.':
+    '"language" debe ser "system", "en" o "es", no {value}.',
+  '"recentColors" must be a list of colors written #RRGGBB.':
+    '"recentColors" debe ser una lista de colores escritos #RRGGBB.',
+  '"recentColors" must hold colors written #RRGGBB, not {value}.':
+    '"recentColors" debe contener colores escritos #RRGGBB, no {value}.',
+  '"recentColors" holds {color} twice.': '"recentColors" tiene {color} dos veces.',
+  '"recentColors" holds {n} colors, more than {limit}.':
+    '"recentColors" tiene {n} colores, más de {limit}.',
+  '"{name}" must be true or false, not {value}.': '"{name}" debe ser true o false, no {value}.',
 };
 
-/** The built-in packages, components and relation types, by id. */
-export const builtins: Readonly<Record<string, { name: string; description?: string }>> = {
+/**
+ * The built-in packages, components and relation types, by id, with the descriptions of the attributes
+ * each defines itself, by their names, which are data and stay as they are.
+ */
+export const builtins: Readonly<
+  Record<
+    string,
+    { name: string; description?: string; attributes?: Readonly<Record<string, string>> }
+  >
+> = {
   essence: {
     name: 'Esencia',
-    description: 'El componente del que derivan, en última instancia, todos los demás.',
+    description: 'El componente del que, en definitiva, derivan todos los demás.',
   },
   'relates-to': {
     name: 'se relaciona con',
-    description: 'El tipo de relación del que derivan, en última instancia, todos los demás.',
+    description: 'El tipo de relación del que, en definitiva, derivan todos los demás.',
   },
   systems: {
     name: 'Sistemas',
@@ -1555,6 +2426,7 @@ export const builtins: Readonly<Record<string, { name: string; description?: str
   'systems.box': {
     name: 'Caja',
     description: 'Cualquier parte de un sistema que no tiene un componente más específico.',
+    attributes: { owner: 'El equipo que lo opera.' },
   },
   'systems.system': {
     name: 'Sistema',
@@ -1563,20 +2435,24 @@ export const builtins: Readonly<Record<string, { name: string; description?: str
   'systems.service': {
     name: 'Servicio',
     description: 'Un programa en ejecución al que otros llaman.',
+    attributes: { technology: 'Con qué está hecho, como "Node.js" o "PostgreSQL".' },
   },
   'systems.chat-channel': {
     name: 'Canal de chat',
     description:
       'Un servicio a través del cual las personas hablan con un sistema, como WhatsApp o Slack.',
+    attributes: { provider: 'Quién provee el canal.' },
   },
   'systems.ai-agent': {
     name: 'Agente de IA',
     description: 'Un servicio que razona con un modelo de lenguaje y llama a otros servicios.',
+    attributes: { model: 'El modelo de lenguaje que usa.' },
   },
   'systems.mcp-server': {
     name: 'Servidor MCP',
     description:
       'Un servicio que da herramientas y datos a los agentes de IA mediante el Model Context Protocol.',
+    attributes: { transport: 'Cómo lo alcanzan los clientes: "stdio" o "http".' },
   },
   'systems.semantic-layer': {
     name: 'Capa semántica',
@@ -1586,6 +2462,7 @@ export const builtins: Readonly<Record<string, { name: string; description?: str
   'systems.database': {
     name: 'Base de datos',
     description: 'Un almacén de datos estructurados.',
+    attributes: { engine: 'Como "postgres" o "mysql".' },
   },
   'systems.object-storage': {
     name: 'Almacenamiento de objetos',
@@ -1594,10 +2471,12 @@ export const builtins: Readonly<Record<string, { name: string; description?: str
   'systems.person': {
     name: 'Persona',
     description: 'Alguien que usa o administra un sistema.',
+    attributes: { role: 'Lo que hace, como "patient".' },
   },
   'systems.communicates-with': {
     name: 'se comunica con',
     description: 'Envía solicitudes o mensajes a otro elemento.',
+    attributes: { protocol: 'Como "HTTPS", "gRPC" o "AMQP".' },
   },
   'systems.reads-from': {
     name: 'lee de',
@@ -1631,6 +2510,12 @@ export const builtins: Readonly<Record<string, { name: string; description?: str
   'data-modeling.column': {
     name: 'Columna',
     description: 'Una columna de una tabla.',
+    attributes: {
+      type: 'Su tipo de datos, como "uuid", "integer" o "varchar(255)".',
+      primaryKey: 'Si forma parte de la clave primaria de su tabla.',
+      notNull: 'Si rechaza valores vacíos.',
+      unique: 'Si dos registros no pueden tener el mismo valor.',
+    },
   },
   'data-modeling.is-column-of': {
     name: 'es columna de',
@@ -1640,5 +2525,9 @@ export const builtins: Readonly<Record<string, { name: string; description?: str
     name: 'referencia',
     description:
       'Una clave foránea: los valores de este extremo son valores del otro extremo, por lo general una clave primaria.',
+    attributes: {
+      onDelete:
+        'Qué pasa con los registros que tienen este valor cuando se elimina el registro al que se refieren.',
+    },
   },
 };

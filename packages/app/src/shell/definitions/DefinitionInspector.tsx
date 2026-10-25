@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
+import { useT } from '../../i18n';
 import { ComponentEditor } from './ComponentEditor';
 import { DeriveForm } from './DeriveForm';
 import { backToSelection } from './focus';
@@ -14,6 +15,7 @@ import './definitions.css';
  * wraps its content in it.
  */
 export function DefinitionInspector({ children }: { children?: ReactNode }) {
+  const t = useT();
   const { opened, focusRequest, close } = useOpenDefinition();
   const title = useRef<HTMLHeadingElement>(null);
 
@@ -30,7 +32,7 @@ export function DefinitionInspector({ children }: { children?: ReactNode }) {
         className="inspector-action definition-back"
         onClick={(event) => backToSelection(event.currentTarget, close)}
       >
-        Back to the selection
+        {t('Back to the selection')}
       </button>
       <div key={openedKey(opened)}>
         {opened.kind === 'component' && <ComponentEditor id={opened.id} titleRef={title} />}

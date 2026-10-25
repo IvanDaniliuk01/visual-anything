@@ -14,6 +14,7 @@
  * - The table reads `[CONSTRAINT n] PRIMARY KEY (a, b)`, `FOREIGN KEY (a) REFERENCES t(b)` and
  *   `UNIQUE (a)`.
  */
+import { t } from '../../i18n';
 
 /** What happens to the records that refer to one that is deleted, as "references" says it. */
 export type OnDelete = 'no action' | 'restrict' | 'cascade' | 'set null' | 'set default';
@@ -149,7 +150,7 @@ function parse(text: string): ParsedColumns {
       continue;
     }
     for (const name of missing)
-      skipped.push({ at, text: shown, reason: `no column named “${name}”` });
+      skipped.push({ at, text: shown, reason: t('no column named “{name}”', { name }) });
     clause.columns.forEach((name, index) => {
       const column = byName(name);
       if (!column) return;

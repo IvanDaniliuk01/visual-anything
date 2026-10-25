@@ -1072,7 +1072,8 @@ class Driver {
   }
 
   private host(): HTMLElement {
-    const host = this.root.querySelector<HTMLElement>('[aria-roledescription="canvas"]');
+    // By its class: its role description reads in the language the app reads in.
+    const host = this.root.querySelector<HTMLElement>('.canvas-host');
     if (!host) throw new Error('The canvas is not on the page.');
     return host;
   }

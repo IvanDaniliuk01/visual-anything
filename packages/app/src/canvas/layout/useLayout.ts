@@ -21,6 +21,7 @@ import {
   useState,
 } from 'react';
 import { sizeOf, type Selection } from '../../editor/selection';
+import { t } from '../../i18n';
 import type { Scene } from '../scene';
 import { LayoutStopped, sharedRunner, type LayoutRunner } from './client';
 import { layoutCommand } from './command';
@@ -150,7 +151,9 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
       if (!runner || !asked.send) return;
       const input = layoutInput(asked.scene, asked.project, scope);
       if (!input) {
-        if (!automatic) asked.announce('Every shape there is pinned, so layout leaves them all.');
+        if (!automatic) {
+          asked.announce(t('Every shape there is pinned, so layout leaves them all.'));
+        }
         return;
       }
       // While it runs, the control shows how far it has come, and stops it when pressed.
@@ -172,8 +175,10 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
       } catch (error) {
         latest.current.announce(
           error instanceof LayoutStopped
-            ? 'Layout stopped, and nothing moved.'
-            : `The layout failed: ${error instanceof Error ? error.message : String(error)}`,
+            ? t('Layout stopped, and nothing moved.')
+            : t('The layout failed: {why}', {
+                why: t.message(error instanceof Error ? error.message : String(error)),
+              }),
         );
         return;
       } finally {
@@ -183,7 +188,7 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
       if (now.view.id !== asked.view.id || !now.send) return;
       const action = layoutCommand(now.project, now.view.id, now.scene, scope, laidOut.shapes);
       if (!action) {
-        if (!automatic) now.announce('Layout leaves every shape where it is.');
+        if (!automatic) now.announce(t('Layout leaves every shape where it is.'));
         return;
       }
       setArmed({
@@ -198,8 +203,12 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
         return;
       }
       if (!automatic) {
-        const shapes = action.moved === 1 ? '1 shape moved' : `${action.moved} shapes moved`;
-        latest.current.announce(`${labelOf(action.command)}: ${shapes}.`);
+        latest.current.announce(
+          t(
+            { one: '{action}: {count} shape moved.', other: '{action}: {count} shapes moved.' },
+            { action: t.message(labelOf(action.command)), count: action.moved },
+          ),
+        );
       }
     });
     queue.current = run.catch(() => undefined);
@@ -245,10 +254,26 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
   if (running) {
     const { done = 0, total = 0 } = running.progress ?? {};
     const percent = total > 0 ? Math.round((100 * done) / total) : undefined;
-    const shapes = running.shapes === 1 ? '1 shape' : `${running.shapes} shapes`;
+    const values = { count: running.shapes, percent: percent ?? 0 };
     control = {
-      label: percent === undefined ? 'Stop layout' : `Stop layout (${percent}%)`,
-      title: `Laying out ${shapes}${percent === undefined ? '' : `: ${percent}% done`}. Press to stop it; nothing moves then.`,
+      label: percent === undefined ? t('Stop layout') : t('Stop layout ({percent}%)', values),
+      title:
+        percent === undefined
+          ? t(
+              {
+                one: 'Laying out {count} shape. Press to stop it; nothing moves then.',
+                other: 'Laying out {count} shapes. Press to stop it; nothing moves then.',
+              },
+              values,
+            )
+          : t(
+              {
+                one: 'Laying out {count} shape: {percent}% done. Press to stop it; nothing moves then.',
+                other:
+                  'Laying out {count} shapes: {percent}% done. Press to stop it; nothing moves then.',
+              },
+              values,
+            ),
       enabled: true,
       busy: true,
       run: running.stop,
@@ -256,14 +281,17 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
   } else {
     const enabled = runner !== undefined && editable;
     const title = !runner
-      ? 'Layout needs web workers, which this browser does not offer.'
+      ? t('Layout needs web workers, which this browser does not offer.')
       : !editable
-        ? 'Visual Anything is not connected, so nothing can be laid out.'
+        ? t('Visual Anything is not connected, so nothing can be laid out.')
         : target.kind === 'contents'
-          ? `Lay out the contents of "${nameOf(target.container)}": arrange the shapes inside it that are not pinned.`
-          : `Lay out "${view.name}": arrange every shape that is not pinned.`;
+          ? t(
+              'Lay out the contents of "{name}": arrange the shapes inside it that are not pinned.',
+              { name: nameOf(target.container) },
+            )
+          : t('Lay out "{name}": arrange every shape that is not pinned.', { name: view.name });
     control = {
-      label: 'Layout',
+      label: t('Layout'),
       title,
       enabled,
       busy: false,

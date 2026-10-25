@@ -11,6 +11,7 @@ import { RELATES_TO_ID, type Relation } from '@visual-anything/schema';
 import { useId, type Ref } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import type { Selectable } from '../../editor/selection';
+import { useT } from '../../i18n';
 import { isBuiltInDefinition } from '../definitions/commands';
 import { useOpenDefinition } from '../definitions/opened';
 import { RouteSection } from '../../canvas/routing/RouteSection';
@@ -41,6 +42,7 @@ export function RelationInspector({
   titleRef,
   onSelect,
 }: RelationInspectorProps) {
+  const t = useT();
   const { project, send } = useEditor();
   const disabled = send === undefined;
   const index = modelIndexOf(project);
@@ -53,9 +55,13 @@ export function RelationInspector({
 
   return (
     <>
-      <Title titleRef={titleRef} name={relationLabel(index, relation)} detail={relationType.name} />
+      <Title
+        titleRef={titleRef}
+        name={relationLabel(index, relation)}
+        detail={t.definition(relationType.id, relationType.name)}
+      />
       <div className="inspector-control">
-        <label htmlFor={nameId}>Name</label>
+        <label htmlFor={nameId}>{t('Name')}</label>
         <TextControl
           id={nameId}
           value={relation.name ?? ''}
@@ -68,7 +74,7 @@ export function RelationInspector({
         />
       </div>
       <div className="inspector-control">
-        <label htmlFor={descriptionId}>Description</label>
+        <label htmlFor={descriptionId}>{t('Description')}</label>
         <TextControl
           id={descriptionId}
           value={relation.description ?? ''}
@@ -88,12 +94,12 @@ export function RelationInspector({
         update={update}
       />
       <section className="inspector-section" aria-labelledby={endsId}>
-        <h4 id={endsId}>Ends</h4>
+        <h4 id={endsId}>{t('Ends')}</h4>
         <dl className="details">
-          <Detail term="From">
+          <Detail term={t('From')}>
             <End id={relation.from} index={index} definitions={definitions} onSelect={onSelect} />
           </Detail>
-          <Detail term="To">
+          <Detail term={t('To')}>
             <End id={relation.to} index={index} definitions={definitions} onSelect={onSelect} />
           </Detail>
         </dl>
@@ -102,6 +108,7 @@ export function RelationInspector({
       <AttributesSection
         of="relation"
         definitions={relationType.attributes}
+        lineage={relationType.lineage}
         values={relation.attributes}
         disabled={disabled}
         change={update}
@@ -137,6 +144,7 @@ function RelationTypeSection({
   disabled,
   update,
 }: RelationTypeSectionProps) {
+  const t = useT();
   const { project } = useEditor();
   const { open } = useOpenDefinition();
   const headingId = useId();
@@ -147,6 +155,7 @@ function RelationTypeSection({
   const listed = offered.some((from) => from.members.includes(relation.relationType));
   const warnings = limitWarnings(relation, index, definitions);
   const nestingRefusal = nestingRefusalOf(relation, index);
+  const nameOf = (id: string) => t.definition(id, relationTypeOrRelatesTo(definitions, id).name);
 
   const option = (id: string) => {
     const each = relationTypeOrRelatesTo(definitions, id);
@@ -154,17 +163,18 @@ function RelationTypeSection({
     const fits =
       limitWarnings({ relationType: id, from: relation.from, to: relation.to }, index, definitions)
         .length === 0;
-    const hint = refused !== undefined ? ` · ${refused}` : fits ? '' : ' · outside its limits';
+    const hint =
+      refused !== undefined ? ` · ${t(refused)}` : fits ? '' : ` · ${t('outside its limits')}`;
     return (
       <option key={id} value={id} disabled={refused !== undefined && id !== relation.relationType}>
-        {`${each.name}${hint}`}
+        {`${nameOf(each.id)}${hint}`}
       </option>
     );
   };
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>Relation type</h4>
+      <h4 id={headingId}>{t('Relation type')}</h4>
       <SelectControl
         id={selectId}
         labelledBy={headingId}
@@ -174,38 +184,40 @@ function RelationTypeSection({
       >
         {!listed && option(relation.relationType)}
         {offered.map((from) => (
-          <optgroup key={from.id} label={from.name}>
+          <optgroup key={from.id} label={t.definition(from.id, from.name)}>
             {from.members.map(option)}
           </optgroup>
         ))}
       </SelectControl>
       {relationType.description !== undefined && (
-        <p className="inspector-notes">{relationType.description}</p>
+        <p className="inspector-notes">
+          {t.description(relationType.id, relationType.description)}
+        </p>
       )}
       {known ? (
         <>
           <Lineage
-            names={relationType.lineage
-              .slice(1)
-              .map((id) => relationTypeOrRelatesTo(definitions, id).name)}
-            none="It derives from no other relation type."
+            names={relationType.lineage.slice(1).map(nameOf)}
+            none={t('It derives from no other relation type.')}
           />
           {relationType.lineage.at(-1) !== RELATES_TO_ID && (
             <p className="inspector-warning">
-              Its chain stops before “relates to”, because a relation type in it is missing.
+              {t('Its chain stops before “relates to”, because a relation type in it is missing.')}
             </p>
           )}
         </>
       ) : (
         <p className="inspector-warning">
-          No package in use defines the relation type “{relation.relationType}”, so it behaves like
-          “relates to”.
+          {t(
+            'No package in use defines the relation type “{id}”, so it behaves like “relates to”.',
+            { id: relation.relationType },
+          )}
         </p>
       )}
       {warnings.length > 0 && (
-        <ul className="inspector-warnings" aria-label="Warnings">
+        <ul className="inspector-warnings" aria-label={t('Warnings')}>
           {warnings.map((warning) => (
-            <li key={warning.message}>{warning.message}</li>
+            <li key={warning.message}>{t.message(warning.message)}</li>
           ))}
         </ul>
       )}
@@ -228,7 +240,7 @@ function RelationTypeSection({
               )
             }
           >
-            Derive a relation type from “{relationType.name}”
+            {t('Derive a relation type from “{name}”', { name: nameOf(relationType.id) })}
           </button>
         ) : (
           <button
@@ -238,7 +250,7 @@ function RelationTypeSection({
               open({ kind: 'relation-type', id: relation.relationType }, { focus: true })
             }
           >
-            Edit “{relationType.name}”
+            {t('Edit “{name}”', { name: nameOf(relationType.id) })}
           </button>
         ))}
     </section>

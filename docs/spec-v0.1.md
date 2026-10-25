@@ -324,8 +324,8 @@ Eight milestones in build order, each ending in something you can use, and Track
 **L1 · The app in English and Spanish.** Done when every text the app shows (panels, menus, dialogs, captions, announcements, keyboard help, built-in components and relation types, the history's labels and the local program's and the core's messages) reads in Spanish when Spanish is chosen or the browser asks for it, and in English otherwise; the choice is a preference kept by the local program; and the tests of the catalog and of the core's templates pass.
 
 - [x] The catalog, `t()` and `useT()`, plurals, the language preference and the header's control
-- [ ] The app's own text, file by file, as each task that owns a file finishes
-- [ ] The core's and the local program's messages, through templates, and the built-in packages' names
+- [x] The app's own text, file by file, as each task that owns a file finishes
+- [x] The core's and the local program's messages, through templates, and the built-in packages' names
 
 **Track D · Distribution**, beside the milestones, starting now (ADR 0037). Its commits start with `D<n>:`, and each stage is tagged `d<n>` when its Done when holds.
 

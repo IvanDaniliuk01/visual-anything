@@ -7,6 +7,7 @@ import {
 import type { Id } from '@visual-anything/schema';
 import { useEffect, useId } from 'react';
 import type { Selection } from '../editor/selection';
+import { useT } from '../i18n';
 import type { CollapseAction, CollapseActions } from './collapse';
 import './drop.css';
 import { putInsideCommand, putInsideTarget, takeOutCommand } from './drop';
@@ -82,6 +83,7 @@ export function ShapeMenu({
   collapse,
   onCollapse,
 }: ShapeMenuProps) {
+  const t = useT();
   const menu = useMenuInsideFrame<HTMLDivElement>(at);
   const underId = useId();
   useOutsidePress(menu, onClose);
@@ -131,7 +133,7 @@ export function ShapeMenu({
       {STACKING_MOVES.map((move) => (
         <Item
           key={move}
-          label={STACKING_NAMES[move]}
+          label={t(STACKING_NAMES[move])}
           title={stacking[move].description}
           disabled={!stacking[move].enabled}
           onPress={() => onRestack(move)}
@@ -142,16 +144,18 @@ export function ShapeMenu({
           <div role="separator" className="canvas-menu-separator" />
           {collapse.collapse && (
             <Item
-              label={collapse.collapse.label}
-              title="Draws none of what it holds; their relations become aggregated relations. Alt+−"
+              label={t.message(collapse.collapse.label)}
+              title={t(
+                'Draws none of what it holds; their relations become aggregated relations. Alt+−',
+              )}
               readOnly={!editable}
               onPress={() => onCollapse(collapse.collapse as CollapseAction, true)}
             />
           )}
           {collapse.expand && (
             <Item
-              label={collapse.expand.label}
-              title="Draws again what it holds. Alt++"
+              label={t.message(collapse.expand.label)}
+              title={t('Draws again what it holds. Alt++')}
               readOnly={!editable}
               onPress={() => onCollapse(collapse.expand as CollapseAction, false)}
             />
@@ -163,25 +167,29 @@ export function ShapeMenu({
           <div role="separator" className="canvas-menu-separator" />
           {target && (
             <Item
-              label={fromWorld ? `Put inside "${target.name}"` : `Move into "${target.name}"`}
+              label={
+                fromWorld
+                  ? t('Put inside "{target}"', { target: target.name })
+                  : t('Move into "{target}"', { target: target.name })
+              }
               readOnly={!editable}
               onPress={change(() => putInsideCommand(indexed, project, viewId, shape, target))}
             />
           )}
           <Item
-            label={fromWorld ? 'Put inside…' : 'Move to…'}
+            label={fromWorld ? t('Put inside…') : t('Move to…')}
             readOnly={!editable}
             onPress={() => onChooseContainer(fromWorld ? 'put' : 'move')}
           />
           {takeOutOf !== undefined && (
             <Item
-              label={`Take out of "${takeOutOf}"`}
+              label={t('Take out of "{from}"', { from: takeOutOf })}
               readOnly={!editable}
               onPress={change(() => takeOutCommand(indexed, project, viewId, shape))}
             />
           )}
           <Item
-            label={`Add inside "${shape.name}"…`}
+            label={t('Add inside "{name}"…', { name: shape.name })}
             readOnly={!editable}
             onPress={() => onAddInside(shape.element)}
           />
@@ -192,12 +200,12 @@ export function ShapeMenu({
           <div role="separator" className="canvas-menu-separator" />
           <div role="group" aria-labelledby={underId}>
             <p id={underId} className="canvas-menu-title">
-              Under the pointer
+              {t('Under the pointer')}
             </p>
             {others.map((other) => (
               <Item
                 key={other.key}
-                label={`Select "${other.name}"`}
+                label={t('Select "{name}"', { name: other.name })}
                 onPress={() => onSelectShape(other)}
               />
             ))}
@@ -225,12 +233,13 @@ function Item({
   readOnly?: boolean;
   onPress: () => void;
 }) {
+  const t = useT();
   return (
     <button
       type="button"
       role="menuitem"
       tabIndex={-1}
-      title={readOnly ? NOT_EDITABLE : title}
+      title={readOnly ? t(NOT_EDITABLE) : title}
       aria-disabled={disabled || readOnly ? true : undefined}
       onClick={readOnly ? undefined : onPress}
     >

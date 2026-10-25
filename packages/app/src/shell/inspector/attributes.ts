@@ -4,6 +4,7 @@
  */
 import { valueFitsType } from '@visual-anything/core';
 import type { AttributeDefinition, Attributes, JsonValue } from '@visual-anything/schema';
+import { t } from '../../i18n';
 
 /** The types an attribute's value can have. */
 export type AttributeType = AttributeDefinition['type'];
@@ -132,12 +133,12 @@ export type Reading<T> = { ok: true; value: T } | { ok: false; message: string }
 
 /** Reads typed JSON. */
 export function readJson(text: string): Reading<JsonValue> {
-  if (text.trim() === '') return { ok: false, message: 'Enter a JSON value, such as null.' };
+  if (text.trim() === '') return { ok: false, message: t('Enter a JSON value, such as null.') };
   try {
     return { ok: true, value: JSON.parse(text) as JsonValue };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    return { ok: false, message: `Not valid JSON: ${reason}` };
+    return { ok: false, message: t('Not valid JSON: {reason}', { reason }) };
   }
 }
 
@@ -145,6 +146,6 @@ export function readJson(text: string): Reading<JsonValue> {
 export function readNumber(text: string): Reading<number> {
   const value = Number(text);
   return text.trim() === '' || !Number.isFinite(value)
-    ? { ok: false, message: 'Enter a number.' }
+    ? { ok: false, message: t('Enter a number.') }
     : { ok: true, value };
 }

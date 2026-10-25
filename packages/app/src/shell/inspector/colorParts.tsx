@@ -1,5 +1,6 @@
 /** Parts the inspector's appearance sections share: where a change goes, and the contrast hints. */
 import { useId } from 'react';
+import { useT } from '../../i18n';
 
 interface ScopeChoiceProps<T extends string> {
   value: T;
@@ -12,10 +13,11 @@ interface ScopeChoiceProps<T extends string> {
  * Choosing changes nothing in the project, so it stays usable while the project cannot be changed.
  */
 export function ScopeChoice<T extends string>({ value, options, onChange }: ScopeChoiceProps<T>) {
+  const t = useT();
   const name = useId();
   return (
     <fieldset className="inspector-scope">
-      <legend>Change</legend>
+      <legend>{t('Change')}</legend>
       {options.map((option) => (
         <label key={option.value}>
           <input

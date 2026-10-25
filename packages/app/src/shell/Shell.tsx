@@ -49,7 +49,12 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the definitions follow the packages and the project appearances only
     [project.packages, project.project.appearances],
   );
-  const scene = useMemo(() => (view ? buildScene(project, view.id) : undefined), [project, view]);
+  const scene = useMemo(
+    () => (view ? buildScene(project, view.id) : undefined),
+    // The canvas writes built-in names and its own words in the language read in (ADR-0038).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the language is read by buildScene
+    [project, view, t.language],
+  );
   const [revealed, setRevealed] = useState<{ key: string; request: number }>();
   const reveal = useCallback((key: string) => {
     setRevealed((last) => ({ key, request: (last?.request ?? 0) + 1 }));

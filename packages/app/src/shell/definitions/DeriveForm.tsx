@@ -2,6 +2,7 @@ import { builtinPackage, modelIndexOf, type ProjectSnapshot } from '@visual-anyt
 import { ESSENCE_ID, RELATES_TO_ID, type Id } from '@visual-anything/schema';
 import { useEffect, useId, useRef, useState, type FormEvent, type Ref } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { useT } from '../../i18n';
 import { byPackage, relationLabel } from '../inspector/describe';
 import { InlineProblem } from '../inspector/controls';
 import { Title } from '../inspector/parts';
@@ -22,11 +23,6 @@ const NEW_PACKAGE = '';
 /** How many new ids a derive tries when the ones it made are taken meanwhile. */
 const TRIES = 3;
 
-const NOUN: Record<DefinitionKind, string> = {
-  component: 'component',
-  'relation-type': 'relation type',
-};
-
 interface DeriveFormProps {
   of: DefinitionKind;
   base: Id;
@@ -43,6 +39,7 @@ interface DeriveFormProps {
  * makes another and sends once more. Then the component editor shows what it made.
  */
 export function DeriveForm({ of, base, useFor, titleRef }: DeriveFormProps) {
+  const t = useT();
   const { project, definitions, send } = useEditor();
   const { open } = useOpenDefinition();
   const root = of === 'component' ? ESSENCE_ID : RELATES_TO_ID;
@@ -72,7 +69,15 @@ export function DeriveForm({ of, base, useFor, titleRef }: DeriveFormProps) {
   }, [project]);
 
   const index = modelIndexOf(project);
-  const heading = base === root ? `New ${NOUN[of]}` : `Derive a ${NOUN[of]}`;
+  const component = of === 'component';
+  const heading =
+    base === root
+      ? component
+        ? t('New component')
+        : t('New relation type')
+      : component
+        ? t('Derive a component')
+        : t('Derive a relation type');
   const relation = useFor === undefined ? undefined : index.relation(useFor);
   const target =
     useFor === undefined
@@ -87,9 +92,11 @@ export function DeriveForm({ of, base, useFor, titleRef }: DeriveFormProps) {
 
   const request = (): DeriveRequest | string => {
     const trimmed = name.trim();
-    if (trimmed === '') return `Give the ${NOUN[of]} a name.`;
+    if (trimmed === '') {
+      return component ? t('Give the component a name.') : t('Give the relation type a name.');
+    }
     if (into === NEW_PACKAGE) {
-      if (packageName.trim() === '') return 'Give the new package a name.';
+      if (packageName.trim() === '') return t('Give the new package a name.');
       const idProblem = packageIdProblem(project, shownPackageId);
       if (idProblem !== undefined) return idProblem;
     }
@@ -111,7 +118,7 @@ export function DeriveForm({ of, base, useFor, titleRef }: DeriveFormProps) {
       const attempt = deriveCommand(state, asked);
       const refusal = refusalOf(state, attempt.command);
       if (refusal === undefined) return attempt;
-      if (refusal.code !== 'id-taken' || tried + 1 >= TRIES) return refusal.message;
+      if (refusal.code !== 'id-taken' || tried + 1 >= TRIES) return t.message(refusal.message);
     }
   };
 
@@ -149,10 +156,12 @@ export function DeriveForm({ of, base, useFor, titleRef }: DeriveFormProps) {
       <Title
         titleRef={titleRef}
         name={heading}
-        detail={base === root ? undefined : `from ${nameOf(definitions, of, base)}`}
+        detail={
+          base === root ? undefined : t('from {name}', { name: nameOf(definitions, of, base) })
+        }
       />
       <div className="inspector-control">
-        <label htmlFor={ids.name}>Name</label>
+        <label htmlFor={ids.name}>{t('Name')}</label>
         <input
           id={ids.name}
           type="text"
@@ -162,7 +171,7 @@ export function DeriveForm({ of, base, useFor, titleRef }: DeriveFormProps) {
         />
       </div>
       <div className="inspector-control">
-        <label htmlFor={ids.base}>Derives from</label>
+        <label htmlFor={ids.base}>{t('Derives from')}</label>
         <select
           id={ids.base}
           value={derivesFrom}
@@ -170,7 +179,7 @@ export function DeriveForm({ of, base, useFor, titleRef }: DeriveFormProps) {
         >
           <option value={root}>{nameOf(definitions, of, root)}</option>
           {offered.map((from) => (
-            <optgroup key={from.id} label={from.name}>
+            <optgroup key={from.id} label={t.definition(from.id, from.name)}>
               {from.members.map((each) => (
                 <option key={each} value={each}>
                   {nameOf(definitions, of, each)}
@@ -181,20 +190,20 @@ export function DeriveForm({ of, base, useFor, titleRef }: DeriveFormProps) {
         </select>
       </div>
       <div className="inspector-control">
-        <label htmlFor={ids.into}>Package</label>
+        <label htmlFor={ids.into}>{t('Package')}</label>
         <select id={ids.into} value={into} onChange={(event) => setInto(event.target.value)}>
           {own.map((file) => (
             <option key={file.id} value={file.id}>
               {file.name}
             </option>
           ))}
-          <option value={NEW_PACKAGE}>A new package</option>
+          <option value={NEW_PACKAGE}>{t('A new package')}</option>
         </select>
       </div>
       {into === NEW_PACKAGE && (
         <div className="definition-new-package">
           <div className="inspector-control">
-            <label htmlFor={ids.packageName}>Name of the new package</label>
+            <label htmlFor={ids.packageName}>{t('Name of the new package')}</label>
             <input
               id={ids.packageName}
               type="text"
@@ -203,7 +212,7 @@ export function DeriveForm({ of, base, useFor, titleRef }: DeriveFormProps) {
             />
           </div>
           <div className="inspector-control">
-            <label htmlFor={ids.packageId}>Its id</label>
+            <label htmlFor={ids.packageId}>{t('Its id')}</label>
             <input
               id={ids.packageId}
               type="text"
@@ -223,13 +232,19 @@ export function DeriveForm({ of, base, useFor, titleRef }: DeriveFormProps) {
             checked={using}
             onChange={(event) => setUsing(event.target.checked)}
           />
-          <label htmlFor={ids.useFor}>Use it for “{target}”</label>
+          <label htmlFor={ids.useFor}>{t('Use it for “{name}”', { name: target })}</label>
         </div>
       )}
       {problem !== undefined && <InlineProblem id={ids.problem} text={problem} />}
       <div className="definition-actions">
         <button type="submit" className="inspector-action" disabled={send === undefined || sending}>
-          {verb} the {NOUN[of]}
+          {verb === 'Define'
+            ? component
+              ? t('Define the component')
+              : t('Define the relation type')
+            : component
+              ? t('Derive the component')
+              : t('Derive the relation type')}
         </button>
       </div>
     </form>

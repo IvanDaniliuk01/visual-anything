@@ -2,8 +2,8 @@ import { builtinPackage, type Command, type UpdatePackageCommand } from '@visual
 import type { Id } from '@visual-anything/schema';
 import { useId, useMemo, type MouseEvent, type Ref } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { useT } from '../../i18n';
 import { InlineProblem, TextControl } from '../inspector/controls';
-import { count } from '../inspector/describe';
 import { Detail, Title } from '../inspector/parts';
 import { sameOptionalText } from '../inspector/text';
 import { refusalOf, startUsingPackageCommand, stopUsingPackageCommand } from './commands';
@@ -24,6 +24,7 @@ interface PackageEditorProps {
  * is disabled with the reason while anything comes from it.
  */
 export function PackageEditor({ id, titleRef }: PackageEditorProps) {
+  const t = useT();
   const { project, send, viewId } = useEditor();
   const { open } = useOpenDefinition();
   const componentsId = useId();
@@ -33,8 +34,8 @@ export function PackageEditor({ id, titleRef }: PackageEditorProps) {
   if (!file) {
     return (
       <>
-        <Title titleRef={titleRef} name={id} detail="Package" />
-        <Gone what={`the package “${id}”`} />
+        <Title titleRef={titleRef} name={id} detail={t('Package')} />
+        <Gone what={t('the package “{id}”', { id })} />
       </>
     );
   }
@@ -52,21 +53,24 @@ export function PackageEditor({ id, titleRef }: PackageEditorProps) {
     <>
       <Title
         titleRef={titleRef}
-        name={file.name}
-        detail={builtin ? 'Built-in package' : 'Package'}
+        name={t.definition(id, file.name)}
+        detail={builtin ? t('Built-in package') : t('Package')}
       />
       {builtin && (
         <p className="inspector-notes">
-          It is built into Visual Anything, so it cannot be changed here.
-          {inUse ? '' : ' The project does not use it yet.'}
+          {inUse
+            ? t('It is built into Visual Anything, so it cannot be changed here.')
+            : t(
+                'It is built into Visual Anything, so it cannot be changed here. The project does not use it yet.',
+              )}
         </p>
       )}
       <section className="inspector-section">
-        <Field label="Name">
+        <Field label={t('Name')}>
           {({ id: controlId, describedBy, send: sendIt }) => (
             <TextControl
               id={controlId}
-              value={file.name}
+              value={t.definition(id, file.name)}
               disabled={readOnly}
               describedBy={describedBy}
               onCommit={async (text) => {
@@ -75,11 +79,11 @@ export function PackageEditor({ id, titleRef }: PackageEditorProps) {
             />
           )}
         </Field>
-        <Field label="Description">
+        <Field label={t('Description')}>
           {({ id: controlId, describedBy, send: sendIt }) => (
             <TextControl
               id={controlId}
-              value={file.description ?? ''}
+              value={file.description === undefined ? '' : t.description(id, file.description)}
               multiline
               disabled={readOnly}
               describedBy={describedBy}
@@ -89,28 +93,39 @@ export function PackageEditor({ id, titleRef }: PackageEditorProps) {
           )}
         </Field>
         <dl className="details">
-          <Detail term="Id">
+          <Detail term={t('Id')}>
             <code>{id}</code>
           </Detail>
           {/* Its images, once images are wired into the editor: listed, added from a file and removed. */}
-          <Detail term="Images">{count(file.images?.length ?? 0, 'image')}</Detail>
+          <Detail term={t('Images')}>
+            {t(
+              { one: '{count} image', other: '{count} images' },
+              { count: file.images?.length ?? 0 },
+            )}
+          </Detail>
         </dl>
       </section>
       <section className="inspector-section" aria-labelledby={componentsId}>
-        <h4 id={componentsId}>Components</h4>
+        <h4 id={componentsId}>{t('Components')}</h4>
         <Defined
           labelledBy={componentsId}
-          items={file.components.map((each) => ({ id: each.id, name: each.name }))}
-          none="It defines no components."
+          items={file.components.map((each) => ({
+            id: each.id,
+            name: t.definition(each.id, each.name),
+          }))}
+          none={t('It defines no components.')}
           open={inUse ? (other) => opener('component', other) : () => undefined}
         />
       </section>
       <section className="inspector-section" aria-labelledby={relationTypesId}>
-        <h4 id={relationTypesId}>Relation types</h4>
+        <h4 id={relationTypesId}>{t('Relation types')}</h4>
         <Defined
           labelledBy={relationTypesId}
-          items={file.relationTypes.map((each) => ({ id: each.id, name: each.name }))}
-          none="It defines no relation types."
+          items={file.relationTypes.map((each) => ({
+            id: each.id,
+            name: t.definition(each.id, each.name),
+          }))}
+          none={t('It defines no relation types.')}
           open={inUse ? (other) => opener('relation-type', other) : () => undefined}
         />
       </section>
@@ -154,6 +169,7 @@ function Defined({ labelledBy, items, none, open }: DefinedProps) {
 
 /** Starts using a built-in package, and nests the open view by its nesting relation types. */
 function UsePackage({ id, viewId }: { id: Id; viewId: Id | undefined }) {
+  const t = useT();
   const { project, send } = useEditor();
   const sender = useSender();
   const problemId = useId();
@@ -168,7 +184,7 @@ function UsePackage({ id, viewId }: { id: Id; viewId: Id | undefined }) {
           if (command) void sender.send(command);
         }}
       >
-        Use this package
+        {t('Use this package')}
       </button>
       {sender.problem !== undefined && <InlineProblem id={problemId} text={sender.problem} />}
     </section>
@@ -180,6 +196,7 @@ function UsePackage({ id, viewId }: { id: Id; viewId: Id | undefined }) {
  * Undo brings back; it is disabled, with the core's reason, while anything comes from the package.
  */
 function StopUsing({ id, own }: { id: Id; own: boolean }) {
+  const t = useT();
   const { project, send } = useEditor();
   const { close } = useOpenDefinition();
   const sender = useSender();
@@ -188,10 +205,16 @@ function StopUsing({ id, own }: { id: Id; own: boolean }) {
   const command = useMemo(() => stopUsingPackageCommand(project, id), [project, id]);
   const refusal = useMemo(() => refusalOf(project, command), [project, command]);
   const file = project.packages.find((each) => each.id === id);
-  const defines = [
-    count(file?.components.length ?? 0, 'component'),
-    count(file?.relationTypes.length ?? 0, 'relation type'),
-  ].join(' and ');
+  const defines = t('{first} and {last}', {
+    first: t(
+      { one: '{count} component', other: '{count} components' },
+      { count: file?.components.length ?? 0 },
+    ),
+    last: t(
+      { one: '{count} relation type', other: '{count} relation types' },
+      { count: file?.relationTypes.length ?? 0 },
+    ),
+  });
 
   const stop = async (event: MouseEvent<HTMLButtonElement>) => {
     const button = event.currentTarget;
@@ -207,16 +230,16 @@ function StopUsing({ id, own }: { id: Id; own: boolean }) {
         aria-describedby={refusal ? reasonId : own ? noteId : undefined}
         onClick={(event) => void stop(event)}
       >
-        {own ? 'Remove this package' : 'Stop using this package'}
+        {own ? t('Remove this package') : t('Stop using this package')}
       </button>
       {refusal !== undefined ? (
         <p id={reasonId} className="inspector-notes">
-          {refusal.message}
+          {t.message(refusal.message)}
         </p>
       ) : (
         own && (
           <p id={noteId} className="inspector-notes">
-            Its file goes, with the {defines} it defines; Undo brings them back.
+            {t('Its file goes, with the {defines} it defines; Undo brings them back.', { defines })}
           </p>
         )
       )}

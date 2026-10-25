@@ -23,6 +23,7 @@ import {
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { Attributes, Id, ViewFile } from '@visual-anything/schema';
+import { t } from '../i18n';
 import type { ParsedColumn } from '../shell/inspector/columns';
 
 /** The component every table derives from, and the one its columns are made from. */
@@ -106,7 +107,7 @@ export function addRowCommand(
   const before = beforeFor(rowsInView(project, view, container), below);
   const create: CreateElementCommand = {
     type: 'create-element',
-    element: { id, component, name: definition.name },
+    element: { id, component, name: t.definition(component, definition.name) },
     containers: [{ container, relationType: nesting.relationType }],
     ...(before === undefined ? {} : { before }),
   };
@@ -233,7 +234,7 @@ export function addColumnsCommand(
       (element) => element.name.toLowerCase() === reference.table.toLowerCase(),
     );
     if (!target) {
-      unrelated.push({ text, reason: `no table named “${reference.table}”` });
+      unrelated.push({ text, reason: t('no table named “{name}”', { name: reference.table }) });
       continue;
     }
     const candidates = columnsOf(target.id);
@@ -244,14 +245,20 @@ export function addColumnsCommand(
       if (to === undefined) {
         unrelated.push({
           text,
-          reason: `no column named “${reference.column}” in “${target.name}”`,
+          reason: t('no column named “{column}” in “{table}”', {
+            column: reference.column,
+            table: target.name,
+          }),
         });
         continue;
       }
     } else {
       const keys = candidates.filter((each) => each.primaryKey);
       if (keys.length !== 1) {
-        unrelated.push({ text, reason: `no single primary key column in “${target.name}”` });
+        unrelated.push({
+          text,
+          reason: t('no single primary key column in “{name}”', { name: target.name }),
+        });
         continue;
       }
       to = (keys[0] as { id: Id }).id;

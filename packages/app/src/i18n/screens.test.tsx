@@ -43,8 +43,8 @@ describe('the shell in Spanish', () => {
   it('opens a view’s settings in Spanish, with the nesting relation types by their Spanish names', () => {
     renderInSpanish();
     fireEvent.click(screen.getByRole('tab', { name: 'Modelo' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Ajustes de "System overview"' }));
-    const settings = screen.getByRole('group', { name: 'Ajustes de "System overview"' });
+    fireEvent.click(screen.getByRole('button', { name: 'Opciones de "System overview"' }));
+    const settings = screen.getByRole('group', { name: 'Opciones de "System overview"' });
     expect(within(settings).getByLabelText('Nombre')).toHaveValue('System overview');
     expect(
       within(settings).getByRole('group', { name: 'Tipos de relación que anidan' }),

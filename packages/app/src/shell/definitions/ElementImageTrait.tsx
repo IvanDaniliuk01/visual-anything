@@ -23,7 +23,7 @@ export function ElementImageTrait({ element, disabled }: ElementImageTraitProps)
   const own = element.appearance?.image;
   const shown = imageShownBy(element, definitions);
   const origin = appearanceOriginsOf(element, definitions).image;
-  const nameOf = (id: Id) => componentOrEssence(definitions, id).name;
+  const nameOf = (id: Id) => t.definition(id, componentOrEssence(definitions, id).name);
   const off = disabled || send === undefined;
   const setOwn = (image: 'none' | null) => ({
     type: 'update-element' as const,

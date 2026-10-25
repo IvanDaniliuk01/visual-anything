@@ -56,6 +56,7 @@ export function AppearanceSection({
   disabled,
   update,
 }: AppearanceSectionProps) {
+  const t = useT();
   const headingId = useId();
   const [scope, setScope] = useState<Scope>('element');
   const component = componentOrEssence(definitions, element.component);
@@ -68,13 +69,16 @@ export function AppearanceSection({
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>Appearance</h4>
+      <h4 id={headingId}>{t('Appearance')}</h4>
       {known && (
         <ScopeChoice
           value={scope}
           options={[
-            { value: 'element', label: 'Only this element' },
-            { value: 'component', label: `Every ${component.name}` },
+            { value: 'element', label: t('Only this element') },
+            {
+              value: 'component',
+              label: t('Every {name}', { name: t.definition(component.id, component.name) }),
+            },
           ]}
           onChange={setScope}
         />
@@ -90,8 +94,8 @@ export function AppearanceSection({
         />
       )}
       <dl className="details inspector-detail">
-        <Detail term="Detail">{written === '' ? 'Nothing under its name' : written}</Detail>
-        {badges.length > 0 && <Detail term="Badges">{badges.join(', ')}</Detail>}
+        <Detail term={t('Detail')}>{written === '' ? t('Nothing under its name') : written}</Detail>
+        {badges.length > 0 && <Detail term={t('Badges')}>{badges.join(', ')}</Detail>}
       </dl>
     </section>
   );
@@ -110,11 +114,11 @@ function OwnTraits({
   disabled,
   update,
 }: TraitsProps & { update: AppearanceSectionProps['update'] }) {
+  const t = useT();
   const hintId = useId();
   const rowId = useId();
   const [focusShape, setFocusShape] = useState(0);
   const theme = useShownTheme();
-  const t = useT();
   // A row is a band of its container, in its fill: its shape, stroke and size do not show here.
   const asRow = drawnOnlyAsRows(useEditor().scene, element.id);
   const own = element.appearance ?? {};
@@ -122,7 +126,7 @@ function OwnTraits({
   // The colors the canvas draws in the theme shown.
   const drawn = drawnColorsOf(element, definitions, theme);
   const origins = appearanceOriginsOf(element, definitions);
-  const nameOf = (id: Id) => componentOrEssence(definitions, id).name;
+  const nameOf = (id: Id) => t.definition(id, componentOrEssence(definitions, id).name);
   const ownTraits = Object.entries(own).filter(([, value]) => value !== undefined);
   const hints = shapeHints({
     light: drawnColorsOf(element, definitions, 'light'),
@@ -146,7 +150,7 @@ function OwnTraits({
       own={origins[trait].kind === 'own'}
       readOnly={disabled}
       inherit={() => changing({ [trait]: null })}
-      inheritLabel="Use the inherited color"
+      inheritLabel={t('Use the inherited color')}
     >
       {({ id, describedBy, send }) => (
         <ColorControl
@@ -182,12 +186,12 @@ function OwnTraits({
       )}
       <ul className="definition-traits">
         <TraitRow
-          label="Shape"
+          label={t('Shape')}
           source={originText(origins.shape, nameOf)}
           own={origins.shape.kind === 'own'}
           readOnly={disabled}
           inherit={() => changing({ shape: null })}
-          inheritLabel="Use the inherited shape"
+          inheritLabel={t('Use the inherited shape')}
         >
           {({ id, describedBy, send }) => (
             <SelectControl
@@ -202,20 +206,23 @@ function OwnTraits({
             >
               {SHAPES.map(({ shape, name }) => (
                 <option key={shape} value={shape}>
-                  {name}
+                  {t(name)}
                 </option>
               ))}
             </SelectControl>
           )}
         </TraitRow>
-        {colorRow('fill', 'Fill')}
-        {colorRow('stroke', 'Stroke')}
+        {colorRow('fill', t('Fill'))}
+        {colorRow('stroke', t('Stroke'))}
         <ElementImageTrait element={element} disabled={disabled} />
       </ul>
       <ColorHints id={hintId} hints={hints} />
       {(own.width !== undefined || own.height !== undefined) && (
         <p className="inspector-notes">
-          It also sets its own size: {own.width ?? shown.width} by {own.height ?? shown.height}.
+          {t('It also sets its own size: {width} by {height}.', {
+            width: own.width ?? shown.width,
+            height: own.height ?? shown.height,
+          })}
         </p>
       )}
       {ownTraits.length > 0 && (
@@ -225,7 +232,7 @@ function OwnTraits({
           disabled={disabled}
           onClick={() => void reset()}
         >
-          Use the component’s appearance
+          {t('Use the component’s appearance')}
         </button>
       )}
     </>
@@ -239,6 +246,7 @@ function OwnTraits({
  * follows; other elements with values of their own keep them.
  */
 function ComponentTraits({ element, definitions, disabled }: TraitsProps) {
+  const t = useT();
   const { project } = useEditor();
   const hintId = useId();
   const theme = useShownTheme();
@@ -248,7 +256,7 @@ function ComponentTraits({ element, definitions, disabled }: TraitsProps) {
   // The component's colors as the canvas draws them in the theme shown: its dark colors in the dark.
   const drawn = drawnColorsOf({ component: id }, definitions, theme);
   const stored = (trait: 'shape' | ColorTrait) => storedAtLevel(project, 'component', id, trait);
-  const nameOf = (each: Id) => componentOrEssence(definitions, each).name;
+  const nameOf = (each: Id) => t.definition(each, componentOrEssence(definitions, each).name);
   const own = element.appearance ?? {};
   const hints = shapeHints({
     light: drawnColorsOf({ component: id }, definitions, 'light'),
@@ -257,7 +265,12 @@ function ComponentTraits({ element, definitions, disabled }: TraitsProps) {
   const keeps = (trait: 'shape' | ColorTrait, what: string) =>
     own[trait] === undefined
       ? undefined
-      : `This element has a ${what} of its own: a change here takes it back, so that it follows.`;
+      : t(
+          'This element has a {what} of its own: a change here takes it back, so that it follows.',
+          {
+            what,
+          },
+        );
   const color = (trait: ColorTrait, value: string | null, always = false) =>
     definitionColorCommand(project, 'component', id, trait, value, element, { always, theme });
 
@@ -268,7 +281,7 @@ function ComponentTraits({ element, definitions, disabled }: TraitsProps) {
       own={stored(trait) !== undefined}
       readOnly={disabled}
       inherit={() => wayBack(color(trait, null))}
-      inheritLabel="Use the inherited color"
+      inheritLabel={t('Use the inherited color')}
       note={keeps(trait, label.toLowerCase())}
     >
       {({ id: controlId, describedBy, send }) => (
@@ -292,13 +305,13 @@ function ComponentTraits({ element, definitions, disabled }: TraitsProps) {
       <p className="inspector-notes">{savedIn(project.packages, component.package)}</p>
       <ul className="definition-traits">
         <TraitRow
-          label="Shape"
+          label={t('Shape')}
           source={originText(component.origins.shape, nameOf, id)}
           own={stored('shape') !== undefined}
           readOnly={disabled}
           inherit={() => wayBack(definitionShapeCommand(project, id, null, element))}
-          inheritLabel="Use the inherited shape"
-          note={keeps('shape', 'shape')}
+          inheritLabel={t('Use the inherited shape')}
+          note={keeps('shape', t('shape'))}
         >
           {({ id: controlId, describedBy, send }) => (
             <SelectControl
@@ -317,14 +330,14 @@ function ComponentTraits({ element, definitions, disabled }: TraitsProps) {
             >
               {SHAPES.map(({ shape, name }) => (
                 <option key={shape} value={shape}>
-                  {name}
+                  {t(name)}
                 </option>
               ))}
             </SelectControl>
           )}
         </TraitRow>
-        {colorRow('fill', 'Fill')}
-        {colorRow('stroke', 'Stroke')}
+        {colorRow('fill', t('Fill'))}
+        {colorRow('stroke', t('Stroke'))}
       </ul>
       <ColorHints id={hintId} hints={hints} />
     </>

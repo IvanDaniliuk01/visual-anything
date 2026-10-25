@@ -38,6 +38,7 @@ import {
 } from 'react';
 import { useEmphasis, type Emphasis } from '../editor/emphasis';
 import { useLendRenderer } from '../export/source';
+import { t as translateNow, useT, type Translator } from '../i18n';
 import { EMPTY_SELECTION, selectionOf, sizeOf, type Selection } from '../editor/selection';
 import { isTextEntry } from '../live/shortcuts';
 import { usePreferences } from '../theme/usePreferences';
@@ -179,6 +180,7 @@ export function CanvasArea({
   onThemeShown,
   onCanvas,
 }: CanvasAreaProps) {
+  const t = useT();
   const frameRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const captionRef = useRef<HTMLDivElement>(null);
@@ -263,7 +265,8 @@ export function CanvasArea({
   const send = async (command: Command): Promise<{ ok: boolean; created?: Id[] }> => {
     const sendNow = latest.current.onCommand;
     if (!sendNow) {
-      setAnnouncement((last) => ({ text: NOT_CONNECTED, count: last.count + 1 }));
+      // In the language read in when it is said; the controller calls this from its own callbacks.
+      setAnnouncement((last) => ({ text: translateNow(NOT_CONNECTED), count: last.count + 1 }));
       return { ok: false };
     }
     return sendNow(command);
@@ -450,8 +453,8 @@ export function CanvasArea({
   // The target set from a menu ends once the selection changes.
   const target = addTarget && addTarget.selection === selection ? addTarget.element : undefined;
   const adding = useMemo(
-    () => addRuleOf(project, view, indexed, selection, target),
-    [project, view, indexed, selection, target],
+    () => addRuleOf(t, project, view, indexed, selection, target),
+    [t, project, view, indexed, selection, target],
   );
 
   // The menus and dialogs can change nothing once the project cannot be changed, and the previews
@@ -481,7 +484,7 @@ export function CanvasArea({
   } else if (changing && changeProblem) {
     setChanging(undefined);
     setClosedByItself((count) => count + 1);
-    announce(changeProblem.message);
+    announce(t.message(changeProblem.message));
   } else if (chosenGone) {
     setChoosing(undefined);
     setClosedByItself((count) => count + 1);
@@ -503,8 +506,10 @@ export function CanvasArea({
     setClosedByItself((count) => count + 1);
     announce(
       editing.kind === 'element'
-        ? `${editing.shown} is no longer in this view, so its name was not changed.`
-        : 'The note is no longer in this view, so its text was not changed.',
+        ? t('{name} is no longer in this view, so its name was not changed.', {
+            name: editing.shown,
+          })
+        : t('The note is no longer in this view, so its text was not changed.'),
     );
   }
 
@@ -593,7 +598,7 @@ export function CanvasArea({
     const preview = previewChangeContainer(project, change);
     const [problem] = preview.problems;
     if (problem) {
-      announce(problem.message);
+      announce(t.message(problem.message));
       return;
     }
     if (needsConfirmation(preview)) {
@@ -606,7 +611,7 @@ export function CanvasArea({
   /** Sends a change of container, and says what it did once it is done. */
   const sendChange = async (command: Command, done: string) => {
     const result = await send(command);
-    if (result.ok) announce(`${done}.`);
+    if (result.ok) announce(`${t.message(done)}.`);
   };
 
   const add = async (component: Id) => {
@@ -785,7 +790,7 @@ export function CanvasArea({
         className="canvas-host"
         // The canvas takes its keys itself, so screen readers pass them on; the outline reads it.
         role="application"
-        aria-roledescription="canvas"
+        aria-roledescription={t('canvas')}
         aria-label={label}
         aria-describedby={hint}
         tabIndex={0}
@@ -802,9 +807,9 @@ export function CanvasArea({
         aria-hidden="true"
       />
       <p id={hint} className="visually-hidden">
-        {CANVAS_KEYS_HINT}
+        {t(CANVAS_KEYS_HINT)}
       </p>
-      <div role="status" aria-label="Selection" className="visually-hidden">
+      <div role="status" aria-label={t('Selection')} className="visually-hidden">
         {announcement.text}
         {announcement.count % 2 === 1 ? ' ' : ''}
       </div>
@@ -966,7 +971,7 @@ export function CanvasArea({
           rect={editedShape.rect}
           value={editedShape.name}
           multiline={false}
-          label={`Name of ${editedShape.name}`}
+          label={t('Name of {name}', { name: editedShape.name })}
           onCommit={(name) => {
             closeEditor();
             void send({ type: 'update-element', id: editedShape.element, changes: { name } });
@@ -991,7 +996,7 @@ export function CanvasArea({
           rect={editedNote.rect}
           value={editedNote.text}
           multiline
-          label="Text of the note"
+          label={t('Text of the note')}
           onCommit={(text) => {
             closeEditor();
             const note = view.freeShapes.find(
@@ -1005,10 +1010,14 @@ export function CanvasArea({
       )}
       {(failure ?? indexing.error) !== undefined ? (
         <p className="canvas-message canvas-failure" role="alert">
-          The canvas could not draw this view: {failure ?? indexing.error}
+          {t('The canvas could not draw this view: {why}', {
+            why: t.message(failure ?? indexing.error ?? ''),
+          })}
         </p>
       ) : (
-        scene.bounds === undefined && <p className="canvas-message">This view has no shapes yet.</p>
+        scene.bounds === undefined && (
+          <p className="canvas-message">{t('This view has no shapes yet.')}</p>
+        )
       )}
     </div>
   );
@@ -1024,6 +1033,7 @@ export function CanvasArea({
  * In a view arranged by no relation type that nests, always directly in World.
  */
 function addRuleOf(
+  t: Translator,
   project: ProjectSnapshot,
   view: ViewFile,
   indexed: IndexedScene | undefined,
@@ -1041,15 +1051,18 @@ function addRuleOf(
   const inside = (container: Id, title: string): { inside: Id; place: AddPlace } => ({
     inside: container,
     place: {
-      option: `Add inside "${nameOf(container)}"…`,
-      label: `Add an element inside "${nameOf(container)}"`,
+      option: t('Add inside "{name}"…', { name: nameOf(container) }),
+      label: t('Add an element inside "{name}"', { name: nameOf(container) }),
       title,
     },
   });
   const insideItself = (container: Id) =>
     inside(
       container,
-      `Adds the element inside "${nameOf(container)}". With nothing selected, elements are added directly in World.`,
+      t(
+        'Adds the element inside "{name}". With nothing selected, elements are added directly in World.',
+        { name: nameOf(container) },
+      ),
     );
   if (target !== undefined && index.element(target)) return insideItself(target);
   if (!first || selected === undefined) return {};
@@ -1059,16 +1072,22 @@ function addRuleOf(
     return {
       beside: first,
       place: {
-        option: 'Add element…',
-        label: 'Add an element',
-        title: `Adds the element directly in World, beside "${nameOf(selected)}". To add inside "${nameOf(selected)}" itself, use Add inside "${nameOf(selected)}"… in its menu or in the inspector.`,
+        option: t('Add element…'),
+        label: t('Add an element'),
+        title: t(
+          'Adds the element directly in World, beside "{name}". To add inside "{name}" itself, use Add inside "{name}"… in its menu or in the inspector.',
+          { name: nameOf(selected) },
+        ),
       },
     };
   }
   return {
     ...inside(
       first.container,
-      `Adds the element inside "${nameOf(first.container)}", where "${nameOf(selected)}" sits. To add inside "${nameOf(selected)}" itself, use Add inside "${nameOf(selected)}"… in its menu or in the inspector.`,
+      t(
+        'Adds the element inside "{container}", where "{name}" sits. To add inside "{name}" itself, use Add inside "{name}"… in its menu or in the inspector.',
+        { container: nameOf(first.container), name: nameOf(selected) },
+      ),
     ),
     beside: first,
   };

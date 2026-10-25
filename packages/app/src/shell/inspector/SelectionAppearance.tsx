@@ -1,8 +1,8 @@
 import { sameColor } from '@visual-anything/core';
 import { useId } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { useT } from '../../i18n';
 import { Field } from '../definitions/Field';
-import { count } from './describe';
 import type { ColorTrait } from './colors';
 import { ColorControl } from './controls';
 import { selectionColorCommand, selectionColors } from './recolor';
@@ -15,6 +15,7 @@ import { useShownTheme } from './useShownTheme';
  * it would show that color without one.
  */
 export function SelectionAppearance() {
+  const t = useT();
   const { project, viewId, selection, send } = useEditor();
   const headingId = useId();
   const theme = useShownTheme();
@@ -34,21 +35,32 @@ export function SelectionAppearance() {
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>Appearance of {count(shapes, 'shape')}</h4>
+      <h4 id={headingId}>
+        {t(
+          { one: 'Appearance of {count} shape', other: 'Appearance of {count} shapes' },
+          { count: shapes },
+        )}
+      </h4>
       {shown.map(({ trait, label, first, colors }) => (
         <Field
           key={trait}
-          label={label}
+          label={t(label)}
           note={
             trait === 'fill' && colors.length < shapes
-              ? `For the ${count(colors.length, 'shape')} with a fill.`
+              ? t(
+                  {
+                    one: 'For the {count} shape with a fill.',
+                    other: 'For the {count} shapes with a fill.',
+                  },
+                  { count: colors.length },
+                )
               : undefined
           }
         >
           {({ id, describedBy, send: sendCommand }) => (
             <ColorControl
               id={id}
-              label={label}
+              label={t(label)}
               value={first}
               mixed={colors.some((color) => !sameColor(color, first))}
               disabled={disabled}

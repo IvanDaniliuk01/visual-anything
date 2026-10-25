@@ -70,7 +70,13 @@ export function RowsSection({ element }: { element: Element }) {
   const detailOf = (id: Id) => {
     const row = index.element(id);
     return row
-      ? detailText(detailParts(row, definitionsIn(project), started.get(id) ?? new Set()))
+      ? detailText(
+          detailParts(row, definitionsIn(project), started.get(id) ?? new Set()).map((part) =>
+            part.kind === 'component-name'
+              ? { ...part, text: t.definition(row.component, part.text) }
+              : part,
+          ),
+        )
       : '';
   };
 
