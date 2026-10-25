@@ -161,7 +161,11 @@ describe('set-component-appearance', () => {
       appearanceTraits: { stroke: null },
     });
     expect(component(traits.state, 'clinic.desk')?.appearance).toEqual({ fill: '#FFE8D6' });
-    const reset = ok({ type: 'set-component-appearance', component: 'clinic.desk', appearance: null });
+    const reset = ok({
+      type: 'set-component-appearance',
+      component: 'clinic.desk',
+      appearance: null,
+    });
     expect(component(reset.state, 'clinic.desk')).not.toHaveProperty('appearance');
     expect(reset.label).toBe('Reset the appearance of the component "Desk"');
   });
@@ -180,7 +184,11 @@ describe('set-component-appearance', () => {
     expect(outcome.label).toBe('Forget the appearance given to "nowhere.thing"');
     expect(
       refused(
-        { type: 'set-component-appearance', component: 'nowhere.thing', appearance: { fill: '#000000' } },
+        {
+          type: 'set-component-appearance',
+          component: 'nowhere.thing',
+          appearance: { fill: '#000000' },
+        },
         before,
       ),
     ).toEqual(['unknown-component']);
@@ -221,15 +229,15 @@ describe('set-component-appearance', () => {
         appearanceTraits: { stroke: '#000000' },
       }),
     ).toEqual(['invalid-command']);
-    expect(
-      refused({ type: 'set-component-appearance', component: 'systems.service' } as Command),
-    ).toEqual(['invalid-command']);
+    expect(refused({ type: 'set-component-appearance', component: 'systems.service' })).toEqual([
+      'invalid-command',
+    ]);
   });
 
   it('refuses a detail that names an attribute the component does not have', () => {
-    expect(
-      refused(setService({ detail: { attributes: ['technology', 'nonsense'] } })),
-    ).toEqual(['unknown-attribute']);
+    expect(refused(setService({ detail: { attributes: ['technology', 'nonsense'] } }))).toEqual([
+      'unknown-attribute',
+    ]);
     expect(ok(setService({ detail: { attributes: ['technology'] } })).ok).toBe(true);
   });
 });
@@ -513,7 +521,12 @@ describe('the colors of definitions the project defines', () => {
     const plain = ok({
       type: 'define-relation-type',
       package: 'clinic',
-      relationType: { id: 'clinic.plain', name: 'plain', derivesFrom: 'relates-to', appearance: {} },
+      relationType: {
+        id: 'clinic.plain',
+        name: 'plain',
+        derivesFrom: 'relates-to',
+        appearance: {},
+      },
     });
     expect(relationType(plain.state, 'clinic.plain')).not.toHaveProperty('appearance');
   });
@@ -607,7 +620,11 @@ describe('the colors of notes and free arrows', () => {
     expect(shapes(moved.state)[0]).toEqual({ ...note, x: 40, fill: '#FFF4E5', stroke: '#B4531A' });
     // Picked again in another case: nothing changes.
     const same = ok(
-      { type: 'update-free-shape', view: 'overview', shape: { ...note, x: 40, fill: '#FFF4E5', stroke: '#b4531a' } },
+      {
+        type: 'update-free-shape',
+        view: 'overview',
+        shape: { ...note, x: 40, fill: '#FFF4E5', stroke: '#b4531a' },
+      },
       moved.state,
     );
     expect(same.state).toStrictEqual(moved.state);

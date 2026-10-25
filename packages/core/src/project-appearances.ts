@@ -48,6 +48,21 @@ export function editableAppearanceOf(
 /** The project appearance a project gives a definition, by own key only. */
 export function projectAppearanceOf(
   state: ProjectSnapshot,
+  kind: 'component',
+  id: Id,
+): Appearance | undefined;
+export function projectAppearanceOf(
+  state: ProjectSnapshot,
+  kind: 'relation-type',
+  id: Id,
+): RelationAppearance | undefined;
+export function projectAppearanceOf(
+  state: ProjectSnapshot,
+  kind: 'component' | 'relation-type',
+  id: Id,
+): Appearance | RelationAppearance | undefined;
+export function projectAppearanceOf(
+  state: ProjectSnapshot,
   kind: 'component' | 'relation-type',
   id: Id,
 ): Appearance | RelationAppearance | undefined {

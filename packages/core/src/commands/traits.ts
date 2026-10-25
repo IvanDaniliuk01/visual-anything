@@ -285,7 +285,12 @@ export function changedAppearance(
       if (detail === undefined) delete next.detail;
       else next.detail = detail;
     } else {
-      next[trait] = checkedTrait(trait as keyof Appearance, value, of, own?.[trait as keyof Appearance]);
+      next[trait] = checkedTrait(
+        trait as keyof Appearance,
+        value,
+        of,
+        own?.[trait as keyof Appearance],
+      );
     }
   }
   if (Object.hasOwn(changes, 'shape') || Object.hasOwn(changes, 'contentsAsRows')) {

@@ -171,8 +171,7 @@ export function updateElement(draft: Draft, command: UpdateElementCommand): stri
 function onlyAppearance(changes: object): boolean {
   const named = Object.entries(changes).filter(([, value]) => value !== undefined);
   return (
-    named.length > 0 &&
-    named.every(([key]) => key === 'appearance' || key === 'appearanceTraits')
+    named.length > 0 && named.every(([key]) => key === 'appearance' || key === 'appearanceTraits')
   );
 }
 

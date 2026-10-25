@@ -138,8 +138,7 @@ export type TraitSource = Id;
  * built-in packages, whose colors take their dark shades while they come through the definition.
  */
 export type TraitOrigin =
-  | { kind: 'own' }
-  | { kind: 'definition'; id: Id; via: 'definition' | 'project'; builtIn: boolean };
+  { kind: 'own' } | { kind: 'definition'; id: Id; via: 'definition' | 'project'; builtIn: boolean };
 
 /** One appearance an appearance is worked out from, and where its traits come from. */
 export interface AppearanceMember {

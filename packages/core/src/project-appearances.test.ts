@@ -141,7 +141,9 @@ describe('project appearances', () => {
   });
 
   it('share one result for the same packages and appearances, and none means as the packages define it', () => {
-    const appearances: ProjectAppearances = { components: { 'systems.service': { fill: '#FFE8D6' } } };
+    const appearances: ProjectAppearances = {
+      components: { 'systems.service': { fill: '#FFE8D6' } },
+    };
     expect(definitionsOf(PACKAGES, appearances)).toBe(definitionsOf(PACKAGES, appearances));
     expect(definitionsOf(PACKAGES)).toBe(definitionsOf(PACKAGES));
     expect(definitionsOf(PACKAGES, appearances)).not.toBe(definitionsOf(PACKAGES));
@@ -227,9 +229,7 @@ describe('where each trait comes from', () => {
       width: builtIn('systems.communicates-with', 'project'),
       dash: { kind: 'own' },
     });
-    expect(
-      relationAppearanceOriginsOf({ relationType: 'clinic.escalates' }, definitions),
-    ).toEqual({
+    expect(relationAppearanceOriginsOf({ relationType: 'clinic.escalates' }, definitions)).toEqual({
       stroke: ours('clinic.escalates'),
       width: ours('clinic.escalates'),
       dash: builtIn('relates-to'),
@@ -346,9 +346,7 @@ describe('the dark theme', () => {
     expect(relationDarkStrokeOf({ relationType: 'systems.writes-to' }, definitions)).toBe(
       '#B42318',
     );
-    expect(relationDarkStrokeOf({ relationType: 'clinic.escalates' }, definitions)).toBe(
-      '#B42318',
-    );
+    expect(relationDarkStrokeOf({ relationType: 'clinic.escalates' }, definitions)).toBe('#B42318');
     expect(
       relationDarkStrokeOf(
         { relationType: 'clinic.reminds', appearance: { stroke: '#D6336C' } },
@@ -450,7 +448,11 @@ const partialAppearance: fc.Arbitrary<Appearance> = fc.record(
   { requiredKeys: [] },
 );
 const relationAppearance: fc.Arbitrary<RelationAppearance> = fc.record(
-  { stroke: color, width: fc.integer({ min: 1, max: 6 }), dash: fc.constantFrom('dashed', 'dotted') },
+  {
+    stroke: color,
+    width: fc.integer({ min: 1, max: 6 }),
+    dash: fc.constantFrom('dashed', 'dotted'),
+  },
   { requiredKeys: [] },
 );
 
@@ -576,7 +578,10 @@ describe('resolution, as a property', () => {
             { appearance: entry, origin: builtIn('systems.link', 'project') },
             { appearance: definition, origin: builtIn('systems.link') },
             { appearance: relatesTo, origin: builtIn('relates-to', 'project') },
-            { appearance: { stroke: '#52606D', width: 2, dash: 'solid' }, origin: builtIn('relates-to') },
+            {
+              appearance: { stroke: '#52606D', width: 2, dash: 'solid' },
+              origin: builtIn('relates-to'),
+            },
           ];
           for (const trait of ['stroke', 'width', 'dash'] as const) {
             const first = order.find((each) => each.appearance?.[trait] !== undefined);
