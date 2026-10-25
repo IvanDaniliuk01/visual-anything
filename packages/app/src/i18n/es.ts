@@ -699,6 +699,17 @@ export const ui: Catalog = {
   'A row moves with its container, and keeps its place among the rows.':
     'Una fila se mueve con su contenedor y mantiene su lugar entre las filas.',
   'Not drawn: inside a row': 'No se dibuja: dentro de una fila',
+  'Make it a row of "{target}"': 'Convertirlo en una fila de "{target}"',
+  'Make {count} elements rows of "{target}"': 'Convertir {count} elementos en filas de "{target}"',
+  'Before "{row}"': 'Antes de "{row}"',
+  'As its first row': 'Como su primera fila',
+  'After its last row': 'Después de su última fila',
+  'Only a {allowed} can be a row of "{target}", through "{type}"':
+    'Solo un elemento {allowed} puede ser una fila de "{target}", mediante "{type}"',
+  'No relation type that nests can make it a row of "{target}"':
+    'Ningún tipo de relación que anida puede convertirlo en una fila de "{target}"',
+  'Nothing can be put inside it in this view': 'En esta vista no se puede poner nada dentro',
+  '{first} or {last}': '{first} o {last}',
 
   // The canvas's keyboard help.
   Keyboard: 'Teclado',

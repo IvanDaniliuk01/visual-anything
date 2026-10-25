@@ -198,6 +198,8 @@ export interface Overlay {
     pending?: Rect;
     /** A container they may not go into. */
     refused?: Rect;
+    /** Where among the rows of the container they would become rows: a bar across it. */
+    slot?: Rect;
   };
   /** Where dropped shapes will be while their change waits to be confirmed. */
   ghost?: Rect[];
@@ -2325,6 +2327,11 @@ export class CanvasRenderer {
     if (drop?.leaving) outline(drop.leaving, selected, width);
     if (drop?.pending) outline(drop.pending, selected, width * 0.75);
     if (drop?.refused) outline(drop.refused, refused, width * 2);
+    if (drop?.slot) {
+      const bar = drop.slot;
+      const thick = Math.max(bar.height, 3 / this.camera.scale);
+      marks.rect(bar.x, bar.y - thick / 2, bar.width, thick).fill({ color: selected });
+    }
     if (box) {
       marks
         .rect(box.x, box.y, box.width, box.height)
