@@ -1,12 +1,14 @@
 /**
  * The inspector's controls. Each one changes the project with one command, and so one undoable
- * action: text when it is committed with Enter or by leaving it, checkboxes and colours on `change`,
+ * action: text when it is committed with Enter or by leaving it, checkboxes and colors on `change`,
  * and selects when an option is picked from the list, or, when the arrow keys go through a closed
  * select, with Enter or by leaving it. Until the project shows the result, a control shows what was
  * chosen; then it shows the project's value again, which after a refusal is the value it had. What is
  * committed while an earlier commit is on its way is compared with that one, not with the value the
  * project still shows.
  */
+import { sameColor } from '@visual-anything/core';
+import type { Color } from '@visual-anything/schema';
 import {
   useEffect,
   useEffectEvent,
@@ -17,8 +19,9 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { COLOR_FORMS, readColor, sameColor } from '../../color';
+import { COLOR_FORMS, readColor } from '../../color';
 import type { FocusKeeper } from './focus';
+import { useColorChoices } from './useColorChoices';
 
 /** What every control takes. */
 interface ControlProps {
@@ -342,18 +345,28 @@ export function SelectControl({
 }
 
 interface ColorControlProps extends ControlProps {
-  /** What the colour is for, such as "Fill": the code box is named after it. */
+  /** What the color is for, such as "Fill": the code box and the swatches are named after it. */
   label: string;
-  /** The project's colour, as `#rrggbb`. */
-  value: string;
-  onCommit: (color: string) => Promise<unknown>;
+  /** The color shown, as `#RRGGBB`; for shapes whose colors differ, the first of them. */
+  value: Color;
+  /** Whether the shapes the control changes show different colors: it then says "Mixed". */
+  mixed?: boolean;
+  /**
+   * Commits a color, in capitals, that differs from the one shown; resolves once the project shows it,
+   * to `false` when it was not done. A color that was done goes first among the recent colors.
+   * `waiting` says that an earlier commit of this control has not been answered yet, so that the
+   * project does not show it yet: the command must then not be left out because the project shows
+   * the color picked.
+   */
+  onCommit: (color: Color, pick: { waiting: boolean }) => Promise<unknown>;
 }
 
 /**
- * A colour, chosen with the browser's picker or written as a code, such as #f3f5f8. The picker commits
- * when the browser says a colour was chosen: on the input's `change` event, which React does not tell
- * apart from `input` for colours, so the control listens for it itself; while the picker is open, the
- * swatch shows what it points at. The code commits with Enter or by leaving it, and Escape cancels it.
+ * A color, chosen with the browser's picker, from the swatches of recent and project colors, or written
+ * as a code, such as #F3F5F8. The picker commits when the browser says a color was chosen: on the
+ * input's `change` event, which React does not tell apart from `input` for colors, so the control
+ * listens for it itself; while the picker is open, the swatch shows what it points at. The code commits
+ * with Enter or by leaving it, and Escape cancels it. The color shown is never sent again.
  */
 export function ColorControl({
   id,
@@ -364,27 +377,40 @@ export function ColorControl({
   focusKeeper,
   label,
   value,
+  mixed = false,
   onCommit,
 }: ColorControlProps) {
-  const [draft, setDraft] = useState<string>();
+  const [draft, setDraft] = useState<Color>();
   const [code, setCode] = useState<{ text: string; problem?: string }>();
-  // The colour last sent, until its answer comes.
-  const sent = useRef<string | undefined>(undefined);
+  // The color last sent, until its answer comes.
+  const sent = useRef<Color | undefined>(undefined);
   const control = useRef<HTMLInputElement>(null);
   useFocus(control, focusRequest, onFocused, focusKeeper);
-  const shown = (draft ?? readColor(value) ?? value).toLowerCase();
+  const { suggestions, remember } = useColorChoices();
+  const shown = (draft ?? readColor(value) ?? value).toUpperCase();
+  const isMixed = mixed && draft === undefined;
   const codeId = `${id}-code`;
   const problemId = `${id}-code-problem`;
+  const mixedId = `${id}-mixed`;
 
-  const choose = (color: string) => {
-    if (sameColor(color, sent.current ?? value)) {
+  const choose = (picked: string) => {
+    const color = readColor(picked);
+    if (color === undefined) return;
+    const base = sent.current ?? (mixed ? undefined : value);
+    if (base !== undefined && sameColor(color, base)) {
       setDraft(sent.current);
       return;
     }
+    const waiting = sent.current !== undefined;
     sent.current = color;
     setDraft(color);
     void (async () => {
-      await attempt(() => onCommit(color));
+      // A refusal the live session already shows as a notice; the control shows the project's value.
+      const done = await onCommit(color, { waiting }).then(
+        (result) => result !== false,
+        () => false,
+      );
+      if (done) remember(color);
       if (sent.current === color) sent.current = undefined;
       setDraft((current) => (current === color ? undefined : current));
     })();
@@ -418,23 +444,31 @@ export function ColorControl({
   };
 
   return (
-    <span className="inspector-color">
-      <input
-        ref={control}
-        id={id}
-        type="color"
-        value={shown}
-        disabled={disabled}
-        aria-describedby={describedBy}
-        onChange={(event) => setDraft(event.target.value)}
-      />
+    <span className={isMixed ? 'inspector-color is-mixed' : 'inspector-color'}>
+      <span className="inspector-color-swatch">
+        <input
+          ref={control}
+          id={id}
+          type="color"
+          value={shown.toLowerCase()}
+          disabled={disabled}
+          aria-describedby={describedByOf(describedBy, isMixed ? mixedId : undefined)}
+          onChange={(event) => setDraft(event.target.value.toUpperCase())}
+        />
+        {isMixed && (
+          <span id={mixedId} className="inspector-color-mixed">
+            Mixed
+          </span>
+        )}
+      </span>
       <input
         id={codeId}
         type="text"
         className="inspector-color-code"
-        value={code?.text ?? shown}
+        value={code?.text ?? (isMixed ? '' : shown)}
+        placeholder={isMixed ? 'Mixed' : undefined}
         disabled={disabled}
-        aria-label={`${label} colour code`}
+        aria-label={`${label} color code`}
         aria-describedby={describedByOf(code?.problem === undefined ? undefined : problemId)}
         aria-invalid={code?.problem === undefined ? undefined : true}
         spellCheck={false}
@@ -452,6 +486,76 @@ export function ColorControl({
         }}
       />
       {code?.problem !== undefined && <InlineProblem id={problemId} text={code.problem} inline />}
+      {suggestions.length > 0 && (
+        <Swatches
+          label={label}
+          colors={suggestions}
+          disabled={disabled}
+          onPick={(color) => choose(color)}
+        />
+      )}
+    </span>
+  );
+}
+
+interface SwatchesProps {
+  label: string;
+  colors: readonly Color[];
+  disabled: boolean;
+  onPick: (color: Color) => void;
+}
+
+/**
+ * The colors offered for a trait, as buttons named like "Use #DCEBFF": one Tab stop, and the arrow
+ * keys, Home and End move between them. No `<datalist>`, which Firefox does not show for colors.
+ */
+function Swatches({ label, colors, disabled, onPick }: SwatchesProps) {
+  const [active, setActive] = useState(0);
+  const buttons = useRef<(HTMLButtonElement | null)[]>([]);
+  const current = Math.min(active, colors.length - 1);
+
+  const move = (event: KeyboardEvent, at: number) => {
+    const last = colors.length - 1;
+    const next =
+      event.key === 'ArrowRight' || event.key === 'ArrowDown'
+        ? Math.min(at + 1, last)
+        : event.key === 'ArrowLeft' || event.key === 'ArrowUp'
+          ? Math.max(at - 1, 0)
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? last
+              : undefined;
+    if (next === undefined) return;
+    event.preventDefault();
+    setActive(next);
+    buttons.current[next]?.focus();
+  };
+
+  return (
+    <span
+      role="group"
+      className="inspector-swatches"
+      aria-label={`Recent and project colors for ${label.toLowerCase()}`}
+    >
+      {colors.map((color, at) => (
+        <button
+          key={color}
+          ref={(button) => {
+            buttons.current[at] = button;
+          }}
+          type="button"
+          className="inspector-swatch"
+          style={{ backgroundColor: color }}
+          tabIndex={at === current ? 0 : -1}
+          disabled={disabled}
+          aria-label={`Use ${color}`}
+          title={color}
+          onFocus={() => setActive(at)}
+          onKeyDown={(event) => move(event, at)}
+          onClick={() => onPick(color)}
+        />
+      ))}
     </span>
   );
 }

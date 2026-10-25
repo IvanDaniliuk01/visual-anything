@@ -238,8 +238,11 @@ describe('drawShapeBlocks', () => {
 
   it('outlines containers, and plain blocks whose fill would not stand out from the canvas', () => {
     const pale = shapeOf('whatsapp');
-    const dark = { ...pale, key: 'dark', fill: '#1F2933', stroke: '#000000' };
-    expect([...blocks([dark]).keys()]).toEqual(['#1F2933']);
+    // A mid gray stands out from both canvases; a near black would vanish on the dark one.
+    const gray = { ...pale, key: 'gray', fill: '#808080', stroke: '#000000' };
+    expect([...blocks([gray]).keys()]).toEqual(['#808080']);
+    const dark = { ...pale, key: 'dark', fill: '#1F2933', stroke: '#9AA5B1' };
+    expect(blocks([dark]).get('#9AA5B1')).toMatchObject([dark.rect]);
     const outlined = blocks([pale]);
     expect(outlined.get(pale.stroke)).toMatchObject([pale.rect]);
     // The fill sits inside the outline, so that nothing is drawn beyond the shape.

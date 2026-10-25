@@ -20,8 +20,10 @@ import {
   type Command,
   type ContainerChangePreview,
   type ProjectSnapshot,
+  type ThemeName,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
+import type { CanvasTheme } from '../theme/themes';
 import {
   EMPTY_SELECTION,
   isEmpty,
@@ -122,6 +124,8 @@ export interface ControllerCallbacks {
    * end, and to edit its name in place, as Ctrl+Enter does (ADR 0023).
    */
   addRow?(container: ElementShape, below?: Id): void;
+  /** Says that the canvas shows a theme, in the frame that first shows it (ADR-0033). */
+  themeShown?(theme: ThemeName): void;
 }
 
 /**
@@ -145,6 +149,8 @@ export interface ChangeToConfirm {
 export interface ControllerOptions {
   /** Where the caption that says what a drop would do is written, beside the pointer. */
   caption?: HTMLElement;
+  /** The theme the canvas starts in; the light theme by default. */
+  theme?: CanvasTheme;
 }
 
 type Gesture =
@@ -320,10 +326,15 @@ export class CanvasController {
     options: ControllerOptions = {},
   ) {
     this.caption = options.caption;
-    this.renderer = new CanvasRenderer(host, {
-      onFailure: (error) => callbacks.failure(error),
-      onCamera: (camera) => callbacks.camera(camera),
-    });
+    this.renderer = new CanvasRenderer(
+      host,
+      {
+        onFailure: (error) => callbacks.failure(error),
+        onCamera: (camera) => callbacks.camera(camera),
+        onThemeShown: (theme) => callbacks.themeShown?.(theme),
+      },
+      options.theme ? { theme: options.theme } : {},
+    );
     host.addEventListener('pointerdown', this.onPointerDown);
     host.addEventListener('pointermove', this.onPointerMove);
     host.addEventListener('pointerup', this.onPointerUp);
