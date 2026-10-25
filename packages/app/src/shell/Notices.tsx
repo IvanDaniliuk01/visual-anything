@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore, type FocusEvent, type MouseEvent } from 'react';
 import type { Notice, NoticeLevel } from '../live/connection';
+import { useT } from '../i18n';
 import { useLive } from '../live/context';
 
 /** How long info stays before it goes by itself; warnings and errors stay until dismissed. */
@@ -48,6 +49,7 @@ interface NoticeItemProps {
  * while the tab is hidden, so that nobody misses it.
  */
 function NoticeItem({ notice, dismiss }: NoticeItemProps) {
+  const t = useT();
   const { id, level, message } = notice;
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -93,12 +95,17 @@ function NoticeItem({ notice, dismiss }: NoticeItemProps) {
       <p className="notice-message" role={level === 'error' ? 'alert' : 'status'}>
         {label !== undefined && (
           <>
-            <strong className="notice-level">{label}</strong>{' '}
+            <strong className="notice-level">{t(label)}</strong>{' '}
           </>
         )}
-        {message}
+        {t.message(message)}
       </p>
-      <button type="button" className="notice-dismiss" aria-label="Dismiss" onClick={onDismiss}>
+      <button
+        type="button"
+        className="notice-dismiss"
+        aria-label={t('Dismiss')}
+        onClick={onDismiss}
+      >
         <span aria-hidden="true">×</span>
       </button>
     </div>

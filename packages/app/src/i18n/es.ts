@@ -71,11 +71,173 @@ import type { Catalog } from './translate';
 
 /** The app's own texts, keyed by the exact English given to `t()`. */
 export const ui: Catalog = {
-  Undo: 'Deshacer',
-  Redo: 'Rehacer',
+  // Words many screens use.
+  Cancel: 'Cancelar',
+  Create: 'Crear',
+  Delete: 'Eliminar',
+  Description: 'Descripción',
+  Name: 'Nombre',
+  Perspective: 'Perspectiva',
+  Rename: 'Cambiar nombre',
+  Close: 'Cerrar',
+  World: 'Mundo',
+  Note: 'Nota',
+  Arrow: 'Flecha',
+  '{count} elements': { one: '{count} elemento', other: '{count} elementos' },
+  '{count} relations': { one: '{count} relación', other: '{count} relaciones' },
+  '{count} free shapes': { one: '{count} forma libre', other: '{count} formas libres' },
   '{count} steps': { one: '{count} paso', other: '{count} pasos' },
+  '{first} and {last}': '{first} y {last}',
+
+  // The app, while it connects and when it cannot.
+  'Connecting to Visual Anything…': 'Conectando con Visual Anything…',
+  'Waiting for the local program to send the project.':
+    'Esperando a que el programa local envíe el proyecto.',
+  'Press o in the terminal where Visual Anything runs to open a new tab, or start Visual Anything again.':
+    'Presionar o en la terminal donde se ejecuta Visual Anything para abrir una pestaña nueva, o iniciar Visual Anything de nuevo.',
+  'The connection to Visual Anything closed, so what you see may be out of date. Press o in the terminal where Visual Anything runs to open a new tab, or start Visual Anything again.':
+    'Se cerró la conexión con Visual Anything, así que lo que se ve puede estar desactualizado. Presionar o en la terminal donde se ejecuta Visual Anything para abrir una pestaña nueva, o iniciar Visual Anything de nuevo.',
+  'This tab has no session token': 'Esta pestaña no tiene token de sesión',
+  'Visual Anything connects only to a tab it opened, through an address that works once.':
+    'Visual Anything solo se conecta con una pestaña que abrió, mediante una dirección que funciona una sola vez.',
+  'Visual Anything refused the connection': 'Visual Anything rechazó la conexión',
+  'It may not be running, this tab may hold the token of an earlier session, or its address was already used: an address works once, within two minutes.':
+    'Puede que no se esté ejecutando, que esta pestaña tenga el token de una sesión anterior o que su dirección ya se haya usado: una dirección funciona una sola vez, dentro de los dos minutos.',
+  'Visual Anything sent something this app cannot read':
+    'Visual Anything envió algo que esta app no puede leer',
+  'The app and the local program may come from different versions. Restart Visual Anything: it opens a new tab.':
+    'Puede que la app y el programa local sean de versiones distintas. Reiniciar Visual Anything: abre una pestaña nueva.',
+  'Visual Anything could not show this project': 'Visual Anything no pudo mostrar este proyecto',
+  'Check the project’s files, then restart Visual Anything and open the address it prints.':
+    'Revisar los archivos del proyecto, luego reiniciar Visual Anything y abrir la dirección que muestra.',
+
+  // The live connection's notices.
+  'Visual Anything is not connected, so nothing was changed.':
+    'Visual Anything no está conectado, así que no se cambió nada.',
+  'The connection to Visual Anything closed before it answered.':
+    'La conexión con Visual Anything se cerró antes de que respondiera.',
+  'This tab’s copy of the project fell out of step with Visual Anything, so it is getting the project again.':
+    'La copia del proyecto de esta pestaña se desfasó con Visual Anything, así que está obteniendo el proyecto de nuevo.',
+  'This tab’s copy of the project fell out of step with Visual Anything again: {why}':
+    'La copia del proyecto de esta pestaña volvió a desfasarse con Visual Anything: {why}',
+  'Visual Anything sent a change before the project.':
+    'Visual Anything envió un cambio antes del proyecto.',
+  'Could not undo.': 'No se pudo deshacer.',
+  'Could not redo.': 'No se pudo rehacer.',
   'Could not undo: {why}': 'No se pudo deshacer: {why}',
   'Could not redo: {why}': 'No se pudo rehacer: {why}',
+  'Reloaded the project: {why}': 'Se volvió a cargar el proyecto: {why}',
+  'Warning:': 'Advertencia:',
+  Dismiss: 'Descartar',
+
+  // The header.
+  Project: 'Proyecto',
+  View: 'Vista',
+  Undo: 'Deshacer',
+  Redo: 'Rehacer',
+  'Undo: {action}': 'Deshacer: {action}',
+  'Redo: {action}': 'Rehacer: {action}',
+  'Undo Claude’s action: {action}': 'Deshacer la acción de Claude: {action}',
+  'Redo Claude’s action: {action}': 'Rehacer la acción de Claude: {action}',
+  'Nothing to undo': 'Nada que deshacer',
+  'Nothing to redo': 'Nada que rehacer',
+  'Undo history': 'Historial para deshacer',
+  'Visual Anything is not connected': 'Visual Anything no está conectado',
+  Language: 'Idioma',
+  'Match the browser ({language})': 'Usar el idioma del navegador ({language})',
+  'Your language applies to this tab only: Visual Anything is not connected.':
+    'El idioma se aplica solo a esta pestaña: Visual Anything no está conectado.',
+  Theme: 'Tema',
+  'Match the system': 'Usar el tema del sistema',
+  'Match the system (light now)': 'Usar el tema del sistema (ahora claro)',
+  'Match the system (dark now)': 'Usar el tema del sistema (ahora oscuro)',
+  Light: 'Claro',
+  Dark: 'Oscuro',
+  'Your theme applies to this tab only: Visual Anything is not connected.':
+    'El tema se aplica solo a esta pestaña: Visual Anything no está conectado.',
+  'Could not change your preferences: {why}': 'No se pudieron cambiar las preferencias: {why}',
+
+  // The shell and the canvas's text alternative.
+  Canvas: 'Lienzo',
+  'There is no view to draw.': 'No hay ninguna vista para dibujar.',
+  '{count} element shapes': {
+    one: '{count} forma de elemento',
+    other: '{count} formas de elementos',
+  },
+  '{view}, from the {perspective} perspective: {shapes}, {relations} and {free}.':
+    '{view}, desde la perspectiva {perspective}: {shapes}, {relations} y {free}.',
+
+  // The Model tab.
+  'World holds no elements yet.': 'Mundo todavía no contiene elementos.',
+  Views: 'Vistas',
+  Scenarios: 'Escenarios',
+  '{count} steps over {view}': {
+    one: '{count} paso sobre {view}',
+    other: '{count} pasos sobre {view}',
+  },
+  'This project has no scenarios yet.': 'Este proyecto todavía no tiene escenarios.',
+
+  // The views.
+  'This project has no views yet.': 'Este proyecto todavía no tiene vistas.',
+  'New view…': 'Nueva vista…',
+  'New view': 'Nueva vista',
+  'This view is open on the canvas': 'Esta vista está abierta en el lienzo',
+  'Open "{name}" on the canvas': 'Abrir "{name}" en el lienzo',
+  // A badge: the view is open.
+  Open: 'Abierta',
+  'Settings of "{name}"': 'Ajustes de "{name}"',
+  Settings: 'Ajustes',
+  'A view needs a name.': 'Una vista necesita un nombre.',
+  'A perspective needs a name, such as Security.':
+    'Una perspectiva necesita un nombre, como Seguridad.',
+  'What the perspective looks at': 'Lo que mira la perspectiva',
+  'Nesting relation types': 'Tipos de relación que anidan',
+  'The relation types whose relations put shapes inside containers in this view.':
+    'Los tipos de relación cuyas relaciones ubican formas dentro de contenedores en esta vista.',
+  'The packages in use define no relation type that nests.':
+    'Los paquetes en uso no definen ningún tipo de relación que anide.',
+  '{names} play over this view, so it cannot be deleted.': {
+    one: '{names} se reproduce sobre esta vista, así que no se puede eliminar.',
+    other: '{names} se reproducen sobre esta vista, así que no se puede eliminar.',
+  },
+  'Delete "{name}"?': '¿Eliminar "{name}"?',
+  'Delete "{name}"? Its positions, stacking order and free shapes go with it; the model stays as it is. Undo brings it back.':
+    '¿Eliminar "{name}"? Sus posiciones, su orden de apilado y sus formas libres se van con ella; el modelo queda como está. Deshacer la recupera.',
+  'Keep it': 'Conservar',
+  'Delete view…': 'Eliminar vista…',
+  'Give the view a name.': 'La vista necesita un nombre.',
+  'Name the perspective it is seen from, such as Security or Ownership.':
+    'Nombrar la perspectiva desde la que se ve, como Seguridad o Propiedad.',
+  'Security overview': 'Resumen de seguridad',
+  Security: 'Seguridad',
+  'Every relation type that nests arranges it at first; its settings change that.':
+    'Al principio la organizan todos los tipos de relación que anidan; sus ajustes lo cambian.',
+
+  // The outline.
+  'There is no view to outline.': 'No hay ninguna vista para mostrar en el esquema.',
+  'This view has no shapes yet.': 'Esta vista todavía no tiene formas.',
+  Outline: 'Esquema',
+  'Outline of {view}': 'Esquema de {view}',
+  '{component}, collapsed: {count} inside': '{component}, contraído: {count} dentro',
+  'an aggregated relation': 'una relación agregada',
+  '{count} relations "{type}" from {from} to {to}, aggregated': {
+    one: '{count} relación "{type}" de {from} a {to}, agregada',
+    other: '{count} relaciones "{type}" de {from} a {to}, agregadas',
+  },
+
+  // What the canvas says about what it selected.
+  'in {container} and {others}': 'en {container} y {others}',
+  'in {container}': 'en {container}',
+  '{count} other containers': { one: '{count} contenedor más', other: '{count} contenedores más' },
+  'no relations': 'ninguna relación',
+  'A relation that no longer exists.': 'Una relación que ya no existe.',
+  ', ending on {end}': ', que termina en {end}',
+  ', relation {position} of {count} of {element}': ', relación {position} de {count} de {element}',
+  'Nothing is selected.': 'No hay nada seleccionado.',
+  '1 element selected.': '1 elemento seleccionado.',
+  'Note: {text}': 'Nota: {text}',
+  'Arrow.': 'Flecha.',
+  '{things} selected.': 'Selección: {things}.',
 };
 
 /**

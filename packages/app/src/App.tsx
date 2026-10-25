@@ -1,5 +1,7 @@
 import { useCallback } from 'react';
 import type { SendCommand } from './canvas/CanvasArea';
+import { useT } from './i18n';
+import { LanguageProvider } from './i18n/LanguageProvider';
 import type { LiveFailure } from './live/connection';
 import { useLive } from './live/context';
 import { LiveProvider } from './live/LiveProvider';
@@ -20,22 +22,26 @@ interface AppProps {
 const OPEN_AGAIN =
   'Press o in the terminal where Visual Anything runs to open a new tab, or start Visual Anything again.';
 
-const CLOSED = `The connection to Visual Anything closed, so what you see may be out of date. ${OPEN_AGAIN}`;
+const CLOSED =
+  'The connection to Visual Anything closed, so what you see may be out of date. Press o in the terminal where Visual Anything runs to open a new tab, or start Visual Anything again.';
 
 /**
  * The app: the shell once the local program has sent the project, a status screen until then, and the
- * notices of the live session over either.
+ * notices of the live session over either, all in the language the person reads in.
  */
 export function App({ token }: AppProps) {
   return (
-    <LiveProvider token={token}>
-      <LiveApp />
-      <Notices />
-    </LiveProvider>
+    <LanguageProvider>
+      <LiveProvider token={token}>
+        <LiveApp />
+        <Notices />
+      </LiveProvider>
+    </LanguageProvider>
   );
 }
 
 function LiveApp() {
+  const t = useT();
   const { failure, project, status, send, notify } = useLive();
   // The canvas learns whether a command was done, and the user reads why one was refused; the live
   // session already shows the rules a done command breaks that only warn.
@@ -51,8 +57,8 @@ function LiveApp() {
   if (failure !== undefined) return <Failure failure={failure} />;
   if (project === undefined) {
     return (
-      <StatusScreen tone="progress" title="Connecting to Visual Anything…">
-        <p>Waiting for the local program to send the project.</p>
+      <StatusScreen tone="progress" title={t('Connecting to Visual Anything…')}>
+        <p>{t('Waiting for the local program to send the project.')}</p>
       </StatusScreen>
     );
   }
@@ -62,7 +68,7 @@ function LiveApp() {
     <ProjectErrorBoundary>
       <Shell
         project={project}
-        notice={status === 'closed' ? CLOSED : undefined}
+        notice={status === 'closed' ? t(CLOSED) : undefined}
         {...(status === 'open' ? { onCommand } : {})}
       />
     </ProjectErrorBoundary>
@@ -70,32 +76,43 @@ function LiveApp() {
 }
 
 function Failure({ failure }: { failure: LiveFailure }) {
+  const t = useT();
   switch (failure.reason) {
     case 'no-token':
       return (
-        <StatusScreen tone="problem" title="This tab has no session token">
+        <StatusScreen tone="problem" title={t('This tab has no session token')}>
           <p>
-            Visual Anything connects only to a tab it opened, through an address that works once.{' '}
-            {OPEN_AGAIN}
+            {t(
+              'Visual Anything connects only to a tab it opened, through an address that works once.',
+            )}{' '}
+            {t(OPEN_AGAIN)}
           </p>
         </StatusScreen>
       );
     case 'refused':
       return (
-        <StatusScreen tone="problem" title="Visual Anything refused the connection">
+        <StatusScreen tone="problem" title={t('Visual Anything refused the connection')}>
           <p>
-            It may not be running, this tab may hold the token of an earlier session, or its address
-            was already used: an address works once, within two minutes. {OPEN_AGAIN}
+            {t(
+              'It may not be running, this tab may hold the token of an earlier session, or its address was already used: an address works once, within two minutes.',
+            )}{' '}
+            {t(OPEN_AGAIN)}
           </p>
         </StatusScreen>
       );
     case 'unreadable':
       return (
-        <StatusScreen tone="problem" title="Visual Anything sent something this app cannot read">
-          {failure.detail !== undefined && <p className="status-detail">{failure.detail}</p>}
+        <StatusScreen
+          tone="problem"
+          title={t('Visual Anything sent something this app cannot read')}
+        >
+          {failure.detail !== undefined && (
+            <p className="status-detail">{t.message(failure.detail)}</p>
+          )}
           <p>
-            The app and the local program may come from different versions. Restart Visual Anything:
-            it opens a new tab.
+            {t(
+              'The app and the local program may come from different versions. Restart Visual Anything: it opens a new tab.',
+            )}
           </p>
         </StatusScreen>
       );

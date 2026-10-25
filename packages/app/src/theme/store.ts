@@ -18,9 +18,13 @@ import {
   type ThemeChoice,
   type ThemeName,
 } from '@visual-anything/core';
+import { fill } from '../i18n/translate';
 
 /** Where the tab keeps the theme chosen, for a reload and for the script that paints first. */
 export const THEME_STORAGE_KEY = 'visual-anything.theme';
+
+/** Where the tab keeps the language chosen, so that a reload starts in it (ADR-0038). */
+export const LANGUAGE_STORAGE_KEY = 'visual-anything.language';
 
 /** How long after the person's last change the latest one is sent. */
 export const SEND_DELAY_MS = 500;
@@ -30,6 +34,17 @@ export const HOLD_TIMEOUT_MS = 500;
 
 export const NOT_CONNECTED =
   'Your theme applies to this tab only: Visual Anything is not connected.';
+
+/** What a change of language says while the tab is not connected. */
+export const LANGUAGE_NOT_CONNECTED =
+  'Your language applies to this tab only: Visual Anything is not connected.';
+
+/** What a change says while the tab is not connected: about the language, when it changes only that. */
+function notConnected(changes: PreferenceChanges): string {
+  return changes.language !== undefined && changes.theme === undefined
+    ? LANGUAGE_NOT_CONNECTED
+    : NOT_CONNECTED;
+}
 
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 
@@ -134,6 +149,8 @@ export function startPreferences(target: PreferencesWindow): void {
   state.target = target;
   const choice = takeThemeHint(target) ?? recallTheme(target);
   if (choice !== undefined) state.base = applyPreferenceChanges(state.base, { theme: choice });
+  const language = recallLanguage(target);
+  if (language !== undefined) state.base = applyPreferenceChanges(state.base, { language });
 
   const media = darkQuery(target);
   state.systemDark = media?.matches ?? false;
@@ -174,7 +191,7 @@ export function changePreferences(changes: PreferenceChanges): void {
   const { link } = state;
   if (link?.setPreferences === undefined) return;
   if (link.status === 'closed' || link.status === 'failed') {
-    link.notify('info', NOT_CONNECTED);
+    link.notify('info', notConnected(changes));
     return;
   }
   sendSoon();
@@ -239,6 +256,9 @@ function update(): void {
   ) {
     state.applied = { preferences, theme, systemTheme };
     if (previous.preferences.theme !== preferences.theme) rememberTheme(preferences.theme);
+    if (previous.preferences.language !== preferences.language) {
+      remember(LANGUAGE_STORAGE_KEY, preferences.language);
+    }
     for (const listener of [...state.listeners]) listener();
   }
   showTheme();
@@ -305,10 +325,10 @@ function answered(link: PreferencesLink, changes: PreferenceChanges, answer: Pre
   } else if (answer.problems.some((problem) => problem.code === 'connection-closed')) {
     // The program may never have heard of it: it stays in this tab, under any newer change.
     state.unsent = { ...changes, ...state.unsent };
-    (state.link ?? link).notify('info', NOT_CONNECTED);
+    (state.link ?? link).notify('info', notConnected(changes));
   } else {
     const why = answer.problems.map((problem) => problem.message).join(' ');
-    link.notify('error', `Could not change your preferences: ${why}`);
+    link.notify('error', fill('Could not change your preferences: {why}', { why }));
   }
   update();
   if (Object.keys(state.unsent).length > 0 && state.link?.status === 'open') sendSoon();
@@ -344,8 +364,21 @@ function recallTheme(target: PreferencesWindow): ThemeChoice | undefined {
 }
 
 function rememberTheme(choice: ThemeChoice): void {
+  remember(THEME_STORAGE_KEY, choice);
+}
+
+function recallLanguage(target: PreferencesWindow): Preferences['language'] | undefined {
   try {
-    state.target?.sessionStorage.setItem(THEME_STORAGE_KEY, choice);
+    const kept = target.sessionStorage.getItem(LANGUAGE_STORAGE_KEY);
+    return kept === 'system' || kept === 'en' || kept === 'es' ? kept : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function remember(key: string, choice: string): void {
+  try {
+    state.target?.sessionStorage.setItem(key, choice);
   } catch {
     // Without session storage only a reload of the tab loses the choice, until the program sends it.
   }
@@ -363,6 +396,7 @@ function darkQuery(target: PreferencesWindow): MediaQueryList | undefined {
 function samePreferences(a: Preferences, b: Preferences): boolean {
   return (
     a.theme === b.theme &&
+    a.language === b.language &&
     a.grid === b.grid &&
     a.snapToGrid === b.snapToGrid &&
     a.rulers === b.rulers &&

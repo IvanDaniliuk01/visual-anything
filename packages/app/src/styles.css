@@ -193,6 +193,38 @@ dd {
   outline-offset: 1px;
 }
 
+/* The Language control: its icon, then a select of the languages, beside the Theme control. */
+
+.language-control {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-muted);
+}
+
+.language-control label {
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.language-control select {
+  min-height: var(--control-sm);
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.language-control select:hover {
+  background: var(--surface-hover);
+}
+
 /* Panels */
 
 .panel {

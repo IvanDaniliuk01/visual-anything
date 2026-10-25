@@ -9,12 +9,16 @@ import type { Id } from '@visual-anything/schema';
 import { useId, useMemo } from 'react';
 import { useEditor } from '../editor/EditorContext';
 import { selectionOf } from '../editor/selection';
+import { useT } from '../i18n';
 import { firstShapeOf, worldTreeOf, type WorldItem } from './outlineItems';
 import { Secondary } from './Secondary';
 import { shownRows, type TreeRow } from './tree';
 import { useTreeState } from './useTreeState';
 import { ViewList } from './ViewList';
 import { VirtualTree } from './VirtualTree';
+
+const STEPS = { one: '{count} step', other: '{count} steps' };
+const STEPS_OVER = { one: '{count} step over {view}', other: '{count} steps over {view}' };
 
 interface ModelTabProps {
   /** Whether the tab is the one shown; a hidden tab draws nothing and keeps its state. */
@@ -32,6 +36,7 @@ interface ModelTabProps {
  * an element selects it and shows it on the canvas.
  */
 export function ModelTab({ active, project, definitions, openViewId }: ModelTabProps) {
+  const t = useT();
   const editor = useEditor();
   const { scene, selection } = editor;
   const worldHeading = useId();
@@ -74,7 +79,7 @@ export function ModelTab({ active, project, definitions, openViewId }: ModelTabP
   return (
     <div className="model-tab">
       <section className="panel-section model-world">
-        <h3 id={worldHeading}>World</h3>
+        <h3 id={worldHeading}>{t('World')}</h3>
         {world && shown && shown.rows.length > 0 ? (
           <VirtualTree
             shown={shown}
@@ -92,23 +97,22 @@ export function ModelTab({ active, project, definitions, openViewId }: ModelTabP
             }}
             renderRow={(row) => {
               const element = index.element(row.item.placement.element);
+              const component = element && componentOrEssence(definitions, element.component);
               return (
                 <>
                   <span className="item-name">{nameOf(row)}</span>
-                  {element && (
-                    <Secondary text={componentOrEssence(definitions, element.component).name} />
-                  )}
+                  {component && <Secondary text={t.definition(component.id, component.name)} />}
                 </>
               );
             }}
           />
         ) : (
-          <p className="panel-empty">World holds no elements yet.</p>
+          <p className="panel-empty">{t('World holds no elements yet.')}</p>
         )}
       </section>
 
       <section className="panel-section">
-        <h3 id={viewsHeading}>Views</h3>
+        <h3 id={viewsHeading}>{t('Views')}</h3>
         <ViewList
           project={project}
           definitions={definitions}
@@ -118,7 +122,7 @@ export function ModelTab({ active, project, definitions, openViewId }: ModelTabP
       </section>
 
       <section className="panel-section">
-        <h3 id={scenariosHeading}>Scenarios</h3>
+        <h3 id={scenariosHeading}>{t('Scenarios')}</h3>
         {project.scenarios.length > 0 ? (
           <ul className="item-list" aria-labelledby={scenariosHeading}>
             {project.scenarios.map((scenario) => {
@@ -128,10 +132,9 @@ export function ModelTab({ active, project, definitions, openViewId }: ModelTabP
                   <span className="item-name">{scenario.name}</span>
                   <Secondary
                     text={
-                      <>
-                        {scenario.steps.length === 1 ? '1 step' : `${scenario.steps.length} steps`}
-                        {viewName !== undefined && ` over ${viewName}`}
-                      </>
+                      viewName === undefined
+                        ? t(STEPS, { count: scenario.steps.length })
+                        : t(STEPS_OVER, { count: scenario.steps.length, view: viewName })
                     }
                   />
                 </li>
@@ -139,7 +142,7 @@ export function ModelTab({ active, project, definitions, openViewId }: ModelTabP
             })}
           </ul>
         ) : (
-          <p className="panel-empty">This project has no scenarios yet.</p>
+          <p className="panel-empty">{t('This project has no scenarios yet.')}</p>
         )}
       </section>
     </div>

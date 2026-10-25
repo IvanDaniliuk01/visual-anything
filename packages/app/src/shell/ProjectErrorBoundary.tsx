@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react';
+import { t } from '../i18n';
 import { StatusScreen } from './StatusScreen';
 
 interface ProjectErrorBoundaryProps {
@@ -26,10 +27,12 @@ export class ProjectErrorBoundary extends Component<
   override render() {
     if (this.state.error) {
       return (
-        <StatusScreen tone="problem" title="Visual Anything could not show this project">
-          <p className="status-detail">{this.state.error.message}</p>
+        <StatusScreen tone="problem" title={t('Visual Anything could not show this project')}>
+          <p className="status-detail">{t.message(this.state.error.message)}</p>
           <p>
-            Check the project’s files, then restart Visual Anything and open the address it prints.
+            {t(
+              'Check the project’s files, then restart Visual Anything and open the address it prints.',
+            )}
           </p>
         </StatusScreen>
       );
