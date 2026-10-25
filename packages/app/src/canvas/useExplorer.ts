@@ -54,6 +54,11 @@ export interface Explore {
   setFocus: (changes: Partial<Omit<FocusState, 'targets'>>) => void;
   /** Turns focus on, starting from what is selected. */
   startFocus: () => void;
+  /**
+   * Turns focus on, starting from these elements and relations instead of the selection, as Claude's
+   * guidance does (ADR-0025), with the settings given; it follows the selection from then on.
+   */
+  focusOn: (targets: FocusTargets, settings?: Partial<FocusSettings>) => void;
   /** What the filters hide, and how many shapes and relations that is. */
   filtered: FilterResult;
 }
@@ -145,6 +150,11 @@ export function useExplorer({
         update((explore) => ({
           ...explore,
           focus: { ...explore.focus, on: true, targets: targetsOf(selection) },
+        })),
+      focusOn: (targets, settings = {}) =>
+        update((explore) => ({
+          ...explore,
+          focus: { ...explore.focus, ...settings, on: true, targets },
         })),
     }),
     [filters, focus, filtered, selection, update],
