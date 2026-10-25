@@ -5,8 +5,9 @@
  * rows draw none, and neither do rows.
  *
  * Drawings are drawn above the shapes and under the relations, in cells of the canvas that show only
- * while they are on screen, and only from the scale names show at. A new set of drawings rebuilds
- * only the shapes whose drawing or place changed.
+ * while they are on screen, and only from the scale names show at: only what is on screen is built, a
+ * few milliseconds at a time. A new set of drawings rebuilds only the shapes whose drawing or place
+ * changed.
  */
 import type { Drawing, DrawingItem } from '@visual-anything/core';
 import type { Color, Id } from '@visual-anything/schema';
@@ -144,16 +145,40 @@ function paintItem(graphics: Graphics, item: DrawingItem, place: Place): void {
   }
 }
 
-interface Drawn {
+/** One shape's drawing: what it is drawn from, and what draws it once it is built. */
+interface Entry {
   drawing: Drawing;
-  rect: Rect;
+  shape: ElementShape;
+  area: Rect;
   dimmed: boolean;
   dark: boolean;
   cell: string;
-  container: Container;
+  /** Built only once its cell is on screen. */
+  container?: Container;
 }
 
-/** The layer of drawings above the shapes, kept by the renderer. */
+/** How long one turn of building drawings may take, in milliseconds. */
+const BUILD_MS = 6;
+
+/** What the layer needs of the clock and of the frames, which tests replace. */
+export interface LayerTiming {
+  now: () => number;
+  /** Runs `callback` soon, for the drawings still to build. */
+  later: (callback: () => void) => unknown;
+  cancel: (handle: unknown) => void;
+}
+
+const BROWSER_TIMING: LayerTiming = {
+  now: () => performance.now(),
+  later: (callback) => setTimeout(callback, 16),
+  cancel: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+};
+
+/**
+ * The layer of drawings above the shapes, kept by the renderer. It builds only the drawings of the
+ * cells on screen, a few milliseconds at a time, so that a view of thousands of drawings never stalls
+ * a frame, and tells the renderer to draw again once it built more.
+ */
 export class CodeDrawingLayer {
   readonly container = new Container();
   private drawings: ReadonlyMap<Id, Drawing> = new Map();
@@ -161,15 +186,28 @@ export class CodeDrawingLayer {
   private hidden: ReadonlySet<string> = new Set();
   private dimmed: ReadonlySet<string> = new Set();
   private dark = false;
-  private readonly drawn = new Map<string, Drawn>();
+  private readonly entries = new Map<string, Entry>();
   private readonly cells = new Map<string, Container>();
-  private shownFrom = 0;
+  private onScreen: ReadonlySet<string> = new Set();
+  private shown = false;
+  private pending: unknown;
 
-  constructor(private readonly make?: TextFactory) {}
+  constructor(
+    private readonly make?: TextFactory,
+    private readonly built: () => void = () => {},
+    private readonly timing: LayerTiming = BROWSER_TIMING,
+  ) {}
 
-  /** How many shapes draw a drawing now. */
+  /** How many shapes draw a drawing now, built or still to build. */
   get count(): number {
-    return this.drawn.size;
+    return this.entries.size;
+  }
+
+  /** How many of them are built. */
+  get builtCount(): number {
+    let count = 0;
+    for (const entry of this.entries.values()) if (entry.container) count += 1;
+    return count;
   }
 
   /** Draws these drawings, by element, from now on. */
@@ -202,33 +240,33 @@ export class CodeDrawingLayer {
 
   /** Shows only the cells on screen, and nothing below `from`, the scale names show at. */
   setCamera(camera: Camera, viewport: Size, from: number): void {
-    this.shownFrom = from;
-    this.container.visible = camera.scale >= from && this.drawn.size > 0;
-    if (!this.container.visible) return;
+    this.shown = camera.scale >= from;
+    this.container.visible = this.shown && this.entries.size > 0;
+    if (!this.shown) return;
     const left = -camera.x / camera.scale;
     const top = -camera.y / camera.scale;
     const right = left + viewport.width / camera.scale;
     const bottom = top + viewport.height / camera.scale;
-    for (const [key, cell] of this.cells) {
-      const [column = 0, row = 0] = key.split(',').map(Number);
-      const x = column * CELL;
-      const y = row * CELL;
-      cell.visible = x < right && x + CELL > left && y < bottom && y + CELL > top;
+    const onScreen = new Set<string>();
+    for (let column = Math.floor(left / CELL); column * CELL < right; column += 1) {
+      for (let row = Math.floor(top / CELL); row * CELL < bottom; row += 1) {
+        onScreen.add(`${column},${row}`);
+      }
     }
-  }
-
-  /** The scale the layer shows from, as last set. */
-  get from(): number {
-    return this.shownFrom;
+    this.onScreen = onScreen;
+    for (const [key, cell] of this.cells) cell.visible = onScreen.has(key);
+    this.build();
   }
 
   destroy(): void {
-    for (const each of this.drawn.values()) each.container.destroy({ children: true });
-    this.drawn.clear();
+    if (this.pending !== undefined) this.timing.cancel(this.pending);
+    this.pending = undefined;
+    this.entries.clear();
+    this.cells.clear();
     this.container.destroy({ children: true });
   }
 
-  /** Builds again only what changed: a drawing, a place, the dimming or the theme. */
+  /** Works out what each shape draws, keeping what did not change; builds what is on screen. */
   private update(): void {
     const wanted = new Set<string>();
     for (const shape of this.shapes) {
@@ -238,48 +276,83 @@ export class CodeDrawingLayer {
       if (!area) continue;
       wanted.add(shape.key);
       const dimmed = this.dimmed.has(shape.key);
-      const before = this.drawn.get(shape.key);
+      const before = this.entries.get(shape.key);
       if (
         before &&
         before.drawing === drawing &&
-        sameRect(before.rect, shape.rect) &&
+        sameRect(before.shape.rect, shape.rect) &&
         before.dark === this.dark
       ) {
         if (before.dimmed !== dimmed) {
-          before.container.alpha = dimmed ? DIMMED_ALPHA : 1;
           before.dimmed = dimmed;
+          if (before.container) before.container.alpha = dimmed ? DIMMED_ALPHA : 1;
         }
+        before.shape = shape;
         continue;
       }
-      if (before) this.remove(shape.key, before);
-      const ink = this.dark ? (shape.dark?.stroke ?? shape.stroke) : shape.stroke;
-      const container = new Container();
-      const graphics = new Graphics();
-      const texts = paintDrawing(graphics, drawing, area, ink, this.make);
-      container.addChild(graphics, ...texts);
-      container.alpha = dimmed ? DIMMED_ALPHA : 1;
-      const cell = `${Math.floor(area.x / CELL)},${Math.floor(area.y / CELL)}`;
-      this.cellOf(cell).addChild(container);
-      this.drawn.set(shape.key, {
+      if (before) this.unbuild(before);
+      this.entries.set(shape.key, {
         drawing,
-        rect: shape.rect,
+        shape,
+        area,
         dimmed,
         dark: this.dark,
-        cell,
-        container,
+        cell: `${Math.floor(area.x / CELL)},${Math.floor(area.y / CELL)}`,
       });
     }
-    for (const [key, drawn] of [...this.drawn]) if (!wanted.has(key)) this.remove(key, drawn);
-    this.container.visible = this.drawn.size > 0;
+    for (const [key, entry] of [...this.entries]) {
+      if (wanted.has(key)) continue;
+      this.unbuild(entry);
+      this.entries.delete(key);
+    }
+    this.container.visible = this.shown && this.entries.size > 0;
+    this.build();
   }
 
-  private remove(key: string, drawn: Drawn): void {
-    drawn.container.destroy({ children: true });
-    this.drawn.delete(key);
-    const cell = this.cells.get(drawn.cell);
+  /** Builds the drawings of the cells on screen for a few milliseconds, and the rest a turn later. */
+  private build(): void {
+    if (!this.shown) return;
+    const started = this.timing.now();
+    let made = 0;
+    let left = false;
+    for (const entry of this.entries.values()) {
+      if (entry.container || !this.onScreen.has(entry.cell)) continue;
+      if (made > 0 && this.timing.now() - started > BUILD_MS) {
+        left = true;
+        break;
+      }
+      this.buildEntry(entry);
+      made += 1;
+    }
+    if (made > 0) this.built();
+    if (left && this.pending === undefined) {
+      this.pending = this.timing.later(() => {
+        this.pending = undefined;
+        this.build();
+      });
+    }
+  }
+
+  private buildEntry(entry: Entry): void {
+    const { shape } = entry;
+    const ink = this.dark ? (shape.dark?.stroke ?? shape.stroke) : shape.stroke;
+    const container = new Container();
+    const graphics = new Graphics();
+    const texts = paintDrawing(graphics, entry.drawing, entry.area, ink, this.make);
+    container.addChild(graphics, ...texts);
+    container.alpha = entry.dimmed ? DIMMED_ALPHA : 1;
+    this.cellOf(entry.cell).addChild(container);
+    entry.container = container;
+  }
+
+  private unbuild(entry: Entry): void {
+    if (!entry.container) return;
+    entry.container.destroy({ children: true });
+    entry.container = undefined;
+    const cell = this.cells.get(entry.cell);
     if (cell && cell.children.length === 0) {
       cell.destroy();
-      this.cells.delete(drawn.cell);
+      this.cells.delete(entry.cell);
     }
   }
 
@@ -287,6 +360,7 @@ export class CodeDrawingLayer {
     let cell = this.cells.get(key);
     if (!cell) {
       cell = new Container();
+      cell.visible = this.onScreen.has(key);
       this.cells.set(key, cell);
       this.container.addChild(cell);
     }

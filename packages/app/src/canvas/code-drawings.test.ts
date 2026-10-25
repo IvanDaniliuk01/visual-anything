@@ -110,6 +110,27 @@ describe('paintDrawing', () => {
 });
 
 describe('CodeDrawingLayer', () => {
+  const screen = { width: 1200, height: 800 };
+  const atOne = { x: 0, y: 0, scale: 1 };
+
+  /** A clock that moves only when told, and turns run only when told. */
+  function timing() {
+    let time = 0;
+    const turns: (() => void)[] = [];
+    return {
+      timing: {
+        now: () => time,
+        later: (callback: () => void) => turns.push(callback),
+        cancel: () => {},
+      },
+      tick: (ms: number) => {
+        time += ms;
+      },
+      turn: () => turns.shift()?.(),
+      turns,
+    };
+  }
+
   it('draws only the shapes with a drawing, and builds again only what changed', () => {
     const layer = new CodeDrawingLayer();
     const oven = shape();
@@ -118,9 +139,11 @@ describe('CodeDrawingLayer', () => {
       element: 'fridge',
       rect: { x: 400, y: 200, width: 160, height: 120 },
     });
+    layer.setCamera(atOne, screen, 0.45);
     layer.setScene(scene([oven, fridge]), new Set(), new Set());
     layer.setDrawings(new Map([['oven', gauge]]));
     expect(layer.count).toBe(1);
+    expect(layer.builtCount).toBe(1);
     const drawn = layer.container.children[0]?.children[0];
     layer.setScene(scene([oven, fridge]), new Set(), new Set(['world/oven']));
     expect(layer.container.children[0]?.children[0]).toBe(drawn);
@@ -141,7 +164,7 @@ describe('CodeDrawingLayer', () => {
     layer.destroy();
   });
 
-  it('shows from the scale names show at, and only the cells on screen', () => {
+  it('builds only what is on screen, from the scale names show at', () => {
     const layer = new CodeDrawingLayer();
     const far = shape({
       key: 'world/far',
@@ -155,13 +178,46 @@ describe('CodeDrawingLayer', () => {
         ['far', gauge],
       ]),
     );
-    layer.setCamera({ x: 0, y: 0, scale: 0.3 }, { width: 800, height: 600 }, 0.45);
+    layer.setCamera({ x: 0, y: 0, scale: 0.3 }, screen, 0.45);
     expect(layer.container.visible).toBe(false);
-    layer.setCamera({ x: 0, y: 0, scale: 1 }, { width: 800, height: 600 }, 0.45);
+    expect(layer.builtCount).toBe(0);
+    layer.setCamera(atOne, screen, 0.45);
     expect(layer.container.visible).toBe(true);
-    const cells = layer.container.children;
-    expect(cells.filter((cell) => cell.visible)).toHaveLength(1);
-    expect(cells).toHaveLength(2);
+    expect(layer.builtCount).toBe(1);
+    // Panning there builds the far one too.
+    layer.setCamera({ x: -9_900, y: -9_900, scale: 1 }, screen, 0.45);
+    expect(layer.builtCount).toBe(2);
+    expect(layer.container.children.filter((cell) => cell.visible)).toHaveLength(1);
+    layer.destroy();
+  });
+
+  it('builds a few milliseconds at a time, and tells the renderer each time', () => {
+    const clock = timing();
+    let told = 0;
+    const layer = new CodeDrawingLayer(undefined, () => (told += 1), clock.timing);
+    const many = Array.from({ length: 50 }, (_, i) =>
+      shape({
+        key: `world/s${i}`,
+        element: `s${i}`,
+        rect: { x: (i % 10) * 200, y: Math.floor(i / 10) * 150, width: 160, height: 120 },
+      }),
+    );
+    layer.setCamera({ x: 0, y: 0, scale: 1 }, { width: 2400, height: 1200 }, 0.45);
+    layer.setScene(scene(many), new Set(), new Set());
+    // Every build takes 2 ms on this clock.
+    const make = layer as unknown as { buildEntry: (entry: unknown) => void };
+    const real = make.buildEntry.bind(layer);
+    make.buildEntry = (entry) => {
+      clock.tick(2);
+      real(entry);
+    };
+    layer.setDrawings(new Map(many.map((each) => [each.element, gauge])));
+    expect(layer.builtCount).toBe(4);
+    expect(told).toBe(1);
+    expect(clock.turns).toHaveLength(1);
+    while (clock.turns.length > 0) clock.turn();
+    expect(layer.builtCount).toBe(50);
+    expect(told).toBeGreaterThan(5);
     layer.destroy();
   });
 });

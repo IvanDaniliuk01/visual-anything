@@ -450,7 +450,7 @@ export class CanvasRenderer {
       this.requestRender(),
     );
     this.painter = painterOf(options.theme ?? THEMES.light.canvas);
-    this.codeDrawings = new CodeDrawingLayer(this.text);
+    this.codeDrawings = new CodeDrawingLayer(this.text, () => this.requestRender());
     this.codeDrawings.setDark(this.painter.theme.name === 'dark');
     this.tintMarks();
     this.elementShapes.addChild(this.overflowBand);
