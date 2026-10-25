@@ -222,3 +222,13 @@ export const SearchIcon = icon(
     <path d="m21 21-4.3-4.3" />
   </>,
 );
+
+/** Lucide's "ellipsis", for the canvas toolbar's More (W26). */
+export const MoreIcon = icon(
+  'More',
+  <>
+    <circle cx="12" cy="12" r="1" />
+    <circle cx="19" cy="12" r="1" />
+    <circle cx="5" cy="12" r="1" />
+  </>,
+);

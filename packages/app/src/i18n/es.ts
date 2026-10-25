@@ -117,6 +117,11 @@ export const ui: Catalog = {
   'Visual Anything could not show this project': 'Visual Anything no pudo mostrar este proyecto',
   'Check the project’s files, then restart Visual Anything and open the address it prints.':
     'Revisar los archivos del proyecto, luego reiniciar Visual Anything y abrir la dirección que muestra.',
+  // A new tab that joins the session of another tab of this browser (ADR 0043).
+  'Asking the other tabs of this browser that have the project open to share its session.':
+    'Pidiendo a las otras pestañas de este navegador que tienen el proyecto abierto que compartan su sesión.',
+  'A new tab joins on its own while another tab of this browser has the project open, and none has it open now.':
+    'Una pestaña nueva se une sola mientras otra pestaña de este navegador tiene el proyecto abierto, y ahora ninguna lo tiene abierto.',
 
   // The live connection's notices.
   'Visual Anything is not connected, so nothing was changed.':
@@ -630,6 +635,10 @@ export const ui: Catalog = {
     '"{cover}" se dibuja delante de "{holder}", que la contiene.',
   'It sits over "{name}" without being inside it; Put inside "{name}" orders it among the shapes there.':
     'Está sobre "{name}" sin estar dentro; Poner dentro de "{name}" la ordena entre las formas de ahí.',
+
+  // The canvas toolbar's More, which holds what its row has no room for (W26).
+  More: 'Más',
+  'More of the canvas toolbar': 'Más de la barra de herramientas del lienzo',
 
   // The grid, the rulers and snapping (A3).
   '{x}, {y} in {container}': '{x}, {y} en {container}',

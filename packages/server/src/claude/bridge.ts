@@ -19,6 +19,7 @@ import {
   type Guidance,
   type Problem,
   type ProjectSnapshot,
+  type ViewState,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { WebSocket, type RawData } from 'ws';
@@ -62,13 +63,31 @@ export interface Program {
   execute(command: Command): Promise<CommandAnswer>;
   /** Shows guidance in the open apps; resolves with how many it reached. */
   guide(guidance: Guidance): Promise<number>;
-  /** Opens the app in the browser, at an address that works once. */
-  openApp(): Promise<void>;
+  /**
+   * Opens the app in the browser, at an address that works once; with a view state, the tab opens the
+   * project there (ADR-0044).
+   */
+  openApp(state?: ViewState): Promise<void>;
+  /**
+   * The address the program serves the app at, `http://127.0.0.1:<port>/`, attaching first if needed;
+   * absent, or undefined, where it is not known.
+   */
+  address?(): Promise<string | undefined>;
 }
 
 /** Raised when the program cannot be reached; its message is written for Claude to pass on. */
 export class ProgramUnavailableError extends Error {
   override name = 'ProgramUnavailableError';
+}
+
+/** Raised when the program that runs on the project comes from another build of Visual Anything. */
+export class OtherBuildError extends ProgramUnavailableError {
+  override name = 'OtherBuildError';
+}
+
+/** Raised by a bridge that only attaches when no program runs on the project. */
+export class NoProgramRunningError extends ProgramUnavailableError {
+  override name = 'NoProgramRunningError';
 }
 
 /** Starts the local program for a project folder, its output going to `log`. */
@@ -84,6 +103,11 @@ export interface BridgeOptions {
   start?: StartProgram;
   /** Whether a program started here serves the app from its sources, as `pnpm dev` does. */
   dev?: boolean;
+  /**
+   * Attaches only to a program that runs, and never starts one, as `visual-anything open` does to
+   * open a tab in the program already running on its folder (ADR-0044).
+   */
+  attachOnly?: boolean;
   /** How long to wait for a started program to listen, in milliseconds. */
   startTimeout?: number;
   /** How long to wait for an answer, in milliseconds. */
@@ -93,6 +117,8 @@ export interface BridgeOptions {
 /** The program this bridge is attached to. */
 interface Attached {
   socket: WebSocket;
+  /** The port the program listens on, on 127.0.0.1. */
+  port: number;
   snapshot: ProjectSnapshot;
   waiting: Map<string, (message: ProgramMessage | Error) => void>;
 }
@@ -145,13 +171,21 @@ export class ProgramBridge implements Program {
     throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
   }
 
-  async openApp(): Promise<void> {
-    const answer = await this.#request((requestId) => ({ type: 'open-app', requestId }));
+  async openApp(state?: ViewState): Promise<void> {
+    const answer = await this.#request((requestId) =>
+      state === undefined
+        ? { type: 'open-app', requestId }
+        : { type: 'open-app', requestId, state },
+    );
     if (answer.type === 'app/opened') return;
     if (answer.type === 'command/rejected') {
       throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
     }
     throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  async address(): Promise<string> {
+    return `http://127.0.0.1:${(await this.#attached()).port}/`;
   }
 
   /** Lets go of the program. */
@@ -207,6 +241,9 @@ export class ProgramBridge implements Program {
       const attached = await this.#connect(found).catch(() => undefined);
       if (attached !== undefined) return attached;
     }
+    if (this.#options.attachOnly) {
+      throw new NoProgramRunningError('Visual Anything is not running on this project.');
+    }
     const folder = this.#options.folder;
     if (folder === undefined) {
       throw new ProgramUnavailableError(
@@ -241,7 +278,7 @@ export class ProgramBridge implements Program {
       throw new ProgramUnavailableError(error instanceof Error ? error.message : String(error));
     }
     if (record !== undefined && record.protocolVersion !== PROTOCOL_VERSION) {
-      throw new ProgramUnavailableError(
+      throw new OtherBuildError(
         `The Visual Anything running on ${record.folder} comes from another build (live protocol ${record.protocolVersion}, while this MCP server speaks ${PROTOCOL_VERSION}). Ask the person to restart it.`,
       );
     }
@@ -265,15 +302,16 @@ export class ProgramBridge implements Program {
     });
     const deadline = Date.now() + (this.#options.startTimeout ?? START_TIMEOUT);
     while (Date.now() < deadline) {
-      if (exitCode !== undefined) {
-        throw new ProgramUnavailableError(
-          `Visual Anything could not start on ${toForwardSlashes(real)}:\n${tailOf(log)}`,
-        );
-      }
+      // A program found first: the one started leaves at once when another runs there (ADR-0044).
       const record = await this.#findRecord().catch(() => undefined);
       if (record !== undefined) {
         const attached = await this.#connect(record).catch(() => undefined);
         if (attached !== undefined) return attached;
+      }
+      if (exitCode !== undefined) {
+        throw new ProgramUnavailableError(
+          `Visual Anything could not start on ${toForwardSlashes(real)}:\n${tailOf(log)}`,
+        );
       }
       await new Promise((resolve) => setTimeout(resolve, POLL));
     }
@@ -332,7 +370,7 @@ export class ProgramBridge implements Program {
             socket.close();
             return;
           }
-          attached = { socket, snapshot: message.project, waiting: new Map() };
+          attached = { socket, port: record.port, snapshot: message.project, waiting: new Map() };
           resolve(attached);
           return;
         }

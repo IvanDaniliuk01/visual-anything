@@ -10,7 +10,7 @@ import { realpath } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
 import type { Duplex } from 'node:stream';
-import { LAUNCH_PARAM, LIVE_PATH, encodeServerMessage } from '@visual-anything/core';
+import { LAUNCH_PARAM, LIVE_PATH, encodeServerMessage, withViewState } from '@visual-anything/core';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import { attachClaude } from './claude/endpoint';
 import { CLAUDE_PATH, encodeClaudeMessage } from './claude/messages';
@@ -186,8 +186,10 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       openBrowser === undefined
         ? {}
         : {
-            openApp: async () => {
-              await openBrowser(launchUrl());
+            openApp: async (state) => {
+              await openBrowser(
+                state === undefined ? launchUrl() : withViewState(launchUrl(), state),
+              );
             },
           },
     );

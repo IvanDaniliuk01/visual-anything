@@ -22,6 +22,14 @@ interface AppProps {
 const OPEN_AGAIN =
   'Press o in the terminal where Visual Anything runs to open a new tab, or start Visual Anything again.';
 
+/** While a tab with no session asks the other tabs of this browser for theirs (ADR-0043). */
+const JOINING =
+  'Asking the other tabs of this browser that have the project open to share its session.';
+
+/** Why a tab with no session found none to join. */
+const NONE_TO_JOIN =
+  'A new tab joins on its own while another tab of this browser has the project open, and none has it open now.';
+
 const CLOSED =
   'The connection to Visual Anything closed, so what you see may be out of date. Press o in the terminal where Visual Anything runs to open a new tab, or start Visual Anything again.';
 
@@ -42,7 +50,7 @@ export function App({ token }: AppProps) {
 
 function LiveApp() {
   const t = useT();
-  const { failure, project, status, send, notify } = useLive();
+  const { failure, project, status, send, notify, joining } = useLive();
   // The canvas learns whether a command was done, and the user reads why one was refused; the live
   // session already shows the rules a done command breaks that only warn.
   const onCommand = useCallback<SendCommand>(
@@ -58,7 +66,7 @@ function LiveApp() {
   if (project === undefined) {
     return (
       <StatusScreen tone="progress" title={t('Connecting to Visual Anything…')}>
-        <p>{t('Waiting for the local program to send the project.')}</p>
+        <p>{joining ? t(JOINING) : t('Waiting for the local program to send the project.')}</p>
       </StatusScreen>
     );
   }
@@ -85,7 +93,7 @@ function Failure({ failure }: { failure: LiveFailure }) {
             {t(
               'Visual Anything connects only to a tab it opened, through an address that works once.',
             )}{' '}
-            {t(OPEN_AGAIN)}
+            {t(NONE_TO_JOIN)} {t(OPEN_AGAIN)}
           </p>
         </StatusScreen>
       );

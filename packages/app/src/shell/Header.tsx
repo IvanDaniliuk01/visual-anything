@@ -8,6 +8,7 @@ import { historyShortcut, isTextEntry, type HistoryAction } from '../live/shortc
 import { ThemeControl } from '../theme/ThemeControl';
 import { usePreferencesLink } from '../theme/usePreferences';
 import { RedoIcon, UndoIcon } from './icons';
+import './header.css';
 
 /** The product's name, as the header and the tab's title write it. */
 export const PRODUCT_NAME = 'Visual Anything';

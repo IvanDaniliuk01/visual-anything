@@ -12,7 +12,7 @@ The local program keeps three things out of reach of other websites, other progr
 
 - The program keeps the session token (32 random bytes). It never prints it, never puts it in an address and never hands it to another process; `RunningServer.token` exists for code in the same process only.
 - It opens the browser, or with `--no-open` prints, a launch address, `http://127.0.0.1:<port>/#launch=<code>`. The launch code is 16 random bytes in base64url, works once within two minutes, and only one is open at a time: making one ends the one before. The theme the person chose travels beside it as `&theme=light` or `&theme=dark`, which is no secret.
-- The page takes the code out of the address and the tab's history, and opens `/live?launch=<code>`. The program compares it in constant time and ends it, and `project/opened` then carries the session token, which the tab keeps in session storage for reloads and reconnections through `/live?token=…`. The page never takes a token from an address. Because React's StrictMode mounts the page twice in dev, a socket opened with a launch code is kept through a disconnect followed at once by a connect.
+- The page takes the code out of the address and the tab's history, and opens `/live?launch=<code>`. The program compares it in constant time and ends it, and `project/opened` then carries the session token, which the tab keeps in session storage for reloads and reconnections through `/live?token=…`. The page never takes a token from an address. A new tab of the same browser can also get it from a tab that holds it, over this origin's `BroadcastChannel` (ADR-0043). Because React's StrictMode mounts the page twice in dev, a socket opened with a launch code is kept through a disconnect followed at once by a connect.
 - A code used again, or late, is refused with 401; a code used twice also warns in the terminal: "The launch address was used twice; if your tab did not open the project, something else on this computer used it first."
 - In a terminal, `o` opens a new tab and `a` prints a new launch address. The live protocol is version 3.
 
@@ -62,7 +62,7 @@ The second benchmark's R26 asks for addresses that open a project at a view stat
 - **A launch address can carry one**, after its code and theme: `http://127.0.0.1:<port>/#launch=<code>&theme=dark&view=…&select=…`. The page takes the code out at once, as before, and keeps the rest. The state applies only once the code is redeemed: the shell mounts only when `project/opened` has come, and applies the state then.
 - **The app keeps its own address in step**, a moment after the view state last changed, by replacing the history entry, never adding one, so that Back still leaves the app. A reload therefore comes back to the same view state, and Copy address, in the header, copies it. An address pasted into the tab's address bar applies as one opened.
 - **The command line.** `visual-anything [open] <folder> --view <id> [--select <id>]…` opens the browser at, or with `--no-open` prints, a launch address that carries the view state; so does every launch address of that run, from `o` and `a` too. A view or an id the project does not hold stops it before it starts, with exit code 2.
-- **Claude.** `link_to` answers the fragment of a view state, never a launch address: a launch code in Claude's transcript would let whatever reads it open a whole session, which can undo and change the person's preferences, as Claude's endpoint may not (ADR-0029).
+- **Claude.** `link_to` answers the fragment of a view state, never a launch address: a launch code in Claude's transcript would let whatever reads it open a whole session, which can undo and change the person's preferences, as Claude's endpoint may not (ADR-0029). Since ADR-0044 it answers the full address while the program runs, and `open_app` opens a tab at a view state; neither gives a launch code.
 
 ### Options considered for view addresses
 
@@ -73,7 +73,14 @@ The second benchmark's R26 asks for addresses that open a project at a view stat
 
 ### What remains of view addresses
 
-- A view address opened in a new tab finds no session there: the tab says how to open the app again. A new tab opens a view state only through a launch address, from `visual-anything open`.
+- ~~A view address opened in a new tab finds no session there: the tab says how to open the app again. A new tab opens a view state only through a launch address, from `visual-anything open`.~~ Settled by ADR-0043: a new tab joins the session of a tab of the same browser that has the project open; with none open, it says how to open the app again, as before.
 - The port changes from one run to the next unless `--port` fixes it, so what lasts of a view address is its fragment.
 - A selection of more than 500 things is left out of the address, and Copy address says so.
 - Tours (R45), comments (R46) and the read-only page (R32) are to reuse the same value.
+
+## Addendum 2026-10-25: sessions and running programs
+
+<!-- Decided by Claude on 2026-10-25, building W26, under the user's standing delegation of design decisions. -->
+
+- **Tabs share the session.** A tab with neither a launch code nor a token asks the other tabs of its browser for the token over this origin's `BroadcastChannel`, and a tab whose live connection is open gives it (ADR-0043). The token still goes into no address and no log, and nothing outside this origin hears it.
+- **One program per project.** `visual-anything open <folder> --view …` while a program runs on that folder asks that program to open a tab at the view state, through the Claude endpoint's `open-app`, and starts no second program; with `--no-open` it prints the running program's view address (ADR-0044).

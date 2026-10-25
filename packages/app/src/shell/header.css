@@ -1,0 +1,28 @@
+/*
+ * The header in narrow windows (W26): it keeps to fewer lines, so that the canvas keeps its height.
+ * Undo and redo first leave out the action they name, then Copy address, Export, Undo and Redo show
+ * only their icons. Each keeps its name for screen readers, and undo and redo say the action in their
+ * tooltips.
+ */
+
+@media (max-width: 1366px) {
+  .shell-header .history-label {
+    display: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .shell-header :is(.copy-address > span, .export-label, .history-verb) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .shell-header .language-control select {
+    max-width: 10rem;
+    text-overflow: ellipsis;
+  }
+}

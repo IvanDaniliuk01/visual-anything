@@ -289,9 +289,9 @@ _Avoid_: skin, palette
 ### The local program
 
 **Launch address**:
-An address that opens a project in the browser once, within two minutes of being made. The local program opens or prints one instead of an address carrying the session token, which never leaves the program; the tab gets the token when it opens and keeps it for reloads. It can carry a view state too, which the tab applies once it has the token.
+An address that opens a project in the browser once, within two minutes of being made. The local program opens or prints one instead of an address carrying the session token, which never leaves the program; the tab gets the token when it opens and keeps it for reloads. It can carry a view state too, which the tab applies once it has the token. Only one program runs on a project: opening the project again opens a tab in the program that runs (ADR 0044).
 _Avoid_: magic link, one-time link
 
 **View address**:
-An address of the app whose fragment holds a view state and no secret. Each tab keeps its own in step with what it shows, so a reload comes back there, and Copy address copies it; pasted into a tab that has the project open, it opens the project at that view state.
+An address of the app whose fragment holds a view state and no secret. Each tab keeps its own in step with what it shows, so a reload comes back there, and Copy address copies it; pasted into a tab that has the project open, or opened in a new tab of the browser while another tab has the project open, whose session the new tab joins (ADR 0043), it opens the project at that view state.
 _Avoid_: deep link, permalink

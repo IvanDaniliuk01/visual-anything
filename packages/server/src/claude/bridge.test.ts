@@ -6,7 +6,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { startServer, type RunningServer } from '../server';
 import { openSession, type Session } from '../session';
 import { openLiveClient, testProject, writeProjectFolder, type LiveClient } from '../test-support';
-import { ProgramBridge, ProgramUnavailableError, type StartProgram } from './bridge';
+import {
+  NoProgramRunningError,
+  ProgramBridge,
+  ProgramUnavailableError,
+  type StartProgram,
+} from './bridge';
 import { currentContext, writeProgramRecord, type RuntimeContext } from './discovery';
 
 let profile: string;
@@ -159,6 +164,44 @@ describe('ProgramBridge', () => {
     await bridge().openApp();
     expect(opened).toHaveLength(1);
     expect(opened[0]).toMatch(/#launch=/);
+  });
+
+  it('opens the app at a view state', async () => {
+    const opened: string[] = [];
+    await runProgram({ opened });
+    await bridge().openApp({ view: 'overview', select: ['api'] });
+    expect(opened).toHaveLength(1);
+    expect(opened[0]).toMatch(/#launch=[\w-]+&view=overview&select=api$/);
+  });
+
+  it('says why the program would not open the app at a view state', async () => {
+    const opened: string[] = [];
+    await runProgram({ opened });
+    await expect(bridge().openApp({ view: 'nowhere' })).rejects.toThrow(
+      'The project has no view "nowhere".',
+    );
+    expect(opened).toEqual([]);
+  });
+
+  it('knows the address the program serves the app at', async () => {
+    const { server } = await runProgram();
+    expect(await bridge().address()).toBe(`http://127.0.0.1:${server.port}/`);
+  });
+
+  it('attaches only to a program that runs when asked to, and starts none', async () => {
+    let starts = 0;
+    const start: StartProgram = () => {
+      starts += 1;
+      return { exited: new Promise(() => {}) };
+    };
+    await expect(bridge({ start, attachOnly: true }).project()).rejects.toBeInstanceOf(
+      NoProgramRunningError,
+    );
+    expect(starts).toBe(0);
+    await runProgram();
+    const project = await bridge({ start, attachOnly: true }).project();
+    expect(project.project.name).toBe('Shop');
+    expect(starts).toBe(0);
   });
 
   it('attaches to the only program running when it was given no folder', async () => {

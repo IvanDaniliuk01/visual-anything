@@ -1,7 +1,8 @@
 import { PROTOCOL_VERSION, encodeServerMessage } from '@visual-anything/core';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { StrictMode, useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { FakeChannels } from '../test/FakeChannels';
 import { FakeWebSocket } from '../test/FakeWebSocket';
 import { loadSample } from '../test/sample';
 import type { CommandResult } from './connection';
@@ -93,13 +94,13 @@ describe('LiveProvider', () => {
     expect(screen.getByRole('status')).toHaveTextContent('{"ok":true,"created":[],"warnings":[]}');
   });
 
-  it('without a token, fails without connecting', () => {
+  it('without a token, and with no other tab to ask, fails without connecting', async () => {
     render(
-      <LiveProvider token={null}>
+      <LiveProvider token={null} openChannel={() => undefined}>
         <Probe />
       </LiveProvider>,
     );
-    expect(screen.getByText('Status: failed')).toBeInTheDocument();
+    expect(await screen.findByText('Status: failed')).toBeInTheDocument();
     expect(FakeWebSocket.created).toHaveLength(0);
   });
 
@@ -120,6 +121,64 @@ describe('LiveProvider', () => {
     expect(screen.getByText('Status: open')).toBeInTheDocument();
     unmount();
     expect(second.closedByApp).toBe(true);
+  });
+
+  it('without a token, joins the session of another tab of this browser that has it open', async () => {
+    const channels = new FakeChannels();
+    const openChannel = () => channels.open();
+    const token = 'u2Fs7bGqL0bW1n8kX9vC3pYd5eRt6yHj4kMn2oPq1rS';
+    render(
+      <LiveProvider token={token} openChannel={openChannel}>
+        <Probe />
+      </LiveProvider>,
+    );
+    act(() => onlySocket().receive(opened));
+    const joined = render(
+      <LiveProvider token={null} openChannel={openChannel}>
+        <Probe />
+      </LiveProvider>,
+    );
+    await vi.waitFor(() => expect(FakeWebSocket.created).toHaveLength(2));
+    const second = FakeWebSocket.created[1] as FakeWebSocket;
+    expect(second.url).toBe(`ws://localhost:3000/live?token=${token}`);
+    expect(window.sessionStorage.getItem('visual-anything.session-token')).toBe(token);
+    act(() => second.receive(opened));
+    expect(within(joined.container).getByText('Status: open')).toBeInTheDocument();
+  });
+
+  it('gives no token while its own connection is not open', async () => {
+    vi.useFakeTimers();
+    try {
+      const channels = new FakeChannels();
+      const openChannel = () => channels.open();
+      render(
+        <LiveProvider token="u2Fs7bGqL0bW1n8kX9vC3pYd5eRt6yHj4kMn2oPq1rS" openChannel={openChannel}>
+          <Probe />
+        </LiveProvider>,
+      );
+      const joined = render(
+        <LiveProvider token={null} openChannel={openChannel}>
+          <Probe />
+        </LiveProvider>,
+      );
+      await act(() => vi.advanceTimersByTimeAsync(2000));
+      expect(within(joined.container).getByText('Status: failed')).toBeInTheDocument();
+      expect(FakeWebSocket.created).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('lets go of the channel when it goes away', () => {
+    const channels = new FakeChannels();
+    const { unmount } = render(
+      <LiveProvider token="s3cr3t" openChannel={() => channels.open()}>
+        <Probe />
+      </LiveProvider>,
+    );
+    expect(channels.count).toBe(1);
+    unmount();
+    expect(channels.count).toBe(0);
   });
 
   it('says what is missing when a component asks for the live session outside it', () => {

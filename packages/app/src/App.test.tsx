@@ -44,11 +44,22 @@ function onlySocket(): FakeWebSocket {
 const TERMINAL_ADDRESS = /press o in the terminal where Visual Anything runs/i;
 
 describe('App', () => {
-  it('without a session token, says how to get one and does not connect', () => {
+  it('without a session token, asks the other tabs of this browser for theirs', () => {
+    render(<App token={null} />);
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /asking the other tabs of this browser that have the project open/i,
+    );
+    expect(FakeWebSocket.created).toHaveLength(0);
+  });
+
+  it('without a session token and no tab to join, says how to get one and does not connect', async () => {
+    // A browser without BroadcastChannel has no other tab to ask.
+    vi.stubGlobal('BroadcastChannel', undefined);
     render(<App token={null} />);
     expect(screen.getByRole('heading', { level: 1, name: 'Visual Anything' })).toBeInTheDocument();
-    const problem = screen.getByRole('alert');
+    const problem = await screen.findByRole('alert');
     expect(problem).toHaveTextContent(/no session token/i);
+    expect(problem).toHaveTextContent(/another tab of this browser has the project open/);
     expect(problem).toHaveTextContent(TERMINAL_ADDRESS);
     expect(problem).toHaveTextContent(/an address that works once/);
     expect(FakeWebSocket.created).toHaveLength(0);
