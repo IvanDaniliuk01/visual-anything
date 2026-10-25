@@ -13,6 +13,8 @@ import type {
 } from '@visual-anything/schema';
 import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
 import { builtinPackage } from '../builtin';
+import { anchorTargetOf } from '../comments/anchors';
+import type { Author } from '../history';
 import type { Definitions, ResolvedComponent, ResolvedRelationType } from '../definitions';
 import { definitionIdFor, freshId, isId, type IdGenerator } from '../ids';
 import { imagesIn } from '../images/catalog';
@@ -35,6 +37,14 @@ export function reject(code: ProblemCode, message: string, subjects?: readonly I
   throw new Rejection([problem(code, message, subjects)]);
 }
 
+/** Who runs a command and when, for what records them: a comment's author and time (ADR 0059). */
+export interface DraftContext {
+  /** Who sends the command; the person by default. */
+  author?: Author;
+  /** The time now, in milliseconds since 1970; the computer's clock by default. */
+  now?: () => number;
+}
+
 export class Draft {
   state: ProjectSnapshot;
   readonly operations: Operation[] = [];
@@ -45,8 +55,19 @@ export class Draft {
   constructor(
     state: ProjectSnapshot,
     private readonly generate: IdGenerator,
+    private readonly context: DraftContext = {},
   ) {
     this.state = state;
+  }
+
+  /** Who sends the command: the person, or Claude. */
+  get author(): Author {
+    return this.context.author ?? 'user';
+  }
+
+  /** The time now, in milliseconds since 1970. */
+  now(): number {
+    return (this.context.now ?? Date.now)();
   }
 
   /** Applies an operation to the draft. */
@@ -87,12 +108,14 @@ export class Draft {
    * Whether an element, relation, view, scenario, package or definition already has this id, or a step
    * or a view's route still names it: a broken step's relation id is never given to something new, so
    * that the step never comes to mean it, and neither is a route's, so that no new relation takes over
-   * a route left for one that is gone.
+   * a route left for one that is gone. A thread's id is taken, and so is what it is about, so that a
+   * detached thread never comes to be about something new (ADR 0059).
    */
   isTaken(id: Id): boolean {
     const { state } = this;
     return (
       this.index.has(id) ||
+      state.comments.some((thread) => thread.id === id || anchorTargetOf(thread.anchor) === id) ||
       state.views.some(
         (view) => view.id === id || (view.routes !== undefined && Object.hasOwn(view.routes, id)),
       ) ||

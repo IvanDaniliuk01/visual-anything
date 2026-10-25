@@ -264,3 +264,5 @@ export {
 export { MAX_FILTER_CONDITIONS, MAX_FILTER_TEXT } from './protocol';
 // Package code (ADR 0054): the hooks' types, the checks of their answers, the hash and the approvals.
 export * from './code';
+// Threads of comments kept in the project (ADR 0059).
+export * from './comments';

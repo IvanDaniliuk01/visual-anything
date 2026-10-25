@@ -62,6 +62,16 @@ export type ProblemCode =
   | 'code-off'
   | 'code-answer-dropped'
   | 'code-check'
+  // Comments (ADR 0059): a thread or comment that is not there, a comment whose author is missing
+  // or not the one who writes, text a comment cannot hold, and, only a warning, a mention of what
+  // the model does not hold.
+  | 'unknown-thread'
+  | 'unknown-comment'
+  | 'no-comment-author'
+  | 'invalid-author'
+  | 'not-your-comment'
+  | 'invalid-comment'
+  | 'unknown-mention'
   // Refusals of the local program, which keeps the history and the files.
   | 'nothing-to-undo'
   | 'nothing-to-redo'

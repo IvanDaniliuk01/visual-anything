@@ -3117,6 +3117,62 @@ export const messages: Catalog = {
   '"codeApprovals" approves {hash} twice.': '"codeApprovals" aprueba {hash} dos veces.',
   '"codeApprovals" holds {n} approvals, more than {m}.':
     '"codeApprovals" tiene {n} aprobaciones, más de {m}.',
+
+  // Threads of comments (ADR 0059): what a thread is about, the history's labels, and why the core
+  // refuses a comment.
+  'the view "{name}"': 'la vista "{name}"',
+  'a point of the view "{name}"': 'un punto de la vista "{name}"',
+  'Comment on {of}': 'Comentar {of}',
+  'Reply to the thread on {of}': 'Responder al hilo sobre {of}',
+  'Edit a comment on {of}': 'Editar un comentario sobre {of}',
+  'Resolve the thread on {of}': 'Resolver el hilo sobre {of}',
+  'Reopen the thread on {of}': 'Reabrir el hilo sobre {of}',
+  'Delete the thread on {of}': 'Eliminar el hilo sobre {of}',
+  'A new thread needs its anchor and its first comment.':
+    'Un hilo nuevo necesita decir de qué trata y tener su primer comentario.',
+  'The thread holds {n} comments, as many as one holds: start another.':
+    'El hilo tiene {n} comentarios, todos los que puede tener: empezar otro.',
+  'The thread "{thread}" has no comment "{comment}".':
+    'El hilo "{thread}" no tiene ningún comentario "{comment}".',
+  'Claude edits only its own comments.': 'Claude edita solo sus propios comentarios.',
+  'Only the person who wrote a comment edits it.':
+    'Solo quien escribió un comentario puede editarlo.',
+  'Say whether the thread is resolved: true or false.':
+    'Indicar si el hilo está resuelto: true o false.',
+  'There is no thread "{id}".': 'No hay ningún hilo "{id}".',
+  'A thread needs an anchor: an element, a relation, a view or a point.':
+    'Un hilo necesita tratar sobre algo: un elemento, una relación, una vista o un punto.',
+  'A thread cannot be about World: comment on a view instead.':
+    'Un hilo no puede tratar sobre Mundo: comentar una vista en su lugar.',
+  'The x of a point must be a number.': 'La x de un punto debe ser un número.',
+  'The y of a point must be a number.': 'La y de un punto debe ser un número.',
+  'The x of a point must be from -10,000,000 to 10,000,000.':
+    'La x de un punto debe estar entre -10.000.000 y 10.000.000.',
+  'The y of a point must be from -10,000,000 to 10,000,000.':
+    'La y de un punto debe estar entre -10.000.000 y 10.000.000.',
+  '"{kind}" is not an anchor: a thread is about an element, a relation, a view or a point.':
+    '"{kind}" no es algo sobre lo que pueda tratar un hilo: un hilo trata sobre un elemento, una relación, una vista o un punto.',
+  'Claude’s comments are signed as Claude: they never name a person.':
+    'Los comentarios de Claude se firman como Claude: nunca nombran a una persona.',
+  'The clock gives a time a comment cannot keep.':
+    'El reloj da una hora que un comentario no puede guardar.',
+  'The comment mentions "{id}", which is no element or relation of the model.':
+    'El comentario menciona "{id}", que no es ningún elemento ni relación del modelo.',
+  'A comment needs some text.': 'Un comentario necesita algo de texto.',
+  'A comment holds at most 20,000 characters.':
+    'Un comentario tiene como máximo 20.000 caracteres.',
+  'A comment is plain text: it holds no control characters.':
+    'Un comentario es texto simple: no tiene caracteres de control.',
+  'A comment needs the name of who writes it: set it in your preferences.':
+    'Un comentario necesita el nombre de quien lo escribe: indicarlo en las preferencias.',
+  'Only Claude signs as Claude.': 'Solo Claude firma como Claude.',
+  'An author’s name holds at most 200 characters.':
+    'El nombre de un autor tiene como máximo 200 caracteres.',
+  'An author’s email must be text.': 'El correo electrónico de un autor debe ser texto.',
+  '"{address}" is not an email address.': '"{address}" no es una dirección de correo electrónico.',
+  'More than one thread has the id "{id}".': 'Más de un hilo tiene el id "{id}".',
+  'More than one comment in the thread "{thread}" has the id "{id}".':
+    'Más de un comentario del hilo "{thread}" tiene el id "{id}".',
 };
 
 /**

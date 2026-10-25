@@ -8,6 +8,7 @@ import { ESSENCE_ID, RELATES_TO_ID, SCHEMA_VERSION } from '@visual-anything/sche
 import { RESERVED_PACKAGE_IDS, builtinPackage } from './builtin';
 import { appearanceOf, isBuiltInDefinition, type Definitions } from './definitions';
 import { codeWarnings } from './code/check';
+import { threadErrors } from './comments/check';
 import { checkImages } from './images/check';
 import { positionKey } from './operations';
 import { problem, type Problem } from './problems';
@@ -320,6 +321,8 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
   warnings.push(...images.warnings);
   // Routes chosen by hand never keep a project from opening (ADR 0039).
   warnings.push(...routeWarnings(state));
+  // Threads of comments (ADR 0059): detached ones are kept, ids are not repeated.
+  errors.push(...threadErrors(state));
   return { errors, warnings };
 }
 

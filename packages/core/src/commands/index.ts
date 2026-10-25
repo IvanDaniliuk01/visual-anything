@@ -34,6 +34,8 @@ import { restack } from './stacking';
 import { changeContainer } from './containers';
 import { setPackageCode } from './code';
 import { createScenario, deleteScenario, updateScenario } from './scenarios';
+import { addComment, createThread, deleteThread, editComment, resolveThread } from './comments';
+import type { Author } from '../history';
 import type { Command } from './types';
 import {
   createFreeShape,
@@ -53,6 +55,13 @@ export { previewChangeContainer, type ContainerChangePreview } from './container
 export interface CommandContext {
   /** Makes new ids; random suffixes by default. */
   newId?: IdGenerator;
+  /**
+   * Who sends the command, the person by default: Claude's comments are signed as Claude, and only
+   * the person's carry their name (ADR 0059).
+   */
+  author?: Author;
+  /** The time now, in milliseconds since 1970, which comments are dated with; the clock by default. */
+  now?: () => number;
 }
 
 /** What running a command produced. */
@@ -83,7 +92,10 @@ export function executeCommand(
   command: Command,
   context: CommandContext = {},
 ): CommandOutcome {
-  const draft = new Draft(state, context.newId ?? randomIds());
+  const draft = new Draft(state, context.newId ?? randomIds(), {
+    ...(context.author === undefined ? {} : { author: context.author }),
+    ...(context.now === undefined ? {} : { now: context.now }),
+  });
   try {
     const label = run(draft, command);
     checkImageReferences(state, draft.state, draft.operations);
@@ -209,6 +221,17 @@ function dispatch(draft: Draft, command: Command): string {
       return resetRoute(draft, command);
     case 'set-package-code':
       return setPackageCode(draft, command);
+    // Comments (ADR 0059).
+    case 'create-thread':
+      return createThread(draft, command);
+    case 'add-comment':
+      return addComment(draft, command);
+    case 'edit-comment':
+      return editComment(draft, command);
+    case 'resolve-thread':
+      return resolveThread(draft, command);
+    case 'delete-thread':
+      return deleteThread(draft, command);
     case 'batch': {
       const label = requireName(command.label, 'A batch');
       const commands = requireList(command.commands, 'commands');
