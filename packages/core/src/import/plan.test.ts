@@ -317,3 +317,40 @@ describe('planToCommand, on what a mapping or a file can get wrong', () => {
     expect(view.positions.map((position) => position.element)).toEqual([planned.ids.get('users')]);
   });
 });
+
+describe('planToCommand, on a large plan', () => {
+  it('stays linear: 40,000 relations, each with a bend point in one view', () => {
+    const state = testProject();
+    const elements = Array.from({ length: 2_000 }, (_, at) => ({
+      key: `e${at}`,
+      name: `E${at}`,
+      kind: 'box',
+    }));
+    const relations = Array.from({ length: 40_000 }, (_, at) => ({
+      key: `r${at}`,
+      from: `e${at % 2_000}`,
+      to: `e${(at * 7 + 1) % 2_000}`,
+      kind: 'arrow',
+    }));
+    const big: ImportPlan = {
+      ...plan(),
+      elements,
+      relations,
+      containment: [],
+      views: [
+        {
+          key: 'v',
+          name: 'All',
+          bendPoints: relations.map((relation) => ({
+            relation: relation.key,
+            points: [{ x: 1, y: 2 }],
+          })),
+        },
+      ],
+    };
+    const start = Date.now();
+    const planned = planToCommand(state, big, MAPPING, sequentialIds());
+    expect(planned.ok).toBe(true);
+    expect(Date.now() - start).toBeLessThan(3_000);
+  });
+});

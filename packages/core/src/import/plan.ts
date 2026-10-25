@@ -17,7 +17,7 @@ import { componentOrEssence } from '../definitions';
 import type { BatchCommand, Command } from '../commands/types';
 import { freshId, isId, randomIds, slug, type IdGenerator } from '../ids';
 import type { ProjectSnapshot } from '../snapshot';
-import { definitionsIn } from '../state';
+import { definitionsIn, modelIndexOf } from '../state';
 
 /** The most an import brings in, and the most a compressed file inflates to (ADR-0042). */
 export const IMPORT_LIMITS = Object.freeze({
@@ -203,11 +203,12 @@ export function planToCommand(
   const definitions = definitionsIn(state);
   // Rows stand in the model's order and take no position (ADR 0023).
   const componentOfKey = new Map<string, Id>();
+  const index = modelIndexOf(state);
   for (const element of plan.elements) {
     const component =
       element.existing === undefined
         ? chosen(mapping.elements, element.kind)
-        : state.model.elements.find((each) => each.id === element.existing)?.component;
+        : index.element(element.existing)?.component;
     if (component !== undefined) componentOfKey.set(element.key, component);
   }
   const drawsRows = (key: string | undefined) => {
@@ -274,6 +275,7 @@ export function planToCommand(
     });
   }
   const worldId = state.model.world.id;
+  const kindOfRelation = new Map(plan.relations.map((each) => [each.key, each.kind]));
   for (const view of plan.views) {
     const viewId = idOf(view.key);
     if (view.shows !== undefined) {
@@ -314,7 +316,7 @@ export function planToCommand(
     for (const { relation, points } of view.bendPoints ?? []) {
       if (points.length === 0) continue;
       // A relation that puts one thing inside another is drawn as nesting, not as a line.
-      const kind = plan.relations.find((each) => each.key === relation)?.kind;
+      const kind = kindOfRelation.get(relation);
       if (
         kind !== undefined &&
         nesting !== undefined &&
