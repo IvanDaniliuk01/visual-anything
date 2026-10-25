@@ -47,6 +47,11 @@ interface VirtualTreeProps<T> {
   /** Enter or a click on a row. */
   onActivate: (row: TreeRow<T>, how: Activation) => void;
   renderRow: (row: TreeRow<T>) => ReactNode;
+  /**
+   * A row's menu, asked for with a secondary press, Shift+F10 or the menu key, at a point on screen;
+   * true when the row has one, so that the browser's own menu does not open.
+   */
+  onMenu?: (row: TreeRow<T>, at: { x: number; y: number }) => boolean;
 }
 
 /**
@@ -68,6 +73,7 @@ export function VirtualTree<T>({
   onOpen,
   onActivate,
   renderRow,
+  onMenu,
 }: VirtualTreeProps<T>) {
   const { rows, at } = shown;
   const viewport = useRef<HTMLDivElement>(null);
@@ -239,6 +245,18 @@ export function VirtualTree<T>({
               }}
               onFocus={() => setFocused({ id: row.id, after: serial })}
               onClick={() => onActivate(row, 'pointer')}
+              onContextMenu={
+                onMenu &&
+                ((event) => {
+                  // From the keyboard the event has no place of its own: the menu opens at the row.
+                  const box = event.currentTarget.getBoundingClientRect();
+                  const fromKeys = event.clientX === 0 && event.clientY === 0;
+                  const at = fromKeys
+                    ? { x: box.left + FIRST_INDENT, y: box.bottom }
+                    : { x: event.clientX, y: event.clientY };
+                  if (onMenu(row, at)) event.preventDefault();
+                })
+              }
             >
               {/* The triangle is drawn by the stylesheet, from aria-expanded. */}
               <span

@@ -9,6 +9,7 @@ import {
   containmentInView,
   modelIndexOf,
   nestingTypesInView,
+  shownByScope,
   type ProjectSnapshot,
   type TimelineEntry,
 } from '@visual-anything/core';
@@ -55,8 +56,11 @@ export function markersOf(
   if (entry.kind === 'aggregated') return [];
   const index = modelIndexOf(project);
   const nesting = new Set(nestingTypesInView(project, view));
+  // A relation the view's scope does not show has no line to travel along (ADR-0040).
+  const shown = view.scope === undefined ? undefined : shownByScope(project, view);
   return entry.relations.flatMap((id) => {
     const relation = index.relation(id);
+    if (shown && !shown.relation(id)) return [];
     return relation && !nesting.has(relation.relationType) ? [{ relation: id, progress }] : [];
   });
 }

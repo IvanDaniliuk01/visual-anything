@@ -1,5 +1,7 @@
-import type { ProjectSnapshot } from '@visual-anything/core';
-import { useMemo } from 'react';
+import { modelIndexOf, type ProjectSnapshot } from '@visual-anything/core';
+import type { Id } from '@visual-anything/schema';
+import { useMemo, useState } from 'react';
+import { scopeActions, type ScopeAction } from '../canvas/scopeActions';
 import { useEditor } from '../editor/EditorContext';
 import { useEmphasis } from '../editor/emphasis';
 import { selectionOf, sizeOf, type Selectable } from '../editor/selection';
@@ -14,6 +16,7 @@ import {
   type RelationItem,
 } from './outlineItems';
 import { farNameOf, labelOf, relationTypeName, shapeNote, typedTextOf } from './outlineText';
+import { OutlineMenu } from './OutlineMenu';
 import { Secondary } from './Secondary';
 import { shownRows, type TreeRow } from './tree';
 import { useTreeState } from './useTreeState';
@@ -49,6 +52,8 @@ export function Outline({ active }: OutlineProps) {
     (id) => outline?.openAtFirstOf(id) ?? false,
   );
   const { open } = tree;
+  // The menu of an element's row, where it was asked for (ADR-0040).
+  const [menu, setMenu] = useState<OpenMenu>();
   const shown = useMemo(
     () => outline && shownRows(outline, (item, id) => open.get(id) ?? outline.openAtFirst(item)),
     [outline, open],
@@ -88,7 +93,18 @@ export function Outline({ active }: OutlineProps) {
   };
 
   const viewName = project.views.find((view) => view.id === viewId)?.name;
-  return (
+  const closeMenu = () => {
+    // The focus goes back to the row the menu was opened on.
+    menu?.from?.focus();
+    setMenu(undefined);
+  };
+  const act = (action: ScopeAction) => {
+    closeMenu();
+    void editor.send?.(action.command);
+  };
+  const menuActions =
+    menu && viewId !== undefined ? scopeActions(project, viewId, selection, menu.element) : {};
+  const outlineTree = (
     <VirtualTree
       shown={shown}
       label={viewName === undefined ? t('Outline') : t('Outline of {view}', { view: viewName })}
@@ -100,21 +116,63 @@ export function Outline({ active }: OutlineProps) {
       onOpen={(row, value) => tree.setOpen(row.id, value)}
       onActivate={activate}
       renderRow={(row) => <OutlineRow project={project} item={row.item} />}
+      onMenu={(row, at) => {
+        const { item } = row;
+        if (item.kind !== 'shape' || viewId === undefined) return false;
+        const from = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        setMenu({ element: item.shape.element, at, from });
+        return true;
+      }}
     />
   );
+  if (!menu || (!menuActions.leaveOut && !menuActions.add)) return outlineTree;
+  return (
+    <>
+      {outlineTree}
+      <OutlineMenu
+        title={modelIndexOf(project).element(menu.element)?.name ?? menu.element}
+        at={menu.at}
+        actions={menuActions}
+        editable={editor.send !== undefined}
+        onAction={act}
+        onClose={closeMenu}
+      />
+    </>
+  );
+}
+
+/** The menu of an element's row, open where it was asked for, and what had the focus then. */
+interface OpenMenu {
+  element: Id;
+  at: { x: number; y: number };
+  from: HTMLElement | null;
 }
 
 /** What a row says: an element's name and component, a relation, or a free shape. */
 function OutlineRow({ project, item }: { project: ProjectSnapshot; item: OutlineItem }) {
   const t = useT();
   switch (item.kind) {
-    case 'shape':
+    case 'shape': {
+      // How many relations leave the view from it, as its mark on the canvas says (ADR-0040).
+      const leaving = item.shape.leaving?.length ?? 0;
+      const note = shapeNote(t, project, item);
+      const leaves =
+        leaving === 0
+          ? undefined
+          : t(
+              {
+                one: '{count} relation leaves this view',
+                other: '{count} relations leave this view',
+              },
+              { count: leaving },
+            );
       return (
         <>
           <span className="item-name">{item.shape.name}</span>
-          <Secondary text={shapeNote(t, project, item)} />
+          <Secondary text={leaves === undefined ? note : `${note} · ${leaves}`} />
         </>
       );
+    }
     case 'relation': {
       // The far end comes first, so that a narrow panel cuts the relation type rather than it.
       const relationType = relationTypeName(t, project, item);

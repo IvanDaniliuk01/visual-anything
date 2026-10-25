@@ -10,6 +10,7 @@ import {
   SPEEDS,
   entryOfStep,
   isBroken,
+  isOutside,
   modelIndexOf,
   scenarioTimeline,
   type Command,
@@ -473,7 +474,9 @@ function OpenScenario({
 function positionOf(t: Translator, entry: TimelineEntry | undefined, timeline: Timeline): string {
   if (!entry) return t('No steps yet');
   if (entry.count === 1) {
-    return t('Step {n} of {total}', { n: entry.first + 1, total: timeline.steps });
+    const position = t('Step {n} of {total}', { n: entry.first + 1, total: timeline.steps });
+    // A step outside the view plays all the same, saying so (ADR-0040).
+    return isOutside(entry) ? `${position} · ${t('Outside the view')}` : position;
   }
   return t('Steps {first}–{last} of {total}', {
     first: entry.first + 1,
@@ -596,6 +599,7 @@ function StepList({
                 {broken && (
                   <span className="scenario-badge scenario-badge-broken">{t('Broken')}</span>
                 )}
+                {isOutside(each) && <span className="scenario-badge">{t('Outside the view')}</span>}
                 {each.kind === 'aggregated' && (
                   <span className="scenario-badge" aria-hidden="true">
                     ×{each.count}
