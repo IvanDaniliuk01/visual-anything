@@ -23,6 +23,7 @@ import { snap } from './grid';
 import type { IndexedScene } from './hit';
 import { carriedRouteCommands } from './routing/commands';
 import type { ElementShape } from './scene';
+import { madeIn } from './scope';
 import { coversRect } from './stacking';
 
 /**
@@ -238,6 +239,7 @@ export function createAtCommand(
     type: 'create-element',
     // A new element takes its component's name as the language says it (ADR-0038).
     element: { component: componentId, name: t.definition(componentId, component.name) },
+    ...madeIn(view),
     ...(container && nesting
       ? { containers: [{ container: container.element, relationType: nesting.relationType }] }
       : {}),
@@ -282,6 +284,7 @@ export function createInsideCommand(
     type: 'create-element',
     // A new element takes its component's name as the language says it (ADR-0038).
     element: { component: componentId, name: t.definition(componentId, component.name) },
+    ...madeIn(view),
     containers: [{ container, relationType: nesting.relationType }],
   };
   return asOneAction([...nesting.first, create], `Create "${create.element.name}"`);
@@ -328,6 +331,7 @@ export function createBesideCommand(
     type: 'create-element',
     // A new element takes its component's name as the language says it (ADR-0038).
     element: { component: componentId, name: t.definition(componentId, component.name) },
+    ...madeIn(view),
     ...(container !== undefined && nesting
       ? { containers: [{ container, relationType: nesting.relationType }] }
       : {}),
