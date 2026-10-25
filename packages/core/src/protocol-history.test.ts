@@ -50,9 +50,9 @@ describe('the history list (protocol 5)', () => {
     ['the same id twice', [RENAME, { ...CREATE, id: RENAME.id }]],
   ])('refuses %s', (_case, actions) => {
     expect(() => readListedActions(actions)).toThrow(ProtocolError);
-    expect(() =>
-      decodeServerMessage(JSON.stringify({ type: 'history/listed', actions })),
-    ).toThrow(ProtocolError);
+    expect(() => decodeServerMessage(JSON.stringify({ type: 'history/listed', actions }))).toThrow(
+      ProtocolError,
+    );
   });
 
   it('refuses a list message without its actions', () => {
