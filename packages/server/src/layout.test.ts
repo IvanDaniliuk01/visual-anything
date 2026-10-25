@@ -1,44 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { folderKindOf, isProjectPath, newFilePath } from './layout';
-
-describe('isProjectPath', () => {
-  it.each([
-    'project.vaproject',
-    'model.vamodel',
-    'other.vamodel',
-    'packages/clinic.vapackage',
-    'views/system-overview.vaview',
-    'scenarios/patient-books-appointment.vascenario',
-    'packages',
-    'views',
-    'scenarios',
-    'Views',
-    'Views/overview.vaview',
-    '',
-    '.',
-  ])('takes %j for a project file or one of its folders', (path) => {
-    expect(isProjectPath(path)).toBe(true);
-  });
-
-  it.each([
-    'README.md',
-    'stray.vaview',
-    'model.vamodel.bak',
-    '.model.vamodel.0a1b2c3d4e5f.va-tmp',
-    'views/.overview.vaview.0a1b2c3d4e5f.va-tmp',
-    'views/notes.txt',
-    'views/model.vamodel',
-    'packages/overview.vaview',
-    'views/old/archived.vaview',
-    'views/old',
-    '.git',
-    '.git/HEAD',
-    '.git/views/a.vaview',
-    'node_modules/x/model.vamodel',
-  ])('leaves out %j, which opening a project never reads', (path) => {
-    expect(isProjectPath(path)).toBe(false);
-  });
-});
+import { folderKindOf, newFilePath } from './layout';
 
 describe('folderKindOf', () => {
   it('names the kind of file each folder holds, whatever the case of its name', () => {

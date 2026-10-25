@@ -499,6 +499,18 @@ describe('a scene built after an edit', () => {
     expect(changed.map((shape) => shape.key)).toEqual(['users/users-org']);
   });
 
+  it('keeps a shape that did not change the same object after a take-out is undone twice', () => {
+    const big = syntheticProject({ elements: 240, perSystem: 8, overlap: 'stairs' });
+    const view = big.views[0] as ViewFile;
+    const project: ProjectSnapshot = { ...big, views: [{ ...view, id: VIEW }] };
+    run(project, [
+      { kind: 'drag', shape: 0, dx: 0, dy: 0 },
+      { kind: 'take-out', shape: 0 },
+      { kind: 'undo' },
+      { kind: 'undo' },
+    ]);
+  });
+
   it('equals one built from nothing in a larger view with overlapping shapes, too', () => {
     const big = syntheticProject({ elements: 240, perSystem: 8, overlap: 'stairs' });
     const view = big.views[0] as ViewFile;
