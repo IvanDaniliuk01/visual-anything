@@ -42,6 +42,7 @@ import {
   startedTypesByElement,
   nestingTypesInView,
   orderByStacking,
+  relationAppearanceOf,
   relationDarkStrokeOf,
   relationTypeOrRelatesTo,
   storedStacking,
@@ -141,6 +142,10 @@ export interface RelationLine {
   middle: Point;
   /** Present when the relation type is directed; its tip is `to`. */
   arrowhead?: Arrowhead;
+  /**
+   * How the line is drawn: the relation's own appearance over its relation type's, colors as stored
+   * (ADR-0035); an aggregated relation is drawn as its relation type, a little wider.
+   */
   stroke: Color;
   /** The stroke drawn on the dark canvas, when it differs from `stroke` (core's `relationDarkStrokeOf`). */
   darkStroke?: Color;
@@ -1643,9 +1648,13 @@ function lineBetween(
   if (!directionOf(beforeEnd, end)) return undefined;
 
   const relationType = relationTypeOrRelatesTo(definitions, spec.relationType);
-  const { stroke, dash } = relationType.appearance;
-  const width =
-    relationType.appearance.width + (members ? aggregatedExtraWidth(members.length) : 0);
+  // A relation's own appearance comes first; an aggregated relation is drawn as its relation type.
+  const appearance =
+    relation === undefined || members
+      ? relationType.appearance
+      : relationAppearanceOf(relation, definitions);
+  const { stroke, dash } = appearance;
+  const width = appearance.width + (members ? aggregatedExtraWidth(members.length) : 0);
   const label = members ? `×${members.length}` : relation?.name;
   const line: RelationLine = {
     relation: spec.key,

@@ -3,8 +3,9 @@
  * reports once things have been quiet for a moment, since a pull touches many files, and it ignores
  * every file that opening the project would not read, the writer's temporary files among them.
  */
-import { statSync, watch, type FSWatcher } from 'node:fs';
+import { readdirSync, statSync, watch, type FSWatcher } from 'node:fs';
 import { join } from 'node:path';
+import { fileKindOf } from '@visual-anything/schema';
 import { FOLDERS, folderKindOf, isProjectPath, type FolderKind } from './layout';
 import { toForwardSlashes } from './paths';
 
@@ -63,10 +64,21 @@ export function watchProject(
   /** When the oldest change not yet reported happened. */
   let pendingSince: number | undefined;
 
+  // What the project files were when last reported: a platform may tell of changes that touch none of
+  // them, as macOS tells of the folder itself, so only a real change is reported.
+  let last = filesOf(folder);
+  /** Whether a change since the last report named a file the project reads, which always counts. */
+  let namedAFile = false;
   const report = () => {
     timer = undefined;
     pendingSince = undefined;
-    if (!closed) onChange();
+    if (closed) return;
+    const now = filesOf(folder);
+    const named = namedAFile;
+    namedAFile = false;
+    if (!named && now === last) return;
+    last = now;
+    onChange();
   };
   const onEvent: OnEvent = (eventType, path) => {
     if (closed) return;
@@ -74,6 +86,8 @@ export function watchProject(
       // A folder's own times change along with its files, which report themselves.
       if (eventType === 'change' && isFolderPath(path)) return;
       if (!isProjectPath(path)) return;
+      // The folder itself, '' or '.', and the folders of the project name no file.
+      if (fileKindOf(path.split('/').pop() ?? '') !== undefined) namedAFile = true;
     }
     const now = Date.now();
     pendingSince ??= now;
@@ -162,6 +176,42 @@ function watchFolders(folder: string, onEvent: OnEvent, onError: (error: unknown
 }
 
 /** Whether a path names one of the folders of packages, views or scenarios. */
+/**
+ * The size and time of every file opening the project reads, in one string, so that two are equal only
+ * when none of those files changed.
+ */
+function filesOf(folder: string): string {
+  const lines: string[] = [];
+  const add = (path: string) => {
+    try {
+      const stats = statSync(join(folder, path));
+      if (stats.isFile()) lines.push(`${path} ${stats.size} ${stats.mtimeMs} ${stats.ino}`);
+    } catch {
+      // Gone between listing and reading: its absence is the change.
+    }
+  };
+  const list = (path: string): string[] => {
+    try {
+      return readdirSync(join(folder, path));
+    } catch {
+      return [];
+    }
+  };
+  for (const name of list('')) {
+    const kind = fileKindOf(name);
+    if (kind === 'project' || kind === 'model') add(name);
+  }
+  for (const kind of FOLDER_KINDS) {
+    // A folder of the project that appears, goes or is replaced counts too, even while empty.
+    const inode = folderInode(join(folder, FOLDERS[kind]));
+    if (inode !== undefined) lines.push(`${FOLDERS[kind]}/ ${inode}`);
+    for (const name of list(FOLDERS[kind])) {
+      if (fileKindOf(name) === kind) add(`${FOLDERS[kind]}/${name}`);
+    }
+  }
+  return lines.sort().join('\n');
+}
+
 function isFolderPath(path: string): boolean {
   return !path.includes('/') && folderKindOf(path) !== undefined;
 }
