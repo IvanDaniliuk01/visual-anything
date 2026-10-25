@@ -13,8 +13,11 @@ const FONTS: Record<LabelKind, string> = {
   relation: 'visual-anything-relation',
 };
 
-/** Printable ASCII and the letters and signs Spanish and English text use most; others are added when met. */
-const CHARACTERS: (string | string[])[] = [[' ', '~'], 'áéíóúüñÁÉÍÓÚÜÑ¿¡…—–→·“”‘’'];
+/**
+ * Printable ASCII, the letters and signs Spanish and English text use most, and the × an aggregated
+ * relation's count is written with; others are added when met.
+ */
+const CHARACTERS: (string | string[])[] = [[' ', '~'], 'áéíóúüñÁÉÍÓÚÜÑ¿¡…—–→·“”‘’×'];
 
 let installed = false;
 
