@@ -39,6 +39,8 @@ export function navigatorLanguages(): readonly string[] {
 }
 
 let current: Language = 'en';
+/** The language the listeners last heard of. */
+let announced: Language = 'en';
 const listeners = new Set<() => void>();
 
 /** The language the app reads in now, for code outside React. */
@@ -54,17 +56,31 @@ export function subscribeLanguage(listener: () => void): () => void {
   };
 }
 
-/** Makes `language` the current one, and says so on the page: `<html lang>` follows it. */
+/**
+ * Makes `language` the current one, and says so: to the listeners, and on the page, where
+ * `<html lang>` follows it.
+ */
 export function setCurrentLanguage(language: Language): void {
   if (typeof document !== 'undefined') document.documentElement.lang = language;
-  if (language === current) return;
   current = language;
+  if (language === announced) return;
+  announced = language;
   for (const listener of [...listeners]) listener();
+}
+
+/**
+ * Makes `language` the current one without telling anyone yet, as the language context does while it
+ * renders, so that code its components call as they render reads in it; `setCurrentLanguage` then
+ * tells the listeners once the render is done.
+ */
+export function adoptLanguage(language: Language): void {
+  current = language;
 }
 
 /** Back to English and no listeners, so that each test starts afresh. */
 export function resetLanguageForTests(): void {
   listeners.clear();
   current = 'en';
+  announced = 'en';
   if (typeof document !== 'undefined') document.documentElement.lang = 'en';
 }

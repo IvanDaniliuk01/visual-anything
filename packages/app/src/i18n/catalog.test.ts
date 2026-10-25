@@ -93,6 +93,14 @@ describe('the Spanish catalog', () => {
     expect(Array.isArray(unused)).toBe(true);
   });
 
+  it('has an entry for every text given to t() as it is written', () => {
+    const catalog = { ...ui, ...messages };
+    const missing = [...textsGivenToT(appSources())].filter(
+      (key) => catalog[key] === undefined && !SAME_IN_SPANISH.has(key),
+    );
+    expect(missing).toEqual([]);
+  });
+
   it('names every built-in package, component and relation type, and nothing else', () => {
     const ids = [
       ESSENCE.id,
@@ -134,6 +142,12 @@ describe('t', () => {
     ).toBe('1 thing nobody translated');
   });
 
+  it('finds nothing every object inherits, such as "constructor"', () => {
+    expect(translate('es', 'constructor')).toBe('constructor');
+    expect(translateMessage('es', 'toString')).toBe('toString');
+    expect(untranslatedParts('es', '__proto__')).toEqual(['__proto__']);
+  });
+
   it('leaves a brace with no value as it is', () => {
     expect(translate('en', 'Open “{name}”')).toBe('Open “{name}”');
   });
@@ -151,6 +165,7 @@ describe('t', () => {
     expect(es.definition('systems.service', 'Service')).toBe('Servicio');
     expect(es.definition('relates-to', 'relates to')).toBe('se relaciona con');
     expect(es.definition('shop.cart', 'Cart')).toBe('Cart');
+    expect(es.definition('constructor', 'Constructor')).toBe('Constructor');
     expect(translatorFor('en').definition('systems.service', 'Service')).toBe('Service');
   });
 });
@@ -214,6 +229,65 @@ describe('translateMessage', () => {
     expect(untranslatedParts('es', message)).toEqual(['Something no entry knows.']);
   });
 });
+
+/** Texts given to t() that Spanish writes the same: values and punctuation only. */
+const SAME_IN_SPANISH: ReadonlySet<string> = new Set([
+  '{name} ({shortcut})',
+  'Claude: {caption}',
+  '{name}, {component}, {where}, {relations}.',
+  'Enter',
+  'F2',
+  'Tab',
+]);
+
+/**
+ * The keys of the texts the app gives to t() as literals: a string, or the "other" form of a plural
+ * written in place.
+ */
+function textsGivenToT(files: readonly string[]): Set<string> {
+  const found = new Set<string>();
+  for (const path of files) {
+    const text = readFileSync(path, 'utf8');
+    const file = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
+    const visit = (node: ts.Node) => {
+      // A plural text, wherever it is written: an object of "one" and "other" texts.
+      if (ts.isObjectLiteralExpression(node)) {
+        const forms = new Map(
+          node.properties.flatMap((property) =>
+            ts.isPropertyAssignment(property) && ts.isStringLiteral(property.initializer)
+              ? [[property.name.getText(file), property.initializer.text] as const]
+              : [],
+          ),
+        );
+        const other = forms.get('other');
+        if (forms.size === 2 && forms.has('one') && other !== undefined) found.add(other);
+      }
+      if (
+        ts.isCallExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === 't'
+      ) {
+        const [first] = node.arguments;
+        if (first && (ts.isStringLiteral(first) || ts.isNoSubstitutionTemplateLiteral(first))) {
+          found.add(first.text);
+        } else if (first && ts.isObjectLiteralExpression(first)) {
+          for (const property of first.properties) {
+            if (
+              ts.isPropertyAssignment(property) &&
+              property.name.getText(file) === 'other' &&
+              ts.isStringLiteral(property.initializer)
+            ) {
+              found.add(property.initializer.text);
+            }
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(file);
+  }
+  return found;
+}
 
 /** The app's source files that are not tests, nor the catalog. */
 function appSources(): string[] {
