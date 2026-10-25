@@ -2025,6 +2025,18 @@ export const messages: Catalog = {
     'Más de un paso en el escenario "{name}" tiene el id "{key}".',
 
   // What the local program says.
+  'No project is open here yet: choose how to start one first.':
+    'Todavía no hay ningún proyecto abierto aquí: primero elegir cómo empezar uno.',
+  'The project here is being started already.': 'El proyecto de aquí ya se está empezando.',
+  'There is no sample "{id}" to start from.': 'No hay ningún ejemplo "{id}" del que partir.',
+  '{folder} already holds files, or is no folder; a new project starts in an empty folder.':
+    '{folder} ya tiene archivos, o no es una carpeta; un proyecto nuevo empieza en una carpeta vacía.',
+  'The new project could not be written in {folder}: {reason}':
+    'No se pudo escribir el proyecto nuevo en {folder}: {reason}',
+  'The new project could not be opened: {why}': 'No se pudo abrir el proyecto nuevo: {why}',
+  'The new project could not be started: {reason}':
+    'No se pudo empezar el proyecto nuevo: {reason}',
+  'A project is open here already.': 'Ya hay un proyecto abierto aquí.',
   'This program keeps no preferences.': 'Este programa no guarda preferencias.',
   'Your preferences could not be changed: {why}': 'No se pudieron cambiar las preferencias: {why}',
   'Your preference applies until Visual Anything stops: it could not be saved ({reason}).':

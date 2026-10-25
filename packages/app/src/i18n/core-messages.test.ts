@@ -753,6 +753,12 @@ describe('the local program’s messages in Spanish', () => {
     'Your preference applies until Visual Anything stops: it could not be saved (EACCES).',
     'Could not undo: There is nothing to undo.',
     'Could not save model.vamodel (disk full); nothing was changed.',
+    'No project is open here yet: choose how to start one first.',
+    'The project here is being started already.',
+    'There is no sample "my-systems" to start from.',
+    'C:/Users/ana/My projects/shop already holds files, or is no folder; a new project starts in an empty folder.',
+    'The new project could not be written in /home/ana/shop: EACCES',
+    'A project is open here already.',
   ])('translates %j', (message) => {
     expect(untranslatedParts('es', message)).toEqual([]);
   });
