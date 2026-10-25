@@ -30,3 +30,9 @@ We chose this because the person asked to pick any color and see that color; bec
 ## Consequences
 
 After changing `themes.ts` or `scale.ts`, `tokens.css` is generated again and committed with them. A theme switch builds new drawings for the tiles drawn in built-in colors, within the renderer's frame budget and behind the old drawings, and then shows the canvas and the panels in the new theme in one frame; tiles drawn only in stored colors keep their drawings. A color picked against the light canvas can be bright on the dark one, and the picker shows how it reads in both. Changing a built-in color or its dark shade changes every project's look, as ADR-0018 intends for improvements of built-in packages. Export, after v0.1, chooses a theme.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
+
+- 2026-10-25 (A3): the grid, the rulers and the readout beside a drag take their colors from the canvas's theme. The grid draws `gridLine` at `gridStrength` times each family's strength, and `gridSnapAlpha` is the alpha the lines 8 canvas units apart keep while snapping, once they are 8 px apart on screen (0.05 light, 0.04 dark: decorative, about 1.10:1). The rulers draw `rulerBand`, `rulerBorder` and `rulerText`, and the selection's extent on them `selected`. The readout takes the shell's `surfaceRaised` and `text` of the same theme, with a `rulerBorder` edge. Grid lines are drawn white and tinted, so a theme switch retints them; the renderer's `setGridTheme(theme)` takes the canvas's theme with the rest of it.

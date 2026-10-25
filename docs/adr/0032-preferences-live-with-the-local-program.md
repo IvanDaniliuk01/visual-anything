@@ -30,3 +30,9 @@ We chose this because the app's address changes every session (any free port, an
 ## Consequences
 
 This is the first file the program writes outside the project folder; tests always pass a folder of their own, or none, which keeps preferences in memory. Two programs open at once share the file, and the last change to a name wins. The read-only demo, which runs without the local program, follows the system and may keep a choice in its own origin's localStorage.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
+
+- 2026-10-25 (A3): the grid, snapping and the rulers are turned on and off from the canvas toolbar, and the grid and the rulers with Shift+G and Shift+R on the canvas. Snapping applies only while the grid shows, so its toggle stays off until then, and the defaults (no grid, snapping on) keep M2's moves. A change of them while the tab is not connected says that the grid and the rulers apply to this tab only, as a change of the theme or the language says it of them.

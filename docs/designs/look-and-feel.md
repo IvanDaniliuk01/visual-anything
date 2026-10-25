@@ -33,6 +33,21 @@ Paths are relative to the repository root. Line numbers are those of `e983c0b`. 
 - `editableAppearanceOf(state, 'component' | 'relation-type', id)` and `colorsInUse(state)` are in `core/src/project-appearances.ts`, with `projectAppearanceOf`.
 - A key of a project appearance that is not an id is reported at the map's path, naming the key, as W1 reports the keys of stacking orders; empty maps are refused on open.
 - Still to do outside the core: the app's call sites of `definitionsOf(project.packages)` (4.6) and the ESLint rule, the server's `Locations` (4.5), the sample's Booking agent stroke and its test pins (3.4), and T6 and T7.
+
+**Built in wave 3 (W20, 2026-10-25): A3, the grid, rulers and snapping, all of §5 in one task.** Where the code differs from this design, the code holds:
+- The modules: `canvas/grid.ts` (pure: the step, the families, `crispLine`, `gridOffset`, `gridLines`, `containerGridLines`, `snap`, `snappedDelta`, `nudgedOffset`, the rulers' steps and labels), `canvas/gridMarks.ts` (the canvas's grid and a container's), `canvas/screenMarks.ts` (the rulers, the selection's extent, the readout, `selectionBounds`), `canvas/snapping.ts` (the anchor, its frame, the readout's text, `nudgeStep`), `canvas/GridToggles.tsx` and `canvas/grid.css`.
+- The renderer has no `depthLayers` or `dragLayer` since P's bands: a container's grid goes last in the band container its shape is drawn in, which is over its fill and under its contents, since every shape that overlaps it and is drawn after it is in a higher band. A container beyond the 32 bands gets no grid. It is drawn on a rectangle's whole rect, inside a cylinder's body, below a person's head and in the rectangle inscribed in an ellipse, 2 units in from the border, so that it never crosses an outline.
+- A container's grid draws the canvas grid's families, aligned at the container's origin, from the finest at least 6 px apart up to the first at full strength, capped at 400 lines.
+- The snapping floor fades in between 6 and 8 px apart, so that each line's strength stays continuous with the zoom.
+- A zoom does not draw the canvas's grid again on every frame: drawing 760 lines took about 1 ms of the main thread, twice the budget. The lines are drawn to cover 5% more than the viewport and its period, a little wider, and a zoom shows them stretched until the scale has changed by 5% (`ZOOM_SLACK`); once the camera rests they are drawn again exactly for its scale, 1 device pixel or more wide. A pan still moves them only.
+- `CanvasTheme` gains `gridSnapAlpha` (0.05 light, 0.04 dark). The readout takes the shell's `surfaceRaised` and `text` of the theme, with a `rulerBorder` edge (ADR-0033's clarification).
+- `renderer.dragTo(delta, frame?)` takes `DragFrame = { snapping; container?: key; readout?: { text; at } }`: the controller works out the anchor, the frame and the readout's text. The frame is the container a release would put the shapes in (`into`), World when it takes them out (`out`), and the anchor's own container otherwise. The readout shows while the grid or the rulers show.
+- The rulers also number the two ends of the selection's extent, in the selection's color; labels within 24 px of an end are left out for them. Their ticks are drawn again on every camera change.
+- `createAtCommand(…, step?)` snaps; `createBesideCommand` does not, since it places 40 units beside a shape, which keeps the grid when that shape is on it.
+- The keyboard help's Alt row says both things Alt does while dragging, instead of a second Alt row.
+- `GRID_NOT_CONNECTED` says that the grid and the rulers apply to this tab only when changed while not connected (ADR-0032's clarification).
+- Bench: `?grid=on` runs every phase with the grid and the rulers; otherwise "Pan with the grid", "Zoom with the grid", "Pan with the grid and rulers" and "Zoom with the grid and rulers" follow the whole view's pan and zoom, and the grid's cost at the median is measured in blocks of 30 frames with and without it that take turns, so that a machine busy elsewhere weighs on both alike; the notes give it, and the verdict counts it. `?only=grid` runs only these.
+- Still to wire when W17's `setTheme` lands: it calls `renderer.setGridTheme(theme)`. Tables (W19): a container that draws its contents as rows should get no grid.
 ---
 
 ## 1. Summary
