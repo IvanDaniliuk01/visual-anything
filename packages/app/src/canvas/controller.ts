@@ -379,6 +379,7 @@ export class CanvasController {
             }
           : undefined,
       scale: () => this.camera.scale,
+      snapping: () => this.snapping,
       command: (command) => callbacks.command(command),
       announce: (text) => this.announce(text),
       caption: (caption, at) => {

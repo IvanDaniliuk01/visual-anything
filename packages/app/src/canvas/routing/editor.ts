@@ -5,8 +5,10 @@
  *
  * - Dragging an end attaches it to a connection point or a border point of its shape, or
  *   automatically deep inside; dropped on another element's shape, it reconnects the relation there.
- * - Dragging a bend point moves it, snapping to its neighbours' x and y; dragging the middle of a
- *   straight or curved segment adds one there; dragging a segment of an orthogonal route moves it.
+ * - Dragging a bend point moves it, snapping to its neighbours' x and y, and, while the grid shows
+ *   and snapping is on, to the grid of the frame its bend points are kept in (A3); dragging the
+ *   middle of a straight or curved segment adds one there; dragging a segment of an orthogonal route
+ *   moves it, along a grid line while snapping.
  * - A double-click on a bend point, or Delete once it is chosen, removes it. Alt turns snapping off.
  * - Edit the route… enters a mode where the keys do all of this, sent as one action on Enter.
  *
@@ -29,6 +31,7 @@ import type { Selection } from '../../editor/selection';
 import { t } from '../../i18n';
 import { IS_APPLE } from '../../live/platform';
 import { arrowheadAt, distance, type Point } from '../geometry';
+import { GRID_STEP, nudgedOffset, snap } from '../grid';
 import type { IndexedScene, Skipped } from '../hit';
 import { midpointOf, type RouteEnd } from '../route';
 import { relationLinesOf, type ElementShape, type RelationLine } from '../scene';
@@ -76,6 +79,11 @@ export interface RouteEditorHost {
       }
     | undefined;
   scale(): number;
+  /**
+   * Whether bend points dragged or moved by hand snap to the grid now: while it shows, with snapping
+   * on (A3). Without it, they never do.
+   */
+  snapping?(): boolean;
   /** Sends a command; resolves to whether the local program applied it. */
   command(command: Command): Promise<boolean>;
   announce(text: string): void;
@@ -118,6 +126,8 @@ type Drag =
       start: Point;
       moved: boolean;
       draft: Draft;
+      /** Where the route's bend points are kept from, once the grid has asked for it. */
+      origin?: Point;
     }
   | {
       kind: 'segment';
@@ -127,6 +137,7 @@ type Drag =
       world: Point;
       moved: boolean;
       draft: Draft;
+      origin?: Point;
     };
 
 /** Editing a route from the keyboard: the route as it was, how it is changing, and the handle chosen. */
@@ -347,7 +358,7 @@ export class RouteEditor {
           bends[drag.index - 1] ?? drag.line.from,
           bends[drag.index + 1] ?? drag.line.to,
         ];
-        const snapped = snapBend(world, neighbours, scale, alt);
+        const snapped = snapBend(world, neighbours, scale, alt, this.gridOf(drag, state, alt));
         bends[drag.index] = snapped.at;
         const marks = drag.draft.snapped ?? bends.map(() => ({ x: false, y: false }));
         marks[drag.index] = snapped.snapped;
@@ -359,7 +370,13 @@ export class RouteEditor {
         const a = drag.line.route[drag.segment] as Point;
         const b = drag.line.route[drag.segment + 1] as Point;
         const horizontal = a.y === b.y;
-        const value = horizontal ? a.y + (world.y - drag.world.y) : a.x + (world.x - drag.world.x);
+        let value = horizontal ? a.y + (world.y - drag.world.y) : a.x + (world.x - drag.world.x);
+        // On the grid, the segment runs along a grid line of the route's frame.
+        const grid = this.gridOf(drag, state, alt);
+        if (grid) {
+          const from = horizontal ? grid.origin.y : grid.origin.x;
+          value = from + snap(value - from, grid.step);
+        }
         drag.draft.route = moveSegment(
           drag.line.route,
           drag.segment,
@@ -370,6 +387,28 @@ export class RouteEditor {
         return;
       }
     }
+  }
+
+  /**
+   * The grid a drag of a bend point or a segment snaps to: none with Alt, or while the grid is hidden
+   * or snapping is off; else the step, from the origin the route's bend points are kept from, which
+   * is worked out once for the drag.
+   */
+  private gridOf(
+    drag: Extract<Drag, { kind: 'bend' | 'segment' }>,
+    state: NonNullable<ReturnType<RouteEditorHost['state']>>,
+    alt: boolean,
+  ): { origin: Point; step: number } | undefined {
+    if (alt || this.host.snapping?.() !== true) return undefined;
+    drag.origin ??= this.originOf(state, drag.line);
+    return { origin: drag.origin, step: GRID_STEP };
+  }
+
+  /** Where a line's bend points are kept from: its frame's corner, or the canvas's origin. */
+  private originOf(state: NonNullable<ReturnType<RouteEditorHost['state']>>, line: RelationLine) {
+    const view = viewIn(state.project, state.viewId);
+    const route = view ? routeOfLine(state.project, view, state.indexed, line) : undefined;
+    return frameOriginOf(state.indexed, line, route);
   }
 
   /** The pointer was let go: sends what the drag did, if anything. */
@@ -755,12 +794,24 @@ export class RouteEditor {
     const dx = event.key === 'ArrowLeft' ? -step : event.key === 'ArrowRight' ? step : 0;
     const dy = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
     const chosen = keys.chosen;
+    // While snapping, Shift and an arrow key go to the next grid line of the route's frame (A3).
+    const origin =
+      event.shiftKey && this.host.snapping?.() === true
+        ? this.originOf(state, keys.line)
+        : undefined;
+    const along = (value: number, from: number, by: number) =>
+      origin === undefined || by === 0
+        ? value + by
+        : from + nudgedOffset(Math.round((value - from) * 1e6) / 1e6, by > 0 ? 1 : -1);
     switch (chosen.kind) {
       case 'bend': {
         const bends = [...draftBends(keys, preview)];
         const point = bends[chosen.index];
         if (!point) return;
-        const moved = { x: point.x + dx, y: point.y + dy };
+        const moved = {
+          x: along(point.x, origin?.x ?? 0, dx),
+          y: along(point.y, origin?.y ?? 0, dy),
+        };
         bends[chosen.index] = moved;
         keys.draft = {
           ...keys.draft,
@@ -777,7 +828,9 @@ export class RouteEditor {
           const b = preview.route[chosen.segment + 1] as Point;
           const horizontal = a.y === b.y;
           if ((horizontal && dy === 0) || (!horizontal && dx === 0)) return;
-          const value = horizontal ? a.y + dy : a.x + dx;
+          const value = horizontal
+            ? along(a.y, origin?.y ?? 0, dy)
+            : along(a.x, origin?.x ?? 0, dx);
           const route = moveSegment(
             preview.route,
             chosen.segment,
@@ -787,8 +840,8 @@ export class RouteEditor {
           keys.draft = { ...keys.draft, bendPoints: cornersOf(route, stubSides(preview)) };
           delete keys.draft.route;
           const middle = horizontal
-            ? { x: chosen.at.x, y: chosen.at.y + dy }
-            : { x: chosen.at.x + dx, y: chosen.at.y };
+            ? { x: chosen.at.x, y: chosen.at.y + (value - a.y) }
+            : { x: chosen.at.x + (value - a.x), y: chosen.at.y };
           const next = previewOf(state.indexed, keys.line, keys.draft) ?? preview;
           const middles = handlesOf(next, this.host.scale()).filter(
             (handle) => handle.kind === 'middle',
