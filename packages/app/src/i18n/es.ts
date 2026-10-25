@@ -355,6 +355,10 @@ export const ui: Catalog = {
     one: 'Actualiza {count} elemento del proyecto.',
     other: 'Actualiza {count} elementos del proyecto.',
   },
+  'It updates {count} relations of the project.': {
+    one: 'Actualiza {count} relación del proyecto.',
+    other: 'Actualiza {count} relaciones del proyecto.',
+  },
   'Read as {format}.': 'Leído como {format}.',
   'In the file': 'En el archivo',
   'How many': 'Cuántos',
@@ -366,6 +370,10 @@ export const ui: Catalog = {
   'It updated {count} elements.': {
     one: 'Actualizó {count} elemento.',
     other: 'Actualizó {count} elementos.',
+  },
+  'It updated {count} relations.': {
+    one: 'Actualizó {count} relación.',
+    other: 'Actualizó {count} relaciones.',
   },
   'One undo takes it all back.': 'Un solo deshacer lo revierte todo.',
   'Open its view': 'Abrir su vista',
@@ -2977,6 +2985,8 @@ export const messages: Catalog = {
   'The plan uses the key "{key}" twice.': 'El plan usa la clave "{key}" dos veces.',
   'No component is chosen for "{kind}".': 'No se eligió ningún componente para "{kind}".',
   'No relation type is chosen for "{kind}".': 'No se eligió ningún tipo de relación para "{kind}".',
+  'The plan updates "{id}", which the project does not hold.':
+    'El plan actualiza "{id}", que el proyecto no tiene.',
   'The relation "{key}" ends on something the plan does not hold.':
     'La relación "{key}" termina en algo que el plan no tiene.',
   'No relation type that nests is chosen for what sits inside what.':
@@ -3091,8 +3101,6 @@ export const messages: Catalog = {
   '{path} in the file {why}.': '{path} en el archivo {why}.',
   'Its own appearance is left out: an import brings no appearances.':
     'Su apariencia propia se deja afuera: una importación no trae apariencias.',
-  'An import gives a relation no description, so its description is kept as its attribute "description".':
-    'Una importación no da descripción a las relaciones, así que su descripción se guarda en su atributo "description".',
   'It ends on World, which an import does not bring, so it is left out.':
     'Termina en Mundo, que una importación no trae, así que se deja afuera.',
   'It ends on "{name}", which the file does not hold, so it is left out.':

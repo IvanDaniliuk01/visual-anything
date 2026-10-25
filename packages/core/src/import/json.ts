@@ -81,9 +81,6 @@ export const SIMPLE_FORM_SCHEMA = {
 const NEITHER =
   'The file holds neither a model, with world, elements and relations, nor a list of elements and relations.';
 
-const DESCRIPTION_KEPT =
-  'An import gives a relation no description, so its description is kept as its attribute "description".';
-
 /** The JSON reader, as the import dialog, the command line and Claude's tools list it. */
 export const JSON_READER: ImportReader = {
   format: 'json',
@@ -350,13 +347,8 @@ class JsonReading {
   #modelRelation(relation: Relation, keyOf: (end: string) => string): string {
     const builder = this.#builder;
     const label = relation.name ?? relation.id;
-    if (relation.description !== undefined) builder.report(label, DESCRIPTION_KEPT);
-    const attributes = this.#attributes(
-      relation.description === undefined
-        ? relation.attributes
-        : { ...relation.attributes, description: relation.description },
-      label,
-    );
+    const attributes = this.#attributes(relation.attributes, label);
+    const description = builder.description(relation.description);
     return builder.relate(
       {
         sourceId: relation.id,
@@ -364,6 +356,7 @@ class JsonReading {
         to: keyOf(relation.to),
         kind: relation.relationType,
         ...(relation.name === undefined ? {} : { name: builder.name(relation.name, relation.id) }),
+        ...(description === undefined ? {} : { description }),
         ...(attributes === undefined ? {} : { attributes }),
       },
       { label: relation.relationType, suggested: relation.relationType },
@@ -424,13 +417,8 @@ class JsonReading {
       if (to === undefined) continue;
       const kind = relation.relationType ?? '';
       const label = relation.name ?? relation.id ?? `${relation.from} → ${relation.to}`;
-      if (relation.description !== undefined) builder.report(label, DESCRIPTION_KEPT);
-      const attributes = this.#attributes(
-        relation.description === undefined
-          ? relation.attributes
-          : { ...relation.attributes, description: relation.description },
-        label,
-      );
+      const attributes = this.#attributes(relation.attributes, label);
+      const description = builder.description(relation.description);
       const suggested = this.#suggest.relationType(kind);
       builder.relate(
         {
@@ -439,6 +427,7 @@ class JsonReading {
           to,
           kind,
           ...(relation.name === undefined ? {} : { name: builder.name(relation.name, '') }),
+          ...(description === undefined ? {} : { description }),
           ...(attributes === undefined ? {} : { attributes }),
         },
         { label: kind, ...(suggested === undefined ? {} : { suggested }) },

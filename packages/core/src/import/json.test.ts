@@ -59,7 +59,7 @@ describe('a project’s own model file', () => {
         to: 'orders',
         kind: 'systems.writes-to',
         name: 'Stores orders',
-        attributes: { description: 'Every order, once paid.' },
+        description: 'Every order, once paid.',
       },
       {
         key: 'relation 3',
@@ -73,16 +73,12 @@ describe('a project’s own model file', () => {
     expect(plan.views).toEqual([]);
   });
 
-  it('reports appearances, descriptions of relations and relations on World', () => {
+  it('reports appearances and relations on World', () => {
     expect(plan.unmatched).toEqual([
       { text: 'Orders', why: 'Its own appearance is left out: an import brings no appearances.' },
       {
         text: 'in-world',
         why: 'It ends on World, which an import does not bring, so it is left out.',
-      },
-      {
-        text: 'Stores orders',
-        why: 'An import gives a relation no description, so its description is kept as its attribute "description".',
       },
     ]);
   });

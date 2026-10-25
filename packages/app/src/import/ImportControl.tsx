@@ -563,7 +563,10 @@ function Summary({
 }: {
   t: Translator;
   plan: ImportPlan;
-  prepared: { creates: { elements: number; relations: number; views: number }; updates: number };
+  prepared: {
+    creates: { elements: number; relations: number; views: number };
+    updates: { elements: number; relations: number };
+  };
 }) {
   const { creates, updates } = prepared;
   return (
@@ -579,13 +582,21 @@ function Summary({
         ),
         views: t({ one: '{count} view', other: '{count} views' }, { count: creates.views }),
       })}{' '}
-      {updates > 0 &&
+      {updates.elements > 0 &&
         t(
           {
             one: 'It updates {count} element of the project.',
             other: 'It updates {count} elements of the project.',
           },
-          { count: updates },
+          { count: updates.elements },
+        )}{' '}
+      {updates.relations > 0 &&
+        t(
+          {
+            one: 'It updates {count} relation of the project.',
+            other: 'It updates {count} relations of the project.',
+          },
+          { count: updates.relations },
         )}{' '}
       <span className="import-format">{t('Read as {format}.', { format: plan.format })}</span>
     </p>
@@ -724,7 +735,7 @@ function Report({
   name: string;
   prepared: {
     creates: { elements: number; relations: number; views: number };
-    updates: number;
+    updates: { elements: number; relations: number };
     plan: ImportPlan;
     notes: readonly string[];
   };
@@ -755,10 +766,15 @@ function Report({
             { count: prepared.creates.views },
           ),
         })}{' '}
-        {prepared.updates > 0 &&
+        {prepared.updates.elements > 0 &&
           t(
             { one: 'It updated {count} element.', other: 'It updated {count} elements.' },
-            { count: prepared.updates },
+            { count: prepared.updates.elements },
+          )}{' '}
+        {prepared.updates.relations > 0 &&
+          t(
+            { one: 'It updated {count} relation.', other: 'It updated {count} relations.' },
+            { count: prepared.updates.relations },
           )}{' '}
         {t('One undo takes it all back.')}
       </p>

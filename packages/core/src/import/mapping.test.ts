@@ -2,7 +2,8 @@
  * From a plan to the one action (ADR-0042): the mapping the dialog starts with, from the built-in
  * suggestions; the definitions it may choose, built-in packages not in use included; and the prepared
  * batch, which starts using those packages, types the file's text as the attributes' types say, and
- * leaves out relations that importing again would repeat, in the same one undoable action.
+ * matches the relations that importing again would repeat to the project's own, in the same one
+ * undoable action.
  */
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
@@ -135,7 +136,7 @@ describe('prepareImport', () => {
     const { prepared, after } = land(state, mermaid(FLOWCHART));
     expect(prepared.command.label).toBe('Import "diagram.mmd"');
     expect(prepared.creates).toEqual({ elements: 7, relations: 10, views: 1 });
-    expect(prepared.updates).toBe(0);
+    expect(prepared.updates).toEqual({ elements: 0, relations: 0 });
     expect(prepared.packages).toEqual([]);
     expect(after.model.elements).toHaveLength(7);
     const view = after.views.find((each) => each.name === 'Checkout');
@@ -180,11 +181,22 @@ describe('prepareImport', () => {
     expect(after.model.relations).toHaveLength(state.model.relations.length + 1);
   });
 
+  it('updates a relation the project already has when importing again changes its values', () => {
+    const state = testProject();
+    const plan = table('from,to,kind,protocol\nclient,api,calls,https\napi,client,calls,\n', state);
+    const { prepared, after } = land(state, plan);
+    expect(prepared.updates).toEqual({ elements: 0, relations: 1 });
+    expect(prepared.creates.relations).toBe(1);
+    const call = after.model.relations.find((each) => each.id === 'client-calls-api');
+    expect(call).toEqual({ ...state.model.relations[2], attributes: { protocol: 'https' } });
+    expect(after.model.relations).toHaveLength(state.model.relations.length + 1);
+  });
+
   it('counts the elements it updates by what changes in them', () => {
     const state = testProject();
     const { prepared } = land(state, table('id,name,latency\napi,API,20\ndb,Database,\n', state));
     // "api" keeps its name and latency, so only "db", renamed, changes.
-    expect(prepared.updates).toBe(1);
+    expect(prepared.updates).toEqual({ elements: 1, relations: 0 });
     expect(prepared.creates.elements).toBe(0);
   });
 

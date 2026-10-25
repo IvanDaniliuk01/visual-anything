@@ -337,6 +337,9 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [x] License fields in the schema, and the license test (ADR 0047)
 - [x] Starter packages for C4 architecture and data-science pipelines, each with icons, a sample project and a scenario, in English and Spanish; New project from a sample
 - [x] A package added from another project, with its version and attribution, and updated from it after a preview
+- [x] A command's draft keeps the model's index up to date, so that a batch of N creates is no longer quadratic: 10,000 elements with their shapes and relations land in about 1 s (ADR 0042)
+- [x] Planned relations carry their description, and importing again updates the values of a relation the project already has
+- [ ] An import at the limits lands in fewer operations, as commands do past `BULK` changes to one list (about 26 s on a loaded machine now)
 
 **M7 · Package code.** It is planned here so that it can run in the second wave after v0.1. Done when:
 

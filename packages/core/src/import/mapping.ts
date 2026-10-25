@@ -3,15 +3,17 @@
  * and Claude's tools start from, chosen from the built-in mappings; the components and relation types
  * a mapping may choose, those of built-in packages the project does not use yet included; and the
  * prepared import, which wraps `planToCommand`'s one batch so that it also starts using those packages,
- * gives text from the file the types its attributes have, and leaves out the relations that importing
- * again would repeat. The batch keeps `planToCommand`'s label, and one undo still takes it all back.
+ * gives text from the file the types its attributes have, and matches the relations that importing
+ * again would repeat to the project's own. The batch keeps `planToCommand`'s label, and one undo still takes it all back.
  */
 import {
   ESSENCE_ID,
   RELATES_TO_ID,
   type Attributes,
+  type Element,
   type Id,
   type JsonValue,
+  type Relation,
 } from '@visual-anything/schema';
 import { BUILTIN_PACKAGES } from '../builtin';
 import { executeCommand } from '../commands';
@@ -205,14 +207,17 @@ export interface PreparedImport {
   command: BatchCommand;
   /** The id each planned element, relation and view gets, by its key. */
   ids: ReadonlyMap<string, Id>;
-  /** The plan as prepared: values typed, repeated relations left out and reported. */
+  /**
+   * The plan as prepared: values typed, and relations the project already has matched to them, or
+   * left out and reported when they change nothing.
+   */
   plan: ImportPlan;
   /** The built-in packages the import starts using. */
   packages: Id[];
   /** What it creates: relations count those that put one element inside another. */
   creates: { elements: number; relations: number; views: number };
-  /** How many elements of the project it changes, matched by a key. */
-  updates: number;
+  /** How many elements and relations of the project it changes, matched as importing again does. */
+  updates: { elements: number; relations: number };
   /** What the batch leaves out of the plan, and why, as `planToCommand` says it, for the report. */
   notes: string[];
 }
@@ -262,20 +267,21 @@ export function prepareImport(
     start = used.state;
     before.push(use);
   }
-  const prepared = repeatedRelationsLeftOut(start, typedPlan(start, plan, normalized), normalized);
+  const prepared = repeatedRelationsMatched(start, typedPlan(start, plan, normalized), normalized);
   const planned = planToCommand(start, prepared, normalized, generate);
   if (!planned.ok) return { ok: false, problems: planned.problems };
   const elements = new Map(state.model.elements.map((element) => [element.id, element]));
-  const updates = prepared.elements.filter((element) => {
+  const updatedElements = prepared.elements.filter((element) => {
     if (element.existing === undefined) return false;
     const current = elements.get(element.existing);
     if (current === undefined) return false;
     if (current.name !== element.name) return true;
-    return Object.entries(element.attributes ?? {}).some(
-      ([name, value]) =>
-        JSON.stringify(own(current.attributes ?? {}, name) ?? null) !== JSON.stringify(value),
-    );
+    return changesAttributes(current, element.attributes);
   }).length;
+  // A relation is matched only when it changes something.
+  const updatedRelations = prepared.relations.filter(
+    (relation) => relation.existing !== undefined,
+  ).length;
   const nestings = new Set(
     prepared.containment.map(({ element, container }) => JSON.stringify([element, container])),
   );
@@ -291,10 +297,13 @@ export function prepareImport(
     packages,
     creates: {
       elements: prepared.elements.filter((element) => element.existing === undefined).length,
-      relations: prepared.relations.length + (normalized.nesting === undefined ? 0 : nestings.size),
+      relations:
+        prepared.relations.length -
+        updatedRelations +
+        (normalized.nesting === undefined ? 0 : nestings.size),
       views: prepared.views.length,
     },
-    updates,
+    updates: { elements: updatedElements, relations: updatedRelations },
     notes: planned.notes,
   };
 }
@@ -375,11 +384,24 @@ function typedPlan(state: ProjectSnapshot, plan: ImportPlan, mapping: ImportMapp
   };
 }
 
+/** Whether attribute values from a file differ from what something of the project holds. */
+function changesAttributes(
+  current: Element | Relation,
+  attributes: Attributes | undefined,
+): boolean {
+  return Object.entries(attributes ?? {}).some(
+    ([name, value]) =>
+      JSON.stringify(own(current.attributes ?? {}, name) ?? null) !== JSON.stringify(value),
+  );
+}
+
 /**
- * A plan without the relations the project already has between the elements an import matched, of
- * the relation type they are mapped to, which are reported: importing again never repeats them.
+ * A plan in which the relations the project already has between the elements an import matched, of
+ * the relation type they are mapped to, are matched to them: importing again never repeats them. A
+ * relation whose name, description or attribute values change updates the project's relation; one
+ * that changes nothing is left out and reported.
  */
-function repeatedRelationsLeftOut(
+function repeatedRelationsMatched(
   state: ProjectSnapshot,
   plan: ImportPlan,
   mapping: ImportMapping,
@@ -390,24 +412,32 @@ function repeatedRelationsLeftOut(
       .map((element) => [element.key, element.existing as Id]),
   );
   if (matched.size === 0) return plan;
-  const present = new Set(
-    state.model.relations.map((relation) =>
-      JSON.stringify([relation.relationType, relation.from, relation.to]),
-    ),
-  );
+  const present = new Map<string, Relation>();
+  for (const relation of state.model.relations) {
+    const key = JSON.stringify([relation.relationType, relation.from, relation.to]);
+    if (!present.has(key)) present.set(key, relation);
+  }
   const names = new Map(state.model.elements.map((element) => [element.id, element.name]));
   const unmatched = [...plan.unmatched];
-  const relations: PlannedRelation[] = plan.relations.filter((relation) => {
+  let changed = false;
+  const relations: PlannedRelation[] = plan.relations.flatMap((relation) => {
     const from = matched.get(relation.from);
     const to = matched.get(relation.to);
     const type = own(mapping.relations, relation.kind);
-    if (from === undefined || to === undefined || type === undefined) return true;
-    if (!present.has(JSON.stringify([type, from, to]))) return true;
+    if (from === undefined || to === undefined || type === undefined) return [relation];
+    const current = present.get(JSON.stringify([type, from, to]));
+    if (current === undefined) return [relation];
+    changed = true;
+    const changes =
+      (relation.name !== undefined && relation.name !== current.name) ||
+      (relation.description !== undefined && relation.description !== current.description) ||
+      changesAttributes(current, relation.attributes);
+    if (changes) return [{ ...relation, existing: current.id }];
     unmatched.push({
       text: quote(relation.name ?? `${names.get(from) ?? from} → ${names.get(to) ?? to}`),
       why: 'The project already has this relation, so it is not created again.',
     });
-    return false;
+    return [];
   });
-  return relations.length === plan.relations.length ? plan : { ...plan, relations, unmatched };
+  return changed ? { ...plan, relations, unmatched } : plan;
 }

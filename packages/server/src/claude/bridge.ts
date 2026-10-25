@@ -16,7 +16,6 @@ import {
   ProtocolError,
   applyOperations,
   type CodeApproval,
-  type BatchCommand,
   type Command,
   type Guidance,
   type Problem,
@@ -25,6 +24,7 @@ import {
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { WebSocket, type RawData } from 'ws';
+import type { ImportRequest } from '../import';
 import { toForwardSlashes } from '../paths';
 import {
   RUNTIME_ENV,
@@ -41,6 +41,7 @@ import {
   CLAUDE_PATH,
   decodeProgramMessage,
   encodeClaudeMessage,
+  importMessageRequest,
   type ClaudeMessage,
   type ProgramMessage,
 } from './messages';
@@ -170,11 +171,17 @@ export class ProgramBridge implements Program {
   }
 
   /**
-   * Runs an import the person ran on the command line as one action of the person's (ADR-0049); only
-   * `visual-anything import` calls it, never Claude's tools.
+   * Runs an import the person ran on the command line as one action of the person's (ADR-0049): the
+   * program reads and maps the file itself. Only `visual-anything import` calls it, never Claude's
+   * tools.
    */
-  async importAsPerson(command: BatchCommand): Promise<CommandAnswer> {
-    const answer = await this.#request((requestId) => ({ type: 'import', requestId, command }));
+  async importAsPerson(request: ImportRequest): Promise<CommandAnswer> {
+    const message = importMessageRequest(request);
+    const answer = await this.#request((requestId) => ({
+      type: 'import',
+      requestId,
+      request: message,
+    }));
     if (answer.type === 'project/changed') {
       return {
         ok: true,

@@ -23,7 +23,7 @@ import {
   type CommandAnswer,
 } from './claude/bridge';
 import type { RuntimeContext } from './claude/discovery';
-import { CLAUDE_MAX_PAYLOAD, encodeClaudeMessage } from './claude/messages';
+import { CLAUDE_MAX_PAYLOAD, encodeClaudeMessage, importMessageRequest } from './claude/messages';
 import { errorReason } from './errors';
 import { describePreview, previewImport, type ImportRequest } from './import';
 import { toForwardSlashes } from './paths';
@@ -186,32 +186,31 @@ export async function runImport(
       }
     }
     if (running !== undefined && bridge !== undefined) {
-      return await importInto(
-        running,
-        { name, ...file.value, ...request },
-        dryRun,
-        environment,
-        (command) => {
-          const size = Buffer.byteLength(
-            encodeClaudeMessage({ type: 'import', requestId: 'x'.repeat(100), command }),
-          );
-          if (size > CLAUDE_MAX_PAYLOAD) {
-            return Promise.resolve({
-              ok: false,
-              problems: [
-                {
-                  code: 'invalid-command',
-                  message: `This import is too large to send to the Visual Anything that runs on the project (${(size / 1024 / 1024).toFixed(1)} MiB; at most ${CLAUDE_MAX_PAYLOAD / 1024 / 1024} MiB). Stop it, and import again: the project is then opened here.`,
-                },
-              ],
-            } satisfies CommandAnswer);
-          }
-          environment.out(
-            `Visual Anything runs on "${running.project.name}", so the import goes through it.`,
-          );
-          return bridge.importAsPerson(command);
-        },
-      );
+      const full: ImportRequest = { name, ...file.value, ...request };
+      return await importInto(running, full, dryRun, environment, () => {
+        const size = Buffer.byteLength(
+          encodeClaudeMessage({
+            type: 'import',
+            requestId: 'x'.repeat(100),
+            request: importMessageRequest(full),
+          }),
+        );
+        if (size > CLAUDE_MAX_PAYLOAD) {
+          return Promise.resolve({
+            ok: false,
+            problems: [
+              {
+                code: 'invalid-command',
+                message: `This import is too large to send to the Visual Anything that runs on the project (${(size / 1024 / 1024).toFixed(1)} MiB; at most ${CLAUDE_MAX_PAYLOAD / 1024 / 1024} MiB). Stop it, and import again: the project is then opened here.`,
+              },
+            ],
+          } satisfies CommandAnswer);
+        }
+        environment.out(
+          `Visual Anything runs on "${running.project.name}", so the import goes through it.`,
+        );
+        return bridge.importAsPerson(full);
+      });
     }
     const opened = await openSession(folder, {
       watch: false,

@@ -1,7 +1,7 @@
 /**
  * The program's side of the Claude endpoint: one attached Claude. It greets Claude with the project,
- * runs its commands with Claude as their author, and an import from the command line with the person
- * as its author (ADR-0049), shows its guidance in the open apps and opens the
+ * runs its commands with Claude as their author, and an import from the command line, which it reads
+ * and maps itself, with the person as its author (ADR-0049), shows its guidance in the open apps and opens the
  * app when asked. It never answers with the session token, and refuses every other message.
  */
 import {
@@ -13,9 +13,11 @@ import {
   type ServerMessage,
   type ViewState,
 } from '@visual-anything/core';
+import { previewImport } from '../import';
 import type { LiveSession, SessionClient } from '../session';
 import {
   decodeClaudeMessage,
+  importRequestOf,
   requestIdIn,
   type ClaudeMessage,
   type ProgramMessage,
@@ -61,13 +63,24 @@ export function attachClaude(
           requestId: message.requestId,
         });
         return;
-      case 'import':
-        // The person ran it on the command line, so it is the person's action (ADR-0049).
-        await session.execute(message.command, 'user', {
+      case 'import': {
+        // The person ran it on the command line, so it is the person's action (ADR-0049). The message
+        // carries the file, never a command: what runs as the person's is only what the program's
+        // own reading and mapping of that file makes, against the project as it is now.
+        const preview = previewImport(session.snapshot, importRequestOf(message.request));
+        if (!preview.ok) {
+          refuse(
+            message.requestId,
+            preview.problems.map((each) => ({ code: 'invalid-command', message: each })),
+          );
+          return;
+        }
+        await session.execute(preview.prepared.command, 'user', {
           client,
           requestId: message.requestId,
         });
         return;
+      }
       case 'guidance': {
         const apps = await session.guide(message.guidance);
         send({ type: 'guidance/shown', requestId: message.requestId, apps });

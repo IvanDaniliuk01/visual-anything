@@ -122,13 +122,22 @@ function withChoices(
   };
 }
 
+/** What an import updates, in words that follow what it creates; nothing when it updates nothing. */
+function updatesOf(updates: { elements: number; relations: number }): string {
+  const parts = [
+    ...(updates.elements > 0 ? [counted(updates.elements, 'element')] : []),
+    ...(updates.relations > 0 ? [counted(updates.relations, 'relation')] : []),
+  ];
+  return parts.length === 0 ? '' : `, and updates ${parts.join(' and ')}`;
+}
+
 /** A preview in words, line by line: what the file holds, how its kinds map, and what matched nothing. */
 export function describePreview(preview: Extract<ImportPreview, { ok: true }>): string[] {
   const { read, mapping, prepared, reader } = preview;
   const lines: string[] = [];
   const { creates } = prepared;
   lines.push(
-    `Read "${read.source}" as ${read.format} (${reader.name}): it creates ${counted(creates.elements, 'element')}, ${counted(creates.relations, 'relation')} and ${counted(creates.views, 'view')}${prepared.updates > 0 ? `, and updates ${counted(prepared.updates, 'element')}` : ''}.`,
+    `Read "${read.source}" as ${read.format} (${reader.name}): it creates ${counted(creates.elements, 'element')}, ${counted(creates.relations, 'relation')} and ${counted(creates.views, 'view')}${updatesOf(prepared.updates)}.`,
   );
   if (read.kinds.elements.length + read.kinds.relations.length > 0) lines.push('Kinds:');
   for (const kind of read.kinds.elements) {

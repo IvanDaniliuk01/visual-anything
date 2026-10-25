@@ -88,6 +88,7 @@ export function executeCommand(
   try {
     const label = run(draft, command);
     checkImageReferences(state, draft.state, draft.operations);
+    draft.seal();
     return {
       ok: true,
       state: draft.state,
