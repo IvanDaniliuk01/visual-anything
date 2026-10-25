@@ -257,3 +257,23 @@ describe('create-element before another', () => {
     ).toEqual(['position-of-row']);
   });
 });
+
+describe('change-container into a container that draws rows', () => {
+  it('makes the shape a row in the model’s order, and writes no stacking list for the table', () => {
+    // API comes before the table's rows in the model, so bringing it to the front would need a list.
+    const outcome = ok({
+      type: 'change-container',
+      view: 'overview',
+      to: 'table',
+      shapes: [{ element: 'api', from: 'system' }],
+    });
+    for (const view of outcome.state.views) {
+      expect(view.stackingOrder?.table).toBeUndefined();
+    }
+    expect(
+      outcome.state.model.relations.some(
+        (relation) => relation.from === 'api' && relation.to === 'table',
+      ),
+    ).toBe(true);
+  });
+});

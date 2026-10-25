@@ -5,6 +5,7 @@
  */
 import type { Element, Id, Relation, ShapePosition } from '@visual-anything/schema';
 import { leavingRelations, nestingTypeFor, nestingTypesInView } from '../containers';
+import { appearanceOf } from '../definitions';
 import { randomIds, slug } from '../ids';
 import type { ModelIndex } from '../model-index';
 import { problem, type Problem } from '../problems';
@@ -220,11 +221,13 @@ export function changeContainer(draft: Draft, command: ChangeContainerCommand): 
   });
   if (positions.length > 0) putPositions(draft, view.id, positions);
 
-  // Front: what entered comes in front of what was there, in the order given.
+  // Front: what entered comes in front of what was there, in the order given; but in a container that
+  // draws its contents as rows, which stand in the model's order and have no stacking (ADR 0023).
   const key = stackingKey(worldId, to?.id);
   const live = contentsInView(draft.state, view, to?.id);
   const shown = new Set(live);
-  const front = entering.map((element) => element.id).filter((id) => shown.has(id));
+  const rows = to !== undefined && appearanceOf(to, draft.definitions).contentsAsRows === true;
+  const front = rows ? [] : entering.map((element) => element.id).filter((id) => shown.has(id));
   if (front.length > 0) {
     const current = draft.view(view.id);
     const stored = storedStacking(current, key) ?? [];
