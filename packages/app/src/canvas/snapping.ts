@@ -11,6 +11,7 @@ import type { Point } from './geometry';
 import { GRID_STEP, nudgedOffset, snappedDelta, unitsText } from './grid';
 import { movingShapes } from './gestures';
 import type { Hit, IndexedScene } from './hit';
+import { laidOutRect } from './overlays/decorate';
 import type { Direction } from './navigation';
 import type { ElementShape } from './scene';
 
@@ -63,7 +64,9 @@ export function dragAnchor(
     case 'shape': {
       const anchor =
         carrierOf(movingShapes(indexed, selection), pressed.shape.key) ?? pressed.shape;
-      return { at: { x: anchor.rect.x, y: anchor.rect.y }, home: frameOf(indexed, anchor) };
+      // What snaps is what is stored: where layout put it, whatever size an overlay draws it at.
+      const { x, y } = laidOutRect(anchor);
+      return { at: { x, y }, home: frameOf(indexed, anchor) };
     }
     case 'note':
       return { at: { x: pressed.note.rect.x, y: pressed.note.rect.y }, home: WORLD_FRAME };

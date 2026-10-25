@@ -92,10 +92,17 @@ export function expandedAt(expandFrom: number, scale: number, expanded: boolean)
  * shapes by it, so that every shape of a tile changes level at once.
  */
 export function levelsKey(levels: readonly LevelOfDetail[]): string {
-  return sortedLevels(levels)
-    .map((level) => `${level.from}:${partsKey(level)}`)
-    .join(';');
+  let key = keys.get(levels);
+  if (key === undefined) {
+    key = sortedLevels(levels)
+      .map((level) => `${level.from}:${partsKey(level)}`)
+      .join(';');
+    keys.set(levels, key);
+  }
+  return key;
 }
+
+const keys = new WeakMap<readonly LevelOfDetail[], string>();
 
 function partsKey(level: LevelOfDetail): string {
   if (level.shows.includes('silhouette')) return 's';

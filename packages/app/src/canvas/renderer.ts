@@ -25,7 +25,8 @@ import {
   type Texture,
 } from 'pixi.js';
 import type { ThemeName } from '@visual-anything/core';
-import type { Id } from '@visual-anything/schema';
+import type { Id, LevelOfDetail } from '@visual-anything/schema';
+import { levelDetail, type TileDetail } from './levels';
 import type { Emphasis } from '../editor/emphasis';
 import { ImageError, drawInChunks, planImage, toPng, type ImageRequest } from '../export/image';
 import type { Selection } from '../editor/selection';
@@ -63,7 +64,7 @@ import { drawRouteOverlay, type RouteOverlay } from './routing/overlay';
 import { rerouted } from './routing/scene-routes';
 import { routeWithSides } from './rowRoutes';
 import { dragEnds } from './rowShapes';
-import { levelWithRows } from './rowsDraw';
+import { holdsRows, levelWithRows } from './rowsDraw';
 import { nameBandOf } from './shape-images';
 import {
   relationLinesOf,
@@ -312,6 +313,16 @@ interface Tile {
   labelPaint: LabelPaint[];
   /** Whether it had a full drawing when the colors of what it draws last changed. */
   hadFull?: boolean;
+  /**
+   * For shapes that declare levels of detail (ADR 0055): those levels, the one they show now, by its
+   * index in `sortedLevels`, which the next scale goes on from, and what it shows. Absent for the
+   * canvas's own steps.
+   */
+  levels?: readonly LevelOfDetail[];
+  levelAt?: number;
+  levelDetail?: TileDetail;
+  /** Whether its level shows no pictures, which the image drawings then leave out. */
+  imagesHidden?: boolean;
 }
 
 /** What the tiles of element shapes were last made from. */
@@ -827,8 +838,11 @@ export class CanvasRenderer {
    * at all, as while it is dragged. Pointing goes by the outline only where it is drawn.
    */
   showsOutline(key: string): boolean {
-    if (this.camera.scale < COARSE_BELOW || this.hiddenNow().shapes.has(key)) return false;
-    return this.tileOfShape.get(key)?.full !== undefined;
+    if (this.hiddenNow().shapes.has(key)) return false;
+    const tile = this.tileOfShape.get(key);
+    // Far out, or at a level of detail that shows a silhouette, shapes are plain blocks.
+    if (!tile || this.coarseFor(tile, this.camera.scale < COARSE_BELOW)) return false;
+    return tile.full !== undefined;
   }
 
   /**
@@ -839,11 +853,7 @@ export class CanvasRenderer {
     const tile = this.tileOfShape.get(key);
     if (!tile?.full || (tile.coarse && tile.plainShown)) return false;
     if (!isPlanned(this.shapeCells, tile.cell)) return false;
-    const level = levelWithRows(
-      tile.shapes,
-      wantedFor(tile.kind, this.detailNow().wanted),
-      this.camera.scale,
-    );
+    const level = this.detailOf(tile, this.detailNow(), this.camera.scale).wanted;
     return level === 0 || (tile.level === level && tile.labelled >= labelCount(tile));
   }
 
@@ -1112,12 +1122,20 @@ export class CanvasRenderer {
         // Drawn in the theme and colors shown, off screen too: a tile the canvas would draw again
         // before it shows is drawn again now.
         if (!this.pending) this.restyleNow(tile, lookups);
-        if (!coarse && !tile.full) this.drawFully(tile);
-        const full = !coarse && tile.full !== undefined;
+        // Shapes that declare levels of detail show what their level shows: what is visible as the
+        // screen shows it, the whole view at the scale it is drawn at (ADR 0055).
+        const own =
+          tile.kind === 'shapes' && tile.levels !== undefined
+            ? request.area === 'visible' && tile.levelDetail
+              ? tile.levelDetail
+              : this.detailOf(tile, detail, scale, false)
+            : { coarse, wanted: wantedFor(tile.kind, wanted) };
+        if (!own.coarse && !tile.full) this.drawFully(tile);
+        const full = !own.coarse && tile.full !== undefined;
         showPlain(tile, !full);
         if (tile.full) change(tile.full, 'visible', full || !tile.coarse);
         if (tile.casing) change(tile.casing, 'visible', full || !tile.coarse);
-        const level = wantedFor(tile.kind, wanted);
+        const level = own.wanted;
         if (level > 0 && (full || !tile.coarse)) {
           try {
             this.labelUpTo(tile, level, labelCount(tile));
@@ -1722,9 +1740,13 @@ export class CanvasRenderer {
     const repaints = takeRepaints(plan, (key, next) =>
       sameListButPaint((previous.get(key) as Tile).shapes, next.shapes, SHAPE_PAINT),
     );
-    const { coarse, wanted } = this.detailNow();
-    // How far each shape was drawn before this edit, for the tiles it makes.
-    const ready = plan.make.length > 0 && !coarse ? this.readiness(previous, extra) : undefined;
+    const now = this.detailNow();
+    // How far each shape was drawn before this edit, for the tiles it makes; far out, only shapes
+    // that declare levels of detail may show more than plain blocks (ADR 0055).
+    const ready =
+      plan.make.length > 0 && (!now.coarse || plan.make.some((next) => next.levels !== undefined))
+        ? this.readiness(previous, extra)
+        : undefined;
     const byKey = new Map(planned.map((tile) => [tile.key, tile]));
     const touched: Tile[] = [];
     let reorder = false;
@@ -1733,6 +1755,7 @@ export class CanvasRenderer {
       const tile = previous.get(key) as Tile;
       const next = byKey.get(key) as PlannedTile;
       tile.shapes = next.shapes;
+      this.relevel(tile, next.levels);
       if (tile.band === MAX_BANDS && tile.rank !== next.rank) reorder = true;
       tile.rank = next.rank;
       dimTile(tile, next.dim);
@@ -1742,6 +1765,7 @@ export class CanvasRenderer {
       const tile = previous.get(next.key) as Tile;
       if (tile.band === MAX_BANDS && tile.rank !== next.rank) reorder = true;
       Object.assign(tile, { shapes: next.shapes, signature: next.signature, rank: next.rank });
+      this.relevel(tile, next.levels);
       dimTile(tile, next.dim);
       this.repaint(tile);
       touched.push(tile);
@@ -1766,6 +1790,7 @@ export class CanvasRenderer {
         rank: to.rank,
         shapes: to.shapes,
       });
+      this.relevel(tile, to.levels);
       this.place(tile);
       dimTile(tile, to.dim);
       this.tiles.set(to.key, tile);
@@ -1777,9 +1802,12 @@ export class CanvasRenderer {
       this.place(tile);
       dimTile(tile, next.dim);
       if (next.band === MAX_BANDS) reorder = true;
-      const shown = levelWithRows(next.shapes, wanted, this.camera.scale);
+      const own = this.detailOf(tile, now, this.camera.scale);
+      const shown = own.wanted;
       const wasReady =
-        ready !== undefined && next.shapes.every((shape) => isReady(ready.get(shape.key), shown));
+        !own.coarse &&
+        ready !== undefined &&
+        next.shapes.every((shape) => isReady(ready.get(shape.key), shown));
       if (wasReady && budget.left > 0) {
         budget.left -= next.shapes.length;
         this.drawAtOnce(tile, shown);
@@ -2109,6 +2137,7 @@ export class CanvasRenderer {
       shapes: planned.shapes,
       coarse,
       bounds: boundsOf(planned.shapes.map((shape) => shape.rect)),
+      ...(planned.levels === undefined ? {} : { levels: planned.levels }),
     });
   }
 
@@ -2168,6 +2197,7 @@ export class CanvasRenderer {
           | 'arrows'
           | 'coarse'
           | 'full'
+          | 'levels'
         >
       > & {
         bounds: Rect | undefined;
@@ -2282,6 +2312,54 @@ export class CanvasRenderer {
     return texts.length;
   }
 
+  /**
+   * What a tile shows at a scale: as `detail`, the canvas's own steps there, say, or, for shapes that
+   * declare levels of detail, as their levels say (ADR 0055). With `remember`, the level reached is
+   * the tile's from now on, which hysteresis goes on from; an image looks without moving it.
+   */
+  private detailOf(
+    tile: Tile,
+    detail: { coarse: boolean; wanted: Tile['level'] },
+    scale: number,
+    remember = true,
+  ): { coarse: boolean; wanted: Tile['level'] } {
+    if (tile.kind !== 'shapes' || tile.levels === undefined) {
+      return {
+        coarse: detail.coarse,
+        wanted: levelWithRows(tile.shapes, wantedFor(tile.kind, detail.wanted), scale),
+      };
+    }
+    const { at, detail: own } = levelDetail(
+      tile.levels,
+      scale,
+      remember ? tile.levelAt : undefined,
+      holdsRows(tile.shapes),
+    );
+    if (remember) {
+      tile.levelAt = at;
+      tile.levelDetail = own;
+      tile.imagesHidden = !own.images;
+    }
+    return own;
+  }
+
+  /** Whether a tile shows its plain drawing now: far out, or at a level that shows a silhouette. */
+  private coarseFor(tile: Tile, coarse: boolean): boolean {
+    return tile.kind === 'shapes' && tile.levels !== undefined
+      ? (tile.levelDetail?.coarse ?? coarse)
+      : coarse;
+  }
+
+  /** Gives a tile the levels of detail its shapes declare now; another list starts it afresh. */
+  private relevel(tile: Tile, levels: readonly LevelOfDetail[] | undefined): void {
+    if (tile.levels === levels) return;
+    if (levels === undefined) delete tile.levels;
+    else tile.levels = levels;
+    delete tile.levelAt;
+    delete tile.levelDetail;
+    delete tile.imagesHidden;
+  }
+
   /** How the canvas draws at the present scale: as plain blocks or not, and with which labels. */
   private detailNow(): { coarse: boolean; wanted: Tile['level'] } {
     const { scale } = this.camera;
@@ -2306,7 +2384,7 @@ export class CanvasRenderer {
   private updateDetail(): void {
     // Restyles first: what shows a theme or colors no longer current comes before any other work.
     const restyled = this.restyle();
-    const { coarse, wanted: detail } = this.detailNow();
+    const now = this.detailNow();
     const { scale } = this.camera;
     const shown = visibleRect(this.camera, this.viewport);
     // While the camera moves, only what is on screen; once it rests, the tiles around it too, so
@@ -2327,7 +2405,8 @@ export class CanvasRenderer {
       // A tile left out of the frame shows what it should once it is near again, as this runs
       // before culling: changing what it shows now would only make PixiJS gather its region again.
       if (!near && tile.container.culled) continue;
-      const wanted = levelWithRows(tile.shapes, wantedFor(tile.kind, detail), scale);
+      // The canvas's own steps, or the levels of detail its shapes declare (ADR 0055).
+      const { coarse, wanted } = this.detailOf(tile, now, scale);
       const full = !coarse && tile.full !== undefined;
       showPlain(tile, !full);
       if (tile.full) {
@@ -2459,23 +2538,51 @@ export class CanvasRenderer {
         else inBands.set(band, [shape]);
       }
     }
+    // A shape that declares levels of detail is drawn as its level says, with or without its name
+    // and detail (ADR 0055); any other as the canvas's own steps say.
+    const levelled = new Map<ElementShape, TileDetail>();
+    const ownDetail = (shape: ElementShape): { coarse: boolean; wanted: Tile['level'] } => {
+      if (shape.levels === undefined) {
+        return { coarse, wanted: details ? 2 : named ? 1 : 0 };
+      }
+      let known = levelled.get(shape);
+      if (!known) {
+        known =
+          this.tileOfShape.get(shape.key)?.levelDetail ??
+          levelDetail(shape.levels, scale, undefined, shape.row !== undefined).detail;
+        levelled.set(shape, known);
+      }
+      return known;
+    };
     // Many dragged shapes are drawn in full only near the screen, and named only on it.
     const inFull = (shape: ElementShape) =>
-      !coarse && (carried.length <= DRAG_DETAIL || meets(shape.rect, near));
+      !ownDetail(shape).coarse && (carried.length <= DRAG_DETAIL || meets(shape.rect, near));
+    // Pictures show with the full drawing, but at a level that leaves them out.
+    const pictured = (shape: ElementShape) =>
+      inFull(shape) && (shape.levels === undefined || levelled.get(shape)?.images === true);
     let names = 0;
     const label = (shapes: readonly ElementShape[]): Container[] => {
-      if (!named) return [];
-      const wanted = shapes.filter((shape) => inFull(shape) && meets(shape.rect, shown));
+      const wanted = shapes.filter(
+        (shape) => ownDetail(shape).wanted > 0 && inFull(shape) && meets(shape.rect, shown),
+      );
       const room = Math.max(0, DRAG_DETAIL - names);
       names += Math.min(room, wanted.length);
+      const chosen = wanted.slice(0, room);
       try {
-        return this.painter.shapeLabels(
-          wanted.slice(0, room),
-          details,
-          this.text,
-          undefined,
-          this.lookups(),
-        );
+        const write = (some: readonly ElementShape[], withDetails: boolean) =>
+          some.length === 0
+            ? []
+            : this.painter.shapeLabels(some, withDetails, this.text, undefined, this.lookups());
+        return [
+          ...write(
+            chosen.filter((shape) => ownDetail(shape).wanted === 1),
+            false,
+          ),
+          ...write(
+            chosen.filter((shape) => ownDetail(shape).wanted === 2),
+            true,
+          ),
+        ];
       } catch {
         // Without fonts, the shapes move unnamed.
         return [];
@@ -2491,7 +2598,7 @@ export class CanvasRenderer {
       this.painter.shapeOutlines(graphics, shapes.filter(inFull));
       this.dragged.addChild(
         graphics,
-        ...this.pictures.dragged(shapes.filter(inFull), this.imageView(0)),
+        ...this.pictures.dragged(shapes.filter(pictured), this.imageView(0)),
         ...label(shapes),
       );
     }
@@ -2504,7 +2611,7 @@ export class CanvasRenderer {
       }
       if (inFull(shape)) this.painter.shapeOutlines(graphics, [shape]);
       else this.painter.shapeBlocks(graphics, [shape], true);
-      const pictures = inFull(shape) ? this.pictures.dragged([shape], this.imageView(0)) : [];
+      const pictures = pictured(shape) ? this.pictures.dragged([shape], this.imageView(0)) : [];
       const names = label([shape]);
       if (names.length > 0 || pictures.length > 0) {
         this.dragged.addChild(...pictures, ...names);
@@ -3143,7 +3250,9 @@ export class CanvasRenderer {
       if (unshown && isNear) this.showPrepared(tile);
       else if (unshown) drawnAgain.push({ tile, drawings: [], distance, onScreen: false });
       const showing = isNear
-        ? shownDrawings(tile, coarse, pixels).filter((drawing) => stale.includes(drawing))
+        ? shownDrawings(tile, this.coarseFor(tile, coarse), pixels).filter((drawing) =>
+            stale.includes(drawing),
+          )
         : [];
       if (showing.length > 0) shown.push({ tile, drawings: showing, distance, onScreen });
       const rest = stale.filter((drawing) => !showing.includes(drawing));
@@ -3605,11 +3714,12 @@ export class CanvasRenderer {
     for (const tile of this.tiles.values()) {
       if (tile.container.culled || !meets(tile.bounds, screen)) continue;
       const stamp = this.stampFor(tile, this.painter.name, 'drawings');
-      const stale = shownDrawings(tile, coarse, this.camera.scale * this.resolution).some(
+      const plain = this.coarseFor(tile, coarse);
+      const stale = shownDrawings(tile, plain, this.camera.scale * this.resolution).some(
         (drawing) => (drawing === 'coarse' ? tile.coarseStamp : tile.fullStamp) !== stamp,
       );
       if (stale) this.stats.staleShown += 1;
-      if (!coarse && tile.hadFull && !tile.full) this.stats.fallbacks += 1;
+      if (!plain && tile.hadFull && !tile.full) this.stats.fallbacks += 1;
     }
   }
 }

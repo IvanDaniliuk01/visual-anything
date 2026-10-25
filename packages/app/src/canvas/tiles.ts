@@ -15,7 +15,8 @@
  * the cell of its tip, and its name with the cell of its middle. A route that would cross more cells
  * than a bounded number is left whole, in one tile.
  */
-import type { Id } from '@visual-anything/schema';
+import { levelsKey } from '@visual-anything/core';
+import type { Id, LevelOfDetail } from '@visual-anything/schema';
 import {
   boundsOf,
   centerOf,
@@ -40,7 +41,10 @@ export const MAX_RUN = 64;
 export const TILE = 1024;
 
 export interface PlannedTile {
-  /** `shapes ${band} ${cell}`, ` dim` after it when dimmed, or `shapes over ${first shape's key}` beyond the bands. */
+  /**
+   * `shapes ${band} ${cell}`, with ` lod=${levels}` after it for shapes that declare levels of detail
+   * and ` dim` when dimmed, or `shapes over ${first shape's key}` beyond the bands.
+   */
   key: string;
   /** 0 to MAX_BANDS - 1, or MAX_BANDS beyond them. */
   band: number;
@@ -53,6 +57,21 @@ export interface PlannedTile {
   shapes: ElementShape[];
   /** The drawing rank of its first shape, which orders the tiles beyond the bands. */
   rank: number;
+  /**
+   * The levels of detail every one of its shapes declares (ADR 0055): a tile holds only shapes that
+   * declare the same, so that all of them change level at once. Absent: the canvas's own steps.
+   */
+  levels?: readonly LevelOfDetail[];
+}
+
+/**
+ * The levels of detail a shape's tile goes by, as a short key: none for the canvas's own steps. Rows
+ * go by their container's levels in tiles of their own, since rows write their texts at its contents
+ * level.
+ */
+export function levelGroupOf(shape: ElementShape): string {
+  if (shape.levels === undefined) return '';
+  return `${shape.row === undefined ? '' : 'r'}${levelsKey(shape.levels)}`;
 }
 
 /** The part of a relation's route that lies in one cell. */
@@ -399,9 +418,10 @@ export function cellOf(point: Point): string {
   return `${Math.floor(point.x / TILE)},${Math.floor(point.y / TILE)}`;
 }
 
-/** The key of the tile of a band and a cell, dimmed or not. */
-export function bandTileKey(band: number, cell: string, dim: boolean): string {
-  return dim ? `shapes ${band} ${cell} dim` : `shapes ${band} ${cell}`;
+/** The key of the tile of a band and a cell, dimmed or not, for a group of levels of detail. */
+export function bandTileKey(band: number, cell: string, dim: boolean, levels = ''): string {
+  const group = levels === '' ? '' : ` lod=${levels}`;
+  return dim ? `shapes ${band} ${cell}${group} dim` : `shapes ${band} ${cell}${group}`;
 }
 
 const signatures = new WeakMap<ElementShape, string>();
@@ -474,14 +494,25 @@ export function plannedTiles(
     const shape = scene.shapes[at] as ElementShape;
     if (hidden.has(shape.key)) return;
     const dim = dimmed.has(shape.key);
+    const group = levelGroupOf(shape);
+    const levels = shape.levels === undefined ? {} : { levels: shape.levels };
     if (band < MAX_BANDS) {
-      const key = bandTileKey(band, cell, dim);
+      const key = bandTileKey(band, cell, dim, group);
       const tile = inBands.get(key);
       if (tile) tile.shapes.push(shape);
-      else inBands.set(key, { key, band, cell, dim, signature: '', shapes: [shape], rank });
+      else
+        inBands.set(key, { key, band, cell, dim, signature: '', shapes: [shape], rank, ...levels });
       return;
     }
-    if (run && run.cell === cell && run.dim === dim && run.shapes.length < MAX_RUN) {
+    const first = run?.shapes[0];
+    if (
+      run &&
+      first &&
+      run.cell === cell &&
+      run.dim === dim &&
+      levelGroupOf(first) === group &&
+      run.shapes.length < MAX_RUN
+    ) {
       run.shapes.push(shape);
       return;
     }
@@ -493,6 +524,7 @@ export function plannedTiles(
       signature: '',
       shapes: [shape],
       rank,
+      ...levels,
     };
     beyond.push(run);
   });
@@ -536,6 +568,7 @@ export function bandTileKeyOf(
     indexed.bands[at] as number,
     cellOf(centerOf(shape.rect)),
     dimmed.has(shape.key),
+    levelGroupOf(shape),
   );
 }
 
@@ -545,6 +578,7 @@ export interface BandTile {
   band: number;
   cell: string;
   shapes: readonly ElementShape[];
+  levels?: readonly LevelOfDetail[];
 }
 
 /**
@@ -566,7 +600,10 @@ export function replannedTiles(
   const { scene, bands, rankOf } = indexed;
   const leaving = new Set<string>();
   const arriving = new Map<string, ElementShape[]>();
-  const places = new Map<string, { band: number; cell: string; dim: boolean }>();
+  const places = new Map<
+    string,
+    { band: number; cell: string; dim: boolean; levels?: readonly LevelOfDetail[] }
+  >();
   for (const at of changed) {
     const shape = scene.shapes[at] as ElementShape;
     leaving.add(shape.key);
@@ -575,8 +612,13 @@ export function replannedTiles(
     const cell = cellOf(centerOf(shape.rect));
     if (include && !include(cell)) continue;
     const dim = dimmed.has(shape.key);
-    const key = bandTileKey(band, cell, dim);
-    places.set(key, { band, cell, dim });
+    const key = bandTileKey(band, cell, dim, levelGroupOf(shape));
+    places.set(key, {
+      band,
+      cell,
+      dim,
+      ...(shape.levels === undefined ? {} : { levels: shape.levels }),
+    });
     const list = arriving.get(key);
     if (list) list.push(shape);
     else arriving.set(key, [shape]);
@@ -596,10 +638,12 @@ export function replannedTiles(
     const group = held.get(base);
     const shapes = [...(group?.shapes ?? []), ...(arriving.get(base) ?? [])];
     if (shapes.length === 0) continue;
+    const levels = group?.was.levels;
     const place = places.get(base) ?? {
       band: group?.was.band ?? 0,
       cell: group?.was.cell ?? '',
       dim: base.endsWith(' dim'),
+      ...(levels === undefined ? {} : { levels }),
     };
     let rank = Infinity;
     for (const shape of shapes) {
