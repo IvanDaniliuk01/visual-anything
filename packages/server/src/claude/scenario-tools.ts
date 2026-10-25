@@ -202,9 +202,10 @@ Example: {
         }),
       },
       async () => {
-        const now = (await program.project()).scenarios.find((each) => each.id === scenario.id);
+        const project = await program.project();
+        const now = project.scenarios.find((each) => each.id === scenario.id);
         if (!now) return {};
-        const broken = brokenStepsOf(await program.project(), now).map((each) => each.index + 1);
+        const broken = brokenStepsOf(project, now).map((each) => each.index + 1);
         return { steps: now.steps.length, ...(broken.length > 0 ? { brokenSteps: broken } : {}) };
       },
     );
