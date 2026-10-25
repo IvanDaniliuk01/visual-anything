@@ -34,6 +34,13 @@ Paths are relative to the repository root. Line numbers are those of `e983c0b`. 
 - A key of a project appearance that is not an id is reported at the map's path, naming the key, as W1 reports the keys of stacking orders; empty maps are refused on open.
 - Still to do outside the core: the app's call sites of `definitionsOf(project.packages)` (4.6) and the ESLint rule, the server's `Locations` (4.5), the sample's Booking agent stroke and its test pins (3.4), and T6 and T7.
 
+**Built in wave 3 (W17, 2026-10-25): the canvas side of A1 and A2.** ADR-0033's "How the canvas follows the theme" records what was built. Where the code differs from this design, the code holds:
+- The scene's `dark` and `darkStroke` are filled from the core; there is no `paintOf` resolver with previews. Drawing takes painted copies (`canvas/theme/paint.ts`) and `canvas/theme/painter.ts` draws them, so `draw.ts` changed only where it wrote the light theme's colors out.
+- Restyles go by stamps per drawing (`canvas/theme/restyle.ts`) instead of `themed`, `stale` and dependents; they swap GraphicsContexts on the drawings showing, so the tiles keep their objects. There are no dependents: the coarse guard outlines a block under 3:1 against either canvas, instead of mixing its colors against the drawn fill under it, and a relation label's back is the canvas, not the surface under the label.
+- The budget is `RESTYLE_BUDGET` (6 ms) in `restyle.ts`, which labels share; `LABEL_BUDGET` keeps its name. There is no `LABEL_RETINTS_PER_FRAME`: labels on and near the screen are retinted in the swap frame, the rest before they show.
+- Notes take the core's `noteColorsOf` with no dark rule of their own (3.6), as the inspector does.
+- Not built: `renderer.previewElement` and the inspector's live preview (4.6), the coarse `pixelLine` rings and the `shapeMarks` layer (3.6 Marks), and `?labels=dense` in the benchmark.
+
 **Built in wave 3 (W20, 2026-10-25): A3, the grid, rulers and snapping, all of §5 in one task.** Where the code differs from this design, the code holds:
 - The modules: `canvas/grid.ts` (pure: the step, the families, `crispLine`, `gridOffset`, `gridLines`, `containerGridLines`, `snap`, `snappedDelta`, `nudgedOffset`, the rulers' steps and labels), `canvas/gridMarks.ts` (the canvas's grid and a container's), `canvas/screenMarks.ts` (the rulers, the selection's extent, the readout, `selectionBounds`), `canvas/snapping.ts` (the anchor, its frame, the readout's text, `nudgeStep`), `canvas/GridToggles.tsx` and `canvas/grid.css`.
 - The renderer has no `depthLayers` or `dragLayer` since P's bands: a container's grid goes last in the band container its shape is drawn in, which is over its fill and under its contents, since every shape that overlaps it and is drawn after it is in a higher band. A container beyond the 32 bands gets no grid. It is drawn on a rectangle's whole rect, inside a cylinder's body, below a person's head and in the rectangle inscribed in an ellipse, 2 units in from the border, so that it never crosses an outline.
@@ -47,7 +54,7 @@ Paths are relative to the repository root. Line numbers are those of `e983c0b`. 
 - The keyboard help's Alt row says both things Alt does while dragging, instead of a second Alt row.
 - `GRID_NOT_CONNECTED` says that the grid and the rulers apply to this tab only when changed while not connected (ADR-0032's clarification).
 - Bench: `?grid=on` runs every phase with the grid and the rulers; otherwise "Pan with the grid", "Zoom with the grid", "Pan with the grid and rulers" and "Zoom with the grid and rulers" follow the whole view's pan and zoom, and the grid's cost at the median is measured in blocks of 30 frames with and without it that take turns, so that a machine busy elsewhere weighs on both alike; the notes give it, and the verdict counts it. `?only=grid` runs only these.
-- Still to wire when W17's `setTheme` lands: it calls `renderer.setGridTheme(theme)`. Tables (W19): a container that draws its contents as rows should get no grid.
+- The grid and the rulers follow W17's `renderer.setTheme`: it gives them the theme in the frame the rest of the canvas shows it, the grid retinted, and the readout and the rulers drawn in the new colors. Tables (W19): a container that draws its contents as rows should get no grid.
 ---
 
 ## 1. Summary

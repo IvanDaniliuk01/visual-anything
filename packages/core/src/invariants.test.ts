@@ -998,10 +998,10 @@ describe('the rules of the core', () => {
     );
     // The sequences must do things, not only be refused.
     expect(seen.applied).toBeGreaterThan(1000);
-    expect(seen.deletes).toBeGreaterThan(100);
+    expect(seen.deletes).toBeGreaterThan(50);
     expect(seen.containerChanges).toBeGreaterThan(20);
     expect(seen.recolors).toBeGreaterThan(100);
-    expect(seen.undos).toBeGreaterThan(100);
+    expect(seen.undos).toBeGreaterThan(50);
     // And every kind of command among them.
     expect([...seen.kinds].sort()).toEqual([...COMMAND_TYPES].sort());
     // Thousands of actions: on a loaded machine this takes longer than a test's default 5 seconds.

@@ -20,8 +20,10 @@ import {
   type Command,
   type ContainerChangePreview,
   type ProjectSnapshot,
+  type ThemeName,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
+import type { CanvasTheme } from '../theme/themes';
 import {
   EMPTY_SELECTION,
   isEmpty,
@@ -126,6 +128,8 @@ export interface ControllerCallbacks {
   collapse?(action: CollapseAction, collapsed: boolean): void;
   /** Asks to show or hide the grid or the rulers, as Shift+G and Shift+R do: preferences (A3). */
   changeGrid?(changes: Partial<GridOptions>): void;
+  /** Says that the canvas shows a theme, in the frame that first shows it (ADR-0033). */
+  themeShown?(theme: ThemeName): void;
 }
 
 /**
@@ -151,6 +155,8 @@ export interface ControllerOptions {
   caption?: HTMLElement;
   /** The marks on the rulers that follow the pointer, across the top and down the left (A3). */
   pointerMarks?: { across: HTMLElement; down: HTMLElement };
+  /** The theme the canvas starts in; the light theme by default. */
+  theme?: CanvasTheme;
 }
 
 type Gesture =
@@ -334,10 +340,15 @@ export class CanvasController {
     this.caption = options.caption;
     this.pointerMarks = options.pointerMarks;
     this.markPointer(undefined);
-    this.renderer = new CanvasRenderer(host, {
-      onFailure: (error) => callbacks.failure(error),
-      onCamera: (camera) => callbacks.camera(camera),
-    });
+    this.renderer = new CanvasRenderer(
+      host,
+      {
+        onFailure: (error) => callbacks.failure(error),
+        onCamera: (camera) => callbacks.camera(camera),
+        onThemeShown: (theme) => callbacks.themeShown?.(theme),
+      },
+      options.theme ? { theme: options.theme } : {},
+    );
     host.addEventListener('pointerdown', this.onPointerDown);
     host.addEventListener('pointermove', this.onPointerMove);
     host.addEventListener('pointerup', this.onPointerUp);

@@ -1,0 +1,33 @@
+name: shop
+services:
+  web:
+    image: nginx:1.27
+    ports:
+      - '8080:80'
+    depends_on:
+      - api
+  api:
+    build: ./api
+    environment:
+      DATABASE_URL: postgres://shop:change-me@db:5432/shop
+      CACHE_URL: redis://cache:6379
+    depends_on:
+      - db
+      - cache
+  worker:
+    build: ./worker
+    environment:
+      DATABASE_URL: postgres://shop:change-me@db:5432/shop
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: postgres:16
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'shop']
+  cache:
+    image: redis:7
+volumes:
+  db-data:
