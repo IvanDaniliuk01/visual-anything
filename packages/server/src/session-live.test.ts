@@ -3,7 +3,7 @@
  * with what the model loses; fetched for approved package code granted an origin, through the
  * program, which checks the origin; and never a command, a file or an action of the history.
  */
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -17,6 +17,7 @@ import {
 } from '@visual-anything/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { PreferencesStore } from './preferences';
+import { startServer } from './server';
 import { openSession, type Session, type SessionOptions } from './session';
 import { FakeClient, filesIn, testProject, writeProjectFolder } from './test-support';
 
@@ -197,7 +198,7 @@ describe('fetching for package code', () => {
 
   it('fetches an address on the origin granted, as a plain GET, and hands back its text', async () => {
     const session = await open(withCode([`network:${origin}`]), {
-      fetchLimits: { timeoutMs: 500, bytes: 1024 },
+      fetcher: { limits: { timeoutMs: 500, bytes: 1024 } },
     });
     approve(session, [`network:${origin}`]);
     const app = new FakeClient();
@@ -216,7 +217,7 @@ describe('fetching for package code', () => {
 
   it('follows no redirect, reads no more than its cap and waits no longer than its time', async () => {
     const session = await open(withCode([`network:${origin}`]), {
-      fetchLimits: { timeoutMs: 300, bytes: 1024 },
+      fetcher: { limits: { timeoutMs: 300, bytes: 1024 } },
     });
     approve(session, [`network:${origin}`]);
     const app = new FakeClient();
@@ -235,7 +236,7 @@ describe('fetching for package code', () => {
 
   it('refuses any origin not granted, and code that is not approved as it is now', async () => {
     const session = await open(withCode([`network:${origin}`, 'network:https://a.example.com']), {
-      fetchLimits: { timeoutMs: 300, bytes: 1024 },
+      fetcher: { limits: { timeoutMs: 300, bytes: 1024 } },
     });
     const app = new FakeClient();
     session.connect(app);
@@ -264,9 +265,37 @@ describe('fetching for package code', () => {
     );
   });
 
+  it('never fetches from the program itself, whatever is granted', async () => {
+    // A port free now, which the program then listens on, and which the code declares and is granted.
+    const free = createServer();
+    await new Promise<void>((resolve) => free.listen(0, '127.0.0.1', resolve));
+    const programPort = (free.address() as AddressInfo).port;
+    await new Promise((resolve) => free.close(resolve));
+    const own = `http://127.0.0.1:${programPort}`;
+    const session = await open(withCode([`network:${own}`]));
+    const appDir = await mkdtemp(join(tmpdir(), 'va-live-dist-'));
+    await writeFile(join(appDir, 'index.html'), '<!doctype html><title>Visual Anything</title>');
+    const program = await startServer({
+      session,
+      port: programPort,
+      app: { mode: 'static', dir: appDir },
+    });
+    try {
+      approve(session, [`network:${own}`]);
+      const app = new FakeClient();
+      session.connect(app);
+      const answer = await fetchAs(session, app, `${own}/`, 'own');
+      expect(answer?.type).toBe('command/rejected');
+      expect(JSON.stringify(answer)).toMatch(/leads to Visual Anything itself/);
+    } finally {
+      await program.close();
+      await rm(appDir, { recursive: true, force: true, maxRetries: 10 });
+    }
+  });
+
   it('keeps at most four of a package’s fetches under way', async () => {
     const session = await open(withCode([`network:${origin}`]), {
-      fetchLimits: { timeoutMs: 1_000, bytes: 1024 },
+      fetcher: { limits: { timeoutMs: 1_000, bytes: 1024 } },
     });
     approve(session, [`network:${origin}`]);
     const app = new FakeClient();

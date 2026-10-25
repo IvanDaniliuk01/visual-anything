@@ -62,7 +62,7 @@ import {
 } from './file-plan';
 import { FOLDERS, newFilePath } from './layout';
 import { LiveValues, type LiveKept } from './live';
-import { PackageFetcher, networkGrantOf, type FetchLimits, type Fetcher } from './live-fetch';
+import { PackageFetcher, networkGrantOf, type FetcherOptions } from './live-fetch';
 import type { PreferencesStore } from './preferences';
 import { toForwardSlashes } from './paths';
 import {
@@ -125,6 +125,11 @@ export interface LiveSession {
   setLive(connection: object, sender: LiveSender, values: unknown, freshFor?: number): LiveKept;
   /** Clears the live values that match; gives back how many it cleared. */
   clearLive(filter: LiveFilter): number;
+  /**
+   * Says the port the local program listens on, on 127.0.0.1, which package code never fetches from
+   * (ADR 0057's clarification on addresses).
+   */
+  servesAt?(port: number): void;
 }
 
 /** Who asked for a change: the app it is answered to, and the id of its request. */
@@ -167,10 +172,11 @@ export interface SessionOptions {
    * the program keeps none and refuses changes.
    */
   preferences?: PreferencesStore;
-  /** How the program fetches for package code granted an origin (ADR 0063); `fetch` by default. */
-  fetch?: Fetcher;
-  /** How long such a fetch may take and how much it may read; ten seconds and 256 KiB by default. */
-  fetchLimits?: FetchLimits;
+  /**
+   * How the program resolves names and fetches for package code granted an origin (ADR 0063), and
+   * how long and how much a fetch may take; the system's resolver, ten seconds and 256 KiB by default.
+   */
+  fetcher?: FetcherOptions;
 }
 
 /** The outcome of opening a session: the session, or every problem that keeps the project closed. */
@@ -258,7 +264,7 @@ export class Session implements LiveSession {
       notice: (message) => this.#broadcast({ type: 'notice', level: 'warning', message }),
       err: (line) => this.#err(line),
     });
-    this.#fetcher = new PackageFetcher(options.fetch, options.fetchLimits);
+    this.#fetcher = new PackageFetcher(options.fetcher);
   }
 
   /** Opens the project in a folder; see {@link openSession}. */
@@ -428,6 +434,10 @@ export class Session implements LiveSession {
 
   clearLive(filter: LiveFilter): number {
     return this.#live.clear(filter);
+  }
+
+  servesAt(port: number): void {
+    this.#fetcher.servesAt(port);
   }
 
   /** Forgets the live values of what the model no longer holds. */

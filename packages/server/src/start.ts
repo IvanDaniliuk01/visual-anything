@@ -84,6 +84,8 @@ export class StartingSession implements LiveSession {
   readonly #claudes = new Map<SessionClient, (() => void) | undefined>();
   #starting = false;
   #closed = false;
+  /** The ports the program listens on, which the project's session hears of once started. */
+  readonly #ports: number[] = [];
   readonly #started: Promise<Session>;
   #resolveStarted: (session: Session) => void = () => {};
 
@@ -193,6 +195,11 @@ export class StartingSession implements LiveSession {
     return this.#session?.clearLive(filter) ?? 0;
   }
 
+  servesAt(port: number): void {
+    this.#ports.push(port);
+    this.#session?.servesAt(port);
+  }
+
   /** Closes the project's session, once started; until then there is nothing to close. */
   async close(): Promise<void> {
     this.#closed = true;
@@ -250,6 +257,7 @@ export class StartingSession implements LiveSession {
   /** Becomes the session of the project just started, for every app and Claude connected meanwhile. */
   #adopt(session: Session): void {
     this.#session = session;
+    for (const port of this.#ports) session.servesAt(port);
     // The token went with the offer already: each app reconnects with it from then on.
     for (const client of this.#waiting) this.#disconnects.set(client, session.connect(client));
     this.#waiting.clear();
