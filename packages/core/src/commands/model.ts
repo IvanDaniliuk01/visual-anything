@@ -1,5 +1,5 @@
 /** Commands on the model: elements and relations. */
-import type { Element, Id, Relation, ShapePosition } from '@visual-anything/schema';
+import type { Element, Id, Relation, RelationRoute, ShapePosition } from '@visual-anything/schema';
 import { slug } from '../ids';
 import { indexModel, type ModelIndex } from '../model-index';
 import { BULK, positionKey } from '../operations';
@@ -11,6 +11,7 @@ import {
   previewDelete,
   wouldFormCycle,
   type DeletePreview,
+  type RemovedRoute,
 } from '../rules';
 import { bringNewToFront } from './order';
 import { changedAppearance, checkDetailResolves, checkedAppearance } from './traits';
@@ -177,9 +178,9 @@ export function deleteTargets(draft: Draft, command: DeleteCommand): string {
 }
 
 /**
- * Deletes what a preview lists: the positions, what stacking lists name, the relations, then the
- * elements. A stacking list whose container goes is dropped whole; the others lose single ids, or
- * are rewritten in one operation when that is a large change.
+ * Deletes what a preview lists: the positions, what stacking lists name, the routes, the relations,
+ * then the elements. A stacking list whose container goes is dropped whole; the others lose single
+ * ids, or are rewritten in one operation when that is a large change.
  */
 export function applyDeletion(draft: Draft, preview: DeletePreview): void {
   // A large deletion rewrites each list once: one operation per item would copy the list each time.
@@ -228,8 +229,52 @@ export function applyDeletion(draft: Draft, preview: DeletePreview): void {
       (view.collapsed ?? []).filter((id) => !deleted.has(id)),
     );
   }
+  removeRoutes(draft, preview.routes);
   removeFromModel(draft, 'relations', preview.relations);
   removeFromModel(draft, 'elements', preview.elements);
+}
+
+/**
+ * Takes away the routes a deletion removes with their relations, and the bend points it removes with
+ * their container (ADR 0039): one operation each, or one rewrite of a view's routes when many.
+ */
+function removeRoutes(draft: Draft, removed: readonly RemovedRoute[]): void {
+  const byView = new Map<Id, RemovedRoute[]>();
+  for (const entry of removed) {
+    const list = byView.get(entry.view) ?? [];
+    list.push(entry);
+    byView.set(entry.view, list);
+  }
+  for (const [viewId, entries] of byView) {
+    const routes = draft.view(viewId).routes ?? {};
+    const next = new Map<Id, RelationRoute | undefined>();
+    for (const { relation, bendPointsOnly } of entries) {
+      if (!Object.hasOwn(routes, relation)) continue;
+      const kept: RelationRoute | undefined = bendPointsOnly ? { ...routes[relation] } : undefined;
+      if (kept !== undefined) {
+        delete kept.bendPoints;
+        delete kept.container;
+      }
+      next.set(relation, kept !== undefined && Object.keys(kept).length > 0 ? kept : undefined);
+    }
+    const collection = { name: 'routes' as const, view: viewId };
+    if (next.size > BULK) {
+      const items = Object.entries(routes).flatMap(([relation, route]) => {
+        if (!next.has(relation)) return [{ relation, route }];
+        const changed = next.get(relation);
+        return changed === undefined ? [] : [{ relation, route: changed }];
+      });
+      draft.apply({ op: 'replace-all', collection, items });
+      continue;
+    }
+    for (const [relation, route] of next) {
+      draft.apply(
+        route === undefined
+          ? { op: 'remove', collection, key: relation }
+          : { op: 'replace', collection, item: { relation, route } },
+      );
+    }
+  }
 }
 
 /** Removes ids from the model's elements or relations: one by one, or in one rewrite when many. */
