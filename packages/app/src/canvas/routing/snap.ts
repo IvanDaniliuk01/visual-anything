@@ -15,6 +15,7 @@ import {
 } from '@visual-anything/core';
 import type { EndAttachment, Id, Relation } from '@visual-anything/schema';
 import { holdsPoint, type Point, type Rect } from '../geometry';
+import { snap } from '../grid';
 import { shapesAt, type IndexedScene, type Skipped } from '../hit';
 import type { ElementShape, RelationLine } from '../scene';
 import { attachPoint, nearestBorderAttach, type Side } from './hand';
@@ -135,19 +136,22 @@ export function aimEnd(
 
 /**
  * Where a dragged bend point goes: at the pointer, but at the x or the y of a neighbour within reach,
- * so that runs stay straight; with `exact`, as Alt asks, at the pointer. Says which coordinates
- * snapped, which are kept as they are rather than rounded.
+ * so that runs stay straight; with `grid`, while the grid shows and snapping is on (A3), at the
+ * nearest multiple of its step from its origin, the frame the route's bend points are kept in, where
+ * no neighbour is within reach; with `exact`, as Alt asks, at the pointer. Says which coordinates
+ * snapped to a neighbour, which are kept as they are rather than rounded.
  */
 export function snapBend(
   point: Point,
   neighbours: readonly Point[],
   scale: number,
   exact: boolean,
+  grid?: { origin: Point; step: number },
 ): { at: Point; snapped: { x: boolean; y: boolean } } {
   if (exact) return { at: point, snapped: { x: false, y: false } };
   const reach = NEIGHBOUR_REACH / scale;
-  let x = point.x;
-  let y = point.y;
+  let x = grid ? grid.origin.x + snap(point.x - grid.origin.x, grid.step) : point.x;
+  let y = grid ? grid.origin.y + snap(point.y - grid.origin.y, grid.step) : point.y;
   let bestX = reach;
   let bestY = reach;
   let snappedX = false;

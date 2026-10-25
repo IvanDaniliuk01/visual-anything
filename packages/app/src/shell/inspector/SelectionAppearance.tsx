@@ -6,6 +6,7 @@ import { count } from './describe';
 import type { ColorTrait } from './colors';
 import { ColorControl } from './controls';
 import { selectionColorCommand, selectionColors } from './recolor';
+import { useShownTheme } from './useShownTheme';
 
 /**
  * The colors of several selected shapes, changed together as one action: a fill for the elements and
@@ -16,13 +17,14 @@ import { selectionColorCommand, selectionColors } from './recolor';
 export function SelectionAppearance() {
   const { project, viewId, selection, send } = useEditor();
   const headingId = useId();
+  const theme = useShownTheme();
   const disabled = send === undefined;
   const rows: { trait: ColorTrait; label: string }[] = [
     { trait: 'fill', label: 'Fill' },
     { trait: 'stroke', label: 'Stroke' },
   ];
   const shown = rows.flatMap(({ trait, label }) => {
-    const colors = selectionColors(project, viewId, selection, trait);
+    const colors = selectionColors(project, viewId, selection, trait, theme);
     const [first] = colors;
     if (first === undefined) return [];
     return [{ trait, label, first, colors }];
@@ -54,6 +56,7 @@ export function SelectionAppearance() {
               onCommit={(color, { waiting }) => {
                 const command = selectionColorCommand(project, viewId, selection, trait, color, {
                   always: waiting,
+                  theme,
                 });
                 return command ? sendCommand(command) : Promise.resolve(true);
               }}

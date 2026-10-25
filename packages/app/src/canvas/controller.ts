@@ -82,6 +82,7 @@ import {
 } from './navigation';
 import { CanvasRenderer, type DragFrame, type GridOptions, type Overlay } from './renderer';
 import { RouteEditor } from './routing/editor';
+import { sameSlot } from './rowDrop';
 import { rowMoveFor, rowTargetFor } from './rowKeys';
 import { headerMiddle } from './rows';
 import { relationLinesOf, type ElementShape, type NoteShape } from './scene';
@@ -378,6 +379,7 @@ export class CanvasController {
             }
           : undefined,
       scale: () => this.camera.scale,
+      snapping: () => this.snapping,
       command: (command) => callbacks.command(command),
       announce: (text) => this.announce(text),
       caption: (caption, at) => {
@@ -1993,7 +1995,7 @@ function sameAim(a: DropAim, b: DropAim): boolean {
     case 'out':
       return b.kind === a.kind;
     case 'into':
-      return b.kind === 'into' && b.target.key === a.target.key;
+      return b.kind === 'into' && b.target.key === a.target.key && sameSlot(a.rows, b.rows);
     case 'refused':
       return b.kind === 'refused' && b.target.key === a.target.key && b.reason === a.reason;
     case 'only-moves':

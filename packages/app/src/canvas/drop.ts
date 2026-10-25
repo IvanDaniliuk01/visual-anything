@@ -31,6 +31,15 @@ import { centerOf, holdsPoint, type Point, type Rect } from './geometry';
 import { carriedKeys, moveParts, movingShapes } from './gestures';
 import type { IndexedScene } from './hit';
 import type { Overlay } from './renderer';
+import {
+  rowDropCommand,
+  rowSlotAt,
+  rowsTargetOf,
+  slotBar,
+  slotText,
+  slotTypeName,
+  type RowSlot,
+} from './rowDrop';
 import { carriedRouteCommands, droppedInto } from './routing/commands';
 import { CONTENTS_ORIGIN, type ElementShape } from './scene';
 import { overlaps } from './spatial';
@@ -76,10 +85,13 @@ export interface DropPlan {
   reach: Point;
 }
 
-/** What releasing the dragged shapes would do now. */
+/**
+ * What releasing the dragged shapes would do now. Going into a shape that draws rows, `rows` says
+ * where among its rows they land (`rowDrop.ts`).
+ */
 export type DropAim =
   | { kind: 'stay' }
-  | { kind: 'into'; target: ElementShape }
+  | { kind: 'into'; target: ElementShape; rows?: RowSlot }
   | { kind: 'out' }
   | { kind: 'pending'; leaf: ElementShape; fallback: DropAim }
   | { kind: 'refused'; target: ElementShape; reason: string }
@@ -198,6 +210,12 @@ export function dropAimAt(
     if (!shape.holdsContents && exact(shape) && !holdsPoint(shape.kind, shape.rect, point))
       continue;
     if (plan.carried.has(shape.key)) continue;
+    // A shape that draws rows takes a drop at once, and a row stands for it (ADR 0023).
+    const rows = rowsTargetOf(indexed, shape);
+    if (rows) {
+      if (!plan.carried.has(rows.key)) found = rowsAim(plan, rows, point);
+      continue;
+    }
     if (!shape.holdsContents) {
       if (plan.armable(shape) && !plan.blocked.has(shape.element)) {
         if (armed === shape.key) found = { kind: 'into', target: shape };
@@ -232,7 +250,8 @@ export function landingCover(
   delta: Point,
 ): ElementShape | undefined {
   const settled = settle(aim);
-  if (settled.kind === 'out') return undefined;
+  // Rows have no positions: what becomes one lands among them, behind nothing.
+  if (settled.kind === 'out' || (settled.kind === 'into' && settled.rows)) return undefined;
   const { shape } = plan.grabbedShape;
   let place: ElementShape;
   let landing: Rect;
@@ -276,7 +295,13 @@ export function dropOverlay(indexed: IndexedScene, plan: DropPlan, aim: DropAim)
       const copies = (indexed.byElement.get(aim.target.element) ?? [])
         .filter((copy) => copy.key !== aim.target.key)
         .map((copy) => copy.rect);
-      return { into: aim.target.rect, ...(copies.length > 0 ? { copies } : {}), ...leaving };
+      const slot = aim.rows && slotBar(aim.target, aim.rows);
+      return {
+        into: aim.target.rect,
+        ...(copies.length > 0 ? { copies } : {}),
+        ...leaving,
+        ...(slot ? { slot } : {}),
+      };
     }
     case 'out':
       return leaving;
@@ -305,7 +330,10 @@ export function dropCaption(
   const parts = own.detail === undefined ? [] : [own.detail];
   if (behind) parts.push(behind);
   if (aim.kind === 'into' || aim.kind === 'pending') {
-    const typeName = nestingTypeName(project, plan);
+    const typeName =
+      aim.kind === 'into' && aim.rows
+        ? slotTypeName(project, plan.viewId, aim.rows)
+        : nestingTypeName(project, plan);
     if (typeName !== undefined) parts.push(typeName);
   }
   if (aim.kind === 'into' || aim.kind === 'out' || aim.kind === 'pending') {
@@ -329,6 +357,22 @@ export function dropCommand(
   delta: Point,
 ): Drop | undefined {
   const settled = settle(aim);
+  if (settled.kind === 'into' && settled.rows) {
+    return rowDropCommand(
+      indexed,
+      project,
+      viewId,
+      selection,
+      plan.moving.map((mover) => ({
+        element: mover.shape.element,
+        ...(mover.from === undefined ? {} : { from: mover.from }),
+      })),
+      settled.target,
+      settled.rows,
+      delta,
+      (change) => containerChangeLabel(project, viewId, change),
+    );
+  }
   let change: ChangeContainerCommand | undefined;
   if (settled.kind === 'into') change = intoChange(plan, settled.target, delta, viewId);
   else if (settled.kind === 'out') change = outChange(indexed, plan, delta, viewId);
@@ -575,6 +619,20 @@ export function needsConfirmation(preview: ContainerChangePreview): boolean {
   );
 }
 
+/**
+ * What a drop onto a shape that draws rows would do: make the moving elements rows of it, at the
+ * place under the pointer, or nothing, when one of them cannot be a row there or would form a cycle.
+ */
+function rowsAim(plan: DropPlan, target: ElementShape, point: Point): DropAim {
+  if (plan.blocked.has(target.element)) {
+    return { kind: 'refused', target, reason: refusalOf(plan, target) };
+  }
+  const moving = plan.moving.map((mover) => mover.shape.element);
+  const slot = rowSlotAt(plan.project, plan.viewId, target, moving, point);
+  if ('reason' in slot) return { kind: 'refused', target, reason: slot.reason };
+  return { kind: 'into', target, rows: slot };
+}
+
 /** What a release does: a pending leaf not taken yet does what is under it. */
 function settle(aim: DropAim): Exclude<DropAim, { kind: 'pending' }> {
   return aim.kind === 'pending' ? settle(aim.fallback) : aim;
@@ -652,6 +710,20 @@ function captionOf(
       const count = plan.moving.length;
       const froms = new Set(plan.moving.map((mover) => mover.from));
       const [from] = froms;
+      if (aim.rows) {
+        // What becomes a row lands among the rows, where the caption says.
+        const out =
+          froms.size === 1 && from !== undefined
+            ? [t('Out of "{from}"', { from: nameOf(from) })]
+            : [];
+        return {
+          text:
+            count === 1
+              ? t('Make it a row of "{target}"', { target })
+              : t('Make {count} elements rows of "{target}"', { count, target }),
+          detail: [slotText(project, aim.rows), ...out].join(' · '),
+        };
+      }
       if (froms.size === 1 && from === undefined) {
         return {
           text:

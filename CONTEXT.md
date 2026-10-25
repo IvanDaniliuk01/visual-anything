@@ -83,7 +83,7 @@ A scale in canvas units along the top or the left side of the canvas, which also
 _Avoid_: axis
 
 **Snapping**:
-Rounding the stored position of a shape moved or created by hand to a multiple of 8 canvas units inside its container's shape, while the grid shows and snapping is on; holding Alt places it freely. When several shapes move together, the one that carries the pressed shape is rounded and the others keep their places relative to it. A shape moved by hand is pinned, snapped or not; a created shape is snapped and stays unpinned. Layout results and Claude's changes are never snapped.
+Rounding the stored position of a shape moved or created by hand to a multiple of 8 canvas units inside its container's shape, while the grid shows and snapping is on; holding Alt places it freely. When several shapes move together, the one that carries the pressed shape is rounded and the others keep their places relative to it. A shape moved by hand is pinned, snapped or not; a created shape is snapped and stays unpinned. A bend point set by hand snaps the same way, inside the shape its route's bend points are kept relative to. Layout results and Claude's changes are never snapped.
 _Avoid_: magnet, lock to grid
 
 **Row**:

@@ -1226,6 +1226,7 @@ function shapeFor(
       holdsContents,
       ...(folded === undefined ? {} : { collapsed: true }),
       rows: appearance.contentsAsRows,
+      ...(rowish.row === undefined ? {} : { row: true }),
     },
     detail !== '',
   );

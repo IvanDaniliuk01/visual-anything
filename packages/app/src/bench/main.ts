@@ -11,7 +11,8 @@
  * must stay within 0.5 ms, is measured in blocks of frames with and without it, one after another, so
  * that a machine busy with something else weighs on both alike. `?only=grid` measures only these.
  * `?tables` draws a view of tables instead (`syntheticTables`), and adds the edit of one column.
- * `?images` gives the elements pictures (see `images.ts`): every phase then draws them, and three
+ * `?images` gives the elements pictures (see `images.ts`), also with `?tables`, where every table
+ * shows one in its header and every column at its row's left: every phase then draws them, and three
  * more phases start with the image store cleared, at scales whose buckets were not drawn yet, so that
  * the waits before the other phases cannot have decoded the pictures they pan over.
  *

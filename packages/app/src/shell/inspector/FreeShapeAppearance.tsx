@@ -5,11 +5,10 @@ import { useEditor } from '../../editor/EditorContext';
 import { THEMES } from '../../theme/themes';
 import { TraitRow } from '../definitions/TraitRow';
 import { ColorHints } from './colorParts';
-import { SHOWN_THEME, idsOf, lineHints, shapeHints, wayBack, type ColorTrait } from './colors';
+import { idsOf, lineHints, shapeHints, wayBack, type ColorTrait } from './colors';
 import { ColorControl } from './controls';
 import { freeShapeColorCommand } from './recolor';
-
-const SHOWN = THEMES[SHOWN_THEME].canvas;
+import { useShownTheme } from './useShownTheme';
 
 /** The colors a note is drawn in, in each theme. */
 function noteColors(note: Note, theme: ThemeName) {
@@ -26,6 +25,7 @@ export function FreeShapeAppearance({ shape }: { shape: Note | Arrow }) {
   const { viewId, send } = useEditor();
   const headingId = useId();
   const hintId = useId();
+  const SHOWN = THEMES[useShownTheme()].canvas;
   const disabled = send === undefined || viewId === undefined;
   const hints =
     shape.kind === 'note'

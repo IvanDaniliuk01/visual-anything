@@ -7,21 +7,22 @@
  * following its component, relation type or theme.
  */
 import {
-  appearanceOf,
   componentOrEssence,
   definitionsIn,
+  drawnColorsOf,
+  drawnRelationAppearanceOf,
   editableAppearanceOf,
   executeCommand,
   modelIndexOf,
   noteColorsOf,
   arrowColorOf,
-  relationAppearanceOf,
   relationTypeOrRelatesTo,
   sameColor,
   type Command,
   type Definitions,
   type FreeShapeTheme,
   type ProjectSnapshot,
+  type ThemeName,
   type UpdateElementCommand,
   type UpdateFreeShapeCommand,
   type UpdateRelationCommand,
@@ -30,7 +31,7 @@ import type { Color, Element, FreeShape, Id, Relation } from '@visual-anything/s
 import type { Selection } from '../../editor/selection';
 import { THEMES } from '../../theme/themes';
 import type { DefinitionKind } from '../definitions/commands';
-import { SHOWN_THEME, type ColorTrait } from './colors';
+import type { ColorTrait } from './colors';
 import type { Shape } from './shapes';
 
 /** How the command for a pick is made. */
@@ -41,6 +42,11 @@ export interface PickOptions {
    * nothing, and the local program records nothing.
    */
   always?: boolean;
+  /**
+   * The theme the inspector shows, and so the colors a pick is compared with: what the canvas draws
+   * in it, built-in colors in their dark shades in the dark theme (ADR-0033). Light by default.
+   */
+  theme?: ThemeName;
 }
 
 /**
@@ -59,7 +65,12 @@ function ownColor(
   return next === null && own === undefined ? undefined : next;
 }
 
-/** The command that gives one element a fill or a stroke: its own, or the one it inherits. */
+/**
+ * The command that gives one element a fill or a stroke: its own, or the one it inherits. What it
+ * inherits is what the canvas would draw in the theme shown without a color of its own for the trait:
+ * in the dark theme, a built-in color's dark shade, or a built-in fill's light value beside a stroke
+ * of its own under 3:1 (the core's `drawnColorsOf`).
+ */
 export function elementColorCommand(
   element: Element,
   trait: ColorTrait,
@@ -67,7 +78,7 @@ export function elementColorCommand(
   definitions: Definitions,
   options?: PickOptions,
 ): UpdateElementCommand | undefined {
-  const inherited = componentOrEssence(definitions, element.component).appearance[trait];
+  const inherited = inheritedColor(element, trait, definitions, options?.theme ?? 'light');
   const next = ownColor(element.appearance?.[trait], inherited, color, options);
   if (next === undefined) return undefined;
   return {
@@ -77,14 +88,36 @@ export function elementColorCommand(
   };
 }
 
-/** The command that gives one relation a stroke: its own, or its relation type's. */
+/**
+ * The color an element's shapes would be drawn in, in a theme, without a color of its own for the
+ * trait: what it inherits there.
+ */
+function inheritedColor(
+  element: Element,
+  trait: ColorTrait,
+  definitions: Definitions,
+  theme: ThemeName,
+): Color {
+  const own = element.appearance;
+  if (own?.[trait] === undefined) return drawnColorsOf(element, definitions, theme)[trait];
+  const rest = { ...own };
+  delete rest[trait];
+  const without = { component: element.component, appearance: rest };
+  return drawnColorsOf(without, definitions, theme)[trait];
+}
+
+/** The command that gives one relation a stroke: its own, or its relation type's in the theme shown. */
 export function relationColorCommand(
   relation: Relation,
   color: Color,
   definitions: Definitions,
   options?: PickOptions,
 ): UpdateRelationCommand | undefined {
-  const inherited = relationTypeOrRelatesTo(definitions, relation.relationType).appearance.stroke;
+  const inherited = drawnRelationAppearanceOf(
+    { relationType: relation.relationType },
+    definitions,
+    options?.theme ?? 'light',
+  ).stroke;
   const next = ownColor(relation.appearance?.stroke, inherited, color, options);
   if (next === undefined) return undefined;
   return {
@@ -262,28 +295,37 @@ function levelChange(
 ): Color | null | undefined {
   const stored = storedAtLevel(project, kind, id, trait) as Color | undefined;
   if (color === null) return stored === undefined && options?.always !== true ? undefined : null;
-  const shown = shownAtLevel(project, kind, id, trait);
+  const theme = options?.theme ?? 'light';
+  const shown = shownAtLevel(project, kind, id, trait, theme);
   if (stored === undefined) return ownColor(undefined, shown, color, options);
   // What the definition would show without the color set at its level, worked out by the core.
   const without = executeCommand(project, levelCommand(kind, id, { [trait]: null }));
-  const inherited = without.ok ? shownAtLevel(without.state, kind, id, trait) : shown;
+  const inherited = without.ok ? shownAtLevel(without.state, kind, id, trait, theme) : shown;
   return ownColor(stored, inherited, color, options);
 }
 
-function shownAtLevel(
+/**
+ * The color a definition's shapes are drawn in, in a theme: a component's colors, or its dark colors,
+ * and a relation type's stroke, or its dark stroke (the core's `drawnColorsOf` and
+ * `drawnRelationAppearanceOf`, given the definition alone).
+ */
+export function shownAtLevel(
   project: ProjectSnapshot,
   kind: DefinitionKind,
   id: Id,
   trait: ColorTrait,
+  theme: ThemeName = 'light',
 ): Color {
   const definitions = definitionsIn(project);
   return kind === 'component'
-    ? componentOrEssence(definitions, id).appearance[trait]
-    : relationTypeOrRelatesTo(definitions, id).appearance.stroke;
+    ? drawnColorsOf({ component: id }, definitions, theme)[trait]
+    : drawnRelationAppearanceOf({ relationType: id }, definitions, theme).stroke;
 }
 
-/** The theme's colors for notes and arrows, in the theme the inspector shows. */
-const FREE_SHAPE_THEME: FreeShapeTheme = THEMES[SHOWN_THEME].canvas;
+/** The theme's colors for notes and arrows, in a theme. */
+function freeShapeTheme(theme: ThemeName): FreeShapeTheme {
+  return THEMES[theme].canvas;
+}
 
 /** What a selection holds that has the trait: elements and notes for a fill; every shape for a stroke. */
 function selected(
@@ -312,24 +354,27 @@ function selected(
 }
 
 /**
- * The colors a selection shows for a trait, one for each shape that has it, in the order elements,
- * relations, free shapes: the inspector shows the common one, or that they differ.
+ * The colors a selection shows for a trait in a theme, as the canvas draws them, one for each shape
+ * that has it, in the order elements, relations, free shapes: the inspector shows the common one, or
+ * that they differ.
  */
 export function selectionColors(
   project: ProjectSnapshot,
   viewId: Id | undefined,
   selection: Selection,
   trait: ColorTrait,
+  theme: ThemeName = 'light',
 ): Color[] {
   const definitions = definitionsIn(project);
   const { elements, relations, freeShapes } = selected(project, viewId, selection, trait);
+  const canvas = freeShapeTheme(theme);
   return [
-    ...elements.map((element) => appearanceOf(element, definitions)[trait]),
-    ...relations.map((relation) => relationAppearanceOf(relation, definitions).stroke),
+    ...elements.map((element) => drawnColorsOf(element, definitions, theme)[trait]),
+    ...relations.map((relation) => drawnRelationAppearanceOf(relation, definitions, theme).stroke),
     ...freeShapes.map((shape) =>
       shape.kind === 'note'
-        ? noteColorsOf(shape, FREE_SHAPE_THEME)[trait].color
-        : arrowColorOf(shape, FREE_SHAPE_THEME).color,
+        ? noteColorsOf(shape, canvas)[trait].color
+        : arrowColorOf(shape, canvas).color,
     ),
   ];
 }
@@ -355,7 +400,14 @@ export function selectionColorCommand(
     ...(viewId === undefined
       ? []
       : freeShapes.map((shape) =>
-          freeShapeColorCommand(viewId, shape, trait, color, FREE_SHAPE_THEME, options),
+          freeShapeColorCommand(
+            viewId,
+            shape,
+            trait,
+            color,
+            freeShapeTheme(options?.theme ?? 'light'),
+            options,
+          ),
         )),
   ].filter((command) => command !== undefined);
   if (commands.length <= 1) return commands[0];

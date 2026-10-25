@@ -11,7 +11,8 @@
  * What the canvas hides, as filters and isolating do, has no row; a shape inside a hidden one is
  * listed inside the nearest shape around it that shows. A collapsed container's row holds none of its
  * contents, as the canvas draws none, and lists its aggregated relations: each stands for the
- * relations it aggregates, which selecting it selects.
+ * relations it aggregates, which selecting it selects. A row of a table, which draws none of what its
+ * element holds (ADR 0023), lists those elements last in its row, as not drawn.
  */
 import {
   definitionsIn,
@@ -35,7 +36,7 @@ import {
 import type { Selectable, Selection } from '../editor/selection';
 import { outerIdsOf, type TreeItems } from './tree';
 
-export type OutlineItem = ShapeItem | RelationItem | NoteItem | ArrowItem;
+export type OutlineItem = ShapeItem | RelationItem | NoteItem | ArrowItem | UndrawnItem;
 
 /** The row of an anchored shape of an element. */
 export interface ShapeItem {
@@ -79,6 +80,20 @@ export interface ArrowItem {
   kind: 'arrow';
   id: string;
   arrow: ArrowShape;
+}
+
+/**
+ * The row of an element that a row of a table holds, which the canvas does not draw (ADR 0023): inside
+ * the row's own row. Selecting it selects the element; the canvas shows the row.
+ */
+export interface UndrawnItem {
+  kind: 'undrawn';
+  /** The row's key, then the element's id. */
+  id: string;
+  element: Id;
+  name: string;
+  /** The key of the row that holds it. */
+  row: string;
 }
 
 /** Where a row is: its id, and the ids of the rows around it, outermost first. */
@@ -225,10 +240,13 @@ function buildOutline(
     }
     return outer;
   };
+  // For each element only a row holds, which the canvas does not draw, the first row that holds it.
+  const undrawnIn = new Map<Id, ElementShape>();
   for (const shape of scene.shapes) {
     if (unseen.shapes.has(shape.key)) continue;
     const item: ShapeItem = { kind: 'shape', id: shape.key, shape };
     if (shape.holdsContents) containers.add(shape.key);
+    for (const id of shape.undrawn ?? []) if (!undrawnIn.has(id)) undrawnIn.set(id, shape);
     const container = shownContainer(shape);
     if (container === undefined) {
       top.push(item);
@@ -357,6 +375,16 @@ function buildOutline(
     };
   };
 
+  /** The rows of what a row holds and does not draw, last in its row. */
+  const undrawnItems = (shape: ElementShape): UndrawnItem[] =>
+    (shape.undrawn ?? []).map((id) => ({
+      kind: 'undrawn',
+      id: undrawnRowId(shape.key, id),
+      element: id,
+      name: index.element(id)?.name ?? id,
+      row: shape.key,
+    }));
+
   const insides = new Map<string, readonly OutlineItem[]>();
   const inside = (item: OutlineItem): readonly OutlineItem[] => {
     if (item.kind !== 'shape' && item.kind !== 'relation') return [];
@@ -371,6 +399,7 @@ function buildOutline(
             aggregateItem(item.id, item.shape, line),
           ),
           ...(held.get(item.id) ?? []),
+          ...undrawnItems(item.shape),
         ];
       } else {
         found = endingOn(item).flatMap((id) => relationItem(item.id, item.relation, id) ?? []);
@@ -416,7 +445,11 @@ function buildOutline(
     countInside: (item) => {
       switch (item.kind) {
         case 'shape':
-          return relationsFrom(item.shape) + (held.get(item.id)?.length ?? 0);
+          return (
+            relationsFrom(item.shape) +
+            (held.get(item.id)?.length ?? 0) +
+            (item.shape.undrawn?.length ?? 0)
+          );
         case 'relation':
           return endingOn(item).length;
         default:
@@ -430,7 +463,17 @@ function buildOutline(
       switch (selectable.kind) {
         case 'element': {
           const shape = firstShapes.get(selectable.id);
-          if (!shape || unseen.shapes.has(shape.key)) return undefined;
+          if (!shape) {
+            // An element only a row holds: its row inside that row's.
+            const row = undrawnIn.get(selectable.id);
+            return (
+              row && {
+                id: undrawnRowId(row.key, selectable.id),
+                outer: [...outerOf(row), row.key],
+              }
+            );
+          }
+          if (unseen.shapes.has(shape.key)) return undefined;
           return { id: shape.key, outer: outerOf(shape) };
         }
         case 'relation': {
@@ -483,6 +526,8 @@ export function selectableOf(item: OutlineItem): Selectable {
       return { kind: 'free-shape', id: item.note.id };
     case 'arrow':
       return { kind: 'free-shape', id: item.arrow.id };
+    case 'undrawn':
+      return { kind: 'element', id: item.element };
   }
 }
 
@@ -499,6 +544,8 @@ export function isItemSelected(selection: Selection, item: OutlineItem): boolean
       return selection.freeShapes.has(item.note.id);
     case 'arrow':
       return selection.freeShapes.has(item.arrow.id);
+    case 'undrawn':
+      return selection.elements.has(item.element);
   }
 }
 
@@ -513,10 +560,15 @@ export function textOf(item: OutlineItem): string {
       return 'Note';
     case 'arrow':
       return 'Arrow';
+    case 'undrawn':
+      return item.name;
   }
 }
 
-/** The key the canvas reveals a row's shape by: a shape's key, a relation's or a free shape's id. */
+/**
+ * The key the canvas reveals a row's shape by: a shape's key, a relation's or a free shape's id, and
+ * for what a row holds without drawing it, the row's key.
+ */
 export function revealKeyOf(item: OutlineItem): string {
   switch (item.kind) {
     case 'shape':
@@ -527,6 +579,8 @@ export function revealKeyOf(item: OutlineItem): string {
       return item.note.id;
     case 'arrow':
       return item.arrow.id;
+    case 'undrawn':
+      return item.row;
   }
 }
 
@@ -571,6 +625,14 @@ export function worldTreeOf(placements: readonly Placement[]): WorldTree {
 /** The id of a relation's row: the id of the row it sits inside, then the relation's. */
 function relationRowId(outer: string, relation: Id): string {
   return `${outer}#${relation}`;
+}
+
+/**
+ * The id of the row of an element a row holds: the path to it, as a shape's key would be, which no
+ * shape has, since a row draws none of what it holds.
+ */
+function undrawnRowId(row: string, element: Id): string {
+  return `${row}/${element}`;
 }
 
 function noteRowId(id: Id): string {

@@ -63,6 +63,7 @@ import { rerouted } from './routing/scene-routes';
 import { routeWithSides } from './rowRoutes';
 import { dragEnds } from './rowShapes';
 import { levelWithRows } from './rowsDraw';
+import { nameBandOf } from './shape-images';
 import {
   relationLinesOf,
   type ArrowShape,
@@ -198,6 +199,8 @@ export interface Overlay {
     pending?: Rect;
     /** A container they may not go into. */
     refused?: Rect;
+    /** Where among the rows of the container they would become rows: a bar across it. */
+    slot?: Rect;
   };
   /** Where dropped shapes will be while their change waits to be confirmed. */
   ghost?: Rect[];
@@ -263,6 +266,12 @@ interface Tile {
    * for, as `theme/restyle.ts` stamps them; and drawings made for another stamp, until they show.
    */
   paints: number;
+  /**
+   * How many times what its labels are written on changed its colors while its own drawings did not:
+   * the fill of the container its drawings' names are written on (ADR-0027). Its labels' stamp
+   * counts it, so that they are tinted again.
+   */
+  retints: number;
   coarseStamp: string;
   fullStamp: string;
   labelStamp: string;
@@ -1223,6 +1232,7 @@ export class CanvasRenderer {
         for (const shape of tile.shapes) this.tileOfShape.set(shape.key, tile);
       }
     }
+    this.retintUnderRecolored(from?.indexed, indexed);
     this.shapesFrom = { indexed, hidden, dimmed };
   }
 
@@ -1658,6 +1668,7 @@ export class CanvasRenderer {
       level: 0,
       labelled: 0,
       paints: 0,
+      retints: 0,
       coarseStamp: '',
       fullStamp: '',
       labelStamp: '',
@@ -2325,6 +2336,11 @@ export class CanvasRenderer {
     if (drop?.leaving) outline(drop.leaving, selected, width);
     if (drop?.pending) outline(drop.pending, selected, width * 0.75);
     if (drop?.refused) outline(drop.refused, refused, width * 2);
+    if (drop?.slot) {
+      const bar = drop.slot;
+      const thick = Math.max(bar.height, 3 / this.camera.scale);
+      marks.rect(bar.x, bar.y - thick / 2, bar.width, thick).fill({ color: selected });
+    }
     if (box) {
       marks
         .rect(box.x, box.y, box.width, box.height)
@@ -2473,8 +2489,32 @@ export class CanvasRenderer {
 
   /** What a tile's drawings or labels show in a theme, as `theme/restyle.ts` stamps them. */
   private stampFor(tile: Tile, theme: ThemeName, of: 'drawings' | 'labels'): string {
-    const follows = of === 'drawings' ? drawingsFollowTheme(tile) : labelsFollowTheme(tile);
-    return stampOf(follows, theme, tile.paints);
+    if (of === 'drawings') return stampOf(drawingsFollowTheme(tile), theme, tile.paints);
+    return `${stampOf(labelsFollowTheme(tile), theme, tile.paints)} ${tile.retints}`;
+  }
+
+  /**
+   * Tints again the names written under the drawings that sit in a container whose fill changed, in
+   * the frame that shows the rest of the change: they are written on that fill (ADR-0027), while
+   * their own tiles stay as they are. Only the shapes drawn by their pictures are looked at.
+   */
+  private retintUnderRecolored(was: IndexedScene | undefined, indexed: IndexedScene): void {
+    if (!was || was === indexed) return;
+    let any = false;
+    for (const shape of namedUnderDrawings(indexed.scene.shapes)) {
+      const key = shape.containerShape as string;
+      const before = was.byKey.get(key);
+      const after = indexed.byKey.get(key);
+      if (!before || !after || before === after) continue;
+      if (before.fill === after.fill && before.dark?.fill === after.dark?.fill) continue;
+      const tile = this.tileOfShape.get(shape.key);
+      if (!tile) continue;
+      tile.retints += 1;
+      any = true;
+    }
+    if (!any) return;
+    this.restyling = true;
+    this.requestRender();
   }
 
   /**
@@ -2878,6 +2918,23 @@ function dimTile(tile: Tile, dim: boolean): void {
  * no longer have the same keys in the same drawing order, when most of them changed, or when one of
  * them is beyond the bands: then every tile is planned again.
  */
+const namedUnder = new WeakMap<readonly ElementShape[], readonly ElementShape[]>();
+
+/**
+ * The shapes drawn by their pictures inside a container, whose names are written on its fill: worked
+ * out once for each list of shapes.
+ */
+function namedUnderDrawings(shapes: readonly ElementShape[]): readonly ElementShape[] {
+  let found = namedUnder.get(shapes);
+  if (!found) {
+    found = shapes.filter(
+      (shape) => shape.containerShape !== undefined && nameBandOf(shape) !== undefined,
+    );
+    namedUnder.set(shapes, found);
+  }
+  return found;
+}
+
 function changedShapes(
   from: { indexed: IndexedScene; hidden: ReadonlySet<string>; dimmed: ReadonlySet<string> },
   indexed: IndexedScene,

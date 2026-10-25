@@ -12,7 +12,8 @@
  *
  * With `images`, the project's own packages hold pictures and its elements show them (`images.ts`
  * beside this file): 20 distinct SVG icons, 4 of them at the cleaner's caps on drawing cost, and 300
- * distinct bitmaps placed as drawings.
+ * distinct bitmaps placed as drawings. With `tables` too, every table and every column shows one: a
+ * table in its header, a column at its row's left, as an icon whatever its placement.
  */
 import { DATA_MODELING, SYSTEMS, type ProjectSnapshot } from '@visual-anything/core';
 import type {
@@ -73,7 +74,7 @@ const GRID = { columns: 100, width: 100, height: 50 };
 
 /** A project with one view that shows `elements` elements, every one with a stored position. */
 export function syntheticProject(options: SyntheticOptions): ProjectSnapshot {
-  if (options.tables) return syntheticTables(options.elements);
+  if (options.tables) return syntheticTables(options.elements, options.images ?? false);
   const overlap = options.overlap ?? 'none';
   const random = seeded(1);
   const elements: Element[] = [];
@@ -302,9 +303,10 @@ const tableHeight = (columns: number) => 32 + columns * 24 + 4;
 /**
  * A view of tables (ADR 0023): a table for every 25 elements, of 24 columns each, the first a primary
  * key, on a grid; one more table of 300 columns beside the grid; and a "references" relation for every
- * 10 elements, from a column that is not a key to the key of a table, near it four times in five.
+ * 10 elements, from a column that is not a key to the key of a table, near it four times in five. With
+ * `images`, every table and column shows a picture, as `withSyntheticImages` gives them.
  */
-export function syntheticTables(elements: number): ProjectSnapshot {
+export function syntheticTables(elements: number, images = false): ProjectSnapshot {
   const random = seeded(3);
   const count = Math.max(1, Math.round(elements / 25));
   const columnsOf: string[][] = [];
@@ -371,18 +373,24 @@ export function syntheticTables(elements: number): ProjectSnapshot {
       to: key,
     });
   }
+  const pictured = images
+    ? withSyntheticImages(
+        model,
+        model.map((element) => element.id),
+      )
+    : { elements: model, packages: [] as PackageFile[] };
   return {
     project: {
       schemaVersion: 1,
       name: `${elements} elements in tables`,
-      packages: ['data-modeling'],
+      packages: ['data-modeling', ...pictured.packages.map((file) => file.id)],
     },
     model: {
       world: { id: 'world', component: 'essence', name: 'World' },
-      elements: model,
+      elements: pictured.elements,
       relations,
     },
-    packages: [DATA_MODELING],
+    packages: [DATA_MODELING, ...pictured.packages],
     views: [
       {
         id: 'tables',

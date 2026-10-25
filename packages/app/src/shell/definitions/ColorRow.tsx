@@ -6,7 +6,7 @@ import {
   type Definitions,
   type TraitOrigin,
 } from '@visual-anything/core';
-import type { Color, Id } from '@visual-anything/schema';
+import type { Id } from '@visual-anything/schema';
 import { useId } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import { ColorHints } from '../inspector/colorParts';
@@ -20,7 +20,8 @@ import {
   type ColorTrait,
 } from '../inspector/colors';
 import { ColorControl } from '../inspector/controls';
-import { definitionColorCommand, storedAtLevel } from '../inspector/recolor';
+import { definitionColorCommand, shownAtLevel, storedAtLevel } from '../inspector/recolor';
+import { useShownTheme } from '../inspector/useShownTheme';
 import { isBuiltInDefinition, type DefinitionKind } from './commands';
 import { TraitRow } from './TraitRow';
 import { nameOf } from './traits';
@@ -43,9 +44,12 @@ interface ColorRowProps {
 export function ColorRow({ kind, id, trait, label, hints: withHints = false }: ColorRowProps) {
   const { project, definitions, send } = useEditor();
   const hintId = useId();
+  const theme = useShownTheme();
   const readOnly = send === undefined;
   const component = kind === 'component';
-  const { package: packageId, origin, shown } = colorOf(definitions, kind, id, trait);
+  const { package: packageId, origin } = colorOf(definitions, kind, id, trait);
+  // As the canvas draws it in the theme shown: a component's dark colors, a relation type's dark stroke.
+  const shown = shownAtLevel(project, kind, id, trait, theme);
   const stored = storedAtLevel(project, kind, id, trait);
   const hints = !withHints
     ? []
@@ -84,6 +88,7 @@ export function ColorRow({ kind, id, trait, label, hints: withHints = false }: C
             onCommit={(color, { waiting }) => {
               const command = definitionColorCommand(project, kind, id, trait, color, undefined, {
                 always: waiting,
+                theme,
               });
               return command ? sendCommand(command) : Promise.resolve(true);
             }}
@@ -95,25 +100,17 @@ export function ColorRow({ kind, id, trait, label, hints: withHints = false }: C
   );
 }
 
-/** A definition's color as it is drawn, where it comes from, and the package that defines it. */
+/** Where a definition's color comes from, and the package that defines it. */
 function colorOf(
   definitions: Definitions,
   kind: DefinitionKind,
   id: Id,
   trait: ColorTrait,
-): { package: Id | undefined; origin: TraitOrigin; shown: Color } {
+): { package: Id | undefined; origin: TraitOrigin } {
   if (kind === 'component') {
     const component = componentOrEssence(definitions, id);
-    return {
-      package: component.package,
-      origin: component.origins[trait],
-      shown: component.appearance[trait],
-    };
+    return { package: component.package, origin: component.origins[trait] };
   }
   const relationType = relationTypeOrRelatesTo(definitions, id);
-  return {
-    package: relationType.package,
-    origin: relationType.origins.stroke,
-    shown: relationType.appearance.stroke,
-  };
+  return { package: relationType.package, origin: relationType.origins.stroke };
 }

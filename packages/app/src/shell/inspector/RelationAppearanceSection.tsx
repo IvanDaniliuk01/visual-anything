@@ -1,6 +1,5 @@
 import {
   drawnRelationAppearanceOf,
-  relationAppearanceOf,
   relationAppearanceOriginsOf,
   relationTypeOrRelatesTo,
   type Command,
@@ -14,6 +13,7 @@ import { ColorHints, ScopeChoice } from './colorParts';
 import { idsOf, lineHints, originText, savedIn, wayBack } from './colors';
 import { ColorControl } from './controls';
 import { definitionColorCommand, relationColorCommand, storedAtLevel } from './recolor';
+import { useShownTheme } from './useShownTheme';
 
 interface RelationAppearanceSectionProps {
   relation: Relation;
@@ -38,6 +38,7 @@ export function RelationAppearanceSection({
   const headingId = useId();
   const hintId = useId();
   const [scope, setScope] = useState<Scope>('relation');
+  const theme = useShownTheme();
   const id = relation.relationType;
   const relationType = relationTypeOrRelatesTo(definitions, id);
   const known = id === RELATES_TO_ID || definitions.relationType(id) !== undefined;
@@ -53,19 +54,21 @@ export function RelationAppearanceSection({
     ? relationType.origins.stroke
     : relationAppearanceOriginsOf(relation, definitions).stroke;
   const own = ofType ? stored !== undefined : origin.kind === 'own';
-  const shown = ofType
-    ? relationType.appearance.stroke
-    : relationAppearanceOf(relation, definitions).stroke;
+  // What the canvas draws in the theme shown: a relation type's dark stroke in the dark theme.
+  const shown = drawnRelationAppearanceOf(drawn, definitions, theme).stroke;
   const strokeOf = (color: string | null, always = false): Command | undefined =>
     ofType
-      ? definitionColorCommand(project, 'relation-type', id, 'stroke', color, relation, { always })
+      ? definitionColorCommand(project, 'relation-type', id, 'stroke', color, relation, {
+          always,
+          theme,
+        })
       : color === null
         ? {
             type: 'update-relation',
             id: relation.id,
             changes: { appearanceTraits: { stroke: null } },
           }
-        : relationColorCommand(relation, color, definitions, { always });
+        : relationColorCommand(relation, color, definitions, { always, theme });
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>

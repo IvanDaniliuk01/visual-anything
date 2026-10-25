@@ -22,12 +22,6 @@ import type { Color, Id } from '@visual-anything/schema';
 /** The colors of an element or a note that the inspector edits. */
 export type ColorTrait = 'fill' | 'stroke';
 
-/**
- * The theme whose colors the inspector shows and compares a pick with. The canvas draws in the light
- * theme's colors until it follows the theme (A1's canvas task); the hints look at both themes.
- */
-export const SHOWN_THEME: ThemeName = 'light';
-
 /** The recent colors with `color` first: in capitals, each once, at most as many as the preference keeps. */
 export function withRecentColor(recent: readonly Color[], color: Color): Color[] {
   const first = color.toUpperCase();

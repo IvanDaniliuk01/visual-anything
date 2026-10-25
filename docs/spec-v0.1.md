@@ -308,7 +308,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [x] Project appearances, a relation's own appearance and free-shape colors in the file format and the core, with their commands
 - [x] Colors checked and normalized by every command that stores one
 - [x] Recolors restyle tiles in place; the scene keeps what did not change
-- [ ] The inspector edits colors for one shape, every shape of a definition and a selection, from a picker or a color code
+- [x] The inspector edits colors for one shape, every shape of a definition and a selection, from a picker or a color code
 
 **A3 · Grid, rulers and snapping.** Done when the grid and rulers can be shown from the canvas toolbar and with Shift+G and Shift+R; with both shown, every benchmark phase meets the 60 frames per second target and the grid adds at most 0.5 ms per frame at the median; while the grid shows and snapping is on, a hand move stores the moving shape that carries the pressed one at a multiple of 8 canvas units inside its container, pins it, keeps the rest of the selection's arrangement and lands where its preview showed, a shape created by hand is stored at a multiple of 8 and stays unpinned, and Alt places freely; and Shift with an arrow key moves the selection by 8.
 

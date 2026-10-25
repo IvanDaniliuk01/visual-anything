@@ -700,6 +700,25 @@ export const ui: Catalog = {
   'names no column': 'no nombra ninguna columna',
   'a foreign key it cannot read': 'una clave foránea que no se puede leer',
   'could not be read': 'no se pudo leer',
+  // A row in the inspector and the outline, and drops onto a shape that draws rows (ADR 0023).
+  'Drawn as a row here: a band as wide as its container, with no border of its own, so its shape, stroke and size apply only where a view draws it as a shape.':
+    'Se dibuja como fila aquí: una banda tan ancha como su contenedor, sin borde propio, así que su forma, su trazo y su tamaño solo se aplican donde una vista la dibuja como forma.',
+  'In "{container}": row {place} of {count}, in the model’s order':
+    'En "{container}": fila {place} de {count}, en el orden del modelo',
+  'A row moves with its container, and keeps its place among the rows.':
+    'Una fila se mueve con su contenedor y mantiene su lugar entre las filas.',
+  'Not drawn: inside a row': 'No se dibuja: dentro de una fila',
+  'Make it a row of "{target}"': 'Convertirlo en una fila de "{target}"',
+  'Make {count} elements rows of "{target}"': 'Convertir {count} elementos en filas de "{target}"',
+  'Before "{row}"': 'Antes de "{row}"',
+  'As its first row': 'Como su primera fila',
+  'After its last row': 'Después de su última fila',
+  'Only a {allowed} can be a row of "{target}", through "{type}"':
+    'Solo un elemento {allowed} puede ser una fila de "{target}", mediante "{type}"',
+  'No relation type that nests can make it a row of "{target}"':
+    'Ningún tipo de relación que anida puede convertirlo en una fila de "{target}"',
+  'Nothing can be put inside it in this view': 'En esta vista no se puede poner nada dentro',
+  '{first} or {last}': '{first} o {last}',
 
   // The canvas's keyboard help.
   Keyboard: 'Teclado',

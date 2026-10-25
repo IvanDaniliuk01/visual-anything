@@ -156,12 +156,14 @@ export interface RowFields {
 export function rowFieldsOf(parts: Measured, width: number, holdsContents: boolean): RowFields {
   const { rows, look, element, detail } = parts;
   if (!rows) return { kind: look.appearance.shape };
+  // A picture takes room before the name: at a row's left, in a header after its inset.
+  const icon = look.image !== undefined;
   if (rows.kind === 'row') {
     return {
       kind: 'rectangle',
       row: rows.index,
       ...(rows.undrawn.length > 0 ? { undrawn: rows.undrawn } : {}),
-      fitted: fittedOnce('row', element.name, detail, width, false),
+      fitted: fittedOnce('row', element.name, detail, width, false, icon),
     };
   }
   const collapsed = parts.folded !== undefined;
@@ -175,7 +177,7 @@ export function rowFieldsOf(parts: Measured, width: number, holdsContents: boole
   return {
     kind: rowsShapeKind(look.appearance.shape),
     rowCount: rows.count,
-    fitted: fittedOnce('header', element.name, said, width, holdsContents || collapsed),
+    fitted: fittedOnce('header', element.name, said, width, holdsContents || collapsed, icon),
   };
 }
 
@@ -190,12 +192,15 @@ function fittedOnce(
   detail: string,
   width: number,
   toggle: boolean,
+  icon: boolean,
 ): { name: string; detail: string } {
-  const key = `${kind}\u0000${width}\u0000${toggle ? 1 : 0}\u0000${name}\u0000${detail}`;
+  const key = `${kind}\u0000${width}\u0000${toggle ? 1 : 0}${icon ? 1 : 0}\u0000${name}\u0000${detail}`;
   let fitted = fittedTexts.get(key);
   if (!fitted) {
     fitted =
-      kind === 'row' ? fitRow(name, detail, width) : fitHeader(name, detail, width, { toggle });
+      kind === 'row'
+        ? fitRow(name, detail, width, { icon })
+        : fitHeader(name, detail, width, { toggle, icon });
     if (fittedTexts.size >= MOST_FITTED) fittedTexts.clear();
     fittedTexts.set(key, fitted);
   }

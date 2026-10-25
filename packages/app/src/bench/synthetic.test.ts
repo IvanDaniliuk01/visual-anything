@@ -4,6 +4,7 @@ import { centerOf } from '../canvas/geometry';
 import { indexScene, type IndexedScene } from '../canvas/hit';
 import { buildScene } from '../canvas/scene';
 import { MAX_BANDS, cellOf, plannedTiles } from '../canvas/tiles';
+import { SYNTHETIC_IMAGES } from './images';
 import {
   LARGE_TABLE,
   LARGE_TABLE_COLUMNS,
@@ -147,5 +148,31 @@ describe('syntheticProject with tables', () => {
     expect(large?.rowCount).toBe(LARGE_TABLE_COLUMNS);
     expect(maximumBand(indexScene(scene))).toBe(1);
     expect(scene.relations.length).toBeGreaterThan(900);
+  });
+});
+
+describe('syntheticProject with tables and images', () => {
+  const project = syntheticProject({ elements: 2_000, tables: true, images: true });
+
+  it('shows a picture on every table and column, the photos among them, and keeps the rules', () => {
+    const { elements } = project.model;
+    expect(elements.every((element) => element.appearance?.image !== undefined)).toBe(true);
+    const photos = elements.filter((element) => {
+      const image = element.appearance?.image;
+      return image !== undefined && image !== 'none' && image.placement === 'drawing';
+    });
+    expect(photos).toHaveLength(SYNTHETIC_IMAGES.photos);
+    expect(project.project.packages).toEqual(project.packages.map((file) => file.id));
+    expect(project.project.packages[0]).toBe('data-modeling');
+    expect(checkProject(project).errors).toEqual([]);
+  });
+
+  it('draws a table’s picture in its header and a column’s at its row’s left', () => {
+    const scene = buildScene(project, 'tables');
+    const rows = scene.shapes.filter((shape) => shape.row !== undefined);
+    const tables = scene.shapes.filter((shape) => shape.rowCount !== undefined);
+    expect(rows.length).toBeGreaterThan(2_000);
+    expect(rows.every((shape) => shape.image?.placement === 'icon')).toBe(true);
+    expect(tables.every((shape) => shape.image?.placement === 'header')).toBe(true);
   });
 });

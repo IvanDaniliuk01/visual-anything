@@ -76,11 +76,13 @@ export function dragAnchor(
 
 /**
  * The frame dragged shapes land in, as a release would do now: the container a drop puts them in,
- * World when it takes them out, and otherwise the frame they sit in.
+ * World when it takes them out, and otherwise the frame they sit in. What becomes a row has no
+ * position, so a drop onto a shape that draws rows keeps the frame they sit in.
  */
 export function aimFrame(aim: DropAim | undefined, home: SnapFrame): SnapFrame {
   switch (aim?.kind) {
     case 'into':
+      if (aim.rows) return home;
       return { origin: { x: aim.target.rect.x, y: aim.target.rect.y }, container: aim.target };
     case 'out':
       return WORLD_FRAME;

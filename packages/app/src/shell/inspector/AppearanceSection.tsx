@@ -13,8 +13,10 @@ import {
 import { ESSENCE_ID, type Element, type Id } from '@visual-anything/schema';
 import { useId, useState } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { useT } from '../../i18n';
 import { ElementImageTrait } from '../definitions/ElementImageTrait';
 import { TraitRow } from '../definitions/TraitRow';
+import { drawnOnlyAsRows } from './asRow';
 import { ColorHints, ScopeChoice } from './colorParts';
 import { idsOf, originText, savedIn, shapeHints, wayBack, type ColorTrait } from './colors';
 import { ColorControl, SelectControl } from './controls';
@@ -27,6 +29,7 @@ import {
   storedAtLevel,
 } from './recolor';
 import { SHAPES, isShape } from './shapes';
+import { useShownTheme } from './useShownTheme';
 
 interface AppearanceSectionProps {
   element: Element;
@@ -108,9 +111,16 @@ function OwnTraits({
   update,
 }: TraitsProps & { update: AppearanceSectionProps['update'] }) {
   const hintId = useId();
+  const rowId = useId();
   const [focusShape, setFocusShape] = useState(0);
+  const theme = useShownTheme();
+  const t = useT();
+  // A row is a band of its container, in its fill: its shape, stroke and size do not show here.
+  const asRow = drawnOnlyAsRows(useEditor().scene, element.id);
   const own = element.appearance ?? {};
   const shown = appearanceOf(element, definitions);
+  // The colors the canvas draws in the theme shown.
+  const drawn = drawnColorsOf(element, definitions, theme);
   const origins = appearanceOriginsOf(element, definitions);
   const nameOf = (id: Id) => componentOrEssence(definitions, id).name;
   const ownTraits = Object.entries(own).filter(([, value]) => value !== undefined);
@@ -142,12 +152,17 @@ function OwnTraits({
         <ColorControl
           id={id}
           label={label}
-          value={shown[trait]}
-          disabled={disabled}
-          describedBy={idsOf(describedBy, hints.length > 0 ? hintId : undefined)}
+          value={drawn[trait]}
+          disabled={disabled || (asRow && trait === 'stroke')}
+          describedBy={idsOf(
+            describedBy,
+            asRow && trait === 'stroke' ? rowId : undefined,
+            hints.length > 0 ? hintId : undefined,
+          )}
           onCommit={(color, { waiting }) => {
             const command = elementColorCommand(element, trait, color, definitions, {
               always: waiting,
+              theme,
             });
             return command ? send(command) : Promise.resolve(true);
           }}
@@ -158,6 +173,13 @@ function OwnTraits({
 
   return (
     <>
+      {asRow && (
+        <p id={rowId} className="inspector-notes">
+          {t(
+            'Drawn as a row here: a band as wide as its container, with no border of its own, so its shape, stroke and size apply only where a view draws it as a shape.',
+          )}
+        </p>
+      )}
       <ul className="definition-traits">
         <TraitRow
           label="Shape"
@@ -171,8 +193,8 @@ function OwnTraits({
             <SelectControl
               id={id}
               value={shown.shape}
-              disabled={disabled}
-              describedBy={describedBy}
+              disabled={disabled || asRow}
+              describedBy={idsOf(describedBy, asRow ? rowId : undefined)}
               focusRequest={focusShape}
               onCommit={async (shape) => {
                 if (isShape(shape)) await send(changing({ shape }));
@@ -219,9 +241,12 @@ function OwnTraits({
 function ComponentTraits({ element, definitions, disabled }: TraitsProps) {
   const { project } = useEditor();
   const hintId = useId();
+  const theme = useShownTheme();
   const id = element.component;
   const component = componentOrEssence(definitions, id);
   const shown = component.appearance;
+  // The component's colors as the canvas draws them in the theme shown: its dark colors in the dark.
+  const drawn = drawnColorsOf({ component: id }, definitions, theme);
   const stored = (trait: 'shape' | ColorTrait) => storedAtLevel(project, 'component', id, trait);
   const nameOf = (each: Id) => componentOrEssence(definitions, each).name;
   const own = element.appearance ?? {};
@@ -234,7 +259,7 @@ function ComponentTraits({ element, definitions, disabled }: TraitsProps) {
       ? undefined
       : `This element has a ${what} of its own: a change here takes it back, so that it follows.`;
   const color = (trait: ColorTrait, value: string | null, always = false) =>
-    definitionColorCommand(project, 'component', id, trait, value, element, { always });
+    definitionColorCommand(project, 'component', id, trait, value, element, { always, theme });
 
   const colorRow = (trait: ColorTrait, label: string) => (
     <TraitRow
@@ -250,7 +275,7 @@ function ComponentTraits({ element, definitions, disabled }: TraitsProps) {
         <ColorControl
           id={controlId}
           label={label}
-          value={shown[trait]}
+          value={drawn[trait]}
           disabled={disabled}
           describedBy={idsOf(describedBy, hints.length > 0 ? hintId : undefined)}
           onCommit={(picked, { waiting }) => {
