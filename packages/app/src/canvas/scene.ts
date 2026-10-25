@@ -35,7 +35,7 @@ import {
   appearanceOf,
   componentOrEssence,
   containmentTree,
-  definitionsOf,
+  definitionsIn,
   detailParts,
   detailText,
   startedTypesByElement,
@@ -382,7 +382,7 @@ function layOut(
 ): Built {
   const { model, packages } = project;
   const worldId = model.world.id;
-  const definitions = definitionsOf(packages);
+  const definitions = definitionsIn(project);
   // Only the listed types that a package defines and that nest arrange the view, as in the core.
   const listed = nestingTypesInView(project, view);
   const nesting =

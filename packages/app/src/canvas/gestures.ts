@@ -4,7 +4,7 @@
  */
 import {
   appearanceOf,
-  definitionsOf,
+  definitionsIn,
   limitWarnings,
   modelIndexOf,
   nestingTypesInView,
@@ -149,7 +149,7 @@ export function createAtCommand(
   inside: ElementShape | undefined,
 ): Command | undefined {
   const view = project.views.find((each) => each.id === viewId);
-  const component = definitionsOf(project.packages).component(componentId);
+  const component = definitionsIn(project).component(componentId);
   if (!view || !component) return undefined;
   const nesting = nestingTypesInView(project, view)[0];
   const container = nesting === undefined ? undefined : inside;
@@ -183,7 +183,7 @@ export function createInsideCommand(
   container: Id,
 ): CreateElementCommand | undefined {
   const view = project.views.find((each) => each.id === viewId);
-  const component = definitionsOf(project.packages).component(componentId);
+  const component = definitionsIn(project).component(componentId);
   if (!view || !component || container === project.model.world.id) return undefined;
   const relationType = nestingTypesInView(project, view)[0];
   if (relationType === undefined) return undefined;
@@ -218,7 +218,7 @@ export function createBesideCommand(
   beside: ElementShape,
 ): Command | undefined {
   const view = project.views.find((each) => each.id === viewId);
-  const definitions = definitionsOf(project.packages);
+  const definitions = definitionsIn(project);
   const component = definitions.component(componentId);
   if (!view || !component) return undefined;
   const { container } = beside;
@@ -288,7 +288,7 @@ export interface RelationChoice {
  * nesting relation types last, each group in package order.
  */
 export function relationChoices(project: ProjectSnapshot, from: Id, to: Id): RelationChoice[] {
-  const definitions = definitionsOf(project.packages);
+  const definitions = definitionsIn(project);
   const index = modelIndexOf(project);
   const choices = [...definitions.relationTypes.keys()].flatMap((id) => {
     const relationType = definitions.relationType(id);

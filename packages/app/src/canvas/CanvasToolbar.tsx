@@ -1,4 +1,4 @@
-import { definitionsOf, type ProjectSnapshot } from '@visual-anything/core';
+import { definitionsIn, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useMemo, useRef, useState, type KeyboardEvent, type Ref } from 'react';
 import './drop.css';
@@ -149,7 +149,7 @@ export function ComponentSelect({
   onLeave,
 }: ComponentSelectProps) {
   const palette = useMemo(() => {
-    const definitions = definitionsOf(project.packages);
+    const definitions = definitionsIn(project);
     return project.packages.map((file) => ({
       id: file.id,
       name: file.name,
@@ -158,7 +158,8 @@ export function ComponentSelect({
         name: definitions.component(component.id)?.name ?? component.name,
       })),
     }));
-  }, [project.packages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the definitions follow the packages and the project appearances only
+  }, [project.packages, project.project.appearances]);
   // An option the keys reached in the closed list, not added yet.
   const [reached, setReached] = useState<string>();
   // Set by a key that goes through the options, until the change it makes, in the same task.

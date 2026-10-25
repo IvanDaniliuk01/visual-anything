@@ -14,7 +14,7 @@
  */
 import {
   appearanceOf,
-  definitionsOf,
+  definitionsIn,
   modelIndexOf,
   nestingTypesInView,
   previewChangeContainer,
@@ -477,7 +477,7 @@ export function CanvasArea({
     } else if (adding.inside !== undefined) {
       command = createInsideCommand(project, view.id, component, adding.inside);
     } else {
-      const size = appearanceOf({ component }, definitionsOf(project.packages));
+      const size = appearanceOf({ component }, definitionsIn(project));
       const center = canvas.center;
       command = createAtCommand(
         project,

@@ -12,7 +12,7 @@
  * Pure, so that it can be tested without a canvas; the controller keeps the timer and the drag.
  */
 import {
-  definitionsOf,
+  definitionsIn,
   leavingRelations,
   modelIndexOf,
   nestingTypeFor,
@@ -557,7 +557,7 @@ function outsideAim(indexed: IndexedScene, plan: DropPlan, delta: Point): DropAi
  */
 function refusalOf(plan: DropPlan, target: ElementShape): string {
   const { project } = plan;
-  const definitions = definitionsOf(project.packages);
+  const definitions = definitionsIn(project);
   const nesting = definitions.nestingRelationTypes;
   const index = modelIndexOf(project);
   const movers = new Set(plan.moving.map((mover) => mover.shape.element));
@@ -654,7 +654,7 @@ function nestingTypeName(project: ProjectSnapshot, plan: DropPlan): string | und
   const { shape, from } = plan.grabbedShape;
   const type = nestingTypeFor(project, view, leavingRelations(project, view, shape.element, from));
   if (type === undefined) return undefined;
-  return definitionsOf(project.packages).relationType(type)?.name ?? type;
+  return definitionsIn(project).relationType(type)?.name ?? type;
 }
 
 /** The change that puts every moving shape inside a target, where it is dropped, below its name. */

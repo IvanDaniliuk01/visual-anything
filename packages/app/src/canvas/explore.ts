@@ -12,7 +12,7 @@
  */
 import {
   componentOrEssence,
-  definitionsOf,
+  definitionsIn,
   modelIndexOf,
   relationTypeOrRelatesTo,
   type ProjectSnapshot,
@@ -132,7 +132,7 @@ export function applyFilters(
   const hidden = new Set<string>();
   const dimmed = new Set<string>();
   if (!isFiltering(filters)) return { hidden, dimmed, hiddenShapes: 0, hiddenRelations: 0 };
-  const definitions = definitionsOf(project.packages);
+  const definitions = definitionsIn(project);
   const index = modelIndexOf(project);
   const conditions = filters.conditions.filter(isComplete);
   const onElements = conditions.filter((condition) => condition.of === 'elements');
@@ -392,7 +392,7 @@ export interface FilterChoices {
 
 /** The components, relation types and attributes a view draws, for the filters to offer. */
 export function filterChoices(scene: Scene, project: ProjectSnapshot): FilterChoices {
-  const definitions = definitionsOf(project.packages);
+  const definitions = definitionsIn(project);
   const index = modelIndexOf(project);
   const components = new Map<Id, number>();
   const elementAttributes = new Set<string>();
@@ -515,7 +515,7 @@ const exploreIndexes = new WeakMap<
 function exploreIndexOf(scene: Scene, project: ProjectSnapshot): ExploreIndex {
   const cached = exploreIndexes.get(scene);
   if (cached?.model === project.model && cached.packages === project.packages) return cached.index;
-  const definitions = definitionsOf(project.packages);
+  const definitions = definitionsIn(project);
   const model = modelIndexOf(project);
   const shapesOf = new Map<Id, number[]>();
   const atKey = new Map<string, number>();
