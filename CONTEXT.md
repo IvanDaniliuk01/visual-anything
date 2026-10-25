@@ -115,11 +115,18 @@ A single relation drawn in place of many relations of the same type between the 
 _Avoid_: bundle, summary edge
 
 **View**:
-A projection of the model onto the canvas, seen from exactly one perspective and keeping its own positions.
+A projection of the model onto the canvas, seen from exactly one perspective and keeping its own positions. It shows the whole model, or the part its scope gives.
 _Avoid_: page, diagram, layer
 
+**Scope**:
+The part of the model a view shows: elements chosen by rules (a component, a relation type, a container's contents, a condition on an attribute) and elements added or left out by hand. A relation shows while both its ends do. Leaving an element out of a view never deletes it (ADR 0040).
+_Avoid_: subset, query, filter (a filter hides shapes of what the scope shows)
+
+**Outside the view**:
+Said of a scenario step whose relations are all out of the scope of the view it plays over. It still plays, saying so, and is not a broken step, whose relation was deleted.
+
 **View state**:
-Where someone is in a project and how they read it there: the open view, where the canvas looks, what is selected, the filters, focus mode, and the scenario and step played, each named by id. A view address carries one; tour steps and the read-only page are to reuse it.
+Where someone is in a project and how they read it there: the open view, where the canvas looks, what is selected, the filters, focus mode, and the scenario and step played, each named by id. A view address carries one; tour steps and the read-only page reuse it.
 _Avoid_: snapshot, bookmark
 
 **Component palette**:
@@ -295,3 +302,17 @@ _Avoid_: magic link, one-time link
 **View address**:
 An address of the app whose fragment holds a view state and no secret. Each tab keeps its own in step with what it shows, so a reload comes back there, and Copy address copies it; pasted into a tab that has the project open, or opened in a new tab of the browser while another tab has the project open, whose session the new tab joins (ADR 0043), it opens the project at that view state.
 _Avoid_: deep link, permalink
+
+### What leaves and enters a project
+
+**Read-only page**:
+One HTML file made from a project that shows its views and plays its scenarios in any browser, offline and on a phone, without the local program. It changes nothing, holds no token and connects nowhere (ADR 0041).
+_Avoid_: static site, viewer, export (alone)
+
+**Import**:
+Bringing a file made elsewhere (Mermaid, a spreadsheet, JSON, Structurizr, LikeC4, draw.io) into the project as one undoable action, after its kinds are mapped to components and relation types. What matches nothing is reported, and nothing in the file runs (ADR 0042).
+_Avoid_: sync, conversion
+
+**Starter package**:
+A built-in package for one domain, with its icons, a sample project and a scenario, which a new project can start from. What it ships carries a license that lets it ship (ADR 0047).
+_Avoid_: template, library

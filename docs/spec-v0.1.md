@@ -289,8 +289,54 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [x] A history panel: each action's label, author (you or Claude) and time, and Undo to here
 - [x] Recipes for Claude to build models, views and scenarios from what exists (Mermaid, PlantUML, draw.io, Structurizr, SQL, OpenAPI, Terraform, Kubernetes, docker-compose, a repository, logs and traces) with its tools, as MCP prompts (`build_from_…`)
 - [ ] Fix what dogfooding surfaces
-- [ ] README with setup for Claude Desktop and Claude Code
+- [x] README with setup for Claude Desktop and Claude Code
 - [ ] Tag v0.1 in the private repository
+
+**M6b · Out.** It is planned here so that it can run beside M6c, in the first wave after v0.1. Done when:
+
+- the open view exports as SVG and as PDF from the app and from the command line, and each matches the canvas: the scene's bounds, its ids as `data-` attributes, and the view's name and description as title and description;
+- the outline exports as Markdown, the view as Mermaid, and a view of Systems components as Structurizr DSL, each saying what it lost;
+- Export → Read-only page writes one file that opens offline in a desktop browser and on a phone, shows every view, plays every scenario and follows view addresses;
+- the page holds no token and connects nowhere, which a test checks against its policy (ADR 0041);
+- the page opens the 10,000-element benchmark view within the frame budget on the reference laptop.
+
+- [ ] An SVG writer from the scene, in pure TypeScript without the DOM: shapes, rows, routes and curves, labels, cleaned images, title, description and `data-` ids; a test compares its bounds with the scene's (a dated clarification of ADR 0014: an output, not a second renderer)
+- [ ] PDF made from that SVG, with its fonts embedded; the library is chosen and recorded in the same clarification
+- [ ] `visual-anything export <folder> --view <id> --format svg|pdf|md|mermaid|structurizr|page [--out <file>]`
+- [ ] Text exports: the outline in Markdown, which also serves as the view's long description; Mermaid, through each element's first container; Structurizr DSL for views of Systems components
+- [ ] The read-only page (ADR 0041): a viewer build without the live connection, the commands or the editors; the project as data; its policy; touch; view addresses; the About panel with the packages' attribution
+- [ ] The Export dialog: PNG, SVG, PDF, text and the page, each with its size and what it leaves out
+- [ ] Claude's `export_view`, which answers SVG, Markdown, Mermaid or Structurizr text and writes no file
+- [ ] Benchmark: the page's size and how long it takes to open at 10,000 elements; how long the SVG takes to write
+
+**M6c · In.** Planned beside M6b; scopes go first, since every importer and every starter package needs them. Done when:
+
+- a view can show part of the model through its scope (ADR 0040), set from the app and by Claude, with the core's property tests for it;
+- each of these imports through the mapping dialog as one undoable action that reports what matched nothing (ADR 0042):
+  - a Mermaid flowchart;
+  - a CSV of elements and relations;
+  - a Structurizr workspace in JSON;
+  - a draw.io file;
+- the hostile-input tests pass;
+- the C4 and data-science starter packages ship with icons whose licenses pass the license test (ADR 0047), each with a sample project and a scenario, and New project from a sample starts from them;
+- a package can be added from another project.
+
+- [ ] Scopes in the schema and the core, test-first with property tests (ADR 0040): the rules, `added` and `leftOut`, the commands `set-scope`, `add-to-view` and `leave-out-of-view`, and new elements added to the scope of the view they were made in
+- [ ] Scopes on the canvas:
+  - the scene, layout, aggregation, search and the perspective switcher follow the scope;
+  - playback marks steps outside the view;
+  - the inspector edits the scope;
+  - the canvas and the outline offer Add to this view and Leave out of this view;
+  - shapes count the relations that leave the view
+- [ ] Claude's tools to read and set a scope, and to add to a view or leave out of it
+- [ ] The import pipeline (ADR 0042): the plan, the mapping dialog, one batch, the report; Import… in the header, `visual-anything import <folder> <file>`, and Claude's `import_file`
+- [ ] The Mermaid reader: flowcharts, C4, ER and class diagrams
+- [ ] The spreadsheet (CSV and TSV) and JSON readers, importing again by a key
+- [ ] The Structurizr workspace JSON and LikeC4 model readers, with their views as scopes
+- [ ] The draw.io reader: compressed and plain files, `.drawio.svg` and `.drawio.png`, shapes, containers, edges with their waypoints, and pages as views
+- [ ] License fields in the schema, and the license test (ADR 0047)
+- [ ] Starter packages for C4 architecture and data-science pipelines, each with icons, a sample project and a scenario, in English and Spanish; New project from a sample
+- [ ] A package added from another project, with its version and attribution, and updated from it after a preview
 
 **Track A · Look and feel**, beside the milestones: A1 right after M2 and before M3's app tasks; A2's core before M3's commands for collapse, expand and filters, and A2 tagged before M4's write tools are fixed; A3 after M3's canvas tasks; A4 before M4's UI tasks. Its commits start with `A<n>:`, and each stage is tagged `a<n>` when its Done when holds.
 
@@ -348,8 +394,8 @@ The order below follows the two benchmarks of what Visual Anything needs to repr
 
 | Wave | Milestone |
 | --- | --- |
-| 1 | **M6b · Out.** SVG and PDF export, from the app and the command line; a read-only page in one file, to share, embed and read on a phone; text exports: the outline in Markdown, Mermaid and Structurizr DSL. |
-| 1 | **M6c · In.** Views that show part of the model, a scope of rules and hand-picked elements (a new ADR superseding part of ADR 0025), first; then Mermaid, spreadsheet and JSON, Structurizr and LikeC4, and draw.io imports; starter packages and sample projects per domain; packages shared between projects. |
+| 1 | **M6b · Out**, planned above. SVG and PDF export, from the app and the command line; a read-only page in one file, to share, embed and read on a phone; text exports: the outline in Markdown, Mermaid and Structurizr DSL. |
+| 1 | **M6c · In**, planned above. Views that show part of the model, a scope of rules and hand-picked elements (a new ADR superseding part of ADR 0025), first; then Mermaid, spreadsheet and JSON, Structurizr and LikeC4, and draw.io imports; starter packages and sample projects per domain; packages shared between projects. |
 | 2 | **M7 · Package code.** Code kept in packages computes attributes, checks elements and draws shapes; it runs sandboxed (ADR 0012), only after you approve it, and changing it asks again; Claude can read, write and check it. |
 | 2 | **M8 · Detail and data.** Semantic zoom declared as data; overlays that color shapes by an attribute, with a legend; external identifiers and crosswalks; destinations, attributes that open a view, a project or a web address; live values from running systems; an element list edited in bulk; time ranges with playback; a reading benchmark at 100,000 elements. |
 | 2 | **M11 · Tours and comments.** Tours made from recorded guidance and played full screen, built on view states; comments kept in the project. |
