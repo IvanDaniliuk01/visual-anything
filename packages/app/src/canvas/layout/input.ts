@@ -13,7 +13,7 @@ import type { Id } from '@visual-anything/schema';
 import { ESSENCE_ID } from '@visual-anything/schema';
 import { boundsOf, type Rect } from '../geometry';
 import type { ElementShape, Scene } from '../scene';
-import { connectionPointsOf } from './ports';
+import { connectionPointsOf, handPortsOf } from './ports';
 import type { LayoutConnectionPoint, LayoutInput, LayoutRelation, LayoutShape } from './types';
 
 /**
@@ -123,7 +123,7 @@ export function layoutInput(
     const from = indexes.get(ends.from.key);
     const to = indexes.get(ends.to.key);
     if (from !== undefined && to !== undefined)
-      relations.push({ relation: line.relation, from, to });
+      relations.push({ relation: line.relation, from, to, ...handPortsOf(line) });
   }
 
   const obstacles: Rect[] = scope.kind === 'contents' ? [] : worldObstacles(scene);
