@@ -21,8 +21,8 @@ export type { GoTo, Shown } from './applier';
 /** What the shell gets: the address of the view state as it is now, and a way to go elsewhere. */
 export interface ViewStateLink {
   /** The address that opens the view state as it is now, and whether its selection was too large. */
-  address(): { address: string; selectionLeftOut: boolean } | undefined;
-  goTo(request: GoTo): void;
+  address: () => { address: string; selectionLeftOut: boolean } | undefined;
+  goTo: (request: GoTo) => void;
 }
 
 /** The shell as the view state reads and changes it; whether motion is reduced it finds itself. */

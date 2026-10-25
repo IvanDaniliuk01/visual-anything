@@ -14,6 +14,7 @@ import { useT, type Translator } from '../i18n';
 import { LiveContext } from '../live/context';
 import { ScenarioPanel } from '../scenarios/ScenarioPanel';
 import { ScenarioSession } from '../scenarios/session';
+import { FindBar } from '../search/FindBar';
 import type { CanvasCamera } from '../view-state/canvas';
 import { CopyAddress } from '../view-state/CopyAddress';
 import { useViewState } from '../view-state/useViewState';
@@ -127,6 +128,12 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                 <p className="canvas-message">{t('There is no view to draw.')}</p>
               )}
               <GuidanceLayer scenarios={scenarios} />
+              <FindBar
+                project={project}
+                definitions={definitions}
+                viewId={view?.id}
+                goTo={viewState.goTo}
+              />
             </main>
             <Inspector view={view} scene={scene} definitions={definitions} />
             <ScenarioPanel session={scenarios} />
