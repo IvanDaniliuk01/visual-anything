@@ -2,11 +2,12 @@
  * The grid, the container's grid and the rulers in the renderer (A3): where PixiJS draws them, and
  * when they are drawn again.
  */
-import { Container } from 'pixi.js';
+import { Color, Container, type Graphics } from 'pixi.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { selectionOf } from '../editor/selection';
 import { FakeApplication, FakeResizeObserver } from '../test/FakeApplication';
 import { loadSample } from '../test/sample';
+import { THEMES, type CanvasTheme } from '../theme/themes';
 import type { Camera } from './camera';
 import type { TextFactory } from './draw';
 import { MAX_GRID_LINES } from './grid';
@@ -49,7 +50,10 @@ function inside(renderer: CanvasRenderer): Inside {
 /** Calls made to window.matchMedia, with the listener each one was given. */
 let queries: { query: string; listener?: () => void }[] = [];
 
-async function started(size = { width: 1200, height: 800 }): Promise<CanvasRenderer> {
+async function started(
+  size = { width: 1200, height: 800 },
+  theme?: CanvasTheme,
+): Promise<CanvasRenderer> {
   const host = document.createElement('div');
   Object.defineProperty(host, 'clientWidth', { configurable: true, value: size.width });
   Object.defineProperty(host, 'clientHeight', { configurable: true, value: size.height });
@@ -60,7 +64,7 @@ async function started(size = { width: 1200, height: 800 }): Promise<CanvasRende
         throw error;
       },
     },
-    { text: counting },
+    { text: counting, ...(theme ? { theme } : {}) },
   );
   const app = FakeApplication.created.at(-1) as FakeApplication;
   app.finishInit();
@@ -250,6 +254,37 @@ describe('the grid in the renderer', () => {
     renderer.dragTo({ x: 8, y: 16 }, { snapping: true, container: SCHEDULING });
     renderer.endDrag(drag);
     expect(gridMarks.insideOf).toBeUndefined();
+  });
+});
+
+describe('the grid and the rulers in a theme', () => {
+  const tintOf = (renderer: CanvasRenderer) =>
+    (inside(renderer).gridMarks as unknown as { lines: Graphics }).lines.tint;
+  const themeOfRulers = (renderer: CanvasRenderer) =>
+    (inside(renderer).screenMarks as unknown as { theme: CanvasTheme }).theme;
+
+  it('start in the theme the canvas starts in', async () => {
+    const renderer = await started(undefined, THEMES.dark.canvas);
+    expect(tintOf(renderer)).toBe(new Color(THEMES.dark.canvas.gridLine).toNumber());
+    expect(themeOfRulers(renderer)).toBe(THEMES.dark.canvas);
+  });
+
+  it('take the new theme in the frame the switch shows, the grid retinted and drawn for its strength', async () => {
+    const renderer = await started();
+    renderer.show(overview());
+    renderer.setGrid({ grid: true, snapToGrid: true, rulers: true });
+    const { gridMarks } = inside(renderer);
+    expect(tintOf(renderer)).toBe(new Color(THEMES.light.canvas.gridLine).toNumber());
+    const draws = gridMarks.draws;
+    renderer.setTheme(THEMES.dark.canvas);
+    // Nothing changes before the switch shows.
+    expect(themeOfRulers(renderer)).toBe(THEMES.light.canvas);
+    for (let frame = 0; frame < 60 && renderer.switching; frame++) renderer.renderNow();
+    expect(renderer.switching).toBe(false);
+    expect(tintOf(renderer)).toBe(new Color(THEMES.dark.canvas.gridLine).toNumber());
+    expect(themeOfRulers(renderer)).toBe(THEMES.dark.canvas);
+    // The dark theme draws the grid at another strength.
+    expect(gridMarks.draws).toBe(draws + 1);
   });
 });
 
