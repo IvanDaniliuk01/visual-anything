@@ -215,7 +215,7 @@ describe('pictures in tiles', () => {
     expect(textures(drawing?.drawings)).toBe(1);
     expect(fills(drawing?.drawings)).toBe(1);
     const plate = drawing?.drawings.context.instructions.find((each) => each.action === 'fill');
-    expect(plate?.data.style.color).toBe(0xabcdef);
+    expect((plate?.data.style as { color: number } | undefined)?.color).toBe(0xabcdef);
   });
 
   it('tint silhouettes on the GPU', async () => {

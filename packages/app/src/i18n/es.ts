@@ -566,6 +566,24 @@ export const ui: Catalog = {
   'Leave the canvas': 'Salir del lienzo',
   'The arrow keys select shapes, ] and [ (or . and ,) step through the selected element’s relations, and Enter follows a relation, and Shift+F10 opens the selected shape’s menu. Every key is listed under Keyboard, after the canvas.':
     'Las flechas seleccionan formas, ] y [ (o . y ,) recorren las relaciones del elemento seleccionado, Enter sigue una relación y Mayús+F10 abre el menú de la forma seleccionada. Todas las teclas están en Teclado, después del lienzo.',
+
+  // The image picker.
+  Image: 'Imagen',
+  'Choose an image…': 'Elegir una imagen…',
+  'Use a picture already in the project': 'Usar una imagen que ya está en el proyecto',
+  'Pictures in the project': 'Imágenes del proyecto',
+  'Use “{name}”': 'Usar “{name}”',
+  Placement: 'Ubicación',
+  'Icon, beside the name': 'Ícono, junto al nombre',
+  'Drawing, in place of the shape': 'Dibujo, en lugar de la forma',
+  'As a silhouette': 'Como silueta',
+  'Silhouette color': 'Color de la silueta',
+  'Cleaning removed nothing from “{name}”.': 'La limpieza no quitó nada de “{name}”.',
+  'Cleaning removed from “{name}”: {removed}.': 'La limpieza quitó de “{name}”: {removed}.',
+  'It was shrunk to {width} by {height} pixels.': 'Se redujo a {width} por {height} píxeles.',
+  'Use the component’s image': 'Usar la imagen del componente',
+  'Show no image': 'No mostrar ninguna imagen',
+  'its own': 'propia',
 };
 
 /**
@@ -675,6 +693,19 @@ export const messages: Catalog = {
   'Add the image "{name}"': 'Agregar la imagen "{name}"',
   'Replace the image "{name}"': 'Reemplazar la imagen "{name}"',
   'Remove the image "{name}"': 'Quitar la imagen "{name}"',
+  'Set the image of "{name}"': 'Definir la imagen de "{name}"',
+  // Why the image picker cannot use a file.
+  'The file is too large to be a picture the project can hold.':
+    'El archivo es demasiado grande para ser una imagen del proyecto.',
+  'An SVG picture holds at most 512 KiB of text.':
+    'Una imagen SVG tiene como máximo 512 KiB de texto.',
+  'This file is not a picture the app reads: choose an SVG, PNG, JPEG, WebP, GIF or AVIF file.':
+    'Este archivo no es una imagen que la app pueda leer: elegir un archivo SVG, PNG, JPEG, WebP, GIF o AVIF.',
+  'The picture is too large: it is refused before it is opened, at most 16,384 pixels a side and 64 megapixels.':
+    'La imagen es demasiado grande: se rechaza antes de abrirla; como máximo 16.384 píxeles por lado y 64 megapíxeles.',
+  'The browser could not open this picture.': 'El navegador no pudo abrir esta imagen.',
+  'The picture is still over 192 KiB at 512 pixels a side: choose a smaller or simpler one.':
+    'La imagen sigue superando los 192 KiB a 512 píxeles por lado: elegir una más chica o más simple.',
   'Change the packages in use': 'Cambiar los paquetes en uso',
   'Edit the project "{name}"': 'Editar el proyecto "{name}"',
   'Create the scenario "{name}"': 'Crear el escenario "{name}"',
