@@ -20,6 +20,8 @@ import type { Id, ScenarioFile, Step } from '@visual-anything/schema';
 import { useId } from 'react';
 import { nameOfEnd } from '../canvas/announce';
 import { useEditor } from '../editor/EditorContext';
+import { useT } from '../i18n';
+import { fill } from '../i18n/translate';
 import { TextControl } from '../shell/inspector/controls';
 import { expandCommand, stepOf, stepsCommand } from './commands';
 import { jsonText, readJson, sameJson } from './json';
@@ -35,6 +37,7 @@ interface StepDetailsProps {
 }
 
 export function StepDetails({ project, scenario, entry, send, onShow }: StepDetailsProps) {
+  const t = useT();
   const editor = useEditor();
   const editable = editor.send !== undefined;
   const index = modelIndexOf(project);
@@ -46,12 +49,18 @@ export function StepDetails({ project, scenario, entry, send, onShow }: StepDeta
     return (
       <div className="scenario-step-details">
         <p>
-          {entry.count === 1 ? 'This step happens' : `These ${entry.count} steps happen`} inside “
-          {container}”, which is collapsed in this view.
+          {t(
+            {
+              one: 'This step happens inside “{container}”, which is collapsed in this view.',
+              other:
+                'These {count} steps happen inside “{container}”, which is collapsed in this view.',
+            },
+            { count: entry.count, container },
+          )}
         </p>
         <ol className="scenario-aggregated" start={entry.first + 1}>
           {steps.map((step) => (
-            <li key={step.id}>{step.description || 'No description yet.'}</li>
+            <li key={step.id}>{step.description || t('No description yet.')}</li>
           ))}
         </ol>
         <div className="scenario-actions">
@@ -60,14 +69,17 @@ export function StepDetails({ project, scenario, entry, send, onShow }: StepDeta
             className="scenario-button"
             disabled={!editable}
             onClick={() =>
-              void send(expandCommand(scenario.view, entry.container), `Expanded “${container}”.`)
+              void send(
+                expandCommand(scenario.view, entry.container),
+                t('Expanded “{container}”.', { container }),
+              )
             }
           >
-            Expand “{container}”
+            {t('Expand “{container}”', { container })}
           </button>
           {onShow && (
             <button type="button" className="scenario-button" onClick={onShow}>
-              Show on the canvas
+              {t('Show on the canvas')}
             </button>
           )}
         </div>
@@ -111,6 +123,7 @@ function StepEditor({
   send: StepDetailsProps['send'];
   onShow: (() => void) | undefined;
 }) {
+  const t = useT();
   const editor = useEditor();
   const ids = { description: useId(), dataIn: useId(), dataOut: useId(), moves: useId() };
   const index = modelIndexOf(project);
@@ -138,13 +151,17 @@ function StepEditor({
     const read = readJson(text);
     if (!read.ok) return;
     const history =
-      which === 'dataIn' ? `Change what ${label} takes in` : `Change what ${label} produces`;
+      which === 'dataIn'
+        ? fill('Change what {step} takes in', { step: label })
+        : fill('Change what {step} produces', { step: label });
     await change(setStepData(scenario.steps, at, which, read.value), history);
   };
 
   return (
     <div className="scenario-step-details">
-      <h4 id={ids.moves}>{step.relations.length === 1 ? 'Relation' : 'Relations, at once'}</h4>
+      <h4 id={ids.moves}>
+        {step.relations.length === 1 ? t('Relation') : t('Relations, at once')}
+      </h4>
       <ul className="scenario-relations" aria-labelledby={ids.moves}>
         {kept.map((relation) => (
           <li key={relation}>
@@ -157,12 +174,12 @@ function StepEditor({
                 onClick={() =>
                   void change(
                     takeOutOfStep(scenario.steps, at, relation, exists),
-                    `Take a relation out of ${label}`,
-                    `Taken out of step ${at + 1}.`,
+                    fill('Take a relation out of {step}', { step: label }),
+                    t('Taken out of step {n}.', { n: at + 1 }),
                   )
                 }
               >
-                Take out
+                {t('Take out')}
                 <span className="visually-hidden"> {nameOfEnd(project, relation)}</span>
               </button>
             )}
@@ -170,8 +187,10 @@ function StepEditor({
         ))}
         {missing.map((relation) => (
           <li key={relation} className="scenario-missing">
-            <span className="scenario-badge scenario-badge-broken">Broken</span>
-            <span>A relation this step used no longer exists ({relation}).</span>
+            <span className="scenario-badge scenario-badge-broken">{t('Broken')}</span>
+            <span>
+              {t('A relation this step used no longer exists ({relation}).', { relation })}
+            </span>
           </li>
         ))}
       </ul>
@@ -179,9 +198,11 @@ function StepEditor({
         <div className="scenario-fix">
           <p>
             {missing.length === 1
-              ? 'This is a broken step: the relation above was deleted.'
-              : `This is a broken step: ${missing.length} of its relations were deleted.`}{' '}
-            Select the relation that replaces it on the canvas, or take out what is gone.
+              ? t('This is a broken step: the relation above was deleted.')
+              : t('This is a broken step: {count} of its relations were deleted.', {
+                  count: missing.length,
+                })}{' '}
+            {t('Select the relation that replaces it on the canvas, or take out what is gone.')}
           </p>
           <div className="scenario-actions">
             <button
@@ -190,18 +211,18 @@ function StepEditor({
               disabled={!editable || selectedRelation === undefined}
               title={
                 selectedRelation === undefined
-                  ? 'Select one relation on the canvas first.'
+                  ? t('Select one relation on the canvas first.')
                   : undefined
               }
               onClick={() =>
                 void change(
                   repairStep(scenario.steps, at, exists, selectedRelation),
-                  `Fix ${label}`,
-                  `Step ${at + 1} is fixed.`,
+                  fill('Fix {step}', { step: label }),
+                  t('Step {n} is fixed.', { n: at + 1 }),
                 )
               }
             >
-              Use the selected relation
+              {t('Use the selected relation')}
             </button>
             {kept.length > 0 && (
               <button
@@ -211,12 +232,12 @@ function StepEditor({
                 onClick={() =>
                   void change(
                     repairStep(scenario.steps, at, exists),
-                    `Fix ${label}`,
-                    `Step ${at + 1} is fixed.`,
+                    fill('Fix {step}', { step: label }),
+                    t('Step {n} is fixed.', { n: at + 1 }),
                   )
                 }
               >
-                Take out what is gone
+                {t('Take out what is gone')}
               </button>
             )}
           </div>
@@ -224,17 +245,19 @@ function StepEditor({
       )}
 
       <div className="scenario-field">
-        <label htmlFor={ids.description}>Description</label>
+        <label htmlFor={ids.description}>{t('Description')}</label>
         <TextControl
           id={ids.description}
           disabled={!editable}
           multiline
           value={step.description}
-          onCommit={(text) => change(describeStep(scenario.steps, at, text), `Describe ${label}`)}
+          onCommit={(text) =>
+            change(describeStep(scenario.steps, at, text), fill('Describe {step}', { step: label }))
+          }
         />
       </div>
       <div className="scenario-field scenario-data">
-        <label htmlFor={ids.dataIn}>Data in (JSON)</label>
+        <label htmlFor={ids.dataIn}>{t('Data in (JSON)')}</label>
         <TextControl
           id={ids.dataIn}
           disabled={!editable}
@@ -242,14 +265,14 @@ function StepEditor({
           value={jsonText(step.dataIn)}
           problemOf={(text) => {
             const read = readJson(text);
-            return read.ok ? undefined : read.reason;
+            return read.ok ? undefined : t.message(read.reason);
           }}
           same={sameJson}
           onCommit={commitData('dataIn')}
         />
       </div>
       <div className="scenario-field scenario-data">
-        <label htmlFor={ids.dataOut}>Data out (JSON)</label>
+        <label htmlFor={ids.dataOut}>{t('Data out (JSON)')}</label>
         <TextControl
           id={ids.dataOut}
           disabled={!editable}
@@ -257,7 +280,7 @@ function StepEditor({
           value={jsonText(step.dataOut)}
           problemOf={(text) => {
             const read = readJson(text);
-            return read.ok ? undefined : read.reason;
+            return read.ok ? undefined : t.message(read.reason);
           }}
           same={sameJson}
           onCommit={commitData('dataOut')}
@@ -267,7 +290,7 @@ function StepEditor({
       <div className="scenario-actions">
         {onShow && (
           <button type="button" className="scenario-button" onClick={onShow}>
-            Show on the canvas
+            {t('Show on the canvas')}
           </button>
         )}
         <button
@@ -277,12 +300,12 @@ function StepEditor({
           onClick={() =>
             void change(
               moveStep(scenario.steps, at, at - 1),
-              `Move ${label} up`,
-              `Step ${at + 1} is now step ${at}.`,
+              fill('Move {step} up', { step: label }),
+              t('Step {n} is now step {to}.', { n: at + 1, to: at }),
             )
           }
         >
-          Move up
+          {t('Move up')}
         </button>
         <button
           type="button"
@@ -291,12 +314,12 @@ function StepEditor({
           onClick={() =>
             void change(
               moveStep(scenario.steps, at, at + 1),
-              `Move ${label} down`,
-              `Step ${at + 1} is now step ${at + 2}.`,
+              fill('Move {step} down', { step: label }),
+              t('Step {n} is now step {to}.', { n: at + 1, to: at + 2 }),
             )
           }
         >
-          Move down
+          {t('Move down')}
         </button>
         <button
           type="button"
@@ -305,16 +328,16 @@ function StepEditor({
           onClick={() =>
             void change(
               deleteStep(scenario.steps, at),
-              `Delete ${label}`,
-              `Step ${at + 1} is deleted.`,
+              fill('Delete {step}', { step: label }),
+              t('Step {n} is deleted.', { n: at + 1 }),
             )
           }
         >
-          Delete step
+          {t('Delete step')}
         </button>
       </div>
       <p className="scenario-hint">
-        Enter saves a field; Shift+Enter starts a new line. Leave data blank for none.
+        {t('Enter saves a field; Shift+Enter starts a new line. Leave data blank for none.')}
       </p>
     </div>
   );

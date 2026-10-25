@@ -35,14 +35,22 @@ export type Catalog = Readonly<Record<string, Entry>>;
 /** The values a text names in braces. */
 export type Values = Readonly<Record<string, string | number>>;
 
-/** The catalog of each language but English, which needs none. */
-const CATALOGS: Readonly<Record<Exclude<Language, 'en'>, Catalog>> = {
-  es: { ...esUi, ...esMessages },
+/**
+ * The catalog of each language but English, which needs none: every entry, and the templates of the
+ * messages that are kept in English and translated where they are shown.
+ */
+const CATALOGS: Readonly<Record<Exclude<Language, 'en'>, { all: Catalog; messages: Catalog }>> = {
+  es: { all: { ...esUi, ...esMessages }, messages: esMessages },
 };
 
 /** The catalog a language looks texts up in; none for English. */
 export function catalogOf(language: Language): Catalog | undefined {
-  return language === 'en' ? undefined : CATALOGS[language];
+  return language === 'en' ? undefined : CATALOGS[language].all;
+}
+
+/** The templates a language matches messages against: its catalog's `messages` section. */
+function templatesIn(language: Language): Template[] {
+  return language === 'en' ? [] : templatesOf(CATALOGS[language].messages);
 }
 
 /** The key a text has in a catalog: the text itself, or the "other" form of a plural. */
@@ -98,13 +106,16 @@ function pick(entry: PluralText, language: Language, values: Values | undefined)
 }
 
 /*
- * The core's and the local program's messages.
+ * Messages: what the core and the local program write, and what the app keeps in English to show
+ * later, such as notices and the labels of the undo history.
  *
- * A message is matched against the catalog's keys: first as it is, then against the keys that have
- * braces, as templates. A template's braces stand for parts of the message: what people wrote, such
- * as names, which is never translated, or, for the names below, a part that is a message itself and is
- * translated in turn. A message that matches no template as a whole is translated sentence by
- * sentence, and line by line, as the problems of a refused command are joined.
+ * A message is matched first as it is against every entry, then against the keys of the catalog's
+ * `messages` section, as templates; the app's own texts with braces are never templates, so that a
+ * loose one such as "{from} to {to}" never takes a message apart. A template's braces stand for parts
+ * of the message: what people wrote, such as names, which is never translated, or, for the names
+ * below, a part that is a message itself and is translated in turn. A message that matches no template
+ * as a whole is translated sentence by sentence, and line by line, as the problems of a refused
+ * command are joined.
  */
 
 /**
@@ -122,6 +133,7 @@ export const NESTED_VALUES: ReadonlySet<string> = new Set([
   'base',
   'owner',
   'users',
+  'step',
 ]);
 
 /**
@@ -254,7 +266,7 @@ function matchIn(
     return { text: typeof exact === 'string' ? exact : exact.other, missing: [] };
   }
   if (depth >= MAX_DEPTH) return undefined;
-  for (const template of templatesOf(catalog)) {
+  for (const template of templatesIn(language)) {
     if (!text.startsWith(template.prefix) || !text.endsWith(template.suffix)) continue;
     const found = template.pattern.exec(text);
     if (found === null) continue;

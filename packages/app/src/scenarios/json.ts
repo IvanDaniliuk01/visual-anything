@@ -1,5 +1,6 @@
 /** A step's data in and out as text, edited as JSON in the step panel. */
 import type { JsonValue } from '@visual-anything/schema';
+import { fill } from '../i18n/translate';
 
 /** The text a value is edited as: indented JSON, or nothing for no value. */
 export function jsonText(value: JsonValue | undefined): string {
@@ -15,7 +16,7 @@ export function readJson(
     return { ok: true, value: JSON.parse(text) as JsonValue };
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    return { ok: false, reason: `This is not JSON: ${detail}` };
+    return { ok: false, reason: fill('This is not JSON: {detail}', { detail }) };
   }
 }
 

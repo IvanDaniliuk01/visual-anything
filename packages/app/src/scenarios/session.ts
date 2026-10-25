@@ -28,6 +28,7 @@ import {
 } from '@visual-anything/core';
 import type { Id, ScenarioFile } from '@visual-anything/schema';
 import { nameOfEnd } from '../canvas/announce';
+import { t } from '../i18n';
 import { recordedLabel, stepsCommand } from './commands';
 
 /** Sends a command; resolves with whether the local program applied it. */
@@ -247,7 +248,9 @@ export class ScenarioSession {
     if (!this.state.canRecord || !context) return;
     if (!modelIndexOf(context.project).relation(relation)) {
       context.announce(
-        'That line stands for several relations, so nothing was recorded. Expand the container to record one of them.',
+        t(
+          'That line stands for several relations, so nothing was recorded. Expand the container to record one of them.',
+        ),
       );
       return;
     }
@@ -304,7 +307,10 @@ export class ScenarioSession {
       );
       if (recorded.change === 'unchanged') {
         context.announce(
-          `Step ${recorded.at + 1} activates only this relation, so it stays in it. To take the step out, delete it.`,
+          t(
+            'Step {n} activates only this relation, so it stays in it. To take the step out, delete it.',
+            { n: recorded.at + 1 },
+          ),
         );
         continue;
       }
@@ -422,11 +428,11 @@ function sayRecorded(project: ProjectSnapshot, click: Click, recorded: Recorded)
   const step = recorded.at + 1;
   switch (recorded.change) {
     case 'new-step':
-      return `Recorded step ${step}: ${sentence}.`;
+      return t('Recorded step {n}: {sentence}.', { n: step, sentence });
     case 'added':
-      return `Added to step ${step}, at the same time: ${sentence}.`;
+      return t('Added to step {n}, at the same time: {sentence}.', { n: step, sentence });
     case 'removed':
     case 'unchanged':
-      return `Taken out of step ${step}: ${sentence}.`;
+      return t('Taken out of step {n}: {sentence}.', { n: step, sentence });
   }
 }

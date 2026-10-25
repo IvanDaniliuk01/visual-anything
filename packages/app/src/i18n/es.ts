@@ -118,15 +118,10 @@ export const ui: Catalog = {
     'La conexión con Visual Anything se cerró antes de que respondiera.',
   'This tab’s copy of the project fell out of step with Visual Anything, so it is getting the project again.':
     'La copia del proyecto de esta pestaña se desfasó con Visual Anything, así que está obteniendo el proyecto de nuevo.',
-  'This tab’s copy of the project fell out of step with Visual Anything again: {why}':
-    'La copia del proyecto de esta pestaña volvió a desfasarse con Visual Anything: {why}',
   'Visual Anything sent a change before the project.':
     'Visual Anything envió un cambio antes del proyecto.',
   'Could not undo.': 'No se pudo deshacer.',
   'Could not redo.': 'No se pudo rehacer.',
-  'Could not undo: {why}': 'No se pudo deshacer: {why}',
-  'Could not redo: {why}': 'No se pudo rehacer: {why}',
-  'Reloaded the project: {why}': 'Se volvió a cargar el proyecto: {why}',
   'Warning:': 'Advertencia:',
   Dismiss: 'Descartar',
 
@@ -155,7 +150,6 @@ export const ui: Catalog = {
   Dark: 'Oscuro',
   'Your theme applies to this tab only: Visual Anything is not connected.':
     'El tema se aplica solo a esta pestaña: Visual Anything no está conectado.',
-  'Could not change your preferences: {why}': 'No se pudieron cambiar las preferencias: {why}',
 
   // The shell and the canvas's text alternative.
   Canvas: 'Lienzo',
@@ -238,6 +232,110 @@ export const ui: Catalog = {
   'Note: {text}': 'Nota: {text}',
   'Arrow.': 'Flecha.',
   '{things} selected.': 'Selección: {things}.',
+
+  // The scenario panel.
+  'New scenario': 'Nuevo escenario',
+  'New scenario {count}': 'Nuevo escenario {count}',
+  'Scenarios of the project': 'Escenarios del proyecto',
+  'This project has no scenarios yet. Create one, then click relations on the canvas in the order they happen.':
+    'Este proyecto todavía no tiene escenarios. Crear uno y luego hacer clic en las relaciones del lienzo en el orden en que ocurren.',
+  'Open a view to create a scenario over it.':
+    'Abrir una vista para crear un escenario sobre ella.',
+  'Name of the new scenario over “{view}”': 'Nombre del nuevo escenario sobre “{view}”',
+  'Create and record': 'Crear y grabar',
+  'Renamed to “{name}”.': 'Nombre cambiado a “{name}”.',
+  'Deleted “{name}”.': 'Se eliminó “{name}”.',
+  'Name of the scenario': 'Nombre del escenario',
+  'Delete the scenario?': '¿Eliminar el escenario?',
+  'Delete “{name}” and its {count} steps? You can undo it.': {
+    one: '¿Eliminar “{name}” y su paso? Se puede deshacer.',
+    other: '¿Eliminar “{name}” y sus {count} pasos? Se puede deshacer.',
+  },
+  'Delete scenario': 'Eliminar escenario',
+  'It plays over “{view}”.': 'Se reproduce sobre “{view}”.',
+  'Open “{view}”': 'Abrir “{view}”',
+  Playback: 'Reproducción',
+  Previous: 'Anterior',
+  Pause: 'Pausa',
+  'Play again': 'Reproducir de nuevo',
+  Play: 'Reproducir',
+  Next: 'Siguiente',
+  Speed: 'Velocidad',
+  'Stop recording': 'Detener la grabación',
+  Record: 'Grabar',
+  'Recording waits until the scenario’s view is open and Visual Anything is connected.':
+    'La grabación espera a que la vista del escenario esté abierta y Visual Anything esté conectado.',
+  'Click relations on the canvas in the order they happen: each click adds a step after the start. Shift+click adds a relation to that step. From the keyboard, ] and [ select a relation, Enter records it and follows it, and Shift+Enter adds it to the step.':
+    'Hacer clic en las relaciones del lienzo en el orden en que ocurren: cada clic agrega un paso después del inicio. Mayús+clic agrega una relación a ese paso. Con el teclado, ] y [ seleccionan una relación, Enter la graba y la sigue, y Mayús+Enter la agrega al paso.',
+  'Click relations on the canvas in the order they happen: each click adds a step after step {n}. Shift+click adds a relation to that step. From the keyboard, ] and [ select a relation, Enter records it and follows it, and Shift+Enter adds it to the step.':
+    'Hacer clic en las relaciones del lienzo en el orden en que ocurren: cada clic agrega un paso después del paso {n}. Mayús+clic agrega una relación a ese paso. Con el teclado, ] y [ seleccionan una relación, Enter la graba y la sigue, y Mayús+Enter la agrega al paso.',
+  'No steps yet': 'Todavía no hay pasos',
+  'Step {n} of {total}': 'Paso {n} de {total}',
+  'Steps {first}–{last} of {total}': 'Pasos {first}–{last} de {total}',
+  'No steps yet. Turn on Record, then click relations on the canvas in order.':
+    'Todavía no hay pasos. Activar Grabar y luego hacer clic en las relaciones del lienzo en orden.',
+  Steps: 'Pasos',
+  '{count} steps inside “{container}”': {
+    one: '{count} paso dentro de “{container}”',
+    other: '{count} pasos dentro de “{container}”',
+  },
+  'No description yet': 'Todavía no tiene descripción',
+
+  // Recording, and what it says.
+  'Recording: click relations in order. Shift+click adds one to the same step.':
+    'Grabando: hacer clic en las relaciones en orden. Mayús+clic agrega una al mismo paso.',
+  'That line stands for several relations, so nothing was recorded. Expand the container to record one of them.':
+    'Esa línea representa varias relaciones, así que no se grabó nada. Expandir el contenedor para grabar una de ellas.',
+  'Step {n} activates only this relation, so it stays in it. To take the step out, delete it.':
+    'El paso {n} activa solo esta relación, así que se queda en él. Para quitar el paso, eliminarlo.',
+  'Recorded step {n}: {sentence}.': 'Paso {n} grabado: {sentence}.',
+  'Added to step {n}, at the same time: {sentence}.':
+    'Agregada al paso {n}, al mismo tiempo: {sentence}.',
+  'Taken out of step {n}: {sentence}.': 'Sacada del paso {n}: {sentence}.',
+
+  // The step panel.
+  'These {count} steps happen inside “{container}”, which is collapsed in this view.': {
+    one: 'Este paso ocurre dentro de “{container}”, que está contraído en esta vista.',
+    other: 'Estos {count} pasos ocurren dentro de “{container}”, que está contraído en esta vista.',
+  },
+  'No description yet.': 'Todavía no tiene descripción.',
+  'Expanded “{container}”.': 'Se expandió “{container}”.',
+  'Expand “{container}”': 'Expandir “{container}”',
+  'Show on the canvas': 'Mostrar en el lienzo',
+  Relation: 'Relación',
+  'Relations, at once': 'Relaciones, a la vez',
+  'Taken out of step {n}.': 'Sacada del paso {n}.',
+  'Take out': 'Sacar',
+  Broken: 'Roto',
+  'A relation this step used no longer exists ({relation}).':
+    'Una relación que usaba este paso ya no existe ({relation}).',
+  'This is a broken step: the relation above was deleted.':
+    'Este es un paso roto: se eliminó la relación de arriba.',
+  'This is a broken step: {count} of its relations were deleted.':
+    'Este es un paso roto: se eliminaron {count} de sus relaciones.',
+  'Select the relation that replaces it on the canvas, or take out what is gone.':
+    'Seleccionar en el lienzo la relación que la reemplaza, o sacar lo que ya no está.',
+  'Select one relation on the canvas first.': 'Primero seleccionar una relación en el lienzo.',
+  'Step {n} is fixed.': 'El paso {n} quedó arreglado.',
+  'Use the selected relation': 'Usar la relación seleccionada',
+  'Take out what is gone': 'Sacar lo que ya no está',
+  'Data in (JSON)': 'Datos de entrada (JSON)',
+  'Data out (JSON)': 'Datos de salida (JSON)',
+  'Step {n} is now step {to}.': 'El paso {n} ahora es el paso {to}.',
+  'Move up': 'Subir',
+  'Move down': 'Bajar',
+  'Step {n} is deleted.': 'Se eliminó el paso {n}.',
+  'Delete step': 'Eliminar paso',
+  'Enter saves a field; Shift+Enter starts a new line. Leave data blank for none.':
+    'Enter guarda un campo; Mayús+Enter empieza una línea nueva. Dejar los datos en blanco para no tener ninguno.',
+
+  // Claude's guidance.
+  'Claude’s guidance': 'Guía de Claude',
+  'Dismiss Claude’s guidance': 'Descartar la guía de Claude',
+  '{first} and {count} more': '{first} y {count} más',
+  'Claude highlights {list}.': 'Claude resalta {list}.',
+  'Claude focuses on {list}.': 'Claude se enfoca en {list}.',
+  '{from} to {to}': '{from} a {to}',
 };
 
 /**
@@ -246,6 +344,28 @@ export const ui: Catalog = {
  * holds there; see `translateMessage`.
  */
 export const messages: Catalog = {
+  // What the app keeps in English and shows later: its notices, and its labels in the undo history.
+  'Could not undo: {why}': 'No se pudo deshacer: {why}',
+  'Could not redo: {why}': 'No se pudo rehacer: {why}',
+  'Reloaded the project: {why}': 'Se volvió a cargar el proyecto: {why}',
+  'This tab’s copy of the project fell out of step with Visual Anything again: {why}':
+    'La copia del proyecto de esta pestaña volvió a desfasarse con Visual Anything: {why}',
+  'Could not change your preferences: {why}': 'No se pudieron cambiar las preferencias: {why}',
+  'This is not JSON: {detail}': 'Esto no es JSON: {detail}',
+  'step {n} of “{scenario}”': 'el paso {n} de “{scenario}”',
+  'Record {step}': 'Grabar {step}',
+  'Add a relation to {step}': 'Agregar una relación a {step}',
+  'Take a relation out of {step}': 'Sacar una relación de {step}',
+  'Rename the scenario “{old}” to “{new}”': 'Cambiar el nombre del escenario “{old}” a “{new}”',
+  'Change what {step} takes in': 'Cambiar lo que recibe {step}',
+  'Change what {step} produces': 'Cambiar lo que produce {step}',
+  'Fix {step}': 'Arreglar {step}',
+  'Describe {step}': 'Describir {step}',
+  'Move {step} up': 'Subir {step}',
+  'Move {step} down': 'Bajar {step}',
+  'Delete {step}': 'Eliminar {step}',
+
+  // What the core and the local program write.
   '"{name}"': '"{name}"',
   'the component "{name}"': 'el componente "{name}"',
   'Rename "{old}" to "{new}"': 'Cambiar el nombre de "{old}" a "{new}"',
