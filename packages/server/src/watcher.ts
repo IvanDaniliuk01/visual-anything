@@ -49,7 +49,9 @@ type OnEvent = (eventType: string, path: string | null) => void;
 
 /**
  * Watches the project files in a folder and calls `onChange` once they have been quiet for `delay`
- * milliseconds after a change. It throws when the folder cannot be watched at all.
+ * milliseconds after a change. A change is a difference from the files as they were when it started
+ * or last reported, so it is started before they are read. It throws when the folder cannot be watched
+ * at all.
  */
 export function watchProject(
   folder: string,
