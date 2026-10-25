@@ -2,6 +2,7 @@
  * What the canvas says about what it selected, for screen readers: an element's name, component,
  * container and how many relations the view draws on it; a relation as the sentence it reads as, such
  * as "Booking agent communicates with Appointments API"; a free shape; or how much a selection holds.
+ * Each is said in the language the app reads in when it is said.
  */
 import {
   definitionsOf,
@@ -12,6 +13,7 @@ import {
 } from '@visual-anything/core';
 import type { Id, Relation } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
+import { t, type PluralText } from '../i18n';
 import type { IndexedScene } from './hit';
 import { drawnRelations } from './navigation';
 import type { ElementShape } from './scene';
@@ -35,13 +37,32 @@ export function describeShape(
   const container =
     shape.containerShape === undefined ? undefined : indexed.byKey.get(shape.containerShape);
   const others = (indexed.byElement.get(shape.element)?.length ?? 1) - 1;
+  const inside = container?.name ?? t('World');
   const where =
     others > 0
-      ? `in ${container?.name ?? 'World'} and ${counted(others, 'other container', 'other containers')}`
-      : `in ${container?.name ?? 'World'}`;
+      ? t('in {container} and {others}', {
+          container: inside,
+          others: t(OTHER_CONTAINERS, { count: others }),
+        })
+      : t('in {container}', { container: inside });
   const relations = drawnRelations(indexed.scene, project).around(shape.element).length;
-  return `${shape.name}, ${shape.componentName}, ${where}, ${counted(relations, 'relation', 'relations')}.`;
+  const component = modelIndexOf(project).element(shape.element)?.component;
+  return t('{name}, {component}, {where}, {relations}.', {
+    name: shape.name,
+    component:
+      component === undefined ? shape.componentName : t.definition(component, shape.componentName),
+    where,
+    relations: relations === 0 ? t('no relations') : t(RELATIONS, { count: relations }),
+  });
 }
+
+const RELATIONS: PluralText = { one: '{count} relation', other: '{count} relations' };
+const ELEMENTS: PluralText = { one: '{count} element', other: '{count} elements' };
+const FREE_SHAPES: PluralText = { one: '{count} free shape', other: '{count} free shapes' };
+const OTHER_CONTAINERS: PluralText = {
+  one: '{count} other container',
+  other: '{count} other containers',
+};
 
 /**
  * "Booking agent communicates with Appointments API, “HTTPS”.", and where it is when stepping: which
@@ -50,12 +71,18 @@ export function describeShape(
 export function describeRelation(project: ProjectSnapshot, id: Id, step?: RelationStep): string {
   const index = modelIndexOf(project);
   const relation = index.relation(id);
-  if (!relation) return 'A relation that no longer exists.';
+  if (!relation) return t('A relation that no longer exists.');
   const named = relation.name ? `, “${relation.name}”` : '';
   const through =
-    step?.through === undefined ? '' : `, ending on ${nameOfEnd(project, step.through)}`;
+    step?.through === undefined
+      ? ''
+      : t(', ending on {end}', { end: nameOfEnd(project, step.through) });
   const where = step
-    ? `, relation ${step.position} of ${step.count} of ${nameIn(index, step.element)}`
+    ? t(', relation {position} of {count} of {element}', {
+        position: step.position,
+        count: step.count,
+        element: nameIn(index, step.element),
+      })
     : '';
   return `${sentenceOf(index, project, relation)}${named}${through}${where}.`;
 }
@@ -77,25 +104,25 @@ export function describeSelection(
 ): string {
   const { elements, relations, freeShapes } = selection;
   const total = elements.size + relations.size + freeShapes.size;
-  if (total === 0) return 'Nothing is selected.';
+  if (total === 0) return t('Nothing is selected.');
   if (total === 1) {
     const [element] = elements;
     if (element !== undefined) {
       const shapes = indexed.byElement.get(element) ?? [];
       const shape = shapes.find((each) => each.key === current) ?? shapes[0];
-      return shape ? describeShape(indexed, project, shape) : '1 element selected.';
+      return shape ? describeShape(indexed, project, shape) : t('1 element selected.');
     }
     const [relation] = relations;
     if (relation !== undefined) return describeRelation(project, relation);
     const [free] = freeShapes;
     const note = indexed.scene.notes.find((each) => each.id === free);
-    return note ? asSentence(`Note: ${note.text}`) : 'Arrow.';
+    return note ? asSentence(t('Note: {text}', { text: note.text })) : t('Arrow.');
   }
   const parts: string[] = [];
-  if (elements.size > 0) parts.push(counted(elements.size, 'element', 'elements'));
-  if (relations.size > 0) parts.push(counted(relations.size, 'relation', 'relations'));
-  if (freeShapes.size > 0) parts.push(counted(freeShapes.size, 'free shape', 'free shapes'));
-  return `${listed(parts)} selected.`;
+  if (elements.size > 0) parts.push(t(ELEMENTS, { count: elements.size }));
+  if (relations.size > 0) parts.push(t(RELATIONS, { count: relations.size }));
+  if (freeShapes.size > 0) parts.push(t(FREE_SHAPES, { count: freeShapes.size }));
+  return t('{things} selected.', { things: listed(parts) });
 }
 
 /** "Patient communicates with WhatsApp channel": the ends named one level deep only. */
@@ -104,7 +131,7 @@ function sentenceOf(index: ModelIndex, project: ProjectSnapshot, relation: Relat
     definitionsOf(project.packages),
     relation.relationType,
   );
-  return `${shortNameIn(index, project, relation.from)} ${relationType.name} ${shortNameIn(index, project, relation.to)}`;
+  return `${shortNameIn(index, project, relation.from)} ${t.definition(relationType.id, relationType.name)} ${shortNameIn(index, project, relation.to)}`;
 }
 
 /** An element's name; for a relation, its type and its own name, without its ends. */
@@ -115,7 +142,8 @@ function shortNameIn(index: ModelIndex, project: ProjectSnapshot, id: Id): strin
     definitionsOf(project.packages),
     relation.relationType,
   );
-  return relation.name ? `${relationType.name} “${relation.name}”` : relationType.name;
+  const name = t.definition(relationType.id, relationType.name);
+  return relation.name ? `${name} “${relation.name}”` : name;
 }
 
 function nameIn(index: ModelIndex, id: Id): string {
@@ -128,13 +156,11 @@ function asSentence(text: string): string {
   return /[.!?…]$/.test(trimmed) ? trimmed : `${trimmed}.`;
 }
 
-function counted(amount: number, one: string, many: string): string {
-  if (amount === 0) return `no ${many}`;
-  return `${amount} ${amount === 1 ? one : many}`;
-}
-
-/** "a", "a and b", "a, b and c". */
-function listed(parts: readonly string[]): string {
+/** "a", "a and b", "a, b and c", in the language the app reads in. */
+export function listed(parts: readonly string[]): string {
   if (parts.length <= 1) return parts.join('');
-  return `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`;
+  return t('{first} and {last}', {
+    first: parts.slice(0, -1).join(', '),
+    last: parts.at(-1) ?? '',
+  });
 }

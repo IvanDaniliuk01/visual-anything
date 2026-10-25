@@ -1,5 +1,7 @@
 import type { HistorySummary } from '@visual-anything/core';
 import { useContext, useEffect, useEffectEvent, useRef } from 'react';
+import { LanguageControl } from '../i18n/LanguageControl';
+import { useT, type Translator } from '../i18n';
 import { LiveContext, type Live } from '../live/context';
 import { IS_APPLE } from '../live/platform';
 import { historyShortcut, isTextEntry, type HistoryAction } from '../live/shortcuts';
@@ -18,12 +20,13 @@ interface HeaderProps {
 }
 
 /**
- * The header: the product's mark and name, then the open project and view, and at its end the Theme
- * control. While a project is open in a live session, it also holds undo and redo. It is on every
+ * The header: the product's mark and name, then the open project and view, and at its end the
+ * Language and Theme controls. While a project is open in a live session, it also holds undo and redo. It is on every
  * screen, so it also keeps the person's preferences in step with the local program, and names the tab
  * after the open project.
  */
 export function Header({ projectName, viewName }: HeaderProps) {
+  const t = useT();
   const live = useContext(LiveContext);
   usePreferencesLink();
   useEffect(() => {
@@ -38,12 +41,12 @@ export function Header({ projectName, viewName }: HeaderProps) {
       {projectName !== undefined && (
         <dl className="shell-context">
           <div>
-            <dt>Project</dt>
+            <dt>{t('Project')}</dt>
             <dd>{projectName}</dd>
           </div>
           {viewName !== undefined && (
             <div>
-              <dt>View</dt>
+              <dt>{t('View')}</dt>
               <dd>{viewName}</dd>
             </div>
           )}
@@ -51,6 +54,7 @@ export function Header({ projectName, viewName }: HeaderProps) {
       )}
       <div className="shell-actions">
         {projectName !== undefined && live !== null && <HistoryControls live={live} />}
+        <LanguageControl />
         <ThemeControl />
       </div>
     </header>
@@ -82,6 +86,14 @@ type HistoryStep = NonNullable<HistorySummary['undo']>;
 
 const VERBS: Record<HistoryAction, string> = { undo: 'Undo', redo: 'Redo' };
 
+/** What each button says it would do, by who did the action. */
+const NAMES: Record<HistoryAction, { user: string; claude: string }> = {
+  undo: { user: 'Undo: {action}', claude: 'Undo Claude’s action: {action}' },
+  redo: { user: 'Redo: {action}', claude: 'Redo Claude’s action: {action}' },
+};
+
+const NOTHING: Record<HistoryAction, string> = { undo: 'Nothing to undo', redo: 'Nothing to redo' };
+
 const ICONS: Record<HistoryAction, typeof UndoIcon> = { undo: UndoIcon, redo: RedoIcon };
 
 const SHORTCUTS: Record<HistoryAction, { keys: string; shown: string }> = {
@@ -90,12 +102,12 @@ const SHORTCUTS: Record<HistoryAction, { keys: string; shown: string }> = {
 };
 
 /** What a history button is called: "Undo: Rename …", or "Undo Claude’s action: Rename …". */
-function nameOf(action: HistoryAction, step: HistoryStep | undefined): string {
-  const verb = VERBS[action];
-  if (step === undefined) return verb;
-  return step.author === 'claude'
-    ? `${verb} Claude’s action: ${step.label}`
-    : `${verb}: ${step.label}`;
+function nameOf(t: Translator, action: HistoryAction, step: HistoryStep | undefined): string {
+  if (step === undefined) return t(VERBS[action]);
+  const names = NAMES[action];
+  return t(step.author === 'claude' ? names.claude : names.user, {
+    action: t.message(step.label),
+  });
 }
 
 /**
@@ -104,6 +116,7 @@ function nameOf(action: HistoryAction, step: HistoryStep | undefined): string {
  * answer, so that holding a shortcut down does not queue more than the history holds.
  */
 function HistoryControls({ live }: { live: Live }) {
+  const t = useT();
   const connected = live.status === 'open';
   const waiting = useRef(false);
 
@@ -139,7 +152,7 @@ function HistoryControls({ live }: { live: Live }) {
   }, []);
 
   return (
-    <div className="shell-history" role="group" aria-label="Undo history">
+    <div className="shell-history" role="group" aria-label={t('Undo history')}>
       {(['undo', 'redo'] as const).map((action) => (
         <HistoryButton
           key={action}
@@ -167,14 +180,15 @@ interface HistoryButtonProps {
  * focus stays on it when the last action is undone.
  */
 function HistoryButton({ action, step, available, connected, onPress }: HistoryButtonProps) {
-  const name = nameOf(action, step);
+  const t = useT();
+  const name = nameOf(t, action, step);
   const shortcut = SHORTCUTS[action];
   const Icon = ICONS[action];
   const tooltip = available
-    ? `${name} (${shortcut.shown})`
+    ? t('{name} ({shortcut})', { name, shortcut: shortcut.shown })
     : connected
-      ? `Nothing to ${action}`
-      : 'Visual Anything is not connected';
+      ? t(NOTHING[action])
+      : t('Visual Anything is not connected');
   return (
     <button
       type="button"
@@ -186,8 +200,8 @@ function HistoryButton({ action, step, available, connected, onPress }: HistoryB
       onClick={available ? onPress : undefined}
     >
       <Icon />
-      <span className="history-verb">{VERBS[action]}</span>
-      {step !== undefined && <span className="history-label">{step.label}</span>}
+      <span className="history-verb">{t(VERBS[action])}</span>
+      {step !== undefined && <span className="history-label">{t.message(step.label)}</span>}
       {step?.author === 'claude' && <span className="history-author">Claude</span>}
     </button>
   );

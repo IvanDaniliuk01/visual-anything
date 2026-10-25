@@ -3,7 +3,6 @@
  * in the language's catalog, `es.ts` for Spanish, and show the English when it has no entry.
  */
 export {
-  LANGUAGE_STORAGE_KEY,
   browserLanguage,
   currentLanguage,
   navigatorLanguages,

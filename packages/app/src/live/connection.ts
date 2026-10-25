@@ -15,6 +15,8 @@ import {
   type Command,
   type CommandRejectedMessage,
   type HistorySummary,
+  type PreferenceChanges,
+  type Preferences,
   type Problem,
   type ProjectChangedMessage,
   type ProjectSnapshot,
@@ -22,6 +24,7 @@ import {
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { NO_GUIDANCE, applyGuidance, type GuidanceState } from '../guidance/state';
+import { fill } from '../i18n/translate';
 
 /** Where the live connection stands. */
 export type LiveStatus =
@@ -73,6 +76,11 @@ export interface LiveState {
   readonly notices: readonly Notice[];
   /** What Claude's live guidance shows now; it never changes the project. */
   readonly guidance?: GuidanceState;
+  /**
+   * The person's preferences as the local program last sent them (ADR-0032); absent until it does,
+   * which it does when the tab connects and after every change.
+   */
+  readonly preferences?: Preferences | undefined;
 }
 
 /** How a connection hears of what the local program hands it. */
@@ -103,15 +111,18 @@ export type CommandResult =
     }
   | { ok: false; problems: RequestProblem[] };
 
+/** How the local program answered a change of preferences. */
+export type PreferencesResult =
+  { ok: true; preferences: Preferences } | { ok: false; problems: RequestProblem[] };
+
 /** How many notices are shown at most; the oldest make way for newer ones. */
 export const MAX_NOTICES = 5;
 
 type RequestKind = 'command' | 'undo' | 'redo';
 
-interface Waiting {
-  kind: RequestKind;
-  resolve: (result: CommandResult) => void;
-}
+type Waiting =
+  | { kind: RequestKind; resolve: (result: CommandResult) => void }
+  | { kind: 'preferences'; resolve: (result: PreferencesResult) => void };
 
 /** Answers go back to the socket that asked, so request ids only need to be unique in the tab. */
 let requestCount = 0;
@@ -126,7 +137,7 @@ const CLOSED_BEFORE_ANSWER = 'The connection to Visual Anything closed before it
 const DRIFTED =
   'This tab’s copy of the project fell out of step with Visual Anything, so it is getting the project again.';
 
-function closedResult(message: string): CommandResult {
+function closedResult(message: string): { ok: false; problems: RequestProblem[] } {
   return { ok: false, problems: [{ code: 'connection-closed', message }] };
 }
 
@@ -242,6 +253,24 @@ export class LiveConnection {
   readonly redo = (): Promise<CommandResult> =>
     this.request('redo', (requestId) => ({ type: 'redo', requestId }));
 
+  /**
+   * Asks the local program to change some of the person's preferences, which are never commands:
+   * resolves with the preferences it then holds, or with why it refused. A refusal is not shown here;
+   * whoever asked says so.
+   */
+  readonly setPreferences = (changes: PreferenceChanges): Promise<PreferencesResult> => {
+    const socket = this.socket;
+    if (socket === undefined || this.state.status !== 'open') {
+      return Promise.resolve(closedResult(NOT_CONNECTED));
+    }
+    const requestId = nextRequestId();
+    const text = encodeMessage({ type: 'preferences/set', requestId, changes });
+    return new Promise((resolve) => {
+      this.waiting.set(requestId, { kind: 'preferences', resolve });
+      this.sendOn(socket, text, requestId, () => resolve(closedResult(NOT_CONNECTED)));
+    });
+  };
+
   /** Shows a notice. The same message at the same level is shown once, as the newest. */
   readonly notify = (level: NoticeLevel, message: string): void => {
     this.noticeCount += 1;
@@ -276,15 +305,20 @@ export class LiveConnection {
     const text = encodeMessage(message(requestId));
     return new Promise((resolve) => {
       this.waiting.set(requestId, { kind, resolve });
-      try {
-        socket.send(text);
-      } catch (error) {
-        // A browser refuses to send on a socket that is not open; anything else is a bug.
-        if (!(error instanceof DOMException)) throw error;
-        this.waiting.delete(requestId);
-        resolve(closedResult(NOT_CONNECTED));
-      }
+      this.sendOn(socket, text, requestId, () => resolve(closedResult(NOT_CONNECTED)));
     });
+  }
+
+  /** Sends a request's text, and stops waiting for it when the socket cannot take it. */
+  private sendOn(socket: WebSocket, text: string, requestId: string, refused: () => void): void {
+    try {
+      socket.send(text);
+    } catch (error) {
+      // A browser refuses to send on a socket that is not open; anything else is a bug.
+      if (!(error instanceof DOMException)) throw error;
+      this.waiting.delete(requestId);
+      refused();
+    }
   }
 
   private openSocket(url: string): void {
@@ -364,11 +398,19 @@ export class LiveConnection {
       case 'project/reloaded':
         this.recovering = false;
         this.update({ status: 'open', project: message.project, history: message.history });
-        this.notify('info', `Reloaded the project: ${message.reason}`);
+        this.notify('info', fill('Reloaded the project: {why}', { why: message.reason }));
         break;
       case 'notice':
         this.notify(message.level, message.message);
         break;
+      case 'preferences/changed': {
+        this.update({ preferences: message.preferences });
+        const answered = message.requestId === undefined ? undefined : this.take(message.requestId);
+        if (answered?.kind === 'preferences') {
+          answered.resolve({ ok: true, preferences: message.preferences });
+        }
+        break;
+      }
       case 'guidance':
         this.guidanceCount += 1;
         this.update({
@@ -388,7 +430,8 @@ export class LiveConnection {
       this.fail('unreadable', 'Visual Anything sent a change before the project.');
       return;
     }
-    const answered = message.requestId === undefined ? undefined : this.take(message.requestId);
+    const taken = message.requestId === undefined ? undefined : this.take(message.requestId);
+    const answered = taken?.kind === 'preferences' ? undefined : taken;
     let next: ProjectSnapshot;
     try {
       next = applyOperations(project, message.operations).state;
@@ -412,7 +455,9 @@ export class LiveConnection {
       // The fresh copy drifted too, so reconnecting again would only loop.
       this.fail(
         'unreadable',
-        `This tab’s copy of the project fell out of step with Visual Anything again: ${error.message}`,
+        fill('This tab’s copy of the project fell out of step with Visual Anything again: {why}', {
+          why: error.message,
+        }),
       );
       return;
     }
@@ -426,12 +471,17 @@ export class LiveConnection {
   private rejected(message: CommandRejectedMessage): void {
     const answered = this.take(message.requestId);
     if (answered === undefined) return;
-    if (answered.kind !== 'command') {
+    if (answered.kind === 'undo' || answered.kind === 'redo') {
       const why = sentences(message.problems);
-      this.notify(
-        'error',
-        why === '' ? `Could not ${answered.kind}.` : `Could not ${answered.kind}: ${why}`,
-      );
+      const notice =
+        answered.kind === 'undo'
+          ? why === ''
+            ? 'Could not undo.'
+            : fill('Could not undo: {why}', { why })
+          : why === ''
+            ? 'Could not redo.'
+            : fill('Could not redo: {why}', { why });
+      this.notify('error', notice);
     }
     answered.resolve({ ok: false, problems: message.problems });
   }

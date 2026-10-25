@@ -1,16 +1,19 @@
+import type { ProjectSnapshot } from '@visual-anything/core';
 import { useMemo } from 'react';
 import { useEditor } from '../editor/EditorContext';
+import { useEmphasis } from '../editor/emphasis';
 import { selectionOf, sizeOf, type Selectable } from '../editor/selection';
+import { useT } from '../i18n';
 import {
   isItemSelected,
   outlineOf,
   placeOfSelection,
   revealKeyOf,
-  selectableOf,
-  textOf,
+  selectablesOf,
   type OutlineItem,
   type RelationItem,
 } from './outlineItems';
+import { farNameOf, labelOf, relationTypeName, shapeNote, typedTextOf } from './outlineText';
 import { Secondary } from './Secondary';
 import { shownRows, type TreeRow } from './tree';
 import { useTreeState } from './useTreeState';
@@ -30,11 +33,14 @@ const ARROWS: Record<RelationItem['way'], string> = { out: '→', in: '←', bot
  * Enter on the row of the selected relation goes to its far end, as Enter does on the canvas.
  */
 export function Outline({ active }: OutlineProps) {
+  const t = useT();
   const editor = useEditor();
   const { project, viewId, scene, selection } = editor;
+  // What filters and focus hide is left out, as the canvas leaves it out.
+  const { hidden } = useEmphasis();
   const outline = useMemo(
-    () => (active && scene ? outlineOf(scene, project) : undefined),
-    [active, scene, project],
+    () => (active && scene ? outlineOf(scene, project, hidden) : undefined),
+    [active, scene, project, hidden],
   );
   const tree = useTreeState(
     selection,
@@ -49,9 +55,9 @@ export function Outline({ active }: OutlineProps) {
   );
 
   if (!active) return null;
-  if (!scene) return <p className="panel-empty">There is no view to outline.</p>;
+  if (!scene) return <p className="panel-empty">{t('There is no view to outline.')}</p>;
   if (!outline || !shown || shown.rows.length === 0) {
-    return <p className="panel-empty">This view has no shapes yet.</p>;
+    return <p className="panel-empty">{t('This view has no shapes yet.')}</p>;
   }
 
   /** Selects the relation's far end, shows it on the canvas and moves the focus to its row. */
@@ -77,7 +83,7 @@ export function Outline({ active }: OutlineProps) {
       follow(item);
       return;
     }
-    tree.choose(selectionOf([selectableOf(item)]));
+    tree.choose(selectionOf(selectablesOf(item)));
     editor.reveal(revealKeyOf(item));
   };
 
@@ -85,58 +91,53 @@ export function Outline({ active }: OutlineProps) {
   return (
     <VirtualTree
       shown={shown}
-      label={viewName === undefined ? 'Outline' : `Outline of ${viewName}`}
+      label={viewName === undefined ? t('Outline') : t('Outline of {view}', { view: viewName })}
       selectedId={placeOfSelection((selectable) => outline.placeOf(selectable), selection)?.id}
       request={tree.request}
       isSelected={(row) => isItemSelected(selection, row.item)}
-      textOf={(row) => textOf(row.item)}
-      labelOf={(row) => labelOf(row.item)}
+      textOf={(row) => typedTextOf(t, row.item)}
+      labelOf={(row) => labelOf(t, project, row.item)}
       onOpen={(row, value) => tree.setOpen(row.id, value)}
       onActivate={activate}
-      renderRow={(row) => <OutlineRow item={row.item} />}
+      renderRow={(row) => <OutlineRow project={project} item={row.item} />}
     />
   );
 }
 
 /** What a row says: an element's name and component, a relation, or a free shape. */
-function OutlineRow({ item }: { item: OutlineItem }) {
+function OutlineRow({ project, item }: { project: ProjectSnapshot; item: OutlineItem }) {
+  const t = useT();
   switch (item.kind) {
     case 'shape':
       return (
         <>
           <span className="item-name">{item.shape.name}</span>
-          <Secondary text={item.shape.componentName} />
+          <Secondary text={shapeNote(t, project, item)} />
         </>
       );
-    case 'relation':
+    case 'relation': {
       // The far end comes first, so that a narrow panel cuts the relation type rather than it.
+      const relationType = relationTypeName(t, project, item);
       return (
         <>
           <span className="outline-arrow" aria-hidden="true">
             {ARROWS[item.way]}
           </span>{' '}
-          <span className="item-name">{item.farName}</span>
+          <span className="item-name">{farNameOf(t, item)}</span>
           <Secondary
-            text={
-              item.name === undefined ? item.relationType : `${item.relationType} “${item.name}”`
-            }
+            text={item.name === undefined ? relationType : `${relationType} “${item.name}”`}
           />
         </>
       );
+    }
     case 'note':
       return (
         <>
-          <span className="item-name">Note</span>
+          <span className="item-name">{t('Note')}</span>
           <Secondary text={item.note.text} />
         </>
       );
     case 'arrow':
-      return <span className="item-name">Arrow</span>;
+      return <span className="item-name">{t('Arrow')}</span>;
   }
-}
-
-/** A relation's row is heard as the sentence it reads as; the other rows as they read. */
-function labelOf(item: OutlineItem): string | undefined {
-  if (item.kind !== 'relation') return undefined;
-  return item.name === undefined ? item.sentence : `${item.sentence}, “${item.name}”`;
 }

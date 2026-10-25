@@ -6,6 +6,8 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   HOLD_TIMEOUT_MS,
+  LANGUAGE_NOT_CONNECTED,
+  LANGUAGE_STORAGE_KEY,
   NOT_CONNECTED,
   SEND_DELAY_MS,
   THEME_STORAGE_KEY,
@@ -110,6 +112,30 @@ describe('startPreferences', () => {
       expect(appliedPreferences().preferences.theme).toBe('system');
     },
   );
+
+  it('starts in the language the tab kept, and keeps a new choice for a reload', () => {
+    window.sessionStorage.setItem(LANGUAGE_STORAGE_KEY, 'es');
+    startPreferences(window);
+    expect(appliedPreferences().preferences.language).toBe('es');
+    changePreferences({ language: 'en' });
+    expect(window.sessionStorage.getItem(LANGUAGE_STORAGE_KEY)).toBe('en');
+  });
+
+  it('says that a language chosen while not connected applies to this tab only', () => {
+    startPreferences(window);
+    const { link } = fakeLink({ status: 'closed' });
+    linkPreferences(link);
+    changePreferences({ language: 'es' });
+    expect(link.notify).toHaveBeenCalledWith('info', LANGUAGE_NOT_CONNECTED);
+    changePreferences({ theme: 'dark' });
+    expect(link.notify).toHaveBeenLastCalledWith('info', NOT_CONNECTED);
+  });
+
+  it('ignores a kept language it does not know', () => {
+    window.sessionStorage.setItem(LANGUAGE_STORAGE_KEY, 'fr');
+    startPreferences(window);
+    expect(appliedPreferences().preferences.language).toBe('system');
+  });
 
   it('ignores a kept choice it does not know', () => {
     window.sessionStorage.setItem(THEME_STORAGE_KEY, 'sepia');

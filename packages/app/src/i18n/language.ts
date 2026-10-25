@@ -9,9 +9,6 @@ import { LANGUAGES, type Language } from './translate';
 /** The language a person chooses: English, Spanish, or whichever the browser asks for. */
 export type LanguageChoice = Preferences['language'];
 
-/** Where the tab keeps the language chosen, so that a reload starts in it. */
-export const LANGUAGE_STORAGE_KEY = 'visual-anything.language';
-
 /**
  * The language the browser asks for: the first of the person's languages that the app reads, by its
  * primary subtag, so that any "es-*" is Spanish; English when none is.
