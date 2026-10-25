@@ -37,3 +37,76 @@ describe('applyGuidance', () => {
     expect(applyGuidance(state, { kind: 'clear' }, 3)).toEqual({});
   });
 });
+
+describe('applyGuidance for exploring and playback', () => {
+  const filters = {
+    components: ['systems.database'],
+    relationTypes: [],
+    conditions: [{ of: 'elements' as const, attribute: 'owner', test: 'is' as const, value: 'A' }],
+  };
+
+  it('keeps Claude’s filters to apply, numbered, for the view it names', () => {
+    expect(applyGuidance(NO_GUIDANCE, { kind: 'filter', filters, view: 'v' }, 4)).toEqual({
+      filter: { filters, view: 'v', request: 4 },
+    });
+  });
+
+  it('keeps Claude’s focus to apply, with how far it reaches', () => {
+    expect(
+      applyGuidance(
+        NO_GUIDANCE,
+        {
+          kind: 'focus-view',
+          targets: ['a'],
+          degrees: 'all',
+          direction: 'incoming',
+          isolate: true,
+        },
+        5,
+      ),
+    ).toEqual({
+      focusView: {
+        focus: { targets: ['a'], degrees: 'all', direction: 'incoming', isolate: true },
+        request: 5,
+      },
+    });
+  });
+
+  it('clears the filters and turns the focus off together', () => {
+    let state = applyGuidance(NO_GUIDANCE, { kind: 'filter', filters }, 1);
+    state = applyGuidance(state, { kind: 'clear-explore', view: 'v' }, 2);
+    expect(state).toEqual({
+      filter: {
+        filters: { components: [], relationTypes: [], conditions: [] },
+        view: 'v',
+        request: 2,
+      },
+      focusView: { view: 'v', request: 2 },
+    });
+  });
+
+  it('keeps the last request of playback', () => {
+    let state = applyGuidance(NO_GUIDANCE, { kind: 'playback', scenario: 's', action: 'play' }, 1);
+    state = applyGuidance(
+      state,
+      { kind: 'playback', scenario: 's', action: 'go-to-step', step: 2 },
+      2,
+    );
+    expect(state).toEqual({
+      playback: { scenario: 's', action: 'go-to-step', step: 2, request: 2 },
+    });
+  });
+
+  it('keeps every request while marks, moves and captions come and go', () => {
+    let state = applyGuidance(NO_GUIDANCE, { kind: 'filter', filters }, 1);
+    state = applyGuidance(state, { kind: 'playback', scenario: 's', action: 'play' }, 2);
+    state = applyGuidance(state, { kind: 'caption', text: 'Here.' }, 3);
+    state = applyGuidance(state, { kind: 'highlight', targets: ['a'] }, 4);
+    state = applyGuidance(state, { kind: 'caption', text: '' }, 5);
+    expect(state).toEqual({
+      filter: { filters, request: 1 },
+      playback: { scenario: 's', action: 'play', request: 2 },
+      marks: { kind: 'highlight', targets: ['a'], request: 4 },
+    });
+  });
+});

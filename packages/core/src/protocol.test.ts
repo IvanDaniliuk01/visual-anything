@@ -29,8 +29,8 @@ const project: ProjectSnapshot = {
 };
 
 describe('PROTOCOL_VERSION', () => {
-  it('is 3, since guidance and launch addresses came', () => {
-    expect(PROTOCOL_VERSION).toBe(3);
+  it('is 4, since Claude came to filter, focus and play scenarios in the open app', () => {
+    expect(PROTOCOL_VERSION).toBe(4);
   });
 
   it('names the launch code and the token in the address and on the live connection', () => {
@@ -55,6 +55,33 @@ describe('decodeServerMessage', () => {
     { type: 'guidance', guidance: { kind: 'caption', text: 'The API reads the DB.' } },
     { type: 'guidance', guidance: { kind: 'caption', text: '' } },
     { type: 'guidance', guidance: { kind: 'clear' } },
+    {
+      type: 'guidance',
+      guidance: {
+        kind: 'filter',
+        filters: {
+          components: ['systems.database'],
+          relationTypes: [],
+          conditions: [{ of: 'elements', attribute: 'owner', test: 'is', value: 'Team A' }],
+        },
+        view: 'overview',
+      },
+    },
+    {
+      type: 'guidance',
+      guidance: {
+        kind: 'focus-view',
+        targets: ['api'],
+        degrees: 'all',
+        direction: 'outgoing',
+        isolate: true,
+      },
+    },
+    { type: 'guidance', guidance: { kind: 'clear-explore' } },
+    {
+      type: 'guidance',
+      guidance: { kind: 'playback', scenario: 'request', action: 'go-to-step', step: 2 },
+    },
     {
       type: 'project/changed',
       operations: [{ op: 'set-project', project: project.project }],
@@ -145,6 +172,149 @@ describe('readGuidance', () => {
     ['a caption without text', { kind: 'caption' }],
     ['a caption that is too long', { kind: 'caption', text: 'x'.repeat(MAX_CAPTION_LENGTH + 1) }],
   ])('refuses guidance with %s', (_case, value) => {
+    expect(() => readGuidance(value)).toThrow(ProtocolError);
+  });
+});
+
+describe('readGuidance for exploring the open view', () => {
+  it('fills in the filters and the focus that are left out', () => {
+    expect(readGuidance({ kind: 'filter', filters: {} })).toEqual({
+      kind: 'filter',
+      filters: { components: [], relationTypes: [], conditions: [] },
+    });
+    expect(readGuidance({ kind: 'focus-view', targets: ['api'], view: 'v' })).toEqual({
+      kind: 'focus-view',
+      targets: ['api'],
+      degrees: 1,
+      direction: 'both',
+      isolate: false,
+      view: 'v',
+    });
+    expect(readGuidance({ kind: 'clear-explore', view: 'v', targets: ['a'] })).toEqual({
+      kind: 'clear-explore',
+      view: 'v',
+    });
+  });
+
+  it('keeps only what a filter holds, and gives a test without a value an empty one', () => {
+    expect(
+      readGuidance({
+        kind: 'filter',
+        filters: {
+          components: ['systems.service'],
+          relationTypes: ['systems.reads-from'],
+          conditions: [
+            { of: 'relations', attribute: 'protocol', test: 'set', extra: 1 },
+            { of: 'elements', attribute: 'sizeGb', test: 'above', value: '20' },
+          ],
+          hidden: ['everything'],
+        },
+      }),
+    ).toEqual({
+      kind: 'filter',
+      filters: {
+        components: ['systems.service'],
+        relationTypes: ['systems.reads-from'],
+        conditions: [
+          { of: 'relations', attribute: 'protocol', test: 'set', value: '' },
+          { of: 'elements', attribute: 'sizeGb', test: 'above', value: '20' },
+        ],
+      },
+    });
+  });
+
+  it('takes every degree, or one to five', () => {
+    for (const degrees of [1, 5, 'all'] as const) {
+      expect(readGuidance({ kind: 'focus-view', targets: ['a'], degrees })).toMatchObject({
+        degrees,
+      });
+    }
+  });
+
+  const condition = { of: 'elements', attribute: 'owner', test: 'is', value: 'A' };
+  it.each([
+    ['filters that are not an object', { kind: 'filter', filters: [] }],
+    ['no filters', { kind: 'filter' }],
+    ['components that are not ids', { kind: 'filter', filters: { components: [''] } }],
+    ['relation types that are not a list', { kind: 'filter', filters: { relationTypes: 'x' } }],
+    [
+      'too many components',
+      {
+        kind: 'filter',
+        filters: { components: Array.from({ length: MAX_GUIDANCE_TARGETS + 1 }, () => 'a') },
+      },
+    ],
+    [
+      'a condition on something else',
+      { kind: 'filter', filters: { conditions: [{ ...condition, of: 'views' }] } },
+    ],
+    [
+      'a condition with an unknown test',
+      { kind: 'filter', filters: { conditions: [{ ...condition, test: 'matches' }] } },
+    ],
+    [
+      'a condition without its attribute',
+      { kind: 'filter', filters: { conditions: [{ ...condition, attribute: ' ' }] } },
+    ],
+    [
+      'a condition that needs a value and has none',
+      { kind: 'filter', filters: { conditions: [{ ...condition, value: undefined }] } },
+    ],
+    [
+      'a condition whose value is not text',
+      { kind: 'filter', filters: { conditions: [{ ...condition, value: 3 }] } },
+    ],
+    [
+      'too many conditions',
+      { kind: 'filter', filters: { conditions: Array.from({ length: 33 }, () => condition) } },
+    ],
+    [
+      'an attribute name that is too long',
+      {
+        kind: 'filter',
+        filters: { conditions: [{ ...condition, attribute: 'x'.repeat(201) }] },
+      },
+    ],
+    ['focus without targets', { kind: 'focus-view', targets: [] }],
+    ['focus of no degrees', { kind: 'focus-view', targets: ['a'], degrees: 0 }],
+    ['focus of six degrees', { kind: 'focus-view', targets: ['a'], degrees: 6 }],
+    ['focus of a degree and a half', { kind: 'focus-view', targets: ['a'], degrees: 1.5 }],
+    ['focus in no known direction', { kind: 'focus-view', targets: ['a'], direction: 'up' }],
+    ['focus whose isolate is not a boolean', { kind: 'focus-view', targets: ['a'], isolate: 1 }],
+    ['clearing a view that is not an id', { kind: 'clear-explore', view: '' }],
+  ])('refuses %s', (_case, value) => {
+    expect(() => readGuidance(value)).toThrow(ProtocolError);
+  });
+});
+
+describe('readGuidance for playing a scenario', () => {
+  it.each(['open', 'play', 'pause', 'next-step', 'previous-step'] as const)(
+    'reads %s, which names no step',
+    (action) => {
+      expect(readGuidance({ kind: 'playback', scenario: 's', action, step: 3 })).toEqual({
+        kind: 'playback',
+        scenario: 's',
+        action,
+      });
+    },
+  );
+
+  it('reads going to a step by its index', () => {
+    expect(
+      readGuidance({ kind: 'playback', scenario: 's', action: 'go-to-step', step: 0 }),
+    ).toEqual({ kind: 'playback', scenario: 's', action: 'go-to-step', step: 0 });
+  });
+
+  it.each([
+    ['no scenario', { kind: 'playback', action: 'play' }],
+    ['an unknown action', { kind: 'playback', scenario: 's', action: 'rewind' }],
+    ['going to no step', { kind: 'playback', scenario: 's', action: 'go-to-step' }],
+    [
+      'going to a step before the first',
+      { kind: 'playback', scenario: 's', action: 'go-to-step', step: -1 },
+    ],
+    ['going to half a step', { kind: 'playback', scenario: 's', action: 'go-to-step', step: 0.5 }],
+  ])('refuses %s', (_case, value) => {
     expect(() => readGuidance(value)).toThrow(ProtocolError);
   });
 });
