@@ -232,3 +232,62 @@ export const MoreIcon = icon(
     <circle cx="5" cy="12" r="1" />
   </>,
 );
+
+/** Lucide's "info", for the read-only page's About (W33). */
+export const InfoIcon = icon(
+  'Info',
+  <>
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 16v-4" />
+    <path d="M12 8h.01" />
+  </>,
+);
+
+/** Lucide's "filter", for the read-only page's Explore (W33). */
+export const FilterIcon = icon(
+  'Filter',
+  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />,
+);
+
+/** Lucide's "list", for the read-only page's Outline (W33). */
+export const ListIcon = icon(
+  'List',
+  <>
+    <path d="M3 6h.01" />
+    <path d="M3 12h.01" />
+    <path d="M3 18h.01" />
+    <path d="M8 6h13" />
+    <path d="M8 12h13" />
+    <path d="M8 18h13" />
+  </>,
+);
+
+/** Lucide's "play", for playing a scenario in the read-only page (W33). */
+export const PlayIcon = icon('Play', <polygon points="6 3 20 12 6 21 6 3" />);
+
+/** Lucide's "pause" (W33). */
+export const PauseIcon = icon(
+  'Pause',
+  <>
+    <rect x="14" y="4" width="4" height="16" rx="1" />
+    <rect x="6" y="4" width="4" height="16" rx="1" />
+  </>,
+);
+
+/** Lucide's "skip-back", for the previous step (W33). */
+export const PreviousIcon = icon(
+  'Previous',
+  <>
+    <polygon points="19 20 9 12 19 4 19 20" />
+    <path d="M5 19V5" />
+  </>,
+);
+
+/** Lucide's "skip-forward", for the next step (W33). */
+export const NextIcon = icon(
+  'Next',
+  <>
+    <polygon points="5 4 15 12 5 20 5 4" />
+    <path d="M19 5v14" />
+  </>,
+);

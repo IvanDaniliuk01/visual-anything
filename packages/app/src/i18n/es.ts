@@ -88,6 +88,7 @@
  * | language                | idioma                           |
  * | settings (of a view)    | opciones                         |
  * | the local program       | el programa local                |
+ * | read-only page          | página de solo lectura           |
  * | package code            | código del paquete               |
  * | capability              | capacidad                        |
  * | approve, approval       | aprobar, aprobación              |
@@ -401,6 +402,115 @@ export const ui: Catalog = {
   'At {width} × {height} pixels this image is too large: the most is {side} pixels a side and {megapixels} megapixels. Choose 1×, or what is visible.':
     'Con {width} × {height} píxeles, esta imagen es demasiado grande: lo máximo son {side} píxeles por lado y {megapixels} megapíxeles. Elegir 1× o lo que se ve.',
   'The image could not be drawn: {why}': 'No se pudo dibujar la imagen: {why}',
+
+  // The read-only page (ADR 0041): its header, canvas, panels and About.
+  'Reading tools': 'Herramientas de lectura',
+  Find: 'Buscar',
+  'Find (Ctrl+F)': 'Buscar (Ctrl+F)',
+  About: 'Acerca de',
+  'This project has no view to show.': 'Este proyecto no tiene ninguna vista para mostrar.',
+  '{view} ({perspective})': '{view} ({perspective})',
+  'Zoom in (+)': 'Acercar (+)',
+  'Zoom out (−)': 'Alejar (−)',
+  'Fit the view': 'Encuadrar la vista',
+  'Fit the view (0)': 'Encuadrar la vista (0)',
+  'This view has no shapes.': 'Esta vista no tiene formas.',
+  'Drag or use two fingers to pan; pinch, Ctrl with the wheel, or + and − to zoom; 0 fits the view. Arrow keys go from shape to shape, Alt with ↑ and ↓ to the container and inside it; ] and [ step through relations, Enter follows one; Alt with − and + collapses and expands. Escape clears the selection.':
+    'Arrastrar o usar dos dedos para desplazar; pellizcar, Ctrl con la rueda, o + y − para hacer zoom; 0 encuadra la vista. Las flechas van de forma en forma, Alt con ↑ y ↓ al contenedor y a su interior; ] y [ recorren las relaciones, Enter sigue una; Alt con − y + contrae y expande. Escape quita la selección.',
+  'This page cannot show its project': 'Esta página no puede mostrar su proyecto',
+  'And {count} more problems.': {
+    one: 'Y {count} problema más.',
+    other: 'Y {count} problemas más.',
+  },
+  Selected: 'Seleccionado',
+  'Selected: {things}': 'Seleccionado: {things}',
+  'Clear the selection (Escape)': 'Quitar la selección (Escape)',
+  '{from} {relationType} {to}': '{from} {relationType} {to}',
+  'Close (Escape)': 'Cerrar (Escape)',
+  'Focus on the selection, dimming what it does not reach':
+    'Enfocar la selección, atenuando lo que no alcanza',
+  Reach: 'Distancia',
+  '{count} degrees': { one: '{count} grado', other: '{count} grados' },
+  'Every degree': 'Todos los grados',
+  'Isolate: hide what it does not reach': 'Aislar: ocultar lo que no alcanza',
+  'Scenario “{name}”': 'Escenario “{name}”',
+  'Close the scenario': 'Cerrar el escenario',
+  '{count} steps inside “{container}”, which this view shows collapsed.': {
+    one: '{count} paso dentro de “{container}”, que esta vista muestra contraído.',
+    other: '{count} pasos dentro de “{container}”, que esta vista muestra contraído.',
+  },
+  'A relation of this step is no longer in the model, so this step is broken.':
+    'Una relación de este paso ya no está en el modelo, así que este paso está roto.',
+  'Hide the data': 'Ocultar los datos',
+  'Show the data': 'Mostrar los datos',
+  'A read-only page of this project, made with Visual Anything: it shows every view and plays every scenario, changes nothing, and connects nowhere.':
+    'Una página de solo lectura de este proyecto, hecha con Visual Anything: muestra todas las vistas y reproduce todos los escenarios, no cambia nada y no se conecta a ningún lado.',
+  'Made on {date}.': 'Hecha el {date}.',
+  '{views} and {scenarios}.': '{views} y {scenarios}.',
+  '{count} views': { one: '{count} vista', other: '{count} vistas' },
+  '{count} scenarios': { one: '{count} escenario', other: '{count} escenarios' },
+  Packages: 'Paquetes',
+  'built into Visual Anything': 'incorporado en Visual Anything',
+  'the project’s own': 'propio del proyecto',
+  'version {version}': 'versión {version}',
+  'license {license}': 'licencia {license}',
+  'Images: {sources}': 'Imágenes: {sources}',
+  '{count} relations leave this view: {list}.': {
+    one: '{count} relación sale de esta vista: {list}.',
+    other: '{count} relaciones salen de esta vista: {list}.',
+  },
+
+  // The Export dialog's formats, and the read-only page among them (M6b).
+  'Export “{view}”': 'Exportar “{view}”',
+  Format: 'Formato',
+  'PNG image': 'Imagen PNG',
+  'Read-only page': 'Página de solo lectura',
+  'One file to share, embed and read on a phone':
+    'Un archivo para compartir, incrustar y leer en un teléfono',
+  'It leaves out:': 'Deja fuera:',
+  'Its text is part of the picture, so it cannot be selected, searched or read aloud.':
+    'Su texto es parte de la imagen, así que no se puede seleccionar, buscar ni leer en voz alta.',
+  'Writing the file…': 'Escribiendo el archivo…',
+  'The file could not be written: {why}': 'No se pudo escribir el archivo: {why}',
+  'Save {format}': 'Guardar {format}',
+  'Open at what the canvas shows now': 'Abrir en lo que muestra ahora el lienzo',
+  'This view, where the canvas looks, the selection, the filters and focus':
+    'Esta vista, adónde mira el lienzo, la selección, los filtros y el foco',
+  'Writing the page…': 'Escribiendo la página…',
+  'It holds the whole project, every view and scenario, whatever this view shows: share it only with those who may read all of it. It connects nowhere, and the browser saves it.':
+    'Contiene todo el proyecto, cada vista y cada escenario, muestre lo que muestre esta vista: compartirla solo con quien pueda leerlo todo. No se conecta a ningún lado, y la guarda el navegador.',
+  'Editing, the history and Claude’s guidance: the page only reads.':
+    'La edición, el historial y la guía de Claude: la página solo lee.',
+  'Layout, which does not run in the page: shapes a view keeps no position for are drawn in a row, as before a layout.':
+    'El diseño automático, que no se ejecuta en la página: las formas para las que una vista no guarda posición se dibujan en una fila, como antes de organizar.',
+  'Package code, and what it computes and draws: no code of a package runs in a page.':
+    'El código de los paquetes, y lo que calcula y dibuja: ningún código de un paquete se ejecuta en una página.',
+  'This page is {size}, past {limit}: it may open slowly, and some hosts and mail refuse files this large.':
+    'Esta página pesa {size}, más de {limit}: puede abrirse con lentitud, y algunos servidores y correos rechazan archivos tan grandes.',
+  'This copy of Visual Anything has no viewer for read-only pages, as when it runs from its sources. Run pnpm build, then start it again.':
+    'Esta copia de Visual Anything no tiene el visor de páginas de solo lectura, como cuando se ejecuta desde sus fuentes. Ejecutar pnpm build y volver a iniciarla.',
+  'The page could not be written: {why}': 'No se pudo escribir la página: {why}',
+  'Save the page': 'Guardar la página',
+  'Save the page anyway': 'Guardar la página de todos modos',
+  'SVG drawing': 'Dibujo SVG',
+  'The view as a drawing that scales, for pages and documents':
+    'La vista como un dibujo que se escala, para páginas y documentos',
+  'PDF document': 'Documento PDF',
+  'The view on one page, to print or attach; made when saved':
+    'La vista en una página, para imprimir o adjuntar; se hace al guardarla',
+  'Outline in Markdown': 'Esquema en Markdown',
+  'The view as text, which is also its long description':
+    'La vista como texto, que es también su descripción larga',
+  'Mermaid flowchart': 'Flujograma de Mermaid',
+  'For GitHub, wikis and other tools that draw Mermaid':
+    'Para GitHub, wikis y otras herramientas que dibujan Mermaid',
+  'Structurizr DSL': 'DSL de Structurizr',
+  'A C4 workspace of the view’s Systems components':
+    'Un espacio de trabajo C4 de los componentes de Systems de la vista',
+  'Making the file… A large view can take a while.':
+    'Haciendo el archivo… Una vista grande puede tardar un rato.',
+  'Stop making it': 'Dejar de hacerlo',
+  'It could not hold:': 'No pudo contener:',
 
   // The model panel's tabs.
   'Outline and model': 'Esquema y modelo',
@@ -2721,6 +2831,23 @@ export const messages: Catalog = {
   'The view id "{id}" is already used by {file}.': 'El id de vista "{id}" ya lo usa {file}.',
   'The scenario id "{id}" is already used by {file}.':
     'El id de escenario "{id}" ya lo usa {file}.',
+  // What keeps a read-only page from opening its project (ADR 0041).
+  'This page’s data is not a project.': 'Los datos de esta página no son un proyecto.',
+  'This page’s data is not valid JSON: {why}': 'Los datos de esta página no son JSON válido: {why}',
+  'This page was made by a newer Visual Anything, format {format}. Make it again with this version, or open it with a newer one.':
+    'Esta página la hizo un Visual Anything más nuevo, formato {format}. Volver a hacerla con esta versión, o abrirla con una más nueva.',
+  'The project file, {pointer}: {why}': 'El archivo del proyecto, {pointer}: {why}',
+  'The model, {pointer}: {why}': 'El modelo, {pointer}: {why}',
+  'Package {n}, {pointer}: {why}': 'Paquete {n}, {pointer}: {why}',
+  'View {n}, {pointer}: {why}': 'Vista {n}, {pointer}: {why}',
+  'Scenario {n}, {pointer}: {why}': 'Escenario {n}, {pointer}: {why}',
+  'The package id "{id}" is used twice.': 'El id de paquete "{id}" se usa dos veces.',
+  'The view id "{id}" is used twice.': 'El id de vista "{id}" se usa dos veces.',
+  'The scenario id "{id}" is used twice.': 'El id de escenario "{id}" se usa dos veces.',
+  'The page holds a package with the id "{id}", which Visual Anything keeps for its built-in {name} package.':
+    'La página tiene un paquete con el id "{id}", que Visual Anything reserva para su paquete incorporado {name}.',
+  'The package "{id}" is listed, but neither this page nor the built-in packages hold it.':
+    'El paquete "{id}" está en la lista, pero ni esta página ni los paquetes incorporados lo tienen.',
   '{file} takes the id "{id}", which Visual Anything keeps for its built-in {name} package. Give it another id: {how}':
     '{file} usa el id "{id}", que Visual Anything reserva para su paquete incorporado {name}. Darle otro id: {how}',
   '{file} takes the id "{id}", which Visual Anything keeps for a built-in package to come. Rename it before that package ships: {how}':

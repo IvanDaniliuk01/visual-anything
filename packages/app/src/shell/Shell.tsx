@@ -4,6 +4,7 @@ import { useCallback, useContext, useId, useMemo, useState } from 'react';
 import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { ExportControl } from '../export/ExportControl';
+import { fragmentOf } from '../export/page-export';
 import { ImageSource, ImageSourceContext } from '../export/source';
 import { ImportControl } from '../import/ImportControl';
 import { DefinitionProvider } from './definitions/DefinitionProvider';
@@ -113,14 +114,6 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   const onThemeShown = useThemeHold(view !== undefined);
   // The header's Export, which draws with the renderer the canvas lends it (R27).
   const [images] = useState(() => new ImageSource());
-  const exportTool = (
-    <ExportControl
-      source={images}
-      projectName={project.project.name}
-      viewName={view?.name}
-      bounds={scene?.bounds}
-    />
-  );
   // The view state: what the tab's address holds and Copy address copies, and where search jumps.
   const live = useContext(LiveContext);
   const [canvas, setCanvas] = useState<CanvasCamera>();
@@ -140,6 +133,18 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
     notify: live?.notify,
   });
   usePackageCode({ store: code, project, viewId: view?.id, scene, canvas });
+  // Export also writes the read-only page, which opens at the view state shown now (M6b).
+  const exportTool = (
+    <ExportControl
+      source={images}
+      projectName={project.project.name}
+      viewName={view?.name}
+      bounds={scene?.bounds}
+      project={project}
+      page={{ start: () => fragmentOf(viewState.address()?.address) }}
+      drawn={view && scene ? { view, scene, theme } : undefined}
+    />
+  );
 
   return (
     <EditorContext.Provider value={editor}>

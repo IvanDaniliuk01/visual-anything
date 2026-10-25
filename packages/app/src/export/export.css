@@ -81,3 +81,24 @@
   color: var(--text-muted);
   cursor: not-allowed;
 }
+
+/* What a format leaves out of the view, as a short list under its choices. */
+.export-leaves-out ul {
+  margin-top: 0;
+}
+
+/* Stopping the wait for a slow file, as a PDF of a large view is. */
+.export-stop {
+  min-height: var(--control-sm);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.export-stop:hover {
+  background: var(--surface-hover);
+}
