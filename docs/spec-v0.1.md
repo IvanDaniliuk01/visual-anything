@@ -299,14 +299,14 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [x] Theme tokens generated from one TypeScript source, light and dark, with contrast tests
 - [x] The header's Theme control and the first paint in the chosen theme
 - [x] Control states, focus rings, icons, the canvas message and the menus in place
-- [ ] The canvas follows the theme: background, marks, labels, casings and notes, built-in colors in their dark shades, tiles restyled within the frame budget and shown with the panels in one frame
-- [ ] Benchmark phases for theme switches, for panning and zooming after them, and for selecting everything
+- [x] The canvas follows the theme: background, marks, labels, casings and notes, built-in colors in their dark shades, tiles restyled within the frame budget and shown with the panels in one frame
+- [x] Benchmark phases for theme switches, for panning and zooming after them, and for selecting everything
 
 **A2 · Colors.** Done when, from the inspector, any #RRGGBB can be given to an element's fill and stroke, to every element of a built-in component and of one of the project's own, to a built-in relation type, to one relation, to a note, to a free arrow and to several selected shapes at once; each change is one undoable action whose git diff shows only the keys it changed; picking the color already shown records nothing; each has a command for Claude; and on the benchmark, recoloring every Service shows on screen in one frame and keeps every later frame within 33 ms.
 
 - [x] Project appearances, a relation's own appearance and free-shape colors in the file format and the core, with their commands
 - [x] Colors checked and normalized by every command that stores one
-- [ ] Recolors restyle tiles in place; the scene keeps what did not change
+- [x] Recolors restyle tiles in place; the scene keeps what did not change
 - [ ] The inspector edits colors for one shape, every shape of a definition and a selection, from a picker or a color code
 
 **A3 · Grid, rulers and snapping.** Done when the grid and rulers can be shown from the canvas toolbar and with Shift+G and Shift+R; with both shown, every benchmark phase meets the 60 frames per second target and the grid adds at most 0.5 ms per frame at the median; while the grid shows, a hand move stores the moved shapes at multiples of 8 canvas units inside their container and lands where its preview showed, a shape created by hand is stored at a multiple of 8, and Alt places freely; and Shift with an arrow key moves the selection by 8.

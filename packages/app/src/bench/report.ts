@@ -9,6 +9,11 @@ export const TARGET_FPS = 60;
 export const WORK = { average: 10, p95: 13, worst: 2000 / TARGET_FPS };
 /** What frames as shown may take: they may run a little late now and then. */
 export const SHOWN = { average: 1000 / (TARGET_FPS * 0.92), p95: 25 };
+/**
+ * What the frames of a theme switch or a recolor may take while their tiles are drawn again (A1 and
+ * A2): 95% within a frame at 60 fps, and every one within two.
+ */
+export const RESTYLING = { p95: 1000 / TARGET_FPS, worst: 2000 / TARGET_FPS };
 
 /** The value below which `fraction` of the values fall; 0 when there are none. */
 export function percentile(values: readonly number[], fraction: number): number {

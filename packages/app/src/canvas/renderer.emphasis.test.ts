@@ -14,7 +14,7 @@ import { FakeApplication, FakeResizeObserver } from '../test/FakeApplication';
 import { loadSample } from '../test/sample';
 import type { TextFactory } from './draw';
 import { hitAt, indexScene, type IndexedScene } from './hit';
-import { DIMMED_ALPHA } from './palette';
+import { DIMMED_ALPHA } from './colors';
 import { CanvasRenderer, emphasize } from './renderer';
 import { pointAlong } from './route';
 import { buildScene, shapeKeyOf, shownBy, standsFor, type Scene } from './scene';

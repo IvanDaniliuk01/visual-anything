@@ -13,6 +13,7 @@ import { definitionsIn } from '@visual-anything/core';
 import { useT, type Translator } from '../i18n';
 import { ScenarioPanel } from '../scenarios/ScenarioPanel';
 import { ScenarioSession } from '../scenarios/session';
+import { usePreferences, useThemeHold } from '../theme/usePreferences';
 import { Header } from './Header';
 import { Inspector } from './Inspector';
 import { ModelPanel } from './ModelPanel';
@@ -68,6 +69,9 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   const canvasHeading = useId();
   // The scenario open in the scenario panel, with its playback and its recording on the canvas.
   const [scenarios] = useState(() => new ScenarioSession());
+  // The canvas draws in the person's theme, and the panels change with it in the frame it shows it.
+  const { theme } = usePreferences();
+  const onThemeShown = useThemeHold(view !== undefined);
 
   return (
     <EditorContext.Provider value={editor}>
@@ -96,6 +100,8 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                   {...(onCommand ? { onCommand } : {})}
                   {...(revealed ? { revealed } : {})}
                   scenarios={scenarios}
+                  theme={theme}
+                  onThemeShown={onThemeShown}
                 />
               ) : (
                 <p className="canvas-message">{t('There is no view to draw.')}</p>

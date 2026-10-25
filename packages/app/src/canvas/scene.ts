@@ -35,6 +35,7 @@ import {
   appearanceOf,
   componentOrEssence,
   containmentTree,
+  darkColorsOf,
   definitionsIn,
   detailParts,
   detailText,
@@ -42,6 +43,7 @@ import {
   nestingTypesInView,
   orderByStacking,
   relationAppearanceOf,
+  relationDarkStrokeOf,
   relationTypeOrRelatesTo,
   storedStacking,
   type Definitions,
@@ -100,6 +102,11 @@ export interface ElementShape {
   kind: ShapeKind;
   fill: Color;
   stroke: Color;
+  /**
+   * The fill and stroke drawn on the dark canvas, when they differ from `fill` and `stroke`: built-in
+   * colors in their dark shades, stored colors as stored (core's `darkColorsOf`, ADR-0033).
+   */
+  dark?: { fill: Color; stroke: Color };
   rect: Rect;
   /**
    * The rectangle holding this shape and everything inside it; larger than `rect` only when contents
@@ -140,6 +147,8 @@ export interface RelationLine {
    * (ADR-0035); an aggregated relation is drawn as its relation type, a little wider.
    */
   stroke: Color;
+  /** The stroke drawn on the dark canvas, when it differs from `stroke` (core's `relationDarkStrokeOf`). */
+  darkStroke?: Color;
   width: number;
   dash: Dash;
   /**
@@ -539,6 +548,8 @@ function drawingOrder(layout: Layout, view: ViewFile, worldId: Id): readonly num
  */
 interface Look {
   appearance: ResolvedAppearance;
+  /** The colors drawn on the dark canvas, when they differ from the appearance's. */
+  dark?: { fill: Color; stroke: Color };
   componentName: string;
   details: Map<string, string>;
 }
@@ -614,6 +625,10 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
       componentName: componentOrEssence(definitions, element.component).name,
       details: new Map(),
     };
+    const dark = darkColorsOf(element, definitions);
+    if (dark.fill !== look.appearance.fill || dark.stroke !== look.appearance.stroke) {
+      look.dark = dark;
+    }
     kept.set(element, look);
   }
   return look;
@@ -1124,6 +1139,8 @@ function shapeFor(
     before.kind === appearance.shape &&
     before.fill === appearance.fill &&
     before.stroke === appearance.stroke &&
+    before.dark?.fill === look.dark?.fill &&
+    before.dark?.stroke === look.dark?.stroke &&
     before.rect.x === x &&
     before.rect.y === y &&
     before.rect.width === width &&
@@ -1164,6 +1181,7 @@ function shapeFor(
     if (position.height !== undefined) shape.storedSize.height = position.height;
   }
   if (folded !== undefined) shape.collapsed = { contents: folded };
+  if (look.dark) shape.dark = look.dark;
   return shape;
 }
 
@@ -1654,6 +1672,12 @@ function lineBetween(
     ends: { from: drawnEnd(spec.from), to: drawnEnd(spec.to), offset },
   };
   if (label) line.label = label;
+  // A relation's own stroke is drawn as stored; an aggregated relation takes its relation type's.
+  const darkStroke =
+    relation === undefined || members
+      ? relationType.darkStroke
+      : relationDarkStrokeOf(relation, definitions);
+  if (darkStroke !== stroke) line.darkStroke = darkStroke;
   if (relationType.direction === 'directed') line.arrowhead = arrowheadAt(beforeEnd, end, width);
   if (members) {
     line.aggregate = { relationType: spec.relationType, relations: members };
