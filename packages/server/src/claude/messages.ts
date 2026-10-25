@@ -13,7 +13,9 @@ import {
   ProtocolError,
   checkViewState,
   decodeServerMessage,
+  readCodeApprovals,
   readGuidance,
+  type CodeApproval,
   type Command,
   type Guidance,
   type ServerMessage,
@@ -36,7 +38,22 @@ export type ClaudeMessage =
    * Opens the app in the browser, at an address that works once; with a view state, the address
    * carries it, and the tab opens the project there (ADR-0044).
    */
-  | { type: 'open-app'; requestId: string; state?: ViewState };
+  | { type: 'open-app'; requestId: string; state?: ViewState }
+  /**
+   * Asks which code of the open project's packages the person approved (ADR 0054), so that Claude's
+   * tools run only approved code. Claude can never approve code: only the person can, in the app.
+   */
+  | { type: 'code-approvals'; requestId: string };
+
+/**
+ * The answer to `code-approvals`: the person's approvals of the code the project's packages hold now,
+ * and of no other code.
+ */
+export interface CodeApprovalsMessage {
+  type: 'code/approvals';
+  requestId: string;
+  approvals: CodeApproval[];
+}
 
 /** The answer to guidance: how many open apps it reached. */
 export interface GuidanceShownMessage {
@@ -52,7 +69,8 @@ export interface AppOpenedMessage {
 }
 
 /** A message the program sends to Claude. */
-export type ProgramMessage = ServerMessage | GuidanceShownMessage | AppOpenedMessage;
+export type ProgramMessage =
+  ServerMessage | GuidanceShownMessage | AppOpenedMessage | CodeApprovalsMessage;
 
 /** Writes a message for the Claude endpoint. */
 export function encodeClaudeMessage(message: ClaudeMessage | ProgramMessage): string {
@@ -81,6 +99,8 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
       if (!checked.ok) throw new ProtocolError(checked.message);
       return { type: 'open-app', requestId, state: checked.state };
     }
+    case 'code-approvals':
+      return { type: 'code-approvals', requestId };
     default:
       throw new ProtocolError(
         `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance and opening the app. Undo and redo are the person's, in the app.`,
@@ -103,6 +123,14 @@ export function decodeProgramMessage(text: string): ProgramMessage {
       const requestId = requestIdOf(message);
       if (requestId === undefined) throw new ProtocolError('The answer is not valid.');
       return { type: 'app/opened', requestId };
+    }
+    case 'code/approvals': {
+      const requestId = requestIdOf(message);
+      const approvals = readCodeApprovals(message.approvals);
+      if (requestId === undefined || approvals === undefined) {
+        throw new ProtocolError('The answer about approvals of package code is not valid.');
+      }
+      return { type: 'code/approvals', requestId, approvals };
     }
     default:
       return decodeServerMessage(text);
