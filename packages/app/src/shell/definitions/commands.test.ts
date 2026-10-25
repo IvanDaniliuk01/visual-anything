@@ -386,6 +386,26 @@ describe('stopUsingPackageCommand', () => {
     expect(executeCommand(state, command).ok).toBe(true);
     expect(refusalOf(project, stopUsingPackageCommand(project, 'clinic'))?.code).toBe('in-use');
   });
+
+  it('first takes its relation types out of the views that nest by them, as using it put them there', () => {
+    const state = after(project, startUsingPackageCommand(project, 'data-modeling', VIEW)!);
+    const command = stopUsingPackageCommand(state, 'data-modeling');
+    expect(command).toEqual({
+      type: 'batch',
+      label: 'Stop using the package "Data modeling"',
+      commands: [
+        {
+          type: 'update-view',
+          id: VIEW,
+          changes: { nestingRelationTypes: ['systems.is-part-of'] },
+        },
+        { type: 'update-project', changes: { packages: ['systems', 'clinic'] } },
+      ],
+    });
+    const stopped = after(state, command);
+    expect(stopped.views[0]?.nestingRelationTypes).toEqual(project.views[0]?.nestingRelationTypes);
+    expect(stopped.project).toEqual(project.project);
+  });
 });
 
 describe('usersOf', () => {
