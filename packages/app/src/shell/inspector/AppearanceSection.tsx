@@ -8,6 +8,7 @@ import {
 } from '@visual-anything/core';
 import type { Element } from '@visual-anything/schema';
 import { useId, useState, type ReactNode } from 'react';
+import { ElementImageTrait } from '../definitions/ElementImageTrait';
 import { ColorControl, SelectControl } from './controls';
 import { detailOf } from './detail';
 import { Detail, Mark } from './parts';
@@ -99,6 +100,7 @@ export function AppearanceSection({
             />
           )}
         </Trait>
+        <ElementImageTrait element={element} disabled={disabled} />
       </ul>
       {(own.width !== undefined || own.height !== undefined) && (
         <p className="inspector-notes">

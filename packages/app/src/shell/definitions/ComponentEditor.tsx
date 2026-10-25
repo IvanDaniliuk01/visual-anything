@@ -19,6 +19,8 @@ import { isBuiltInDefinition } from './commands';
 import { ConnectionPointsSection } from './ConnectionPointsSection';
 import { DetailSection } from './DetailSection';
 import { IdentitySection } from './IdentitySection';
+import { componentImageAction } from './imageCommands';
+import { ImageControl } from './ImageControl';
 import { BuiltInNote, Gone, RemoveDefinition } from './parts';
 import { TraitRow } from './TraitRow';
 import { sizeProblem, sourceText } from './traits';
@@ -225,13 +227,21 @@ function AppearanceTraits({ id, readOnly, update }: AppearanceTraitsProps) {
           )}
         </TraitRow>
         <TraitRow label="Image" group {...row('image')} inherit={() => update({ image: null })}>
-          {({ send }) => (
+          {({ send, describedBy }) => (
             <>
               <p className="definition-value">{imageName}</p>
-              {/*
-               * Choosing one of the images packages in use define, or adding one from a file, comes
-               * with images on the canvas: it sends `define-image`, then `{ image: { image: id } }`.
-               */}
+              {!readOnly && (
+                <ImageControl
+                  project={project}
+                  shown={image}
+                  disabled={readOnly}
+                  describedBy={describedBy}
+                  send={send}
+                  actionFor={(choice, options) =>
+                    componentImageAction(project, id, choice, options)
+                  }
+                />
+              )}
               {!readOnly && ownImage !== 'none' && (
                 <button
                   type="button"
