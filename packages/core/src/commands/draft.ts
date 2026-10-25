@@ -199,10 +199,24 @@ function isList(value: unknown): boolean {
   return Array.isArray(value);
 }
 
-/** Checks that a coordinate or size is a finite number, and a size positive. */
+/**
+ * How far from its origin a coordinate may be, either way, and how large a size may be, in canvas
+ * units, as the file format says: past it, a number in single precision no longer holds whole units.
+ */
+export const MAX_COORDINATE = 10_000_000;
+
+/** Checks that a coordinate or size is a finite number within the canvas, and a size positive. */
 export function requireNumber(value: unknown, what: string, positive = false): number {
   if (typeof value !== 'number' || !Number.isFinite(value) || (positive && value <= 0)) {
     reject('invalid-command', `${what} must be a ${positive ? 'positive ' : ''}number.`);
+  }
+  if (Math.abs(value) > MAX_COORDINATE) {
+    reject(
+      'invalid-command',
+      positive
+        ? `${what} must be at most 10,000,000.`
+        : `${what} must be from -10,000,000 to 10,000,000.`,
+    );
   }
   return value;
 }

@@ -1066,6 +1066,14 @@ export const messages: Catalog = {
   'A note needs text.': 'Una nota necesita texto.',
   'A width must be a positive number.': 'Un ancho debe ser un número positivo.',
   'A height must be a positive number.': 'Un alto debe ser un número positivo.',
+  'A width must be at most 10,000,000.': 'Un ancho debe ser de 10.000.000 como máximo.',
+  'A height must be at most 10,000,000.': 'Un alto debe ser de 10.000.000 como máximo.',
+  'x must be from -10,000,000 to 10,000,000.': 'x debe estar entre -10.000.000 y 10.000.000.',
+  'y must be from -10,000,000 to 10,000,000.': 'y debe estar entre -10.000.000 y 10.000.000.',
+  'The x of a bend point must be from -10,000,000 to 10,000,000.':
+    'La x de un punto de quiebre debe estar entre -10.000.000 y 10.000.000.',
+  'The y of a bend point must be from -10,000,000 to 10,000,000.':
+    'La y de un punto de quiebre debe estar entre -10.000.000 y 10.000.000.',
   'Command {n} of the batch: {why}': 'Comando {n} del lote: {why}',
   'No package in use defines the component "{id}".':
     'Ningún paquete en uso define el componente "{id}".',

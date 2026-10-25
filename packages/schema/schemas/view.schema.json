@@ -97,19 +97,25 @@
         },
         "x": {
           "type": "number",
-          "description": "The left edge, relative to the container's shape, or to the canvas when directly in World."
+          "description": "The left edge, relative to the container's shape, or to the canvas when directly in World.",
+          "minimum": -10000000,
+          "maximum": 10000000
         },
         "y": {
           "type": "number",
-          "description": "The top edge, relative to the container's shape, or to the canvas when directly in World."
+          "description": "The top edge, relative to the container's shape, or to the canvas when directly in World.",
+          "minimum": -10000000,
+          "maximum": 10000000
         },
         "width": {
           "type": "number",
-          "exclusiveMinimum": 0
+          "exclusiveMinimum": 0,
+          "maximum": 10000000
         },
         "height": {
           "type": "number",
-          "exclusiveMinimum": 0
+          "exclusiveMinimum": 0,
+          "maximum": 10000000
         },
         "pinned": {
           "type": "boolean",
@@ -184,18 +190,26 @@
           "$ref": "#/definitions/Id"
         },
         "x": {
-          "type": "number"
+          "type": "number",
+          "description": "Its left edge on the canvas.",
+          "minimum": -10000000,
+          "maximum": 10000000
         },
         "y": {
-          "type": "number"
+          "type": "number",
+          "description": "Its top edge on the canvas.",
+          "minimum": -10000000,
+          "maximum": 10000000
         },
         "width": {
           "type": "number",
-          "exclusiveMinimum": 0
+          "exclusiveMinimum": 0,
+          "maximum": 10000000
         },
         "height": {
           "type": "number",
-          "exclusiveMinimum": 0
+          "exclusiveMinimum": 0,
+          "maximum": 10000000
         },
         "text": {
           "type": "string"
@@ -260,10 +274,14 @@
       "type": "object",
       "properties": {
         "x": {
-          "type": "number"
+          "type": "number",
+          "minimum": -10000000,
+          "maximum": 10000000
         },
         "y": {
-          "type": "number"
+          "type": "number",
+          "minimum": -10000000,
+          "maximum": 10000000
         }
       },
       "required": [
@@ -271,7 +289,7 @@
         "y"
       ],
       "additionalProperties": false,
-      "description": "A point on the canvas, in canvas units."
+      "description": "A point on the canvas, in canvas units, at most ten million from its origin either way."
     },
     "StackingOrder": {
       "type": "object",

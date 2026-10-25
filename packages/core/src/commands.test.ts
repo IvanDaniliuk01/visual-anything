@@ -543,6 +543,37 @@ describe('views', () => {
     ).toEqual(['world-not-allowed']);
   });
 
+  it('refuses a coordinate or a size more than ten million canvas units from 0, as the file format does', () => {
+    const at = (position: { x: number; y: number; width?: number }) =>
+      run({
+        type: 'set-positions',
+        view: 'overview',
+        positions: [{ element: 'client', ...position }],
+      }).outcome;
+    expect(at({ x: 10_000_000, y: -10_000_000 }).ok).toBe(true);
+    for (const position of [
+      { x: 10_000_001, y: 0 },
+      { x: 0, y: -1e12 },
+      { x: 0, y: 0, width: 2e7 },
+    ]) {
+      const outcome = at(position);
+      expect(outcome.ok).toBe(false);
+      if (!outcome.ok) {
+        expect(outcome.problems[0]?.code).toBe('invalid-command');
+        expect(outcome.problems[0]?.message).toMatch(
+          /must be (at most|from -10,000,000 to) 10,000,000\.$/,
+        );
+      }
+    }
+    expect(
+      rejected({
+        type: 'create-free-shape',
+        view: 'overview',
+        shape: { kind: 'arrow', from: { x: 0, y: 0 }, to: { x: 3e7, y: 0 } },
+      }),
+    ).toEqual(['invalid-command']);
+  });
+
   it('sends many positions as one operation', () => {
     const state = testProject();
     for (let each = 0; each < 250; each++) {

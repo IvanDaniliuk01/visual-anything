@@ -534,13 +534,29 @@ export interface ShapePosition {
   element: Id;
   /** The container whose shape holds this one. Absent when the element sits directly in World. */
   container?: Id;
-  /** The left edge, relative to the container's shape, or to the canvas when directly in World. */
+  /**
+   * The left edge, relative to the container's shape, or to the canvas when directly in World.
+   *
+   * @minimum -10000000
+   * @maximum 10000000
+   */
   x: number;
-  /** The top edge, relative to the container's shape, or to the canvas when directly in World. */
+  /**
+   * The top edge, relative to the container's shape, or to the canvas when directly in World.
+   *
+   * @minimum -10000000
+   * @maximum 10000000
+   */
   y: number;
-  /** @exclusiveMinimum 0 */
+  /**
+   * @exclusiveMinimum 0
+   * @maximum 10000000
+   */
   width?: number;
-  /** @exclusiveMinimum 0 */
+  /**
+   * @exclusiveMinimum 0
+   * @maximum 10000000
+   */
   height?: number;
   /** Whether the position was set by hand. Layout arranges every other shape around pinned shapes. */
   pinned?: boolean;
@@ -557,11 +573,29 @@ export type FreeShape = Note | Arrow;
 export interface Note {
   kind: 'note';
   id: Id;
+  /**
+   * Its left edge on the canvas.
+   *
+   * @minimum -10000000
+   * @maximum 10000000
+   */
   x: number;
+  /**
+   * Its top edge on the canvas.
+   *
+   * @minimum -10000000
+   * @maximum 10000000
+   */
   y: number;
-  /** @exclusiveMinimum 0 */
+  /**
+   * @exclusiveMinimum 0
+   * @maximum 10000000
+   */
   width: number;
-  /** @exclusiveMinimum 0 */
+  /**
+   * @exclusiveMinimum 0
+   * @maximum 10000000
+   */
   height: number;
   text: string;
   /** Its fill; without one, the theme's note color. */
@@ -580,9 +614,17 @@ export interface Arrow {
   stroke?: Color;
 }
 
-/** A point on the canvas, in canvas units. */
+/** A point on the canvas, in canvas units, at most ten million from its origin either way. */
 export interface Point {
+  /**
+   * @minimum -10000000
+   * @maximum 10000000
+   */
   x: number;
+  /**
+   * @minimum -10000000
+   * @maximum 10000000
+   */
   y: number;
 }
 

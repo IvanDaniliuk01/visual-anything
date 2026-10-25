@@ -336,7 +336,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 **D2 · One executable per system.** Done when CI builds, for every tag `v*` and on demand, single executables for Windows x64, macOS arm64 and x64, and Linux x64 and arm64; each one, started on its own system with no Node installed, opens a sample project, serves it on 127.0.0.1 and opens the browser; `visual-anything mcp` lists the MCP tools; and the README says how to set up Claude Desktop and Claude Code with the executable.
 
 - [x] The server bundled into one script, and the built app read from embedded assets
-- [ ] Node single executable applications built and smoke-tested in CI on each system, macOS ones signed ad hoc
+- [x] Node single executable applications built and smoke-tested in CI on each system, macOS ones signed ad hoc
 - [ ] Release artifacts attached to a tag, with checksums
 
 **D3 · Installers and signing** (when Visual Anything is published). An MSI for Windows, a signed and notarized macOS app, a Linux AppImage or package, and updates.

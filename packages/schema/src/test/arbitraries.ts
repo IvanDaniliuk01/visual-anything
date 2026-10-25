@@ -50,6 +50,12 @@ const ids = (minLength = 0) => fc.uniqueArray(id, { minLength, maxLength: 3 });
 const name = fc.string({ unit: 'binary', minLength: 1, maxLength: 12 });
 const color = fc.stringMatching(/^#[0-9a-fA-F]{6}$/);
 const size = fc.double({ min: Number.MIN_VALUE, noNaN: true, noDefaultInfinity: true });
+/** A place on the canvas, at most ten million canvas units from its origin either way. */
+const coordinate = fc
+  .double({ min: -10_000_000, max: 10_000_000, noNaN: true })
+  .map((n) => (n === 0 ? 0 : n));
+/** The width or height of a shape on the canvas: positive and at most ten million. */
+const canvasSize = fc.double({ min: Number.MIN_VALUE, max: 10_000_000, noNaN: true });
 /** The width or height of an appearance: positive and at most 100,000. */
 const appearanceSize = fc.double({ min: Number.MIN_VALUE, max: 100_000, noNaN: true });
 const list = <T>(item: fc.Arbitrary<T>) => fc.array(item, { maxLength: 3 });
@@ -220,26 +226,29 @@ const position: fc.Arbitrary<ShapePosition> = fc.record(
   {
     element: id,
     container: id,
-    x: finite,
-    y: finite,
-    width: size,
-    height: size,
+    x: coordinate,
+    y: coordinate,
+    width: canvasSize,
+    height: canvasSize,
     pinned: fc.boolean(),
   },
   { requiredKeys: ['element', 'x', 'y'], noNullPrototype: true },
 );
 
-const point: fc.Arbitrary<Point> = fc.record({ x: finite, y: finite }, { noNullPrototype: true });
+const point: fc.Arbitrary<Point> = fc.record(
+  { x: coordinate, y: coordinate },
+  { noNullPrototype: true },
+);
 
 const freeShape: fc.Arbitrary<FreeShape> = fc.oneof(
   fc.record(
     {
       kind: fc.constant('note' as const),
       id,
-      x: finite,
-      y: finite,
-      width: size,
-      height: size,
+      x: coordinate,
+      y: coordinate,
+      width: canvasSize,
+      height: canvasSize,
       text,
       fill: color,
       stroke: color,
