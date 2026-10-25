@@ -499,6 +499,26 @@ describe('CanvasRenderer labels', () => {
 });
 
 describe('CanvasRenderer selection marks of thousands of shapes', () => {
+  it('clears only the chunks the marks drawn before used', async () => {
+    const project = syntheticProject({ elements: 4500 });
+    const renderer = await started();
+    renderer.show(indexScene(buildScene(project, 'everything')));
+    const all = selectionOf(
+      project.model.elements.map((element) => ({ kind: 'element', id: element.id })),
+    );
+    renderer.setSelection(all, undefined);
+    while (renderer.drawingMarks) renderer.renderNow();
+    const chunks = inside(renderer).selectionChunks;
+    expect(chunks.length).toBeGreaterThan(2);
+    renderer.setSelection(selectionOf([{ kind: 'element', id: 'system-0' }]), undefined);
+    const clears = chunks.map((chunk) => vi.spyOn(chunk, 'clear'));
+    renderer.setSelection(selectionOf([{ kind: 'element', id: 'system-1' }]), undefined);
+    // One chunk held the one mark; the others, already clear, are left alone.
+    expect(clears.map((clear) => clear.mock.calls.length)).toEqual(
+      chunks.map((_, at) => (at === 0 ? 1 : 0)),
+    );
+  });
+
   it('draws them a chunk a frame, so that no frame draws them all', async () => {
     const project = syntheticProject({ elements: 4500 });
     const renderer = await started();
