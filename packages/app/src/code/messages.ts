@@ -16,9 +16,12 @@ import type { Capability, Id } from '@visual-anything/schema';
 export interface RunPackage {
   package: Id;
   name: string;
+  /** The hash the person approved; the worker loads the code only when it is this code's. */
   hash: string;
   /** The module's text. */
   code: string;
+  /** Every capability the package declares, as its file does: with the text, what the hash is of. */
+  declared: string[];
   /** The capabilities granted to it. */
   granted: Capability[];
   /** How many of its calls stopped in a row before this, as the app counts them. */

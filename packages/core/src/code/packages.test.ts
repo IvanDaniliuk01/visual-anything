@@ -30,6 +30,7 @@ describe('packageCodeOf', () => {
       text: GAUGES.code?.join('\n'),
       hash: codeHash(GAUGES.code ?? [], ['time']),
       capabilities: ['time'],
+      declared: ['time'],
       tooLarge: false,
     });
     expect(packageCodeOf(TEST_PACKAGE)).toBeUndefined();

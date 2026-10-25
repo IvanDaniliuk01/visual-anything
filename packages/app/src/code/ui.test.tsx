@@ -26,7 +26,7 @@ const oven = project.model.elements.find((each) => each.id === 'oven')!;
 
 function harness(status: CodeStatus) {
   const store = new CodeStore();
-  const approve = vi.fn();
+  const approve = vi.fn(() => true);
   const withdraw = vi.fn();
   store.setActions({ approve, withdraw });
   store.set({
@@ -102,7 +102,7 @@ describe('package code in the inspector', () => {
     act(() => {
       fireEvent.click(screen.getByRole('button', { name: 'Approve and run' }));
     });
-    expect(approve).toHaveBeenCalledWith('gauges', ['model:read']);
+    expect(approve).toHaveBeenCalledWith('gauges', code.hash, code.capabilities, ['model:read']);
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 

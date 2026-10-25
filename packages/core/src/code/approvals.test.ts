@@ -20,6 +20,7 @@ const code: PackageCode = {
   text: 'export const a = 1;',
   hash: HASH,
   capabilities: ['model:read', 'network:https://status.example.com', 'time'],
+  declared: ['model:read', 'network:https://status.example.com', 'time'],
   tooLarge: false,
 };
 

@@ -22,6 +22,8 @@ export interface PackageCode {
   hash: string;
   /** The capabilities it declares that this build knows, sorted, each once. */
   capabilities: Capability[];
+  /** Every capability the file declares, as it declares them: what the hash is made of. */
+  declared: string[];
   /** Whether it is over 256 KiB, so that it never runs. */
   tooLarge: boolean;
 }
@@ -38,6 +40,7 @@ export function packageCodeOf(file: PackageFile): PackageCode | undefined {
     text,
     hash: codeHash(code, declared),
     capabilities: sortedCapabilities(declared.filter(isCapability)),
+    declared: [...declared],
     tooLarge:
       text.length > CODE_LIMITS.codeText ||
       code.length > CODE_LIMITS.lines ||

@@ -112,6 +112,7 @@ export function usePackageCode({
                 name: code.name,
                 hash: code.hash,
                 code: code.text,
+                declared: code.declared,
                 granted: status.granted,
               },
             ]
@@ -148,14 +149,18 @@ export function usePackageCode({
     }
   }, [codes, approvals, notify, t]);
 
+  // The approval is of the code the person read: refused when the package's code is another now.
   const approve = useCallback(
-    (pkg: Id, granted: readonly Capability[]) => {
+    (pkg: Id, reviewed: string, shown: readonly Capability[], granted: readonly Capability[]) => {
       const code = codes.find((each) => each.package === pkg);
-      if (!code) return;
-      const capabilities = granted.filter((each) => code.capabilities.includes(each));
+      if (!code || code.hash !== reviewed) return false;
+      const capabilities = granted.filter(
+        (each) => shown.includes(each) && code.capabilities.includes(each),
+      );
       change({
-        codeApprovals: withApproval(approvals, { hash: code.hash, package: pkg, capabilities }),
+        codeApprovals: withApproval(approvals, { hash: reviewed, package: pkg, capabilities }),
       });
+      return true;
     },
     [codes, approvals, change],
   );

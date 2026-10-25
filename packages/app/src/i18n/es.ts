@@ -1381,6 +1381,8 @@ export const ui: Catalog = {
   'Fetch from {origin}, through Visual Anything':
     'Traer datos de {origin}, a través de Visual Anything',
   'The code of “{name}”': 'El código de “{name}”',
+  'The code changed while it was open here: this is the code as it is now, and nothing was approved.':
+    'El código cambió mientras estaba abierto aquí: este es el código tal como es ahora, y no se aprobó nada.',
   'It runs in a sandbox, with no access to your files, the page or the network beyond what you grant below. Approve it only if you trust where it comes from.':
     'Se ejecuta aislado, sin acceso a los archivos, a la página ni a la red más allá de lo que se conceda abajo. Aprobarlo solo si se confía en su origen.',
   'It is over 256 KiB, so it never runs, approved or not.':

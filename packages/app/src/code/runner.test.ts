@@ -25,6 +25,7 @@ function runPackage(code: string[] = GAUGES_CODE, extra: Partial<RunPackage> = {
     hash: codeHash(code, []),
     code: code.join('\n'),
     granted: [],
+    declared: [],
     stops: 0,
     ...extra,
   };
@@ -176,6 +177,27 @@ describe('the code runner', () => {
     expect(it.elements.size).toBe(0);
   });
 
+  it('loads only the code whose hash was approved, never other code under that hash', async () => {
+    const it = harness();
+    const approved = codeHash(GAUGES_CODE, []);
+    await it.run(
+      { kind: 'project', project: codeProject() },
+      {
+        kind: 'packages',
+        packages: [
+          runPackage(['export function attributes() { return { other: 1 }; }'], {
+            hash: approved,
+          }),
+        ],
+      },
+    );
+    expect(it.packages.get('gauges')).toMatchObject({
+      state: 'failed',
+      problem: { code: 'code-not-approved' },
+    });
+    expect(it.elements.size).toBe(0);
+  });
+
   it('says a module that does not load failed, on the package', async () => {
     const it = harness();
     await it.run(
@@ -212,7 +234,11 @@ describe('the code runner', () => {
       {
         kind: 'packages',
         packages: [
-          runPackage(code, { granted: ['model:read'], hash: codeHash(code, ['model:read']) }),
+          runPackage(code, {
+            granted: ['model:read'],
+            declared: ['model:read'],
+            hash: codeHash(code, ['model:read']),
+          }),
         ],
       },
     );

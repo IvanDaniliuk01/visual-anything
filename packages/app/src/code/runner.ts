@@ -12,11 +12,13 @@ import {
   checkDrawAnswer,
   checkProblemsAnswer,
   checkedProblem,
+  codeHash,
   codePackagesOn,
   hookInputOf,
   imagesIn,
   loadProblem,
   modelReaderOf,
+  notApprovedProblem,
   offProblem,
   type Drawing,
   type HookName,
@@ -194,6 +196,15 @@ export class CodeRunner {
       let run: PackageRun;
       if (request.stops >= CODE_LIMITS.stopsBeforeOff) {
         run = off(request.package, request.stops, offProblem(named));
+      } else if (codeHash(request.code.split('\n'), request.declared) !== request.hash) {
+        // Only the code the person approved runs: never other code under its hash.
+        run = {
+          package: request.package,
+          state: 'failed',
+          hooks: [],
+          problem: notApprovedProblem(named),
+          stops: request.stops,
+        };
       } else {
         const loaded = sandbox.load({
           package: request.package,

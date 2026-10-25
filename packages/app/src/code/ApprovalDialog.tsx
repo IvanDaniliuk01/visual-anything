@@ -15,12 +15,19 @@ import './code.css';
 
 interface ApprovalDialogProps {
   view: PackageCodeView;
-  onApprove: (granted: Capability[]) => void;
+  /** Whether the code changed since the review opened, so that what shows is new. */
+  changed?: boolean;
+  /** Approves the code shown, by its hash and with the capabilities shown, those granted. */
+  onApprove: (reviewed: string, shown: Capability[], granted: Capability[]) => void;
   onWithdraw: () => void;
   onClose: () => void;
 }
 
-/** The approval dialog of the package being reviewed, while one is; nothing otherwise. */
+/**
+ * The approval dialog of the package being reviewed, while one is; nothing otherwise. A new code
+ * shows in a dialog of its own, saying that it changed, and an approval of the code shown before it
+ * approves nothing.
+ */
 export function CodeApproval() {
   const code = useCode();
   const pkg = code?.reviewing;
@@ -30,9 +37,10 @@ export function CodeApproval() {
     <ApprovalDialog
       key={view.code.hash}
       view={view}
-      onApprove={(granted) => {
-        code.approve(pkg, granted);
-        code.review(undefined);
+      changed={code.reviewedHash !== undefined && code.reviewedHash !== view.code.hash}
+      onApprove={(reviewed, shown, granted) => {
+        // Refused when the code is another by now: the dialog stays, and shows the new code.
+        if (code.approve(pkg, reviewed, shown, granted)) code.review(undefined);
       }}
       onWithdraw={() => {
         code.withdraw(pkg);
@@ -43,7 +51,13 @@ export function CodeApproval() {
   );
 }
 
-export function ApprovalDialog({ view, onApprove, onWithdraw, onClose }: ApprovalDialogProps) {
+export function ApprovalDialog({
+  view,
+  changed = false,
+  onApprove,
+  onWithdraw,
+  onClose,
+}: ApprovalDialogProps) {
   const t = useT();
   const dialog = useRef<HTMLDivElement>(null);
   useModalFocus(dialog);
@@ -74,6 +88,13 @@ export function ApprovalDialog({ view, onApprove, onWithdraw, onClose }: Approva
         }}
       >
         <h2 id={titleId}>{t('The code of “{name}”', { name: code.name })}</h2>
+        {changed && (
+          <p className="inspector-warning" role="alert">
+            {t(
+              'The code changed while it was open here: this is the code as it is now, and nothing was approved.',
+            )}
+          </p>
+        )}
         <p>
           {t(
             'It runs in a sandbox, with no access to your files, the page or the network beyond what you grant below. Approve it only if you trust where it comes from.',
@@ -130,7 +151,13 @@ export function ApprovalDialog({ view, onApprove, onWithdraw, onClose }: Approva
             <button
               type="button"
               className="dialog-confirm"
-              onClick={() => onApprove(code.capabilities.filter((each) => granted.has(each)))}
+              onClick={() =>
+                onApprove(
+                  code.hash,
+                  [...code.capabilities],
+                  code.capabilities.filter((each) => granted.has(each)),
+                )
+              }
             >
               {approved ? t('Keep approved') : t('Approve and run')}
             </button>

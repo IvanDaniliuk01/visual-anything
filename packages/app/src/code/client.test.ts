@@ -50,7 +50,14 @@ function harness() {
 }
 
 const project = codeProject();
-const gauges = { package: 'gauges', name: 'Gauges', hash: 'a'.repeat(64), code: 'x', granted: [] };
+const gauges = {
+  package: 'gauges',
+  name: 'Gauges',
+  hash: 'a'.repeat(64),
+  code: 'x',
+  declared: [],
+  granted: [],
+};
 
 describe('the code host', () => {
   it('starts no worker while the project has no approved code', () => {

@@ -31,14 +31,24 @@ export interface CodeState {
   drawings: ReadonlyMap<Id, Drawing>;
   /** The package whose code the approval dialog shows, while it is open. */
   reviewing?: Id;
+  /** The hash its code had when the dialog opened, to say when it changed under the person. */
+  reviewedHash?: string;
 }
 
 /** What the person does with package code. */
 export interface CodeActions {
   /** Opens the dialog that shows a package's code and asks to approve it; undefined closes it. */
   review: (pkg: Id | undefined) => void;
-  /** Approves a package's code as it is now, granting these of the capabilities it declares. */
-  approve: (pkg: Id, granted: readonly Capability[]) => void;
+  /**
+   * Approves the code the person reviewed, by the hash it had and with the capabilities shown, those
+   * granted among them; false, approving nothing, when the package's code is another by now.
+   */
+  approve: (
+    pkg: Id,
+    reviewed: string,
+    shown: readonly Capability[],
+    granted: readonly Capability[],
+  ) => boolean;
   /** Withdraws the approval of a package's code as it is now: it stops running. */
   withdraw: (pkg: Id) => void;
 }
@@ -55,10 +65,10 @@ export const NO_CODE: CodeState = Object.freeze({
 export class CodeStore {
   private state: CodeState = NO_CODE;
   private readonly listeners = new Set<() => void>();
-  private kept: Omit<CodeActions, 'review'> = { approve: () => {}, withdraw: () => {} };
+  private kept: Omit<CodeActions, 'review'> = { approve: () => false, withdraw: () => {} };
   readonly actions: CodeActions = {
     review: (pkg) => this.review(pkg),
-    approve: (pkg, granted) => this.kept.approve(pkg, granted),
+    approve: (pkg, reviewed, shown, granted) => this.kept.approve(pkg, reviewed, shown, granted),
     withdraw: (pkg) => this.kept.withdraw(pkg),
   };
 
@@ -72,7 +82,7 @@ export class CodeStore {
   readonly snapshot = (): CodeState => this.state;
 
   /** What package code stands at and answered now; the dialog stays as it is. */
-  set(state: Omit<CodeState, 'reviewing'>): void {
+  set(state: Omit<CodeState, 'reviewing' | 'reviewedHash'>): void {
     if (
       state.packages === this.state.packages &&
       state.elements === this.state.elements &&
@@ -80,9 +90,13 @@ export class CodeStore {
     ) {
       return;
     }
+    const { reviewing, reviewedHash } = this.state;
     this.change({
-      ...state,
-      ...(this.state.reviewing === undefined ? {} : { reviewing: this.state.reviewing }),
+      packages: state.packages,
+      elements: state.elements,
+      drawings: state.drawings,
+      ...(reviewing === undefined ? {} : { reviewing }),
+      ...(reviewedHash === undefined ? {} : { reviewedHash }),
     });
   }
 
@@ -94,7 +108,14 @@ export class CodeStore {
   private review(pkg: Id | undefined): void {
     if (pkg === this.state.reviewing) return;
     const { packages, elements, drawings } = this.state;
-    this.change({ packages, elements, drawings, ...(pkg === undefined ? {} : { reviewing: pkg }) });
+    const hash = pkg === undefined ? undefined : packages.get(pkg)?.code.hash;
+    this.change({
+      packages,
+      elements,
+      drawings,
+      ...(pkg === undefined ? {} : { reviewing: pkg }),
+      ...(hash === undefined ? {} : { reviewedHash: hash }),
+    });
   }
 
   private change(state: CodeState): void {
