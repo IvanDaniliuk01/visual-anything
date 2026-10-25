@@ -114,7 +114,7 @@ describe('a Mermaid flowchart', () => {
       },
       {
         text: 'click pay "https://pay.example.com" "Open the provider"',
-        why: 'Links and callbacks are never followed.',
+        why: 'Web addresses and callbacks are never followed.',
       },
       {
         text: 'style web fill:#ffd',
@@ -172,10 +172,10 @@ describe('a Mermaid flowchart', () => {
       'stadium',
       'double-circle',
     ]);
-    // An invisible link only spaces shapes out: it brings no relation, and says so.
+    // An invisible line only spaces shapes out: it brings no relation, and says so.
     expect(more.unmatched).toContainEqual({
       text: 'k ~~~ l',
-      why: 'An invisible link only spaces shapes out, so it brings no relation.',
+      why: 'An invisible line only spaces shapes out, so it brings no relation.',
     });
     expect(more.elements.map((each) => each.key)).toContain('l');
   });
@@ -305,7 +305,7 @@ describe('a Mermaid C4 diagram', () => {
 
   it('reports links, styles and layout it does not follow or read', () => {
     expect(plan.unmatched).toEqual([
-      { text: '$link="https://example.com/api"', why: 'Links and callbacks are never followed.' },
+      { text: '$link="https://example.com/api"', why: 'Web addresses and callbacks are never followed.' },
       {
         text: 'UpdateRelStyle(patient, whatsapp, $textColor="blue")',
         why: 'Styles are not read: the components’ appearances draw the shapes.',
@@ -442,13 +442,13 @@ describe('a Mermaid class diagram', () => {
       },
       {
         text: 'click Duck href "https://example.com/duck"',
-        why: 'Links and callbacks are never followed.',
+        why: 'Web addresses and callbacks are never followed.',
       },
       {
         text: 'link Fish "https://example.com/fish"',
-        why: 'Links and callbacks are never followed.',
+        why: 'Web addresses and callbacks are never followed.',
       },
-      { text: 'callback Animal "showAnimal"', why: 'Links and callbacks are never followed.' },
+      { text: 'callback Animal "showAnimal"', why: 'Web addresses and callbacks are never followed.' },
     ]);
   });
 });
@@ -469,7 +469,7 @@ describe('hostile Mermaid', () => {
     });
     expect(plan.unmatched).toContainEqual({
       text: 'click A call alert("x")',
-      why: 'Links and callbacks are never followed.',
+      why: 'Web addresses and callbacks are never followed.',
     });
   });
 
@@ -545,7 +545,7 @@ describe('hostile Mermaid', () => {
   it('reports a line it cannot read, and reads on', () => {
     const plan = read('flowchart LR\n  a --> b\n  a -->\n  c --> d');
     expect(plan.unmatched).toEqual([
-      { text: 'a -->', why: 'This line is not read: it is not a node, an edge or a subgraph.' },
+      { text: 'a -->', why: 'This line is not read: it is not a shape, an arrow or a subgraph.' },
     ]);
     expect(relations(plan)).toEqual([
       ['a', 'b', 'arrow'],

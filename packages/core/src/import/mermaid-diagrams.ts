@@ -14,7 +14,7 @@ import { C4_ELEMENTS, C4_RELATIONS, ER_KINDS } from './suggest';
 import { importedName, oneLine } from './text';
 
 const STYLES = 'Styles are not read: the components’ appearances draw the shapes.';
-const LINKS = 'Links and callbacks are never followed.';
+const LINKS = 'Web addresses and callbacks are never followed.';
 const IMAGES = 'Images in imports are left out; a component’s own image shows instead.';
 const NOT_READ = 'This line is not read.';
 
@@ -206,7 +206,7 @@ export const readC4: DiagramReader = (all, makeBuilder) => {
     if (missing !== undefined) {
       builder.report(
         relation.statement,
-        `The relationship ends on "${missing}", which the diagram does not define.`,
+        `The relation ends on "${missing}", which the diagram does not define.`,
       );
       continue;
     }
@@ -357,7 +357,7 @@ export const readErDiagram: DiagramReader = (all, makeBuilder) => {
   }
   if (inside !== undefined) {
     return {
-      problems: [`The entity "${inside.key}" that starts on line ${inside.line} never ends.`],
+      problems: [`The block of "${inside.key}" that starts on line ${inside.line} never ends.`],
     };
   }
   return { builder };
@@ -611,7 +611,7 @@ export const readClassDiagram: DiagramReader = (all, makeBuilder) => {
     builder.report(text, NOT_READ);
   }
   if (body !== undefined) {
-    return { problems: [`The class "${body.key}" that starts on line ${body.line} never ends.`] };
+    return { problems: [`The block of "${body.key}" that starts on line ${body.line} never ends.`] };
   }
   if (namespace !== undefined) {
     return {

@@ -34,7 +34,7 @@ describe('readImport', () => {
     expect(readImport({ name: 'notes.txt', text: 'Just some words.' })).toEqual({
       ok: false,
       problems: [
-        'Visual Anything cannot tell how to read this file. It imports these formats: JSON, Mermaid and Spreadsheet (CSV or TSV).',
+        'Visual Anything cannot tell how to read this file. It imports these formats: JSON, Mermaid and Spreadsheet.',
       ],
     });
     expect(readImport({ name: 'x', text: '' }, { format: 'visio' })).toEqual({

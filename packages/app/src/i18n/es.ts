@@ -2449,6 +2449,163 @@ export const messages: Catalog = {
   '"recentColors" holds {n} colors, more than {limit}.':
     '"recentColors" tiene {n} colores, más de {limit}.',
   '"{name}" must be true or false, not {value}.': '"{name}" debe ser true o false, no {value}.',
+
+  // Imports (ADR 0042): the action, what the plan cannot be, and why a reader left something out.
+  'Import "{name}"': 'Importar "{name}"',
+  JSON: 'JSON',
+  Mermaid: 'Mermaid',
+  Spreadsheet: 'Hoja de cálculo',
+  'The file holds {limit} elements; an import brings at most {m}.':
+    'El archivo tiene {limit} elementos; una importación trae como máximo {m}.',
+  'The file holds {limit} relations, those that put one thing inside another included; an import brings at most {m}.':
+    'El archivo tiene {limit} relaciones, contando las que ponen una cosa dentro de otra; una importación trae como máximo {m}.',
+  'The file holds {limit} views; an import brings at most {m}.':
+    'El archivo tiene {limit} vistas; una importación trae como máximo {m}.',
+  'The file holds {limit} positions and bend points; an import brings at most {m}.':
+    'El archivo tiene {limit} posiciones y puntos de quiebre; una importación trae como máximo {m}.',
+  'The file holds more than {limit} elements; an import brings at most {m}.':
+    'El archivo tiene más de {limit} elementos; una importación trae como máximo {m}.',
+  'The file holds more than {limit} relations, those that put one thing inside another included; an import brings at most {m}.':
+    'El archivo tiene más de {limit} relaciones, contando las que ponen una cosa dentro de otra; una importación trae como máximo {m}.',
+  'The file holds more rows than an import brings: at most {limit}.':
+    'El archivo tiene más filas de las que trae una importación: como máximo {limit}.',
+  'The plan uses the key "{key}" twice.': 'El plan usa la clave "{key}" dos veces.',
+  'No component is chosen for "{kind}".': 'No se eligió ningún componente para "{kind}".',
+  'No relation type is chosen for "{kind}".': 'No se eligió ningún tipo de relación para "{kind}".',
+  'The relation "{key}" ends on something the plan does not hold.':
+    'La relación "{key}" termina en algo que el plan no tiene.',
+  'No relation type that nests is chosen for what sits inside what.':
+    'No se eligió ningún tipo de relación que anida para lo que está dentro de qué.',
+  '"{element}" sits inside "{container}", which the plan does not hold.':
+    '"{element}" está dentro de "{container}", que el plan no tiene.',
+  'The file is larger than 32 MiB; an import reads at most 32 MiB.':
+    'El archivo pesa más de 32 MiB; una importación lee como máximo 32 MiB.',
+  'Visual Anything cannot tell how to read this file.':
+    'Visual Anything no puede saber cómo leer este archivo.',
+  'It imports these formats: {kinds}.': 'Importa estos formatos: {kinds}.',
+  'There is no import reader for "{format}".':
+    'No hay ningún lector de importación para "{format}".',
+  'Not listed here: {limit} more that matched nothing.':
+    'No se listan aquí otras {limit} cosas que no coincidieron con nada.',
+  'The name is longer than {limit} characters, so it is cut.':
+    'El nombre tiene más de {limit} caracteres, así que se recorta.',
+  'The description is longer than {limit} characters, so it is cut.':
+    'La descripción tiene más de {limit} caracteres, así que se recorta.',
+  'It would sit inside "{container}", which sits inside it, so it stays where it was.':
+    'Quedaría dentro de "{container}", que está dentro de él, así que queda donde estaba.',
+  'It would sit more than {limit} containers deep, so it stays where it was.':
+    'Quedaría a más de {limit} contenedores de profundidad, así que queda donde estaba.',
+  // What Mermaid diagrams hold that is not read.
+  'The text holds no Mermaid diagram.': 'El texto no tiene nada de Mermaid que se pueda leer.',
+  '"{keyword}" diagrams are not read: Visual Anything reads Mermaid flowcharts, and C4, ER and class diagrams.':
+    'Los textos "{keyword}" no se leen: de Mermaid, Visual Anything lee flowchart, C4, erDiagram y classDiagram.',
+  'The front matter that starts on line {n} never ends.':
+    'El encabezado que empieza en la línea {n} nunca termina.',
+  'The subgraph "{name}" that starts on line {n} never ends.':
+    'El subgrafo "{name}" que empieza en la línea {n} nunca termina.',
+  'The boundary "{name}" that starts on line {n} never ends.':
+    'El límite "{name}" que empieza en la línea {n} nunca termina.',
+  'The block of "{name}" that starts on line {n} never ends.':
+    'El bloque de "{name}" que empieza en la línea {n} nunca termina.',
+  'The namespace "{name}" that starts on line {n} never ends.':
+    'El espacio de nombres "{name}" que empieza en la línea {n} nunca termina.',
+  'Directives are not read.': 'Las directivas no se leen.',
+  'Styles are not read: the components’ appearances draw the shapes.':
+    'Los estilos no se leen: las formas se dibujan con la apariencia de sus componentes.',
+  'Layout settings are not read: Visual Anything lays the view out itself.':
+    'Las opciones de diseño no se leen: Visual Anything organiza la vista por su cuenta.',
+  'Web addresses and callbacks are never followed.':
+    'Las direcciones web y las llamadas nunca se siguen.',
+  'Images in imports are left out; a component’s own image shows instead.':
+    'Las imágenes de una importación se dejan afuera; en su lugar se muestra la imagen del componente.',
+  'Notes are not read: add notes on the canvas instead.':
+    'Las notas no se leen: agregar notas en el lienzo en su lugar.',
+  'An invisible line only spaces shapes out, so it brings no relation.':
+    'Una línea invisible solo separa formas, así que no trae ninguna relación.',
+  'This line is not read.': 'Esta línea no se lee.',
+  'This line is not read: it is not a shape, an arrow or a subgraph.':
+    'Esta línea no se lee: no es una forma, una flecha ni un subgrafo.',
+  'This line is not read: it is not an attribute, written as type and name.':
+    'Esta línea no se lee: no es un atributo, escrito como tipo y nombre.',
+  'This line ends no subgraph, so it is not read.':
+    'Esta línea no cierra ningún subgrafo, así que no se lee.',
+  'This line ends no boundary, so it is not read.':
+    'Esta línea no cierra ningún límite, así que no se lee.',
+  'This line is longer than {limit} characters, so it is not read.':
+    'Esta línea tiene más de {limit} caracteres, así que no se lee.',
+  'This attribute is listed twice, so it is read once.':
+    'Este atributo aparece dos veces, así que se lee una sola vez.',
+  'The relation ends on "{name}", which the diagram does not define.':
+    'La relación termina en "{name}", que el archivo no define.',
+  // What spreadsheets hold that is not read.
+  'The spreadsheet holds no table.': 'La hoja de cálculo no tiene ninguna tabla.',
+  'A quote that opens on line {n} never closes.':
+    'Unas comillas que se abren en la línea {n} nunca se cierran.',
+  'The table that starts on line {n} has no name or id column for elements, and no from and to columns for relations.':
+    'La tabla que empieza en la línea {n} no tiene columna de nombre ni de id para elementos, ni columnas de origen y destino para relaciones.',
+  'The spreadsheet has no column "{name}" to match its rows by.':
+    'La hoja de cálculo no tiene ninguna columna "{name}" para emparejar sus filas.',
+  'This column has no header, so it is not read.':
+    'Esta columna no tiene encabezado, así que no se lee.',
+  'This column repeats the header "{name}", so it is not read.':
+    'Esta columna repite el encabezado "{name}", así que no se lee.',
+  'No attribute may be named "{name}", so this column is not read.':
+    'Ningún atributo puede llamarse "{name}", así que esta columna no se lee.',
+  'No attribute may be named "{name}", so it is left out.':
+    'Ningún atributo puede llamarse "{name}", así que se deja afuera.',
+  'The id "{id}" is given to an earlier row, so this row is left out.':
+    'El id "{id}" ya lo tiene una fila anterior, así que esta fila se deja afuera.',
+  'The id "{id}" is given to an earlier element, so this one is left out.':
+    'El id "{id}" ya lo tiene un elemento anterior, así que este se deja afuera.',
+  'The id "{id}" is given to an earlier relation, so this one is left out.':
+    'El id "{id}" ya lo tiene una relación anterior, así que esta se deja afuera.',
+  'This row has no name or id, so it is left out.':
+    'Esta fila no tiene nombre ni id, así que se deja afuera.',
+  'This row has no from or no to, so it is left out.':
+    'A esta fila le falta el origen o el destino, así que se deja afuera.',
+  '"{name}" names no element of the file or the project, so the row is left out.':
+    '"{name}" no nombra ningún elemento del archivo ni del proyecto, así que la fila se deja afuera.',
+  '"{name}" names no element of the file or the project, so the relation is left out.':
+    '"{name}" no nombra ningún elemento del archivo ni del proyecto, así que la relación se deja afuera.',
+  '"{name}" names no element of the file or the project, so this row sits in no container.':
+    '"{name}" no nombra ningún elemento del archivo ni del proyecto, así que esta fila no queda en ningún contenedor.',
+  '"{name}" names no element of the file or the project, so this element sits in no container.':
+    '"{name}" no nombra ningún elemento del archivo ni del proyecto, así que este elemento no queda en ningún contenedor.',
+  '"{name}" names {n} elements of the file, so the row is left out.':
+    '"{name}" nombra {n} elementos del archivo, así que la fila se deja afuera.',
+  '"{name}" names {n} elements of the file, so it is left out.':
+    '"{name}" nombra {n} elementos del archivo, así que se deja afuera.',
+  '"{name}" names {n} elements of the project, so the row is left out.':
+    '"{name}" nombra {n} elementos del proyecto, así que la fila se deja afuera.',
+  '"{name}" names {n} elements of the project, so it is left out.':
+    '"{name}" nombra {n} elementos del proyecto, así que se deja afuera.',
+  '"{name}" matches {n} elements of the project, so the row is left out.':
+    '"{name}" coincide con {n} elementos del proyecto, así que la fila se deja afuera.',
+  '"{name}" matches {n} elements of the project, so it is left out.':
+    '"{name}" coincide con {n} elementos del proyecto, así que se deja afuera.',
+  // What JSON files hold that is not read.
+  'The file is not valid JSON: {reason}': 'El archivo no es JSON válido: {reason}',
+  'The file nests more than {limit} levels deep.':
+    'El archivo anida más de {limit} niveles de profundidad.',
+  'The file holds neither a model, with world, elements and relations, nor a list of elements and relations.':
+    'El archivo no tiene ni un modelo, con world, elements y relations, ni una lista de elementos y relaciones.',
+  'The file as a whole {why}.': 'El archivo completo {why}.',
+  '{path} in the file {why}.': '{path} en el archivo {why}.',
+  'Its own appearance is left out: an import brings no appearances.':
+    'Su apariencia propia se deja afuera: una importación no trae apariencias.',
+  'An import gives a relation no description, so its description is kept as its attribute "description".':
+    'Una importación no da descripción a las relaciones, así que su descripción se guarda en su atributo "description".',
+  'It ends on World, which an import does not bring, so it is left out.':
+    'Termina en Mundo, que una importación no trae, así que se deja afuera.',
+  'It ends on "{name}", which the file does not hold, so it is left out.':
+    'Termina en "{name}", que el archivo no tiene, así que se deja afuera.',
+  'It ends on a relation that ends on it in turn, so it is left out.':
+    'Termina en una relación que a su vez termina en ella, así que se deja afuera.',
+  'It ends on a relation that is left out, so it is left out too.':
+    'Termina en una relación que se deja afuera, así que también se deja afuera.',
+  // What importing again leaves out.
+  'The project already has this relation, so it is not created again.':
+    'El proyecto ya tiene esta relación, así que no se vuelve a crear.',
 };
 
 /**

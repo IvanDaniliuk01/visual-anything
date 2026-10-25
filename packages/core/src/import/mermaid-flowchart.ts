@@ -102,7 +102,7 @@ const NAMED_SHAPES: Readonly<Record<string, string>> = {
 };
 
 const STYLES = 'Styles are not read: the components’ appearances draw the shapes.';
-const LINKS = 'Links and callbacks are never followed.';
+const LINKS = 'Web addresses and callbacks are never followed.';
 const IMAGES = 'Images in imports are left out; a component’s own image shows instead.';
 
 /** A node as the statement wrote it, before it is added. */
@@ -244,7 +244,7 @@ export const readFlowchart: DiagramReader = (lines, makeBuilder) => {
       if (chain === undefined) {
         builder.report(
           statement,
-          'This line is not read: it is not a node, an edge or a subgraph.',
+          'This line is not read: it is not a shape, an arrow or a subgraph.',
         );
         continue;
       }
@@ -260,7 +260,7 @@ export const readFlowchart: DiagramReader = (lines, makeBuilder) => {
         if (edge.invisible) {
           builder.report(
             statement,
-            'An invisible link only spaces shapes out, so it brings no relation.',
+            'An invisible line only spaces shapes out, so it brings no relation.',
           );
           return;
         }

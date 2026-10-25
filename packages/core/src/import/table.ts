@@ -84,7 +84,7 @@ function normal(header: string): string {
 /** The spreadsheet reader, as the import dialog, the command line and Claude's tools list it. */
 export const TABLE: ImportReader = {
   format: 'table',
-  name: 'Spreadsheet (CSV or TSV)',
+  name: 'Spreadsheet',
   extensions: ['.csv', '.tsv', '.tab'],
   recognizes: (input) => hasExtension(input.name, TABLE.extensions) || looksLikeTable(input.text),
   read: (input, options) => readTable(input, options),
