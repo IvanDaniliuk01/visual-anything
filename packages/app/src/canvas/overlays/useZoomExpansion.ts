@@ -64,6 +64,20 @@ export class ZoomExpansion {
 /** The shell's expanding by zoom; none where nothing expands, as in tests of the canvas alone. */
 export const ZoomExpansionContext = createContext<ZoomExpansion | null>(null);
 
+/**
+ * The containers of `ids` a collapse still has to collapse with a command: those the zoom shows
+ * expanded are collapsed again by the zoom alone, since the view keeps them collapsed already.
+ */
+export function withoutZoomExpanded(
+  store: ZoomExpansion | null,
+  viewId: Id,
+  ids: readonly Id[],
+): Id[] {
+  if (!store) return [...ids];
+  const taken = new Set(store.collapseAgain(viewId, ids));
+  return ids.filter((id) => !taken.has(id));
+}
+
 /** The containers of the open view shown expanded by zoom, the same set while they are the same ones. */
 export function useExpandedByZoom(store: ZoomExpansion, viewId: Id | undefined): ReadonlySet<Id> {
   return useSyncExternalStore(store.subscribe, () => store.expandedIn(viewId));

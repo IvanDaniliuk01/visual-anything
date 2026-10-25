@@ -24,11 +24,13 @@ import {
   type GraphicsContext,
   type Texture,
 } from 'pixi.js';
-import type { ThemeName } from '@visual-anything/core';
+import type { Legend, ThemeName } from '@visual-anything/core';
 import type { Id, LevelOfDetail } from '@visual-anything/schema';
 import { levelDetail, type TileDetail } from './levels';
 import type { Emphasis } from '../editor/emphasis';
 import { ImageError, drawInChunks, planImage, toPng, type ImageRequest } from '../export/image';
+import { withLegendBand } from '../export/legendBand';
+import { t } from '../i18n';
 import type { Selection } from '../editor/selection';
 import { EMPTY_SELECTION } from '../editor/selection';
 import { visibleRect, type Camera, type Inset, fitCamera } from './camera';
@@ -1193,8 +1195,19 @@ export class CanvasRenderer {
       for (const step of putBack.reverse()) step();
       this.requestRender();
     }
-    return toPng(canvas);
+    // The legend of the view's overlays goes in a band below the drawing (ADR 0055).
+    const legend = this.legend;
+    return toPng(
+      legend ? withLegendBand(canvas, legend, t, this.painter.name, request.scale) : canvas,
+    );
   }
+
+  /** The legend of the open view's overlays, which an image draws in a band below it (ADR 0055). */
+  setLegend(legend: Legend | undefined): void {
+    this.legend = legend;
+  }
+
+  private legend: Legend | undefined;
 
   /**
    * Lets go of what an image drew for a tile that the canvas had not drawn so, unless the tile is

@@ -10,6 +10,7 @@ import { countsOf } from './inspector/describe';
 import { ElementInspector } from './inspector/ElementInspector';
 import { FreeShapeAppearance } from './inspector/FreeShapeAppearance';
 import { inspectedKey, inspectedOf } from './inspector/inspected';
+import { OverlaysSection } from './inspector/OverlaysSection';
 import { Detail } from './inspector/parts';
 import { RelationInspector } from './inspector/RelationInspector';
 import { SelectionAppearance } from './inspector/SelectionAppearance';
@@ -60,6 +61,7 @@ export function Inspector({ view, scene, definitions }: InspectorProps) {
           <>
             <p className="inspector-selection">{t('Nothing is selected.')}</p>
             <ViewDetails view={view} scene={scene} definitions={definitions} />
+            {view && <OverlaysSection view={view} />}
           </>
         )}
         {inspected.kind === 'element' && (

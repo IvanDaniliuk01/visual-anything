@@ -7,7 +7,7 @@ import {
   type ModelIndex,
 } from '@visual-anything/core';
 import type { Element, Id } from '@visual-anything/schema';
-import { useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ComponentSelect } from '../../canvas/CanvasToolbar';
 import {
   collapseActions,
@@ -25,6 +25,7 @@ import {
   takeOutCommand,
 } from '../../canvas/drop';
 import { createInsideCommand } from '../../canvas/gestures';
+import { ZoomExpansionContext, withoutZoomExpanded } from '../../canvas/overlays/useZoomExpansion';
 import { indexScene, type IndexedScene } from '../../canvas/hit';
 import type { ElementShape } from '../../canvas/scene';
 import {
@@ -63,6 +64,7 @@ interface Choosing {
 export function ViewSection({ element }: { element: Element }) {
   const t = useT();
   const { project, scene, viewId, send, selection, select } = useEditor();
+  const zoom = useContext(ZoomExpansionContext);
   const headingId = useId();
   const [choosing, setChoosing] = useState<Choosing>();
   const [changing, setChanging] = useState<ChangeContainerCommand>();
@@ -224,12 +226,19 @@ export function ViewSection({ element }: { element: Element }) {
             type="button"
             className="inspector-action"
             disabled={!editable}
-            onClick={() =>
-              void perform(
-                setCollapsedCommand(view.id, collapsing.elements, !collapsedNow),
-                collapseDone(collapsing, !collapsedNow),
-              )
-            }
+            onClick={() => {
+              // A container the zoom expanded is collapsed in the view already (ADR 0055).
+              const elements = collapsedNow
+                ? collapsing.elements
+                : withoutZoomExpanded(zoom, view.id, collapsing.elements);
+              if (elements.length === 0) say(collapseDone(collapsing, true));
+              else {
+                void perform(
+                  setCollapsedCommand(view.id, elements, !collapsedNow),
+                  collapseDone(collapsing, !collapsedNow),
+                );
+              }
+            }}
           >
             {collapsedNow ? t('Expand') : t('Collapse')}
           </button>
