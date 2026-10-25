@@ -284,6 +284,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [ ] Model your system (case 1) together with Claude
 - [x] Search and jump: a find field (Ctrl+F) over names, ids, components and attribute values, results grouped by view, Enter selects and shows
 - [x] View addresses built on one view state (view, camera, selection, filters, focus, scenario step), kept in the address's fragment, with Copy address
+- [x] A view address opens in a new tab of the browser that has the project open, which joins its session (ADR 0043); `visual-anything open --view` and Claude's `open_app` open a tab at a view state in the program that runs, and `link_to` answers the full address (ADR 0044); the canvas toolbar keeps one row, with what does not fit under More
 - [x] PNG export of the open view or the whole view, at 1× or 2×, in the current theme
 - [x] A history panel: each action's label, author (you or Claude) and time, and Undo to here
 - [x] Recipes for Claude to build models, views and scenarios from what exists (Mermaid, PlantUML, draw.io, Structurizr, SQL, OpenAPI, Terraform, Kubernetes, docker-compose, a repository, logs and traces) with its tools, as MCP prompts (`build_from_…`)

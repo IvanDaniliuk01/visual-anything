@@ -11,6 +11,18 @@ Make any concept or system visual and explore it interactively. Private, work in
 
 Run `pnpm dev` (or `pnpm start`) at the repository root. Visual Anything opens your browser on the sample project at an address that works once, within two minutes. In the terminal where it runs, press `o` to open another tab, or `a` to print another such address; with `--no-open` it prints one at start. The session token never appears on screen or in an address: the tab gets it when it opens and keeps it for reloads.
 
+## View addresses
+
+Every tab keeps its address in step with where you are: the open view, where the canvas looks, the selection, the filters, focus mode and the scenario step played, all by id, as in `http://127.0.0.1:47123/#view=system-overview&select=appointments-api`. A view address holds no secret, so it is safe to paste anywhere.
+
+- **Reload** a tab and it comes back to the same place.
+- **Copy address**, in the header, copies it; a selection of more than 500 things is left out, and Copy address says so.
+- **Open it** in the browser where the project is open: pasted into that tab's address bar, or in a new tab of the same browser, which joins the session of the tab that has the project open (ADR 0043). With no tab of the project open, it opens nothing; open the project as below.
+- **From the command line**, `visual-anything open <folder> --view <id> --select <id>` (or `pnpm exec tsx packages/server/src/cli.ts <folder> --view …` from the repository) opens the browser at that view and selection. When Visual Anything already runs on that folder, it starts no second one: it asks the running one to open a new tab there. With `--no-open`, it prints the running one's view address instead.
+- **Claude** gives view addresses with `link_to`, the full address while Visual Anything runs, and opens a tab at one with `open_app`. Neither ever gives Claude an address that works once, nor the session token.
+
+The port changes from one run to the next unless `--port` fixes it, so what lasts of a view address is the part from `#` on.
+
 ## Running the executable
 
 Visual Anything also comes as one executable file for each system, which needs nothing else installed: no Node.js, pnpm or repository (ADR 0037). Take yours from the assets of a release, or make it for the system you are on with `pnpm package`, which writes `dist-exe/visual-anything` (`visual-anything.exe` on Windows).
@@ -31,7 +43,7 @@ Run it in a terminal, in the folder where it is or with its full path:
 visual-anything [open] [folder] [--view <id> [--select <id>]...] [--port <n>] [--no-open]
 ```
 
-It opens the project in `folder` (the current folder when left out), serves it on 127.0.0.1 and opens your browser, as `pnpm start` does; with `--no-open` it prints an address that works once instead. `--view` opens the app at a view, and `--select` selects an element, relation or free shape there (give it again for more), as a view address does. Press Ctrl+C to stop it. `visual-anything mcp` is the MCP server Claude starts (see below); to open a folder that is named `mcp`, write `./mcp`. The executable serves the app it was built with, so `--dev` works only from the repository.
+It opens the project in `folder` (the current folder when left out), serves it on 127.0.0.1 and opens your browser, as `pnpm start` does; with `--no-open` it prints an address that works once instead. `--view` opens the app at a view, and `--select` selects an element, relation or free shape there (give it again for more), as a view address does. When it already runs on that folder, it opens a new tab in the one running instead of starting another. Press Ctrl+C to stop it. `visual-anything mcp` is the MCP server Claude starts (see below); to open a folder that is named `mcp`, write `./mcp`. The executable serves the app it was built with, so `--dev` works only from the repository.
 
 The executables are not signed yet, so each system warns the first time:
 
