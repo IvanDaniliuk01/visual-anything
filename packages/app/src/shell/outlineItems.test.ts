@@ -4,8 +4,12 @@ import { drawnRelations } from '../canvas/navigation';
 import { buildScene } from '../canvas/scene';
 import { loadSample } from '../test/sample';
 import { withWovenRelations } from '../test/woven';
+import { selectionOf } from '../editor/selection';
 import {
+  isItemSelected,
   outlineOf,
+  selectablesOf,
+  shapeNoteOf,
   textOf,
   worldTreeOf,
   type OutlineItem,
@@ -333,3 +337,51 @@ function withSecondContainer(project: ProjectSnapshot): ProjectSnapshot {
     },
   };
 }
+
+describe('outlineOf, with what the canvas hides and collapses', () => {
+  const ids = (within: ReturnType<typeof outlineOf>) =>
+    shownRows(within, () => true).rows.map((row) => row.id);
+
+  it('gives no row to what the canvas hides, and lists what it holds in the shape around it', () => {
+    const scene = buildScene(sample, 'system-overview');
+    const hidden = new Set(['clinic-booking/scheduling', 'calendar-note', 'whatsapp-to-agent']);
+    const filtered = outlineOf(scene, sample, hidden);
+    const rows = ids(filtered);
+    expect(rows).not.toContain('clinic-booking/scheduling');
+    expect(rows).not.toContain('note:calendar-note');
+    expect(rows.some((id) => id.endsWith('#whatsapp-to-agent'))).toBe(false);
+    // Scheduling's contents are listed in Clinic booking's row, which they sit inside.
+    expect(rows).toContain('clinic-booking/scheduling/appointments-api');
+    expect(filtered.placeOf({ kind: 'element', id: 'appointments-api' })?.outer).toEqual([
+      'clinic-booking',
+    ]);
+    expect(filtered.placeOf({ kind: 'element', id: 'scheduling' })).toBeUndefined();
+    // Asked again with the same keys, it is the same outline.
+    expect(outlineOf(scene, sample, new Set(hidden))).toBe(filtered);
+  });
+
+  it('lists a collapsed container’s aggregated relations in its row, selecting all they stand for', () => {
+    const collapsed: ProjectSnapshot = {
+      ...sample,
+      views: sample.views.map((view) => ({ ...view, collapsed: ['scheduling'] })),
+    };
+    const folded = outlineOf(buildScene(collapsed, 'system-overview'), collapsed);
+    const scheduling = item('clinic-booking/scheduling', folded);
+    if (scheduling.kind !== 'shape') throw new Error('Not a shape row.');
+    expect(shapeNoteOf(scheduling)).toBe('System, collapsed: 3 inside');
+    expect(ids(folded)).not.toContain('clinic-booking/scheduling/appointments-api');
+    const aggregated = folded
+      .inside(scheduling)
+      .find((each): each is RelationItem => each.kind === 'relation' && each.stands !== undefined);
+    if (!aggregated?.stands) throw new Error('No aggregated relation is listed.');
+    expect(aggregated.stands).toEqual(['agent-to-api']);
+    expect(aggregated.name).toBe('×1');
+    expect(selectablesOf(aggregated)).toEqual([{ kind: 'relation', id: 'agent-to-api' }]);
+    expect(isItemSelected(selectionOf(selectablesOf(aggregated)), aggregated)).toBe(true);
+    // A relation an aggregated one stands for is found at its row, in the row of its first end.
+    const place = folded.placeOf({ kind: 'relation', id: 'agent-to-api' });
+    expect(place?.outer).toEqual(['clinic-booking', 'clinic-booking/booking-agent']);
+    const found = item(place?.id ?? '', folded);
+    expect(found.kind === 'relation' && found.stands).toEqual(['agent-to-api']);
+  });
+});

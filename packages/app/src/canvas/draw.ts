@@ -8,14 +8,18 @@ import { Container, Graphics, Text, type CanvasTextOptions, type TextStyleOption
 import type { Color } from '@visual-anything/schema';
 import type { Dash } from './geometry';
 import {
+  SHEET,
+  bodyOf,
   cylinderCap,
   grow,
   directionOf,
   distance,
   middle,
   personHead,
+  toggleRect,
   type Point,
   type Rect,
+  type ShapeKind,
 } from './geometry';
 import {
   ARROW_STROKE,
@@ -25,6 +29,8 @@ import {
   NOTE_TEXT,
   RELATION_LABEL_HALO,
   RELATION_LABEL_TEXT,
+  TOGGLE_FACE,
+  TOGGLE_SIGN,
   contrastRatio,
   readableTextColors,
 } from './palette';
@@ -126,7 +132,7 @@ export function drawShapeBlocks(
   const outlines = new Map<Color, Rect[]>();
   const fills = new Map<Color, Rect[]>();
   for (const shape of shapes) {
-    const outlined = shape.holdsContents || needsOutline(shape.fill);
+    const outlined = isContainer(shape) || needsOutline(shape.fill);
     const inner = outlined ? grow(shape.rect, -BLOCK_OUTLINE) : shape.rect;
     const filled = inner.width > 0 && inner.height > 0;
     if (inOrder) {
@@ -163,9 +169,51 @@ export function drawRelationLines(graphics: Graphics, lines: readonly RelationLi
   }
 }
 
-/** Draws the outlines of element shapes in order, so that containers come under their contents. */
+/**
+ * Draws element shapes in full, in order, so that containers come under their contents: each body by
+ * its kind, a collapsed container on a sheet that shows behind it, and on every container the toggle
+ * that collapses or expands it.
+ */
 export function drawShapeOutlines(graphics: Graphics, shapes: readonly ElementShape[]): void {
-  for (const shape of shapes) outline(graphics, shape);
+  for (const shape of shapes) {
+    if (shape.collapsed !== undefined) {
+      const body = bodyOf(shape);
+      if (body !== shape.rect) {
+        drawBody(graphics, shape.kind, { ...body, x: body.x + SHEET, y: body.y + SHEET }, shape);
+      }
+      drawBody(graphics, shape.kind, body, shape);
+    } else {
+      drawBody(graphics, shape.kind, shape.rect, shape);
+    }
+    drawToggle(graphics, shape);
+  }
+}
+
+/** Whether a shape is drawn as a container: one that holds shapes, or one the view collapses. */
+function isContainer(shape: ElementShape): boolean {
+  return shape.holdsContents || shape.collapsed !== undefined;
+}
+
+/**
+ * Draws a container's toggle: a small square in its top right corner, with − on an expanded one
+ * and + on a collapsed one, so that the sign says what pressing it does.
+ */
+function drawToggle(graphics: Graphics, shape: ElementShape): void {
+  const toggle = toggleRect(shape);
+  if (!toggle) return;
+  const { x, y, width, height } = toggle;
+  graphics
+    .roundRect(x, y, width, height, 3)
+    .fill(TOGGLE_FACE)
+    .stroke({ color: shape.stroke, width: 1 });
+  const middleX = x + width / 2;
+  const middleY = y + height / 2;
+  const arm = width * 0.28;
+  graphics.moveTo(middleX - arm, middleY).lineTo(middleX + arm, middleY);
+  if (shape.collapsed !== undefined) {
+    graphics.moveTo(middleX, middleY - arm).lineTo(middleX, middleY + arm);
+  }
+  graphics.stroke({ color: TOGGLE_SIGN, width: 1.5 });
 }
 
 /**
@@ -260,11 +308,17 @@ export function writeNoteTexts(notes: readonly NoteShape[]): Text[] {
   );
 }
 
-/** Draws an element shape's outline, filled and stroked, approximating each kind of shape. */
-function outline(graphics: Graphics, shape: ElementShape): void {
-  const { x, y, width, height } = shape.rect;
+/** Draws a shape's body in a rectangle, filled and stroked, approximating each kind of shape. */
+function drawBody(
+  graphics: Graphics,
+  kind: ShapeKind,
+  rect: Rect,
+  colors: { fill: Color; stroke: Color },
+): void {
+  const { x, y, width, height } = rect;
+  const shape = { ...colors, rect };
   const stroke = { color: shape.stroke, width: SHAPE_STROKE_WIDTH };
-  switch (shape.kind) {
+  switch (kind) {
     case 'rectangle':
       graphics.rect(x, y, width, height).fill(shape.fill).stroke(stroke);
       return;
@@ -311,9 +365,20 @@ function outline(graphics: Graphics, shape: ElementShape): void {
 }
 
 /**
- * Writes a shape's name and its component's name, which is a detail: at the top of a container,
- * centered otherwise. Each comes with its room, the height it may take inside the shape; a label
- * with no room is left out.
+ * What a shape writes under its name: its detail, or its component's name on a shape made without
+ * one; and on a collapsed container, how many shapes it holds.
+ */
+export function detailOf(shape: ElementShape): string {
+  const detail = shape.detail ?? shape.componentName;
+  if (shape.collapsed === undefined) return detail;
+  const inside = `${shape.collapsed.contents} inside`;
+  return detail === '' ? inside : `${detail} · ${inside}`;
+}
+
+/**
+ * Writes a shape's name and its detail: at the top of a container, collapsed or not, beside its
+ * toggle, and centered otherwise. Each comes with its room, the height it may take inside the shape; a
+ * label with no room is left out.
  */
 function writeShapeText(
   shape: ElementShape,
@@ -321,9 +386,11 @@ function writeShapeText(
 ): void {
   const colors = readableTextColors(shape.fill);
   const rooms = labelRooms(shape);
-  if (shape.holdsContents) {
-    const { x, y, width } = shape.rect;
-    const wrap = Math.max(1, width - 2 * TEXT_INSET);
+  if (isContainer(shape)) {
+    const { x, y, width } = bodyOf(shape);
+    const toggle = toggleRect(shape);
+    const beside = toggle ? toggle.width + 4 : 0;
+    const wrap = Math.max(1, width - 2 * TEXT_INSET - beside);
     if (rooms.name > 0) {
       write(
         {
@@ -336,10 +403,11 @@ function writeShapeText(
         rooms.name,
       );
     }
-    if (rooms.detail > 0) {
+    const detail = detailOf(shape);
+    if (rooms.detail > 0 && detail !== '') {
       write(
         {
-          text: shape.componentName,
+          text: detail,
           x: x + TEXT_INSET,
           y: y + 8 + NAME_SIZE + 6,
           style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'left'),
@@ -367,10 +435,11 @@ function writeShapeText(
       rooms.name,
     );
   }
-  if (rooms.detail > 0) {
+  const detail = detailOf(shape);
+  if (rooms.detail > 0 && detail !== '') {
     write(
       {
-        text: shape.componentName,
+        text: detail,
         anchor: { x: 0.5, y: 0 },
         x: centerX,
         y: centerY + 4,
@@ -388,8 +457,8 @@ function writeShapeText(
  * the component's name below it.
  */
 export function labelRooms(shape: ElementShape): { name: number; detail: number } {
-  if (shape.holdsContents) {
-    const { height } = shape.rect;
+  if (isContainer(shape)) {
+    const { height } = bodyOf(shape);
     return { name: Math.min(20, height - 12), detail: Math.min(16, height - 32) };
   }
   const area = labelArea(shape);
