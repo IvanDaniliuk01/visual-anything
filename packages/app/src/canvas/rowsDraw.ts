@@ -9,8 +9,9 @@
  * Far out, a table is two blocks, its body and its header, and its rows draw nothing.
  *
  * The header writes its name, centered on its band, and its detail on the right; a row writes its
- * name on the left and its detail on the right, both small, and only when details show. Each text
- * was fitted to its line by the scene (`fit.ts`), so the two never overlap.
+ * name on the left and its detail on the right, both small, and only when details show. A picture
+ * goes before the name: in the header's icon square, and in a row's at its left (`shape-images.ts`).
+ * Each text was fitted to its line by the scene (`fit.ts`), so none of them overlap.
  */
 import type { CanvasTextOptions, Graphics, TextStyleOptions } from 'pixi.js';
 import type { Color } from '@visual-anything/schema';
@@ -21,6 +22,7 @@ import {
   HEADER_NAME_SIZE,
   HEADER_TOGGLE,
   ROW_DETAIL_SIZE,
+  ROW_ICON,
   ROW_INSET,
   ROW_NAME_SIZE,
 } from './fit';
@@ -29,6 +31,7 @@ import { readableTextColors } from './colors';
 import { SHEET, bodyOf, grow, toggleRect, type Rect } from './geometry';
 import { ROWS_FROM, ROWS_HEADER } from './rows';
 import type { ElementShape } from './scene';
+import { headerShift } from './shape-images';
 
 /**
  * The colors of a theme that rows are drawn in (ADR-0033): the body of a shape that draws rows, which
@@ -203,7 +206,8 @@ export function writeRowsText(
         {
           text: fitted.name,
           anchor: { x: 0, y: 0.5 },
-          x: x + ROW_INSET,
+          // After the row's picture, when it shows one at its left.
+          x: x + ROW_INSET + (shape.image ? ROW_ICON : 0),
           y: middle,
           // In the detail's color, which a theme switch tints it to again, as it is written small.
           style: oneLine(ROW_NAME_SIZE, colors.detail),
@@ -238,7 +242,7 @@ export function writeRowsText(
       {
         text: fitted.name,
         anchor: { x: 0, y: 0.5 },
-        x: body.x + HEADER_INSET,
+        x: body.x + HEADER_INSET + headerShift(shape),
         y: middle,
         style: oneLine(HEADER_NAME_SIZE, colors.name, '600'),
       },

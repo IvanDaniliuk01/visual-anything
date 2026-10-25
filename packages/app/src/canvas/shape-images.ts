@@ -8,6 +8,8 @@
  * - **An icon in the header**, whatever the placement asks, on a shape that holds contents, a
  *   collapsed container and a shape that draws rows: an 18-unit square at (x + 10, y + 7), with its
  *   name and detail from x + 34.
+ * - **An icon in a row**, whatever the placement asks: a 16-unit square 8 units in from the row's
+ *   left, centred on it, with its name from x + 32.
  * - **A drawing** in place of the shape: the picture, its proportions kept, on a plate 4 units larger
  *   in the shape's fill, above a band across the shape where its name is written (20 units, or 34
  *   with a detail), the whole centred in the shape. The plate with its band is the shape's `plate`,
@@ -93,6 +95,8 @@ export interface ImageHolder {
   collapsed?: unknown;
   /** Whether its appearance draws its contents as rows. */
   rows: boolean;
+  /** Whether it is a row of its container (ADR 0023), which shows its image at its left. */
+  row?: boolean;
 }
 
 /** A placed image, with the plate a drawing puts in place of its shape's rectangle. */
@@ -150,6 +154,11 @@ export function placeImage(
     serial: look.serial,
     ...(look.tint === undefined ? {} : { tint: look.tint }),
   };
+  if (holder.row) {
+    // A row shows its picture as an icon at its left, whatever the placement asks.
+    const box = rowImageRect(holder.rect);
+    return { image: { ...base, placement: 'icon', rect: fitted(width, height, box), box } };
+  }
   if (holder.holdsContents || holder.collapsed !== undefined || holder.rows) {
     const body = bodyOf(holder);
     const box = {
