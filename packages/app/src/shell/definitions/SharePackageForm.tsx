@@ -7,7 +7,7 @@ import {
   type PackageProperty,
 } from '@visual-anything/core';
 import type { Id, PackageFile } from '@visual-anything/schema';
-import { useEffect, useId, useRef, useState, type Ref } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type Ref } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import { useT } from '../../i18n';
 import { InlineProblem } from '../inspector/controls';
@@ -71,15 +71,27 @@ export function SharePackageForm({ mode, titleRef }: SharePackageFormProps) {
 
   const incoming =
     chosen === undefined || picked === undefined ? undefined : packageWithId(chosen, picked)?.file;
-  const command =
-    incoming === undefined
-      ? undefined
-      : mode.kind === 'add'
-        ? addPackageCommand(incoming)
-        : updatePackageCommand(incoming);
-  const refusal = command === undefined ? undefined : refusalOf(project, command);
-  const changes =
-    current !== undefined && incoming !== undefined ? packageChanges(current, incoming) : undefined;
+  const command = useMemo(
+    () =>
+      incoming === undefined
+        ? undefined
+        : mode.kind === 'add'
+          ? addPackageCommand(incoming)
+          : updatePackageCommand(incoming),
+    [incoming, mode.kind],
+  );
+  // Running the command on the app's copy cleans every image again, so it runs once a change.
+  const refusal = useMemo(
+    () => (command === undefined ? undefined : refusalOf(project, command)),
+    [project, command],
+  );
+  const changes = useMemo(
+    () =>
+      current !== undefined && incoming !== undefined
+        ? packageChanges(current, incoming)
+        : undefined,
+    [current, incoming],
+  );
 
   const apply = async () => {
     if (command === undefined || incoming === undefined) return;
