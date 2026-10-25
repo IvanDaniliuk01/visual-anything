@@ -1,6 +1,8 @@
 import type { Definitions, ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useId, useRef, useState, type KeyboardEvent } from 'react';
+import { HistoryPanel } from '../history/HistoryPanel';
+import { useT } from '../i18n';
 import { ComponentsTab } from './ComponentsTab';
 import { ModelTab } from './ModelTab';
 import { Outline } from './Outline';
@@ -13,24 +15,26 @@ interface ModelPanelProps {
   openViewId: Id | undefined;
 }
 
-type Tab = 'outline' | 'model' | 'components';
+type Tab = 'outline' | 'model' | 'components' | 'history';
 
 const TABS: readonly { tab: Tab; name: string }[] = [
   { tab: 'outline', name: 'Outline' },
   { tab: 'model', name: 'Model' },
   { tab: 'components', name: 'Components' },
+  { tab: 'history', name: 'History' },
 ];
 
 /**
- * The panel left of the canvas, in three tabs: the outline of the open view, which mirrors what the
- * canvas draws; the model's contents with the project's views and scenarios; and the components,
- * relation types and packages, which open in the component editor. Each tab keeps its rows open or
- * closed while another one shows.
+ * The panel left of the canvas, in four tabs: the outline of the open view, which mirrors what the
+ * canvas draws; the model's contents with the project's views and scenarios; the components,
+ * relation types and packages, which open in the component editor; and the history, the actions that
+ * undo and redo go through. Each tab keeps its rows open or closed while another one shows.
  */
 export function ModelPanel({ project, definitions, openViewId }: ModelPanelProps) {
+  const t = useT();
   const [tab, setTab] = useState<Tab>('outline');
   const heading = useId();
-  const ids = { outline: useId(), model: useId(), components: useId() };
+  const ids = { outline: useId(), model: useId(), components: useId(), history: useId() };
   const buttons = useRef(new Map<Tab, HTMLButtonElement>());
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -54,7 +58,7 @@ export function ModelPanel({ project, definitions, openViewId }: ModelPanelProps
   return (
     <aside className="panel model-panel side-panel" aria-labelledby={heading}>
       <h2 id={heading} className="visually-hidden">
-        Outline and model
+        {t('Outline and model')}
       </h2>
       <div role="tablist" aria-labelledby={heading} className="panel-tabs" onKeyDown={onKeyDown}>
         {TABS.map((each) => (
@@ -72,7 +76,7 @@ export function ModelPanel({ project, definitions, openViewId }: ModelPanelProps
             className="panel-tab"
             onClick={() => setTab(each.tab)}
           >
-            {each.name}
+            {t(each.name)}
           </button>
         ))}
       </div>
@@ -107,6 +111,15 @@ export function ModelPanel({ project, definitions, openViewId }: ModelPanelProps
         className="panel-tab-content"
       >
         <ComponentsTab active={tab === 'components'} />
+      </div>
+      <div
+        role="tabpanel"
+        id={`${ids.history}-panel`}
+        aria-labelledby={`${ids.history}-tab`}
+        hidden={tab !== 'history'}
+        className="panel-tab-content"
+      >
+        <HistoryPanel active={tab === 'history'} />
       </div>
     </aside>
   );

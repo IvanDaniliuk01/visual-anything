@@ -161,6 +161,26 @@ export const ui: Catalog = {
   '{view}, from the {perspective} perspective: {shapes}, {relations} and {free}.':
     '{view}, desde la perspectiva {perspective}: {shapes}, {relations} y {free}.',
 
+  // The model panel's tabs.
+  'Outline and model': 'Esquema y modelo',
+  Model: 'Modelo',
+  History: 'Historial',
+
+  // The history panel.
+  'The history shows while Visual Anything is connected.':
+    'El historial se muestra mientras Visual Anything está conectado.',
+  'Nothing is done yet. What you and Claude change shows here, newest first, and can be undone from here, many actions at once.':
+    'Todavía no hay acciones. Los cambios propios y los de Claude aparecen aquí, de la más reciente a la más antigua, y se pueden deshacer desde aquí, varias acciones a la vez.',
+  'Actions, newest first': 'Acciones, de la más reciente a la más antigua',
+  // A badge: the action is undone, and can be redone.
+  Undone: 'Deshecha',
+  'Undo to here': 'Deshacer hasta aquí',
+  'Redo to here': 'Rehacer hasta aquí',
+  // Who did an action: the person, beside Claude.
+  You: 'Usted',
+  '{action}, by Claude': '{action}, por Claude',
+  '{action}, by you': '{action}, por usted',
+
   // The Model tab.
   'World holds no elements yet.': 'Mundo todavía no contiene elementos.',
   Views: 'Vistas',
@@ -709,6 +729,14 @@ export const messages: Catalog = {
   // Why a change was refused, and what a change breaks that only warns.
   'There is nothing to undo.': 'No hay nada que deshacer.',
   'There is nothing to redo.': 'No hay nada que rehacer.',
+  'That action is undone already, so nothing was undone.':
+    'Esa acción ya está deshecha, así que no se deshizo nada.',
+  'That action is no longer in the history, so nothing was undone.':
+    'Esa acción ya no está en el historial, así que no se deshizo nada.',
+  'That action is not undone, so nothing was redone.':
+    'Esa acción no está deshecha, así que no se rehízo nada.',
+  'That action is no longer in the history, so nothing was redone.':
+    'Esa acción ya no está en el historial, así que no se rehízo nada.',
   'There is no element "{id}".': 'No hay ningún elemento "{id}".',
   'There is no relation "{id}".': 'No hay ninguna relación "{id}".',
   'There is no element or relation "{id}" to end on.':

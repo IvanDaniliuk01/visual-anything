@@ -17,6 +17,8 @@ const TRANSLATED = [
   'shell/Notices.tsx',
   'shell/Outline.tsx',
   'shell/ModelTab.tsx',
+  'shell/ModelPanel.tsx',
+  'history/HistoryPanel.tsx',
   'shell/ViewList.tsx',
   'shell/VirtualTree.tsx',
   'shell/Shell.tsx',
