@@ -55,6 +55,7 @@ import {
   type FileKey,
 } from './file-plan';
 import { FOLDERS, newFilePath } from './layout';
+import { projectDestinationWarnings, type OpenOtherProject } from './other-project';
 import type { PreferencesStore } from './preferences';
 import { toForwardSlashes } from './paths';
 import {
@@ -152,6 +153,11 @@ export interface SessionOptions {
    * the program keeps none and refuses changes.
    */
   preferences?: PreferencesStore;
+  /**
+   * Opens another project in a tab of its own program, as an app asks when the person follows a
+   * destination to it (ADR 0056); absent, the program refuses to.
+   */
+  openOtherProject?: OpenOtherProject;
 }
 
 /** The outcome of opening a session: the session, or every problem that keeps the project closed. */
@@ -325,6 +331,8 @@ export class Session implements LiveSession {
     let known = this.#warnings;
     if (known?.state !== this.#state) {
       const { warnings } = checkProject(this.#state);
+      // Whether a destination's project is there is for the program to tell (ADR 0056).
+      warnings.push(...projectDestinationWarnings(this.#state, this.folder));
       known = { state: this.#state, warnings: locateProblems(warnings, this.#state, this.files) };
       this.#warnings = known;
     }
@@ -412,7 +420,50 @@ export class Session implements LiveSession {
       case 'preferences/set':
         await this.#setPreferences(client, message);
         return;
+      case 'project/open-other':
+        await this.#openOtherProject(client, message);
+        return;
     }
+  }
+
+  /**
+   * Opens another project in a tab of its own program, as a destination names it (ADR 0056). It is
+   * never a command: it changes nothing in this project and never waits behind its work.
+   */
+  async #openOtherProject(
+    client: SessionClient,
+    message: Extract<AppMessage, { type: 'project/open-other' }>,
+  ): Promise<void> {
+    const { requestId } = message;
+    const open = this.#options.openOtherProject;
+    if (open === undefined) {
+      this.#send(client, {
+        type: 'command/rejected',
+        requestId,
+        problems: [refusal('program-failed', 'This Visual Anything cannot open another project.')],
+      });
+      return;
+    }
+    let outcome;
+    try {
+      outcome = await open(this.folder, {
+        project: message.project,
+        ...(message.view === undefined ? {} : { view: message.view }),
+      });
+    } catch (error) {
+      outcome = {
+        ok: false as const,
+        problems: [
+          refusal('program-failed', `The project could not be opened: ${reasonOf(error)}`),
+        ],
+      };
+    }
+    this.#send(
+      client,
+      outcome.ok
+        ? { type: 'other-project/opened', requestId, name: outcome.name }
+        : { type: 'command/rejected', requestId, problems: outcome.problems },
+    );
   }
 
   /**

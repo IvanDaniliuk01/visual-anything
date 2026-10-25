@@ -113,16 +113,20 @@ function sanitized(element: PlannedElement): { ids?: ExternalIds; left: string[]
   const given: unknown = element.ids;
   if (given === undefined) return { left: [] };
   if (typeof given !== 'object' || given === null || Array.isArray(given)) {
-    return { left: ['its identifiers are not given by scheme'] };
+    return { left: ['Its identifiers are not given by scheme, so it is imported without them.'] };
   }
   const kept: [IdScheme, ExternalId][] = [];
   const left: string[] = [];
   for (const [scheme, identifier] of Object.entries(given as Record<string, unknown>)) {
-    if (!isScheme(scheme)) left.push(`"${scheme}" is not a scheme`);
-    else if (!isExternalId(identifier)) left.push(`its ${scheme} identifier is not one`);
-    else if (kept.length >= MAX_SCHEMES)
-      left.push(`its ${scheme} identifier is past ${MAX_SCHEMES} schemes`);
-    else kept.push([scheme, identifier]);
+    if (!isScheme(scheme)) {
+      left.push(`"${scheme}" is not a scheme of identifiers, so it is imported without that one.`);
+    } else if (!isExternalId(identifier)) {
+      left.push(`Its ${scheme} identifier is not one, so it is imported without it.`);
+    } else if (kept.length >= MAX_SCHEMES) {
+      left.push(
+        `Its ${scheme} identifier is past ${MAX_SCHEMES} schemes, so it is imported without it.`,
+      );
+    } else kept.push([scheme, identifier]);
   }
   return kept.length === 0 ? { left } : { ids: Object.fromEntries(kept), left };
 }
@@ -154,7 +158,7 @@ export function matchByExternalIds(
   const elements = plan.elements.map((element): PlannedElement => {
     const { ids: given, left } = sanitized(element);
     for (const why of left) {
-      unmatched.push({ text: element.name, why: `It is imported without it: ${why}.` });
+      unmatched.push({ text: element.name, why });
     }
     const { ids: _dropped, ...rest } = element;
     const ids = completedIds(given, tables);

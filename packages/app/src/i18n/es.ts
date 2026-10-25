@@ -83,6 +83,15 @@
  * | language                | idioma                           |
  * | settings (of a view)    | opciones                         |
  * | the local program       | el programa local                |
+ * | external identifier     | identificador externo            |
+ * | scheme (of identifiers) | catálogo                         |
+ * | crosswalk               | tabla de correspondencias        |
+ * | destination             | destino                          |
+ * | follow (a destination)  | seguir                           |
+ * | web address             | dirección web                    |
+ * | host (of an address)    | sitio                            |
+ * | path (to a project)     | ubicación                        |
+ * | element list            | lista de elementos               |
  *
  * The words CONTEXT.md avoids are not used for its terms either: no "nodo", "objeto" or "instancia"
  * for an element, "propiedad" or "campo" for an attribute, "capa" for the stacking order, "enlace" or
@@ -1921,8 +1930,8 @@ export const messages: Catalog = {
     'La forma de dibujar una relación no tiene el rasgo "{trait}".',
   'An attribute definition has no "{key}".': 'Una definición de atributo no tiene "{key}".',
   'An attribute of {of} needs a name.': 'Un atributo de {of} necesita un nombre.',
-  'The attribute "{name}" of {of} is of type "string", "number", "boolean" or "json".':
-    'El atributo "{name}" de {of} es de tipo "string", "number", "boolean" o "json".',
+  'The attribute "{name}" of {of} is of type "string", "number", "boolean", "json" or "destination".':
+    'El atributo "{name}" de {of} es de tipo "string", "number", "boolean", "json" o "destination".',
   'The default of "{name}" of {of} must be a {type} value.':
     'El valor predeterminado de "{name}" de {of} debe ser un valor {type}.',
   'Only a string attribute has choices; "{name}" of {of} is a {type}.':
@@ -2537,6 +2546,114 @@ export const messages: Catalog = {
   '"recentColors" holds {n} colors, more than {limit}.':
     '"recentColors" tiene {n} colores, más de {limit}.',
   '"{name}" must be true or false, not {value}.': '"{name}" debe ser true o false, no {value}.',
+
+  // External identifiers, destinations and the element list (M8, ADR 0056): the core's refusals,
+  // labels and warnings, the import's notes, the local program's answers and the schema's words.
+  'The external identifiers of {of} are by scheme, a short lowercase name such as "uberon"; "{scheme}" is not one.':
+    'Los identificadores externos de {of} van por catálogo, un nombre corto en minúsculas como "uberon"; "{scheme}" no lo es.',
+  'The {scheme} identifier of {of} must be text of 1 to {n} characters, without line breaks.':
+    'El identificador de {scheme} de {of} debe ser un texto de 1 a {n} caracteres, sin saltos de línea.',
+  'Something holds identifiers in at most {n} schemes, not {m}.':
+    'Algo tiene identificadores de como máximo {n} catálogos, no {m}.',
+  'The external identifiers of {of} must be an object of identifiers by scheme, such as { "uberon": "UBERON:0002135" }.':
+    'Los identificadores externos de {of} deben ser un objeto JSON de identificadores por catálogo, como { "uberon": "UBERON:0002135" }.',
+  'The changes to the external identifiers of {of} must be an object of identifiers, or null, by scheme.':
+    'Los cambios a los identificadores externos de {of} deben ser un objeto JSON de identificadores, o null, por catálogo.',
+  '{names} have the same {scheme} identifier, "{identifier}".':
+    '{names} tienen el mismo identificador de {scheme}, "{identifier}".',
+  '…and {rest} more identifiers are shared by several elements.':
+    '…y otros {rest} identificadores los comparten varios elementos.',
+  'Change the external identifiers of "{name}"': 'Cambiar los identificadores externos de "{name}"',
+  'Change the external identifiers of the component "{name}"':
+    'Cambiar los identificadores externos del componente "{name}"',
+  'Change the external identifiers of the relation type "{name}"':
+    'Cambiar los identificadores externos del tipo de relación "{name}"',
+  'A destination is an object: { "view": … }, { "project": … } or { "url": … }.':
+    'Un destino es un objeto JSON: { "view": … }, { "project": … } o { "url": … }.',
+  'A destination opens one thing: a view, with "view"; another project, with "project"; or a web address, with "url".':
+    'Un destino abre una sola cosa: una vista, con "view"; otro proyecto, con "project"; o una dirección web, con "url".',
+  'A web address has no "{key}".': 'Una dirección web no tiene "{key}".',
+  'A destination to a project has no "{key}".': 'Un destino a un proyecto no tiene "{key}".',
+  'A destination to a view has no "{key}".': 'Un destino a una vista no tiene "{key}".',
+  'The project of a destination is a path, as text.':
+    'El proyecto de un destino es la ubicación de su carpeta, como texto.',
+  'The view of a destination is named by its id.': 'La vista de un destino se nombra por su id.',
+  'What a destination focuses on is a list of 1 to {n} different element ids.':
+    'En lo que se enfoca un destino es una lista de 1 a {n} ids de elementos distintos.',
+  'A web address is text.': 'Una dirección web es un texto.',
+  'Only web addresses that start with https:// open; file:, javascript: and other schemes never do.':
+    'Solo se abren las direcciones web que empiezan con https://; file:, javascript: y cualquier otro prefijo nunca se abren.',
+  'A web address holds at most {n} characters.':
+    'Una dirección web tiene como máximo {n} caracteres.',
+  'A web address holds no spaces, line breaks or backslashes.':
+    'Una dirección web no tiene espacios, saltos de línea ni barras invertidas.',
+  'A web address with a user name or a password never opens.':
+    'Una dirección web con un nombre de usuario o una contraseña nunca se abre.',
+  '"{authority}" is not the host of a web address.':
+    '"{authority}" no es el sitio de una dirección web.',
+  '{port} is not a port: ports go up to 65535.':
+    '{port} no es un puerto: los puertos llegan hasta 65535.',
+  'A path to a project has 1 to {n} characters.':
+    'La ubicación de un proyecto tiene de 1 a {n} caracteres.',
+  'A path to a project holds no control characters.':
+    'La ubicación de un proyecto no tiene caracteres de control.',
+  'A path to a project is written with /, not \\.':
+    'La ubicación de un proyecto se escribe con /, no con \\.',
+  'A path to a project is relative to this project’s folder, as ../billing is.':
+    'La ubicación de un proyecto es relativa a la carpeta de este proyecto, como ../billing.',
+  'A path to a project never leads out of the folder that holds this project’s folder.':
+    'La ubicación de un proyecto nunca sale de la carpeta que contiene la carpeta de este proyecto.',
+  '"{name}" of {of} holds a destination, and this is not one: {why}':
+    '"{name}" de {of} contiene un destino, y esto no lo es: {why}',
+  'The default of "{name}" of {of} must be a destination: a view, another project or an https: address.':
+    'El valor predeterminado de "{name}" de {of} debe ser un destino: una vista, otro proyecto o una dirección https:.',
+  'The destination "{name}" of {of} is not one, so it never opens: {why}':
+    'El destino "{name}" de {of} no es un destino, así que nunca se abre: {why}',
+  'The destination "{name}" of {of} opens the view "{view}", which the project does not have; it is kept, and opens nothing until that view is back.':
+    'El destino "{name}" de {of} abre la vista "{view}", que el proyecto no tiene; se conserva, y no abre nada hasta que esa vista vuelva.',
+  'The destination "{name}" of {of} focuses on "{ids}", which the model does not have; the view opens without it.':
+    'El destino "{name}" de {of} se enfoca en "{ids}", que el modelo no tiene; la vista se abre sin él.',
+  'The destination "{name}" of {of} focuses on "{ids}", which the model does not have; the view opens without them.':
+    'El destino "{name}" de {of} se enfoca en "{ids}", que el modelo no tiene; la vista se abre sin ellos.',
+  '…and {rest} more destinations open nothing.': '…y otros {rest} destinos no abren nada.',
+  'Its identifiers are not given by scheme, so it is imported without them.':
+    'Sus identificadores no vienen por catálogo, así que se importa sin ellos.',
+  '"{scheme}" is not a scheme of identifiers, so it is imported without that one.':
+    '"{scheme}" no es un catálogo de identificadores, así que se importa sin ese.',
+  'Its {scheme} identifier is not one, so it is imported without it.':
+    'Su identificador de {scheme} no lo es, así que se importa sin él.',
+  'Its {scheme} identifier is past {n} schemes, so it is imported without it.':
+    'Su identificador de {scheme} pasa de {n} catálogos, así que se importa sin él.',
+  'Its {scheme} identifier "{identifier}" is the identifier of {count} elements, {names}, so it is imported as a new element.':
+    'Su identificador de {scheme} "{identifier}" es el de {count} elementos, {names}, así que se importa como un elemento nuevo.',
+  'Its {scheme} identifier "{identifier}" is that of "{name}", which a row before it updates already, so it is imported as a new element.':
+    'Su identificador de {scheme} "{identifier}" es el de "{name}", que ya actualiza una fila anterior, así que se importa como un elemento nuevo.',
+  'The folder holding this project cannot be read ({reason}).':
+    'No se puede leer la carpeta que contiene este proyecto ({reason}).',
+  'There is no folder {folder} for this destination to open.':
+    'No hay ninguna carpeta {folder} que este destino pueda abrir.',
+  '{folder} leads, through a link, out of the folder that holds this project, so it does not open.':
+    '{folder} sale, a través de un enlace simbólico, de la carpeta que contiene este proyecto, así que no se abre.',
+  '{folder} is not a folder, so it holds no project.':
+    '{folder} no es una carpeta, así que no contiene ningún proyecto.',
+  '{folder} holds no project: it has no .vaproject file.':
+    '{folder} no contiene ningún proyecto: no tiene ningún archivo .vaproject.',
+  '{folder} cannot be read ({reason}).': 'No se puede leer {folder} ({reason}).',
+  '"{project}" is not a path to a project.': '"{project}" no es la ubicación de un proyecto.',
+  'This Visual Anything keeps no runtime folder, so it cannot reach the program of another project.':
+    'Este Visual Anything no tiene carpeta de ejecución, así que no puede llegar al programa de otro proyecto.',
+  '"{name}" cannot open there: {why}': '"{name}" no se puede abrir allí: {why}',
+  'A destination opens the project in {project}, but {folder} holds no project; it is kept, and opens nothing until a project is there.':
+    'Un destino abre el proyecto de {project}, pero {folder} no contiene ningún proyecto; se conserva, y no abre nada hasta que haya un proyecto allí.',
+  'This Visual Anything cannot open another project.':
+    'Este Visual Anything no puede abrir otro proyecto.',
+  'The project could not be opened: {why}': 'No se pudo abrir el proyecto: {why}',
+  'must be an identifier without line breaks or other control characters':
+    'debe ser un identificador sin saltos de línea ni otros caracteres de control',
+  'must have schemes as its keys, short lowercase names such as "uberon", and "{key}" is not one':
+    'debe tener catálogos como claves, nombres cortos en minúsculas como "uberon", y "{key}" no lo es',
+  'must have identifiers as its keys, and "{key}" is not one':
+    'debe tener identificadores como claves, y "{key}" no lo es',
 };
 
 /**

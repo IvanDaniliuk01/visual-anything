@@ -24,9 +24,15 @@ import {
   type ViewState,
 } from '@visual-anything/core';
 import { resolveAppSource } from './app-source';
-import { OtherBuildError, ProgramBridge, ProgramUnavailableError } from './claude/bridge';
+import {
+  OtherBuildError,
+  ProgramBridge,
+  ProgramUnavailableError,
+  type StartProgram,
+} from './claude/bridge';
 import { removeProgramRecord, writeProgramRecord } from './claude/discovery';
 import { errorCode, errorReason } from './errors';
+import { otherProjectOpener } from './other-project';
 import { toForwardSlashes } from './paths';
 import { openPreferences, themeHintOf, type PreferencesLocation } from './preferences';
 import { formatProjectProblem } from './project';
@@ -111,6 +117,11 @@ export interface CommandEnvironment {
    * they are kept in memory only, as tests do.
    */
   preferences?: PreferencesLocation;
+  /**
+   * How to start the program for another project a destination opens, when none runs there: by
+   * default a background process of this command's own program; the executable starts itself.
+   */
+  startProgram?: StartProgram;
 }
 
 /** How long a program started with `--stop-when-idle` waits with nothing connected. */
@@ -222,6 +233,12 @@ export async function runCommand(
     out: (line) => environment.out(line),
     err: (line) => environment.err(line),
     preferences,
+    // A destination to another project opens it through that project's own program (ADR 0056).
+    openOtherProject: otherProjectOpener({
+      runtime: environment.runtimeFolder,
+      dev: options.dev,
+      ...(environment.startProgram === undefined ? {} : { start: environment.startProgram }),
+    }),
   });
   if (!opened.ok) {
     environment.err(`Could not open the project in ${toForwardSlashes(folder)}:`);
