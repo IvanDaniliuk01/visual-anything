@@ -9,11 +9,14 @@
 import { basename } from 'node:path';
 import {
   PROTOCOL_VERSION,
+  checkLiveValues,
   checkPreferenceChanges,
   decodeAppMessage,
   type Author,
   type Command,
   type Guidance,
+  type LiveFilter,
+  type LiveSender,
   type PreferencesSetMessage,
   type Problem,
   type ProblemCode,
@@ -22,6 +25,7 @@ import {
   type StartCreateMessage,
 } from '@visual-anything/core';
 import { errorReason } from './errors';
+import type { LiveKept } from './live';
 import type { PreferencesStore } from './preferences';
 import { formatProjectProblem } from './project';
 import {
@@ -169,6 +173,24 @@ export class StartingSession implements LiveSession {
 
   guide(guidance: Guidance): Promise<number> {
     return this.#session?.guide(guidance) ?? Promise.resolve(0);
+  }
+
+  setLive(connection: object, sender: LiveSender, values: unknown, freshFor?: number): LiveKept {
+    if (this.#session !== undefined)
+      return this.#session.setLive(connection, sender, values, freshFor);
+    // No project yet, so no target is known.
+    const checked = checkLiveValues(values);
+    return {
+      kept: 0,
+      waiting: 0,
+      dropped: checked.dropped,
+      unknown: [...new Set(checked.values.map((each) => each.target))],
+      refused: checked.refused,
+    };
+  }
+
+  clearLive(filter: LiveFilter): number {
+    return this.#session?.clearLive(filter) ?? 0;
   }
 
   /** Closes the project's session, once started; until then there is nothing to close. */

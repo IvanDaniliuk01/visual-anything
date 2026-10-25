@@ -62,6 +62,11 @@ export type ProblemCode =
   | 'code-off'
   | 'code-answer-dropped'
   | 'code-check'
+  // Live values (ADR 0057, ADR 0063): values a sender may not send, and what package code may not
+  // fetch, or could not.
+  | 'live-refused'
+  | 'fetch-refused'
+  | 'fetch-failed'
   // Refusals of the local program, which keeps the history and the files.
   | 'nothing-to-undo'
   | 'nothing-to-redo'

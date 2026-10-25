@@ -65,6 +65,25 @@ export function attachClaude(
         send({ type: 'guidance/shown', requestId: message.requestId, apps });
         return;
       }
+      case 'live/set': {
+        const kept = session.setLive(
+          client,
+          { kind: message.from },
+          message.values,
+          message.freshFor,
+        );
+        send({ type: 'live/kept', requestId: message.requestId, ...kept });
+        return;
+      }
+      case 'live/clear': {
+        const cleared = session.clearLive({
+          ...(message.from === 'everyone' ? {} : { sender: { kind: message.from } }),
+          ...(message.targets === undefined ? {} : { targets: message.targets }),
+          ...(message.attributes === undefined ? {} : { attributes: message.attributes }),
+        });
+        send({ type: 'live/cleared', requestId: message.requestId, cleared });
+        return;
+      }
       case 'code-approvals': {
         // Only the approvals of the code the project holds now: nothing of the person's other projects.
         const hashes = new Set(packagesWithCode(session.snapshot).map((each) => each.hash));

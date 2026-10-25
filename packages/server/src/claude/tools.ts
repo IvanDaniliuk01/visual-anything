@@ -26,6 +26,7 @@ import { EXPLORE_TOOLS } from './explore-tools';
 import { CODE_TOOLS } from './code-tools';
 import { EXPORT_TOOLS } from './export-tools';
 import { IMAGE_TOOLS } from './image-tools';
+import { LIVE_TOOLS } from './live-tools';
 import { RECIPES_IN_BRIEF } from './recipes';
 import { SCENARIO_TOOLS } from './scenario-tools';
 import { SCOPE_TOOLS } from './scope-tools';
@@ -1119,6 +1120,8 @@ export const TOOLS: readonly Tool[] = [
   // What a view shows of the model (ADR-0040).
   ...SCOPE_TOOLS,
   ...EXPORT_TOOLS,
+  // Live values, never saved (ADR 0057).
+  ...LIVE_TOOLS,
 ];
 
 /** Runs a tool, turning a program that cannot be reached into an outcome Claude reads. */

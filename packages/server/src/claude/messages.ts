@@ -10,10 +10,15 @@
  * step exactly as an app does, plus two answers of its own.
  */
 import {
+  FRESHNESS,
+  LIVE_LIMITS,
   ProtocolError,
   checkViewState,
   decodeServerMessage,
+  isId,
+  isLiveAttributeName,
   readCodeApprovals,
+  readFreshFor,
   readGuidance,
   type CodeApproval,
   type Command,
@@ -21,6 +26,7 @@ import {
   type ServerMessage,
   type ViewState,
 } from '@visual-anything/core';
+import type { Id } from '@visual-anything/schema';
 
 /** The path of the Claude endpoint. */
 export const CLAUDE_PATH = '/claude';
@@ -43,7 +49,41 @@ export type ClaudeMessage =
    * Asks which code of the open project's packages the person approved (ADR 0054), so that Claude's
    * tools run only approved code. Claude can never approve code: only the person can, in the app.
    */
-  | { type: 'code-approvals'; requestId: string };
+  | { type: 'code-approvals'; requestId: string }
+  /**
+   * Live values (ADR 0057): kept by the program while the project is open, never saved and never in
+   * the history; answered with `live/kept`. The command line sends them through this endpoint too.
+   */
+  | {
+      type: 'live/set';
+      requestId: string;
+      /** Checked one by one where they are kept, so that the sender hears which were refused. */
+      values: unknown[];
+      /** How long they stay fresh, in milliseconds; a minute when left out. */
+      freshFor?: number;
+      from: LiveSenderKind;
+    }
+  /**
+   * Clears live values that match: those `from` sent, or everyone's, of the targets and attributes
+   * named, or of all of them; answered with `live/cleared`.
+   */
+  | {
+      type: 'live/clear';
+      requestId: string;
+      targets?: Id[];
+      attributes?: string[];
+      from: LiveSenderKind | 'everyone';
+    };
+
+/** Who sends live values through this endpoint. */
+export type LiveSenderKind = 'claude' | 'command-line';
+
+/** The answer to `live/clear`: how many live values went. */
+export interface LiveClearedMessage {
+  type: 'live/cleared';
+  requestId: string;
+  cleared: number;
+}
 
 /**
  * The answer to `code-approvals`: the person's approvals of the code the project's packages hold now,
@@ -70,7 +110,11 @@ export interface AppOpenedMessage {
 
 /** A message the program sends to Claude. */
 export type ProgramMessage =
-  ServerMessage | GuidanceShownMessage | AppOpenedMessage | CodeApprovalsMessage;
+  | ServerMessage
+  | GuidanceShownMessage
+  | AppOpenedMessage
+  | CodeApprovalsMessage
+  | LiveClearedMessage;
 
 /** Writes a message for the Claude endpoint. */
 export function encodeClaudeMessage(message: ClaudeMessage | ProgramMessage): string {
@@ -101,9 +145,13 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
     }
     case 'code-approvals':
       return { type: 'code-approvals', requestId };
+    case 'live/set':
+      return readLiveSet(message, requestId);
+    case 'live/clear':
+      return readLiveClear(message, requestId);
     default:
       throw new ProtocolError(
-        `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance and opening the app. Undo and redo are the person's, in the app.`,
+        `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance, live values and opening the app. Undo and redo are the person's, in the app.`,
       );
   }
 }
@@ -132,9 +180,69 @@ export function decodeProgramMessage(text: string): ProgramMessage {
       }
       return { type: 'code/approvals', requestId, approvals };
     }
+    case 'live/cleared': {
+      const requestId = requestIdOf(message);
+      const { cleared } = message;
+      if (requestId === undefined || !Number.isSafeInteger(cleared) || (cleared as number) < 0) {
+        throw new ProtocolError('The answer about clearing live values is not valid.');
+      }
+      return { type: 'live/cleared', requestId, cleared: cleared as number };
+    }
     default:
       return decodeServerMessage(text);
   }
+}
+
+/** The most targets, or attributes, one clear of live values names. */
+export const MAX_LIVE_CLEAR = LIVE_LIMITS.valuesPerMessage;
+
+function readSenderKind(value: unknown, everyone: boolean): LiveSenderKind | 'everyone' {
+  const from = value ?? 'claude';
+  if (from === 'claude' || from === 'command-line' || (everyone && from === 'everyone')) {
+    return from;
+  }
+  throw new ProtocolError('Live values come from Claude or from the command line.');
+}
+
+function readLiveSet(message: Record<string, unknown>, requestId: string): ClaudeMessage {
+  const { values, freshFor } = message;
+  if (!Array.isArray(values)) throw new ProtocolError('Live values come as a list.');
+  const fresh = readFreshFor(freshFor);
+  if (fresh === undefined) throw new ProtocolError(FRESHNESS);
+  return {
+    type: 'live/set',
+    requestId,
+    values,
+    ...(freshFor === undefined ? {} : { freshFor: fresh }),
+    from: readSenderKind(message.from, false) as LiveSenderKind,
+  };
+}
+
+function readLiveClear(message: Record<string, unknown>, requestId: string): ClaudeMessage {
+  const { targets, attributes } = message;
+  if (
+    targets !== undefined &&
+    (!Array.isArray(targets) || targets.length > MAX_LIVE_CLEAR || !targets.every(isId))
+  ) {
+    throw new ProtocolError(`Clearing live values names at most ${MAX_LIVE_CLEAR} targets, by id.`);
+  }
+  if (
+    attributes !== undefined &&
+    (!Array.isArray(attributes) ||
+      attributes.length > MAX_LIVE_CLEAR ||
+      !attributes.every(isLiveAttributeName))
+  ) {
+    throw new ProtocolError(
+      `Clearing live values names at most ${MAX_LIVE_CLEAR} attributes, by name.`,
+    );
+  }
+  return {
+    type: 'live/clear',
+    requestId,
+    ...(targets === undefined ? {} : { targets: [...targets] }),
+    ...(attributes === undefined ? {} : { attributes: [...attributes] }),
+    from: readSenderKind(message.from, true),
+  };
 }
 
 /** The request id of a message as text, when it has a valid one, even if the rest is not valid. */

@@ -62,6 +62,11 @@ export class LiveGate {
     return { pass, waiting: 0, dropped: 0 };
   }
 
+  /** Drops what waits and passes the test, as when its values are cleared before their turn. */
+  discard(test: (value: LiveValue) => boolean): void {
+    for (const [key, value] of this.pending) if (test(value)) this.pending.delete(key);
+  }
+
   /** How many values wait now. */
   get waiting(): number {
     return this.pending.size;
