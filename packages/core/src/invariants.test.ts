@@ -902,100 +902,109 @@ function expectRulesKept(state: ProjectSnapshot) {
 /** The file contents already found valid. */
 const validated = new WeakSet<object>();
 
+/** What the sequences of commands did, counted to make sure they do things and not only fail. */
+interface Seen {
+  applied: number;
+  deletes: number;
+  containerChanges: number;
+  recolors: number;
+  undos: number;
+  kinds: Set<string>;
+}
+
+function nothingSeen(): Seen {
+  return { applied: 0, deletes: 0, containerChanges: 0, recolors: 0, undos: 0, kinds: new Set() };
+}
+
+/**
+ * Any sequence of commands, undos and redos keeps the rules, and every action undoes exactly; what
+ * happened is counted in `seen`.
+ */
+function sequences(seen: Seen) {
+  return fc.property(
+    fc.array(intent, { minLength: 10, maxLength: 60 }),
+    fc.integer(),
+    (wishes, seed) => {
+      let random = seed;
+      const newId = randomIds(() => {
+        random = (random * 1103515245 + 12345) % 2147483648;
+        return Math.abs(random) / 2147483648;
+      });
+      let state = propertyProject();
+      let history: History = EMPTY_HISTORY;
+      for (const wish of wishes) {
+        if (wish.kind === 'undo' || wish.kind === 'redo') {
+          const step = (wish.kind === 'undo' ? undo : redo)(state, history);
+          if (step) {
+            ({ state, history } = step);
+            seen.undos += 1;
+          }
+          expectRulesKept(state);
+          continue;
+        }
+        const command = commandFor(state, wish);
+        if (!command) continue;
+        const preview = command.type === 'delete' ? previewDelete(state, command) : undefined;
+        const containerPreview =
+          command.type === 'change-container' ? previewChangeContainer(state, command) : undefined;
+        const outcome = executeCommand(state, command, { newId });
+        // A change of container the preview lets through is never refused, and one it stops is.
+        if (containerPreview) {
+          expect(outcome.ok).toBe(containerPreview.problems.length === 0);
+        }
+        // Relation type limits only warn: a relation that does not nest, of a relation type
+        // that exists, between ends that exist, is never refused.
+        const definitions = definitionsIn(state);
+        if (
+          command.type === 'create-relation' &&
+          definitions.relationTypes.has(command.relation.relationType) &&
+          !definitions.nestingRelationTypes.has(command.relation.relationType)
+        ) {
+          expect(outcome.ok).toBe(true);
+        }
+        if (!outcome.ok) continue;
+        const before = state;
+        const after = outcome.state;
+        expectRulesKept(after);
+        if (preview) {
+          expectDeletedExactly(before, after, preview);
+          seen.deletes += 1;
+        }
+        if (containerPreview) {
+          expectContainerChangedExactly(before, after, containerPreview);
+          seen.containerChanges += 1;
+        }
+        // Picking the same colors again, in another case, changes nothing.
+        if (RECOLORS.has(wish.kind)) {
+          const again = executeCommand(after, lowerCased(command), { newId });
+          expect(again.ok && again.state).toStrictEqual(after);
+          seen.recolors += 1;
+        }
+        seen.applied += 1;
+        seen.kinds.add(command.type);
+
+        const recorded = record(history, {
+          label: outcome.label,
+          author: 'user',
+          operations: outcome.operations,
+          inverse: outcome.inverse,
+        });
+        const undone = undo(after, recorded);
+        // Exactly: a key left with an undefined value would not count as undone.
+        expect(undone?.state).toStrictEqual(before);
+        expect(redo(undone?.state ?? before, undone?.history ?? recorded)?.state).toEqual(after);
+        state = after;
+        history = recorded;
+      }
+    },
+  );
+}
+
 describe('the rules of the core', () => {
   it('hold after any sequence of commands, undos and redos, and every action undoes exactly', () => {
-    const seen = {
-      applied: 0,
-      deletes: 0,
-      containerChanges: 0,
-      recolors: 0,
-      undos: 0,
-      kinds: new Set<string>(),
-    };
-    fc.assert(
-      fc.property(
-        fc.array(intent, { minLength: 10, maxLength: 60 }),
-        fc.integer(),
-        (wishes, seed) => {
-          let random = seed;
-          const newId = randomIds(() => {
-            random = (random * 1103515245 + 12345) % 2147483648;
-            return Math.abs(random) / 2147483648;
-          });
-          let state = propertyProject();
-          let history: History = EMPTY_HISTORY;
-          for (const wish of wishes) {
-            if (wish.kind === 'undo' || wish.kind === 'redo') {
-              const step = (wish.kind === 'undo' ? undo : redo)(state, history);
-              if (step) {
-                ({ state, history } = step);
-                seen.undos += 1;
-              }
-              expectRulesKept(state);
-              continue;
-            }
-            const command = commandFor(state, wish);
-            if (!command) continue;
-            const preview = command.type === 'delete' ? previewDelete(state, command) : undefined;
-            const containerPreview =
-              command.type === 'change-container'
-                ? previewChangeContainer(state, command)
-                : undefined;
-            const outcome = executeCommand(state, command, { newId });
-            // A change of container the preview lets through is never refused, and one it stops is.
-            if (containerPreview) {
-              expect(outcome.ok).toBe(containerPreview.problems.length === 0);
-            }
-            // Relation type limits only warn: a relation that does not nest, of a relation type
-            // that exists, between ends that exist, is never refused.
-            const definitions = definitionsIn(state);
-            if (
-              command.type === 'create-relation' &&
-              definitions.relationTypes.has(command.relation.relationType) &&
-              !definitions.nestingRelationTypes.has(command.relation.relationType)
-            ) {
-              expect(outcome.ok).toBe(true);
-            }
-            if (!outcome.ok) continue;
-            const before = state;
-            const after = outcome.state;
-            expectRulesKept(after);
-            if (preview) {
-              expectDeletedExactly(before, after, preview);
-              seen.deletes += 1;
-            }
-            if (containerPreview) {
-              expectContainerChangedExactly(before, after, containerPreview);
-              seen.containerChanges += 1;
-            }
-            // Picking the same colors again, in another case, changes nothing.
-            if (RECOLORS.has(wish.kind)) {
-              const again = executeCommand(after, lowerCased(command), { newId });
-              expect(again.ok && again.state).toStrictEqual(after);
-              seen.recolors += 1;
-            }
-            seen.applied += 1;
-            seen.kinds.add(command.type);
-
-            const recorded = record(history, {
-              label: outcome.label,
-              author: 'user',
-              operations: outcome.operations,
-              inverse: outcome.inverse,
-            });
-            const undone = undo(after, recorded);
-            // Exactly: a key left with an undefined value would not count as undone.
-            expect(undone?.state).toStrictEqual(before);
-            expect(redo(undone?.state ?? before, undone?.history ?? recorded)?.state).toEqual(
-              after,
-            );
-            state = after;
-            history = recorded;
-          }
-        },
-      ),
-      { numRuns: 150 },
-    );
+    const seen = nothingSeen();
+    // A fixed seed, so that the counts below hold on every run; the next test explores at random.
+    fc.assert(sequences(seen), { numRuns: 150, seed: 20261025 });
     // The sequences must do things, not only be refused.
     expect(seen.applied).toBeGreaterThan(1000);
     expect(seen.deletes).toBeGreaterThan(50);
@@ -1005,6 +1014,10 @@ describe('the rules of the core', () => {
     // And every kind of command among them.
     expect([...seen.kinds].sort()).toEqual([...COMMAND_TYPES].sort());
     // Thousands of actions: on a loaded machine this takes longer than a test's default 5 seconds.
+  }, 60_000);
+
+  it('hold after sequences picked at random on each run', () => {
+    fc.assert(sequences(nothingSeen()), { numRuns: 40 });
   }, 60_000);
 
   it('never lets containment form a cycle, however nesting is attempted', () => {
