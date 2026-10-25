@@ -13,6 +13,7 @@ import { useEditor } from '../../editor/EditorContext';
 import type { Selectable } from '../../editor/selection';
 import { isBuiltInDefinition } from '../definitions/commands';
 import { useOpenDefinition } from '../definitions/opened';
+import { RouteSection } from '../../canvas/routing/RouteSection';
 import { AttributesSection } from './AttributesSection';
 import { byPackage, relationLabel } from './describe';
 import { SelectControl, TextControl } from './controls';
@@ -96,6 +97,7 @@ export function RelationInspector({
           </Detail>
         </dl>
       </section>
+      <RouteSection relation={relation.id} />
       <AttributesSection
         of="relation"
         definitions={relationType.attributes}

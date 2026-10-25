@@ -62,7 +62,9 @@ import { KeyboardHelp } from './KeyboardHelp';
 import { CANVAS_KEYS_HINT } from './keys';
 import { useLayout } from './layout/useLayout';
 import { RelationMenu } from './RelationMenu';
-import type { ElementShape, Scene } from './scene';
+import { onRouteEditingRequest } from './routing/requests';
+import { RouteMenu } from './routing/RouteMenu';
+import { relationLinesOf, type ElementShape, type Scene } from './scene';
 import { ShapeMenu } from './ShapeMenu';
 import { restackCommand, stackingActions, stackingShortcut, type StackingMove } from './stacking';
 
@@ -159,6 +161,8 @@ export function CanvasArea({
   const [deleting, setDeleting] = useState<Deleting>();
   const [changing, setChanging] = useState<Changing>();
   const [menu, setMenu] = useState<OpenMenu>();
+  // The menu of relations, their route's (ADR 0039).
+  const [routeMenu, setRouteMenu] = useState<{ at: Point; relations: Id[]; opening: number }>();
   const [choosing, setChoosing] = useState<Choosing>();
   // The element the next element added goes inside, set from its menu, for the selection it was set for.
   const [addTarget, setAddTarget] = useState<{ element: Id; selection: Selection }>();
@@ -270,6 +274,8 @@ export function CanvasArea({
             opening: (last?.opening ?? 0) + 1,
           })),
         collapse: (action, collapsed) => collapseFromCanvas(action, collapsed),
+        relationMenu: (at, relations) =>
+          setRouteMenu((last) => ({ at, relations: [...relations], opening: (last?.opening ?? 0) + 1 })),
       },
       caption ? { caption } : {},
     );
@@ -284,6 +290,12 @@ export function CanvasArea({
 
   // While a scenario records, clicks on relations record its steps.
   const recording = useCanvasRecording(controllerRef, scenarios);
+
+  // Edit the route… from the inspector gives the canvas the keys.
+  useEffect(
+    () => onRouteEditingRequest((relation) => void controllerRef.current?.editRoute(relation)),
+    [],
+  );
 
   useEffect(() => {
     if (indexed) controllerRef.current?.update(project, view.id, indexed, editable);
@@ -438,7 +450,7 @@ export function CanvasArea({
     // Taken wherever it is pressed, so that ⌘[ and ⌘] never go back or forward in the browser.
     event.preventDefault();
     // A dialog or a menu takes its own keys: the stacking order waits for it to close.
-    const open = relating || deletion || changing || choosing || menu;
+    const open = relating || deletion || changing || choosing || menu || routeMenu;
     const inDialog =
       event.target instanceof Element && event.target.closest('[role="dialog"]') !== null;
     if (open || inDialog) return;
@@ -733,6 +745,23 @@ export function CanvasArea({
             controller()?.reveal(other.key);
           }}
           onClose={closeMenu}
+        />
+      )}
+      {routeMenu && (
+        <RouteMenu
+          key={routeMenu.opening}
+          project={project}
+          viewId={view.id}
+          relations={routeMenu.relations}
+          lines={relationLinesOf(drawn)}
+          at={routeMenu.at}
+          editable={editable}
+          onSend={(command) => void send(command)}
+          onEditRoute={(relation) => void controllerRef.current?.editRoute(relation)}
+          onClose={() => {
+            setRouteMenu(undefined);
+            focusCanvas();
+          }}
         />
       )}
       {choosing && (
