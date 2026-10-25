@@ -41,6 +41,7 @@ import { isTextEntry } from '../live/shortcuts';
 import { RecordingCue } from '../scenarios/RecordingCue';
 import type { ScenarioSession } from '../scenarios/session';
 import { useCanvasRecording } from '../scenarios/useCanvasRecording';
+import { canvasCamera, type CanvasCamera } from '../view-state/canvas';
 import type { Camera } from './camera';
 import {
   collapseActions,
@@ -84,6 +85,11 @@ interface CanvasAreaProps {
   revealed?: { key: string; request: number };
   /** The scenario session, whose recording takes clicks on relations while it records. */
   scenarios?: ScenarioSession;
+  /**
+   * Given the canvas's camera once the canvas is made, and undefined once it goes, so that the view
+   * state can follow and move it (W21).
+   */
+  onCanvas?: (canvas: CanvasCamera | undefined) => void;
 }
 
 /**
@@ -146,6 +152,7 @@ export function CanvasArea({
   onCommand,
   revealed,
   scenarios,
+  onCanvas,
 }: CanvasAreaProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -281,6 +288,14 @@ export function CanvasArea({
     };
     // The controller lives as long as the canvas area; `latest` gives it the current props.
   }, [cameras]);
+
+  // The view state follows and moves the camera through this.
+  useEffect(() => {
+    const controller = controllerRef.current;
+    if (!onCanvas || !controller) return;
+    onCanvas(canvasCamera(controller, cameras));
+    return () => onCanvas(undefined);
+  }, [onCanvas, cameras]);
 
   // While a scenario records, clicks on relations record its steps.
   const recording = useCanvasRecording(controllerRef, scenarios);

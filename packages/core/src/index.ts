@@ -220,3 +220,5 @@ export {
   withViewState,
   writeViewState,
 } from './view-state';
+// The limits a view state's filters share with guidance's.
+export { MAX_FILTER_CONDITIONS, MAX_FILTER_TEXT } from './protocol';
