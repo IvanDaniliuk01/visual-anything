@@ -5,8 +5,15 @@
  * back the whole import. Readers live beside this file, one for each format, and never run, fetch or
  * follow anything in what they read.
  */
-import { ESSENCE_ID, type Attributes, type Id, type Point } from '@visual-anything/schema';
+import {
+  ESSENCE_ID,
+  RELATES_TO_ID,
+  type Attributes,
+  type Id,
+  type Point,
+} from '@visual-anything/schema';
 import { Draft } from '../commands/draft';
+import { componentOrEssence } from '../definitions';
 import type { BatchCommand, Command } from '../commands/types';
 import { freshId, isId, randomIds, slug, type IdGenerator } from '../ids';
 import type { ProjectSnapshot } from '../snapshot';
@@ -22,6 +29,11 @@ export const IMPORT_LIMITS = Object.freeze({
   places: 200_000,
   inflatedBytes: 32 * 1024 * 1024,
 });
+
+/** What a mapping chose for a kind: its own entry only, never one an object inherits. */
+function chosen(choices: Readonly<Record<string, Id>>, kind: string): Id | undefined {
+  return Object.hasOwn(choices, kind) ? choices[kind] : undefined;
+}
 
 /** Each pair of what sits inside what once, in the order the plan gives them. */
 function distinctContainment(plan: ImportPlan): ImportPlan['containment'] {
@@ -88,6 +100,7 @@ export interface PlannedRelation {
 export interface PlannedView {
   key: string;
   name: string;
+  description?: string;
   /** The elements it shows, when it shows only some: by keys; absent, it shows the whole model. */
   shows?: string[];
   /** Where its shapes sit, from the file's own layout; pinned, as placed by hand. */
@@ -131,6 +144,8 @@ export type PlannedCommand =
       command: BatchCommand;
       /** The id each planned element, relation and view gets, by its key. */
       ids: ReadonlyMap<string, Id>;
+      /** What the command leaves out of the plan, and why, for the report after the import. */
+      notes: string[];
     }
   | { ok: false; problems: string[] };
 
@@ -183,13 +198,32 @@ export function planToCommand(
   const idOf = (key: string) => ids.get(key) as Id;
 
   const commands: Command[] = [];
+  const notes: string[] = [];
   const nesting = mapping.nesting;
+  const definitions = definitionsIn(state);
+  // Rows stand in the model's order and take no position (ADR 0023).
+  const componentOfKey = new Map<string, Id>();
+  for (const element of plan.elements) {
+    const component =
+      element.existing === undefined
+        ? chosen(mapping.elements, element.kind)
+        : state.model.elements.find((each) => each.id === element.existing)?.component;
+    if (component !== undefined) componentOfKey.set(element.key, component);
+  }
+  const drawsRows = (key: string | undefined) => {
+    const component = key === undefined ? undefined : componentOfKey.get(key);
+    return (
+      component !== undefined &&
+      componentOrEssence(definitions, component).appearance.contentsAsRows === true
+    );
+  };
   for (const view of plan.views) {
     commands.push({
       type: 'create-view',
       view: {
         id: idOf(view.key),
         name: view.name,
+        ...(view.description === undefined ? {} : { description: view.description }),
         perspective: { name: view.name },
         ...(nesting === undefined ? {} : { nestingRelationTypes: [nesting] }),
       },
@@ -211,7 +245,7 @@ export function planToCommand(
       type: 'create-element',
       element: {
         id: idOf(element.key),
-        component: mapping.elements[element.kind] as Id,
+        component: chosen(mapping.elements, element.kind) as Id,
         name: element.name,
         ...(element.description === undefined ? {} : { description: element.description }),
         ...(element.attributes ? { attributes: element.attributes } : {}),
@@ -231,7 +265,7 @@ export function planToCommand(
       type: 'create-relation',
       relation: {
         id: idOf(relation.key),
-        relationType: mapping.relations[relation.kind] as Id,
+        relationType: chosen(mapping.relations, relation.kind) as Id,
         from: idOf(relation.from),
         to: idOf(relation.to),
         ...(relation.name === undefined ? {} : { name: relation.name }),
@@ -255,11 +289,18 @@ export function planToCommand(
         },
       });
     }
-    if (view.positions && view.positions.length > 0) {
+    const placed = (view.positions ?? []).filter((position) => !drawsRows(position.container));
+    const rows = (view.positions?.length ?? 0) - placed.length;
+    if (rows > 0) {
+      notes.push(
+        `${rows === 1 ? '1 position' : `${rows} positions`} in "${view.name}" left out: rows take their place from their table.`,
+      );
+    }
+    if (placed.length > 0) {
       commands.push({
         type: 'set-positions',
         view: viewId,
-        positions: view.positions.map((position) => ({
+        positions: placed.map((position) => ({
           element: idOf(position.element),
           ...(position.container === undefined ? {} : { container: idOf(position.container) }),
           x: position.x,
@@ -272,6 +313,18 @@ export function planToCommand(
     }
     for (const { relation, points } of view.bendPoints ?? []) {
       if (points.length === 0) continue;
+      // A relation that puts one thing inside another is drawn as nesting, not as a line.
+      const kind = plan.relations.find((each) => each.key === relation)?.kind;
+      if (
+        kind !== undefined &&
+        nesting !== undefined &&
+        chosen(mapping.relations, kind) === nesting
+      ) {
+        notes.push(
+          `The bend points of a relation in "${view.name}" left out: it puts one thing inside another.`,
+        );
+        continue;
+      }
       commands.push({
         type: 'set-route',
         view: viewId,
@@ -285,6 +338,7 @@ export function planToCommand(
     ok: true,
     command: { type: 'batch', label: `Import "${plan.source}"`, commands },
     ids,
+    notes,
   };
 }
 
@@ -335,7 +389,7 @@ export function planProblems(
   const known = (key: string) => keys.has(key);
   for (const element of plan.elements) {
     if (element.existing !== undefined) continue;
-    const component = mapping.elements[element.kind];
+    const component = chosen(mapping.elements, element.kind);
     if (component === undefined) {
       problems.push(`No component is chosen for "${element.kind}".`);
     } else if (!definitions.components.has(component) && component !== ESSENCE_ID) {
@@ -343,14 +397,20 @@ export function planProblems(
     }
   }
   for (const relation of plan.relations) {
-    const type = mapping.relations[relation.kind];
+    const type = chosen(mapping.relations, relation.kind);
     if (type === undefined) problems.push(`No relation type is chosen for "${relation.kind}".`);
+    else if (!definitions.relationTypes.has(type) && type !== RELATES_TO_ID) {
+      problems.push(`No package in use defines the relation type "${type}".`);
+    }
     if (!known(relation.from) || !known(relation.to)) {
       problems.push(`The relation "${relation.key}" ends on something the plan does not hold.`);
     }
   }
   if (plan.containment.length > 0 && mapping.nesting === undefined) {
     problems.push('No relation type that nests is chosen for what sits inside what.');
+  }
+  if (mapping.nesting !== undefined && !definitions.nestingRelationTypes.has(mapping.nesting)) {
+    problems.push(`The relation type "${mapping.nesting}" does not nest.`);
   }
   for (const { element, container } of plan.containment) {
     if (!known(element) || !known(container)) {

@@ -1568,6 +1568,12 @@ export const messages: Catalog = {
   '{n} relations': '{n} relaciones',
   '1 shape': '1 forma',
   '{n} shapes': '{n} formas',
+  '1 position': '1 posición',
+  '{n} positions': '{n} posiciones',
+  '{positions} in "{view}" left out: rows take their place from their table.':
+    '{positions} en "{view}" quedaron fuera: las filas toman su lugar de su tabla.',
+  'The bend points of a relation in "{view}" left out: it puts one thing inside another.':
+    'Los puntos de quiebre de una relación en "{view}" quedaron fuera: pone una cosa dentro de otra.',
   '1 container': '1 contenedor',
   '{n} containers': '{n} contenedores',
   '1 free shape': '1 forma libre',

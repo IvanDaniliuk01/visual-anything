@@ -146,6 +146,7 @@ export const NESTED_VALUES: ReadonlySet<string> = new Set([
   'why',
   'things',
   'shapes',
+  'positions',
   'moved',
   'base',
   'owner',
