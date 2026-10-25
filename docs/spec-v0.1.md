@@ -246,9 +246,9 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [x] Built-in "Data modeling" package: Table, Column, is column of, references; reserved package ids; the nesting relation type chosen by its limits
 - [x] Views: perspective, nesting relation types, positions; view list and perspective switcher
 - [x] Nesting with several containers: one copy per container, selected together
-- [ ] Collapse and expand with aggregated relations (count and line weight), also for what a row holds
+- [x] Collapse and expand with aggregated relations (count and line weight), also for what a row holds
 - [x] Filters and focus mode, by degrees and by direction, with isolating the selection
-- [ ] ELK layout in a worker, pinned shapes as fixed inputs, re-layout on demand; each table as one block with a connection point for each related row
+- [x] ELK layout in a worker, pinned shapes as fixed inputs, re-layout on demand; each table as one block with a connection point for each related row
 - [ ] Connection points from components, in a format that leaves room for free geometry: relations attach to them, and ELK takes them as ports
 - [ ] Relations routed by hand, per view, as in draw.io: each end attached to a connection point or to any point of a shape's border, chosen by dragging it; bend points added, moved and removed; orthogonal segments dragged; straight, orthogonal or curved; Reset route goes back to the automatic route
 - [ ] Tables on the canvas: rows, relations to rows, drawing within the budget; columns added on the canvas, typed or pasted; the tables benchmark

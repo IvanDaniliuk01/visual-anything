@@ -25,9 +25,40 @@ interface DeleteDialogProps {
   freeShapes: number;
   /** Present for a change other than a deletion, which the dialog then names and confirms instead. */
   action?: DeleteDialogAction;
+  /**
+   * What the deleted elements hold, which goes only when its box is checked (ADR 0023): the rows the
+   * open view draws, checked at first, and the rest, unchecked, each named with a container that
+   * keeps holding it.
+   */
+  held?: HeldChoice;
   onConfirm: () => void;
   onCancel: () => void;
 }
+
+/** What a deletion's elements hold, and which of it goes with them. */
+export interface HeldChoice {
+  contents: DeletePreview['contents'];
+  rows: boolean;
+  others: boolean;
+  onChange: (group: 'rows' | 'other', checked: boolean) => void;
+}
+
+const HELD_ROWS_OF_ONE: PluralText = {
+  one: 'Also delete its row',
+  other: 'Also delete its {count} rows',
+};
+const HELD_ROWS_OF_SEVERAL: PluralText = {
+  one: 'Also delete their row',
+  other: 'Also delete their {count} rows',
+};
+const HELD_OTHERS_OF_ONE: PluralText = {
+  one: 'Also delete {count} more element it holds:',
+  other: 'Also delete {count} more elements it holds:',
+};
+const HELD_OTHERS_OF_SEVERAL: PluralText = {
+  one: 'Also delete {count} more element they hold:',
+  other: 'Also delete {count} more elements they hold:',
+};
 
 const LISTED = 8;
 
@@ -66,6 +97,7 @@ export function DeleteDialog({
   preview,
   freeShapes,
   action,
+  held,
   onConfirm,
   onCancel,
 }: DeleteDialogProps) {
@@ -160,6 +192,9 @@ export function DeleteDialog({
         {!action && preview.positions.length > 0 && (
           <p>{t(POSITIONS, { count: preview.positions.length })}</p>
         )}
+        {!action && held && (
+          <HeldContents project={project} held={held} several={shownElements(held, preview)} />
+        )}
         <p className="dialog-note">{t('You can undo this.')}</p>
         <div className="dialog-actions">
           <button type="button" onClick={onCancel}>
@@ -229,6 +264,78 @@ function dataNote(
     : t('"{name}" has a name, a description or attributes of its own, which go with it.', {
         name: firstName ?? '',
       });
+}
+
+/** Whether the elements asked to be deleted, the held ones they take aside, are more than one. */
+function shownElements(held: HeldChoice, preview: DeletePreview): boolean {
+  const taken = new Set(
+    held.contents
+      .filter((each) => (each.group === 'rows' ? held.rows : held.others))
+      .map((each) => each.element),
+  );
+  return preview.elements.filter((id) => !taken.has(id)).length > 1;
+}
+
+/** The boxes that add what the deleted elements hold to the deletion, with what each takes. */
+function HeldContents({
+  project,
+  held,
+  several,
+}: {
+  project: ProjectSnapshot;
+  held: HeldChoice;
+  several: boolean;
+}) {
+  const t = useT();
+  const index = modelIndexOf(project);
+  const nameOf = (id: Id) => index.element(id)?.name ?? id;
+  const rows = held.contents.filter((each) => each.group === 'rows');
+  const others = held.contents.filter((each) => each.group === 'other');
+  const rowsId = useId();
+  const othersId = useId();
+  return (
+    <>
+      {rows.length > 0 && (
+        <p className="dialog-choice">
+          <input
+            id={rowsId}
+            type="checkbox"
+            checked={held.rows}
+            onChange={(event) => held.onChange('rows', event.target.checked)}
+          />
+          <label htmlFor={rowsId}>
+            {t(several ? HELD_ROWS_OF_SEVERAL : HELD_ROWS_OF_ONE, { count: rows.length })}
+          </label>
+        </p>
+      )}
+      {others.length > 0 && (
+        <section>
+          <p className="dialog-choice">
+            <input
+              id={othersId}
+              type="checkbox"
+              checked={held.others}
+              onChange={(event) => held.onChange('other', event.target.checked)}
+            />
+            <label htmlFor={othersId}>
+              {t(several ? HELD_OTHERS_OF_SEVERAL : HELD_OTHERS_OF_ONE, { count: others.length })}
+            </label>
+          </p>
+          <List
+            items={others.slice(0, LISTED).map((each) =>
+              each.elsewhere === undefined
+                ? nameOf(each.element)
+                : t('{name} is also in {container}', {
+                    name: nameOf(each.element),
+                    container: nameOf(each.elsewhere),
+                  }),
+            )}
+            total={others.length}
+          />
+        </section>
+      )}
+    </>
+  );
 }
 
 /** The first items of a list, and how many more there are. */

@@ -234,6 +234,21 @@ describe('the grid in the renderer', () => {
     expect(gridMarks.insideOf).toBeUndefined();
   });
 
+  it('draws no grid on a shape that draws its contents as rows, which its table stacks', async () => {
+    vi.useFakeTimers();
+    const renderer = await started();
+    // A copy: the scene a view builds is kept for its next build.
+    const scene = buildScene(sample, VIEW);
+    const shapes = scene.shapes.map((shape) =>
+      shape.key === SCHEDULING ? { ...shape, rowCount: 3 } : shape,
+    );
+    renderer.show(indexScene({ ...scene, shapes }));
+    renderer.setGrid({ grid: true, snapToGrid: true, rulers: false });
+    renderer.showContainerGrid(SCHEDULING);
+    rest(renderer);
+    expect(inside(renderer).gridMarks.insideOf).toBeUndefined();
+  });
+
   it('draws the grid of the container a drag snaps in, outside what the drag draws', async () => {
     const renderer = await started();
     const indexed = overview();

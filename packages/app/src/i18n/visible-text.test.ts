@@ -40,6 +40,7 @@ const TRANSLATED = [
   'canvas/KeyboardHelp.tsx',
   'canvas/routing/RouteMenu.tsx',
   'canvas/routing/RouteSection.tsx',
+  'shell/inspector/RowsSection.tsx',
 ];
 
 /** The attributes whose text people read or hear. */

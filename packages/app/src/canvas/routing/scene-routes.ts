@@ -16,7 +16,7 @@ import {
 } from '@visual-anything/core';
 import type { ConnectionPoint, Id, RelationRoute, ViewFile } from '@visual-anything/schema';
 import type { Point } from '../geometry';
-import { routeBetweenEnds, type RouteEnd } from '../route';
+import { isSideEnd, routeWithSides, type AnyEnd } from '../rowRoutes';
 import type { ElementShape, RelationLine } from '../scene';
 import { routeByHand, type Attach, type CurveSpan, type HandEnd, type RouteStyle } from './hand';
 
@@ -49,8 +49,9 @@ export interface LineEnds {
   /** Each end's shape, when the end is a shape rather than another relation's line. */
   fromShape: ElementShape | undefined;
   toShape: ElementShape | undefined;
-  from: RouteEnd;
-  to: RouteEnd;
+  /** Each end: a shape's rectangle, a point on another line, or a place beside a row (ADR 0023). */
+  from: AnyEnd;
+  to: AnyEnd;
 }
 
 /** How to route one line: what its route depends on beyond its ends' places, and the route. */
@@ -149,8 +150,8 @@ export function sceneRouting(
  */
 export function rerouted(
   line: RelationLine,
-  from: RouteEnd,
-  to: RouteEnd,
+  from: AnyEnd,
+  to: AnyEnd,
   fromShape: ElementShape | undefined,
   toShape: ElementShape | undefined,
 ): RoutedLine | undefined {
@@ -187,7 +188,7 @@ export function routeLine(ends: LineEnds, hand: HandOfLine | undefined): RoutedL
     ...(hand ? { hand } : {}),
   };
   if (!byHand && !pointed) {
-    return { route: routeBetweenEnds(ends.from, ends.to, ends.offset), ...extras };
+    return { route: routeWithSides(ends.from, ends.to, ends.offset), ...extras };
   }
   // Siblings run beside each other only while nothing about them is chosen by hand.
   const sibling = byHand ? 0 : ends.offset / PARALLEL_GAP;
@@ -202,10 +203,11 @@ export function routeLine(ends: LineEnds, hand: HandOfLine | undefined): RoutedL
 }
 
 function handEnd(
-  end: RouteEnd,
+  end: AnyEnd,
   shape: ElementShape | undefined,
   attach: Attach | undefined,
 ): HandEnd {
+  if (isSideEnd(end)) return end;
   if ('point' in end) return { kind: 'point', point: end.point };
   return {
     kind: 'shape',

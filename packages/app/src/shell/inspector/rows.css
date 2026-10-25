@@ -1,0 +1,49 @@
+/* The rows of a table, or of any shape that draws its contents as rows, in the inspector. */
+.inspector-rows-list {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Its name and detail, then its buttons; in a narrow panel the buttons go below. */
+.inspector-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.4rem;
+  overflow-wrap: anywhere;
+}
+
+.inspector-row + .inspector-row {
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.inspector-row-name {
+  flex: 1 1 8rem;
+}
+
+.inspector-row-detail {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.inspector-row-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.inspector-row-actions .inspector-action {
+  margin-top: 0;
+}
+
+.inspector-rows-typed textarea {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+
+.inspector-rows-preview {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}

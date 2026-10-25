@@ -62,6 +62,7 @@ import type { Point } from './geometry';
 import { createAtCommand, createBesideCommand, createInsideCommand } from './gestures';
 import { GRID_STEP, snap } from './grid';
 import type { GridOptions } from './renderer';
+import { addRowCommand } from './rowCommands';
 import { indexScene, withoutShapes, type IndexedScene } from './hit';
 import { InlineEditor } from './InlineEditor';
 import { KeyboardHelp } from './KeyboardHelp';
@@ -103,7 +104,14 @@ interface CanvasAreaProps {
  * first shape, or a note's text. `shown` is the name it was drawn for, once it has been drawn.
  */
 type Editing =
-  | { kind: 'element'; element: Id; key?: string; shown?: string }
+  | {
+      kind: 'element';
+      element: Id;
+      key?: string;
+      shown?: string;
+      /** For a row just added: the shape of its container, where Ctrl+Enter adds the next one. */
+      rows?: string;
+    }
   | { kind: 'note'; id: Id; shown?: string };
 
 /** What the delete preview deletes: what was selected when it opened. */
@@ -111,6 +119,9 @@ interface Deleting {
   elements: Id[];
   relations: Id[];
   freeShapes: Id[];
+  /** Whether the rows and the other elements the deleted ones hold go too; rows do at first. */
+  rows?: boolean;
+  others?: boolean;
 }
 
 /**
@@ -189,6 +200,8 @@ export function CanvasArea({
   const [closedByItself, setClosedByItself] = useState(0);
   // The element just added, whose first shape the camera brings into sight once it is drawn.
   const revealNext = useRef<Id | undefined>(undefined);
+  // The shape of the row just added, by its key, which the camera brings into sight once drawn.
+  const revealKey = useRef<string | undefined>(undefined);
   // The emphasis to draw, kept for the controller made after it came.
   const emphasis = useRef<Emphasis>({});
   const hint = useId();
@@ -260,6 +273,31 @@ export function CanvasArea({
   // The toggle and the keys, from the controller, which lives as long as the canvas area.
   const collapseFromCanvas = useEffectEvent(collapse);
 
+  /**
+   * Adds a row to a shape that draws rows, below `below` or at the end, and edits its name in place
+   * on that copy of the container, once it is drawn and brought into sight (ADR 0023).
+   */
+  const addRow = async (container: ElementShape, below?: Id) => {
+    const { project: now, view: open } = latest.current;
+    const made = addRowCommand(now, open.id, container.element, below);
+    if (!made) return;
+    // As `intent` tells: an answer that comes after the person moved on changes nothing more.
+    const chosen = latest.current.selection;
+    const focused = document.activeElement;
+    const result = await send(made.command);
+    if (!result.ok || latest.current.selection !== chosen || document.activeElement !== focused) {
+      return;
+    }
+    const key = `${container.key}/${made.id}`;
+    latest.current.onSelect(selectionOf([{ kind: 'element', id: made.id }]));
+    setEditing({ kind: 'element', element: made.id, key, rows: container.key });
+    if (latest.current.indexed?.byKey.has(key)) controllerRef.current?.reveal(key);
+    else revealKey.current = key;
+  };
+  const addRowFromCanvas = useEffectEvent((container: ElementShape, below?: Id) => {
+    void addRow(container, below);
+  });
+
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
@@ -317,6 +355,7 @@ export function CanvasArea({
             relations: [...relations],
             opening: (last?.opening ?? 0) + 1,
           })),
+        addRow: (container, below) => addRowFromCanvas(container, below),
         themeShown: (shown) => themeShown(shown),
       },
       // The canvas starts in the theme shown now, and follows it from then on.
@@ -356,6 +395,14 @@ export function CanvasArea({
   useEffect(() => {
     if (indexed) controllerRef.current?.update(project, view.id, indexed, editable);
   }, [project, view.id, indexed, editable]);
+
+  // Once the row just added is drawn, the camera brings it into sight on its container's copy.
+  useEffect(() => {
+    const key = revealKey.current;
+    if (key === undefined || !indexed?.byKey.has(key)) return;
+    revealKey.current = undefined;
+    controllerRef.current?.reveal(key);
+  }, [indexed]);
 
   // Once the element just added is drawn, the camera brings its first shape into sight.
   useEffect(() => {
@@ -856,6 +903,21 @@ export function CanvasArea({
           project={project}
           preview={deletion.preview}
           freeShapes={deletion.freeShapes.length}
+          {...(deletion.held.contents.length > 0
+            ? {
+                held: {
+                  ...deletion.held,
+                  onChange: (group: 'rows' | 'other', checked: boolean) =>
+                    setDeleting(
+                      (last) =>
+                        last && {
+                          ...last,
+                          ...(group === 'rows' ? { rows: checked } : { others: checked }),
+                        },
+                    ),
+                },
+              }
+            : {})}
           onConfirm={() => void confirmDelete()}
           onCancel={() => {
             setDeleting(undefined);
@@ -895,6 +957,16 @@ export function CanvasArea({
             void send({ type: 'update-element', id: editedShape.element, changes: { name } });
           }}
           onCancel={closeEditor}
+          {...(editing.rows === undefined
+            ? {}
+            : {
+                // Ctrl+Enter in a row's name adds the next row below it.
+                onNext: () => {
+                  const container =
+                    editing.rows === undefined ? undefined : indexed?.byKey.get(editing.rows);
+                  if (container) void addRow(container, editedShape.element);
+                },
+              })}
         />
       )}
       {editing?.kind === 'note' && editedNote && (
@@ -966,7 +1038,8 @@ function addRuleOf(
     );
   if (target !== undefined && index.element(target)) return insideItself(target);
   if (!first || selected === undefined) return {};
-  if (first.holdsContents) return insideItself(selected);
+  // A shape that draws rows takes new contents even while it is empty (ADR 0023).
+  if (first.holdsContents || first.rowCount !== undefined) return insideItself(selected);
   if (first.container === undefined) {
     return {
       beside: first,
@@ -1002,8 +1075,19 @@ function deletionOf(project: ProjectSnapshot, view: ViewFile, targets: Deleting)
   const relations = targets.relations.filter((id) => index.relation(id) !== undefined);
   const freeShapes = targets.freeShapes.filter((id) => inView.has(id));
   if (elements.length === 0 && relations.length === 0 && freeShapes.length === 0) return undefined;
-  const preview = previewDelete(project, { elements, relations });
-  return preview.problems.length === 0 ? { preview, freeShapes } : undefined;
+  const asked = previewDelete(project, { elements, relations }, view.id);
+  if (asked.problems.length > 0) return undefined;
+  // What the deleted elements hold goes only when chosen: the rows at first, the rest when asked.
+  const rows = targets.rows ?? true;
+  const others = targets.others ?? false;
+  const taken = asked.contents
+    .filter((each) => (each.group === 'rows' ? rows : others))
+    .map((each) => each.element);
+  const preview =
+    taken.length === 0
+      ? asked
+      : previewDelete(project, { elements: [...elements, ...taken], relations }, view.id);
+  return { preview, freeShapes, held: { contents: asked.contents, rows, others } };
 }
 
 /** The shape an element's name is edited on: the one it was opened on, or else its first one. */

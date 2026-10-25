@@ -28,6 +28,7 @@ import {
 } from '../draw';
 import type { Arrowhead } from '../geometry';
 import { RelationLabel } from '../labels';
+import { rowColorsOf } from '../rowsDraw';
 import {
   ARROW_WIDTH,
   type ArrowShape,
@@ -71,12 +72,12 @@ export class Painter {
 
   /** Element shapes as plain blocks. */
   shapeBlocks(graphics: Graphics, shapes: readonly ElementShape[], inOrder = false): void {
-    drawShapeBlocks(graphics, this.shapes(shapes), inOrder);
+    drawShapeBlocks(graphics, this.shapes(shapes), inOrder, rowColorsOf(this.theme));
   }
 
-  /** Element shapes in full. */
+  /** Element shapes in full; rows and the shapes that draw them in the theme's row colors. */
   shapeOutlines(graphics: Graphics, shapes: readonly ElementShape[]): void {
-    drawShapeOutlines(graphics, this.shapes(shapes));
+    drawShapeOutlines(graphics, this.shapes(shapes), rowColorsOf(this.theme));
   }
 
   /** Relations as plain lines. */

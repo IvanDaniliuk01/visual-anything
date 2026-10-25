@@ -12,6 +12,7 @@ import {
 import type { Id } from '@visual-anything/schema';
 import { ESSENCE_ID } from '@visual-anything/schema';
 import { boundsOf, type Rect } from '../geometry';
+import { headerMiddle } from '../rows';
 import type { ElementShape, Scene } from '../scene';
 import { connectionPointsOf, handPortsOf } from './ports';
 import type { LayoutConnectionPoint, LayoutInput, LayoutRelation, LayoutShape } from './types';
@@ -87,7 +88,8 @@ export function layoutInput(
   let anyFree = false;
   const laid = shapes.map((shape, at): LayoutShape => {
     indexes.set(shape.key, at);
-    const isFree = free(shape);
+    // A row has no position of its own: it moves with the shape that draws it (ADR 0023).
+    const isFree = shape.row === undefined && free(shape);
     anyFree ||= isFree;
     const parent =
       shape.containerShape === undefined ? undefined : indexes.get(shape.containerShape);
@@ -112,6 +114,9 @@ export function layoutInput(
       }
       if (isFree && own.points) laidShape.points = own.points;
     }
+    // Rows and the shapes that draw them attach relations beside them, at their middles.
+    if (shape.row !== undefined) laidShape.rowAt = shape.offset.y + shape.rect.height / 2;
+    if (shape.rowCount !== undefined) laidShape.headerAt = headerMiddle(shape.rect) - shape.rect.y;
     return laidShape;
   });
   if (!anyFree) return undefined;

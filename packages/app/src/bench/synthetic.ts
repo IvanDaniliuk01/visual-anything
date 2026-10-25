@@ -10,7 +10,7 @@
  * - `cascade`: four fifths of the elements in systems, and the rest Services directly in World below
  *   them, in one cascade where each overlaps the ones before it.
  */
-import { SYSTEMS, type ProjectSnapshot } from '@visual-anything/core';
+import { DATA_MODELING, SYSTEMS, type ProjectSnapshot } from '@visual-anything/core';
 import type { Element, Relation, Routes, ShapePosition } from '@visual-anything/schema';
 
 /** How the synthetic shapes overlap. */
@@ -21,6 +21,12 @@ export const OVERLAPS: readonly Overlap[] = ['none', 'stairs', 'grid', 'cascade'
 export interface SyntheticOptions {
   /** How many elements, World aside; at least one system holds them, except in a grid. */
   elements: number;
+  /**
+   * Tables instead of systems (ADR 0023): one view, `tables`, of a table for every 25 elements, each
+   * with 24 columns, one more table of 300 columns, and a "references" relation for every 10
+   * elements between columns of tables, most of them near each other. See `syntheticTables`.
+   */
+  tables?: boolean;
   /** How many elements each system holds, the system included. */
   perSystem?: number;
   /** How many relations each element starts, on average. */
@@ -54,6 +60,7 @@ const GRID = { columns: 100, width: 100, height: 50 };
 
 /** A project with one view that shows `elements` elements, every one with a stored position. */
 export function syntheticProject(options: SyntheticOptions): ProjectSnapshot {
+  if (options.tables) return syntheticTables(options.elements);
   const overlap = options.overlap ?? 'none';
   const random = seeded(1);
   const elements: Element[] = [];
@@ -256,6 +263,124 @@ function addSystems(
   }
   return bottom;
 }
+
+/** How many columns each table of `syntheticTables` has, and the large one. */
+export const TABLE_COLUMNS = 24;
+export const LARGE_TABLE_COLUMNS = 300;
+/** The id of the large table. */
+export const LARGE_TABLE = 'table-large';
+/** Where tables sit apart on their grid. */
+const TABLE_GAP = { x: 160, y: 120 };
+const TABLE_WIDTH = 240;
+/** How tall a table of `columns` columns is drawn: its header, its rows and its foot. */
+const tableHeight = (columns: number) => 32 + columns * 24 + 4;
+
+/**
+ * A view of tables (ADR 0023): a table for every 25 elements, of 24 columns each, the first a primary
+ * key, on a grid; one more table of 300 columns beside the grid; and a "references" relation for every
+ * 10 elements, from a column that is not a key to the key of a table, near it four times in five.
+ */
+export function syntheticTables(elements: number): ProjectSnapshot {
+  const random = seeded(3);
+  const count = Math.max(1, Math.round(elements / 25));
+  const columnsOf: string[][] = [];
+  const model: Element[] = [];
+  const relations: Relation[] = [];
+  const positions: ShapePosition[] = [];
+  const columns = Math.ceil(Math.sqrt(count));
+  const addTable = (id: string, name: string, size: number, x: number, y: number) => {
+    model.push({ id, component: 'data-modeling.table', name });
+    positions.push({ element: id, x, y });
+    const ids: string[] = [];
+    for (let each = 0; each < size; each++) {
+      const column = `${id}-c${each}`;
+      ids.push(column);
+      model.push({
+        id: column,
+        component: 'data-modeling.column',
+        name: each === 0 ? 'id' : `column_${each}`,
+        attributes:
+          each === 0
+            ? { type: 'uuid', primaryKey: true }
+            : { type: COLUMN_TYPES[each % COLUMN_TYPES.length] as string },
+      });
+      relations.push({
+        id: `${column}-of`,
+        relationType: 'data-modeling.is-column-of',
+        from: column,
+        to: id,
+      });
+    }
+    columnsOf.push(ids);
+  };
+  for (let table = 0; table < count; table++) {
+    addTable(
+      `table-${table}`,
+      `table_${table}`,
+      TABLE_COLUMNS,
+      (table % columns) * (TABLE_WIDTH + TABLE_GAP.x),
+      Math.floor(table / columns) * (tableHeight(TABLE_COLUMNS) + TABLE_GAP.y),
+    );
+  }
+  addTable(
+    LARGE_TABLE,
+    'large_table',
+    LARGE_TABLE_COLUMNS,
+    columns * (TABLE_WIDTH + TABLE_GAP.x) + TABLE_GAP.x,
+    0,
+  );
+  const wanted = Math.round(elements / 10);
+  for (let each = 0; each < wanted; each++) {
+    const from = Math.floor(random() * columnsOf.length);
+    const near = random() < 0.8;
+    const to = near
+      ? Math.min(columnsOf.length - 1, Math.max(0, from + 1 + Math.floor(random() * 4)))
+      : Math.floor(random() * columnsOf.length);
+    const source = columnsOf[from] as string[];
+    const column = source[1 + Math.floor(random() * (source.length - 1))] as string;
+    const key = (columnsOf[to] as string[])[0] as string;
+    if (from === to) continue;
+    relations.push({
+      id: `reference-${each}`,
+      relationType: 'data-modeling.references',
+      from: column,
+      to: key,
+    });
+  }
+  return {
+    project: {
+      schemaVersion: 1,
+      name: `${elements} elements in tables`,
+      packages: ['data-modeling'],
+    },
+    model: {
+      world: { id: 'world', component: 'essence', name: 'World' },
+      elements: model,
+      relations,
+    },
+    packages: [DATA_MODELING],
+    views: [
+      {
+        id: 'tables',
+        name: 'Tables',
+        perspective: { name: 'Benchmark' },
+        nestingRelationTypes: ['data-modeling.is-column-of'],
+        positions,
+        freeShapes: [],
+      },
+    ],
+    scenarios: [],
+  };
+}
+
+const COLUMN_TYPES = [
+  'uuid',
+  'text',
+  'integer',
+  'timestamp with time zone',
+  'numeric(10, 2)',
+  'boolean',
+];
 
 /** A small, fast generator of numbers between 0 and 1, the same for the same seed. */
 export function seeded(seed: number): () => number {
