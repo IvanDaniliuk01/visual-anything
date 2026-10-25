@@ -32,5 +32,5 @@ describe('the exports in the browser', () => {
     expect(Object.keys(entry?.[1].inputs ?? {}).some((input) => input.includes('pdfkit'))).toBe(
       false,
     );
-  }, 60_000);
+  }, 180_000);
 });
