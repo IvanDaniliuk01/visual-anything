@@ -149,6 +149,10 @@ export function describePreview(preview: Extract<ImportPreview, { ok: true }>): 
       `It starts using the built-in ${prepared.packages.length === 1 ? 'package' : 'packages'} ${prepared.packages.join(', ')}.`,
     );
   }
+  if (prepared.notes.length > 0) {
+    lines.push('What the import leaves out:');
+    for (const note of prepared.notes) lines.push(`  ${note}`);
+  }
   if (prepared.plan.unmatched.length > 0) {
     lines.push('What matched nothing:');
     for (const { text, why } of prepared.plan.unmatched)

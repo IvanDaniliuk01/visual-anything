@@ -23,6 +23,7 @@ import type { Attributes, Id } from '@visual-anything/schema';
 import { z } from 'zod';
 import { ProgramUnavailableError, type CommandAnswer, type Program } from './bridge';
 import { EXPLORE_TOOLS } from './explore-tools';
+import { EXPORT_TOOLS } from './export-tools';
 import { IMAGE_TOOLS } from './image-tools';
 import { IMPORT_TOOLS } from './import-tools';
 import { RECIPES_IN_BRIEF } from './recipes';
@@ -1117,6 +1118,7 @@ export const TOOLS: readonly Tool[] = [
   ...IMPORT_TOOLS,
   // What a view shows of the model (ADR-0040).
   ...SCOPE_TOOLS,
+  ...EXPORT_TOOLS,
 ];
 
 /** Runs a tool, turning a program that cannot be reached into an outcome Claude reads. */

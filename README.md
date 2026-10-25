@@ -76,6 +76,20 @@ The executables are not signed yet, so each system warns the first time:
 - **macOS.** The executable is signed ad hoc, which lets it run but does not identify its maker. Make it executable after downloading, with `chmod +x visual-anything-macos-arm64`. The first run of a file a browser downloaded shows "“visual-anything-macos-arm64” Not Opened: Apple could not verify it is free of malware". Choose **Done**, open **System Settings**, then **Privacy & Security**, choose **Open Anyway** beside the message about it, and run it again; macOS asks once more, with your password. Or remove the quarantine a browser puts on downloads before the first run: `xattr -d com.apple.quarantine visual-anything-macos-arm64`.
 - **Linux.** Nothing warns. Make it executable after downloading, with `chmod +x visual-anything-linux-x64`. It needs glibc 2.28 or later (Debian 10, Ubuntu 20.04, Fedora 29, RHEL 8 or later; not Alpine), and opens the browser through `xdg-open`, which comes with `xdg-utils`; without it, use `--no-open`.
 
+## Exporting a view
+
+```sh
+visual-anything export <folder> --view <id> --format svg|pdf|md|mermaid|structurizr [--theme light|dark] [--out <file>]
+```
+
+From the repository, run `pnpm exec tsx packages/server/src/cli.ts export …`. It writes one view of the project in `folder`, reading the project itself, so it needs no Visual Anything running and suits CI, a README or a pull request:
+
+- **svg** and **pdf** draw the whole view as the canvas does, in the theme asked for, without the selection, filters or focus. The SVG names each shape's element and each line's relation in `data-element` and `data-relation` attributes, and takes its title and description from the view. The PDF embeds its fonts (Roboto), and carries the view's outline as an attachment.
+- **md** writes the view's outline in Markdown: what sits in each container, the relations drawn from each shape, the notes and the scenarios' steps. It is the view's long description, which the SVG and the PDF name.
+- **mermaid** writes a Mermaid flowchart, which GitHub renders, and **structurizr** a Structurizr DSL workspace of the view's Systems components.
+
+Each says on standard error what it could not hold. It writes only the file given with `--out`, and never a project file; without `--out`, the export goes to standard output.
+
 ## Claude through MCP
 
 Claude works on the project Visual Anything has open through an MCP server that Claude Code or Claude Desktop starts. It attaches to the Visual Anything running on the project, and starts one in the background when none runs, which stops by itself once nothing has been connected to it for a minute. Every change Claude makes is one action in your undo history, labelled Claude, and you undo it in the app like your own. Claude's guidance (highlights, focus, moves of the canvas and captions) shows while the app is open; ask Claude to open it.

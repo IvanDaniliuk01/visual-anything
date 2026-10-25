@@ -726,6 +726,7 @@ function Report({
     creates: { elements: number; relations: number; views: number };
     updates: number;
     plan: ImportPlan;
+    notes: readonly string[];
   };
   warnings: readonly string[];
   onOpenView?: () => void;
@@ -765,6 +766,13 @@ function Report({
         <ul className="import-warnings">
           {warnings.map((warning, at) => (
             <li key={at}>{t.message(warning)}</li>
+          ))}
+        </ul>
+      )}
+      {prepared.notes.length > 0 && (
+        <ul className="import-warnings">
+          {prepared.notes.map((note, at) => (
+            <li key={at}>{t.message(note)}</li>
           ))}
         </ul>
       )}

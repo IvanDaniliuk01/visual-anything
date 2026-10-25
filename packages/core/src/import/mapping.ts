@@ -213,6 +213,8 @@ export interface PreparedImport {
   creates: { elements: number; relations: number; views: number };
   /** How many elements of the project it changes, matched by a key. */
   updates: number;
+  /** What the batch leaves out of the plan, and why, as `planToCommand` says it, for the report. */
+  notes: string[];
 }
 
 /**
@@ -293,6 +295,7 @@ export function prepareImport(
       views: prepared.views.length,
     },
     updates,
+    notes: planned.notes,
   };
 }
 

@@ -94,6 +94,7 @@ function summaryOf(preview: Extract<ImportPreview, { ok: true }>, mapping: Impor
     ...(mapping.nesting === undefined ? {} : { nesting: mapping.nesting }),
     ...(prepared.packages.length > 0 ? { startsUsing: prepared.packages } : {}),
     matchedNothing: prepared.plan.unmatched,
+    ...(prepared.notes.length > 0 ? { leftOut: prepared.notes } : {}),
   };
 }
 
@@ -145,6 +146,7 @@ Example: { "name": "services.csv", "content": "name,component\\nBilling,Service"
         updated: summary.updates,
         ...(summary.startsUsing === undefined ? {} : { startsUsing: summary.startsUsing }),
         matchedNothing: summary.matchedNothing,
+        ...(summary.leftOut === undefined ? {} : { leftOut: summary.leftOut }),
       };
     });
   },

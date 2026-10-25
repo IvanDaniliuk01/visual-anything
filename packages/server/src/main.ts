@@ -5,13 +5,15 @@
  *                   [--dev] [--stop-when-idle]
  *   visual-anything mcp [folder] [--dev]
  *   visual-anything new <folder> [--from <sample>] [--port <n>] [--no-open] [--dev]
+ *   visual-anything export <folder> --view <id> --format <format> [--theme <theme>] [--out <file>]
  *   visual-anything import <folder> <file> [--map <kind>=<id>]... [--dry-run]
  *
  * The first opens the project folder, serves the app on 127.0.0.1 and opens the browser on it, at
  * the view and selection asked for; `open` says so and changes nothing. The second is Claude's MCP
  * entry point, which Claude Code and Claude Desktop start: it speaks MCP on
  * stdin and stdout, so it writes nothing else there, and every line of its own goes to stderr. `new`
- * starts a new project, and `import` imports a file into a project as one action of the person's
+ * starts a new project; `export` writes a view as a file, reading the project itself
+ * (`export-command.ts`); and `import` imports a file into a project as one action of the person's
  * (ADR-0042).
  */
 import { homedir } from 'node:os';
@@ -34,6 +36,9 @@ export const MCP_COMMAND = 'mcp';
 /** The word that may come before the local program's folder, as in `visual-anything open shop`. */
 export const OPEN_COMMAND = 'open';
 
+/** The subcommand that exports a view as a file (M6b), with no program running. */
+export const EXPORT_COMMAND = 'export';
+
 /** The subcommand that starts a new project, from a sample or empty, then opens it (ADR 0051). */
 export const NEW_COMMAND = 'new';
 
@@ -42,17 +47,19 @@ export const IMPORT_COMMAND = 'import';
 
 /** Which entry point a command line runs, with the arguments that entry point reads. */
 export interface Entry {
-  kind: 'program' | 'mcp' | 'new' | 'import';
+  kind: 'program' | 'mcp' | 'new' | 'export' | 'import';
   argv: string[];
 }
 
 /**
  * Which entry point a command line runs: the MCP entry point when its first argument is `mcp`, the
- * local program otherwise, with `open` before its folder left out. A folder named `mcp` or `open` is
- * opened as `./mcp` or `./open`.
+ * export when it is `export`, the import when it is `import`, a new project when it is `new`, the
+ * local program otherwise, with `open` before its folder left out. A folder named `mcp`, `export`,
+ * `import`, `new` or `open` is opened as `./mcp`, `./export`, `./import`, `./new` or `./open`.
  */
 export function entryOf(argv: readonly string[]): Entry {
   if (argv[0] === MCP_COMMAND) return { kind: 'mcp', argv: argv.slice(1) };
+  if (argv[0] === EXPORT_COMMAND) return { kind: 'export', argv: argv.slice(1) };
   if (argv[0] === IMPORT_COMMAND) return { kind: 'import', argv: argv.slice(1) };
   if (argv[0] === OPEN_COMMAND) return { kind: 'program', argv: argv.slice(1) };
   if (argv[0] === NEW_COMMAND) return { kind: 'new', argv: argv.slice(1) };
@@ -67,16 +74,36 @@ export function main(argv: readonly string[]): void {
       ? runMcp(entry.argv, {
           usage: MCP_USAGE.replace('visual-anything-mcp', 'visual-anything mcp'),
         })
-      : entry.kind === 'import'
-        ? runImport(entry.argv, {
-            cwd: process.cwd(),
-            out: (line) => console.log(line),
-            err: (line) => console.error(line),
-            runtimeFolder: runtimeFolder(process.platform, process.env, homedir()),
-          })
-        : runProgram(entry.argv, isExecutable(), entry.kind === 'new' ? runNewCommand : runCommand);
+      : entry.kind === 'export'
+        ? runExportCommand(entry.argv)
+        : entry.kind === 'import'
+          ? runImport(entry.argv, {
+              cwd: process.cwd(),
+              out: (line) => console.log(line),
+              err: (line) => console.error(line),
+              runtimeFolder: runtimeFolder(process.platform, process.env, homedir()),
+            })
+          : runProgram(
+              entry.argv,
+              isExecutable(),
+              entry.kind === 'new' ? runNewCommand : runCommand,
+            );
   void run.then((code) => {
     if (code !== undefined) process.exitCode = code;
+  });
+}
+
+/**
+ * Runs the export command on the process's own streams. Its writers, which draw scenes and make PDFs,
+ * are loaded only for it, so that the program and the MCP entry point start without them.
+ */
+export async function runExportCommand(argv: readonly string[]): Promise<number> {
+  const { runExport } = await import('./export-command');
+  return runExport(argv, {
+    cwd: process.cwd(),
+    stdout: (data) => process.stdout.write(data),
+    stdoutIsTerminal: process.stdout.isTTY === true,
+    err: (line) => console.error(line),
   });
 }
 
