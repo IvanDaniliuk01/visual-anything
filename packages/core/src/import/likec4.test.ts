@@ -1,4 +1,4 @@
-﻿/**
+/**
  * The LikeC4 reader (ADR-0042, R36): the model `likec4 export json` writes becomes a plan whose views
  * are scopes with their layout, that applies as one action; hostile models are refused or read safely.
  */
@@ -295,6 +295,43 @@ describe('readLikeC4, on hostile models', () => {
     expect(Object.keys(attributes)).toEqual(['__proto__', 'toString']);
     expect(Object.getPrototypeOf(attributes)).toBe(Object.prototype);
     applyPlan(systemsProject(), plan);
+  });
+
+  it('refuses a name too long or too deep, and more elements than an import brings, before reading them', () => {
+    const long = 'a.'.repeat(50_000) + 'a';
+    let started = Date.now();
+    expect(
+      refusal(JSON.stringify({ elements: { [long]: { id: long, kind: 'box', title: 'Long' } } })),
+    ).toBe(
+      `The LikeC4 model holds a name over 256 characters or 32 levels deep: "${'a.'.repeat(79)}a…".`,
+    );
+    expect(Date.now() - started).toBeLessThan(2_000);
+    const deep = Array.from({ length: 34 }, (_, at) => `n${at}`).join('.');
+    expect(refusal(JSON.stringify({ elements: { x: { id: deep, kind: 'box' } } }))).toMatch(
+      /^The LikeC4 model holds a name over 256 characters or 32 levels deep/,
+    );
+    const elements = Object.fromEntries(
+      Array.from({ length: 20_001 }, (_, at) => [`e${at}`, { id: `e${at}`, kind: 'box' }]),
+    );
+    started = Date.now();
+    expect(refusal(JSON.stringify({ elements, relations: {} }))).toBe(
+      'The file holds 20,001 elements; an import brings at most 20,000.',
+    );
+    expect(Date.now() - started).toBeLessThan(2_000);
+  });
+
+  it('places an element whose parents the model leaves out inside the nearest one it holds', () => {
+    const elements = Object.fromEntries([
+      ['r', { id: 'r', kind: 'system', title: 'R' }],
+      ...Array.from({ length: 1000 }, (_, at): [string, object] => [
+        `r.m.n.e${at}`,
+        { id: `r.m.n.e${at}`, kind: 'container' },
+      ]),
+    ]);
+    const plan = read(JSON.stringify({ elements, relations: {} }));
+    expect(plan.containment).toHaveLength(1000);
+    expect(plan.containment.every((each) => each.container === 'e:project-1/r')).toBe(true);
+    expect(plan.elements[1]?.name).toBe('e0');
   });
 
   it('brings at most 500 views, and at most 200,000 shapes across them', () => {

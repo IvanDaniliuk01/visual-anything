@@ -29,6 +29,7 @@ import {
   attributesFrom,
   descriptionFrom,
   nameFrom,
+  quote,
   reading,
   refuse,
   suggestionFor,
@@ -50,6 +51,11 @@ const INSTANCE = 'instanceOf';
 /** Reads a LikeC4 model, as `likec4 export json` writes it. */
 export function readLikeC4(text: string, source: string, options?: ReadOptions): ImportRead {
   return reading(() => planOf(parseJson(text), source, options));
+}
+
+/** Reads a LikeC4 model already parsed from JSON, so that a file is parsed once to tell its format. */
+export function readLikeC4Json(parsed: unknown, source: string, options?: ReadOptions): ImportRead {
+  return reading(() => planOf(parsed, source, options));
 }
 
 /** The components the built-in packages and the C4 starter package offer for a kind, best first. */
@@ -74,13 +80,99 @@ function elementSuggestions(kind: string, shape: string | undefined): Id[] {
 
 const RELATION_SUGGESTIONS: Id[] = ['c4.uses', 'systems.communicates-with', 'relates-to'];
 
-/** Where an element sits: inside the longest name its own name extends, among those the model holds. */
-function parentByName(name: string, holds: (name: string) => boolean): string | undefined {
-  for (let at = name.lastIndexOf('.'); at > 0; at = name.lastIndexOf('.', at - 1)) {
-    const prefix = name.slice(0, at);
-    if (holds(prefix)) return prefix;
+/** The longest name, such as `shop.backend.api`, that an element of a model may have. */
+export const MAX_LIKEC4_NAME = 256;
+/** How many levels deep a name may nest an element, counted by its dots. */
+export const MAX_LIKEC4_DEPTH = 32;
+
+/** A name as the model writes it, refused past the length and the depth a name may have. */
+function checkedName(name: string): string {
+  let dots = 0;
+  for (
+    let at = name.indexOf('.');
+    at !== -1 && dots <= MAX_LIKEC4_DEPTH;
+    at = name.indexOf('.', at + 1)
+  ) {
+    dots += 1;
   }
-  return undefined;
+  if (name.length > MAX_LIKEC4_NAME || dots > MAX_LIKEC4_DEPTH) {
+    refuse(
+      `The LikeC4 model holds a name over ${MAX_LIKEC4_NAME} characters or ${MAX_LIKEC4_DEPTH} levels deep: "${quote(name)}".`,
+    );
+  }
+  return name;
+}
+
+/**
+ * Refuses a model past the elements and relations an import brings, by counting the records' keys
+ * before any element is read, so that nothing later works on more than an import may bring.
+ */
+function refusePastLimits(
+  json: JsonReader,
+  datas: readonly JsonObject[],
+  projectIds: ReadonlySet<string>,
+): void {
+  let elementCount = 0;
+  let relationCount = 0;
+  const keysOf = (value: unknown, path: string) => {
+    const object = json.objectOr(value, path);
+    return object === undefined ? 0 : Object.keys(object).length;
+  };
+  for (const data of datas) {
+    elementCount += keysOf(own(data, 'elements'), 'elements');
+    for (const [project, list] of ownEntries(json.objectOr(own(data, 'imports'), 'imports'))) {
+      if (!projectIds.has(project)) elementCount += json.list(list, `imports.${project}`).length;
+    }
+    const deployments = json.objectOr(own(data, 'deployments'), 'deployments');
+    elementCount += keysOf(own(deployments, 'elements'), 'deployments.elements');
+    relationCount += keysOf(own(data, 'relations'), 'relations');
+    relationCount += keysOf(own(deployments, 'relations'), 'deployments.relations');
+  }
+  if (elementCount > IMPORT_LIMITS.elements) {
+    refuse(
+      `The file holds ${elementCount.toLocaleString('en')} elements; an import brings at most ${IMPORT_LIMITS.elements.toLocaleString('en')}.`,
+    );
+  }
+  if (relationCount > IMPORT_LIMITS.relations) {
+    refuse(
+      `The file holds ${relationCount.toLocaleString('en')} relations, those that put one thing inside another included; an import brings at most ${IMPORT_LIMITS.relations.toLocaleString('en')}.`,
+    );
+  }
+}
+
+/**
+ * Where each element sits: inside the longest name its own name extends, among those the model
+ * holds. A model holds each name's own parent, so a name is looked up once; when one is missing, what
+ * each missing name leads to is kept, so that no name further out is looked up twice.
+ */
+function parentsByName(names: readonly string[]): Map<string, string> {
+  const held = new Set(names);
+  const nearest = new Map<string, string | null>();
+  const parents = new Map<string, string>();
+  for (const name of names) {
+    const dot = name.lastIndexOf('.');
+    if (dot <= 0) continue;
+    const chain: string[] = [];
+    let found: string | null = null;
+    for (let at = name.slice(0, dot); ;) {
+      if (held.has(at)) {
+        found = at;
+        break;
+      }
+      const known = nearest.get(at);
+      if (known !== undefined) {
+        found = known;
+        break;
+      }
+      chain.push(at);
+      const next = at.lastIndexOf('.');
+      if (next <= 0) break;
+      at = at.slice(0, next);
+    }
+    for (const each of chain) nearest.set(each, found);
+    if (found !== null) parents.set(name, found);
+  }
+  return parents;
 }
 
 function planOf(parsed: unknown, source: string, options: ReadOptions | undefined): ImportPlan {
@@ -112,6 +204,7 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
     (data, at) => json.textOr(own(data, 'projectId'), 'projectId') ?? `project-${at + 1}`,
   );
   const projectIdSet = new Set(projectIds);
+  refusePastLimits(json, datas, projectIdSet);
 
   // The model's elements, those each project imports from projects the file does not hold too.
   interface Logical {
@@ -166,10 +259,7 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
     });
   };
   const nested = (project: string, names: readonly string[]) => {
-    const held = new Set(names);
-    for (const name of names) {
-      const parent = parentByName(name, (prefix) => held.has(prefix));
-      if (parent === undefined) continue;
+    for (const [name, parent] of parentsByName(names)) {
       const element = elementKey(project, name);
       const container = elementKey(project, parent);
       containment.push({ element, container });
@@ -183,7 +273,7 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
     const names: string[] = [];
     for (const [name, value] of ownEntries(record)) {
       const object = json.object(value, `elements.${name}`);
-      const id = json.textOr(own(object, 'id'), `elements.${name}.id`) ?? name;
+      const id = checkedName(json.textOr(own(object, 'id'), `elements.${name}.id`) ?? name);
       addElement(project, id, object, `elements.${name}`, specification);
       names.push(id);
     }
@@ -198,7 +288,7 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
       json.list(list, `imports.${project}`).forEach((value, at) => {
         const path = `imports.${project}[${at}]`;
         const object = json.object(value, path);
-        const name = json.text(own(object, 'id'), `${path}.id`);
+        const name = checkedName(json.text(own(object, 'id'), `${path}.id`));
         if (keys.has(elementKey(project, name))) return;
         addElement(project, name, object, path, specification);
         names.push(name);
@@ -218,7 +308,7 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
     for (const [entry, value] of ownEntries(record)) {
       const path = `deployments.elements.${entry}`;
       const object = json.object(value, path);
-      const name = json.textOr(own(object, 'id'), `${path}.id`) ?? entry;
+      const name = checkedName(json.textOr(own(object, 'id'), `${path}.id`) ?? entry);
       const key = deploymentKey(project, name);
       if (keys.has(key)) refuse(`The LikeC4 model holds the deployment element "${name}" twice.`);
       keys.add(key);
@@ -259,10 +349,7 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
         ...(attributes === undefined ? {} : { attributes }),
       });
     }
-    const held = new Set(names);
-    for (const name of names) {
-      const parent = parentByName(name, (prefix) => held.has(prefix));
-      if (parent === undefined) continue;
+    for (const [name, parent] of parentsByName(names)) {
       const element = deploymentKey(project, name);
       const container = deploymentKey(project, parent);
       containment.push({ element, container });

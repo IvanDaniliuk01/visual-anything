@@ -93,6 +93,15 @@ export function readStructurizr(text: string, source: string, options?: ReadOpti
   return reading(() => planOf(parseJson(text), source, options));
 }
 
+/** Reads a Structurizr workspace already parsed from JSON, so that a file is parsed once to tell its format. */
+export function readStructurizrJson(
+  parsed: unknown,
+  source: string,
+  options?: ReadOptions,
+): ImportRead {
+  return reading(() => planOf(parsed, source, options));
+}
+
 /** An element as read, before it is planned. */
 interface ReadElement {
   id: string;
