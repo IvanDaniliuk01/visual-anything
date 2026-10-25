@@ -43,6 +43,7 @@ import {
 import { carriedRouteCommands, droppedInto } from './routing/commands';
 import { CONTENTS_ORIGIN, type ElementShape } from './scene';
 import { overlaps } from './spatial';
+import { laidOutRect } from './overlays/decorate';
 import { coversRect, drawingRank } from './stacking';
 
 /** How long, in milliseconds, the pointer rests on a shape that holds nothing before it takes a drop. */
@@ -489,9 +490,10 @@ export function putInsideCommand(
   shape: ElementShape,
   target: ElementShape,
 ): ChangeContainerCommand {
+  // Where layout put it, whatever size an overlay draws it at (ADR 0055).
   const at = clamped({
-    x: Math.round(shape.rect.x - target.rect.x),
-    y: Math.round(shape.rect.y - target.rect.y),
+    x: Math.round(laidOutRect(shape).x - target.rect.x),
+    y: Math.round(laidOutRect(shape).y - target.rect.y),
   });
   return {
     type: 'change-container',
@@ -799,8 +801,8 @@ function intoChange(
 ): ChangeContainerCommand {
   const places = plan.moving.map((mover) => ({
     mover,
-    x: Math.round(mover.shape.rect.x + delta.x - target.rect.x),
-    y: Math.round(mover.shape.rect.y + delta.y - target.rect.y),
+    x: Math.round(laidOutRect(mover.shape).x + delta.x - target.rect.x),
+    y: Math.round(laidOutRect(mover.shape).y + delta.y - target.rect.y),
   }));
   const shift = {
     x: Math.max(0, CONTENTS_ORIGIN.x - lowest(places.map((place) => place.x))),
@@ -830,11 +832,12 @@ function outChange(
       mover.fromShape === undefined ? undefined : indexed.byKey.get(mover.fromShape);
     const landing = moved(mover.shape.rect, delta);
     if (mover.from === undefined || !container || overlaps(landing, container.rect)) return [];
+    const place = moved(laidOutRect(mover.shape), delta);
     return [
       {
         element: mover.shape.element,
         from: mover.from,
-        at: { x: Math.round(landing.x), y: Math.round(landing.y), ...mover.shape.storedSize },
+        at: { x: Math.round(place.x), y: Math.round(place.y), ...mover.shape.storedSize },
       },
     ];
   });

@@ -14,10 +14,14 @@ import type {
   Component,
   ConnectionPoint,
   EndAttachment,
+  ExternalId,
+  ExternalIds,
   FreeShape,
   Id,
+  LevelOfDetail,
   LimitList,
   Note,
+  Overlay,
   PackageFile,
   Perspective,
   Point,
@@ -28,6 +32,9 @@ import type {
   Step,
   TourStep,
 } from '@visual-anything/schema';
+
+/** Changes to external identifiers by scheme: a text sets one, `null` takes it out (ADR 0056). */
+export type ExternalIdChanges = Record<string, ExternalId | null>;
 
 /** A request to change the project. */
 export type Command =
@@ -76,6 +83,11 @@ export type Command =
   | CreateTourCommand
   | UpdateTourCommand
   | DeleteTourCommand
+  | SetOverlaysCommand
+  | AddOverlayCommand
+  | UpdateOverlayCommand
+  | RemoveOverlaysCommand
+  | MoveOverlayCommand
   | BatchCommand;
 
 /** The kinds of command. */
@@ -89,6 +101,8 @@ export interface NewElement {
   description?: string;
   attributes?: Attributes;
   appearance?: Appearance;
+  /** What it is in other catalogs, by scheme (ADR 0056). */
+  ids?: ExternalIds;
 }
 
 /** Creates an element, optionally inside containers and with its shapes placed in views. */
@@ -130,6 +144,8 @@ export interface UpdateElementCommand {
     attributes?: Attributes;
     /** Attributes to remove. */
     removeAttributes?: string[];
+    /** Its external identifiers by scheme: a text sets one, `null` takes it out; `null` takes all out. */
+    ids?: ExternalIdChanges | null;
   };
 }
 
@@ -154,6 +170,13 @@ export interface AppearanceChanges {
   connectionPoints?: ConnectionPoint[] | null;
   /** The image its shapes show; `none` shows none, whatever is inherited (ADR 0027). */
   image?: AppearanceImage | 'none' | null;
+  /**
+   * What its shapes show from each scale up (ADR 0055), stored in increasing order of the scales; an
+   * empty list follows the canvas's own steps, whatever is inherited.
+   */
+  levels?: LevelOfDetail[] | null;
+  /** The scale from which its collapsed shapes expand as the canvas zooms into them (ADR 0055). */
+  expandFrom?: number | null;
 }
 
 /** Changes to how a relation type's relations are drawn, trait by trait, as for an appearance. */
@@ -196,6 +219,8 @@ export interface UpdateComponentCommand {
     derivesFrom?: Id;
     appearance?: AppearanceChanges;
     attributes?: AttributeChanges;
+    /** Its external identifiers by scheme: a text sets one, `null` takes it out; `null` takes all out. */
+    ids?: ExternalIdChanges | null;
   };
 }
 
@@ -218,6 +243,8 @@ export interface UpdateRelationTypeCommand {
     attributes?: AttributeChanges;
     /** Per end: a list or `any` sets its own limit; `null` inherits it again. */
     limits?: { from?: LimitList | 'any' | null; to?: LimitList | 'any' | null };
+    /** Its external identifiers by scheme: a text sets one, `null` takes it out; `null` takes all out. */
+    ids?: ExternalIdChanges | null;
   };
 }
 
@@ -719,4 +746,70 @@ export interface SetPackageCodeCommand {
    * sorted. `null` or an empty list removes them; left out, they stay as they are.
    */
   capabilities?: string[] | null;
+}
+
+// Overlays (ADR 0055) --------------------------------------------------------------------------------
+
+/**
+ * A new overlay: without an id, the core makes one from its attribute and channel, unused in the view.
+ * A value a case names may be given as a number or true or false; it is kept as text, as filters
+ * compare it.
+ */
+export type NewOverlay = Overlay extends infer O
+  ? O extends Overlay
+    ? Omit<O, 'id'> & { id?: Id }
+    : never
+  : never;
+
+/**
+ * Replaces a view's overlays, in order, as one action: the first that sets a channel of a shape sets
+ * it. An empty list takes them all away. It changes only the view's file.
+ */
+export interface SetOverlaysCommand {
+  type: 'set-overlays';
+  view: Id;
+  overlays: NewOverlay[];
+}
+
+/** Adds an overlay to a view: before another, or after the others. */
+export interface AddOverlayCommand {
+  type: 'add-overlay';
+  view: Id;
+  overlay: NewOverlay;
+  /** The overlay it goes before; absent, it goes last, so the others come first. */
+  before?: Id;
+}
+
+/** Changes one overlay of a view, part by part; what it leaves out stays. */
+export interface UpdateOverlayCommand {
+  type: 'update-overlay';
+  view: Id;
+  overlay: Id;
+  changes: {
+    /** `null` takes the name away, so that the legend calls it by its attribute. */
+    name?: string | null;
+    of?: Overlay['of'];
+    attribute?: string;
+    /** A new channel takes a mapping that fits it: give it too, unless the one kept fits. */
+    channel?: Overlay['channel'];
+    mapping?: Overlay['mapping'];
+    /** Turns it off, kept in the view, or on again. */
+    off?: boolean;
+  };
+}
+
+/** Removes overlays from a view. */
+export interface RemoveOverlaysCommand {
+  type: 'remove-overlays';
+  view: Id;
+  overlays: Id[];
+}
+
+/** Moves an overlay of a view before another, or after the others. */
+export interface MoveOverlayCommand {
+  type: 'move-overlay';
+  view: Id;
+  overlay: Id;
+  /** The overlay it goes before; absent, it goes last. */
+  before?: Id;
 }

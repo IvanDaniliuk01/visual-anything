@@ -63,6 +63,7 @@ import {
   summarize,
   type Summary,
 } from './report';
+import { importPhases } from './imports';
 import { OVERLAPS, seeded, syntheticProject, type Overlap } from './synthetic';
 import '../styles.css';
 
@@ -78,6 +79,8 @@ export interface BenchPlan {
   nudges: number;
   /** Renames from the inspector. */
   renames: number;
+  /** How often each import the dialog reads is read and prepared; none are when absent. */
+  imports?: number;
   /** How long to rest after the canvas starts, and between phases, in milliseconds. */
   rest: { start: number; between: number };
 }
@@ -760,6 +763,11 @@ class Driver {
     }
     steps.push({ name: 'One edit: a rename', steps: renames });
 
+    this.status('Timing what the import dialog reads and prepares…');
+    if (this.plan.imports !== undefined) {
+      steps.push(...importPhases(this.current(), this.plan.imports));
+    }
+
     return {
       steps,
       frames,
@@ -1241,6 +1249,7 @@ function startPage(mount: HTMLElement): void {
     frames: count('frames', 180),
     nudges: count('nudges', 20),
     renames: count('renames', 20),
+    imports: count('imports', 3),
     rest: { start: 2500, between: 300 },
   };
   const app = (

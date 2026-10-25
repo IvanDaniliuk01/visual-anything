@@ -9,6 +9,10 @@ import {
   builtinPackage,
   definitionsIn,
   isBrokenTourStep,
+  destinationKind,
+  destinationsOf,
+  externalIdQuery,
+  matchesExternalId,
   isOutside,
   modelIndexOf,
   nestingTypesInView,
@@ -17,7 +21,13 @@ import {
   stackingOrderOf,
   type ProjectSnapshot,
 } from '@visual-anything/core';
-import type { Element, Id, JsonValue, Relation } from '@visual-anything/schema';
+import type {
+  AttributeDefinition,
+  Element,
+  Id,
+  JsonValue,
+  Relation,
+} from '@visual-anything/schema';
 
 /** The most items one query returns. */
 export const MAX_RESULTS = 500;
@@ -99,6 +109,7 @@ export function listDefinitions(state: ProjectSnapshot, filter: { package?: Id }
         package: resolved.package ?? null,
         derivesFrom: own?.definition.derivesFrom ?? null,
         ...(resolved.description === undefined ? {} : { description: resolved.description }),
+        ...(own?.definition.ids === undefined ? {} : { ids: own.definition.ids }),
         attributes: [...resolved.attributes],
         appearance: resolved.appearance,
       },
@@ -120,6 +131,7 @@ export function listDefinitions(state: ProjectSnapshot, filter: { package?: Id }
         package: resolved.package ?? null,
         derivesFrom: own?.definition.derivesFrom ?? null,
         ...(resolved.description === undefined ? {} : { description: resolved.description }),
+        ...(own?.definition.ids === undefined ? {} : { ids: own.definition.ids }),
         direction: resolved.direction,
         nests: resolved.nests,
         limits: resolved.limits,
@@ -135,7 +147,10 @@ export interface ElementFilter {
   /** Created from this component, or from one deriving from it unless `exactComponent`. */
   component?: Id;
   exactComponent?: boolean;
-  /** Holding this attribute, with this value when `equals` is given. */
+  /**
+   * Holding this attribute, with this value when `equals` is given. A name `id:<scheme>`, as
+   * `id:uberon`, asks for an external identifier in that scheme instead (ADR 0056).
+   */
   attribute?: { name: string; equals?: JsonValue };
   /** Inside this container: directly, or at any depth with `deep`. World's id finds what has none. */
   container?: Id;
@@ -152,6 +167,8 @@ export function findElements(state: ProjectSnapshot, filter: ElementFilter = {})
   const index = modelIndexOf(state);
   const worldId = state.model.world.id;
   const name = filter.nameContains?.toLowerCase();
+  const externalId =
+    filter.attribute === undefined ? undefined : externalIdQuery(filter.attribute.name);
   const insideDeep = (id: Id, container: Id): boolean => {
     const seen = new Set<Id>();
     const stack = [...index.containersOf(id)];
@@ -171,7 +188,11 @@ export function findElements(state: ProjectSnapshot, filter: ElementFilter = {})
         : definitions.componentDerives(element.component, filter.component);
       if (!fits) return false;
     }
-    if (filter.attribute !== undefined) {
+    if (externalId !== undefined) {
+      const { equals } = filter.attribute ?? {};
+      if (equals !== undefined && typeof equals !== 'string') return false;
+      if (!matchesExternalId(element, externalId.scheme, equals)) return false;
+    } else if (filter.attribute !== undefined) {
       const values = element.attributes ?? {};
       if (!Object.hasOwn(values, filter.attribute.name)) return false;
       const { equals } = filter.attribute;
@@ -199,6 +220,7 @@ export function findElements(state: ProjectSnapshot, filter: ElementFilter = {})
     elements: matches.slice(offset, offset + limit).map((element) => ({
       ...brief(element),
       containers: [...index.containersOf(element.id)],
+      ...(element.ids === undefined ? {} : { ids: element.ids }),
       ...(element.attributes === undefined ? {} : { attributes: element.attributes }),
     })),
   };
@@ -272,8 +294,10 @@ export function describeItem(state: ProjectSnapshot, id: Id) {
       ...brief(element),
       componentName: component?.name ?? element.component,
       ...(element.description === undefined ? {} : { description: element.description }),
+      ...(element.ids === undefined ? {} : { ids: element.ids }),
       attributes: element.attributes ?? {},
       attributeDefinitions: [...(component?.attributes ?? [])],
+      ...describedDestinations(element, component?.attributes ?? []),
       ...(element.appearance === undefined ? {} : { appearance: element.appearance }),
       containers: containers.map((relation) => ({
         id: relation.to,
@@ -311,6 +335,7 @@ export function describeItem(state: ProjectSnapshot, id: Id) {
       toName: endName(relation.to, state),
       ...(relation.description === undefined ? {} : { description: relation.description }),
       attributes: relation.attributes ?? {},
+      ...describedDestinations(relation, type?.attributes ?? []),
       relationsOnIt: index.relationsOn(id).map(relationBrief),
       inScenarios: state.scenarios.flatMap((scenario) =>
         scenario.steps
@@ -470,6 +495,26 @@ export function idKind(
     return 'free-shape';
   }
   return undefined;
+}
+
+/**
+ * The destinations an element or a relation has (ADR 0056), each with what it opens; nothing when it
+ * has none. Values of destination attributes that are not destinations are left out: they open nothing.
+ */
+function describedDestinations(
+  item: { attributes?: Element['attributes'] },
+  attributes: readonly AttributeDefinition[],
+) {
+  const found = destinationsOf(item, attributes);
+  if (found.length === 0) return {};
+  return {
+    destinations: found.map(({ attribute, destination, own }) => ({
+      attribute,
+      opens: destinationKind(destination),
+      destination,
+      ...(own ? {} : { fromDefault: true }),
+    })),
+  };
 }
 
 function brief(element: Element) {

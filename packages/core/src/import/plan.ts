@@ -9,6 +9,7 @@ import {
   ESSENCE_ID,
   RELATES_TO_ID,
   type Attributes,
+  type ExternalIds,
   type Id,
   type Point,
 } from '@visual-anything/schema';
@@ -78,13 +79,21 @@ export interface PlannedElement {
   description?: string;
   attributes?: Attributes;
   /**
+   * What it is in other catalogs, by scheme (ADR 0056). `matchByExternalIds` checks them, fills in
+   * the schemes the file lacks from crosswalks, and matches the element that shares one.
+   */
+  ids?: ExternalIds;
+  /**
    * An element of the project this row of the file matched, by a key such as its id: its name and
    * attribute values are updated, and nothing else of it changes. Importing again uses it.
    */
   existing?: Id;
 }
 
-/** A relation the import creates, between planned elements, or relations, by their keys. */
+/**
+ * A relation the import creates, between planned elements, or relations, by their keys; or, with
+ * `existing`, updates.
+ */
 export interface PlannedRelation {
   key: string;
   sourceId?: string;
@@ -93,7 +102,14 @@ export interface PlannedRelation {
   /** The kind the mapping maps to a relation type. */
   kind: string;
   name?: string;
+  description?: string;
   attributes?: Attributes;
+  /**
+   * A relation of the project this row of the file matched: its name, description and attribute
+   * values are updated, and nothing else of it changes, its ends and relation type included.
+   * Importing again uses it.
+   */
+  existing?: Id;
 }
 
 /** A view the import creates: a page of a draw.io file, a Structurizr view. */
@@ -191,7 +207,8 @@ export function planToCommand(
   for (const relation of plan.relations) {
     ids.set(
       relation.key,
-      idFor(relation.sourceId, relation.name ?? `${relation.from}-${relation.to}`),
+      relation.existing ??
+        idFor(relation.sourceId, relation.name ?? `${relation.from}-${relation.to}`),
     );
   }
   for (const view of plan.views) ids.set(view.key, idFor(undefined, view.name));
@@ -238,6 +255,7 @@ export function planToCommand(
         changes: {
           name: element.name,
           ...(element.attributes ? { attributes: element.attributes } : {}),
+          ...(element.ids ? { ids: element.ids } : {}),
         },
       });
       continue;
@@ -250,6 +268,7 @@ export function planToCommand(
         name: element.name,
         ...(element.description === undefined ? {} : { description: element.description }),
         ...(element.attributes ? { attributes: element.attributes } : {}),
+        ...(element.ids ? { ids: element.ids } : {}),
       },
     });
   }
@@ -262,6 +281,18 @@ export function planToCommand(
     }
   }
   for (const relation of plan.relations) {
+    if (relation.existing !== undefined) {
+      commands.push({
+        type: 'update-relation',
+        id: relation.existing,
+        changes: {
+          ...(relation.name === undefined ? {} : { name: relation.name }),
+          ...(relation.description === undefined ? {} : { description: relation.description }),
+          ...(relation.attributes ? { attributes: relation.attributes } : {}),
+        },
+      });
+      continue;
+    }
     commands.push({
       type: 'create-relation',
       relation: {
@@ -270,6 +301,7 @@ export function planToCommand(
         from: idOf(relation.from),
         to: idOf(relation.to),
         ...(relation.name === undefined ? {} : { name: relation.name }),
+        ...(relation.description === undefined ? {} : { description: relation.description }),
         ...(relation.attributes ? { attributes: relation.attributes } : {}),
       },
     });
@@ -389,8 +421,14 @@ export function planProblems(
   for (const relation of plan.relations) once(relation.key);
   for (const view of plan.views) once(view.key);
   const known = (key: string) => keys.has(key);
+  const index = modelIndexOf(state);
   for (const element of plan.elements) {
-    if (element.existing !== undefined) continue;
+    if (element.existing !== undefined) {
+      if (index.element(element.existing) === undefined) {
+        problems.push(`The plan updates "${element.existing}", which the project does not hold.`);
+      }
+      continue;
+    }
     const component = chosen(mapping.elements, element.kind);
     if (component === undefined) {
       problems.push(`No component is chosen for "${element.kind}".`);
@@ -399,6 +437,12 @@ export function planProblems(
     }
   }
   for (const relation of plan.relations) {
+    if (relation.existing !== undefined) {
+      if (index.relation(relation.existing) === undefined) {
+        problems.push(`The plan updates "${relation.existing}", which the project does not hold.`);
+      }
+      continue;
+    }
     const type = chosen(mapping.relations, relation.kind);
     if (type === undefined) problems.push(`No relation type is chosen for "${relation.kind}".`);
     else if (!definitions.relationTypes.has(type) && type !== RELATES_TO_ID) {

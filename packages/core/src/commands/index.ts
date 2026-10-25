@@ -30,6 +30,7 @@ import {
 import { updateProject } from './project';
 import { setComponentAppearance, setRelationTypeAppearance } from './appearance';
 import { resetRoute, setRoute, settleRoutes } from './routes';
+import { addOverlay, moveOverlay, removeOverlays, setOverlays, updateOverlay } from './overlays';
 import { restack } from './stacking';
 import { changeContainer } from './containers';
 import { setPackageCode } from './code';
@@ -88,6 +89,7 @@ export function executeCommand(
   try {
     const label = run(draft, command);
     checkImageReferences(state, draft.state, draft.operations);
+    draft.seal();
     return {
       ok: true,
       state: draft.state,
@@ -216,6 +218,16 @@ function dispatch(draft: Draft, command: Command): string {
       return updateTour(draft, command);
     case 'delete-tour':
       return deleteTour(draft, command);
+    case 'set-overlays':
+      return setOverlays(draft, command);
+    case 'add-overlay':
+      return addOverlay(draft, command);
+    case 'update-overlay':
+      return updateOverlay(draft, command);
+    case 'remove-overlays':
+      return removeOverlays(draft, command);
+    case 'move-overlay':
+      return moveOverlay(draft, command);
     case 'batch': {
       const label = requireName(command.label, 'A batch');
       const commands = requireList(command.commands, 'commands');

@@ -14,10 +14,12 @@ import type {
   DetailRules,
   Id,
   JsonValue,
+  LevelOfDetail,
   Relation,
 } from '@visual-anything/schema';
 import { ESSENCE_ID } from '@visual-anything/schema';
 import { ESSENCE } from './builtin/essence-and-relates-to';
+import { isDestination } from './destinations';
 import type { Definitions } from './definitions';
 
 /** What a shape writes under its element's name, with every part worked out. */
@@ -38,6 +40,13 @@ export interface ResolvedAppearance {
   contentsAsRows: boolean;
   /** Empty when relations attach anywhere on the border. */
   connectionPoints: readonly ConnectionPoint[];
+  /**
+   * What its shapes show from each scale up (ADR 0055), as the nearest appearance that sets levels
+   * gives them; absent when the canvas's own steps apply.
+   */
+  levels?: readonly LevelOfDetail[];
+  /** The scale from which its collapsed shapes expand as the canvas zooms into them, if any. */
+  expandFrom?: number;
 }
 
 /**
@@ -62,6 +71,8 @@ export const APPEARANCE_TRAITS = listingEvery<keyof Appearance>()([
   'contentsAsRows',
   'connectionPoints',
   'image',
+  'levels',
+  'expandFrom',
 ]);
 
 /** A trait of an appearance. */
@@ -87,6 +98,8 @@ export const TRAIT_PATHS: readonly TraitPath[] = [
   'contentsAsRows',
   'connectionPoints',
   'image',
+  'levels',
+  'expandFrom',
 ];
 
 /** The value the nearest member of a chain sets for a key, if one does. */
@@ -111,6 +124,9 @@ export function resolveAppearance(
   base: ResolvedAppearance,
 ): ResolvedAppearance {
   const details = chain.map((each) => each?.detail);
+  // An empty list of levels is set: it follows the canvas's own steps, whatever is inherited.
+  const levels = nearest(chain, 'levels') ?? base.levels;
+  const expandFrom = nearest(chain, 'expandFrom') ?? base.expandFrom;
   return {
     shape: nearest(chain, 'shape') ?? base.shape,
     fill: nearest(chain, 'fill') ?? base.fill,
@@ -124,6 +140,8 @@ export function resolveAppearance(
     },
     contentsAsRows: nearest(chain, 'contentsAsRows') ?? base.contentsAsRows,
     connectionPoints: nearest(chain, 'connectionPoints') ?? base.connectionPoints,
+    ...(levels === undefined || levels.length === 0 ? {} : { levels }),
+    ...(expandFrom === undefined ? {} : { expandFrom }),
   };
 }
 
@@ -256,6 +274,8 @@ export function valueFitsType(value: JsonValue, type: AttributeDefinition['type'
       return typeof value === 'boolean';
     case 'json':
       return true;
+    case 'destination':
+      return isDestination(value);
   }
 }
 

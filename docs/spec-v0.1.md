@@ -302,10 +302,10 @@ Eight milestones in build order, each ending in something you can use, and Track
 
 - [x] An SVG writer from the scene, in pure TypeScript without the DOM: shapes, rows, routes and curves, labels, cleaned images, title, description and `data-` ids; a test compares its bounds with the scene's (a dated clarification of ADR 0014: an output, not a second renderer)
 - [x] PDF made from that SVG, with its fonts embedded; the library is chosen and recorded in the same clarification
-- [ ] `visual-anything export <folder> --view <id> --format svg|pdf|md|mermaid|structurizr|page [--out <file>]` (every format but `page`, with `--theme light|dark`, is in; the page comes with the read-only page)
+- [x] `visual-anything export <folder> --view <id> --format svg|pdf|md|mermaid|structurizr|page [--out <file>]` (with `--theme light|dark`; for `page`, `--view` is the view the page opens at, the first by default)
 - [x] Text exports: the outline in Markdown, which also serves as the view's long description; Mermaid, through each element's first container; Structurizr DSL for views of Systems components
-- [ ] The read-only page (ADR 0041): a viewer build without the live connection, the commands or the editors; the project as data; its policy; touch; view addresses; the About panel with the packages' attribution
-- [ ] The Export dialog: PNG, SVG, PDF, text and the page, each with its size and what it leaves out
+- [x] The read-only page (ADR 0041): a viewer build without the live connection, the commands or the editors; the project as data; its policy; touch; view addresses; the About panel with the packages' attribution
+- [x] The Export dialog: PNG, SVG, PDF, text and the page, each with its size and what it leaves out
 - [x] Claude's `export_view`, which answers SVG, Markdown, Mermaid or Structurizr text and writes no file
 - [ ] Benchmark: the page's size and how long it takes to open at 10,000 elements; how long the SVG takes to write (the exports' phase, `exports-bench.html`, is in, not yet run)
 
@@ -329,14 +329,17 @@ Eight milestones in build order, each ending in something you can use, and Track
   - the canvas and the outline offer Add to this view and Leave out of this view;
   - shapes count the relations that leave the view
 - [x] Claude's tools to read and set a scope, and to add to a view or leave out of it
-- [ ] The import pipeline (ADR 0042): the plan, the mapping dialog, one batch, the report; Import… in the header, `visual-anything import <folder> <file>`, and Claude's `import_file`
-- [ ] The Mermaid reader: flowcharts, C4, ER and class diagrams
-- [ ] The spreadsheet (CSV and TSV) and JSON readers, importing again by a key
+- [x] The import pipeline (ADR 0042): the plan, the mapping dialog, one batch, the report; Import… in the header, `visual-anything import <folder> <file>`, and Claude's `import_file`
+- [x] The Mermaid reader: flowcharts, C4, ER and class diagrams
+- [x] The spreadsheet (CSV and TSV) and JSON readers, importing again by a key
 - [x] The Structurizr workspace JSON and LikeC4 model readers, with their views as scopes
 - [x] The draw.io reader: compressed and plain files, `.drawio.svg` and `.drawio.png`, shapes, containers, edges with their waypoints, and pages as views
 - [x] License fields in the schema, and the license test (ADR 0047)
 - [x] Starter packages for C4 architecture and data-science pipelines, each with icons, a sample project and a scenario, in English and Spanish; New project from a sample
 - [x] A package added from another project, with its version and attribution, and updated from it after a preview
+- [x] A command's draft keeps the model's index up to date, so that a batch of N creates is no longer quadratic: 10,000 elements with their shapes and relations land in about 1 s (ADR 0042)
+- [x] Planned relations carry their description, and importing again updates the values of a relation the project already has
+- [ ] An import at the limits lands in fewer operations, as commands do past `BULK` changes to one list (about 26 s on a loaded machine now)
 
 **M7 · Package code.** It is planned here so that it can run in the second wave after v0.1. Done when:
 
@@ -364,11 +367,11 @@ Eight milestones in build order, each ending in something you can use, and Track
 - the reading benchmark of 100,000 elements and 200,000 relations meets its marks.
 
 - [ ] Overlays in the schema and the core (discrete, continuous and passthrough mappings to fill, stroke, size, badge and opacity), with their commands; the scene applies them; the legend on the canvas and in exports; Claude's tools
-- [ ] Levels of detail in appearances, with their inheritance and hysteresis; the renderer switches levels by tile; expanding and collapsing by zoom
-- [ ] External identifiers in the schema; search by identifier; crosswalk tables for importers
-- [ ] The destination attribute type: the mark, following it, the confirmation, opening another project at a view state through its own program, and the checks on opening
+- [x] Levels of detail in appearances, with their inheritance and hysteresis; the renderer switches levels by tile; expanding and collapsing by zoom
+- [x] External identifiers in the schema; search by identifier; crosswalk tables for importers
+- [x] The destination attribute type: the mark, following it, the confirmation, opening another project at a view state through its own program, and the checks on opening
 - [ ] Live values: protocol version 6, the program's store and limits, the app's lookup with marks and age, Keep as attribute, `set_live_values` and `visual-anything live`
-- [ ] The element list: a panel of elements by component or by scope, with attributes as columns, sorting, filters, editing in place, a pasted block of cells as one action, and selection in step with the canvas
+- [x] The element list: a panel of elements by component or by scope, with attributes as columns, sorting, filters, editing in place, a pasted block of cells as one action, and selection in step with the canvas
 - [ ] Time ranges: a range filter on a date, time or number attribute, with a slider and playback, kept by the app as filters are (ADR 0025)
 - [ ] The reading benchmark: 100,000 elements and 200,000 relations opened with containers collapsed; 60 fps while fewer than 10,000 shapes show; expanding a container of 1,000 under 100 ms; a search under 50 ms; drawing many instances at once when zoomed out, and layout only for what is open
 

@@ -88,6 +88,7 @@
  * | language                | idioma                           |
  * | settings (of a view)    | opciones                         |
  * | the local program       | el programa local                |
+ * | read-only page          | página de solo lectura           |
  * | package code            | código del paquete               |
  * | capability              | capacidad                        |
  * | approve, approval       | aprobar, aprobación              |
@@ -97,6 +98,20 @@
  * | speaker notes           | notas del orador                 |
  * | thread                  | hilo                             |
  * | comment                 | comentario                       |
+ * | overlay                 | superposición                    |
+ * | legend                  | referencias                      |
+ * | level of detail         | nivel de detalle                 |
+ * | silhouette              | silueta                          |
+ * | opacity, fade           | opacidad, atenuar                |
+ * | external identifier     | identificador externo            |
+ * | scheme (of identifiers) | catálogo                         |
+ * | crosswalk               | tabla de correspondencias        |
+ * | destination             | destino                          |
+ * | follow (a destination)  | seguir                           |
+ * | web address             | dirección web                    |
+ * | host (of an address)    | sitio                            |
+ * | path (to a project)     | ubicación                        |
+ * | element list            | lista de elementos               |
  *
  * The words CONTEXT.md avoids are not used for its terms either: no "nodo", "objeto" or "instancia"
  * for an element, "propiedad" or "campo" for an attribute, "capa" for the stacking order, "enlace" or
@@ -309,6 +324,75 @@ export const ui: Catalog = {
   '{view}, from the {perspective} perspective: {shapes}, {relations} and {free}.':
     '{view}, desde la perspectiva {perspective}: {shapes}, {relations} y {free}.',
 
+  // Import, in the header (ADR 0042): where the file comes from, its kinds mapped, the report.
+  'Import…': 'Importar…',
+  Import: 'Importar',
+  'Mermaid diagrams (flowcharts, C4, ER and class diagrams), spreadsheets (CSV or TSV), JSON, Structurizr workspaces, LikeC4 models and draw.io files. The file is read here, in this tab, and nothing in it runs.':
+    'Mermaid (flowchart, C4, erDiagram y classDiagram), hojas de cálculo (CSV o TSV), JSON, espacios de trabajo de Structurizr, modelos de LikeC4 y archivos de draw.io. El archivo se lee aquí, en esta pestaña, y nada de lo que contiene se ejecuta.',
+  'Which files it reads': 'Qué archivos lee',
+  'Read from': 'Leer desde',
+  'A file': 'Un archivo',
+  'Pasted text': 'Texto pegado',
+  File: 'Archivo',
+  'pasted text': 'texto pegado',
+  Text: 'Texto',
+  Format: 'Formato',
+  'As the file says': 'Según el archivo',
+  JSON: 'JSON',
+  Mermaid: 'Mermaid',
+  Spreadsheet: 'Hoja de cálculo',
+  'The file could not be read: {why}': 'No se pudo leer el archivo: {why}',
+  Read: 'Leer',
+  'Import “{name}”': 'Importar “{name}”',
+  'It starts using the built-in packages it maps to: {packages}.':
+    'Empieza a usar los paquetes incorporados con los que se corresponde: {packages}.',
+  '(no component given)': '(sin componente)',
+  '(no relation type given)': '(sin tipo de relación)',
+  'What sits inside what goes inside through':
+    'Lo que está dentro de otra cosa queda dentro mediante',
+  'Choose a relation type that nests': 'Elegir un tipo de relación que anida',
+  'Match rows to the project’s elements by':
+    'Emparejar las filas con los elementos del proyecto por',
+  'Their id, when the file has one': 'Su id, si el archivo lo tiene',
+  'Create its view “{name}”': 'Crear su vista “{name}”',
+  'Create its {count} views': 'Crear sus {count} vistas',
+  '{count} things matched nothing': {
+    one: '{count} cosa no coincidió con nada',
+    other: '{count} cosas no coincidieron con nada',
+  },
+  'This import is too large to send from the app: {size} MiB, where the most is {limit} MiB. Import it with visual-anything import instead.':
+    'Esta importación es demasiado grande para enviarla desde la app: {size} MiB, y el máximo es {limit} MiB. Importarla con visual-anything import en su lugar.',
+  'Importing…': 'Importando…',
+  Back: 'Atrás',
+  'It creates {elements}, {relations} and {views}.': 'Crea {elements}, {relations} y {views}.',
+  '{count} views': { one: '{count} vista', other: '{count} vistas' },
+  'It updates {count} elements of the project.': {
+    one: 'Actualiza {count} elemento del proyecto.',
+    other: 'Actualiza {count} elementos del proyecto.',
+  },
+  'It updates {count} relations of the project.': {
+    one: 'Actualiza {count} relación del proyecto.',
+    other: 'Actualiza {count} relaciones del proyecto.',
+  },
+  'Read as {format}.': 'Leído como {format}.',
+  'In the file': 'En el archivo',
+  'How many': 'Cuántos',
+  '{heading} for {kind}': '{heading} para {kind}',
+  'In this project': 'En este proyecto',
+  '{package}, not used yet': '{package}, todavía sin usar',
+  'Imported “{name}”': 'Se importó “{name}”',
+  'It created {elements}, {relations} and {views}.': 'Creó {elements}, {relations} y {views}.',
+  'It updated {count} elements.': {
+    one: 'Actualizó {count} elemento.',
+    other: 'Actualizó {count} elementos.',
+  },
+  'It updated {count} relations.': {
+    one: 'Actualizó {count} relación.',
+    other: 'Actualizó {count} relaciones.',
+  },
+  'One undo takes it all back.': 'Un solo deshacer lo revierte todo.',
+  'Open its view': 'Abrir su vista',
+
   // Export as PNG, in the header.
   'Export…': 'Exportar…',
   'There is no view to export.': 'No hay ninguna vista para exportar.',
@@ -332,6 +416,113 @@ export const ui: Catalog = {
   'At {width} × {height} pixels this image is too large: the most is {side} pixels a side and {megapixels} megapixels. Choose 1×, or what is visible.':
     'Con {width} × {height} píxeles, esta imagen es demasiado grande: lo máximo son {side} píxeles por lado y {megapixels} megapíxeles. Elegir 1× o lo que se ve.',
   'The image could not be drawn: {why}': 'No se pudo dibujar la imagen: {why}',
+
+  // The read-only page (ADR 0041): its header, canvas, panels and About.
+  'Reading tools': 'Herramientas de lectura',
+  Find: 'Buscar',
+  'Find (Ctrl+F)': 'Buscar (Ctrl+F)',
+  About: 'Acerca de',
+  'This project has no view to show.': 'Este proyecto no tiene ninguna vista para mostrar.',
+  '{view} ({perspective})': '{view} ({perspective})',
+  'Zoom in (+)': 'Acercar (+)',
+  'Zoom out (−)': 'Alejar (−)',
+  'Fit the view': 'Encuadrar la vista',
+  'Fit the view (0)': 'Encuadrar la vista (0)',
+  'This view has no shapes.': 'Esta vista no tiene formas.',
+  'Drag or use two fingers to pan; pinch, Ctrl with the wheel, or + and − to zoom; 0 fits the view. Arrow keys go from shape to shape, Alt with ↑ and ↓ to the container and inside it; ] and [ step through relations, Enter follows one; Alt with − and + collapses and expands. Escape clears the selection.':
+    'Arrastrar o usar dos dedos para desplazar; pellizcar, Ctrl con la rueda, o + y − para hacer zoom; 0 encuadra la vista. Las flechas van de forma en forma, Alt con ↑ y ↓ al contenedor y a su interior; ] y [ recorren las relaciones, Enter sigue una; Alt con − y + contrae y expande. Escape quita la selección.',
+  'This page cannot show its project': 'Esta página no puede mostrar su proyecto',
+  'And {count} more problems.': {
+    one: 'Y {count} problema más.',
+    other: 'Y {count} problemas más.',
+  },
+  Selected: 'Seleccionado',
+  'Selected: {things}': 'Seleccionado: {things}',
+  'Clear the selection (Escape)': 'Quitar la selección (Escape)',
+  '{from} {relationType} {to}': '{from} {relationType} {to}',
+  'Close (Escape)': 'Cerrar (Escape)',
+  'Focus on the selection, dimming what it does not reach':
+    'Enfocar la selección, atenuando lo que no alcanza',
+  Reach: 'Distancia',
+  '{count} degrees': { one: '{count} grado', other: '{count} grados' },
+  'Every degree': 'Todos los grados',
+  'Isolate: hide what it does not reach': 'Aislar: ocultar lo que no alcanza',
+  'Scenario “{name}”': 'Escenario “{name}”',
+  'Close the scenario': 'Cerrar el escenario',
+  '{count} steps inside “{container}”, which this view shows collapsed.': {
+    one: '{count} paso dentro de “{container}”, que esta vista muestra contraído.',
+    other: '{count} pasos dentro de “{container}”, que esta vista muestra contraído.',
+  },
+  'A relation of this step is no longer in the model, so this step is broken.':
+    'Una relación de este paso ya no está en el modelo, así que este paso está roto.',
+  'Hide the data': 'Ocultar los datos',
+  'Show the data': 'Mostrar los datos',
+  'A read-only page of this project, made with Visual Anything: it shows every view and plays every scenario, changes nothing, and connects nowhere.':
+    'Una página de solo lectura de este proyecto, hecha con Visual Anything: muestra todas las vistas y reproduce todos los escenarios, no cambia nada y no se conecta a ningún lado.',
+  'Made on {date}.': 'Hecha el {date}.',
+  '{views} and {scenarios}.': '{views} y {scenarios}.',
+  '{count} scenarios': { one: '{count} escenario', other: '{count} escenarios' },
+  Packages: 'Paquetes',
+  'built into Visual Anything': 'incorporado en Visual Anything',
+  'the project’s own': 'propio del proyecto',
+  'version {version}': 'versión {version}',
+  'license {license}': 'licencia {license}',
+  'Images: {sources}': 'Imágenes: {sources}',
+  '{count} relations leave this view: {list}.': {
+    one: '{count} relación sale de esta vista: {list}.',
+    other: '{count} relaciones salen de esta vista: {list}.',
+  },
+
+  // The Export dialog's formats, and the read-only page among them (M6b).
+  'Export “{view}”': 'Exportar “{view}”',
+  'PNG image': 'Imagen PNG',
+  'Read-only page': 'Página de solo lectura',
+  'One file to share, embed and read on a phone':
+    'Un archivo para compartir, incrustar y leer en un teléfono',
+  'It leaves out:': 'Deja fuera:',
+  'Its text is part of the picture, so it cannot be selected, searched or read aloud.':
+    'Su texto es parte de la imagen, así que no se puede seleccionar, buscar ni leer en voz alta.',
+  'Writing the file…': 'Escribiendo el archivo…',
+  'The file could not be written: {why}': 'No se pudo escribir el archivo: {why}',
+  'Save {format}': 'Guardar {format}',
+  'Open at what the canvas shows now': 'Abrir en lo que muestra ahora el lienzo',
+  'This view, where the canvas looks, the selection, the filters and focus':
+    'Esta vista, adónde mira el lienzo, la selección, los filtros y el foco',
+  'Writing the page…': 'Escribiendo la página…',
+  'It holds the whole project, every view and scenario, whatever this view shows: share it only with those who may read all of it. It connects nowhere, and the browser saves it.':
+    'Contiene todo el proyecto, cada vista y cada escenario, muestre lo que muestre esta vista: compartirla solo con quien pueda leerlo todo. No se conecta a ningún lado, y la guarda el navegador.',
+  'Editing, the history and Claude’s guidance: the page only reads.':
+    'La edición, el historial y la guía de Claude: la página solo lee.',
+  'Layout, which does not run in the page: shapes a view keeps no position for are drawn in a row, as before a layout.':
+    'El diseño automático, que no se ejecuta en la página: las formas para las que una vista no guarda posición se dibujan en una fila, como antes de organizar.',
+  'Package code, and what it computes and draws: no code of a package runs in a page.':
+    'El código de los paquetes, y lo que calcula y dibuja: ningún código de un paquete se ejecuta en una página.',
+  'This page is {size}, past {limit}: it may open slowly, and some hosts and mail refuse files this large.':
+    'Esta página pesa {size}, más de {limit}: puede abrirse con lentitud, y algunos servidores y correos rechazan archivos tan grandes.',
+  'This copy of Visual Anything has no viewer for read-only pages, as when it runs from its sources. Run pnpm build, then start it again.':
+    'Esta copia de Visual Anything no tiene el visor de páginas de solo lectura, como cuando se ejecuta desde sus fuentes. Ejecutar pnpm build y volver a iniciarla.',
+  'The page could not be written: {why}': 'No se pudo escribir la página: {why}',
+  'Save the page': 'Guardar la página',
+  'Save the page anyway': 'Guardar la página de todos modos',
+  'SVG drawing': 'Dibujo SVG',
+  'The view as a drawing that scales, for pages and documents':
+    'La vista como un dibujo que se escala, para páginas y documentos',
+  'PDF document': 'Documento PDF',
+  'The view on one page, to print or attach; made when saved':
+    'La vista en una página, para imprimir o adjuntar; se hace al guardarla',
+  'Outline in Markdown': 'Esquema en Markdown',
+  'The view as text, which is also its long description':
+    'La vista como texto, que es también su descripción larga',
+  'Mermaid flowchart': 'Flujograma de Mermaid',
+  'For GitHub, wikis and other tools that draw Mermaid':
+    'Para GitHub, wikis y otras herramientas que dibujan Mermaid',
+  'Structurizr DSL': 'DSL de Structurizr',
+  'A C4 workspace of the view’s Systems components':
+    'Un espacio de trabajo C4 de los componentes de Systems de la vista',
+  'Making the file… A large view can take a while.':
+    'Haciendo el archivo… Una vista grande puede tardar un rato.',
+  'Stop making it': 'Dejar de hacerlo',
+  'It could not hold:': 'No pudo contener:',
 
   // The model panel's tabs.
   'Outline and model': 'Esquema y modelo',
@@ -1776,6 +1967,146 @@ export const ui: Catalog = {
   'Next: {title}': 'Siguiente: {title}',
   'The browser did not open the speaker notes window. Allow pop-up windows for this page, then try again.':
     'El navegador no abrió la ventana de las notas del orador. Permitir ventanas emergentes para esta página y volver a intentarlo.',
+  // The legend of a view's overlays, on the canvas and below an image (ADR 0055).
+  Legend: 'Referencias',
+  'Fill by {attribute}': 'Relleno según {attribute}',
+  'Stroke by {attribute}': 'Trazo según {attribute}',
+  'Size by {attribute}': 'Tamaño según {attribute}',
+  'Badge by {attribute}': 'Insignia según {attribute}',
+  'Opacity by {attribute}': 'Opacidad según {attribute}',
+  'Line color by {attribute}': 'Color de línea según {attribute}',
+  'Line width by {attribute}': 'Grosor según {attribute}',
+  'Label by {attribute}': 'Etiqueta según {attribute}',
+  'Line opacity by {attribute}': 'Opacidad de línea según {attribute}',
+  'Any other value': 'Cualquier otro valor',
+  'The value itself': 'El valor mismo',
+  // The view's overlays in the inspector.
+  Overlays: 'Superposiciones',
+  'No overlay changes how this view’s shapes look by their attributes.':
+    'Ninguna superposición cambia cómo se ven las formas de esta vista según sus atributos.',
+  'Where two overlays set the same thing, the one higher in the list wins.':
+    'Cuando dos superposiciones definen lo mismo, gana la que está más arriba en la lista.',
+  'Add an overlay': 'Agregar una superposición',
+  'New overlay': 'Nueva superposición',
+  'Edit the overlay': 'Editar la superposición',
+  'Add the overlay': 'Agregar la superposición',
+  'Save the overlay': 'Guardar la superposición',
+  Edit: 'Editar',
+  'Name in the legend': 'Nombre en las referencias',
+  'Reads the attributes of': 'Lee los atributos de',
+  Changes: 'Cambia',
+  Maps: 'Asigna',
+  'Value by value': 'Valor por valor',
+  'Along a range of numbers': 'A lo largo de un rango de números',
+  Values: 'Valores',
+  Stops: 'Paradas',
+  At: 'En',
+  Color: 'Color',
+  Factor: 'Factor',
+  Badge: 'Insignia',
+  Opacity: 'Opacidad',
+  Label: 'Etiqueta',
+  'Line color': 'Color de línea',
+  'Label in the legend': 'Etiqueta en las referencias',
+  'Add a value': 'Agregar un valor',
+  'Add a stop': 'Agregar una parada',
+  'Add each value it has': 'Agregar cada valor que tiene',
+
+  // External identifiers, destinations and the element list (M8, ADR 0056).
+  destination: 'destino',
+  Add: 'Agregar',
+  'the view “{view}”': 'la vista “{view}”',
+  'the project in “{folder}”': 'el proyecto de “{folder}”',
+  'the view {view} of the project in “{folder}”': 'la vista {view} del proyecto de “{folder}”',
+  'a page of {host}': 'una página de {host}',
+  'the view {view}, which the project does not have': 'la vista {view}, que el proyecto no tiene',
+  'nothing, since this is not a destination': 'nada, porque esto no es un destino',
+  'This is not a destination, so it opens nothing.': 'Esto no es un destino, así que no abre nada.',
+  'This destination opens the view {view}, which the project does not have.':
+    'Este destino abre la vista {view}, que el proyecto no tiene.',
+  'This web address does not open: the browser reads it otherwise.':
+    'Esta dirección web no se abre: el navegador la lee de otra manera.',
+  'Another project opens only while Visual Anything is connected.':
+    'Otro proyecto solo se abre mientras Visual Anything está conectado.',
+  '“{name}” opens in a new tab.': '“{name}” se abre en una pestaña nueva.',
+  'The project in “{folder}” does not open: {why}': 'El proyecto de “{folder}” no se abre: {why}',
+  'Open a page of {host}?': '¿Abrir una página de {host}?',
+  'It opens in a new tab, which cannot reach this one. Its whole address:':
+    'Se abre en una pestaña nueva, que no puede llegar a esta. Su dirección completa:',
+  'Open the project in “{folder}”?': '¿Abrir el proyecto de “{folder}”?',
+  'Its folder is {path}, from this project’s folder. It opens in a tab of its own, through the Visual Anything that runs on it, which starts if none does.':
+    'Su carpeta es {path}, desde la carpeta de este proyecto. Se abre en una pestaña propia, a través del Visual Anything que corre sobre él, que se inicia si no hay ninguno.',
+  'It opens at its view {view}.': 'Se abre en su vista {view}.',
+  'Open the page': 'Abrir la página',
+  'Open the project': 'Abrir el proyecto',
+  Destinations: 'Destinos',
+  'Opens {what}': 'Abre {what}',
+  'Follow “{name}”, which opens {what}': 'Seguir “{name}”, que abre {what}',
+  Follow: 'Seguir',
+  'Follow “{name}”': 'Seguir “{name}”',
+  'Double-click, or press Alt+Enter, to open {opens}':
+    'Hacer doble clic, o presionar Alt+Enter, para abrir {opens}',
+  'Its menu lists its {count} destinations.': 'Su menú lista sus {count} destinos.',
+  'Alt+Enter': 'Alt+Enter',
+  'Follow the selected element’s destination, as double-clicking the mark in its bottom left corner does':
+    'Seguir el destino del elemento seleccionado, como lo hace un doble clic en la marca de su esquina inferior izquierda',
+  'An identifier has 1 to {n} characters, without line breaks.':
+    'Un identificador tiene de 1 a {n} caracteres, sin saltos de línea.',
+  'External identifiers': 'Identificadores externos',
+  'None yet. Add what it is in another catalog, such as uberon: UBERON:0002135.':
+    'Ninguno todavía. Agregar lo que es en otro catálogo, como uberon: UBERON:0002135.',
+  'A scheme is a short lowercase name, such as uberon, fma or wikidata.':
+    'Un catálogo es un nombre corto en minúsculas, como uberon, fma o wikidata.',
+  'It has a {scheme} identifier already; change that one.':
+    'Ya tiene un identificador de {scheme}; cambiar ese.',
+  'Add an external identifier': 'Agregar un identificador externo',
+  Scheme: 'Catálogo',
+  Identifier: 'Identificador',
+  'A view of this project': 'Una vista de este proyecto',
+  'Another project': 'Otro proyecto',
+  'A web address': 'Una dirección web',
+  'Folder, from this project’s folder': 'Carpeta, desde la carpeta de este proyecto',
+  'View id there, if any': 'Id de la vista allí, si hay',
+  'Web address, starting with https://': 'Dirección web, que empiece con https://',
+  'Choose a view': 'Elegir una vista',
+  '{view}, which the project does not have': '{view}, que el proyecto no tiene',
+  'It opens the whole view.': 'Abre la vista completa.',
+  'It selects {count} elements there.': {
+    one: 'Allí selecciona {count} elemento.',
+    other: 'Allí selecciona {count} elementos.',
+  },
+  'Focus on the selection': 'Enfocar en la selección',
+  'Open the whole view': 'Abrir la vista completa',
+  'This is not a destination: {why}': 'Esto no es un destino: {why}',
+  '{scheme} identifier {identifier}': 'identificador de {scheme} {identifier}',
+  'Element list': 'Lista de elementos',
+  'List the elements with their attributes, to read and edit them as a table':
+    'Listar los elementos con sus atributos, para leerlos y editarlos como una tabla',
+  'Close the element list': 'Cerrar la lista de elementos',
+  List: 'Listar',
+  'What this view shows': 'Lo que muestra esta vista',
+  'Only this component': 'Solo este componente',
+  Filter: 'Filtrar',
+  'Filter in': 'Filtrar en',
+  'Any column': 'Cualquier columna',
+  '{shown} of {count} elements': {
+    one: '{shown} de {count} elemento',
+    other: '{shown} de {count} elementos',
+  },
+  'Sort by {column}': 'Ordenar por {column}',
+  identifier: 'identificador',
+  'In the model’s order again.': 'De nuevo en el orden del modelo.',
+  'Sorted by {column}, ascending.': 'Ordenado por {column}, de menor a mayor.',
+  'Sorted by {column}, descending.': 'Ordenado por {column}, de mayor a menor.',
+  'Nothing is listed here. Choose another component, or add elements on the canvas.':
+    'Aquí no hay nada en la lista. Elegir otro componente, o agregar elementos en el lienzo.',
+  'No element matches “{filter}”.': 'Ningún elemento coincide con “{filter}”.',
+  'The component is changed in the inspector.': 'El componente se cambia en el inspector.',
+  '“{name}”, {column}: {why}': '“{name}”, {column}: {why}',
+  'This cell holds no destination to follow.': 'Esta celda no tiene ningún destino que seguir.',
+  'A paste sets at most {n} cells at once.': 'Un pegado cambia como máximo {n} celdas a la vez.',
+  'Nothing here could be pasted.': 'Aquí no se pudo pegar nada.',
+  'Pasted {count} cells.': { one: 'Se pegó {count} celda.', other: 'Se pegaron {count} celdas.' },
 };
 
 /**
@@ -2302,8 +2633,8 @@ export const messages: Catalog = {
     'La forma de dibujar una relación no tiene el rasgo "{trait}".',
   'An attribute definition has no "{key}".': 'Una definición de atributo no tiene "{key}".',
   'An attribute of {of} needs a name.': 'Un atributo de {of} necesita un nombre.',
-  'The attribute "{name}" of {of} is of type "string", "number", "boolean" or "json".':
-    'El atributo "{name}" de {of} es de tipo "string", "number", "boolean" o "json".',
+  'The attribute "{name}" of {of} is of type "string", "number", "boolean", "json" or "destination".':
+    'El atributo "{name}" de {of} es de tipo "string", "number", "boolean", "json" o "destination".',
   'The default of "{name}" of {of} must be a {type} value.':
     'El valor predeterminado de "{name}" de {of} debe ser un valor {type}.',
   'Only a string attribute has choices; "{name}" of {of} is a {type}.':
@@ -2750,6 +3081,25 @@ export const messages: Catalog = {
   // Tours and threads of comments in their folders (ADR 0058, ADR 0059).
   'The tour id "{id}" is already used by {file}.': 'El id de recorrido "{id}" ya lo usa {file}.',
   'The thread id "{id}" is already used by {file}.': 'El id de hilo "{id}" ya lo usa {file}.',
+  // What keeps a read-only page from opening its project (ADR 0041).
+  'This page’s data is not a project.': 'Los datos de esta página no son un proyecto.',
+  'This page’s data is not valid JSON: {why}': 'Los datos de esta página no son JSON válido: {why}',
+  'This page was made by a newer Visual Anything, format {format}. Make it again with this version, or open it with a newer one.':
+    'Esta página la hizo un Visual Anything más nuevo, formato {format}. Volver a hacerla con esta versión, o abrirla con una más nueva.',
+  'The project file, {pointer}: {why}': 'El archivo del proyecto, {pointer}: {why}',
+  'The model, {pointer}: {why}': 'El modelo, {pointer}: {why}',
+  'Package {n}, {pointer}: {why}': 'Paquete {n}, {pointer}: {why}',
+  'View {n}, {pointer}: {why}': 'Vista {n}, {pointer}: {why}',
+  'Scenario {n}, {pointer}: {why}': 'Escenario {n}, {pointer}: {why}',
+  'Tour {n}, {pointer}: {why}': 'Recorrido {n}, {pointer}: {why}',
+  'The package id "{id}" is used twice.': 'El id de paquete "{id}" se usa dos veces.',
+  'The view id "{id}" is used twice.': 'El id de vista "{id}" se usa dos veces.',
+  'The scenario id "{id}" is used twice.': 'El id de escenario "{id}" se usa dos veces.',
+  'The tour id "{id}" is used twice.': 'El id de recorrido "{id}" se usa dos veces.',
+  'The page holds a package with the id "{id}", which Visual Anything keeps for its built-in {name} package.':
+    'La página tiene un paquete con el id "{id}", que Visual Anything reserva para su paquete incorporado {name}.',
+  'The package "{id}" is listed, but neither this page nor the built-in packages hold it.':
+    'El paquete "{id}" está en la lista, pero ni esta página ni los paquetes incorporados lo tienen.',
   '{file} takes the id "{id}", which Visual Anything keeps for its built-in {name} package. Give it another id: {how}':
     '{file} usa el id "{id}", que Visual Anything reserva para su paquete incorporado {name}. Darle otro id: {how}',
   '{file} takes the id "{id}", which Visual Anything keeps for a built-in package to come. Rename it before that package ships: {how}':
@@ -2993,15 +3343,159 @@ export const messages: Catalog = {
     '"recentColors" tiene {n} colores, más de {limit}.',
   '"{name}" must be true or false, not {value}.': '"{name}" debe ser true o false, no {value}.',
 
+  // Imports (ADR 0042): the action, what the plan cannot be, and why a reader left something out.
+  'Import "{name}"': 'Importar "{name}"',
+  'Visual Anything cannot tell what this file is: name its format.':
+    'Visual Anything no puede saber qué archivo es este: indicar su formato.',
+  'The file holds {count} elements; an import brings at most 20,000.':
+    'El archivo tiene {count} elementos; una importación trae como máximo 20.000.',
+  'The file holds {count} relations, those that put one thing inside another included; an import brings at most 50,000.':
+    'El archivo tiene {count} relaciones, contando las que ponen una cosa dentro de otra; una importación trae como máximo 50.000.',
+  'The file holds {count} views; an import brings at most 500.':
+    'El archivo tiene {count} vistas; una importación trae como máximo 500.',
+  'The file holds {count} positions and bend points; an import brings at most 200,000.':
+    'El archivo tiene {count} posiciones y puntos de quiebre; una importación trae como máximo 200.000.',
+  'The file holds more than 20,000 elements; an import brings at most 20,000.':
+    'El archivo tiene más de 20.000 elementos; una importación trae como máximo 20.000.',
+  'The file holds more than 50,000 relations, those that put one thing inside another included; an import brings at most 50,000.':
+    'El archivo tiene más de 50.000 relaciones, contando las que ponen una cosa dentro de otra; una importación trae como máximo 50.000.',
+  'The file holds more rows than an import brings: at most 71,000.':
+    'El archivo tiene más filas de las que trae una importación: como máximo 71.000.',
+  'The plan uses the key "{key}" twice.': 'El plan usa la clave "{key}" dos veces.',
+  'No component is chosen for "{kind}".': 'No se eligió ningún componente para "{kind}".',
+  'No relation type is chosen for "{kind}".': 'No se eligió ningún tipo de relación para "{kind}".',
+  'The plan updates "{id}", which the project does not hold.':
+    'El plan actualiza "{id}", que el proyecto no tiene.',
+  'The relation "{key}" ends on something the plan does not hold.':
+    'La relación "{key}" termina en algo que el plan no tiene.',
+  'No relation type that nests is chosen for what sits inside what.':
+    'No se eligió ningún tipo de relación que anida para lo que está dentro de qué.',
+  '"{element}" sits inside "{container}", which the plan does not hold.':
+    '"{element}" está dentro de "{container}", que el plan no tiene.',
+  'The file is larger than 32 MiB; an import reads at most 32 MiB.':
+    'El archivo pesa más de 32 MiB; una importación lee como máximo 32 MiB.',
+  'There is no import reader for "{format}".':
+    'No hay ningún lector de importación para "{format}".',
+  'The description is longer than 10,000 characters, so it is cut.':
+    'La descripción tiene más de 10.000 caracteres, así que se recorta.',
+  'It would sit inside "{container}", which sits inside it, so it stays where it was.':
+    'Quedaría dentro de "{container}", que está dentro de él, así que queda donde estaba.',
+  'It would sit more than {limit} containers deep, so it stays where it was.':
+    'Quedaría a más de {limit} contenedores de profundidad, así que queda donde estaba.',
+  // What Mermaid diagrams hold that is not read.
+  'The text holds no Mermaid diagram.': 'El texto no tiene nada de Mermaid que se pueda leer.',
+  '"{keyword}" diagrams are not read: Visual Anything reads Mermaid flowcharts, and C4, ER and class diagrams.':
+    'Los textos "{keyword}" no se leen: de Mermaid, Visual Anything lee flowchart, C4, erDiagram y classDiagram.',
+  'The front matter that starts on line {n} never ends.':
+    'El encabezado que empieza en la línea {n} nunca termina.',
+  'The subgraph "{name}" that starts on line {n} never ends.':
+    'El subgrafo "{name}" que empieza en la línea {n} nunca termina.',
+  'The boundary "{name}" that starts on line {n} never ends.':
+    'El límite "{name}" que empieza en la línea {n} nunca termina.',
+  'The block of "{name}" that starts on line {n} never ends.':
+    'El bloque de "{name}" que empieza en la línea {n} nunca termina.',
+  'The namespace "{name}" that starts on line {n} never ends.':
+    'El espacio de nombres "{name}" que empieza en la línea {n} nunca termina.',
+  'Directives are not read.': 'Las directivas no se leen.',
+  'Styles are not read: the components’ appearances draw the shapes.':
+    'Los estilos no se leen: las formas se dibujan con la apariencia de sus componentes.',
+  'Layout settings are not read: Visual Anything lays the view out itself.':
+    'Las opciones de diseño no se leen: Visual Anything organiza la vista por su cuenta.',
+  'Web addresses and callbacks are never followed.':
+    'Las direcciones web y las llamadas nunca se siguen.',
+  'Images in imports are left out; a component’s own image shows instead.':
+    'Las imágenes de una importación se dejan afuera; en su lugar se muestra la imagen del componente.',
+  'Notes are not read: add notes on the canvas instead.':
+    'Las notas no se leen: agregar notas en el lienzo en su lugar.',
+  'An invisible line only spaces shapes out, so it brings no relation.':
+    'Una línea invisible solo separa formas, así que no trae ninguna relación.',
+  'This line is not read.': 'Esta línea no se lee.',
+  'This line is not read: it is not a shape, an arrow or a subgraph.':
+    'Esta línea no se lee: no es una forma, una flecha ni un subgrafo.',
+  'This line is not read: it is not an attribute, written as type and name.':
+    'Esta línea no se lee: no es un atributo, escrito como tipo y nombre.',
+  'This line ends no subgraph, so it is not read.':
+    'Esta línea no cierra ningún subgrafo, así que no se lee.',
+  'This line ends no boundary, so it is not read.':
+    'Esta línea no cierra ningún límite, así que no se lee.',
+  'This line is longer than 16,384 characters, so it is not read.':
+    'Esta línea tiene más de 16.384 caracteres, así que no se lee.',
+  'This attribute is listed twice, so it is read once.':
+    'Este atributo aparece dos veces, así que se lee una sola vez.',
+  'The relation ends on "{name}", which the diagram does not define.':
+    'La relación termina en "{name}", que el archivo no define.',
+  // What spreadsheets hold that is not read.
+  'The spreadsheet holds no table.': 'La hoja de cálculo no tiene ninguna tabla.',
+  'A quote that opens on line {n} never closes.':
+    'Unas comillas que se abren en la línea {n} nunca se cierran.',
+  'The table that starts on line {n} has no name or id column for elements, and no from and to columns for relations.':
+    'La tabla que empieza en la línea {n} no tiene columna de nombre ni de id para elementos, ni columnas de origen y destino para relaciones.',
+  'The spreadsheet has no column "{name}" to match its rows by.':
+    'La hoja de cálculo no tiene ninguna columna "{name}" para emparejar sus filas.',
+  'This column has no header, so it is not read.':
+    'Esta columna no tiene encabezado, así que no se lee.',
+  'This column repeats the header "{name}", so it is not read.':
+    'Esta columna repite el encabezado "{name}", así que no se lee.',
+  'No attribute may be named "{name}", so this column is not read.':
+    'Ningún atributo puede llamarse "{name}", así que esta columna no se lee.',
+  'No attribute may be named "{name}", so it is left out.':
+    'Ningún atributo puede llamarse "{name}", así que se deja afuera.',
+  'The id "{id}" is given to an earlier row, so this row is left out.':
+    'El id "{id}" ya lo tiene una fila anterior, así que esta fila se deja afuera.',
+  'The id "{id}" is given to an earlier element, so this one is left out.':
+    'El id "{id}" ya lo tiene un elemento anterior, así que este se deja afuera.',
+  'The id "{id}" is given to an earlier relation, so this one is left out.':
+    'El id "{id}" ya lo tiene una relación anterior, así que esta se deja afuera.',
+  'This row has no name or id, so it is left out.':
+    'Esta fila no tiene nombre ni id, así que se deja afuera.',
+  'This row has no from or no to, so it is left out.':
+    'A esta fila le falta el origen o el destino, así que se deja afuera.',
+  '"{name}" names no element of the file or the project, so the row is left out.':
+    '"{name}" no nombra ningún elemento del archivo ni del proyecto, así que la fila se deja afuera.',
+  '"{name}" names no element of the file or the project, so the relation is left out.':
+    '"{name}" no nombra ningún elemento del archivo ni del proyecto, así que la relación se deja afuera.',
+  '"{name}" names no element of the file or the project, so this row sits in no container.':
+    '"{name}" no nombra ningún elemento del archivo ni del proyecto, así que esta fila no queda en ningún contenedor.',
+  '"{name}" names no element of the file or the project, so this element sits in no container.':
+    '"{name}" no nombra ningún elemento del archivo ni del proyecto, así que este elemento no queda en ningún contenedor.',
+  '"{name}" names {n} elements of the file, so the row is left out.':
+    '"{name}" nombra {n} elementos del archivo, así que la fila se deja afuera.',
+  '"{name}" names {n} elements of the file, so it is left out.':
+    '"{name}" nombra {n} elementos del archivo, así que se deja afuera.',
+  '"{name}" names {n} elements of the project, so the row is left out.':
+    '"{name}" nombra {n} elementos del proyecto, así que la fila se deja afuera.',
+  '"{name}" names {n} elements of the project, so it is left out.':
+    '"{name}" nombra {n} elementos del proyecto, así que se deja afuera.',
+  '"{name}" matches {n} elements of the project, so the row is left out.':
+    '"{name}" coincide con {n} elementos del proyecto, así que la fila se deja afuera.',
+  '"{name}" matches {n} elements of the project, so it is left out.':
+    '"{name}" coincide con {n} elementos del proyecto, así que se deja afuera.',
+  // What JSON files hold that is not read.
+  'The file is not valid JSON: {reason}': 'El archivo no es JSON válido: {reason}',
+  'The file nests more than {limit} levels deep.':
+    'El archivo anida más de {limit} niveles de profundidad.',
+  'The file holds neither a model, with world, elements and relations, nor a list of elements and relations.':
+    'El archivo no tiene ni un modelo, con world, elements y relations, ni una lista de elementos y relaciones.',
+  'The file as a whole {why}.': 'El archivo completo {why}.',
+  '{path} in the file {why}.': '{path} en el archivo {why}.',
+  'Its own appearance is left out: an import brings no appearances.':
+    'Su apariencia propia se deja afuera: una importación no trae apariencias.',
+  'It ends on World, which an import does not bring, so it is left out.':
+    'Termina en Mundo, que una importación no trae, así que se deja afuera.',
+  'It ends on "{name}", which the file does not hold, so it is left out.':
+    'Termina en "{name}", que el archivo no tiene, así que se deja afuera.',
+  'It ends on a relation that ends on it in turn, so it is left out.':
+    'Termina en una relación que a su vez termina en ella, así que se deja afuera.',
+  'It ends on a relation that is left out, so it is left out too.':
+    'Termina en una relación que se deja afuera, así que también se deja afuera.',
+  // What importing again leaves out.
+  'The project already has this relation, so it is not created again.':
+    'El proyecto ya tiene esta relación, así que no se vuelve a crear.',
   // Why the Structurizr, LikeC4 and draw.io readers refuse a file, and what they leave out (ADR 0042).
   'The file nests too deeply to be read.': 'El archivo anida demasiado hondo para leerse.',
   'The file is not JSON.': 'El archivo no es JSON.',
   'The file is over 32 MiB, the most an import reads.':
     'El archivo tiene más de 32 MiB, lo máximo que lee una importación.',
-  'The file holds {count} elements; an import brings at most 20,000.':
-    'El archivo tiene {count} elementos; una importación trae como máximo 20.000.',
-  'The file holds {count} relations, those that put one thing inside another included; an import brings at most 50,000.':
-    'El archivo tiene {count} relaciones, contando las que ponen una cosa dentro de otra; una importación trae como máximo 50.000.',
   'The name is over 1,000 characters; it is cut there.':
     'El nombre tiene más de 1.000 caracteres; se corta ahí.',
   'One more thing matched nothing; the list stops here.':
@@ -3251,6 +3745,238 @@ export const messages: Catalog = {
   '"codeApprovals" approves {hash} twice.': '"codeApprovals" aprueba {hash} dos veces.',
   '"codeApprovals" holds {n} approvals, more than {m}.':
     '"codeApprovals" tiene {n} aprobaciones, más de {m}.',
+  // Overlays, their legend, and levels of detail (ADR 0055).
+  'Set the overlays of "{view}"': 'Definir las superposiciones de "{view}"',
+  'Remove the overlays of "{view}"': 'Quitar las superposiciones de "{view}"',
+  'Add the overlay "{name}" to "{view}"': 'Agregar la superposición "{name}" a "{view}"',
+  'Turn off the overlay "{name}" in "{view}"': 'Desactivar la superposición "{name}" en "{view}"',
+  'Turn on the overlay "{name}" in "{view}"': 'Activar la superposición "{name}" en "{view}"',
+  'Edit the overlay "{name}" in "{view}"': 'Editar la superposición "{name}" en "{view}"',
+  'Remove the overlay "{name}" from "{view}"': 'Quitar la superposición "{name}" de "{view}"',
+  'Remove {n} overlays from "{view}"': 'Quitar {n} superposiciones de "{view}"',
+  'Move the overlay "{name}" in "{view}"': 'Mover la superposición "{name}" en "{view}"',
+  'A view has at most {n} overlays.': 'Una vista tiene como máximo {n} superposiciones.',
+  'The view "{view}" has no overlay "{id}".':
+    'La vista "{view}" no tiene ninguna superposición "{id}".',
+  'The view "{view}" already has an overlay "{id}".':
+    'La vista "{view}" ya tiene una superposición "{id}".',
+  'The changes to an overlay are an object.': 'Los cambios a una superposición son un objeto JSON.',
+  'An overlay has no "{key}" to change.': 'Una superposición no tiene "{key}" para cambiar.',
+  'No overlays were given to remove.': 'No se dio ninguna superposición para quitar.',
+  'The overlay "{name}" is given twice.': 'La superposición "{name}" se da dos veces.',
+  'An overlay cannot go before itself.': 'Una superposición no puede ir antes de sí misma.',
+  'An overlay is an object with a channel.': 'Una superposición es un objeto JSON con un canal.',
+  'An overlay holds id, name, of, attribute, channel, mapping and off, not "{key}".':
+    'Una superposición tiene id, name, of, attribute, channel, mapping y off, no "{key}".',
+  'An overlay names the attribute it reads.': 'Una superposición nombra el atributo que lee.',
+  'The name of an overlay has 1 to 64 characters.':
+    'El nombre de una superposición tiene de 1 a 64 caracteres.',
+  'The overlay "{name}" reads the attributes of "elements" or of "relations".':
+    'La superposición "{name}" lee los atributos de "elements" o de "relations".',
+  'The overlay "{name}" sets "fill", "stroke", "size", "badge" or "opacity".':
+    'La superposición "{name}" define "fill", "stroke", "size", "badge" u "opacity".',
+  'A relation has no fill: the overlay "{name}" can color the stroke of relations instead.':
+    'Una relación no tiene relleno: la superposición "{name}" puede colorear en cambio el trazo de las relaciones.',
+  'Whether the overlay "{name}" is off is true or false.':
+    'Si la superposición "{name}" está desactivada es verdadero o falso.',
+  'The overlay "{name}" maps its attribute "discrete", "continuous" or "passthrough".':
+    'La superposición "{name}" asigna su atributo "discrete", "continuous" o "passthrough".',
+  'The overlay "{name}" writes badges, which take no range: map its values one by one, or write the value itself.':
+    'La superposición "{name}" escribe insignias, que no admiten un rango: asignar sus valores uno por uno, o escribir el valor mismo.',
+  'The mapping of the overlay "{name}" has no "{key}".':
+    'La asignación de la superposición "{name}" no tiene "{key}".',
+  'Only an overlay of "fill", "stroke" or "badge" takes the value itself; "{name}" sets "{channel}".':
+    'Solo una superposición de "fill", "stroke" o "badge" toma el valor mismo; "{name}" define "{channel}".',
+  'The overlay "{name}" maps 1 to {n} values one by one.':
+    'La superposición "{name}" asigna de 1 a {n} valores uno por uno.',
+  'A value the overlay "{name}" maps is an object.':
+    'Un valor que asigna la superposición "{name}" es un objeto JSON.',
+  'A value the overlay "{name}" maps has no "{key}".':
+    'Un valor que asigna la superposición "{name}" no tiene "{key}".',
+  'A value the overlay "{name}" maps is text, a number, or true or false.':
+    'Un valor que asigna la superposición "{name}" es texto, un número, o verdadero o falso.',
+  'The overlay "{name}" maps "{value}" twice.':
+    'La superposición "{name}" asigna "{value}" dos veces.',
+  'The overlay "{name}" maps a range through 2 to {n} stops.':
+    'La superposición "{name}" asigna un rango con de 2 a {n} paradas.',
+  'A stop of the overlay "{name}" is an object.':
+    'Una parada de la superposición "{name}" es un objeto JSON.',
+  'A stop of the overlay "{name}" has no "{key}".':
+    'Una parada de la superposición "{name}" no tiene "{key}".',
+  'A stop of the overlay "{name}" is at a number.':
+    'Una parada de la superposición "{name}" está en un número.',
+  'The stops of the overlay "{name}" go up: each at a number above the one before it.':
+    'Las paradas de la superposición "{name}" van en aumento: cada una en un número mayor que la anterior.',
+  'The overlay "{name}" colors with colors written as #RRGGBB, not {value}.':
+    'La superposición "{name}" colorea con colores escritos como #RRGGBB, no {value}.',
+  'The overlay "{name}" sizes by a factor from 0.5 to 2.':
+    'La superposición "{name}" cambia el tamaño por un factor de 0,5 a 2.',
+  'The overlay "{name}" fades to an opacity from 0.1 to 1.':
+    'La superposición "{name}" atenúa hasta una opacidad de 0,1 a 1.',
+  'The overlay "{name}" writes badges of 1 to 12 characters.':
+    'La superposición "{name}" escribe insignias de 1 a 12 caracteres.',
+  'What the legend of "{name}" says for a value has 1 to 64 characters.':
+    'Lo que dicen las referencias de "{name}" para un valor tiene de 1 a 64 caracteres.',
+  'No element has "{attribute}", which the overlay "{name}" reads: it changes nothing yet.':
+    'Ningún elemento tiene "{attribute}", que lee la superposición "{name}": todavía no cambia nada.',
+  'No relation has "{attribute}", which the overlay "{name}" reads: it changes nothing yet.':
+    'Ninguna relación tiene "{attribute}", que lee la superposición "{name}": todavía no cambia nada.',
+  'the overlay "{name}" of the view "{view}"': 'la superposición "{name}" de la vista "{view}"',
+  'The overlay "{name}" of the view "{view}"': 'La superposición "{name}" de la vista "{view}"',
+  'More than one overlay in the view "{view}" has the id "{key}".':
+    'Más de una superposición de la vista "{view}" tiene el id "{key}".',
+  '{Of} fills relations, which have no fill; it changes nothing.':
+    '{Of} rellena relaciones, que no tienen relleno; no cambia nada.',
+  'The stops of {of} do not go up; they are read in order of where they are.':
+    'Las paradas de {of} no van en aumento; se leen en el orden de dónde están.',
+  '{Of} maps "{value}" twice; the first is used.':
+    '{Of} asigna "{value}" dos veces; se usa el primero.',
+  '{Of} reads "{attribute}", which no element has; it changes nothing.':
+    '{Of} lee "{attribute}", que ningún elemento tiene; no cambia nada.',
+  '{Of} reads "{attribute}", which no relation has; it changes nothing.':
+    '{Of} lee "{attribute}", que ninguna relación tiene; no cambia nada.',
+  '"{label}" of "{overlay}" is {n}:1 against the light canvas, under 3:1.':
+    '"{label}" de "{overlay}" tiene {n}:1 contra el lienzo claro, menos de 3:1.',
+  '"{label}" of "{overlay}" is {n}:1 against the dark canvas, under 3:1.':
+    '"{label}" de "{overlay}" tiene {n}:1 contra el lienzo oscuro, menos de 3:1.',
+  'Any other value of "{overlay}" is {n}:1 against the light canvas, under 3:1.':
+    'Cualquier otro valor de "{overlay}" tiene {n}:1 contra el lienzo claro, menos de 3:1.',
+  'Any other value of "{overlay}" is {n}:1 against the dark canvas, under 3:1.':
+    'Cualquier otro valor de "{overlay}" tiene {n}:1 contra el lienzo oscuro, menos de 3:1.',
+  '"{label}" and "{other}" of "{overlay}" are {n}:1 apart, under 3:1.':
+    '"{label}" y "{other}" de "{overlay}" están a {n}:1, menos de 3:1.',
+  '"{label}" and any other value of "{overlay}" are {n}:1 apart, under 3:1.':
+    '"{label}" y cualquier otro valor de "{overlay}" están a {n}:1, menos de 3:1.',
+  '…and {n} more warnings about the colors of "{overlay}".':
+    '…y {n} advertencias más sobre los colores de "{overlay}".',
+  'The levels of {of} must be a list.': 'Los niveles de {of} deben ser una lista.',
+  '{Of} declares at most {n} levels.': '{Of} declara como máximo {n} niveles.',
+  'A level of {of} must be an object.': 'Un nivel de {of} debe ser un objeto JSON.',
+  'A level of {of} has no "{key}".': 'Un nivel de {of} no tiene "{key}".',
+  'A level of {of} starts at a scale from 0 to {n}.':
+    'Un nivel de {of} empieza en una escala de 0 a {n}.',
+  'Two levels of {of} start at {n}.': 'Dos niveles de {of} empiezan en {n}.',
+  'The level at {n} of {of} shows a silhouette, or some of the name, the detail, the contents and the image.':
+    'El nivel en {n} de {of} muestra una silueta, o algo del nombre, el detalle, el contenido y la imagen.',
+  'The level at {n} of {of} shows "{part}" twice.':
+    'El nivel en {n} de {of} muestra "{part}" dos veces.',
+  'The level at {n} of {of} shows a silhouette only, with nothing else.':
+    'El nivel en {n} de {of} muestra solo una silueta, sin nada más.',
+  '{Of} expands from a scale above 0 and at most {n}.':
+    '{Of} se expande desde una escala mayor que 0 y de {n} como máximo.',
+  'Two levels of {of} start at {n}; the last is used.':
+    'Dos niveles de {of} empiezan en {n}; se usa el último.',
+  'The level at {n} of {of} shows a silhouette only, and nothing else it lists.':
+    'El nivel en {n} de {of} muestra solo una silueta, y nada más de lo que enumera.',
+  // External identifiers, destinations and the element list (M8, ADR 0056): the core's refusals,
+  // labels and warnings, the import's notes, the local program's answers and the schema's words.
+  'The external identifiers of {of} are by scheme, a short lowercase name such as "uberon"; "{scheme}" is not one.':
+    'Los identificadores externos de {of} van por catálogo, un nombre corto en minúsculas como "uberon"; "{scheme}" no lo es.',
+  'The {scheme} identifier of {of} must be text of 1 to {n} characters, without line breaks.':
+    'El identificador de {scheme} de {of} debe ser un texto de 1 a {n} caracteres, sin saltos de línea.',
+  'Something holds identifiers in at most {n} schemes, not {m}.':
+    'Algo tiene identificadores de como máximo {n} catálogos, no {m}.',
+  'The external identifiers of {of} must be an object of identifiers by scheme, such as { "uberon": "UBERON:0002135" }.':
+    'Los identificadores externos de {of} deben ser un objeto JSON de identificadores por catálogo, como { "uberon": "UBERON:0002135" }.',
+  'The changes to the external identifiers of {of} must be an object of identifiers, or null, by scheme.':
+    'Los cambios a los identificadores externos de {of} deben ser un objeto JSON de identificadores, o null, por catálogo.',
+  '{names} have the same {scheme} identifier, "{identifier}".':
+    '{names} tienen el mismo identificador de {scheme}, "{identifier}".',
+  '…and {rest} more identifiers are shared by several elements.':
+    '…y otros {rest} identificadores los comparten varios elementos.',
+  'Change the external identifiers of "{name}"': 'Cambiar los identificadores externos de "{name}"',
+  'Change the external identifiers of the component "{name}"':
+    'Cambiar los identificadores externos del componente "{name}"',
+  'Change the external identifiers of the relation type "{name}"':
+    'Cambiar los identificadores externos del tipo de relación "{name}"',
+  'A destination is an object: { "view": … }, { "project": … } or { "url": … }.':
+    'Un destino es un objeto JSON: { "view": … }, { "project": … } o { "url": … }.',
+  'A destination opens one thing: a view, with "view"; another project, with "project"; or a web address, with "url".':
+    'Un destino abre una sola cosa: una vista, con "view"; otro proyecto, con "project"; o una dirección web, con "url".',
+  'A web address has no "{key}".': 'Una dirección web no tiene "{key}".',
+  'A destination to a project has no "{key}".': 'Un destino a un proyecto no tiene "{key}".',
+  'A destination to a view has no "{key}".': 'Un destino a una vista no tiene "{key}".',
+  'The project of a destination is a path, as text.':
+    'El proyecto de un destino es la ubicación de su carpeta, como texto.',
+  'The view of a destination is named by its id.': 'La vista de un destino se nombra por su id.',
+  'What a destination focuses on is a list of 1 to {n} different element ids.':
+    'En lo que se enfoca un destino es una lista de 1 a {n} ids de elementos distintos.',
+  'A web address is text.': 'Una dirección web es un texto.',
+  'Only web addresses that start with https:// open; file:, javascript: and other schemes never do.':
+    'Solo se abren las direcciones web que empiezan con https://; file:, javascript: y cualquier otro prefijo nunca se abren.',
+  'A web address holds at most {n} characters.':
+    'Una dirección web tiene como máximo {n} caracteres.',
+  'A web address holds no spaces, line breaks or backslashes.':
+    'Una dirección web no tiene espacios, saltos de línea ni barras invertidas.',
+  'A web address with a user name or a password never opens.':
+    'Una dirección web con un nombre de usuario o una contraseña nunca se abre.',
+  '"{authority}" is not the host of a web address.':
+    '"{authority}" no es el sitio de una dirección web.',
+  '{port} is not a port: ports go up to 65535.':
+    '{port} no es un puerto: los puertos llegan hasta 65535.',
+  'A path to a project has 1 to {n} characters.':
+    'La ubicación de un proyecto tiene de 1 a {n} caracteres.',
+  'A path to a project holds no control characters.':
+    'La ubicación de un proyecto no tiene caracteres de control.',
+  'A path to a project is written with /, not \\.':
+    'La ubicación de un proyecto se escribe con /, no con \\.',
+  'A path to a project is relative to this project’s folder, as ../billing is.':
+    'La ubicación de un proyecto es relativa a la carpeta de este proyecto, como ../billing.',
+  'A path to a project never leads out of the folder that holds this project’s folder.':
+    'La ubicación de un proyecto nunca sale de la carpeta que contiene la carpeta de este proyecto.',
+  '"{name}" of {of} holds a destination, and this is not one: {why}':
+    '"{name}" de {of} contiene un destino, y esto no lo es: {why}',
+  'The default of "{name}" of {of} must be a destination: a view, another project or an https: address.':
+    'El valor predeterminado de "{name}" de {of} debe ser un destino: una vista, otro proyecto o una dirección https:.',
+  'The destination "{name}" of {of} is not one, so it never opens: {why}':
+    'El destino "{name}" de {of} no es un destino, así que nunca se abre: {why}',
+  'The destination "{name}" of {of} opens the view "{view}", which the project does not have; it is kept, and opens nothing until that view is back.':
+    'El destino "{name}" de {of} abre la vista "{view}", que el proyecto no tiene; se conserva, y no abre nada hasta que esa vista vuelva.',
+  'The destination "{name}" of {of} focuses on "{ids}", which the model does not have; the view opens without it.':
+    'El destino "{name}" de {of} se enfoca en "{ids}", que el modelo no tiene; la vista se abre sin él.',
+  'The destination "{name}" of {of} focuses on "{ids}", which the model does not have; the view opens without them.':
+    'El destino "{name}" de {of} se enfoca en "{ids}", que el modelo no tiene; la vista se abre sin ellos.',
+  '…and {rest} more destinations open nothing.': '…y otros {rest} destinos no abren nada.',
+  'Its identifiers are not given by scheme, so it is imported without them.':
+    'Sus identificadores no vienen por catálogo, así que se importa sin ellos.',
+  '"{scheme}" is not a scheme of identifiers, so it is imported without that one.':
+    '"{scheme}" no es un catálogo de identificadores, así que se importa sin ese.',
+  'Its {scheme} identifier is not one, so it is imported without it.':
+    'Su identificador de {scheme} no lo es, así que se importa sin él.',
+  'Its {scheme} identifier is past {n} schemes, so it is imported without it.':
+    'Su identificador de {scheme} pasa de {n} catálogos, así que se importa sin él.',
+  'Its {scheme} identifier "{identifier}" is the identifier of {count} elements, {names}, so it is imported as a new element.':
+    'Su identificador de {scheme} "{identifier}" es el de {count} elementos, {names}, así que se importa como un elemento nuevo.',
+  'Its {scheme} identifier "{identifier}" is that of "{name}", which a row before it updates already, so it is imported as a new element.':
+    'Su identificador de {scheme} "{identifier}" es el de "{name}", que ya actualiza una fila anterior, así que se importa como un elemento nuevo.',
+  'The folder holding this project cannot be read ({reason}).':
+    'No se puede leer la carpeta que contiene este proyecto ({reason}).',
+  'There is no folder {folder} for this destination to open.':
+    'No hay ninguna carpeta {folder} que este destino pueda abrir.',
+  '{folder} leads, through a link, out of the folder that holds this project, so it does not open.':
+    '{folder} sale, a través de un enlace simbólico, de la carpeta que contiene este proyecto, así que no se abre.',
+  '{folder} is not a folder, so it holds no project.':
+    '{folder} no es una carpeta, así que no contiene ningún proyecto.',
+  '{folder} holds no project: it has no .vaproject file.':
+    '{folder} no contiene ningún proyecto: no tiene ningún archivo .vaproject.',
+  '{folder} cannot be read ({reason}).': 'No se puede leer {folder} ({reason}).',
+  '"{project}" is not a path to a project.': '"{project}" no es la ubicación de un proyecto.',
+  'This Visual Anything keeps no runtime folder, so it cannot reach the program of another project.':
+    'Este Visual Anything no tiene carpeta de ejecución, así que no puede llegar al programa de otro proyecto.',
+  '"{name}" cannot open there: {why}': '"{name}" no se puede abrir allí: {why}',
+  'A destination opens the project in {project}, but {folder} holds no project; it is kept, and opens nothing until a project is there.':
+    'Un destino abre el proyecto de {project}, pero {folder} no contiene ningún proyecto; se conserva, y no abre nada hasta que haya un proyecto allí.',
+  'This Visual Anything cannot open another project.':
+    'Este Visual Anything no puede abrir otro proyecto.',
+  'The project could not be opened: {why}': 'No se pudo abrir el proyecto: {why}',
+  'must be an identifier without line breaks or other control characters':
+    'debe ser un identificador sin saltos de línea ni otros caracteres de control',
+  'must have schemes as its keys, short lowercase names such as "uberon", and "{key}" is not one':
+    'debe tener catálogos como claves, nombres cortos en minúsculas como "uberon", y "{key}" no lo es',
+  'must have identifiers as its keys, and "{key}" is not one':
+    'debe tener identificadores como claves, y "{key}" no lo es',
+  'Paste 1 cell into the element list': 'Pegar 1 celda en la lista de elementos',
+  'Paste {n} cells into the element list': 'Pegar {n} celdas en la lista de elementos',
 };
 
 /**

@@ -136,14 +136,16 @@ export function applyOperation(
       const { collection, index, item } = operation;
       const items = itemsOf(state, collection);
       const key = keyOf(collection, item);
-      if (items.some((existing) => keyOf(collection, existing) === key)) {
+      if (holdsKey(collection, items, key)) {
         throw new OperationError(`${describe(collection)} already holds "${key}".`);
       }
       if (!Number.isInteger(index) || index < 0 || index > items.length) {
         throw new OperationError(`${describe(collection)} has no place ${index}.`);
       }
+      const next = items.toSpliced(index, 0, item);
+      if (index === items.length) movePlaces(items, next)?.set(key, index);
       return {
-        state: withItems(state, collection, items.toSpliced(index, 0, item)),
+        state: withItems(state, collection, next),
         inverse: { op: 'remove', collection, key },
       };
     }
@@ -152,8 +154,10 @@ export function applyOperation(
       const items = itemsOf(state, collection);
       const index = indexOfKey(items, collection, keyOf(collection, item));
       const previous = items[index] as Item;
+      const next = items.with(index, item);
+      movePlaces(items, next);
       return {
-        state: withItems(state, collection, items.with(index, item)),
+        state: withItems(state, collection, next),
         inverse: { op: 'replace', collection, item: previous },
       };
     }
@@ -162,8 +166,10 @@ export function applyOperation(
       const items = itemsOf(state, collection);
       const index = indexOfKey(items, collection, key);
       const previous = items[index] as Item;
+      const next = items.toSpliced(index, 1);
+      if (index === items.length - 1) movePlaces(items, next)?.delete(key);
       return {
-        state: withItems(state, collection, items.toSpliced(index, 1)),
+        state: withItems(state, collection, next),
         inverse: { op: 'insert', collection, index, item: previous },
       };
     }
@@ -244,7 +250,8 @@ export function applyOperations(
   return { state: current, inverse: inverse.reverse() };
 }
 
-function itemsOf(state: ProjectSnapshot, collection: Collection): readonly Item[] {
+/** The items of a list of the project. */
+export function itemsOf(state: ProjectSnapshot, collection: Collection): readonly Item[] {
   switch (collection.name) {
     case 'elements':
       return state.model.elements;
@@ -384,9 +391,43 @@ function withImages(file: PackageFile, images: readonly ImageDefinition[]): Pack
   return without;
 }
 
+/**
+ * Where each key of a list sits, worked out once per list. The list an operation makes from another
+ * by replacing an item, or by adding or removing its last one, takes the other's places over, so that
+ * a command changing one list thousands of times stays linear.
+ */
+const placesOfList = new WeakMap<readonly Item[], Map<string, number>>();
+
+function placesOf(collection: Collection, items: readonly Item[]): Map<string, number> {
+  let places = placesOfList.get(items);
+  if (places === undefined) {
+    places = new Map();
+    for (const [index, item] of items.entries()) {
+      const key = keyOf(collection, item);
+      if (!places.has(key)) places.set(key, index);
+    }
+    placesOfList.set(items, places);
+  }
+  return places;
+}
+
+/** Hands a list's places to the list made from it. The old list works its places out again. */
+function movePlaces(from: readonly Item[], to: readonly Item[]): Map<string, number> | undefined {
+  const places = placesOfList.get(from);
+  if (places === undefined) return undefined;
+  placesOfList.delete(from);
+  placesOfList.set(to, places);
+  return places;
+}
+
+/** Whether a list holds an item with this key. */
+export function holdsKey(collection: Collection, items: readonly Item[], key: string): boolean {
+  return placesOf(collection, items).has(key);
+}
+
 function indexOfKey(items: readonly Item[], collection: Collection, key: string): number {
-  const index = items.findIndex((item) => keyOf(collection, item) === key);
-  if (index === -1) throw new OperationError(`${describe(collection)} holds no "${key}".`);
+  const index = placesOf(collection, items).get(key);
+  if (index === undefined) throw new OperationError(`${describe(collection)} holds no "${key}".`);
   return index;
 }
 

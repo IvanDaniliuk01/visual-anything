@@ -24,6 +24,8 @@ import { perform } from './send';
 import { sameOptionalText } from './text';
 import { ScopeSection } from './ScopeSection';
 import { ViewSection } from './ViewSection';
+import { DestinationsSection } from '../../destinations/DestinationsSection';
+import { ExternalIdsSection } from '../../destinations/ExternalIdsSection';
 
 interface ElementInspectorProps {
   element: Element;
@@ -103,6 +105,7 @@ export function ElementInspector({
       <ViewSection element={element} />
       <ScopeSection element={element} />
       <RowsSection element={element} />
+      <DestinationsSection item={element} definitions={component.attributes} />
       <AttributesSection
         of="element"
         definitions={component.attributes}
@@ -112,6 +115,7 @@ export function ElementInspector({
         change={update}
       />
       <CodeSection element={element} />
+      <ExternalIdsSection ids={element.ids} disabled={disabled} change={(ids) => update({ ids })} />
       <AppearanceSection
         element={element}
         index={index}

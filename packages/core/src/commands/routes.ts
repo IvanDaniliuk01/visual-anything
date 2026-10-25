@@ -23,7 +23,7 @@ import {
   type RouteContext,
 } from '../routes';
 import type { ProjectSnapshot } from '../snapshot';
-import { definitionsIn, modelIndexOf } from '../state';
+import { definitionsIn } from '../state';
 import { count, nameOf, reject, requireList, requireNumber, sameJson, type Draft } from './draft';
 import { relationLabel } from './model';
 import type { ResetRouteCommand, RouteStyle, SetRouteCommand } from './types';
@@ -316,7 +316,7 @@ function changesModel(operation: Operation): boolean {
 
 /** The connection points of an element's appearance; `undefined` for anything else. */
 function pointsOf(
-  index: ModelIndex,
+  index: Pick<ModelIndex, 'element'>,
   definitions: Definitions,
   id: Id,
 ): readonly ConnectionPoint[] | undefined {
@@ -345,7 +345,7 @@ export function settleRoutes(draft: Draft, before: ProjectSnapshot, start: numbe
 
   const index = draft.index;
   const definitions = draft.definitions;
-  const earlier = modelIndexOf(before);
+  const earlier = draft.modelBefore(start, before);
   const earlierDefinitions = definitionsIn(before);
   for (const view of draft.state.views) {
     if (view.routes === undefined) continue;
@@ -389,8 +389,12 @@ export function settleRoutes(draft: Draft, before: ProjectSnapshot, start: numbe
       ) {
         const gone =
           index.element(container) === undefined && earlier.element(container) !== undefined;
-        context ??= routeContext(draft.state, view, { lookups: index });
-        const left = endsChanged && !context.commonHolders(relation).includes(container);
+        // Working out where shapes sit costs a pass over the view: only an end that changed asks.
+        const left =
+          endsChanged &&
+          !(context ??= routeContext(draft.state, view, { lookups: index }))
+            .commonHolders(relation)
+            .includes(container);
         if (gone || left) {
           const edited = edit();
           delete edited.bendPoints;

@@ -2,15 +2,21 @@
  * The attributes of an element or a relation as the inspector shows them: every attribute its
  * component's or relation type's chain defines, then those it has that the chain does not define.
  */
-import { valueFitsType } from '@visual-anything/core';
-import type { AttributeDefinition, Attributes, JsonValue } from '@visual-anything/schema';
+import { isDestination, valueFitsType } from '@visual-anything/core';
+import type { AttributeDefinition, Attributes, Id, JsonValue } from '@visual-anything/schema';
 import { t } from '../../i18n';
 
 /** The types an attribute's value can have. */
 export type AttributeType = AttributeDefinition['type'];
 
 /** The attribute types, in the order the inspector offers them. */
-export const ATTRIBUTE_TYPES: readonly AttributeType[] = ['string', 'number', 'boolean', 'json'];
+export const ATTRIBUTE_TYPES: readonly AttributeType[] = [
+  'string',
+  'number',
+  'boolean',
+  'json',
+  'destination',
+];
 
 /** How the inspector names an attribute type: as project files write it, and JSON in capitals. */
 export function typeName(type: AttributeType): string {
@@ -101,16 +107,23 @@ export function sameJson(a: JsonValue | undefined, b: JsonValue | undefined): bo
 /** Whether a value fits an attribute type: the core's rule, which every command checks. */
 export { valueFitsType as fitsType } from '@visual-anything/core';
 
-/** The type of a value: a string, a number or a boolean; anything else is JSON. */
+/**
+ * The type of a value: a string, a number or a boolean; an object that reads as a destination is one
+ * (ADR 0056); anything else is JSON.
+ */
 export function typeOfValue(value: JsonValue): AttributeType {
   if (typeof value === 'string') return 'string';
   if (typeof value === 'number') return 'number';
   if (typeof value === 'boolean') return 'boolean';
+  if (isDestination(value)) return 'destination';
   return 'json';
 }
 
-/** The value a new attribute of a type starts with. */
-export function initialValue(type: AttributeType): JsonValue {
+/**
+ * The value a new attribute of a type starts with; a destination opens a view, `view`, which the
+ * caller gives: the open one.
+ */
+export function initialValue(type: AttributeType, view?: Id): JsonValue {
   switch (type) {
     case 'string':
       return '';
@@ -120,6 +133,8 @@ export function initialValue(type: AttributeType): JsonValue {
       return false;
     case 'json':
       return null;
+    case 'destination':
+      return view === undefined ? null : { view };
   }
 }
 

@@ -114,6 +114,68 @@ describe('planToCommand', () => {
     expect(outcome.state.views[0]?.positions).toEqual(state.views[0]?.positions);
   });
 
+  it('gives relations their descriptions, and updates a relation it matched, keeping its ends', () => {
+    const state = testProject();
+    const again: ImportPlan = {
+      ...plan(),
+      elements: [
+        { key: 'client', name: 'Client', kind: 'service', existing: 'client' },
+        { key: 'api', name: 'API', kind: 'service', existing: 'api' },
+        { key: 'cache', name: 'Cache', kind: 'db' },
+      ],
+      relations: [
+        {
+          key: 'call',
+          from: 'client',
+          to: 'api',
+          kind: 'arrow',
+          name: 'Calls over HTTPS',
+          description: 'Every request.',
+          existing: 'client-calls-api',
+        },
+        { key: 'fill', from: 'api', to: 'cache', kind: 'arrow', description: 'On a miss.' },
+      ],
+      containment: [],
+      views: [],
+    };
+    const planned = planToCommand(state, again, MAPPING, sequentialIds());
+    if (!planned.ok) throw new Error(planned.problems.join(' '));
+    expect(planned.ids.get('call')).toBe('client-calls-api');
+    const outcome = executeCommand(state, planned.command, { newId: sequentialIds() });
+    if (!outcome.ok) throw new Error(outcome.problems.map((each) => each.message).join(' '));
+    const relations = outcome.state.model.relations;
+    expect(relations.find((each) => each.id === 'client-calls-api')).toEqual({
+      id: 'client-calls-api',
+      relationType: 'test.calls',
+      from: 'client',
+      to: 'api',
+      name: 'Calls over HTTPS',
+      description: 'Every request.',
+    });
+    expect(relations.find((each) => each.id === planned.ids.get('fill'))).toMatchObject({
+      from: 'api',
+      description: 'On a miss.',
+    });
+  });
+
+  it('refuses a plan that updates something the project does not hold', () => {
+    const state = testProject();
+    const ghost: ImportPlan = {
+      ...plan(),
+      elements: [{ key: 'gone', name: 'Gone', kind: 'box', existing: 'gone' }],
+      relations: [
+        { key: 'lost', from: 'gone', to: 'gone', kind: 'arrow', existing: 'lost-relation' },
+      ],
+      containment: [],
+      views: [],
+    };
+    const planned = planToCommand(state, ghost, MAPPING);
+    expect(!planned.ok && planned.problems).toEqual([
+      'The plan updates "gone", which the project does not hold.',
+      'The plan updates "lost-relation", which the project does not hold.',
+    ]);
+  });
+
   it('refuses kinds left unmapped, a component no package defines, unknown ends and the limits', () => {
     const state = testProject();
     const missing = planToCommand(state, plan(), { ...MAPPING, elements: { box: 'test.box' } });

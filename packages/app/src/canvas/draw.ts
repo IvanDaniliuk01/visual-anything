@@ -36,6 +36,7 @@ import {
   readableTextColors,
 } from './colors';
 import { drawLeavingMark, writeLeavingMark } from './leavingMark';
+import { drawDestinationMark } from './destinationMark';
 import { patternMatrix, patternTexture } from './patterns';
 import { drawnAsCurve, drawnCurve, strokeCurve } from './routing/curves';
 import { LIGHT_ROWS, drawRowsShape, rowsBlocks, writeRowsText, type RowColors } from './rowsDraw';
@@ -231,6 +232,7 @@ export function drawShapeOutlines(
     }
     drawToggle(graphics, shape);
     drawLeavingMark(graphics, shape);
+    drawDestinationMark(graphics, shape);
   }
 }
 

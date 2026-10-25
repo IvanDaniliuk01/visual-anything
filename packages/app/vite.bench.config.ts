@@ -4,15 +4,22 @@
 // port is taken rather than serving them on another; paths are the app package's.
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+import { validators } from './vite.viewer.config';
 
 export default defineConfig({
-  plugins: [react()],
+  // The read-only page's benchmark reads its data with the validators the page is built with.
+  plugins: [react(), validators()],
   resolve: { alias: [{ find: /^react-dom\/client$/, replacement: 'react-dom/profiling' }] },
   build: {
     outDir: 'dist-bench',
     emptyOutDir: true,
     rollupOptions: {
-      input: { canvas: 'bench.html', app: 'app-bench.html', exports: 'exports-bench.html' },
+      input: {
+        canvas: 'bench.html',
+        app: 'app-bench.html',
+        exports: 'exports-bench.html',
+        page: 'page-bench.html',
+      },
     },
   },
   preview: { host: '127.0.0.1', port: 47707, strictPort: true },

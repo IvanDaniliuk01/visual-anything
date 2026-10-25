@@ -47,7 +47,8 @@ interface TourPlaybackInput {
   project: ProjectSnapshot;
   scene: Scene | undefined;
   viewState: ViewStateLink;
-  scenarios: ScenarioSession;
+  /** The tab's scenario playback: the app's scenario session, or the read-only page's playback. */
+  scenarios: Pick<ScenarioSession, 'subscribe' | 'getState' | 'play' | 'pause' | 'goToStep'>;
   emphasis: EmphasisStore;
 }
 

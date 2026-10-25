@@ -19,6 +19,7 @@
  * nothing (`buildSceneAfresh`).
  */
 import {
+  destinationsOf,
   imagesIn,
   shownByScope,
   type ProjectSnapshot,
@@ -30,6 +31,7 @@ import type {
   Element,
   FreeShape,
   Id,
+  LevelOfDetail,
   Note,
   Relation,
   ShapePosition,
@@ -57,6 +59,8 @@ import {
 } from '@visual-anything/core';
 import { currentLanguage, t, type Language } from '../i18n';
 import { collapsedIn } from './collapse';
+import { decorateLines, decorateShapes } from './overlays/decorate';
+import { collapsedWithout, NOT_EXPANDED } from './overlays/collapsed';
 import type { Dash, ShapeKind } from './geometry';
 import { arrowheadAt, directionOf, type Arrowhead, type Point, type Rect } from './geometry';
 import { midpointOf } from './route';
@@ -193,6 +197,23 @@ export interface ElementShape {
    * is written in. Routes, the selection and pointing go by it rather than by `rect`.
    */
   plate?: Rect;
+  /**
+   * Present when an overlay sizes it (ADR 0055): the rectangle layout gave it, which `rect` scales
+   * around its middle. Layout, drops and snapping read this one (`laidOutRect`), so that an overlay
+   * never moves anything.
+   */
+  laidOut?: Rect;
+  /**
+   * What it shows from each scale up, as its appearance declares (ADR 0055), sorted or not; absent
+   * when the canvas's own steps apply. A row has its container's, whose contents level says when rows
+   * write their texts.
+   */
+  levels?: readonly LevelOfDetail[];
+  /**
+   * How many destinations its element has (ADR 0056), which its mark says it has
+   * (`destinationMark.ts`); absent when it has none.
+   */
+  destinations?: number;
 }
 
 /** A relation drawn along an orthogonal route, or an aggregated relation standing for several. */
@@ -383,6 +404,14 @@ interface Built {
   hiddenIn: ReadonlyMap<Id, number>;
   layout: Layout;
   scene: Scene;
+  /** The containers the open app shows expanded as the canvas zooms into them, which `collapsed` leaves out. */
+  expanded: ReadonlySet<Id>;
+  /**
+   * The shapes and lines before the view's overlays and the levels of detail (ADR 0055), which the
+   * next build places and routes from; `layout` holds them after.
+   */
+  base: ElementShape[];
+  baseRelations: RelationLine[];
   /** What each line is drawn between, in drawing order. */
   plan: RelationPlan;
   /** The line drawn for each line of the plan; none where its route cannot be drawn. */
@@ -409,9 +438,14 @@ let builtIn: Language = currentLanguage();
  * Everything the view with this id draws. When nothing it draws changed, it is the same scene as
  * before; when only the view's stacking order changed, it shares everything but the drawing order;
  * otherwise only what changed is worked out again, and every shape and line equal to one drawn before
- * is that same object.
+ * is that same object. `expanded` holds the collapsed containers the open app shows expanded as the
+ * canvas zooms into them (ADR 0055), which the view keeps collapsed: the same set for the same ones.
  */
-export function buildScene(project: ProjectSnapshot, viewId: Id): Scene {
+export function buildScene(
+  project: ProjectSnapshot,
+  viewId: Id,
+  expanded: ReadonlySet<Id> = NOT_EXPANDED,
+): Scene {
   if (currentLanguage() !== builtIn) {
     builtIn = currentLanguage();
     latest.clear();
@@ -420,18 +454,27 @@ export function buildScene(project: ProjectSnapshot, viewId: Id): Scene {
   const kept = exactly.get(view.positions);
   // An older build, as an undo past the last change brings back, would give shapes equal to those of
   // the last build as other objects: the next build starts from the last one instead.
-  if (kept && kept === latest.get(view.id) && laidOutFrom(kept, project, view)) {
+  if (
+    kept &&
+    kept === latest.get(view.id) &&
+    kept.expanded === expanded &&
+    laidOutFrom(kept, project, view)
+  ) {
     return redrawn(kept, project, view);
   }
-  const built = layOut(project, view, latest.get(view.id));
+  const built = layOut(project, view, latest.get(view.id), true, expanded);
   exactly.set(view.positions, built);
   latest.set(view.id, built);
   return built.scene;
 }
 
 /** What the view draws, worked out from nothing, as a build that keeps nothing from before would be. */
-export function buildSceneAfresh(project: ProjectSnapshot, viewId: Id): Scene {
-  return layOut(project, viewOf(project, viewId), undefined, false).scene;
+export function buildSceneAfresh(
+  project: ProjectSnapshot,
+  viewId: Id,
+  expanded: ReadonlySet<Id> = NOT_EXPANDED,
+): Scene {
+  return layOut(project, viewOf(project, viewId), undefined, false, expanded).scene;
 }
 
 function viewOf(project: ProjectSnapshot, viewId: Id): ViewFile {
@@ -496,6 +539,7 @@ function layOut(
   view: ViewFile,
   before: Built | undefined,
   keep = true,
+  expanded: ReadonlySet<Id> = NOT_EXPANDED,
 ): Built {
   const { model, packages } = project;
   const worldId = model.world.id;
@@ -537,7 +581,8 @@ function layOut(
         ? containmentTree(model, (relationType) => nesting.has(relationType))
         : scopedTree(project, view);
   const leaving = scopeKept && before ? before.leaving : leavingByElement(project, view);
-  const collapsed = collapsedIn(view);
+  // The containers the open app expands as the canvas zooms into them are drawn expanded (ADR 0055).
+  const collapsed = collapsedWithout(collapsedIn(view), expanded);
   const free = freeShapesOf(view, before);
 
   const base =
@@ -549,7 +594,7 @@ function layOut(
       ? before
       : undefined;
   const replaced = base && replaceShapes(project, view, definitions, tree, free, base, leaving);
-  const placed =
+  const undecorated =
     replaced ??
     placeShapes(
       project,
@@ -562,6 +607,27 @@ function layOut(
       keep,
       leaving,
     );
+  // The view's overlays and the levels of detail, before relations are routed to the shapes they make.
+  const decorated = decorateShapes(
+    undecorated.shapes,
+    {
+      overlays: view.overlays,
+      definitions,
+      elements: elementsById(model.elements),
+      allElements: model.elements,
+    },
+    keep && undecorated.keysKept ? before?.layout.shapes : undefined,
+  );
+  const placed: Placed = {
+    ...undecorated,
+    shapes:
+      before && sameItems(before.layout.shapes, decorated.shapes)
+        ? before.layout.shapes
+        : decorated.shapes,
+    moved: [...new Set([...undecorated.moved, ...decorated.moved])],
+    geometryKept:
+      undecorated.geometryKept && decorated.moved.length === 0 && !decorated.extentChanged,
+  };
   const { shapes } = placed;
 
   const drawn = drawRelations(
@@ -573,10 +639,19 @@ function layOut(
     replaced !== undefined,
     sceneRouting(project, view, shapes),
   );
-  const relations =
-    before && sameItems(before.layout.relations, drawn.relations)
-      ? before.layout.relations
+  const baseRelations =
+    before && sameItems(before.baseRelations, drawn.relations)
+      ? before.baseRelations
       : drawn.relations;
+  const overlaidLines = decorateLines(baseRelations, {
+    overlays: view.overlays,
+    definitions,
+    relations: relationsById(model.relations),
+  });
+  const relations =
+    before && sameItems(before.layout.relations, overlaidLines)
+      ? before.layout.relations
+      : overlaidLines;
 
   const boundsKept =
     before !== undefined &&
@@ -630,6 +705,9 @@ function layOut(
     hiddenIn: placed.hiddenIn,
     layout,
     scene,
+    expanded,
+    base: undecorated.shapes,
+    baseRelations,
     plan: drawn.plan,
     lines: drawn.lines,
     sides: drawn.sides,
@@ -672,6 +750,8 @@ export interface Look {
   details: Map<string, string>;
   /** The image its shapes show, if any. */
   image: ImageLook | undefined;
+  /** How many destinations its element has, which its shapes mark (ADR 0056). */
+  destinations: number;
 }
 
 const NO_TYPES: ReadonlySet<Id> = new Set();
@@ -753,6 +833,7 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
       componentName: componentOrEssence(definitions, element.component).name,
       details: new Map(),
       image: imageLookOf(element, definitions),
+      destinations: destinationCount(element, definitions),
     };
     const dark = darkColorsOf(element, definitions);
     if (dark.fill !== look.appearance.fill || dark.stroke !== look.appearance.stroke) {
@@ -761,6 +842,18 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
     kept.set(element, look);
   }
   return look;
+}
+
+/**
+ * How many destinations an element has (ADR 0056): none at once for an element without attributes
+ * whose component defines no destination attribute, which most are.
+ */
+function destinationCount(element: Element, definitions: Definitions): number {
+  const attributes = definitions.component(element.component)?.attributes ?? [];
+  if (element.attributes === undefined && !attributes.some((each) => each.type === 'destination')) {
+    return 0;
+  }
+  return destinationsOf(element, attributes).length;
 }
 
 /** A placement with its size worked out, before it gets absolute coordinates. */
@@ -929,7 +1022,8 @@ function placeShapes(
   const worldContents = tree.map((placement) => measure(placement));
   standInWorld(worldContents, free);
 
-  const previous = before?.layout.shapes;
+  // The shapes as placed before, without what overlays and levels make of them.
+  const previous = before?.base;
   const previousAt = previous ? keyIndexOf(previous) : undefined;
   const shapes: ElementShape[] = [];
   const contents: number[][] = [];
@@ -1102,7 +1196,7 @@ function replaceShapes(
   const elements = elementsById(now);
   const kept = looksOf(definitions, true);
   const started = startedOf(model.relations);
-  const old = base.layout.shapes;
+  const old = base.base;
   const { contents, inWorld } = base.layout;
   const collapsed = base.collapsed;
 
@@ -1345,7 +1439,8 @@ function shapeFor(
     before.points === points &&
     sameShapeImage(before.image, placed?.image) &&
     sameImageRect(before.plate, placed?.plate) &&
-    sameItems(before.leaving ?? NO_IDS, leaving ?? NO_IDS)
+    sameItems(before.leaving ?? NO_IDS, leaving ?? NO_IDS) &&
+    (before.destinations ?? 0) === look.destinations
   ) {
     return before;
   }
@@ -1382,6 +1477,7 @@ function shapeFor(
   if (placed) shape.image = placed.image;
   if (placed?.plate) shape.plate = placed.plate;
   if (leaving !== undefined && leaving.length > 0) shape.leaving = leaving;
+  if (look.destinations > 0) shape.destinations = look.destinations;
   return shape;
 }
 
@@ -1607,7 +1703,7 @@ function drawRelations(
     }
     if (again.size === 0) {
       return {
-        relations: before.layout.relations,
+        relations: before.baseRelations,
         plan,
         lines: before.lines as RelationLine[],
         sides,

@@ -56,6 +56,81 @@ The files come from anywhere, so each is untrusted input.
 
 ## Clarifications
 
+<!-- Decided by Claude on 2026-10-25, building W29, under the user's standing delegation of design decisions. -->
+
+- 2026-10-25 (W29): **the readers' list.** `core/src/import/read.ts` lists every reader (`IMPORT_READERS`): the Structurizr, LikeC4 and draw.io readers first, then JSON, Mermaid and spreadsheets.
+  - **Which reader reads a file:**
+    1. the reader the person names;
+    2. else one whose content says it is its format, whatever the file's name, as `readDiagramFile` tells a Structurizr workspace, a LikeC4 model or a draw.io diagram apart;
+    3. else the one whose file name ending it has;
+    4. else the first that recognizes its content.
+  - **One list for every way in.** The dialog, the command line and Claude's tools all read through it, so a reader added there is offered everywhere.
+  - **What the readers are told.** Each is told the project, and, for W30's, what the project uses (`ReadOptions.uses`).
+- 2026-10-25 (W29): **what every reader shares.**
+  - Names are one line of at most 1,000 characters, as W30's readers keep them, and descriptions at most 10,000. What is cut is reported, in the same words by every reader.
+  - A report lists at most 500 things that matched nothing, then says how many more there were. It quotes at most 120 characters of each.
+  - Files are read up to 32 MiB of text.
+  - A reader stops as soon as a file passes the import's limits, before any work that grows with the file. Each reads in time that grows linearly with the file:
+    - no nested scans over lists;
+    - patterns kept from backtracking;
+    - lines of a C4, ER or class diagram read only up to 16,384 characters.
+  - What sits inside what has one container per element, at most 64 deep, and never a cycle; what would break that is reported.
+  - A lookup keyed by text from a file reads only own values (`own`, `recordOf`), so a kind, a column or a key named `constructor` or `__proto__` is text like any other. No attribute may be named `__proto__`: it is reported and left out.
+- 2026-10-25 (W29): **Mermaid.** Flowcharts (`graph`, `flowchart`), C4 (`C4Context` and the other four), ER (`erDiagram`) and class diagrams (`classDiagram`) are read; Mermaid's other diagrams are refused by name.
+  - **Kinds:**
+    - in a flowchart, a node's class when it has one, else its shape, in brackets or `@{ shape: … }`, labelled as the file writes it, such as `[( )]` or `:::db`;
+    - in C4, the macro, such as `ContainerDb`;
+    - in ER, entities, attributes, and identifying (`--`) or non-identifying (`..`) relationships;
+    - in a class diagram, a class's annotation, such as `<<interface>>`, else `class`, and each UML relationship.
+  - **What becomes what:**
+    - Edges keep their labels as names.
+    - C4's technology becomes the attribute `technology`.
+    - An ER attribute becomes an element inside its entity, with `type`, `primaryKey`, `unique` and `foreignKey`.
+    - Cardinalities and multiplicities become attributes of the relation.
+    - A class's members become its attribute `members`.
+  - **What is reported, never read:** styles, layout settings, directives, notes, images and icons, and links and callbacks, which are never followed.
+  - **Views:** each diagram becomes one view, named after its title or the file, that shows what it holds. The dialog and the command line can leave it out.
+- 2026-10-25 (W29): **spreadsheets.** CSV or TSV, delimited by tab, comma or semicolon, as the first line uses most, or by tab for `.tsv`. They are quoted as RFC 4180 says, and a quote that never closes is refused with the line it opens on.
+  - **Tables:** a file holds one table or several, each from its header row. A blank line followed by a header starts the next. A table with `from` and `to` (or `source` and `target`) columns holds relations; any other needs a `name` (`label`, `title`) or `id` column and holds elements.
+  - **Columns:**
+    - elements take `id`, `name`, `component` (or `kind`), `container` (or `parent`) and `description`;
+    - relations take `id`, `from`, `to`, `relation type` (or `type`, `kind`) and `name`;
+    - headers match without case, spaces, underscores or dashes;
+    - every other column is an attribute named by its header, with a value only where its cell has one.
+  - **Values:** cells are text exactly as written, so formulas and HTML stay text. Once mapped, a value whose attribute is a number or a boolean is read as one when it is written as one.
+  - **What a cell names:** a container or a relation's end names an element by the id of a row, by a name only one row has, or by the id of an element of the project or a name only one has. Rows past the most an import brings are refused before they are read.
+- 2026-10-25 (W29): **JSON.** A file with `world` is a project's own model file. It is checked against the published model schema by an interpreter of the schema's keywords in the core, `checkAgainstSchema`, since the app's page policy lets no code be compiled, as Ajv does with a schema; a test keeps it agreeing with Ajv.
+  - **The simple form,** `{ "elements": [...], "relations": [...] }`, is checked against `SIMPLE_FORM_SCHEMA`:
+    - elements have `name`, and may have `id`, `component`, `container`, `description` and `attributes`;
+    - relations have `from` and `to`, and may have `id`, `relationType`, `name`, `description` and `attributes`;
+    - any other key is refused.
+  - **What a JSON file holds that is not brought in:**
+    - Strings stay as written: an entity is text.
+    - A file nesting deeper than 64 is refused.
+    - In a model file, World, relations on World and elements' own appearances are left out and reported.
+    - A relation on a relation comes after the relation it ends on; a cycle of them is reported.
+- 2026-10-25 (W29): **importing again,** for spreadsheets and both JSON forms, matches by `id` unless the person names another column or key, which may be `name` or an attribute. A row that matches several elements is left out and reported. A relation the project already has, between elements the import matched and of the type it maps to, is not created again, and is reported. A planned relation has no `existing`, so a matched relation's values are not updated; that would need the plan's types to change. (Superseded below: a planned relation now has `existing`.)
+- 2026-10-25 (W29): **relations' descriptions.** A planned relation has no description, so a description from a file is kept as the relation's attribute `description`, and reported. Giving the plan a relation description would change the plan's types. (Superseded below: a planned relation now has `description`.)
+- 2026-10-25 (W29): **the built-in mappings** (`suggestMapping`) choose, for each kind:
+  1. its suggestion when the project has it;
+  2. else the project's own definition of the same name;
+  3. else the suggested built-in definition, whose package the import then starts using in the same action;
+  4. else Essence or "relates to".
+
+  The nesting relation type is the one whose limits fit what sits inside what, such as "is column of" for columns in tables. Failing that, it is the open view's first, else "is part of". Suggestions come from words too: a class `db` suggests a Database. `prepareImport` wraps `planToCommand`'s batch with what it starts using, and keeps its label.
+- 2026-10-25 (W29): **how large an import can be sent.** The app sends a batch only up to the live connection's 4 MiB (ADR-0027). Past that, the dialog says so and points to `visual-anything import`, which opens the project itself when no program runs (ADR-0049).
+- 2026-10-25 (W29): **how fast an import lands.** The core's batch execution re-indexes the model after each operation, so N creates take time that grows as N². Measured on a loaded machine: 3,000 elements in 16 s, and 10,000 in about 5 minutes. Imports at the limits need the core's draft to keep its index as it goes; until then, the limits stay as they are, and the hostile tests check reading and preparing, not applying, at 20,000. (Superseded below: the draft now keeps its index.)
+<!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
+- 2026-10-25: **relations' descriptions and importing them again.**
+  - A planned relation has a `description`, which a reader gives as it gives an element's, cut at the same length. The JSON reader no longer keeps it as an attribute.
+  - A planned relation may have `existing`, the relation of the project it matched. Then `planToCommand` sends `update-relation` with its name, description and attribute values, and nothing else of it changes, its ends and relation type included. A plan that updates an element or a relation the project does not hold is refused before anything is sent.
+  - Importing again matches a relation the project already has, between elements the import matched and of the type it maps to. The relation's values are updated when its name, description or any attribute value differs, and `updates` counts it. When nothing differs, it is left out and reported, as before.
+  - `updates` counts elements and relations apart, as `creates` does.
+- 2026-10-25: **how fast an import lands, now.** A command's draft keeps the model's index up to date as it applies operations (`draftIndexOf` in `core/src/model-index.ts`), and becomes the index of the project it ends with. Each list of the project keeps where its keys sit, which the list made from it by an append, a replacement or a removal of its last item takes over. Settling routes reads what a command changed from its operations' inverses, rather than indexing the model it started from.
+  - Measured on the same loaded machine: 10,000 elements, each with a shape and a relation, land in about 1 s.
+  - What is left grows with the size of the lists: each operation copies the list it changes, as the history needs. At the limits (20,000 elements, 50,000 relations and 20,000 shapes) that is about 26 s on that machine.
+  - Landing such an import in fewer operations, as a command does past `BULK` changes to one list, is left for later (spec M6c).
+- 2026-10-25: **the app's 4 MiB stays.** Raising the live connection's limit for imports alone would let any tab send 10 MiB messages. Larger files go through `visual-anything import`.
 <!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
 
 - 2026-10-25 (W30): how the Structurizr, LikeC4 and draw.io readers read (`core/src/import/structurizr.ts`, `likec4.ts`, `drawio.ts`; `readDiagramFile` tells their files apart by what they hold, and gives nothing for any other file).

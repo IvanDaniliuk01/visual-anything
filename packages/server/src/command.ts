@@ -24,9 +24,15 @@ import {
   type ViewState,
 } from '@visual-anything/core';
 import { resolveAppSource } from './app-source';
-import { OtherBuildError, ProgramBridge, ProgramUnavailableError } from './claude/bridge';
+import {
+  OtherBuildError,
+  ProgramBridge,
+  ProgramUnavailableError,
+  type StartProgram,
+} from './claude/bridge';
 import { removeProgramRecord, writeProgramRecord } from './claude/discovery';
 import { errorCode, errorReason } from './errors';
+import { otherProjectOpener } from './other-project';
 import { toForwardSlashes } from './paths';
 import { openPreferences, themeHintOf, type PreferencesLocation } from './preferences';
 import { formatProjectProblem } from './project';
@@ -40,15 +46,17 @@ export const USAGE = `Usage: visual-anything [open] [folder] [--view <id> [--sel
        visual-anything mcp [folder] [--dev]
        visual-anything new <folder> [--from <sample>]
        visual-anything export <folder> --view <id> --format <format> [--theme light|dark] [--out <file>]
+       visual-anything import <folder> <file> [--map <kind>=<id>]... [--dry-run]
 
 Opens the project in folder (the current folder when left out) and serves the app on 127.0.0.1.
 When Visual Anything already runs on that folder, it opens a new tab there instead, at the view
 asked for. With mcp, runs the MCP server Claude Code and Claude Desktop start instead;
 visual-anything mcp --help says more. With new, starts a new project in a folder that holds
 nothing yet, from a sample or empty, then opens it; visual-anything new --help says more. With
-export, writes a view as SVG, PDF or text; visual-anything export --help says more. A folder that
-holds nothing yet opens on a start screen, which starts a project there. A folder named open, new,
-mcp or export is opened as ./open, ./new, ./mcp or ./export.
+export, writes a view as SVG, PDF or text; visual-anything export --help says more. With import,
+imports a file into the project as one action; visual-anything import --help says more. A folder
+that holds nothing yet opens on a start screen, which starts a project there. A folder named open,
+new, mcp, export or import is opened as ./open, ./new, ./mcp, ./export or ./import.
 
   --view <id>       Open the app at this view.
   --select <id>     Select this element, relation or free shape there; give it again, or a list
@@ -118,6 +126,11 @@ export interface CommandEnvironment {
    * they are kept in memory only, as tests do.
    */
   preferences?: PreferencesLocation;
+  /**
+   * How to start the program for another project a destination opens, when none runs there: by
+   * default a background process of this command's own program; the executable starts itself.
+   */
+  startProgram?: StartProgram;
 }
 
 /** How long a program started with `--stop-when-idle` waits with nothing connected. */
@@ -229,6 +242,12 @@ export async function runCommand(
     out: (line: string) => environment.out(line),
     err: (line: string) => environment.err(line),
     preferences,
+    // A destination to another project opens it through that project's own program (ADR 0056).
+    openOtherProject: otherProjectOpener({
+      runtime: environment.runtimeFolder,
+      dev: options.dev,
+      ...(environment.startProgram === undefined ? {} : { start: environment.startProgram }),
+    }),
   };
   const { state } = options;
   // A folder that holds nothing yet gets the start screen, from which the person starts a project

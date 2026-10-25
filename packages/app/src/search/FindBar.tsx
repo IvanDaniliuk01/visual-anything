@@ -97,6 +97,9 @@ export function FindBar({ project, definitions, viewId, goTo }: FindBarProps) {
   );
   const groups = useMemo(() => groupsOf(result.found, project, viewId), [result, project, viewId]);
   const openView = project.views.find((view) => view.id === viewId);
+  // Add to this view only while the project can be changed: never in the read-only page (ADR-0041).
+  const editor = useContext(EditorContext);
+  const canAdd = editor?.send !== undefined;
   const options = useMemo(() => {
     const list: Option[] = [];
     groups.forEach((group, at) => {
@@ -108,13 +111,13 @@ export function FindBar({ project, definitions, viewId, goTo }: FindBarProps) {
             list.push({ kind: 'view', found, view, group: at, key: `${key} in ${view.id}` });
           }
         }
-        if (openView && addable(project, openView, found.entry)) {
+        if (canAdd && openView && addable(project, openView, found.entry)) {
           list.push({ kind: 'add', found, view: openView, group: at, key: `${key} add` });
         }
       }
     });
     return list;
-  }, [groups, listing, project, openView]);
+  }, [groups, listing, project, openView, canAdd]);
   const current = options[Math.min(active, options.length - 1)];
 
   const say = (text: string) => setSaid((last) => ({ text, count: last.count + 1 }));
@@ -166,7 +169,6 @@ export function FindBar({ project, definitions, viewId, goTo }: FindBarProps) {
   };
 
   // What was added to the open view from here, to go to once the view shows it (ADR-0040).
-  const editor = useContext(EditorContext);
   const [adding, setAdding] = useState<{ found: Found; view: Id }>();
   const wentTo = useRef<object>(undefined);
   useEffect(() => {

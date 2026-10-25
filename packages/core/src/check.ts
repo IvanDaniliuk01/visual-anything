@@ -8,7 +8,10 @@ import { ESSENCE_ID, RELATES_TO_ID, SCHEMA_VERSION } from '@visual-anything/sche
 import { RESERVED_PACKAGE_IDS, builtinPackage } from './builtin';
 import { appearanceOf, isBuiltInDefinition, type Definitions } from './definitions';
 import { codeWarnings } from './code/check';
+import { destinationWarnings } from './destination-checks';
+import { duplicateExternalIdWarnings } from './external-ids';
 import { checkImages } from './images/check';
+import { overlayProblems } from './overlays/check';
 import { positionKey } from './operations';
 import { problem, type Problem } from './problems';
 import { routeWarnings } from './routes';
@@ -336,6 +339,12 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
   warnings.push(...images.warnings);
   // Routes chosen by hand never keep a project from opening (ADR 0039).
   warnings.push(...routeWarnings(state));
+  // Overlays keep a project from opening only with an id twice in one view (ADR 0055).
+  const overlays = overlayProblems(state);
+  errors.push(...overlays.errors);
+  warnings.push(...overlays.warnings);
+  // Nor do external identifiers shared by several elements, or destinations that open nothing (ADR 0056).
+  warnings.push(...duplicateExternalIdWarnings(state), ...destinationWarnings(state, definitions));
   return { errors, warnings };
 }
 
@@ -417,6 +426,29 @@ function appearanceWarnings(state: ProjectSnapshot, definitions: Definitions): P
         );
       }
       names.add(point.name);
+    }
+    // Levels of detail (ADR 0055): the canvas reads them as best it can.
+    const starts = new Set<number>();
+    for (const level of appearance.levels ?? []) {
+      if (starts.has(level.from)) {
+        warnings.push(
+          problem(
+            'invalid-appearance',
+            `Two levels of ${of} start at ${level.from}; the last is used.`,
+            [subject],
+          ),
+        );
+      }
+      starts.add(level.from);
+      if (level.shows.includes('silhouette') && level.shows.length > 1) {
+        warnings.push(
+          problem(
+            'invalid-appearance',
+            `The level at ${level.from} of ${of} shows a silhouette only, and nothing else it lists.`,
+            [subject],
+          ),
+        );
+      }
     }
     const setsEither = appearance.shape !== undefined || appearance.contentsAsRows !== undefined;
     if (setsEither && resolved.rows && NOT_FOR_ROWS.has(resolved.shape)) {

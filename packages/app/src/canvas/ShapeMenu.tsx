@@ -4,7 +4,7 @@ import {
   type ChangeContainerCommand,
   type ProjectSnapshot,
 } from '@visual-anything/core';
-import type { Id } from '@visual-anything/schema';
+import type { Destination, Id } from '@visual-anything/schema';
 import { useEffect, useId } from 'react';
 import type { Selection } from '../editor/selection';
 import { useT } from '../i18n';
@@ -16,6 +16,7 @@ import type { Point } from './geometry';
 import type { IndexedScene } from './hit';
 import type { ElementShape } from './scene';
 import { scopeActions, type ScopeAction, type ScopeActions } from './scopeActions';
+import { describeDestination, elementDestinations } from '../destinations/follow';
 import { STACKING_MOVES, STACKING_NAMES, type StackingAction, type StackingMove } from './stacking';
 
 export interface ShapeMenuProps {
@@ -53,6 +54,8 @@ export interface ShapeMenuProps {
   onCollapse?: (action: CollapseAction, collapsed: boolean) => void;
   /** Leave out of this view, or Add to this view, as `scopeActions` offers them (ADR-0040). */
   onScope?: (action: ScopeAction) => void;
+  /** Follow "D", for each destination of the shape's element (ADR 0056). */
+  onFollow?: (destination: Destination) => void;
 }
 
 /** How many of the other shapes under the pointer the menu lists. */
@@ -86,6 +89,7 @@ export function ShapeMenu({
   collapse,
   onCollapse,
   onScope,
+  onFollow,
 }: ShapeMenuProps) {
   const t = useT();
   const menu = useMenuInsideFrame<HTMLDivElement>(at);
@@ -112,6 +116,9 @@ export function ShapeMenu({
       : undefined;
   const others = (under ?? []).filter((each) => each.key !== shape.key).slice(0, UNDER_LISTED);
   const scope = onScope ? scopeActions(project, viewId, selection, shape.element) : {};
+  const destinations = onFollow
+    ? elementDestinations(project, modelIndexOf(project).element(shape.element))
+    : [];
   const change = (make: () => ChangeContainerCommand | undefined) => () => {
     const made = make();
     if (made) onChange(made);
@@ -135,6 +142,21 @@ export function ShapeMenu({
       <p className="canvas-menu-title" aria-hidden="true">
         {shape.name}
       </p>
+      {onFollow && destinations.length > 0 && (
+        <>
+          {destinations.map(({ attribute, destination }) => (
+            <Item
+              key={attribute}
+              label={t('Follow “{name}”', { name: attribute })}
+              title={t('Opens {what}', {
+                what: describeDestination(t, project, destination),
+              })}
+              onPress={() => onFollow(destination)}
+            />
+          ))}
+          <div role="separator" className="canvas-menu-separator" />
+        </>
+      )}
       {STACKING_MOVES.map((move) => (
         <Item
           key={move}

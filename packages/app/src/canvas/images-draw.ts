@@ -44,6 +44,8 @@ export interface ImageTile {
   bounds: Rect;
   /** The full drawing; image drawings go just above it, and show with it. */
   full?: Graphics;
+  /** Whether the level of detail its shapes show leaves their pictures out (ADR 0055). */
+  imagesHidden?: boolean;
 }
 
 /** How the canvas is seen this frame. */
@@ -154,7 +156,10 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
       const drawing = this.#drawingOf(tile);
       if (drawing.pictured.length === 0) continue;
       byId.set(drawing.id, { tile, drawing });
-      const visible = tile.full?.visible === true && scale >= IMAGE_SCALES.drawingsFrom;
+      const visible =
+        tile.full?.visible === true &&
+        scale >= IMAGE_SCALES.drawingsFrom &&
+        tile.imagesHidden !== true;
       if (drawing.group && drawing.group.visible !== visible) drawing.group.visible = visible;
       if (drawing.icons && drawing.icons.visible !== iconsShown) drawing.icons.visible = iconsShown;
       if (drawing.plates) tintPlates(drawing.plates, view.theme);
@@ -213,7 +218,7 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
    * place of one drawn in full; what is missing is asked for and comes in the frames after.
    */
   drawAtOnce(tile: ImageTile, view: ImageView): void {
-    if (!this.#any || tile.kind !== 'shapes' || !tile.full) return;
+    if (!this.#any || tile.kind !== 'shapes' || !tile.full || tile.imagesHidden === true) return;
     const drawing = this.#drawingOf(tile);
     if (drawing.pictured.length === 0 || view.scale < IMAGE_SCALES.drawingsFrom) return;
     const shown = view.shown;

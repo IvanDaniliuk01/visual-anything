@@ -6,6 +6,8 @@ import { appearanceOf } from '../definitions';
 import { shapesInView } from '../scope-placement';
 import {
   BULK,
+  holdsKey,
+  itemsOf,
   keyOf,
   positionKey,
   type Collection,
@@ -269,14 +271,14 @@ function upsert<T extends Item>(
     draft.apply({ op: 'replace-all', collection, items: next });
     return;
   }
-  const existing = new Set(current.map(keyOfItem));
-  let length = current.length;
+  // Each item is looked up in the list as it is now, through the places the list keeps, so that
+  // putting one item in a long list costs no pass over it.
   for (const item of items) {
-    if (existing.has(keyOfItem(item))) {
+    const list = itemsOf(draft.state, collection);
+    if (holdsKey(collection, list, keyOfItem(item))) {
       draft.apply({ op: 'replace', collection, item });
     } else {
-      draft.apply({ op: 'insert', collection, index: length, item });
-      length += 1;
+      draft.apply({ op: 'insert', collection, index: list.length, item });
     }
   }
 }

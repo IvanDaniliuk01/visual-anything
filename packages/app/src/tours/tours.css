@@ -25,6 +25,16 @@
   display: none;
 }
 
+/* The read-only page plays tours the same way: its header, panels and bars hide (ADR 0041). */
+:root .viewer.tour-playing > :not(.viewer-body),
+:root .viewer.tour-playing .viewer-body > :not(.canvas-area),
+:root
+  .viewer.tour-playing
+  .canvas-area
+  :is(.viewer-bottom, .find-bar, .viewer-popover, .canvas-keys) {
+  display: none;
+}
+
 .tour-stage {
   position: absolute;
   inset: 0;

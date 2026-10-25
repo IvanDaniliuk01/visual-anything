@@ -111,11 +111,25 @@ function validatorOf(kind: FileKind): ValidateFunction {
 function validationErrors(errors: DefinedError[]): ValidationError[] {
   const seen = new Set<string>();
   const result: ValidationError[] = [];
+  // What each key that breaks propertyNames fails, by its path and name, to say what keys must be.
+  const failedBy = new Map<string, DefinedError[]>();
+  for (const error of errors) {
+    if (error.propertyName === undefined || error.keyword === 'propertyNames') continue;
+    const at = JSON.stringify([error.instancePath, error.propertyName]);
+    failedBy.set(at, [...(failedBy.get(at) ?? []), error]);
+  }
   for (const { error, message: joined } of withUnionsExplained(errors)) {
     // A key that breaks propertyNames is reported once, by the propertyNames error that names it,
     // not again by the errors of the schema its name failed.
     if (error.propertyName !== undefined && error.keyword !== 'propertyNames') continue;
-    const message = joined ?? messageOf(error);
+    const message =
+      joined ??
+      (error.keyword === 'propertyNames'
+        ? keysMessage(
+            JSON.stringify(error.params.propertyName),
+            failedBy.get(JSON.stringify([error.instancePath, error.params.propertyName])) ?? [],
+          )
+        : messageOf(error));
     const key = JSON.stringify([error.instancePath, message]);
     if (message === undefined || seen.has(key)) continue;
     seen.add(key);
@@ -201,7 +215,30 @@ const PATTERN_MESSAGES = new Map([
     commentSchema.definitions.PersonAuthor.properties.email.pattern,
     'must be an email address, such as ana@example.com',
   ],
+  [
+    modelSchema.definitions.ExternalId.pattern,
+    'must be an identifier without line breaks or other control characters',
+  ],
 ]);
+
+/**
+ * What the keys of an object must be, in words, told by what a key that is not one fails: a scheme of
+ * external identifiers, an external identifier, or else an id.
+ */
+function keysMessage(key: string, failed: readonly DefinedError[]): string {
+  const pattern = (wanted: string) =>
+    failed.some((each) => each.keyword === 'pattern' && each.params.pattern === wanted);
+  if (pattern(modelSchema.definitions.ExternalIds.propertyNames.pattern)) {
+    return `must have schemes as its keys, short lowercase names such as "uberon", and ${key} is not one`;
+  }
+  if (
+    pattern(modelSchema.definitions.ExternalId.pattern) ||
+    failed.some((each) => each.keyword === 'minLength' || each.keyword === 'maxLength')
+  ) {
+    return `must have identifiers as its keys, and ${key} is not one`;
+  }
+  return `must have ids as its keys, and ${key} is not one`;
+}
 
 const TYPE_NAMES: Record<string, string> = {
   string: 'a string',
@@ -255,7 +292,7 @@ function messageOf(error: DefinedError): string | undefined {
         ? 'must not be empty'
         : `must have at least ${error.params.limit} keys`;
     case 'propertyNames':
-      return `must have ids as its keys, and ${JSON.stringify(error.params.propertyName)} is not one`;
+      return keysMessage(JSON.stringify(error.params.propertyName), []);
     case 'uniqueItems':
       return `must not have duplicate items (items ${error.params.j} and ${error.params.i} are the same)`;
     case 'minimum':

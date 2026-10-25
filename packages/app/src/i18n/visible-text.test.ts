@@ -178,11 +178,12 @@ describe('the app’s files', () => {
     );
   });
 
-  it('write no visible text outside t()', () => {
+  // This and the next read every source file of the app, which takes seconds on a busy machine.
+  it('write no visible text outside t()', { timeout: 30_000 }, () => {
     expect(COMPONENTS.flatMap((path) => untranslatedIn(path))).toEqual([]);
   });
 
-  it('write no text into the page by hand outside t()', () => {
+  it('write no text into the page by hand outside t()', { timeout: 30_000 }, () => {
     expect(sourceFiles(/\.ts$/).flatMap((path) => untranslatedIn(path))).toEqual([]);
   });
 

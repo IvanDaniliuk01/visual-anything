@@ -9,6 +9,7 @@ import type { SendCommand } from '../canvas/CanvasArea';
 import type { Scene } from '../canvas/scene';
 import type { Explore } from '../canvas/useExplorer';
 import type { CodeStore } from '../code/context';
+import type { Follower } from '../destinations/follower';
 import type { Selection } from './selection';
 
 export interface Editor {
@@ -47,6 +48,11 @@ export interface Editor {
    * sets it; it is optional only so that tests can leave it out.
    */
   code?: CodeStore;
+  /**
+   * Follows destinations (ADR 0056): a view of this project at once, another project or a web
+   * address after asking. The shell always sets it; it is optional so that tests can leave it out.
+   */
+  follow?: Follower;
 }
 
 export const EditorContext = createContext<Editor | undefined>(undefined);

@@ -103,6 +103,12 @@ export function kindOf(t: Translator, definitions: Definitions, entry: Entry): s
 export function matchedText(t: Translator, found: Found): string | undefined {
   const { matched, entry } = found;
   if (matched.field === 'id') return t('id {id}', { id: entry.id });
+  if (matched.field === 'external-id') {
+    return t('{scheme} identifier {identifier}', {
+      scheme: matched.scheme,
+      identifier: cut(matched.identifier),
+    });
+  }
   if (matched.field === 'attribute') {
     return t('{attribute}: {value}', { attribute: matched.attribute, value: cut(matched.value) });
   }

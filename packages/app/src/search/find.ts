@@ -1,8 +1,9 @@
 /**
  * Search's index (R25): every element, relation and free shape of a project, with what a search
- * matches in it, ready to test as someone types. It matches names, ids, components and relation
- * types, by their names in English and, for built-in ones, in Spanish too (ADR-0038), and attribute
- * values, a definition's defaults included, as filters count them (ADR-0025). Case, accents and the
+ * matches in it, ready to test as someone types. It matches names, ids, external identifiers, as
+ * `UBERON:0002135` or `uberon:UBERON:0002135` (ADR 0056), components and relation types, by their
+ * names in English and, for built-in ones, in Spanish too (ADR-0038), and attribute values, a
+ * definition's defaults included, as filters count them (ADR-0025). Case, accents and the
  * spaces around do not count, and every word of a query must match somewhere.
  *
  * An entry is kept while the element, relation or free shape it was made from is the same object and
@@ -43,10 +44,14 @@ export interface Entry {
   definition?: Id;
   /** For a free shape: a note or an arrow. */
   shape?: FreeShape['kind'];
+  /** For an element: its external identifiers, by scheme, as written (ADR 0056). */
+  externalIds?: readonly (readonly [string, string])[];
   /** What a search compares, normalized. */
   keys: {
     name: string;
     id: string;
+    /** Its external identifiers, each as `scheme:identifier`, a line each (ADR 0056). */
+    externalIds: string;
     /** The definition's names, in English and, for a built-in one, in Spanish, a line each. */
     definition: string;
     /** The attribute values, a line each. */
@@ -66,6 +71,7 @@ export interface FindIndex {
 export type Matched =
   | { field: 'name' }
   | { field: 'id' }
+  | { field: 'external-id'; scheme: string; identifier: string }
   | { field: 'definition' }
   | { field: 'attribute'; attribute: string; value: string };
 
@@ -277,12 +283,12 @@ function holdsAll(text: string, words: readonly string[]): boolean {
 
 /** How well an entry that holds every word matches. */
 function rankOf(entry: Entry, whole: string, words: readonly string[]): number {
-  const { name, id, definition, values } = entry.keys;
+  const { name, id, externalIds, definition, values } = entry.keys;
   if (name === whole) return NAME_IS;
   if (name.startsWith(whole)) return NAME_STARTS;
   if (name.includes(whole)) return NAME_HOLDS;
   if (holdsAll(name, words)) return NAME_WORDS;
-  if (holdsAll(id, words)) return ID_WORDS;
+  if (holdsAll(id, words) || holdsAll(externalIds, words)) return ID_WORDS;
   if (holdsAll(definition, words)) return DEFINITION_WORDS;
   if (holdsAll(values, words)) return VALUE_WORDS;
   return ANYWHERE;
@@ -295,19 +301,29 @@ const DEFINITION: Matched = { field: 'definition' };
 /** Where an entry matched: its name, or else the first other field that holds a word. */
 function matchedIn(entry: Entry, rank: number, words: readonly string[]): Matched {
   if (rank <= NAME_WORDS) return NAME;
-  if (rank === ID_WORDS) return ID;
+  if (rank === ID_WORDS)
+    return holdsAll(entry.keys.id, words) ? ID : externalIdMatched(entry, words);
   if (rank === DEFINITION_WORDS) return DEFINITION;
-  const { name, id, definition, attributes } = entry.keys;
+  const { name, id, externalIds, definition, attributes } = entry.keys;
   for (const word of words) {
     if (rank === ANYWHERE) {
       if (name.includes(word)) continue;
       if (id.includes(word)) return ID;
+      if (externalIds.includes(word)) return externalIdMatched(entry, [word]);
       if (definition.includes(word)) return DEFINITION;
     }
     const valued = attributes.find((each) => each.key.includes(word));
     if (valued) return { field: 'attribute', attribute: valued.name, value: valued.value };
   }
   return NAME;
+}
+
+/** The external identifier an entry matched by: the first whose `scheme:identifier` holds a word. */
+function externalIdMatched(entry: Entry, words: readonly string[]): Matched {
+  const lines = entry.keys.externalIds.split(LINE);
+  const at = lines.findIndex((line) => words.some((word) => line.includes(word)));
+  const [scheme, identifier] = entry.externalIds?.[at < 0 ? 0 : at] ?? ['', ''];
+  return { field: 'external-id', scheme, identifier };
 }
 
 /** The names of definitions, normalized in both languages, and their attributes' defaults. */
@@ -366,12 +382,20 @@ class DefinitionNames {
 
 function elementEntry(element: Element, names: DefinitionNames): Entry {
   const { names: definition, defaults } = names.component(element.component);
+  const externalIds = Object.entries(element.ids ?? {});
   return {
     kind: 'element',
     id: element.id,
     name: element.name,
     definition: element.component,
-    ...keysOf(element.name, element.id, definition, attributesOf(element.attributes, defaults)),
+    externalIds,
+    ...keysOf(
+      element.name,
+      element.id,
+      definition,
+      attributesOf(element.attributes, defaults),
+      externalIds,
+    ),
   };
 }
 
@@ -405,10 +429,26 @@ function keysOf(
   id: Id,
   definition: string,
   attributes: Entry['keys']['attributes'],
+  externalIds: readonly (readonly [string, string])[] = [],
 ): Pick<Entry, 'keys' | 'text'> {
   const values = attributes.map((each) => each.key).join(LINE);
-  const keys = { name: normalized(name), id: normalized(id), definition, values, attributes };
-  return { keys, text: [keys.name, keys.id, definition, values].join(LINE) };
+  const external = externalIds
+    .map(([scheme, identifier]) => normalized(`${scheme}:${identifier}`))
+    .join(LINE);
+  const keys = {
+    name: normalized(name),
+    id: normalized(id),
+    externalIds: external,
+    definition,
+    values,
+    attributes,
+  };
+  // Without identifiers, as most entries are, the text is as it was without them.
+  const parts =
+    external === ''
+      ? [keys.name, keys.id, definition, values]
+      : [keys.name, keys.id, external, definition, values];
+  return { keys, text: parts.join(LINE) };
 }
 
 /** Attribute values as a search matches them: the item's own, then the defaults it does not set. */

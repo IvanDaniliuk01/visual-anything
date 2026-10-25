@@ -6,13 +6,16 @@
  */
 import {
   checkProject,
+  definitionsIn,
   executeCommand,
+  legendOf,
   previewDelete,
   type Command,
   type ProjectSnapshot,
 } from '@visual-anything/core';
-import type { Component, PackageFile } from '@visual-anything/schema';
+import type { Component, Element, Overlay, PackageFile, ViewFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
+import { importMessages } from '../test/importMessages';
 import { readerMessages } from '../test/reader-messages';
 import { loadSample } from '../test/sample';
 import { translateMessage, untranslatedParts } from './translate';
@@ -454,6 +457,8 @@ const COMMANDS: readonly [string, Command][] = [
       image: { name: 'Bell', license: 'CC BY', svg: '<svg viewBox="0 0 1 1"/>' },
     },
   ],
+  // Overlays and levels of detail (ADR 0055).
+  ...overlayCommands(),
   // A batch.
   [
     'batch',
@@ -796,6 +801,284 @@ function malformed(commands: readonly [string, unknown][]): [string, Command][] 
   return commands.map(([name, command]) => [name, command as Command]);
 }
 
+/**
+ * The sample with overlays that only warn, an id twice, colors hard to tell apart, and an element
+ * whose levels start twice at one scale (ADR 0055).
+ */
+function overlaidSample(): ProjectSnapshot {
+  const [view, ...views] = sample.views as [ViewFile, ...ViewFile[]];
+  const close: Overlay = {
+    id: 'close',
+    name: 'Tier',
+    of: 'elements',
+    attribute: 'tier',
+    channel: 'stroke',
+    mapping: {
+      kind: 'discrete',
+      cases: Array.from({ length: 5 }, (_, at) => ({ value: `v${at}`, color: `#FFFFF${at}` })),
+      otherwise: '#16191E',
+    },
+  };
+  const overlays: Overlay[] = [
+    close,
+    {
+      ...close,
+      id: 'pair',
+      mapping: {
+        kind: 'discrete',
+        cases: [{ value: 'a', color: '#FFFF00' }],
+        otherwise: '#FFFF10',
+      },
+    },
+    { ...close, id: 'close', of: 'relations', channel: 'fill', attribute: 'rate' },
+    {
+      ...close,
+      id: 'down',
+      mapping: {
+        kind: 'continuous',
+        stops: [
+          { at: 2, color: '#000000' },
+          { at: 1, color: '#FFFFFF' },
+        ],
+      },
+    },
+    {
+      ...close,
+      id: 'twice',
+      mapping: {
+        kind: 'discrete',
+        cases: [
+          { value: '1', color: '#000000' },
+          { value: '1.0', color: '#000000' },
+        ],
+      },
+    },
+  ];
+  const [first, ...elements] = sample.model.elements as [Element, ...Element[]];
+  return {
+    ...sample,
+    views: [{ ...view, overlays }, ...views],
+    model: {
+      ...sample.model,
+      elements: [
+        {
+          ...first,
+          appearance: {
+            levels: [
+              { from: 1, shows: ['name'] },
+              { from: 1, shows: ['silhouette', 'image'] },
+            ],
+          },
+        },
+        ...elements,
+      ],
+    },
+  };
+}
+
+/** The commands of overlays and levels of detail (ADR 0055), done and refused. */
+function overlayCommands(): [string, Command][] {
+  const tier = {
+    id: 'tier',
+    name: 'Tier',
+    of: 'elements',
+    attribute: 'tier',
+    channel: 'fill',
+    mapping: {
+      kind: 'discrete',
+      cases: [
+        { value: 'gold', color: '#FFFF00' },
+        { value: 'silver', color: '#FFFF66' },
+      ],
+    },
+  };
+  const set = (name: string, overlay: unknown): [string, unknown] => [
+    name,
+    { type: 'set-overlays', view: VIEW, overlays: [overlay] },
+  ];
+  const service = (name: string, appearanceTraits: unknown): [string, unknown] => [
+    name,
+    { type: 'set-component-appearance', component: 'systems.service', appearanceTraits },
+  ];
+  return malformed([
+    set('set overlays', tier),
+    [
+      'add an overlay',
+      {
+        type: 'add-overlay',
+        view: VIEW,
+        overlay: {
+          ...tier,
+          id: 'size',
+          channel: 'size',
+          mapping: {
+            kind: 'continuous',
+            stops: [
+              { at: 0, size: 0.5 },
+              { at: 1, size: 2 },
+            ],
+          },
+        },
+      },
+    ],
+    [
+      'turn an overlay off',
+      { type: 'update-overlay', view: VIEW, overlay: 'tier', changes: { off: true } },
+    ],
+    [
+      'turn an overlay on',
+      { type: 'update-overlay', view: VIEW, overlay: 'tier', changes: { off: false } },
+    ],
+    [
+      'edit an overlay',
+      { type: 'update-overlay', view: VIEW, overlay: 'tier', changes: { name: 'Level' } },
+    ],
+    [
+      'change no overlay part',
+      { type: 'update-overlay', view: VIEW, overlay: 'tier', changes: { id: 'x' } },
+    ],
+    [
+      'changes not an object',
+      { type: 'update-overlay', view: VIEW, overlay: 'tier', changes: 'off' },
+    ],
+    ['move an overlay', { type: 'move-overlay', view: VIEW, overlay: 'tier' }],
+    ['move before itself', { type: 'move-overlay', view: VIEW, overlay: 'tier', before: 'tier' }],
+    ['remove an overlay', { type: 'remove-overlays', view: VIEW, overlays: ['size'] }],
+    ['remove no overlays', { type: 'remove-overlays', view: VIEW, overlays: [] }],
+    ['remove twice', { type: 'remove-overlays', view: VIEW, overlays: ['tier', 'tier'] }],
+    ['unknown overlay', { type: 'remove-overlays', view: VIEW, overlays: ['gone'] }],
+    ['add a taken overlay', { type: 'add-overlay', view: VIEW, overlay: tier }],
+    [
+      'too many overlays',
+      {
+        type: 'set-overlays',
+        view: VIEW,
+        overlays: Array.from({ length: 17 }, (_, at) => ({ ...tier, id: `t${at}` })),
+      },
+    ],
+    set('overlay not an object', 'fill'),
+    set('overlay with more', { ...tier, glow: true }),
+    set('overlay without an attribute', { ...tier, attribute: '' }),
+    set('overlay without a name', { ...tier, name: '' }),
+    set('overlay of views', { ...tier, of: 'views' }),
+    set('unknown channel', { ...tier, channel: 'glow' }),
+    set('relations filled', { ...tier, of: 'relations' }),
+    set('off not a boolean', { ...tier, off: 'yes' }),
+    set('unknown mapping', { ...tier, mapping: { kind: 'bands' } }),
+    set('ranged badges', { ...tier, channel: 'badge', mapping: { kind: 'continuous', stops: [] } }),
+    set('mapping with more', { ...tier, mapping: { kind: 'passthrough', stops: [] } }),
+    set('sizes taken as they are', { ...tier, channel: 'size', mapping: { kind: 'passthrough' } }),
+    set('no cases', { ...tier, mapping: { kind: 'discrete', cases: [] } }),
+    set('case not an object', { ...tier, mapping: { kind: 'discrete', cases: [1] } }),
+    set('case with more', {
+      ...tier,
+      mapping: { kind: 'discrete', cases: [{ value: 'a', color: '#000000', size: 1 }] },
+    }),
+    set('case value not text', {
+      ...tier,
+      mapping: { kind: 'discrete', cases: [{ value: null, color: '#000000' }] },
+    }),
+    set('case twice', {
+      ...tier,
+      mapping: {
+        kind: 'discrete',
+        cases: [
+          { value: 'a', color: '#000000' },
+          { value: 'A', color: '#000000' },
+        ],
+      },
+    }),
+    set('one stop', {
+      ...tier,
+      mapping: { kind: 'continuous', stops: [{ at: 0, color: '#000000' }] },
+    }),
+    set('stop not an object', { ...tier, mapping: { kind: 'continuous', stops: [1, 2] } }),
+    set('stop with more', {
+      ...tier,
+      mapping: {
+        kind: 'continuous',
+        stops: [
+          { at: 0, color: '#000000', text: 'x' },
+          { at: 1, color: '#000000' },
+        ],
+      },
+    }),
+    set('stop not at a number', {
+      ...tier,
+      mapping: {
+        kind: 'continuous',
+        stops: [
+          { at: 'low', color: '#000000' },
+          { at: 1, color: '#000000' },
+        ],
+      },
+    }),
+    set('stops down', {
+      ...tier,
+      mapping: {
+        kind: 'continuous',
+        stops: [
+          { at: 2, color: '#000000' },
+          { at: 1, color: '#000000' },
+        ],
+      },
+    }),
+    set('not a color', {
+      ...tier,
+      mapping: { kind: 'discrete', cases: [{ value: 'a', color: 'gold' }] },
+    }),
+    set('size too large', {
+      ...tier,
+      channel: 'size',
+      mapping: { kind: 'discrete', cases: [{ value: 'a', size: 3 }] },
+    }),
+    set('opacity zero', {
+      ...tier,
+      channel: 'opacity',
+      mapping: { kind: 'discrete', cases: [{ value: 'a', opacity: 0 }] },
+    }),
+    set('badge too long', {
+      ...tier,
+      channel: 'badge',
+      mapping: { kind: 'discrete', cases: [{ value: 'a', text: 'a badge far too long' }] },
+    }),
+    set('legend label empty', {
+      ...tier,
+      mapping: { kind: 'discrete', cases: [{ value: 'a', color: '#000000', label: '' }] },
+    }),
+    set('relations read nothing', {
+      ...tier,
+      of: 'relations',
+      channel: 'stroke',
+      attribute: 'rate',
+    }),
+    service('levels', {
+      levels: [
+        { from: 0.9, shows: ['name', 'detail'] },
+        { from: 0.3, shows: ['name'] },
+      ],
+      expandFrom: 2,
+    }),
+    service('levels not a list', { levels: 'near' }),
+    service('too many levels', {
+      levels: Array.from({ length: 9 }, (_, at) => ({ from: at / 4, shows: ['name'] })),
+    }),
+    service('level not an object', { levels: [1] }),
+    service('level with more', { levels: [{ from: 1, shows: ['name'], to: 2 }] }),
+    service('level far out', { levels: [{ from: 9, shows: ['name'] }] }),
+    service('levels at one scale', {
+      levels: [
+        { from: 1, shows: ['name'] },
+        { from: 1, shows: ['image'] },
+      ],
+    }),
+    service('level shows nothing', { levels: [{ from: 1, shows: [] }] }),
+    service('level shows a part twice', { levels: [{ from: 1, shows: ['name', 'name'] }] }),
+    service('silhouette with more', { levels: [{ from: 1, shows: ['silhouette', 'name'] }] }),
+    service('expands from nothing', { expandFrom: 0 }),
+  ]);
+}
+
 /** Everything the commands said, and what the project and a deletion's preview say. */
 function allMessages(): Outcome[] {
   const said = run(sample, COMMANDS);
@@ -811,6 +1094,18 @@ function allMessages(): Outcome[] {
   };
   for (const warning of checkProject(broken).warnings) {
     said.push({ command: 'check', message: warning.message });
+  }
+  // What overlays and levels break as a project opens, and what a legend warns about (ADR 0055).
+  const overlaid = overlaidSample();
+  const check = checkProject(overlaid);
+  for (const problem of [...check.errors, ...check.warnings]) {
+    said.push({ command: 'check overlays', message: problem.message });
+  }
+  for (const theme of ['light', 'dark'] as const) {
+    const view = overlaid.views[0] as ViewFile;
+    for (const part of legendOf(view, definitionsIn(overlaid), theme).overlays) {
+      for (const warning of part.warnings) said.push({ command: 'legend', message: warning });
+    }
   }
   for (const problem of previewDelete(sample, { elements: [sample.model.world.id] }).problems) {
     said.push({ command: 'preview', message: problem.message });
@@ -929,6 +1224,25 @@ describe('the local program’s messages in Spanish', () => {
     ).toBe(
       'El componente "Calendar" no se puede quitar: lo usan 3 elementos, 1 relación y 2 vistas.',
     );
+  });
+});
+
+describe('what imports say, in Spanish', () => {
+  const said = importMessages();
+
+  it('says each thing a reader can say', () => {
+    expect(said.length).toBeGreaterThan(60);
+  });
+
+  it('has a Spanish template for every refusal, reason and label', () => {
+    const missing = [...new Set(said.map(({ message }) => message))].flatMap((message) =>
+      untranslatedParts('es', message),
+    );
+    expect([...new Set(missing)]).toEqual([]);
+  });
+
+  it('keeps the file’s name as written', () => {
+    expect(translateMessage('es', 'Import "checkout.mmd"')).toBe('Importar "checkout.mmd"');
   });
 });
 

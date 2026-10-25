@@ -48,6 +48,12 @@ A view shows the whole model, or the part its scope gives (ADR 0040): rules on c
 - **Playback** marks a step whose relations the view's scope shows none of as outside the view, and plays on.
 - **Claude** reads a scope with `get_scope`, sets it with `set_scope`, and changes it with `add_to_view` and `leave_out_of_view`; `read_view` says how many elements a view shows out of how many.
 
+## Identifiers, destinations and the element list
+
+- **External identifiers** say what an element, a component or a relation type is in someone else's catalog, by scheme, such as `uberon: UBERON:0002135` (ADR 0056). The inspector edits them; search finds by them, as `UBERON:0002135` or `uberon:UBERON:0002135`; importers match by them, filling in the schemes a file lacks from the crosswalks packages ship; and Claude's `find_elements` takes `id:<scheme>`. Nothing ever follows them.
+- **Destinations** are attribute values that open a view of this project, a view of another project, or an `https:` web address. A shape with one shows a mark in its bottom left corner: double-click it, or press Alt+Enter on the selected shape, to follow it; the shape's menu and the inspector list them all. Another project opens in a tab of its own Visual Anything, which starts if none runs there, and only from the folder that holds this project's folder; a web address opens in a new tab. Both ask first, naming the folder or the host.
+- **The element list**, from the header, lists what the open view shows or a component's elements, with their attributes and identifiers as columns. It sorts and filters; Enter, F2 or typing edits a cell, and a block of cells pasted from a spreadsheet is one action. Its rows select on the canvas, and follow what the canvas selects.
+
 ## Running the executable
 
 Visual Anything also comes as one executable file for each system, which needs nothing else installed: no Node.js, pnpm or repository (ADR 0037). Take yours from the assets of a release, or make it for the system you are on with `pnpm package`, which writes `dist-exe/visual-anything` (`visual-anything.exe` on Windows).
@@ -165,6 +171,16 @@ Scenarios, images and exploring work through Claude too:
 - **Filters and focus.** Claude can filter the open view or turn focus mode on, as if you had: you see them in the toolbar's strip and end them there with Show everything or End focus. Nothing is written to the view file.
 
 Try, for example: "Turn this log into a scenario and play it", "Give the Calendar component this SVG icon", or "Show me only the services and what they write to".
+
+### Importing a file
+
+A Mermaid diagram (flowchart, C4, ER or class), a spreadsheet (CSV or TSV) or JSON comes in as one action you can undo:
+
+- **In the app**, Import… in the header reads a file or pasted text in the tab. It shows what the file will create, maps each kind of thing in it to a component or relation type, with suggestions chosen at first, and lists what matched nothing.
+- **From the command line**, `visual-anything import <folder> <file>` imports it. Use `--map <kind>=<id>` to map a kind yourself, and `--dry-run` to see the mapping first. When Visual Anything runs on the project, the import goes through it.
+- **With Claude**, ask it to import a file: it shows you the mapping with `preview_import`, then imports with `import_file`.
+
+A spreadsheet holds elements with `id`, `name`, `component` and `container` columns, and relations with `from`, `to` and `relation type` columns, in tables separated by a blank line. Every other column is an attribute. Importing it again updates the elements it matches by `id`, or by another column you choose. Nothing in a file runs, and links in it are never followed.
 
 ### Building from what you already have
 

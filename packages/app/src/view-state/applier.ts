@@ -49,6 +49,12 @@ export interface Travel {
   move(from: Camera | undefined, to: Camera, viewport: Size, sameView: boolean): number;
 }
 
+/**
+ * What the view state reads and asks of scenario playback: the app's scenario session, or the
+ * read-only page's playback, which has no recording (ADR 0041).
+ */
+export type PlaybackControl = Pick<ScenarioSession, 'subscribe' | 'getState' | 'close' | 'guide'>;
+
 /** The shell as it is now, and what the applier may do to it. */
 export interface ApplyContext {
   project: ProjectSnapshot;
@@ -60,7 +66,7 @@ export interface ApplyContext {
   openView: (view: Id) => void;
   /** Brings a shape into sight the way the outline does, when there is no canvas to glide. */
   reveal: (key: string) => void;
-  scenarios: ScenarioSession;
+  scenarios: PlaybackControl;
   emphasis: EmphasisStore;
   /** The canvas's camera, once the canvas is made. */
   canvas: CanvasCamera | undefined;
@@ -235,7 +241,7 @@ export class ViewStateApplier {
 
 /** Opens the address's scenario at its step, or closes the one open when the address has none. */
 function playScenario(
-  scenarios: ScenarioSession,
+  scenarios: PlaybackControl,
   project: ProjectSnapshot,
   state: ViewState,
 ): void {

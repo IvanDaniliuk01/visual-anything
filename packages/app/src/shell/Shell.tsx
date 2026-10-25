@@ -1,15 +1,23 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
-import { useCallback, useContext, useId, useMemo, useState } from 'react';
+import { useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { ExportControl } from '../export/ExportControl';
+import { fragmentOf } from '../export/page-export';
 import { ImageSource, ImageSourceContext } from '../export/source';
+import { ImportControl } from '../import/ImportControl';
 import { DefinitionProvider } from './definitions/DefinitionProvider';
 import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
 import { GuidanceLayer } from '../guidance/GuidanceLayer';
 import { useSelection } from '../editor/useSelection';
 import { buildScene, type Scene } from '../canvas/scene';
+import {
+  ZoomExpansion,
+  ZoomExpansionContext,
+  useExpandedByZoom,
+  useFollowZoom,
+} from '../canvas/overlays/useZoomExpansion';
 import { useExplorer } from '../canvas/useExplorer';
 import { definitionsIn } from '@visual-anything/core';
 import { useT, type Translator } from '../i18n';
@@ -18,6 +26,10 @@ import { ScenarioPanel } from '../scenarios/ScenarioPanel';
 import { ScenarioSession } from '../scenarios/session';
 import { usePreferences, useThemeHold } from '../theme/usePreferences';
 import { FindBar } from '../search/FindBar';
+import { useFollower, type GoToState } from '../destinations/follower';
+import { FollowDialog } from '../destinations/FollowDialog';
+import { ElementListPanel, ElementListToggle } from '../element-list/ElementListToggle';
+import { ElementListStore } from '../element-list/store';
 import type { CanvasCamera } from '../view-state/canvas';
 import { CopyAddress } from '../view-state/CopyAddress';
 import { useViewState } from '../view-state/useViewState';
@@ -55,11 +67,14 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the definitions follow the packages and the project appearances only
     [project.packages, project.project.appearances],
   );
+  // The collapsed containers the canvas shows expanded as it zooms into them (ADR 0055).
+  const [zoom] = useState(() => new ZoomExpansion());
+  const expanded = useExpandedByZoom(zoom, view?.id);
   const scene = useMemo(
-    () => (view ? buildScene(project, view.id) : undefined),
+    () => (view ? buildScene(project, view.id, expanded) : undefined),
     // The canvas writes built-in names and its own words in the language read in (ADR-0038).
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the language is read by buildScene
-    [project, view, t.language],
+    [project, view, t.language, expanded],
   );
   const [revealed, setRevealed] = useState<{ key: string; request: number }>();
   const reveal = useCallback((key: string) => {
@@ -71,6 +86,9 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   const explore = useExplorer({ project, viewId: view?.id, scene, selection, emphasis });
   // Package code (ADR 0054): its store, which the editor carries, filled below.
   const [code] = useState(() => new CodeStore());
+  // Following destinations (ADR 0056): it goes to a view through the view state, set below.
+  const followGoTo = useRef<GoToState>(undefined);
+  const { follower, asking } = useFollower(project, followGoTo);
   const editor = useMemo<Editor>(
     () => ({
       project,
@@ -84,6 +102,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
       openView: setOpenViewId,
       explore,
       code,
+      follow: follower,
     }),
     [
       project,
@@ -96,6 +115,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
       reveal,
       explore,
       code,
+      follower,
     ],
   );
   const canvasHeading = useId();
@@ -106,17 +126,10 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   const onThemeShown = useThemeHold(view !== undefined);
   // The header's Export, which draws with the renderer the canvas lends it (R27).
   const [images] = useState(() => new ImageSource());
-  const exportTool = (
-    <ExportControl
-      source={images}
-      projectName={project.project.name}
-      viewName={view?.name}
-      bounds={scene?.bounds}
-    />
-  );
   // The view state: what the tab's address holds and Copy address copies, and where search jumps.
   const live = useContext(LiveContext);
   const [canvas, setCanvas] = useState<CanvasCamera>();
+  useFollowZoom(zoom, project, view, scene, canvas);
   const viewState = useViewState({
     project,
     viewId: view?.id,
@@ -134,66 +147,100 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   usePackageCode({ store: code, project, viewId: view?.id, scene, canvas });
   // Tours (ADR 0058): the one the tab plays full screen, which hides the panels while it plays.
   const tours = useTourPlayback({ project, scene, viewState, scenarios, emphasis });
+  // Export also writes the read-only page, which opens at the view state shown now (M6b).
+  const exportTool = (
+    <ExportControl
+      source={images}
+      projectName={project.project.name}
+      viewName={view?.name}
+      bounds={scene?.bounds}
+      project={project}
+      page={{ start: () => fragmentOf(viewState.address()?.address) }}
+      drawn={view && scene ? { view, scene, theme } : undefined}
+    />
+  );
+  useLayoutEffect(() => {
+    followGoTo.current = viewState.goTo;
+  });
+  // The element list, below the canvas, and its toggle in the header (R42).
+  const [elementList] = useState(() => new ElementListStore());
 
   return (
     <EditorContext.Provider value={editor}>
       <DefinitionProvider>
         <EmphasisContext.Provider value={emphasis}>
           <ToursContext.Provider value={tours.host}>
-            <div className={tours.playback.tour === undefined ? 'shell' : 'shell tour-playing'}>
-              <Header
-                projectName={project.project.name}
-                viewName={view?.name}
-                actions={
-                  <>
-                    {view && <CopyAddress link={viewState} />}
-                    {exportTool}
-                  </>
-                }
-              />
-              {notice !== undefined && (
-                <p className="shell-notice" role="alert">
-                  {notice}
-                </p>
-              )}
-              <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
-              <main className="canvas-area" aria-labelledby={canvasHeading}>
-                <h2 id={canvasHeading} className="visually-hidden">
-                  {view ? view.name : t('Canvas')}
-                </h2>
-                {view && scene ? (
-                  <ImageSourceContext value={images}>
-                    <CanvasArea
-                      project={project}
-                      view={view}
-                      scene={scene}
-                      label={describeDrawing(t, view, scene)}
-                      selection={selection}
-                      onSelect={setSelection}
-                      {...(onCommand ? { onCommand } : {})}
-                      {...(revealed ? { revealed } : {})}
-                      scenarios={scenarios}
-                      theme={theme}
-                      onThemeShown={onThemeShown}
-                      onCanvas={setCanvas}
-                    />
-                  </ImageSourceContext>
-                ) : (
-                  <p className="canvas-message">{t('There is no view to draw.')}</p>
-                )}
-                <GuidanceLayer scenarios={scenarios} />
-                <FindBar
-                  project={project}
-                  definitions={definitions}
-                  viewId={view?.id}
-                  goTo={viewState.goTo}
+            <ZoomExpansionContext value={zoom}>
+              <div className={tours.playback.tour === undefined ? 'shell' : 'shell tour-playing'}>
+                <Header
+                  projectName={project.project.name}
+                  viewName={view?.name}
+                  actions={
+                    <>
+                      {view && <CopyAddress link={viewState} />}
+                      <ImportControl
+                        project={project}
+                        viewId={view?.id}
+                        send={live?.status === 'open' ? live.send : undefined}
+                        openView={setOpenViewId}
+                      />
+                      {exportTool}
+                      <ElementListToggle store={elementList} />
+                    </>
+                  }
                 />
-                <TourPlaybackLayer project={project} tours={tours} />
-              </main>
-              <Inspector view={view} scene={scene} definitions={definitions} />
-              <ScenarioPanel session={scenarios} />
-              <CodeApproval />
-            </div>
+                {notice !== undefined && (
+                  <p className="shell-notice" role="alert">
+                    {notice}
+                  </p>
+                )}
+                <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
+                <main className="canvas-area" aria-labelledby={canvasHeading}>
+                  <h2 id={canvasHeading} className="visually-hidden">
+                    {view ? view.name : t('Canvas')}
+                  </h2>
+                  {view && scene ? (
+                    <ImageSourceContext value={images}>
+                      <CanvasArea
+                        project={project}
+                        view={view}
+                        scene={scene}
+                        label={describeDrawing(t, view, scene)}
+                        selection={selection}
+                        onSelect={setSelection}
+                        {...(onCommand ? { onCommand } : {})}
+                        {...(revealed ? { revealed } : {})}
+                        scenarios={scenarios}
+                        theme={theme}
+                        onThemeShown={onThemeShown}
+                        onCanvas={setCanvas}
+                      />
+                    </ImageSourceContext>
+                  ) : (
+                    <p className="canvas-message">{t('There is no view to draw.')}</p>
+                  )}
+                  <GuidanceLayer scenarios={scenarios} />
+                  <FindBar
+                    project={project}
+                    definitions={definitions}
+                    viewId={view?.id}
+                    goTo={viewState.goTo}
+                  />
+                  <TourPlaybackLayer project={project} tours={tours} />
+                </main>
+                <Inspector view={view} scene={scene} definitions={definitions} />
+                <ScenarioPanel session={scenarios} />
+                <CodeApproval />
+                <ElementListPanel store={elementList} />
+                {asking && (
+                  <FollowDialog
+                    plan={asking.plan}
+                    onConfirm={asking.confirm}
+                    onCancel={asking.cancel}
+                  />
+                )}
+              </div>
+            </ZoomExpansionContext>
           </ToursContext.Provider>
         </EmphasisContext.Provider>
       </DefinitionProvider>

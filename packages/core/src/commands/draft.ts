@@ -6,6 +6,7 @@ import type {
   Attributes,
   Element,
   Id,
+  ModelFile,
   PackageFile,
   Relation,
   ScenarioFile,
@@ -18,8 +19,8 @@ import { idsNamedByTours } from '../tours/steps';
 import type { Definitions, ResolvedComponent, ResolvedRelationType } from '../definitions';
 import { definitionIdFor, freshId, isId, type IdGenerator } from '../ids';
 import { imagesIn } from '../images/catalog';
-import type { ModelIndex } from '../model-index';
-import { applyOperation, type Operation } from '../operations';
+import { draftIndexOf, type DraftIndex, type ModelIndex } from '../model-index';
+import { applyOperation, keyOf, type Operation } from '../operations';
 import { problem, type Problem, type ProblemCode } from '../problems';
 import type { ProjectSnapshot } from '../snapshot';
 import { definitionsIn, modelIndexOf } from '../state';
@@ -43,6 +44,8 @@ export class Draft {
   readonly warnings: Problem[] = [];
   readonly created: Id[] = [];
   private readonly inverses: Operation[] = [];
+  /** The index the draft keeps up to date as it applies operations to the model, and what it fits. */
+  private live: { model: ModelFile; nesting: ReadonlySet<Id>; index: DraftIndex } | undefined;
 
   constructor(
     state: ProjectSnapshot,
@@ -53,10 +56,38 @@ export class Draft {
 
   /** Applies an operation to the draft. */
   apply(operation: Operation): void {
-    const result = applyOperation(this.state, operation);
+    const before = this.state;
+    const result = applyOperation(before, operation);
     this.state = result.state;
     this.operations.push(operation);
     this.inverses.push(result.inverse);
+    if (result.state.model !== before.model) this.follow(before.model, operation);
+  }
+
+  /** Keeps the index up to date with an operation that changed the model, or drops it. */
+  private follow(before: ModelFile, operation: Operation): void {
+    const nesting = this.definitions.nestingRelationTypes;
+    const { live } = this;
+    const index =
+      live?.model === before && live.nesting === nesting
+        ? live.index
+        : draftIndexOf(before, nesting);
+    this.live = index.follow(operation) ? { model: this.state.model, nesting, index } : undefined;
+  }
+
+  /**
+   * Keeps the index the draft kept up to date as the index of the project it ends with, so that what
+   * reads the project next need not index it again. Nothing is applied to the draft after this.
+   */
+  seal(): void {
+    const { live } = this;
+    if (
+      live?.model === this.state.model &&
+      live.nesting === this.definitions.nestingRelationTypes
+    ) {
+      live.index.seal(live.model);
+    }
+    this.live = undefined;
   }
 
   /** The operations that undo everything applied so far, in the order to apply them. */
@@ -64,11 +95,59 @@ export class Draft {
     return [...this.inverses].reverse();
   }
 
+  /**
+   * The elements and relations as they were before the operations from `start` on, read back from
+   * those operations' inverses rather than from an index of the earlier model, so that each command
+   * of a long batch costs only what it changed. `before` is the project at `start`, indexed only
+   * when an operation replaced a whole list.
+   */
+  modelBefore(start: number, before: ProjectSnapshot): Pick<ModelIndex, 'element' | 'relation'> {
+    const elements = new Map<Id, Element | undefined>();
+    const relations = new Map<Id, Relation | undefined>();
+    // The first change to an id since `start` tells what it was then.
+    const was = <T>(map: Map<Id, T | undefined>, id: Id, item: T | undefined) => {
+      if (!map.has(id)) map.set(id, item);
+    };
+    for (let at = start; at < this.operations.length; at += 1) {
+      const operation = this.operations[at] as Operation;
+      const inverse = this.inverses[at] as Operation;
+      if (operation.op === 'set-world' && inverse.op === 'set-world') {
+        was(elements, inverse.world.id, inverse.world);
+        was(elements, operation.world.id, undefined);
+        continue;
+      }
+      if (!('collection' in operation)) continue;
+      const { collection } = operation;
+      if (collection.name !== 'elements' && collection.name !== 'relations') continue;
+      if (operation.op === 'replace-all') return modelIndexOf(before);
+      const map: Map<Id, Element | Relation | undefined> =
+        collection.name === 'elements' ? elements : relations;
+      if (operation.op === 'insert') was(map, keyOf(collection, operation.item), undefined);
+      else if (operation.op === 'replace' && inverse.op === 'replace') {
+        was(map, keyOf(collection, inverse.item), inverse.item as Element | Relation);
+      } else if (operation.op === 'remove' && inverse.op === 'insert') {
+        was(map, operation.key, inverse.item as Element | Relation);
+      }
+    }
+    const now = this.index;
+    return {
+      element: (id) => (elements.has(id) ? elements.get(id) : now.element(id)),
+      relation: (id) => (relations.has(id) ? relations.get(id) : now.relation(id)),
+    };
+  }
+
   get definitions(): Definitions {
     return definitionsIn(this.state);
   }
 
   get index(): ModelIndex {
+    const { live } = this;
+    if (
+      live?.model === this.state.model &&
+      live.nesting === this.definitions.nestingRelationTypes
+    ) {
+      return live.index;
+    }
     return modelIndexOf(this.state);
   }
 

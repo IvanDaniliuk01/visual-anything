@@ -15,6 +15,7 @@
 import {
   appearanceOf,
   definitionsIn,
+  legendOf,
   modelIndexOf,
   nestingTypesInView,
   previewChangeContainer,
@@ -26,6 +27,7 @@ import {
 } from '@visual-anything/core';
 import type { Id, Note, ViewFile } from '@visual-anything/schema';
 import {
+  useContext,
   useEffect,
   useEffectEvent,
   useId,
@@ -38,6 +40,8 @@ import {
 } from 'react';
 import { useEmphasis, type Emphasis } from '../editor/emphasis';
 import { useCodeDrawings } from '../code/context';
+import { elementDestinations } from '../destinations/follow';
+import { useFollow } from '../destinations/follower';
 import { useLendRenderer } from '../export/source';
 import { t as translateNow, useT, type Translator } from '../i18n';
 import { EMPTY_SELECTION, selectionOf, sizeOf, type Selection } from '../editor/selection';
@@ -82,6 +86,8 @@ import { onRouteEditingRequest } from './routing/requests';
 import { RouteMenu } from './routing/RouteMenu';
 import { relationLinesOf, type ElementShape, type Scene } from './scene';
 import { ShapeMenu } from './ShapeMenu';
+import { LegendPanel } from './overlays/LegendPanel';
+import { ZoomExpansionContext, withoutZoomExpanded } from './overlays/useZoomExpansion';
 import { restackCommand, stackingActions, stackingShortcut, type StackingMove } from './stacking';
 
 /** Sends a command to the local program; resolves with what it created, or `ok: false` when refused. */
@@ -197,6 +203,8 @@ export function CanvasArea({
   const controllerRef = useRef<CanvasController | null>(null);
   // The header's Export draws the open view with this canvas's renderer (R27).
   useLendRenderer(controllerRef);
+  // The containers shown expanded as the canvas zooms into them (ADR 0055).
+  const zoom = useContext(ZoomExpansionContext);
   const [failure, setFailure] = useState<string>();
   // The camera moves on every frame of a pan: only what shows it renders again.
   const [cameras] = useState(() => new CameraWatch());
@@ -265,6 +273,13 @@ export function CanvasArea({
     latest.current = { project, view, indexed, selection, onSelect, onCommand, theme };
   });
   const themeShown = useEffectEvent((shown: ThemeName) => onThemeShown?.(shown));
+  // A destination's mark, Alt+Enter and the shape's menu follow it (ADR 0056).
+  const follower = useFollow();
+  const follow = useEffectEvent((element: Id) => {
+    const { project: now } = latest.current;
+    const [first] = elementDestinations(now, modelIndexOf(now).element(element));
+    if (first !== undefined) follower?.follow(first.destination);
+  });
 
   const announce = (text: string) => setAnnouncement((last) => ({ text, count: last.count + 1 }));
 
@@ -281,11 +296,17 @@ export function CanvasArea({
 
   /** Collapses or expands containers with I1's command, and says what it did once it is done. */
   const collapse = (action: CollapseAction, collapsed: boolean) => {
-    void send(setCollapsedCommand(latest.current.view.id, action.elements, collapsed)).then(
-      (result) => {
-        if (result.ok) announce(collapseDone(action, collapsed));
-      },
-    );
+    // A container the zoom expanded is collapsed in the view already: only the zoom lets it go.
+    const elements = collapsed
+      ? withoutZoomExpanded(zoom, latest.current.view.id, action.elements)
+      : action.elements;
+    if (elements.length === 0) {
+      announce(collapseDone(action, collapsed));
+      return;
+    }
+    void send(setCollapsedCommand(latest.current.view.id, elements, collapsed)).then((result) => {
+      if (result.ok) announce(collapseDone(action, collapsed));
+    });
   };
   // The toggle and the keys, from the controller, which lives as long as the canvas area.
   const collapseFromCanvas = useEffectEvent(collapse);
@@ -374,6 +395,7 @@ export function CanvasArea({
           })),
         addRow: (container, below) => addRowFromCanvas(container, below),
         themeShown: (shown) => themeShown(shown),
+        follow: (element) => follow(element),
       },
       // The canvas starts in the theme shown now, and follows it from then on.
       {
@@ -405,6 +427,15 @@ export function CanvasArea({
   useEffect(() => {
     controllerRef.current?.renderer.setCodeDrawings(codeDrawings);
   }, [codeDrawings]);
+  // The legend of the view's overlays, on the canvas and below its images (ADR 0055).
+  const legend = useMemo(
+    () => legendOf(view, definitionsIn(project), theme),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the definitions follow the packages and the project appearances only
+    [view, project.packages, project.project.appearances, theme],
+  );
+  useEffect(() => {
+    controllerRef.current?.renderer.setLegend(legend.overlays.length > 0 ? legend : undefined);
+  }, [legend]);
 
   // The view state follows and moves the camera through this.
   useEffect(() => {
@@ -835,6 +866,7 @@ export function CanvasArea({
         {announcement.count % 2 === 1 ? ' ' : ''}
       </div>
       <KeyboardHelp />
+      <LegendPanel legend={legend} />
       {recording && <RecordingCue />}
       {relating && (
         <RelationMenu
@@ -906,6 +938,14 @@ export function CanvasArea({
             onSelect(selectionOf([{ kind: 'element', id: other.element }]));
             controller()?.reveal(other.key);
           }}
+          {...(follower === undefined
+            ? {}
+            : {
+                onFollow: (destination) => {
+                  closeMenu();
+                  follower.follow(destination);
+                },
+              })}
           onClose={closeMenu}
         />
       )}

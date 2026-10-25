@@ -1,3 +1,5 @@
+import type { Element } from '@visual-anything/schema';
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
   OperationError,
@@ -7,6 +9,7 @@ import {
   positionKey,
   type Operation,
 } from './operations';
+import type { ProjectSnapshot } from './snapshot';
 import { testProject } from './test/fixtures';
 
 describe('applyOperation', () => {
@@ -227,5 +230,81 @@ describe('positionKey', () => {
   it('names the element and the container its shape sits in', () => {
     expect(positionKey({ element: 'api' })).toBe('api');
     expect(positionKey({ element: 'api', container: 'system' })).toBe('api in system');
+  });
+});
+
+describe('the places of a list', () => {
+  /** What an operation on the elements does, worked out by passes over the list. */
+  function byPasses(items: readonly Element[], operation: Operation): Element[] | 'refused' {
+    if (operation.op === 'insert') {
+      const item = operation.item as Element;
+      if (items.some((each) => each.id === item.id)) return 'refused';
+      if (operation.index < 0 || operation.index > items.length) return 'refused';
+      return items.toSpliced(operation.index, 0, item);
+    }
+    if (operation.op === 'replace') {
+      const item = operation.item as Element;
+      const at = items.findIndex((each) => each.id === item.id);
+      return at === -1 ? 'refused' : items.with(at, item);
+    }
+    if (operation.op === 'remove') {
+      const at = items.findIndex((each) => each.id === operation.key);
+      return at === -1 ? 'refused' : items.toSpliced(at, 1);
+    }
+    return 'refused';
+  }
+
+  const id = fc.constantFrom('a', 'b', 'c', 'd', 'e', 'f');
+  const item = fc.record({
+    id,
+    component: fc.constant('essence'),
+    name: fc.constantFrom('x', 'y'),
+  });
+  const collection = { name: 'elements' } as const;
+  const operation: fc.Arbitrary<Operation> = fc.oneof(
+    fc.tuple(item, fc.integer({ min: -1, max: 7 })).map(([item, index]) => ({
+      op: 'insert' as const,
+      collection,
+      index,
+      item,
+    })),
+    item.map((item) => ({ op: 'replace' as const, collection, item })),
+    id.map((key) => ({ op: 'remove' as const, collection, key })),
+  );
+
+  it('finds items as passes over the list do, however the list was made', () => {
+    fc.assert(
+      fc.property(fc.array(operation, { maxLength: 60 }), fc.boolean(), (operations, undo) => {
+        let state: ProjectSnapshot = {
+          ...testProject(),
+          model: { ...testProject().model, elements: [] },
+        };
+        const states: ProjectSnapshot[] = [state];
+        for (const each of operations) {
+          const expected = byPasses(state.model.elements, each);
+          let actual: Element[] | 'refused';
+          try {
+            const result = applyOperation(state, each);
+            state = result.state;
+            states.push(state);
+            actual = state.model.elements;
+          } catch (error) {
+            if (!(error instanceof OperationError)) throw error;
+            actual = 'refused';
+          }
+          expect(actual).toEqual(expected);
+        }
+        // An earlier list, whose places went to the list made from it, still finds its items.
+        if (undo && states.length > 2) {
+          const earlier = states[Math.floor(states.length / 2)]!;
+          for (const element of earlier.model.elements) {
+            const replaced = { ...element, name: 'z' };
+            const next = applyOperation(earlier, { op: 'replace', collection, item: replaced });
+            expect(next.state.model.elements.find((each) => each.id === element.id)).toBe(replaced);
+          }
+        }
+      }),
+      { numRuns: 300 },
+    );
   });
 });
