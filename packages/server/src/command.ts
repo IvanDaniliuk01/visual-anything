@@ -374,6 +374,16 @@ async function openInRunningProgram(
       for (const problem of problems) environment.err(`  ${problem}`);
       return 2;
     }
+    // What only a program that starts would use: said, so that nobody wonders why it did nothing.
+    const unused = [
+      ...(options.dev ? ['--dev'] : []),
+      ...(options.port !== 0 && address !== `http://127.0.0.1:${options.port}/` ? ['--port'] : []),
+    ];
+    if (unused.length > 0) {
+      environment.err(
+        `${unused.join(' and ')} ${unused.length === 1 ? 'applies' : 'apply'} only to a Visual Anything that starts; stop the one running first to use ${unused.length === 1 ? 'it' : 'them'}.`,
+      );
+    }
     if (!options.open) {
       environment.out(`Visual Anything already runs on "${name}" at ${address}.`);
       if (state !== undefined) {

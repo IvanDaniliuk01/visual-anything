@@ -143,6 +143,21 @@ describe('visual-anything open while a program runs on the folder', () => {
     },
   );
 
+  it('says that --dev and --port apply only to a program that starts', SLOW, async () => {
+    const first = run([SAMPLE, '--no-open']);
+    await first.address();
+    try {
+      const second = run([SAMPLE, '--no-open', '--dev', '--port', '1']);
+      await expect(second.exit).resolves.toBe(0);
+      expect(second.err).toEqual([
+        '--dev and --port apply only to a Visual Anything that starts; stop the one running first to use them.',
+      ]);
+    } finally {
+      first.signals.emit('SIGINT');
+      await expect(first.exit).resolves.toBe(0);
+    }
+  });
+
   it('starts a program of its own when the record names one that is gone', SLOW, async () => {
     await writeProgramRecord(runtime, {
       format: 1,
