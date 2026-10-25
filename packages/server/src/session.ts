@@ -28,9 +28,11 @@ import {
   type CommandOutcome,
   type Guidance,
   type History,
+  type HistoryEntry,
   type HistoryStep,
   type HistorySummary,
   type IdGenerator,
+  type ListedAction,
   type NoticeMessage,
   type Operation,
   type PreferencesSetMessage,
@@ -137,6 +139,8 @@ export interface SessionOptions {
   newId?: IdGenerator;
   /** How files are written; tests replace the file system to simulate failures. */
   writer?: WriteOptions;
+  /** When each action is done, in milliseconds since 1970; the computer's clock by default. */
+  now?: () => number;
   /** Prints a line of normal output, such as a reload. */
   out?: (line: string) => void;
   /** Prints a line about a problem. */
@@ -184,6 +188,13 @@ export class Session implements LiveSession {
   readonly #options: SessionOptions;
   #state: ProjectSnapshot;
   #history: History = EMPTY_HISTORY;
+  /**
+   * The id and the time of each action of the history, which the history panel lists. An undo or a
+   * redo moves the same action, so it keeps both.
+   */
+  readonly #stamps = new WeakMap<HistoryEntry, { id: number; time: number }>();
+  /** The id of the newest action, which goes on counting across reloads. */
+  #lastAction = 0;
   /**
    * Where each file lives. A removed view, scenario or package keeps its path, so that undo writes it
    * back where it was and no new file takes that name meanwhile.
@@ -240,6 +251,22 @@ export class Session implements LiveSession {
     return summarize(this.#history);
   }
 
+  /**
+   * The actions the history keeps, oldest first: those done, then those undone, the next to redo
+   * first, each with its id, its author and when it was done.
+   */
+  get actions(): ListedAction[] {
+    const { done, undone } = this.#history;
+    const listed = (entry: HistoryEntry, isUndone: boolean): ListedAction => {
+      const { id, time } = this.#stampOf(entry);
+      return { id, label: entry.label, author: entry.author, time, undone: isUndone };
+    };
+    return [
+      ...done.map((entry) => listed(entry, false)),
+      ...undone.toReversed().map((entry) => listed(entry, true)),
+    ];
+  }
+
   /** Where each file of the project lives now. */
   get files(): ProjectFiles {
     const pathOf = (key: FileKey): string => {
@@ -293,6 +320,7 @@ export class Session implements LiveSession {
       history: this.history,
       ...(options.token === undefined ? {} : { token: options.token }),
     });
+    this.#send(client, { type: 'history/listed', actions: this.actions });
     try {
       const warnings = this.warnings();
       if (warnings.length > 0) this.#send(client, warningNotice(warnings));
@@ -356,10 +384,10 @@ export class Session implements LiveSession {
         await this.execute(message.command, 'user', origin);
         return;
       case 'undo':
-        await this.undo(origin);
+        await this.undo(origin, message.to);
         return;
       case 'redo':
-        await this.redo(origin);
+        await this.redo(origin, message.to);
         return;
       case 'preferences/set':
         await this.#setPreferences(client, message);
@@ -438,20 +466,34 @@ export class Session implements LiveSession {
         const saved = await this.#save(state, operations);
         if (!saved.ok) return this.#refuse(origin, saved.problems);
         this.#state = state;
-        this.#history = record(this.#history, { label, author, operations, inverse });
-        return this.#announce({ kind: 'do', label, author, operations, warnings, created }, origin);
+        const entry: HistoryEntry = { label, author, operations, inverse };
+        this.#history = record(this.#history, entry);
+        this.#stamps.set(entry, { id: (this.#lastAction += 1), time: this.#now() });
+        const announced = this.#announce(
+          { kind: 'do', label, author, operations, warnings, created },
+          origin,
+        );
+        this.#listHistory();
+        return announced;
       }),
     );
   }
 
-  /** Undoes the newest action, whoever did it, and saves and announces it like a command. */
-  undo(origin?: Origin): Promise<SessionOutcome> {
-    return this.#step('undo', origin);
+  /**
+   * Undoes the newest action, whoever did it, and saves and announces it like a command. With `to`,
+   * the id of an action done, it goes on, one action at a time, until that action is undone too: the
+   * history panel's "Undo to here". Only the last of the changes answers the request.
+   */
+  undo(origin?: Origin, to?: number): Promise<SessionOutcome> {
+    return this.#step('undo', origin, to);
   }
 
-  /** Redoes the newest undone action, and saves and announces it like a command. */
-  redo(origin?: Origin): Promise<SessionOutcome> {
-    return this.#step('redo', origin);
+  /**
+   * Redoes the newest undone action, and saves and announces it like a command. With `to`, the id of
+   * an action undone, it goes on until that action is redone too: "Redo to here".
+   */
+  redo(origin?: Origin, to?: number): Promise<SessionOutcome> {
+    return this.#step('redo', origin, to);
   }
 
   /**
@@ -486,30 +528,90 @@ export class Session implements LiveSession {
     return this.#closing;
   }
 
-  #step(kind: 'undo' | 'redo', origin: Origin | undefined): Promise<SessionOutcome> {
+  /**
+   * Undoes or redoes one action, or as many as reach the action `to`, each saved and announced on its
+   * own, in one turn of the queue so that nothing comes between them. A step that cannot be saved
+   * stops there, and the request is refused; the steps before it stay done.
+   */
+  #step(kind: 'undo' | 'redo', origin: Origin | undefined, to?: number): Promise<SessionOutcome> {
     if (this.#closed) return Promise.resolve(this.#refuse(origin, [CLOSED]));
     return this.#enqueue(() =>
       this.#guarded(origin, async () => {
-        const step: HistoryStep | undefined = (kind === 'undo' ? undoAction : redoAction)(
-          this.#state,
-          this.#history,
-        );
-        if (step === undefined)
-          return this.#refuse(origin, [
-            refusal(`nothing-to-${kind}`, `There is nothing to ${kind}.`),
-          ]);
-        const operations = [...step.operations];
-        const saved = await this.#save(step.state, operations);
-        if (!saved.ok) return this.#refuse(origin, saved.problems);
-        this.#state = step.state;
-        this.#history = step.history;
-        const { label, author } = step.entry;
-        return this.#announce(
-          { kind, label, author, operations, warnings: [], created: [] },
-          origin,
-        );
+        const steps = to === undefined ? 1 : this.#stepsTo(kind, to);
+        if (typeof steps !== 'number') return this.#refuse(origin, [steps]);
+        let stepped = 0;
+        try {
+          for (;;) {
+            const step: HistoryStep | undefined = (kind === 'undo' ? undoAction : redoAction)(
+              this.#state,
+              this.#history,
+            );
+            if (step === undefined)
+              return this.#refuse(origin, [
+                refusal(`nothing-to-${kind}`, `There is nothing to ${kind}.`),
+              ]);
+            const operations = [...step.operations];
+            const saved = await this.#save(step.state, operations);
+            if (!saved.ok) return this.#refuse(origin, saved.problems);
+            this.#state = step.state;
+            this.#history = step.history;
+            stepped += 1;
+            const { label, author } = step.entry;
+            const last = stepped === steps;
+            const announced = this.#announce(
+              { kind, label, author, operations, warnings: [], created: [] },
+              last ? origin : undefined,
+            );
+            if (last) return announced;
+          }
+        } finally {
+          if (stepped > 0) this.#listHistory();
+        }
       }),
     );
+  }
+
+  /** How many undos, or redos, reach the action `to` and undo or redo it too, or why none can. */
+  #stepsTo(kind: 'undo' | 'redo', to: number): number | Problem {
+    const { done, undone } = this.#history;
+    const named = (entry: HistoryEntry) => this.#stamps.get(entry)?.id === to;
+    const inDone = done.findIndex(named);
+    const inUndone = undone.findIndex(named);
+    if (kind === 'undo') {
+      if (inDone >= 0) return done.length - inDone;
+      return refusal(
+        'nothing-to-undo',
+        inUndone >= 0
+          ? 'That action is undone already, so nothing was undone.'
+          : 'That action is no longer in the history, so nothing was undone.',
+      );
+    }
+    if (inUndone >= 0) return undone.length - inUndone;
+    return refusal(
+      'nothing-to-redo',
+      inDone >= 0
+        ? 'That action is not undone, so nothing was redone.'
+        : 'That action is no longer in the history, so nothing was redone.',
+    );
+  }
+
+  /** The id and time of an action of the history, given now if it has none yet. */
+  #stampOf(entry: HistoryEntry): { id: number; time: number } {
+    let stamp = this.#stamps.get(entry);
+    if (stamp === undefined) {
+      stamp = { id: (this.#lastAction += 1), time: this.#now() };
+      this.#stamps.set(entry, stamp);
+    }
+    return stamp;
+  }
+
+  #now(): number {
+    return (this.#options.now ?? Date.now)();
+  }
+
+  /** Tells every open app the history as it is now; Claude does not hear of it. */
+  #listHistory(): void {
+    this.#broadcast({ type: 'history/listed', actions: this.actions });
   }
 
   /** Runs work after the work already asked for. */
@@ -854,6 +956,7 @@ export class Session implements LiveSession {
     };
     this.#broadcast(announcement);
     for (const client of this.#claudes) this.#send(client, announcement);
+    this.#listHistory();
     const warnings = this.warnings();
     if (warnings.length > 0) this.#broadcast(warningNotice(warnings));
   }
