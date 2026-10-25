@@ -36,6 +36,7 @@ import {
   readableTextColors,
 } from './palette';
 import { patternMatrix, patternTexture } from './patterns';
+import { drawnAsCurve, drawnCurve, strokeCurve } from './routing/curves';
 import {
   ARROW_WIDTH,
   type ArrowShape,
@@ -241,11 +242,15 @@ export function writeShapeLabels(
 /** Draws relations along their routes, with an arrowhead at the end of directed ones. */
 export function drawRelationRoutes(graphics: Graphics, lines: readonly RelationLine[]): void {
   for (const line of lines) {
-    strokeRoute(graphics, line.route, line.arrowhead, {
-      color: line.stroke,
-      width: line.width,
-      dash: line.dash,
-    });
+    if (drawnAsCurve(line)) {
+      strokeCurve(graphics, drawnCurve(line), { color: line.stroke, width: line.width });
+    } else {
+      strokeRoute(graphics, line.route, line.arrowhead, {
+        color: line.stroke,
+        width: line.width,
+        dash: line.dash,
+      });
+    }
     if (line.arrowhead) fillArrowhead(graphics, line.arrowhead, line.stroke);
   }
 }
@@ -261,6 +266,10 @@ export function drawRoutePieces(
 ): void {
   for (const piece of pieces) {
     const { line } = piece;
+    if (piece.curve && line.dash === 'solid') {
+      strokeCurve(graphics, piece.curve, { color: line.stroke, width: line.width });
+      continue;
+    }
     strokeLine(
       graphics,
       piece.points,

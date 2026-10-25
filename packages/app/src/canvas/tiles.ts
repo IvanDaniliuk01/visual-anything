@@ -26,6 +26,8 @@ import {
   type Rect,
 } from './geometry';
 import type { IndexedScene } from './hit';
+import { curvePieces } from './routing/curves';
+import type { CurveSpan } from './routing/hand';
 import type { ElementShape, RelationLine } from './scene';
 import { rectAround } from './spatial';
 
@@ -65,6 +67,8 @@ export interface RoutePiece {
   bendAtEnd: boolean;
   /** Whether it is the route's last piece, which ends at the base of the arrowhead when there is one. */
   last: boolean;
+  /** On a curved line, the spans of the curve this piece draws; `points` holds them flattened. */
+  curve?: CurveSpan[];
 }
 
 /** The relations a tile draws: the pieces of their routes in its cell, their arrowheads and names. */
@@ -114,7 +118,9 @@ export function routePieces(line: RelationLine): RoutePiece[] {
   const known = piecesOfLines.get(line);
   if (known) return known;
   const route = drawnRoute(line);
-  const pieces = crossesFew(route) ? cutAtCells(line, route) : [whole(line, route)];
+  const pieces =
+    curvePieces(line, cellOf) ??
+    (crossesFew(route) ? cutAtCells(line, route) : [whole(line, route)]);
   piecesOfLines.set(line, pieces);
   return pieces;
 }
