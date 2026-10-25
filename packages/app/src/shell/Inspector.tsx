@@ -12,6 +12,7 @@ import { FreeShapeAppearance } from './inspector/FreeShapeAppearance';
 import { inspectedKey, inspectedOf } from './inspector/inspected';
 import { Detail } from './inspector/parts';
 import { RelationInspector } from './inspector/RelationInspector';
+import { ScopeEditor } from './inspector/ScopeEditor';
 import { SelectionAppearance } from './inspector/SelectionAppearance';
 import './inspector.css';
 
@@ -148,6 +149,8 @@ function ViewDetails({ view, scene, definitions }: InspectorProps) {
         <Detail term={t('Relations')}>{scene.relations.length}</Detail>
         <Detail term={t('Free shapes')}>{scene.notes.length + scene.arrows.length}</Detail>
       </dl>
+      {/* What the view shows of the model, and its scope's editor (ADR-0040). */}
+      <ScopeEditor view={view} />
     </section>
   );
 }

@@ -46,6 +46,7 @@ import { MAX_BANDS, plannedTiles } from '../canvas/tiles';
 import '../theme/tokens.css';
 import { THEMES } from '../theme/themes';
 import { RESTYLING, SHOWN, TARGET_FPS, WORK, addRow, percentile, showVerdict } from './report';
+import { measureScopeChanges } from './scope';
 import {
   LARGE_TABLE,
   LARGE_TABLE_COLUMNS,
@@ -351,6 +352,11 @@ async function run(): Promise<void> {
   const timed: Timed[] = [await measureEdits(10)];
   if (tables) timed.push(await measureColumnEdits(10));
   timed.push(await measureLayouts(4));
+  // Changes of the view's scope (ADR-0040): `scope.ts` beside this file.
+  if (!tables) {
+    const bench = { project: () => project, show: showProject, settle, view: VIEW };
+    timed.push(...(await measureScopeChanges(bench, 4)));
+  }
   if (!tables && (overlap === 'none' || overlap === 'stairs'))
     timed.push(await measureRestacks(20));
   timed.push(...(await measureExports()));

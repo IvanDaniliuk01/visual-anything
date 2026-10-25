@@ -6,6 +6,7 @@
 import {
   deleteStep,
   describeStep,
+  isOutside,
   modelIndexOf,
   moveStep,
   repairStep,
@@ -25,6 +26,7 @@ import { fill } from '../i18n/translate';
 import { TextControl } from '../shell/inspector/controls';
 import { expandCommand, stepOf, stepsCommand } from './commands';
 import { jsonText, readJson, sameJson } from './json';
+import { OutsideNote } from './OutsideNote';
 
 interface StepDetailsProps {
   project: ProjectSnapshot;
@@ -90,7 +92,7 @@ export function StepDetails({ project, scenario, entry, send, onShow }: StepDeta
   const at = entry.first;
   const step = scenario.steps[at];
   if (!step) return null;
-  return (
+  const details = (
     <StepEditor
       project={project}
       scenario={scenario}
@@ -101,6 +103,20 @@ export function StepDetails({ project, scenario, entry, send, onShow }: StepDeta
       send={send}
       onShow={onShow}
     />
+  );
+  // A step outside the view says so first (ADR-0040).
+  if (!isOutside(entry)) return details;
+  return (
+    <>
+      <OutsideNote
+        project={project}
+        scenario={scenario}
+        step={step}
+        editable={editable}
+        send={send}
+      />
+      {details}
+    </>
   );
 }
 

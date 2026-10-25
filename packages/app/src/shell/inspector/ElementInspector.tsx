@@ -21,6 +21,7 @@ import { End, FirstOnes, Lineage, SelectButton, Title } from './parts';
 import { RowsSection } from './RowsSection';
 import { perform } from './send';
 import { sameOptionalText } from './text';
+import { ScopeSection } from './ScopeSection';
 import { ViewSection } from './ViewSection';
 
 interface ElementInspectorProps {
@@ -99,6 +100,7 @@ export function ElementInspector({
         onSelect={onSelect}
       />
       <ViewSection element={element} />
+      <ScopeSection element={element} />
       <RowsSection element={element} />
       <AttributesSection
         of="element"

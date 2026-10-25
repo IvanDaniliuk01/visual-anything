@@ -8,9 +8,11 @@ import {
   brokenStepsOf,
   builtinPackage,
   definitionsIn,
+  isOutside,
   modelIndexOf,
   nestingTypesInView,
   scenarioTimeline,
+  shownByScope,
   stackingOrderOf,
   type ProjectSnapshot,
 } from '@visual-anything/core';
@@ -343,7 +345,7 @@ export function readView(state: ProjectSnapshot, viewId: Id) {
       }))
       .filter((each) => each.backToFront.length > 0),
   ];
-  const { collapsed, routes } = view;
+  const { collapsed, routes, scope } = view;
   return {
     id: view.id,
     name: view.name,
@@ -351,12 +353,40 @@ export function readView(state: ProjectSnapshot, viewId: Id) {
     perspective: view.perspective,
     nestingRelationTypes: view.nestingRelationTypes,
     arrangedBy,
+    // How much of the model it shows, through its scope when it has one (ADR-0040).
+    shows: shownCounts(state, view),
+    ...(scope === undefined ? {} : { scope }),
     positions: view.positions,
     freeShapes: view.freeShapes,
     stacking,
     ...(collapsed === undefined ? {} : { collapsed }),
     // The routes chosen by hand, by relation; every other relation is routed automatically.
     ...(routes === undefined ? {} : { routes }),
+  };
+}
+
+/**
+ * How much of the model a view shows: its elements and relations out of the model's, World left out,
+ * and whether that is the whole model or what its scope gives (ADR-0040).
+ */
+export function shownCounts(state: ProjectSnapshot, view: ProjectSnapshot['views'][number]) {
+  const { elements, relations } = state.model;
+  if (view.scope === undefined) {
+    return {
+      whole: true,
+      elements: elements.length,
+      ofElements: elements.length,
+      relations: relations.length,
+      ofRelations: relations.length,
+    };
+  }
+  const shown = shownByScope(state, view);
+  return {
+    whole: false,
+    elements: shown.elements.length - 1,
+    ofElements: elements.length,
+    relations: relations.filter((relation) => shown.relation(relation.id)).length,
+    ofRelations: relations.length,
   };
 }
 
@@ -378,6 +408,7 @@ export function readScenario(state: ProjectSnapshot, scenarioId: Id) {
       : [],
   );
   const broken = brokenStepsOf(state, scenario);
+  const outside = timeline.entries.filter(isOutside).map((entry) => entry.first + 1);
   return {
     id: scenario.id,
     name: scenario.name,
@@ -409,8 +440,13 @@ export function readScenario(state: ProjectSnapshot, scenarioId: Id) {
       step: each.step,
       missing: each.missing,
     })),
-    // How it plays over its view now: consecutive steps inside a collapsed container play as one.
-    playsAs: { steps: timeline.entries.length, aggregated },
+    // How it plays over its view now: consecutive steps inside a collapsed container play as one,
+    // and a step whose relations the view's scope shows none of plays outside the view (ADR-0040).
+    playsAs: {
+      steps: timeline.entries.length,
+      aggregated,
+      ...(outside.length === 0 ? {} : { outsideTheView: outside }),
+    },
   };
 }
 

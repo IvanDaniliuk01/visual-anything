@@ -18,7 +18,12 @@
  * resizes, the lines are kept as they were. A build is always equal, field by field, to one made from
  * nothing (`buildSceneAfresh`).
  */
-import { imagesIn, type ProjectSnapshot, type RouteStyle } from '@visual-anything/core';
+import {
+  imagesIn,
+  shownByScope,
+  type ProjectSnapshot,
+  type RouteStyle,
+} from '@visual-anything/core';
 import type {
   Arrow,
   Color,
@@ -55,6 +60,7 @@ import { collapsedIn } from './collapse';
 import type { Dash, ShapeKind } from './geometry';
 import { arrowheadAt, directionOf, type Arrowhead, type Point, type Rect } from './geometry';
 import { midpointOf } from './route';
+import { leavingByElement, scopedTree } from './scope';
 import type { CurveSpan } from './routing/hand';
 import {
   pointsOf,
@@ -176,6 +182,12 @@ export interface ElementShape {
   fitted?: { name: string; detail: string };
   /** The image its appearance shows, placed on it (`shape-images.ts`). */
   image?: ShapeImage;
+  /**
+   * In a view with a scope (ADR-0040): the relations that leave the view from its element, because
+   * their other end is out of scope, in model order (`scope.ts`); its mark counts them. Absent when
+   * none leave.
+   */
+  leaving?: readonly Id[];
   /**
    * Present when its image is its whole drawing: the plate the picture sits on, with the band its name
    * is written in. Routes, the selection and pointing go by it rather than by `rect`.
@@ -359,6 +371,10 @@ interface Built {
   /** The relations of those types, in model order, that the containment tree was made from. */
   nestingRelations: readonly Relation[];
   tree: Placement[];
+  /** The elements the view's scope shows, in model order; absent for a view without a scope. */
+  shown: readonly Id[] | undefined;
+  /** The relations that leave the view from each element it shows (`scope.ts`). */
+  leaving: ReadonlyMap<Id, readonly Id[]>;
   collapsed: ReadonlySet<Id>;
   /**
    * For each element that only collapsed containers hold, the index of the shape of the outermost
@@ -496,10 +512,31 @@ function layOut(
     before.nesting === nesting &&
     sameIds(before.model.elements, model.elements) &&
     sameItems(before.nestingRelations, nestingRelations);
+  // What the view's scope shows (ADR-0040), kept while the scope and what it reads are as they were.
+  const scope = view.scope;
+  const scopeKept =
+    before !== undefined &&
+    before.view.scope === scope &&
+    before.model === model &&
+    before.packages === packages &&
+    before.definitions === definitions;
+  const shown =
+    scope === undefined
+      ? undefined
+      : scopeKept && before
+        ? before.shown
+        : shownByScope(project, view).elements;
+  const sameShown =
+    before !== undefined &&
+    (shown === before.shown ||
+      (shown !== undefined && before.shown !== undefined && sameItems(shown, before.shown)));
   const tree =
-    sameContainment && before
+    sameContainment && sameShown && before
       ? before.tree
-      : containmentTree(model, (relationType) => nesting.has(relationType));
+      : scope === undefined
+        ? containmentTree(model, (relationType) => nesting.has(relationType))
+        : scopedTree(project, view);
+  const leaving = scopeKept && before ? before.leaving : leavingByElement(project, view);
   const collapsed = collapsedIn(view);
   const free = freeShapesOf(view, before);
 
@@ -511,10 +548,20 @@ function layOut(
     before.definitions === definitions
       ? before
       : undefined;
-  const replaced = base && replaceShapes(project, view, definitions, tree, free, base);
+  const replaced = base && replaceShapes(project, view, definitions, tree, free, base, leaving);
   const placed =
     replaced ??
-    placeShapes(project, view, definitions, tree, collapsed, free, keep ? before : undefined, keep);
+    placeShapes(
+      project,
+      view,
+      definitions,
+      tree,
+      collapsed,
+      free,
+      keep ? before : undefined,
+      keep,
+      leaving,
+    );
   const { shapes } = placed;
 
   const drawn = drawRelations(
@@ -577,6 +624,8 @@ function layOut(
     nesting,
     nestingRelations,
     tree,
+    shown,
+    leaving,
     collapsed,
     hiddenIn: placed.hiddenIn,
     layout,
@@ -741,6 +790,8 @@ export interface Measured {
   folded?: number;
   /** For a shape that draws its contents as rows, and for a row (`rowShapes.ts`). */
   rows?: RowParts;
+  /** The relations that leave the view from its element (`scope.ts`). */
+  leaving?: readonly Id[];
 }
 
 /** The view's shapes, and how they compare with the last build's. */
@@ -848,6 +899,7 @@ function placeShapes(
   free: { notes: readonly NoteShape[]; arrows: readonly ArrowShape[] },
   before: Built | undefined,
   keep: boolean,
+  leaving: ReadonlyMap<Id, readonly Id[]>,
 ): Placed {
   const { model } = project;
   const elements = elementsById(model.elements);
@@ -861,14 +913,17 @@ function placeShapes(
       component: ESSENCE_ID,
       name: placement.element,
     };
-    return measured(
-      placement,
-      element,
-      ...lookAndDetail(element, definitions, kept, started),
-      positions.get(positionKey(placement.element, placement.container)),
-      collapsed.has(placement.element),
-      (asRows) => placement.contents.map((content) => measure(content, asRows)),
-      asRow,
+    return withLeaving(
+      measured(
+        placement,
+        element,
+        ...lookAndDetail(element, definitions, kept, started),
+        positions.get(positionKey(placement.element, placement.container)),
+        collapsed.has(placement.element),
+        (asRows) => placement.contents.map((content) => measure(content, asRows)),
+        asRow,
+      ),
+      leaving,
     );
   };
   const worldContents = tree.map((placement) => measure(placement));
@@ -992,6 +1047,7 @@ function replaceShapes(
   tree: readonly Placement[],
   free: { notes: readonly NoteShape[]; arrows: readonly ArrowShape[] },
   base: Built,
+  leaving: ReadonlyMap<Id, readonly Id[]>,
 ): Placed | undefined {
   const { model } = project;
   const index = treeIndexOf(tree);
@@ -1024,6 +1080,14 @@ function replaceShapes(
     };
     for (const id of after.keys()) differ(id);
     for (const id of before.keys()) if (!after.has(id)) differ(id);
+  }
+  // The elements whose relations that leave the view changed (ADR-0040).
+  if (base.leaving !== leaving) {
+    for (const id of new Set([...base.leaving.keys(), ...leaving.keys()])) {
+      if (!sameItems(base.leaving.get(id) ?? NO_IDS, leaving.get(id) ?? NO_IDS)) {
+        for (const placement of index.byElement.get(id) ?? []) mark(placement);
+      }
+    }
   }
   const { positions, changed } = positionsAfter(base.view, view, model.world.id);
   if (changed.length > 0) {
@@ -1063,18 +1127,21 @@ function replaceShapes(
     const [look, detail] = lookAndDetail(element, definitions, kept, started);
     // A shape that starts or stops drawing its contents as rows changes which shapes there are.
     if (!asRow && rowsChanged(old[at] as ElementShape, look)) throw new StaleShapes();
-    return measured(
-      placement,
-      element,
-      look,
-      detail,
-      positions.get(positionKey(placement.element, placement.container)),
-      collapsed.has(placement.element),
-      (asRows) =>
-        placement.contents.map((content, each) =>
-          measureAt(inside[each] as number, content, asRows),
-        ),
-      asRow,
+    return withLeaving(
+      measured(
+        placement,
+        element,
+        look,
+        detail,
+        positions.get(positionKey(placement.element, placement.container)),
+        collapsed.has(placement.element),
+        (asRows) =>
+          placement.contents.map((content, each) =>
+            measureAt(inside[each] as number, content, asRows),
+          ),
+        asRow,
+      ),
+      leaving,
     );
   };
   let worldContents: Box[];
@@ -1223,7 +1290,7 @@ function shapeFor(
     if (extent.x + extent.width > x2) x2 = extent.x + extent.width;
     if (extent.y + extent.height > y2) y2 = extent.y + extent.height;
   }
-  const { element, look, detail, position, folded } = parts;
+  const { element, look, detail, position, folded, leaving } = parts;
   const { appearance } = look;
   const points =
     before && samePoints(before.points, appearance.connectionPoints)
@@ -1277,7 +1344,8 @@ function shapeFor(
     before.collapsed?.contents === folded &&
     before.points === points &&
     sameShapeImage(before.image, placed?.image) &&
-    sameImageRect(before.plate, placed?.plate)
+    sameImageRect(before.plate, placed?.plate) &&
+    sameItems(before.leaving ?? NO_IDS, leaving ?? NO_IDS)
   ) {
     return before;
   }
@@ -1313,7 +1381,18 @@ function shapeFor(
   if (points) shape.points = points;
   if (placed) shape.image = placed.image;
   if (placed?.plate) shape.plate = placed.plate;
+  if (leaving !== undefined && leaving.length > 0) shape.leaving = leaving;
   return shape;
+}
+
+const NO_IDS: readonly Id[] = [];
+
+/** A measured box with the relations that leave the view from its element, when any do. */
+function withLeaving(box: Box, leaving: ReadonlyMap<Id, readonly Id[]>): Box {
+  const parts = box.measured;
+  const list = parts && leaving.get(parts.element.id);
+  if (parts && list !== undefined) parts.leaving = list;
+  return box;
 }
 
 /**

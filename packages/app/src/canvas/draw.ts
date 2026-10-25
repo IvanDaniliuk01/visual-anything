@@ -35,6 +35,7 @@ import {
   contrastRatio,
   readableTextColors,
 } from './colors';
+import { drawLeavingMark, writeLeavingMark } from './leavingMark';
 import { patternMatrix, patternTexture } from './patterns';
 import { drawnAsCurve, drawnCurve, strokeCurve } from './routing/curves';
 import { LIGHT_ROWS, drawRowsShape, rowsBlocks, writeRowsText, type RowColors } from './rowsDraw';
@@ -215,6 +216,7 @@ export function drawShapeOutlines(
   for (const shape of shapes) {
     if (drawRowsShape(graphics, shape, rowColors)) {
       drawToggle(graphics, shape);
+      drawLeavingMark(graphics, shape);
       continue;
     }
     if (shape.collapsed !== undefined) {
@@ -228,6 +230,7 @@ export function drawShapeOutlines(
       drawBody(graphics, shape.kind, bodyRectOf(shape), shape);
     }
     drawToggle(graphics, shape);
+    drawLeavingMark(graphics, shape);
   }
 }
 
@@ -272,15 +275,13 @@ export function writeShapeLabels(
 ): Container[] {
   const texts: Container[] = [];
   for (const shape of shapes) {
-    writeShapeText(
-      shape,
-      (options, detail, room) => {
-        if (detail && !details) return;
-        const text = make(options, detail ? 'detail' : 'name', room);
-        if (text) texts.push(text);
-      },
-      backdrop,
-    );
+    const write = (options: CanvasTextOptions, detail: boolean, room: number) => {
+      if (detail && !details) return;
+      const text = make(options, detail ? 'detail' : 'name', room);
+      if (text) texts.push(text);
+    };
+    writeShapeText(shape, write, backdrop);
+    writeLeavingMark(shape, write);
   }
   return texts;
 }

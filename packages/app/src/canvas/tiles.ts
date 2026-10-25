@@ -432,6 +432,8 @@ export function shapeSignature(shape: ElementShape): string {
       shape.row ?? -1,
       shape.fitted ? `${shape.fitted.name}\u0000${shape.fitted.detail}` : '',
       imageSignature(shape),
+      // The relations that leave the view, which its mark counts (ADR-0040).
+      shape.leaving?.length ?? 0,
     ].join(' ');
     signatures.set(shape, signature);
   }

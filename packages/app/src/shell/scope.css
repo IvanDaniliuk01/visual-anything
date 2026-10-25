@@ -1,0 +1,74 @@
+/*
+ * What a view's scope shows in the panels (ADR-0040): the outline's menu, which opens where it is
+ * asked for, over everything; and the inspector's scope editor and the relations that leave the view.
+ * Text meets WCAG 2.1 AA contrast (4.5:1) in both themes, from the tokens.
+ */
+
+/* The outline's menu takes the shape menu's look, placed in the window rather than over the canvas. */
+.outline-menu {
+  position: fixed;
+}
+
+/* The scope editor: one line per rule or element, its kind first, its button at its end. */
+.scope-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0.25rem 0 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.scope-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.scope-list .scope-what {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.scope-kind {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.scope-heading {
+  margin: 0.6rem 0 0.15rem;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.scope-summary {
+  margin: 0.25rem 0;
+}
+
+.scope-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.25rem 0 0.5rem;
+}
+
+.scope-form {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.4rem 0;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.scope-form label {
+  font-size: var(--text-sm);
+}
+
+.scope-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}

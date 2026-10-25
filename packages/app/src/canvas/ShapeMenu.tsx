@@ -15,6 +15,7 @@ import { menuKeyDown, useMenuInsideFrame, useOutsidePress } from './focus';
 import type { Point } from './geometry';
 import type { IndexedScene } from './hit';
 import type { ElementShape } from './scene';
+import { scopeActions, type ScopeAction, type ScopeActions } from './scopeActions';
 import { STACKING_MOVES, STACKING_NAMES, type StackingAction, type StackingMove } from './stacking';
 
 export interface ShapeMenuProps {
@@ -50,6 +51,8 @@ export interface ShapeMenuProps {
   collapse?: CollapseActions;
   /** Collapse "X" or Expand "X", for the selected containers, through I1's command. */
   onCollapse?: (action: CollapseAction, collapsed: boolean) => void;
+  /** Leave out of this view, or Add to this view, as `scopeActions` offers them (ADR-0040). */
+  onScope?: (action: ScopeAction) => void;
 }
 
 /** How many of the other shapes under the pointer the menu lists. */
@@ -82,6 +85,7 @@ export function ShapeMenu({
   onClose,
   collapse,
   onCollapse,
+  onScope,
 }: ShapeMenuProps) {
   const t = useT();
   const menu = useMenuInsideFrame<HTMLDivElement>(at);
@@ -107,6 +111,7 @@ export function ShapeMenu({
       ? (modelIndexOf(project).element(shape.container)?.name ?? shape.container)
       : undefined;
   const others = (under ?? []).filter((each) => each.key !== shape.key).slice(0, UNDER_LISTED);
+  const scope = onScope ? scopeActions(project, viewId, selection, shape.element) : {};
   const change = (make: () => ChangeContainerCommand | undefined) => () => {
     const made = make();
     if (made) onChange(made);
@@ -195,6 +200,9 @@ export function ShapeMenu({
           />
         </>
       )}
+      {onScope && (scope.leaveOut || scope.add) && (
+        <ScopeItems scope={scope} editable={editable} onScope={onScope} />
+      )}
       {others.length > 0 && (
         <>
           <div role="separator" className="canvas-menu-separator" />
@@ -213,6 +221,41 @@ export function ShapeMenu({
         </>
       )}
     </div>
+  );
+}
+
+/** Leave out of this view and Add to this view (ADR-0040), after a separator. */
+function ScopeItems({
+  scope,
+  editable,
+  onScope,
+}: {
+  scope: ScopeActions;
+  editable: boolean;
+  onScope: (action: ScopeAction) => void;
+}) {
+  const t = useT();
+  const { leaveOut, add } = scope;
+  return (
+    <>
+      <div role="separator" className="canvas-menu-separator" />
+      {leaveOut && (
+        <Item
+          label={leaveOut.label}
+          title={t('Deletes nothing: it stays in the model and in the other views.')}
+          readOnly={!editable}
+          onPress={() => onScope(leaveOut)}
+        />
+      )}
+      {add && (
+        <Item
+          label={add.label}
+          title={t('Brings in the far ends of the relations that leave this view from it.')}
+          readOnly={!editable}
+          onPress={() => onScope(add)}
+        />
+      )}
+    </>
   );
 }
 
