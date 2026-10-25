@@ -144,6 +144,20 @@ describe('the find field', () => {
     expect(within(inspector()).getAllByText('Patient').length).toBeGreaterThan(0);
   });
 
+  it('stops listing the views on Escape, back on what it found, and closes on the next', async () => {
+    openShell();
+    const list = await findFromCanvas('patient');
+    const found = within(list).getAllByRole('option').length;
+    fireEvent.keyDown(field(), { key: 'Enter', altKey: true });
+    expect(within(list).getAllByRole('option')).toHaveLength(found + 2);
+    fireEvent.keyDown(field(), { key: 'Escape' });
+    const options = within(list).getAllByRole('option');
+    expect(options).toHaveLength(found);
+    expect(options[0]).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(field(), { key: 'Escape' });
+    expect(screen.queryByRole('search')).toBeNull();
+  });
+
   it('finds built-in names in Spanish too, and reads in Spanish', async () => {
     setCurrentLanguage('es');
     openShell();

@@ -145,10 +145,17 @@ export function FindBar({ project, definitions, viewId, goTo }: FindBarProps) {
 
   const choose = (option: Option) => jump(option.found, option.view);
 
+  /** Stops listing the views of a found thing, which becomes the chosen line again. */
+  const unlist = () => {
+    const at = options.findIndex((each) => each.kind === 'found' && each.key === listing);
+    setListing(undefined);
+    if (at >= 0) setActive(at);
+  };
+
   const listViews = (option: Option) => {
     const key = option.kind === 'found' ? option.key : keyOf(option.found.entry);
     if (listing === key) {
-      setListing(undefined);
+      unlist();
       return;
     }
     setListing(key);
@@ -190,7 +197,7 @@ export function FindBar({ project, definitions, viewId, goTo }: FindBarProps) {
         return;
       case 'Escape':
         event.preventDefault();
-        if (listing !== undefined) setListing(undefined);
+        if (listing !== undefined) unlist();
         else close();
         return;
     }
