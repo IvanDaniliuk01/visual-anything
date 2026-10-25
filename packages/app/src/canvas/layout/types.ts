@@ -40,11 +40,20 @@ export interface LayoutShape {
   points?: readonly LayoutConnectionPoint[];
 }
 
+/** Where a relation's end is fixed on its shape's border, chosen by hand in the view (ADR 0039). */
+export interface LayoutPort {
+  side: LayoutConnectionPoint['side'];
+  at: number;
+}
+
 /** A drawn relation between two shapes, by their indexes. */
 export interface LayoutRelation {
   relation: Id;
   from: number;
   to: number;
+  /** Where the view routes its ends by hand: ELK takes them as fixed ports. */
+  fromPort?: LayoutPort;
+  toPort?: LayoutPort;
 }
 
 /** Everything one layout works from. */
