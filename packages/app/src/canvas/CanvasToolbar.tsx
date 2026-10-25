@@ -7,6 +7,13 @@ import { GridToggles } from './GridToggles';
 import type { LayoutControl } from './layout/useLayout';
 import type { GridOptions } from './renderer';
 import {
+  OverflowButton,
+  OverflowDiv,
+  OverflowToolbar,
+  Overflowing,
+  ToolbarMore,
+} from './ToolbarMore';
+import {
   STACKING_KEYS,
   STACKING_MOVES,
   STACKING_NAMES,
@@ -78,7 +85,7 @@ export function CanvasToolbar({
   onGrid,
 }: CanvasToolbarProps) {
   return (
-    <div className="canvas-toolbar" role="toolbar" aria-label="Canvas">
+    <OverflowToolbar className="canvas-toolbar" role="toolbar" aria-label="Canvas">
       <label className="canvas-toolbar-add">
         <span className="visually-hidden">{addPlace?.label ?? 'Add an element'}</span>
         <ComponentSelect
@@ -91,14 +98,19 @@ export function CanvasToolbar({
           {...(onAddLeave ? { onLeave: onAddLeave } : {})}
         />
       </label>
-      <button type="button" disabled={!editable} onClick={onAddNote}>
+      <OverflowButton group="shapes" type="button" disabled={!editable} onClick={onAddNote}>
         Note
-      </button>
-      <button type="button" disabled={!editable} onClick={onAddArrow}>
+      </OverflowButton>
+      <OverflowButton group="shapes" type="button" disabled={!editable} onClick={onAddArrow}>
         Arrow
-      </button>
+      </OverflowButton>
       {stacking && (
-        <div className="canvas-toolbar-stacking" role="group" aria-label="Stacking order">
+        <OverflowDiv
+          group="stacking"
+          className="canvas-toolbar-stacking"
+          role="group"
+          aria-label="Stacking order"
+        >
           {STACKING_MOVES.map((move) => (
             <button
               key={move}
@@ -112,11 +124,14 @@ export function CanvasToolbar({
               <span className="visually-hidden">{STACKING_NAMES[move]}</span>
             </button>
           ))}
-        </div>
+        </OverflowDiv>
       )}
-      <ExploreControls />
+      <Overflowing group="explore">
+        <ExploreControls />
+      </Overflowing>
       {layout && (
-        <button
+        <OverflowButton
+          group="layout"
           type="button"
           title={layout.title}
           aria-disabled={layout.enabled ? undefined : true}
@@ -124,9 +139,13 @@ export function CanvasToolbar({
           onClick={layout.run}
         >
           {layout.label}
-        </button>
+        </OverflowButton>
       )}
-      {grid && onGrid && <GridToggles grid={grid} onGrid={onGrid} />}
+      {grid && onGrid && (
+        <Overflowing group="grid">
+          <GridToggles grid={grid} onGrid={onGrid} />
+        </Overflowing>
+      )}
       <span className="canvas-toolbar-spacer" />
       <button type="button" aria-label="Zoom out" onClick={() => onZoom(1 / 1.25)}>
         −
@@ -137,11 +156,12 @@ export function CanvasToolbar({
       <button type="button" aria-label="Zoom in" onClick={() => onZoom(1.25)}>
         +
       </button>
-      <button type="button" onClick={onFit}>
+      <OverflowButton group="fit" type="button" onClick={onFit}>
         Fit
-      </button>
+      </OverflowButton>
+      <ToolbarMore />
       <ExploreStrip />
-    </div>
+    </OverflowToolbar>
   );
 }
 

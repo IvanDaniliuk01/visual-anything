@@ -65,7 +65,7 @@ export function ExportControl({
         onClick={available ? () => setOpen(true) : undefined}
       >
         <DownloadIcon />
-        {t('Export…')}
+        <span className="export-label">{t('Export…')}</span>
       </button>
       {open && viewName !== undefined && (
         <ExportDialog

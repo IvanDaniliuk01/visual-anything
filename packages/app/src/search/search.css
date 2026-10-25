@@ -2,13 +2,14 @@
 
 .find-bar {
   position: absolute;
-  top: 3.4rem;
+  /* Below the canvas toolbar, wherever it ends (W26), so that it never covers the zoom controls. */
+  top: calc(var(--canvas-toolbar-bottom, 2.8rem) + 0.6rem);
   right: 0.6rem;
   z-index: var(--z-menu);
   display: flex;
   flex-direction: column;
   width: min(28rem, calc(100% - 1.2rem));
-  max-height: calc(100% - 4rem);
+  max-height: calc(100% - var(--canvas-toolbar-bottom, 2.8rem) - 1.2rem);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);

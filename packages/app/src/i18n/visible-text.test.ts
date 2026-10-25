@@ -33,6 +33,7 @@ const TRANSLATED = [
   'scenarios/PlaybackEmphasis.tsx',
   'guidance/GuidanceLayer.tsx',
   'canvas/ExploreBar.tsx',
+  'canvas/ToolbarMore.tsx',
   'canvas/DeleteDialog.tsx',
   'canvas/ContainerChooser.tsx',
   'canvas/RelationMenu.tsx',

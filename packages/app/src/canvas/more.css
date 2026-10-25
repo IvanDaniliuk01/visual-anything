@@ -1,0 +1,76 @@
+/*
+ * The canvas toolbar's More (W26): the toolbar keeps one row, and what does not fit shows in a panel
+ * under More, at the row's end. Only the tokens of styles.css.
+ */
+
+/* Adding elements stays in the row; with everything else under More, it gives up width first. */
+.canvas-toolbar-add select {
+  max-width: 11rem;
+  text-overflow: ellipsis;
+}
+
+.canvas-toolbar[data-overflow='all'] .canvas-toolbar-add {
+  display: flex;
+  /* It takes the room left before the spacer, which pushes zooming to the end, takes any. */
+  flex: 1000 1 0;
+  min-width: 3.5rem;
+  max-width: max-content;
+}
+
+.canvas-toolbar[data-overflow='all'] .canvas-toolbar-add select {
+  width: 100%;
+  min-width: 0;
+}
+
+/* With everything under More, More shows only its icon; its name stays for screen readers. */
+.canvas-toolbar[data-overflow='all'] .canvas-toolbar-more-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.canvas-toolbar-more {
+  position: relative;
+}
+
+.canvas-toolbar-more-panel {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  width: max-content;
+  max-width: min(26rem, calc(100vw - 2rem));
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-2);
+}
+
+.canvas-toolbar-more-panel[hidden] {
+  display: none;
+}
+
+/* One line for each group under More, in the toolbar's own order. */
+.canvas-toolbar-more-slot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.canvas-toolbar-more-slot:empty {
+  display: none;
+}
+
+.canvas-toolbar-more > button:focus-visible,
+.canvas-toolbar-more-panel :is(button, select):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

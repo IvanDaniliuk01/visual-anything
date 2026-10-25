@@ -636,6 +636,10 @@ export const ui: Catalog = {
   'It sits over "{name}" without being inside it; Put inside "{name}" orders it among the shapes there.':
     'Está sobre "{name}" sin estar dentro; Poner dentro de "{name}" la ordena entre las formas de ahí.',
 
+  // The canvas toolbar's More, which holds what its row has no room for (W26).
+  More: 'Más',
+  'More of the canvas toolbar': 'Más de la barra de herramientas del lienzo',
+
   // The grid, the rulers and snapping (A3).
   '{x}, {y} in {container}': '{x}, {y} en {container}',
   'Grid and rulers': 'Cuadrícula y reglas',
