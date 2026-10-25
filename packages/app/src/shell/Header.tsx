@@ -17,8 +17,8 @@ interface HeaderProps {
   projectName?: string | undefined;
   /** The open view's name; absent when no view is open. */
   viewName?: string | undefined;
-  /** What acts on the open project, shown first at the header's end, such as Export. */
-  tools?: ReactNode;
+  /** Controls the shell adds for the open project, before undo and redo, such as Copy address and Export. */
+  actions?: ReactNode;
 }
 
 /**
@@ -27,7 +27,7 @@ interface HeaderProps {
  * screen, so it also keeps the person's preferences in step with the local program, and names the tab
  * after the open project.
  */
-export function Header({ projectName, viewName, tools }: HeaderProps) {
+export function Header({ projectName, viewName, actions }: HeaderProps) {
   const t = useT();
   const live = useContext(LiveContext);
   usePreferencesLink();
@@ -55,7 +55,7 @@ export function Header({ projectName, viewName, tools }: HeaderProps) {
         </dl>
       )}
       <div className="shell-actions">
-        {projectName !== undefined && tools}
+        {projectName !== undefined && actions}
         {projectName !== undefined && live !== null && <HistoryControls live={live} />}
         <LanguageControl />
         <ThemeControl />

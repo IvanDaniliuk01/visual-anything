@@ -86,6 +86,10 @@ export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
   { keys: 'Shift+G', does: 'Show or hide the grid' },
   { keys: 'Shift+R', does: 'Show or hide the rulers' },
   { keys: 'Space and drag', does: 'Pan' },
+  {
+    keys: 'Ctrl+F or ⌘F',
+    does: 'Find names, ids, components and attribute values in the project, and go to what was found',
+  },
   { keys: 'Tab', does: 'Leave the canvas' },
   ...ROUTE_KEYS,
 ];

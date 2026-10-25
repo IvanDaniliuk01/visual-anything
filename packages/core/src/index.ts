@@ -201,3 +201,27 @@ export { MAX_BEND_POINTS, routeOf } from './routes';
 // The live protocol's history list, and undo or redo up to an action (version 5).
 export type { HistoryListedMessage, ListedAction } from './protocol';
 export { readListedActions } from './protocol';
+// The view state a view address carries (ADR 0030's addendum of 2026-10-25).
+export type {
+  ViewCamera,
+  ViewFilters,
+  ViewFocus,
+  ViewState,
+  ViewStateCheck,
+  ViewStateRead,
+} from './view-state';
+export {
+  MAX_CAMERA_DISTANCE,
+  MAX_CAMERA_ZOOM,
+  MAX_VIEW_STATE_ADDRESS,
+  MAX_VIEW_STATE_IDS,
+  MIN_CAMERA_ZOOM,
+  VIEW_STATE_KEYS,
+  checkViewState,
+  readViewState,
+  viewStateProblems,
+  withViewState,
+  writeViewState,
+} from './view-state';
+// The limits a view state's filters share with guidance's.
+export { MAX_FILTER_CONDITIONS, MAX_FILTER_TEXT } from './protocol';

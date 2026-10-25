@@ -41,6 +41,8 @@ const TRANSLATED = [
   'canvas/routing/RouteMenu.tsx',
   'canvas/routing/RouteSection.tsx',
   'shell/inspector/RowsSection.tsx',
+  'view-state/CopyAddress.tsx',
+  'search/FindBar.tsx',
 ];
 
 /** The attributes whose text people read or hear. */

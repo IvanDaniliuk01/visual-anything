@@ -118,6 +118,10 @@ _Avoid_: bundle, summary edge
 A projection of the model onto the canvas, seen from exactly one perspective and keeping its own positions.
 _Avoid_: page, diagram, layer
 
+**View state**:
+Where someone is in a project and how they read it there: the open view, where the canvas looks, what is selected, the filters, focus mode, and the scenario and step played, each named by id. A view address carries one; tour steps and the read-only page are to reuse it.
+_Avoid_: snapshot, bookmark
+
 **Component palette**:
 The list in the canvas toolbar that new elements are created from.
 _Avoid_: palette (alone), toolbox
@@ -285,5 +289,9 @@ _Avoid_: skin, palette
 ### The local program
 
 **Launch address**:
-An address that opens a project in the browser once, within two minutes of being made. The local program opens or prints one instead of an address carrying the session token, which never leaves the program; the tab gets the token when it opens and keeps it for reloads.
+An address that opens a project in the browser once, within two minutes of being made. The local program opens or prints one instead of an address carrying the session token, which never leaves the program; the tab gets the token when it opens and keeps it for reloads. It can carry a view state too, which the tab applies once it has the token.
 _Avoid_: magic link, one-time link
+
+**View address**:
+An address of the app whose fragment holds a view state and no secret. Each tab keeps its own in step with what it shows, so a reload comes back there, and Copy address copies it; pasted into a tab that has the project open, it opens the project at that view state.
+_Avoid_: deep link, permalink
