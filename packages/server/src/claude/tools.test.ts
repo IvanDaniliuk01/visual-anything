@@ -350,6 +350,27 @@ describe('other write tools', () => {
     expect(session.snapshot.packages.find((each) => each.id === 'shop')?.name).toBe('Shop things');
   });
 
+  it('give a package a version, a license and an attribution, and take them out (ADR 0047)', async () => {
+    await value('update_package', {
+      id: 'shop',
+      version: '1.0.0',
+      license: 'CC-BY-4.0',
+      attribution: 'Jane Doe',
+    });
+    expect(session.snapshot.packages.find((each) => each.id === 'shop')).toMatchObject({
+      version: '1.0.0',
+      license: 'CC-BY-4.0',
+      attribution: 'Jane Doe',
+    });
+    expect(await failure('update_package', { id: 'shop', license: 'CC BY' })).toContain(
+      'SPDX license identifier',
+    );
+    await value('update_package', { id: 'shop', version: null, license: null, attribution: null });
+    expect(session.snapshot.packages.find((each) => each.id === 'shop')).not.toHaveProperty(
+      'license',
+    );
+  });
+
   it('change a component trait by trait, or say it is not there yet', async () => {
     const args = { id: 'shop.cart', name: 'Basket', appearance: { fill: '#E3F2E9' } };
     if (!coreKnows('update-component')) {
