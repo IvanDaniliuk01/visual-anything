@@ -1716,6 +1716,23 @@ export const ui: Catalog = {
   '{count} min': '{count} min',
   '{count} h': '{count} h',
   '{count} d': '{count} d',
+  // Time ranges (R43): the filter panel's choice and the strip's sliders and playback.
+  'Time range': 'Rango de tiempo',
+  'No attribute here holds dates, times or numbers to show a range of.':
+    'Ningún atributo de aquí tiene fechas, horas o números de los que mostrar un rango.',
+  'Show only what a date, time or number attribute puts in a range, and play it.':
+    'Mostrar solo lo que un atributo de fecha, hora o número pone dentro de un rango, y reproducirlo.',
+  'Range on': 'Rango sobre',
+  'No time range': 'Sin rango de tiempo',
+  Until: 'Hasta',
+  'No end: one point each': 'Sin fin: un punto cada uno',
+  '{attribute} from {from} to {to}': '{attribute} desde {from} hasta {to}',
+  'Range from': 'Rango desde',
+  'Range to': 'Rango hasta',
+  '{count} have no {attribute} and stay shown.': {
+    one: '{count} no tiene {attribute} y sigue a la vista.',
+    other: '{count} no tienen {attribute} y siguen a la vista.',
+  },
 };
 
 /**

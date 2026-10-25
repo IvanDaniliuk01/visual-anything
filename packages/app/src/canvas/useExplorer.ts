@@ -115,8 +115,10 @@ export function useExplorer({
   }
 
   const { filters, focus } = current;
-  // Only conditions on attributes read the lookup: without them, live values change nothing here.
-  const reading = filters.conditions.some(isComplete) ? lookup : undefined;
+  // Only conditions on attributes and time ranges read the lookup: without them, live values change
+  // nothing here.
+  const reading =
+    filters.conditions.some(isComplete) || filters.range !== undefined ? lookup : undefined;
   const filtered = useMemo(
     () => applyFilters(scene ?? EMPTY, project, filters, reading),
     [scene, project, filters, reading],

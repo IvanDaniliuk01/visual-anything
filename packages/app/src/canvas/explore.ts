@@ -15,8 +15,12 @@ import {
   definitionsIn,
   meetsCondition,
   modelIndexOf,
+  periodMeetsRange,
+  pointInRange,
+  rangePointOf,
   relationTypeOrRelatesTo,
   type ProjectSnapshot,
+  type RangeKind,
 } from '@visual-anything/core';
 import type {
   AttributeDefinition,
@@ -54,6 +58,24 @@ export interface AttributeCondition {
   value: string;
 }
 
+/**
+ * A time range (R43): the elements, or relations, whose value of a date, time or number attribute is
+ * in the range stay shown, or, with `until`, those whose period from one attribute to the other
+ * meets it. What has no value stays shown, and is said so.
+ */
+export interface TimeRange {
+  of: 'elements' | 'relations';
+  /** The attribute of the point, or of the start of the period. */
+  attribute: string;
+  /** The attribute of the end of the period, if the range is on periods. */
+  until?: string;
+  /** What the values are read as: numbers, dates or times of day. */
+  kind: RangeKind;
+  /** The range, both ends included, on the axis `kind` reads values on. */
+  from: number;
+  to: number;
+}
+
 /** What the filters hide: components and relation types by id, and what fails a condition. */
 export interface Filters {
   /** The components whose elements are hidden: the component each one is created from. */
@@ -62,6 +84,8 @@ export interface Filters {
   relationTypes: ReadonlySet<Id>;
   /** Conditions that every element, or every relation, must meet to stay shown. */
   conditions: readonly AttributeCondition[];
+  /** The time range what stays shown must meet, if any. */
+  range?: TimeRange;
 }
 
 export const NO_FILTERS: Filters = {
@@ -102,7 +126,8 @@ export function isFiltering(filters: Filters): boolean {
   return (
     filters.components.size > 0 ||
     filters.relationTypes.size > 0 ||
-    filters.conditions.some(isComplete)
+    filters.conditions.some(isComplete) ||
+    filters.range !== undefined
   );
 }
 
@@ -146,6 +171,8 @@ export function applyFilters(
   const onRelations = conditions.filter((condition) => condition.of === 'relations');
   const componentDefaults = defaultsBy((id) => definitions.component(id)?.attributes);
   const typeDefaults = defaultsBy((id) => definitions.relationType(id)?.attributes);
+  const elementRange = filters.range?.of === 'elements' ? filters.range : undefined;
+  const relationRange = filters.range?.of === 'relations' ? filters.range : undefined;
 
   const keptElements = new Map<Id, boolean>();
   const keeps = (element: Id): boolean => {
@@ -159,7 +186,12 @@ export function applyFilters(
           ? meetsAllRead(onElements, (name) =>
               lookup.value({ kind: 'element', element: found }, name, definitions),
             )
-          : meetsAll(onElements, found.attributes, componentDefaults(found.component)));
+          : meetsAll(onElements, found.attributes, componentDefaults(found.component))) &&
+        inTimeRange(elementRange, (name) =>
+          lookup?.overrides(found.id) === true
+            ? lookup.value({ kind: 'element', element: found }, name, definitions)
+            : ownOrDefault(found.attributes, componentDefaults(found.component), name),
+        );
       keptElements.set(element, kept);
     }
     return kept;
@@ -206,6 +238,11 @@ export function applyFilters(
               lookup.value({ kind: 'relation', relation }, name, definitions),
             )
           : meetsAll(onRelations, relation.attributes, typeDefaults(relation.relationType))) &&
+        inTimeRange(relationRange, (name) =>
+          lookup?.overrides(relation.id) === true
+            ? lookup.value({ kind: 'relation', relation }, name, definitions)
+            : ownOrDefault(relation.attributes, typeDefaults(relation.relationType), name),
+        ) &&
         endShown(relation.from) &&
         endShown(relation.to));
     shownRelations.set(id, shown);
@@ -562,6 +599,32 @@ function meetsAll(
         : defaults.get(condition.attribute);
     return meetsCondition(value, condition.test, condition.value);
   });
+}
+
+/**
+ * Whether what `read` reads meets a time range: its point is in it, or its period meets it. What has
+ * no value, no start and no end, meets it, and stays shown.
+ */
+export function inTimeRange(
+  range: TimeRange | undefined,
+  read: (name: string) => JsonValue | undefined,
+): boolean {
+  if (range === undefined) return true;
+  const start = rangePointOf(read(range.attribute), range.kind);
+  const met =
+    range.until === undefined
+      ? pointInRange(start, range.from, range.to)
+      : periodMeetsRange(start, rangePointOf(read(range.until), range.kind), range.from, range.to);
+  return met ?? true;
+}
+
+/** An attribute's own value, or the default its definition gives. */
+function ownOrDefault(
+  own: Attributes | undefined,
+  defaults: ReadonlyMap<string, JsonValue>,
+  name: string,
+): JsonValue | undefined {
+  return own && Object.hasOwn(own, name) ? own[name] : defaults.get(name);
 }
 
 /** Whether attributes, as `read` reads each, meet every condition. */

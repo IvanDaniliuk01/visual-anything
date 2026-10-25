@@ -32,6 +32,7 @@ import './explore.css';
 import { holdsTargets, type Explore } from './useExplorer';
 import { useOutsidePress } from './focus';
 import { useAttributeLookup } from '../live-values/context';
+import { TimeRangeChooser, TimeRangeStrip } from './TimeRangeControls';
 import { indexScene, type IndexedScene } from './hit';
 import { drawnRelations, hiddenIn } from './navigation';
 import type { Scene } from './scene';
@@ -92,6 +93,7 @@ export function ExploreStrip() {
           </button>
         </div>
       )}
+      {explore.filters.range !== undefined && <TimeRangeStrip editor={editor} explore={explore} />}
       {following !== undefined && <FollowRow editor={editor} relation={following} />}
     </div>
   );
@@ -318,6 +320,7 @@ function FilterPanel({ id, editor, explore, onClose }: FilterPanelProps) {
           {t('Add a condition')}
         </button>
       </fieldset>
+      <TimeRangeChooser editor={editor} explore={explore} />
       <div className="explore-panel-actions">
         <button
           type="button"
