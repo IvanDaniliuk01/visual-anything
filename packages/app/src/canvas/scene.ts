@@ -35,12 +35,14 @@ import {
   appearanceOf,
   componentOrEssence,
   containmentTree,
+  darkColorsOf,
   definitionsIn,
   detailParts,
   detailText,
   startedTypesByElement,
   nestingTypesInView,
   orderByStacking,
+  relationDarkStrokeOf,
   relationTypeOrRelatesTo,
   storedStacking,
   type Definitions,
@@ -99,6 +101,11 @@ export interface ElementShape {
   kind: ShapeKind;
   fill: Color;
   stroke: Color;
+  /**
+   * The fill and stroke drawn on the dark canvas, when they differ from `fill` and `stroke`: built-in
+   * colors in their dark shades, stored colors as stored (core's `darkColorsOf`, ADR-0033).
+   */
+  dark?: { fill: Color; stroke: Color };
   rect: Rect;
   /**
    * The rectangle holding this shape and everything inside it; larger than `rect` only when contents
@@ -135,6 +142,8 @@ export interface RelationLine {
   /** Present when the relation type is directed; its tip is `to`. */
   arrowhead?: Arrowhead;
   stroke: Color;
+  /** The stroke drawn on the dark canvas, when it differs from `stroke` (core's `relationDarkStrokeOf`). */
+  darkStroke?: Color;
   width: number;
   dash: Dash;
   /**
@@ -169,6 +178,10 @@ export interface NoteShape {
   id: Id;
   rect: Rect;
   text: string;
+  /** Its own fill, as stored; absent when it takes the theme's (ADR-0035). */
+  fill?: Color;
+  /** Its own stroke, as stored; absent when it takes the theme's. */
+  stroke?: Color;
 }
 
 /** An arrow: a free shape pointing from one place on the canvas to another. */
@@ -177,6 +190,8 @@ export interface ArrowShape {
   from: Point;
   to: Point;
   arrowhead: Arrowhead;
+  /** Its own color, as stored; absent when it takes the theme's (ADR-0035). */
+  stroke?: Color;
 }
 
 /** The line width of free arrows. */
@@ -292,7 +307,8 @@ const NOT_LAID_OUT: ReadonlySet<string> = new Set(['stackingOrder', 'name', 'des
 
 /**
  * The last build of each view, by its positions: a change that leaves the positions, the model, the
- * packages and every other field of the view as they were reuses it.
+ * definitions (the packages and the project appearances) and every other field of the view as they
+ * were reuses it.
  */
 const exactly = new WeakMap<ViewFile['positions'], Built>();
 /** The last build of each view, by its id, which the next build starts from. */
@@ -350,6 +366,8 @@ function redrawn(kept: Built, project: ProjectSnapshot, view: ViewFile): Scene {
 function laidOutFrom(kept: Built, project: ProjectSnapshot, view: ViewFile): boolean {
   if (kept.viewId !== view.id || kept.model !== project.model) return false;
   if (kept.packages !== project.packages) return false;
+  // The project appearances change how shapes and lines are drawn without changing the packages.
+  if (kept.definitions !== definitionsIn(project)) return false;
   const before = kept.view as unknown as Record<string, unknown>;
   const now = view as unknown as Record<string, unknown>;
   const keys = (fields: Record<string, unknown>) =>
@@ -521,6 +539,8 @@ function drawingOrder(layout: Layout, view: ViewFile, worldId: Id): readonly num
  */
 interface Look {
   appearance: ResolvedAppearance;
+  /** The colors drawn on the dark canvas, when they differ from the appearance's. */
+  dark?: { fill: Color; stroke: Color };
   componentName: string;
   details: Map<string, string>;
 }
@@ -596,6 +616,10 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
       componentName: componentOrEssence(definitions, element.component).name,
       details: new Map(),
     };
+    const dark = darkColorsOf(element, definitions);
+    if (dark.fill !== look.appearance.fill || dark.stroke !== look.appearance.stroke) {
+      look.dark = dark;
+    }
     kept.set(element, look);
   }
   return look;
@@ -1106,6 +1130,8 @@ function shapeFor(
     before.kind === appearance.shape &&
     before.fill === appearance.fill &&
     before.stroke === appearance.stroke &&
+    before.dark?.fill === look.dark?.fill &&
+    before.dark?.stroke === look.dark?.stroke &&
     before.rect.x === x &&
     before.rect.y === y &&
     before.rect.width === width &&
@@ -1146,6 +1172,7 @@ function shapeFor(
     if (position.height !== undefined) shape.storedSize.height = position.height;
   }
   if (folded !== undefined) shape.collapsed = { contents: folded };
+  if (look.dark) shape.dark = look.dark;
   return shape;
 }
 
@@ -1632,6 +1659,12 @@ function lineBetween(
     ends: { from: drawnEnd(spec.from), to: drawnEnd(spec.to), offset },
   };
   if (label) line.label = label;
+  // A relation's own stroke is drawn as stored; an aggregated relation takes its relation type's.
+  const darkStroke =
+    relation === undefined || members
+      ? relationType.darkStroke
+      : relationDarkStrokeOf(relation, definitions);
+  if (darkStroke !== stroke) line.darkStroke = darkStroke;
   if (relationType.direction === 'directed') line.arrowhead = arrowheadAt(beforeEnd, end, width);
   if (members) {
     line.aggregate = { relationType: spec.relationType, relations: members };
@@ -1664,17 +1697,27 @@ function isArrow(shape: FreeShape): shape is Arrow {
 }
 
 function noteShape(note: Note): NoteShape {
-  return {
+  const shape: NoteShape = {
     id: note.id,
     rect: { x: note.x, y: note.y, width: note.width, height: note.height },
     text: note.text,
   };
+  if (note.fill !== undefined) shape.fill = note.fill;
+  if (note.stroke !== undefined) shape.stroke = note.stroke;
+  return shape;
 }
 
 function arrowShape(arrow: Arrow): ArrowShape {
   const from = { x: arrow.from.x, y: arrow.from.y };
   const to = { x: arrow.to.x, y: arrow.to.y };
-  return { id: arrow.id, from, to, arrowhead: arrowheadAt(from, to, ARROW_WIDTH) };
+  const shape: ArrowShape = {
+    id: arrow.id,
+    from,
+    to,
+    arrowhead: arrowheadAt(from, to, ARROW_WIDTH),
+  };
+  if (arrow.stroke !== undefined) shape.stroke = arrow.stroke;
+  return shape;
 }
 
 const lineBounds = new WeakMap<RelationLine, Rect>();
