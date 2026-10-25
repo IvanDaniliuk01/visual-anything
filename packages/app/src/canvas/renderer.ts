@@ -97,6 +97,12 @@ const DRAG_DETAIL = 400;
  * only, not of the whole view.
  */
 const REGION = 4;
+/**
+ * How far off screen, as a share of the screen's longer side, a tile's full drawing and labels, and
+ * a region's plain drawings, are left out of the frame.
+ */
+const TILE_CULLED_AFTER = 1 / 8;
+const REGION_CULLED_AFTER = 1 / 2;
 /** Room kept around the scene when fitting it, in screen pixels. */
 export const FIT_MARGIN = 32;
 /**
@@ -1415,20 +1421,24 @@ export class CanvasRenderer {
   /**
    * Leaves out of the frame what is off screen, for where the camera is now: the full drawings and
    * labels of each tile, and the plain drawings of whole regions. Something comes back as soon as it
-   * shows, but goes only once it is half a screen away, since every change of what shows makes PixiJS
-   * gather again the drawings around it. A tile's plain drawing is never left out on its own: that
-   * would make PixiJS gather again every plain drawing of its region.
+   * shows, but goes only once it is some way off, since every change of what shows makes PixiJS
+   * gather again the drawings around it: a tile, which changes only the short list of its region, an
+   * eighth of a screen away; a region, which changes the list of all of them, half a screen away. A
+   * tile's plain drawing is never left out on its own: that would make PixiJS gather again every
+   * plain drawing of its region.
    */
   private cull(): void {
     const shown = visibleRect(this.camera, this.viewport);
-    const away = grow(shown, Math.max(shown.width, shown.height) / 2);
-    const cullBy = (container: Container, bounds: Rect) => {
+    const side = Math.max(shown.width, shown.height);
+    const cullBy = (container: Container, bounds: Rect, away: Rect) => {
       if (container.culled) container.culled = !meets(bounds, shown);
       else container.culled = !meets(bounds, away);
     };
-    for (const { container, bounds } of this.tiles.values()) cullBy(container, bounds);
+    const tileAway = grow(shown, side * TILE_CULLED_AFTER);
+    for (const { container, bounds } of this.tiles.values()) cullBy(container, bounds, tileAway);
+    const regionAway = grow(shown, side * REGION_CULLED_AFTER);
     this.plainBounds ??= this.boundsOfPlainRegions();
-    for (const [region, bounds] of this.plainBounds) cullBy(region, bounds);
+    for (const [region, bounds] of this.plainBounds) cullBy(region, bounds, regionAway);
   }
 
   /** Where the plain drawings of each region lie, from the tiles in it. */
