@@ -1521,6 +1521,7 @@ export const ui: Catalog = {
   'Focus on the selection': 'Enfocar en la selección',
   'Open the whole view': 'Abrir la vista completa',
   'This is not a destination: {why}': 'Esto no es un destino: {why}',
+  '{scheme} identifier {identifier}': 'identificador de {scheme} {identifier}',
 };
 
 /**
