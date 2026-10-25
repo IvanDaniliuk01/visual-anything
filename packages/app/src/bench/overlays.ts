@@ -124,7 +124,7 @@ export async function measureOverlays(
     renderer.renderNow(true);
     frames.push(performance.now() - began);
   };
-  const apply = async (overlays: Overlay[], times: number[], parts: number[]) => {
+  const apply = (overlays: Overlay[], times: number[], parts: number[]) => {
     const next = run(bench.project(), { type: 'set-overlays', view: bench.view, overlays });
     const taken = bench.show(next);
     times.push(taken.build + taken.index + taken.draw);
@@ -137,7 +137,7 @@ export async function measureOverlays(
   const colorParts: number[] = [];
   const until: number[] = [];
   for (let each = 0; each < count; each++) {
-    await apply(each % 2 === 0 ? [LOAD_FILL] : [], colored, colorParts);
+    apply(each % 2 === 0 ? [LOAD_FILL] : [], colored, colorParts);
     let after = 1;
     while (renderer.switching) {
       timedFrame();
@@ -151,7 +151,7 @@ export async function measureOverlays(
   const sized: number[] = [];
   const sizeParts: number[] = [];
   for (let each = 0; each < count; each++) {
-    await apply(each % 2 === 0 ? [LOAD_SIZE] : [], sized, sizeParts);
+    apply(each % 2 === 0 ? [LOAD_SIZE] : [], sized, sizeParts);
     await bench.settle(300);
   }
   bench.show(start);
