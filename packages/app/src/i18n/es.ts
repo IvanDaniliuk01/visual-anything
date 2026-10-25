@@ -154,6 +154,37 @@ export const ui: Catalog = {
   'Your theme applies to this tab only: Visual Anything is not connected.':
     'El tema se aplica solo a esta pestaña: Visual Anything no está conectado.',
 
+  // Search and jump: the find field over the canvas.
+  'Find in the project': 'Buscar en el proyecto',
+  'Names, ids, components, values…': 'Nombres, ids, componentes, valores…',
+  'Close find': 'Cerrar la búsqueda',
+  'Close find (Escape)': 'Cerrar la búsqueda (Escape)',
+  'Up and down move through what was found. Enter goes to it; Alt+Enter lists every view that draws it. Escape closes. {shortcut} finds again.':
+    'Arriba y abajo recorren lo encontrado. Enter va a lo elegido; Alt+Enter lista cada vista que lo dibuja. Escape cierra. {shortcut} vuelve a buscar.',
+  Found: 'Encontrado',
+  'Getting ready to find…': 'Preparando la búsqueda…',
+  'Nothing found': 'No se encontró nada',
+  '{count} found': { one: '{count} encontrado', other: '{count} encontrados' },
+  '{shown} of {count} found': '{shown} de {count} encontrados',
+  'In {view}': 'En {view}',
+  'In {view}, open now': 'En {view}, abierta ahora',
+  'In no view': 'En ninguna vista',
+  'Open in {view}': 'Abrir en {view}',
+  'Relation: {type}': 'Relación: {type}',
+  'id {id}': 'id {id}',
+  '{attribute}: {value}': '{attribute}: {value}',
+  'Drawn in {count} views: {views}.': {
+    one: 'Dibujado en {count} vista: {views}.',
+    other: 'Dibujado en {count} vistas: {views}.',
+  },
+  'No view draws {name}.': 'Ninguna vista dibuja {name}.',
+  '{name}, {what}, is selected in {view}.': '{name}, {what}, está seleccionado en {view}.',
+  '{name}, {what}, is selected in {view}, inside the collapsed {container}.':
+    '{name}, {what}, está seleccionado en {view}, dentro del contenedor contraído {container}.',
+  '{name}, {what}, is selected in {view}, which does not draw it now.':
+    '{name}, {what}, está seleccionado en {view}, que ahora no lo dibuja.',
+  'The filters or focus mode hide it.': 'Los filtros o el modo foco lo ocultan.',
+
   // Copy address, in the header.
   'Copy address': 'Copiar dirección',
   'Copy an address that opens this view where it is: its camera, selection, filters, focus and scenario step':
@@ -575,6 +606,9 @@ export const ui: Catalog = {
   'Space and drag': 'Espacio y arrastrar',
   Pan: 'Desplazar la vista',
   'Leave the canvas': 'Salir del lienzo',
+  'Ctrl+F or ⌘F': 'Ctrl+F o ⌘F',
+  'Find names, ids, components and attribute values in the project, and go to what was found':
+    'Buscar nombres, ids, componentes y valores de atributos en el proyecto, e ir a lo encontrado',
   'The arrow keys select shapes, ] and [ (or . and ,) step through the selected element’s relations, and Enter follows a relation, and Shift+F10 opens the selected shape’s menu. Every key is listed under Keyboard, after the canvas.':
     'Las flechas seleccionan formas, ] y [ (o . y ,) recorren las relaciones del elemento seleccionado, Enter sigue una relación y Mayús+F10 abre el menú de la forma seleccionada. Todas las teclas están en Teclado, después del lienzo.',
 };

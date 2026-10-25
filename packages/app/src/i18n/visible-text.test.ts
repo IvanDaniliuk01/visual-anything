@@ -36,6 +36,7 @@ const TRANSLATED = [
   'canvas/InlineEditor.tsx',
   'canvas/KeyboardHelp.tsx',
   'view-state/CopyAddress.tsx',
+  'search/FindBar.tsx',
 ];
 
 /** The attributes whose text people read or hear. */

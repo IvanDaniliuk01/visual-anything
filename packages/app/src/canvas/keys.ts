@@ -40,6 +40,10 @@ export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
   { keys: '+, − and 0', does: 'Zoom in, zoom out, and fit the view' },
   { keys: 'Alt+− and Alt++', does: 'Collapse or expand the selected containers' },
   { keys: 'Space and drag', does: 'Pan' },
+  {
+    keys: 'Ctrl+F or ⌘F',
+    does: 'Find names, ids, components and attribute values in the project, and go to what was found',
+  },
   { keys: 'Tab', does: 'Leave the canvas' },
 ];
 
