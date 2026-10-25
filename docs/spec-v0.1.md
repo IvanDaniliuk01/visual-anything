@@ -359,6 +359,6 @@ The order below follows the two benchmarks of what Visual Anything needs to repr
 | 4 | **M10 · A linked physical-space panel.** A 3D panel beside the canvas, showing the same elements where they really are, with selection, focus and scenarios linked to the 2D views. A new ADR that supersedes ADR 0003 comes first. |
 | 4 | **M12 · Simulate (case 4).** A programmable component simulates a behavior from parameters you change, within its limits, and stops cleanly when it exceeds them. |
 | 4 | **M13 · Anatomy.** A built-in anatomy package and import from open anatomical ontologies, with their licenses respected, built on M8 to M10. |
-| beside | **Track L, stage L2.** More languages, Portuguese first. |
+| beside | **Track L, stage L2.** More languages, Portuguese first; the core's messages and history labels name built-in definitions by id, so that their names read in the language chosen too. |
 
 Not planned: a switch between 2D and 3D for each view, an iframe for each element, storing HTML with scripts or 3D models with behavior in a project, editing together in real time, accounts or a hosted server, a package marketplace before M7, Claude regenerating whole views, and long Prezi-style zoom flights.
