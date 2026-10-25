@@ -2,15 +2,17 @@
  * The grid as PixiJS draws it: over the whole canvas, under every shape, and on the fill of one
  * container, above its fill and under its contents. The canvas's grid is drawn in screen space, with a
  * transform that undoes the camera's, so that its lines stay 1 CSS pixel wide at any zoom: panning
- * only moves it, by less than one period of its coarsest lines, and zooming draws it again. A
- * container's grid is drawn in canvas units from the container's origin, where its contents snap to.
+ * only moves it, by less than one period of its coarsest lines. A zoom stretches it until the scale
+ * has changed by `ZOOM_SLACK`, then draws it again, and it is drawn again exactly once the camera
+ * rests, so that a zoom costs a drawing every few frames rather than every frame. A container's grid
+ * is drawn in canvas units from the container's origin, where its contents snap to.
  * Both draw white, tinted in the theme's grid color, so that a theme switch only retints them.
  */
 import { Container, Graphics } from 'pixi.js';
 import { THEMES, type CanvasTheme } from '../theme/themes';
 import type { Camera } from './camera';
 import { cylinderCap, personHead, type Point, type Rect, type Size } from './geometry';
-import { containerGridLines, familyAlpha, gridLines, gridOffset } from './grid';
+import { ZOOM_SLACK, containerGridLines, familyAlpha, gridLines, gridPlacement } from './grid';
 import type { ElementShape } from './scene';
 
 /** What the grid draws: whether it shows, and whether shapes snap to it. */
@@ -28,6 +30,8 @@ interface Drawn {
   snapping: boolean;
   theme: CanvasTheme;
   period: number;
+  /** Whether it was drawn for a camera at rest, with lines of exact widths. */
+  exact: boolean;
 }
 
 /** What a container's grid was last drawn for. */
@@ -91,15 +95,22 @@ export class GridMarks {
   }
 
   /**
-   * Follows the camera: a pan moves the grid; a zoom, a resize, a change of resolution, of snapping or
-   * of the theme's strengths draws its lines again. Nothing is done while the grid is hidden.
+   * Follows the camera: a pan moves the grid; a zoom stretches it, and draws it again once the scale
+   * has changed by `ZOOM_SLACK`, or, with `rest`, as soon as it differs; a resize, a change of
+   * resolution, of snapping or of the theme's strengths draws it again. Nothing is done while the grid
+   * is hidden.
    */
-  follow(camera: Camera, viewport: Size, resolution: number): void {
+  follow(camera: Camera, viewport: Size, resolution: number, rest = false): void {
     if (!this.state.shown || viewport.width <= 0 || viewport.height <= 0) return;
     const { scale } = camera;
     const was = this.drawn;
+    const stretch = was ? scale / was.scale : 0;
+    const stale = rest
+      ? stretch !== 1 || !was?.exact
+      : stretch > ZOOM_SLACK || stretch < 1 / ZOOM_SLACK;
     if (
-      was?.scale !== scale ||
+      !was ||
+      stale ||
       was.width !== viewport.width ||
       was.height !== viewport.height ||
       was.resolution !== resolution ||
@@ -107,27 +118,33 @@ export class GridMarks {
       was.theme.gridStrength !== this.theme.gridStrength ||
       was.theme.gridSnapAlpha !== this.theme.gridSnapAlpha
     ) {
-      this.drawn = this.draw(scale, viewport, resolution);
+      this.drawn = this.draw(scale, viewport, resolution, rest);
     }
-    const { period } = this.drawn as Drawn;
-    const x = gridOffset(camera.x, period, resolution);
-    const y = gridOffset(camera.y, period, resolution);
+    const drawn = this.drawn as Drawn;
+    const at = gridPlacement(camera, drawn, drawn.scale, resolution);
     // Undoes the camera's transform, so that the grid draws in screen space, `x` and `y` from the
-    // screen's corner.
-    this.whole.scale.set(1 / scale);
-    this.whole.position.set((x - camera.x) / scale, (y - camera.y) / scale);
+    // screen's corner, stretched only as far as the zoom went since it was drawn.
+    this.whole.scale.set(1 / drawn.scale);
+    this.whole.position.set((at.x - camera.x) / scale, (at.y - camera.y) / scale);
   }
 
-  private draw(scale: number, viewport: Size, resolution: number): Drawn {
+  private draw(scale: number, viewport: Size, resolution: number, exact: boolean): Drawn {
     const graphics = this.lines;
     graphics.clear();
     this.draws += 1;
-    const planned = gridLines(scale, viewport, resolution);
+    const planned = gridLines(scale, viewport, resolution, undefined, ZOOM_SLACK);
     const { extent } = planned;
+    // While the camera moves, the lines are a little wider, so that none falls between two pixels
+    // when a zoom shrinks them.
+    const widen = exact ? 1 : ZOOM_SLACK;
     for (const family of planned.families) {
       if (family.xs.length + family.ys.length === 0) continue;
-      for (const line of family.xs) graphics.rect(line.start, 0, line.width, extent.height);
-      for (const line of family.ys) graphics.rect(0, line.start, extent.width, line.width);
+      for (const { start, width } of family.xs) {
+        graphics.rect(start - ((widen - 1) * width) / 2, 0, width * widen, extent.height);
+      }
+      for (const { start, width } of family.ys) {
+        graphics.rect(0, start - ((widen - 1) * width) / 2, extent.width, width * widen);
+      }
       graphics.fill({
         color: 0xffffff,
         alpha: familyAlpha(family, this.theme, this.state.snapping),
@@ -142,6 +159,7 @@ export class GridMarks {
       snapping: this.state.snapping,
       theme: this.theme,
       period: planned.period,
+      exact,
     };
   }
 

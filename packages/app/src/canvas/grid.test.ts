@@ -7,12 +7,14 @@ import {
   MAX_CONTAINER_LINES,
   MAX_GRID_LINES,
   RULER_LABEL_GAP,
+  ZOOM_SLACK,
   containerGridLines,
   crispLine,
   drawnFamilies,
   familyAlpha,
   gridOffset,
   gridLines,
+  gridPlacement,
   lineStrength,
   modulo,
   nudgedOffset,
@@ -200,6 +202,41 @@ describe('gridLines and gridOffset', () => {
             const x = cameraX + n * spacing;
             const near = coarsest.xs.some(
               (line) => Math.abs(offsetX + line.start + line.width / 2 - x) <= 1.01 / resolution,
+            );
+            expect(near).toBe(true);
+          }
+        },
+      ),
+      { numRuns: 60 },
+    );
+  });
+
+  it('still cover the viewport while a zoom stretches lines drawn for a scale up to the slack', () => {
+    fc.assert(
+      fc.property(
+        scales,
+        fc.double({ min: 1 / ZOOM_SLACK, max: ZOOM_SLACK, noNaN: true }),
+        positions,
+        positions,
+        viewports,
+        fc.constantFrom(...RESOLUTIONS),
+        (drawnAt, stretch, cameraX, cameraY, viewport, resolution) => {
+          const lines = gridLines(drawnAt, viewport, resolution, MAX_GRID_LINES, ZOOM_SLACK);
+          const scale = drawnAt * stretch;
+          const at = gridPlacement({ x: cameraX, y: cameraY, scale }, lines, drawnAt, resolution);
+          expect(at.stretch).toBeCloseTo(stretch, 9);
+          expect(at.x).toBeLessThanOrEqual(0);
+          expect(at.x + lines.extent.width * at.stretch).toBeGreaterThanOrEqual(viewport.width);
+          expect(at.y + lines.extent.height * at.stretch).toBeGreaterThanOrEqual(viewport.height);
+          // The coarsest family's lines land where the camera puts them, within a device pixel.
+          const coarsest = lines.families.at(-1)!;
+          const spacing = coarsest.spacing * scale;
+          const first = Math.ceil(-cameraX / spacing);
+          for (let n = first; cameraX + n * spacing <= viewport.width; n++) {
+            const x = cameraX + n * spacing;
+            const near = coarsest.xs.some(
+              (line) =>
+                Math.abs(at.x + (line.start + line.width / 2) * at.stretch - x) <= 1.1 / resolution,
             );
             expect(near).toBe(true);
           }

@@ -30,6 +30,13 @@ const FAINTEST = 0.1;
 /** The most lines the grid draws over the whole canvas; above it, the finest family is left out. */
 export const MAX_GRID_LINES = 1200;
 
+/**
+ * How far a zoom may stretch the canvas's grid, either way, before its lines are drawn again: while
+ * the camera zooms, the lines drawn for one scale are shown stretched until the scale has changed by
+ * this much, and once it rests they are drawn again for its scale.
+ */
+export const ZOOM_SLACK = 1.05;
+
 /** The most lines a container's grid draws. */
 export const MAX_CONTAINER_LINES = 400;
 
@@ -83,6 +90,8 @@ export interface GridLines {
   period: number;
   /** What the lines cover, from the grid's own origin. */
   extent: Size;
+  /** How far a zoom may shrink them and still have them cover the viewport. */
+  slack: number;
   families: FamilyLines[];
   /** How many lines there are, across and down. */
   count: number;
@@ -157,17 +166,22 @@ export function gridOffset(camera: number, period: number, resolution: number): 
 /**
  * The grid's lines for a scale and viewport, in screen space from the grid's own origin, each line
  * once, in the coarsest drawn family it belongs to. Above `cap` lines, the finest families are left out.
+ * With a `slack`, they still cover the viewport once a zoom shrinks them by that much.
  */
 export function gridLines(
   scale: number,
   viewport: Size,
   resolution: number,
   cap = MAX_GRID_LINES,
+  slack = 1,
 ): GridLines {
   let families = drawnFamilies(scale);
   const coarsest = families.at(-1) as DrawnFamily;
   const period = coarsest.pixels;
-  const extent = { width: viewport.width + period + 1, height: viewport.height + period + 1 };
+  const extent = {
+    width: viewport.width * slack + period + 1,
+    height: viewport.height * slack + period + 1,
+  };
   const countOf = (drawn: readonly DrawnFamily[]) =>
     drawn.reduce(
       (sum, family) =>
@@ -191,7 +205,26 @@ export function gridLines(
     return { ...family, xs: along(extent.width), ys: along(extent.height) };
   });
   const count = lines.reduce((sum, family) => sum + family.xs.length + family.ys.length, 0);
-  return { period, extent, families: lines, count };
+  return { period, extent, slack, families: lines, count };
+}
+
+/**
+ * Where lines drawn for the scale `drawnAt` show for a camera: where their origin is on screen, a
+ * period or less to the left of and above the screen's corner, and how far the zoom stretches them.
+ */
+export function gridPlacement(
+  camera: { x: number; y: number; scale: number },
+  lines: Pick<GridLines, 'period'>,
+  drawnAt: number,
+  resolution: number,
+): { x: number; y: number; stretch: number } {
+  const stretch = camera.scale / drawnAt;
+  const period = lines.period * stretch;
+  return {
+    x: gridOffset(camera.x, period, resolution),
+    y: gridOffset(camera.y, period, resolution),
+    stretch,
+  };
 }
 
 /** How many lines `spacing` apart fit in `length`, from 0. */

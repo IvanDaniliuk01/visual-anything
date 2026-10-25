@@ -5,8 +5,9 @@
  * `/bench.html`; the official numbers come from that build, in work mode. `?elements=N` changes the
  * size, and `?overlap=stairs`, `grid` or `cascade` makes shapes overlap (see `synthetic.ts`).
  * `?grid=on` runs every phase with the grid and the rulers shown (A3); otherwise the pan and zoom of
- * the whole view are measured again with them, and the grid's cost per frame at the median is the
- * difference, which must stay within 0.5 ms.
+ * the whole view are measured again with them, and the grid's cost per frame at the median, which
+ * must stay within 0.5 ms, is measured in blocks of frames with and without it, one after another, so
+ * that a machine busy with something else weighs on both alike. `?only=grid` measures only these.
  *
  * Work mode, the default, measures the work of each frame: it moves the camera, draws the frame and
  * waits until the GPU has drawn it, so the result does not depend on how often the browser offers
@@ -65,8 +66,9 @@ const search = new URLSearchParams(location.search);
 const size = Number(search.get('elements') ?? 10_000);
 const mode: 'work' | 'frames' = search.get('mode') === 'frames' ? 'frames' : 'work';
 const overlap: Overlap = OVERLAPS.find((each) => each === search.get('overlap')) ?? 'none';
-/** Whether every phase runs with the grid and the rulers shown. */
+/** Whether every phase runs with the grid and the rulers shown, and whether only the grid's are run. */
 const gridOn = search.get('grid') === 'on';
+const onlyGrid = search.get('only') === 'grid';
 const host = document.getElementById('canvas') as HTMLElement;
 const status = document.getElementById('status') as HTMLElement;
 
@@ -127,6 +129,11 @@ async function run(): Promise<void> {
     controller.setGrid({ grid: false, snapToGrid: true, rulers: false });
     await settle(300);
     phases.push(...withGrid);
+    gridCost = await measureGridCost(pan, zoom);
+  }
+  if (onlyGrid) {
+    report(phases, [], []);
+    return;
   }
 
   // Between the scale names show at and the one details show at, on any window.
@@ -204,23 +211,41 @@ async function run(): Promise<void> {
   report(phases, timed, latency);
 }
 
+/** What the grid adds to a frame at the median, panning and zooming, once measured. */
+let gridCost: { pan: number; zoom: number } | undefined;
+
 /**
- * What the grid adds to a frame at the median, panning and zooming: each phase with the grid against
- * the same phase without it.
+ * What the grid adds to a frame at the median, panning and zooming the whole view: frames with it
+ * against frames without it, in blocks of 30 that take turns, starting each round with the other.
  */
-function gridCost(phases: readonly Phase[]): { pan: number; zoom: number } | undefined {
-  const median = (name: string) => {
-    const phase = phases.find((each) => each.name === name);
-    return phase ? percentile(phase.frames, 0.5) : undefined;
+async function measureGridCost(
+  pan: (frame: number) => void,
+  zoom: (frame: number) => void,
+): Promise<{ pan: number; zoom: number }> {
+  const frames = {
+    pan: { on: [] as number[], off: [] as number[] },
+    zoom: { on: [] as number[], off: [] as number[] },
   };
-  const pan = [median('Pan, whole view'), median('Pan with the grid')];
-  const zoom = [median('Zoom, whole view'), median('Zoom with the grid')];
-  if (pan.some((each) => each === undefined) || zoom.some((each) => each === undefined)) {
-    return undefined;
+  for (let round = 0; round < 8; round++) {
+    for (const on of round % 2 === 0 ? [false, true] : [true, false]) {
+      controller.setGrid({ grid: on, snapToGrid: true, rulers: false });
+      await settle(50);
+      // Half a block one way and half back, so that the camera ends where it started.
+      const there = (step: (frame: number) => void) => (frame: number) => step(frame < 15 ? 0 : 90);
+      frames.pan[on ? 'on' : 'off'].push(
+        ...(await measure('Grid cost, pan', 30, there(pan))).frames,
+      );
+      frames.zoom[on ? 'on' : 'off'].push(
+        ...(await measure('Grid cost, zoom', 30, there(zoom))).frames,
+      );
+    }
   }
+  controller.setGrid({ grid: false, snapToGrid: true, rulers: false });
+  await settle(300);
+  const median = (values: number[]) => percentile(values, 0.5);
   return {
-    pan: (pan[1] as number) - (pan[0] as number),
-    zoom: (zoom[1] as number) - (zoom[0] as number),
+    pan: median(frames.pan.on) - median(frames.pan.off),
+    zoom: median(frames.zoom.on) - median(frames.zoom.off),
   };
 }
 
@@ -465,7 +490,7 @@ function report(phases: Phase[], timed: Timed[], latency: number[]): void {
         : average <= SHOWN.average && p95 <= SHOWN.p95 && worst <= WORK.worst;
     return { name, average, p95, worst, passes };
   });
-  const grid = gridCost(phases);
+  const grid = gridCost;
   const gridPasses = !grid || Math.max(grid.pan, grid.zoom) <= GRID_MARK;
   const passed = rows.every((row) => row.passes) && gridPasses;
   const body = document.querySelector('#table tbody') as HTMLElement;
