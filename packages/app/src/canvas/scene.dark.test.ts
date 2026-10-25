@@ -107,6 +107,9 @@ describe('the dark canvas’s colors in the scene', () => {
       id: first.relation,
       changes: { appearance: { stroke: '#C2255C' } },
     });
-    expect(lineOf(project, first.relation).darkStroke).toBe('#C2255C');
+    // As stored in both themes: nothing for the dark canvas of its own.
+    const line = lineOf(project, first.relation);
+    expect(line.stroke).toBe('#C2255C');
+    expect(line.darkStroke).toBeUndefined();
   });
 });
