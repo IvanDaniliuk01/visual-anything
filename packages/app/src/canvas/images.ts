@@ -41,6 +41,8 @@ export const IMAGE_LIMITS = {
   bitmapDecodes: 2,
   /** Decoded bitmaps a frame turns into textures. */
   bitmapUploads: 2,
+  /** Of those, how many may be textures of their own, larger than the atlas takes. */
+  largeUploads: 1,
   /** Tiles a frame asks to rebuild their image drawings. */
   tileRebuilds: 4,
   /** No new image work once the frame has spent this many milliseconds. */
@@ -339,6 +341,12 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
       // Its cost is learned at the first bucket, while the camera rests.
       const first = IMAGE_LIMITS.firstBucket;
       this.#want(request, serial, first, textureKey(serial, first, request.silhouette));
+    } else if (request.image.kind === 'svg') {
+      // Too costly to draw at once: one bucket larger than it has, whose cost is then measured.
+      const step = this.#stepToward(serial, bucket, request.silhouette);
+      if (step !== undefined) {
+        this.#want(request, serial, step, textureKey(serial, step, request.silhouette));
+      }
     }
     const standIn = this.#standIn(serial, bucket, request.silhouette);
     return standIn
@@ -427,6 +435,7 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
 
     let decodes = 0;
     let uploads = 0;
+    let largeUploads = 0;
     let loads = 0;
     let rasterized = 0;
     let more = false;
@@ -446,8 +455,13 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
             this.#decode(wanted);
           } else more = true;
         } else if (wanted.state === 'ready') {
-          if (uploads < IMAGE_LIMITS.bitmapUploads) {
+          const large = wanted.bucket > IMAGE_LIMITS.atlasBucket;
+          if (
+            uploads < IMAGE_LIMITS.bitmapUploads &&
+            (!large || largeUploads < IMAGE_LIMITS.largeUploads)
+          ) {
             uploads += 1;
+            if (large) largeUploads += 1;
             this.#make(wanted);
           } else more = true;
         }
@@ -566,10 +580,49 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
     return undefined;
   }
 
+  /**
+   * What rasterizing an SVG at a bucket should cost: what it cost at that bucket or a larger one, or
+   * at a smaller one grown with the pixels, the side squared; the least of these.
+   */
+  #estimatedCost(serial: number, bucket: Bucket): number | undefined {
+    const costs = this.#costs.get(serial);
+    if (!costs) return undefined;
+    let estimate: number | undefined;
+    for (const [each, cost] of costs) {
+      const grown = each >= bucket ? cost : cost * (bucket / each) ** 2;
+      if (estimate === undefined || grown < estimate) estimate = grown;
+    }
+    return estimate;
+  }
+
+  /**
+   * The bucket to rasterize an SVG at on the way to `bucket`, when `bucket` itself should take too
+   * long from what is known: the one after the largest one made, if that one should not.
+   */
+  #stepToward(serial: number, bucket: Bucket, silhouette: boolean): Bucket | undefined {
+    const fits = (each: Bucket) => {
+      const estimate = this.#estimatedCost(serial, each);
+      return estimate !== undefined && estimate <= IMAGE_LIMITS.slowFirst;
+    };
+    if (fits(bucket)) return undefined;
+    let largest: Bucket | undefined;
+    for (const each of BUCKETS) {
+      if (each < bucket && this.#made.has(textureKey(serial, each, silhouette))) largest = each;
+    }
+    if (largest === undefined) return undefined;
+    const step = BUCKETS[BUCKETS.indexOf(largest) + 1];
+    return step !== undefined && step < bucket && fits(step) ? step : undefined;
+  }
+
   #mayRasterize(wanted: Wanted<P>, moving: boolean, spent: number): boolean {
     if (!this.#costs.has(wanted.serial))
       return !moving && wanted.bucket === IMAGE_LIMITS.firstBucket;
-    if (!moving) return true;
+    if (!moving) {
+      // At rest too, a frame keeps to what a first rasterization may take: a picture whose larger
+      // bucket would take longer stays drawn from a smaller one.
+      const estimate = this.#estimatedCost(wanted.serial, wanted.bucket);
+      return estimate !== undefined && spent + estimate <= IMAGE_LIMITS.slowFirst;
+    }
     const cost = this.#knownCost(wanted.serial, wanted.bucket);
     return cost !== undefined && spent + cost < IMAGE_LIMITS.motionBudget;
   }
