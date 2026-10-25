@@ -13,6 +13,20 @@ export const RELATION_LABEL_TEXT: Color = '#1F2933';
 /** Drawn around relation labels so they stay readable where they cross a line or a shape. */
 export const RELATION_LABEL_HALO: Color = '#FFFFFF';
 
+/**
+ * What a scenario step or Claude's guidance highlights, and the markers travelling along relations:
+ * a burnt orange that keeps 3:1 against the canvas (WCAG 1.4.11) and differs from the selection's
+ * blue. Neither relies on it alone: highlights are wider, with a halo and corner marks, and markers
+ * are discs ringed in white.
+ */
+export const HIGHLIGHT: Color = '#C2410C';
+export const MARKER_RING: Color = '#FFFFFF';
+/** How opaque what a focus dims is drawn. */
+export const DIMMED_ALPHA = 0.22;
+/** The toggle that collapses or expands a container: its face and the sign on it. */
+export const TOGGLE_FACE: Color = '#FFFFFF';
+export const TOGGLE_SIGN: Color = '#1F2933';
+
 /** The text drawn on a shape: its name, and the smaller details under it. */
 export interface TextColors {
   name: Color;
