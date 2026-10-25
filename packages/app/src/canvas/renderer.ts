@@ -13,9 +13,10 @@
  * what it hides leaves the tiles, what it dims goes in tiles drawn faintly, and what it highlights and
  * the markers it moves along relations are drawn above the scene, apart from the tiles.
  */
-import { Application, Container, Graphics, Text } from 'pixi.js';
+import { Application, Container, Graphics, Matrix, RenderTexture, Text } from 'pixi.js';
 import type { Id } from '@visual-anything/schema';
 import type { Emphasis } from '../editor/emphasis';
+import { ImageError, drawInChunks, planImage, toPng, type ImageRequest } from '../export/image';
 import type { Selection } from '../editor/selection';
 import { EMPTY_SELECTION } from '../editor/selection';
 import { visibleRect, type Camera, fitCamera } from './camera';
@@ -601,6 +602,125 @@ export class CanvasRenderer {
     if (width === 0 || height === 0 || !this.indexed) return;
     this.fitted = true;
     this.setCamera(fitCamera(this.indexed.scene.bounds, { width, height }, FIT_MARGIN));
+  }
+
+  /**
+   * Draws the open view as a PNG image (R27): what is visible, or the whole view, at 1× or 2×, as the
+   * canvas draws it in the current theme, on its background: what filters and focus hide is left out
+   * and what they dim is faint, but no mark of the selection, the pointer, guidance or a gesture
+   * shows. Every tile the image shows is first drawn in full and named for the image's scale, outside
+   * the frame budget, since an image is asked for once; the image is drawn in pieces any GPU can hold,
+   * through PixiJS's extraction, and everything changed for it is put back before the next frame.
+   * Rejects with an `ImageError` when the canvas has not started, the view draws nothing or the image
+   * would be too large.
+   */
+  async exportImage(request: ImageRequest): Promise<Blob> {
+    const indexed = this.indexed;
+    if (this.status !== 'ready' || !indexed) throw new ImageError({ reason: 'not-ready' });
+    const planned = planImage(request, {
+      camera: this.camera,
+      viewport: this.viewport,
+      bounds: indexed.scene.bounds,
+    });
+    if (!planned.ok) throw new ImageError(planned.problem);
+    const { plan } = planned;
+    const scale = plan.drawingScale;
+    // What is visible is written as the screen writes it; the whole view as the canvas would at 1:1.
+    const { coarse, wanted } =
+      request.area === 'visible'
+        ? this.detailNow()
+        : {
+            coarse: scale < COARSE_BELOW,
+            wanted: (scale >= DETAILS_FROM ? 2 : scale >= NAMES_FROM ? 1 : 0) as Tile['level'],
+          };
+    // What is changed for the image, to put back once it is drawn, the last change first.
+    const putBack: (() => void)[] = [];
+    const change = <T extends object, K extends keyof T>(target: T, key: K, value: T[K]) => {
+      const was = target[key];
+      if (was === value) return;
+      target[key] = value;
+      putBack.push(() => {
+        target[key] = was;
+      });
+    };
+    const textResolution = Math.min(4, Math.max(1, Math.ceil(plan.pixelsPerUnit * 4) / 4));
+    let canvas: HTMLCanvasElement;
+    try {
+      // Only the scene: no mark, and nothing a drag carries.
+      for (const child of this.world.children) {
+        const scene =
+          child === this.elementShapes ||
+          child === this.relations.container ||
+          child === this.freeShapes;
+        if (!scene) change(child, 'visible', false);
+      }
+      for (const tile of this.tiles.values()) {
+        if (!meets(tile.bounds, plan.frame)) continue;
+        const plain = tile.plainShown;
+        putBack.push(() => showPlain(tile, plain));
+        if (!coarse && !tile.full) this.drawFully(tile);
+        const full = !coarse && tile.full !== undefined;
+        showPlain(tile, !full);
+        if (tile.full) change(tile.full, 'visible', full || !tile.coarse);
+        const level = wantedFor(tile.kind, wanted);
+        if (level > 0 && (full || !tile.coarse)) {
+          try {
+            this.labelUpTo(tile, level, labelCount(tile));
+          } catch {
+            // Without fonts, the image is drawn unnamed, as the canvas is.
+          }
+        }
+        if (tile.labels) {
+          change(tile.labels, 'visible', level > 0);
+          for (const label of tile.labels.children) {
+            if (label instanceof Text) change(label, 'resolution', textResolution);
+          }
+        }
+        change(tile.container, 'culled', false);
+        const region = tile.coarse?.parent;
+        if (region && region !== tile.container) change(region, 'culled', false);
+      }
+      const { renderer } = this.app;
+      const background = renderer.background.colorRgba;
+      const clearColor = [background[0], background[1], background[2], background[3]];
+      const { frame, pixelsPerUnit } = plan;
+      canvas = drawInChunks(plan, (chunk) => {
+        const target = RenderTexture.create({
+          width: chunk.width,
+          height: chunk.height,
+          antialias: false,
+        });
+        try {
+          renderer.render({
+            container: this.world,
+            target,
+            clear: true,
+            clearColor,
+            transform: new Matrix(
+              pixelsPerUnit,
+              0,
+              0,
+              pixelsPerUnit,
+              -frame.x * pixelsPerUnit - chunk.x,
+              -frame.y * pixelsPerUnit - chunk.y,
+            ),
+          });
+          return renderer.extract.canvas(target) as unknown as CanvasImageSource;
+        } finally {
+          target.destroy(true);
+        }
+      });
+    } catch (error) {
+      if (error instanceof ImageError) throw error;
+      throw new ImageError({
+        reason: 'failed',
+        detail: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      for (const step of putBack.reverse()) step();
+      this.requestRender();
+    }
+    return toPng(canvas);
   }
 
   /** Releases the canvas, now or as soon as its start finishes. */
