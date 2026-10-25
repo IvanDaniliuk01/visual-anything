@@ -20,6 +20,7 @@ import type { Selection } from '../editor/selection';
 import type { Point } from './geometry';
 import { snap } from './grid';
 import type { IndexedScene } from './hit';
+import { carriedRouteCommands } from './routing/commands';
 import type { ElementShape } from './scene';
 import { coversRect } from './stacking';
 
@@ -88,6 +89,11 @@ export function moveParts(
   }
   for (const shape of freeShapes)
     commands.push({ type: 'update-free-shape', view: view.id, shape });
+  // The bend points of relations whose two ends move go with them (ADR 0039); a drop sends its own.
+  if (!except && positions.size > 0) {
+    const carried = carriedKeys(indexed, movingShapes(indexed, selection));
+    commands.push(...carriedRouteCommands(indexed, project, view.id, carried, { x: dx, y: dy }));
+  }
   if (commands.length === 0) return undefined;
   return { commands, shapes: positions.size + freeShapes.length, viewName: view.name };
 }

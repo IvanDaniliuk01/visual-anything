@@ -5,6 +5,9 @@
  */
 import { centerOf, distance, type Point, type Rect } from './geometry';
 
+// Routes drawn by hand, through bend points, orthogonal, straight or curved (ADR 0039).
+export { routeByHand, type CurveSpan, type HandEnd, type HandRoute } from './routing/hand';
+
 /** A route from its start to its end, through its bends; at least two points. */
 export type Route = Point[];
 

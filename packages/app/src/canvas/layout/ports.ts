@@ -3,8 +3,10 @@
  * sets them (`docs/designs/components.md` §4.2 and §4.3); a shape without any has relations attach
  * anywhere on its border, and ELK then decides where. Pure, and run in the layout worker.
  */
+import type { ResolvedAttachment } from '@visual-anything/core';
 import type { Point, Size } from '../geometry';
-import type { LayoutConnectionPoint } from './types';
+import type { RelationLine } from '../scene';
+import type { LayoutConnectionPoint, LayoutPort } from './types';
 
 const SIDES: ReadonlySet<string> = new Set(['top', 'right', 'bottom', 'left']);
 
@@ -34,6 +36,20 @@ export function connectionPointsOf(appearance: unknown): LayoutConnectionPoint[]
     return [{ name, side: side as LayoutConnectionPoint['side'], at }];
   });
   return points.length > 0 ? points : undefined;
+}
+
+/**
+ * The ends of a line that the view routes by hand at a chosen place (ADR 0039), as fixed ports: a
+ * border place or a connection point, by its side and place along it. Automatic ends have none.
+ */
+export function handPortsOf(line: RelationLine): { fromPort?: LayoutPort; toPort?: LayoutPort } {
+  const route = line.hand?.route;
+  if (!route) return {};
+  const port = (attachment: ResolvedAttachment): LayoutPort | undefined =>
+    attachment.kind === 'automatic' ? undefined : { side: attachment.side, at: attachment.at };
+  const fromPort = port(route.from);
+  const toPort = port(route.to);
+  return { ...(fromPort ? { fromPort } : {}), ...(toPort ? { toPort } : {}) };
 }
 
 /** Where a connection point sits on a shape of this size, relative to its top left corner. */

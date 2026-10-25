@@ -27,7 +27,9 @@ import {
   type LaidOutShape,
   type LayoutConnectionPoint,
   type LayoutInput,
+  type LayoutPort,
   type LayoutProgress,
+  type LayoutRelation,
   type LayoutResult,
 } from './types';
 
@@ -98,6 +100,9 @@ export interface Lifted {
   /** Whether the relation ends on the content itself, rather than on something inside it. */
   uDirect: boolean;
   vDirect: boolean;
+  /** Where the end on the content itself is fixed by hand, as a port (ADR 0039). */
+  uPort?: LayoutPort;
+  vPort?: LayoutPort;
 }
 
 /**
@@ -290,15 +295,37 @@ export function blockGraph(
   lifted: readonly Lifted[],
 ): ElkNode {
   const back = backRelations(nodes, lifted);
-  const ports = new Map<number, Map<number, ElkPort>>();
-  const endOf = (node: number, direct: boolean, toward: 'east' | 'west'): string => {
-    const points = direct ? pointsOf(node) : undefined;
+  const ports = new Map<number, Map<number | string, ElkPort>>();
+  const endOf = (
+    node: number,
+    direct: boolean,
+    toward: 'east' | 'west',
+    fixed?: LayoutPort,
+  ): string => {
     const size = sizes.get(node);
+    // An end chosen by hand is a port where it was put.
+    if (direct && fixed && size) {
+      const key = `${fixed.side} ${fixed.at}`;
+      const portId = `s${node}@${key}`;
+      const own = ports.get(node) ?? new Map<number | string, ElkPort>();
+      ports.set(node, own);
+      if (!own.has(key)) {
+        own.set(key, {
+          id: portId,
+          ...pointOnBorder({ name: key, ...fixed }, size),
+          width: 0,
+          height: 0,
+          layoutOptions: { 'elk.port.side': ELK_SIDES[fixed.side] },
+        });
+      }
+      return portId;
+    }
+    const points = direct ? pointsOf(node) : undefined;
     if (!points || points.length === 0 || !size) return `s${node}`;
     const at = pointToward(points, size, toward);
     const point = points[at] as LayoutConnectionPoint;
     const portId = `s${node}:${at}`;
-    const own = ports.get(node) ?? new Map<number, ElkPort>();
+    const own = ports.get(node) ?? new Map<number | string, ElkPort>();
     ports.set(node, own);
     if (!own.has(at)) {
       own.set(at, {
@@ -317,8 +344,8 @@ export function blockGraph(
   lifted.forEach((each, at) => {
     if (each.u === each.v) return;
     const reversed = back.has(at);
-    const source = endOf(each.u, each.uDirect, reversed ? 'west' : 'east');
-    const target = endOf(each.v, each.vDirect, reversed ? 'east' : 'west');
+    const source = endOf(each.u, each.uDirect, reversed ? 'west' : 'east', each.uPort);
+    const target = endOf(each.v, each.vDirect, reversed ? 'east' : 'west', each.vPort);
     const key = `${source}\u0000${target}`;
     if (seen.has(key)) return;
     seen.add(key);
@@ -338,7 +365,9 @@ export function blockGraph(
         ...(own
           ? {
               layoutOptions: { 'elk.portConstraints': 'FIXED_POS' },
-              ports: [...own.entries()].sort(([a], [b]) => a - b).map(([, port]) => port),
+              ports: [...own.entries()]
+                .sort(([a], [b]) => String(a).localeCompare(String(b), 'en', { numeric: true }))
+                .map(([, port]) => port),
             }
           : {}),
       };
@@ -494,7 +523,7 @@ class Tree {
       copies.push(at);
       this.copies.set(shape.element, copies);
     });
-    for (const relation of input.relations) this.lift(relation.from, relation.to);
+    for (const relation of input.relations) this.lift(relation.from, relation.to, relation);
   }
 
   /** How many levels, first copies of containers and World, hold free shapes to arrange. */
@@ -616,7 +645,7 @@ class Tree {
    * Records a relation at the level where its ends meet: between the two contents of their nearest
    * common container that hold them, in that container's first copy.
    */
-  private lift(from: number, to: number): void {
+  private lift(from: number, to: number, ends?: Pick<LayoutRelation, 'fromPort' | 'toPort'>): void {
     const { shapes } = this.input;
     if (from === to || !shapes[from] || !shapes[to]) return;
     let a = from;
@@ -642,7 +671,16 @@ class Tree {
     const vFree = shapes[v]?.free === true;
     if (uFree && vFree) {
       const list = this.lifted.get(level) ?? [];
-      list.push({ u, v, uDirect: belowA === from, vDirect: belowB === to });
+      const uDirect = belowA === from;
+      const vDirect = belowB === to;
+      list.push({
+        u,
+        v,
+        uDirect,
+        vDirect,
+        ...(uDirect && ends?.fromPort ? { uPort: ends.fromPort } : {}),
+        ...(vDirect && ends?.toPort ? { vPort: ends.toPort } : {}),
+      });
       this.lifted.set(level, list);
     } else if (uFree !== vFree) {
       const flow = this.flows.get(level) ?? { into: 0, out: 0 };

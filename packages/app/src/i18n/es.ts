@@ -636,6 +636,95 @@ export const ui: Catalog = {
   'Leave the canvas': 'Salir del lienzo',
   'The arrow keys select shapes, ] and [ (or . and ,) step through the selected element’s relations, and Enter follows a relation, and Shift+F10 opens the selected shape’s menu. Every key is listed under Keyboard, after the canvas.':
     'Las flechas seleccionan formas, ] y [ (o . y ,) recorren las relaciones del elemento seleccionado, Enter sigue una relación y Mayús+F10 abre el menú de la forma seleccionada. Todas las teclas están en Teclado, después del lienzo.',
+
+  // Routes chosen by hand (ADR 0039): the relation's menu, the inspector, dragging and the keys.
+  Route: 'Ruta',
+  'Route of {name}': 'Ruta de {name}',
+  Style: 'Estilo',
+  Orthogonal: 'Ortogonal',
+  Straight: 'Recta',
+  Curved: 'Curva',
+  'Reset route': 'Restablecer la ruta',
+  'It is routed automatically': 'Se traza automáticamente',
+  'Attach the start automatically': 'Conectar el inicio automáticamente',
+  'Attach the end automatically': 'Conectar el final automáticamente',
+  'Edit the route…': 'Editar la ruta…',
+  Start: 'Inicio',
+  End: 'Final',
+  'Bend points': 'Puntos de quiebre',
+  Automatic: 'Automático',
+  'At "{name}"': 'En "{name}"',
+  'On the top side': 'En el lado superior',
+  'On the right side': 'En el lado derecho',
+  'On the bottom side': 'En el lado inferior',
+  'On the left side': 'En el lado izquierdo',
+  'This view does not draw it as a line of its own.':
+    'Esta vista no la dibuja como una línea propia.',
+  'Attach automatically': 'Conectar automáticamente',
+  'Attach at "{name}"': 'Conectar en "{name}"',
+  'Attach to the top side': 'Conectar al lado superior',
+  'Attach to the right side': 'Conectar al lado derecho',
+  'Attach to the bottom side': 'Conectar al lado inferior',
+  'Attach to the left side': 'Conectar al lado izquierdo',
+  'Reconnect to "{name}"': 'Reconectar con "{name}"',
+  'Cannot reconnect to "{name}"': 'No se puede reconectar con "{name}"',
+  'Containment would form a cycle': 'La contención formaría un ciclo',
+  'It is the other end of the relation already': 'Ya es el otro extremo de la relación',
+  'Alt: no snapping': 'Alt: sin ajuste',
+  '⌥: no snapping': '⌥: sin ajuste',
+  'A route has at most {limit} bend points.':
+    'Una ruta tiene como máximo {limit} puntos de quiebre.',
+  'Editing the route of "{name}". Tab and Shift+Tab move between its handles; the arrow keys move the handle; Insert adds a bend point; Delete removes one; A attaches an end automatically; Enter applies; Escape cancels.':
+    'Editando la ruta de "{name}". Tab y Mayús+Tab pasan de un control a otro; las flechas mueven el control; Insert agrega un punto de quiebre; Supr quita uno; A conecta un extremo automáticamente; Enter aplica; Esc cancela.',
+  'Route editing cancelled; the route is as it was.':
+    'Se canceló la edición de la ruta; la ruta quedó como estaba.',
+  'Choose a bend point with Tab to remove it.': 'Elegir un punto de quiebre con Tab para quitarlo.',
+  'Bend point removed.': 'Se quitó el punto de quiebre.',
+  'Choose the start or the end with Tab to attach it automatically.':
+    'Elegir el inicio o el final con Tab para conectarlo automáticamente.',
+  'Attached automatically.': 'Conectado automáticamente.',
+  'Choose a segment or a bend point with Tab to add a bend point there.':
+    'Elegir un segmento o un punto de quiebre con Tab para agregar ahí un punto de quiebre.',
+  'Bend point added.': 'Se agregó un punto de quiebre.',
+  'This end is the middle of another relation, and moves with its line.':
+    'Este extremo es el medio de otra relación y se mueve con su línea.',
+  'The route did not change.': 'La ruta no cambió.',
+  '{end}, {where}': '{end}, {where}',
+  'attached automatically': 'conectado automáticamente',
+  'at "{name}"': 'en "{name}"',
+  'on the top side': 'en el lado superior',
+  'on the right side': 'en el lado derecho',
+  'on the bottom side': 'en el lado inferior',
+  'on the left side': 'en el lado izquierdo',
+  'Bend point {position} of {total}': 'Punto de quiebre {position} de {total}',
+  'Middle of segment {position}': 'Medio del segmento {position}',
+  'Shift+F10 or the menu key, on a relation': 'Mayús+F10 o la tecla de menú, en una relación',
+  'Open the relation’s menu: its style, Reset route, and Edit the route…':
+    'Abrir el menú de la relación: su estilo, Restablecer la ruta y Editar la ruta…',
+  'Alt while dragging an end or a bend point of a route (⌥ on macOS)':
+    'Alt mientras se arrastra un extremo o un punto de quiebre de una ruta (⌥ en macOS)',
+  'Place it without snapping, at the exact border point or where it is let go':
+    'Ubicarlo sin ajuste, en el punto exacto del borde o donde se suelta',
+  'Delete, with a bend point chosen': 'Supr, con un punto de quiebre elegido',
+  'Remove the bend point from the route; double-clicking it does too':
+    'Quitar el punto de quiebre de la ruta; hacer doble clic en él también lo quita',
+  'Tab and Shift+Tab, editing a route': 'Tab y Mayús+Tab, al editar una ruta',
+  'The next or the previous handle: the start, the bend points and the middles of the segments, the end':
+    'El control siguiente o el anterior: el inicio, los puntos de quiebre y los medios de los segmentos, el final',
+  'Arrow keys, editing a route': 'Flechas, al editar una ruta',
+  'Move the bend point or the segment by 1 unit, with Shift by 8; on an end, move it along the border by 1 unit, round the corners, and with Shift to the next connection point':
+    'Mover el punto de quiebre o el segmento 1 unidad, con Mayús 8; en un extremo, moverlo por el borde 1 unidad, doblando las esquinas, y con Mayús al punto de conexión siguiente',
+  'Insert or Ctrl+Enter, editing a route': 'Insert o Ctrl+Enter, al editar una ruta',
+  'Add a bend point at the middle of the chosen segment, or after the chosen bend point':
+    'Agregar un punto de quiebre en el medio del segmento elegido, o después del punto de quiebre elegido',
+  'Delete or Backspace, editing a route': 'Supr o Retroceso, al editar una ruta',
+  'Remove the chosen bend point': 'Quitar el punto de quiebre elegido',
+  'A, editing a route': 'A, al editar una ruta',
+  'Attach the chosen end automatically': 'Conectar automáticamente el extremo elegido',
+  'Enter, editing a route': 'Enter, al editar una ruta',
+  'Apply every change, as one action': 'Aplicar todos los cambios, como una sola acción',
+  'Escape, editing a route': 'Esc, al editar una ruta',
+  'Cancel, and leave the route as it was': 'Cancelar y dejar la ruta como estaba',
 };
 
 /**
@@ -775,6 +864,17 @@ export const messages: Catalog = {
   'Edit an arrow in "{view}"': 'Editar una flecha en "{view}"',
   'Delete 1 free shape from "{view}"': 'Eliminar 1 forma libre de "{view}"',
   'Delete {n} free shapes from "{view}"': 'Eliminar {n} formas libres de "{view}"',
+  'Route "{relation}" by hand in "{view}"': 'Trazar "{relation}" a mano en "{view}"',
+  'Reset the route of "{relation}" in "{view}"': 'Restablecer la ruta de "{relation}" en "{view}"',
+  'Reset 1 route in "{view}"': 'Restablecer 1 ruta en "{view}"',
+  'Reset {n} routes in "{view}"': 'Restablecer {n} rutas en "{view}"',
+  'Draw "{relation}" curved in "{view}"': 'Dibujar "{relation}" curva en "{view}"',
+  'Draw "{relation}" straight in "{view}"': 'Dibujar "{relation}" recta en "{view}"',
+  'Draw "{relation}" orthogonal in "{view}"': 'Dibujar "{relation}" ortogonal en "{view}"',
+  'Draw {n} relations curved in "{view}"': 'Dibujar {n} relaciones curvas en "{view}"',
+  'Draw {n} relations straight in "{view}"': 'Dibujar {n} relaciones rectas en "{view}"',
+  'Draw {n} relations orthogonal in "{view}"': 'Dibujar {n} relaciones ortogonales en "{view}"',
+  'Reconnect "{relation}" to "{end}"': 'Reconectar "{relation}" con "{end}"',
 
   // Why a change was refused, and what a change breaks that only warns.
   'There is nothing to undo.': 'No hay nada que deshacer.',
