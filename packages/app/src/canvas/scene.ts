@@ -50,7 +50,23 @@ import {
 import { collapsedIn } from './collapse';
 import type { Dash, ShapeKind } from './geometry';
 import { arrowheadAt, directionOf, type Arrowhead, type Point, type Rect } from './geometry';
-import { midpointOf, routeBetweenEnds, type RouteEnd } from './route';
+import { midpointOf } from './route';
+import { isSideEnd, routeWithSides, type AnyEnd } from './rowRoutes';
+import {
+  changedSides,
+  hidesContents,
+  rowBox,
+  rowFieldsOf,
+  rowSidesOf,
+  rowsBox,
+  rowsChanged,
+  sameRowFields,
+  sideEndOf,
+  withRowFields,
+  type RowParts,
+  type RowSides,
+  type SideInfo,
+} from './rowShapes';
 
 /** Everything a view draws. */
 export interface Scene {
@@ -113,6 +129,20 @@ export interface ElementShape {
    * expands.
    */
   collapsed?: { contents: number };
+  /**
+   * On a shape that draws its contents as rows (ADR 0023): how many rows it draws; 0 for an empty
+   * one, which keeps the height of one empty row, and for a collapsed one, which keeps its header.
+   */
+  rowCount?: number;
+  /** On a row: its place among its container's rows, from 0, in the model's order. */
+  row?: number;
+  /** On a row: the elements it holds, which a row does not draw; the outline lists them. */
+  undrawn?: readonly Id[];
+  /**
+   * On a row, and on a shape that draws rows: its name and what its header or line writes after it,
+   * cut to one line each, ending in "…" when cut. `name` stays whole, for the editor and the outline.
+   */
+  fitted?: { name: string; detail: string };
 }
 
 /** A relation drawn along an orthogonal route, or an aggregated relation standing for several. */
@@ -285,6 +315,8 @@ interface Built {
   plan: RelationPlan;
   /** The line drawn for each line of the plan; none where its route cannot be drawn. */
   lines: readonly (RelationLine | undefined)[];
+  /** How each line of the plan leaves the rows and the shapes that draw rows it ends on. */
+  sides: RowSides | undefined;
 }
 
 /** The view fields a layout does not depend on: a restack or a rename changes only these. */
@@ -409,18 +441,19 @@ function layOut(
     before.definitions === definitions
       ? before
       : undefined;
-  const placed = base
-    ? replaceShapes(project, view, definitions, tree, free, base)
-    : placeShapes(
-        project,
-        view,
-        definitions,
-        tree,
-        collapsed,
-        free,
-        keep ? before : undefined,
-        keep,
-      );
+  const replaced = base && replaceShapes(project, view, definitions, tree, free, base);
+  const placed =
+    replaced ??
+    placeShapes(
+      project,
+      view,
+      definitions,
+      tree,
+      collapsed,
+      free,
+      keep ? before : undefined,
+      keep,
+    );
   const { shapes } = placed;
 
   const drawn = drawRelations(
@@ -429,7 +462,7 @@ function layOut(
     placed,
     definitions,
     keep ? before : undefined,
-    base !== undefined,
+    replaced !== undefined,
   );
   const relations =
     before && sameItems(before.layout.relations, drawn.relations)
@@ -488,6 +521,7 @@ function layOut(
     scene,
     plan: drawn.plan,
     lines: drawn.lines,
+    sides: drawn.sides,
   };
 }
 
@@ -519,7 +553,7 @@ function drawingOrder(layout: Layout, view: ViewFile, worldId: Id): readonly num
  * What depends only on an element and the definitions: how its shapes look, its component's name,
  * and its detail for each set of relation types it is the `from` end of, which its badges depend on.
  */
-interface Look {
+export interface Look {
   appearance: ResolvedAppearance;
   componentName: string;
   details: Map<string, string>;
@@ -602,7 +636,7 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
 }
 
 /** A placement with its size worked out, before it gets absolute coordinates. */
-interface Box {
+export interface Box {
   placement: Placement;
   width: number;
   height: number;
@@ -618,7 +652,7 @@ interface Box {
 }
 
 /** What a box measured again holds: what its shape is made from. */
-interface Measured {
+export interface Measured {
   element: Element;
   look: Look;
   detail: string;
@@ -626,6 +660,8 @@ interface Measured {
   contents: Box[];
   /** For a collapsed container: how many shapes would sit directly in it. */
   folded?: number;
+  /** For a shape that draws its contents as rows, and for a row (`rowShapes.ts`). */
+  rows?: RowParts;
 }
 
 /** The view's shapes, and how they compare with the last build's. */
@@ -651,8 +687,14 @@ function measured(
   detail: string,
   position: ShapePosition | undefined,
   collapsed: boolean,
-  contentsOf: () => Box[],
+  contentsOf: (asRows: boolean) => Box[],
+  asRow = false,
 ): Box {
+  // A row, and a shape that draws its contents as rows, are measured by their rows (ADR 0023).
+  if (asRow) return rowBox(placement, element, look, detail);
+  if (look.appearance.contentsAsRows) {
+    return rowsBox(placement, element, look, detail, position, collapsed, () => contentsOf(true));
+  }
   const { appearance } = look;
   const offset = position ? { x: position.x, y: position.y } : undefined;
   if (collapsed && placement.contents.length > 0) {
@@ -672,7 +714,7 @@ function measured(
       },
     };
   }
-  const contents = contentsOf();
+  const contents = contentsOf(false);
   arrangeContents(contents);
   let right: number | undefined;
   let bottom: number | undefined;
@@ -734,7 +776,7 @@ function placeShapes(
   const kept = looksOf(definitions, keep);
   const started = startedOf(model.relations);
 
-  const measure = (placement: Placement): Box => {
+  const measure = (placement: Placement, asRow = false): Box => {
     const element = elements.get(placement.element) ?? {
       id: placement.element,
       component: ESSENCE_ID,
@@ -746,10 +788,11 @@ function placeShapes(
       ...lookAndDetail(element, definitions, kept, started),
       positions.get(positionKey(placement.element, placement.container)),
       collapsed.has(placement.element),
-      () => placement.contents.map(measure),
+      (asRows) => placement.contents.map((content) => measure(content, asRows)),
+      asRow,
     );
   };
-  const worldContents = tree.map(measure);
+  const worldContents = tree.map((placement) => measure(placement));
   standInWorld(worldContents, free);
 
   const previous = before?.layout.shapes;
@@ -802,7 +845,7 @@ function placeShapes(
         moved.push(at);
       } else if (!sameRect(was.extent, shape.extent)) geometryKept = false;
     }
-    if (parts.folded !== undefined) hide(box.placement, at);
+    if (parts.folded !== undefined || hidesContents(parts)) hide(box.placement, at);
     return at;
   };
   const inWorld = worldContents.map((box) => place(box, 0, 0, undefined));
@@ -854,10 +897,14 @@ function treeIndexOf(tree: readonly Placement[]): TreeIndex {
   return index;
 }
 
+/** Thrown, and caught, when a shape starts or stops drawing its contents as rows. */
+const STALE = Symbol('stale');
+
 /**
  * The shapes of a view whose containment, collapse and definitions are those of `base`: they sit at
  * the same indexes, so only the shapes whose element or position changed, what holds them and what
- * moves with them are worked out again; every other shape is the one `base` drew.
+ * moves with them are worked out again; every other shape is the one `base` drew. Undefined when a
+ * changed element starts or stops drawing its contents as rows, which changes the shapes there are.
  */
 function replaceShapes(
   project: ProjectSnapshot,
@@ -866,7 +913,7 @@ function replaceShapes(
   tree: readonly Placement[],
   free: { notes: readonly NoteShape[]; arrows: readonly ArrowShape[] },
   base: Built,
-): Placed {
+): Placed | undefined {
   const { model } = project;
   const index = treeIndexOf(tree);
   const dirty = new Set<Placement>();
@@ -916,8 +963,8 @@ function replaceShapes(
   const { contents, inWorld } = base.layout;
   const collapsed = base.collapsed;
 
-  const measureAt = (at: number, placement: Placement): Box => {
-    if (!dirty.has(placement)) {
+  const measureAt = (at: number, placement: Placement, asRow = false): Box => {
+    if (!asRow && !dirty.has(placement)) {
       const shape = old[at] as ElementShape;
       const stored = shape.positioned !== 'placed';
       return {
@@ -933,19 +980,31 @@ function replaceShapes(
       component: ESSENCE_ID,
       name: placement.element,
     };
-    const inside = contents[at] as number[];
+    const inside = asRow ? [] : (contents[at] as number[]);
+    const [look, detail] = lookAndDetail(element, definitions, kept, started);
+    // A shape that starts or stops drawing its contents as rows changes which shapes there are.
+    if (!asRow && rowsChanged(old[at] as ElementShape, look)) throw STALE;
     return measured(
       placement,
       element,
-      ...lookAndDetail(element, definitions, kept, started),
+      look,
+      detail,
       positions.get(positionKey(placement.element, placement.container)),
       collapsed.has(placement.element),
-      () => placement.contents.map((content, each) => measureAt(inside[each] as number, content)),
+      (asRows) =>
+        placement.contents.map((content, each) =>
+          measureAt(inside[each] as number, content, asRows),
+        ),
+      asRow,
     );
   };
-  const worldContents = tree.map((placement, each) =>
-    measureAt(inWorld[each] as number, placement),
-  );
+  let worldContents: Box[];
+  try {
+    worldContents = tree.map((placement, each) => measureAt(inWorld[each] as number, placement));
+  } catch (error) {
+    if (error === STALE) return undefined;
+    throw error;
+  }
   standInWorld(worldContents, free);
 
   let shapes: ElementShape[] | undefined;
@@ -1089,8 +1148,10 @@ function shapeFor(
   const positioned = position ? (position.pinned ? 'pinned' : 'stored') : 'placed';
   const container = box.placement.container;
   const holdsContents = parts.contents.length > 0;
+  const rowish = rowFieldsOf(parts, width, holdsContents);
   if (
     before &&
+    sameRowFields(before, rowish) &&
     before.key === key &&
     before.element === element.id &&
     before.container === container &&
@@ -1103,7 +1164,7 @@ function shapeFor(
     before.name === element.name &&
     before.componentName === look.componentName &&
     before.detail === detail &&
-    before.kind === appearance.shape &&
+    before.kind === rowish.kind &&
     before.fill === appearance.fill &&
     before.stroke === appearance.stroke &&
     before.rect.x === x &&
@@ -1128,7 +1189,7 @@ function shapeFor(
     name: element.name,
     componentName: look.componentName,
     detail,
-    kind: appearance.shape,
+    kind: rowish.kind,
     fill: appearance.fill,
     stroke: appearance.stroke,
     rect,
@@ -1146,6 +1207,7 @@ function shapeFor(
     if (position.height !== undefined) shape.storedSize.height = position.height;
   }
   if (folded !== undefined) shape.collapsed = { contents: folded };
+  withRowFields(shape, rowish);
   return shape;
 }
 
@@ -1316,10 +1378,16 @@ function drawRelations(
   definitions: Definitions,
   before: Built | undefined,
   kept: boolean,
-): { relations: RelationLine[]; plan: RelationPlan; lines: (RelationLine | undefined)[] } {
+): {
+  relations: RelationLine[];
+  plan: RelationPlan;
+  lines: (RelationLine | undefined)[];
+  sides: RowSides | undefined;
+} {
   const { shapes } = placed;
   const byId = relationsById(relations);
   let plan: RelationPlan;
+  let sides: RowSides | undefined;
   let again: Set<number> | undefined;
   const changed = kept && before ? changedRelations(before.model.relations, relations) : undefined;
   if (kept && before && changed) {
@@ -1330,6 +1398,9 @@ function drawRelations(
       const spec = plan.byKey.get(id);
       if (spec !== undefined) again.add(spec);
     }
+    // A line whose end on a row now leaves by another side or lane is routed again.
+    sides = rowSidesOf(plan.specs, shapes, keyIndexOf(shapes));
+    for (const spec of changedSides(before.sides, sides)) again.add(spec);
     const waiting = [...again];
     for (let spec = waiting.pop(); spec !== undefined; spec = waiting.pop()) {
       for (const next of plan.onLine.get((plan.specs[spec] as LineSpec).key) ?? []) {
@@ -1340,10 +1411,16 @@ function drawRelations(
       }
     }
     if (again.size === 0) {
-      return { relations: before.layout.relations, plan, lines: before.lines as RelationLine[] };
+      return {
+        relations: before.layout.relations,
+        plan,
+        lines: before.lines as RelationLine[],
+        sides,
+      };
     }
   } else {
     plan = planRelations(relations, nesting, shapes, placed.hiddenIn, definitions);
+    sides = rowSidesOf(plan.specs, shapes, keyIndexOf(shapes));
   }
 
   const previousLines = before?.lines;
@@ -1362,8 +1439,8 @@ function drawRelations(
     }
     done[at] = 2;
     const spec = plan.specs[at] as LineSpec;
-    const from = routeEndOf(spec.from, shapes, plan, lineAt);
-    const to = routeEndOf(spec.to, shapes, plan, lineAt);
+    const from = routeEndOf(spec.from, shapes, plan, lineAt, sides?.from[at]);
+    const to = routeEndOf(spec.to, shapes, plan, lineAt, sides?.to[at]);
     const previous = previousAt?.get(spec.key);
     const line =
       from && to
@@ -1385,7 +1462,7 @@ function drawRelations(
     const line = lineAt(at);
     if (line) drawn.push(line);
   }
-  return { relations: drawn, plan, lines };
+  return { relations: drawn, plan, lines, sides };
 }
 
 /**
@@ -1553,8 +1630,14 @@ function routeEndOf(
   shapes: readonly ElementShape[],
   plan: RelationPlan,
   lineAt: (at: number) => RelationLine | undefined,
-): RouteEnd | undefined {
-  if (end.kind === 'shape') return { rect: (shapes[end.at] as ElementShape).rect };
+  side?: SideInfo,
+): AnyEnd | undefined {
+  if (end.kind === 'shape') {
+    const shape = shapes[end.at] as ElementShape;
+    // A row, or a shape that draws rows, is left beside it (ADR 0023).
+    if (side) return sideEndOf(shape, shapes, keyIndexOf(shapes), side);
+    return { rect: shape.rect };
+  }
   const at = plan.byKey.get(end.key);
   const line = at === undefined ? undefined : lineAt(at);
   return line && { point: line.middle };
@@ -1566,7 +1649,11 @@ function drawnEnd(end: EndRef): DrawnEnd {
     : { kind: 'relation', relation: end.key };
 }
 
-function routeNumbers(end: RouteEnd): number[] {
+function routeNumbers(end: AnyEnd): number[] {
+  if (isSideEnd(end)) {
+    const { container, y, lane, side } = end;
+    return [container.x, container.y, container.width, container.height, y, lane, side === 'right' ? 1 : -1];
+  }
   return 'rect' in end
     ? [end.rect.x, end.rect.y, end.rect.width, end.rect.height]
     : [end.point.x, end.point.y];
@@ -1578,8 +1665,8 @@ function routeNumbers(end: RouteEnd): number[] {
  */
 function lineBetween(
   spec: LineSpec,
-  from: RouteEnd,
-  to: RouteEnd,
+  from: AnyEnd,
+  to: AnyEnd,
   definitions: Definitions,
   relation: Relation | undefined,
   kept: RelationLine | undefined,
@@ -1609,7 +1696,7 @@ function lineBetween(
     return kept;
   }
 
-  const route = routeBetweenEnds(from, to, offset);
+  const route = routeWithSides(from, to, offset);
   const start = route[0] as Point;
   const end = route.at(-1) as Point;
   const beforeEnd = route.at(-2) as Point;
