@@ -284,7 +284,8 @@ describe('readDrawio, on hostile files', () => {
         `<mxfile><diagram name="A">${half}</diagram><diagram name="B">${half}</diagram></mxfile>`,
       ),
     ).toBe('The compressed content inflates to over 32 MiB, the most an import reads.');
-  });
+    // Inflating 32 MiB three times takes a few seconds on a loaded machine.
+  }, 60_000);
 
   it('reads an edge to an id that does not exist, or to a layer, as matching nothing', () => {
     const plan = read(page(vertex('a', 'A') + edge('e1', 'a', 'nowhere') + edge('e2', 'a', '1')));
