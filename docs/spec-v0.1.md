@@ -383,7 +383,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 
 - [x] Tour files in the schema and the loader; tour commands in the core, test-first, steps naming deleted things kept and flagged
 - [x] The tours panel: Add step from the view state, captions and marks edited in place, steps reordered
-- [ ] Full-screen playback: the caption card, the progress line, keys, the camera's capped and eased moves, speaker notes in a second window, and tours in the read-only page (all but the read-only page are in; `TourStage` waits for that page to be in `develop`)
+- [x] Full-screen playback: the caption card, the progress line, keys, the camera's capped and eased moves, speaker notes in a second window, and tours in the read-only page
 - [x] Claude's tools for tours
 - [ ] Comment files in the schema and the loader; comment commands in the core, test-first, threads whose anchor is deleted kept as detached (the file kind, the loader, the watcher and the writer are in)
 - [ ] Pins on the canvas and the comments panel, with filters; authors from your preferences
