@@ -31,6 +31,7 @@ import { centerOf, holdsPoint, type Point, type Rect } from './geometry';
 import { carriedKeys, moveParts, movingShapes } from './gestures';
 import type { IndexedScene } from './hit';
 import type { Overlay } from './renderer';
+import { carriedRouteCommands, droppedInto } from './routing/commands';
 import { CONTENTS_ORIGIN, type ElementShape } from './scene';
 import { overlaps } from './spatial';
 import { coversRect, drawingRank } from './stacking';
@@ -336,13 +337,32 @@ export function dropCommand(
   const label = containerChangeLabel(project, viewId, change);
   const placed = new Set(change.shapes.map((each) => each.element));
   const rest = moveParts(indexed, project, viewId, selection, delta, placed);
+  // After the change, the bend points of relations whose two ends go in, relative to their container.
+  const moving = movingShapes(indexed, selection);
+  const routes = carriedRouteCommands(
+    indexed,
+    project,
+    viewId,
+    carriedKeys(indexed, moving),
+    { x: Math.round(delta.x), y: Math.round(delta.y) },
+    droppedInto(
+      indexed,
+      project,
+      change,
+      moving,
+      settled.kind === 'into' ? settled.target : undefined,
+    ),
+  );
+  if (!rest && routes.length > 0) {
+    return { command: { type: 'batch', label, commands: [change, ...routes] }, change, label };
+  }
   if (!rest) return { command: change, change, label };
   const batchLabel = fill(
     rest.shapes === 1 ? '{base}, and move {n} other shape' : '{base}, and move {n} other shapes',
     { base: label, n: rest.shapes },
   );
   return {
-    command: { type: 'batch', label: batchLabel, commands: [change, ...rest.commands] },
+    command: { type: 'batch', label: batchLabel, commands: [change, ...rest.commands, ...routes] },
     change,
     label: batchLabel,
   };

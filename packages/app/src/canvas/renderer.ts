@@ -55,6 +55,8 @@ import { bitmapText, installFonts } from './labels';
 import { THEMES, type CanvasTheme } from '../theme/themes';
 import { DIMMED_ALPHA } from './colors';
 import { midpointOf, pointAlong, routeBetweenEnds, type RouteEnd } from './route';
+import { drawRouteOverlay, type RouteOverlay } from './routing/overlay';
+import { rerouted } from './routing/scene-routes';
 import {
   relationLinesOf,
   type ArrowShape,
@@ -337,6 +339,11 @@ export class CanvasRenderer {
   /** The marks of what is dragged, which move with it. */
   private readonly movingMarks = new Graphics();
   private readonly gestureMarks = new Graphics();
+  /** What editing a route draws: its handles and its line as it now runs, above everything. */
+  private readonly routeMarks = new Graphics();
+  private routeOverlay: RouteOverlay | undefined;
+  /** What the route edit takes out of the tiles: the line it draws itself. */
+  private routeHiding: Hidden | undefined;
   /** The regions of each band in use, in increasing order, under the shapes beyond the bands. */
   private readonly bands: Regions[] = [];
   private readonly overflowBand = new Container({ isRenderGroup: true });
@@ -428,6 +435,7 @@ export class CanvasRenderer {
       this.movingMarks,
       this.markerMarks,
       this.gestureMarks,
+      this.routeMarks,
     );
     this.world.addChild(
       this.elementShapes,
@@ -566,6 +574,44 @@ export class CanvasRenderer {
   }
 
   /**
+   * Draws a relation's route as it is edited (ADR 0039): its handles, and while it changes, its line
+   * as it now runs, which leaves its tiles meanwhile, with what a dragged end would attach to. Nothing
+   * else is drawn again while the edit goes on.
+   */
+  setRouteOverlay(overlay: RouteOverlay | undefined): void {
+    this.routeOverlay = overlay;
+    const hides = overlay?.preview ? overlay.relation : undefined;
+    const hiding =
+      this.routeHiding && this.hidden === this.routeHiding
+        ? [...this.routeHiding.relations][0]
+        : undefined;
+    if (!this.drag && hides !== hiding) {
+      this.routeHiding =
+        hides === undefined
+          ? undefined
+          : {
+              shapes: NOTHING_HIDDEN.shapes,
+              relations: new Set([hides]),
+              free: NOTHING_HIDDEN.free,
+            };
+      this.hidden = this.routeHiding ?? NOTHING_HIDDEN;
+      try {
+        if (this.indexed && this.status === 'ready') this.rebuild();
+      } catch (error) {
+        this.callbacks.onFailure(error);
+      }
+      this.drawSelection();
+    }
+    this.drawRouteMarks();
+    this.requestRender();
+  }
+
+  /** Draws the route edit for the scale and the theme shown now. */
+  private drawRouteMarks(): void {
+    drawRouteOverlay(this.routeMarks, this.routeOverlay, this.camera.scale, this.painter);
+  }
+
+  /**
    * Starts drawing shapes that are being dragged: they, the relations on them and the selected free
    * shapes leave their tiles and are drawn on their own, following the pointer. Relations between a
    * dragged shape and one that stays are routed again as it goes. Says which drag it is, so that
@@ -674,6 +720,7 @@ export class CanvasRenderer {
       this.drawHover();
       this.drawGesture();
       this.drawEmphasis();
+      this.drawRouteMarks();
     }
     this.settled = false;
     clearTimeout(this.settleTimer);
@@ -1887,6 +1934,8 @@ export class CanvasRenderer {
     const byId = linesById(indexed.scene.relations);
     const routed = new Map<Id, RelationLine>();
     const resolving = new Set<Id>();
+    const shapeOf = (end: DrawnEnd) =>
+      end.kind === 'shape' ? indexed.byKey.get(end.key) : undefined;
     const endOf = (end: DrawnEnd): RouteEnd | undefined => {
       if (end.kind === 'shape') {
         const shape = indexed.byKey.get(end.key);
@@ -1909,12 +1958,15 @@ export class CanvasRenderer {
       resolving.delete(line.relation);
       let next = line;
       if (from && to) {
-        const route = routeBetweenEnds(from, to, line.ends.offset);
+        // Routed by hand, through its bend points, or to connection points, where it is so.
+        const byHand = rerouted(line, from, to, shapeOf(line.ends.from), shapeOf(line.ends.to));
+        const route = byHand?.route ?? routeBetweenEnds(from, to, line.ends.offset);
         const end = route.at(-1) as Point;
         const beforeEnd = route.at(-2) as Point;
         if (directionOf(beforeEnd, end)) {
           next = {
             ...line,
+            curve: byHand?.curve,
             route,
             from: route[0] as Point,
             to: end,
@@ -2507,6 +2559,7 @@ export class CanvasRenderer {
     this.drawHover();
     this.drawGesture();
     this.drawEmphasis();
+    this.drawRouteMarks();
     this.redrawDrag();
     if (before.name !== painter.name) this.callbacks.onThemeShown?.(painter.name);
   }

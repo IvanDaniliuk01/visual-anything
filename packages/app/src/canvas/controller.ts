@@ -81,7 +81,8 @@ import {
   type Start,
 } from './navigation';
 import { CanvasRenderer, type DragFrame, type GridOptions, type Overlay } from './renderer';
-import type { ElementShape, NoteShape } from './scene';
+import { RouteEditor } from './routing/editor';
+import { relationLinesOf, type ElementShape, type NoteShape } from './scene';
 import {
   WORLD_FRAME,
   aimFrame,
@@ -121,6 +122,8 @@ export interface ControllerCallbacks {
    * shapes under the pointer, topmost first, when the menu was opened with it.
    */
   menu?(at: Point, shape: ElementShape, under?: readonly ElementShape[]): void;
+  /** Asks to open the menu of relations, their route's: `at` is on screen, relative to the canvas. */
+  relationMenu?(at: Point, relations: readonly Id[]): void;
   /**
    * Asks to collapse or expand containers, as the toggle on a container's shape and the keys do; the
    * canvas sends I1's command and says what it did.
@@ -165,7 +168,9 @@ type Gesture =
   | { kind: 'press'; pointer: number; start: Point; world: Point; hit: Hit; additive: boolean }
   | DragGesture
   | { kind: 'box'; pointer: number; start: Point; additive: boolean }
-  | { kind: 'connect'; pointer: number; from: ElementShape; anchor: Point; target?: Hit };
+  | { kind: 'connect'; pointer: number; from: ElementShape; anchor: Point; target?: Hit }
+  /** A handle or a segment of a route being dragged, which the route editor follows. */
+  | { kind: 'route'; pointer: number };
 
 /**
  * Shapes being dragged: from where the press was, by how far, and the renderer's drawing of them; and
@@ -236,6 +241,8 @@ interface SecondaryPress {
   world: Point;
   time: number;
   shape?: string;
+  /** The relations it was on, whose menu it opens. */
+  relations?: Id[];
 }
 
 /**
@@ -331,6 +338,8 @@ export class CanvasController {
   private pointerAt: Point | undefined;
   /** Whether a drag let go with Alt held, whose Alt keyup Windows browsers would take for the menu. */
   private altDragged = false;
+  /** Edits the route of the relation selected alone: its handles, gestures and keys (ADR 0039). */
+  private readonly routes: RouteEditor;
 
   constructor(
     private readonly host: HTMLElement,
@@ -349,6 +358,27 @@ export class CanvasController {
       },
       options.theme ? { theme: options.theme } : {},
     );
+    this.routes = new RouteEditor({
+      renderer: this.renderer,
+      state: () =>
+        this.indexed && this.project && this.viewId !== undefined
+          ? {
+              indexed: this.indexed,
+              project: this.project,
+              viewId: this.viewId,
+              selection: this.selection,
+              editable: this.editable,
+            }
+          : undefined,
+      scale: () => this.camera.scale,
+      command: (command) => callbacks.command(command),
+      announce: (text) => this.announce(text),
+      caption: (caption, at) => {
+        this.showCaption(caption);
+        if (at) this.placeCaption(at);
+      },
+      select: (relation) => this.select(selectionOf([{ kind: 'relation', id: relation }])),
+    });
     host.addEventListener('pointerdown', this.onPointerDown);
     host.addEventListener('pointermove', this.onPointerMove);
     host.addEventListener('pointerup', this.onPointerUp);
@@ -431,6 +461,13 @@ export class CanvasController {
 
   fit(): void {
     this.renderer.fit();
+  }
+
+  /** Edit the route…: the keys edit the route of a relation (ADR 0039). Says whether they do. */
+  editRoute(relation: Id): boolean {
+    if (this.gesture.kind !== 'idle') return false;
+    this.host.focus({ preventScroll: true });
+    return this.routes.editFromKeys(relation);
   }
 
   /** Zooms around the middle of the canvas. */
@@ -556,6 +593,12 @@ export class CanvasController {
     }
     if (event.button !== 0) return;
     const world = screenToWorld(this.camera, screen);
+    // The handles of a route are hit before anything else.
+    const modified = event.shiftKey || event.ctrlKey || event.metaKey;
+    if (this.editable && this.routes.press(world, screen, modified)) {
+      this.begin(event, { kind: 'route', pointer: event.pointerId });
+      return;
+    }
     const handleShape = this.handleShape();
     const handle = handleShape && this.handleOf(handleShape);
     if (
@@ -679,6 +722,9 @@ export class CanvasController {
       case 'box':
         this.showOverlay({ box: rectBetween(gesture.start, world) });
         return;
+      case 'route':
+        this.routes.move(world, screen, event.altKey);
+        return;
       case 'connect': {
         const hit = this.hit(world, HIT_TOLERANCE / this.camera.scale);
         const target =
@@ -722,15 +768,18 @@ export class CanvasController {
           this.hovered = shape;
           this.refreshMarks();
         }
-        this.host.style.cursor = onHandle
-          ? 'crosshair'
-          : this.spaceHeld
-            ? 'grab'
-            : hit
-              ? hit.kind === 'relation' && this.recorder
-                ? 'copy'
-                : 'pointer'
-              : 'default';
+        const routeCursor = this.routes.cursorAt(world);
+        this.host.style.cursor = routeCursor
+          ? routeCursor
+          : onHandle
+            ? 'crosshair'
+            : this.spaceHeld
+              ? 'grab'
+              : hit
+                ? hit.kind === 'relation' && this.recorder
+                  ? 'copy'
+                  : 'pointer'
+                : 'default';
         if (shape && this.onToggle(shape, world)) this.host.title = toggleTitle(shape);
         else if (this.host.title !== '') this.host.title = '';
         return;
@@ -772,6 +821,9 @@ export class CanvasController {
       }
       case 'drag':
         this.drop(gesture);
+        return;
+      case 'route':
+        this.routes.release();
         return;
       case 'box': {
         const world = screenToWorld(this.camera, this.local(event));
@@ -839,12 +891,16 @@ export class CanvasController {
     if (!this.indexed || !this.editable) return;
     if (this.renderer.rulersContain(this.local(event))) return;
     const world = screenToWorld(this.camera, this.local(event));
+    // A double-click on a bend point removes it.
+    if (this.routes.doubleClick(world)) return;
     const hit = this.hit(world, HIT_TOLERANCE / this.camera.scale);
     if (hit?.kind === 'shape') this.callbacks.rename({ kind: 'element', shape: hit.shape });
     else if (hit?.kind === 'note') this.callbacks.rename({ kind: 'note', note: hit.note });
   };
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
+    // Editing a route takes its keys first: those of its mode, and Delete on a chosen bend point.
+    if (this.routes.keyDown(event)) return;
     const command = event.ctrlKey || event.metaKey;
     const gesture = this.gesture;
     if (event.key === 'Alt' && gesture.kind === 'drag') {
@@ -991,11 +1047,16 @@ export class CanvasController {
       world,
       time: event.timeStamp,
       ...(hit?.kind === 'shape' ? { shape: hit.shape.key } : {}),
+      ...(hit?.kind === 'relation' ? { relations: relationsToAct(this.selection, hit) } : {}),
     };
   }
 
   /** Opens the menu of the shape a secondary press was on, there, with the shapes under it. */
   private openMenuAt(press: SecondaryPress): void {
+    if (press.relations) {
+      this.callbacks.relationMenu?.(press.at, press.relations);
+      return;
+    }
     const indexed = this.indexed;
     const shape = press.shape === undefined ? undefined : indexed?.byKey.get(press.shape);
     if (!indexed || !shape) return;
@@ -1009,6 +1070,19 @@ export class CanvasController {
   /** Opens the menu of the shape the keys act on, at its middle. */
   private openMenuForCurrent(): void {
     const current = this.currentReachable();
+    const { elements, relations, freeShapes } = this.selection;
+    if (!current && relations.size > 0 && elements.size === 0 && freeShapes.size === 0) {
+      // The menu of the selected relations, at the middle of the first one's line.
+      const [first] = relations;
+      const line =
+        first === undefined || !this.indexed
+          ? undefined
+          : relationLinesOf(this.indexed.scene).get(first);
+      if (line) {
+        this.callbacks.relationMenu?.(worldToScreen(this.camera, line.middle), [...relations]);
+      }
+      return;
+    }
     if (current?.kind !== 'shape') return;
     this.callbacks.menu?.(worldToScreen(this.camera, centerOf(current.shape.rect)), current.shape);
   }
@@ -1092,6 +1166,7 @@ export class CanvasController {
   }
 
   private cancel(): void {
+    if (this.gesture.kind === 'route') this.routes.cancel();
     if (this.gesture.kind === 'drag') {
       this.endDropFeedback(this.gesture);
       this.renderer.endDrag(this.gesture.drag);
@@ -1793,6 +1868,7 @@ export class CanvasController {
 
   private refreshMarks(): void {
     this.renderer.setSelection(this.selection, this.hovered?.key);
+    this.routes.refresh();
     if (this.gesture.kind === 'idle') {
       const shape = this.handleShape();
       this.showOverlay(shape ? { handle: this.handleOf(shape) } : {});
@@ -1900,6 +1976,15 @@ function toggleTitle(shape: ElementShape): string {
   return shape.collapsed === undefined
     ? `Collapse "${shape.name}" (Alt+−)`
     : `Expand "${shape.name}" (Alt++)`;
+}
+
+/**
+ * The relations a secondary press on a line acts on: the selected relations when the line is one of
+ * them, otherwise those the line draws.
+ */
+function relationsToAct(selection: Selection, hit: Extract<Hit, { kind: 'relation' }>): Id[] {
+  const drawn = selectablesOf(hit).map((item) => item.id);
+  return drawn.every((id) => selection.relations.has(id)) ? [...selection.relations] : drawn;
 }
 
 /** What pointing at something selects: an aggregated relation selects every relation it stands for. */

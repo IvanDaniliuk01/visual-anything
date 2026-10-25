@@ -38,6 +38,8 @@ const TRANSLATED = [
   'canvas/RelationMenu.tsx',
   'canvas/InlineEditor.tsx',
   'canvas/KeyboardHelp.tsx',
+  'canvas/routing/RouteMenu.tsx',
+  'canvas/routing/RouteSection.tsx',
 ];
 
 /** The attributes whose text people read or hear. */

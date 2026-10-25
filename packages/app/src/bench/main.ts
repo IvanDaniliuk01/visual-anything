@@ -33,7 +33,9 @@ import { CanvasController } from '../canvas/controller';
 import { centerOf } from '../canvas/geometry';
 import { hitAt, indexScene, type IndexedScene } from '../canvas/hit';
 import { COARSE_BELOW, DETAILS_FROM, NAMES_FROM } from '../canvas/renderer';
-import { buildScene, type ElementShape } from '../canvas/scene';
+import { previewOf } from '../canvas/routing/editor';
+import { handlesOf } from '../canvas/routing/handles';
+import { buildScene, type ElementShape, type RelationLine } from '../canvas/scene';
 import { MAX_BANDS, plannedTiles } from '../canvas/tiles';
 import '../theme/tokens.css';
 import { THEMES } from '../theme/themes';
@@ -67,6 +69,10 @@ interface Timed {
 const RESTACK_MARK = 100;
 /** How much the grid may add to a frame, at the median, in milliseconds (A3). */
 const GRID_MARK = 0.5;
+/** How long a route edit may take at 10,000 elements, from the command to the frame drawn (§6.1.8). */
+const ROUTE_EDIT_MARK = 50;
+/** How long each frame of a route drag may take at most, in milliseconds: one frame at 60 fps. */
+const ROUTE_DRAG_MARK = 1000 / 60;
 const VIEW = 'everything';
 /** How many times each phase of switches switches the theme. */
 const SWITCHES = 6;
@@ -80,6 +86,8 @@ const overlap: Overlap = OVERLAPS.find((each) => each === search.get('overlap'))
 /** Whether every phase runs with the grid and the rulers shown, and whether only the grid's are run. */
 const gridOn = search.get('grid') === 'on';
 const onlyGrid = search.get('only') === 'grid';
+/** How many relations the routes phases route by hand; `?routes=0` leaves them out. */
+const routeCount = Number(search.get('routes') ?? 1000);
 const startTheme: ThemeName = search.get('theme') === 'dark' ? 'dark' : 'light';
 // The page's panel follows the canvas's theme, as the app's do.
 document.documentElement.setAttribute('data-theme', startTheme);
@@ -304,6 +312,7 @@ async function run(): Promise<void> {
   await settle(300);
   const timed: Timed[] = [await measureEdits(10)];
   if (overlap === 'none' || overlap === 'stairs') timed.push(await measureRestacks(20));
+  if (routeCount > 0) await measureRoutes(phases, timed);
 
   report(phases, timed, latency, themeNotes);
 }
@@ -609,6 +618,131 @@ async function measureRestacks(count: number): Promise<Timed> {
     mark: RESTACK_MARK,
     note: `the longest stacking list written holds ${largest.toLocaleString()} ids`,
   };
+}
+
+/**
+ * Routes chosen by hand (ADR 0039): the view again with `routeCount` relations routed by hand, a
+ * third of them curved, panned and zoomed over; a bend point dragged, drawn above the scene each
+ * frame; and route edits, each timed from the command to the frame drawn with it.
+ */
+async function measureRoutes(phases: Phase[], timed: Timed[]): Promise<void> {
+  performance.mark('phase Routes');
+  const began = performance.now();
+  const routed = syntheticProject({ elements: size, overlap, routes: routeCount });
+  const taken = showProject(routed);
+  const shown = performance.now() - began;
+  const lines = indexed.scene.relations.filter((line) => line.hand);
+  const curved = lines.filter((line) => line.curve).length;
+  await settle(1500);
+  const { width, height } = controller.renderer.viewport;
+  const middle = { x: width / 2, y: height / 2 };
+  const label = `${lines.length.toLocaleString()} routed lines`;
+
+  controller.fit();
+  await settle(300);
+  phases.push(
+    await measure(`Pan, whole view, ${label}`, 180, (frame) =>
+      move(panBy(controller.camera, frame < 90 ? 6 : -6, 0)),
+    ),
+  );
+  phases.push(
+    await measure(`Zoom, whole view, ${label}`, 180, (frame) =>
+      move(zoomAt(controller.camera, middle, frame < 90 ? 1.02 : 1 / 1.02)),
+    ),
+  );
+  move(cameraAt(DETAILS_FROM * 1.15));
+  await settle(300);
+  phases.push(
+    await measure(`Pan, details shown, ${label}`, 180, (frame) =>
+      move(panBy(controller.camera, frame < 90 ? -8 : 8, frame < 90 ? -4 : 4)),
+    ),
+  );
+
+  // A bend point dragged on the routed line nearest the middle: its line drawn above the scene.
+  const centre = screenToWorld(controller.camera, middle);
+  const dragged = nearestLine(
+    lines.filter((line) => (line.hand?.bendPoints.length ?? 0) > 0),
+    centre,
+  );
+  if (dragged?.hand) {
+    const start = dragged.hand.bendPoints[0] as { x: number; y: number };
+    const drag = await measure('Drag a bend point of a routed line', 120, (frame) => {
+      const at = { x: start.x + frame * 3, y: start.y + Math.sin(frame / 8) * 60 };
+      const preview = previewOf(indexed, dragged, { bendPoints: [at] }) ?? dragged;
+      controller.renderer.setRouteOverlay({
+        relation: dragged.relation,
+        handles: handlesOf(preview, controller.camera.scale),
+        preview,
+      });
+    });
+    phases.push(drag);
+    controller.renderer.setRouteOverlay(undefined);
+    timed.push({
+      name: 'Route drag, each frame',
+      times: drag.frames,
+      mark: ROUTE_DRAG_MARK,
+      note: `the line dragged has ${dragged.route.length} points; the mark is on the 95th percentile`,
+    });
+  }
+  timed.push(await measureRouteEdits(10, dragged));
+  const summary = `${lines.length.toLocaleString()} relations routed by hand, ${curved.toLocaleString()} curved: the scene built in ${taken.build.toFixed(0)} ms, indexed in ${taken.index.toFixed(0)} ms, drawn in ${taken.draw.toFixed(0)} ms (${shown.toFixed(0)} ms in all, the project included)`;
+  timed.push({ name: 'Show the view with routes', times: [shown], note: summary });
+}
+
+/** Changes the route of a line one edit after another: its style, then its bend point. */
+async function measureRouteEdits(count: number, line: RelationLine | undefined): Promise<Timed> {
+  performance.mark('phase Route edit');
+  const times: number[] = [];
+  const parts = { build: 0, index: 0, draw: 0 };
+  for (let each = 0; each < count && line; each++) {
+    const command: Command =
+      each % 2 === 0
+        ? {
+            type: 'set-route',
+            view: VIEW,
+            relation: line.relation,
+            style: each % 4 === 0 ? 'curved' : 'straight',
+          }
+        : {
+            type: 'set-route',
+            view: VIEW,
+            relation: line.relation,
+            bendPoints: [{ x: 100 + each * 8, y: 200 + each * 4 }],
+          };
+    const outcome = executeCommand(project, command);
+    if (!outcome.ok) throw new Error(outcome.problems.map((problem) => problem.message).join(' '));
+    // As the app applies what the local program sends back.
+    const taken = showProject(applyOperations(project, outcome.operations).state);
+    parts.build += taken.build;
+    parts.index += taken.index;
+    parts.draw += taken.draw;
+    times.push(taken.build + taken.index + taken.draw);
+    await settle(50);
+  }
+  const average = (total: number) => (total / Math.max(1, times.length)).toFixed(1);
+  return {
+    name: 'One route edit: a style or a bend point',
+    times,
+    mark: ROUTE_EDIT_MARK,
+    note: `scene ${average(parts.build)} ms, index ${average(parts.index)} ms, tiles and frame ${average(parts.draw)} ms on average`,
+  };
+}
+
+/** The line whose middle is nearest a point. */
+function nearestLine(
+  lines: readonly RelationLine[],
+  point: { x: number; y: number },
+): RelationLine | undefined {
+  let best: RelationLine | undefined;
+  let nearest = Infinity;
+  for (const line of lines) {
+    const away = Math.hypot(line.middle.x - point.x, line.middle.y - point.y);
+    if (away < nearest) {
+      nearest = away;
+      best = line;
+    }
+  }
+  return best;
 }
 
 /** The shape nearest the middle of the screen, one that holds nothing when there is one near. */
