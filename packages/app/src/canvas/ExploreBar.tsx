@@ -31,6 +31,7 @@ import {
 import './explore.css';
 import { holdsTargets, type Explore } from './useExplorer';
 import { useOutsidePress } from './focus';
+import { useAttributeLookup } from '../live-values/context';
 import { indexScene, type IndexedScene } from './hit';
 import { drawnRelations, hiddenIn } from './navigation';
 import type { Scene } from './scene';
@@ -213,9 +214,11 @@ function FilterPanel({ id, editor, explore, onClose }: FilterPanelProps) {
   const t = useT();
   const { scene, project } = editor;
   const { filters, setFilters } = explore;
+  // Attributes only live values or package code give can be filtered on too (ADR 0057).
+  const lookup = useAttributeLookup();
   const choices = useMemo(
-    () => (scene ? filterChoices(scene, project) : NO_CHOICES),
-    [scene, project],
+    () => (scene ? filterChoices(scene, project, lookup) : NO_CHOICES),
+    [scene, project, lookup],
   );
   const panel = useRef<HTMLDivElement>(null);
   const added = useRef(false);

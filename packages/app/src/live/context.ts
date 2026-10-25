@@ -1,6 +1,9 @@
 import type { Command, PreferenceChanges, Preferences } from '@visual-anything/core';
 import { createContext, useContext } from 'react';
-import type { CommandResult, LiveState, NoticeLevel, StartChoice } from './connection';
+import type { Id } from '@visual-anything/schema';
+import type { LiveFetchedMessage, LiveKeptMessage } from '@visual-anything/core';
+import type { LiveValueBook } from '../live-values/book';
+import type { CommandResult, LiveResult, LiveState, NoticeLevel, StartChoice } from './connection';
 
 /** How the local program answered a change of preferences: what it holds now, or why it refused. */
 export type PreferencesAnswer =
@@ -42,6 +45,19 @@ export interface Live extends LiveState {
    * no project yet (ADR 0051); absent where there is no live session to ask.
    */
   startProject?: (choice: StartChoice) => Promise<CommandResult>;
+  /**
+   * The live values the local program keeps for the open project (ADR 0057); absent where there is
+   * no live session, and then nothing reads as live.
+   */
+  liveValues?: LiveValueBook;
+  /** Fetches for approved package code granted an origin, through the local program (ADR 0063). */
+  fetchForPackage?: (pkg: Id, url: string) => Promise<LiveResult<LiveFetchedMessage>>;
+  /** Sends the live values approved package code made of what it fetched. */
+  sendLiveValues?: (
+    pkg: Id,
+    values: unknown[],
+    freshFor?: number,
+  ) => Promise<LiveResult<LiveKeptMessage>>;
 }
 
 /**

@@ -17,6 +17,8 @@ import {
   type CommandRejectedMessage,
   type HistorySummary,
   type ListedAction,
+  type LiveFetchedMessage,
+  type LiveKeptMessage,
   type OfferedSample,
   type PreferenceChanges,
   type Preferences,
@@ -28,6 +30,7 @@ import {
 import type { Id } from '@visual-anything/schema';
 import { NO_GUIDANCE, applyGuidance, type GuidanceState } from '../guidance/state';
 import { fill } from '../i18n/translate';
+import { LiveValueBook } from '../live-values/book';
 
 /** Where the live connection stands. */
 export type LiveStatus =
@@ -154,6 +157,9 @@ export type CommandResult =
 export type PreferencesResult =
   { ok: true; preferences: Preferences } | { ok: false; problems: RequestProblem[] };
 
+/** How the local program answered a request about live values: its answer, or why it refused. */
+export type LiveResult<T> = { ok: true; answer: T } | { ok: false; problems: RequestProblem[] };
+
 /** How many notices are shown at most; the oldest make way for newer ones. */
 export const MAX_NOTICES = 5;
 
@@ -161,7 +167,9 @@ type RequestKind = 'command' | 'undo' | 'redo' | 'start';
 
 type Waiting =
   | { kind: RequestKind; resolve: (result: CommandResult) => void }
-  | { kind: 'preferences'; resolve: (result: PreferencesResult) => void };
+  | { kind: 'preferences'; resolve: (result: PreferencesResult) => void }
+  | { kind: 'live-fetch'; resolve: (result: LiveResult<LiveFetchedMessage>) => void }
+  | { kind: 'live-set'; resolve: (result: LiveResult<LiveKeptMessage>) => void };
 
 /** Answers go back to the socket that asked, so request ids only need to be unique in the tab. */
 let requestCount = 0;
@@ -214,6 +222,11 @@ export class LiveConnection {
   private joinAsked = false;
   /** Whether a connection is wanted now: between `connect` and `disconnect`. */
   private wanted = false;
+  /**
+   * The live values the local program keeps for the open project (ADR 0057), outside the state, so
+   * that values arriving every second re-render only what reads them.
+   */
+  readonly liveValues = new LiveValueBook();
 
   /**
    * `url` is the live connection's, carrying the session token or a launch code; null when the tab
@@ -368,6 +381,51 @@ export class LiveConnection {
   readonly startProject = (choice: StartChoice): Promise<CommandResult> =>
     this.request('start', (requestId) => ({ type: 'start/create', requestId, ...choice }));
 
+  /**
+   * Asks the local program to fetch an address for the code of an approved package granted its origin
+   * (ADR 0063): resolves with what the origin answered, or with why the program would not.
+   */
+  readonly fetchForPackage = (pkg: Id, url: string): Promise<LiveResult<LiveFetchedMessage>> =>
+    this.liveRequest('live-fetch', (requestId) => ({
+      type: 'live/fetch',
+      requestId,
+      package: pkg,
+      url,
+    }));
+
+  /**
+   * Sends the live values the code of an approved package granted an origin made of what it fetched:
+   * resolves with what the program kept of them, or with why it would not.
+   */
+  readonly sendLiveValues = (
+    pkg: Id,
+    values: unknown[],
+    freshFor?: number,
+  ): Promise<LiveResult<LiveKeptMessage>> =>
+    this.liveRequest('live-set', (requestId) => ({
+      type: 'live/set',
+      requestId,
+      package: pkg,
+      values,
+      ...(freshFor === undefined ? {} : { freshFor }),
+    }));
+
+  private liveRequest<K extends 'live-fetch' | 'live-set'>(
+    kind: K,
+    message: (requestId: string) => AppMessage,
+  ): Promise<LiveResult<K extends 'live-fetch' ? LiveFetchedMessage : LiveKeptMessage>> {
+    const socket = this.socket;
+    if (socket === undefined || this.state.status !== 'open') {
+      return Promise.resolve(closedResult(NOT_CONNECTED));
+    }
+    const requestId = nextRequestId();
+    const text = encodeMessage(message(requestId));
+    return new Promise((resolve) => {
+      this.waiting.set(requestId, { kind, resolve } as Waiting);
+      this.sendOn(socket, text, requestId, () => resolve(closedResult(NOT_CONNECTED)));
+    });
+  }
+
   /** Shows a notice. The same message at the same level is shown once, as the newest. */
   readonly notify = (level: NoticeLevel, message: string): void => {
     this.noticeCount += 1;
@@ -456,6 +514,8 @@ export class LiveConnection {
   /** The socket closed without this tab closing it. */
   private closed(): void {
     this.forgetSocket();
+    // The program forgets its live values when it stops; they no longer come from anywhere.
+    this.liveValues.clear();
     // Claude's marks and caption no longer come from a live session.
     this.update(
       this.state.project === undefined
@@ -484,6 +544,8 @@ export class LiveConnection {
         if (message.token !== undefined && this.options.onToken !== undefined) {
           this.url = this.options.onToken(message.token);
         }
+        // The program sends the live values it keeps right after the project.
+        this.liveValues.clear();
         this.update({
           status: 'open',
           project: message.project,
@@ -526,6 +588,19 @@ export class LiveConnection {
       case 'history/listed':
         this.update({ actions: message.actions });
         break;
+      case 'live/values':
+        this.liveValues.apply(message);
+        break;
+      case 'live/fetched': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'live-fetch') answered.resolve({ ok: true, answer: message });
+        break;
+      }
+      case 'live/kept': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'live-set') answered.resolve({ ok: true, answer: message });
+        break;
+      }
       case 'guidance':
         this.guidanceCount += 1;
         this.update({
@@ -546,7 +621,13 @@ export class LiveConnection {
       return;
     }
     const taken = message.requestId === undefined ? undefined : this.take(message.requestId);
-    const answered = taken?.kind === 'preferences' ? undefined : taken;
+    const answered =
+      taken === undefined ||
+      taken.kind === 'preferences' ||
+      taken.kind === 'live-fetch' ||
+      taken.kind === 'live-set'
+        ? undefined
+        : taken;
     let next: ProjectSnapshot;
     try {
       next = applyOperations(project, message.operations).state;

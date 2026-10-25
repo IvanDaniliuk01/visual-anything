@@ -308,11 +308,16 @@ const JSON_LENGTH = 40;
  * A string is written as it is, a number in decimal followed by its unit, a boolean as the
  * attribute's name while it is true, and JSON compactly, cut to 40 characters; an attribute without a
  * value, an empty string and null write nothing.
+ *
+ * `valueOf`, when given, reads each attribute in place of the element's own value and its default, as
+ * the app's attribute lookup does with live and computed values over them (ADR 0057).
  */
 export function detailParts(
   element: Typed,
   definitions: Definitions,
   startedTypes: ReadonlySet<Id>,
+  valueOf: (name: string) => JsonValue | undefined = (name) =>
+    attributeValue(element, name, definitions),
 ): DetailPart[] {
   const component = definitions.component(element.component);
   const detail = resolveAppearance(
@@ -324,7 +329,7 @@ export function detailParts(
     parts.push({ kind: 'component-name', text: component?.name ?? element.component });
   }
   for (const name of detail.attributes) {
-    const value = attributeValue(element, name, definitions);
+    const value = valueOf(name);
     const unit = attributeDefinitionOf(element, name, definitions)?.unit;
     const text = valueText(name, value, unit);
     if (text !== undefined) parts.push({ kind: 'attribute', attribute: name, text });
@@ -332,7 +337,7 @@ export function detailParts(
   for (const badge of detail.badges) {
     const holds =
       badge.when === 'attribute'
-        ? attributeValue(element, badge.attribute, definitions) === true
+        ? valueOf(badge.attribute) === true
         : [...startedTypes].some((type) =>
             definitions.relationTypeDerives(type, badge.relationType),
           );

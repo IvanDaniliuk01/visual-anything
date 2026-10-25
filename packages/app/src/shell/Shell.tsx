@@ -27,6 +27,8 @@ import { ModelPanel } from './ModelPanel';
 import { CodeStore } from '../code/context';
 import { usePackageCode } from '../code/usePackageCode';
 import { CodeApproval } from '../code/ApprovalDialog';
+import { AttributeLookupContext } from '../live-values/context';
+import { useLiveScene, useLookup } from '../live-values/useLiveValues';
 
 interface ShellProps {
   project: ProjectSnapshot;
@@ -64,10 +66,14 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   }, []);
   // What filters, focus, playback and guidance emphasize on the canvas, each as its own source.
   const [emphasis] = useState(() => new EmphasisStore());
-  // The filters and focus of each view; they set the open view's emphasis.
-  const explore = useExplorer({ project, viewId: view?.id, scene, selection, emphasis });
   // Package code (ADR 0054): its store, which the editor carries, filled below.
   const [code] = useState(() => new CodeStore());
+  // How attributes read, live and computed values over stored ones (ADR 0057).
+  const lookup = useLookup(code);
+  // The filters and focus of each view; they set the open view's emphasis.
+  const explore = useExplorer({ project, viewId: view?.id, scene, selection, emphasis, lookup });
+  // The canvas writes live and computed values in the details of shapes.
+  const canvasScene = useLiveScene(scene, project, definitions, lookup, emphasis);
   const editor = useMemo<Editor>(
     () => ({
       project,
@@ -132,63 +138,65 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
 
   return (
     <EditorContext.Provider value={editor}>
-      <DefinitionProvider>
-        <EmphasisContext.Provider value={emphasis}>
-          <div className="shell">
-            <Header
-              projectName={project.project.name}
-              viewName={view?.name}
-              actions={
-                <>
-                  {view && <CopyAddress link={viewState} />}
-                  {exportTool}
-                </>
-              }
-            />
-            {notice !== undefined && (
-              <p className="shell-notice" role="alert">
-                {notice}
-              </p>
-            )}
-            <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
-            <main className="canvas-area" aria-labelledby={canvasHeading}>
-              <h2 id={canvasHeading} className="visually-hidden">
-                {view ? view.name : t('Canvas')}
-              </h2>
-              {view && scene ? (
-                <ImageSourceContext value={images}>
-                  <CanvasArea
-                    project={project}
-                    view={view}
-                    scene={scene}
-                    label={describeDrawing(t, view, scene)}
-                    selection={selection}
-                    onSelect={setSelection}
-                    {...(onCommand ? { onCommand } : {})}
-                    {...(revealed ? { revealed } : {})}
-                    scenarios={scenarios}
-                    theme={theme}
-                    onThemeShown={onThemeShown}
-                    onCanvas={setCanvas}
-                  />
-                </ImageSourceContext>
-              ) : (
-                <p className="canvas-message">{t('There is no view to draw.')}</p>
-              )}
-              <GuidanceLayer scenarios={scenarios} />
-              <FindBar
-                project={project}
-                definitions={definitions}
-                viewId={view?.id}
-                goTo={viewState.goTo}
+      <AttributeLookupContext value={lookup}>
+        <DefinitionProvider>
+          <EmphasisContext.Provider value={emphasis}>
+            <div className="shell">
+              <Header
+                projectName={project.project.name}
+                viewName={view?.name}
+                actions={
+                  <>
+                    {view && <CopyAddress link={viewState} />}
+                    {exportTool}
+                  </>
+                }
               />
-            </main>
-            <Inspector view={view} scene={scene} definitions={definitions} />
-            <ScenarioPanel session={scenarios} />
-            <CodeApproval />
-          </div>
-        </EmphasisContext.Provider>
-      </DefinitionProvider>
+              {notice !== undefined && (
+                <p className="shell-notice" role="alert">
+                  {notice}
+                </p>
+              )}
+              <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
+              <main className="canvas-area" aria-labelledby={canvasHeading}>
+                <h2 id={canvasHeading} className="visually-hidden">
+                  {view ? view.name : t('Canvas')}
+                </h2>
+                {view && scene ? (
+                  <ImageSourceContext value={images}>
+                    <CanvasArea
+                      project={project}
+                      view={view}
+                      scene={canvasScene ?? scene}
+                      label={describeDrawing(t, view, scene)}
+                      selection={selection}
+                      onSelect={setSelection}
+                      {...(onCommand ? { onCommand } : {})}
+                      {...(revealed ? { revealed } : {})}
+                      scenarios={scenarios}
+                      theme={theme}
+                      onThemeShown={onThemeShown}
+                      onCanvas={setCanvas}
+                    />
+                  </ImageSourceContext>
+                ) : (
+                  <p className="canvas-message">{t('There is no view to draw.')}</p>
+                )}
+                <GuidanceLayer scenarios={scenarios} />
+                <FindBar
+                  project={project}
+                  definitions={definitions}
+                  viewId={view?.id}
+                  goTo={viewState.goTo}
+                />
+              </main>
+              <Inspector view={view} scene={scene} definitions={definitions} />
+              <ScenarioPanel session={scenarios} />
+              <CodeApproval />
+            </div>
+          </EmphasisContext.Provider>
+        </DefinitionProvider>
+      </AttributeLookupContext>
     </EditorContext.Provider>
   );
 }

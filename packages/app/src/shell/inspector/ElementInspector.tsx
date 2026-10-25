@@ -8,6 +8,7 @@ import {
 import { ESSENCE_ID, type Element } from '@visual-anything/schema';
 import { useId, type Ref } from 'react';
 import { CodeSection } from '../../code/CodeSection';
+import { LiveValuesSection } from '../../live-values/LiveValuesSection';
 import { useEditor } from '../../editor/EditorContext';
 import type { Selectable } from '../../editor/selection';
 import { useT } from '../../i18n';
@@ -111,6 +112,7 @@ export function ElementInspector({
         disabled={disabled}
         change={update}
       />
+      <LiveValuesSection item={{ kind: 'element', element }} />
       <CodeSection element={element} />
       <AppearanceSection
         element={element}

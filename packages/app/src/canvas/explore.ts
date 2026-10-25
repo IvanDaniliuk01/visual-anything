@@ -28,6 +28,7 @@ import type {
 } from '@visual-anything/schema';
 import type { Emphasis } from '../editor/emphasis';
 import { t } from '../i18n';
+import type { AttributeLookup } from '../live-values/lookup';
 import type { ElementShape, Scene } from './scene';
 
 /** How an attribute's value is tested. */
@@ -125,11 +126,15 @@ export interface FilterResult {
  * fails a condition on elements; a container that holds a shape still shown is kept, dimmed. A
  * relation is hidden when its relation type is, when it fails a condition on relations, or when
  * either end is hidden or kept only for what it holds. Free shapes are never hidden.
+ *
+ * With a lookup, conditions read attributes as it does: a live value over a computed one over the
+ * stored one (ADR 0057).
  */
 export function applyFilters(
   scene: Scene,
   project: ProjectSnapshot,
   filters: Filters,
+  lookup?: AttributeLookup,
 ): FilterResult {
   const hidden = new Set<string>();
   const dimmed = new Set<string>();
@@ -150,7 +155,11 @@ export function applyFilters(
       kept =
         found !== undefined &&
         !filters.components.has(found.component) &&
-        meetsAll(onElements, found.attributes, componentDefaults(found.component));
+        (lookup?.overrides(found.id) === true
+          ? meetsAllRead(onElements, (name) =>
+              lookup.value({ kind: 'element', element: found }, name, definitions),
+            )
+          : meetsAll(onElements, found.attributes, componentDefaults(found.component)));
       keptElements.set(element, kept);
     }
     return kept;
@@ -192,7 +201,11 @@ export function applyFilters(
     const shown =
       relation === undefined ||
       (!filters.relationTypes.has(relation.relationType) &&
-        meetsAll(onRelations, relation.attributes, typeDefaults(relation.relationType)) &&
+        (lookup?.overrides(relation.id) === true
+          ? meetsAllRead(onRelations, (name) =>
+              lookup.value({ kind: 'relation', relation }, name, definitions),
+            )
+          : meetsAll(onRelations, relation.attributes, typeDefaults(relation.relationType))) &&
         endShown(relation.from) &&
         endShown(relation.to));
     shownRelations.set(id, shown);
@@ -367,8 +380,15 @@ export interface FilterChoices {
   attributes: { elements: string[]; relations: string[] };
 }
 
-/** The components, relation types and attributes a view draws, for the filters to offer. */
-export function filterChoices(scene: Scene, project: ProjectSnapshot): FilterChoices {
+/**
+ * The components, relation types and attributes a view draws, for the filters to offer; with a
+ * lookup, also the attributes only live values or package code give (ADR 0057).
+ */
+export function filterChoices(
+  scene: Scene,
+  project: ProjectSnapshot,
+  lookup?: AttributeLookup,
+): FilterChoices {
   const definitions = definitionsIn(project);
   const index = modelIndexOf(project);
   const components = new Map<Id, number>();
@@ -381,6 +401,7 @@ export function filterChoices(scene: Scene, project: ProjectSnapshot): FilterCho
     if (!element) continue;
     components.set(element.component, (components.get(element.component) ?? 0) + 1);
     for (const name of Object.keys(element.attributes ?? {})) elementAttributes.add(name);
+    for (const name of lookup?.extraNames(element.id) ?? []) elementAttributes.add(name);
   }
   for (const id of components.keys()) {
     for (const each of definitions.component(id)?.attributes ?? [])
@@ -393,6 +414,7 @@ export function filterChoices(scene: Scene, project: ProjectSnapshot): FilterCho
     if (!relation) continue;
     relationTypes.set(relation.relationType, (relationTypes.get(relation.relationType) ?? 0) + 1);
     for (const name of Object.keys(relation.attributes ?? {})) relationAttributes.add(name);
+    for (const name of lookup?.extraNames(relation.id) ?? []) relationAttributes.add(name);
   }
   for (const id of relationTypes.keys()) {
     for (const each of definitions.relationType(id)?.attributes ?? []) {
@@ -540,6 +562,16 @@ function meetsAll(
         : defaults.get(condition.attribute);
     return meetsCondition(value, condition.test, condition.value);
   });
+}
+
+/** Whether attributes, as `read` reads each, meet every condition. */
+function meetsAllRead(
+  conditions: readonly AttributeCondition[],
+  read: (name: string) => JsonValue | undefined,
+): boolean {
+  return conditions.every((condition) =>
+    meetsCondition(read(condition.attribute), condition.test, condition.value),
+  );
 }
 
 /** The defaults a definition's chain gives its attributes, worked out once for each definition. */
