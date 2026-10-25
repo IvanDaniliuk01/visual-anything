@@ -51,11 +51,12 @@ import { collapsedIn } from './collapse';
 import type { Dash, ShapeKind } from './geometry';
 import { arrowheadAt, directionOf, type Arrowhead, type Point, type Rect } from './geometry';
 import { midpointOf, routeBetweenEnds, type RouteEnd } from './route';
-import type { Attach, CurveSpan } from './routing/hand';
+import type { CurveSpan } from './routing/hand';
 import {
   pointsOf,
   samePoints,
   sceneRouting,
+  type ConnectionPlace,
   type HandOfLine,
   type LinePlan,
   type SceneRouting,
@@ -123,7 +124,7 @@ export interface ElementShape {
    */
   collapsed?: { contents: number };
   /** The connection points its appearance sets, where relations attach; absent when it sets none. */
-  points?: readonly Attach[];
+  points?: readonly ConnectionPlace[];
 }
 
 /** A relation drawn along an orthogonal route, or an aggregated relation standing for several. */

@@ -269,24 +269,31 @@ function attachmentKey(attachment: ResolvedAttachment): string {
   }
 }
 
-function pointsKey(points: readonly Attach[] | undefined): string {
+function pointsKey(points: readonly ConnectionPlace[] | undefined): string {
   return points === undefined ? '-' : points.map((point) => `${point.side}${point.at}`).join(',');
 }
 
-/** The connection points a shape's appearance sets, as the scene keeps them; undefined for none. */
-export function pointsOf(points: readonly ConnectionPoint[]): readonly Attach[] | undefined {
-  if (points.length === 0) return undefined;
-  return points.map((point) => ({ side: point.side, at: point.at }));
+/** A connection point of a shape: its name, its side and where it sits along it. */
+export interface ConnectionPlace extends Attach {
+  name: string;
 }
 
-/** Whether two lists of connection points hold the same places, in the same order. */
+/** The connection points a shape's appearance sets, as the scene keeps them; undefined for none. */
+export function pointsOf(points: readonly ConnectionPoint[]): readonly ConnectionPlace[] | undefined {
+  if (points.length === 0) return undefined;
+  return points.map((point) => ({ name: point.name, side: point.side, at: point.at }));
+}
+
+/** Whether two lists of connection points hold the same points, in the same order. */
 export function samePoints(
-  a: readonly Attach[] | undefined,
-  b: readonly Attach[] | undefined,
+  a: readonly ConnectionPlace[] | undefined,
+  b: readonly ConnectionPlace[] | undefined,
 ): boolean {
   if (a === b) return true;
   if (!a || !b || a.length !== b.length) return false;
-  return a.every((point, at) => point.side === b[at]?.side && point.at === b[at]?.at);
+  return a.every(
+    (point, at) => point.name === b[at]?.name && point.side === b[at]?.side && point.at === b[at]?.at,
+  );
 }
 
 /** The relations whose route differs between two maps of routes, by identity. */
