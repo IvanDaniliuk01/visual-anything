@@ -117,6 +117,11 @@ export const ui: Catalog = {
   'Visual Anything could not show this project': 'Visual Anything no pudo mostrar este proyecto',
   'Check the project’s files, then restart Visual Anything and open the address it prints.':
     'Revisar los archivos del proyecto, luego reiniciar Visual Anything y abrir la dirección que muestra.',
+  // A new tab that joins the session of another tab of this browser (ADR 0043).
+  'Asking the other tabs of this browser that have the project open to share its session.':
+    'Pidiendo a las otras pestañas de este navegador que tienen el proyecto abierto que compartan su sesión.',
+  'A new tab joins on its own while another tab of this browser has the project open, and none has it open now.':
+    'Una pestaña nueva se une sola mientras otra pestaña de este navegador tiene el proyecto abierto, y ahora ninguna lo tiene abierto.',
 
   // The live connection's notices.
   'Visual Anything is not connected, so nothing was changed.':

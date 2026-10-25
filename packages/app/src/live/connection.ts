@@ -7,6 +7,7 @@
 import {
   LAUNCH_PARAM,
   OperationError,
+  TOKEN_PARAM,
   ProtocolError,
   applyOperations,
   decodeServerMessage,
@@ -88,6 +89,11 @@ export interface LiveState {
    * which it does when the tab connects and after every change.
    */
   readonly preferences?: Preferences | undefined;
+  /**
+   * Set while this tab, opened with neither a launch code nor a token, asks the other tabs of this
+   * browser for the session (ADR-0043).
+   */
+  readonly joining?: boolean | undefined;
 }
 
 /** How a connection hears of what the local program hands it. */
@@ -97,6 +103,12 @@ export interface LiveConnectionOptions {
    * returns the URL to reconnect at from then on.
    */
   onToken?: (token: string) => string;
+  /**
+   * For a tab with neither a launch code nor a token: asks the project's other tabs in this browser
+   * for the session token (ADR-0043), and resolves with the URL to connect at, or null when none gave
+   * one. Without it, such a tab fails at once.
+   */
+  join?: () => Promise<string | null>;
 }
 
 /**
@@ -178,6 +190,10 @@ export class LiveConnection {
   private noticeCount = 0;
   /** A socket opened with a launch code, kept for a moment after a disconnect: see `disconnect`. */
   private parked: ReturnType<typeof setTimeout> | undefined;
+  /** Whether the tab has asked the other tabs for the session; it asks once. */
+  private joinAsked = false;
+  /** Whether a connection is wanted now: between `connect` and `disconnect`. */
+  private wanted = false;
 
   /**
    * `url` is the live connection's, carrying the session token or a launch code; null when the tab
@@ -186,13 +202,15 @@ export class LiveConnection {
   constructor(url: string | null, options: LiveConnectionOptions = {}) {
     this.url = url;
     this.options = options;
+    const joins = url === null && options.join !== undefined;
     this.state = {
-      status: url === null ? 'failed' : 'connecting',
-      failure: url === null ? { reason: 'no-token' } : undefined,
+      status: url === null && !joins ? 'failed' : 'connecting',
+      failure: url === null && !joins ? { reason: 'no-token' } : undefined,
       project: undefined,
       history: {},
       notices: [],
       guidance: NO_GUIDANCE,
+      ...(joins ? { joining: true } : {}),
     };
   }
 
@@ -218,7 +236,12 @@ export class LiveConnection {
       this.parked = undefined;
       return;
     }
-    if (this.url === null || this.socket !== undefined) return;
+    this.wanted = true;
+    if (this.url === null) {
+      this.join();
+      return;
+    }
+    if (this.socket !== undefined) return;
     if (this.state.status === 'closed' || this.state.status === 'failed') return;
     this.openSocket(this.url);
     if (this.state.status !== 'connecting') this.update({ status: 'connecting' });
@@ -231,6 +254,7 @@ export class LiveConnection {
    * does, must keep that socket rather than open another with a spent code.
    */
   readonly disconnect = (): void => {
+    this.wanted = false;
     if (this.socket !== undefined && this.parked === undefined && this.opensOnce()) {
       this.parked = setTimeout(() => {
         this.parked = undefined;
@@ -240,6 +264,34 @@ export class LiveConnection {
     }
     this.closeSocket();
   };
+
+  /**
+   * The session token this tab connects with, while its connection is open, for another tab of this
+   * browser that asks for it (ADR-0043); never a launch code.
+   */
+  readonly sessionToken = (): string | undefined => {
+    if (this.state.status !== 'open' || this.url === null) return undefined;
+    const query = this.url.slice(this.url.indexOf('?') + 1);
+    return new URLSearchParams(query).get(TOKEN_PARAM) || undefined;
+  };
+
+  /** Asks the other tabs for the session, once, and connects with what they give while wanted. */
+  private join(): void {
+    const { join } = this.options;
+    if (join === undefined || this.joinAsked) return;
+    this.joinAsked = true;
+    void join()
+      .catch(() => null)
+      .then((url) => {
+        if (url === null) {
+          this.update({ status: 'failed', failure: { reason: 'no-token' }, joining: undefined });
+          return;
+        }
+        this.url = url;
+        this.update({ joining: undefined });
+        if (this.wanted) this.connect();
+      });
+  }
 
   /** Whether the socket was opened with a launch code that the token has not yet replaced. */
   private opensOnce(): boolean {
