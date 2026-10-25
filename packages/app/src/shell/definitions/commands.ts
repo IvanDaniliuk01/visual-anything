@@ -10,7 +10,7 @@ import {
   RESERVED_PACKAGE_IDS,
   builtinPackage,
   definitionIdFor,
-  definitionsOf,
+  definitionsIn,
   executeCommand,
   modelIndexOf,
   nestingTypesInView,
@@ -43,7 +43,7 @@ export type DefinitionKind = 'component' | 'relation-type';
  */
 export function takenIn(project: ProjectSnapshot): (id: Id) => boolean {
   const index = modelIndexOf(project);
-  const definitions = definitionsOf(project.packages);
+  const definitions = definitionsIn(project);
   const held = new Set<Id>([ESSENCE_ID, RELATES_TO_ID]);
   for (const view of project.views) held.add(view.id);
   for (const scenario of project.scenarios) {
@@ -117,7 +117,10 @@ export function startUsingPackageCommand(
   ];
   const view = project.views.find((each) => each.id === viewId);
   if (view) {
-    const nesting = definitionsOf([...project.packages, builtin]).nestingRelationTypes;
+    const nesting = definitionsIn({
+      ...project,
+      packages: [...project.packages, builtin],
+    }).nestingRelationTypes;
     const kept = [...new Set(view.nestingRelationTypes)].filter((id) => nesting.has(id));
     const added = builtin.relationTypes
       .map((relationType) => relationType.id)

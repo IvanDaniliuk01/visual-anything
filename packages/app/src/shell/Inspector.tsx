@@ -4,6 +4,7 @@ import { useEffect, useId, useRef } from 'react';
 import type { Scene } from '../canvas/scene';
 import { useEditor } from '../editor/EditorContext';
 import { selectionOf, sizeOf, type Selectable } from '../editor/selection';
+import { DefinitionInspector } from './definitions/DefinitionInspector';
 import { countsOf } from './inspector/describe';
 import { ElementInspector } from './inspector/ElementInspector';
 import { inspectedKey, inspectedOf } from './inspector/inspected';
@@ -49,51 +50,54 @@ export function Inspector({ view, scene, definitions }: InspectorProps) {
   return (
     <aside className="panel inspector" aria-labelledby={heading}>
       <h2 id={heading}>Inspector</h2>
-      {inspected.kind === 'nothing' && (
-        <>
-          <p className="inspector-selection">Nothing is selected.</p>
-          <ViewDetails view={view} scene={scene} definitions={definitions} />
-        </>
-      )}
-      {inspected.kind === 'element' && (
-        <ElementInspector
-          key={inspected.element.id}
-          element={inspected.element}
-          definitions={definitions}
-          titleRef={title}
-          onSelect={choose}
-        />
-      )}
-      {inspected.kind === 'relation' && (
-        <RelationInspector
-          key={inspected.relation.id}
-          relation={inspected.relation}
-          definitions={definitions}
-          titleRef={title}
-          onSelect={choose}
-        />
-      )}
-      {inspected.kind === 'note' && (
-        <>
-          <h3 className="inspector-title">Note</h3>
-          <p className="inspector-note-text">{inspected.note.text}</p>
-          <p className="inspector-notes">Edit its text on the canvas.</p>
-        </>
-      )}
-      {inspected.kind === 'arrow' && (
-        <>
-          <h3 className="inspector-title">Arrow</h3>
-          <p className="inspector-notes">A free shape: drawing only, not part of the model.</p>
-        </>
-      )}
-      {inspected.kind === 'several' && (
-        <>
-          <p className="inspector-selection">
-            {countsOf(selection)} {sizeOf(selection) === 1 ? 'is' : 'are'} selected.
-          </p>
-          <p className="inspector-notes">Select only one to see and edit it.</p>
-        </>
-      )}
+      {/* A component, relation type or package opened for editing shows in place of the selection. */}
+      <DefinitionInspector>
+        {inspected.kind === 'nothing' && (
+          <>
+            <p className="inspector-selection">Nothing is selected.</p>
+            <ViewDetails view={view} scene={scene} definitions={definitions} />
+          </>
+        )}
+        {inspected.kind === 'element' && (
+          <ElementInspector
+            key={inspected.element.id}
+            element={inspected.element}
+            definitions={definitions}
+            titleRef={title}
+            onSelect={choose}
+          />
+        )}
+        {inspected.kind === 'relation' && (
+          <RelationInspector
+            key={inspected.relation.id}
+            relation={inspected.relation}
+            definitions={definitions}
+            titleRef={title}
+            onSelect={choose}
+          />
+        )}
+        {inspected.kind === 'note' && (
+          <>
+            <h3 className="inspector-title">Note</h3>
+            <p className="inspector-note-text">{inspected.note.text}</p>
+            <p className="inspector-notes">Edit its text on the canvas.</p>
+          </>
+        )}
+        {inspected.kind === 'arrow' && (
+          <>
+            <h3 className="inspector-title">Arrow</h3>
+            <p className="inspector-notes">A free shape: drawing only, not part of the model.</p>
+          </>
+        )}
+        {inspected.kind === 'several' && (
+          <>
+            <p className="inspector-selection">
+              {countsOf(selection)} {sizeOf(selection) === 1 ? 'is' : 'are'} selected.
+            </p>
+            <p className="inspector-notes">Select only one to see and edit it.</p>
+          </>
+        )}
+      </DefinitionInspector>
     </aside>
   );
 }
