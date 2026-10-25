@@ -4,6 +4,7 @@
  */
 import { valueFitsType } from '@visual-anything/core';
 import type { AttributeDefinition, JsonValue } from '@visual-anything/schema';
+import { t } from '../../i18n';
 import { readJson, readNumber, type AttributeType, type Reading } from '../inspector/attributes';
 
 /**
@@ -57,7 +58,7 @@ export function readDefault(text: string, type: AttributeType): Reading<JsonValu
     case 'boolean':
       return text === 'true' || text === 'false'
         ? { ok: true, value: text === 'true' }
-        : { ok: false, message: 'Write true or false.' };
+        : { ok: false, message: t('Write true or false.') };
     case 'json':
       return readJson(text);
   }

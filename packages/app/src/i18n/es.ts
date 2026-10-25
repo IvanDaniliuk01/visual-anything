@@ -1111,6 +1111,203 @@ export const ui: Catalog = {
   'no column named “{column}” in “{table}”': 'ninguna columna de “{table}” se llama “{column}”',
   'no single primary key column in “{name}”':
     '“{name}” no tiene una única columna de clave primaria',
+
+  // The Components tab.
+  'Built-in package': 'Paquete incorporado',
+  Package: 'Paquete',
+  'Component, derives from {name}': 'Componente, deriva de {name}',
+  'Relation type, derives from {name}': 'Tipo de relación, deriva de {name}',
+  'In use': 'En uso',
+  'The project uses no package yet.': 'El proyecto todavía no usa ningún paquete.',
+  'Not in use yet': 'Todavía sin usar',
+  'The project uses every built-in package.': 'El proyecto usa todos los paquetes incorporados.',
+  New: 'Nuevo',
+  'New component': 'Nuevo componente',
+  'New relation type': 'Nuevo tipo de relación',
+  'New package': 'Nuevo paquete',
+  'Use the package “{name}”': 'Usar el paquete “{name}”',
+  Use: 'Usar',
+
+  // The component editor: what it shows of every component, relation type and package.
+  'Back to the selection': 'Volver a la selección',
+  'It is built into Visual Anything, so only its colors can be changed here, for this project. Derive a {noun} from it to have one of the project’s own that you can change.':
+    'Está incorporado en Visual Anything, así que aquí solo se pueden cambiar sus colores, para este proyecto. Derivar un {noun} de él para tener uno propio del proyecto que se pueda cambiar.',
+  'No package in use defines {what} any more.': 'Ningún paquete en uso define ya {what}.',
+  'Remove the {noun}': 'Quitar el {noun}',
+  'the component “{id}”': 'el componente “{id}”',
+  'the relation type “{id}”': 'el tipo de relación “{id}”',
+  'the package “{id}”': 'el paquete “{id}”',
+  'Built-in component': 'Componente incorporado',
+  'Built-in relation type': 'Tipo de relación incorporado',
+  Identity: 'Identidad',
+  'Built into Visual Anything': 'Incorporado en Visual Anything',
+  Id: 'Id',
+  'It derives from no other component: every component derives from it.':
+    'No deriva de ningún otro componente: todos los componentes derivan de él.',
+  'It derives from no other relation type: every relation type derives from it.':
+    'No deriva de ningún otro tipo de relación: todos los tipos de relación derivan de él.',
+
+  // A component's appearance, detail and connection points in the component editor.
+  '{name}, as its drawing': '{name}, como su dibujo',
+  '{name}, as an icon': '{name}, como ícono',
+  'While it draws rows, its shapes are a rectangle or a rounded rectangle.':
+    'Mientras dibuja filas, sus formas son un rectángulo o un rectángulo redondeado.',
+  Width: 'Ancho',
+  Height: 'Alto',
+  'Its height follows its rows.': 'Su alto sigue a sus filas.',
+  'Draw what its elements hold as rows': 'Dibujar como filas lo que contienen sus elementos',
+  'Write the component’s name': 'Escribir el nombre del componente',
+  'Attributes written': 'Atributos escritos',
+  'It has no attributes to write.': 'No tiene atributos para escribir.',
+  '(it has no such attribute)': '(no tiene ese atributo)',
+  'Write “{name}” earlier': 'Escribir “{name}” antes',
+  'Write “{name}” later': 'Escribir “{name}” después',
+  'while “{name}” is true': 'mientras “{name}” es verdadero',
+  'while it is the from end of “{name}”': 'mientras es el extremo de origen de “{name}”',
+  'No badges.': 'Sin insignias.',
+  'Remove the badge “{text}”': 'Quitar la insignia “{text}”',
+  'Give the badge a text, such as PK.': 'La insignia necesita un texto, como PK.',
+  'New badge': 'Nueva insignia',
+  'Badge text': 'Texto de la insignia',
+  Written: 'Se escribe',
+  'Add the badge': 'Agregar la insignia',
+  'point {count}': 'punto {count}',
+  'Enter a number from 0 to 1.': 'Escribir un número de 0 a 1.',
+  'Connection points': 'Puntos de conexión',
+  'Where relations attach': 'Dónde se conectan las relaciones',
+  'None: relations attach anywhere on the border.':
+    'Ninguno: las relaciones se conectan en cualquier lugar del borde.',
+  'Add a connection point': 'Agregar un punto de conexión',
+  'Attach anywhere on the border': 'Conectar en cualquier lugar del borde',
+  Side: 'Lado',
+  Top: 'Superior',
+  Right: 'Derecho',
+  Bottom: 'Inferior',
+  Left: 'Izquierdo',
+  'Along the side, from 0 to 1': 'A lo largo del lado, de 0 a 1',
+  'Remove the connection point “{name}”': 'Quitar el punto de conexión “{name}”',
+
+  // A relation type in the component editor: how its relations behave and are drawn, and its limits.
+  'Inherited ({value})': 'Heredado ({value})',
+  directed: 'dirigida',
+  undirected: 'no dirigida',
+  Directed: 'Dirigida',
+  Undirected: 'No dirigida',
+  Nests: 'Anida',
+  'It cannot stop nesting while {views} nest by it.': {
+    one: 'No puede dejar de anidar mientras {views} anida por él.',
+    other: 'No puede dejar de anidar mientras {views} anidan por él.',
+  },
+  'Inherited (nests)': 'Heredado (anida)',
+  'Inherited (does not nest)': 'Heredado (no anida)',
+  'Nests: places its from end inside its to end':
+    'Anida: ubica su extremo de origen dentro de su extremo de destino',
+  'Does not nest': 'No anida',
+  Line: 'Línea',
+  Dash: 'Patrón de línea',
+  Solid: 'Continua',
+  Dashed: 'Discontinua',
+  Dotted: 'Punteada',
+  Limits: 'Límites',
+  'Inherited (any)': 'Heredado (cualquiera)',
+  'Inherited ({names})': 'Heredado ({names})',
+  'From end': 'Extremo de origen',
+  'To end': 'Extremo de destino',
+  Any: 'Cualquiera',
+  'Only these…': 'Solo estos…',
+  'The last one stays: choose Any to lift the limit, or the inherited one.':
+    'El último se queda: elegir Cualquiera para quitar el límite, o el heredado.',
+
+  // Attributes in the component editor.
+  'It has no attributes yet.': 'Todavía no tiene atributos.',
+  'An inherited attribute cannot be removed or moved here: redefine it to change it, or derive from a definition nearer the one that defines it.':
+    'Un atributo heredado no se puede quitar ni mover aquí: redefinirlo para cambiarlo, o derivar de una definición más cercana a la que lo define.',
+  'redefined here': 'redefinido aquí',
+  'A redefinition keeps its name.': 'Una redefinición conserva su nombre.',
+  Type: 'Tipo',
+  'Choices, one per line': 'Opciones, una por línea',
+  Unit: 'Unidad',
+  'Use the inherited definition of “{name}”': 'Usar la definición heredada de “{name}”',
+  'Use the inherited definition': 'Usar la definición heredada',
+  Default: 'Valor predeterminado',
+  'No default': 'Sin valor predeterminado',
+  'Default: {value}': 'Valor predeterminado: {value}',
+  'Choices: {choices}': 'Opciones: {choices}',
+  'Unit: {unit}': 'Unidad: {unit}',
+  'Redefine “{name}” here': 'Redefinir “{name}” aquí',
+  'Redefine here': 'Redefinir aquí',
+  'It already has the attribute “{name}”.': 'Ya tiene el atributo “{name}”.',
+  'New attribute': 'Nuevo atributo',
+  'Add the attribute': 'Agregar el atributo',
+  'Write true or false.': 'Escribir true o false.',
+
+  // Deriving a definition, and making a package.
+  'Derive a component': 'Derivar un componente',
+  'Derive a relation type': 'Derivar un tipo de relación',
+  'Give the component a name.': 'El componente necesita un nombre.',
+  'Give the relation type a name.': 'El tipo de relación necesita un nombre.',
+  'Give the new package a name.': 'El paquete nuevo necesita un nombre.',
+  'A new package': 'Un paquete nuevo',
+  'Name of the new package': 'Nombre del paquete nuevo',
+  'Its id': 'Su id',
+  'Use it for “{name}”': 'Usarlo para “{name}”',
+  'Define the component': 'Definir el componente',
+  'Derive the component': 'Derivar el componente',
+  'Define the relation type': 'Definir el tipo de relación',
+  'Derive the relation type': 'Derivar el tipo de relación',
+  'A package needs an id.': 'Un paquete necesita un id.',
+  'An id is letters, digits, dots, dashes and underscores, starting with a letter or a digit.':
+    'Un id tiene letras, dígitos, puntos, guiones y guiones bajos, y empieza con una letra o un dígito.',
+  'The id "{id}" is the built-in package {name}’s. Give the package another one.':
+    'El id "{id}" es el del paquete incorporado {name}. Darle otro al paquete.',
+  'Visual Anything keeps the id "{id}" for a package it plans to build in. Give the package another one.':
+    'Visual Anything reserva el id "{id}" para un paquete que planea incorporar. Darle otro al paquete.',
+  'The project already has the package "{id}".': 'El proyecto ya tiene el paquete "{id}".',
+  'Something in the project already has the id "{id}".': 'Algo del proyecto ya tiene el id "{id}".',
+  'Give the package a name.': 'El paquete necesita un nombre.',
+  'Create the package': 'Crear el paquete',
+
+  // A package in the component editor, and what uses a definition.
+  'It is built into Visual Anything, so it cannot be changed here.':
+    'Está incorporado en Visual Anything, así que no se puede cambiar aquí.',
+  'It is built into Visual Anything, so it cannot be changed here. The project does not use it yet.':
+    'Está incorporado en Visual Anything, así que no se puede cambiar aquí. El proyecto todavía no lo usa.',
+  Images: 'Imágenes',
+  '{count} images': { one: '{count} imagen', other: '{count} imágenes' },
+  'It defines no components.': 'No define componentes.',
+  'It defines no relation types.': 'No define tipos de relación.',
+  'Use this package': 'Usar este paquete',
+  '{count} components': { one: '{count} componente', other: '{count} componentes' },
+  '{count} relation types': { one: '{count} tipo de relación', other: '{count} tipos de relación' },
+  'Remove this package': 'Quitar este paquete',
+  'Stop using this package': 'Dejar de usar este paquete',
+  'Its file goes, with the {defines} it defines; Undo brings them back.':
+    'Se va su archivo, con {defines} que define; Deshacer los recupera.',
+  'Used by': 'Usado por',
+  'Nothing uses it yet.': 'Nada lo usa todavía.',
+  'World is created from it.': 'Mundo se crea a partir de él.',
+  '{count} elements are created from it.': {
+    one: '{count} elemento se crea a partir de él.',
+    other: '{count} elementos se crean a partir de él.',
+  },
+  'Select it': 'Seleccionarlo',
+  'Select them': 'Seleccionarlos',
+  '{count} relations are of it.': {
+    one: '{count} relación es de este tipo.',
+    other: '{count} relaciones son de este tipo.',
+  },
+  'Components derived from it': 'Componentes derivados de él',
+  'Relation types derived from it': 'Tipos de relación derivados de él',
+  'Relation types whose limits name it': 'Tipos de relación cuyos límites lo nombran',
+  'Components whose badges name it': 'Componentes cuyas insignias lo nombran',
+  'The own appearance of {count} elements has a badge that names it.': {
+    one: 'La apariencia propia de {count} elemento tiene una insignia que lo nombra.',
+    other: 'La apariencia propia de {count} elementos tiene una insignia que lo nombra.',
+  },
+  'The views {names} nest by it.': {
+    one: 'La vista {names} anida por él.',
+    other: 'Las vistas {names} anidan por él.',
+  },
 };
 
 /**
@@ -1293,6 +1490,12 @@ export const messages: Catalog = {
   // The labels of what the inspector changes.
   'Change the appearance of {of}': 'Cambiar la apariencia de {of}',
   'Change the appearance of {n} shapes': 'Cambiar la apariencia de {n} formas',
+
+  // The labels of what the component editor and the Components tab change.
+  'Use the package "{name}"': 'Usar el paquete "{name}"',
+  'Derive the component "{name}"': 'Derivar el componente "{name}"',
+  'Derive the relation type "{name}"': 'Derivar el tipo de relación "{name}"',
+  'Stop using the package "{name}"': 'Dejar de usar el paquete "{name}"',
 
   // Why a change was refused, and what a change breaks that only warns.
   'There is nothing to undo.': 'No hay nada que deshacer.',

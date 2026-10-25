@@ -7,6 +7,7 @@ import {
 import type { ConnectionPoint, Id } from '@visual-anything/schema';
 import { useId } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { t as translateNow, useT } from '../../i18n';
 import { readNumber } from '../inspector/attributes';
 import { SelectControl, TextControl } from '../inspector/controls';
 import { TraitRow, type TraitControl } from './TraitRow';
@@ -28,10 +29,10 @@ function isSide(value: string): value is Side {
   return SIDES.some((each) => each.side === value);
 }
 
-/** A name no connection point in the list has yet: "point 1", "point 2"… */
+/** A name no connection point in the list has yet: "point 1", "point 2"…, in the language read in. */
 function freeName(points: readonly ConnectionPoint[]): string {
   for (let count = points.length + 1; ; count++) {
-    const name = `point ${count}`;
+    const name = translateNow('point {count}', { count });
     if (!points.some((point) => point.name === name)) return name;
   }
 }
@@ -39,8 +40,10 @@ function freeName(points: readonly ConnectionPoint[]): string {
 /** Why a typed position along a side cannot be used; `undefined` when it can. */
 function atProblem(text: string): string | undefined {
   const reading = readNumber(text);
-  if (!reading.ok) return 'Enter a number from 0 to 1.';
-  return reading.value < 0 || reading.value > 1 ? 'Enter a number from 0 to 1.' : undefined;
+  if (!reading.ok) return translateNow('Enter a number from 0 to 1.');
+  return reading.value < 0 || reading.value > 1
+    ? translateNow('Enter a number from 0 to 1.')
+    : undefined;
 }
 
 interface ConnectionPointsSectionProps {
@@ -55,6 +58,7 @@ interface ConnectionPointsSectionProps {
  * the whole list, so an inherited list becomes the component's own with the change made.
  */
 export function ConnectionPointsSection({ id, readOnly, update }: ConnectionPointsSectionProps) {
+  const t = useT();
   const { definitions } = useEditor();
   const headingId = useId();
   const points = componentOrEssence(definitions, id).appearance.connectionPoints;
@@ -63,10 +67,10 @@ export function ConnectionPointsSection({ id, readOnly, update }: ConnectionPoin
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>Connection points</h4>
+      <h4 id={headingId}>{t('Connection points')}</h4>
       <ul className="definition-traits">
         <TraitRow
-          label="Where relations attach"
+          label={t('Where relations attach')}
           group
           source={sourceText(definitions, 'component', id, source)}
           own={own}
@@ -90,6 +94,7 @@ interface PointsProps {
 }
 
 function Points({ points, readOnly, control, update }: PointsProps) {
+  const t = useT();
   const write = (next: ConnectionPoint[]) => control.send(update({ connectionPoints: next }));
   const changed = (at: number, point: ConnectionPoint) =>
     write(points.map((each, place) => (place === at ? point : each)));
@@ -97,7 +102,7 @@ function Points({ points, readOnly, control, update }: PointsProps) {
     <>
       <Sketch points={points} />
       {points.length === 0 ? (
-        <p className="panel-empty">None: relations attach anywhere on the border.</p>
+        <p className="panel-empty">{t('None: relations attach anywhere on the border.')}</p>
       ) : (
         <ul className="definition-list">
           {points.map((point, at) => (
@@ -121,11 +126,11 @@ function Points({ points, readOnly, control, update }: PointsProps) {
               void write([...points, { name: freeName(points), side: 'right', at: 0.5 }])
             }
           >
-            Add a connection point
+            {t('Add a connection point')}
           </button>
           {points.length > 0 && (
             <button type="button" className="inspector-action" onClick={() => void write([])}>
-              Attach anywhere on the border
+              {t('Attach anywhere on the border')}
             </button>
           )}
         </div>
@@ -143,13 +148,14 @@ interface PointRowProps {
 
 /** One connection point: its name, side and place along it. */
 function PointRow({ point, readOnly, onChange, onRemove }: PointRowProps) {
+  const t = useT();
   const nameId = useId();
   const sideId = useId();
   const atId = useId();
   return (
     <li className="definition-point">
       <div className="inspector-control">
-        <label htmlFor={nameId}>Name</label>
+        <label htmlFor={nameId}>{t('Name')}</label>
         <TextControl
           id={nameId}
           value={point.name}
@@ -160,7 +166,7 @@ function PointRow({ point, readOnly, onChange, onRemove }: PointRowProps) {
         />
       </div>
       <div className="inspector-control">
-        <label htmlFor={sideId}>Side</label>
+        <label htmlFor={sideId}>{t('Side')}</label>
         <SelectControl
           id={sideId}
           value={point.side}
@@ -171,13 +177,13 @@ function PointRow({ point, readOnly, onChange, onRemove }: PointRowProps) {
         >
           {SIDES.map(({ side, name }) => (
             <option key={side} value={side}>
-              {name}
+              {t(name)}
             </option>
           ))}
         </SelectControl>
       </div>
       <div className="inspector-control">
-        <label htmlFor={atId}>Along the side, from 0 to 1</label>
+        <label htmlFor={atId}>{t('Along the side, from 0 to 1')}</label>
         <TextControl
           id={atId}
           value={String(point.at)}
@@ -194,10 +200,10 @@ function PointRow({ point, readOnly, onChange, onRemove }: PointRowProps) {
         <button
           type="button"
           className="inspector-action"
-          aria-label={`Remove the connection point “${point.name}”`}
+          aria-label={t('Remove the connection point “{name}”', { name: point.name })}
           onClick={onRemove}
         >
-          Remove
+          {t('Remove')}
         </button>
       )}
     </li>

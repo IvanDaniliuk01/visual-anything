@@ -1,6 +1,7 @@
 import type { Command } from '@visual-anything/core';
 import { useState } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { useT } from '../../i18n';
 import { perform } from '../inspector/send';
 import { refusalOf } from './commands';
 
@@ -12,17 +13,25 @@ export interface Sender {
    * Resolves to whether it was done.
    */
   send: (command: Command) => Promise<boolean>;
-  /** Why the last command could not be done; `undefined` once one is accepted. */
+  /**
+   * Why the last command could not be done, in the language read in; `undefined` once one is
+   * accepted.
+   */
   problem: string | undefined;
-  /** Says why something cannot be done, without sending anything; `undefined` stops saying it. */
+  /**
+   * Says why something cannot be done, without sending anything, in English or already translated;
+   * `undefined` stops saying it.
+   */
   refuse: (message: string | undefined) => void;
 }
 
 export function useSender(): Sender {
+  const t = useT();
   const { project, send } = useEditor();
   const [problem, setProblem] = useState<string>();
   return {
-    problem,
+    // The core's reasons, and the app's own, are kept in English and read in the language shown.
+    problem: problem === undefined ? undefined : t.message(problem),
     refuse: setProblem,
     send: async (command) => {
       const refusal = refusalOf(project, command);

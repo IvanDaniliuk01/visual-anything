@@ -32,6 +32,7 @@ import {
   type PackageFile,
   type RelationType,
 } from '@visual-anything/schema';
+import { t } from '../../i18n';
 
 /** What the component editor edits besides packages: a component or a relation type. */
 export type DefinitionKind = 'component' | 'relation-type';
@@ -175,21 +176,29 @@ export function proposedPackageId(project: ProjectSnapshot, name: string): Id {
 
 /** Why an id cannot be a new package's, in words; `undefined` when it can. */
 export function packageIdProblem(project: ProjectSnapshot, id: string): string | undefined {
-  if (id === '') return 'A package needs an id.';
+  if (id === '') return t('A package needs an id.');
   if (!ID_PATTERN.test(id)) {
-    return 'An id is letters, digits, dots, dashes and underscores, starting with a letter or a digit.';
+    return t(
+      'An id is letters, digits, dots, dashes and underscores, starting with a letter or a digit.',
+    );
   }
   const builtin = builtinPackage(id);
   if (builtin) {
-    return `The id "${id}" is the built-in package ${builtin.name}’s. Give the package another one.`;
+    return t('The id "{id}" is the built-in package {name}’s. Give the package another one.', {
+      id,
+      name: t.definition(builtin.id, builtin.name),
+    });
   }
   if (RESERVED_PACKAGE_IDS.has(id)) {
-    return `Visual Anything keeps the id "${id}" for a package it plans to build in. Give the package another one.`;
+    return t(
+      'Visual Anything keeps the id "{id}" for a package it plans to build in. Give the package another one.',
+      { id },
+    );
   }
   if (project.packages.some((file) => file.id === id)) {
-    return `The project already has the package "${id}".`;
+    return t('The project already has the package "{id}".', { id });
   }
-  if (takenIn(project)(id)) return `Something in the project already has the id "${id}".`;
+  if (takenIn(project)(id)) return t('Something in the project already has the id "{id}".', { id });
   return undefined;
 }
 

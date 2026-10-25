@@ -1,5 +1,6 @@
 import { useId, useState, type FormEvent, type Ref } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { useT } from '../../i18n';
 import { InlineProblem } from '../inspector/controls';
 import { Title } from '../inspector/parts';
 import { packageIdProblem, proposedPackageId } from './commands';
@@ -12,6 +13,7 @@ import { useSender } from './useSender';
  * packages it plans to build in, and every id the project holds. Then the package shows.
  */
 export function NewPackageForm({ titleRef }: { titleRef: Ref<HTMLHeadingElement> }) {
+  const t = useT();
   const { project, send } = useEditor();
   const { open } = useOpenDefinition();
   const sender = useSender();
@@ -28,7 +30,7 @@ export function NewPackageForm({ titleRef }: { titleRef: Ref<HTMLHeadingElement>
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (name.trim() === '') {
-      sender.refuse('Give the package a name.');
+      sender.refuse(t('Give the package a name.'));
       return;
     }
     const problem = packageIdProblem(project, shownId);
@@ -50,12 +52,12 @@ export function NewPackageForm({ titleRef }: { titleRef: Ref<HTMLHeadingElement>
   return (
     <form
       className="definition-form"
-      aria-label="New package"
+      aria-label={t('New package')}
       onSubmit={(event) => void submit(event)}
     >
-      <Title titleRef={titleRef} name="New package" />
+      <Title titleRef={titleRef} name={t('New package')} />
       <div className="inspector-control">
-        <label htmlFor={nameId}>Name</label>
+        <label htmlFor={nameId}>{t('Name')}</label>
         <input
           id={nameId}
           type="text"
@@ -65,7 +67,7 @@ export function NewPackageForm({ titleRef }: { titleRef: Ref<HTMLHeadingElement>
         />
       </div>
       <div className="inspector-control">
-        <label htmlFor={idId}>Id</label>
+        <label htmlFor={idId}>{t('Id')}</label>
         <input
           id={idId}
           type="text"
@@ -76,7 +78,7 @@ export function NewPackageForm({ titleRef }: { titleRef: Ref<HTMLHeadingElement>
         />
       </div>
       <div className="inspector-control">
-        <label htmlFor={descriptionId}>Description</label>
+        <label htmlFor={descriptionId}>{t('Description')}</label>
         <textarea
           id={descriptionId}
           rows={3}
@@ -87,7 +89,7 @@ export function NewPackageForm({ titleRef }: { titleRef: Ref<HTMLHeadingElement>
       {sender.problem !== undefined && <InlineProblem id={problemId} text={sender.problem} />}
       <div className="definition-actions">
         <button type="submit" className="inspector-action" disabled={send === undefined}>
-          Create the package
+          {t('Create the package')}
         </button>
       </div>
     </form>

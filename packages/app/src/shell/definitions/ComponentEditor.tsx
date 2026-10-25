@@ -10,6 +10,7 @@ import {
 import type { AppearanceImage, Id } from '@visual-anything/schema';
 import { useId, type Ref } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { useT } from '../../i18n';
 import { readNumber } from '../inspector/attributes';
 import { CheckboxControl, SelectControl, TextControl } from '../inspector/controls';
 import { Title } from '../inspector/parts';
@@ -45,13 +46,14 @@ interface ComponentEditorProps {
  * components are read-only and offer to derive one instead.
  */
 export function ComponentEditor({ id, titleRef }: ComponentEditorProps) {
+  const t = useT();
   const { project, definitions, send } = useEditor();
   const component = definitions.component(id);
   if (!component) {
     return (
       <>
-        <Title titleRef={titleRef} name={id} detail="Component" />
-        <Gone what={`the component “${id}”`} />
+        <Title titleRef={titleRef} name={id} detail={t('Component')} />
+        <Gone what={t('the component “{id}”', { id })} />
       </>
     );
   }
@@ -67,14 +69,17 @@ export function ComponentEditor({ id, titleRef }: ComponentEditorProps) {
   const packageName =
     packageId === undefined
       ? undefined
-      : (project.packages.find((file) => file.id === packageId)?.name ?? packageId);
+      : t.definition(
+          packageId,
+          project.packages.find((file) => file.id === packageId)?.name ?? packageId,
+        );
 
   return (
     <>
       <Title
         titleRef={titleRef}
-        name={component.name}
-        detail={builtIn ? 'Built-in component' : 'Component'}
+        name={t.definition(id, component.name)}
+        detail={builtIn ? t('Built-in component') : t('Component')}
       />
       {builtIn && <BuiltInNote kind="component" id={id} name={component.name} />}
       <IdentitySection
@@ -110,6 +115,7 @@ interface AppearanceTraitsProps {
 
 /** A component's shape, colors, size, image and rows, each with where it comes from. */
 function AppearanceTraits({ id, readOnly, update }: AppearanceTraitsProps) {
+  const t = useT();
   const { project, definitions } = useEditor();
   const headingId = useId();
   const shown = definitions.component(id)?.appearance;
@@ -123,24 +129,26 @@ function AppearanceTraits({ id, readOnly, update }: AppearanceTraitsProps) {
   const rows = shown.contentsAsRows;
   const image = componentImage(definitions, id);
   const ownImage = definitions.components.get(id)?.definition.appearance?.image;
+  const pictureName =
+    image && (imagesIn(project).image(image.image)?.definition.name ?? image.image);
   const imageName =
     image === undefined
-      ? 'None'
-      : `${imagesIn(project).image(image.image)?.definition.name ?? image.image}, ${
-          image.placement === 'drawing' ? 'as its drawing' : 'as an icon'
-        }`;
+      ? t('None')
+      : image.placement === 'drawing'
+        ? t('{name}, as its drawing', { name: pictureName ?? '' })
+        : t('{name}, as an icon', { name: pictureName ?? '' });
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>Appearance</h4>
+      <h4 id={headingId}>{t('Appearance')}</h4>
       <ul className="definition-traits">
         <TraitRow
-          label="Shape"
+          label={t('Shape')}
           {...row('shape')}
           inherit={() => update({ shape: null })}
           note={
             rows
-              ? 'While it draws rows, its shapes are a rectangle or a rounded rectangle.'
+              ? t('While it draws rows, its shapes are a rectangle or a rounded rectangle.')
               : undefined
           }
         >
@@ -160,16 +168,16 @@ function AppearanceTraits({ id, readOnly, update }: AppearanceTraitsProps) {
                   value={shape}
                   disabled={rows && !holdsRows(shape) && shape !== shown.shape}
                 >
-                  {name}
+                  {t(name)}
                 </option>
               ))}
             </SelectControl>
           )}
         </TraitRow>
         {/* Colors change at the level the project can change, so a built-in component's too. */}
-        <ColorRow kind="component" id={id} trait="fill" label="Fill" hints />
-        <ColorRow kind="component" id={id} trait="stroke" label="Stroke" />
-        <TraitRow label="Width" {...row('width')} inherit={() => update({ width: null })}>
+        <ColorRow kind="component" id={id} trait="fill" label={t('Fill')} hints />
+        <ColorRow kind="component" id={id} trait="stroke" label={t('Stroke')} />
+        <TraitRow label={t('Width')} {...row('width')} inherit={() => update({ width: null })}>
           {({ id: controlId, describedBy, send }) => (
             <TextControl
               id={controlId}
@@ -186,10 +194,10 @@ function AppearanceTraits({ id, readOnly, update }: AppearanceTraitsProps) {
           )}
         </TraitRow>
         <TraitRow
-          label="Height"
+          label={t('Height')}
           {...row('height')}
           inherit={() => update({ height: null })}
-          note={rows ? 'Its height follows its rows.' : undefined}
+          note={rows ? t('Its height follows its rows.') : undefined}
         >
           {({ id: controlId, describedBy, send }) => (
             <TextControl
@@ -206,7 +214,12 @@ function AppearanceTraits({ id, readOnly, update }: AppearanceTraitsProps) {
             />
           )}
         </TraitRow>
-        <TraitRow label="Image" group {...row('image')} inherit={() => update({ image: null })}>
+        <TraitRow
+          label={t('Image')}
+          group
+          {...row('image')}
+          inherit={() => update({ image: null })}
+        >
           {({ send, describedBy }) => (
             <>
               <p className="definition-value">{imageName}</p>
@@ -228,14 +241,14 @@ function AppearanceTraits({ id, readOnly, update }: AppearanceTraitsProps) {
                   className="inspector-action"
                   onClick={() => void send(update({ image: 'none' }))}
                 >
-                  Show no image
+                  {t('Show no image')}
                 </button>
               )}
             </>
           )}
         </TraitRow>
         <TraitRow
-          label="Draw what its elements hold as rows"
+          label={t('Draw what its elements hold as rows')}
           {...row('contentsAsRows')}
           inherit={() => update({ contentsAsRows: null })}
         >

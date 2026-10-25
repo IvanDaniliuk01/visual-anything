@@ -6,6 +6,7 @@ import type {
 import type { Id, RelationAppearance } from '@visual-anything/schema';
 import { useId, type Ref } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { useT } from '../../i18n';
 import { readNumber } from '../inspector/attributes';
 import { SelectControl, TextControl } from '../inspector/controls';
 import { Title } from '../inspector/parts';
@@ -48,13 +49,14 @@ interface RelationTypeEditorProps {
  * read-only and offer to derive one instead.
  */
 export function RelationTypeEditor({ id, titleRef }: RelationTypeEditorProps) {
+  const t = useT();
   const { project, definitions, send } = useEditor();
   const relationType = definitions.relationType(id);
   if (!relationType) {
     return (
       <>
-        <Title titleRef={titleRef} name={id} detail="Relation type" />
-        <Gone what={`the relation type “${id}”`} />
+        <Title titleRef={titleRef} name={id} detail={t('Relation type')} />
+        <Gone what={t('the relation type “{id}”', { id })} />
       </>
     );
   }
@@ -69,14 +71,17 @@ export function RelationTypeEditor({ id, titleRef }: RelationTypeEditorProps) {
   const packageName =
     packageId === undefined
       ? undefined
-      : (project.packages.find((file) => file.id === packageId)?.name ?? packageId);
+      : t.definition(
+          packageId,
+          project.packages.find((file) => file.id === packageId)?.name ?? packageId,
+        );
 
   return (
     <>
       <Title
         titleRef={titleRef}
-        name={relationType.name}
-        detail={builtIn ? 'Built-in relation type' : 'Relation type'}
+        name={t.definition(id, relationType.name)}
+        detail={builtIn ? t('Built-in relation type') : t('Relation type')}
       />
       {builtIn && <BuiltInNote kind="relation-type" id={id} name={relationType.name} />}
       <IdentitySection
@@ -115,6 +120,7 @@ interface SectionProps {
  * nests by it, so those choices are disabled, with the views named.
  */
 function BehaviorSection({ id, readOnly, update }: SectionProps) {
+  const t = useT();
   const { project, definitions } = useEditor();
   const headingId = useId();
   const own = definitions.relationTypes.get(id)?.definition;
@@ -131,9 +137,9 @@ function BehaviorSection({ id, readOnly, update }: SectionProps) {
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>Relations</h4>
+      <h4 id={headingId}>{t('Relations')}</h4>
       <ul className="definition-traits">
-        <TraitRow label="Direction" own={own?.direction !== undefined} {...row('direction')}>
+        <TraitRow label={t('Direction')} own={own?.direction !== undefined} {...row('direction')}>
           {({ id: controlId, describedBy, send }) => (
             <SelectControl
               id={controlId}
@@ -147,19 +153,27 @@ function BehaviorSection({ id, readOnly, update }: SectionProps) {
                 }
               }}
             >
-              <option value="inherit">Inherited ({inherited.direction})</option>
-              <option value="directed">Directed</option>
-              <option value="undirected">Undirected</option>
+              <option value="inherit">
+                {t('Inherited ({value})', { value: t(inherited.direction) })}
+              </option>
+              <option value="directed">{t('Directed')}</option>
+              <option value="undirected">{t('Undirected')}</option>
             </SelectControl>
           )}
         </TraitRow>
         <TraitRow
-          label="Nests"
+          label={t('Nests')}
           own={own?.nests !== undefined}
           {...row('nests')}
           note={
             keepsNesting
-              ? `It cannot stop nesting while ${viewNames} ${nestingViews.length === 1 ? 'nests' : 'nest'} by it.`
+              ? t(
+                  {
+                    one: 'It cannot stop nesting while {views} nests by it.',
+                    other: 'It cannot stop nesting while {views} nest by it.',
+                  },
+                  { views: viewNames, count: nestingViews.length },
+                )
               : undefined
           }
         >
@@ -175,11 +189,11 @@ function BehaviorSection({ id, readOnly, update }: SectionProps) {
               }}
             >
               <option value="inherit" disabled={keepsNesting && !inherited.nests}>
-                Inherited ({inherited.nests ? 'nests' : 'does not nest'})
+                {inherited.nests ? t('Inherited (nests)') : t('Inherited (does not nest)')}
               </option>
-              <option value="true">Nests: places its from end inside its to end</option>
+              <option value="true">{t('Nests: places its from end inside its to end')}</option>
               <option value="false" disabled={keepsNesting}>
-                Does not nest
+                {t('Does not nest')}
               </option>
             </SelectControl>
           )}
@@ -199,6 +213,7 @@ function LineSection({
   readOnly: boolean;
   update: (changes: RelationAppearanceChanges) => Command;
 }) {
+  const t = useT();
   const { definitions } = useEditor();
   const headingId = useId();
   const shown = definitions.relationType(id)?.appearance;
@@ -212,11 +227,11 @@ function LineSection({
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>Line</h4>
+      <h4 id={headingId}>{t('Line')}</h4>
       <ul className="definition-traits">
         {/* The color changes at the level the project can change, so a built-in one's too. */}
-        <ColorRow kind="relation-type" id={id} trait="stroke" label="Stroke" hints />
-        <TraitRow label="Width" {...row('width')} inherit={() => update({ width: null })}>
+        <ColorRow kind="relation-type" id={id} trait="stroke" label={t('Stroke')} hints />
+        <TraitRow label={t('Width')} {...row('width')} inherit={() => update({ width: null })}>
           {({ id: controlId, describedBy, send }) => (
             <TextControl
               id={controlId}
@@ -232,7 +247,7 @@ function LineSection({
             />
           )}
         </TraitRow>
-        <TraitRow label="Dash" {...row('dash')} inherit={() => update({ dash: null })}>
+        <TraitRow label={t('Dash')} {...row('dash')} inherit={() => update({ dash: null })}>
           {({ id: controlId, describedBy, send }) => (
             <SelectControl
               id={controlId}
@@ -245,7 +260,7 @@ function LineSection({
             >
               {DASHES.map(({ dash, name }) => (
                 <option key={dash} value={dash}>
-                  {name}
+                  {t(name)}
                 </option>
               ))}
             </SelectControl>

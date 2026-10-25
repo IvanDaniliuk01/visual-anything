@@ -9,6 +9,7 @@ import {
 import type { Color, Id } from '@visual-anything/schema';
 import { useId } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { useT } from '../../i18n';
 import { ColorHints } from '../inspector/colorParts';
 import {
   idsOf,
@@ -41,6 +42,7 @@ interface ColorRowProps {
  * built-in definitions can be recolored here too; one of the project's own changes in its package.
  */
 export function ColorRow({ kind, id, trait, label, hints: withHints = false }: ColorRowProps) {
+  const t = useT();
   const { project, definitions, send } = useEditor();
   const hintId = useId();
   const readOnly = send === undefined;
@@ -66,7 +68,7 @@ export function ColorRow({ kind, id, trait, label, hints: withHints = false }: C
       own={stored !== undefined}
       readOnly={readOnly}
       inherit={() => wayBack(definitionColorCommand(project, kind, id, trait, null))}
-      inheritLabel="Use the inherited color"
+      inheritLabel={t('Use the inherited color')}
       note={
         isBuiltInDefinition(definitions, kind, id)
           ? savedIn(project.packages, packageId)

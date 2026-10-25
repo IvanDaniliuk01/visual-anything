@@ -8,6 +8,7 @@ import {
 import type { Badge, Id } from '@visual-anything/schema';
 import { useId, useState, type FormEvent } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { useT, type Translator } from '../../i18n';
 import { CheckboxControl, InlineProblem } from '../inspector/controls';
 import { TraitRow, type TraitControl } from './TraitRow';
 import { sourceText } from './traits';
@@ -31,6 +32,7 @@ interface DetailSectionProps {
  * whether the component's name, which attributes' values in which order, and which badges.
  */
 export function DetailSection({ id, readOnly, update }: DetailSectionProps) {
+  const t = useT();
   const { definitions } = useEditor();
   const headingId = useId();
   const component = componentOrEssence(definitions, id);
@@ -44,10 +46,10 @@ export function DetailSection({ id, readOnly, update }: DetailSectionProps) {
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>Detail</h4>
+      <h4 id={headingId}>{t('Detail')}</h4>
       <ul className="definition-traits">
         <TraitRow
-          label="Write the component’s name"
+          label={t('Write the component’s name')}
           {...row('detail.componentName')}
           inherit={() => update({ detail: { componentName: null } })}
         >
@@ -62,7 +64,7 @@ export function DetailSection({ id, readOnly, update }: DetailSectionProps) {
           )}
         </TraitRow>
         <TraitRow
-          label="Attributes written"
+          label={t('Attributes written')}
           group
           {...row('detail.attributes')}
           inherit={() => update({ detail: { attributes: null } })}
@@ -78,7 +80,7 @@ export function DetailSection({ id, readOnly, update }: DetailSectionProps) {
           )}
         </TraitRow>
         <TraitRow
-          label="Badges"
+          label={t('Badges')}
           group
           {...row('detail.badges')}
           inherit={() => update({ detail: { badges: null } })}
@@ -110,6 +112,7 @@ interface WrittenAttributesProps {
 
 /** An ordered checklist of the component's attributes: those written first, in their order. */
 function WrittenAttributes({ written, names, readOnly, control, update }: WrittenAttributesProps) {
+  const t = useT();
   const listed = [...written, ...names.filter((name) => !written.includes(name))];
   const write = (attributes: string[]) => control.send(update({ detail: { attributes } }));
   const move = (name: string, by: -1 | 1) => {
@@ -119,7 +122,9 @@ function WrittenAttributes({ written, names, readOnly, control, update }: Writte
     next.splice(at + by, 0, name);
     void write(next);
   };
-  if (listed.length === 0) return <p className="panel-empty">It has no attributes to write.</p>;
+  if (listed.length === 0) {
+    return <p className="panel-empty">{t('It has no attributes to write.')}</p>;
+  }
   return (
     <ul className="definition-checklist">
       {listed.map((name) => (
@@ -161,6 +166,7 @@ function WrittenAttribute({
   onToggle,
   onMove,
 }: WrittenAttributeProps) {
+  const t = useT();
   const id = useId();
   const checked = at !== -1;
   return (
@@ -173,27 +179,27 @@ function WrittenAttribute({
       />
       <label htmlFor={id}>
         {name}
-        {!known && <span className="definition-unknown"> (it has no such attribute)</span>}
+        {!known && <span className="definition-unknown"> {t('(it has no such attribute)')}</span>}
       </label>
       {checked && !readOnly && (
         <span className="definition-actions">
           <button
             type="button"
             className="inspector-action"
-            aria-label={`Write “${name}” earlier`}
+            aria-label={t('Write “{name}” earlier', { name })}
             disabled={at === 0}
             onClick={() => onMove(-1)}
           >
-            Up
+            {t('Up')}
           </button>
           <button
             type="button"
             className="inspector-action"
-            aria-label={`Write “${name}” later`}
+            aria-label={t('Write “{name}” later', { name })}
             disabled={at === count - 1}
             onClick={() => onMove(1)}
           >
-            Down
+            {t('Down')}
           </button>
         </span>
       )}
@@ -202,10 +208,10 @@ function WrittenAttribute({
 }
 
 /** A badge's condition, in words. */
-function conditionText(badge: Badge, relationTypeName: (id: Id) => string): string {
+function conditionText(t: Translator, badge: Badge, relationTypeName: (id: Id) => string): string {
   return badge.when === 'attribute'
-    ? `while “${badge.attribute}” is true`
-    : `while it is the from end of “${relationTypeName(badge.relationType)}”`;
+    ? t('while “{name}” is true', { name: badge.attribute })
+    : t('while it is the from end of “{name}”', { name: relationTypeName(badge.relationType) });
 }
 
 interface BadgesProps {
@@ -218,29 +224,31 @@ interface BadgesProps {
 
 /** The badges a component's shapes write, each with its condition, and a form that adds one. */
 function Badges({ id, badges, readOnly, control, update }: BadgesProps) {
+  const t = useT();
   const { definitions } = useEditor();
-  const relationTypeName = (type: Id) => relationTypeOrRelatesTo(definitions, type).name;
+  const relationTypeName = (type: Id) =>
+    t.definition(type, relationTypeOrRelatesTo(definitions, type).name);
   const write = (next: Badge[]) => control.send(update({ detail: { badges: next } }));
   return (
     <>
       {badges.length === 0 ? (
-        <p className="panel-empty">No badges.</p>
+        <p className="panel-empty">{t('No badges.')}</p>
       ) : (
         <ul className="definition-list">
           {badges.map((badge, at) => (
             <li key={`${at}-${badge.text}`} className="definition-list-item">
               <span>
                 <span className="definition-badge">{badge.text}</span>{' '}
-                {conditionText(badge, relationTypeName)}
+                {conditionText(t, badge, relationTypeName)}
               </span>
               {!readOnly && (
                 <button
                   type="button"
                   className="inspector-action"
-                  aria-label={`Remove the badge “${badge.text}”`}
+                  aria-label={t('Remove the badge “{text}”', { text: badge.text })}
                   onClick={() => void write(badges.filter((_, each) => each !== at))}
                 >
-                  Remove
+                  {t('Remove')}
                 </button>
               )}
             </li>
@@ -256,6 +264,7 @@ function Badges({ id, badges, readOnly, control, update }: BadgesProps) {
 
 /** Adds a badge: its text, and its condition among the component's boolean attributes and the relation types in use. */
 function NewBadge({ id, onAdd }: { id: Id; onAdd: (badge: Badge) => Promise<boolean> }) {
+  const t = useT();
   const { definitions } = useEditor();
   const textId = useId();
   const conditionId = useId();
@@ -266,10 +275,15 @@ function NewBadge({ id, onAdd }: { id: Id; onAdd: (badge: Badge) => Promise<bool
     .map((attribute) => attribute.name);
   const relationTypes = [...definitions.relationTypes.keys()];
   const conditions = [
-    ...booleans.map((name) => ({ value: `attribute:${name}`, text: `while “${name}” is true` })),
+    ...booleans.map((name) => ({
+      value: `attribute:${name}`,
+      text: t('while “{name}” is true', { name }),
+    })),
     ...relationTypes.map((type) => ({
       value: `from-end:${type}`,
-      text: `while it is the from end of “${relationTypeOrRelatesTo(definitions, type).name}”`,
+      text: t('while it is the from end of “{name}”', {
+        name: t.definition(type, relationTypeOrRelatesTo(definitions, type).name),
+      }),
     })),
   ];
   const [text, setText] = useState('');
@@ -282,7 +296,7 @@ function NewBadge({ id, onAdd }: { id: Id; onAdd: (badge: Badge) => Promise<bool
     event.preventDefault();
     const written = text.trim();
     if (written === '') {
-      sender.refuse('Give the badge a text, such as PK.');
+      sender.refuse(t('Give the badge a text, such as PK.'));
       return;
     }
     const [when, ...rest] = shownCondition.split(':');
@@ -296,9 +310,13 @@ function NewBadge({ id, onAdd }: { id: Id; onAdd: (badge: Badge) => Promise<bool
   };
 
   return (
-    <form className="definition-new" aria-label="New badge" onSubmit={(event) => void add(event)}>
+    <form
+      className="definition-new"
+      aria-label={t('New badge')}
+      onSubmit={(event) => void add(event)}
+    >
       <div className="inspector-control">
-        <label htmlFor={textId}>Badge text</label>
+        <label htmlFor={textId}>{t('Badge text')}</label>
         <input
           id={textId}
           type="text"
@@ -309,7 +327,7 @@ function NewBadge({ id, onAdd }: { id: Id; onAdd: (badge: Badge) => Promise<bool
         />
       </div>
       <div className="inspector-control">
-        <label htmlFor={conditionId}>Written</label>
+        <label htmlFor={conditionId}>{t('Written')}</label>
         <select
           id={conditionId}
           value={shownCondition}
@@ -323,7 +341,7 @@ function NewBadge({ id, onAdd }: { id: Id; onAdd: (badge: Badge) => Promise<bool
         </select>
       </div>
       <button type="submit" className="inspector-action" disabled={conditions.length === 0}>
-        Add the badge
+        {t('Add the badge')}
       </button>
       {sender.problem !== undefined && <InlineProblem id={problemId} text={sender.problem} />}
     </form>

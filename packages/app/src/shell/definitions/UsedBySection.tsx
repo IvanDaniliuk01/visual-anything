@@ -2,7 +2,7 @@ import type { Id } from '@visual-anything/schema';
 import { useId, useMemo } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import { selectionOf } from '../../editor/selection';
-import { count } from '../inspector/describe';
+import { useT } from '../../i18n';
 import { usersOf, type DefinitionKind } from './commands';
 import { useOpenDefinition } from './opened';
 import { nameOf } from './traits';
@@ -18,6 +18,7 @@ interface UsedBySectionProps {
  * that nest by it. While any is left, it cannot be removed.
  */
 export function UsedBySection({ kind, id }: UsedBySectionProps) {
+  const t = useT();
   const editor = useEditor();
   const { project, definitions } = editor;
   const { open } = useOpenDefinition();
@@ -44,15 +45,20 @@ export function UsedBySection({ kind, id }: UsedBySectionProps) {
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>Used by</h4>
-      {nothing && <p className="panel-empty">Nothing uses it yet.</p>}
+      <h4 id={headingId}>{t('Used by')}</h4>
+      {nothing && <p className="panel-empty">{t('Nothing uses it yet.')}</p>}
       {users.elements.includes(world) && (
-        <p className="inspector-notes">World is created from it.</p>
+        <p className="inspector-notes">{t('World is created from it.')}</p>
       )}
       {elements.length > 0 && (
         <p className="definition-used">
-          {count(elements.length, 'element')} {elements.length === 1 ? 'is' : 'are'} created from
-          it.{' '}
+          {t(
+            {
+              one: '{count} element is created from it.',
+              other: '{count} elements are created from it.',
+            },
+            { count: elements.length },
+          )}{' '}
           <button
             type="button"
             className="inspector-action"
@@ -60,14 +66,16 @@ export function UsedBySection({ kind, id }: UsedBySectionProps) {
               editor.select(selectionOf(elements.map((each) => ({ kind: 'element', id: each }))))
             }
           >
-            {elements.length === 1 ? 'Select it' : 'Select them'}
+            {elements.length === 1 ? t('Select it') : t('Select them')}
           </button>
         </p>
       )}
       {users.relations.length > 0 && (
         <p className="definition-used">
-          {count(users.relations.length, 'relation')} {users.relations.length === 1 ? 'is' : 'are'}{' '}
-          of it.{' '}
+          {t(
+            { one: '{count} relation is of it.', other: '{count} relations are of it.' },
+            { count: users.relations.length },
+          )}{' '}
           <button
             type="button"
             className="inspector-action"
@@ -77,40 +85,52 @@ export function UsedBySection({ kind, id }: UsedBySectionProps) {
               )
             }
           >
-            {users.relations.length === 1 ? 'Select it' : 'Select them'}
+            {users.relations.length === 1 ? t('Select it') : t('Select them')}
           </button>
         </p>
       )}
       <Named
         title={
-          kind === 'component' ? 'Components derived from it' : 'Relation types derived from it'
+          kind === 'component'
+            ? t('Components derived from it')
+            : t('Relation types derived from it')
         }
         ids={users.derived}
         name={(other) => nameOf(definitions, kind, other)}
         open={(other) => opener(kind, other)}
       />
       <Named
-        title="Relation types whose limits name it"
+        title={t('Relation types whose limits name it')}
         ids={users.limits}
         name={(other) => nameOf(definitions, 'relation-type', other)}
         open={(other) => opener('relation-type', other)}
       />
       <Named
-        title="Components whose badges name it"
+        title={t('Components whose badges name it')}
         ids={badgeComponents}
         name={(other) => nameOf(definitions, 'component', other)}
         open={(other) => opener('component', other)}
       />
       {badgeElements > 0 && (
         <p className="inspector-notes">
-          The own appearance of {count(badgeElements, 'element')} has a badge that names it.
+          {t(
+            {
+              one: 'The own appearance of {count} element has a badge that names it.',
+              other: 'The own appearance of {count} elements has a badge that names it.',
+            },
+            { count: badgeElements },
+          )}
         </p>
       )}
       {viewNames.length > 0 && (
         <p className="inspector-notes">
-          {viewNames.length === 1 ? 'The view' : 'The views'}{' '}
-          {viewNames.map((name) => `“${name}”`).join(', ')}{' '}
-          {viewNames.length === 1 ? 'nests' : 'nest'} by it.
+          {t(
+            { one: 'The view {names} nests by it.', other: 'The views {names} nest by it.' },
+            {
+              names: viewNames.map((name) => `“${name}”`).join(', '),
+              count: viewNames.length,
+            },
+          )}
         </p>
       )}
     </section>

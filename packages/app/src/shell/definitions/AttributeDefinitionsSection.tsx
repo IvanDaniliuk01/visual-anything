@@ -2,6 +2,7 @@ import type { AttributeChanges, Command } from '@visual-anything/core';
 import type { AttributeDefinition, Id } from '@visual-anything/schema';
 import { useId, useState, type FormEvent } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { useT } from '../../i18n';
 import { ATTRIBUTE_TYPES, typeName, type AttributeType } from '../inspector/attributes';
 import { InlineProblem, SelectControl, TextControl } from '../inspector/controls';
 import { sameOptionalText } from '../inspector/text';
@@ -42,10 +43,12 @@ export function AttributeDefinitionsSection({
   readOnly,
   update,
 }: AttributeDefinitionsSectionProps) {
+  const t = useT();
   const { definitions } = useEditor();
   const headingId = useId();
   const resolved = kind === 'component' ? definitions.component(id) : definitions.relationType(id);
   const attributes = resolved?.attributes ?? [];
+  const lineage = resolved?.lineage ?? [id];
   const sources = attributeSources(definitions, kind, id);
   const own =
     (kind === 'component'
@@ -57,8 +60,8 @@ export function AttributeDefinitionsSection({
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>Attributes</h4>
-      {attributes.length === 0 && <p className="panel-empty">It has no attributes yet.</p>}
+      <h4 id={headingId}>{t('Attributes')}</h4>
+      {attributes.length === 0 && <p className="panel-empty">{t('It has no attributes yet.')}</p>}
       <ul className="definition-attributes" aria-labelledby={headingId}>
         {attributes.map((attribute) => {
           const source = sources.get(attribute.name) ?? id;
@@ -66,6 +69,7 @@ export function AttributeDefinitionsSection({
             <OwnAttribute
               key={attribute.name}
               attribute={attribute}
+              lineage={lineage}
               redefines={inherited.has(attribute.name)}
               movable={movable}
               readOnly={readOnly}
@@ -75,6 +79,7 @@ export function AttributeDefinitionsSection({
             <InheritedAttribute
               key={attribute.name}
               attribute={attribute}
+              lineage={lineage}
               source={sourceText(definitions, kind, id, source)}
               readOnly={readOnly}
               update={update}
@@ -84,8 +89,9 @@ export function AttributeDefinitionsSection({
       </ul>
       {inherited.size > 0 && !readOnly && (
         <p className="inspector-notes">
-          An inherited attribute cannot be removed or moved here: redefine it to change it, or
-          derive from a definition nearer the one that defines it.
+          {t(
+            'An inherited attribute cannot be removed or moved here: redefine it to change it, or derive from a definition nearer the one that defines it.',
+          )}
         </p>
       )}
       {!readOnly && <NewAttribute names={attributes.map((each) => each.name)} update={update} />}
@@ -95,6 +101,8 @@ export function AttributeDefinitionsSection({
 
 interface OwnAttributeProps {
   attribute: AttributeDefinition;
+  /** The definition's chain, which says where a built-in attribute's description comes from. */
+  lineage: readonly Id[];
   /** Whether it redefines an attribute the chain defines. */
   redefines: boolean;
   /** The definition's own new attributes, in its order, which can move among themselves. */
@@ -104,7 +112,15 @@ interface OwnAttributeProps {
 }
 
 /** An attribute the definition defines itself: every trait edited, each change one command. */
-function OwnAttribute({ attribute, redefines, movable, readOnly, update }: OwnAttributeProps) {
+function OwnAttribute({
+  attribute,
+  lineage,
+  redefines,
+  movable,
+  readOnly,
+  update,
+}: OwnAttributeProps) {
+  const t = useT();
   const sender = useSender();
   const problemId = useId();
   const { name, type } = attribute;
@@ -119,9 +135,11 @@ function OwnAttribute({ attribute, redefines, movable, readOnly, update }: OwnAt
       <div className="definition-attribute-head">
         <span className="definition-attribute-name">{name}</span>
         <span className="inspector-type">{typeName(type)}</span>
-        <span className="definition-source is-own">{redefines ? 'redefined here' : 'its own'}</span>
+        <span className="definition-source is-own">
+          {redefines ? t('redefined here') : t('its own')}
+        </span>
       </div>
-      <Field label="Name" note={redefines ? 'A redefinition keeps its name.' : undefined}>
+      <Field label={t('Name')} note={redefines ? t('A redefinition keeps its name.') : undefined}>
         {({ id, describedBy, send }) => (
           <TextControl
             id={id}
@@ -135,7 +153,7 @@ function OwnAttribute({ attribute, redefines, movable, readOnly, update }: OwnAt
           />
         )}
       </Field>
-      <Field label="Type">
+      <Field label={t('Type')}>
         {({ id, describedBy, send }) => (
           <SelectControl
             id={id}
@@ -156,7 +174,7 @@ function OwnAttribute({ attribute, redefines, movable, readOnly, update }: OwnAt
       </Field>
       <DefaultField attribute={attribute} readOnly={readOnly} set={set} />
       {type === 'string' && (
-        <Field label="Choices, one per line">
+        <Field label={t('Choices, one per line')}>
           {({ id, describedBy, send }) => (
             <TextControl
               id={id}
@@ -171,7 +189,7 @@ function OwnAttribute({ attribute, redefines, movable, readOnly, update }: OwnAt
         </Field>
       )}
       {type === 'number' && (
-        <Field label="Unit">
+        <Field label={t('Unit')}>
           {({ id, describedBy, send }) => (
             <TextControl
               id={id}
@@ -188,11 +206,15 @@ function OwnAttribute({ attribute, redefines, movable, readOnly, update }: OwnAt
           )}
         </Field>
       )}
-      <Field label="Description">
+      <Field label={t('Description')}>
         {({ id, describedBy, send }) => (
           <TextControl
             id={id}
-            value={attribute.description ?? ''}
+            value={
+              attribute.description === undefined
+                ? ''
+                : t.attribute(lineage, name, attribute.description)
+            }
             multiline
             disabled={readOnly}
             describedBy={describedBy}
@@ -213,20 +235,20 @@ function OwnAttribute({ attribute, redefines, movable, readOnly, update }: OwnAt
               <button
                 type="button"
                 className="inspector-action"
-                aria-label={`Move “${name}” up`}
+                aria-label={t('Move “{name}” up', { name })}
                 disabled={movable.indexOf(name) <= 0}
                 onClick={() => move(-1)}
               >
-                Up
+                {t('Up')}
               </button>
               <button
                 type="button"
                 className="inspector-action"
-                aria-label={`Move “${name}” down`}
+                aria-label={t('Move “{name}” down', { name })}
                 disabled={movable.indexOf(name) >= movable.length - 1}
                 onClick={() => move(1)}
               >
-                Down
+                {t('Down')}
               </button>
             </>
           )}
@@ -234,11 +256,13 @@ function OwnAttribute({ attribute, redefines, movable, readOnly, update }: OwnAt
             type="button"
             className="inspector-action"
             aria-label={
-              redefines ? `Use the inherited definition of “${name}”` : `Remove “${name}”`
+              redefines
+                ? t('Use the inherited definition of “{name}”', { name })
+                : t('Remove “{name}”', { name })
             }
             onClick={() => void sender.send(update({ remove: [name] }))}
           >
-            {redefines ? 'Use the inherited definition' : 'Remove'}
+            {redefines ? t('Use the inherited definition') : t('Remove')}
           </button>
         </div>
       )}
@@ -258,11 +282,12 @@ interface DefaultFieldProps {
  * false, or typed, and checked against the attribute's type before anything is sent.
  */
 function DefaultField({ attribute, readOnly, set }: DefaultFieldProps) {
+  const t = useT();
   const { type } = attribute;
   const choices =
     type === 'boolean' ? ['true', 'false'] : type === 'string' ? attribute.choices : undefined;
   return (
-    <Field label="Default">
+    <Field label={t('Default')}>
       {({ id, describedBy, send }) =>
         choices !== undefined ? (
           <SelectControl
@@ -275,7 +300,7 @@ function DefaultField({ attribute, readOnly, set }: DefaultFieldProps) {
               if (reading.ok) await send(set(withTrait(attribute, 'default', reading.value)));
             }}
           >
-            <option value="">No default</option>
+            <option value="">{t('No default')}</option>
             {choices.map((choice) => (
               <option key={choice} value={choice}>
                 {choice}
@@ -306,6 +331,8 @@ function DefaultField({ attribute, readOnly, set }: DefaultFieldProps) {
 
 interface InheritedAttributeProps {
   attribute: AttributeDefinition;
+  /** The definition's chain, which says where a built-in attribute's description comes from. */
+  lineage: readonly Id[];
   /** Where it comes from, in words: "from Box". */
   source: string;
   readOnly: boolean;
@@ -313,7 +340,14 @@ interface InheritedAttributeProps {
 }
 
 /** An attribute the definition inherits: read-only, with "Redefine here". */
-function InheritedAttribute({ attribute, source, readOnly, update }: InheritedAttributeProps) {
+function InheritedAttribute({
+  attribute,
+  lineage,
+  source,
+  readOnly,
+  update,
+}: InheritedAttributeProps) {
+  const t = useT();
   const sender = useSender();
   const problemId = useId();
   const { name, type } = attribute;
@@ -325,24 +359,30 @@ function InheritedAttribute({ attribute, source, readOnly, update }: InheritedAt
         <span className="definition-source">{source}</span>
       </div>
       {attribute.description !== undefined && (
-        <p className="inspector-notes">{attribute.description}</p>
+        <p className="inspector-notes">{t.attribute(lineage, name, attribute.description)}</p>
       )}
       {attribute.default !== undefined && (
-        <p className="inspector-notes">Default: {defaultText(attribute.default)}</p>
+        <p className="inspector-notes">
+          {t('Default: {value}', { value: defaultText(attribute.default) })}
+        </p>
       )}
       {attribute.choices !== undefined && (
-        <p className="inspector-notes">Choices: {attribute.choices.join(', ')}</p>
+        <p className="inspector-notes">
+          {t('Choices: {choices}', { choices: attribute.choices.join(', ') })}
+        </p>
       )}
-      {attribute.unit !== undefined && <p className="inspector-notes">Unit: {attribute.unit}</p>}
+      {attribute.unit !== undefined && (
+        <p className="inspector-notes">{t('Unit: {unit}', { unit: attribute.unit })}</p>
+      )}
       {!readOnly && (
         <button
           type="button"
           className="inspector-action"
-          aria-label={`Redefine “${name}” here`}
+          aria-label={t('Redefine “{name}” here', { name })}
           aria-describedby={sender.problem ? problemId : undefined}
           onClick={() => void sender.send(update({ set: [{ ...attribute }] }))}
         >
-          Redefine here
+          {t('Redefine here')}
         </button>
       )}
       {sender.problem !== undefined && <InlineProblem id={problemId} text={sender.problem} />}
@@ -358,6 +398,7 @@ function NewAttribute({
   names: readonly string[];
   update: (changes: AttributeChanges) => Command;
 }) {
+  const t = useT();
   const sender = useSender();
   const nameId = useId();
   const typeId = useId();
@@ -369,11 +410,11 @@ function NewAttribute({
     event.preventDefault();
     const trimmed = name.trim();
     if (trimmed === '') {
-      sender.refuse('Give the attribute a name.');
+      sender.refuse(t('Give the attribute a name.'));
       return;
     }
     if (names.includes(trimmed)) {
-      sender.refuse(`It already has the attribute “${trimmed}”.`);
+      sender.refuse(t('It already has the attribute “{name}”.', { name: trimmed }));
       return;
     }
     if (await sender.send(update({ set: [{ name: trimmed, type }] }))) setName('');
@@ -382,13 +423,13 @@ function NewAttribute({
   return (
     <form
       className="inspector-new-attribute"
-      aria-label="New attribute"
+      aria-label={t('New attribute')}
       onSubmit={(event) => void add(event)}
     >
-      <p className="inspector-new-attribute-title">New attribute</p>
+      <p className="inspector-new-attribute-title">{t('New attribute')}</p>
       <div className="inspector-new-attribute-controls">
         <div className="inspector-control">
-          <label htmlFor={nameId}>Name</label>
+          <label htmlFor={nameId}>{t('Name')}</label>
           <input
             id={nameId}
             type="text"
@@ -399,7 +440,7 @@ function NewAttribute({
           />
         </div>
         <div className="inspector-control">
-          <label htmlFor={typeId}>Type</label>
+          <label htmlFor={typeId}>{t('Type')}</label>
           <select
             id={typeId}
             value={type}
@@ -415,7 +456,7 @@ function NewAttribute({
           </select>
         </div>
         <button type="submit" className="inspector-action">
-          Add the attribute
+          {t('Add the attribute')}
         </button>
       </div>
       {sender.problem !== undefined && <InlineProblem id={problemId} text={sender.problem} />}

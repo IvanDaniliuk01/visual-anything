@@ -2,6 +2,7 @@ import type { Command, UpdateRelationTypeCommand } from '@visual-anything/core';
 import type { Id, LimitList } from '@visual-anything/schema';
 import { useId, useState } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { useT } from '../../i18n';
 import { CheckboxControl, SelectControl } from '../inspector/controls';
 import { TraitRow, type TraitControl } from './TraitRow';
 import { inheritedRelationType, nameOf, namesOr, relationTypeSources, sourceText } from './traits';
@@ -20,10 +21,11 @@ interface LimitsSectionProps {
  * any component or relation type, or only those chosen. Breaking a limit only warns.
  */
 export function LimitsSection({ id, readOnly, update }: LimitsSectionProps) {
+  const t = useT();
   const headingId = useId();
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>Limits</h4>
+      <h4 id={headingId}>{t('Limits')}</h4>
       <ul className="definition-traits">
         <LimitRow end="from" id={id} readOnly={readOnly} update={update} />
         <LimitRow end="to" id={id} readOnly={readOnly} update={update} />
@@ -37,6 +39,7 @@ interface LimitRowProps extends LimitsSectionProps {
 }
 
 function LimitRow({ end, id, readOnly, update }: LimitRowProps) {
+  const t = useT();
   const { definitions } = useEditor();
   const [choosing, setChoosing] = useState(false);
   const own = definitions.relationTypes.get(id)?.definition.limits?.[end];
@@ -48,11 +51,13 @@ function LimitRow({ end, id, readOnly, update }: LimitRowProps) {
       ? nameOf(definitions, 'component', other)
       : nameOf(definitions, 'relation-type', other);
   const inheritedText =
-    inherited === undefined ? 'Inherited (any)' : `Inherited (${namesOr(inherited.map(either))})`;
+    inherited === undefined
+      ? t('Inherited (any)')
+      : t('Inherited ({names})', { names: namesOr(inherited.map(either)) });
 
   return (
     <TraitRow
-      label={end === 'from' ? 'From end' : 'To end'}
+      label={end === 'from' ? t('From end') : t('To end')}
       source={sourceText(definitions, 'relation-type', id, source)}
       own={own !== undefined}
       readOnly={readOnly}
@@ -80,8 +85,8 @@ function LimitRow({ end, id, readOnly, update }: LimitRowProps) {
             }}
           >
             <option value="inherit">{inheritedText}</option>
-            <option value="any">Any</option>
-            <option value="list">Only these…</option>
+            <option value="any">{t('Any')}</option>
+            <option value="list">{t('Only these…')}</option>
           </SelectControl>
           {mode === 'list' && (
             <Choices
@@ -108,6 +113,7 @@ interface ChoicesProps {
 
 /** The components and relation types in use an end may be created from, as a checklist. */
 function Choices({ end, chosen, readOnly, control, update }: ChoicesProps) {
+  const t = useT();
   const { definitions } = useEditor();
   const componentsId = useId();
   const relationTypesId = useId();
@@ -117,13 +123,13 @@ function Choices({ end, chosen, readOnly, control, update }: ChoicesProps) {
   const groups = [
     {
       headingId: componentsId,
-      title: 'Components',
+      title: t('Components'),
       ids: [...definitions.components.keys()],
       kind: 'component' as const,
     },
     {
       headingId: relationTypesId,
-      title: 'Relation types',
+      title: t('Relation types'),
       ids: [...definitions.relationTypes.keys()],
       kind: 'relation-type' as const,
     },
@@ -132,7 +138,7 @@ function Choices({ end, chosen, readOnly, control, update }: ChoicesProps) {
     <div className="definition-choices">
       {chosen.length === 1 && !readOnly && (
         <p className="inspector-notes">
-          The last one stays: choose Any to lift the limit, or the inherited one.
+          {t('The last one stays: choose Any to lift the limit, or the inherited one.')}
         </p>
       )}
       {groups.map((group) => (

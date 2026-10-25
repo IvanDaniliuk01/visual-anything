@@ -3,6 +3,7 @@ import type { Command } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useId, useMemo, type MouseEvent } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { useT } from '../../i18n';
 import { InlineProblem } from '../inspector/controls';
 import { refusalOf, type DefinitionKind } from './commands';
 import { backToSelection } from './focus';
@@ -19,13 +20,16 @@ const NOUN: Record<DefinitionKind, string> = {
  * it instead.
  */
 export function BuiltInNote({ kind, id, name }: { kind: DefinitionKind; id: Id; name: string }) {
+  const t = useT();
   const { send } = useEditor();
   const { open } = useOpenDefinition();
   return (
     <div className="definition-built-in">
       <p className="inspector-notes">
-        It is built into Visual Anything, so only its colors can be changed here, for this project.
-        Derive a {NOUN[kind]} from it to have one of the project’s own that you can change.
+        {t(
+          'It is built into Visual Anything, so only its colors can be changed here, for this project. Derive a {noun} from it to have one of the project’s own that you can change.',
+          { noun: t(NOUN[kind]) },
+        )}
       </p>
       {open !== undefined && (
         <button
@@ -34,7 +38,9 @@ export function BuiltInNote({ kind, id, name }: { kind: DefinitionKind; id: Id; 
           disabled={send === undefined}
           onClick={() => open({ kind: 'derive', of: kind, base: id }, { focus: true })}
         >
-          Derive a {NOUN[kind]} from “{name}”
+          {kind === 'component'
+            ? t('Derive a component from “{name}”', { name: t.definition(id, name) })
+            : t('Derive a relation type from “{name}”', { name: t.definition(id, name) })}
         </button>
       )}
     </div>
@@ -43,7 +49,10 @@ export function BuiltInNote({ kind, id, name }: { kind: DefinitionKind; id: Id; 
 
 /** Says that what the component editor shows no longer exists, as after an undo. */
 export function Gone({ what }: { what: string }) {
-  return <p className="inspector-warning">No package in use defines {what} any more.</p>;
+  const t = useT();
+  return (
+    <p className="inspector-warning">{t('No package in use defines {what} any more.', { what })}</p>
+  );
 }
 
 /**
@@ -51,6 +60,7 @@ export function Gone({ what }: { what: string }) {
  * disabled, with the core's reason, while anything uses the definition.
  */
 export function RemoveDefinition({ kind, id }: { kind: DefinitionKind; id: Id }) {
+  const t = useT();
   const { project, send } = useEditor();
   const { close } = useOpenDefinition();
   const sender = useSender();
@@ -83,11 +93,11 @@ export function RemoveDefinition({ kind, id }: { kind: DefinitionKind; id: Id })
         }
         onClick={(event) => void remove(event)}
       >
-        Remove the {NOUN[kind]}
+        {t('Remove the {noun}', { noun: t(NOUN[kind]) })}
       </button>
       {refusal !== undefined && (
         <p id={reasonId} className="inspector-notes">
-          {refusal.message}
+          {t.message(refusal.message)}
         </p>
       )}
       {sender.problem !== undefined && <InlineProblem id={problemId} text={sender.problem} />}
