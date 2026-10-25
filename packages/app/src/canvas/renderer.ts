@@ -53,6 +53,7 @@ import type { IndexedScene, Skipped } from './hit';
 import { bitmapText, installFonts } from './labels';
 import { CANVAS_BACKGROUND, DIMMED_ALPHA, HIGHLIGHT, MARKER_RING } from './palette';
 import { midpointOf, pointAlong, routeBetweenEnds, type RouteEnd } from './route';
+import { levelWithRows } from './rowsDraw';
 import {
   relationLinesOf,
   type ArrowShape,
@@ -819,11 +820,12 @@ export class CanvasRenderer {
       this.place(tile);
       dimTile(tile, next.dim);
       if (next.band === MAX_BANDS) reorder = true;
+      const shown = levelWithRows(next.shapes, wanted, this.camera.scale);
       const wasReady =
-        ready !== undefined && next.shapes.every((shape) => isReady(ready.get(shape.key), wanted));
+        ready !== undefined && next.shapes.every((shape) => isReady(ready.get(shape.key), shown));
       if (wasReady && budget.left > 0) {
         budget.left -= next.shapes.length;
-        this.drawAtOnce(tile, wanted);
+        this.drawAtOnce(tile, shown);
       }
       touched.push(tile);
     }
@@ -1249,7 +1251,7 @@ export class CanvasRenderer {
       // A tile left out of the frame shows what it should once it is near again, as this runs
       // before culling: changing what it shows now would only make PixiJS gather its region again.
       if (!near && tile.container.culled) continue;
-      const wanted = wantedFor(tile.kind, detail);
+      const wanted = levelWithRows(tile.shapes, wantedFor(tile.kind, detail), scale);
       const full = !coarse && tile.full !== undefined;
       showPlain(tile, !full);
       if (tile.full) tile.full.visible = full || !tile.coarse;
