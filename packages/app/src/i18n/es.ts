@@ -65,6 +65,9 @@
  * | preference              | preferencia                      |
  * | theme                   | tema                             |
  * | launch address          | dirección de inicio              |
+ * | view state              | estado de vista                  |
+ * | view address            | dirección de vista               |
+ * | find, search            | buscar, búsqueda                 |
  * | undo, redo              | deshacer, rehacer                |
  * | the local program       | el programa local                |
  *
@@ -156,6 +159,45 @@ export const ui: Catalog = {
   Dark: 'Oscuro',
   'Your theme applies to this tab only: Visual Anything is not connected.':
     'El tema se aplica solo a esta pestaña: Visual Anything no está conectado.',
+
+  // Search and jump: the find field over the canvas.
+  'Find in the project': 'Buscar en el proyecto',
+  'Names, ids, components, values…': 'Nombres, ids, componentes, valores…',
+  'Close find': 'Cerrar la búsqueda',
+  'Close find (Escape)': 'Cerrar la búsqueda (Escape)',
+  'Up and down move through what was found. Enter goes to it; Alt+Enter lists every view that draws it. Escape closes. {shortcut} finds again.':
+    'Arriba y abajo recorren lo encontrado. Enter va a lo elegido; Alt+Enter lista cada vista que lo dibuja. Escape cierra. {shortcut} vuelve a buscar.',
+  Found: 'Encontrado',
+  'Getting ready to find…': 'Preparando la búsqueda…',
+  'Nothing found': 'No se encontró nada',
+  '{count} found': { one: '{count} encontrado', other: '{count} encontrados' },
+  '{shown} of {count} found': '{shown} de {count} encontrados',
+  'In {view}': 'En {view}',
+  'In {view}, open now': 'En {view}, abierta ahora',
+  'In no view': 'En ninguna vista',
+  'Open in {view}': 'Abrir en {view}',
+  'Relation: {type}': 'Relación: {type}',
+  'id {id}': 'id {id}',
+  '{attribute}: {value}': '{attribute}: {value}',
+  'Drawn in {count} views: {views}.': {
+    one: 'Dibujado en {count} vista: {views}.',
+    other: 'Dibujado en {count} vistas: {views}.',
+  },
+  'No view draws {name}.': 'Ninguna vista dibuja {name}.',
+  '{name}, {what}, is selected in {view}.': '{name}, {what}, está seleccionado en {view}.',
+  '{name}, {what}, is selected in {view}, inside the collapsed {container}.':
+    '{name}, {what}, está seleccionado en {view}, dentro del contenedor contraído {container}.',
+  '{name}, {what}, is selected in {view}, which does not draw it now.':
+    '{name}, {what}, está seleccionado en {view}, que ahora no lo dibuja.',
+  'The filters or focus mode hide it.': 'Los filtros o el modo foco lo ocultan.',
+
+  // Copy address, in the header.
+  'Copy address': 'Copiar dirección',
+  'Copy an address that opens this view where it is: its camera, selection, filters, focus and scenario step':
+    'Copiar una dirección que abre esta vista tal como está: su cámara, selección, filtros, foco y paso del escenario',
+  'Address copied.': 'Dirección copiada.',
+  'Address copied, without the selection: an address holds at most {max} selected things.':
+    'Dirección copiada, sin la selección: una dirección guarda como máximo {max} cosas seleccionadas.',
 
   // The shell and the canvas's text alternative.
   Canvas: 'Lienzo',
@@ -706,6 +748,9 @@ export const ui: Catalog = {
   'Space and drag': 'Espacio y arrastrar',
   Pan: 'Desplazar la vista',
   'Leave the canvas': 'Salir del lienzo',
+  'Ctrl+F or ⌘F': 'Ctrl+F o ⌘F',
+  'Find names, ids, components and attribute values in the project, and go to what was found':
+    'Buscar nombres, ids, componentes y valores de atributos en el proyecto, e ir a lo encontrado',
   'The arrow keys select shapes, ] and [ (or . and ,) step through the selected element’s relations, and Enter follows a relation, and Shift+F10 opens the selected shape’s menu. Every key is listed under Keyboard, after the canvas.':
     'Las flechas seleccionan formas, ] y [ (o . y ,) recorren las relaciones del elemento seleccionado, Enter sigue una relación y Mayús+F10 abre el menú de la forma seleccionada. Todas las teclas están en Teclado, después del lienzo.',
 
@@ -1364,6 +1409,65 @@ export const messages: Catalog = {
   'The project has {things}:': 'El proyecto tiene {things}:',
   '{file}: {why}': '{file}: {why}',
   '{file} {path}: {why}': '{file} {path}: {why}',
+
+  // The view state an address holds, and what the app says when it cannot open it.
+  'This address’s view state could not be read: {why}':
+    'No se pudo leer el estado de vista de esta dirección: {why}',
+  'Part of this address could not be shown: {why}':
+    'Parte de esta dirección no se pudo mostrar: {why}',
+  'Could not copy the address, so here it is to copy by hand: {address}':
+    'No se pudo copiar la dirección; aquí está para copiarla a mano: {address}',
+  'The address is too long to hold a view state.':
+    'La dirección es demasiado larga para guardar un estado de vista.',
+  'The address is not well formed.': 'La dirección no está bien formada.',
+  'The address holds "{key}" twice.': 'La dirección tiene "{key}" dos veces.',
+  'The address holds "{key}", which a view state does not have.':
+    'La dirección tiene "{key}", que un estado de vista no tiene.',
+  'The address holds "{key}" with no value.': 'La dirección tiene "{key}" sin valor.',
+  'A view state names its view: view=<id>.': 'Un estado de vista nombra su vista: view=<id>.',
+  '"{text}" is not an id.': '"{text}" no es un id.',
+  '"{id}" is named twice in {part}.': '"{id}" se nombra dos veces en {part}.',
+  'A view state names at most {max} ids in {part}.':
+    'Un estado de vista nombra como máximo {max} ids en {part}.',
+  'The camera is three numbers: x,y,zoom.': 'La cámara son tres números: x,y,zoom.',
+  'The camera zooms from {min} to {max}.': 'La cámara hace zoom de {min} a {max}.',
+  'The camera looks at most {distance} canvas units from the origin.':
+    'La cámara mira como máximo a {distance} unidades del lienzo del origen.',
+  'A step needs its scenario: scenario=<id>.': 'Un paso necesita su escenario: scenario=<id>.',
+  'Filters hold components, relation-types and where, not "{clause}".':
+    'Los filtros tienen components, relation-types y where, no "{clause}".',
+  'The filters hold "{clause}" twice.': 'Los filtros tienen "{clause}" dos veces.',
+  'A condition is where:<of>,<attribute>,<test>, then its value if it takes one.':
+    'Una condición es where:<of>,<attribute>,<test>, y luego su valor si lleva uno.',
+  'Filters hold at most {max} conditions.': 'Los filtros tienen como máximo {max} condiciones.',
+  'A condition is on elements or on relations, not "{side}".':
+    'Una condición es sobre elementos o sobre relaciones, no "{side}".',
+  'A condition names an attribute.': 'Una condición nombra un atributo.',
+  'A condition tests with one of: {tests}.': 'Una condición prueba con uno de: {tests}.',
+  'A condition that tests with "{test}" needs a value.':
+    'Una condición que prueba con "{test}" necesita un valor.',
+  'A condition that tests with "{test}" takes no value.':
+    'Una condición que prueba con "{test}" no lleva valor.',
+  "A condition's attribute and value hold at most {max} characters.":
+    'El atributo y el valor de una condición tienen como máximo {max} caracteres.',
+  "A condition's attribute and value are text without broken characters.":
+    'El atributo y el valor de una condición son texto sin caracteres rotos.',
+  'Focus reaches 1 to {max} degrees, or all.': 'El foco alcanza de 1 a {max} grados, o todos.',
+  'Focus goes one of these ways: {ways}; not "{direction}".':
+    'El foco va en una de estas direcciones: {ways}; no "{direction}".',
+  'Focus is degrees,direction, then isolate or nothing.':
+    'El foco es grados,dirección, y luego isolate o nada.',
+  'Focus starts from:<ids>, not "{clause}".': 'El foco empieza con from:<ids>, no "{clause}".',
+  'The focus holds "from" twice.': 'El foco tiene "from" dos veces.',
+  'The project has no view "{view}".': 'El proyecto no tiene la vista "{view}".',
+  'Nothing in the view "{view}" has the id "{id}".':
+    'Nada en la vista "{view}" tiene el id "{id}".',
+  'Focus starts from elements and relations, and "{id}" is neither.':
+    'El foco empieza en elementos y relaciones, y "{id}" no es ninguna de las dos cosas.',
+  'The project has no scenario "{scenario}".': 'El proyecto no tiene el escenario "{scenario}".',
+  'The scenario "{name}" plays over the view "{view}", not "{other}".':
+    'El escenario "{name}" se reproduce sobre la vista "{view}", no sobre "{other}".',
+  'The scenario "{name}" has no step "{id}".': 'El escenario "{name}" no tiene el paso "{id}".',
 };
 
 /** The built-in packages, components and relation types, by id. */

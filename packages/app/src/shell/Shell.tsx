@@ -1,6 +1,6 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
-import { useCallback, useId, useMemo, useState } from 'react';
+import { useCallback, useContext, useId, useMemo, useState } from 'react';
 import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { ExportControl } from '../export/ExportControl';
@@ -13,9 +13,14 @@ import { buildScene, type Scene } from '../canvas/scene';
 import { useExplorer } from '../canvas/useExplorer';
 import { definitionsIn } from '@visual-anything/core';
 import { useT, type Translator } from '../i18n';
+import { LiveContext } from '../live/context';
 import { ScenarioPanel } from '../scenarios/ScenarioPanel';
 import { ScenarioSession } from '../scenarios/session';
 import { usePreferences, useThemeHold } from '../theme/usePreferences';
+import { FindBar } from '../search/FindBar';
+import type { CanvasCamera } from '../view-state/canvas';
+import { CopyAddress } from '../view-state/CopyAddress';
+import { useViewState } from '../view-state/useViewState';
 import { Header } from './Header';
 import { Inspector } from './Inspector';
 import { ModelPanel } from './ModelPanel';
@@ -84,13 +89,39 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
       bounds={scene?.bounds}
     />
   );
+  // The view state: what the tab's address holds and Copy address copies, and where search jumps.
+  const live = useContext(LiveContext);
+  const [canvas, setCanvas] = useState<CanvasCamera>();
+  const viewState = useViewState({
+    project,
+    viewId: view?.id,
+    scene,
+    selection,
+    select: setSelection,
+    explore,
+    openView: setOpenViewId,
+    reveal,
+    scenarios,
+    emphasis,
+    canvas,
+    notify: live?.notify,
+  });
 
   return (
     <EditorContext.Provider value={editor}>
       <DefinitionProvider>
         <EmphasisContext.Provider value={emphasis}>
           <div className="shell">
-            <Header projectName={project.project.name} viewName={view?.name} tools={exportTool} />
+            <Header
+              projectName={project.project.name}
+              viewName={view?.name}
+              actions={
+                <>
+                  {view && <CopyAddress link={viewState} />}
+                  {exportTool}
+                </>
+              }
+            />
             {notice !== undefined && (
               <p className="shell-notice" role="alert">
                 {notice}
@@ -115,12 +146,19 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                     scenarios={scenarios}
                     theme={theme}
                     onThemeShown={onThemeShown}
+                    onCanvas={setCanvas}
                   />
                 </ImageSourceContext>
               ) : (
                 <p className="canvas-message">{t('There is no view to draw.')}</p>
               )}
               <GuidanceLayer scenarios={scenarios} />
+              <FindBar
+                project={project}
+                definitions={definitions}
+                viewId={view?.id}
+                goTo={viewState.goTo}
+              />
             </main>
             <Inspector view={view} scene={scene} definitions={definitions} />
             <ScenarioPanel session={scenarios} />

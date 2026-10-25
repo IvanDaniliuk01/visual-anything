@@ -1,11 +1,13 @@
 /**
  * The local program's command line, for `cli.ts`, `mcp-cli.ts` and the single executable alike:
  *
- *   visual-anything [folder] [--port <n>] [--no-open] [--dev] [--stop-when-idle]
+ *   visual-anything [open] [folder] [--view <id> [--select <id>]...] [--port <n>] [--no-open]
+ *                   [--dev] [--stop-when-idle]
  *   visual-anything mcp [folder] [--dev]
  *
- * The first opens the project folder, serves the app on 127.0.0.1 and opens the browser on it. The
- * second is Claude's MCP entry point, which Claude Code and Claude Desktop start: it speaks MCP on
+ * The first opens the project folder, serves the app on 127.0.0.1 and opens the browser on it, at
+ * the view and selection asked for; `open` says so and changes nothing. The second is Claude's MCP
+ * entry point, which Claude Code and Claude Desktop start: it speaks MCP on
  * stdin and stdout, so it writes nothing else there, and every line of its own goes to stderr.
  */
 import { homedir } from 'node:os';
@@ -23,6 +25,9 @@ import { preferencesFolder } from './preferences';
 /** The subcommand that runs Claude's MCP entry point. */
 export const MCP_COMMAND = 'mcp';
 
+/** The word that may come before the local program's folder, as in `visual-anything open shop`. */
+export const OPEN_COMMAND = 'open';
+
 /** Which entry point a command line runs, with the arguments that entry point reads. */
 export interface Entry {
   kind: 'program' | 'mcp';
@@ -31,12 +36,13 @@ export interface Entry {
 
 /**
  * Which entry point a command line runs: the MCP entry point when its first argument is `mcp`, the
- * local program otherwise. A folder named `mcp` is opened as `./mcp`.
+ * local program otherwise, with `open` before its folder left out. A folder named `mcp` or `open` is
+ * opened as `./mcp` or `./open`.
  */
 export function entryOf(argv: readonly string[]): Entry {
-  return argv[0] === MCP_COMMAND
-    ? { kind: 'mcp', argv: argv.slice(1) }
-    : { kind: 'program', argv: [...argv] };
+  if (argv[0] === MCP_COMMAND) return { kind: 'mcp', argv: argv.slice(1) };
+  if (argv[0] === OPEN_COMMAND) return { kind: 'program', argv: argv.slice(1) };
+  return { kind: 'program', argv: [...argv] };
 }
 
 /** Runs the entry point a command line asks for, and leaves its exit code to the process. */

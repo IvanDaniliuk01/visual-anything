@@ -131,7 +131,7 @@ describe('bundleServer', () => {
 
   it('runs as the command, and as Claude’s entry point', async () => {
     const help = await run(process.execPath, [bundle, '--help']);
-    expect(help.stdout).toMatch(/^Usage: visual-anything \[folder\]/);
+    expect(help.stdout).toMatch(/^Usage: visual-anything \[open\] \[folder\]/);
     expect(help.stdout).toContain('visual-anything mcp [folder]');
     const mcp = await run(process.execPath, [bundle, 'mcp', '--help']);
     expect(mcp.stderr).toMatch(/^Usage: visual-anything mcp \[folder\]/);
