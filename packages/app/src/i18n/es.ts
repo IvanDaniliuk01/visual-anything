@@ -2628,4 +2628,105 @@ export const builtins: Readonly<
         'Qué pasa con los registros que tienen este valor cuando se elimina el registro al que se refieren.',
     },
   },
+  c4: {
+    name: 'Arquitectura C4',
+    description:
+      'Personas, sistemas de software, contenedores, componentes y nodos de despliegue, como el modelo C4 dibuja la arquitectura de software.',
+  },
+  'c4.person': {
+    name: 'Persona',
+    description: 'Alguien que usa los sistemas de software, como un cliente o un operador.',
+    attributes: { external: 'Si queda fuera de la organización cuyos sistemas se modelan.' },
+  },
+  'c4.software-system': {
+    name: 'Sistema de software',
+    description:
+      'Algo que da valor a sus usuarios como un todo, hecho de contenedores; el nivel más alto del modelo C4.',
+    attributes: { external: 'Si queda fuera de la organización cuyos sistemas se modelan.' },
+  },
+  'c4.container': {
+    name: 'Contenedor',
+    description:
+      'Algo que se ejecuta por sí mismo y tiene código o datos, como una aplicación web, una app móvil o una base de datos.',
+    attributes: { technology: 'Con qué está hecho, como "Java y Spring Boot" o "PostgreSQL".' },
+  },
+  'c4.component': {
+    name: 'Componente',
+    description:
+      'Un grupo de funciones relacionadas detrás de una interfaz, dentro de un contenedor.',
+    attributes: { technology: 'Con qué está hecho, como "Java y Spring Boot" o "PostgreSQL".' },
+  },
+  'c4.deployment-node': {
+    name: 'Nodo de despliegue',
+    description:
+      'Donde se ejecuta el software, como un servidor, un dispositivo, un clúster o todo un centro de datos.',
+    attributes: { technology: 'Con qué está hecho, como "Java y Spring Boot" o "PostgreSQL".' },
+  },
+  'c4.uses': {
+    name: 'usa',
+    description:
+      'Depende de otro elemento para hacer su trabajo, como llamar a su API o leer sus datos.',
+    attributes: { technology: 'Cómo, como "JSON sobre HTTPS" o "SQL".' },
+  },
+  'c4.runs-in': {
+    name: 'se ejecuta en',
+    description:
+      'Ubica un sistema de software, un contenedor o un nodo de despliegue en el nodo de despliegue en el que se ejecuta.',
+  },
+  'c4.delivers-to': {
+    name: 'entrega a',
+    description: 'Envía algo a una persona, como un correo electrónico o una página para leer.',
+    attributes: { technology: 'Cómo, como "SMTP" o "HTTPS".' },
+  },
+  'c4.is-part-of': {
+    name: 'es parte de',
+    description: 'Ubica un contenedor en su sistema de software, o un componente en su contenedor.',
+  },
+  'data-science': {
+    name: 'Canalizaciones de ciencia de datos',
+    description:
+      'Fuentes, transformaciones, almacenes de características, modelos y paneles de indicadores, y cómo los datos los alimentan y entrenan modelos.',
+  },
+  'data-science.source': {
+    name: 'Fuente',
+    description:
+      'De donde vienen los datos, como una base de datos, una API, archivos o un flujo de eventos.',
+    attributes: { system: 'Qué los guarda, como "PostgreSQL", "Kafka" o "S3".' },
+  },
+  'data-science.transform': {
+    name: 'Transformación',
+    description: 'Un paso que limpia, combina o reorganiza datos para dar otros datos.',
+    attributes: {
+      engine: 'Qué la ejecuta, como "dbt", "Spark" o "pandas".',
+      schedule: 'Cuándo se ejecuta, como "cada hora" o "con cada evento".',
+    },
+  },
+  'data-science.feature-store': {
+    name: 'Almacén de características',
+    description:
+      'Un almacén de características, calculadas una vez y servidas igual al entrenamiento y a las predicciones.',
+    attributes: { engine: 'Como "Feast" o "Tecton".' },
+  },
+  'data-science.model': {
+    name: 'Modelo',
+    description: 'Un modelo entrenado con datos, que predice, clasifica o genera.',
+    attributes: {
+      framework: 'Con qué está hecho, como "PyTorch" o "scikit-learn".',
+      metric: 'Cómo se lo evalúa, como "AUC 0.91".',
+    },
+  },
+  'data-science.dashboard': {
+    name: 'Panel de indicadores',
+    description: 'Donde las personas leen los resultados: gráficos, tablas y alertas.',
+    attributes: { tool: 'Como "Superset", "Grafana" o "Streamlit".' },
+  },
+  'data-science.feeds': {
+    name: 'alimenta',
+    description: 'Pasa datos al paso siguiente.',
+    attributes: { format: 'Como "Parquet", "JSON" o "Avro".' },
+  },
+  'data-science.trains': {
+    name: 'entrena',
+    description: 'Le da a un modelo los datos con los que aprende.',
+  },
 };

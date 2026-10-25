@@ -2,7 +2,9 @@ export type { ProjectSnapshot } from './snapshot';
 
 export {
   BUILTIN_PACKAGES,
+  C4,
   DATA_MODELING,
+  DATA_SCIENCE,
   ESSENCE,
   RELATES_TO,
   RESERVED_PACKAGE_IDS,
