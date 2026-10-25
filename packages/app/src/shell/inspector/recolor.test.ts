@@ -395,3 +395,178 @@ describe('a selection’s colors', () => {
     expect(selectionColorCommand(sample, VIEW, one, 'fill', '#FDE8CC')).toBeUndefined();
   });
 });
+
+describe('in the dark theme', () => {
+  const dark = { theme: 'dark' } as const;
+  const darkTheme = THEMES.dark.canvas;
+  /** The sample with Patient's stroke of its own, too dark to read on the dark canvas. */
+  const darkStroked = { ...elementOf('patient'), appearance: { stroke: '#222222' } };
+
+  it('compares a pick with what the dark canvas draws: built-in colors in their dark shades', () => {
+    // Person's fill, in its dark shade: what Patient shows there.
+    expect(
+      elementColorCommand(elementOf('patient'), 'fill', '#3a2817', definitions, dark),
+    ).toBeUndefined();
+    // The light value is another color on the dark canvas: Patient gets it as its own.
+    expect(elementColorCommand(elementOf('patient'), 'fill', '#FDE8CC', definitions, dark)).toEqual(
+      { type: 'update-element', id: 'patient', changes: { appearanceTraits: { fill: '#FDE8CC' } } },
+    );
+    // A color of its own is drawn as stored in both themes.
+    expect(
+      elementColorCommand(elementOf('booking-agent'), 'fill', '#F8E1EC', definitions, dark),
+    ).toBeUndefined();
+  });
+
+  it('takes a color of its own back when the dark shade it would show without it is picked', () => {
+    const own = { ...elementOf('patient'), appearance: { fill: '#112233' } };
+    expect(elementColorCommand(own, 'fill', '#3A2817', definitions, dark)).toEqual({
+      type: 'update-element',
+      id: 'patient',
+      changes: { appearanceTraits: { fill: null } },
+    });
+    expect(
+      elementColorCommand(elementOf('booking-agent'), 'fill', '#2A2247', definitions, dark),
+    ).toEqual({
+      type: 'update-element',
+      id: 'booking-agent',
+      changes: { appearanceTraits: { fill: null } },
+    });
+  });
+
+  it('keeps a built-in fill in its light value beside a stored stroke under 3:1, as the canvas does', () => {
+    expect(elementColorCommand(darkStroked, 'fill', '#FDE8CC', definitions, dark)).toBeUndefined();
+    expect(elementColorCommand(darkStroked, 'fill', '#3A2817', definitions, dark)).toEqual({
+      type: 'update-element',
+      id: 'patient',
+      changes: { appearanceTraits: { fill: '#3A2817' } },
+    });
+  });
+
+  it('compares a relation’s pick with its relation type’s dark stroke', () => {
+    const reads = relationOf('api-reads-db');
+    expect(relationColorCommand(reads, '#AEB8C4', definitions, dark)).toBeUndefined();
+    expect(relationColorCommand(reads, '#3D4651', definitions, dark)).toEqual({
+      type: 'update-relation',
+      id: 'api-reads-db',
+      changes: { appearanceTraits: { stroke: '#3D4651' } },
+    });
+    const own = { ...reads, appearance: { stroke: '#D6336C' } };
+    expect(relationColorCommand(own, '#aeb8c4', definitions, dark)).toEqual({
+      type: 'update-relation',
+      id: 'api-reads-db',
+      changes: { appearanceTraits: { stroke: null } },
+    });
+  });
+
+  it('compares a definition’s pick with its dark colors, at the level the project changes', () => {
+    const service = (color: string | null, project = sample) =>
+      definitionColorCommand(
+        project,
+        'component',
+        'systems.service',
+        'fill',
+        color,
+        undefined,
+        dark,
+      );
+    expect(service('#172B45')).toBeUndefined();
+    expect(service('#DCEBFF')).toEqual({
+      type: 'set-component-appearance',
+      component: 'systems.service',
+      appearanceTraits: { fill: '#DCEBFF' },
+    });
+    const after = apply(sample, service('#FFE3E3'));
+    // Picking the dark shade takes the project's color back, so that it follows the theme again.
+    expect(service('#172b45', after)).toEqual({
+      type: 'set-component-appearance',
+      component: 'systems.service',
+      appearanceTraits: { fill: null },
+    });
+    expect(service('#FFE3E3', after)).toBeUndefined();
+    expect(
+      definitionColorCommand(
+        sample,
+        'relation-type',
+        'systems.reads-from',
+        'stroke',
+        '#AEB8C4',
+        undefined,
+        dark,
+      ),
+    ).toBeUndefined();
+  });
+
+  it('compares a free shape’s pick with the dark theme’s colors', () => {
+    expect(
+      freeShapeColorCommand(VIEW, note, 'fill', darkTheme.noteFill, darkTheme),
+    ).toBeUndefined();
+    expect(freeShapeColorCommand(VIEW, note, 'fill', theme.noteFill, darkTheme)).toEqual({
+      type: 'update-free-shape',
+      view: VIEW,
+      shape: { ...note, fill: theme.noteFill },
+    });
+  });
+
+  it('shows and recolors a selection as the dark canvas draws it', () => {
+    const selection = selectionOf([
+      { kind: 'element', id: 'patient' },
+      { kind: 'element', id: 'booking-agent' },
+      { kind: 'relation', id: 'api-reads-db' },
+      { kind: 'free-shape', id: 'calendar-note' },
+    ]);
+    expect(selectionColors(sample, VIEW, selection, 'fill', 'dark')).toEqual([
+      '#3A2817',
+      '#F8E1EC',
+      darkTheme.noteFill,
+    ]);
+    expect(selectionColors(sample, VIEW, selection, 'stroke', 'dark')).toEqual([
+      '#E9A35C',
+      '#B39CF0',
+      '#AEB8C4',
+      darkTheme.noteStroke,
+    ]);
+    const command = selectionColorCommand(sample, VIEW, selection, 'fill', '#3A2817', dark);
+    expect(command).toEqual({
+      type: 'batch',
+      label: 'Change the appearance of 2 shapes',
+      commands: [
+        {
+          type: 'update-element',
+          id: 'booking-agent',
+          changes: { appearanceTraits: { fill: '#3A2817' } },
+        },
+        { type: 'update-free-shape', view: VIEW, shape: { ...note, fill: '#3A2817' } },
+      ],
+    });
+  });
+
+  it('records nothing for the colors already shown, even when sent while a pick is on its way', () => {
+    const always = { ...dark, always: true };
+    expect(
+      apply(
+        sample,
+        elementColorCommand(elementOf('patient'), 'fill', '#3A2817', definitions, always),
+      ),
+    ).toEqual(sample);
+    expect(
+      apply(
+        sample,
+        relationColorCommand(relationOf('api-reads-db'), '#AEB8C4', definitions, always),
+      ),
+    ).toEqual(sample);
+    expect(
+      apply(
+        sample,
+        definitionColorCommand(
+          sample,
+          'component',
+          'systems.service',
+          'fill',
+          '#172B45',
+          undefined,
+          always,
+        ),
+      ),
+    ).toEqual(sample);
+  });
+});
