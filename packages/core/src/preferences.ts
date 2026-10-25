@@ -17,10 +17,17 @@ export type ThemeChoice = 'system' | ThemeName;
 
 export const THEME_CHOICES: readonly ThemeChoice[] = Object.freeze(['system', 'light', 'dark']);
 
+/** The language a person chooses for the app: English, Spanish, or whichever the browser asks for. */
+export type LanguageChoice = 'system' | 'en' | 'es';
+
+export const LANGUAGE_CHOICES: readonly LanguageChoice[] = Object.freeze(['system', 'en', 'es']);
+
 /** Every preference, as this build knows them. */
 export interface Preferences {
   /** The theme the app and the canvas are drawn in. */
   theme: ThemeChoice;
+  /** The language the app reads in (ADR-0038). */
+  language: LanguageChoice;
   /** Whether the grid shows. */
   grid: boolean;
   /** Whether shapes moved or created by hand snap to the grid while it shows. */
@@ -42,9 +49,13 @@ export const PREFERENCES_VERSION = 1;
 /** The most recent colors kept. */
 export const MAX_RECENT_COLORS = 8;
 
-/** Preferences nobody has chosen: match the system, no grid, snapping on, no rulers, no recent colors. */
+/**
+ * Preferences nobody has chosen: match the system and the browser's language, no grid, snapping on, no
+ * rulers, no recent colors.
+ */
 export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
   theme: 'system',
+  language: 'system',
   grid: false,
   snapToGrid: true,
   rulers: false,
@@ -54,6 +65,7 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
 /** The known names, in the order the file writes them. */
 export const PREFERENCE_NAMES: readonly PreferenceName[] = Object.freeze([
   'theme',
+  'language',
   'grid',
   'snapToGrid',
   'rulers',
@@ -84,6 +96,11 @@ export function resolveTheme(choice: ThemeChoice, systemPrefersDark: boolean): T
 /** Whether a value is one of the theme choices. */
 export function isThemeChoice(value: unknown): value is ThemeChoice {
   return typeof value === 'string' && (THEME_CHOICES as readonly string[]).includes(value);
+}
+
+/** Whether a value is one of the language choices. */
+export function isLanguageChoice(value: unknown): value is LanguageChoice {
+  return typeof value === 'string' && (LANGUAGE_CHOICES as readonly string[]).includes(value);
 }
 
 /**
@@ -191,6 +208,7 @@ type Lenient = (value: unknown) => unknown;
 /** How each known name is read from the file: its value, or `undefined` when it cannot be read. */
 const LENIENT: Record<PreferenceName, Lenient> = {
   theme: (value) => (isThemeChoice(value) ? value : undefined),
+  language: (value) => (isLanguageChoice(value) ? value : undefined),
   grid: booleanOrUndefined,
   snapToGrid: booleanOrUndefined,
   rulers: booleanOrUndefined,
@@ -216,6 +234,13 @@ const STRICT: Record<PreferenceName, (value: unknown) => Checked> = {
       : {
           ok: false,
           message: `"theme" must be "system", "light" or "dark", not ${JSON.stringify(value)}.`,
+        },
+  language: (value) =>
+    isLanguageChoice(value)
+      ? { ok: true, value }
+      : {
+          ok: false,
+          message: `"language" must be "system", "en" or "es", not ${JSON.stringify(value)}.`,
         },
   grid: (value) => strictBoolean('grid', value),
   snapToGrid: (value) => strictBoolean('snapToGrid', value),

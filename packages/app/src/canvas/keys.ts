@@ -1,4 +1,4 @@
-/** The canvas's keys, as its keyboard help lists them. */
+/** The canvas's keys, as its keyboard help lists them, in English; the help shows them translated. */
 export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
   {
     keys: 'Arrow keys',
@@ -38,6 +38,7 @@ export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
   { keys: 'Escape', does: 'Clear the selection' },
   { keys: 'Ctrl+A or ⌘A', does: 'Select everything' },
   { keys: '+, − and 0', does: 'Zoom in, zoom out, and fit the view' },
+  { keys: 'Alt+− and Alt++', does: 'Collapse or expand the selected containers' },
   { keys: 'Space and drag', does: 'Pan' },
   { keys: 'Tab', does: 'Leave the canvas' },
 ];

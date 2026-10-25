@@ -9,6 +9,7 @@ import type { ProjectSnapshot } from '@visual-anything/core';
 import { useContext, useEffect, useMemo, useRef } from 'react';
 import { EditorContext } from '../editor/EditorContext';
 import { useEmphasisSource } from '../editor/emphasis';
+import { useT } from '../i18n';
 import { LiveContext } from '../live/context';
 import type { ScenarioSession } from '../scenarios/session';
 import { NO_GUIDANCE } from './state';
@@ -23,6 +24,7 @@ interface GuidanceLayerProps {
 
 /** Shows Claude's guidance; mount it inside the canvas area, within the shell's editor. */
 export function GuidanceLayer({ scenarios }: GuidanceLayerProps) {
+  const t = useT();
   const live = useContext(LiveContext);
   const editor = useContext(EditorContext);
   const guidance = live?.guidance ?? NO_GUIDANCE;
@@ -63,14 +65,19 @@ export function GuidanceLayer({ scenarios }: GuidanceLayerProps) {
     if (key !== undefined) reveal?.(key);
   }, [panTo, scene, viewId, reveal, project]);
 
-  const said = caption ?? (marks && project ? describeMarks(marks, project) : undefined);
+  // A caption is Claude's own text, shown as Claude wrote it.
+  const said = caption ?? (marks && project ? describeMarks(marks, project, t) : undefined);
   return (
     <>
       <p className="visually-hidden" aria-live="polite">
-        {said === undefined ? '' : caption !== undefined ? `Claude: ${caption}` : said}
+        {said === undefined
+          ? ''
+          : caption !== undefined
+            ? t('Claude: {caption}', { caption })
+            : said}
       </p>
       {said !== undefined && (
-        <aside className="guidance-caption" aria-label="Claude’s guidance">
+        <aside className="guidance-caption" aria-label={t('Claude’s guidance')}>
           <span className="guidance-caption-author" aria-hidden="true">
             Claude
           </span>
@@ -79,8 +86,8 @@ export function GuidanceLayer({ scenarios }: GuidanceLayerProps) {
             <button
               type="button"
               className="guidance-dismiss"
-              aria-label="Dismiss Claude’s guidance"
-              title="Dismiss Claude’s guidance"
+              aria-label={t('Dismiss Claude’s guidance')}
+              title={t('Dismiss Claude’s guidance')}
               onClick={live.clearGuidance}
             >
               ×

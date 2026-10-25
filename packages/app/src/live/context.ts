@@ -1,6 +1,11 @@
-import type { Command } from '@visual-anything/core';
+import type { Command, PreferenceChanges, Preferences } from '@visual-anything/core';
 import { createContext, useContext } from 'react';
 import type { CommandResult, LiveState, NoticeLevel } from './connection';
+
+/** How the local program answered a change of preferences: what it holds now, or why it refused. */
+export type PreferencesAnswer =
+  | { ok: true; preferences: Preferences }
+  | { ok: false; problems: readonly { code?: string; message: string }[] };
 
 /** The live session as components see it: its state, and what they can ask of the local program. */
 export interface Live extends LiveState {
@@ -20,6 +25,11 @@ export interface Live extends LiveState {
   dismiss: (id: number) => void;
   /** Stops showing Claude's guidance in this tab; absent where there is no live session to clear. */
   clearGuidance?: () => void;
+  /**
+   * Asks the local program to change some of the person's preferences; absent where there is no live
+   * session to carry them, as in tests that give components a session of their own.
+   */
+  setPreferences?: (changes: PreferenceChanges) => Promise<PreferencesAnswer>;
 }
 
 /**

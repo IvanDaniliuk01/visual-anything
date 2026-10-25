@@ -1,5 +1,6 @@
 import type { ThemeChoice } from '@visual-anything/core';
 import { useId, type ComponentType } from 'react';
+import { useT } from '../i18n';
 import { MonitorIcon, MoonIcon, SunIcon } from '../shell/icons';
 import { usePreferences } from './usePreferences';
 
@@ -15,15 +16,24 @@ const OPTIONS: readonly { choice: ThemeChoice; label: string; Icon: ComponentTyp
  * once, and the local program keeps the latest one as the person's preference.
  */
 export function ThemeControl() {
+  const t = useT();
   const { preferences, systemTheme, change } = usePreferences();
   const name = useId();
   return (
-    <div className="theme-control" role="radiogroup" aria-label="Theme">
+    <div className="theme-control" role="radiogroup" aria-label={t('Theme')}>
       {OPTIONS.map(({ choice, label, Icon }) => (
         <label
           key={choice}
           className="theme-option"
-          title={choice === 'system' ? `${label} (${systemTheme} now)` : label}
+          title={
+            choice === 'system'
+              ? t(
+                  systemTheme === 'dark'
+                    ? 'Match the system (dark now)'
+                    : 'Match the system (light now)',
+                )
+              : t(label)
+          }
         >
           <input
             type="radio"
@@ -34,7 +44,7 @@ export function ThemeControl() {
             onChange={() => change({ theme: choice })}
           />
           <Icon />
-          <span className="visually-hidden">{label}</span>
+          <span className="visually-hidden">{t(label)}</span>
         </label>
       ))}
     </div>

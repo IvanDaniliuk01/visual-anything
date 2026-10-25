@@ -1,4 +1,5 @@
 import {
+  DEFAULT_PREFERENCES,
   PROTOCOL_VERSION,
   encodeServerMessage,
   type Guidance,
@@ -707,6 +708,57 @@ describe('launch codes', () => {
     latestSocket().receive(openedWithToken('s3cr3t'));
     latestSocket().receive(changed({ operations: [drifting] }));
     expect(latestSocket().url).toBe('ws://localhost:3000/live?token=s3cr3t');
+  });
+});
+
+describe('preferences', () => {
+  const spanish = { ...DEFAULT_PREFERENCES, language: 'es' as const };
+
+  it('keeps the preferences the local program sends when the tab connects', () => {
+    const { connection, socket } = openConnection();
+    expect(connection.getState().preferences).toBeUndefined();
+    socket.receive(encodeServerMessage({ type: 'preferences/changed', preferences: spanish }));
+    expect(connection.getState().preferences).toEqual(spanish);
+  });
+
+  it('sends a change, and resolves with the preferences the program answers with', async () => {
+    const { connection, socket } = openConnection();
+    const set = connection.setPreferences({ language: 'es', theme: 'dark' });
+    expect(socket.lastSent()).toEqual({
+      type: 'preferences/set',
+      requestId: requestIdOf(socket),
+      changes: { language: 'es', theme: 'dark' },
+    });
+    const answer = { ...spanish, theme: 'dark' as const };
+    socket.receive(
+      encodeServerMessage({
+        type: 'preferences/changed',
+        preferences: answer,
+        requestId: requestIdOf(socket),
+      }),
+    );
+    await expect(set).resolves.toEqual({ ok: true, preferences: answer });
+    expect(connection.getState().preferences).toEqual(answer);
+  });
+
+  it('resolves with the problems of a refused change, leaving the notice to whoever asked', async () => {
+    const { connection, socket } = openConnection();
+    const set = connection.setPreferences({ language: 'es' });
+    const problems: Problem[] = [{ code: 'invalid-command', message: 'No.' }];
+    socket.receive(
+      encodeServerMessage({ type: 'command/rejected', requestId: requestIdOf(socket), problems }),
+    );
+    await expect(set).resolves.toEqual({ ok: false, problems });
+    expect(connection.getState().notices).toEqual([]);
+  });
+
+  it('answers a change at once while it is not connected, and when the connection closes', async () => {
+    const connection = new LiveConnection(LIVE_URL);
+    await expect(connection.setPreferences({ language: 'es' })).resolves.toEqual(CLOSED);
+    const { connection: open, socket } = openConnection();
+    const set = open.setPreferences({ language: 'es' });
+    socket.drop();
+    await expect(set).resolves.toEqual(CLOSED);
   });
 });
 

@@ -118,6 +118,22 @@ describe('preferences/set', () => {
     });
   });
 
+  it('changes the language, as any other preference', async () => {
+    const store = new FakeStore();
+    const session = await open({ preferences: store });
+    const client = new FakeClient();
+    session.connect(client);
+
+    await session.receive(client, setMessage({ language: 'es' }));
+
+    expect(store.asked).toEqual([{ language: 'es' }]);
+    expect(client.ofType('preferences/changed').at(-1)).toMatchObject({
+      type: 'preferences/changed',
+      preferences: { language: 'es' },
+      requestId: 'request-1',
+    });
+  });
+
   it('refuses changes it cannot use, naming each problem, and changes nothing', async () => {
     const store = new FakeStore();
     const session = await open({ preferences: store });

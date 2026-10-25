@@ -199,6 +199,16 @@ describe('openPreferences', () => {
     });
   });
 
+  it('keeps the language chosen, for the next time the program starts', async () => {
+    const { store } = await openPreferences(folder);
+    expect(await store.set({ language: 'es' })).toEqual({
+      preferences: { ...DEFAULT_PREFERENCES, language: 'es' },
+      saved: true,
+    });
+    const { store: again } = await openPreferences(folder);
+    expect(again.current().language).toBe('es');
+  });
+
   it('writes a theme it could not read over only when the theme is set', async () => {
     await writeFile(file, JSON.stringify({ theme: 'sepia' }));
     const { store } = await openPreferences(folder);
@@ -234,6 +244,7 @@ describe('openPreferences', () => {
         '{',
         '  "schemaVersion": 1,',
         '  "theme": "dark",',
+        '  "language": "system",',
         '  "grid": false,',
         '  "snapToGrid": true,',
         '  "rulers": false,',

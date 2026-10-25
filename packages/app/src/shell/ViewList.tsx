@@ -14,6 +14,7 @@ import {
 import type { Id, ViewFile } from '@visual-anything/schema';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useEditor } from '../editor/EditorContext';
+import { useT } from '../i18n';
 import { CheckboxControl, TextControl } from './inspector/controls';
 import { perform } from './inspector/send';
 import { Secondary } from './Secondary';
@@ -29,6 +30,7 @@ interface ViewListProps {
 }
 
 export function ViewList({ project, definitions, openViewId, labelledBy }: ViewListProps) {
+  const t = useT();
   const { send, openView } = useEditor();
   const [editing, setEditing] = useState<Id>();
   const [creating, setCreating] = useState(false);
@@ -60,7 +62,7 @@ export function ViewList({ project, definitions, openViewId, labelledBy }: ViewL
           ))}
         </ul>
       ) : (
-        <p className="panel-empty">This project has no views yet.</p>
+        <p className="panel-empty">{t('This project has no views yet.')}</p>
       )}
       {creating && editable ? (
         <NewViewForm
@@ -78,7 +80,7 @@ export function ViewList({ project, definitions, openViewId, labelledBy }: ViewL
           disabled={!editable}
           onClick={() => setCreating(true)}
         >
-          New view…
+          {t('New view…')}
         </button>
       )}
     </>
@@ -107,6 +109,7 @@ function ViewRow({
   onOpen,
   onEdit,
 }: ViewRowProps) {
+  const t = useT();
   const settingsId = useId();
   return (
     <li aria-current={open ? 'true' : undefined} className="view-row">
@@ -114,7 +117,11 @@ function ViewRow({
         <button
           type="button"
           className="view-open"
-          title={open ? 'This view is open on the canvas' : `Open "${view.name}" on the canvas`}
+          title={
+            open
+              ? t('This view is open on the canvas')
+              : t('Open "{name}" on the canvas', { name: view.name })
+          }
           onClick={onOpen}
         >
           <span className="item-name">{view.name}</span>
@@ -122,18 +129,18 @@ function ViewRow({
         </button>
         {open && (
           <span className="item-badge" aria-hidden="true">
-            Open
+            {t('Open')}
           </span>
         )}
         <button
           type="button"
           className="view-action"
-          aria-label={`Settings of "${view.name}"`}
+          aria-label={t('Settings of "{name}"', { name: view.name })}
           aria-expanded={editing}
           aria-controls={editing ? settingsId : undefined}
           onClick={() => onEdit(!editing)}
         >
-          Settings
+          {t('Settings')}
         </button>
       </div>
       {editing && (
@@ -161,6 +168,7 @@ interface ViewSettingsProps {
 
 /** What a view is: its name, description and perspective, how it nests, and deleting it. */
 function ViewSettings({ id, project, definitions, view, editable, onDeleted }: ViewSettingsProps) {
+  const t = useT();
   const { send } = useEditor();
   const ids = {
     name: useId(),
@@ -178,19 +186,24 @@ function ViewSettings({ id, project, definitions, view, editable, onDeleted }: V
   const perspective = view.perspective;
 
   return (
-    <div id={id} className="view-settings" role="group" aria-label={`Settings of "${view.name}"`}>
+    <div
+      id={id}
+      className="view-settings"
+      role="group"
+      aria-label={t('Settings of "{name}"', { name: view.name })}
+    >
       <div className="view-control">
-        <label htmlFor={ids.name}>Name</label>
+        <label htmlFor={ids.name}>{t('Name')}</label>
         <TextControl
           id={ids.name}
           disabled={!editable}
           value={view.name}
-          problemOf={(text) => (text.trim() === '' ? 'A view needs a name.' : undefined)}
+          problemOf={(text) => (text.trim() === '' ? t('A view needs a name.') : undefined)}
           onCommit={(name) => update({ name })}
         />
       </div>
       <div className="view-control">
-        <label htmlFor={ids.description}>Description</label>
+        <label htmlFor={ids.description}>{t('Description')}</label>
         <TextControl
           id={ids.description}
           disabled={!editable}
@@ -200,19 +213,19 @@ function ViewSettings({ id, project, definitions, view, editable, onDeleted }: V
         />
       </div>
       <div className="view-control">
-        <label htmlFor={ids.perspective}>Perspective</label>
+        <label htmlFor={ids.perspective}>{t('Perspective')}</label>
         <TextControl
           id={ids.perspective}
           disabled={!editable}
           value={perspective.name}
           problemOf={(text) =>
-            text.trim() === '' ? 'A perspective needs a name, such as Security.' : undefined
+            text.trim() === '' ? t('A perspective needs a name, such as Security.') : undefined
           }
           onCommit={(name) => update({ perspective: { ...perspective, name } })}
         />
       </div>
       <div className="view-control">
-        <label htmlFor={ids.perspectiveDescription}>What the perspective looks at</label>
+        <label htmlFor={ids.perspectiveDescription}>{t('What the perspective looks at')}</label>
         <TextControl
           id={ids.perspectiveDescription}
           disabled={!editable}
@@ -229,18 +242,20 @@ function ViewSettings({ id, project, definitions, view, editable, onDeleted }: V
         />
       </div>
       <fieldset className="view-nesting" aria-describedby={ids.nesting}>
-        <legend>Nesting relation types</legend>
+        <legend>{t('Nesting relation types')}</legend>
         <p id={ids.nesting} className="view-note">
-          The relation types whose relations put shapes inside containers in this view.
+          {t('The relation types whose relations put shapes inside containers in this view.')}
         </p>
         {definitions.nestingRelationTypes.size === 0 ? (
-          <p className="view-note">The packages in use define no relation type that nests.</p>
+          <p className="view-note">
+            {t('The packages in use define no relation type that nests.')}
+          </p>
         ) : (
           <ul className="view-nesting-types">
             {[...definitions.nestingRelationTypes].map((type) => (
               <NestingType
                 key={type}
-                name={relationTypeOrRelatesTo(definitions, type).name}
+                name={t.definition(type, relationTypeOrRelatesTo(definitions, type).name)}
                 checked={nesting.includes(type)}
                 disabled={!editable}
                 onCommit={(checked) =>
@@ -257,14 +272,28 @@ function ViewSettings({ id, project, definitions, view, editable, onDeleted }: V
       </fieldset>
       {players.length > 0 ? (
         <p className="view-note">
-          {players.map((scenario) => `"${scenario.name}"`).join(', ')}{' '}
-          {players.length === 1 ? 'plays' : 'play'} over this view, so it cannot be deleted.
+          {t(
+            {
+              one: '{names} plays over this view, so it cannot be deleted.',
+              other: '{names} play over this view, so it cannot be deleted.',
+            },
+            {
+              count: players.length,
+              names: players.map((scenario) => `"${scenario.name}"`).join(', '),
+            },
+          )}
         </p>
       ) : confirming ? (
-        <div className="view-confirm" role="group" aria-label={`Delete "${view.name}"?`}>
+        <div
+          className="view-confirm"
+          role="group"
+          aria-label={t('Delete "{name}"?', { name: view.name })}
+        >
           <p>
-            Delete &quot;{view.name}&quot;? Its positions, stacking order and free shapes go with
-            it; the model stays as it is. Undo brings it back.
+            {t(
+              'Delete "{name}"? Its positions, stacking order and free shapes go with it; the model stays as it is. Undo brings it back.',
+              { name: view.name },
+            )}
           </p>
           <button
             type="button"
@@ -276,7 +305,7 @@ function ViewSettings({ id, project, definitions, view, editable, onDeleted }: V
               });
             }}
           >
-            Delete
+            {t('Delete')}
           </button>
           <button
             type="button"
@@ -286,7 +315,7 @@ function ViewSettings({ id, project, definitions, view, editable, onDeleted }: V
               setTimeout(() => deleteButton.current?.focus(), 0);
             }}
           >
-            Keep it
+            {t('Keep it')}
           </button>
         </div>
       ) : (
@@ -297,7 +326,7 @@ function ViewSettings({ id, project, definitions, view, editable, onDeleted }: V
           disabled={!editable}
           onClick={() => setConfirming(true)}
         >
-          Delete view…
+          {t('Delete view…')}
         </button>
       )}
     </div>
@@ -333,6 +362,7 @@ function NewViewForm({
   onCreated: (id: Id) => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const { send } = useEditor();
   const ids = { heading: useId(), name: useId(), perspective: useId(), problem: useId() };
   const [name, setName] = useState('');
@@ -347,11 +377,11 @@ function NewViewForm({
   const create = async (event: FormEvent) => {
     event.preventDefault();
     if (name.trim() === '') {
-      setProblem('Give the view a name.');
+      setProblem(t('Give the view a name.'));
       return;
     }
     if (perspective.trim() === '') {
-      setProblem('Name the perspective it is seen from, such as Security or Ownership.');
+      setProblem(t('Name the perspective it is seen from, such as Security or Ownership.'));
       return;
     }
     if (!send) return;
@@ -384,31 +414,31 @@ function NewViewForm({
       }}
     >
       <p id={ids.heading} className="view-new-title">
-        New view
+        {t('New view')}
       </p>
       <div className="view-control">
-        <label htmlFor={ids.name}>Name</label>
+        <label htmlFor={ids.name}>{t('Name')}</label>
         <input
           id={ids.name}
           ref={nameInput}
           value={name}
-          placeholder="Security overview"
+          placeholder={t('Security overview')}
           aria-describedby={problem ? ids.problem : undefined}
           onChange={(event) => setName(event.target.value)}
         />
       </div>
       <div className="view-control">
-        <label htmlFor={ids.perspective}>Perspective</label>
+        <label htmlFor={ids.perspective}>{t('Perspective')}</label>
         <input
           id={ids.perspective}
           value={perspective}
-          placeholder="Security"
+          placeholder={t('Security')}
           aria-describedby={problem ? ids.problem : undefined}
           onChange={(event) => setPerspective(event.target.value)}
         />
       </div>
       <p className="view-note">
-        Every relation type that nests arranges it at first; its settings change that.
+        {t('Every relation type that nests arranges it at first; its settings change that.')}
       </p>
       {problem !== undefined && (
         <p id={ids.problem} role="alert" className="view-problem">
@@ -417,10 +447,10 @@ function NewViewForm({
       )}
       <div className="view-new-actions">
         <button type="submit" className="view-action" disabled={sending}>
-          Create
+          {t('Create')}
         </button>
         <button type="button" className="view-action" onClick={onCancel}>
-          Cancel
+          {t('Cancel')}
         </button>
       </div>
     </form>

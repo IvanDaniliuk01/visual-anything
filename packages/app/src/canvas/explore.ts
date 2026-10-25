@@ -26,12 +26,13 @@ import type {
   ViewFile,
 } from '@visual-anything/schema';
 import type { Emphasis } from '../editor/emphasis';
+import { t } from '../i18n';
 import type { ElementShape, Scene } from './scene';
 
 /** How an attribute's value is tested. */
 export type AttributeTest = 'is' | 'is-not' | 'contains' | 'below' | 'above' | 'set' | 'unset';
 
-/** The tests, in the order the filters offer them, with how they read. */
+/** The tests, in the order the filters offer them, with how they read in English. */
 export const ATTRIBUTE_TESTS: readonly { test: AttributeTest; name: string }[] = [
   { test: 'is', name: 'is' },
   { test: 'is-not', name: 'is not' },
@@ -475,7 +476,7 @@ export function endsOf(
     const line = drawn.get(id);
     if (line) {
       if (hidden?.has(id)) return undefined;
-      return { id, kind: 'relation', name: line.relation.name ?? 'the relation', key: id };
+      return { id, kind: 'relation', name: line.relation.name ?? t('the relation'), key: id };
     }
     const shape = (shapesOf.get(id) ?? [])
       .map((at) => scene.shapes[at] as ElementShape)

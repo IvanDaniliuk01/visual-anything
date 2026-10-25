@@ -1,6 +1,7 @@
 import { modelIndexOf, type DeletePreview, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useEffect, useId, useMemo, useRef } from 'react';
+import { useT, type PluralText, type Translator } from '../i18n';
 import './drop.css';
 import { useModalFocus } from './focus';
 
@@ -30,6 +31,31 @@ interface DeleteDialogProps {
 
 const LISTED = 8;
 
+const ELEMENTS: PluralText = { one: '{count} element', other: '{count} elements' };
+const RELATIONS: PluralText = { one: '{count} relation', other: '{count} relations' };
+const FREE_SHAPES: PluralText = { one: '{count} free shape', other: '{count} free shapes' };
+const CASCADED_ON_IT: PluralText = {
+  one: 'This relation ends on it, so it goes too:',
+  other: 'These {count} relations end on it, so they go too:',
+};
+const CASCADED_ON_THEM: PluralText = {
+  one: 'This relation ends on them, so it goes too:',
+  other: 'These {count} relations end on them, so they go too:',
+};
+const CASCADED_ON_DELETED: PluralText = {
+  one: 'This relation ends on what you delete, so it goes too:',
+  other: 'These {count} relations end on what you delete, so they go too:',
+};
+const BROKEN_STEPS: PluralText = {
+  one: 'This scenario step uses a relation that goes. It becomes a broken step and is kept, so you can fix it:',
+  other:
+    'These {count} scenario steps use a relation that goes. They become broken steps and are kept, so you can fix them:',
+};
+const POSITIONS: PluralText = {
+  one: '{count} stored position in views goes with the shapes.',
+  other: '{count} stored positions in views go with the shapes.',
+};
+
 /**
  * Shows what a deletion removes and breaks before anything is deleted, or what a change that deletes
  * relations as it goes takes away. It is modal: the focus stays inside it until it closes. Only the
@@ -43,6 +69,7 @@ export function DeleteDialog({
   onConfirm,
   onCancel,
 }: DeleteDialogProps) {
+  const t = useT();
   const titleId = useId();
   const dialog = useRef<HTMLDivElement>(null);
   const confirm = useRef<HTMLButtonElement>(null);
@@ -55,7 +82,7 @@ export function DeleteDialog({
       const relation = index.relation(id);
       if (!relation) return id;
       const end = (each: Id) =>
-        index.element(each)?.name ?? index.relation(each)?.name ?? 'a relation';
+        index.element(each)?.name ?? index.relation(each)?.name ?? t('a relation');
       return relation.name ?? `${end(relation.from)} → ${end(relation.to)}`;
     };
     const cascaded = new Set(preview.cascaded);
@@ -74,13 +101,15 @@ export function DeleteDialog({
       leaving: action?.leaving.slice(0, LISTED).map(relationName) ?? [],
       withData: action?.withData.slice(0, 1).map(relationName) ?? [],
     };
-  }, [project, preview, action]);
+  }, [project, preview, action, t]);
 
   useEffect(() => {
     confirm.current?.focus();
   }, []);
 
-  const title = action ? action.title : `Delete ${deletedParts(preview, freeShapes, shown)}?`;
+  const title = action
+    ? question(t, action.title)
+    : t('Delete {things}?', { things: deletedParts(t, preview, freeShapes, shown) });
   const several = action !== undefined && action.leaving.length > 1;
   const cascadedCount = preview.cascaded.length;
   const stepCount = preview.brokenSteps.length;
@@ -98,52 +127,43 @@ export function DeleteDialog({
         }}
       >
         <h2 id={titleId}>{title}</h2>
-        {action && !several && <p>This takes away the relation &quot;{shown.leaving[0]}&quot;.</p>}
+        {action && !several && (
+          <p>{t('This takes away the relation "{name}".', { name: shown.leaving[0] ?? '' })}</p>
+        )}
         {action && several && (
           <section>
             <p>
-              This takes away the {action.leaving.length} relations that place the shapes where they
-              are:
+              {t('This takes away the {count} relations that place the shapes where they are:', {
+                count: action.leaving.length,
+              })}
             </p>
             <List items={shown.leaving} total={action.leaving.length} />
           </section>
         )}
-        {action && action.withData.length > 0 && <p>{dataNote(action, shown.withData[0])}</p>}
+        {action && action.withData.length > 0 && <p>{dataNote(t, action, shown.withData[0])}</p>}
         {cascadedCount > 0 && (
           <section>
             <p>
-              {action
-                ? `${cascadedCount === 1 ? 'This relation ends' : `These ${cascadedCount} relations end`} on ${several ? 'them' : 'it'}, so ${cascadedCount === 1 ? 'it goes' : 'they go'} too:`
-                : `${cascadedCount === 1 ? 'This relation ends' : `These ${cascadedCount} relations end`} on what you delete, so ${cascadedCount === 1 ? 'it goes' : 'they go'} too:`}
+              {t(action ? (several ? CASCADED_ON_THEM : CASCADED_ON_IT) : CASCADED_ON_DELETED, {
+                count: cascadedCount,
+              })}
             </p>
             <List items={shown.cascaded} total={cascadedCount} />
           </section>
         )}
         {stepCount > 0 && (
           <section>
-            <p>
-              {stepCount === 1
-                ? 'This scenario step uses'
-                : `These ${stepCount} scenario steps use`}{' '}
-              a relation that goes.{' '}
-              {stepCount === 1
-                ? 'It becomes a broken step and is kept'
-                : 'They become broken steps and are kept'}
-              , so you can fix {stepCount === 1 ? 'it' : 'them'}:
-            </p>
+            <p>{t(BROKEN_STEPS, { count: stepCount })}</p>
             <List items={shown.steps} total={stepCount} />
           </section>
         )}
         {!action && preview.positions.length > 0 && (
-          <p>
-            {count(preview.positions.length, 'stored position')} in views{' '}
-            {preview.positions.length === 1 ? 'goes' : 'go'} with the shapes.
-          </p>
+          <p>{t(POSITIONS, { count: preview.positions.length })}</p>
         )}
-        <p className="dialog-note">You can undo this.</p>
+        <p className="dialog-note">{t('You can undo this.')}</p>
         <div className="dialog-actions">
           <button type="button" onClick={onCancel}>
-            Cancel
+            {t('Cancel')}
           </button>
           <button
             ref={confirm}
@@ -151,7 +171,7 @@ export function DeleteDialog({
             className={action ? 'dialog-confirm' : 'danger'}
             onClick={onConfirm}
           >
-            {action ? action.confirmLabel : 'Delete'}
+            {action ? t(action.confirmLabel) : t('Delete')}
           </button>
         </div>
       </div>
@@ -159,8 +179,19 @@ export function DeleteDialog({
   );
 }
 
+/**
+ * A question the canvas asks in English, such as `Put "API" inside "Billing"?`: the label of the
+ * change it asks about, as the core and the history write it, then a question mark.
+ */
+function question(t: Translator, english: string): string {
+  return english.endsWith('?')
+    ? t('{question}?', { question: t.message(english.slice(0, -1)) })
+    : t.message(english);
+}
+
 /** What a deletion deletes, as its title names it: one element by name, or how many of each. */
 function deletedParts(
+  t: Translator,
   preview: DeletePreview,
   freeShapes: number,
   shown: { elementName: (id: Id) => string; asked: number },
@@ -172,36 +203,43 @@ function deletedParts(
       ? `"${shown.elementName(elements[0] as Id)}"`
       : '',
     elements.length > 1 || (elements.length === 1 && (asked > 0 || freeShapes > 0))
-      ? count(elements.length, 'element')
+      ? t(ELEMENTS, { count: elements.length })
       : '',
-    asked > 0 ? count(asked, 'relation') : '',
-    freeShapes > 0 ? count(freeShapes, 'free shape') : '',
+    asked > 0 ? t(RELATIONS, { count: asked }) : '',
+    freeShapes > 0 ? t(FREE_SHAPES, { count: freeShapes }) : '',
   ]
     .filter((part) => part !== '')
     .join(', ');
 }
 
 /** Says that relations that go have a name, a description or attributes of their own. */
-function dataNote(action: DeleteDialogAction, firstName: string | undefined): string {
+function dataNote(
+  t: Translator,
+  action: DeleteDialogAction,
+  firstName: string | undefined,
+): string {
   if (action.withData.length > 1) {
-    return `${action.withData.length} of them have a name, a description or attributes of their own, which go with them.`;
+    return t(
+      '{count} of them have a name, a description or attributes of their own, which go with them.',
+      { count: action.withData.length },
+    );
   }
-  const subject = action.leaving.length === 1 ? 'It' : `"${firstName ?? ''}"`;
-  return `${subject} has a name, a description or attributes of its own, which go with it.`;
+  return action.leaving.length === 1
+    ? t('It has a name, a description or attributes of its own, which go with it.')
+    : t('"{name}" has a name, a description or attributes of its own, which go with it.', {
+        name: firstName ?? '',
+      });
 }
 
 /** The first items of a list, and how many more there are. */
 function List({ items, total }: { items: readonly string[]; total: number }) {
+  const t = useT();
   return (
     <ul>
       {items.slice(0, LISTED).map((item, index) => (
         <li key={index}>{item}</li>
       ))}
-      {total > LISTED && <li>and {total - LISTED} more</li>}
+      {total > LISTED && <li>{t('and {count} more', { count: total - LISTED })}</li>}
     </ul>
   );
-}
-
-function count(amount: number, noun: string): string {
-  return `${amount} ${noun}${amount === 1 ? '' : 's'}`;
 }
