@@ -1,6 +1,6 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { ViewFile } from '@visual-anything/schema';
-import { Container, Graphics, type GraphicsContext } from 'pixi.js';
+import { BitmapFont, Cache, Container, Graphics, type GraphicsContext } from 'pixi.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { syntheticProject } from '../bench/synthetic';
 import { EMPTY_SELECTION, selectionOf, type Selection } from '../editor/selection';
@@ -516,6 +516,51 @@ describe('CanvasRenderer selection marks of thousands of shapes', () => {
     expect(shown()).toBe(2);
     renderer.renderNow();
     expect(shown()).toBe(3);
+  });
+});
+
+describe('CanvasRenderer fonts', () => {
+  const keys = ['name', 'detail', 'relation'].map((kind) => `visual-anything-${kind}-bitmap`);
+
+  /** Installs as PixiJS does, into its cache, which warns of a key already there; draws nothing. */
+  function installing() {
+    return vi.spyOn(BitmapFont, 'install').mockImplementation((options) => {
+      const font = {} as BitmapFont;
+      Cache.set(`${options?.name ?? ''}-bitmap`, font);
+      return font;
+    });
+  }
+
+  afterEach(() => {
+    for (const key of keys) Cache.remove(key);
+  });
+
+  it('installs the label fonts once, however many renderers start one after another', async () => {
+    vi.useFakeTimers();
+    const installs = installing();
+    const warnings = vi.spyOn(console, 'warn');
+    for (let each = 0; each < 3; each++) {
+      const renderer = await started();
+      // Fonts are installed just after the canvas starts.
+      vi.runOnlyPendingTimers();
+      renderer.destroy();
+    }
+    expect(installs).toHaveBeenCalledTimes(3);
+    expect(warnings.mock.calls.flat().join(' ')).not.toContain('already has key');
+  });
+
+  it('keeps the fonts an earlier load of the labels left, as after a hot reload', async () => {
+    // What the labels installed before a reload is still in PixiJS's cache, which is not reloaded.
+    for (const key of keys) Cache.set(key, {} as BitmapFont);
+    const installs = installing();
+    const warnings = vi.spyOn(console, 'warn');
+    // A second load of the labels, as a hot reload makes, beside the same PixiJS.
+    const reloaded = './labels?reload';
+    const labels = (await import(/* @vite-ignore */ reloaded)) as typeof import('./labels');
+    labels.installFonts();
+    labels.installFonts();
+    expect(installs).not.toHaveBeenCalled();
+    expect(warnings.mock.calls.flat().join(' ')).not.toContain('already has key');
   });
 });
 
