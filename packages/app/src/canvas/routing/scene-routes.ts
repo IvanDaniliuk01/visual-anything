@@ -8,7 +8,12 @@
  * placed, so that a call costs the depth of the two ends; a view without routes pays nothing here but
  * a look at each line's ends.
  */
-import { routeOf, type ProjectSnapshot, type ResolvedAttachment, type ResolvedRoute } from '@visual-anything/core';
+import {
+  routeOf,
+  type ProjectSnapshot,
+  type ResolvedAttachment,
+  type ResolvedRoute,
+} from '@visual-anything/core';
 import type { ConnectionPoint, Id, RelationRoute, ViewFile } from '@visual-anything/schema';
 import type { Point } from '../geometry';
 import { routeBetweenEnds, type RouteEnd } from '../route';
@@ -110,7 +115,10 @@ export function sceneRouting(
       if (!resolved && !ends.fromShape?.points && !ends.toShape?.points) return undefined;
       const bendOrigin = resolved ? originOf(shapes, ends, resolved.bendPointsIn) : ORIGIN;
       const bendPoints = resolved
-        ? resolved.bendPoints.map((point) => ({ x: point.x + bendOrigin.x, y: point.y + bendOrigin.y }))
+        ? resolved.bendPoints.map((point) => ({
+            x: point.x + bendOrigin.x,
+            y: point.y + bendOrigin.y,
+          }))
         : [];
       const hand: HandOfLine | undefined = resolved && { route: resolved, bendPoints, bendOrigin };
       return {
@@ -170,7 +178,10 @@ export function routeLine(ends: LineEnds, hand: HandOfLine | undefined): RoutedL
   const bendPoints = hand?.bendPoints ?? [];
   const pointed = ends.fromShape?.points !== undefined || ends.toShape?.points !== undefined;
   const byHand =
-    fromAttach !== undefined || toAttach !== undefined || bendPoints.length > 0 || style !== 'orthogonal';
+    fromAttach !== undefined ||
+    toAttach !== undefined ||
+    bendPoints.length > 0 ||
+    style !== 'orthogonal';
   const extras = {
     ...(style === 'orthogonal' ? {} : { style }),
     ...(hand ? { hand } : {}),
@@ -190,7 +201,11 @@ export function routeLine(ends: LineEnds, hand: HandOfLine | undefined): RoutedL
   return { route: routed.route, ...extras, ...(routed.curve ? { curve: routed.curve } : {}) };
 }
 
-function handEnd(end: RouteEnd, shape: ElementShape | undefined, attach: Attach | undefined): HandEnd {
+function handEnd(
+  end: RouteEnd,
+  shape: ElementShape | undefined,
+  attach: Attach | undefined,
+): HandEnd {
   if ('point' in end) return { kind: 'point', point: end.point };
   return {
     kind: 'shape',
@@ -242,7 +257,10 @@ const ORIGIN: Point = { x: 0, y: 0 };
 
 /** Everything a line's route depends on but its ends' places, so that an equal line can be kept. */
 function signatureOf(ends: LineEnds, hand: HandOfLine | undefined): string {
-  const parts: (string | number)[] = [pointsKey(ends.fromShape?.points), pointsKey(ends.toShape?.points)];
+  const parts: (string | number)[] = [
+    pointsKey(ends.fromShape?.points),
+    pointsKey(ends.toShape?.points),
+  ];
   if (hand) {
     const { route } = hand;
     parts.push(
@@ -279,7 +297,9 @@ export interface ConnectionPlace extends Attach {
 }
 
 /** The connection points a shape's appearance sets, as the scene keeps them; undefined for none. */
-export function pointsOf(points: readonly ConnectionPoint[]): readonly ConnectionPlace[] | undefined {
+export function pointsOf(
+  points: readonly ConnectionPoint[],
+): readonly ConnectionPlace[] | undefined {
   if (points.length === 0) return undefined;
   return points.map((point) => ({ name: point.name, side: point.side, at: point.at }));
 }
@@ -292,7 +312,8 @@ export function samePoints(
   if (a === b) return true;
   if (!a || !b || a.length !== b.length) return false;
   return a.every(
-    (point, at) => point.name === b[at]?.name && point.side === b[at]?.side && point.at === b[at]?.at,
+    (point, at) =>
+      point.name === b[at]?.name && point.side === b[at]?.side && point.at === b[at]?.at,
   );
 }
 

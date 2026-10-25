@@ -37,7 +37,8 @@ function onRoute(route: readonly Point[], point: Point): boolean {
     const b = route[at + 1];
     if (!b) return false;
     const length2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
-    const t = length2 === 0 ? 0 : ((point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)) / length2;
+    const t =
+      length2 === 0 ? 0 : ((point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)) / length2;
     const s = Math.min(1, Math.max(0, t));
     return Math.hypot(point.x - (a.x + s * (b.x - a.x)), point.y - (a.y + s * (b.y - a.y))) < 1e-6;
   });
@@ -86,7 +87,10 @@ describe('lines routed by hand in the scene', () => {
       ],
     });
     const after = shapeRect(moved, 'scheduling');
-    expect(lineOf(moved, 'api-to-reminders').route).toContainEqual({ x: after.x + 40, y: after.y + 20 });
+    expect(lineOf(moved, 'api-to-reminders').route).toContainEqual({
+      x: after.x + 40,
+      y: after.y + 20,
+    });
   });
 
   it('are curved through their spans, flattened for everything that reads the route', () => {
@@ -219,12 +223,16 @@ describe('connection points on the canvas', () => {
     expect(db?.points).toHaveLength(3);
     const reads = relationLinesOf(scene).get('api-reads-db') as RelationLine;
     const writes = relationLinesOf(scene).get('api-writes-db') as RelationLine;
-    const points = (db?.points ?? []).map((point) => attachPoint(db?.rect ?? { x: 0, y: 0, width: 0, height: 0 }, point));
+    const points = (db?.points ?? []).map((point) =>
+      attachPoint(db?.rect ?? { x: 0, y: 0, width: 0, height: 0 }, point),
+    );
     const ends = [reads.to, writes.to];
     // Both end at or beside one connection point, siblings 12 units apart along its side.
     for (const end of ends) {
       expect(
-        points.some((point) => Math.abs(point.x - end.x) <= 12.01 && Math.abs(point.y - end.y) <= 12.01),
+        points.some(
+          (point) => Math.abs(point.x - end.x) <= 12.01 && Math.abs(point.y - end.y) <= 12.01,
+        ),
       ).toBe(true);
     }
     expect(reads.to).not.toEqual(writes.to);
@@ -239,7 +247,9 @@ describe('connection points on the canvas', () => {
       to: { kind: 'connection-point', name: 'top-in' },
     });
     const line = lineOf(project, 'api-reads-db');
-    expect(line.to).toEqual(attachPoint(shapeRect(project, 'appointments-db'), { side: 'top', at: 0.8 }));
+    expect(line.to).toEqual(
+      attachPoint(shapeRect(project, 'appointments-db'), { side: 'top', at: 0.8 }),
+    );
     expect(onRoute(line.route, line.to)).toBe(true);
   });
 });

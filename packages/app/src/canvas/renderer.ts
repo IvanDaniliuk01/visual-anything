@@ -495,12 +495,18 @@ export class CanvasRenderer {
     this.routeOverlay = overlay;
     const hides = overlay?.preview ? overlay.relation : undefined;
     const hiding =
-      this.routeHiding && this.hidden === this.routeHiding ? [...this.routeHiding.relations][0] : undefined;
+      this.routeHiding && this.hidden === this.routeHiding
+        ? [...this.routeHiding.relations][0]
+        : undefined;
     if (!this.drag && hides !== hiding) {
       this.routeHiding =
         hides === undefined
           ? undefined
-          : { shapes: NOTHING_HIDDEN.shapes, relations: new Set([hides]), free: NOTHING_HIDDEN.free };
+          : {
+              shapes: NOTHING_HIDDEN.shapes,
+              relations: new Set([hides]),
+              free: NOTHING_HIDDEN.free,
+            };
       this.hidden = this.routeHiding ?? NOTHING_HIDDEN;
       try {
         if (this.indexed && this.status === 'ready') this.rebuild();

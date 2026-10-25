@@ -27,7 +27,8 @@ export function moveSegment(
   const b = route[at + 1];
   if (!a || !b) return [...route];
   const horizontal = a.y === b.y;
-  const moved = (point: Point): Point => (horizontal ? { x: point.x, y: value } : { x: value, y: point.y });
+  const moved = (point: Point): Point =>
+    horizontal ? { x: point.x, y: value } : { x: value, y: point.y };
   const last = route.length - 1;
   const points: Point[] = [];
   if (at === 0) points.push(...endMove(route[0] as Point, ends.from, moved));
@@ -62,10 +63,7 @@ function onSide(rect: Rect, side: Side, point: Point): boolean {
  * The bend points that draw a route as it is: its corners, but its ends and the points where a stub
  * of an end attached by hand turns.
  */
-export function cornersOf(
-  route: readonly Point[],
-  stubs: { from?: Side; to?: Side },
-): Point[] {
+export function cornersOf(route: readonly Point[], stubs: { from?: Side; to?: Side }): Point[] {
   const corners = simplified(route).slice(1, -1);
   const first = route[0];
   const last = route.at(-1);

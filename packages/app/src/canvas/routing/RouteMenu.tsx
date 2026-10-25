@@ -129,7 +129,9 @@ export function RouteMenu({
         onClick={anyByHand ? press(() => resetCommand(project, viewId, ids)) : undefined}
       >
         {t('Reset route')}
-        {!anyByHand && <span className="canvas-menu-hint"> · {t('It is routed automatically')}</span>}
+        {!anyByHand && (
+          <span className="canvas-menu-hint"> · {t('It is routed automatically')}</span>
+        )}
       </button>
       {one !== undefined && line && attachedByHand(line, 'from') && (
         <button

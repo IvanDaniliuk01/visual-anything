@@ -9,9 +9,17 @@ import { drawnCurve } from './curves';
 import { pointOnSpan, routeByHand } from './hand';
 
 /** A curved line routed by hand between two rectangles, `across` apart. */
-function curvedLine(across: number, dash: RelationLine['dash'] = 'solid', directed = true): RelationLine {
+function curvedLine(
+  across: number,
+  dash: RelationLine['dash'] = 'solid',
+  directed = true,
+): RelationLine {
   const { route, curve } = routeByHand(
-    { kind: 'shape', rect: { x: 0, y: 0, width: 100, height: 60 }, attach: { side: 'right', at: 0.5 } },
+    {
+      kind: 'shape',
+      rect: { x: 0, y: 0, width: 100, height: 60 },
+      attach: { side: 'right', at: 0.5 },
+    },
     {
       kind: 'shape',
       rect: { x: across, y: 400, width: 100, height: 60 },
@@ -38,8 +46,10 @@ function curvedLine(across: number, dash: RelationLine['dash'] = 'solid', direct
 
 /** The kinds of path instructions a drawing holds, in order. */
 function pathActions(graphics: Graphics): string[] {
-  return graphics.context.instructions.flatMap((instruction) =>
-    (instruction.data as { path?: GraphicsPath }).path?.instructions.map((each) => each.action) ?? [],
+  return graphics.context.instructions.flatMap(
+    (instruction) =>
+      (instruction.data as { path?: GraphicsPath }).path?.instructions.map((each) => each.action) ??
+      [],
   );
 }
 

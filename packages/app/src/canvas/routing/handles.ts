@@ -52,18 +52,22 @@ export function handlesOf(line: RelationLine, scale: number): Handle[] {
       const b = route[at + 1] as Point;
       const length = distance(a, b);
       if (length * scale <= SHORTEST_SEGMENT) continue;
-      if ((at === 0 && stubs.from && length <= STUB + 1e-6) || (at === route.length - 2 && stubs.to && length <= STUB + 1e-6)) {
+      if (
+        (at === 0 && stubs.from && length <= STUB + 1e-6) ||
+        (at === route.length - 2 && stubs.to && length <= STUB + 1e-6)
+      ) {
         continue;
       }
       middles.push({ kind: 'middle', segment: at, at: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } });
     }
-    const placed = [
+    const placed: { handle: Handle; along: number }[] = [
       ...middles.map((handle) => ({ handle, along: alongRoute(route, handle.at) })),
       ...bends.map((at, index) => ({
-        handle: { kind: 'bend', index, at } as Handle,
+        handle: { kind: 'bend' as const, index, at },
         along: alongRoute(route, at) + 1e-9,
       })),
-    ].sort((a, b) => a.along - b.along);
+    ];
+    placed.sort((a, b) => a.along - b.along);
     handles.push(...placed.map((each) => each.handle));
   }
   handles.push({ kind: 'end', end: 'to', at: line.to, byHand: attachedByHand(line, 'to') });
@@ -85,7 +89,11 @@ export function stubsOf(line: RelationLine): { from: boolean; to: boolean } {
  * The handle under a point, within `reach`: the nearest; on a tie, an end or a bend point before the
  * middle of a segment.
  */
-export function handleAt(handles: readonly Handle[], point: Point, reach: number): Handle | undefined {
+export function handleAt(
+  handles: readonly Handle[],
+  point: Point,
+  reach: number,
+): Handle | undefined {
   let found: Handle | undefined;
   let nearest = Infinity;
   for (const handle of handles) {
@@ -99,7 +107,11 @@ export function handleAt(handles: readonly Handle[], point: Point, reach: number
 }
 
 /** The drawn segment of a route under a point, within `reach`, by the index of its first point. */
-export function segmentAt(route: readonly Point[], point: Point, reach: number): number | undefined {
+export function segmentAt(
+  route: readonly Point[],
+  point: Point,
+  reach: number,
+): number | undefined {
   let found: number | undefined;
   let nearest = Infinity;
   for (let at = 0; at < route.length - 1; at++) {
@@ -120,7 +132,14 @@ function alongRoute(route: readonly Point[], point: Point): number {
     const a = route[at] as Point;
     const b = route[at + 1] as Point;
     const length = distance(a, b);
-    const t = length === 0 ? 0 : clamp(((point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)) / (length * length), 0, 1);
+    const t =
+      length === 0
+        ? 0
+        : clamp(
+            ((point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)) / (length * length),
+            0,
+            1,
+          );
     const away = Math.hypot(point.x - (a.x + t * (b.x - a.x)), point.y - (a.y + t * (b.y - a.y)));
     if (away < best.away) best = { away, along: travelled + t * length };
     travelled += length;
@@ -130,7 +149,10 @@ function alongRoute(route: readonly Point[], point: Point): number {
 
 function distanceToSegment(point: Point, a: Point, b: Point): number {
   const length2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
-  const t = length2 === 0 ? 0 : clamp(((point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)) / length2, 0, 1);
+  const t =
+    length2 === 0
+      ? 0
+      : clamp(((point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)) / length2, 0, 1);
   return Math.hypot(point.x - (a.x + t * (b.x - a.x)), point.y - (a.y + t * (b.y - a.y)));
 }
 

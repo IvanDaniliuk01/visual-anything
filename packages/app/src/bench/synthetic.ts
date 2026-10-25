@@ -11,7 +11,7 @@
  *   them, in one cascade where each overlaps the ones before it.
  */
 import { SYSTEMS, type ProjectSnapshot } from '@visual-anything/core';
-import type { Element, Relation, ShapePosition } from '@visual-anything/schema';
+import type { Element, Relation, Routes, ShapePosition } from '@visual-anything/schema';
 
 /** How the synthetic shapes overlap. */
 export type Overlap = 'none' | 'stairs' | 'grid' | 'cascade';
@@ -27,6 +27,11 @@ export interface SyntheticOptions {
   relationsPerElement?: number;
   /** How the shapes overlap; by default, only through containment. */
   overlap?: Overlap;
+  /**
+   * How many relations the view routes by hand (ADR 0039), the first ones: a third curved, a third
+   * straight from a place on the top of their start, and a third orthogonal through a bend point.
+   */
+  routes?: number;
 }
 
 const COMPONENTS = [
@@ -107,6 +112,7 @@ export function syntheticProject(options: SyntheticOptions): ProjectSnapshot {
     relations.push({ id: `relation-${each}`, relationType, from, to, ...(name ? { name } : {}) });
   }
 
+  const routes = handRoutes(options.routes ?? 0, relations, positions);
   return {
     project: { schemaVersion: 1, name: `${options.elements} elements`, packages: ['systems'] },
     model: { world: { id: 'world', component: 'essence', name: 'World' }, elements, relations },
@@ -119,10 +125,54 @@ export function syntheticProject(options: SyntheticOptions): ProjectSnapshot {
         nestingRelationTypes: ['systems.is-part-of'],
         positions,
         freeShapes: [],
+        ...(routes ? { routes } : {}),
       },
     ],
     scenarios: [],
   };
+}
+
+/**
+ * Routes by hand for the first `count` relations: every third curved, every third straight from the
+ * top of its start, and every third orthogonal through a bend point below the middle between its
+ * ends, relative to the canvas.
+ */
+function handRoutes(
+  count: number,
+  relations: readonly Relation[],
+  positions: readonly ShapePosition[],
+): Routes | undefined {
+  if (count <= 0) return undefined;
+  const places = new Map<string, ShapePosition>();
+  for (const position of positions)
+    if (!places.has(position.element)) places.set(position.element, position);
+  const placeOf = (element: string): { x: number; y: number } => {
+    const position = places.get(element);
+    if (!position) return { x: 0, y: 0 };
+    const origin = position.container === undefined ? { x: 0, y: 0 } : placeOf(position.container);
+    return { x: origin.x + position.x, y: origin.y + position.y };
+  };
+  const routes: Routes = {};
+  let made = 0;
+  for (const relation of relations) {
+    if (made >= count) break;
+    if (relation.relationType === 'systems.is-part-of') continue;
+    const kind = made % 3;
+    if (kind === 0) routes[relation.id] = { style: 'curved' };
+    else if (kind === 1) {
+      routes[relation.id] = { from: { kind: 'border', side: 'top', at: 0.25 }, style: 'straight' };
+    } else {
+      const from = placeOf(relation.from);
+      const to = placeOf(relation.to);
+      routes[relation.id] = {
+        bendPoints: [
+          { x: Math.round((from.x + to.x) / 2 + 90), y: Math.round((from.y + to.y) / 2 + 120) },
+        ],
+      };
+    }
+    made += 1;
+  }
+  return routes;
 }
 
 interface Building {

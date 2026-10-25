@@ -113,7 +113,11 @@ export function aimEnd(
   const drawn = line.ends?.[end];
   const own = drawn?.kind === 'shape' ? indexed.byKey.get(drawn.key) : undefined;
   if (own && nearShape(own, point, BORDER_REACH / scale)) {
-    return { kind: 'attach', shape: own, ...snapEnd(own, point, scale, exact, drawsRows(project, own)) };
+    return {
+      kind: 'attach',
+      shape: own,
+      ...snapEnd(own, point, scale, exact, drawsRows(project, own)),
+    };
   }
   const [under] = shapesAt(indexed, point, outline, hidden);
   if (!under || under.element === relation[end]) return { kind: 'back' };
@@ -197,7 +201,12 @@ export function drawsRows(project: ProjectSnapshot, shape: ElementShape): boolea
 }
 
 /** Whether ending a relation on an element would make containment form a cycle, as the core refuses. */
-function formsCycle(project: ProjectSnapshot, relation: Relation, end: 'from' | 'to', element: Id): boolean {
+function formsCycle(
+  project: ProjectSnapshot,
+  relation: Relation,
+  end: 'from' | 'to',
+  element: Id,
+): boolean {
   const definitions = definitionsIn(project);
   if (!relationTypeOrRelatesTo(definitions, relation.relationType).nests) return false;
   const index = modelIndexOf(project);

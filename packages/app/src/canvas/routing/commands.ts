@@ -52,7 +52,8 @@ export function routeOfLine(
 ): ResolvedRoute | undefined {
   if (line.hand) return line.hand.route;
   const first = new Map<Id, ElementShape>();
-  for (const shape of indexed.scene.shapes) if (!first.has(shape.element)) first.set(shape.element, shape);
+  for (const shape of indexed.scene.shapes)
+    if (!first.has(shape.element)) first.set(shape.element, shape);
   return routeOf(project, view, line.relation, {
     holdersOf: (element) => first.get(element)?.key.split('/'),
   });
@@ -173,7 +174,9 @@ export function reconnectCommand(
   attachment: EndAttachment | null,
 ): Command {
   const index = modelIndexOf(project);
-  const commands: Command[] = [{ type: 'update-relation', id: relation, changes: { [end]: element } }];
+  const commands: Command[] = [
+    { type: 'update-relation', id: relation, changes: { [end]: element } },
+  ];
   if (attachment !== null) {
     commands.push({ type: 'set-route', view: viewId, relation, [end]: attachment });
   }
@@ -221,7 +224,12 @@ export function carriedRouteCommands(
   for (const line of indexed.scene.relations) {
     const hand = line.hand;
     const ends = line.ends;
-    if (!hand || hand.bendPoints.length === 0 || ends?.from.kind !== 'shape' || ends.to.kind !== 'shape') {
+    if (
+      !hand ||
+      hand.bendPoints.length === 0 ||
+      ends?.from.kind !== 'shape' ||
+      ends.to.kind !== 'shape'
+    ) {
       continue;
     }
     if (!carried.has(ends.from.key) || !carried.has(ends.to.key)) continue;
@@ -272,7 +280,8 @@ export function droppedInto(
 ): DroppedInto {
   const world = project.model.world.id;
   const to = change.to === undefined || change.to === world ? undefined : change.to;
-  const holder = to === undefined ? undefined : target?.element === to ? target : indexed.byElement.get(to)?.[0];
+  const holder =
+    to === undefined ? undefined : target?.element === to ? target : indexed.byElement.get(to)?.[0];
   const placed = new Set(change.shapes.map((shape) => shape.element));
   return {
     container: to ?? world,
