@@ -5,7 +5,7 @@
   "description": "The browser app: React panels and the PixiJS canvas. It sends commands to the local program and renders what comes back.",
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.viewer.config.ts",
     "bench": "vite build --config vite.bench.config.ts && vite preview --config vite.bench.config.ts",
     "typecheck": "tsc"
   },
