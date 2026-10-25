@@ -1,0 +1,115 @@
+# Build the single executables (D2, ADR 0037), each on its own system, smoke-test each one there with
+# no Node.js on the PATH, keep them as artifacts, and on a tag attach them to its release.
+#
+# Minutes: the repository is private on GitHub's free plan, which gives about 2,000 a month, counts
+# a minute on Windows twice and one on macOS ten times, and bills each job in whole minutes.
+# - A pushed tag v*, or a manual run: five builds of about 5 minutes each: Linux x64 and arm64
+#   (about 10), Windows x64 (about 6, counted 12), macOS arm64 and x64 (about 2 × 6, counted 120);
+#   about 140 minutes, and 1 more to attach a tag's executables to its release.
+# The artifacts are kept 7 days, as the plan stores 500 MB of them.
+name: Executables
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: executables-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: windows-x64, os: windows-latest, file: visual-anything.exe }
+          - { target: macos-arm64, os: macos-15, file: visual-anything }
+          # GitHub's last Intel image for macOS.
+          - { target: macos-x64, os: macos-15-intel, file: visual-anything }
+          - { target: linux-x64, os: ubuntu-24.04, file: visual-anything }
+          - { target: linux-arm64, os: ubuntu-24.04-arm, file: visual-anything }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      # The executable holds the Node.js that makes it: 24, a long-term support release CI tests on.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm package
+      - name: Smoke-test it, with no Node.js on the PATH
+        shell: bash
+        run: |
+          node="$(command -v node)"
+          # Every folder that holds Node.js leaves the PATH; only the test itself runs on Node.js.
+          kept=""
+          IFS=':'
+          for folder in $PATH; do
+            if [ ! -e "$folder/node" ] && [ ! -e "$folder/node.exe" ]; then
+              kept="${kept:+$kept:}$folder"
+            fi
+          done
+          unset IFS
+          export PATH="$kept"
+          if command -v node; then
+            echo "Node.js is still on the PATH."
+            exit 1
+          fi
+          "$node" node_modules/tsx/dist/cli.mjs packages/server/scripts/smoke.ts \
+            "dist-exe/${{ matrix.file }}" --browser
+      - name: Name it for its system
+        shell: bash
+        run: |
+          mkdir release
+          extension="${{ matrix.file }}"
+          extension="${extension#visual-anything}"
+          cp "dist-exe/${{ matrix.file }}" "release/visual-anything-${{ matrix.target }}$extension"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: visual-anything-${{ matrix.target }}
+          path: release/*
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: visual-anything-*
+          path: release
+          merge-multiple: true
+      - name: Write the checksums
+        working-directory: release
+        run: |
+          sha256sum visual-anything-* > SHA256SUMS
+          cat SHA256SUMS
+      - name: Attach the executables and their checksums to the tag's release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            # A tag with a hyphen, such as v0.1.0-rc.1, makes a prerelease.
+            prerelease=""
+            case "$TAG" in *-*) prerelease="--prerelease" ;; esac
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag $prerelease \
+              --title "Visual Anything $TAG" \
+              --notes "Single executables for Windows, macOS and Linux. They are unsigned: the README says how to run them. Check each against SHA256SUMS."
+          fi
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber release/*
