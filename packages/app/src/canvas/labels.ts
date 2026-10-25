@@ -1,11 +1,14 @@
 /**
  * Labels drawn from bitmap fonts: each glyph is drawn once into a shared texture, so that showing
- * thousands of names costs little more than showing one. Shape labels are drawn in white and tinted
- * to the colour that reads on their shape's fill.
+ * thousands of names costs little more than showing one. Every font is drawn in white and tinted: a
+ * shape's labels to the color that reads on its fill, a relation's name to the theme's text over a
+ * back tinted to the canvas, so that a new theme or a new fill only tints labels again.
  */
-import { BitmapFont, BitmapText, Cache, type TextStyleOptions } from 'pixi.js';
+import { BitmapFont, BitmapText, Cache, Container, Sprite, Texture } from 'pixi.js';
+import type { TextStyleOptions } from 'pixi.js';
+import type { Color } from '@visual-anything/schema';
 import { FONT_FAMILY, fitText, type LabelKind, type TextFactory } from './draw';
-import { RELATION_LABEL_HALO, RELATION_LABEL_TEXT } from './palette';
+import { RELATION_LABEL_HALO, RELATION_LABEL_TEXT } from './colors';
 
 const FONTS: Record<LabelKind, string> = {
   name: 'visual-anything-name',
@@ -21,6 +24,9 @@ const CHARACTERS: (string | string[])[] = [[' ', '~'], 'áéíóúüñÁÉÍÓÚ
 
 /** The keys PixiJS keeps the installed fonts under in its cache. */
 const CACHED = Object.values(FONTS).map((name) => `${name}-bitmap`);
+
+/** How far a relation's name's back reaches past its text, across and down, in canvas units. */
+const BACK_PADDING = { x: 3, y: 1 };
 
 /**
  * Draws the glyphs of the label fonts, which takes a moment the first time; done ahead of need. Each
@@ -44,12 +50,7 @@ export function installFonts(): void {
   });
   installOnce({
     name: FONTS.relation,
-    style: {
-      fontFamily: FONT_FAMILY,
-      fontSize: 12,
-      fill: RELATION_LABEL_TEXT,
-      stroke: { color: RELATION_LABEL_HALO, width: 4, join: 'round' },
-    },
+    style: { fontFamily: FONT_FAMILY, fontSize: 12, fill: '#ffffff' },
     ...common,
   });
 }
@@ -61,8 +62,28 @@ function installOnce(options: Parameters<typeof BitmapFont.install>[0] & { name:
 }
 
 /**
+ * A relation's name: its text over a back that covers the line and whatever else is under it, both
+ * white and tinted, so that a theme switch only tints them again.
+ */
+export class RelationLabel extends Container {
+  constructor(
+    readonly back: Sprite,
+    readonly text: Container,
+  ) {
+    super({ children: [back, text] });
+  }
+
+  /** Tints the text and its back. */
+  paint(text: Color, back: Color): void {
+    this.text.tint = text;
+    this.back.tint = back;
+  }
+}
+
+/**
  * Makes a label from a bitmap font, laid out as `draw.ts` lays out its text, and fitted in the room
- * its shape gives it: shortened with "…" when too tall, or left out when even that does not fit.
+ * its shape gives it: shortened with "…" when too tall, or left out when even that does not fit. A
+ * relation's name takes its fill as its text's tint, and its stroke's color as its back's.
  */
 export const bitmapText: TextFactory = (options, kind, room) => {
   installFonts();
@@ -81,6 +102,33 @@ export const bitmapText: TextFactory = (options, kind, room) => {
       ...(style.breakWords === undefined ? {} : { breakWords: style.breakWords }),
     },
   });
-  if (kind !== 'relation' && typeof style.fill === 'string') text.tint = style.fill;
-  return fitText(text, room);
+  if (kind !== 'relation') {
+    if (typeof style.fill === 'string') text.tint = style.fill;
+    return fitText(text, room);
+  }
+  return relationLabel(text, style);
 };
+
+/** A relation's name over its back, both centered where the text was placed. */
+function relationLabel(text: BitmapText, style: TextStyleOptions): RelationLabel {
+  const back = new Sprite(Texture.WHITE);
+  const { x, y } = text.position;
+  text.anchor.set(0.5);
+  text.position.set(0, 0);
+  back.anchor.set(0.5);
+  back.width = text.width + 2 * BACK_PADDING.x;
+  back.height = text.height + 2 * BACK_PADDING.y;
+  const label = new RelationLabel(back, text);
+  label.position.set(x, y);
+  label.paint(
+    typeof style.fill === 'string' ? style.fill : RELATION_LABEL_TEXT,
+    strokeColorOf(style) ?? RELATION_LABEL_HALO,
+  );
+  return label;
+}
+
+function strokeColorOf(style: TextStyleOptions): string | undefined {
+  const { stroke } = style;
+  if (typeof stroke !== 'object' || stroke === null || !('color' in stroke)) return undefined;
+  return typeof stroke.color === 'string' ? stroke.color : undefined;
+}

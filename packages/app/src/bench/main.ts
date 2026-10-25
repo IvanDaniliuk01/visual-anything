@@ -3,7 +3,9 @@
  * pans and zooms by itself, shapes are selected one at a time and all at once, and the view is edited
  * and restacked. `pnpm bench` builds this page for production and serves it on 127.0.0.1:47707, at
  * `/bench.html`; the official numbers come from that build, in work mode. `?elements=N` changes the
- * size, and `?overlap=stairs`, `grid` or `cascade` makes shapes overlap (see `synthetic.ts`).
+ * size, `?overlap=stairs`, `grid` or `cascade` makes shapes overlap (see `synthetic.ts`), and
+ * `?theme=dark` runs it in the dark theme. It also switches the theme back and forth at three scales,
+ * pans and zooms after a switch, selects everything in the dark theme, and recolors every Service.
  *
  * Work mode, the default, measures the work of each frame: it moves the camera, draws the frame and
  * waits until the GPU has drawn it, so the result does not depend on how often the browser offers
@@ -18,6 +20,7 @@ import {
   executeCommand,
   type Command,
   type ProjectSnapshot,
+  type ThemeName,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { EMPTY_SELECTION, selectionOf, type Selectable, type Selection } from '../editor/selection';
@@ -25,15 +28,19 @@ import { panBy, screenToWorld, zoomAt, type Camera } from '../canvas/camera';
 import { CanvasController } from '../canvas/controller';
 import { centerOf } from '../canvas/geometry';
 import { hitAt, indexScene, type IndexedScene } from '../canvas/hit';
-import { DETAILS_FROM, NAMES_FROM } from '../canvas/renderer';
+import { COARSE_BELOW, DETAILS_FROM, NAMES_FROM } from '../canvas/renderer';
 import { buildScene, type ElementShape } from '../canvas/scene';
 import { MAX_BANDS, plannedTiles } from '../canvas/tiles';
-import { SHOWN, TARGET_FPS, WORK, addRow, percentile, showVerdict } from './report';
+import '../theme/tokens.css';
+import { THEMES } from '../theme/themes';
+import { RESTYLING, SHOWN, TARGET_FPS, WORK, addRow, percentile, showVerdict } from './report';
 import { OVERLAPS, seeded, syntheticProject, type Overlap } from './synthetic';
 
 interface Phase {
   name: string;
   frames: number[];
+  /** Judged as theme switches and recolors are, by `RESTYLING`, rather than by the frame budget. */
+  restyling?: boolean;
 }
 
 interface Row {
@@ -55,11 +62,18 @@ interface Timed {
 /** How long a restack may take, from the command to the frame drawn, at the 95th percentile. */
 const RESTACK_MARK = 100;
 const VIEW = 'everything';
+/** How many times each phase of switches switches the theme. */
+const SWITCHES = 6;
+/** How many times the recolor phase gives every Service other colors. */
+const RECOLORS = 4;
 
 const search = new URLSearchParams(location.search);
 const size = Number(search.get('elements') ?? 10_000);
 const mode: 'work' | 'frames' = search.get('mode') === 'frames' ? 'frames' : 'work';
 const overlap: Overlap = OVERLAPS.find((each) => each === search.get('overlap')) ?? 'none';
+const startTheme: ThemeName = search.get('theme') === 'dark' ? 'dark' : 'light';
+// The page's panel follows the canvas's theme, as the app's do.
+document.documentElement.setAttribute('data-theme', startTheme);
 const host = document.getElementById('canvas') as HTMLElement;
 const status = document.getElementById('status') as HTMLElement;
 
@@ -71,20 +85,25 @@ const { scene } = indexed;
 // Before any edit moves a shape over another.
 const bands = bandReport();
 
-const controller = new CanvasController(host, {
-  select: () => undefined,
-  command: () => Promise.resolve(false),
-  relate: () => undefined,
-  remove: () => undefined,
-  rename: () => undefined,
-  camera: () => undefined,
-  failure: (error) => {
-    status.textContent = `The canvas failed: ${error instanceof Error ? error.message : String(error)}`;
+const controller = new CanvasController(
+  host,
+  {
+    select: () => undefined,
+    command: () => Promise.resolve(false),
+    relate: () => undefined,
+    remove: () => undefined,
+    rename: () => undefined,
+    camera: () => undefined,
+    failure: (error) => {
+      status.textContent = `The canvas failed: ${error instanceof Error ? error.message : String(error)}`;
+    },
+    themeShown: (theme) => document.documentElement.setAttribute('data-theme', theme),
   },
-});
+  { theme: THEMES[startTheme].canvas },
+);
 controller.update(project, VIEW, indexed, false);
 // For looking into the benchmark from the browser's console.
-Object.assign(window, { benchmark: { controller, project, scene, indexed } });
+Object.assign(window, { benchmark: { controller, project, scene, indexed, THEMES } });
 
 void run();
 
@@ -177,13 +196,171 @@ async function run(): Promise<void> {
   );
   controller.setSelection(EMPTY_SELECTION);
 
+  // Theme switches (ADR-0033): each draws the tiles on screen again within the frame's clock, and
+  // then shows them, with the page, in one frame.
+  const themeNotes: string[] = [];
+  const switchPhase = async (name: string, place: () => void) => {
+    place();
+    await settle(1000);
+    const counts = restyleCounts();
+    phases.push({
+      ...(await measure(name, SWITCHES, switchTheme, {
+        more: () => controller.renderer.switching,
+      })),
+      restyling: true,
+    });
+    themeNotes.push(`${name}: ${restyleNote(counts)}`);
+  };
+  await switchPhase('Switch theme, whole view', () => controller.fit());
+  await switchPhase('Switch theme, shapes in full', () => move(cameraAt(COARSE_BELOW * 1.04)));
+  await switchPhase('Switch theme, names shown', () => move(cameraAt(NAMES_FROM * 1.3)));
+
+  // Right after a switch, what comes on screen is drawn again before it shows.
+  move(cameraAt(NAMES_FROM * 1.3));
+  await settle(1000);
+  let counts = restyleCounts();
+  switchAndShow();
+  phases.push(
+    await measure('Pan after a switch, names shown', 180, (frame) =>
+      move(panBy(controller.camera, frame < 90 ? -8 : 8, frame < 90 ? -4 : 4)),
+    ),
+  );
+  themeNotes.push(`Pan after a switch: ${restyleNote(counts)}`);
+  controller.fit();
+  await settle(300);
+  counts = restyleCounts();
+  switchAndShow();
+  await settle(1000);
+  const zoomSteps = Math.ceil(
+    Math.log((NAMES_FROM * 1.3) / controller.camera.scale) / Math.log(1.02),
+  );
+  phases.push(
+    await measure('Zoom in after a switch, to names shown', zoomSteps, () =>
+      move(zoomAt(controller.camera, middle, 1.02)),
+    ),
+  );
+  themeNotes.push(`Zoom in after a switch: ${restyleNote(counts)}`);
+
+  // Selecting everything in the dark theme.
+  if (controller.renderer.theme !== 'dark') switchAndShow();
+  controller.fit();
+  await settle(1000);
+  phases.push(
+    await measure(
+      'Select everything, dark theme',
+      20,
+      () => controller.setSelection(everything()),
+      {
+        before: () => controller.setSelection(EMPTY_SELECTION),
+        more: () => controller.renderer.drawingMarks,
+      },
+    ),
+  );
+  controller.setSelection(everything());
+  while (controller.renderer.drawingMarks) controller.renderer.renderNow();
+  await settle(300);
+  phases.push(
+    await measure('Zoom, everything selected, dark theme', 180, (frame) =>
+      move(zoomAt(controller.camera, middle, frame < 90 ? 1.02 : 1 / 1.02)),
+    ),
+  );
+  controller.setSelection(EMPTY_SELECTION);
+  if (controller.renderer.theme !== startTheme) switchAndShow();
+
+  // Recoloring every Service restyles its tiles in place, and shows them in one frame (A2).
+  move(cameraAt(COARSE_BELOW * 1.04));
+  await settle(1000);
+  const recolor = await measureRecolors(RECOLORS);
+  phases.push(recolor.phase);
+  themeNotes.push(recolor.note);
+
   // Edits, near the middle of the screen, where they are drawn in full and named.
   move(cameraAt(NAMES_FROM * 1.3));
   await settle(300);
   const timed: Timed[] = [await measureEdits(10)];
   if (overlap === 'none' || overlap === 'stairs') timed.push(await measureRestacks(20));
 
-  report(phases, timed, latency);
+  report(phases, timed, latency, themeNotes);
+}
+
+/** Switches to the other theme. */
+function switchTheme(): void {
+  controller.renderer.setTheme(
+    THEMES[controller.renderer.theme === 'dark' ? 'light' : 'dark'].canvas,
+  );
+}
+
+/** Switches to the other theme, and draws frames until it shows, without measuring them. */
+function switchAndShow(): void {
+  switchTheme();
+  while (controller.renderer.switching) controller.renderer.renderNow();
+}
+
+/** What the renderer counted of restyles so far. */
+function restyleCounts(): { swaps: number; fallbacks: number; staleShown: number } {
+  const { stats } = controller.renderer;
+  return {
+    swaps: stats.swapAfter.length,
+    fallbacks: stats.fallbacks,
+    staleShown: stats.staleShown,
+  };
+}
+
+/** What restyles did since `from`: after how many frames each showed, and what showed stale. */
+function restyleNote(from: ReturnType<typeof restyleCounts>): string {
+  const { stats } = controller.renderer;
+  const swaps = stats.swapAfter.slice(from.swaps);
+  return `shown after ${swaps.join(', ') || 'no'} frames; ${stats.fallbacks - from.fallbacks} fallbacks and ${stats.staleShown - from.staleShown} stale tiles shown`;
+}
+
+/**
+ * Gives every Service other colors with a project appearance, as the inspector does, and measures the
+ * frame that applies it (the scene's build and index apart), the frames until it shows and 30 after.
+ */
+async function measureRecolors(count: number): Promise<{ phase: Phase; note: string }> {
+  performance.mark('phase Recolor every Service');
+  const { renderer } = controller;
+  const counts = restyleCounts();
+  const frames: number[] = [];
+  const parts = { build: 0, index: 0, apply: 0, until: [] as number[] };
+  const timedFrame = () => {
+    const began = performance.now();
+    renderer.renderNow(true);
+    frames.push(performance.now() - began);
+  };
+  for (let each = 0; each < count; each++) {
+    const outcome = executeCommand(project, {
+      type: 'set-component-appearance',
+      component: 'systems.service',
+      appearance: each % 2 === 0 ? { fill: '#E7F5FF', stroke: '#0B7285' } : null,
+    });
+    if (!outcome.ok) throw new Error(outcome.problems.map((problem) => problem.message).join(' '));
+    const began = performance.now();
+    const nextScene = buildScene(outcome.state, VIEW);
+    const built = performance.now();
+    indexed = indexScene(nextScene);
+    const indexedAt = performance.now();
+    controller.update(outcome.state, VIEW, indexed, false);
+    renderer.renderNow(true);
+    const applied = performance.now();
+    project = outcome.state;
+    parts.build += built - began;
+    parts.index += indexedAt - built;
+    parts.apply += applied - indexedAt;
+    let until = 1;
+    while (renderer.switching) {
+      timedFrame();
+      until += 1;
+    }
+    parts.until.push(until);
+    for (let later = 0; later < 30; later++) timedFrame();
+    await settle(300);
+  }
+  const average = (total: number) => (total / Math.max(1, count)).toFixed(0);
+  return {
+    phase: { name: 'Recolor every Service, frames after it', frames, restyling: true },
+    note: `Recolor every Service: scene ${average(parts.build)} ms and index ${average(parts.index)} ms on average, then the applying frame ${average(parts.apply)} ms; ${restyleNote(counts)}`,
+  };
 }
 
 function move(camera: Camera): void {
@@ -415,14 +592,15 @@ function bandReport(): string {
   return `Overlap "${overlap}": highest band ${Math.max(0, ...indexed.bands)}; shapes by band ${histogram}; ${(tiles.length - runs).toLocaleString()} tiles in bands and ${runs.toLocaleString()} runs beyond them.`;
 }
 
-function report(phases: Phase[], timed: Timed[], latency: number[]): void {
-  const rows: Row[] = phases.map(({ name, frames }) => {
+function report(phases: Phase[], timed: Timed[], latency: number[], themeNotes: string[]): void {
+  const rows: Row[] = phases.map(({ name, frames, restyling }) => {
     const average = frames.reduce((sum, each) => sum + each, 0) / Math.max(1, frames.length);
     const p95 = percentile(frames, 0.95);
     const worst = Math.max(...frames);
     // Frames as shown may run a little late, but none takes more than two frames, as in work mode.
-    const passes =
-      mode === 'work'
+    const passes = restyling
+      ? p95 <= RESTYLING.p95 && worst <= RESTYLING.worst
+      : mode === 'work'
         ? average <= WORK.average && p95 <= WORK.p95 && worst <= WORK.worst
         : average <= SHOWN.average && p95 <= SHOWN.p95 && worst <= WORK.worst;
     return { name, average, p95, worst, passes };
@@ -461,6 +639,7 @@ function report(phases: Phase[], timed: Timed[], latency: number[]): void {
   notes.textContent = [
     bands,
     ...actions.flatMap((action) => (action.note ? [`${action.name}: ${action.note}.`] : [])),
+    ...themeNotes.map((note) => `${note}.`),
   ].join('\n');
 
   const selection = { p50: percentile(latency, 0.5), p95: percentile(latency, 0.95) };
@@ -488,6 +667,9 @@ function report(phases: Phase[], timed: Timed[], latency: number[]): void {
       })),
       bands,
       selection,
+      theme: startTheme,
+      themeNotes,
+      restyles: controller.renderer.stats,
       passed,
     }),
   );
