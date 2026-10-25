@@ -1,3 +1,39 @@
+/**
+ * The keys of a selected relation's route (ADR 0039): its menu, removing a bend point, Alt, and the
+ * keys of route editing, after Edit the route… in the relation's menu or the inspector. Listed after
+ * the canvas's own.
+ */
+export const ROUTE_KEYS: readonly { keys: string; does: string }[] = [
+  {
+    keys: 'Shift+F10 or the menu key, on a relation',
+    does: 'Open the relation’s menu: its style, Reset route, and Edit the route…',
+  },
+  {
+    keys: 'Alt while dragging an end or a bend point of a route (⌥ on macOS)',
+    does: 'Place it without snapping, at the exact border point or where it is let go',
+  },
+  {
+    keys: 'Delete, with a bend point chosen',
+    does: 'Remove the bend point from the route; double-clicking it does too',
+  },
+  {
+    keys: 'Tab and Shift+Tab, editing a route',
+    does: 'The next or the previous handle: the start, the bend points and the middles of the segments, the end',
+  },
+  {
+    keys: 'Arrow keys, editing a route',
+    does: 'Move the bend point or the segment by 1 unit, with Shift by 8; on an end, move it along the border by 1 unit, round the corners, and with Shift to the next connection point',
+  },
+  {
+    keys: 'Insert or Ctrl+Enter, editing a route',
+    does: 'Add a bend point at the middle of the chosen segment, or after the chosen bend point',
+  },
+  { keys: 'Delete or Backspace, editing a route', does: 'Remove the chosen bend point' },
+  { keys: 'A, editing a route', does: 'Attach the chosen end automatically' },
+  { keys: 'Enter, editing a route', does: 'Apply every change, as one action' },
+  { keys: 'Escape, editing a route', does: 'Cancel, and leave the route as it was' },
+];
+
 /** The canvas's keys, as its keyboard help lists them, in English; the help shows them translated. */
 export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
   {
@@ -41,6 +77,7 @@ export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
   { keys: 'Alt+− and Alt++', does: 'Collapse or expand the selected containers' },
   { keys: 'Space and drag', does: 'Pan' },
   { keys: 'Tab', does: 'Leave the canvas' },
+  ...ROUTE_KEYS,
 ];
 
 /** What the canvas tells screen readers about its keys when it gets the focus. */
