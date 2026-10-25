@@ -53,7 +53,8 @@ function run(overrides: Partial<CommandEnvironment> = {}) {
   const printedUrl = async () => {
     // The launch address, which carries the theme beside its launch code.
     const launch = (line: string) => line.includes(`#${LAUNCH_PARAM}=`);
-    await expect.poll(() => out.some(launch)).toBe(true);
+    // Opening the sample takes a while the first time, and longer on a slow CI runner.
+    await expect.poll(() => out.some(launch), { timeout: 10_000 }).toBe(true);
     const line = out.find(launch) ?? '';
     return new URL(line.slice(line.indexOf('http://')));
   };
@@ -68,7 +69,7 @@ function fragmentOf(url: URL): URLSearchParams {
   return new URLSearchParams(url.hash.slice(1));
 }
 
-describe('the address the program opens', () => {
+describe('the address the program opens', { timeout: 20_000 }, () => {
   it.each(['dark', 'light'] as const)('carries the theme chosen: %s', async (theme) => {
     await writeFile(join(preferences, PREFERENCES_FILE), JSON.stringify({ theme }));
     const { printedUrl, stop } = run();
@@ -85,7 +86,7 @@ describe('the address the program opens', () => {
   });
 });
 
-describe('a preferences file that cannot be read', () => {
+describe('a preferences file that cannot be read', { timeout: 20_000 }, () => {
   it('prints one warning and the program runs with the defaults', async () => {
     const file = join(preferences, PREFERENCES_FILE);
     await writeFile(file, '{ broken');
@@ -108,7 +109,7 @@ describe('a preferences file that cannot be read', () => {
   });
 });
 
-describe('preferences over the live connection', () => {
+describe('preferences over the live connection', { timeout: 20_000 }, () => {
   it('greets the app with them, and keeps a change in the file after the program stops', async () => {
     const nested = join(preferences, 'Visual Anything');
     await mkdir(nested);

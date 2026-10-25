@@ -127,21 +127,21 @@ describe('startServer', () => {
     expect(server.launchUrl()).not.toContain(server.token);
   });
 
-  it.skipIf(externalAddress === undefined)(
-    'cannot be reached through the other network interfaces',
-    async () => {
-      const reached = await new Promise<boolean>((resolve) => {
-        const socket = connect({ host: externalAddress, port: server.port });
-        socket.once('connect', () => {
-          socket.destroy();
-          resolve(true);
-        });
-        socket.once('error', () => resolve(false));
+  it('cannot be reached through the other network interfaces', async (context) => {
+    context.skip(
+      externalAddress === undefined,
+      'This machine has no IPv4 address but the loopback, so there is no other interface to try.',
+    );
+    const reached = await new Promise<boolean>((resolve) => {
+      const socket = connect({ host: externalAddress, port: server.port });
+      socket.once('connect', () => {
+        socket.destroy();
+        resolve(true);
       });
-      expect(reached).toBe(false);
-    },
-    15_000,
-  );
+      socket.once('error', () => resolve(false));
+    });
+    expect(reached).toBe(false);
+  }, 15_000);
 
   it('serves index.html for / without letting it be stored', async () => {
     const reply = await send(server.port, { headers: { Host: host } });

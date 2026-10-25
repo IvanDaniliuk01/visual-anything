@@ -71,16 +71,22 @@ describe('syntheticProject', () => {
     expect(plannedTiles(indexed, new Set())).toHaveLength(byContainers.size);
   });
 
-  it('lays out every way of overlapping with the same elements, quickly, and keeps the rules', () => {
-    for (const overlap of ['stairs', 'grid', 'cascade'] as const) {
-      const project = syntheticProject({ elements: 10_000, overlap });
-      expect(project.model.elements, overlap).toHaveLength(10_000);
-      expect(checkProject(project).errors, overlap).toEqual([]);
-      const { indexed, elapsed } = mode(overlap);
-      expect(indexed.scene.shapes, overlap).toHaveLength(10_000);
-      expect(elapsed, overlap).toBeLessThan(5000);
-    }
-  });
+  // Three projects of 10,000 elements, each checked and laid out: the bound on each layout below is
+  // the test, so the whole may take longer than a test usually does on a slow CI runner.
+  it(
+    'lays out every way of overlapping with the same elements, quickly, and keeps the rules',
+    { timeout: 30_000 },
+    () => {
+      for (const overlap of ['stairs', 'grid', 'cascade'] as const) {
+        const project = syntheticProject({ elements: 10_000, overlap });
+        expect(project.model.elements, overlap).toHaveLength(10_000);
+        expect(checkProject(project).errors, overlap).toEqual([]);
+        const { indexed, elapsed } = mode(overlap);
+        expect(indexed.scene.shapes, overlap).toHaveLength(10_000);
+        expect(elapsed, overlap).toBeLessThan(5000);
+      }
+    },
+  );
 
   it('draws a grid of touching shapes in one band, one tile to a cell', () => {
     const { indexed } = mode('grid');

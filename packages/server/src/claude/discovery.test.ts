@@ -157,7 +157,9 @@ describe('program records', () => {
     try {
       await symlink(real, join(runtime, recordName('/projects/shop')), 'file');
     } catch {
-      ctx.skip();
+      ctx.skip(
+        'This user may not make symbolic links here: Windows lets only Developer Mode or an administrator make them.',
+      );
     }
     expect(await readProgramRecord(runtime, '/projects/shop', context)).toBeUndefined();
   });
@@ -167,7 +169,7 @@ describe('program records', () => {
     try {
       await symlink(elsewhere, runtime, 'junction');
     } catch {
-      ctx.skip();
+      ctx.skip('This user may not make a link to a folder here.');
     }
     await expect(writeProgramRecord(runtime, record(), context)).rejects.toThrow(
       UnsafeRuntimeFolderError,
@@ -210,7 +212,7 @@ describe('program records', () => {
         try {
           await symlink(outside, join(profile, 'link-parent', 'run'), 'junction');
         } catch {
-          ctx.skip();
+          ctx.skip('This user may not make a link to a folder here.');
         }
         // The runtime folder itself is a real folder, but a folder on the way to it leads outside.
         await mkdir(join(outside, 'inner'));
@@ -230,7 +232,14 @@ describe('program records', () => {
     });
   });
 
-  describe.skipIf(process.platform === 'win32')('where files have owners', () => {
+  describe('where files have owners', () => {
+    beforeEach((context) => {
+      context.skip(
+        process.platform === 'win32',
+        "Windows files have no owner and mode bits: there the runtime folder must lie in the profile, as the tests 'on Windows' check on every system.",
+      );
+    });
+
     it('keeps the folder and the record private', async () => {
       const path = await writeProgramRecord(runtime, record(), context);
       expect((await stat(runtime)).mode & 0o777).toBe(0o700);

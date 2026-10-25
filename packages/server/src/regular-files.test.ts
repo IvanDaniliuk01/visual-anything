@@ -89,7 +89,9 @@ describe('readRegularFile', () => {
   it('refuses a symbolic link, even to a regular file', async (context) => {
     await writeFile(join(folder, 'real.vaview'), '{}');
     if (!(await tryLink(join(folder, 'real.vaview'), join(folder, 'link.vaview'), 'file'))) {
-      context.skip();
+      context.skip(
+        'This user may not make symbolic links here: Windows lets only Developer Mode or an administrator make them.',
+      );
     }
     expect(await readRegularFile(join(folder, 'link.vaview'), 1024)).toEqual({
       ok: false,
@@ -102,7 +104,7 @@ describe('readRegularFile', () => {
   it('refuses a junction or a link to a folder', async (context) => {
     await mkdir(join(folder, 'target'));
     if (!(await tryLink(join(folder, 'target'), join(folder, 'junction.vaview'), 'junction'))) {
-      context.skip();
+      context.skip('This user may not make a link to a folder here.');
     }
     expect(await readRegularFile(join(folder, 'junction.vaview'), 1024)).toMatchObject({
       ok: false,
@@ -110,13 +112,21 @@ describe('readRegularFile', () => {
     });
   });
 
-  it.skipIf(process.platform === 'win32')('refuses a FIFO without waiting on it', async () => {
+  it('refuses a FIFO without waiting on it', async (context) => {
+    context.skip(
+      process.platform === 'win32',
+      'Windows has no FIFOs: its named pipes are not files in a folder.',
+    );
     const fifo = join(folder, 'pipe.vaview');
     execFileSync('mkfifo', [fifo]);
     expect(await readRegularFile(fifo, 1024)).toMatchObject({ ok: false, reason: 'not-regular' });
   });
 
-  it.skipIf(process.platform === 'win32')('refuses a device', async () => {
+  it('refuses a device', async (context) => {
+    context.skip(
+      process.platform === 'win32',
+      'Windows has no /dev/zero, nor devices among the files of a folder.',
+    );
     expect(await readRegularFile('/dev/zero', 1024)).toMatchObject({
       ok: false,
       reason: 'not-regular',
@@ -171,7 +181,8 @@ describe('readRegularFile, when a name is swapped while it is read', () => {
       await symlink(outside, join(project, 'views'), 'junction');
       return lstat(path, { bigint: true });
     };
-    if (!(await tryLink(outside, join(project, 'probe'), 'junction'))) context.skip();
+    if (!(await tryLink(outside, join(project, 'probe'), 'junction')))
+      context.skip('This user may not make a link to a folder here.');
     await rm(join(project, 'probe'), { recursive: true, force: true });
 
     const read = await readRegularFile(join(project, 'views/a.vaview'), 1024, {
