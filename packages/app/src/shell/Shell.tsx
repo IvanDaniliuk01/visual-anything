@@ -5,6 +5,7 @@ import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { ExportControl } from '../export/ExportControl';
 import { ImageSource, ImageSourceContext } from '../export/source';
+import { ImportControl } from '../import/ImportControl';
 import { DefinitionProvider } from './definitions/DefinitionProvider';
 import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
 import { GuidanceLayer } from '../guidance/GuidanceLayer';
@@ -123,6 +124,12 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
               actions={
                 <>
                   {view && <CopyAddress link={viewState} />}
+                  <ImportControl
+                    project={project}
+                    viewId={view?.id}
+                    send={live?.status === 'open' ? live.send : undefined}
+                    openView={setOpenViewId}
+                  />
                   {exportTool}
                 </>
               }

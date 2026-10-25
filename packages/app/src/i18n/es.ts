@@ -232,6 +232,63 @@ export const ui: Catalog = {
   '{view}, from the {perspective} perspective: {shapes}, {relations} and {free}.':
     '{view}, desde la perspectiva {perspective}: {shapes}, {relations} y {free}.',
 
+  // Import, in the header (ADR 0042): where the file comes from, its kinds mapped, the report.
+  'Import…': 'Importar…',
+  Import: 'Importar',
+  'Mermaid diagrams (flowcharts, C4, ER and class diagrams), spreadsheets (CSV or TSV) and JSON. The file is read here, in this tab, and nothing in it runs.':
+    'Mermaid (flowchart, C4, erDiagram y classDiagram), hojas de cálculo (CSV o TSV) y JSON. El archivo se lee aquí, en esta pestaña, y nada de lo que contiene se ejecuta.',
+  'Read from': 'Leer desde',
+  'A file': 'Un archivo',
+  'Pasted text': 'Texto pegado',
+  File: 'Archivo',
+  'pasted text': 'texto pegado',
+  Text: 'Texto',
+  Format: 'Formato',
+  'As the file says': 'Según el archivo',
+  'The file could not be read: {why}': 'No se pudo leer el archivo: {why}',
+  Read: 'Leer',
+  'Import “{name}”': 'Importar “{name}”',
+  'It starts using the built-in packages it maps to: {packages}.':
+    'Empieza a usar los paquetes incorporados con los que se corresponde: {packages}.',
+  '(no component given)': '(sin componente)',
+  '(no relation type given)': '(sin tipo de relación)',
+  'What sits inside what goes inside through':
+    'Lo que está dentro de otra cosa queda dentro mediante',
+  'Choose a relation type that nests': 'Elegir un tipo de relación que anida',
+  'Match rows to the project’s elements by':
+    'Emparejar las filas con los elementos del proyecto por',
+  'Their id, when the file has one': 'Su id, si el archivo lo tiene',
+  'Create its view “{name}”': 'Crear su vista “{name}”',
+  'Create its {count} views': 'Crear sus {count} vistas',
+  '{count} things matched nothing': {
+    one: '{count} cosa no coincidió con nada',
+    other: '{count} cosas no coincidieron con nada',
+  },
+  'This import is too large to send from the app: {size} MiB, where the most is {limit} MiB. Import it with visual-anything import instead.':
+    'Esta importación es demasiado grande para enviarla desde la app: {size} MiB, y el máximo es {limit} MiB. Importarla con visual-anything import en su lugar.',
+  'Importing…': 'Importando…',
+  Back: 'Atrás',
+  'It creates {elements}, {relations} and {views}.': 'Crea {elements}, {relations} y {views}.',
+  '{count} views': { one: '{count} vista', other: '{count} vistas' },
+  'It updates {count} elements of the project.': {
+    one: 'Actualiza {count} elemento del proyecto.',
+    other: 'Actualiza {count} elementos del proyecto.',
+  },
+  'Read as {format}.': 'Leído como {format}.',
+  'In the file': 'En el archivo',
+  'How many': 'Cuántos',
+  '{heading} for {kind}': '{heading} para {kind}',
+  'In this project': 'En este proyecto',
+  '{package}, not used yet': '{package}, todavía sin usar',
+  'Imported “{name}”': 'Se importó “{name}”',
+  'It created {elements}, {relations} and {views}.': 'Creó {elements}, {relations} y {views}.',
+  'It updated {count} elements.': {
+    one: 'Actualizó {count} elemento.',
+    other: 'Actualizó {count} elementos.',
+  },
+  'One undo takes it all back.': 'Un solo deshacer lo revierte todo.',
+  'Open its view': 'Abrir su vista',
+
   // Export as PNG, in the header.
   'Export…': 'Exportar…',
   'There is no view to export.': 'No hay ninguna vista para exportar.',
