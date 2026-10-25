@@ -35,6 +35,9 @@ const TRANSLATED = [
   'canvas/RelationMenu.tsx',
   'canvas/InlineEditor.tsx',
   'canvas/KeyboardHelp.tsx',
+  'shell/definitions/ImageControl.tsx',
+  'shell/definitions/ImagePreview.tsx',
+  'shell/definitions/ElementImageTrait.tsx',
 ];
 
 /** The attributes whose text people read or hear. */
