@@ -12,7 +12,9 @@ import type {
   PackageFile,
   ProjectFile,
   Relation,
+  RelationRoute,
   RelationType,
+  Routes,
   ScenarioFile,
   ShapePosition,
   ViewFile,
@@ -33,7 +35,9 @@ export type Collection =
   | { name: 'positions'; view: Id }
   | { name: 'freeShapes'; view: Id }
   /** One stacking list of a view: the order of the shapes directly in a container, or in World. */
-  | { name: 'stackingOrder'; view: Id; container: Id };
+  | { name: 'stackingOrder'; view: Id; container: Id }
+  /** The routes a view keeps for the relations it routes by hand, in the order of its map. */
+  | { name: 'routes'; view: Id };
 
 /** What each list holds. */
 export interface CollectionItems {
@@ -49,13 +53,23 @@ export interface CollectionItems {
   freeShapes: FreeShape;
   /** An element id: a stacking list holds bare ids. */
   stackingOrder: Id;
+  routes: RouteEntry;
+}
+
+/** A route a view keeps, with the relation it routes: how operations carry one. */
+export interface RouteEntry {
+  relation: Id;
+  route: RelationRoute;
 }
 
 /** Anything a list holds. */
 export type Item = CollectionItems[keyof CollectionItems];
 
-/** A view without its shapes and their order: what `set-view` changes. */
-export type ViewProperties = Omit<ViewFile, 'positions' | 'freeShapes' | 'stackingOrder'>;
+/** A view without its shapes, their order and its routes: what `set-view` changes. */
+export type ViewProperties = Omit<
+  ViewFile,
+  'positions' | 'freeShapes' | 'stackingOrder' | 'routes'
+>;
 
 /** A package without its definitions and images: what `set-package` changes. */
 export type PackageProperties = Omit<PackageFile, 'components' | 'relationTypes' | 'images'>;
@@ -97,6 +111,8 @@ export function keyOf(collection: Collection, item: Item): string {
       return positionKey(item as ShapePosition);
     case 'stackingOrder':
       return item as Id;
+    case 'routes':
+      return (item as RouteEntry).relation;
     default:
       return (item as { id: Id }).id;
   }
@@ -163,7 +179,7 @@ export function applyOperation(
       };
     case 'set-view': {
       const view = findView(state, operation.view);
-      const { positions, freeShapes, stackingOrder, ...previous } = view;
+      const { positions, freeShapes, stackingOrder, routes, ...previous } = view;
       if (operation.properties.id !== view.id) {
         throw new OperationError(`A view cannot change its id ("${view.id}").`);
       }
@@ -173,6 +189,10 @@ export function applyOperation(
         freeShapes,
         ...(stackingOrder === undefined ? {} : { stackingOrder }),
       };
+      // Routes change only through their own list. Properties made from a whole view may carry a
+      // copy of them, which is ignored, so that the view keeps the routes it has.
+      if (routes === undefined) delete next.routes;
+      else next.routes = routes;
       return {
         state: { ...state, views: state.views.map((each) => (each === view ? next : each)) },
         inverse: { op: 'set-view', view: view.id, properties: previous },
@@ -245,7 +265,14 @@ function itemsOf(state: ProjectSnapshot, collection: Collection): readonly Item[
         ? (order[collection.container] ?? [])
         : [];
     }
+    case 'routes':
+      return routeEntries(findView(state, collection.view).routes);
   }
+}
+
+/** The routes of a view as a list, in the order of its map; none when it keeps no map. */
+function routeEntries(routes: Routes | undefined): RouteEntry[] {
+  return Object.entries(routes ?? {}).map(([relation, route]) => ({ relation, route }));
 }
 
 function withItems(
@@ -292,7 +319,26 @@ function withItems(
       return updateView(state, collection.view, (view) =>
         withStackingList(view, collection.container, items as Id[]),
       );
+    case 'routes':
+      return updateView(state, collection.view, (view) => withRoutes(view, items as RouteEntry[]));
   }
+}
+
+/**
+ * A view with its routes replaced, in the order of the list. A view without routes has no map at
+ * all, rather than an empty one, so that undo gives back the view exactly as it was. The map is built
+ * with `Object.fromEntries`, so no relation id reaches a prototype.
+ */
+function withRoutes(view: ViewFile, entries: readonly RouteEntry[]): ViewFile {
+  if (entries.length > 0) {
+    return {
+      ...view,
+      routes: Object.fromEntries(entries.map(({ relation, route }) => [relation, route])),
+    };
+  }
+  const without: ViewFile = { ...view };
+  delete without.routes;
+  return without;
 }
 
 /**
@@ -369,6 +415,7 @@ function describe(collection: Collection): string {
       return `The ${collection.name} of package "${collection.package}"`;
     case 'positions':
     case 'freeShapes':
+    case 'routes':
       return `The ${collection.name} of view "${collection.view}"`;
     case 'stackingOrder':
       return `The stacking order of "${collection.container}" in view "${collection.view}"`;

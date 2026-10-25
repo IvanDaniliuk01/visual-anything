@@ -65,9 +65,11 @@ export function affectedFiles(
           case 'images':
             ofPackage(collection.package);
             break;
+          // A view's routes chosen by hand live in its file, like its positions (ADR 0039).
           case 'positions':
           case 'freeShapes':
           case 'stackingOrder':
+          case 'routes':
             keys.add(`view:${collection.view}`);
             break;
           case 'packages':

@@ -41,6 +41,11 @@ export type ProblemCode =
   | 'appearance-not-used'
   // A project saved by a newer Visual Anything.
   | 'newer-format'
+  // Routes chosen by hand (ADR 0039): a connection point the end does not have, an end that takes no
+  // attachment, and a relation the view draws as containment rather than as a line.
+  | 'unknown-connection-point'
+  | 'end-does-not-fit'
+  | 'not-drawn-as-line'
   // Images (M3b), which a package defines and appearances show.
   | 'unknown-image'
   | 'invalid-image'

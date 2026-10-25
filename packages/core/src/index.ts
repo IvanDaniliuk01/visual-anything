@@ -110,6 +110,7 @@ export type {
   Item,
   Operation,
   PackageProperties,
+  RouteEntry,
   ViewProperties,
 } from './operations';
 export {
@@ -121,7 +122,7 @@ export {
   positionKey,
 } from './operations';
 
-export type { DeletePreview, DeleteTargets, RemovedPosition } from './rules';
+export type { DeletePreview, DeleteTargets, RemovedPosition, RemovedRoute } from './rules';
 export { containmentCycles, limitWarnings, previewDelete, wouldFormCycle } from './rules';
 
 export type * from './commands/types';
@@ -194,3 +195,6 @@ export * from './scenarios';
 // The live protocol's guidance and launch codes (version 3).
 export type { Guidance, GuidanceMessage } from './protocol';
 export { LAUNCH_PARAM, MAX_CAPTION_LENGTH, MAX_GUIDANCE_TARGETS, readGuidance } from './protocol';
+// Relations routed by hand, per view (ADR 0039).
+export type { ResolvedAttachment, ResolvedRoute, RouteLookups, RouteShapes, Side } from './routes';
+export { MAX_BEND_POINTS, routeOf } from './routes';
