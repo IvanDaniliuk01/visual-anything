@@ -24,6 +24,7 @@ import { z } from 'zod';
 import { ProgramUnavailableError, type CommandAnswer, type Program } from './bridge';
 import { EXPLORE_TOOLS } from './explore-tools';
 import { CODE_TOOLS } from './code-tools';
+import { COMMENT_TOOLS } from './comment-tools';
 import { EXPORT_TOOLS } from './export-tools';
 import { IMAGE_TOOLS } from './image-tools';
 import { RECIPES_IN_BRIEF } from './recipes';
@@ -1114,6 +1115,8 @@ export const TOOLS: readonly Tool[] = [
   ...SCENARIO_TOOLS,
   ...IMAGE_TOOLS,
   ...CODE_TOOLS,
+  // Threads of comments (ADR 0059).
+  ...COMMENT_TOOLS,
   ...EXPLORE_TOOLS,
   ...VIEW_STATE_TOOLS,
   // What a view shows of the model (ADR-0040).

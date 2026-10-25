@@ -5,6 +5,7 @@
  */
 import type { CommentAnchor, CommentFile, Id } from '@visual-anything/schema';
 import type { ModelIndex } from '../model-index';
+import { shownByScope } from '../scope';
 import type { ProjectSnapshot } from '../snapshot';
 import { modelIndexOf } from '../state';
 
@@ -51,6 +52,23 @@ export function lastActivityOf(thread: CommentFile): string {
     }
   }
   return last;
+}
+
+/**
+ * Whether a thread belongs to a view: one about the view or a point of it, or about an element or a
+ * relation the view's scope shows. A detached thread belongs to none.
+ */
+export function threadInView(state: ProjectSnapshot, thread: CommentFile, viewId: Id): boolean {
+  const { anchor } = thread;
+  if (anchor.kind === 'view' || anchor.kind === 'point') {
+    return anchor.view === viewId && state.views.some((view) => view.id === viewId);
+  }
+  const view = state.views.find((each) => each.id === viewId);
+  if (view === undefined || isDetached(state, thread)) return false;
+  const shown = shownByScope(state, view);
+  return anchor.kind === 'element'
+    ? shown.element(anchor.element)
+    : shown.relation(anchor.relation);
 }
 
 /** The threads about one element, relation or view, in the project's order. */

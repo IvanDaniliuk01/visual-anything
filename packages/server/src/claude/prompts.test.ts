@@ -6,6 +6,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Program } from './bridge';
+import { WORK_THROUGH_COMMENTS } from './comment-prompt';
 import { INSTRUCTIONS, createMcpServer } from './mcp';
 import { PROMPT_ARGUMENTS, recipeText } from './prompts';
 import { RECIPES, RECIPES_IN_BRIEF } from './recipes';
@@ -68,8 +69,13 @@ describe('the recipes as prompts', () => {
   });
 
   it('lists every recipe with its title, description and optional arguments', async () => {
-    const { prompts } = await client.listPrompts();
-    expect(prompts.map((each) => each.name)).toEqual(RECIPES.map((each) => each.name));
+    const { prompts: all } = await client.listPrompts();
+    // The recipes, then working through the open comments (ADR 0059), which is no recipe.
+    expect(all.map((each) => each.name)).toEqual([
+      ...RECIPES.map((each) => each.name),
+      WORK_THROUGH_COMMENTS,
+    ]);
+    const prompts = all.filter((each) => each.name !== WORK_THROUGH_COMMENTS);
     for (const prompt of prompts) {
       const recipe = RECIPES.find((each) => each.name === prompt.name);
       expect(prompt.title).toBe(recipe?.title);

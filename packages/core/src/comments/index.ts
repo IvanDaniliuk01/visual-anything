@@ -7,6 +7,7 @@ export {
   isDetached,
   isResolved,
   lastActivityOf,
+  threadInView,
   threadsAbout,
 } from './anchors';
 export {
