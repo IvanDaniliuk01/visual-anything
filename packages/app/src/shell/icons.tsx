@@ -232,3 +232,22 @@ export const MoreIcon = icon(
     <circle cx="5" cy="12" r="1" />
   </>,
 );
+
+/** Lucide's "play", for playing a tour full screen (ADR 0058). */
+export const PlayIcon = icon('Play', <polygon points="6 3 20 12 6 21 6 3" />);
+
+/** Lucide's "chevron-left" and "chevron-right", for a tour's previous and next steps. */
+export const PreviousIcon = icon('Previous', <path d="m15 18-6-6 6-6" />);
+export const NextIcon = icon('Next', <path d="m9 18 6-6-6-6" />);
+
+/** Lucide's "file-text", for a tour's speaker notes. */
+export const NotesIcon = icon(
+  'Notes',
+  <>
+    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+    <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+    <path d="M10 9H8" />
+    <path d="M16 13H8" />
+    <path d="M16 17H8" />
+  </>,
+);

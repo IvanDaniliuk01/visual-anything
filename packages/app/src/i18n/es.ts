@@ -1693,6 +1693,89 @@ export const ui: Catalog = {
   'Review and approve the code…': 'Revisar y aprobar el código…',
   'The package “{name}” holds code that is not approved, so it does not run. Review it from one of its elements in the inspector, or from the package in the Components tab.':
     'El paquete “{name}” tiene código que no está aprobado, así que no se ejecuta. Revisarlo desde uno de sus elementos en el inspector, o desde el paquete en la pestaña Componentes.',
+
+  // Tours (ADR 0058): the tours panel and full-screen playback.
+  'These {count} tour steps name what goes. They are kept, flagged, and play without it:': {
+    one: 'Este paso de recorrido nombra algo que se elimina. Se conserva, marcado, y se reproduce sin eso:',
+    other:
+      'Estos {count} pasos de recorrido nombran algo que se elimina. Se conservan, marcados, y se reproducen sin eso:',
+  },
+  Tours: 'Recorridos',
+  'Tours of the project': 'Recorridos del proyecto',
+  'New tour': 'Nuevo recorrido',
+  'New tour {count}': 'Nuevo recorrido {count}',
+  'New tour from the canvas': 'Nuevo recorrido desde el lienzo',
+  'This project has no tours yet. A tour walks someone through it, one view state at a time: start one from what the canvas shows now.':
+    'Este proyecto todavía no tiene recorridos. Un recorrido guía a alguien por el proyecto, un estado de vista a la vez: empezar uno a partir de lo que muestra ahora el lienzo.',
+  'Created “{name}”.': 'Se creó “{name}”.',
+  '{count} name what is gone': {
+    one: '{count} nombra algo que ya no está',
+    other: '{count} nombran algo que ya no está',
+  },
+  'Play “{name}” full screen': 'Reproducir “{name}” a pantalla completa',
+  'Play full screen from step {n}': 'Reproducir a pantalla completa desde el paso {n}',
+  'All tours': 'Todos los recorridos',
+  'Name of the tour': 'Nombre del recorrido',
+  'Steps of “{name}”': 'Pasos de “{name}”',
+  'This tour has no steps yet. Add one: it takes the canvas as it is now.':
+    'Este recorrido todavía no tiene pasos. Agregar uno: toma el lienzo tal como está ahora.',
+  'Add step': 'Agregar paso',
+  'Added step {n}, showing the canvas as it is now.':
+    'Se agregó el paso {n}, que muestra el lienzo tal como está ahora.',
+  'Delete the tour?': '¿Eliminar el recorrido?',
+  'Delete “{name}”?': '¿Eliminar “{name}”?',
+  Keep: 'Conservar',
+  'Delete tour': 'Eliminar recorrido',
+  Step: 'Paso',
+  'Step {n}': 'Paso {n}',
+  'Moved step {n} to {to}.': 'Se movió el paso {n} al lugar {to}.',
+  'Duplicated step {n}.': 'Se duplicó el paso {n}.',
+  'Deleted step {n}.': 'Se eliminó el paso {n}.',
+  'This step names what the project no longer holds, and plays without it:':
+    'Este paso nombra algo que el proyecto ya no tiene, y se reproduce sin eso:',
+  'This step names what the project no longer holds, and plays without it.':
+    'Este paso nombra algo que el proyecto ya no tiene, y se reproduce sin eso.',
+  'This step’s view no longer exists, so the canvas stays where it is.':
+    'La vista de este paso ya no existe, así que el lienzo se queda donde está.',
+  Title: 'Título',
+  Caption: 'Leyenda',
+  'Plain text: a blank line starts a paragraph, and lines starting with “- ” make a list.':
+    'Texto simple: una línea en blanco empieza un párrafo, y las líneas que empiezan con “- ” forman una lista.',
+  'Changed the title of step {n}.': 'Se cambió el título del paso {n}.',
+  'Changed the caption of step {n}.': 'Se cambió la leyenda del paso {n}.',
+  'Speaker notes': 'Notas del orador',
+  'Changed the speaker notes of step {n}.': 'Se cambiaron las notas del orador del paso {n}.',
+  'Mark the selection': 'Marcar la selección',
+  'Clear marks': 'Quitar las marcas',
+  'Step {n} marks the selection.': 'El paso {n} marca la selección.',
+  'Step {n} marks nothing.': 'El paso {n} no marca nada.',
+  'Take the canvas': 'Tomar el lienzo',
+  'Step {n} shows the canvas as it is now.': 'El paso {n} muestra el lienzo tal como está ahora.',
+  Duplicate: 'Duplicar',
+  'a place on the canvas': 'un lugar del lienzo',
+  '{count} selected': { one: '{count} seleccionado', other: '{count} seleccionados' },
+  filters: 'filtros',
+  focus: 'foco',
+  'a scenario': 'un escenario',
+  'Shows “{view}”': 'Muestra “{view}”',
+  'Shows “{view}”: {parts}': 'Muestra “{view}”: {parts}',
+  'Marks nothing.': 'No marca nada.',
+  'Marks {names}.': 'Marca {names}.',
+  'Marks {names} and {count} more.': 'Marca {names} y {count} más.',
+  tour: 'recorrido',
+  Tour: 'Recorrido',
+  'Tour “{name}”': 'Recorrido “{name}”',
+  'Progress through the tour': 'Avance del recorrido',
+  'Previous step': 'Paso anterior',
+  'Next step': 'Paso siguiente',
+  'Speaker notes in a second window': 'Notas del orador en una segunda ventana',
+  'End the tour': 'Terminar el recorrido',
+  'End the tour (Escape)': 'Terminar el recorrido (Escape)',
+  'Speaker notes: {name}': 'Notas del orador: {name}',
+  'This step has no speaker notes.': 'Este paso no tiene notas del orador.',
+  'Next: {title}': 'Siguiente: {title}',
+  'The browser did not open the speaker notes window. Allow pop-up windows for this page, then try again.':
+    'El navegador no abrió la ventana de las notas del orador. Permitir ventanas emergentes para esta página y volver a intentarlo.',
 };
 
 /**

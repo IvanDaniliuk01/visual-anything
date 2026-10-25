@@ -10,6 +10,7 @@
  * - **Following.** The fragment follows the view state a moment after it last changed, replacing the
  *   tab's history entry, and waits while an address applies.
  */
+import type { ViewState } from '@visual-anything/core';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useReducedMotion } from '../scenarios/motion';
 import { AddressFollower, addressOf, fragmentOf, readAddress, type AddressWindow } from './address';
@@ -23,6 +24,8 @@ export interface ViewStateLink {
   /** The address that opens the view state as it is now, and whether its selection was too large. */
   address: () => { address: string; selectionLeftOut: boolean } | undefined;
   goTo: (request: GoTo) => void;
+  /** The view state as it is now, as a tour's Add step takes it (ADR 0058); none without a view. */
+  current: () => ViewState | undefined;
 }
 
 /** The shell as the view state reads and changes it; whether motion is reduced it finds itself. */
@@ -95,6 +98,7 @@ export function useViewState(input: ViewStateInput): ViewStateLink {
           : { address: addressOf(target, now.state), selectionLeftOut: now.selectionLeftOut };
       },
       goTo: (request) => applier.goTo(request, latest.current),
+      current: () => composed(latest.current)?.state,
     }),
     [applier, target],
   );

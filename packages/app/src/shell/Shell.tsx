@@ -27,6 +27,9 @@ import { ModelPanel } from './ModelPanel';
 import { CodeStore } from '../code/context';
 import { usePackageCode } from '../code/usePackageCode';
 import { CodeApproval } from '../code/ApprovalDialog';
+import { ToursContext } from '../tours/context';
+import { TourPlaybackLayer } from '../tours/TourPlaybackLayer';
+import { useTourPlayback } from '../tours/useTourPlayback';
 
 interface ShellProps {
   project: ProjectSnapshot;
@@ -129,64 +132,69 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
     notify: live?.notify,
   });
   usePackageCode({ store: code, project, viewId: view?.id, scene, canvas });
+  // Tours (ADR 0058): the one the tab plays full screen, which hides the panels while it plays.
+  const tours = useTourPlayback({ project, scene, viewState, scenarios, emphasis });
 
   return (
     <EditorContext.Provider value={editor}>
       <DefinitionProvider>
         <EmphasisContext.Provider value={emphasis}>
-          <div className="shell">
-            <Header
-              projectName={project.project.name}
-              viewName={view?.name}
-              actions={
-                <>
-                  {view && <CopyAddress link={viewState} />}
-                  {exportTool}
-                </>
-              }
-            />
-            {notice !== undefined && (
-              <p className="shell-notice" role="alert">
-                {notice}
-              </p>
-            )}
-            <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
-            <main className="canvas-area" aria-labelledby={canvasHeading}>
-              <h2 id={canvasHeading} className="visually-hidden">
-                {view ? view.name : t('Canvas')}
-              </h2>
-              {view && scene ? (
-                <ImageSourceContext value={images}>
-                  <CanvasArea
-                    project={project}
-                    view={view}
-                    scene={scene}
-                    label={describeDrawing(t, view, scene)}
-                    selection={selection}
-                    onSelect={setSelection}
-                    {...(onCommand ? { onCommand } : {})}
-                    {...(revealed ? { revealed } : {})}
-                    scenarios={scenarios}
-                    theme={theme}
-                    onThemeShown={onThemeShown}
-                    onCanvas={setCanvas}
-                  />
-                </ImageSourceContext>
-              ) : (
-                <p className="canvas-message">{t('There is no view to draw.')}</p>
-              )}
-              <GuidanceLayer scenarios={scenarios} />
-              <FindBar
-                project={project}
-                definitions={definitions}
-                viewId={view?.id}
-                goTo={viewState.goTo}
+          <ToursContext.Provider value={tours.host}>
+            <div className={tours.playback.tour === undefined ? 'shell' : 'shell tour-playing'}>
+              <Header
+                projectName={project.project.name}
+                viewName={view?.name}
+                actions={
+                  <>
+                    {view && <CopyAddress link={viewState} />}
+                    {exportTool}
+                  </>
+                }
               />
-            </main>
-            <Inspector view={view} scene={scene} definitions={definitions} />
-            <ScenarioPanel session={scenarios} />
-            <CodeApproval />
-          </div>
+              {notice !== undefined && (
+                <p className="shell-notice" role="alert">
+                  {notice}
+                </p>
+              )}
+              <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
+              <main className="canvas-area" aria-labelledby={canvasHeading}>
+                <h2 id={canvasHeading} className="visually-hidden">
+                  {view ? view.name : t('Canvas')}
+                </h2>
+                {view && scene ? (
+                  <ImageSourceContext value={images}>
+                    <CanvasArea
+                      project={project}
+                      view={view}
+                      scene={scene}
+                      label={describeDrawing(t, view, scene)}
+                      selection={selection}
+                      onSelect={setSelection}
+                      {...(onCommand ? { onCommand } : {})}
+                      {...(revealed ? { revealed } : {})}
+                      scenarios={scenarios}
+                      theme={theme}
+                      onThemeShown={onThemeShown}
+                      onCanvas={setCanvas}
+                    />
+                  </ImageSourceContext>
+                ) : (
+                  <p className="canvas-message">{t('There is no view to draw.')}</p>
+                )}
+                <GuidanceLayer scenarios={scenarios} />
+                <FindBar
+                  project={project}
+                  definitions={definitions}
+                  viewId={view?.id}
+                  goTo={viewState.goTo}
+                />
+                <TourPlaybackLayer project={project} tours={tours} />
+              </main>
+              <Inspector view={view} scene={scene} definitions={definitions} />
+              <ScenarioPanel session={scenarios} />
+              <CodeApproval />
+            </div>
+          </ToursContext.Provider>
         </EmphasisContext.Provider>
       </DefinitionProvider>
     </EditorContext.Provider>

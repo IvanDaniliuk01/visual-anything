@@ -74,6 +74,25 @@ describe('DeleteDialog', () => {
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
+  // Tours (ADR 0058).
+  it('says which tour steps name what goes, which are kept and play without it', () => {
+    const preview = previewDelete(sample, { elements: ['booking-agent'] });
+    render(
+      <DeleteDialog
+        project={sample}
+        preview={preview}
+        freeShapes={0}
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent(
+      'This tour step names what goes. It is kept, flagged, and plays without it:',
+    );
+    expect(dialog).toHaveTextContent('How booking works: The booking agent');
+  });
+
   it('asks before a change of container takes away the relation that places a shape', () => {
     const { dialog, onConfirm, onCancel } = confirmChange(
       sample,

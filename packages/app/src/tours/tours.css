@@ -1,0 +1,404 @@
+/*
+ * Tours (ADR 0058): the tours panel, in the model panel's tab; and full-screen playback, where the
+ * panels hide, the canvas fills the window, and the caption card, the progress line and the controls
+ * show over it. Colors are the theme's tokens; a step that names what is gone says so in words.
+ */
+
+/* ——— Full-screen playback ——— */
+
+/* The panels hide and the canvas fills the window. */
+.shell.tour-playing {
+  grid-template: 'canvas' minmax(0, 1fr) / minmax(0, 1fr);
+}
+
+.shell.tour-playing > :not(.canvas-area, .notices, .dialog-backdrop) {
+  display: none;
+}
+
+.shell.tour-playing .canvas-area :is(.canvas-toolbar, .explore-strip, .canvas-keys, .find-bar) {
+  display: none;
+}
+
+.tour-stage {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-editor);
+  pointer-events: none;
+}
+
+.tour-stage:focus {
+  outline: none;
+}
+
+.tour-stage :is(.tour-card, .tour-controls, .tour-progress) {
+  pointer-events: auto;
+}
+
+.tour-progress {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: var(--space-1);
+  background: var(--border);
+}
+
+.tour-progress-done {
+  position: absolute;
+  inset: 0;
+  background: var(--accent-fill);
+  transform-origin: left center;
+  transition: transform var(--duration-base) ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-progress-done {
+    transition: none;
+  }
+}
+
+.tour-card {
+  position: absolute;
+  bottom: calc(var(--control-md) + var(--space-6));
+  left: 50%;
+  width: min(40rem, calc(100% - var(--space-6)));
+  max-height: 45%;
+  overflow: auto;
+  transform: translateX(-50%);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border);
+  border-left: var(--space-1) solid var(--accent);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--shadow-3);
+  line-height: var(--line-normal);
+}
+
+.tour-card-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-heading);
+  line-height: var(--line-tight);
+  overflow-wrap: anywhere;
+}
+
+.tour-card-text,
+.tour-notes-text {
+  overflow-wrap: anywhere;
+}
+
+.tour-card-text :is(p, ul, ol),
+.tour-notes-text :is(p, ul, ol) {
+  margin: 0 0 var(--space-2);
+  white-space: pre-line;
+}
+
+.tour-card-text :is(ul, ol),
+.tour-notes-text :is(ul, ol) {
+  padding-left: var(--space-5);
+}
+
+.tour-card-flag {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: var(--text-sm);
+}
+
+.tour-controls {
+  position: absolute;
+  bottom: var(--space-4);
+  left: 50%;
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  transform: translateX(-50%);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-2);
+}
+
+.tour-controls button {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  justify-content: center;
+  min-width: var(--control-md);
+  min-height: var(--control-md);
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tour-controls button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.tour-controls button:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.tour-controls button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.tour-controls button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.tour-controls button:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.tour-position {
+  min-width: 6rem;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* The speaker notes window, and what shows when the browser did not open it. */
+.tour-notes-window {
+  min-height: 100vh;
+  padding: var(--space-5) var(--space-6);
+  background: var(--surface);
+  color: var(--text);
+  line-height: var(--line-normal);
+}
+
+.tour-notes-position,
+.tour-notes-next,
+.tour-notes-none {
+  color: var(--text-muted);
+}
+
+.tour-notes-title {
+  margin: var(--space-2) 0 var(--space-4);
+  font-size: var(--text-xl);
+}
+
+.tour-notes-text {
+  font-size: var(--text-lg);
+}
+
+.tour-notes-blocked {
+  position: absolute;
+  top: var(--space-4);
+  left: 50%;
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  transform: translateX(-50%);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--warning-soft);
+  color: var(--warning);
+  pointer-events: auto;
+}
+
+/* ——— The tours panel ——— */
+
+.tours-panel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-5);
+}
+
+.tour-list,
+.tour-steps {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tour-list-item {
+  display: flex;
+  gap: var(--space-2);
+  align-items: stretch;
+}
+
+.tour-open {
+  display: grid;
+  flex: 1;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tour-open:hover {
+  background: var(--surface-hover);
+}
+
+.tour-open-name {
+  font-weight: var(--weight-strong);
+  overflow-wrap: anywhere;
+}
+
+.tour-open-detail,
+.tour-step-shows,
+.tour-step-marks > span,
+.tour-field-hint {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.tour-button {
+  display: inline-flex;
+  gap: var(--space-1);
+  align-items: center;
+  justify-content: center;
+  min-height: var(--control-sm);
+  padding: 0 var(--space-2);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.tour-button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.tour-button:active:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.tour-button:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.tour-danger:not(:disabled) {
+  border-color: var(--problem-fill);
+  background: var(--problem-fill);
+  color: var(--on-problem);
+}
+
+.tour-danger:hover:not(:disabled) {
+  background: var(--problem-fill-hover);
+}
+
+.tours-panel :is(button, input, textarea, summary):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.tour-play {
+  min-width: var(--control-md);
+}
+
+.tour-head,
+.tour-actions,
+.tour-step-marks,
+.tour-step-actions,
+.tour-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.tour-head {
+  justify-content: space-between;
+}
+
+.tour-step {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.tour-step-broken {
+  border-color: var(--warning);
+}
+
+.tour-step-head {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.tour-step-number {
+  font-weight: var(--weight-strong);
+}
+
+.tour-step-problems {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: var(--text-sm);
+}
+
+.tour-step-problems :is(p, ul) {
+  margin: 0;
+}
+
+.tour-step-problems ul {
+  padding-left: var(--space-4);
+}
+
+.tour-field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.tour-field label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.tour-field :is(input, textarea) {
+  width: 100%;
+  min-height: var(--control-sm);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.tour-field textarea {
+  resize: vertical;
+}
+
+.tour-field :is(input, textarea):disabled {
+  color: var(--text-muted);
+}
+
+.tour-field-hint {
+  margin: 0;
+}
+
+.tour-step-notes summary {
+  font-size: var(--text-sm);
+  cursor: pointer;
+}

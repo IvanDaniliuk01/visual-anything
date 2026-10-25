@@ -11,7 +11,9 @@
  */
 import { viewStateProblems, type ProjectSnapshot, type ViewState } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
+import type { Camera } from '../canvas/camera';
 import { NO_FILTERS } from '../canvas/explore';
+import type { Size } from '../canvas/geometry';
 import { relationLinesOf, shownBy, type Scene } from '../canvas/scene';
 import type { Explore } from '../canvas/useExplorer';
 import type { EmphasisStore } from '../editor/emphasis';
@@ -34,8 +36,18 @@ export interface Shown {
 
 /** Where to go: an address's view state, or something found, in a view that draws it. */
 export type GoTo =
-  | { kind: 'address'; state: ViewState }
+  | { kind: 'address'; state: ViewState; travel?: Travel }
   | { kind: 'jump'; view: Id; target: Selectable; shown?: (shown: Shown) => void };
+
+/**
+ * How a tour's step moves the camera to its view state (ADR 0058), in place of an address's jump:
+ * with neither a camera nor a selection, it shows the whole view; and `move` says how to get there,
+ * once the canvas has drawn it, from where the camera is: eased over some milliseconds, or at once
+ * with 0. `sameView` says whether the step stays in the view open when it started.
+ */
+export interface Travel {
+  move(from: Camera | undefined, to: Camera, viewport: Size, sameView: boolean): number;
+}
 
 /** The shell as it is now, and what the applier may do to it. */
 export interface ApplyContext {
@@ -68,6 +80,8 @@ interface Pending {
   stage: 'select' | 'explore';
   /** Whether its view was asked to open. */
   opened: boolean;
+  /** The view open when it started. */
+  from: Id | undefined;
 }
 
 /** A camera, or a shape to bring into sight, waiting for the canvas to have drawn. */
@@ -75,8 +89,12 @@ interface Waiting {
   view: Id;
   camera?: ViewState['camera'];
   key?: string;
+  /** For a tour's step without a camera or a selection: the whole view shows. */
+  whole?: boolean;
   glide: boolean;
   shown?: () => void;
+  /** How a tour's step moves there, and whether it stays in the view open when it started. */
+  travel?: { travel: Travel; sameView: boolean };
 }
 
 export class ViewStateApplier {
@@ -94,7 +112,7 @@ export class ViewStateApplier {
   /** Starts going somewhere, from where things are now; whatever was on its way is dropped. */
   goTo(request: GoTo, context: ApplyContext): void {
     this.#waiting = undefined;
-    this.#pending = { request, stage: 'select', opened: false };
+    this.#pending = { request, stage: 'select', opened: false, from: context.viewId };
     this.busy(true);
     this.sync(context);
   }
@@ -172,8 +190,14 @@ export class ViewStateApplier {
       first === undefined
         ? undefined
         : whereShown(scene, selectableIn(context.selection, first)).key;
-    if (state.camera) this.#waiting = { view: goal, camera: state.camera, glide: false };
-    else if (key !== undefined) this.#waiting = { view: goal, key, glide: false };
+    const travel = request.travel && {
+      travel: request.travel,
+      sameView: pending.from === goal,
+    };
+    const moved = travel ? { travel } : {};
+    if (state.camera) this.#waiting = { view: goal, camera: state.camera, glide: false, ...moved };
+    else if (key !== undefined) this.#waiting = { view: goal, key, glide: false, ...moved };
+    else if (travel) this.#waiting = { view: goal, whole: true, glide: false, travel };
   }
 
   /** Moves the camera as asked, once the canvas has drawn the view it was asked for. */
@@ -190,7 +214,16 @@ export class ViewStateApplier {
     // Without a canvas, as in tests, a shape is still brought into sight the outline's way.
     if (!drawn && (canvas !== undefined || asked.camera !== undefined)) return;
     this.#waiting = undefined;
-    if (asked.camera !== undefined && canvas) {
+    if (asked.travel && canvas) {
+      // A tour's step: where it goes, then how it gets there, eased or at once (ADR 0058).
+      const viewport = canvas.viewport();
+      const to =
+        asked.camera !== undefined
+          ? cameraFor(asked.camera, viewport)
+          : canvas.targetOf(asked.key !== undefined ? { key: asked.key } : { whole: true });
+      const time = asked.travel.travel.move(canvas.camera(), to, viewport, asked.travel.sameView);
+      canvas.glideTo(to, time);
+    } else if (asked.camera !== undefined && canvas) {
       canvas.setCamera(cameraFor(asked.camera, canvas.viewport()));
     } else if (asked.key !== undefined) {
       if (canvas) canvas.reveal(asked.key, asked.glide);

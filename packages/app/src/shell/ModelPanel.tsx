@@ -2,6 +2,7 @@ import type { Definitions, ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import { HistoryPanel } from '../history/HistoryPanel';
+import { ToursPanel } from '../tours/ToursPanel';
 import { useT } from '../i18n';
 import { ComponentsTab } from './ComponentsTab';
 import { ModelTab } from './ModelTab';
@@ -15,13 +16,15 @@ interface ModelPanelProps {
   openViewId: Id | undefined;
 }
 
-type Tab = 'outline' | 'model' | 'components' | 'history';
+type Tab = 'outline' | 'model' | 'components' | 'history' | 'tours';
 
 const TABS: readonly { tab: Tab; name: string }[] = [
   { tab: 'outline', name: 'Outline' },
   { tab: 'model', name: 'Model' },
   { tab: 'components', name: 'Components' },
   { tab: 'history', name: 'History' },
+  // Tours (ADR 0058).
+  { tab: 'tours', name: 'Tours' },
 ];
 
 /**
@@ -34,7 +37,13 @@ export function ModelPanel({ project, definitions, openViewId }: ModelPanelProps
   const t = useT();
   const [tab, setTab] = useState<Tab>('outline');
   const heading = useId();
-  const ids = { outline: useId(), model: useId(), components: useId(), history: useId() };
+  const ids = {
+    outline: useId(),
+    model: useId(),
+    components: useId(),
+    history: useId(),
+    tours: useId(),
+  };
   const buttons = useRef(new Map<Tab, HTMLButtonElement>());
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -120,6 +129,15 @@ export function ModelPanel({ project, definitions, openViewId }: ModelPanelProps
         className="panel-tab-content"
       >
         <HistoryPanel active={tab === 'history'} />
+      </div>
+      <div
+        role="tabpanel"
+        id={`${ids.tours}-panel`}
+        aria-labelledby={`${ids.tours}-tab`}
+        hidden={tab !== 'tours'}
+        className="panel-tab-content"
+      >
+        <ToursPanel active={tab === 'tours'} />
       </div>
     </aside>
   );
