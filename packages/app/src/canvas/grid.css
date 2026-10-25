@@ -20,6 +20,13 @@
   height: 16px;
 }
 
+/* Snapping waits for the grid: while it cannot take effect, its toggle does not look pressed. */
+.canvas-toolbar-grid button:disabled[aria-pressed='true'] {
+  border-color: var(--control-border);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+}
+
 /*
  * Where the pointer is, on each ruler: a line across its band. The controller moves them with
  * `transform`, outside React, and hides them when the pointer leaves; they take no pointer.
