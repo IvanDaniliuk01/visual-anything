@@ -9,6 +9,19 @@ import type { Id } from '@visual-anything/schema';
 import type { Command } from './commands';
 import type { Author, HistorySummary } from './history';
 import { isId } from './ids';
+import {
+  LiveProtocolProblem,
+  readLiveFetchMessage,
+  readLiveFetchedMessage,
+  readLiveKeptMessage,
+  readLiveSetMessage,
+  readLiveValuesMessage,
+  type LiveFetchMessage,
+  type LiveFetchedMessage,
+  type LiveKeptMessage,
+  type LiveSetMessage,
+  type LiveValuesMessage,
+} from './live/messages';
 import type { Operation } from './operations';
 import type { PreferenceChanges, Preferences } from './preferences';
 import type { Problem } from './problems';
@@ -24,8 +37,10 @@ import type { ProjectSnapshot } from './snapshot';
  * 4: guidance that filters and focuses the open view, and plays a scenario in it.
  * 5: the history listed action by action, with each one's author and time, and undo or redo up to
  * one of them.
+ * 6: live values (ADR 0057, ADR 0063): the program sends the live values it keeps, and an app fetches
+ * for approved package code granted an origin, and sends the live values it made.
  */
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';
@@ -61,7 +76,10 @@ export type ServerMessage =
   | PreferencesChangedMessage
   | GuidanceMessage
   | HistoryListedMessage
-  | StartOfferedMessage;
+  | StartOfferedMessage
+  | LiveValuesMessage
+  | LiveKeptMessage
+  | LiveFetchedMessage;
 
 /**
  * Sent in place of `project/opened` while the local program runs on a folder that holds no project yet
@@ -471,7 +489,9 @@ export type AppMessage =
   | { type: 'undo'; requestId: string; to?: number }
   | { type: 'redo'; requestId: string; to?: number }
   | PreferencesSetMessage
-  | StartCreateMessage;
+  | StartCreateMessage
+  | LiveFetchMessage
+  | LiveSetMessage;
 
 /** The longest name the start screen may give a new project or its first view. */
 export const MAX_START_NAME = 200;
@@ -523,6 +543,9 @@ const SERVER_TYPES = new Set<string>([
   'guidance',
   'history/listed',
   'start/offered',
+  'live/values',
+  'live/kept',
+  'live/fetched',
 ]);
 
 /**
@@ -564,6 +587,10 @@ export function decodeServerMessage(text: string): ServerMessage {
       break;
     case 'start/offered':
       return readStartOffered(message);
+    case 'live/values':
+    case 'live/kept':
+    case 'live/fetched':
+      return readLive(message, message.type);
   }
   return message as unknown as ServerMessage;
 }
@@ -604,8 +631,39 @@ export function decodeAppMessage(text: string): AppMessage {
       return message as unknown as AppMessage;
     case 'start/create':
       return readStartCreate(message, message.requestId);
+    case 'live/fetch':
+      return asProtocolError(() => readLiveFetchMessage(message, message.requestId as string));
+    case 'live/set':
+      return asProtocolError(() => readLiveSetMessage(message, message.requestId as string));
     default:
       throw new ProtocolError(`Unknown message type: ${JSON.stringify(message.type)}.`);
+  }
+}
+
+/** Reads a message about live values (version 6) strictly. */
+function readLive(
+  message: Record<string, unknown>,
+  type: 'live/values' | 'live/kept' | 'live/fetched',
+): ServerMessage {
+  return asProtocolError(() => {
+    if (type === 'live/values') return readLiveValuesMessage(message);
+    const { requestId } = message;
+    if (typeof requestId !== 'string' || requestId === '' || requestId.length > MAX_REQUEST_ID) {
+      throw new ProtocolError('The answer has no valid request id.');
+    }
+    return type === 'live/kept'
+      ? readLiveKeptMessage(message, requestId)
+      : readLiveFetchedMessage(message, requestId);
+  });
+}
+
+/** Runs a reader of live values' messages, turning what it refuses into a {@link ProtocolError}. */
+function asProtocolError<T>(read: () => T): T {
+  try {
+    return read();
+  } catch (error) {
+    if (error instanceof LiveProtocolProblem) throw new ProtocolError(error.message);
+    throw error;
   }
 }
 

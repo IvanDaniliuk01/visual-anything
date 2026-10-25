@@ -29,8 +29,8 @@ const project: ProjectSnapshot = {
 };
 
 describe('PROTOCOL_VERSION', () => {
-  it('is 5, since the history came to be listed action by action, and undone up to one', () => {
-    expect(PROTOCOL_VERSION).toBe(5);
+  it('is 6, since live values came to travel on it (ADR 0057)', () => {
+    expect(PROTOCOL_VERSION).toBe(6);
   });
 
   it('names the launch code and the token in the address and on the live connection', () => {

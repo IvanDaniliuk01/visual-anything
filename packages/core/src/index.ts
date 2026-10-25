@@ -264,3 +264,15 @@ export {
 export { MAX_FILTER_CONDITIONS, MAX_FILTER_TEXT } from './protocol';
 // Package code (ADR 0054): the hooks' types, the checks of their answers, the hash and the approvals.
 export * from './code';
+// Live values (ADR 0057, ADR 0063): what one is, its checks and limits, the program's store, the
+// live protocol's messages for them, and how an attribute reads over them.
+export * from './live';
+// Time ranges (R43): a filter on a date, time or number attribute.
+export type { RangeKind } from './time-range';
+export {
+  RANGE_KINDS,
+  periodMeetsRange,
+  pointInRange,
+  rangeKindOf,
+  rangePointOf,
+} from './time-range';
