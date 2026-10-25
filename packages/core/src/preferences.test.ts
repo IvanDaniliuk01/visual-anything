@@ -4,6 +4,7 @@ import {
   DEFAULT_PREFERENCES,
   MAX_RECENT_COLORS,
   PREFERENCES_VERSION,
+  LANGUAGE_CHOICES,
   PREFERENCE_NAMES,
   THEME_CHOICES,
   applyPreferenceChanges,
@@ -24,6 +25,7 @@ const color = fc
 /** Preferences as this build holds them: colors in capitals, distinct, at most 8. */
 const preferences: fc.Arbitrary<Preferences> = fc.record({
   theme: fc.constantFrom(...THEME_CHOICES),
+  language: fc.constantFrom(...LANGUAGE_CHOICES),
   grid: fc.boolean(),
   snapToGrid: fc.boolean(),
   rulers: fc.boolean(),
@@ -54,9 +56,10 @@ function record(entries: readonly (readonly [string, unknown])[]): Record<string
 }
 
 describe('DEFAULT_PREFERENCES', () => {
-  it('follows the system, with no grid, snapping on, no rulers and no recent colors', () => {
+  it('follows the system and the browser, with no grid, snapping on, no rulers and no recent colors', () => {
     expect(DEFAULT_PREFERENCES).toEqual({
       theme: 'system',
+      language: 'system',
       grid: false,
       snapToGrid: true,
       rulers: false,
@@ -105,6 +108,7 @@ describe('readPreferences', () => {
     const read = readPreferences({
       schemaVersion: 1,
       theme: 'light',
+      language: 'es',
       grid: true,
       snapToGrid: false,
       rulers: true,
@@ -112,6 +116,7 @@ describe('readPreferences', () => {
     });
     expect(read.preferences).toEqual({
       theme: 'light',
+      language: 'es',
       grid: true,
       snapToGrid: false,
       rulers: true,
@@ -131,16 +136,18 @@ describe('readPreferences', () => {
     const read = readPreferences({
       schemaVersion: 1,
       theme: 'high-contrast',
+      language: 'fr',
       grid: 'yes',
       recentColors: ['#FFFFFF', 'red'],
     });
     expect(read.preferences).toEqual(DEFAULT_PREFERENCES);
     expect(read.kept).toEqual({
       theme: 'high-contrast',
+      language: 'fr',
       grid: 'yes',
       recentColors: ['#FFFFFF', 'red'],
     });
-    expect(read.unread).toEqual(['theme', 'grid', 'recentColors']);
+    expect(read.unread).toEqual(['theme', 'language', 'grid', 'recentColors']);
   });
 
   it('reads recent colors in capitals, each once, newest first, at most 8', () => {
@@ -200,6 +207,7 @@ describe('formatPreferences', () => {
         '{',
         '  "schemaVersion": 1,',
         '  "theme": "dark",',
+        '  "language": "system",',
         '  "grid": false,',
         '  "snapToGrid": true,',
         '  "rulers": false,',
@@ -287,6 +295,11 @@ describe('checkPreferenceChanges', () => {
       'a theme this build has not',
       { theme: 'sepia' },
       '"theme" must be "system", "light" or "dark", not "sepia".',
+    ],
+    [
+      'a language this build has not',
+      { language: 'fr' },
+      '"language" must be "system", "en" or "es", not "fr".',
     ],
     ['a grid that is not true or false', { grid: 'on' }, '"grid" must be true or false, not "on".'],
     [
