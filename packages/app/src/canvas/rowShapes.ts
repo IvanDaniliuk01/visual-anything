@@ -6,6 +6,7 @@
  */
 import type { Element, Id, ShapePosition } from '@visual-anything/schema';
 import type { Placement } from '@visual-anything/core';
+import { t } from '../i18n';
 import { centerOf, type Point, type Rect, type ShapeKind } from './geometry';
 import { fitHeader, fitRow } from './fit';
 import { overlapHorizontally, sideToward, type AnyEnd, type SideEnd } from './rowRoutes';
@@ -128,9 +129,13 @@ export function rowsBox(
 function holdingOf(rows: readonly Box[]): string {
   const names = new Set(rows.map((row) => row.measured?.look.componentName));
   const [name] = names;
-  return names.size === 1 && name !== undefined
-    ? `${rows.length} × ${name}`
-    : `${rows.length} inside`;
+  const component = rows[0]?.measured?.element.component;
+  return names.size === 1 && name !== undefined && component !== undefined
+    ? t('{count} × {component}', {
+        count: rows.length,
+        component: t.definition(component, name),
+      })
+    : t('{count} inside', { count: rows.length });
 }
 
 /** Whether a measured box hides what its placement holds: a row, which draws none of it. */

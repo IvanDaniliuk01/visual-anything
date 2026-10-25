@@ -2,6 +2,7 @@ import { arrowColorOf, noteColorsOf, type ThemeName } from '@visual-anything/cor
 import type { Arrow, Color, Note } from '@visual-anything/schema';
 import { useId } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { useT } from '../../i18n';
 import { THEMES } from '../../theme/themes';
 import { TraitRow } from '../definitions/TraitRow';
 import { ColorHints } from './colorParts';
@@ -23,6 +24,7 @@ function noteColors(note: Note, theme: ThemeName) {
  * as stored in both (ADR-0035). Each pick is one `update-free-shape`, and so one undoable action.
  */
 export function FreeShapeAppearance({ shape }: { shape: Note | Arrow }) {
+  const t = useT();
   const { viewId, send } = useEditor();
   const headingId = useId();
   const hintId = useId();
@@ -61,13 +63,13 @@ export function FreeShapeAppearance({ shape }: { shape: Note | Arrow }) {
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>Appearance</h4>
+      <h4 id={headingId}>{t('Appearance')}</h4>
       <ul className="definition-traits">
         {traits.map(({ trait, label, own, shown }) => (
           <TraitRow
             key={trait}
-            label={label}
-            source={own === undefined ? 'the theme’s' : 'its own'}
+            label={t(label)}
+            source={own === undefined ? t('the theme’s') : t('its own')}
             own={own !== undefined}
             readOnly={disabled}
             inherit={() =>
@@ -77,12 +79,12 @@ export function FreeShapeAppearance({ shape }: { shape: Note | Arrow }) {
                   : freeShapeColorCommand(viewId, shape, trait, null, SHOWN),
               )
             }
-            inheritLabel="Use the theme’s color"
+            inheritLabel={t('Use the theme’s color')}
           >
             {({ id, describedBy, send: sendCommand }) => (
               <ColorControl
                 id={id}
-                label={label}
+                label={t(label)}
                 value={shown}
                 disabled={disabled}
                 describedBy={idsOf(describedBy, hints.length > 0 ? hintId : undefined)}

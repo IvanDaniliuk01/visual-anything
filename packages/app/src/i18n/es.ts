@@ -858,6 +858,259 @@ export const ui: Catalog = {
   'It was shrunk to {width} by {height} pixels.': 'Se redujo a {width} por {height} píxeles.',
   'Use the component’s image': 'Usar la imagen del componente',
   'Show no image': 'No mostrar ninguna imagen',
+
+  // The canvas toolbar, and where a new element goes.
+  'Add an element': 'Agregar un elemento',
+  'Add element…': 'Agregar elemento…',
+  'With nothing selected, elements are added directly in World.':
+    'Sin nada seleccionado, los elementos se agregan directamente en Mundo.',
+  'Add inside "{name}"…': 'Agregar dentro de "{name}"…',
+  'Add an element inside "{name}"': 'Agregar un elemento dentro de "{name}"',
+  'Adds the element inside "{name}". With nothing selected, elements are added directly in World.':
+    'Agrega el elemento dentro de "{name}". Sin nada seleccionado, los elementos se agregan directamente en Mundo.',
+  'Adds the element directly in World, beside "{name}". To add inside "{name}" itself, use Add inside "{name}"… in its menu or in the inspector.':
+    'Agrega el elemento directamente en Mundo, junto a "{name}". Para agregarlo dentro del propio "{name}", usar Agregar dentro de "{name}"… en su menú o en el inspector.',
+  'Adds the element inside "{container}", where "{name}" sits. To add inside "{name}" itself, use Add inside "{name}"… in its menu or in the inspector.':
+    'Agrega el elemento dentro de "{container}", donde está "{name}". Para agregarlo dentro del propio "{name}", usar Agregar dentro de "{name}"… en su menú o en el inspector.',
+  'Stacking order': 'Orden de apilado',
+  'Zoom out': 'Alejar',
+  Zoom: 'Zoom',
+  'Zoom in': 'Acercar',
+  Fit: 'Encuadrar',
+
+  // The canvas itself, and what it says.
+  canvas: 'lienzo',
+  Selection: 'Selección',
+  'Name of {name}': 'Nombre de {name}',
+  'Text of the note': 'Texto de la nota',
+  'The canvas could not draw this view: {why}': 'El lienzo no pudo dibujar esta vista: {why}',
+  '{name} is no longer in this view, so its name was not changed.':
+    '{name} ya no está en esta vista, así que no se cambió su nombre.',
+  'The note is no longer in this view, so its text was not changed.':
+    'La nota ya no está en esta vista, así que no se cambió su texto.',
+  'Select an expanded container to collapse it.':
+    'Seleccionar un contenedor expandido para contraerlo.',
+  'Select a collapsed container to expand it.':
+    'Seleccionar un contenedor contraído para expandirlo.',
+  'No shape {towards}.': 'No hay ninguna forma {towards}.',
+  'to the left': 'a la izquierda',
+  'to the right': 'a la derecha',
+  above: 'arriba',
+  below: 'abajo',
+  '{name} sits directly in World.': '{name} está directamente en Mundo.',
+  '{name} holds no shapes.': '{name} no contiene formas.',
+  '{name} has no relations in this view.': '{name} no tiene relaciones en esta vista.',
+  'Collapse "{name}" (Alt+−)': 'Contraer "{name}" (Alt+−)',
+  'Expand "{name}" (Alt++)': 'Expandir "{name}" (Alt++)',
+
+  // What the canvas writes on a collapsed container.
+  '{count} inside': '{count} dentro',
+
+  // The shape menu.
+  'Draws none of what it holds; their relations become aggregated relations. Alt+−':
+    'No dibuja nada de lo que contiene; sus relaciones pasan a ser relaciones agregadas. Alt+−',
+  'Draws again what it holds. Alt++': 'Vuelve a dibujar lo que contiene. Alt++',
+  'Put inside…': 'Poner dentro de…',
+  'Move to…': 'Mover a…',
+  'Under the pointer': 'Bajo el puntero',
+  'Select "{name}"': 'Seleccionar "{name}"',
+
+  // Layout, from the toolbar.
+  Layout: 'Organizar',
+  'Every shape there is pinned, so layout leaves them all.':
+    'Todas las formas de ahí están fijadas, así que el diseño automático las deja a todas.',
+  'Layout stopped, and nothing moved.': 'El diseño automático se detuvo y nada se movió.',
+  'The layout failed: {why}': 'El diseño automático falló: {why}',
+  'Layout leaves every shape where it is.': 'El diseño automático deja cada forma donde está.',
+  '{action}: {count} shapes moved.': {
+    one: '{action}: se movió {count} forma.',
+    other: '{action}: se movieron {count} formas.',
+  },
+  'Stop layout': 'Detener el diseño automático',
+  'Stop layout ({percent}%)': 'Detener el diseño automático ({percent} %)',
+  'Laying out {count} shapes. Press to stop it; nothing moves then.': {
+    one: 'Organizando {count} forma. Presionar para detenerlo; entonces nada se mueve.',
+    other: 'Organizando {count} formas. Presionar para detenerlo; entonces nada se mueve.',
+  },
+  'Laying out {count} shapes: {percent}% done. Press to stop it; nothing moves then.': {
+    one: 'Organizando {count} forma: {percent} % hecho. Presionar para detenerlo; entonces nada se mueve.',
+    other:
+      'Organizando {count} formas: {percent} % hecho. Presionar para detenerlo; entonces nada se mueve.',
+  },
+  'Layout needs web workers, which this browser does not offer.':
+    'El diseño automático necesita web workers, que este navegador no ofrece.',
+  'Visual Anything is not connected, so nothing can be laid out.':
+    'Visual Anything no está conectado, así que no se puede organizar nada.',
+  'Lay out the contents of "{name}": arrange the shapes inside it that are not pinned.':
+    'Organizar el contenido de "{name}": acomodar las formas que tiene dentro y que no están fijadas.',
+  'Lay out "{name}": arrange every shape that is not pinned.':
+    'Organizar "{name}": acomodar todas las formas que no están fijadas.',
+
+  // Why the browser could not draw an image to export.
+  'the browser has no canvas to draw it on.': 'el navegador no tiene un lienzo donde dibujarla.',
+  'the browser could not make a PNG.': 'el navegador no pudo crear un PNG.',
+
+  // The inspector.
+  Inspector: 'Inspector',
+  'Edit its text on the canvas.': 'Editar su texto en el lienzo.',
+  'A free shape: drawing only, not part of the model.':
+    'Una forma libre: solo dibujo, no forma parte del modelo.',
+  '{things} are selected.': 'Selección: {things}.',
+  'Select only one to see and edit the rest of it.':
+    'Seleccionar solo uno para ver y editar el resto.',
+  'No view is open.': 'No hay ninguna vista abierta.',
+  None: 'Ninguno',
+  'Element shapes': 'Formas de elementos',
+  'Free shapes': 'Formas libres',
+  Nothing: 'Nada',
+  '(a relation)': '(una relación)',
+  Particularity: 'Particularidad',
+  'Derives from': 'Deriva de',
+  '{shown} of {count} shown.': 'Se muestran {shown} de {count}.',
+  'Show all {count} {many}': 'Mostrar todo: {count} {many}',
+  containers: 'contenedores',
+  relations: 'relaciones',
+
+  // An element, a relation and their relation types in the inspector.
+  Component: 'Componente',
+  'It derives from no other component.': 'No deriva de ningún otro componente.',
+  'Its chain stops before Essence, because a component in it is missing.':
+    'Su cadena se corta antes de Esencia, porque falta uno de sus componentes.',
+  'No package in use defines the component “{id}”, so it looks like Essence.':
+    'Ningún paquete en uso define el componente “{id}”, así que se ve como Esencia.',
+  'Derive a component from “{name}”': 'Derivar un componente de “{name}”',
+  'Edit “{name}”': 'Editar “{name}”',
+  Containers: 'Contenedores',
+  'World contains every other element.': 'Mundo contiene todos los demás elementos.',
+  'It sits directly in World.': 'Está directamente en Mundo.',
+  'No relation ends on it.': 'Ninguna relación termina en él.',
+  Ends: 'Extremos',
+  From: 'Origen',
+  To: 'Destino',
+  'Relation type': 'Tipo de relación',
+  'It derives from no other relation type.': 'No deriva de ningún otro tipo de relación.',
+  'Its chain stops before “relates to”, because a relation type in it is missing.':
+    'Su cadena se corta antes de “se relaciona con”, porque falta uno de sus tipos de relación.',
+  'No package in use defines the relation type “{id}”, so it behaves like “relates to”.':
+    'Ningún paquete en uso define el tipo de relación “{id}”, así que se comporta como “se relaciona con”.',
+  Warnings: 'Advertencias',
+  'Derive a relation type from “{name}”': 'Derivar un tipo de relación de “{name}”',
+  'needs two elements': 'necesita dos elementos',
+  'World cannot sit inside anything': 'Mundo no puede estar dentro de nada',
+  'would make containment form a cycle': 'haría que la contención forme un ciclo',
+
+  // Attributes in the inspector.
+  component: 'componente',
+  'relation type': 'tipo de relación',
+  'Its {definer} defines no attributes.': 'Su {definer} no define atributos.',
+  'Not defined by its {definer}.': 'No lo define su {definer}.',
+  'No default.': 'Sin valor predeterminado.',
+  'Default: {value}.': 'Valor predeterminado: {value}.',
+  'Its value is not JSON.': 'Su valor no es JSON.',
+  'Its value is not a {type}.': 'Su valor no es de tipo {type}.',
+  'its value differs from its {definer}’s': 'su valor difiere del de su {definer}',
+  'Use the {definer}’s value': 'Usar el valor del {definer}',
+  Clear: 'Vaciar',
+  'for {name}': 'para {name}',
+  'Give the attribute a name.': 'El atributo necesita un nombre.',
+  'It already has an attribute named “{name}”.': 'Ya tiene un atributo llamado “{name}”.',
+  'Add an attribute of its own': 'Agregar un atributo propio',
+  'Attribute name': 'Nombre del atributo',
+  'Attribute type': 'Tipo del atributo',
+  'Add attribute': 'Agregar atributo',
+  'Enter a JSON value, such as null.': 'Escribir un valor JSON, como null.',
+  'Not valid JSON: {reason}': 'No es JSON válido: {reason}',
+  'Enter a number.': 'Escribir un número.',
+
+  // Appearance in the inspector: shapes, colors, where each comes from and the contrast hints.
+  Appearance: 'Apariencia',
+  'Only this element': 'Solo este elemento',
+  'Only this relation': 'Solo esta relación',
+  'Every {name}': 'Cada {name}',
+  Change: 'Aplicar a',
+  Detail: 'Detalle',
+  'Nothing under its name': 'Nada debajo de su nombre',
+  Badges: 'Insignias',
+  Shape: 'Forma',
+  shape: 'forma',
+  Fill: 'Relleno',
+  Stroke: 'Trazo',
+  Rectangle: 'Rectángulo',
+  'Rounded rectangle': 'Rectángulo redondeado',
+  Ellipse: 'Elipse',
+  Cylinder: 'Cilindro',
+  Person: 'Persona',
+  'Use the inherited value': 'Usar el valor heredado',
+  'Use the inherited color': 'Usar el color heredado',
+  'Use the inherited shape': 'Usar la forma heredada',
+  'Use the theme’s color': 'Usar el color del tema',
+  '{action} for {name}': '{action}: {name}',
+  'It also sets its own size: {width} by {height}.':
+    'También define su propio tamaño: {width} por {height}.',
+  'Use the component’s appearance': 'Usar la apariencia del componente',
+  'This element has a {what} of its own: a change here takes it back, so that it follows.':
+    'Este elemento tiene su propio valor de {what}: un cambio aquí lo quita, para que lo siga.',
+  'This relation has a stroke of its own: a change here takes it back, so that it follows.':
+    'Esta relación tiene su propio trazo: un cambio aquí lo quita, para que lo siga.',
+  'its own': 'propio',
+  'the theme’s': 'del tema',
+  'set in this project': 'definido en este proyecto',
+  'from {name}, set in this project': 'de {name}, definido en este proyecto',
+  'built in': 'incorporado',
+  'built in, from {name}': 'incorporado, de {name}',
+  'from {name}': 'de {name}',
+  'Saved in this project.': 'Se guarda en este proyecto.',
+  'Saved in this project; the built-in package {name} stays as it is.':
+    'Se guarda en este proyecto; el paquete incorporado {name} queda como está.',
+  'Saved in the package {name}.': 'Se guarda en el paquete {name}.',
+  'Hard to see on the light canvas ({ratio}); lines need 3:1.':
+    'Difícil de ver sobre el lienzo claro ({ratio}); las líneas necesitan 3:1.',
+  'Hard to see on the dark canvas ({ratio}); lines need 3:1.':
+    'Difícil de ver sobre el lienzo oscuro ({ratio}); las líneas necesitan 3:1.',
+  'Blends into the light canvas: neither its fill nor its stroke reaches 3:1 on it.':
+    'Se confunde con el lienzo claro: ni su relleno ni su trazo llegan a 3:1 sobre él.',
+  'Blends into the dark canvas: neither its fill nor its stroke reaches 3:1 on it.':
+    'Se confunde con el lienzo oscuro: ni su relleno ni su trazo llegan a 3:1 sobre él.',
+  Mixed: 'Varios',
+  '{label} color code': 'Código de color: {label}',
+  'Recent and project colors for {label}': 'Colores recientes y del proyecto para {label}',
+  'Use {color}': 'Usar {color}',
+  'Write a color as #RRGGBB, #RGB or rgb(r, g, b), such as #F3F5F8.':
+    'Escribir un color como #RRGGBB, #RGB o rgb(r, g, b), por ejemplo #F3F5F8.',
+  'Appearance of {count} shapes': {
+    one: 'Apariencia de {count} forma',
+    other: 'Apariencia de {count} formas',
+  },
+  'For the {count} shapes with a fill.': {
+    one: 'Para la única forma con relleno.',
+    other: 'Para las {count} formas con relleno.',
+  },
+  'Enter a size above 0, at most 100,000.':
+    'Escribir un tamaño mayor que 0, de 100.000 como máximo.',
+  'Enter a width above 0.': 'Escribir un grosor mayor que 0.',
+  '{first} or {last}': '{first} o {last}',
+
+  // Where an element sits in the open view, in the inspector.
+  'This view puts nothing inside containers: it is arranged by no relation type that nests.':
+    'Esta vista no pone nada dentro de contenedores: no la organiza ningún tipo de relación que anide.',
+  'In this view': 'En esta vista',
+  'Collapsed: its contents are not drawn.': 'Contraído: su contenido no se dibuja.',
+  'Collapsed, with {inside}: its contents are not drawn.':
+    'Contraído, con {inside}: su contenido no se dibuja.',
+  'Expanded: its contents are drawn.': 'Expandido: su contenido se dibuja.',
+  Expand: 'Expandir',
+  Collapse: 'Contraer',
+  'In "{name}"': 'En "{name}"',
+  '{where}: {place} of {count}, from the back': '{where}: {place} de {count}, desde el fondo',
+  'In front of it: {names}': 'Delante: {names}',
+  'Behind it: {names}': 'Detrás: {names}',
+
+  // Columns typed or pasted into a table, that cannot be read or related.
+  'no column named “{name}”': 'ninguna columna se llama “{name}”',
+  'no table named “{name}”': 'ninguna tabla se llama “{name}”',
+  'no column named “{column}” in “{table}”': 'ninguna columna de “{table}” se llama “{column}”',
+  'no single primary key column in “{name}”':
+    '“{name}” no tiene una única columna de clave primaria',
 };
 
 /**
@@ -1024,6 +1277,22 @@ export const messages: Catalog = {
   'Draw {n} relations straight in "{view}"': 'Dibujar {n} relaciones rectas en "{view}"',
   'Draw {n} relations orthogonal in "{view}"': 'Dibujar {n} relaciones ortogonales en "{view}"',
   'Reconnect "{relation}" to "{end}"': 'Reconectar "{relation}" con "{end}"',
+
+  // The labels of what the canvas does, and what it says once it is done.
+  'Delete the selection': 'Eliminar la selección',
+  'Collapsed "{name}".': 'Se contrajo "{name}".',
+  'Expanded "{name}".': 'Se expandió "{name}".',
+  'Collapsed {n} containers.': 'Se contrajeron {n} contenedores.',
+  'Expanded {n} containers.': 'Se expandieron {n} contenedores.',
+  'Lay out': 'Organizar',
+  'Lay out "{view}"': 'Organizar "{view}"',
+  'Lay out the contents of "{name}"': 'Organizar el contenido de "{name}"',
+  'Lay out "{element}" in "{view}"': 'Organizar "{element}" en "{view}"',
+  'Lay out {n} new shapes in "{view}"': 'Organizar {n} formas nuevas en "{view}"',
+
+  // The labels of what the inspector changes.
+  'Change the appearance of {of}': 'Cambiar la apariencia de {of}',
+  'Change the appearance of {n} shapes': 'Cambiar la apariencia de {n} formas',
 
   // Why a change was refused, and what a change breaks that only warns.
   'There is nothing to undo.': 'No hay nada que deshacer.',
@@ -1499,8 +1768,16 @@ export const messages: Catalog = {
   'The scenario "{name}" has no step "{id}".': 'El escenario "{name}" no tiene el paso "{id}".',
 };
 
-/** The built-in packages, components and relation types, by id. */
-export const builtins: Readonly<Record<string, { name: string; description?: string }>> = {
+/**
+ * The built-in packages, components and relation types, by id, with the descriptions of the attributes
+ * each defines itself, by their names, which are data and stay as they are.
+ */
+export const builtins: Readonly<
+  Record<
+    string,
+    { name: string; description?: string; attributes?: Readonly<Record<string, string>> }
+  >
+> = {
   essence: {
     name: 'Esencia',
     description: 'El componente del que derivan, en última instancia, todos los demás.',
@@ -1517,6 +1794,7 @@ export const builtins: Readonly<Record<string, { name: string; description?: str
   'systems.box': {
     name: 'Caja',
     description: 'Cualquier parte de un sistema que no tiene un componente más específico.',
+    attributes: { owner: 'El equipo que lo opera.' },
   },
   'systems.system': {
     name: 'Sistema',
@@ -1525,20 +1803,24 @@ export const builtins: Readonly<Record<string, { name: string; description?: str
   'systems.service': {
     name: 'Servicio',
     description: 'Un programa en ejecución al que otros llaman.',
+    attributes: { technology: 'Con qué está hecho, como "Node.js" o "PostgreSQL".' },
   },
   'systems.chat-channel': {
     name: 'Canal de chat',
     description:
       'Un servicio a través del cual las personas hablan con un sistema, como WhatsApp o Slack.',
+    attributes: { provider: 'Quién provee el canal.' },
   },
   'systems.ai-agent': {
     name: 'Agente de IA',
     description: 'Un servicio que razona con un modelo de lenguaje y llama a otros servicios.',
+    attributes: { model: 'El modelo de lenguaje que usa.' },
   },
   'systems.mcp-server': {
     name: 'Servidor MCP',
     description:
       'Un servicio que da herramientas y datos a los agentes de IA mediante el Model Context Protocol.',
+    attributes: { transport: 'Cómo lo alcanzan los clientes: "stdio" o "http".' },
   },
   'systems.semantic-layer': {
     name: 'Capa semántica',
@@ -1548,6 +1830,7 @@ export const builtins: Readonly<Record<string, { name: string; description?: str
   'systems.database': {
     name: 'Base de datos',
     description: 'Un almacén de datos estructurados.',
+    attributes: { engine: 'Como "postgres" o "mysql".' },
   },
   'systems.object-storage': {
     name: 'Almacenamiento de objetos',
@@ -1556,10 +1839,12 @@ export const builtins: Readonly<Record<string, { name: string; description?: str
   'systems.person': {
     name: 'Persona',
     description: 'Alguien que usa o administra un sistema.',
+    attributes: { role: 'Lo que hace, como "patient".' },
   },
   'systems.communicates-with': {
     name: 'se comunica con',
     description: 'Envía solicitudes o mensajes a otro elemento.',
+    attributes: { protocol: 'Como "HTTPS", "gRPC" o "AMQP".' },
   },
   'systems.reads-from': {
     name: 'lee de',
@@ -1593,6 +1878,12 @@ export const builtins: Readonly<Record<string, { name: string; description?: str
   'data-modeling.column': {
     name: 'Columna',
     description: 'Una columna de una tabla.',
+    attributes: {
+      type: 'Su tipo de datos, como "uuid", "integer" o "varchar(255)".',
+      primaryKey: 'Si forma parte de la clave primaria de su tabla.',
+      notNull: 'Si rechaza valores vacíos.',
+      unique: 'Si dos registros no pueden tener el mismo valor.',
+    },
   },
   'data-modeling.is-column-of': {
     name: 'es columna de',
@@ -1602,5 +1893,9 @@ export const builtins: Readonly<Record<string, { name: string; description?: str
     name: 'referencia',
     description:
       'Una clave foránea: los valores de este extremo son valores del otro extremo, por lo general una clave primaria.',
+    attributes: {
+      onDelete:
+        'Qué pasa con los registros que tienen este valor cuando se elimina el registro al que se refieren.',
+    },
   },
 };

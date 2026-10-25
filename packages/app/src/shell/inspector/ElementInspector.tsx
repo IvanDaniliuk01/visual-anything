@@ -9,6 +9,7 @@ import { ESSENCE_ID, type Element } from '@visual-anything/schema';
 import { useId, type Ref } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import type { Selectable } from '../../editor/selection';
+import { useT } from '../../i18n';
 import { isBuiltInDefinition } from '../definitions/commands';
 import { useOpenDefinition } from '../definitions/opened';
 import { AppearanceSection } from './AppearanceSection';
@@ -42,6 +43,7 @@ export function ElementInspector({
   titleRef,
   onSelect,
 }: ElementInspectorProps) {
+  const t = useT();
   const { project, send } = useEditor();
   const disabled = send === undefined;
   const index = modelIndexOf(project);
@@ -59,7 +61,7 @@ export function ElementInspector({
         detail={describedAs(element, index, definitions)}
       />
       <div className="inspector-control">
-        <label htmlFor={nameId}>Name</label>
+        <label htmlFor={nameId}>{t('Name')}</label>
         <TextControl
           id={nameId}
           value={element.name}
@@ -71,7 +73,7 @@ export function ElementInspector({
         />
       </div>
       <div className="inspector-control">
-        <label htmlFor={descriptionId}>Description</label>
+        <label htmlFor={descriptionId}>{t('Description')}</label>
         <TextControl
           id={descriptionId}
           value={element.description ?? ''}
@@ -101,6 +103,7 @@ export function ElementInspector({
       <AttributesSection
         of="element"
         definitions={component.attributes}
+        lineage={component.lineage}
         values={element.attributes}
         disabled={disabled}
         change={update}
@@ -129,6 +132,7 @@ interface ComponentSectionProps {
  * from a built-in component, which the element can then be created from.
  */
 function ComponentSection({ element, definitions, disabled, update }: ComponentSectionProps) {
+  const t = useT();
   const { project } = useEditor();
   const { open } = useOpenDefinition();
   const headingId = useId();
@@ -138,10 +142,11 @@ function ComponentSection({ element, definitions, disabled, update }: ComponentS
   const offered = byPackage(definitions.components, project.packages);
   const listed = offered.some((from) => from.members.includes(element.component));
   const derivesFrom = component.lineage.slice(1);
+  const nameOf = (id: string) => t.definition(id, componentOrEssence(definitions, id).name);
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>Component</h4>
+      <h4 id={headingId}>{t('Component')}</h4>
       <SelectControl
         id={selectId}
         labelledBy={headingId}
@@ -149,35 +154,37 @@ function ComponentSection({ element, definitions, disabled, update }: ComponentS
         disabled={disabled}
         onCommit={(id) => update({ component: id })}
       >
-        {!listed && <option value={element.component}>{component.name}</option>}
+        {!listed && <option value={element.component}>{nameOf(element.component)}</option>}
         {offered.map((from) => (
-          <optgroup key={from.id} label={from.name}>
+          <optgroup key={from.id} label={t.definition(from.id, from.name)}>
             {from.members.map((id) => (
               <option key={id} value={id}>
-                {componentOrEssence(definitions, id).name}
+                {nameOf(id)}
               </option>
             ))}
           </optgroup>
         ))}
       </SelectControl>
       {component.description !== undefined && (
-        <p className="inspector-notes">{component.description}</p>
+        <p className="inspector-notes">{t.description(component.id, component.description)}</p>
       )}
       {known ? (
         <>
           <Lineage
-            names={derivesFrom.map((id) => componentOrEssence(definitions, id).name)}
-            none="It derives from no other component."
+            names={derivesFrom.map(nameOf)}
+            none={t('It derives from no other component.')}
           />
           {component.lineage.at(-1) !== ESSENCE_ID && (
             <p className="inspector-warning">
-              Its chain stops before Essence, because a component in it is missing.
+              {t('Its chain stops before Essence, because a component in it is missing.')}
             </p>
           )}
         </>
       ) : (
         <p className="inspector-warning">
-          No package in use defines the component “{element.component}”, so it looks like Essence.
+          {t('No package in use defines the component “{id}”, so it looks like Essence.', {
+            id: element.component,
+          })}
         </p>
       )}
       {open !== undefined &&
@@ -199,7 +206,7 @@ function ComponentSection({ element, definitions, disabled, update }: ComponentS
               )
             }
           >
-            Derive a component from “{component.name}”
+            {t('Derive a component from “{name}”', { name: nameOf(element.component) })}
           </button>
         ) : (
           <button
@@ -207,7 +214,7 @@ function ComponentSection({ element, definitions, disabled, update }: ComponentS
             className="inspector-action"
             onClick={() => open({ kind: 'component', id: element.component }, { focus: true })}
           >
-            Edit “{component.name}”
+            {t('Edit “{name}”', { name: nameOf(element.component) })}
           </button>
         ))}
     </section>
@@ -227,6 +234,7 @@ interface PlacesSectionProps {
  * until all are asked for, so that selecting it stays quick.
  */
 function PlacesSection({ element, index, definitions, onSelect }: PlacesSectionProps) {
+  const t = useT();
   const containersId = useId();
   const relationsId = useId();
   const containers = index.containersOf(element.id);
@@ -236,7 +244,7 @@ function PlacesSection({ element, index, definitions, onSelect }: PlacesSectionP
   return (
     <>
       <section className="inspector-section" aria-labelledby={containersId}>
-        <h4 id={containersId}>Containers</h4>
+        <h4 id={containersId}>{t('Containers')}</h4>
         {containers.length > 0 ? (
           <FirstOnes
             labelledBy={containersId}
@@ -249,12 +257,12 @@ function PlacesSection({ element, index, definitions, onSelect }: PlacesSectionP
           />
         ) : (
           <p className="panel-empty">
-            {isWorld ? 'World contains every other element.' : 'It sits directly in World.'}
+            {isWorld ? t('World contains every other element.') : t('It sits directly in World.')}
           </p>
         )}
       </section>
       <section className="inspector-section" aria-labelledby={relationsId}>
-        <h4 id={relationsId}>Relations</h4>
+        <h4 id={relationsId}>{t('Relations')}</h4>
         {relations.length > 0 ? (
           <FirstOnes
             labelledBy={relationsId}
@@ -273,7 +281,7 @@ function PlacesSection({ element, index, definitions, onSelect }: PlacesSectionP
             }}
           />
         ) : (
-          <p className="panel-empty">No relation ends on it.</p>
+          <p className="panel-empty">{t('No relation ends on it.')}</p>
         )}
       </section>
     </>

@@ -4,6 +4,7 @@ import type { Id } from '@visual-anything/schema';
 import { useId, useRef, useState, type ReactNode, type Ref } from 'react';
 import { flushSync } from 'react-dom';
 import type { Selectable } from '../../editor/selection';
+import { useT } from '../../i18n';
 import { relationLabel } from './describe';
 import { describedAs } from './detail';
 
@@ -49,9 +50,10 @@ export function Title({
 
 /** Marks a particularity: a trait of this one element. */
 export function Mark({ id, reason }: { id: string; reason?: string }) {
+  const t = useT();
   return (
     <span id={id} className="inspector-mark">
-      Particularity
+      {t('Particularity')}
       {reason !== undefined && <span className="visually-hidden">: {reason}</span>}
     </span>
   );
@@ -89,6 +91,7 @@ interface EndProps {
  * World cannot be selected, and an end that no longer exists is only named.
  */
 export function End({ id, index, definitions, onSelect }: EndProps) {
+  const t = useT();
   const element = index.element(id);
   if (element) {
     const component = describedAs(element, index, definitions);
@@ -113,7 +116,10 @@ export function End({ id, index, definitions, onSelect }: EndProps) {
     return (
       <SelectButton
         name={relationLabel(index, relation)}
-        detail={relationTypeOrRelatesTo(definitions, relation.relationType).name}
+        detail={t.definition(
+          relation.relationType,
+          relationTypeOrRelatesTo(definitions, relation.relationType).name,
+        )}
         onSelect={() => onSelect({ kind: 'relation', id })}
       />
     );
@@ -126,12 +132,13 @@ export function End({ id, index, definitions, onSelect }: EndProps) {
  * from nothing, as Essence and "relates to" do.
  */
 export function Lineage({ names, none }: { names: readonly string[]; none: string }) {
+  const t = useT();
   const term = useId();
   if (names.length === 0) return <p className="inspector-lineage">{none}</p>;
   return (
     <div className="inspector-lineage">
       <span id={term} className="inspector-lineage-term">
-        Derives from
+        {t('Derives from')}
       </span>
       <ol aria-labelledby={term}>
         {names.map((name, position) => (
@@ -159,6 +166,7 @@ interface FirstOnesProps<T> {
  * from the button, which goes, to the first of the items it brought.
  */
 export function FirstOnes<T>({ labelledBy, items, keyOf, many, render }: FirstOnesProps<T>) {
+  const t = useT();
   const [all, setAll] = useState(false);
   const list = useRef<HTMLUListElement>(null);
   const shown = all ? items : items.slice(0, FIRST_ONES);
@@ -177,9 +185,9 @@ export function FirstOnes<T>({ labelledBy, items, keyOf, many, render }: FirstOn
       </ul>
       {shown.length < items.length && (
         <p className="inspector-notes">
-          {shown.length} of {items.length} shown.{' '}
+          {t('{shown} of {count} shown.', { shown: shown.length, count: items.length })}{' '}
           <button type="button" className="inspector-action" onClick={showAll}>
-            Show all {items.length} {many}
+            {t('Show all {count} {many}', { count: items.length, many: t(many) })}
           </button>
         </p>
       )}

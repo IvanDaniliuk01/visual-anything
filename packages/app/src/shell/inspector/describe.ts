@@ -7,6 +7,7 @@ import {
 } from '@visual-anything/core';
 import type { Id, PackageFile, Relation } from '@visual-anything/schema';
 import type { Selection } from '../../editor/selection';
+import { t } from '../../i18n';
 
 /** How many hops a name makes, from a relation to a relation it ends on, before it stops. */
 const NAME_HOPS = 3;
@@ -21,7 +22,7 @@ export function endName(index: ModelIndex, id: Id, hops = 0): string {
   const relation = index.relation(id);
   if (!relation) return id;
   if (relation.name !== undefined) return relation.name;
-  return hops < NAME_HOPS ? `(${relationLabel(index, relation, hops + 1)})` : '(a relation)';
+  return hops < NAME_HOPS ? `(${relationLabel(index, relation, hops + 1)})` : t('(a relation)');
 }
 
 /** What a relation is called: its name, or else its ends, as in "Patient → WhatsApp channel". */
@@ -36,7 +37,8 @@ export function relationSentence(
   definitions: Definitions,
   relation: Relation,
 ): string {
-  const relationType = relationTypeOrRelatesTo(definitions, relation.relationType).name;
+  const type = relationTypeOrRelatesTo(definitions, relation.relationType);
+  const relationType = t.definition(type.id, type.name);
   return `${endName(index, relation.from)} ${relationType} ${endName(index, relation.to)}`;
 }
 
@@ -48,16 +50,16 @@ export function count(amount: number, singular: string, plural = `${singular}s`)
 /** What is selected, in words: "2 elements, 1 relation and 1 free shape". */
 export function countsOf(selection: Selection): string {
   const parts = [
-    [selection.elements.size, 'element'],
-    [selection.relations.size, 'relation'],
-    [selection.freeShapes.size, 'free shape'],
+    [selection.elements.size, { one: '{count} element', other: '{count} elements' }],
+    [selection.relations.size, { one: '{count} relation', other: '{count} relations' }],
+    [selection.freeShapes.size, { one: '{count} free shape', other: '{count} free shapes' }],
   ] as const;
   const counted = parts
     .filter(([amount]) => amount > 0)
-    .map(([amount, singular]) => count(amount, singular));
-  if (counted.length === 0) return 'Nothing';
+    .map(([amount, text]) => t(text, { count: amount }));
+  if (counted.length === 0) return t('Nothing');
   const last = counted.pop() as string;
-  return counted.length === 0 ? last : `${counted.join(', ')} and ${last}`;
+  return counted.length === 0 ? last : t('{first} and {last}', { first: counted.join(', '), last });
 }
 
 /** The definitions one package gives, offered together under its name. */

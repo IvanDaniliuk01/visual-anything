@@ -1,5 +1,6 @@
 import type { Command } from '@visual-anything/core';
 import { useId, type ReactNode } from 'react';
+import { useT } from '../../i18n';
 import { InlineProblem } from '../inspector/controls';
 import { useSender } from './useSender';
 
@@ -46,11 +47,13 @@ export function TraitRow({
   own,
   readOnly,
   inherit,
-  inheritLabel = 'Use the inherited value',
+  inheritLabel,
   note,
   group = false,
   children,
 }: TraitRowProps) {
+  const t = useT();
+  const way = inheritLabel ?? t('Use the inherited value');
   const id = useId();
   const labelId = useId();
   const sourceId = useId();
@@ -98,10 +101,10 @@ export function TraitRow({
         <button
           type="button"
           className="inspector-action"
-          aria-label={`${inheritLabel} for ${label}`}
+          aria-label={t('{action} for {name}', { action: way, name: label })}
           onClick={() => void sender.send(inherit())}
         >
-          {inheritLabel}
+          {way}
         </button>
       )}
       {sender.problem !== undefined && <InlineProblem id={problemId} text={sender.problem} />}

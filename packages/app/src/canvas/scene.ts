@@ -50,6 +50,7 @@ import {
   type Placement,
   type ResolvedAppearance,
 } from '@visual-anything/core';
+import { currentLanguage, t, type Language } from '../i18n';
 import { collapsedIn } from './collapse';
 import type { Dash, ShapeKind } from './geometry';
 import { arrowheadAt, directionOf, type Arrowhead, type Point, type Rect } from './geometry';
@@ -385,6 +386,8 @@ const NOT_LAID_OUT: ReadonlySet<string> = new Set(['stackingOrder', 'name', 'des
 const exactly = new WeakMap<ViewFile['positions'], Built>();
 /** The last build of each view, by its id, which the next build starts from. */
 const latest = new Map<Id, Built>();
+/** The language the last builds write their texts in: a build in another starts from nothing. */
+let builtIn: Language = currentLanguage();
 
 /**
  * Everything the view with this id draws. When nothing it draws changed, it is the same scene as
@@ -393,6 +396,10 @@ const latest = new Map<Id, Built>();
  * is that same object.
  */
 export function buildScene(project: ProjectSnapshot, viewId: Id): Scene {
+  if (currentLanguage() !== builtIn) {
+    builtIn = currentLanguage();
+    latest.clear();
+  }
   const view = viewOf(project, viewId);
   const kept = exactly.get(view.positions);
   // An older build, as an undo past the last change brings back, would give shapes equal to those of
@@ -639,10 +646,18 @@ function detailFor(
   started: ReadonlySet<Id> | undefined,
 ): string {
   const types = started ?? NO_TYPES;
-  const key = types.size === 0 ? '' : [...types].sort().join(' ');
+  // The component's name is the language's for a built-in one (ADR-0038).
+  const language = currentLanguage();
+  const key = `${language} ${types.size === 0 ? '' : [...types].sort().join(' ')}`;
   let detail = look.details.get(key);
   if (detail === undefined) {
-    detail = detailText(detailParts(element, definitions, types));
+    detail = detailText(
+      detailParts(element, definitions, types).map((part) =>
+        part.kind === 'component-name'
+          ? { ...part, text: t.definition(element.component, part.text) }
+          : part,
+      ),
+    );
     look.details.set(key, detail);
   }
   return detail;

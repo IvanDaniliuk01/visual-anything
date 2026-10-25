@@ -18,6 +18,7 @@ import {
   type TraitOrigin,
 } from '@visual-anything/core';
 import type { Color, Id } from '@visual-anything/schema';
+import { t } from '../../i18n';
 
 /** The colors of an element or a note that the inspector edits. */
 export type ColorTrait = 'fill' | 'stroke';
@@ -68,25 +69,29 @@ export function suggestedColors(recent: readonly Color[], project: ProjectSnapsh
  * calls what it sets itself its own, or "set in this project" for its project appearance.
  */
 export function originText(origin: TraitOrigin, nameOf: (id: Id) => string, self?: Id): string {
-  if (origin.kind === 'own') return 'its own';
+  if (origin.kind === 'own') return t('its own');
   if (origin.via === 'project') {
     return origin.id === self
-      ? 'set in this project'
-      : `from ${nameOf(origin.id)}, set in this project`;
+      ? t('set in this project')
+      : t('from {name}, set in this project', { name: nameOf(origin.id) });
   }
-  if (origin.id === self) return origin.builtIn ? 'built in' : 'its own';
-  return origin.builtIn ? `built in, from ${nameOf(origin.id)}` : `from ${nameOf(origin.id)}`;
+  if (origin.id === self) return origin.builtIn ? t('built in') : t('its own');
+  return origin.builtIn
+    ? t('built in, from {name}', { name: nameOf(origin.id) })
+    : t('from {name}', { name: nameOf(origin.id) });
 }
 
 /** Where a definition's appearance is saved, in words, by the package that defines it. */
 export function savedIn(packages: readonly { id: Id; name: string }[], packageId?: Id): string {
-  if (packageId === undefined) return 'Saved in this project.';
+  if (packageId === undefined) return t('Saved in this project.');
   const builtin = builtinPackage(packageId);
   if (builtin) {
-    return `Saved in this project; the built-in package ${builtin.name} stays as it is.`;
+    return t('Saved in this project; the built-in package {name} stays as it is.', {
+      name: t.definition(builtin.id, builtin.name),
+    });
   }
   const name = packages.find((file) => file.id === packageId)?.name ?? packageId;
-  return `Saved in the package ${name}.`;
+  return t('Saved in the package {name}.', { name });
 }
 
 /** Joins the ids of what describes a control, leaving out those that are absent. */
@@ -108,12 +113,24 @@ export function ratioText(ratio: number): string {
   return `${(Math.floor(ratio * 10) / 10).toFixed(1)}:1`;
 }
 
+/** The hints for each theme's canvas: for a line hard to see on it, and a shape that blends into it. */
+const THEME_CANVAS: Readonly<Record<ThemeName, { line: string; shape: string }>> = {
+  light: {
+    line: 'Hard to see on the light canvas ({ratio}); lines need 3:1.',
+    shape: 'Blends into the light canvas: neither its fill nor its stroke reaches 3:1 on it.',
+  },
+  dark: {
+    line: 'Hard to see on the dark canvas ({ratio}); lines need 3:1.',
+    shape: 'Blends into the dark canvas: neither its fill nor its stroke reaches 3:1 on it.',
+  },
+};
+
 /** The hints for a line drawn in these colors, one for each canvas it is hard to see on. */
 export function lineHints(colors: Readonly<Record<ThemeName, Color>>): string[] {
   return THEME_NAMES.flatMap((theme) => {
     const ratio = legibility(colors[theme])[theme];
     return ratio < MINIMUM_MARK_CONTRAST
-      ? [`Hard to see on the ${theme} canvas (${ratioText(ratio)}); lines need 3:1.`]
+      ? [t(THEME_CANVAS[theme].line, { ratio: ratioText(ratio) })]
       : [];
   });
 }
@@ -128,8 +145,6 @@ export function shapeHints(colors: Readonly<Record<ThemeName, ShapeColors>>): st
     const blends =
       legibility(fill)[theme] < MINIMUM_MARK_CONTRAST &&
       legibility(stroke)[theme] < MINIMUM_MARK_CONTRAST;
-    return blends
-      ? [`Blends into the ${theme} canvas: neither its fill nor its stroke reaches 3:1 on it.`]
-      : [];
+    return blends ? [t(THEME_CANVAS[theme].shape)] : [];
   });
 }

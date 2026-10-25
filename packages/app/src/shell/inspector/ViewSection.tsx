@@ -39,6 +39,7 @@ import {
 } from '../../canvas/stacking';
 import { useEditor } from '../../editor/EditorContext';
 import { selectionOf } from '../../editor/selection';
+import { useT } from '../../i18n';
 
 /** How many of the shapes that overlap it each line names. */
 const NEIGHBOURS_NAMED = 3;
@@ -60,6 +61,7 @@ interface Choosing {
  * draws; the model's containers stay listed under Containers.
  */
 export function ViewSection({ element }: { element: Element }) {
+  const t = useT();
   const { project, scene, viewId, send, selection, select } = useEditor();
   const headingId = useId();
   const [choosing, setChoosing] = useState<Choosing>();
@@ -124,14 +126,14 @@ export function ViewSection({ element }: { element: Element }) {
     const preview = previewChangeContainer(project, made);
     const [problem] = preview.problems;
     if (problem) {
-      say(problem.message);
+      say(t.message(problem.message));
       return;
     }
     if (needsConfirmation(preview)) {
       setChanging(made);
       return;
     }
-    void perform(made, `${containerChangeLabel(project, view.id, made)}.`);
+    void perform(made, `${t.message(containerChangeLabel(project, view.id, made))}.`);
   };
 
   const restack = (move: StackingMove, container: Id | undefined) => {
@@ -174,14 +176,14 @@ export function ViewSection({ element }: { element: Element }) {
   const [problem] = changePreview?.problems ?? [];
   if (changing && (!editable || problem)) {
     setChanging(undefined);
-    if (problem) say(problem.message);
+    if (problem) say(t.message(problem.message));
   }
   if (choosing && !editable) setChoosing(undefined);
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>In this view</h4>
-      {!nests && <p className="inspector-notes">{NESTS_NOTHING}</p>}
+      <h4 id={headingId}>{t('In this view')}</h4>
+      {!nests && <p className="inspector-notes">{t(NESTS_NOTHING)}</p>}
       <ul className="inspector-memberships">
         {[...memberships.values()].map((shape) => (
           <MembershipRow
@@ -213,8 +215,10 @@ export function ViewSection({ element }: { element: Element }) {
         <div className="inspector-collapse">
           <span>
             {collapsedNow
-              ? `Collapsed${inside === undefined ? '' : `, with ${inside}`}: its contents are not drawn.`
-              : 'Expanded: its contents are drawn.'}
+              ? inside === undefined
+                ? t('Collapsed: its contents are not drawn.')
+                : t('Collapsed, with {inside}: its contents are not drawn.', { inside })
+              : t('Expanded: its contents are drawn.')}
           </span>
           <button
             type="button"
@@ -227,7 +231,7 @@ export function ViewSection({ element }: { element: Element }) {
               )
             }
           >
-            {collapsedNow ? 'Expand' : 'Collapse'}
+            {collapsedNow ? t('Expand') : t('Collapse')}
           </button>
         </div>
       )}
@@ -235,11 +239,11 @@ export function ViewSection({ element }: { element: Element }) {
         <div className="inspector-control">
           <label>
             <span className="visually-hidden">
-              Add an element inside &quot;{element.name}&quot;
+              {t('Add an element inside "{name}"', { name: element.name })}
             </span>
             <ComponentSelect
               project={project}
-              option={`Add inside "${element.name}"…`}
+              option={t('Add inside "{name}"…', { name: element.name })}
               disabled={!editable}
               onAdd={(component) => void addInside(component)}
             />
@@ -290,7 +294,10 @@ export function ViewSection({ element }: { element: Element }) {
           onConfirm={() => {
             setChanging(undefined);
             giveFocusBack();
-            void perform(changing, `${containerChangeLabel(project, view.id, changing)}.`);
+            void perform(
+              changing,
+              `${t.message(containerChangeLabel(project, view.id, changing))}.`,
+            );
           }}
           onCancel={() => {
             setChanging(undefined);
@@ -326,10 +333,11 @@ function MembershipRow({
   onChoose,
   onRestack,
 }: MembershipRowProps) {
+  const t = useT();
   const where =
     shape.container === undefined
-      ? 'Directly in World'
-      : `In "${index.element(shape.container)?.name ?? shape.container}"`;
+      ? t('Directly in World')
+      : t('In "{name}"', { name: index.element(shape.container)?.name ?? shape.container });
   const beside = indexed.contentsOf.get(shape.containerShape ?? '') ?? [];
   const rank = drawingRank(indexed, shape);
   let place = 1;
@@ -353,7 +361,7 @@ function MembershipRow({
               disabled={!editable}
               onClick={(event) => onChoose(event.currentTarget, 'put')}
             >
-              Put inside…
+              {t('Put inside…')}
             </button>
           ) : (
             <>
@@ -363,7 +371,7 @@ function MembershipRow({
                 disabled={!editable}
                 onClick={(event) => onTakeOut(event.currentTarget)}
               >
-                Take out
+                {t('Take out')}
               </button>
               <button
                 type="button"
@@ -371,18 +379,26 @@ function MembershipRow({
                 disabled={!editable}
                 onClick={(event) => onChoose(event.currentTarget, 'move')}
               >
-                Move to…
+                {t('Move to…')}
               </button>
             </>
           )}
         </div>
       )}
       <p className="inspector-stacking-place" aria-live="polite">
-        {`${where}: ${ordinal(place)} of ${beside.length}, from the back`}
+        {t('{where}: {place} of {count}, from the back', {
+          where,
+          place: t.ordinal(place),
+          count: beside.length,
+        })}
       </p>
-      {inFront.length > 0 && <p className="inspector-notes">In front of it: {named(inFront)}</p>}
-      {behind.length > 0 && <p className="inspector-notes">Behind it: {named(behind)}</p>}
-      <div className="inspector-stacking" role="group" aria-label="Stacking order">
+      {inFront.length > 0 && (
+        <p className="inspector-notes">{t('In front of it: {names}', { names: named(inFront) })}</p>
+      )}
+      {behind.length > 0 && (
+        <p className="inspector-notes">{t('Behind it: {names}', { names: named(behind) })}</p>
+      )}
+      <div className="inspector-stacking" role="group" aria-label={t('Stacking order')}>
         {STACKING_MOVES.map((move) => (
           <button
             key={move}
@@ -393,26 +409,10 @@ function MembershipRow({
             aria-disabled={stacking[move].enabled ? undefined : true}
             onClick={() => onRestack(move)}
           >
-            {STACKING_NAMES[move]}
+            {t(STACKING_NAMES[move])}
           </button>
         ))}
       </div>
     </li>
   );
-}
-
-/** 1st, 2nd, 3rd, 4th, 11th, 12th, 13th, 21st… */
-function ordinal(place: number): string {
-  const tens = place % 100;
-  if (tens >= 11 && tens <= 13) return `${place}th`;
-  switch (place % 10) {
-    case 1:
-      return `${place}st`;
-    case 2:
-      return `${place}nd`;
-    case 3:
-      return `${place}rd`;
-    default:
-      return `${place}th`;
-  }
 }

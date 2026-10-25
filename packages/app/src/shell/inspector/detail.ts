@@ -11,6 +11,7 @@ import {
   type ModelIndex,
 } from '@visual-anything/core';
 import type { Element, Id } from '@visual-anything/schema';
+import { t } from '../../i18n';
 
 /** The relation types of the relations an element or relation is the `from` end of. */
 export function startedTypesOf(index: ModelIndex, id: Id): Set<Id> {
@@ -27,7 +28,12 @@ export function detailOf(
   index: ModelIndex,
   definitions: Definitions,
 ): DetailPart[] {
-  return detailParts(element, definitions, startedTypesOf(index, element.id));
+  // A built-in component's name, as the canvas writes it, in the language read in (ADR-0038).
+  return detailParts(element, definitions, startedTypesOf(index, element.id)).map((part) =>
+    part.kind === 'component-name'
+      ? { ...part, text: t.definition(element.component, part.text) }
+      : part,
+  );
 }
 
 /**
@@ -36,5 +42,6 @@ export function detailOf(
  */
 export function describedAs(element: Element, index: ModelIndex, definitions: Definitions): string {
   const text = detailText(detailOf(element, index, definitions));
-  return text === '' ? componentOrEssence(definitions, element.component).name : text;
+  const component = componentOrEssence(definitions, element.component);
+  return text === '' ? t.definition(component.id, component.name) : text;
 }

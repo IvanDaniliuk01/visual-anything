@@ -81,6 +81,15 @@ export function formOf(language: Language, count: number): 'one' | 'other' {
   return rules.select(count) === 'one' ? 'one' : 'other';
 }
 
+const ordinalRules = new Intl.PluralRules('en', { type: 'ordinal' });
+const ENGLISH_ORDINALS: Readonly<Record<string, string>> = { one: 'st', two: 'nd', few: 'rd' };
+
+/** A place in an order, as a language writes it: "21st" in English, "21.º" in Spanish. */
+export function ordinalIn(language: Language, place: number): string {
+  if (language === 'es') return `${place}.º`;
+  return `${place}${ENGLISH_ORDINALS[ordinalRules.select(place)] ?? 'th'}`;
+}
+
 const BRACES = /\{(\w+)\}/g;
 
 /** Writes the values into a text's braces; a brace with no value stays as it is. */

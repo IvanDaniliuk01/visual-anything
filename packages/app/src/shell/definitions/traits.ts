@@ -16,14 +16,18 @@ import {
   type Id,
   type RelationType,
 } from '@visual-anything/schema';
+import { t } from '../../i18n';
 import { readNumber } from '../inspector/attributes';
 import type { DefinitionKind } from './commands';
 
 /** The name of a component or relation type, by its id. */
 export function nameOf(definitions: Definitions, kind: DefinitionKind, id: Id): string {
-  return kind === 'component'
-    ? componentOrEssence(definitions, id).name
-    : relationTypeOrRelatesTo(definitions, id).name;
+  return t.definition(
+    id,
+    kind === 'component'
+      ? componentOrEssence(definitions, id).name
+      : relationTypeOrRelatesTo(definitions, id).name,
+  );
 }
 
 /** Where a trait comes from, in words: "its own" when `source` is the definition itself. */
@@ -33,7 +37,9 @@ export function sourceText(
   self: Id,
   source: Id,
 ): string {
-  return source === self ? 'its own' : `from ${nameOf(definitions, kind, source)}`;
+  return source === self
+    ? t('its own')
+    : t('from {name}', { name: nameOf(definitions, kind, source) });
 }
 
 /** The traits of a relation type that are inherited one by one. */
@@ -115,17 +121,17 @@ export function sizeProblem(text: string): string | undefined {
   const reading = readNumber(text);
   return reading.ok && reading.value > 0 && reading.value <= LARGEST_SIZE
     ? undefined
-    : 'Enter a size above 0, at most 100,000.';
+    : t('Enter a size above 0, at most 100,000.');
 }
 
 /** Why a typed line width cannot be used; `undefined` when it can. */
 export function lineWidthProblem(text: string): string | undefined {
   const reading = readNumber(text);
-  return reading.ok && reading.value > 0 ? undefined : 'Enter a width above 0.';
+  return reading.ok && reading.value > 0 ? undefined : t('Enter a width above 0.');
 }
 
 /** The names of components or relation types, "A, B or C", for what a limit allows. */
 export function namesOr(names: readonly string[]): string {
   if (names.length <= 1) return names.join('');
-  return `${names.slice(0, -1).join(', ')} or ${names.at(-1) ?? ''}`;
+  return t('{first} or {last}', { first: names.slice(0, -1).join(', '), last: names.at(-1) ?? '' });
 }

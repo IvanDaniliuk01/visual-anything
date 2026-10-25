@@ -1,6 +1,7 @@
 import { definitionsIn, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useMemo, useRef, useState, type KeyboardEvent, type Ref } from 'react';
+import { useT } from '../i18n';
 import './drop.css';
 import { ExploreControls, ExploreStrip } from './ExploreBar';
 import { GridToggles } from './GridToggles';
@@ -77,14 +78,15 @@ export function CanvasToolbar({
   grid,
   onGrid,
 }: CanvasToolbarProps) {
+  const t = useT();
   return (
-    <div className="canvas-toolbar" role="toolbar" aria-label="Canvas">
+    <div className="canvas-toolbar" role="toolbar" aria-label={t('Canvas')}>
       <label className="canvas-toolbar-add">
-        <span className="visually-hidden">{addPlace?.label ?? 'Add an element'}</span>
+        <span className="visually-hidden">{addPlace?.label ?? t('Add an element')}</span>
         <ComponentSelect
           project={project}
-          option={addPlace?.option ?? 'Add element…'}
-          title={addPlace?.title ?? IN_WORLD}
+          option={addPlace?.option ?? t('Add element…')}
+          title={addPlace?.title ?? t(IN_WORLD)}
           disabled={!editable}
           onAdd={onAdd}
           {...(addSelect ? { selectRef: addSelect } : {})}
@@ -92,13 +94,13 @@ export function CanvasToolbar({
         />
       </label>
       <button type="button" disabled={!editable} onClick={onAddNote}>
-        Note
+        {t('Note')}
       </button>
       <button type="button" disabled={!editable} onClick={onAddArrow}>
-        Arrow
+        {t('Arrow')}
       </button>
       {stacking && (
-        <div className="canvas-toolbar-stacking" role="group" aria-label="Stacking order">
+        <div className="canvas-toolbar-stacking" role="group" aria-label={t('Stacking order')}>
           {STACKING_MOVES.map((move) => (
             <button
               key={move}
@@ -109,7 +111,7 @@ export function CanvasToolbar({
               onClick={() => onRestack?.(move)}
             >
               <StackingIcon move={move} />
-              <span className="visually-hidden">{STACKING_NAMES[move]}</span>
+              <span className="visually-hidden">{t(STACKING_NAMES[move])}</span>
             </button>
           ))}
         </div>
@@ -128,17 +130,17 @@ export function CanvasToolbar({
       )}
       {grid && onGrid && <GridToggles grid={grid} onGrid={onGrid} />}
       <span className="canvas-toolbar-spacer" />
-      <button type="button" aria-label="Zoom out" onClick={() => onZoom(1 / 1.25)}>
+      <button type="button" aria-label={t('Zoom out')} onClick={() => onZoom(1 / 1.25)}>
         −
       </button>
-      <output className="canvas-toolbar-zoom" aria-label="Zoom">
+      <output className="canvas-toolbar-zoom" aria-label={t('Zoom')}>
         {scale === undefined ? '' : `${Math.round(scale * 100)}%`}
       </output>
-      <button type="button" aria-label="Zoom in" onClick={() => onZoom(1.25)}>
+      <button type="button" aria-label={t('Zoom in')} onClick={() => onZoom(1.25)}>
         +
       </button>
       <button type="button" onClick={onFit}>
-        Fit
+        {t('Fit')}
       </button>
       <ExploreStrip />
     </div>
@@ -171,18 +173,22 @@ export function ComponentSelect({
   selectRef,
   onLeave,
 }: ComponentSelectProps) {
+  const t = useT();
   const palette = useMemo(() => {
     const definitions = definitionsIn(project);
     return project.packages.map((file) => ({
       id: file.id,
-      name: file.name,
+      name: t.definition(file.id, file.name),
       components: file.components.map((component) => ({
         id: component.id,
-        name: definitions.component(component.id)?.name ?? component.name,
+        name: t.definition(
+          component.id,
+          definitions.component(component.id)?.name ?? component.name,
+        ),
       })),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the definitions follow the packages and the project appearances only
-  }, [project.packages, project.project.appearances]);
+  }, [project.packages, project.project.appearances, t]);
   // An option the keys reached in the closed list, not added yet.
   const [reached, setReached] = useState<string>();
   // Set by a key that goes through the options, until the change it makes, in the same task.

@@ -287,7 +287,8 @@ function problemText(t: Translator, number: Intl.NumberFormat, problem: ImagePro
         },
       );
     case 'failed':
-      return t('The image could not be drawn: {why}', { why: problem.detail });
+      // The browser's own reasons have entries; a thrown error's message stays as it is.
+      return t('The image could not be drawn: {why}', { why: t(problem.detail) });
   }
 }
 

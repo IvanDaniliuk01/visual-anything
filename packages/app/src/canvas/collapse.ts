@@ -9,6 +9,7 @@ import type { ProjectSnapshot, SetCollapsedCommand } from '@visual-anything/core
 import { modelIndexOf } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
+import { t } from '../i18n';
 import type { IndexedScene } from './hit';
 import type { ElementShape } from './scene';
 
@@ -100,10 +101,12 @@ export function collapseActions(
 /** What the canvas says once a collapse or an expand is done: `Collapsed "X".`, `Expanded 3 containers.` */
 export function collapseDone(action: CollapseAction, collapsed: boolean): string {
   const verb = collapsed ? 'Collapse' : 'Expand';
-  return `${collapsed ? 'Collapsed' : 'Expanded'}${action.label.slice(verb.length)}.`;
+  return t.message(`${collapsed ? 'Collapsed' : 'Expanded'}${action.label.slice(verb.length)}.`);
 }
 
 /** How a collapsed container's contents are told: `3 inside`. */
 export function insideCount(shape: ElementShape): string | undefined {
-  return shape.collapsed === undefined ? undefined : `${shape.collapsed.contents} inside`;
+  return shape.collapsed === undefined
+    ? undefined
+    : t('{count} inside', { count: shape.collapsed.contents });
 }

@@ -1153,14 +1153,14 @@ export class CanvasController {
     let landing: Rect[] | undefined;
     // Worked out only if a later drag draws over this one before its change comes back.
     const lands = () => (landing ??= landingOf(indexed, selection, delta));
-    const done = dropped && { done: `${dropped.label}.` };
+    const done = dropped && { done: `${t.message(dropped.label)}.` };
     if (dropped?.change && takesOut(project, dropped.change)) {
       const { change } = dropped;
       const preview = previewChangeContainer(project, change);
       const [problem] = preview.problems;
       if (problem) {
         this.renderer.endDrag(drag);
-        this.announce(problem.message);
+        this.announce(t.message(problem.message));
         return;
       }
       if (needsConfirmation(preview) && this.callbacks.confirmChange) {
@@ -1433,7 +1433,7 @@ export class CanvasController {
     const { indexed, project } = this;
     if (!indexed || !project) return;
     if (!this.editable) {
-      this.announce('The project cannot be changed now.');
+      this.announce(t('The project cannot be changed now.'));
       return;
     }
     const actions = collapseActions(indexed, project, this.selection);
@@ -1442,8 +1442,8 @@ export class CanvasController {
     else {
       this.announce(
         collapsed
-          ? 'Select an expanded container to collapse it.'
-          : 'Select a collapsed container to expand it.',
+          ? t('Select an expanded container to collapse it.')
+          : t('Select a collapsed container to expand it.'),
       );
     }
   }
@@ -1491,7 +1491,7 @@ export class CanvasController {
       ? nearestInDirection(indexed, start, direction)
       : nearestTo(indexed, this.center);
     if (reached) this.reach(reached);
-    else if (start) this.announce(`No shape ${TOWARDS[direction]}.`);
+    else if (start) this.announce(t('No shape {towards}.', { towards: t(TOWARDS[direction]) }));
   }
 
   /** Alt+Up: the container of the selected shape. */
@@ -1501,7 +1501,7 @@ export class CanvasController {
     if (!indexed || current?.kind !== 'shape') return;
     const container = containerOf(indexed, current.shape);
     if (container) this.reach({ kind: 'shape', shape: container });
-    else this.announce(`${current.shape.name} sits directly in World.`);
+    else this.announce(t('{name} sits directly in World.', { name: current.shape.name }));
   }
 
   /** Alt+Down: the first shape inside the selected container. */
@@ -1511,7 +1511,7 @@ export class CanvasController {
     if (!indexed || current?.kind !== 'shape') return;
     const inside = firstInside(indexed, current.shape);
     if (inside) this.reach({ kind: 'shape', shape: inside });
-    else this.announce(`${current.shape.name} holds no shapes.`);
+    else this.announce(t('{name} holds no shapes.', { name: current.shape.name }));
   }
 
   /** Selects a shape the keys reached, says what it is and brings it into sight. */
@@ -1614,7 +1614,9 @@ export class CanvasController {
     if (element === undefined) return;
     const line = stepRelation(drawn, element, current, step);
     if (!line) {
-      this.announce(`${nameOfEnd(project, element)} has no relations in this view.`);
+      this.announce(
+        t('{name} has no relations in this view.', { name: nameOfEnd(project, element) }),
+      );
       return;
     }
     const stops = drawn.steps(element);
@@ -2026,8 +2028,8 @@ const COLLAPSE_KEYS: Partial<Record<string, boolean>> = {
 /** What a container's toggle says it does, when the pointer rests on it. */
 function toggleTitle(shape: ElementShape): string {
   return shape.collapsed === undefined
-    ? `Collapse "${shape.name}" (Alt+−)`
-    : `Expand "${shape.name}" (Alt++)`;
+    ? t('Collapse "{name}" (Alt+−)', { name: shape.name })
+    : t('Expand "{name}" (Alt++)', { name: shape.name });
 }
 
 /**

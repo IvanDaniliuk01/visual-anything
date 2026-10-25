@@ -17,6 +17,7 @@ import {
 } from '@visual-anything/core';
 import type { Arrow, FreeShape, Id, Note, ShapePosition, ViewFile } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
+import { t } from '../i18n';
 import type { Point } from './geometry';
 import { snap } from './grid';
 import type { IndexedScene } from './hit';
@@ -228,7 +229,8 @@ export function createAtCommand(
   const origin = container ? { x: container.rect.x, y: container.rect.y } : { x: 0, y: 0 };
   const create: CreateElementCommand = {
     type: 'create-element',
-    element: { component: componentId, name: component.name },
+    // A new element takes its component's name as the language says it (ADR-0038).
+    element: { component: componentId, name: t.definition(componentId, component.name) },
     ...(container && nesting
       ? { containers: [{ container: container.element, relationType: nesting.relationType }] }
       : {}),
@@ -243,7 +245,7 @@ export function createAtCommand(
       },
     ];
   }
-  return asOneAction([...(nesting?.first ?? []), create], `Create "${component.name}"`);
+  return asOneAction([...(nesting?.first ?? []), create], `Create "${create.element.name}"`);
 }
 
 /** A coordinate as stored: whole, and a multiple of `step` when there is one. */
@@ -270,10 +272,11 @@ export function createInsideCommand(
   if (!nesting) return undefined;
   const create: CreateElementCommand = {
     type: 'create-element',
-    element: { component: componentId, name: component.name },
+    // A new element takes its component's name as the language says it (ADR-0038).
+    element: { component: componentId, name: t.definition(componentId, component.name) },
     containers: [{ container, relationType: nesting.relationType }],
   };
-  return asOneAction([...nesting.first, create], `Create "${component.name}"`);
+  return asOneAction([...nesting.first, create], `Create "${create.element.name}"`);
 }
 
 /** How far, in scene units, a shape added beside another sits from it, and from the next one along. */
@@ -312,12 +315,13 @@ export function createBesideCommand(
   if (container !== undefined && !nesting) return undefined;
   const create: CreateElementCommand = {
     type: 'create-element',
-    element: { component: componentId, name: component.name },
+    // A new element takes its component's name as the language says it (ADR-0038).
+    element: { component: componentId, name: t.definition(componentId, component.name) },
     ...(container !== undefined && nesting
       ? { containers: [{ container, relationType: nesting.relationType }] }
       : {}),
   };
-  const label = `Create "${component.name}"`;
+  const label = `Create "${create.element.name}"`;
   const first = nesting?.first ?? [];
   if (drawsRows(project, container)) {
     // Below the row it is added beside, in the model's order, which is the order of rows.

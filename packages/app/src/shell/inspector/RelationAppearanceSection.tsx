@@ -9,6 +9,7 @@ import {
 import { RELATES_TO_ID, type Id, type Relation } from '@visual-anything/schema';
 import { useId, useState } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { useT } from '../../i18n';
 import { TraitRow } from '../definitions/TraitRow';
 import { ColorHints, ScopeChoice } from './colorParts';
 import { idsOf, lineHints, originText, savedIn, wayBack } from './colors';
@@ -34,6 +35,7 @@ export function RelationAppearanceSection({
   definitions,
   disabled,
 }: RelationAppearanceSectionProps) {
+  const t = useT();
   const { project } = useEditor();
   const headingId = useId();
   const hintId = useId();
@@ -42,7 +44,7 @@ export function RelationAppearanceSection({
   const relationType = relationTypeOrRelatesTo(definitions, id);
   const known = id === RELATES_TO_ID || definitions.relationType(id) !== undefined;
   const ofType = scope === 'relation-type' && known;
-  const nameOf = (each: Id) => relationTypeOrRelatesTo(definitions, each).name;
+  const nameOf = (each: Id) => t.definition(each, relationTypeOrRelatesTo(definitions, each).name);
   const stored = storedAtLevel(project, 'relation-type', id, 'stroke');
   const drawn = ofType ? { relationType: id } : relation;
   const hints = lineHints({
@@ -69,13 +71,13 @@ export function RelationAppearanceSection({
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
-      <h4 id={headingId}>Appearance</h4>
+      <h4 id={headingId}>{t('Appearance')}</h4>
       {known && (
         <ScopeChoice
           value={scope}
           options={[
-            { value: 'relation', label: 'Only this relation' },
-            { value: 'relation-type', label: `Every ${relationType.name}` },
+            { value: 'relation', label: t('Only this relation') },
+            { value: 'relation-type', label: t('Every {name}', { name: nameOf(id) }) },
           ]}
           onChange={setScope}
         />
@@ -87,22 +89,24 @@ export function RelationAppearanceSection({
         <TraitRow
           // A new row for each scope, so that a pick on its way is not shown in the other.
           key={scope}
-          label="Stroke"
+          label={t('Stroke')}
           source={originText(origin, nameOf, ofType ? id : undefined)}
           own={own}
           readOnly={disabled}
           inherit={() => wayBack(strokeOf(null))}
-          inheritLabel="Use the inherited color"
+          inheritLabel={t('Use the inherited color')}
           note={
             ofType && relation.appearance?.stroke !== undefined
-              ? 'This relation has a stroke of its own: a change here takes it back, so that it follows.'
+              ? t(
+                  'This relation has a stroke of its own: a change here takes it back, so that it follows.',
+                )
               : undefined
           }
         >
           {({ id: controlId, describedBy, send }) => (
             <ColorControl
               id={controlId}
-              label="Stroke"
+              label={t('Stroke')}
               value={shown}
               disabled={disabled}
               describedBy={idsOf(describedBy, hints.length > 0 ? hintId : undefined)}

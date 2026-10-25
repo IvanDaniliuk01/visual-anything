@@ -1,5 +1,6 @@
-import type { AttributeDefinition, Attributes, JsonValue } from '@visual-anything/schema';
+import type { AttributeDefinition, Attributes, Id, JsonValue } from '@visual-anything/schema';
 import { useId, useRef, useState, type FormEvent } from 'react';
+import { useT } from '../../i18n';
 import {
   ATTRIBUTE_TYPES,
   attributeRows,
@@ -30,6 +31,8 @@ interface AttributesSectionProps {
   of: 'element' | 'relation';
   /** The attributes its component's or relation type's chain defines. */
   definitions: readonly AttributeDefinition[];
+  /** That chain, nearest first, which says where a built-in attribute's description comes from. */
+  lineage?: readonly Id[];
   values: Attributes | undefined;
   disabled: boolean;
   /** Makes a change with one command; resolves to whether it was done. */
@@ -46,10 +49,12 @@ const DEFINER = { element: 'component', relation: 'relation type' } as const;
 export function AttributesSection({
   of,
   definitions,
+  lineage = [],
   values,
   disabled,
   change,
 }: AttributesSectionProps) {
+  const t = useT();
   const headingId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
   // The row whose value takes the focus, until it has: a row that comes back later, after an undo, a
@@ -75,7 +80,7 @@ export function AttributesSection({
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
       <h4 id={headingId} ref={heading} tabIndex={-1}>
-        Attributes
+        {t('Attributes')}
       </h4>
       {rows.length > 0 ? (
         <ul className="inspector-attributes" aria-labelledby={headingId}>
@@ -84,6 +89,7 @@ export function AttributesSection({
               key={row.name}
               row={row}
               of={of}
+              lineage={lineage}
               disabled={disabled}
               focusRequest={focus.name === row.name ? focus.request : 0}
               onFocused={focused}
@@ -93,7 +99,9 @@ export function AttributesSection({
           ))}
         </ul>
       ) : (
-        <p className="panel-empty">Its {DEFINER[of]} defines no attributes.</p>
+        <p className="panel-empty">
+          {t('Its {definer} defines no attributes.', { definer: t(DEFINER[of]) })}
+        </p>
       )}
       {of === 'element' && (
         <NewAttribute
@@ -113,6 +121,7 @@ export function AttributesSection({
 interface AttributeItemProps {
   row: AttributeRow;
   of: 'element' | 'relation';
+  lineage: readonly Id[];
   disabled: boolean;
   focusRequest: number;
   onFocused: () => void;
@@ -123,12 +132,14 @@ interface AttributeItemProps {
 function AttributeItem({
   row,
   of,
+  lineage,
   disabled,
   focusRequest,
   onFocused,
   onSet,
   onReset,
 }: AttributeItemProps) {
+  const t = useT();
   const controlId = useId();
   const typeId = useId();
   const notesId = useId();
@@ -136,16 +147,22 @@ function AttributeItem({
   const focusKeeper = useFocusKeeper();
   const particularity = of === 'element' && (row.differs || row.definition === undefined);
   const describedBy = [typeId, notesId, ...(particularity ? [markId] : [])].join(' ');
-  const definer = DEFINER[of];
+  const definer = t(DEFINER[of]);
   const { definition } = row;
   const notes = [
-    definition?.description,
+    definition?.description === undefined
+      ? undefined
+      : t.attribute(lineage, row.name, definition.description),
     definition === undefined
-      ? `Not defined by its ${definer}.`
+      ? t('Not defined by its {definer}.', { definer })
       : definition.default === undefined
-        ? 'No default.'
-        : `Default: ${JSON.stringify(definition.default)}.`,
-    row.mismatched ? `Its value is not ${row.type === 'json' ? 'JSON' : `a ${row.type}`}.` : '',
+        ? t('No default.')
+        : t('Default: {value}.', { value: JSON.stringify(definition.default) }),
+    row.mismatched
+      ? row.type === 'json'
+        ? t('Its value is not JSON.')
+        : t('Its value is not a {type}.', { type: row.type })
+      : '',
   ]
     .filter((note) => note !== undefined && note !== '')
     .join(' ');
@@ -160,7 +177,9 @@ function AttributeItem({
         {particularity && (
           <Mark
             id={markId}
-            reason={row.differs ? `its value differs from its ${definer}’s` : undefined}
+            reason={
+              row.differs ? t('its value differs from its {definer}’s', { definer }) : undefined
+            }
           />
         )}
       </div>
@@ -180,12 +199,12 @@ function AttributeItem({
       {row.reset !== undefined && (
         <button type="button" className="inspector-action" disabled={disabled} onClick={onReset}>
           {row.reset === 'default'
-            ? `Use the ${definer}’s value`
+            ? t('Use the {definer}’s value', { definer })
             : row.reset === 'clear'
-              ? 'Clear'
-              : 'Remove'}{' '}
+              ? t('Clear')
+              : t('Remove')}{' '}
           <span className="visually-hidden">
-            {row.reset === 'default' ? `for ${row.name}` : row.name}
+            {row.reset === 'default' ? t('for {name}', { name: row.name }) : row.name}
           </span>
         </button>
       )}
@@ -296,6 +315,7 @@ interface NewAttributeProps {
 
 /** Adds an attribute of the element's own, which its component does not define. */
 function NewAttribute({ names, disabled, onAdd }: NewAttributeProps) {
+  const t = useT();
   const titleId = useId();
   const nameId = useId();
   const typeId = useId();
@@ -317,11 +337,11 @@ function NewAttribute({ names, disabled, onAdd }: NewAttributeProps) {
     if (adding.current) return;
     const trimmed = name.trim();
     if (trimmed === '') {
-      refuse('Give the attribute a name.');
+      refuse(t('Give the attribute a name.'));
       return;
     }
     if (names.includes(trimmed)) {
-      refuse(`It already has an attribute named “${trimmed}”.`);
+      refuse(t('It already has an attribute named “{name}”.', { name: trimmed }));
       return;
     }
     setProblem(undefined);
@@ -343,11 +363,11 @@ function NewAttribute({ names, disabled, onAdd }: NewAttributeProps) {
       }}
     >
       <p id={titleId} className="inspector-new-attribute-title">
-        Add an attribute of its own
+        {t('Add an attribute of its own')}
       </p>
       <div className="inspector-new-attribute-controls">
         <div className="inspector-control">
-          <label htmlFor={nameId}>Attribute name</label>
+          <label htmlFor={nameId}>{t('Attribute name')}</label>
           <input
             ref={nameInput}
             id={nameId}
@@ -363,7 +383,7 @@ function NewAttribute({ names, disabled, onAdd }: NewAttributeProps) {
           />
         </div>
         <div className="inspector-control">
-          <label htmlFor={typeId}>Attribute type</label>
+          <label htmlFor={typeId}>{t('Attribute type')}</label>
           <select
             id={typeId}
             value={type}
@@ -378,7 +398,7 @@ function NewAttribute({ names, disabled, onAdd }: NewAttributeProps) {
           </select>
         </div>
         <button type="submit" className="inspector-action" disabled={disabled}>
-          Add attribute
+          {t('Add attribute')}
         </button>
       </div>
       {problem !== undefined && <InlineProblem id={problemId} text={problem} />}

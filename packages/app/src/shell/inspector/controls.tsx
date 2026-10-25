@@ -20,6 +20,7 @@ import {
   type RefObject,
 } from 'react';
 import { COLOR_FORMS, readColor } from '../../color';
+import { useT } from '../../i18n';
 import type { FocusKeeper } from './focus';
 import { useColorChoices } from './useColorChoices';
 
@@ -380,6 +381,7 @@ export function ColorControl({
   mixed = false,
   onCommit,
 }: ColorControlProps) {
+  const t = useT();
   const [draft, setDraft] = useState<Color>();
   const [code, setCode] = useState<{ text: string; problem?: string }>();
   // The color last sent, until its answer comes.
@@ -436,7 +438,7 @@ export function ColorControl({
     if (!code) return;
     const color = readColor(code.text);
     if (color === undefined) {
-      setCode({ text: code.text, problem: COLOR_FORMS });
+      setCode({ text: code.text, problem: t(COLOR_FORMS) });
       return;
     }
     setCode(undefined);
@@ -457,7 +459,7 @@ export function ColorControl({
         />
         {isMixed && (
           <span id={mixedId} className="inspector-color-mixed">
-            Mixed
+            {t('Mixed')}
           </span>
         )}
       </span>
@@ -466,9 +468,9 @@ export function ColorControl({
         type="text"
         className="inspector-color-code"
         value={code?.text ?? (isMixed ? '' : shown)}
-        placeholder={isMixed ? 'Mixed' : undefined}
+        placeholder={isMixed ? t('Mixed') : undefined}
         disabled={disabled}
-        aria-label={`${label} color code`}
+        aria-label={t('{label} color code', { label })}
         aria-describedby={describedByOf(code?.problem === undefined ? undefined : problemId)}
         aria-invalid={code?.problem === undefined ? undefined : true}
         spellCheck={false}
@@ -510,6 +512,7 @@ interface SwatchesProps {
  * keys, Home and End move between them. No `<datalist>`, which Firefox does not show for colors.
  */
 function Swatches({ label, colors, disabled, onPick }: SwatchesProps) {
+  const t = useT();
   const [active, setActive] = useState(0);
   const buttons = useRef<(HTMLButtonElement | null)[]>([]);
   const current = Math.min(active, colors.length - 1);
@@ -536,7 +539,7 @@ function Swatches({ label, colors, disabled, onPick }: SwatchesProps) {
     <span
       role="group"
       className="inspector-swatches"
-      aria-label={`Recent and project colors for ${label.toLowerCase()}`}
+      aria-label={t('Recent and project colors for {label}', { label: label.toLowerCase() })}
     >
       {colors.map((color, at) => (
         <button
@@ -549,7 +552,7 @@ function Swatches({ label, colors, disabled, onPick }: SwatchesProps) {
           style={{ backgroundColor: color }}
           tabIndex={at === current ? 0 : -1}
           disabled={disabled}
-          aria-label={`Use ${color}`}
+          aria-label={t('Use {color}', { color })}
           title={color}
           onFocus={() => setActive(at)}
           onKeyDown={(event) => move(event, at)}

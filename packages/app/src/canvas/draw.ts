@@ -7,6 +7,7 @@
 import { Container, Graphics, Text, type CanvasTextOptions, type TextStyleOptions } from 'pixi.js';
 import { CANVAS_BACKGROUNDS } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
+import { t } from '../i18n';
 import type { Dash } from './geometry';
 import {
   SHEET,
@@ -472,7 +473,7 @@ function drawBody(
 export function detailOf(shape: ElementShape): string {
   const detail = shape.detail ?? shape.componentName;
   if (shape.collapsed === undefined) return detail;
-  const inside = `${shape.collapsed.contents} inside`;
+  const inside = t('{count} inside', { count: shape.collapsed.contents });
   return detail === '' ? inside : `${detail} · ${inside}`;
 }
 

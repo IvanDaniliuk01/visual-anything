@@ -113,6 +113,20 @@ describe('the Spanish catalog', () => {
     ];
     expect(sorted(Object.keys(builtins))).toEqual(sorted(ids));
   });
+
+  it('describes every attribute a built-in definition describes, and nothing else', () => {
+    const described = BUILTIN_PACKAGES.flatMap((file) =>
+      [...file.components, ...file.relationTypes].flatMap((definition) =>
+        (definition.attributes ?? [])
+          .filter((attribute) => attribute.description !== undefined)
+          .map((attribute) => `${definition.id} ${attribute.name}`),
+      ),
+    );
+    const spanish = Object.entries(builtins).flatMap(([id, each]) =>
+      Object.keys(each.attributes ?? {}).map((name) => `${id} ${name}`),
+    );
+    expect(sorted(spanish)).toEqual(sorted(described));
+  });
 });
 
 describe('t', () => {
@@ -167,6 +181,24 @@ describe('t', () => {
     expect(es.definition('shop.cart', 'Cart')).toBe('Cart');
     expect(es.definition('constructor', 'Constructor')).toBe('Constructor');
     expect(translatorFor('en').definition('systems.service', 'Service')).toBe('Service');
+  });
+
+  it('describes a built-in attribute by where it is defined, and people’s own as written', () => {
+    const es = translatorFor('es');
+    const chain = ['shop.api', 'systems.service', 'systems.box', 'essence'];
+    expect(es.attribute(chain, 'owner', 'The team that runs it.')).toBe('El equipo que lo opera.');
+    // A redefinition of the project's own keeps its own words.
+    expect(es.attribute(chain, 'owner', 'Who is on call.')).toBe('Who is on call.');
+    expect(es.attribute(['shop.api'], 'owner', 'The team that runs it.')).toBe(
+      'The team that runs it.',
+    );
+    expect(
+      translatorFor('en').attribute(
+        chain,
+        'technology',
+        'What it is built with, such as "Node.js" or "PostgreSQL".',
+      ),
+    ).toBe('What it is built with, such as "Node.js" or "PostgreSQL".');
   });
 });
 
@@ -235,6 +267,7 @@ const SAME_IN_SPANISH: ReadonlySet<string> = new Set([
   '{name} ({shortcut})',
   'Claude: {caption}',
   '{name}, {component}, {where}, {relations}.',
+  '{count} × {component}',
   'Enter',
   'F2',
   'Tab',

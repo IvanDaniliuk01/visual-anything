@@ -4,6 +4,7 @@ import { useEffect, useId, useRef } from 'react';
 import type { Scene } from '../canvas/scene';
 import { useEditor } from '../editor/EditorContext';
 import { selectionOf, sizeOf, type Selectable } from '../editor/selection';
+import { useT } from '../i18n';
 import { DefinitionInspector } from './definitions/DefinitionInspector';
 import { countsOf } from './inspector/describe';
 import { ElementInspector } from './inspector/ElementInspector';
@@ -28,6 +29,7 @@ interface InspectorProps {
  * cannot be changed, every control is read-only.
  */
 export function Inspector({ view, scene, definitions }: InspectorProps) {
+  const t = useT();
   const editor = useEditor();
   const { project, selection } = editor;
   const heading = useId();
@@ -51,12 +53,12 @@ export function Inspector({ view, scene, definitions }: InspectorProps) {
 
   return (
     <aside className="panel inspector" aria-labelledby={heading}>
-      <h2 id={heading}>Inspector</h2>
+      <h2 id={heading}>{t('Inspector')}</h2>
       {/* A component, relation type or package opened for editing shows in place of the selection. */}
       <DefinitionInspector>
         {inspected.kind === 'nothing' && (
           <>
-            <p className="inspector-selection">Nothing is selected.</p>
+            <p className="inspector-selection">{t('Nothing is selected.')}</p>
             <ViewDetails view={view} scene={scene} definitions={definitions} />
           </>
         )}
@@ -80,26 +82,33 @@ export function Inspector({ view, scene, definitions }: InspectorProps) {
         )}
         {inspected.kind === 'note' && (
           <>
-            <h3 className="inspector-title">Note</h3>
+            <h3 className="inspector-title">{t('Note')}</h3>
             <p className="inspector-note-text">{inspected.note.text}</p>
-            <p className="inspector-notes">Edit its text on the canvas.</p>
+            <p className="inspector-notes">{t('Edit its text on the canvas.')}</p>
             <FreeShapeAppearance key={inspected.note.id} shape={inspected.note} />
           </>
         )}
         {inspected.kind === 'arrow' && (
           <>
-            <h3 className="inspector-title">Arrow</h3>
-            <p className="inspector-notes">A free shape: drawing only, not part of the model.</p>
+            <h3 className="inspector-title">{t('Arrow')}</h3>
+            <p className="inspector-notes">
+              {t('A free shape: drawing only, not part of the model.')}
+            </p>
             <FreeShapeAppearance key={inspected.arrow.id} shape={inspected.arrow} />
           </>
         )}
         {inspected.kind === 'several' && (
           <>
             <p className="inspector-selection">
-              {countsOf(selection)} {sizeOf(selection) === 1 ? 'is' : 'are'} selected.
+              {t(
+                { one: '{things} is selected.', other: '{things} are selected.' },
+                { things: countsOf(selection), count: sizeOf(selection) },
+              )}
             </p>
             <SelectionAppearance />
-            <p className="inspector-notes">Select only one to see and edit the rest of it.</p>
+            <p className="inspector-notes">
+              {t('Select only one to see and edit the rest of it.')}
+            </p>
           </>
         )}
       </DefinitionInspector>
@@ -109,18 +118,21 @@ export function Inspector({ view, scene, definitions }: InspectorProps) {
 
 /** The open view's details, read-only. */
 function ViewDetails({ view, scene, definitions }: InspectorProps) {
+  const t = useT();
   const viewHeading = useId();
-  if (!view || !scene) return <p className="panel-empty">No view is open.</p>;
-  const nestingNames = view.nestingRelationTypes.map(
-    (relationType) => relationTypeOrRelatesTo(definitions, relationType).name,
+  if (!view || !scene) return <p className="panel-empty">{t('No view is open.')}</p>;
+  const nestingNames = view.nestingRelationTypes.map((relationType) =>
+    t.definition(relationType, relationTypeOrRelatesTo(definitions, relationType).name),
   );
   return (
     <section className="panel-section" aria-labelledby={viewHeading}>
-      <h3 id={viewHeading}>View</h3>
+      <h3 id={viewHeading}>{t('View')}</h3>
       <dl className="details">
-        <Detail term="Name">{view.name}</Detail>
-        {view.description !== undefined && <Detail term="Description">{view.description}</Detail>}
-        <Detail term="Perspective">
+        <Detail term={t('Name')}>{view.name}</Detail>
+        {view.description !== undefined && (
+          <Detail term={t('Description')}>{view.description}</Detail>
+        )}
+        <Detail term={t('Perspective')}>
           <span className="detail-value">{view.perspective.name}</span>
           {view.perspective.description !== undefined && (
             <>
@@ -129,12 +141,12 @@ function ViewDetails({ view, scene, definitions }: InspectorProps) {
             </>
           )}
         </Detail>
-        <Detail term="Nesting relation types">
-          {nestingNames.length > 0 ? nestingNames.join(', ') : 'None'}
+        <Detail term={t('Nesting relation types')}>
+          {nestingNames.length > 0 ? nestingNames.join(', ') : t('None')}
         </Detail>
-        <Detail term="Element shapes">{scene.shapes.length}</Detail>
-        <Detail term="Relations">{scene.relations.length}</Detail>
-        <Detail term="Free shapes">{scene.notes.length + scene.arrows.length}</Detail>
+        <Detail term={t('Element shapes')}>{scene.shapes.length}</Detail>
+        <Detail term={t('Relations')}>{scene.relations.length}</Detail>
+        <Detail term={t('Free shapes')}>{scene.notes.length + scene.arrows.length}</Detail>
       </dl>
     </section>
   );
