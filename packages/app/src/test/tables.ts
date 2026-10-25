@@ -1,5 +1,11 @@
 import { DATA_MODELING, SYSTEMS, type ProjectSnapshot } from '@visual-anything/core';
-import type { Element, PackageFile, Relation, ShapePosition, ViewFile } from '@visual-anything/schema';
+import type {
+  Element,
+  PackageFile,
+  Relation,
+  ShapePosition,
+  ViewFile,
+} from '@visual-anything/schema';
 
 /** A column of a table in `tablesProject`. */
 export interface ColumnSpec {

@@ -98,8 +98,20 @@ function apart(a: Rect, b: Rect): boolean {
 describe('routeWithSides between two rows', () => {
   it('joins two rows of one table in a C, at the lane further out', () => {
     const users = table(0, 0, 10);
-    const from: SideEnd = { kind: 'side', container: users, y: rowMiddle(users, 1), lane: 0, side: 'right' };
-    const to: SideEnd = { kind: 'side', container: users, y: rowMiddle(users, 5), lane: 2, side: 'right' };
+    const from: SideEnd = {
+      kind: 'side',
+      container: users,
+      y: rowMiddle(users, 1),
+      lane: 0,
+      side: 'right',
+    };
+    const to: SideEnd = {
+      kind: 'side',
+      container: users,
+      y: rowMiddle(users, 5),
+      lane: 2,
+      side: 'right',
+    };
     const route = routeWithSides(from, to);
     const x = laneX(users, 'right', 2);
     expect(route).toEqual([
@@ -207,16 +219,23 @@ describe('routeWithSides between two rows', () => {
 
   it('keeps the stubs of two rows of one table off the table', () => {
     fc.assert(
-      fc.property(tableArbitrary, fc.nat(40), fc.nat(40), fc.nat(8), fc.nat(8), (a, one, two, laneA, laneB) => {
-        fc.pre(one % a.rows !== two % a.rows);
-        const toward = { x: a.rect.x + a.rect.width, y: 0 };
-        const from = sideEnd(a.rect, one % a.rows, laneA, toward);
-        const to = sideEnd(a.rect, two % a.rows, laneB, toward);
-        const route = routeWithSides(from, to);
-        expect(orthogonal(route)).toBe(true);
-        expect(distinctPoints(route)).toBe(true);
-        for (const [p, q] of segments(route)) expect(crossesInside(p, q, a.rect)).toBe(false);
-      }),
+      fc.property(
+        tableArbitrary,
+        fc.nat(40),
+        fc.nat(40),
+        fc.nat(8),
+        fc.nat(8),
+        (a, one, two, laneA, laneB) => {
+          fc.pre(one % a.rows !== two % a.rows);
+          const toward = { x: a.rect.x + a.rect.width, y: 0 };
+          const from = sideEnd(a.rect, one % a.rows, laneA, toward);
+          const to = sideEnd(a.rect, two % a.rows, laneB, toward);
+          const route = routeWithSides(from, to);
+          expect(orthogonal(route)).toBe(true);
+          expect(distinctPoints(route)).toBe(true);
+          for (const [p, q] of segments(route)) expect(crossesInside(p, q, a.rect)).toBe(false);
+        },
+      ),
     );
   });
 });

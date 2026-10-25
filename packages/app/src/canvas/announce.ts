@@ -52,7 +52,9 @@ export function describeShape(
     const values = {
       name: shape.name,
       component:
-        component === undefined ? shape.componentName : t.definition(component, shape.componentName),
+        component === undefined
+          ? shape.componentName
+          : t.definition(component, shape.componentName),
       detail: shape.detail ?? '',
       position: shape.row + 1,
       count: container.rowCount,
@@ -61,7 +63,10 @@ export function describeShape(
     };
     return values.detail === ''
       ? t('{name}, {component}, row {position} of {count} in {container}, {relations}.', values)
-      : t('{name}, {component}, {detail}, row {position} of {count} in {container}, {relations}.', values);
+      : t(
+          '{name}, {component}, {detail}, row {position} of {count} in {container}, {relations}.',
+          values,
+        );
   }
   return t('{name}, {component}, {where}, {relations}.', {
     name: shape.name,

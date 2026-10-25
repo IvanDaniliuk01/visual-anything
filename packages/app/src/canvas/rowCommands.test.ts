@@ -92,7 +92,11 @@ describe('moveRowCommand', () => {
       'users-name',
     ]);
     const last = run(project, moveRowCommand(project, view, 'users', 'users-email', 'down'));
-    expect(rowsInView(last, viewOf(last), 'users')).toEqual(['users-id', 'users-name', 'users-email']);
+    expect(rowsInView(last, viewOf(last), 'users')).toEqual([
+      'users-id',
+      'users-name',
+      'users-email',
+    ]);
   });
 
   it('does nothing at the top or the bottom', () => {

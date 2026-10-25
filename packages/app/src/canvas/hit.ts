@@ -554,7 +554,9 @@ function withoutRowsOfEnclosed(shapes: ElementShape[]): ElementShape[] {
   const keys = new Set(shapes.map((shape) => shape.key));
   return shapes.filter(
     (shape) =>
-      shape.row === undefined || shape.containerShape === undefined || !keys.has(shape.containerShape),
+      shape.row === undefined ||
+      shape.containerShape === undefined ||
+      !keys.has(shape.containerShape),
   );
 }
 

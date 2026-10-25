@@ -444,16 +444,7 @@ function layOut(
   const replaced = base && replaceShapes(project, view, definitions, tree, free, base);
   const placed =
     replaced ??
-    placeShapes(
-      project,
-      view,
-      definitions,
-      tree,
-      collapsed,
-      free,
-      keep ? before : undefined,
-      keep,
-    );
+    placeShapes(project, view, definitions, tree, collapsed, free, keep ? before : undefined, keep);
   const { shapes } = placed;
 
   const drawn = drawRelations(
@@ -898,7 +889,7 @@ function treeIndexOf(tree: readonly Placement[]): TreeIndex {
 }
 
 /** Thrown, and caught, when a shape starts or stops drawing its contents as rows. */
-const STALE = Symbol('stale');
+class StaleShapes extends Error {}
 
 /**
  * The shapes of a view whose containment, collapse and definitions are those of `base`: they sit at
@@ -983,7 +974,7 @@ function replaceShapes(
     const inside = asRow ? [] : (contents[at] as number[]);
     const [look, detail] = lookAndDetail(element, definitions, kept, started);
     // A shape that starts or stops drawing its contents as rows changes which shapes there are.
-    if (!asRow && rowsChanged(old[at] as ElementShape, look)) throw STALE;
+    if (!asRow && rowsChanged(old[at] as ElementShape, look)) throw new StaleShapes();
     return measured(
       placement,
       element,
@@ -1002,7 +993,7 @@ function replaceShapes(
   try {
     worldContents = tree.map((placement, each) => measureAt(inWorld[each] as number, placement));
   } catch (error) {
-    if (error === STALE) return undefined;
+    if (error instanceof StaleShapes) return undefined;
     throw error;
   }
   standInWorld(worldContents, free);
@@ -1652,7 +1643,15 @@ function drawnEnd(end: EndRef): DrawnEnd {
 function routeNumbers(end: AnyEnd): number[] {
   if (isSideEnd(end)) {
     const { container, y, lane, side } = end;
-    return [container.x, container.y, container.width, container.height, y, lane, side === 'right' ? 1 : -1];
+    return [
+      container.x,
+      container.y,
+      container.width,
+      container.height,
+      y,
+      lane,
+      side === 'right' ? 1 : -1,
+    ];
   }
   return 'rect' in end
     ? [end.rect.x, end.rect.y, end.rect.width, end.rect.height]

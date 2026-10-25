@@ -43,7 +43,10 @@ export function parseColumns(text: string): ParsedColumns {
     return parse(text);
   } catch {
     const shown = collapse(text);
-    return { columns: [], skipped: shown === '' ? [] : [{ text: shown, reason: 'could not be read' }] };
+    return {
+      columns: [],
+      skipped: shown === '' ? [] : [{ text: shown, reason: 'could not be read' }],
+    };
   }
 }
 
@@ -115,7 +118,12 @@ function parse(text: string): ParsedColumns {
     } else if (first === 'UNIQUE') {
       const group = tokens.find((token) => token.kind === 'group');
       clauses.push({ at, text: shown, clause: { kind: 'unique', columns: namesIn(group) } });
-    } else if (first === 'KEY' || first === 'INDEX' || first === 'FULLTEXT' || first === 'SPATIAL') {
+    } else if (
+      first === 'KEY' ||
+      first === 'INDEX' ||
+      first === 'FULLTEXT' ||
+      first === 'SPATIAL'
+    ) {
       skipped.push({ at, text: shown, reason: 'an index, not a column' });
     } else if (first === 'CHECK') {
       skipped.push({ at, text: shown, reason: 'a check, not a column' });
@@ -140,7 +148,8 @@ function parse(text: string): ParsedColumns {
       skipped.push({ at, text: shown, reason: 'a unique key over several columns' });
       continue;
     }
-    for (const name of missing) skipped.push({ at, text: shown, reason: `no column named “${name}”` });
+    for (const name of missing)
+      skipped.push({ at, text: shown, reason: `no column named “${name}”` });
     clause.columns.forEach((name, index) => {
       const column = byName(name);
       if (!column) return;
