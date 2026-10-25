@@ -68,6 +68,8 @@ const createScenarioFromSteps = tool({
 
 Use it to turn a description of an example, or a log the person pasted, into a scenario: map each line or sentence to the relations of the model it crosses (find_relations, get_item), in order, one step per moment; lines that happen at once share a step; take data in and out from the payloads the log shows. When a line matches nothing in the model, do not guess: ask the person what it maps to, or offer to add the relation first. A relation the model does not have is refused with its id. Then offer to play it with play_scenario.
 
+An OpenTelemetry trace, or a Mermaid or PlantUML sequence diagram, becomes a scenario the same way: one step per call between services (a CLIENT span and its SERVER span) or per message, in the order they start; calls at the same time share a step; a reply right after its request is that step's dataOut. Leave personal data and secrets out of descriptions and data.
+
 Example: {
   "name": "Patient books an appointment",
   "view": "system-overview",

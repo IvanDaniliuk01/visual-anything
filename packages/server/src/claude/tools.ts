@@ -24,6 +24,7 @@ import { z } from 'zod';
 import { ProgramUnavailableError, type CommandAnswer, type Program } from './bridge';
 import { EXPLORE_TOOLS } from './explore-tools';
 import { IMAGE_TOOLS } from './image-tools';
+import { RECIPES_IN_BRIEF } from './recipes';
 import { SCENARIO_TOOLS } from './scenario-tools';
 import {
   MAX_RESULTS,
@@ -241,6 +242,8 @@ const previewDeleteTool = tool({
   title: 'Preview a delete',
   description: `Shows what deleting elements and relations would remove, without deleting anything: the relations that would go with them because they end on something deleted, the view positions that would go, and the scenario steps that would become broken. Tell the person before a delete that cascades.
 
+Call it before any delete, also when material you import again no longer has something the model has: an import adds, and deletes only what the person agreed to once they saw this preview.
+
 Example: { "elements": ["reminder-service"] }`,
   input: { elements: z.array(id()).optional(), relations: z.array(id()).optional() },
   hints: READ,
@@ -253,6 +256,8 @@ const addToModel = tool({
   name: 'add_to_model',
   title: 'Add elements and relations',
   description: `Creates elements and relations as one undoable action. Give each new element a ref, a short name of your own such as "api", to use in this same call: in another element's inside, in a position's inside, or as a relation's from or to. Anything that is not a ref is taken as the id of something already in the project. Put an element inside containers with inside; the nesting relation type is chosen by its limits unless you give nestingRelationType. Give positions only when you want shapes at given places; without them, layout places the shapes. The answer maps each ref to the id the program made.
+
+${RECIPES_IN_BRIEF} For instance, a SQL table becomes a data-modeling.table with each column a data-modeling.column inside it, given nestingRelationType "data-modeling.is-column-of"; docker-compose's depends_on becomes systems.communicates-with; a C4 container becomes a systems.service, or a systems.database, inside the systems.system it belongs to.
 
 Example: {
   "elements": [
@@ -664,6 +669,8 @@ const createView = tool({
   title: 'Create a view',
   description: `Creates a view, as one undoable action. A view shows the model from exactly one perspective, such as "Data flow", "Ownership" or "Security", and is arranged by the nesting relation types it lists; without them, every relation type that nests arranges it. A new view has no positions: layout places every shape until you set some.
 
+Every view shows the whole model, so what an import adds shows in the views already there. After an import, create a view when the material brings a perspective none of them has, such as a draw.io page, a Structurizr deployment or a SQL schema's tables, arranged by the nesting relation types that material uses.
+
 Example: { "name": "Who owns what", "perspective": { "name": "Ownership", "description": "Which team runs each service." }, "nestingRelationTypes": ["systems.is-part-of"] }`,
   input: {
     name: z.string().min(1),
@@ -941,7 +948,10 @@ const updateProject = tool({
   title: 'Change the project',
   description: `Changes the project's name, description or the packages it uses, as one undoable action. A package can be dropped only while nothing comes from it.
 
-Example: { "name": "Clinic systems" }`,
+To use a built-in package, such as data-modeling before importing SQL tables, give every package the project uses already, then the new one.
+
+Example: { "name": "Clinic systems" }
+Example: { "packages": ["systems", "data-modeling"] }`,
   input: {
     name: z.string().min(1).optional(),
     description: z.string().nullable().optional(),
@@ -956,6 +966,8 @@ const runCommands = tool({
   name: 'run_commands',
   title: 'Run commands as one action',
   description: `Runs several of Visual Anything's commands as one undoable action, for changes no other tool makes at once. Each command is an object with a type, as the program's core takes it, such as "create-element", "update-element", "delete", "create-relation", "update-relation", "create-package", "define-component", "remove-component", "define-relation-type", "remove-relation-type", "create-view", "update-view", "delete-view", "set-positions", "remove-positions", "create-free-shape", "update-free-shape", "delete-free-shapes", "update-project", "restack", "change-container", "set-route" and "reset-route". Either all of them are done, or none is and the answer says which one was refused and why. Prefer the other tools when one fits.
+
+When you import material again, change the elements and relations already there with one run_commands call, one update-element or update-relation each, so that the whole update is one action; and define what an import needs (create-package, then define-component and define-relation-type) as one action, once the person agrees.
 
 Example: { "label": "Move the reminders into Scheduling", "commands": [{ "type": "update-element", "id": "reminder-service", "changes": { "name": "Reminders" } }, { "type": "set-positions", "view": "system-overview", "positions": [{ "element": "reminder-service", "container": "scheduling", "x": 40, "y": 260 }] }] }`,
   input: {
