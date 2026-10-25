@@ -312,6 +312,37 @@ export const ui: Catalog = {
   'license {license}': 'licencia {license}',
   'Images: {sources}': 'Imágenes: {sources}',
 
+  // The Export dialog's formats, and the read-only page among them (M6b).
+  'Export “{view}”': 'Exportar “{view}”',
+  Format: 'Formato',
+  'PNG image': 'Imagen PNG',
+  'Read-only page': 'Página de solo lectura',
+  'One file to share, embed and read on a phone':
+    'Un archivo para compartir, incrustar y leer en un teléfono',
+  'It leaves out:': 'Deja fuera:',
+  'Its text is part of the picture, so it cannot be selected, searched or read aloud.':
+    'Su texto es parte de la imagen, así que no se puede seleccionar, buscar ni leer en voz alta.',
+  'Writing the file…': 'Escribiendo el archivo…',
+  'The file could not be written: {why}': 'No se pudo escribir el archivo: {why}',
+  'Save {format}': 'Guardar {format}',
+  'Open at what the canvas shows now': 'Abrir en lo que muestra ahora el lienzo',
+  'This view, where the canvas looks, the selection, the filters and focus':
+    'Esta vista, adónde mira el lienzo, la selección, los filtros y el foco',
+  'Writing the page…': 'Escribiendo la página…',
+  'It holds the whole project, every view and scenario, whatever this view shows: share it only with those who may read all of it. It connects nowhere, and the browser saves it.':
+    'Contiene todo el proyecto, cada vista y cada escenario, muestre lo que muestre esta vista: compartirla solo con quien pueda leerlo todo. No se conecta a ningún lado, y la guarda el navegador.',
+  'Editing, the history and Claude’s guidance: the page only reads.':
+    'La edición, el historial y la guía de Claude: la página solo lee.',
+  'Layout, which does not run in the page: shapes a view keeps no position for are drawn in a row, as before a layout.':
+    'El diseño automático, que no se ejecuta en la página: las formas para las que una vista no guarda posición se dibujan en una fila, como antes de organizar.',
+  'This page is {size}, past {limit}: it may open slowly, and some hosts and mail refuse files this large.':
+    'Esta página pesa {size}, más de {limit}: puede abrirse con lentitud, y algunos servidores y correos rechazan archivos tan grandes.',
+  'This copy of Visual Anything has no viewer for read-only pages, as when it runs from its sources. Run pnpm build, then start it again.':
+    'Esta copia de Visual Anything no tiene el visor de páginas de solo lectura, como cuando se ejecuta desde sus fuentes. Ejecutar pnpm build y volver a iniciarla.',
+  'The page could not be written: {why}': 'No se pudo escribir la página: {why}',
+  'Save the page': 'Guardar la página',
+  'Save the page anyway': 'Guardar la página de todos modos',
+
   // The model panel's tabs.
   'Outline and model': 'Esquema y modelo',
   Model: 'Modelo',
