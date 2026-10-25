@@ -177,6 +177,12 @@ const PATTERN_MESSAGES = new Map([
     'must be an id: 1 to 128 letters, digits, ".", "_" or "-", starting with a letter or digit',
   ],
   [modelSchema.definitions.Color.pattern, 'must be a color written as #RRGGBB'],
+  // Package code (ADR 0054).
+  [packageSchema.definitions.CodeLine.pattern, 'must be one line, without a line break'],
+  [
+    packageSchema.definitions.Capability.pattern,
+    'must be "model:read", "time", or "network:" and one web origin, such as "network:https://status.example.com"',
+  ],
 ]);
 
 const TYPE_NAMES: Record<string, string> = {
