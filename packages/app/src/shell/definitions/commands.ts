@@ -13,6 +13,7 @@ import {
   definitionsOf,
   executeCommand,
   modelIndexOf,
+  nestingTypesInView,
   randomIds,
   slug,
   type BatchCommand,
@@ -248,14 +249,33 @@ export function deriveCommand(
   };
 }
 
-/** The action that stops using a package: the project lists every other package it uses. */
-export function stopUsingPackageCommand(
-  project: ProjectSnapshot,
-  packageId: Id,
-): UpdateProjectCommand {
-  return {
+/**
+ * The action that stops using a package: the views that nest by its relation types stop, as using it
+ * made them, and the project then lists every other package it uses. The core still refuses it while
+ * an element, a relation or another package's definition comes from the package.
+ */
+export function stopUsingPackageCommand(project: ProjectSnapshot, packageId: Id): Command {
+  const file = project.packages.find((each) => each.id === packageId) ?? builtinPackage(packageId);
+  const own = new Set((file?.relationTypes ?? []).map((relationType) => relationType.id));
+  const views: Command[] = project.views
+    .filter((view) => view.nestingRelationTypes.some((id) => own.has(id)))
+    .map((view) => ({
+      type: 'update-view',
+      id: view.id,
+      // Only what exists and nests stays listed, so that a stale entry never makes it fail.
+      changes: {
+        nestingRelationTypes: nestingTypesInView(project, view).filter((id) => !own.has(id)),
+      },
+    }));
+  const stop: UpdateProjectCommand = {
     type: 'update-project',
     changes: { packages: project.project.packages.filter((id) => id !== packageId) },
+  };
+  if (views.length === 0) return stop;
+  return {
+    type: 'batch',
+    label: `Stop using the package "${file?.name ?? packageId}"`,
+    commands: [...views, stop],
   };
 }
 
