@@ -275,7 +275,11 @@ export function CanvasArea({
           })),
         collapse: (action, collapsed) => collapseFromCanvas(action, collapsed),
         relationMenu: (at, relations) =>
-          setRouteMenu((last) => ({ at, relations: [...relations], opening: (last?.opening ?? 0) + 1 })),
+          setRouteMenu((last) => ({
+            at,
+            relations: [...relations],
+            opening: (last?.opening ?? 0) + 1,
+          })),
       },
       caption ? { caption } : {},
     );

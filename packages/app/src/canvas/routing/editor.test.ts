@@ -31,7 +31,13 @@ function run(project: ProjectSnapshot, ...commands: Command[]): ProjectSnapshot 
 }
 
 function point(type: string, host: HTMLElement, at: Point, extra: Record<string, unknown> = {}) {
-  const event = new MouseEvent(type, { bubbles: true, clientX: at.x, clientY: at.y, button: 0, ...extra });
+  const event = new MouseEvent(type, {
+    bubbles: true,
+    clientX: at.x,
+    clientY: at.y,
+    button: 0,
+    ...extra,
+  });
   Object.defineProperty(event, 'pointerId', { value: 1 });
   fireEvent(host, event);
 }
@@ -75,7 +81,9 @@ async function canvasWith(project: ProjectSnapshot, relation: string) {
   const line = relationLinesOf(indexed.scene).get(relation) as RelationLine;
   const on = (world: Point) => worldToScreen(controller.camera, world);
   const shapeOf = (element: string) =>
-    indexed.scene.shapes.find((shape) => shape.element === element) as (typeof indexed.scene.shapes)[number];
+    indexed.scene.shapes.find(
+      (shape) => shape.element === element,
+    ) as (typeof indexed.scene.shapes)[number];
   return { host, controller, sent, said, menus, line, on, shapeOf, indexed };
 }
 
@@ -83,7 +91,12 @@ async function canvasWith(project: ProjectSnapshot, relation: string) {
 function dragOn(host: HTMLElement, from: Point, to: Point, extra: Record<string, unknown> = {}) {
   point('pointerdown', host, from, extra);
   for (const step of [0.25, 0.5, 1]) {
-    point('pointermove', host, { x: from.x + (to.x - from.x) * step, y: from.y + (to.y - from.y) * step }, extra);
+    point(
+      'pointermove',
+      host,
+      { x: from.x + (to.x - from.x) * step, y: from.y + (to.y - from.y) * step },
+      extra,
+    );
   }
   point('pointerup', host, to, extra);
 }
@@ -121,7 +134,9 @@ describe('dragging an end of the selected relation', () => {
       {
         type: 'batch',
         label: 'Reconnect "HTTPS" to "Reminder service"',
-        commands: [{ type: 'update-relation', id: 'agent-to-api', changes: { to: 'reminder-service' } }],
+        commands: [
+          { type: 'update-relation', id: 'agent-to-api', changes: { to: 'reminder-service' } },
+        ],
       },
     ]);
   });
@@ -213,7 +228,9 @@ describe('editing a route from the keyboard', () => {
         bendPoints: [{ x: 208, y: 301 }],
       },
     ]);
-    expect(said.at(-1)).toBe('Route "Appointments API → Reminder service" by hand in "System overview"');
+    expect(said.at(-1)).toBe(
+      'Route "Appointments API → Reminder service" by hand in "System overview"',
+    );
   });
 
   it('attaches an end automatically, and cancels with Escape', async () => {

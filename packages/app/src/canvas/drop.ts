@@ -345,7 +345,13 @@ export function dropCommand(
     viewId,
     carriedKeys(indexed, moving),
     { x: Math.round(delta.x), y: Math.round(delta.y) },
-    droppedInto(indexed, project, change, moving, settled.kind === 'into' ? settled.target : undefined),
+    droppedInto(
+      indexed,
+      project,
+      change,
+      moving,
+      settled.kind === 'into' ? settled.target : undefined,
+    ),
   );
   if (!rest && routes.length > 0) {
     return { command: { type: 'batch', label, commands: [change, ...routes] }, change, label };

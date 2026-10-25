@@ -608,8 +608,7 @@ export const ui: Catalog = {
     'Editando la ruta de "{name}". Tab y Mayús+Tab pasan de un control a otro; las flechas mueven el control; Insert agrega un punto de quiebre; Supr quita uno; A conecta un extremo automáticamente; Enter aplica; Esc cancela.',
   'Route editing cancelled; the route is as it was.':
     'Se canceló la edición de la ruta; la ruta quedó como estaba.',
-  'Choose a bend point with Tab to remove it.':
-    'Elegir un punto de quiebre con Tab para quitarlo.',
+  'Choose a bend point with Tab to remove it.': 'Elegir un punto de quiebre con Tab para quitarlo.',
   'Bend point removed.': 'Se quitó el punto de quiebre.',
   'Choose the start or the end with Tab to attach it automatically.':
     'Elegir el inicio o el final con Tab para conectarlo automáticamente.',

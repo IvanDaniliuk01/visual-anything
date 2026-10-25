@@ -67,7 +67,9 @@ export function drawRouteOverlay(
   const { selection, face, refused } = colors;
   if (overlay.outline) {
     const rect = grow(overlay.outline, px(3));
-    graphics.rect(rect.x, rect.y, rect.width, rect.height).stroke({ color: selection, width: px(2) });
+    graphics
+      .rect(rect.x, rect.y, rect.width, rect.height)
+      .stroke({ color: selection, width: px(2) });
   }
   if (overlay.refused) {
     const rect = grow(overlay.refused, px(3));
@@ -114,11 +116,17 @@ export function drawRouteOverlay(
         break;
       }
       case 'bend':
-        graphics.circle(x, y, px(BEND_SIZE / 2)).fill(selection).stroke({ color: face, width: px(1) });
+        graphics
+          .circle(x, y, px(BEND_SIZE / 2))
+          .fill(selection)
+          .stroke({ color: face, width: px(1) });
         if (chosen) ring(graphics, x, y, px(BEND_SIZE / 2 + 3), selection, px(1.5));
         break;
       case 'middle':
-        graphics.circle(x, y, px(MIDDLE_SIZE / 2)).fill(face).stroke({ color: selection, width: px(1.5) });
+        graphics
+          .circle(x, y, px(MIDDLE_SIZE / 2))
+          .fill(face)
+          .stroke({ color: selection, width: px(1.5) });
         if (chosen) ring(graphics, x, y, px(MIDDLE_SIZE / 2 + 3), selection, px(1.5));
         break;
     }
@@ -138,7 +146,14 @@ export function sameHandle(a: Handle, b: Handle): boolean {
   }
 }
 
-function ring(graphics: Graphics, x: number, y: number, radius: number, color: Color, width: number): void {
+function ring(
+  graphics: Graphics,
+  x: number,
+  y: number,
+  radius: number,
+  color: Color,
+  width: number,
+): void {
   graphics.circle(x, y, radius).stroke({ color, width });
 }
 

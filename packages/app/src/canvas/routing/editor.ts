@@ -101,7 +101,14 @@ interface Draft {
 }
 
 type Drag =
-  | { kind: 'end'; line: RelationLine; end: 'from' | 'to'; start: Point; moved: boolean; aim: EndAim }
+  | {
+      kind: 'end';
+      line: RelationLine;
+      end: 'from' | 'to';
+      start: Point;
+      moved: boolean;
+      aim: EndAim;
+    }
   | {
       kind: 'bend';
       line: RelationLine;
@@ -159,12 +166,17 @@ export class RouteEditor {
     const state = this.host.state();
     if (!state || !state.editable) return undefined;
     const { selection, indexed } = state;
-    if (selection.relations.size !== 1 || selection.elements.size > 0 || selection.freeShapes.size > 0) {
+    if (
+      selection.relations.size !== 1 ||
+      selection.elements.size > 0 ||
+      selection.freeShapes.size > 0
+    ) {
       return undefined;
     }
     const [id] = selection.relations;
     const line = id === undefined ? undefined : relationLinesOf(indexed.scene).get(id);
-    if (!line || line.aggregate || this.host.renderer.hiddenByEmphasis.has(line.relation)) return undefined;
+    if (!line || line.aggregate || this.host.renderer.hiddenByEmphasis.has(line.relation))
+      return undefined;
     return line;
   }
 
@@ -175,7 +187,8 @@ export class RouteEditor {
     const line = this.line();
     if (this.keys && (!line || line.relation !== this.keys.relation)) this.keys = undefined;
     else if (this.keys && line) this.keys.line = line;
-    if (this.chosenBend && this.chosenBend.line.relation !== line?.relation) this.chosenBend = undefined;
+    if (this.chosenBend && this.chosenBend.line.relation !== line?.relation)
+      this.chosenBend = undefined;
     if (this.drag) return;
     if (this.pending) {
       this.show(this.pending.overlay);
@@ -194,7 +207,9 @@ export class RouteEditor {
     this.show({
       relation: line.relation,
       handles,
-      ...(chosen && this.chosenBend ? { chosen: { kind: 'bend', index: this.chosenBend.index, at: chosen } } : {}),
+      ...(chosen && this.chosenBend
+        ? { chosen: { kind: 'bend', index: this.chosenBend.index, at: chosen } }
+        : {}),
     });
   }
 
@@ -202,7 +217,11 @@ export class RouteEditor {
   cursorAt(world: Point): string | undefined {
     const line = this.line();
     if (!line || this.drag) return undefined;
-    const handle = handleAt(handlesOf(line, this.host.scale()), world, HANDLE_REACH / this.host.scale());
+    const handle = handleAt(
+      handlesOf(line, this.host.scale()),
+      world,
+      HANDLE_REACH / this.host.scale(),
+    );
     if (handle) return handle.kind === 'end' ? 'crosshair' : 'move';
     if (orthogonal(line)) {
       const segment = segmentAt(line.route, world, SEGMENT_REACH / this.host.scale());
@@ -239,7 +258,14 @@ export class RouteEditor {
   private dragOf(line: RelationLine, handle: Handle, screen: Point, world: Point): Drag {
     switch (handle.kind) {
       case 'end':
-        return { kind: 'end', line, end: handle.end, start: screen, moved: false, aim: { kind: 'back' } };
+        return {
+          kind: 'end',
+          line,
+          end: handle.end,
+          start: screen,
+          moved: false,
+          aim: { kind: 'back' },
+        };
       case 'bend':
         return {
           kind: 'bend',
@@ -252,7 +278,15 @@ export class RouteEditor {
         };
       case 'middle':
         if (orthogonal(line)) {
-          return { kind: 'segment', line, segment: handle.segment, start: screen, world, moved: false, draft: {} };
+          return {
+            kind: 'segment',
+            line,
+            segment: handle.segment,
+            start: screen,
+            world,
+            moved: false,
+            draft: {},
+          };
         }
         return {
           kind: 'bend',
@@ -277,7 +311,9 @@ export class RouteEditor {
       if (drag.kind === 'bend' && drag.added) {
         const bends = drag.draft.bendPoints ?? [];
         if (bends.length >= MAX_BEND_POINTS) {
-          this.host.announce(t('A route has at most {limit} bend points.', { limit: MAX_BEND_POINTS }));
+          this.host.announce(
+            t('A route has at most {limit} bend points.', { limit: MAX_BEND_POINTS }),
+          );
           this.drag = undefined;
           this.refresh();
           return;
@@ -307,7 +343,10 @@ export class RouteEditor {
       }
       case 'bend': {
         const bends = drag.draft.bendPoints ?? [];
-        const neighbours = [bends[drag.index - 1] ?? drag.line.from, bends[drag.index + 1] ?? drag.line.to];
+        const neighbours = [
+          bends[drag.index - 1] ?? drag.line.from,
+          bends[drag.index + 1] ?? drag.line.to,
+        ];
         const snapped = snapBend(world, neighbours, scale, alt);
         bends[drag.index] = snapped.at;
         const marks = drag.draft.snapped ?? bends.map(() => ({ x: false, y: false }));
@@ -321,7 +360,12 @@ export class RouteEditor {
         const b = drag.line.route[drag.segment + 1] as Point;
         const horizontal = a.y === b.y;
         const value = horizontal ? a.y + (world.y - drag.world.y) : a.x + (world.x - drag.world.x);
-        drag.draft.route = moveSegment(drag.line.route, drag.segment, value, segmentEnds(state.indexed, drag.line));
+        drag.draft.route = moveSegment(
+          drag.line.route,
+          drag.segment,
+          value,
+          segmentEnds(state.indexed, drag.line),
+        );
         this.showDraft(drag.line, drag.draft);
         return;
       }
@@ -358,7 +402,11 @@ export class RouteEditor {
   doubleClick(world: Point): boolean {
     const line = this.line();
     if (!line || this.keys) return false;
-    const handle = handleAt(handlesOf(line, this.host.scale()), world, HANDLE_REACH / this.host.scale());
+    const handle = handleAt(
+      handlesOf(line, this.host.scale()),
+      world,
+      HANDLE_REACH / this.host.scale(),
+    );
     if (handle?.kind !== 'bend') return false;
     this.removeBend(line, handle.index);
     return true;
@@ -419,7 +467,10 @@ export class RouteEditor {
   }
 
   /** What a drag sends: a `set-route`, a reconnection, or nothing when nothing changed. */
-  private commandOf(drag: Drag, state: NonNullable<ReturnType<RouteEditorHost['state']>>): Command | undefined {
+  private commandOf(
+    drag: Drag,
+    state: NonNullable<ReturnType<RouteEditorHost['state']>>,
+  ): Command | undefined {
     const { line } = drag;
     switch (drag.kind) {
       case 'end': {
@@ -427,10 +478,22 @@ export class RouteEditor {
         if (aim.kind === 'attach') {
           const current = storedAttachment(line.hand?.route[drag.end] ?? AUTOMATIC);
           if (sameAttachment(current, aim.attachment)) return undefined;
-          return { type: 'set-route', view: state.viewId, relation: line.relation, [drag.end]: aim.attachment };
+          return {
+            type: 'set-route',
+            view: state.viewId,
+            relation: line.relation,
+            [drag.end]: aim.attachment,
+          };
         }
         if (aim.kind === 'reconnect') {
-          return reconnectCommand(state.project, state.viewId, line.relation, drag.end, aim.shape.element, aim.attachment);
+          return reconnectCommand(
+            state.project,
+            state.viewId,
+            line.relation,
+            drag.end,
+            aim.shape.element,
+            aim.attachment,
+          );
         }
         return undefined;
       }
@@ -456,7 +519,10 @@ export class RouteEditor {
       return undefined;
     }
     const current = line.hand?.bendPoints ?? [];
-    if (bends.length === current.length && bends.every((point, at) => samePoint(point, current[at]))) {
+    if (
+      bends.length === current.length &&
+      bends.every((point, at) => samePoint(point, current[at]))
+    ) {
       return undefined;
     }
     const view = viewIn(state.project, state.viewId);
@@ -511,7 +577,10 @@ export class RouteEditor {
     if (aim.kind === 'back' || aim.kind === 'refused') {
       // The line runs to the pointer.
       const preview = overlay.preview ?? drag.line;
-      const route = drag.end === 'to' ? [...preview.route.slice(0, -1), world] : [world, ...preview.route.slice(1)];
+      const route =
+        drag.end === 'to'
+          ? [...preview.route.slice(0, -1), world]
+          : [world, ...preview.route.slice(1)];
       overlay.preview = lineAlong(drag.line, route, undefined);
       if (aim.kind === 'refused') overlay.refused = aim.shape.rect;
     } else {
@@ -563,7 +632,10 @@ export class RouteEditor {
     if (!state) return false;
     const preview = previewOf(state.indexed, keys.line, keys.draft) ?? keys.line;
     const handles = handlesOf(preview, this.host.scale());
-    const at = Math.max(0, handles.findIndex((handle) => sameHandle(handle, keys.chosen)));
+    const at = Math.max(
+      0,
+      handles.findIndex((handle) => sameHandle(handle, keys.chosen)),
+    );
     const take = () => {
       event.preventDefault();
       this.showKeys();
@@ -599,7 +671,11 @@ export class RouteEditor {
         }
         const bends = [...(preview.hand?.bendPoints ?? draftBends(keys))];
         bends.splice(keys.chosen.index, 1);
-        keys.draft = { ...keys.draft, bendPoints: bends, snapped: bends.map(() => ({ x: false, y: false })) };
+        keys.draft = {
+          ...keys.draft,
+          bendPoints: bends,
+          snapped: bends.map(() => ({ x: false, y: false })),
+        };
         delete keys.draft.route;
         keys.chosen = { kind: 'end', end: 'from', at: preview.from, byHand: false };
         this.host.announce(t('Bend point removed.'));
@@ -628,7 +704,11 @@ export class RouteEditor {
     }
   }
 
-  private insertBend(event: KeyboardEvent, preview: RelationLine, handles: readonly Handle[]): boolean {
+  private insertBend(
+    event: KeyboardEvent,
+    preview: RelationLine,
+    handles: readonly Handle[],
+  ): boolean {
     event.preventDefault();
     const keys = this.keys as KeyEdit;
     const bends = [...draftBends(keys, preview)];
@@ -652,7 +732,11 @@ export class RouteEditor {
       return true;
     }
     bends.splice(index, 0, at);
-    keys.draft = { ...keys.draft, bendPoints: bends, snapped: bends.map(() => ({ x: false, y: false })) };
+    keys.draft = {
+      ...keys.draft,
+      bendPoints: bends,
+      snapped: bends.map(() => ({ x: false, y: false })),
+    };
     delete keys.draft.route;
     keys.chosen = { kind: 'bend', index, at };
     this.host.announce(t('Bend point added.'));
@@ -678,7 +762,11 @@ export class RouteEditor {
         if (!point) return;
         const moved = { x: point.x + dx, y: point.y + dy };
         bends[chosen.index] = moved;
-        keys.draft = { ...keys.draft, bendPoints: bends, snapped: bends.map(() => ({ x: false, y: false })) };
+        keys.draft = {
+          ...keys.draft,
+          bendPoints: bends,
+          snapped: bends.map(() => ({ x: false, y: false })),
+        };
         delete keys.draft.route;
         keys.chosen = { ...chosen, at: moved };
         return;
@@ -690,16 +778,24 @@ export class RouteEditor {
           const horizontal = a.y === b.y;
           if ((horizontal && dy === 0) || (!horizontal && dx === 0)) return;
           const value = horizontal ? a.y + dy : a.x + dx;
-          const route = moveSegment(preview.route, chosen.segment, value, segmentEnds(state.indexed, keys.line));
+          const route = moveSegment(
+            preview.route,
+            chosen.segment,
+            value,
+            segmentEnds(state.indexed, keys.line),
+          );
           keys.draft = { ...keys.draft, bendPoints: cornersOf(route, stubSides(preview)) };
           delete keys.draft.route;
           const middle = horizontal
             ? { x: chosen.at.x, y: chosen.at.y + dy }
             : { x: chosen.at.x + dx, y: chosen.at.y };
           const next = previewOf(state.indexed, keys.line, keys.draft) ?? preview;
-          const middles = handlesOf(next, this.host.scale()).filter((handle) => handle.kind === 'middle');
+          const middles = handlesOf(next, this.host.scale()).filter(
+            (handle) => handle.kind === 'middle',
+          );
           keys.chosen = middles.reduce<Handle>(
-            (best, handle) => (distance(handle.at, middle) < distance(best.at, middle) ? handle : best),
+            (best, handle) =>
+              distance(handle.at, middle) < distance(best.at, middle) ? handle : best,
             middles[0] ?? chosen,
           );
           return;
@@ -710,7 +806,11 @@ export class RouteEditor {
         const index = chosen.segment;
         const at = { x: Math.round(chosen.at.x + dx), y: Math.round(chosen.at.y + dy) };
         bends.splice(index, 0, at);
-        keys.draft = { ...keys.draft, bendPoints: bends, snapped: bends.map(() => ({ x: false, y: false })) };
+        keys.draft = {
+          ...keys.draft,
+          bendPoints: bends,
+          snapped: bends.map(() => ({ x: false, y: false })),
+        };
         keys.chosen = { kind: 'bend', index, at };
         return;
       }
@@ -718,7 +818,9 @@ export class RouteEditor {
         const drawn = keys.line.ends?.[chosen.end];
         const shape = drawn?.kind === 'shape' ? state.indexed.byKey.get(drawn.key) : undefined;
         if (!shape) {
-          this.host.announce(t('This end is the middle of another relation, and moves with its line.'));
+          this.host.announce(
+            t('This end is the middle of another relation, and moves with its line.'),
+          );
           return;
         }
         const attachment = alongBorder(shape, chosen.at, event.key, event.shiftKey);
@@ -737,7 +839,11 @@ export class RouteEditor {
     const keys = this.keys as KeyEdit;
     this.keys = undefined;
     const { line, draft } = keys;
-    const command: SetRouteCommand = { type: 'set-route', view: state.viewId, relation: line.relation };
+    const command: SetRouteCommand = {
+      type: 'set-route',
+      view: state.viewId,
+      relation: line.relation,
+    };
     let anything = false;
     for (const end of ['from', 'to'] as const) {
       const wanted = draft[end];
@@ -764,7 +870,9 @@ export class RouteEditor {
     const byHandAfter =
       (command.from ?? storedAttachment(line.hand?.route.from ?? AUTOMATIC)) !== null ||
       (command.to ?? storedAttachment(line.hand?.route.to ?? AUTOMATIC)) !== null ||
-      (command.bendPoints === undefined ? (line.hand?.bendPoints.length ?? 0) > 0 : command.bendPoints !== null) ||
+      (command.bendPoints === undefined
+        ? (line.hand?.bendPoints.length ?? 0) > 0
+        : command.bendPoints !== null) ||
       (line.style ?? 'orthogonal') !== 'orthogonal';
     const viewName = view?.name ?? state.viewId;
     const done = byHandAfter
@@ -810,7 +918,11 @@ function changed(draft: Draft): boolean {
 }
 
 /** Where a new bend point goes in the list, from the middle of a segment of a straight or curved route. */
-function insertionIndex(line: RelationLine, middle: Extract<Handle, { kind: 'middle' }>, handles: readonly Handle[]): number {
+function insertionIndex(
+  line: RelationLine,
+  middle: Extract<Handle, { kind: 'middle' }>,
+  handles: readonly Handle[],
+): number {
   if (!orthogonal(line)) return middle.segment;
   // On an orthogonal route: after the bend points the route passes before it.
   let count = 0;
@@ -822,13 +934,17 @@ function insertionIndex(line: RelationLine, middle: Extract<Handle, { kind: 'mid
 }
 
 /** How the ends of a line take a move of the segment that touches them. */
-function segmentEnds(indexed: IndexedScene, line: RelationLine): { from: SegmentEnd; to: SegmentEnd } {
+function segmentEnds(
+  indexed: IndexedScene,
+  line: RelationLine,
+): { from: SegmentEnd; to: SegmentEnd } {
   const endOf = (which: 'from' | 'to', point: Point): SegmentEnd => {
     const drawn = line.ends?.[which];
     const shape = drawn?.kind === 'shape' ? indexed.byKey.get(drawn.key) : undefined;
     if (!shape) return { kind: 'fixed' };
     const attachment = line.hand?.route[which];
-    const side = attachment && attachment.kind !== 'automatic' ? attachment.side : sideOfPoint(shape, point);
+    const side =
+      attachment && attachment.kind !== 'automatic' ? attachment.side : sideOfPoint(shape, point);
     if (attachment && attachment.kind !== 'automatic') return { kind: 'stub', side };
     if (shape.points) return { kind: 'stub', side };
     return { kind: 'slides', rect: shape.rect, side };
@@ -852,7 +968,11 @@ function sideOfPoint(shape: ElementShape, point: Point): Side {
 }
 
 /** The line as a draft changes it, routed again; undefined when the draft changes nothing. */
-export function previewOf(indexed: IndexedScene, line: RelationLine, draft: Draft): RelationLine | undefined {
+export function previewOf(
+  indexed: IndexedScene,
+  line: RelationLine,
+  draft: Draft,
+): RelationLine | undefined {
   if (!changed(draft)) return undefined;
   if (draft.route) return lineAlong(line, draft.route, undefined);
   const lines = relationLinesOf(indexed.scene);
@@ -879,7 +999,9 @@ export function previewOf(indexed: IndexedScene, line: RelationLine, draft: Draf
     if (wanted === null || !shape) return AUTOMATIC;
     if (wanted.kind === 'border') return { kind: 'border', side: wanted.side, at: wanted.at };
     const point = shape.points?.find((each) => each.name === wanted.name);
-    return point ? { kind: 'connection-point', name: point.name, side: point.side, at: point.at } : AUTOMATIC;
+    return point
+      ? { kind: 'connection-point', name: point.name, side: point.side, at: point.at }
+      : AUTOMATIC;
   };
   const route: ResolvedRoute = {
     relation: line.relation,
@@ -890,9 +1012,24 @@ export function previewOf(indexed: IndexedScene, line: RelationLine, draft: Draf
     byHand: true,
   };
   const bendPoints = draft.bendPoints ?? line.hand?.bendPoints ?? [];
-  const ends: LineEnds = { relation: line.relation, offset: line.ends?.offset ?? 0, fromShape, toShape, from, to };
-  const routed = routeLine(ends, { route, bendPoints, bendOrigin: line.hand?.bendOrigin ?? { x: 0, y: 0 } });
-  return lineAlong(line, routed.route, routed.curve, { route, bendPoints, bendOrigin: line.hand?.bendOrigin ?? { x: 0, y: 0 } });
+  const ends: LineEnds = {
+    relation: line.relation,
+    offset: line.ends?.offset ?? 0,
+    fromShape,
+    toShape,
+    from,
+    to,
+  };
+  const routed = routeLine(ends, {
+    route,
+    bendPoints,
+    bendOrigin: line.hand?.bendOrigin ?? { x: 0, y: 0 },
+  });
+  return lineAlong(line, routed.route, routed.curve, {
+    route,
+    bendPoints,
+    bendOrigin: line.hand?.bendOrigin ?? { x: 0, y: 0 },
+  });
 }
 
 /** A line drawn along another route, its arrowhead and middle with it. */
@@ -921,14 +1058,29 @@ function lineAlong(
  * connection point, or eight units when the shape has none; round the corners. The arrow that runs
  * clockwise along the end's side goes clockwise, the opposite one back; the others leave it.
  */
-function alongBorder(shape: ElementShape, at: Point, key: string, jump: boolean): EndAttachment | undefined {
+function alongBorder(
+  shape: ElementShape,
+  at: Point,
+  key: string,
+  jump: boolean,
+): EndAttachment | undefined {
   const { rect } = shape;
   const { width, height } = rect;
   const perimeter = 2 * (width + height);
   if (perimeter <= 0) return undefined;
   const place = nearestBorderAttach(rect, at);
-  const clockwise: Record<Side, string> = { top: 'ArrowRight', right: 'ArrowDown', bottom: 'ArrowLeft', left: 'ArrowUp' };
-  const back: Record<Side, string> = { top: 'ArrowLeft', right: 'ArrowUp', bottom: 'ArrowRight', left: 'ArrowDown' };
+  const clockwise: Record<Side, string> = {
+    top: 'ArrowRight',
+    right: 'ArrowDown',
+    bottom: 'ArrowLeft',
+    left: 'ArrowUp',
+  };
+  const back: Record<Side, string> = {
+    top: 'ArrowLeft',
+    right: 'ArrowUp',
+    bottom: 'ArrowRight',
+    left: 'ArrowDown',
+  };
   const direction = key === clockwise[place.side] ? 1 : key === back[place.side] ? -1 : 0;
   if (direction === 0) return undefined;
   const sOf = (attach: Attach) => {
@@ -946,12 +1098,16 @@ function alongBorder(shape: ElementShape, at: Point, key: string, jump: boolean)
   const current = sOf(place);
   if (jump && shape.points && shape.points.length > 0) {
     const ahead = shape.points
-      .map((point) => ({ point, distance: (((sOf(point) - current) * direction) % perimeter + perimeter) % perimeter }))
+      .map((point) => ({
+        point,
+        distance: ((((sOf(point) - current) * direction) % perimeter) + perimeter) % perimeter,
+      }))
       .filter((each) => each.distance > 1e-6)
       .sort((a, b) => a.distance - b.distance)[0];
     if (ahead) return { kind: 'connection-point', name: ahead.point.name };
   }
-  const s = (((current + direction * (jump ? BIG_STEP : STEP)) % perimeter) + perimeter) % perimeter;
+  const s =
+    (((current + direction * (jump ? BIG_STEP : STEP)) % perimeter) + perimeter) % perimeter;
   const attach: Attach =
     s < width
       ? { side: 'top', at: s / width }
@@ -968,7 +1124,9 @@ function alongBorder(shape: ElementShape, at: Point, key: string, jump: boolean)
 function endCaption(aim: EndAim, alt: boolean): { text: string; detail?: string } | undefined {
   const hint = alt ? (IS_APPLE ? t('⌥: no snapping') : t('Alt: no snapping')) : undefined;
   const withHint = (caption: { text: string; detail?: string }) =>
-    hint === undefined ? caption : { text: caption.text, detail: caption.detail ? `${caption.detail} · ${hint}` : hint };
+    hint === undefined
+      ? caption
+      : { text: caption.text, detail: caption.detail ? `${caption.detail} · ${hint}` : hint };
   switch (aim.kind) {
     case 'back':
       return undefined;
@@ -993,7 +1151,8 @@ function endCaption(aim: EndAim, alt: boolean): { text: string; detail?: string 
 /** What attaching an end somewhere says. */
 export function attachText(attachment: EndAttachment | null): string {
   if (attachment === null) return t('Attach automatically');
-  if (attachment.kind === 'connection-point') return t('Attach at "{name}"', { name: attachment.name });
+  if (attachment.kind === 'connection-point')
+    return t('Attach at "{name}"', { name: attachment.name });
   switch (attachment.side) {
     case 'top':
       return t('Attach to the top side');

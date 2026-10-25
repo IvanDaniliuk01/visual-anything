@@ -712,14 +712,14 @@ export class CanvasController {
         this.host.style.cursor = routeCursor
           ? routeCursor
           : onHandle
-          ? 'crosshair'
-          : this.spaceHeld
-            ? 'grab'
-            : hit
-              ? hit.kind === 'relation' && this.recorder
-                ? 'copy'
-                : 'pointer'
-              : 'default';
+            ? 'crosshair'
+            : this.spaceHeld
+              ? 'grab'
+              : hit
+                ? hit.kind === 'relation' && this.recorder
+                  ? 'copy'
+                  : 'pointer'
+                : 'default';
         if (shape && this.onToggle(shape, world)) this.host.title = toggleTitle(shape);
         else if (this.host.title !== '') this.host.title = '';
         return;

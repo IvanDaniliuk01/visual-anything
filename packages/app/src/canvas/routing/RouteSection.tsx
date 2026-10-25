@@ -37,7 +37,9 @@ export function RouteSection({ relation }: { relation: Id }) {
   };
   const route = line?.hand?.route;
   const byHand = routedByHand(view, relation);
-  const style: RouteStyle = byHand ? (view.routes?.[relation]?.style ?? 'orthogonal') : 'orthogonal';
+  const style: RouteStyle = byHand
+    ? (view.routes?.[relation]?.style ?? 'orthogonal')
+    : 'orthogonal';
   const drawnAlone = line !== undefined && !line.aggregate;
   const styleNames: Record<RouteStyle, string> = {
     orthogonal: t('Orthogonal'),

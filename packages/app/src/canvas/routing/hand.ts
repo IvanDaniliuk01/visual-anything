@@ -390,9 +390,7 @@ function curvedRoute(
   const last = waypoints.length - 1;
   const tangents = waypoints.map((point, at): Point => {
     if (at === 0) {
-      return start.side === undefined
-        ? unit(waypoints[1] as Point, point)
-        : normalOf(start.side);
+      return start.side === undefined ? unit(waypoints[1] as Point, point) : normalOf(start.side);
     }
     if (at === last) {
       if (end.side === undefined) return unit(point, waypoints[at - 1] as Point);
@@ -439,7 +437,10 @@ export function pointOnSpan(span: CurveSpan, t: number): Point {
 
 /** The two halves of a span split at `t`. */
 export function splitSpan(span: CurveSpan, t: number): [CurveSpan, CurveSpan] {
-  const mix = (p: Point, q: Point): Point => ({ x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t });
+  const mix = (p: Point, q: Point): Point => ({
+    x: p.x + (q.x - p.x) * t,
+    y: p.y + (q.y - p.y) * t,
+  });
   const ab = mix(span.from, span.c1);
   const bc = mix(span.c1, span.c2);
   const cd = mix(span.c2, span.to);

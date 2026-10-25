@@ -150,7 +150,10 @@ describe('snapBend', () => {
       at: { x: 104, y: 200 },
       snapped: { x: false, y: false },
     });
-    expect(snapBend({ x: 120, y: 100 }, neighbours, 1, false).snapped).toEqual({ x: false, y: false });
+    expect(snapBend({ x: 120, y: 100 }, neighbours, 1, false).snapped).toEqual({
+      x: false,
+      y: false,
+    });
   });
 });
 
@@ -163,7 +166,10 @@ describe('moving a segment of an orthogonal route', () => {
     { x: 300, y: 112 },
     { x: 300, y: 100 },
   ];
-  const ends = { from: { kind: 'stub', side: 'right' }, to: { kind: 'stub', side: 'bottom' } } as const;
+  const ends = {
+    from: { kind: 'stub', side: 'right' },
+    to: { kind: 'stub', side: 'bottom' },
+  } as const;
 
   it('moves it perpendicular to itself, the segments on either side stretching', () => {
     expect(moveSegment(route, 2, 180, ends)).toEqual([
@@ -181,7 +187,10 @@ describe('moving a segment of an orthogonal route', () => {
       { x: 300, y: 50 },
     ];
     expect(
-      moveSegment(straight, 0, 80, { from: { kind: 'stub', side: 'right' }, to: { kind: 'stub', side: 'left' } }),
+      moveSegment(straight, 0, 80, {
+        from: { kind: 'stub', side: 'right' },
+        to: { kind: 'stub', side: 'left' },
+      }),
     ).toEqual([
       { x: 100, y: 50 },
       { x: 100 + STUB, y: 50 },
@@ -215,8 +224,16 @@ describe('moving a segment of an orthogonal route', () => {
       { x: 300, y: 180 },
     ]);
     const again = routeByHand(
-      { kind: 'shape', rect: { x: 0, y: 0, width: 100, height: 100 }, attach: { side: 'right', at: 0.5 } },
-      { kind: 'shape', rect: { x: 250, y: 0, width: 100, height: 100 }, attach: { side: 'bottom', at: 0.5 } },
+      {
+        kind: 'shape',
+        rect: { x: 0, y: 0, width: 100, height: 100 },
+        attach: { side: 'right', at: 0.5 },
+      },
+      {
+        kind: 'shape',
+        rect: { x: 250, y: 0, width: 100, height: 100 },
+        attach: { side: 'bottom', at: 0.5 },
+      },
       corners,
       'orthogonal',
     );
@@ -236,7 +253,13 @@ describe('handles', () => {
     });
     const line = relationLinesOf(buildScene(project, VIEW)).get('agent-to-api') as RelationLine;
     const handles = handlesOf(line, 1);
-    expect(handles.map((handle) => handle.kind)).toEqual(['end', 'middle', 'bend', 'middle', 'end']);
+    expect(handles.map((handle) => handle.kind)).toEqual([
+      'end',
+      'middle',
+      'bend',
+      'middle',
+      'end',
+    ]);
     expect(handles[0]).toMatchObject({ end: 'from', byHand: false });
     expect(handles.at(-1)).toMatchObject({ end: 'to', byHand: true });
     const bend = handles[2];
@@ -246,8 +269,18 @@ describe('handles', () => {
 
 describe('route commands', () => {
   it('draw several relations in a style as one action, leaving those drawn so already', () => {
-    const curved = run(sample, { type: 'set-route', view: VIEW, relation: 'api-reads-db', style: 'curved' });
-    const command = styleCommand(curved, VIEW, ['api-reads-db', 'api-writes-db', 'api-to-reminders'], 'curved');
+    const curved = run(sample, {
+      type: 'set-route',
+      view: VIEW,
+      relation: 'api-reads-db',
+      style: 'curved',
+    });
+    const command = styleCommand(
+      curved,
+      VIEW,
+      ['api-reads-db', 'api-writes-db', 'api-to-reminders'],
+      'curved',
+    );
     expect(command).toEqual({
       type: 'batch',
       label: 'Draw 2 relations curved in "System overview"',
@@ -261,7 +294,12 @@ describe('route commands', () => {
   });
 
   it('reset only the relations routed by hand', () => {
-    const curved = run(sample, { type: 'set-route', view: VIEW, relation: 'api-reads-db', style: 'curved' });
+    const curved = run(sample, {
+      type: 'set-route',
+      view: VIEW,
+      relation: 'api-reads-db',
+      style: 'curved',
+    });
     expect(resetCommand(curved, VIEW, ['api-reads-db', 'api-writes-db'])).toEqual({
       type: 'reset-route',
       view: VIEW,
@@ -276,7 +314,10 @@ describe('route commands', () => {
       side: 'top',
       at: 0.5,
     });
-    expect(command).toMatchObject({ type: 'batch', label: 'Reconnect "HTTPS" to "Reminder service"' });
+    expect(command).toMatchObject({
+      type: 'batch',
+      label: 'Reconnect "HTTPS" to "Reminder service"',
+    });
     const after = run(sample, command);
     expect(after.model.relations.find((relation) => relation.id === 'agent-to-api')?.to).toBe(
       'reminder-service',

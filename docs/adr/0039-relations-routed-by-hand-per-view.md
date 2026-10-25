@@ -28,3 +28,17 @@ A view can route any relation it draws as a line by hand, and keeps only what di
 - The core settles routes after every command, and after each command inside a batch, so a batch that reconnects a relation and then attaches its new end keeps the attachment. It costs nothing while no view keeps routes, and a scan of the routes when a command changes the model or the definitions.
 - After layout, hand routes stay as they were; Reset route on the selection is how relations go back to the routes layout gives.
 - The delete preview gains the routes a deletion removes or loses bend points from.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-24 under the user's standing delegation of design decisions. -->
+
+- 2026-10-24: in an orthogonal route every bend point is a corner. From each point the route runs along its current axis to the next point's coordinate and turns there, so two points that share an x or a y are joined by one segment; it enters an end attached by hand along that end's stub, through a Z when the axis it arrives on would otherwise run back over the stub. So the corners of a route drawn by moving a segment, taken as bend points, give back that same route.
+- 2026-10-24: connection points apply on the canvas to every line, not only to routes chosen by hand. An end attached automatically to a shape whose appearance has connection points attaches at the one facing its neighbour (§3.5 of `components.md`), with a stub, and lines between the same two ends attach 12 units apart along its side. Shapes keep their connection points, names included, so that the canvas snaps to them by name.
+- 2026-10-24: a dragged end let go on the relation's other end is refused, as is one that would make containment form a cycle; the caption says which before release. With Alt, an end attaches at the exact border point nearest the pointer even deep inside its shape, so Alt never attaches automatically.
+- 2026-10-24: while a route is dragged or edited from the keys, its line leaves its tiles and is drawn above the scene; once let go, it stays drawn as dropped until the change comes back, as dropped shapes do, so the old route never shows in between.
+- 2026-10-24: a solid curve is cut for its tiles into pieces of its spans, each at most about 512 units of control polygon long and in the cell of its middle, and stroked with Bézier curves to within 0.1 units; a dashed or dotted curve is drawn along its flattened route with the dash pattern.
+- 2026-10-24: the relation's menu is a menu of its own, `canvas/routing/RouteMenu.tsx`, since `RelationMenu.tsx` is the menu that chooses a new relation's type. It opens with a secondary press on a line, and with Shift+F10 or the menu key while only relations are selected.
+- 2026-10-24: in route editing from the keys, Delete or Backspace with no bend point chosen says so rather than deleting the relation, and A, Insert and the arrow keys say what to choose when the handle chosen takes none of them. Every other key that types waits for the mode to end; zooming and panning still work.
+- 2026-10-24: the canvas never drew ELK's routes: layout gives back only places. So ELK's own route is dropped for every relation, and the layout input gives each end chosen by hand as a fixed port (`LayoutRelation.fromPort` and `toPort`).
+- 2026-10-24: bend points snap to the grid once the grid exists (Track A3); until then they snap only to their neighbours' x and y.

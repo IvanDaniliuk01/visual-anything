@@ -59,8 +59,14 @@ function menuFor(project: ProjectSnapshot, relations: string[], editable = true)
 describe('the relation’s menu', () => {
   it('offers the style, Reset route, an automatic end and Edit the route…', () => {
     const { onSend, onEditRoute } = menuFor(routed, ['agent-to-api']);
-    expect(screen.getByRole('menuitemradio', { name: 'Curved' })).toHaveAttribute('aria-checked', 'true');
-    expect(screen.getByRole('menuitemradio', { name: 'Orthogonal' })).toHaveAttribute('aria-checked', 'false');
+    expect(screen.getByRole('menuitemradio', { name: 'Curved' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    expect(screen.getByRole('menuitemradio', { name: 'Orthogonal' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    );
     expect(screen.queryByRole('menuitem', { name: 'Attach the start automatically' })).toBeNull();
     fireEvent.click(screen.getByRole('menuitem', { name: 'Attach the end automatically' }));
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Straight' }));
@@ -104,7 +110,7 @@ describe('the relation’s menu', () => {
 
 describe('the inspector’s Route section', () => {
   function sectionFor(project: ProjectSnapshot, relation: string) {
-    const send = vi.fn(async () => ({ ok: true }));
+    const send = vi.fn(() => Promise.resolve({ ok: true }));
     const editor: Editor = {
       project,
       definitions: definitionsIn(project),
@@ -132,7 +138,9 @@ describe('the inspector’s Route section', () => {
 
   it('changes the style, and asks the canvas to edit the route from the keys', () => {
     const { send } = sectionFor(routed, 'agent-to-api');
-    fireEvent.change(screen.getByRole('combobox', { name: 'Style' }), { target: { value: 'straight' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Style' }), {
+      target: { value: 'straight' },
+    });
     expect(send).toHaveBeenCalledWith({
       type: 'set-route',
       view: VIEW,
@@ -163,7 +171,9 @@ describe('the history’s labels of routes', () => {
       'Reconnect "HTTPS" to "Reminder service"',
     ];
     for (const label of labels) expect(untranslatedParts('es', label)).toEqual([]);
-    expect(translateMessage('es', labels[0] as string)).toBe('Trazar "HTTPS" a mano en "System overview"');
+    expect(translateMessage('es', labels[0] as string)).toBe(
+      'Trazar "HTTPS" a mano en "System overview"',
+    );
   });
 
   it('are the ones the core writes', () => {

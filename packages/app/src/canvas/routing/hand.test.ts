@@ -32,7 +32,10 @@ function onRoute(route: readonly Point[], point: Point): boolean {
     const a = route[at - 1] as Point;
     const b = route[at] as Point;
     const length = Math.hypot(b.x - a.x, b.y - a.y);
-    const t = length === 0 ? 0 : ((point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)) / length ** 2;
+    const t =
+      length === 0
+        ? 0
+        : ((point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)) / length ** 2;
     const clamped = Math.min(1, Math.max(0, t));
     const x = a.x + (b.x - a.x) * clamped;
     const y = a.y + (b.y - a.y) * clamped;
@@ -49,7 +52,12 @@ function crossesInside(route: readonly Point[], rect: Rect): boolean {
     for (let step = 1; step < 20; step++) {
       const x = a.x + ((b.x - a.x) * step) / 20;
       const y = a.y + ((b.y - a.y) * step) / 20;
-      if (x > rect.x + 0.01 && x < rect.x + rect.width - 0.01 && y > rect.y + 0.01 && y < rect.y + rect.height - 0.01) {
+      if (
+        x > rect.x + 0.01 &&
+        x < rect.x + rect.width - 0.01 &&
+        y > rect.y + 0.01 &&
+        y < rect.y + rect.height - 0.01
+      ) {
         return true;
       }
     }
@@ -139,7 +147,12 @@ describe('routeByHand, straight', () => {
   });
 
   it('runs to the middle of another relation', () => {
-    const { route } = routeByHand(shape(A), { kind: 'point', point: { x: 200, y: 200 } }, [], 'straight');
+    const { route } = routeByHand(
+      shape(A),
+      { kind: 'point', point: { x: 200, y: 200 } },
+      [],
+      'straight',
+    );
     expect(route.at(-1)).toEqual({ x: 200, y: 200 });
   });
 });
@@ -175,14 +188,24 @@ describe('routeByHand, orthogonal', () => {
   });
 
   it('runs an automatic end straight at a neighbour within its side', () => {
-    const { route } = routeByHand(shape(A), shape(B, { side: 'top', at: 0.5 }), [{ x: 200, y: 20 }], 'orthogonal');
+    const { route } = routeByHand(
+      shape(A),
+      shape(B, { side: 'top', at: 0.5 }),
+      [{ x: 200, y: 20 }],
+      'orthogonal',
+    );
     expect(route[0]).toEqual({ x: 100, y: 20 });
     expect(route[1]).toEqual({ x: 200, y: 20 });
     expect(orthogonal(route)).toBe(true);
   });
 
   it('leaves an automatic end from the middle of its side when the neighbour is beyond it', () => {
-    const { route } = routeByHand(shape(A), shape(B, { side: 'left', at: 0.5 }), [{ x: 200, y: 300 }], 'orthogonal');
+    const { route } = routeByHand(
+      shape(A),
+      shape(B, { side: 'left', at: 0.5 }),
+      [{ x: 200, y: 300 }],
+      'orthogonal',
+    );
     expect(route[0]).toEqual({ x: 50, y: 60 });
     expect(orthogonal(route)).toBe(true);
   });
@@ -318,16 +341,36 @@ describe('routeByHand, curved', () => {
         const t = step / 50;
         const u = 1 - t;
         const point = {
-          x: u ** 3 * span.from.x + 3 * u * u * t * span.c1.x + 3 * u * t * t * span.c2.x + t ** 3 * span.to.x,
-          y: u ** 3 * span.from.y + 3 * u * u * t * span.c1.y + 3 * u * t * t * span.c2.y + t ** 3 * span.to.y,
+          x:
+            u ** 3 * span.from.x +
+            3 * u * u * t * span.c1.x +
+            3 * u * t * t * span.c2.x +
+            t ** 3 * span.to.x,
+          y:
+            u ** 3 * span.from.y +
+            3 * u * u * t * span.c1.y +
+            3 * u * t * t * span.c2.y +
+            t ** 3 * span.to.y,
         };
         let nearest = Infinity;
         for (let at = 1; at < route.length; at++) {
           const a = route[at - 1] as Point;
           const b = route[at] as Point;
           const length2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
-          const s = length2 === 0 ? 0 : Math.min(1, Math.max(0, ((point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)) / length2));
-          nearest = Math.min(nearest, Math.hypot(point.x - (a.x + s * (b.x - a.x)), point.y - (a.y + s * (b.y - a.y))));
+          const s =
+            length2 === 0
+              ? 0
+              : Math.min(
+                  1,
+                  Math.max(
+                    0,
+                    ((point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)) / length2,
+                  ),
+                );
+          nearest = Math.min(
+            nearest,
+            Math.hypot(point.x - (a.x + s * (b.x - a.x)), point.y - (a.y + s * (b.y - a.y))),
+          );
         }
         expect(nearest).toBeLessThan(0.5);
       }
