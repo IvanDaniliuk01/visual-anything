@@ -233,6 +233,9 @@ export type { ResolvedAttachment, ResolvedRoute, RouteLookups, RouteShapes, Side
 export { MAX_BEND_POINTS, routeOf } from './routes';
 // The live protocol's history list, and undo or redo up to an action (version 5).
 export type { HistoryListedMessage, ListedAction } from './protocol';
+// The start screen of a folder that holds no project yet (ADR 0051).
+export type { OfferedSample, StartCreateMessage, StartOfferedMessage } from './protocol';
+export { MAX_START_NAME } from './protocol';
 export { readListedActions } from './protocol';
 // The view state a view address carries (ADR 0030's addendum of 2026-10-25).
 export type {
