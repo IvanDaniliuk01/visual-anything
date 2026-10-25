@@ -11,8 +11,11 @@ import type { RelationLine } from '../scene';
 import type { RoutePiece } from '../tiles';
 import { flattenedSegments, pointOnSpan, splitSpan, type CurveSpan } from './hand';
 
-/** About how long a piece of a curve is at most, so that a tile spans about its cell. */
-const PIECE_LENGTH = 512;
+/**
+ * About how long a piece of a curve is at most: short enough that the frames' budget, which counts
+ * pieces, spreads the first drawing of many curves over frames, and a tile spans about its cell.
+ */
+const PIECE_LENGTH = 128;
 /** The most pieces a curve is cut into; beyond, it is drawn whole, in one tile. */
 const MOST_PIECES = 1024;
 /** How closely PixiJS follows a Bézier curve when it draws it: within 0.1 units. */
@@ -81,22 +84,18 @@ export function curvePieces(
     const segments = flattenedSegments(distance(part.from, part.to));
     const points: Point[] = [];
     for (let step = 1; step <= segments; step++) points.push(pointOnSpan(part, step / segments));
-    const previous = pieces.at(-1);
-    if (previous && previous.cell === cell) {
-      previous.curve?.push(part);
-      previous.points.push(...points);
-    } else {
-      pieces.push({
-        line,
-        cell,
-        points: [part.from, ...points],
-        travelled,
-        bendAtStart: false,
-        bendAtEnd: false,
-        last: false,
-        curve: [part],
-      });
-    }
+    // Each part a piece of its own, even beside one in the same cell, so that the frames' budget,
+    // which counts pieces, counts the work of drawing it.
+    pieces.push({
+      line,
+      cell,
+      points: [part.from, ...points],
+      travelled,
+      bendAtStart: false,
+      bendAtEnd: false,
+      last: false,
+      curve: [part],
+    });
     let length = 0;
     let from = part.from;
     for (const point of points) {
@@ -141,7 +140,8 @@ export function strokeCurve(
 ): void {
   if (spans.length === 0) return;
   traceCurve(graphics, spans);
-  graphics.stroke({ color: style.color, width: style.width, cap: 'butt', join: 'round' });
+  // A smooth curve has no corners to join round, which only adds triangles.
+  graphics.stroke({ color: style.color, width: style.width, cap: 'butt', join: 'miter' });
 }
 
 /** Whether a line is drawn as a smooth curve: curved and solid; a dashed curve is drawn flattened. */
