@@ -177,7 +177,9 @@ describe('the image picker in an element’s own appearance', () => {
       },
     ]);
     await settle(() =>
-      fireEvent.click(within(image).getByRole('button', { name: 'Use the component’s image' })),
+      fireEvent.click(
+        within(inspector).getByRole('button', { name: 'Use the component’s image for Image' }),
+      ),
     );
     expect(sent(send).at(-1)).toEqual({
       type: 'update-element',

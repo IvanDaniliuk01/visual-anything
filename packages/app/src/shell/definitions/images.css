@@ -89,14 +89,3 @@
 .image-control-report:empty {
   display: none;
 }
-
-/* An element's image in the inspector: its label as the other traits', the picker beside or below. */
-
-.inspector-image-trait .inspector-trait-label {
-  flex: 0 0 3.4rem;
-}
-
-.inspector-image-trait .inspector-trait-control {
-  display: grid;
-  gap: 0.3rem;
-}

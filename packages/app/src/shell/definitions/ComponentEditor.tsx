@@ -11,10 +11,11 @@ import type { AppearanceImage, Id } from '@visual-anything/schema';
 import { useId, type Ref } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import { readNumber } from '../inspector/attributes';
-import { CheckboxControl, ColorControl, SelectControl, TextControl } from '../inspector/controls';
+import { CheckboxControl, SelectControl, TextControl } from '../inspector/controls';
 import { Title } from '../inspector/parts';
 import { SHAPES, holdsRows, isShape } from '../inspector/shapes';
 import { AttributeDefinitionsSection } from './AttributeDefinitionsSection';
+import { ColorRow } from './ColorRow';
 import { isBuiltInDefinition } from './commands';
 import { ConnectionPointsSection } from './ConnectionPointsSection';
 import { DetailSection } from './DetailSection';
@@ -165,30 +166,9 @@ function AppearanceTraits({ id, readOnly, update }: AppearanceTraitsProps) {
             </SelectControl>
           )}
         </TraitRow>
-        <TraitRow label="Fill" {...row('fill')} inherit={() => update({ fill: null })}>
-          {({ id: controlId, describedBy, send }) => (
-            <ColorControl
-              id={controlId}
-              label="Fill"
-              value={shown.fill}
-              disabled={readOnly}
-              describedBy={describedBy}
-              onCommit={(fill) => send(update({ fill }))}
-            />
-          )}
-        </TraitRow>
-        <TraitRow label="Stroke" {...row('stroke')} inherit={() => update({ stroke: null })}>
-          {({ id: controlId, describedBy, send }) => (
-            <ColorControl
-              id={controlId}
-              label="Stroke"
-              value={shown.stroke}
-              disabled={readOnly}
-              describedBy={describedBy}
-              onCommit={(stroke) => send(update({ stroke }))}
-            />
-          )}
-        </TraitRow>
+        {/* Colors change at the level the project can change, so a built-in component's too. */}
+        <ColorRow kind="component" id={id} trait="fill" label="Fill" hints />
+        <ColorRow kind="component" id={id} trait="stroke" label="Stroke" />
         <TraitRow label="Width" {...row('width')} inherit={() => update({ width: null })}>
           {({ id: controlId, describedBy, send }) => (
             <TextControl

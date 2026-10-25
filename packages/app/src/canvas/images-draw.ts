@@ -9,12 +9,17 @@
  *   canvas is zoomed far out, where a drawing's block is its plate.
  * - Until a picture's texture is ready, or when it can never be decoded, its placeholder shows: a
  *   drawing's own outline, drawn inside its plate by the full drawing, and nothing for an icon.
+ * - Plates follow the theme (ADR-0033): drawn in white, a drawing for each pair of a fill and its dark
+ *   shade, and tinted each frame to the fill of the theme the canvas shows, so that a switch changes
+ *   them in the frame it shows, with the rest of the canvas. Pictures are drawn as stored in both
+ *   themes, a silhouette in its stored colour.
  * - Work per frame: at most four image drawings are rebuilt, nearest the middle of the screen first,
  *   those whose textures just arrived before those whose buckets changed with the zoom, and none once
  *   the frame has spent 8 ms. The store keeps its own limits on decoding and rasterizing.
  * - A tile out of the settled reach for 3 seconds drops its image drawing and gives up its textures;
  *   it asks again when it comes back.
  */
+import type { ThemeName } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
 import { Container, Graphics, type Texture } from 'pixi.js';
 import { grow, type Rect } from './geometry';
@@ -29,6 +34,7 @@ import {
 import type { ElementShape } from './scene';
 import { IMAGE_SCALES, type ShapeImage } from './shape-images';
 import { meets } from './spatial';
+import { shapeColors } from './theme/paint';
 
 /** What the image drawings need of one of the renderer's tiles. */
 export interface ImageTile {
@@ -49,6 +55,8 @@ export interface ImageView {
   resolution: number;
   /** Whether the camera has rested, so pictures are drawn sharp. */
   settled: boolean;
+  /** The theme the canvas shows, whose fills the plates are tinted to. */
+  theme: ThemeName;
   /** How long the frame has taken so far, in milliseconds. */
   spent: number;
 }
@@ -61,11 +69,20 @@ interface Drawing {
   shapes: readonly ElementShape[];
   pictured: readonly ElementShape[];
   group?: Container;
-  /** Drawings' plates and pictures, then icons, which hide below their scale at once. */
+  /** Drawings' plates, in white, by the fill and dark shade they are tinted to. */
+  plates?: Map<string, Plates>;
+  /** Drawings' pictures, then icons, which hide below their scale at once. */
   drawings?: Graphics;
   icons?: Graphics;
   /** The buckets it was drawn for; none until it is drawn, or once it was dropped. */
   drawnFor?: string;
+}
+
+/** Plates drawn in white, and the fill they are tinted to in each theme. */
+interface Plates {
+  graphics: Graphics;
+  light: Color;
+  dark: Color | undefined;
 }
 
 /** The corner radius of a drawing's plate, at most. */
@@ -140,6 +157,7 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
       const visible = tile.full?.visible === true && scale >= IMAGE_SCALES.drawingsFrom;
       if (drawing.group && drawing.group.visible !== visible) drawing.group.visible = visible;
       if (drawing.icons && drawing.icons.visible !== iconsShown) drawing.icons.visible = iconsShown;
+      if (drawing.plates) tintPlates(drawing.plates, view.theme);
       if (meets(tile.bounds, reach)) inReach.add(drawing.id);
       if (!visible || !meets(tile.bounds, near)) continue;
       const key = this.#keyOf(drawing, view, iconsShown);
@@ -223,6 +241,8 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
       view.scale >= IMAGE_SCALES.iconsFrom,
       middle,
       DRAGGED,
+      // Drawn again for the new theme when a switch shows, as the rest of the drag is.
+      (shape, box) => plate(graphics, box, shapeColors(shape, view.theme).fill),
     );
     for (const key of keys) this.#dragged.keys.add(key);
     this.#dragged.graphics.push(graphics);
@@ -284,11 +304,13 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
       const icons = new Graphics();
       group.addChild(drawings, icons);
       tile.container.addChildAt(group, tile.container.getChildIndex(tile.full) + 1);
-      Object.assign(drawing, { group, drawings, icons });
+      Object.assign(drawing, { group, drawings, icons, plates: new Map() });
     }
-    const { drawings, icons } = drawing as Required<Drawing>;
+    const { group, drawings, icons, plates } = drawing as Required<Drawing>;
     drawings.clear();
     icons.clear();
+    for (const each of plates.values()) each.graphics.destroy();
+    plates.clear();
     icons.visible = iconsShown;
     const keys = this.#paint(
       drawing.pictured,
@@ -298,7 +320,20 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
       iconsShown,
       middle,
       drawing.id,
+      (shape, box) => {
+        const dark = shape.dark?.fill;
+        const pair = `${shape.fill} ${dark ?? ''}`;
+        let under = plates.get(pair);
+        if (!under) {
+          under = { graphics: new Graphics(), light: shape.fill, dark };
+          // Under the pictures.
+          group.addChildAt(under.graphics, 0);
+          plates.set(pair, under);
+        }
+        plate(under.graphics, box, WHITE);
+      },
     );
+    tintPlates(plates, view.theme);
     this.store.use(drawing.id, keys);
     drawing.drawnFor = key;
   }
@@ -312,6 +347,7 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
     iconsShown: boolean,
     middle: { x: number; y: number },
     tile: string,
+    plateOf: (shape: ElementShape, box: Rect) => void,
   ): string[] {
     const keys: string[] = [];
     for (const shape of shapes) {
@@ -335,7 +371,7 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
       if (!made) continue;
       keys.push(made.key);
       const into = isDrawing ? drawings : icons;
-      if (isDrawing) plate(drawings, image.box, shape.fill);
+      if (isDrawing) plateOf(shape, image.box);
       into.texture(made.texture, image.tint, rect.x, rect.y, rect.width, rect.height);
     }
     return keys;
@@ -344,6 +380,8 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
   #drop(drawing: Drawing): void {
     drawing.drawings?.clear();
     drawing.icons?.clear();
+    for (const each of drawing.plates?.values() ?? []) each.graphics.destroy();
+    drawing.plates?.clear();
     delete drawing.drawnFor;
   }
 }
@@ -352,6 +390,16 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
 function bucketOf(image: ShapeImage, view: ImageView): number {
   const pixels = Math.max(image.rect.width, image.rect.height) * view.scale * view.resolution;
   return view.settled ? sharpBucketFor(pixels) : bucketFor(pixels);
+}
+
+const WHITE: Color = '#FFFFFF';
+
+/** Tints plates to their fill in a theme: its dark shade in the dark theme, when it has one. */
+function tintPlates(plates: ReadonlyMap<string, Plates>, theme: ThemeName): void {
+  for (const { graphics, light, dark } of plates.values()) {
+    const tint = theme === 'dark' && dark !== undefined ? dark : light;
+    if (graphics.tint !== Number.parseInt(tint.slice(1), 16)) graphics.tint = tint;
+  }
 }
 
 /** A drawing's plate: a rounded rectangle in its shape's fill, with no stroke. */

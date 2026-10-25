@@ -144,17 +144,23 @@ function view(
   settled = true,
   shown: Rect = { x: 0, y: 0, width: 2000, height: 1200 },
 ): ImageView {
-  return { scale, shown, resolution: 1, settled, spent: 0 };
+  return { scale, shown, resolution: 1, settled, theme: 'light', spent: 0 };
 }
 
 /** The image drawing of a tile: its render group's two drawings, plates and pictures then icons. */
 function drawingOf(
   tile: ImageTile,
-): { group: Container; drawings: Graphics; icons: Graphics } | undefined {
+): { group: Container; plates: Graphics[]; drawings: Graphics; icons: Graphics } | undefined {
   const group = tile.container.children[1];
   if (!(group instanceof Container) || group instanceof Graphics) return undefined;
-  const [drawings, icons] = group.children as Graphics[];
-  return { group, drawings: drawings as Graphics, icons: icons as Graphics };
+  // Plates first, under the pictures, then the drawings' pictures, then the icons.
+  const children = group.children as Graphics[];
+  return {
+    group,
+    plates: children.slice(0, -2),
+    drawings: children.at(-2) as Graphics,
+    icons: children.at(-1) as Graphics,
+  };
 }
 
 function textures(graphics: Graphics | undefined): number {
@@ -211,17 +217,47 @@ describe('pictures in tiles', () => {
     );
     images.show(tile.shapes);
     images.frame([tile], view(0.3, false));
-    const drawing = drawingOf(tile);
     // The full drawing's outline inside the plate shows meanwhile: no plate yet.
-    expect(fills(drawing?.drawings)).toBe(0);
+    expect(drawingOf(tile)?.plates).toEqual([]);
     images.frame([tile], view(0.3, false));
     await arrived();
     images.frame([tile], view(0.3, false));
+    const drawing = drawingOf(tile);
     expect(platform.decodes).toBe(1);
     expect(textures(drawing?.drawings)).toBe(1);
-    expect(fills(drawing?.drawings)).toBe(1);
-    const plate = drawing?.drawings.context.instructions.find((each) => each.action === 'fill');
-    expect((plate?.data.style as { color: number } | undefined)?.color).toBe(0xabcdef);
+    // In white, tinted to the shape's fill.
+    const [plates] = drawing?.plates ?? [];
+    expect(fills(plates)).toBe(1);
+    const plate = plates?.context.instructions.find((each) => each.action === 'fill');
+    expect((plate?.data.style as { color: number } | undefined)?.color).toBe(0xffffff);
+    expect(plates?.tint).toBe(0xabcdef);
+  });
+
+  it('tint plates to the fill of the theme the canvas shows, and draw pictures as stored', async () => {
+    const platform = new FakePlatform();
+    const images = new TileImages(platform);
+    const shape = {
+      ...shapeWith(bitmap(), 'drawing', { x: 0, y: 0, width: 160, height: 160 }),
+      dark: { fill: '#203040', stroke: '#8899AA' },
+    };
+    const tile = tileOf(shape);
+    images.show(tile.shapes);
+    for (let frame = 0; frame < 3; frame++) {
+      images.frame([tile], view(0.3, false));
+      await arrived();
+    }
+    const [plates] = drawingOf(tile)?.plates ?? [];
+    expect(plates?.tint).toBe(0xabcdef);
+    const dark = { ...view(0.3, false), theme: 'dark' as const };
+    images.frame([tile], dark);
+    // Tinted in the frame the switch shows, nothing drawn again.
+    expect(drawingOf(tile)?.plates[0]).toBe(plates);
+    expect(plates?.tint).toBe(0x203040);
+    expect(textures(drawingOf(tile)?.drawings)).toBe(1);
+    // A drag draws its plates in the theme's fill.
+    const [carried] = images.dragged([shape], dark);
+    const fill = carried?.context.instructions.find((each) => each.action === 'fill');
+    expect((fill?.data.style as { color: number } | undefined)?.color).toBe(0x203040);
   });
 
   it('tint silhouettes on the GPU', async () => {
@@ -422,6 +458,7 @@ describe('the pictures of the "images" benchmark view', () => {
           shown: { x, y, ...screen },
           resolution: 2,
           settled,
+          theme: 'light',
           spent: 0,
         });
         spentIn += performance.now() - began;
