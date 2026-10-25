@@ -51,6 +51,7 @@ import {
 } from './geometry';
 import type { IndexedScene, Skipped } from './hit';
 import { GridMarks } from './gridMarks';
+import { watchResolution } from './resolution';
 import { ScreenMarks, selectionBounds } from './screenMarks';
 import type { CanvasTheme } from '../theme/themes';
 import { bitmapText, installFonts } from './labels';
@@ -760,23 +761,18 @@ export class CanvasRenderer {
    * drawn at the new resolution, its text sharpened and the grid drawn again (A3).
    */
   private followResolution(): void {
-    const view = this.host.ownerDocument.defaultView;
-    if (typeof view?.matchMedia !== 'function') return;
-    const query = view.matchMedia(`(resolution: ${view.devicePixelRatio || 1}dppx)`);
-    const changed = () => {
-      query.removeEventListener('change', changed);
-      if (this.status !== 'ready') return;
-      const resolution = view.devicePixelRatio || 1;
-      const { width, height } = this.viewport;
-      this.app.renderer.resize(Math.max(1, width), Math.max(1, height), resolution);
-      this.resolution = resolution;
-      this.sharpen();
-      this.followGrid();
-      this.requestRender();
-      this.followResolution();
-    };
-    query.addEventListener('change', changed);
-    this.stopFollowingResolution = () => query.removeEventListener('change', changed);
+    this.stopFollowingResolution = watchResolution(
+      this.host.ownerDocument.defaultView,
+      (resolution) => {
+        if (this.status !== 'ready') return;
+        const { width, height } = this.viewport;
+        this.app.renderer.resize(Math.max(1, width), Math.max(1, height), resolution);
+        this.resolution = resolution;
+        this.sharpen();
+        this.followGrid();
+        this.requestRender();
+      },
+    );
   }
 
   /** Releases the canvas, now or as soon as its start finishes. */

@@ -4,6 +4,9 @@
  * and restacked. `pnpm bench` builds this page for production and serves it on 127.0.0.1:47707, at
  * `/bench.html`; the official numbers come from that build, in work mode. `?elements=N` changes the
  * size, and `?overlap=stairs`, `grid` or `cascade` makes shapes overlap (see `synthetic.ts`).
+ * `?grid=on` runs every phase with the grid and the rulers shown (A3); otherwise the pan and zoom of
+ * the whole view are measured again with them, and the grid's cost per frame at the median is the
+ * difference, which must stay within 0.5 ms.
  *
  * Work mode, the default, measures the work of each frame: it moves the camera, draws the frame and
  * waits until the GPU has drawn it, so the result does not depend on how often the browser offers
@@ -54,12 +57,16 @@ interface Timed {
 
 /** How long a restack may take, from the command to the frame drawn, at the 95th percentile. */
 const RESTACK_MARK = 100;
+/** How much the grid may add to a frame, at the median, in milliseconds (A3). */
+const GRID_MARK = 0.5;
 const VIEW = 'everything';
 
 const search = new URLSearchParams(location.search);
 const size = Number(search.get('elements') ?? 10_000);
 const mode: 'work' | 'frames' = search.get('mode') === 'frames' ? 'frames' : 'work';
 const overlap: Overlap = OVERLAPS.find((each) => each === search.get('overlap')) ?? 'none';
+/** Whether every phase runs with the grid and the rulers shown. */
+const gridOn = search.get('grid') === 'on';
 const host = document.getElementById('canvas') as HTMLElement;
 const status = document.getElementById('status') as HTMLElement;
 
@@ -83,6 +90,7 @@ const controller = new CanvasController(host, {
   },
 });
 controller.update(project, VIEW, indexed, false);
+if (gridOn) controller.setGrid({ grid: true, snapToGrid: true, rulers: true });
 // For looking into the benchmark from the browser's console.
 Object.assign(window, { benchmark: { controller, project, scene, indexed } });
 
@@ -100,16 +108,26 @@ async function run(): Promise<void> {
 
   controller.fit();
   await settle(300);
-  phases.push(
-    await measure('Pan, whole view', 180, (frame) =>
-      move(panBy(controller.camera, frame < 90 ? 6 : -6, 0)),
-    ),
-  );
-  phases.push(
-    await measure('Zoom, whole view', 180, (frame) =>
-      move(zoomAt(controller.camera, middle, frame < 90 ? 1.02 : 1 / 1.02)),
-    ),
-  );
+  const pan = (frame: number) => move(panBy(controller.camera, frame < 90 ? 6 : -6, 0));
+  const zoom = (frame: number) =>
+    move(zoomAt(controller.camera, middle, frame < 90 ? 1.02 : 1 / 1.02));
+  phases.push(await measure('Pan, whole view', 180, pan));
+  phases.push(await measure('Zoom, whole view', 180, zoom));
+  // The same with the grid, then with the rulers too, from the same camera (A3).
+  const withGrid: Phase[] = [];
+  if (!gridOn) {
+    controller.setGrid({ grid: true, snapToGrid: true, rulers: false });
+    await settle(300);
+    withGrid.push(await measure('Pan with the grid', 180, pan));
+    withGrid.push(await measure('Zoom with the grid', 180, zoom));
+    controller.setGrid({ grid: true, snapToGrid: true, rulers: true });
+    await settle(300);
+    withGrid.push(await measure('Pan with the grid and rulers', 180, pan));
+    withGrid.push(await measure('Zoom with the grid and rulers', 180, zoom));
+    controller.setGrid({ grid: false, snapToGrid: true, rulers: false });
+    await settle(300);
+    phases.push(...withGrid);
+  }
 
   // Between the scale names show at and the one details show at, on any window.
   move(cameraAt(NAMES_FROM * 1.3));
@@ -184,6 +202,26 @@ async function run(): Promise<void> {
   if (overlap === 'none' || overlap === 'stairs') timed.push(await measureRestacks(20));
 
   report(phases, timed, latency);
+}
+
+/**
+ * What the grid adds to a frame at the median, panning and zooming: each phase with the grid against
+ * the same phase without it.
+ */
+function gridCost(phases: readonly Phase[]): { pan: number; zoom: number } | undefined {
+  const median = (name: string) => {
+    const phase = phases.find((each) => each.name === name);
+    return phase ? percentile(phase.frames, 0.5) : undefined;
+  };
+  const pan = [median('Pan, whole view'), median('Pan with the grid')];
+  const zoom = [median('Zoom, whole view'), median('Zoom with the grid')];
+  if (pan.some((each) => each === undefined) || zoom.some((each) => each === undefined)) {
+    return undefined;
+  }
+  return {
+    pan: (pan[1] as number) - (pan[0] as number),
+    zoom: (zoom[1] as number) - (zoom[0] as number),
+  };
 }
 
 function move(camera: Camera): void {
@@ -427,7 +465,9 @@ function report(phases: Phase[], timed: Timed[], latency: number[]): void {
         : average <= SHOWN.average && p95 <= SHOWN.p95 && worst <= WORK.worst;
     return { name, average, p95, worst, passes };
   });
-  const passed = rows.every((row) => row.passes);
+  const grid = gridCost(phases);
+  const gridPasses = !grid || Math.max(grid.pan, grid.zoom) <= GRID_MARK;
+  const passed = rows.every((row) => row.passes) && gridPasses;
   const body = document.querySelector('#table tbody') as HTMLElement;
   for (const row of rows) {
     addRow(body, row.passes ? 'pass' : 'fail', [
@@ -460,6 +500,13 @@ function report(phases: Phase[], timed: Timed[], latency: number[]): void {
   const notes = document.getElementById('notes') as HTMLElement;
   notes.textContent = [
     bands,
+    ...(gridOn
+      ? ['Every phase ran with the grid and the rulers shown.']
+      : grid
+        ? [
+            `The grid adds ${grid.pan.toFixed(2)} ms per frame at the median panning and ${grid.zoom.toFixed(2)} ms zooming (at most ${GRID_MARK} ms): ${gridPasses ? 'passes' : 'fails'}.`,
+          ]
+        : []),
     ...actions.flatMap((action) => (action.note ? [`${action.name}: ${action.note}.`] : [])),
   ].join('\n');
 
@@ -488,6 +535,7 @@ function report(phases: Phase[], timed: Timed[], latency: number[]): void {
       })),
       bands,
       selection,
+      grid: gridOn ? 'on' : grid,
       passed,
     }),
   );
