@@ -18,7 +18,7 @@
  * resizes, the lines are kept as they were. A build is always equal, field by field, to one made from
  * nothing (`buildSceneAfresh`).
  */
-import type { ProjectSnapshot } from '@visual-anything/core';
+import type { ProjectSnapshot, RouteStyle } from '@visual-anything/core';
 import type {
   Arrow,
   Color,
@@ -51,6 +51,15 @@ import { collapsedIn } from './collapse';
 import type { Dash, ShapeKind } from './geometry';
 import { arrowheadAt, directionOf, type Arrowhead, type Point, type Rect } from './geometry';
 import { midpointOf, routeBetweenEnds, type RouteEnd } from './route';
+import type { Attach, CurveSpan } from './routing/hand';
+import {
+  pointsOf,
+  samePoints,
+  sceneRouting,
+  type HandOfLine,
+  type LinePlan,
+  type SceneRouting,
+} from './routing/scene-routes';
 
 /** Everything a view draws. */
 export interface Scene {
@@ -113,6 +122,8 @@ export interface ElementShape {
    * expands.
    */
   collapsed?: { contents: number };
+  /** The connection points its appearance sets, where relations attach; absent when it sets none. */
+  points?: readonly Attach[];
 }
 
 /** A relation drawn along an orthogonal route, or an aggregated relation standing for several. */
@@ -144,6 +155,12 @@ export interface RelationLine {
   ends?: { from: DrawnEnd; to: DrawnEnd; offset: number };
   /** Present on an aggregated relation: the relations it stands for. */
   aggregate?: AggregatedRelation;
+  /** How it runs; absent: orthogonal. */
+  style?: RouteStyle;
+  /** Present while the view routes the relation by hand (ADR 0039). */
+  hand?: HandOfLine;
+  /** On a curved line, the spans the renderer draws; `route` holds them flattened. */
+  curve?: CurveSpan[];
 }
 
 /**
@@ -430,6 +447,7 @@ function layOut(
     definitions,
     keep ? before : undefined,
     base !== undefined,
+    sceneRouting(project, view, shapes),
   );
   const relations =
     before && sameItems(before.layout.relations, drawn.relations)
@@ -1086,6 +1104,10 @@ function shapeFor(
   }
   const { element, look, detail, position, folded } = parts;
   const { appearance } = look;
+  const points =
+    before && samePoints(before.points, appearance.connectionPoints)
+      ? before.points
+      : pointsOf(appearance.connectionPoints);
   const positioned = position ? (position.pinned ? 'pinned' : 'stored') : 'placed';
   const container = box.placement.container;
   const holdsContents = parts.contents.length > 0;
@@ -1115,7 +1137,8 @@ function shapeFor(
     before.extent.width === x2 - x1 &&
     before.extent.height === y2 - y1 &&
     before.holdsContents === holdsContents &&
-    before.collapsed?.contents === folded
+    before.collapsed?.contents === folded &&
+    before.points === points
   ) {
     return before;
   }
@@ -1146,6 +1169,7 @@ function shapeFor(
     if (position.height !== undefined) shape.storedSize.height = position.height;
   }
   if (folded !== undefined) shape.collapsed = { contents: folded };
+  if (points) shape.points = points;
   return shape;
 }
 
@@ -1281,6 +1305,8 @@ interface LineInputs {
   offset: number;
   definitions: Definitions;
   source: Relation | string;
+  /** What a route by hand, or to connection points, depends on besides the ends. */
+  hand: string;
 }
 
 const lineInputs = new WeakMap<RelationLine, LineInputs>();
@@ -1316,6 +1342,7 @@ function drawRelations(
   definitions: Definitions,
   before: Built | undefined,
   kept: boolean,
+  routing: SceneRouting,
 ): { relations: RelationLine[]; plan: RelationPlan; lines: (RelationLine | undefined)[] } {
   const { shapes } = placed;
   const byId = relationsById(relations);
@@ -1329,6 +1356,14 @@ function drawRelations(
     for (const id of changed) {
       const spec = plan.byKey.get(id);
       if (spec !== undefined) again.add(spec);
+    }
+    // Lines whose route the view changed, and lines on shapes whose connection points changed.
+    for (const id of routing.changedSince(before.view)) {
+      const spec = plan.byKey.get(id);
+      if (spec !== undefined) again.add(spec);
+    }
+    for (const at of routing.repointed(before.layout.shapes, shapes)) {
+      for (const spec of plan.onShape.get(at) ?? []) again.add(spec);
     }
     const waiting = [...again];
     for (let spec = waiting.pop(); spec !== undefined; spec = waiting.pop()) {
@@ -1365,6 +1400,7 @@ function drawRelations(
     const from = routeEndOf(spec.from, shapes, plan, lineAt);
     const to = routeEndOf(spec.to, shapes, plan, lineAt);
     const previous = previousAt?.get(spec.key);
+    const shapeOf = (end: EndRef) => (end.kind === 'shape' ? shapes[end.at] : undefined);
     const line =
       from && to
         ? lineBetween(
@@ -1374,6 +1410,14 @@ function drawRelations(
             definitions,
             spec.relation === undefined ? undefined : byId.get(spec.relation),
             previous === undefined ? undefined : previousLines?.[previous],
+            routing.plan({
+              relation: spec.relation,
+              offset: spec.offset,
+              fromShape: shapeOf(spec.from),
+              toShape: shapeOf(spec.to),
+              from,
+              to,
+            }),
           )
         : undefined;
     lines[at] = line;
@@ -1583,6 +1627,7 @@ function lineBetween(
   definitions: Definitions,
   relation: Relation | undefined,
   kept: RelationLine | undefined,
+  planned: LinePlan | undefined,
 ): RelationLine | undefined {
   const { offset, members } = spec;
   const inputs: LineInputs = {
@@ -1593,6 +1638,7 @@ function lineBetween(
     offset,
     definitions,
     source: relation ?? `${spec.relationType} ${members?.join(' ')} | ${spec.reversed?.join(' ')}`,
+    hand: planned?.signature ?? '',
   };
   const was = kept && lineInputs.get(kept);
   if (
@@ -1604,12 +1650,14 @@ function lineBetween(
     sameItems(was.toRoute, inputs.toRoute) &&
     was.offset === offset &&
     was.definitions === definitions &&
-    was.source === inputs.source
+    was.source === inputs.source &&
+    was.hand === inputs.hand
   ) {
     return kept;
   }
 
-  const route = routeBetweenEnds(from, to, offset);
+  const routed = planned?.route();
+  const route = routed?.route ?? routeBetweenEnds(from, to, offset);
   const start = route[0] as Point;
   const end = route.at(-1) as Point;
   const beforeEnd = route.at(-2) as Point;
@@ -1632,6 +1680,9 @@ function lineBetween(
     ends: { from: drawnEnd(spec.from), to: drawnEnd(spec.to), offset },
   };
   if (label) line.label = label;
+  if (routed?.style) line.style = routed.style;
+  if (routed?.hand) line.hand = routed.hand;
+  if (routed?.curve) line.curve = routed.curve;
   if (relationType.direction === 'directed') line.arrowhead = arrowheadAt(beforeEnd, end, width);
   if (members) {
     line.aggregate = { relationType: spec.relationType, relations: members };
