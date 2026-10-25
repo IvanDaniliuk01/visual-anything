@@ -24,6 +24,7 @@ import { z } from 'zod';
 import { ProgramUnavailableError, type CommandAnswer, type Program } from './bridge';
 import { EXPLORE_TOOLS } from './explore-tools';
 import { IMAGE_TOOLS } from './image-tools';
+import { OVERLAY_TOOLS } from './overlay-tools';
 import { RECIPES_IN_BRIEF } from './recipes';
 import { SCENARIO_TOOLS } from './scenario-tools';
 import { VIEW_STATE_TOOLS, openApp } from './view-tools';
@@ -1095,6 +1096,7 @@ export const TOOLS: readonly Tool[] = [
   ...IMAGE_TOOLS,
   ...EXPLORE_TOOLS,
   ...VIEW_STATE_TOOLS,
+  ...OVERLAY_TOOLS,
 ];
 
 /** Runs a tool, turning a program that cannot be reached into an outcome Claude reads. */
