@@ -74,9 +74,10 @@ describe('the canvas in Spanish', () => {
 
     const tables = usersAndOrders();
     const row = addRowCommand(tables, VIEW, 'users');
-    const added = row && executeCommand(tables, row.command);
+    if (!row) throw new Error('No row can be added to "Users".');
+    const added = executeCommand(tables, row.command);
     const name =
-      added?.ok && added.state.model.elements.find((element) => element.id === row.id)?.name;
+      added.ok && added.state.model.elements.find((element) => element.id === row.id)?.name;
     expect(name).toBe('Columna');
   });
 });

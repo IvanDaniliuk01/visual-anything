@@ -279,7 +279,7 @@ A choice a person makes for themselves on this computer: the theme, the language
 _Avoid_: settings, profile
 
 **Language**:
-The language the app reads in, English or Spanish: its panels, menus, dialogs, captions, announcements and keyboard help, the names of the built-in packages' components and relation types, and what the local program and the core tell the person. It follows the browser unless the person chooses one. What people write, such as names and descriptions, is never translated (ADR 0038).
+The language the app reads in, English or Spanish: its panels, menus, dialogs, captions, announcements and keyboard help, what the canvas writes, the names and descriptions of the built-in packages' components and relation types and of their attributes, and what the local program and the core tell the person. It follows the browser unless the person chooses one. What people write, such as names and descriptions, is never translated; a name the app gives something new, such as an element named after its component, is written in the language read in and is from then on what people wrote (ADR 0038).
 _Avoid_: locale (in the app's text)
 
 **Theme**:
