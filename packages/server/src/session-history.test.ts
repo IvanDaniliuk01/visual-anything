@@ -65,10 +65,16 @@ function last(client: FakeClient): ListedAction[] {
   return client.ofType('history/listed').at(-1)?.actions ?? [];
 }
 
+/**
+ * Each test saves several actions, atomically and flushed: alone they take well under a second, but
+ * beside the whole suite a busy disk can take longer than the default five seconds.
+ */
+const SAVING = { timeout: 20_000 };
+
 const undoTo = (requestId: string, to: number) => JSON.stringify({ type: 'undo', requestId, to });
 const redoTo = (requestId: string, to: number) => JSON.stringify({ type: 'redo', requestId, to });
 
-describe('the history list', () => {
+describe('the history list', SAVING, () => {
   it('greets an app with the history after the project', async () => {
     const session = await open();
     const app = new FakeClient({ history: true });
@@ -183,7 +189,7 @@ describe('the history list', () => {
   });
 });
 
-describe('undo and redo up to an action', () => {
+describe('undo and redo up to an action', SAVING, () => {
   let session: Session;
   let app: FakeClient;
   let other: FakeClient;
@@ -337,7 +343,7 @@ describe('undo and redo up to an action', () => {
   });
 });
 
-describe('after a reload', () => {
+describe('after a reload', SAVING, () => {
   it('lists an empty history, and names new actions with ids not used before', async () => {
     const session = await open({ watch: { delay: 50 } });
     const app = new FakeClient({ history: true });
