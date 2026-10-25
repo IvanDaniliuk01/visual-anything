@@ -282,7 +282,7 @@ _Avoid_: log, timeline, version history
 ### Preferences
 
 **Preference**:
-A choice a person makes for themselves on this computer: the theme, the language, whether the grid, snapping and the rulers are on, and the colors they picked lately. The local program keeps preferences outside every project; they are never in project files, the undo history or Claude's tools.
+A choice a person makes for themselves on this computer: the theme, the language, whether the grid, snapping and the rulers are on, the colors they picked lately, and the package code they approved. The local program keeps preferences outside every project; they are never in project files, the undo history or Claude's tools.
 _Avoid_: settings, profile
 
 **Language**:
@@ -373,3 +373,15 @@ _Avoid_: plugin, script, macro
 **Capability**:
 What package code may reach beyond its element, declared by its package and approved by the person: the model, the clock, one web origin.
 _Avoid_: permission (alone), scope (a view's)
+
+**Hook**:
+One of the three functions package code may export, each called with a frozen copy of an element and what lies around it, and answering plain data: `attributes` computes values, `check` finds problems, and `draw` says what to draw inside the element's shapes. It runs on the elements created from its package's components, and from components derived from them.
+_Avoid_: callback, handler, script
+
+**Computed value**:
+An attribute's value that a hook of package code computed: shown with a mark naming its package, and never saved, put in the history or sent to a file.
+_Avoid_: derived attribute, formula
+
+**Approval**:
+The person's consent that a package's code may run, given in the app after reading it, by the hash of its text and capabilities, with the capabilities they grant. It is a preference, never part of the project, so any change to the code asks again, and Claude cannot give one (ADR 0060).
+_Avoid_: permission (alone), trust, whitelist
