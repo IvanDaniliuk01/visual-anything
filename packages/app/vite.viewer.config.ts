@@ -58,9 +58,10 @@ export default defineConfig({
 
 /**
  * The validators of the five kinds of project file, generated from the published schemas by Ajv's
- * standalone code: the checks opening a project makes, as plain functions.
+ * standalone code: the checks opening a project makes, as plain functions. The page's benchmark
+ * (`vite.bench.config.ts`) builds with them too.
  */
-function validators(): Plugin {
+export function validators(): Plugin {
   const resolved = `\0${VALIDATORS_MODULE}`;
   return {
     name: 'visual-anything:validators',
