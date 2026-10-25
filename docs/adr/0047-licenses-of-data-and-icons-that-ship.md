@@ -34,3 +34,9 @@ M6c adds starter packages per domain (R38): C4 architecture and data-science pip
 - The schema gains the package and image fields.
 - The built-in packages record their license and attribution, and the test above guards them.
 - Each starter package says where its icons come from in its own README section.
+
+## Clarifications
+
+- 2026-10-25: what M6b's exports carry and ship (W32).
+  - An SVG export writes the license and attribution of each package it draws from that records them, one line each, in its metadata's `dc:rights`; a PDF writes the same lines in its document information, under `Attribution`. A package that records neither is not named.
+  - The PDF export ships Roboto 2.137 Regular and Bold under Apache-2.0, which is on the list above. They are taken unchanged from the npm package `roboto-fontface` 0.10.0, and their license is in `app/src/export/fonts/LICENSE-roboto.txt` beside them. Later Roboto releases are under the SIL Open Font License, which is not on the list, so they do not replace these.
