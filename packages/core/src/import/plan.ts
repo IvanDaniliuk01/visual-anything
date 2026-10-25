@@ -15,9 +15,24 @@ import { definitionsIn } from '../state';
 /** The most an import brings in, and the most a compressed file inflates to (ADR-0042). */
 export const IMPORT_LIMITS = Object.freeze({
   elements: 20_000,
+  /** Relations, those that put an element inside another included. */
   relations: 50_000,
+  views: 500,
+  /** Positions and bend points, over every view. */
+  places: 200_000,
   inflatedBytes: 32 * 1024 * 1024,
 });
+
+/** Each pair of what sits inside what once, in the order the plan gives them. */
+function distinctContainment(plan: ImportPlan): ImportPlan['containment'] {
+  const seen = new Set<string>();
+  return plan.containment.filter(({ element, container }) => {
+    const key = JSON.stringify([element, container]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
 /** What a file holds, as a reader read it, with keys of its own that the plan's parts refer by. */
 export interface ImportPlan {
@@ -204,7 +219,7 @@ export function planToCommand(
     });
   }
   if (nesting !== undefined) {
-    for (const { element, container } of plan.containment) {
+    for (const { element, container } of distinctContainment(plan)) {
       commands.push({
         type: 'create-relation',
         relation: { relationType: nesting, from: idOf(element), to: idOf(container) },
@@ -285,9 +300,27 @@ export function planProblems(
       `The file holds ${plan.elements.length.toLocaleString('en')} elements; an import brings at most ${IMPORT_LIMITS.elements.toLocaleString('en')}.`,
     );
   }
-  if (plan.relations.length > IMPORT_LIMITS.relations) {
+  const relations = plan.relations.length + distinctContainment(plan).length;
+  if (relations > IMPORT_LIMITS.relations) {
     problems.push(
-      `The file holds ${plan.relations.length.toLocaleString('en')} relations; an import brings at most ${IMPORT_LIMITS.relations.toLocaleString('en')}.`,
+      `The file holds ${relations.toLocaleString('en')} relations, those that put one thing inside another included; an import brings at most ${IMPORT_LIMITS.relations.toLocaleString('en')}.`,
+    );
+  }
+  if (plan.views.length > IMPORT_LIMITS.views) {
+    problems.push(
+      `The file holds ${plan.views.length.toLocaleString('en')} views; an import brings at most ${IMPORT_LIMITS.views.toLocaleString('en')}.`,
+    );
+  }
+  const places = plan.views.reduce(
+    (sum, view) =>
+      sum +
+      (view.positions?.length ?? 0) +
+      (view.bendPoints ?? []).reduce((points, each) => points + each.points.length, 0),
+    0,
+  );
+  if (places > IMPORT_LIMITS.places) {
+    problems.push(
+      `The file holds ${places.toLocaleString('en')} positions and bend points; an import brings at most ${IMPORT_LIMITS.places.toLocaleString('en')}.`,
     );
   }
   const definitions = definitionsIn(state);

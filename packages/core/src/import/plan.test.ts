@@ -156,3 +156,73 @@ describe('planToCommand', () => {
     expect(!huge.ok && huge.problems[0]).toMatch(/an import brings at most 20,000/);
   });
 });
+
+describe('planToCommand, past its limits', () => {
+  it('counts what sits inside what as relations, once each, and caps views, positions and bend points', () => {
+    const state = testProject();
+    const many = Array.from({ length: 20_000 }, (_, at) => ({
+      key: `e${at}`,
+      name: `E${at}`,
+      kind: 'box',
+    }));
+    // The same pair many times becomes one relation.
+    const repeated = planToCommand(
+      state,
+      {
+        ...plan(),
+        containment: Array.from({ length: 5 }, () => ({ element: 'cart', container: 'shop' })),
+      },
+      MAPPING,
+      sequentialIds(),
+    );
+    if (!repeated.ok) throw new Error(repeated.problems.join(' '));
+    const nestings = repeated.command.commands.filter(
+      (each) => each.type === 'create-relation' && each.relation.relationType === 'test.inside',
+    );
+    expect(nestings).toHaveLength(1);
+    // What sits inside what counts toward the relations: 20,000 elements, each inside three others.
+    const containment = many.flatMap((_, at) =>
+      [1, 2, 3].map((step) => ({ element: `e${at}`, container: `e${(at + step) % many.length}` })),
+    );
+    const contained = planToCommand(
+      state,
+      { ...plan(), elements: many, relations: [], views: [], containment },
+      MAPPING,
+    );
+    expect(!contained.ok && contained.problems.join(' ')).toMatch(
+      /60,000 relations, those that put one thing inside another included/,
+    );
+    const views = planToCommand(
+      state,
+      {
+        ...plan(),
+        views: Array.from({ length: IMPORT_LIMITS.views + 1 }, (_, at) => ({
+          key: `v${at}`,
+          name: `V${at}`,
+        })),
+      },
+      MAPPING,
+    );
+    expect(!views.ok && views.problems.join(' ')).toMatch(/an import brings at most 500/);
+    const places = planToCommand(
+      state,
+      {
+        ...plan(),
+        views: [
+          {
+            key: 'v',
+            name: 'V',
+            bendPoints: [
+              {
+                relation: 'e1',
+                points: Array.from({ length: IMPORT_LIMITS.places + 1 }, () => ({ x: 0, y: 0 })),
+              },
+            ],
+          },
+        ],
+      },
+      MAPPING,
+    );
+    expect(!places.ok && places.problems.join(' ')).toMatch(/positions and bend points/);
+  });
+});
