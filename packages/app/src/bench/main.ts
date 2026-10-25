@@ -5,7 +5,8 @@
  * `/bench.html`; the official numbers come from that build, in work mode. `?elements=N` changes the
  * size, `?overlap=stairs`, `grid` or `cascade` makes shapes overlap (see `synthetic.ts`), and
  * `?theme=dark` runs it in the dark theme. It also switches the theme back and forth at three scales,
- * pans and zooms after a switch, selects everything in the dark theme, and recolors every Service.
+ * pans and zooms after a switch, selects everything in the dark theme, and recolors every Service;
+ * it colors and sizes every shape by an overlay, and zooms across a level of detail (ADR 0055).
  * `?grid=on` runs every phase with the grid and the rulers shown (A3); otherwise the pan and zoom of
  * the whole view are measured again with them, and the grid's cost per frame at the median, which
  * must stay within 0.5 ms, is measured in blocks of frames with and without it, one after another, so
@@ -45,6 +46,7 @@ import { buildScene, type ElementShape, type RelationLine } from '../canvas/scen
 import { MAX_BANDS, plannedTiles } from '../canvas/tiles';
 import '../theme/tokens.css';
 import { THEMES } from '../theme/themes';
+import { measureLevelCrossing, measureOverlays, type OverlayBench } from './overlays';
 import { RESTYLING, SHOWN, TARGET_FPS, WORK, addRow, percentile, showVerdict } from './report';
 import {
   LARGE_TABLE,
@@ -355,6 +357,12 @@ async function run(): Promise<void> {
     timed.push(await measureRestacks(20));
   timed.push(...(await measureExports()));
   if (!tables && routeCount > 0) await measureRoutes(phases, timed);
+  // Overlays on every shape, and zooming across a level of detail (ADR 0055).
+  const overlays = await measureOverlays(overlayBench(), 4);
+  timed.push(...overlays.timed);
+  phases.push(overlays.phase);
+  themeNotes.push(overlays.note);
+  if (!tables) phases.push(await measureLevelCrossing(overlayBench()));
 
   report(phases, timed, latency, themeNotes);
 }
@@ -588,6 +596,22 @@ function measure(
     };
     requestAnimationFrame(tick);
   });
+}
+
+/** What the phases of overlays and levels of detail need of the benchmark (`overlays.ts`). */
+function overlayBench(): OverlayBench {
+  const { width, height } = controller.renderer.viewport;
+  return {
+    view: VIEW,
+    renderer: controller.renderer,
+    project: () => project,
+    show: showProject,
+    settle,
+    measure: (name, count, step) => measure(name, count, step),
+    move,
+    cameraAt,
+    middle: { x: width / 2, y: height / 2 },
+  };
 }
 
 /** Shows a project as the app does after a change: a new scene, its index, and the next frame. */
