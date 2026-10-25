@@ -35,6 +35,7 @@ const TRANSLATED = [
   'canvas/RelationMenu.tsx',
   'canvas/InlineEditor.tsx',
   'canvas/KeyboardHelp.tsx',
+  'shell/inspector/RowsSection.tsx',
 ];
 
 /** The attributes whose text people read or hear. */
