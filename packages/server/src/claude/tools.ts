@@ -211,7 +211,7 @@ Example: { "id": "booking-agent" }`,
 const readViewTool = tool({
   name: 'read_view',
   title: 'Read a view',
-  description: `Reads a view: its perspective, the nesting relation types that arrange it, the positions it stores (each relative to the container shape it sits in; pinned ones were set by hand), its free shapes (notes and arrows), the containers it shows collapsed, and, for World and every container, the order it draws the shapes directly inside, back to front. An element without a position is placed by layout.
+  description: `Reads a view: its perspective, the nesting relation types that arrange it, the positions it stores (each relative to the container shape it sits in; pinned ones were set by hand), its free shapes (notes and arrows), the containers it shows collapsed, the routes chosen by hand for its relations (every other relation is routed automatically), and, for World and every container, the order it draws the shapes directly inside, back to front. An element without a position is placed by layout.
 
 Example: { "view": "system-overview" }`,
   input: { view: id() },

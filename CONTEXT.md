@@ -222,8 +222,16 @@ _Avoid_: dot, token, pulse
 A saved sequence of steps, each a view state with an explanation, that is played to walk someone through a concept. A step can play a scenario. Created by a person or by Claude.
 _Avoid_: walkthrough, presentation, story
 
+**Route**:
+The path a relation's line takes in a view: where it attaches to each end, the points it bends at, and its style (orthogonal, straight or curved). Automatic unless chosen by hand; a view keeps only what was chosen by hand, and Reset route goes back to the automatic route.
+_Avoid_: path, connector, edge route, waypoints
+
+**Bend point**:
+A point a relation's route passes through, set by hand in a view, relative to the container whose shape holds both of the relation's ends.
+_Avoid_: waypoint, control point, vertex, elbow
+
 **Guidance**:
-The marks and moves Claude makes live on the open view while it explains: highlighting shapes, focusing on some and dimming the rest, moving the canvas to one, and showing a caption. Guidance never changes the model, a view or the history, and shows only while the app is open.
+The marks and moves Claude makes live on the open view while it explains: highlighting shapes, focusing on some and dimming the rest, moving the canvas to one, showing a caption, filtering or focusing the view as a person would, and opening, playing and stepping through a scenario. Guidance never changes the model, a view file or the history, shows only while the app is open, and the person can end it.
 _Avoid_: spotlight
 
 **Caption**:

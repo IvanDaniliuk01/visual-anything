@@ -281,6 +281,7 @@ export function viewProperties(view: ViewFile): ViewProperties {
   delete properties.positions;
   delete properties.freeShapes;
   delete properties.stackingOrder;
+  delete properties.routes;
   return properties as ViewProperties;
 }
 
