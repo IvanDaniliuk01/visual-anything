@@ -83,6 +83,7 @@
  * | language                | idioma                           |
  * | settings (of a view)    | opciones                         |
  * | the local program       | el programa local                |
+ * | read-only page          | página de solo lectura           |
  *
  * The words CONTEXT.md avoids are not used for its terms either: no "nodo", "objeto" or "instancia"
  * for an element, "propiedad" or "campo" for an attribute, "capa" for the stacking order, "enlace" or
@@ -255,6 +256,61 @@ export const ui: Catalog = {
   'At {width} × {height} pixels this image is too large: the most is {side} pixels a side and {megapixels} megapixels. Choose 1×, or what is visible.':
     'Con {width} × {height} píxeles, esta imagen es demasiado grande: lo máximo son {side} píxeles por lado y {megapixels} megapíxeles. Elegir 1× o lo que se ve.',
   'The image could not be drawn: {why}': 'No se pudo dibujar la imagen: {why}',
+
+  // The read-only page (ADR 0041): its header, canvas, panels and About.
+  'Reading tools': 'Herramientas de lectura',
+  Find: 'Buscar',
+  'Find (Ctrl+F)': 'Buscar (Ctrl+F)',
+  About: 'Acerca de',
+  'This project has no view to show.': 'Este proyecto no tiene ninguna vista para mostrar.',
+  '{view} ({perspective})': '{view} ({perspective})',
+  'Zoom in (+)': 'Acercar (+)',
+  'Zoom out (−)': 'Alejar (−)',
+  'Fit the view': 'Encuadrar la vista',
+  'Fit the view (0)': 'Encuadrar la vista (0)',
+  'This view has no shapes.': 'Esta vista no tiene formas.',
+  'Drag or use two fingers to pan; pinch, Ctrl with the wheel, or + and − to zoom; 0 fits the view. Arrow keys go from shape to shape, Alt with ↑ and ↓ to the container and inside it; ] and [ step through relations, Enter follows one; Alt with − and + collapses and expands. Escape clears the selection.':
+    'Arrastrar o usar dos dedos para desplazar; pellizcar, Ctrl con la rueda, o + y − para hacer zoom; 0 encuadra la vista. Las flechas van de forma en forma, Alt con ↑ y ↓ al contenedor y a su interior; ] y [ recorren las relaciones, Enter sigue una; Alt con − y + contrae y expande. Escape quita la selección.',
+  'This page cannot show its project': 'Esta página no puede mostrar su proyecto',
+  'And {count} more problems.': {
+    one: 'Y {count} problema más.',
+    other: 'Y {count} problemas más.',
+  },
+  Selected: 'Seleccionado',
+  'Selected: {things}': 'Seleccionado: {things}',
+  'Clear the selection (Escape)': 'Quitar la selección (Escape)',
+  '{from} {relationType} {to}': '{from} {relationType} {to}',
+  'Close (Escape)': 'Cerrar (Escape)',
+  'Focus on the selection, dimming what it does not reach':
+    'Enfocar la selección, atenuando lo que no alcanza',
+  Reach: 'Distancia',
+  '{count} degrees': { one: '{count} grado', other: '{count} grados' },
+  'Every degree': 'Todos los grados',
+  'Isolate: hide what it does not reach': 'Aislar: ocultar lo que no alcanza',
+  'Scenario “{name}”': 'Escenario “{name}”',
+  'Close the scenario': 'Cerrar el escenario',
+  '{count} steps inside “{container}”, which this view shows collapsed.': {
+    one: '{count} paso dentro de “{container}”, que esta vista muestra contraído.',
+    other: '{count} pasos dentro de “{container}”, que esta vista muestra contraído.',
+  },
+  'Takes in': 'Recibe',
+  Produces: 'Produce',
+  'A relation of this step is no longer in the model, so this step is broken.':
+    'Una relación de este paso ya no está en el modelo, así que este paso está roto.',
+  'Hide the data': 'Ocultar los datos',
+  'Show the data': 'Mostrar los datos',
+  'A read-only page of this project, made with Visual Anything: it shows every view and plays every scenario, changes nothing, and connects nowhere.':
+    'Una página de solo lectura de este proyecto, hecha con Visual Anything: muestra todas las vistas y reproduce todos los escenarios, no cambia nada y no se conecta a ningún lado.',
+  'Made on {date}.': 'Hecha el {date}.',
+  '{views} and {scenarios}.': '{views} y {scenarios}.',
+  '{count} views': { one: '{count} vista', other: '{count} vistas' },
+  '{count} scenarios': { one: '{count} escenario', other: '{count} escenarios' },
+  Packages: 'Paquetes',
+  'built into Visual Anything': 'incorporado en Visual Anything',
+  'the project’s own': 'propio del proyecto',
+  'version {version}': 'versión {version}',
+  'license {license}': 'licencia {license}',
+  'Images: {sources}': 'Imágenes: {sources}',
 
   // The model panel's tabs.
   'Outline and model': 'Esquema y modelo',
@@ -2207,6 +2263,23 @@ export const messages: Catalog = {
   'The view id "{id}" is already used by {file}.': 'El id de vista "{id}" ya lo usa {file}.',
   'The scenario id "{id}" is already used by {file}.':
     'El id de escenario "{id}" ya lo usa {file}.',
+  // What keeps a read-only page from opening its project (ADR 0041).
+  'This page’s data is not a project.': 'Los datos de esta página no son un proyecto.',
+  'This page’s data is not valid JSON: {why}': 'Los datos de esta página no son JSON válido: {why}',
+  'This page was made by a newer Visual Anything, format {format}. Make it again with this version, or open it with a newer one.':
+    'Esta página la hizo un Visual Anything más nuevo, formato {format}. Volver a hacerla con esta versión, o abrirla con una más nueva.',
+  'The project file, {pointer}: {why}': 'El archivo del proyecto, {pointer}: {why}',
+  'The model, {pointer}: {why}': 'El modelo, {pointer}: {why}',
+  'Package {n}, {pointer}: {why}': 'Paquete {n}, {pointer}: {why}',
+  'View {n}, {pointer}: {why}': 'Vista {n}, {pointer}: {why}',
+  'Scenario {n}, {pointer}: {why}': 'Escenario {n}, {pointer}: {why}',
+  'The package id "{id}" is used twice.': 'El id de paquete "{id}" se usa dos veces.',
+  'The view id "{id}" is used twice.': 'El id de vista "{id}" se usa dos veces.',
+  'The scenario id "{id}" is used twice.': 'El id de escenario "{id}" se usa dos veces.',
+  'The page holds a package with the id "{id}", which Visual Anything keeps for its built-in {name} package.':
+    'La página tiene un paquete con el id "{id}", que Visual Anything reserva para su paquete incorporado {name}.',
+  'The package "{id}" is listed, but neither this page nor the built-in packages hold it.':
+    'El paquete "{id}" está en la lista, pero ni esta página ni los paquetes incorporados lo tienen.',
   '{file} takes the id "{id}", which Visual Anything keeps for its built-in {name} package. Give it another id: {how}':
     '{file} usa el id "{id}", que Visual Anything reserva para su paquete incorporado {name}. Darle otro id: {how}',
   '{file} takes the id "{id}", which Visual Anything keeps for a built-in package to come. Rename it before that package ships: {how}':

@@ -18,7 +18,8 @@ import { useReducedMotion } from './motion';
 import type { ScenarioSession } from './session';
 
 interface PlaybackEmphasisProps {
-  session: ScenarioSession;
+  /** The app's scenario session, or the read-only page's playback (ADR 0041). */
+  session: Pick<ScenarioSession, 'subscribe' | 'getState' | 'subscribeFrame' | 'getElapsed'>;
   project: ProjectSnapshot;
   /** The scenario's view, when it is the one open and drawn. */
   view: ViewFile | undefined;
