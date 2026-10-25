@@ -10,8 +10,8 @@
         margin: 0;
         height: 100%;
         font-family: system-ui, sans-serif;
-        color: #1f2933;
-        background: #ffffff;
+        color: var(--text);
+        background: var(--surface);
       }
       #canvas {
         position: absolute;
@@ -26,8 +26,8 @@
         box-sizing: border-box;
         padding: 1rem;
         overflow: auto;
-        border-left: 1px solid #d9dee5;
-        background: #f7f8fa;
+        border-left: 1px solid var(--border);
+        background: var(--panel);
         font-size: 0.85rem;
       }
       table {
@@ -37,18 +37,19 @@
       th,
       td {
         padding: 0.25rem 0.3rem;
-        border-bottom: 1px solid #d9dee5;
+        border-bottom: 1px solid var(--border);
         text-align: right;
       }
       th:first-child,
       td:first-child {
         text-align: left;
       }
+      /* The colors of the theme the benchmark runs in, from the generated tokens. */
       .pass {
-        color: #1e6b43;
+        color: var(--accent);
       }
       .fail {
-        color: #a61b1b;
+        color: var(--problem);
       }
       #notes {
         white-space: pre-line;

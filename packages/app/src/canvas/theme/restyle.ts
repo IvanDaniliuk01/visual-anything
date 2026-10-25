@@ -105,15 +105,39 @@ function membersOf(tile: TileItems): readonly object[] {
 
 /**
  * The drawings a tile shows now: far out its plain drawing, closer in its full one once it has one;
- * free shapes have only a full drawing.
+ * free shapes have only a full drawing. A plain drawing of relations whose lines are all thinner than
+ * half a device pixel on screen, as at the whole view of a large scene, shows next to nothing: it is
+ * not waited for, and is restyled while the camera rests or once it shows.
  */
 export function shownDrawings(
-  tile: { kind: TileItems['kind']; coarse?: unknown; full?: unknown },
+  tile: {
+    kind: TileItems['kind'];
+    coarse?: unknown;
+    full?: unknown;
+    touching?: readonly RelationLine[];
+  },
   coarse: boolean,
+  devicePixelsPerUnit = Infinity,
 ): Drawing[] {
   if (tile.kind === 'free') return tile.full ? ['full'] : [];
   if (!coarse && tile.full) return ['full'];
+  if (tile.kind === 'relations' && widestLine(tile.touching ?? []) * devicePixelsPerUnit < 0.5) {
+    return [];
+  }
   return tile.coarse ? ['coarse'] : [];
+}
+
+const widest = new WeakMap<readonly RelationLine[], number>();
+
+/** How wide the widest of these lines is, in canvas units. */
+function widestLine(lines: readonly RelationLine[]): number {
+  let width = widest.get(lines);
+  if (width === undefined) {
+    width = 0;
+    for (const line of lines) if (line.width > width) width = line.width;
+    widest.set(lines, width);
+  }
+  return width;
 }
 
 /**
