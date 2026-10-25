@@ -36,6 +36,7 @@ import {
   type ComponentProps,
 } from 'react';
 import { useEmphasis, type Emphasis } from '../editor/emphasis';
+import { useLendRenderer } from '../export/source';
 import { EMPTY_SELECTION, selectionOf, sizeOf, type Selection } from '../editor/selection';
 import { isTextEntry } from '../live/shortcuts';
 import { RecordingCue } from '../scenarios/RecordingCue';
@@ -152,6 +153,8 @@ export function CanvasArea({
   const captionRef = useRef<HTMLDivElement>(null);
   const addSelect = useRef<HTMLSelectElement>(null);
   const controllerRef = useRef<CanvasController | null>(null);
+  // The header's Export draws the open view with this canvas's renderer (R27).
+  useLendRenderer(controllerRef);
   const [failure, setFailure] = useState<string>();
   // The camera moves on every frame of a pan: only what shows it renders again.
   const [cameras] = useState(() => new CameraWatch());

@@ -3,6 +3,8 @@ import type { Id, ViewFile } from '@visual-anything/schema';
 import { useCallback, useId, useMemo, useState } from 'react';
 import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
 import { EditorContext, type Editor } from '../editor/EditorContext';
+import { ExportControl } from '../export/ExportControl';
+import { ImageSource, ImageSourceContext } from '../export/source';
 import { DefinitionProvider } from './definitions/DefinitionProvider';
 import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
 import { GuidanceLayer } from '../guidance/GuidanceLayer';
@@ -68,43 +70,58 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   const canvasHeading = useId();
   // The scenario open in the scenario panel, with its playback and its recording on the canvas.
   const [scenarios] = useState(() => new ScenarioSession());
+  // What the header's Export draws with: the canvas lends it its renderer.
+  const [images] = useState(() => new ImageSource());
 
   return (
     <EditorContext.Provider value={editor}>
       <DefinitionProvider>
         <EmphasisContext.Provider value={emphasis}>
-          <div className="shell">
-            <Header projectName={project.project.name} viewName={view?.name} />
-            {notice !== undefined && (
-              <p className="shell-notice" role="alert">
-                {notice}
-              </p>
-            )}
-            <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
-            <main className="canvas-area" aria-labelledby={canvasHeading}>
-              <h2 id={canvasHeading} className="visually-hidden">
-                {view ? view.name : t('Canvas')}
-              </h2>
-              {view && scene ? (
-                <CanvasArea
-                  project={project}
-                  view={view}
-                  scene={scene}
-                  label={describeDrawing(t, view, scene)}
-                  selection={selection}
-                  onSelect={setSelection}
-                  {...(onCommand ? { onCommand } : {})}
-                  {...(revealed ? { revealed } : {})}
-                  scenarios={scenarios}
-                />
-              ) : (
-                <p className="canvas-message">{t('There is no view to draw.')}</p>
+          <ImageSourceContext value={images}>
+            <div className="shell">
+              <Header
+                projectName={project.project.name}
+                viewName={view?.name}
+                tools={
+                  <ExportControl
+                    source={images}
+                    projectName={project.project.name}
+                    viewName={view?.name}
+                    bounds={scene?.bounds}
+                  />
+                }
+              />
+              {notice !== undefined && (
+                <p className="shell-notice" role="alert">
+                  {notice}
+                </p>
               )}
-              <GuidanceLayer scenarios={scenarios} />
-            </main>
-            <Inspector view={view} scene={scene} definitions={definitions} />
-            <ScenarioPanel session={scenarios} />
-          </div>
+              <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
+              <main className="canvas-area" aria-labelledby={canvasHeading}>
+                <h2 id={canvasHeading} className="visually-hidden">
+                  {view ? view.name : t('Canvas')}
+                </h2>
+                {view && scene ? (
+                  <CanvasArea
+                    project={project}
+                    view={view}
+                    scene={scene}
+                    label={describeDrawing(t, view, scene)}
+                    selection={selection}
+                    onSelect={setSelection}
+                    {...(onCommand ? { onCommand } : {})}
+                    {...(revealed ? { revealed } : {})}
+                    scenarios={scenarios}
+                  />
+                ) : (
+                  <p className="canvas-message">{t('There is no view to draw.')}</p>
+                )}
+                <GuidanceLayer scenarios={scenarios} />
+              </main>
+              <Inspector view={view} scene={scene} definitions={definitions} />
+              <ScenarioPanel session={scenarios} />
+            </div>
+          </ImageSourceContext>
         </EmphasisContext.Provider>
       </DefinitionProvider>
     </EditorContext.Provider>

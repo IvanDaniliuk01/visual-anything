@@ -626,13 +626,14 @@ export class CanvasRenderer {
     const { plan } = planned;
     const scale = plan.drawingScale;
     // What is visible is written as the screen writes it; the whole view as the canvas would at 1:1.
-    const { coarse, wanted } =
+    const detail: { coarse: boolean; wanted: Tile['level'] } =
       request.area === 'visible'
         ? this.detailNow()
         : {
             coarse: scale < COARSE_BELOW,
-            wanted: (scale >= DETAILS_FROM ? 2 : scale >= NAMES_FROM ? 1 : 0) as Tile['level'],
+            wanted: scale >= DETAILS_FROM ? 2 : scale >= NAMES_FROM ? 1 : 0,
           };
+    const { coarse, wanted } = detail;
     // What is changed for the image, to put back once it is drawn, the last change first.
     const putBack: (() => void)[] = [];
     const change = <T extends object, K extends keyof T>(target: T, key: K, value: T[K]) => {
