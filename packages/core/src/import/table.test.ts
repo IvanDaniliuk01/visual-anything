@@ -62,6 +62,20 @@ describe('a spreadsheet of elements and relations', () => {
     expect(plan.views).toEqual([]);
   });
 
+  it('reads external identifiers from columns named by their scheme, such as id:uberon', () => {
+    const anatomy = read(
+      'name,ID: UBERON,id:fma,id:uberon,id:not a scheme\nHeart,UBERON:0000948,FMA:7088,x,y\nLung,,,,\n',
+    );
+    expect(anatomy.elements.map((each) => [each.name, each.ids, each.attributes])).toEqual([
+      ['Heart', { uberon: 'UBERON:0000948', fma: 'FMA:7088' }, { 'id:not a scheme': 'y' }],
+      ['Lung', undefined, undefined],
+    ]);
+    expect(anatomy.unmatched).toContainEqual({
+      text: 'x',
+      why: 'This column repeats the scheme "uberon", so it is not read.',
+    });
+  });
+
   it('reads its relations, with ends named by id or by name', () => {
     expect(plan.relations).toEqual([
       {

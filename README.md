@@ -180,7 +180,7 @@ A Mermaid diagram (flowchart, C4, ER or class), a spreadsheet (CSV or TSV) or JS
 - **From the command line**, `visual-anything import <folder> <file>` imports it. Use `--map <kind>=<id>` to map a kind yourself, and `--dry-run` to see the mapping first. When Visual Anything runs on the project, the import goes through it.
 - **With Claude**, ask it to import a file: it shows you the mapping with `preview_import`, then imports with `import_file`.
 
-A spreadsheet holds elements with `id`, `name`, `component` and `container` columns, and relations with `from`, `to` and `relation type` columns, in tables separated by a blank line. Every other column is an attribute. Importing it again updates the elements it matches by `id`, or by another column you choose. Nothing in a file runs, and links in it are never followed.
+A spreadsheet holds elements with `id`, `name`, `component` and `container` columns, and relations with `from`, `to` and `relation type` columns, in tables separated by a blank line. A column named `id:` and a scheme, such as `id:uberon`, holds identifiers in that scheme. Every other column is an attribute. Importing it again updates the elements it matches by `id`, or by another column you choose, and the elements that share an identifier with a row. Nothing in a file runs, and links in it are never followed.
 
 ### Building from what you already have
 
