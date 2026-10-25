@@ -304,7 +304,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [ ] PDF made from that SVG, with its fonts embedded; the library is chosen and recorded in the same clarification
 - [ ] `visual-anything export <folder> --view <id> --format svg|pdf|md|mermaid|structurizr|page [--out <file>]`
 - [ ] Text exports: the outline in Markdown, which also serves as the view's long description; Mermaid, through each element's first container; Structurizr DSL for views of Systems components
-- [ ] The read-only page (ADR 0041): a viewer build without the live connection, the commands or the editors; the project as data; its policy; touch; view addresses; the About panel with the packages' attribution
+- [x] The read-only page (ADR 0041): a viewer build without the live connection, the commands or the editors; the project as data; its policy; touch; view addresses; the About panel with the packages' attribution
 - [ ] The Export dialog: PNG, SVG, PDF, text and the page, each with its size and what it leaves out
 - [ ] Claude's `export_view`, which answers SVG, Markdown, Mermaid or Structurizr text and writes no file
 - [ ] Benchmark: the page's size and how long it takes to open at 10,000 elements; how long the SVG takes to write

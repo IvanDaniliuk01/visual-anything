@@ -55,3 +55,46 @@ Reading a project needs the local program today, so a project cannot be shared, 
 - The spec's scope table changes from "Mobile out of scope" to "mobile reading through the read-only page".
 - CLAUDE.md gains a rule: an exported page never carries a token and connects nowhere.
 - CONTEXT.md gains **Read-only page**.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-25, building W33, under the user's standing delegation of design decisions. -->
+
+- 2026-10-25: **how the page is built and written.**
+  - The viewer is a second build of the app (`viewer.html`, `vite.viewer.config.ts`, `app/src/viewer/**`): one module script and one stylesheet in `dist/viewer`, which load nothing. `pnpm build` builds it after the app, the program serves it beside the app (`/viewer/viewer.js`, `/viewer/viewer.css`), and the single executable holds it with the app's other files.
+  - Export → Read-only page fetches those two files from the program and writes the page in the browser, which saves it; the program writes nothing. `visual-anything export <folder> --format page [--view <id>] [--out <file>]` reads them from the build, opens the project with the checks of opening, and writes the page atomically to the file given, or to stdout. Without a built viewer, as in dev mode, both say to run `pnpm build`.
+  - One writer, `app/src/viewer/page.ts`, serves both, in pure TypeScript with Web Crypto.
+- 2026-10-25: **the project as data.** A `<script type="application/json" id="visual-anything-project">` holds format 1 of the page's data:
+  - the project file, the model, the views and the scenarios, as their files hold them;
+  - the packages of the project's own, their images as the core cleans them, and those cleaning refuses left out, so that what cleaning drops, such as a photo's position, never travels in a page;
+  - the view state the page opens at, as a view address's fragment, and when it was made.
+
+  Built-in packages are named by id in the project file and come with the viewer, as they come with the program. The JSON writes `<`, `>`, `&` and the line and paragraph separators as escapes, so that no text of the project can end its element.
+- 2026-10-25: **the same checks as opening**: each file against its kind's schema, through validators Ajv generates when the viewer is built (standalone code, since the page's policy lets nothing compile code); the ids of packages, views and scenarios once each; the packages the project lists, none taking a built-in one's id; then the core's `checkProject`. A page of a later format says to make it again with this version, or open it with a newer one.
+- 2026-10-25: **the policy, exactly:** `default-src 'none'; script-src` two hashes (the script that applies the reader's theme before the first paint, and the viewer); `style-src` one hash; `img-src data: blob:; connect-src 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'; trusted-types default`.
+  - `worker-src` is `'none'`, not `blob:`, since the page runs no layout: a view draws the positions it stores, and shapes without one in the canvas's stand-in row, as the app draws them before a layout. A page that lays views out in a worker would add `blob:`.
+  - The page's Trusted Types policy lets through only the empty string as HTML, and no script and no script's address.
+  - The viewer's script is written so that the browser reads it exactly as written, and its hash holds: `</script` and `<!--` become `<\/script` and `<\x21--`, and a NUL and a carriage return become `\x00` and `\r`. A NUL, which the browser reads as U+FFFD, broke the hash until then.
+- 2026-10-25: **what the reader gets, as built:**
+  - the views from a picker;
+  - panning by dragging, with one finger or the wheel, and zooming by pinching, Ctrl with the wheel, the keys or buttons;
+  - selection, with what is selected written out, never edited;
+  - the app's reading keys;
+  - filters by component and relation type, and focus. Conditions on attributes are not offered, but a view address's apply;
+  - collapse and expand, in the page's own copy of the view, kept until the page closes;
+  - the app's find field and outline;
+  - scenario playback, without recording;
+  - view addresses in the page's fragment, followed as the app follows its own.
+- 2026-10-25: **the reader's choices.** The theme and the language follow the system unless the reader chooses, kept under `visual-anything.page.theme` and `visual-anything.page.language` in the browser's storage; a page where storage is refused keeps them until it closes.
+- 2026-10-25: **About** names the project, when the page was made, and each package with its version, license and attribution where its file gives them (ADR 0047), and where its images come from.
+- 2026-10-25: **Size.** The sample's page is 1.6 MB, of which the viewer is 1.56 MB. The Export dialog says each page's size once it is written; past 25 MB (25,000,000 bytes) it says so, and its button reads Save the page anyway. The command line says so before writing.
+- 2026-10-25: **The bundle test** (`app/src/viewer/bundle.test.ts`) builds the viewer in a process of its own. It checks the modules the script holds against a list, which the page must not hold:
+  - the live connection, the session token and joining a session;
+  - the app's shell and header;
+  - the canvas's editing gestures, menus and dialogs, and layout;
+  - recording, history and the export dialog;
+  - the inspector, its controls and the component editor;
+  - the core's commands and history;
+  - Ajv, and the app's own Trusted Types policy.
+
+  It also checks that the script holds none of the strings by which a page could reach a program, a session or the network.
