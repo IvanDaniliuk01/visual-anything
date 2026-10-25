@@ -96,6 +96,26 @@ import type { Catalog } from './translate';
 
 /** The app's own texts, keyed by the exact English given to `t()`. */
 export const ui: Catalog = {
+  // The start screen of a folder that holds no project yet (ADR 0051).
+  'Start a project in “{folder}”': 'Empezar un proyecto en “{folder}”',
+  'This folder holds no project yet. Start one from a sample, or empty; everything can be changed afterwards.':
+    'Esta carpeta todavía no tiene ningún proyecto. Empezar uno a partir de un ejemplo, o vacío; después se puede cambiar todo.',
+  'Ways to start': 'Formas de empezar',
+  'C4 architecture: internet banking': 'Arquitectura C4: banca por internet',
+  'A bank’s internet banking system, from the people who use it down to its components and the servers it runs on, with a scenario of a customer signing in.':
+    'El sistema de banca por internet de un banco, desde las personas que lo usan hasta sus componentes y los servidores en los que se ejecuta, con un escenario de un cliente que inicia sesión.',
+  'Data science pipeline: churn prediction':
+    'Canalización de ciencia de datos: predicción de bajas',
+  'The data a subscription business turns into a churn model, and the dashboards it feeds, with a scenario of the nightly run.':
+    'Los datos que un negocio de suscripciones convierte en un modelo de bajas, y los paneles de indicadores que alimenta, con un escenario de la ejecución nocturna.',
+  'Start from the sample “{name}”': 'Empezar a partir del ejemplo “{name}”',
+  'Start from this sample': 'Empezar a partir de este ejemplo',
+  'Starting…': 'Empezando…',
+  'An empty project': 'Un proyecto vacío',
+  'It uses the built-in Systems package and has one view; the Components tab adds more packages.':
+    'Usa el paquete incorporado Sistemas y tiene una vista; la pestaña Componentes agrega más paquetes.',
+  'Start an empty project': 'Empezar un proyecto vacío',
+  Overview: 'Vista general',
   // Words many screens use.
   Cancel: 'Cancelar',
   Create: 'Crear',

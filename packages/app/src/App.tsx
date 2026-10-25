@@ -9,6 +9,7 @@ import type { LiveCredential } from './live/session';
 import { Notices } from './shell/Notices';
 import { ProjectErrorBoundary } from './shell/ProjectErrorBoundary';
 import { Shell } from './shell/Shell';
+import { StartScreen } from './shell/StartScreen';
 import { StatusScreen } from './shell/StatusScreen';
 
 interface AppProps {
@@ -50,7 +51,7 @@ export function App({ token }: AppProps) {
 
 function LiveApp() {
   const t = useT();
-  const { failure, project, status, send, notify, joining } = useLive();
+  const { failure, project, status, send, notify, joining, start, startProject } = useLive();
   // The canvas learns whether a command was done, and the user reads why one was refused; the live
   // session already shows the rules a done command breaks that only warn.
   const onCommand = useCallback<SendCommand>(
@@ -63,6 +64,12 @@ function LiveApp() {
     [send, notify],
   );
   if (failure !== undefined) return <Failure failure={failure} />;
+  // A folder that holds no project yet: the start screen (ADR 0051).
+  if (project === undefined && start !== undefined) {
+    return (
+      <StartScreen offer={start} startProject={status === 'open' ? startProject : undefined} />
+    );
+  }
   if (project === undefined) {
     return (
       <StatusScreen tone="progress" title={t('Connecting to Visual Anything…')}>
