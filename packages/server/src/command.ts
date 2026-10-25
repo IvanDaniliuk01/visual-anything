@@ -21,12 +21,16 @@ import { openSession } from './session';
 import { AppNotBuiltError } from './static';
 
 export const USAGE = `Usage: visual-anything [folder] [--port <n>] [--no-open] [--dev] [--stop-when-idle]
+       visual-anything mcp [folder] [--dev]
 
 Opens the project in folder (the current folder when left out) and serves the app on 127.0.0.1.
+With mcp, runs the MCP server Claude Code and Claude Desktop start instead; visual-anything mcp
+--help says more. A folder named mcp is opened as ./mcp.
 
   --port <n>        Listen on port n, from 0 to 65535 (default 0: any free port).
   --no-open         Print an address that works once, instead of opening the browser.
-  --dev             Serve the app from its sources through Vite, with hot reload.
+  --dev             Serve the app from its sources through Vite, with hot reload; only from the
+                    repository, not from the executable.
   --stop-when-idle  Stop once no app and no Claude has been connected for a minute, as when
                     Claude started the program.
   -h, --help        Show this help.`;

@@ -1,20 +1,21 @@
 /**
  * The local program's HTTP server. It listens on 127.0.0.1 only, checks the Host and Origin of every
- * request, serves the app (its build, or its sources through Vite in dev mode) and opens the live
+ * request, serves the app (its build, from a folder or from the single executable's assets, or its
+ * sources through Vite in dev mode) and opens the live
  * connection for a page that holds the per-session token or a launch code that works once. Each live
  * connection is an app of the open project's session: it gets the project and every change, and its
  * messages go to the session. The Claude endpoint, on its own path and with its own credential,
  * attaches Claude's MCP entry point to the same session.
  */
-import { readFile, realpath } from 'node:fs/promises';
+import { realpath } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
-import { join } from 'node:path';
 import type { Duplex } from 'node:stream';
 import { LAUNCH_PARAM, LIVE_PATH, encodeServerMessage } from '@visual-anything/core';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import { attachClaude } from './claude/endpoint';
 import { CLAUDE_PATH, encodeClaudeMessage } from './claude/messages';
+import { toForwardSlashes } from './paths';
 import { refuseUpgrade, sendText, setSecurityHeaders } from './responses';
 import {
   LaunchCodes,
@@ -34,7 +35,13 @@ import {
   servesProjectFile,
 } from './policies';
 import type { LiveSession, SessionClient } from './session';
-import { openStaticRoot, serveStatic } from './static';
+import {
+  AppNotBuiltError,
+  folderFiles,
+  openStaticRoot,
+  serveAppFile,
+  type AppFiles,
+} from './static';
 
 /** The largest message Claude may send: a command creating thousands of elements fits. */
 const CLAUDE_MAX_PAYLOAD = 8 * 1024 * 1024;
@@ -46,6 +53,8 @@ export const HOST = '127.0.0.1';
 export type AppSource =
   /** The built app: a folder holding its `index.html`. */
   | { mode: 'static'; dir: string }
+  /** The built app as the single executable holds it, or any other files not in a folder. */
+  | { mode: 'embedded'; files: AppFiles }
   /** The app's sources, served by Vite with hot reload; `configFile: false` uses no config file. */
   | { mode: 'dev'; root: string; configFile: string | false };
 
@@ -281,8 +290,8 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
 }
 
 /**
- * Prepares the app: its build from a folder, or its sources through Vite. In dev mode, no file inside
- * the project folder is ever served.
+ * Prepares the app: its build from a folder or from the executable's assets, or its sources through
+ * Vite. In dev mode, no file inside the project folder is ever served.
  */
 async function openApp(
   source: AppSource,
@@ -291,17 +300,16 @@ async function openApp(
 ): Promise<App> {
   if (source.mode === 'static') {
     const root = await openStaticRoot(source.dir);
-    // The built page's own inline scripts, such as the one that applies the theme before the first
-    // paint, are allowed by their hashes.
-    const scriptHashes = inlineScriptHashes(await readFile(join(root, 'index.html'), 'utf8'));
-    return {
-      serve: (request, response) => {
-        serveStatic(root, request, response).catch((error: unknown) => fail(response, error));
-      },
-      upgrades: [],
-      pagePolicyAt: (port) => pagePolicy(port, { trustedTypes: true, scriptHashes }),
-      close: async () => {},
-    };
+    return openBuiltApp(
+      folderFiles(root),
+      `The app is not built: ${toForwardSlashes(root)}/index.html is not a file inside it. Run \`pnpm build\` first.`,
+    );
+  }
+  if (source.mode === 'embedded') {
+    return openBuiltApp(
+      source.files,
+      'This Visual Anything holds no built app: make the executable again with `pnpm package`.',
+    );
   }
 
   // Imported only in dev mode, so that serving the build never loads Vite.
@@ -350,6 +358,23 @@ async function openApp(
     // Without Trusted Types, because Vite's error overlay writes HTML.
     pagePolicyAt: (port) => pagePolicy(port, { trustedTypes: false, nonce }),
     close: () => vite.close(),
+  };
+}
+
+/** Serves the built app from its files; without its `index.html`, refuses with `missing`. */
+async function openBuiltApp(files: AppFiles, missing: string): Promise<App> {
+  const index = await files.read('index.html');
+  if (index === undefined) throw new AppNotBuiltError(missing);
+  // The built page's own inline scripts, such as the one that applies the theme before the first
+  // paint, are allowed by their hashes, read from the page that is served.
+  const scriptHashes = inlineScriptHashes(Buffer.from(index).toString('utf8'));
+  return {
+    serve: (request, response) => {
+      serveAppFile(files, request, response).catch((error: unknown) => fail(response, error));
+    },
+    upgrades: [],
+    pagePolicyAt: (port) => pagePolicy(port, { trustedTypes: true, scriptHashes }),
+    close: async () => {},
   };
 }
 

@@ -1,8 +1,91 @@
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
-import { contentTypeOf, resolveStaticFile } from './static';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  contentTypeOf,
+  folderFiles,
+  memoryFiles,
+  resolveAppPath,
+  resolveStaticFile,
+} from './static';
 
 const root = resolve('static-root');
+
+describe('resolveAppPath', () => {
+  it.each([
+    ['/', 'index.html'],
+    ['/index.html', 'index.html'],
+    ['/assets/app.js', 'assets/app.js'],
+    ['/assets/app.js?v=3', 'assets/app.js'],
+    ['/hello%20world.txt', 'hello world.txt'],
+    ['/..file.txt', '..file.txt'],
+  ])('names %s by its path in the built app', (target, path) => {
+    expect(resolveAppPath(target)).toEqual({ ok: true, path });
+  });
+
+  it.each([
+    ['/../package.json', 403],
+    ['/%2e%2e%2fpackage.json', 403],
+    ['/assets\\..\\..\\package.json', 403],
+    ['/C:/Windows/win.ini', 403],
+    ['/index.html::$DATA', 403],
+    ['/%00', 400],
+    ['/%', 400],
+    ['http://evil.example/index.html', 400],
+    ['/assets/', 404],
+    ['//index.html', 404],
+  ])('refuses %s with %i, as it refuses a file of a folder', (target, status) => {
+    expect(resolveAppPath(target)).toEqual({ ok: false, status });
+  });
+});
+
+describe('memoryFiles', () => {
+  it('reads the files it holds by their path, and nothing else', async () => {
+    const files = memoryFiles(new Map([['assets/app.js', Buffer.from('app')]]));
+    expect(await files.read('assets/app.js')).toEqual(Buffer.from('app'));
+    expect(await files.read('assets/other.js')).toBeUndefined();
+    expect(await files.read('ASSETS/APP.JS')).toBeUndefined();
+  });
+});
+
+describe('folderFiles', () => {
+  let folder: string;
+  let dist: string;
+
+  beforeAll(async () => {
+    // The real path, as openStaticRoot gives it: the temporary folder may be reached through a link.
+    folder = await realpath(await mkdtemp(join(tmpdir(), 'va-static-')));
+    dist = join(folder, 'dist');
+    await mkdir(join(dist, 'assets'), { recursive: true });
+    await writeFile(join(dist, 'assets', 'app.js'), 'app');
+    await writeFile(join(folder, 'secret.txt'), 'secret');
+  });
+
+  afterAll(async () => {
+    await rm(folder, { recursive: true, force: true });
+  });
+
+  it('reads a file of the folder by its path', async () => {
+    expect(await folderFiles(dist).read('assets/app.js')).toEqual(Buffer.from('app'));
+  });
+
+  it('reads nothing for a folder or a file it does not hold', async () => {
+    expect(await folderFiles(dist).read('assets')).toBeUndefined();
+    expect(await folderFiles(dist).read('missing.js')).toBeUndefined();
+  });
+
+  it('reads nothing through a link that leads outside the folder', async (context) => {
+    try {
+      await symlink(join(folder, 'secret.txt'), join(dist, 'secret.txt'), 'file');
+    } catch {
+      context.skip(
+        'This user may not make symbolic links here, as on Windows without Developer Mode.',
+      );
+    }
+    expect(await folderFiles(dist).read('secret.txt')).toBeUndefined();
+  });
+});
 
 describe('resolveStaticFile', () => {
   it.each([

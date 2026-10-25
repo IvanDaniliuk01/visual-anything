@@ -27,4 +27,12 @@ describe('resolveAppSource', () => {
       configFile: join(appPackageDir(), 'vite.config.ts'),
     });
   });
+
+  it('serves the build the single executable holds', () => {
+    expect(resolveAppSource(false, true).mode).toBe('embedded');
+  });
+
+  it('has no dev mode in the single executable, which holds no sources', () => {
+    expect(() => resolveAppSource(true, true)).toThrow(/run `pnpm dev` there/);
+  });
 });
