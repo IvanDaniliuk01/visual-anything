@@ -9,7 +9,14 @@
  */
 import { stalledProblem, type Drawing, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
-import type { CodeReply, CodeRequest, ElementAnswers, PackageRun, RunPackage } from './messages';
+import type {
+  CodeReply,
+  CodeRequest,
+  ElementAnswers,
+  PackageRun,
+  RunPackage,
+  WantedAddress,
+} from './messages';
 
 /** What the host needs of a worker. */
 export interface CodeWorkerLike {
@@ -60,6 +67,9 @@ export interface CodeHostOptions {
   clearTimer?: (timer: unknown) => void;
 }
 
+/** What the host hears of the addresses each package's code wants fetched (ADR 0063). */
+export type WantedListener = (pkg: Id, wanted: readonly WantedAddress[]) => void;
+
 /** Starts the code worker. Vite bundles the worker from this exact expression. */
 export function startCodeWorker(): CodeWorkerLike {
   return new Worker(new URL('./code.worker.ts', import.meta.url), {
@@ -80,6 +90,7 @@ export class CodeHost {
   private timer: unknown;
   private answers: CodeAnswers = NO_ANSWERS;
   private readonly listeners = new Set<() => void>();
+  private readonly wantedListeners = new Set<WantedListener>();
   private readonly watchdogMs: number;
   private readonly startingMs: number;
   private readonly setTimer: (callback: () => void, ms: number) => unknown;
@@ -144,10 +155,24 @@ export class CodeHost {
     };
   }
 
+  /** Calls `listener` with every address a package's code wants fetched, whenever that changes. */
+  onWanted(listener: WantedListener): () => void {
+    this.wantedListeners.add(listener);
+    return () => {
+      this.wantedListeners.delete(listener);
+    };
+  }
+
+  /** Hands the worker what the local program fetched for a package, or why it did not. */
+  fetched(request: Extract<CodeRequest, { kind: 'fetched' }>): void {
+    if (this.worker) this.post(this.worker, request);
+  }
+
   /** Stops the worker for good. */
   dispose(): void {
     this.stop();
     this.listeners.clear();
+    this.wantedListeners.clear();
   }
 
   private ensure(): CodeWorkerLike {
@@ -172,6 +197,10 @@ export class CodeHost {
 
   private receive(reply: CodeReply): void {
     this.heard = true;
+    if (reply.kind === 'network') {
+      for (const listener of [...this.wantedListeners]) listener(reply.package, reply.wanted);
+      return;
+    }
     if (reply.kind === 'idle') {
       this.disarm();
       this.calling = undefined;
@@ -233,10 +262,17 @@ export class CodeHost {
 
   private stop(): void {
     this.disarm();
+    const had = this.worker !== undefined;
     this.worker?.terminate();
     this.worker = undefined;
     this.sent = {};
     this.calling = undefined;
+    // A worker that stops wants nothing fetched any longer; one started again says what it wants.
+    if (had) {
+      for (const each of this.input?.packages ?? []) {
+        for (const listener of [...this.wantedListeners]) listener(each.package, []);
+      }
+    }
   }
 
   private arm(): void {

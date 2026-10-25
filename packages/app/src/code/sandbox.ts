@@ -52,6 +52,21 @@ export function warmedUp(module: QuickJSWASMModule): QuickJSWASMModule {
   return module;
 }
 
+/**
+ * What the code of a package granted an origin reads of the network in one call of `attributes`
+ * (ADR 0063): what the local program last fetched from an address, nothing yet, or why the address
+ * may not be fetched.
+ */
+export interface NetworkReader {
+  fetched(
+    url: string,
+    everySeconds: number,
+  ):
+    | { kind: 'answer'; status: number; text: string }
+    | { kind: 'refused'; reason: string }
+    | { kind: 'not-yet' };
+}
+
 /** The code of one package, as the sandbox loads it. */
 export interface LoadRequest {
   package: Id;
@@ -86,6 +101,10 @@ interface Loaded {
   readModel: QuickJSHandle | undefined;
   /** The reader of the call under way, for `model:read`. */
   reader: ModelReader | undefined;
+  /** What `context.fetched` reads through, for a package granted an origin. */
+  readNetwork: QuickJSHandle | undefined;
+  /** The network reader of the call under way. */
+  network: NetworkReader | undefined;
 }
 
 export interface SandboxOptions {
@@ -187,8 +206,13 @@ export class CodeSandbox {
         granted,
         readModel: undefined,
         reader: undefined,
+        readNetwork: undefined,
+        network: undefined,
       };
       if (granted.has('model:read')) loaded.readModel = this.modelBridge(loaded);
+      if ([...granted].some((each) => each.startsWith('network:'))) {
+        loaded.readNetwork = this.networkBridge(loaded);
+      }
       this.packages.set(request.package, loaded);
       return { ok: true, hooks: [...hooks.keys()] };
     } catch (error) {
@@ -212,6 +236,7 @@ export class CodeSandbox {
     try {
       for (const hook of loaded.hooks.values()) hook.dispose();
       loaded.readModel?.dispose();
+      loaded.readNetwork?.dispose();
       loaded.run.dispose();
       loaded.describe.dispose();
       loaded.context.dispose();
@@ -228,9 +253,16 @@ export class CodeSandbox {
 
   /**
    * Calls one hook of a loaded package with a frozen copy of its input: `hook(element, context)`.
-   * With `model:read` granted, `context.model` reads the whole model through `reader`.
+   * With `model:read` granted, `context.model` reads the whole model through `reader`; with an origin
+   * granted, `context.fetched` reads what was fetched through `network`, in `attributes` only.
    */
-  call(id: Id, hook: HookName, input: HookInput, reader?: ModelReader): CallOutcome {
+  call(
+    id: Id,
+    hook: HookName,
+    input: HookInput,
+    reader?: ModelReader,
+    network?: NetworkReader,
+  ): CallOutcome {
     const started = this.now();
     const loaded = this.packages.get(id);
     const handle = loaded?.hooks.get(hook);
@@ -250,14 +282,27 @@ export class CodeSandbox {
       const limit = context.newNumber(CODE_LIMITS.answerText);
       handles.push(limit);
       loaded.reader = reader;
+      loaded.network = network;
       const read =
         loaded.readModel !== undefined && reader !== undefined
           ? loaded.readModel
           : context.undefined;
+      const readNetwork =
+        loaded.readNetwork !== undefined && network !== undefined && hook === 'attributes'
+          ? loaded.readNetwork
+          : context.undefined;
       // The deadline stays in force until everything is read back: whatever reads a value the code
       // made runs inside `run`, and a getter or a proxy trap that never ends is stopped there.
       this.deadline = started + this.callMs;
-      const result = context.callFunction(loaded.run, context.undefined, handle, json, limit, read);
+      const result = context.callFunction(
+        loaded.run,
+        context.undefined,
+        handle,
+        json,
+        limit,
+        read,
+        readNetwork,
+      );
       const ms = this.now() - started;
       if (result.error) {
         // Only what the interpreter itself throws gets past `run`: it was stopped, or ran out.
@@ -304,6 +349,7 @@ export class CodeSandbox {
     } finally {
       this.deadline = Infinity;
       loaded.reader = undefined;
+      loaded.network = undefined;
       if (!this.spent) for (const each of handles) each.dispose();
     }
   }
@@ -366,6 +412,29 @@ export class CodeSandbox {
     } finally {
       make.dispose();
     }
+  }
+
+  /**
+   * The function through which `context.fetched` reads what the local program fetched, for a package
+   * granted an origin: `A` and the answer's JSON, `R` and why not, or nothing yet.
+   */
+  private networkBridge(loaded: Loaded): QuickJSHandle {
+    const { context } = loaded;
+    return context.newFunction('readNetwork', (urlHandle, everyHandle) => {
+      const url = context.typeof(urlHandle) === 'string' ? context.getString(urlHandle) : '';
+      const every =
+        everyHandle !== undefined && context.typeof(everyHandle) === 'number'
+          ? context.getNumber(everyHandle)
+          : 0;
+      const read = loaded.network?.fetched(url, every) ?? { kind: 'not-yet' as const };
+      const text =
+        read.kind === 'answer'
+          ? `A${JSON.stringify({ status: read.status, text: read.text })}`
+          : read.kind === 'refused'
+            ? `R${read.reason}`
+            : '';
+      return context.newString(text);
+    });
   }
 
   /** The function through which `context.model` reads the model, for `model:read`. */
