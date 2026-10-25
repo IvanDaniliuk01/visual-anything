@@ -29,8 +29,8 @@ const project: ProjectSnapshot = {
 };
 
 describe('PROTOCOL_VERSION', () => {
-  it('is 4, since Claude came to filter, focus and play scenarios in the open app', () => {
-    expect(PROTOCOL_VERSION).toBe(4);
+  it('is 5, since the history came to be listed action by action, and undone up to one', () => {
+    expect(PROTOCOL_VERSION).toBe(5);
   });
 
   it('names the launch code and the token in the address and on the live connection', () => {

@@ -198,3 +198,6 @@ export { LAUNCH_PARAM, MAX_CAPTION_LENGTH, MAX_GUIDANCE_TARGETS, readGuidance } 
 // Relations routed by hand, per view (ADR 0039).
 export type { ResolvedAttachment, ResolvedRoute, RouteLookups, RouteShapes, Side } from './routes';
 export { MAX_BEND_POINTS, routeOf } from './routes';
+// The live protocol's history list, and undo or redo up to an action (version 5).
+export type { HistoryListedMessage, ListedAction } from './protocol';
+export { readListedActions } from './protocol';
