@@ -21,6 +21,9 @@ import {
 import type { Attributes, Id } from '@visual-anything/schema';
 import { z } from 'zod';
 import { ProgramUnavailableError, type CommandAnswer, type Program } from './bridge';
+import { EXPLORE_TOOLS } from './explore-tools';
+import { IMAGE_TOOLS } from './image-tools';
+import { SCENARIO_TOOLS } from './scenario-tools';
 import {
   MAX_RESULTS,
   describeItem,
@@ -221,7 +224,7 @@ Example: { "view": "system-overview" }`,
 const readScenarioTool = tool({
   name: 'read_scenario',
   title: 'Read a scenario',
-  description: `Reads a scenario: the view it plays over and its steps in order, each with its description, the relations it activates (with their ends), its data in and out, and whether it is broken because a relation it uses was deleted.
+  description: `Reads a scenario: the view it plays over and its steps in order, each with its number, description, the relations it activates (with their ends), its data in and out, and whether it is broken because a relation it uses was deleted; then its broken steps, and how it plays over its view now, where steps inside a collapsed container play as one aggregated step.
 
 Example: { "scenario": "patient-books-appointment" }`,
   input: { scenario: id() },
@@ -343,7 +346,7 @@ Example: { "id": "booking-agent", "appearanceTraits": { "fill": "#F8E1EC", "stro
       .record(z.string(), z.unknown())
       .optional()
       .describe(
-        'Traits of its own appearance to set, or null to inherit again: shape, fill, stroke, width, height, detail, contentsAsRows, connectionPoints.',
+        'Traits of its own appearance to set, or null to inherit again: shape, fill, stroke, width, height, detail, contentsAsRows, connectionPoints, image (from list_images, as { "image": id, "placement": "icon" or "drawing", "tint": "#RRGGBB" }, or "none").',
       ),
   },
   hints: WRITE,
@@ -1012,6 +1015,9 @@ export const TOOLS: readonly Tool[] = [
   showCaption,
   clearGuidance,
   openApp,
+  ...SCENARIO_TOOLS,
+  ...IMAGE_TOOLS,
+  ...EXPLORE_TOOLS,
 ];
 
 /** Runs a tool, turning a program that cannot be reached into an outcome Claude reads. */
