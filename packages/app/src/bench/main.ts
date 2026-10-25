@@ -15,7 +15,8 @@
  * shows one in its header and every column at its row's left: every phase then draws them, and three
  * more phases start with the image store cleared, at scales whose buckets were not drawn yet, so that
  * the waits before the other phases cannot have decoded the pictures they pan over. `?code` adds the
- * phases of package code drawing a gauge inside every shape (`code.ts`, ADR 0054).
+ * phases of package code drawing a gauge inside every shape (`code.ts`, ADR 0054). `?live` adds the
+ * phases of live values changing four times a second in every shape's detail (`live.ts`, ADR 0057).
  *
  * Work mode, the default, measures the work of each frame: it moves the camera, draws the frame and
  * waits until the GPU has drawn it, so the result does not depend on how often the browser offers
@@ -45,6 +46,7 @@ import { handlesOf } from '../canvas/routing/handles';
 import { buildScene, type ElementShape, type RelationLine } from '../canvas/scene';
 import { MAX_BANDS, plannedTiles } from '../canvas/tiles';
 import { gaugeDrawings } from './code';
+import { LIVE_EVERY_FRAMES, LIVE_MARK, liveLookup, liveScene, withLiveDetail } from './live';
 import '../theme/tokens.css';
 import { THEMES } from '../theme/themes';
 import { RESTYLING, SHOWN, TARGET_FPS, WORK, addRow, percentile, showVerdict } from './report';
@@ -235,6 +237,48 @@ async function run(): Promise<void> {
     await settle(300);
   }
 
+  // With `?live`, every shape's detail shows a live value, and they change four times a second.
+  const liveTimed: Timed[] = [];
+  if (search.has('live')) {
+    const shown = withLiveDetail(project);
+    const base = buildScene(shown, VIEW);
+    let round = 0;
+    const update = () => {
+      round += 1;
+      indexed = indexScene(liveScene(shown, base, liveLookup(base, round, Date.now())));
+      controller.update(shown, VIEW, indexed, false);
+    };
+    update();
+    await settle(300);
+    phases.push(
+      await measure(
+        'Pan, details shown, live values changing four times a second',
+        180,
+        (frame) => {
+          if (frame % LIVE_EVERY_FRAMES === 0) update();
+          move(panBy(controller.camera, frame < 90 ? -8 : 8, frame < 90 ? -4 : 4));
+        },
+      ),
+    );
+    performance.mark('phase Live values: every detail at once');
+    const times: number[] = [];
+    for (let each = 0; each < 10; each++) {
+      const began = performance.now();
+      update();
+      controller.renderer.renderNow(true);
+      times.push(performance.now() - began);
+      await settle(100);
+    }
+    liveTimed.push({
+      name: 'Live values: every shape’s detail changes at once',
+      times,
+      mark: LIVE_MARK,
+    });
+    indexed = indexScene(buildScene(project, VIEW));
+    controller.update(project, VIEW, indexed, false);
+    await settle(300);
+  }
+
   controller.fit();
   await settle(300);
   const latency: number[] = [];
@@ -371,7 +415,7 @@ async function run(): Promise<void> {
   // Edits, near the middle of the screen, where they are drawn in full and named.
   move(cameraAt(NAMES_FROM * 1.3));
   await settle(300);
-  const timed: Timed[] = [await measureEdits(10)];
+  const timed: Timed[] = [await measureEdits(10), ...liveTimed];
   if (tables) timed.push(await measureColumnEdits(10));
   timed.push(await measureLayouts(4));
   // Changes of the view's scope (ADR-0040): `scope.ts` beside this file.
