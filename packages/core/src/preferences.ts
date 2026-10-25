@@ -5,6 +5,7 @@
  * reading the file leniently, checking changes an app sends strictly, and writing the file's text.
  */
 import type { Color } from '@visual-anything/schema';
+import { checkCodeApprovals, readCodeApprovals, type CodeApproval } from './code/approvals';
 import type { Problem } from './problems';
 
 /** The themes the app and the canvas can be drawn in. */
@@ -36,6 +37,8 @@ export interface Preferences {
   rulers: boolean;
   /** Exact colors picked lately, newest first, in capitals, at most {@link MAX_RECENT_COLORS}. */
   recentColors: Color[];
+  /** The package code the person approved, by its hash, newest first (ADR 0054). */
+  codeApprovals: CodeApproval[];
 }
 
 /** Some preferences, to change. */
@@ -60,6 +63,7 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
   snapToGrid: true,
   rulers: false,
   recentColors: Object.freeze([]) as unknown as Color[],
+  codeApprovals: Object.freeze([]) as unknown as CodeApproval[],
 });
 
 /** The known names, in the order the file writes them. */
@@ -70,6 +74,7 @@ export const PREFERENCE_NAMES: readonly PreferenceName[] = Object.freeze([
   'snapToGrid',
   'rulers',
   'recentColors',
+  'codeApprovals',
 ]);
 
 /** What the preferences file holds, read leniently. */
@@ -222,6 +227,7 @@ const LENIENT: Record<PreferenceName, Lenient> = {
     }
     return colors.slice(0, MAX_RECENT_COLORS);
   },
+  codeApprovals: readCodeApprovals,
 };
 
 type Checked = { ok: true; value: unknown } | { ok: false; message: string };
@@ -271,6 +277,7 @@ const STRICT: Record<PreferenceName, (value: unknown) => Checked> = {
     }
     return { ok: true, value: colors };
   },
+  codeApprovals: checkCodeApprovals,
 };
 
 function booleanOrUndefined(value: unknown): boolean | undefined {
@@ -289,7 +296,11 @@ function refused(messages: readonly string[]): { ok: false; problems: Problem[] 
 }
 
 function copyOf(preferences: Readonly<Preferences>): Preferences {
-  return { ...preferences, recentColors: [...preferences.recentColors] };
+  return {
+    ...preferences,
+    recentColors: [...preferences.recentColors],
+    codeApprovals: [...preferences.codeApprovals],
+  };
 }
 
 function isPreferenceName(name: string): name is PreferenceName {

@@ -233,3 +233,5 @@ export {
 } from './view-state';
 // The limits a view state's filters share with guidance's.
 export { MAX_FILTER_CONDITIONS, MAX_FILTER_TEXT } from './protocol';
+// Package code (ADR 0054): the hooks' types, the checks of their answers, the hash and the approvals.
+export * from './code';
