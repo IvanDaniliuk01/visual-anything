@@ -28,6 +28,10 @@ interface CommentsTabProps {
 }
 
 export function CommentsTab({ active }: CommentsTabProps) {
+  return active ? <CommentsTabContent /> : null;
+}
+
+function CommentsTabContent() {
   const t = useT();
   const editor = useEditor();
   const { project, viewId, selection, send } = editor;
@@ -38,7 +42,6 @@ export function CommentsTab({ active }: CommentsTabProps) {
   const open =
     state.open === undefined ? undefined : project.comments.find((each) => each.id === state.open);
 
-  if (!active) return null;
   const signing =
     me === undefined || changingName ? (
       <AuthorForm {...(me === undefined ? {} : { onDone: () => setChangingName(false) })} />
