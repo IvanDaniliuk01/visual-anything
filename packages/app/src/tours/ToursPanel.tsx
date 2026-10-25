@@ -161,7 +161,7 @@ function PlayButton({ tour, step = 0, label }: { tour: TourFile; step?: number; 
       disabled={host === undefined || tour.steps.length === 0}
       aria-label={name}
       title={name}
-      onClick={() => host?.player.start(tour, step)}
+      onClick={() => host?.play(tour, step)}
     >
       <PlayIcon />
     </button>

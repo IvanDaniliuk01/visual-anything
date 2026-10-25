@@ -28,6 +28,21 @@ import { ScenarioRange } from './range';
 /** The emphasis source a tour's marks show through. */
 export const TOUR_EMPHASIS = 'tour';
 
+/**
+ * Calls back once the layout that a render asked for has been laid out and the canvas has followed
+ * its size, two frames on; the function it returns cancels it.
+ */
+function afterLayout(callback: () => void): () => void {
+  if (typeof requestAnimationFrame !== 'function') {
+    const timer = setTimeout(callback, 32);
+    return () => clearTimeout(timer);
+  }
+  let frame = requestAnimationFrame(() => {
+    frame = requestAnimationFrame(callback);
+  });
+  return () => cancelAnimationFrame(frame);
+}
+
 interface TourPlaybackInput {
   project: ProjectSnapshot;
   scene: Scene | undefined;
@@ -101,25 +116,39 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
     latest.current = { playable, go };
   });
   const before = useRef<{ state: ViewState | undefined; focus: Element | null }>(undefined);
-  const shownKey = tour && step ? `${tour.id} ${playback.step} ${step.id}` : undefined;
-  useEffect(() => {
-    if (shownKey === undefined) return;
+  /** Whether the first step still waits for the canvas to fill the window. */
+  const first = useRef(false);
+  // Where the tab is, taken before the panels hide, since the canvas's size changes then.
+  const remember = useCallback(() => {
     before.current ??= {
       state: viewState.current(),
       focus: typeof document === 'undefined' ? null : document.activeElement,
     };
-    const { playable: shown, go: goThere } = latest.current;
-    if (shown) goThere(shown);
-  }, [shownKey, viewState]);
+    first.current = true;
+  }, [viewState]);
+  const shownKey = tour && step ? `${tour.id} ${playback.step} ${step.id}` : undefined;
+  useEffect(() => {
+    if (shownKey === undefined) return;
+    const show = () => {
+      first.current = false;
+      const { playable: shown, go: goThere } = latest.current;
+      if (shown) goThere(shown);
+    };
+    if (before.current === undefined) remember();
+    // The first step waits for the canvas to fill the window, so that its camera fits it.
+    if (first.current) return afterLayout(show);
+    show();
+  }, [shownKey, remember]);
 
-  // When the tour ends, the tab goes back to where it was, at once.
+  // When the tour ends, the tab goes back to where it was, once the panels are back.
   useEffect(() => {
     if (playback.tour !== undefined || before.current === undefined) return;
     const { state, focus } = before.current;
     before.current = undefined;
     range.start(undefined);
-    if (state) viewState.goTo({ kind: 'address', state });
     if (focus instanceof HTMLElement && focus.isConnected) focus.focus({ preventScroll: true });
+    if (!state) return;
+    return afterLayout(() => viewState.goTo({ kind: 'address', state }));
   }, [playback.tour, viewState, range]);
 
   // The scenario plays its range as the session moves on.
@@ -146,13 +175,17 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
   const host = useMemo<ToursHost>(
     () => ({
       player,
+      play: (played, at) => {
+        if (!player.playing) remember();
+        player.start(played, at);
+      },
       current: () => viewState.current(),
       show: (shown: TourStep) => {
         const made = playableStep(project, shown);
         if (made) go(made);
       },
     }),
-    [player, viewState, project, go],
+    [player, viewState, project, go, remember],
   );
 
   return { player, playback, host };

@@ -1,6 +1,6 @@
 import type { Command, ProjectSnapshot } from '@visual-anything/core';
 import type { TourFile } from '@visual-anything/schema';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { SendCommand } from '../canvas/CanvasArea';
 import { LiveContext } from '../live/context';
@@ -151,22 +151,24 @@ describe('full-screen playback', () => {
     expect(shell).not.toHaveClass('tour-playing');
   });
 
-  it('plays from a step, and changes nothing in the project', () => {
+  it('plays from a step, and changes nothing in the project', async () => {
     const { tab, sent } = openTours();
     fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));
     fireEvent.click(within(tab).getByRole('button', { name: 'Play full screen from step 3' }));
     expect(screen.getByRole('article')).toHaveTextContent('One request, step by step');
     expect(screen.getByRole('button', { name: 'Next step' })).toBeDisabled();
-    // The step opens its scenario, which plays from its first step.
+    // Once the canvas fills the window, the step opens its scenario, which plays from its first step.
     const scenarios = screen.getByRole('complementary', { name: 'Scenarios' });
-    expect(
-      within(scenarios).getByRole('heading', { name: 'Patient books an appointment' }),
-    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(
+        within(scenarios).getByRole('heading', { name: 'Patient books an appointment' }),
+      ).toBeInTheDocument(),
+    );
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(sent).toEqual([]);
   });
 
-  it('goes back to where the tab was once the tour ends', () => {
+  it('goes back to where the tab was once the tour ends', async () => {
     const { tab } = openTours();
     const scenarios = screen.getByRole('complementary', { name: 'Scenarios' });
     const opened = () =>
@@ -174,9 +176,9 @@ describe('full-screen playback', () => {
     expect(opened()).toBeNull();
     fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));
     fireEvent.click(within(tab).getByRole('button', { name: 'Play full screen from step 3' }));
-    expect(opened()).not.toBeNull();
+    await waitFor(() => expect(opened()).not.toBeNull());
     fireEvent.keyDown(document.body, { key: 'Escape' });
     // The scenario the step opened closes again with the view state from before the tour.
-    expect(opened()).toBeNull();
+    await waitFor(() => expect(opened()).toBeNull());
   });
 });

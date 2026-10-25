@@ -1,6 +1,7 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { TourFile } from '@visual-anything/schema';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { StrictMode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { loadSample } from '../test/sample';
 import { NOTES_WINDOW } from './notes-window';
@@ -165,12 +166,36 @@ describe('the speaker notes window', () => {
     act(() => {
       vi.advanceTimersByTime(600);
     });
+    act(() => {
+      vi.advanceTimersByTime(10);
+    });
     expect(notesButton()).toHaveAttribute('aria-pressed', 'false');
     expect(notes.close).toHaveBeenCalled();
+    notes.closed = false;
     fireEvent.click(notesButton());
     fireEvent.click(notesButton());
+    act(() => {
+      vi.advanceTimersByTime(10);
+    });
     expect(notes.close).toHaveBeenCalledTimes(2);
     unmount();
+  });
+
+  it('keeps the window when the same notes mount again at once, as StrictMode does', () => {
+    vi.useFakeTimers();
+    const notes = fakeWindow();
+    vi.spyOn(window, 'open').mockReturnValue(notes as unknown as Window);
+    render(
+      <StrictMode>
+        <TourStage project={sample} tour={tour} step={0} onAction={() => {}} />
+      </StrictMode>,
+    );
+    fireEvent.click(notesButton());
+    act(() => {
+      vi.advanceTimersByTime(600);
+    });
+    expect(notes.close).not.toHaveBeenCalled();
+    expect(notesButton()).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('says how to allow it when the browser did not open it', () => {

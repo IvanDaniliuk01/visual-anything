@@ -30,8 +30,12 @@ export function TourNotesWindow({ notes, title, onClosed, onKey, children }: Tou
     latest.current = { onClosed, onKey };
   });
 
+  // The window closes a moment after the notes go, so that the same notes mounted again at once, as
+  // React's StrictMode does, keep it.
+  const closing = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
     if (notes === 'blocked') return;
+    clearTimeout(closing.current);
     const opened = notes.window;
     const onKeyDown = (event: KeyboardEvent) => {
       const action = tourKeyAction(event);
@@ -46,7 +50,7 @@ export function TourNotesWindow({ notes, title, onClosed, onKey, children }: Tou
     return () => {
       clearInterval(watch);
       opened.removeEventListener('keydown', onKeyDown);
-      opened.close();
+      closing.current = setTimeout(() => opened.close(), 0);
     };
   }, [notes]);
 
