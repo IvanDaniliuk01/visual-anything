@@ -263,7 +263,7 @@ describe('hostile spreadsheets', () => {
     const start = Date.now();
     const plan = read(`name\n"${'y'.repeat(1024 * 1024)}"\n`);
     expect(Date.now() - start).toBeLessThan(2_000);
-    expect(plan.elements[0]?.name).toHaveLength(200);
+    expect(plan.elements[0]?.name).toHaveLength(1_000);
   });
 });
 

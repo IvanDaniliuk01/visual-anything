@@ -30,6 +30,16 @@ export const DARK_SHADES: DarkShades = Object.freeze({
     'systems.person': { fill: '#3A2817', stroke: '#E9A35C' },
     'data-modeling.table': { fill: '#1A2A40', stroke: '#7CA6E8' },
     'data-modeling.column': { fill: '#1E2329', stroke: '#7CA6E8' },
+    'c4.person': { fill: '#172536', stroke: '#8DB8F2' },
+    'c4.software-system': { fill: '#16263A', stroke: '#84B1EE' },
+    'c4.container': { fill: '#18283B', stroke: '#8BB6EF' },
+    'c4.component': { fill: '#1A283A', stroke: '#97BEF1' },
+    'c4.deployment-node': { fill: '#1C2128', stroke: '#A3AFBC' },
+    'data-science.source': { fill: '#152A20', stroke: '#6CC795' },
+    'data-science.transform': { fill: '#2C2416', stroke: '#E2B45E' },
+    'data-science.feature-store': { fill: '#241F38', stroke: '#B7A0F2' },
+    'data-science.model': { fill: '#2E1C25', stroke: '#EE93B8' },
+    'data-science.dashboard': { fill: '#13292A', stroke: '#5FC6B8' },
   }),
   relationTypes: Object.freeze({
     'relates-to': { stroke: '#8F9AA6' },
@@ -37,6 +47,10 @@ export const DARK_SHADES: DarkShades = Object.freeze({
     'systems.reads-from': { stroke: '#AEB8C4' },
     'systems.writes-to': { stroke: '#AEB8C4' },
     'data-modeling.references': { stroke: '#7CA6E8' },
+    'c4.uses': { stroke: '#AEB8C4' },
+    'c4.delivers-to': { stroke: '#AEB8C4' },
+    'data-science.feeds': { stroke: '#AEB8C4' },
+    'data-science.trains': { stroke: '#B7A0F2' },
   }),
 });
 

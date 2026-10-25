@@ -258,7 +258,7 @@ describe('CanvasRenderer bands', () => {
     expect(renderer.showsOutline('patient')).toBe(false);
   });
 
-  it('draws 300 tiles of one shape each in full within two frames', async () => {
+  it('draws 300 tiles of one shape each in full a few a frame, within a count and a clock', async () => {
     const shapes = Array.from({ length: 300 }, (_, at) =>
       shapeAt(`s${at}`, {
         x: (at % 20) * 1024 + 100,
@@ -272,11 +272,35 @@ describe('CanvasRenderer bands', () => {
     renderer.show(indexScene(sceneOf(shapes)));
     renderer.setCamera({ x: 0, y: 0, scale: 0.3 });
     expect(shapeTiles(renderer)).toHaveLength(300);
+    // With a clock that never runs out, the count alone holds a frame to 150 shapes.
+    vi.spyOn(performance, 'now').mockReturnValue(0);
     renderer.renderNow();
     expect(shapeTiles(renderer).filter((tile) => tile.full)).toHaveLength(150);
     renderer.renderNow();
     expect(shapeTiles(renderer).every((tile) => tile.full)).toBe(true);
     expect(0.3).toBeLessThan(NAMES_FROM);
+  });
+
+  it('stops a frame’s new drawings once its clock would run out, past a few at least', async () => {
+    const shapes = Array.from({ length: 100 }, (_, at) =>
+      shapeAt(`s${at}`, {
+        x: (at % 10) * 1024 + 100,
+        y: Math.floor(at / 10) * 1024 + 100,
+        width: 100,
+        height: 50,
+      }),
+    );
+    const renderer = await started({ width: 10 * 1024 * 0.3, height: 10 * 1024 * 0.3 });
+    renderer.show(indexScene(sceneOf(shapes)));
+    renderer.setCamera({ x: 0, y: 0, scale: 0.3 });
+    // A clock on which every look takes 3 ms: a drawing of one shape seems to take 3 ms or more.
+    let now = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => (now += 3));
+    renderer.renderNow();
+    const first = shapeTiles(renderer).filter((tile) => tile.full).length;
+    expect(first).toBe(40);
+    for (let frame = 0; frame < 10; frame++) renderer.renderNow();
+    expect(shapeTiles(renderer).every((tile) => tile.full)).toBe(true);
   });
 });
 

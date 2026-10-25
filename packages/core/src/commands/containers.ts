@@ -3,7 +3,7 @@
  * does, and its preview. Containment is part of the model: leaving a container deletes the relations
  * that placed the element there, with what ends on them, and entering one creates a relation.
  */
-import type { Element, Id, Relation, ShapePosition } from '@visual-anything/schema';
+import type { Element, Id, Relation, ShapePosition, ViewFile } from '@visual-anything/schema';
 import { leavingRelations, nestingTypeFor, nestingTypesInView } from '../containers';
 import { appearanceOf } from '../definitions';
 import { randomIds, slug } from '../ids';
@@ -67,7 +67,15 @@ export function changeContainer(draft: Draft, command: ChangeContainerCommand): 
   const contentsOf = (key: Id): Set<Id> => {
     let ids = contents.get(key);
     if (!ids) {
-      ids = new Set(contentsInView(before, view, key === worldId ? undefined : key));
+      const container = key === worldId ? undefined : key;
+      ids = new Set(contentsInView(before, view, container));
+      // In a view with a scope, a shape sits where the scope puts it (ADR-0040); an element the
+      // scope leaves out can still change container through where it sits in the model.
+      if (view.scope !== undefined) {
+        const whole: ViewFile = { ...view };
+        delete whole.scope;
+        for (const id of contentsInView(before, whole, container)) ids.add(id);
+      }
       contents.set(key, ids);
     }
     return ids;

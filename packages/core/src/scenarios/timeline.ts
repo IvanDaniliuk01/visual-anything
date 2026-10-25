@@ -2,9 +2,12 @@
  * What a scenario plays, step by step, over its view as the view is now. Consecutive steps that happen
  * entirely inside a collapsed container play as one aggregated step; expanding the container plays
  * them one by one again. A broken step always plays on its own, so that it shows and can be fixed.
+ * A step whose relations are all out of the scope of its view is outside the view (ADR-0040): it
+ * plays on its own too, saying so, and is not a broken step.
  * The timeline is worked out from the files and never stored: playing changes nothing.
  */
 import type { Id, ScenarioFile, Step, ViewFile } from '@visual-anything/schema';
+import { shownByScope, type ShownByScope } from '../scope';
 import type { ProjectSnapshot } from '../snapshot';
 import { modelIndexOf } from '../state';
 import { collapsedIn, containmentInView, endsOf } from './containment';
@@ -21,6 +24,11 @@ export interface TimelineStep {
   relations: Id[];
   /** The relations it activates that are not: a step with any of them is a broken step. */
   missing: Id[];
+  /**
+   * Present on a step outside the view: every relation it activates is in the model, and the scope
+   * of the view it plays over shows none of them (ADR-0040).
+   */
+  outside?: true;
 }
 
 /** Consecutive steps that happen entirely inside a collapsed container, played as one. */
@@ -55,6 +63,11 @@ export function isBroken(entry: TimelineEntry): boolean {
   return entry.kind === 'step' && entry.missing.length > 0;
 }
 
+/** Whether an entry is a step outside the view: the view's scope shows none of its relations. */
+export function isOutside(entry: TimelineEntry): boolean {
+  return entry.kind === 'step' && entry.outside === true;
+}
+
 /**
  * What a scenario plays over a view, by default its own. A run of consecutive steps becomes one
  * aggregated step when every relation of each is in the model and every element those relations end
@@ -68,14 +81,19 @@ export function scenarioTimeline(
   view: ViewFile | undefined = project.views.find((each) => each.id === scenario.view),
 ): Timeline {
   const index = modelIndexOf(project);
-  const insideOf = view ? containerFinder(project, view) : () => undefined;
+  const shown = view?.scope === undefined ? undefined : shownByScope(project, view);
+  const insideOf = view ? containerFinder(project, view, shown) : () => undefined;
   const entries: TimelineEntry[] = [];
   const entryOf: number[] = [];
 
   scenario.steps.forEach((step, at) => {
     const relations = step.relations.filter((id) => index.relation(id) !== undefined);
     const missing = step.relations.filter((id) => index.relation(id) === undefined);
-    const container = missing.length === 0 ? insideOf(step) : undefined;
+    // Only a step whose every relation the view shows can happen inside a container it draws.
+    const showing = shown === undefined ? relations : relations.filter((id) => shown.relation(id));
+    const outside = missing.length === 0 && relations.length > 0 && showing.length === 0;
+    const container =
+      missing.length === 0 && showing.length === relations.length ? insideOf(step) : undefined;
     const last = entries.at(-1);
     if (container !== undefined && last?.kind === 'aggregated' && last.container === container) {
       last.count += 1;
@@ -93,7 +111,15 @@ export function scenarioTimeline(
         relations: [...new Set(relations)],
       });
     } else {
-      entries.push({ kind: 'step', first: at, count: 1, steps: [step.id], relations, missing });
+      entries.push({
+        kind: 'step',
+        first: at,
+        count: 1,
+        steps: [step.id],
+        relations,
+        missing,
+        ...(outside ? { outside: true as const } : {}),
+      });
     }
     entryOf.push(entries.length - 1);
   });
@@ -129,10 +155,17 @@ export function brokenStepsOf(project: ProjectSnapshot, scenario: ScenarioFile):
 
 /**
  * Finds the collapsed container a step happens entirely inside, in a view: the outermost of those
- * holding every element its relations reach, or undefined.
+ * holding every element its relations reach, or undefined. A container the view's scope leaves out is
+ * not drawn, so nothing happens inside it there.
  */
-function containerFinder(project: ProjectSnapshot, view: ViewFile): (step: Step) => Id | undefined {
-  const collapsed = collapsedIn(project, view);
+function containerFinder(
+  project: ProjectSnapshot,
+  view: ViewFile,
+  shown: ShownByScope | undefined,
+): (step: Step) => Id | undefined {
+  const listed = collapsedIn(project, view);
+  const collapsed =
+    shown === undefined ? listed : new Set([...listed].filter((id) => shown.element(id)));
   if (collapsed.size === 0) return () => undefined;
   const containment = containmentInView(project, view);
   const order = new Map(project.model.elements.map((element, at) => [element.id, at]));

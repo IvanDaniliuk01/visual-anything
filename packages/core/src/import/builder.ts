@@ -14,6 +14,7 @@ import {
   type PlannedRelation,
   type PlannedView,
 } from './plan';
+import { MAX_UNMATCHED, safeKind } from './reading';
 import {
   MAX_IMPORTED_DESCRIPTION,
   MAX_IMPORTED_NAME,
@@ -23,7 +24,7 @@ import {
 } from './text';
 
 /** The most things matched nothing a plan lists one by one. */
-export const MAX_UNMATCHED = 500;
+export { MAX_UNMATCHED };
 
 /** The deepest that imported containment goes, counted from the outermost container. */
 export const MAX_IMPORTED_DEPTH = 64;
@@ -86,6 +87,8 @@ export class PlanBuilder {
         `The file holds more than ${count(IMPORT_LIMITS.elements)} elements; an import brings at most ${count(IMPORT_LIMITS.elements)}.`,
       );
     }
+    // A kind named like what every object inherits is quoted, as every reader quotes it.
+    element.kind = safeKind(element.kind);
     this.#elements.set(element.key, element);
     this.kind('elements', element.kind, kind);
     return element;
@@ -93,21 +96,26 @@ export class PlanBuilder {
 
   /** Gives an element another kind, as a class given later does. */
   setKind(element: PlannedElement, kind: string, info: KindInfo): void {
-    element.kind = kind;
-    this.kind('elements', kind, info);
+    element.kind = safeKind(kind);
+    this.kind('elements', element.kind, info);
   }
 
   /** Registers how a kind shows; the first registration of a kind stays. */
   kind(of: 'elements' | 'relations', kind: string, info: KindInfo): void {
-    if (!this.#kinds[of].has(kind)) this.#kinds[of].set(kind, info);
+    const key = safeKind(kind);
+    if (!this.#kinds[of].has(key)) this.#kinds[of].set(key, info);
   }
 
   /** Adds a relation between two keys, which gets a key of its own. */
   relate(relation: Omit<PlannedRelation, 'key'>, kind: KindInfo): PlannedRelation {
     this.#checkRelations();
-    const planned: PlannedRelation = { key: `relation ${this.#relations.length + 1}`, ...relation };
+    const planned: PlannedRelation = {
+      key: `relation ${this.#relations.length + 1}`,
+      ...relation,
+      kind: safeKind(relation.kind),
+    };
     this.#relations.push(planned);
-    this.kind('relations', relation.kind, kind);
+    this.kind('relations', planned.kind, kind);
     return planned;
   }
 
@@ -157,7 +165,10 @@ export class PlanBuilder {
   name(text: string, fallback: string): string {
     const { text: name, cut } = importedName(text);
     if (cut) {
-      this.report(name, `The name is longer than ${MAX_IMPORTED_NAME} characters, so it is cut.`);
+      this.report(
+        name,
+        `The name is over ${count(MAX_IMPORTED_NAME)} characters; it is cut there.`,
+      );
     }
     return name === '' ? importedName(fallback).text || '?' : name;
   }
@@ -179,10 +190,14 @@ export class PlanBuilder {
   build(views: PlannedView[] = []): ImportPlan {
     const elements = [...this.#elements.values()];
     const unmatched = [...this.#unmatched];
+    // Said as the other readers say it (reading.ts).
     if (this.#unlisted > 0) {
       unmatched.push({
-        text: '…',
-        why: `Not listed here: ${count(this.#unlisted)} more that matched nothing.`,
+        text: `${count(this.#unlisted)} more`,
+        why:
+          this.#unlisted === 1
+            ? 'One more thing matched nothing; the list stops here.'
+            : `${count(this.#unlisted)} more things matched nothing; the list stops here.`,
       });
     }
     return {

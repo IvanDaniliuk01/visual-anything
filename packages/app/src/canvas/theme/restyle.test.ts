@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { TilePlan } from '../tiles';
 import {
+  RestyleCosts,
   drawingsFollowTheme,
   labelsFollowTheme,
   shownDrawings,
@@ -102,5 +103,21 @@ describe('takeRepaints', () => {
     expect(plan.make.map((each) => each.key)).toEqual(['b', 'c']);
     expect(plan.drop).toEqual(['b', 'd']);
     expect(plan.keep).toEqual(['k']);
+  });
+});
+
+describe('RestyleCosts', () => {
+  it('expects what it was told at first, then what drawings of the kind cost, leaning on the latest', () => {
+    const costs = new RestyleCosts(0.02);
+    expect(costs.estimate('shapes coarse', 50)).toBeCloseTo(1);
+    // Nothing drawn is counted as one item.
+    expect(costs.estimate('shapes coarse', 0)).toBeCloseTo(0.02);
+    costs.learn('shapes coarse', 10, 1);
+    expect(costs.estimate('shapes coarse', 50)).toBeCloseTo(5);
+    costs.learn('shapes coarse', 10, 3);
+    // 0.1 a shape before, 0.3 now: 0.6 of the one and 0.4 of the other.
+    expect(costs.estimate('shapes coarse', 10)).toBeCloseTo(1.8);
+    // Each kind of drawing on its own.
+    expect(costs.estimate('relations full', 10)).toBeCloseTo(0.2);
   });
 });

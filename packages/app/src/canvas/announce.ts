@@ -61,20 +61,39 @@ export function describeShape(
       container: container.name,
       relations: relations === 0 ? t('no relations') : t(RELATIONS, { count: relations }),
     };
-    return values.detail === ''
-      ? t('{name}, {component}, row {position} of {count} in {container}, {relations}.', values)
-      : t(
-          '{name}, {component}, {detail}, row {position} of {count} in {container}, {relations}.',
-          values,
-        );
+    return withLeaving(
+      shape,
+      values.detail === ''
+        ? t('{name}, {component}, row {position} of {count} in {container}, {relations}.', values)
+        : t(
+            '{name}, {component}, {detail}, row {position} of {count} in {container}, {relations}.',
+            values,
+          ),
+    );
   }
-  return t('{name}, {component}, {where}, {relations}.', {
-    name: shape.name,
-    component:
-      component === undefined ? shape.componentName : t.definition(component, shape.componentName),
-    where,
-    relations: relations === 0 ? t('no relations') : t(RELATIONS, { count: relations }),
-  });
+  return withLeaving(
+    shape,
+    t('{name}, {component}, {where}, {relations}.', {
+      name: shape.name,
+      component:
+        component === undefined
+          ? shape.componentName
+          : t.definition(component, shape.componentName),
+      where,
+      relations: relations === 0 ? t('no relations') : t(RELATIONS, { count: relations }),
+    }),
+  );
+}
+
+/** A shape's description, with how many relations leave the view from it, as its mark says (ADR-0040). */
+function withLeaving(shape: ElementShape, said: string): string {
+  const count = shape.leaving?.length ?? 0;
+  if (count === 0) return said;
+  const leaving = t(
+    { one: '{count} relation leaves this view', other: '{count} relations leave this view' },
+    { count },
+  );
+  return `${said} ${leaving}.`;
 }
 
 const RELATIONS: PluralText = { one: '{count} relation', other: '{count} relations' };

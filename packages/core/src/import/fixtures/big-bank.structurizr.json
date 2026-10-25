@@ -1,0 +1,373 @@
+{
+  "id": 1,
+  "name": "Big Bank plc",
+  "description": "A small part of the Big Bank plc example, as the Structurizr CLI exports it to JSON.",
+  "lastModifiedDate": "2026-10-01T10:00:00Z",
+  "configuration": {},
+  "model": {
+    "people": [
+      {
+        "id": "1",
+        "tags": "Element,Person,Customer",
+        "name": "Personal Banking Customer",
+        "description": "A customer of the bank, with personal bank accounts.",
+        "location": "External",
+        "relationships": [
+          {
+            "id": "11",
+            "tags": "Relationship",
+            "sourceId": "1",
+            "destinationId": "4",
+            "description": "Visits bigbank.com/ib using",
+            "technology": "HTTPS"
+          },
+          {
+            "id": "12",
+            "sourceId": "1",
+            "destinationId": "2",
+            "description": "Visits bigbank.com/ib using",
+            "technology": "HTTPS",
+            "linkedRelationshipId": "11"
+          }
+        ]
+      }
+    ],
+    "softwareSystems": [
+      {
+        "id": "2",
+        "tags": "Element,Software System",
+        "name": "Internet Banking System",
+        "description": "Allows customers to view information about their bank accounts, and make payments.",
+        "location": "Internal",
+        "containers": [
+          {
+            "id": "4",
+            "tags": "Element,Container",
+            "name": "Web Application",
+            "description": "Delivers the static content and the Internet banking single page application.",
+            "technology": "Java and Spring MVC",
+            "relationships": [
+              {
+                "id": "13",
+                "tags": "Relationship",
+                "sourceId": "4",
+                "destinationId": "5",
+                "description": "Delivers to the customer's web browser"
+              }
+            ]
+          },
+          {
+            "id": "5",
+            "tags": "Element,Container,Web Browser",
+            "name": "Single-Page Application",
+            "description": "Provides all of the Internet banking functionality to customers via their web browser.",
+            "technology": "JavaScript and Angular",
+            "relationships": [
+              {
+                "id": "14",
+                "tags": "Relationship,Asynchronous",
+                "sourceId": "5",
+                "destinationId": "6",
+                "description": "Makes API calls to",
+                "technology": "JSON/HTTPS",
+                "interactionStyle": "Asynchronous"
+              }
+            ]
+          },
+          {
+            "id": "6",
+            "tags": "Element,Container",
+            "name": "API Application",
+            "description": "Provides Internet banking functionality via a JSON/HTTPS API.",
+            "technology": "Java and Spring MVC",
+            "components": [
+              {
+                "id": "8",
+                "tags": "Element,Component",
+                "name": "Accounts Summary Controller",
+                "description": "Provides customers with a summary of their bank accounts.",
+                "technology": "Spring MVC Rest Controller",
+                "relationships": [
+                  {
+                    "id": "15",
+                    "tags": "Relationship",
+                    "sourceId": "8",
+                    "destinationId": "7",
+                    "description": "Reads from and writes to",
+                    "technology": "SQL/TCP"
+                  }
+                ]
+              }
+            ],
+            "relationships": [
+              {
+                "id": "16",
+                "sourceId": "6",
+                "destinationId": "7",
+                "description": "Reads from and writes to",
+                "technology": "SQL/TCP",
+                "linkedRelationshipId": "15"
+              },
+              {
+                "id": "17",
+                "tags": "Relationship",
+                "sourceId": "6",
+                "destinationId": "3",
+                "description": "Makes API calls to",
+                "technology": "XML/HTTPS"
+              }
+            ]
+          },
+          {
+            "id": "7",
+            "tags": "Element,Container,Database",
+            "name": "Database",
+            "description": "Stores user registration information, hashed authentication credentials, access logs, etc.",
+            "technology": "Oracle Database Schema"
+          }
+        ],
+        "relationships": [
+          {
+            "id": "18",
+            "sourceId": "2",
+            "destinationId": "3",
+            "description": "Makes API calls to",
+            "technology": "XML/HTTPS",
+            "linkedRelationshipId": "17"
+          }
+        ]
+      },
+      {
+        "id": "3",
+        "tags": "Element,Software System,Existing System",
+        "name": "Mainframe Banking System",
+        "description": "Stores all of the core banking information about customers, accounts, transactions, etc.",
+        "location": "Internal",
+        "url": "https://example.com/mainframe",
+        "properties": { "owner": "Core banking" }
+      }
+    ],
+    "deploymentNodes": [
+      {
+        "id": "20",
+        "tags": "Element,Deployment Node",
+        "name": "Big Bank plc",
+        "environment": "Live",
+        "technology": "Big Bank plc data center",
+        "instances": "1",
+        "children": [
+          {
+            "id": "21",
+            "tags": "Element,Deployment Node",
+            "name": "bigbank-api***",
+            "environment": "Live",
+            "technology": "Ubuntu 22.04 LTS",
+            "instances": "8",
+            "children": [
+              {
+                "id": "22",
+                "tags": "Element,Deployment Node",
+                "name": "Apache Tomcat",
+                "environment": "Live",
+                "technology": "Apache Tomcat 10.x",
+                "instances": "1",
+                "containerInstances": [
+                  {
+                    "id": "23",
+                    "tags": "Container Instance",
+                    "environment": "Live",
+                    "containerId": "6",
+                    "instanceId": 1,
+                    "relationships": [
+                      {
+                        "id": "25",
+                        "sourceId": "23",
+                        "destinationId": "24",
+                        "description": "Reads from and writes to",
+                        "technology": "SQL/TCP",
+                        "linkedRelationshipId": "16"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "26",
+            "tags": "Element,Deployment Node",
+            "name": "bigbank-db01",
+            "environment": "Live",
+            "technology": "Ubuntu 22.04 LTS",
+            "instances": "1",
+            "children": [
+              {
+                "id": "27",
+                "tags": "Element,Deployment Node",
+                "name": "Oracle - Primary",
+                "environment": "Live",
+                "technology": "Oracle 19c",
+                "instances": "1",
+                "containerInstances": [
+                  {
+                    "id": "24",
+                    "tags": "Container Instance",
+                    "environment": "Live",
+                    "containerId": "7",
+                    "instanceId": 1
+                  }
+                ]
+              }
+            ],
+            "infrastructureNodes": [
+              {
+                "id": "28",
+                "tags": "Element,Infrastructure Node",
+                "name": "Firewall",
+                "environment": "Live",
+                "technology": "Fortinet"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "documentation": {
+    "sections": [
+      {
+        "title": "Context",
+        "content": "The Internet Banking System lets customers manage their accounts.",
+        "format": "Markdown",
+        "order": 1
+      }
+    ]
+  },
+  "views": {
+    "systemContextViews": [
+      {
+        "key": "SystemContext",
+        "softwareSystemId": "2",
+        "description": "The system context diagram for the Internet Banking System.",
+        "paperSize": "A5_Landscape",
+        "dimensions": { "width": 2339, "height": 1654 },
+        "elements": [
+          { "id": "1", "x": 200, "y": 100 },
+          { "id": "2", "x": 200, "y": 700 },
+          { "id": "3", "x": 1000, "y": 700 }
+        ],
+        "relationships": [{ "id": "12" }, { "id": "18", "vertices": [{ "x": 800, "y": 850 }] }],
+        "order": 1
+      }
+    ],
+    "containerViews": [
+      {
+        "key": "Containers",
+        "title": "Internet Banking System: containers",
+        "softwareSystemId": "2",
+        "elements": [
+          { "id": "1", "x": 100, "y": 50 },
+          { "id": "3", "x": 1600, "y": 1200 },
+          { "id": "4", "x": 100, "y": 600 },
+          { "id": "5", "x": 700, "y": 600 },
+          { "id": "6", "x": 700, "y": 1200 },
+          { "id": "7", "x": 100, "y": 1200 }
+        ],
+        "relationships": [{ "id": "11" }, { "id": "13" }, { "id": "14" }, { "id": "17" }],
+        "order": 2
+      }
+    ],
+    "componentViews": [
+      {
+        "key": "Components",
+        "containerId": "6",
+        "automaticLayout": {
+          "implementation": "Graphviz",
+          "rankDirection": "TopBottom",
+          "rankSeparation": 300,
+          "nodeSeparation": 300,
+          "edgeSeparation": 0,
+          "vertices": false
+        },
+        "elements": [
+          { "id": "8", "x": 0, "y": 0 },
+          { "id": "7", "x": 0, "y": 0 }
+        ],
+        "relationships": [{ "id": "15" }],
+        "order": 3
+      }
+    ],
+    "dynamicViews": [
+      {
+        "key": "SignIn",
+        "elementId": "2",
+        "description": "Summarises how the sign in feature works.",
+        "elements": [
+          { "id": "5", "x": 100, "y": 100 },
+          { "id": "6", "x": 700, "y": 100 }
+        ],
+        "relationships": [
+          { "id": "14", "order": "1", "description": "Submits credentials to", "response": false }
+        ],
+        "order": 4
+      }
+    ],
+    "deploymentViews": [
+      {
+        "key": "LiveDeployment",
+        "softwareSystemId": "2",
+        "environment": "Live",
+        "elements": [
+          { "id": "20", "x": 0, "y": 0 },
+          { "id": "21", "x": 0, "y": 0 },
+          { "id": "22", "x": 0, "y": 0 },
+          { "id": "23", "x": 200, "y": 200 },
+          { "id": "26", "x": 0, "y": 0 },
+          { "id": "27", "x": 0, "y": 0 },
+          { "id": "24", "x": 900, "y": 200 },
+          { "id": "28", "x": 900, "y": 700 }
+        ],
+        "relationships": [{ "id": "25" }],
+        "order": 5
+      }
+    ],
+    "filteredViews": [
+      {
+        "key": "ContainersWithoutTheDatabase",
+        "baseViewKey": "Containers",
+        "mode": "Exclude",
+        "tags": ["Database"],
+        "order": 6
+      },
+      { "key": "Orphan", "baseViewKey": "Missing", "mode": "Include", "tags": ["Person"] }
+    ],
+    "imageViews": [
+      {
+        "key": "Logo",
+        "content": "data:image/png;base64,iVBORw0KGgo=",
+        "contentType": "image/png",
+        "order": 7
+      }
+    ],
+    "configuration": {
+      "styles": {
+        "elements": [
+          { "tag": "Element", "color": "#ffffff" },
+          {
+            "tag": "Person",
+            "background": "#08427b",
+            "shape": "Person",
+            "width": 400,
+            "height": 400
+          },
+          { "tag": "Database", "shape": "Cylinder" },
+          { "tag": "Web Browser", "shape": "WebBrowser" },
+          { "tag": "Existing System", "background": "#999999" }
+        ],
+        "relationships": [{ "tag": "Asynchronous", "dashed": true }]
+      },
+      "terminology": {},
+      "lastSavedView": "Containers"
+    }
+  }
+}

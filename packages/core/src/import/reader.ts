@@ -3,8 +3,10 @@
  * answers. Each reader is pure and strict: it reads the file it is given and nothing else, runs and
  * follows nothing in it, and refuses what it cannot read with reasons, rather than guessing.
  */
+import { ESSENCE_ID, RELATES_TO_ID, type Id } from '@visual-anything/schema';
 import type { ProjectSnapshot } from '../snapshot';
-import type { ImportPlan } from './plan';
+import { definitionsIn } from '../state';
+import type { ImportRead, ReadOptions as DiagramReadOptions } from './reading';
 
 /** A file to import, as the person chose it or pasted it. */
 export interface ImportInput {
@@ -17,7 +19,7 @@ export interface ImportInput {
 }
 
 /** What a reader may use besides the file. */
-export interface ReadOptions {
+export interface ReadOptions extends DiagramReadOptions {
   /**
    * The project the import lands in. Its definitions shape the suggestions, and a spreadsheet matches
    * its rows to the project's elements.
@@ -31,7 +33,7 @@ export interface ReadOptions {
 }
 
 /** What a reader made of a file: its plan, or why it could not read it. */
-export type ReadResult = { ok: true; plan: ImportPlan } | { ok: false; problems: string[] };
+export type ReadResult = ImportRead;
 
 /** A reader of one format, as the mapping dialog, the command line and Claude's tools list them. */
 export interface ImportReader {
@@ -43,6 +45,11 @@ export interface ImportReader {
   extensions: readonly string[];
   /** Whether a file looks like this format, by its name or its first lines. */
   recognizes(input: ImportInput): boolean;
+  /**
+   * Whether what a file holds says, whatever its name, that it is this format, as a Structurizr
+   * workspace's model does in a `.json` file; such readers are asked before names are.
+   */
+  identifies?(input: ImportInput): boolean;
   read(input: ImportInput, options?: ReadOptions): ReadResult;
 }
 
@@ -86,4 +93,20 @@ export function baseName(name: string): string {
   const file = name.split(/[\\/]/).pop() ?? name;
   const dot = file.lastIndexOf('.');
   return dot > 0 ? file.slice(0, dot) : file;
+}
+
+/**
+ * What readers are told the project uses, so that they suggest only that: what the caller
+ * says, else the project's components and relation types, Essence and "relates to".
+ */
+export function usesOf(options: ReadOptions | undefined): ((id: Id) => boolean) | undefined {
+  if (options?.uses !== undefined) return options.uses;
+  const project = options?.project;
+  if (project === undefined) return undefined;
+  const definitions = definitionsIn(project);
+  return (id) =>
+    id === ESSENCE_ID ||
+    id === RELATES_TO_ID ||
+    definitions.components.has(id) ||
+    definitions.relationTypes.has(id);
 }

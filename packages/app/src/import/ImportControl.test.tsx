@@ -142,7 +142,7 @@ describe('Import…', () => {
     renderControl({ send });
     paste('Just some words.');
     expect(within(dialog()).getByRole('alert')).toHaveTextContent(
-      'Visual Anything cannot tell how to read this file. It imports these formats: JSON, Mermaid and Spreadsheet.',
+      'Visual Anything cannot tell what this file is: name its format.',
     );
     fireEvent.change(within(dialog()).getByRole('textbox', { name: 'Text' }), {
       target: { value: 'name,component\nBilling,Service' },

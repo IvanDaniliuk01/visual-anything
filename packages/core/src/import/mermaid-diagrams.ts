@@ -10,6 +10,7 @@ import { attributesOf, type PlanBuilder } from './builder';
 import type { DiagramReader, MermaidLine } from './mermaid';
 import { mermaidText, splitOutsideQuotes, unquote } from './mermaid';
 import { own } from './reader';
+import { suggestionFor } from './reading';
 import { C4_ELEMENTS, C4_RELATIONS, ER_KINDS } from './suggest';
 import { importedName, oneLine } from './text';
 
@@ -82,7 +83,7 @@ function c4Arguments(text: string): { positional: string[]; named: Map<string, s
 }
 
 /** Reads a C4 diagram's macros. */
-export const readC4: DiagramReader = (all, makeBuilder) => {
+export const readC4: DiagramReader = (all, makeBuilder, options) => {
   const builder = makeBuilder();
   const lines = readable(builder, all);
   const open: { key: string; line: number }[] = [];
@@ -145,7 +146,7 @@ export const readC4: DiagramReader = (all, makeBuilder) => {
         const value = named.get(parameter);
         if (value !== undefined) values[parameter] = value;
       }
-      const suggested = own(C4_ELEMENTS, macro.replace(/_Ext$/, ''));
+      const suggested = suggestionFor(own(C4_ELEMENTS, macro.replace(/_Ext$/, '')) ?? [], options);
       const element = builder.add(
         {
           key: alias,
@@ -211,7 +212,7 @@ export const readC4: DiagramReader = (all, makeBuilder) => {
       continue;
     }
     const name = relation.name === '' ? '' : builder.name(relation.name, '');
-    const suggested = own(C4_RELATIONS, relation.kind);
+    const suggested = suggestionFor(own(C4_RELATIONS, relation.kind) ?? [], options);
     builder.relate(
       {
         from: relation.from,

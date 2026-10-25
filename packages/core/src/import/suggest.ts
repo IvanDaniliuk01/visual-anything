@@ -124,32 +124,36 @@ export const FLOWCHART_EDGES: Readonly<Record<string, Id>> = {
   'dotted-line': RELATES_TO_ID,
 };
 
-/** What C4's element and boundary macros suggest, by the macro's name without `_Ext`. */
-export const C4_ELEMENTS: Readonly<Record<string, Id>> = {
-  Person: 'systems.person',
-  System: 'systems.system',
-  SystemDb: 'systems.database',
-  SystemQueue: 'systems.service',
-  Container: 'systems.service',
-  ContainerDb: 'systems.database',
-  ContainerQueue: 'systems.service',
-  Component: 'systems.box',
-  ComponentDb: 'systems.database',
-  ComponentQueue: 'systems.box',
-  Boundary: 'systems.box',
-  Enterprise_Boundary: 'systems.box',
-  System_Boundary: 'systems.system',
-  Container_Boundary: 'systems.service',
-  Deployment_Node: 'systems.box',
-  Node: 'systems.box',
-  Node_L: 'systems.box',
-  Node_R: 'systems.box',
+/**
+ * What C4's element and boundary macros suggest, by the macro's name without `_Ext`: the C4 starter
+ * package's component first, then the Systems one, as the Structurizr reader suggests them, of which
+ * the first the project uses is chosen (`suggestionFor`).
+ */
+export const C4_ELEMENTS: Readonly<Record<string, readonly Id[]>> = {
+  Person: ['c4.person', 'systems.person'],
+  System: ['c4.software-system', 'systems.system'],
+  SystemDb: ['systems.database', 'c4.software-system'],
+  SystemQueue: ['c4.software-system', 'systems.service'],
+  Container: ['c4.container', 'systems.service'],
+  ContainerDb: ['systems.database', 'c4.container'],
+  ContainerQueue: ['c4.container', 'systems.service'],
+  Component: ['c4.component', 'systems.box'],
+  ComponentDb: ['systems.database', 'c4.component'],
+  ComponentQueue: ['c4.component', 'systems.box'],
+  Boundary: ['systems.box'],
+  Enterprise_Boundary: ['systems.box'],
+  System_Boundary: ['c4.software-system', 'systems.system'],
+  Container_Boundary: ['c4.container', 'systems.service'],
+  Deployment_Node: ['c4.deployment-node', 'systems.box'],
+  Node: ['c4.deployment-node', 'systems.box'],
+  Node_L: ['c4.deployment-node', 'systems.box'],
+  Node_R: ['c4.deployment-node', 'systems.box'],
 };
 
-/** What C4's relationships suggest. */
-export const C4_RELATIONS: Readonly<Record<string, Id>> = {
-  Rel: 'systems.communicates-with',
-  BiRel: 'systems.communicates-with',
+/** What C4's relationships suggest, the first the project uses chosen. */
+export const C4_RELATIONS: Readonly<Record<string, readonly Id[]>> = {
+  Rel: ['c4.uses', 'systems.communicates-with', 'relates-to'],
+  BiRel: ['c4.uses', 'systems.communicates-with', 'relates-to'],
 };
 
 /** What an ER diagram's parts suggest: tables, their columns, and references between tables. */

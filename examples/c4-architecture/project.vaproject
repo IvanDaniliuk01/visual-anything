@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "name": "Internet banking",
+  "description": "A sample of the C4 architecture package: a bank’s internet banking system, from the people who use it down to its components and the servers it runs on.",
+  "packages": [
+    "c4"
+  ]
+}

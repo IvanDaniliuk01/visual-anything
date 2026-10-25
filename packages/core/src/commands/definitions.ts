@@ -33,6 +33,13 @@ import type { ProjectSnapshot } from '../snapshot';
 import { definitionsIn } from '../state';
 import { compact, count, reject, requireName, sameJson, type Draft } from './draft';
 import {
+  checkedAttribution,
+  checkedLicense,
+  checkedPackageAbout,
+  checkedPackageDescription,
+  checkedVersion,
+} from './package-properties';
+import {
   changedAppearance,
   changedAttributes,
   changedRelationAppearance,
@@ -55,7 +62,7 @@ import type {
 } from './types';
 
 export function createPackage(draft: Draft, command: CreatePackageCommand): string {
-  const { id, description } = command.package;
+  const { id } = command.package;
   const name = requireName(command.package.name, 'A package');
   if (!isId(id)) reject('invalid-id', `"${String(id)}" is not a valid id.`);
   if (RESERVED_PACKAGE_IDS.has(id)) {
@@ -70,13 +77,10 @@ export function createPackage(draft: Draft, command: CreatePackageCommand): stri
   if (draft.state.packages.some((file) => file.id === id)) {
     reject('id-taken', `A package with the id "${id}" already exists.`, [id]);
   }
-  if (description !== undefined && typeof description !== 'string') {
-    reject('invalid-command', 'A package’s description is text.');
-  }
   const created: PackageFile = compact({
     id,
     name,
-    description,
+    ...checkedPackageAbout(command.package),
     components: [],
     relationTypes: [],
   });
@@ -96,18 +100,26 @@ export function createPackage(draft: Draft, command: CreatePackageCommand): stri
 
 export function updatePackage(draft: Draft, command: UpdatePackageCommand): string {
   const file = draft.ownPackage(command.id);
-  const changes = changesOf(command.changes, ['name', 'description'], `the package "${file.name}"`);
+  const changes = changesOf(
+    command.changes,
+    ['name', 'description', 'version', 'license', 'attribution'],
+    `the package "${file.name}"`,
+  );
   const properties: Partial<PackageFile> = { ...file };
   delete properties.components;
   delete properties.relationTypes;
   const next = { ...(properties as PackageProperties) };
   if (changes.name !== undefined) next.name = requireName(changes.name, 'A package');
-  if (changes.description === null) delete next.description;
-  else if (changes.description !== undefined) {
-    if (typeof changes.description !== 'string') {
-      reject('invalid-command', 'A package’s description is text.');
-    }
-    next.description = changes.description;
+  const checks = {
+    description: checkedPackageDescription,
+    version: checkedVersion,
+    license: checkedLicense,
+    attribution: checkedAttribution,
+  } as const;
+  for (const key of ['description', 'version', 'license', 'attribution'] as const) {
+    const change = changes[key];
+    if (change === null) delete next[key];
+    else if (change !== undefined) next[key] = checks[key](change);
   }
   if (!sameJson(next, properties)) {
     draft.apply({ op: 'set-package', package: file.id, properties: next });
@@ -360,7 +372,7 @@ export function removeRelationType(draft: Draft, command: RemoveRelationTypeComm
 // Checking whole definitions ----------------------------------------------------------------------
 
 /** A component a command defines whole, checked, with an id made from its name when it has none. */
-function checkedComponent(draft: Draft, file: PackageFile, value: unknown): Component {
+export function checkedComponent(draft: Draft, file: PackageFile, value: unknown): Component {
   const given = definitionObject(value, 'component', [
     'id',
     'name',
@@ -391,7 +403,7 @@ function checkedComponent(draft: Draft, file: PackageFile, value: unknown): Comp
 }
 
 /** A relation type a command defines whole, checked, with an id made from its name when it has none. */
-function checkedRelationType(draft: Draft, file: PackageFile, value: unknown): RelationType {
+export function checkedRelationType(draft: Draft, file: PackageFile, value: unknown): RelationType {
   const given = definitionObject(value, 'relation type', [
     'id',
     'name',
@@ -615,7 +627,7 @@ function descendantsOf(
  * that of every component derived from it still name attributes they have; and the relations and
  * values it now affects are warned about, at most 20 of each kind.
  */
-function afterComponentChange(
+export function afterComponentChange(
   draft: Draft,
   before: ProjectSnapshot,
   id: Id,
@@ -678,7 +690,7 @@ function afterComponentChange(
  * relations still nest without a cycle; no relation type a view nests by stops nesting; and the
  * relations whose limits or choices changed are warned about, at most 20 of each kind.
  */
-function afterRelationTypeChange(draft: Draft, before: ProjectSnapshot, id: Id): void {
+export function afterRelationTypeChange(draft: Draft, before: ProjectSnapshot, id: Id): void {
   const definitions = draft.definitions;
   const old = definitionsIn(before);
   rejectCycle(definitions, id);
@@ -1038,7 +1050,7 @@ function checkRemovedAttributesUnused(draft: Draft, id: Id, names: readonly stri
   }
 }
 
-function describeUsers(users: ReturnType<typeof usersOfDefinition>): string {
+export function describeUsers(users: ReturnType<typeof usersOfDefinition>): string {
   const parts: string[] = [];
   if (users.elements.length > 0) parts.push(count(users.elements.length, 'element'));
   if (users.relations.length > 0) parts.push(count(users.relations.length, 'relation'));

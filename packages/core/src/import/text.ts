@@ -4,9 +4,10 @@
  * ever builds markup: tags are dropped, entities are decoded into the characters they stand for, and
  * the result is only ever shown as text.
  */
+import { MAX_IMPORTED_NAME } from './reading';
 
-/** The longest name an import gives an element, a relation or a view, in characters. */
-export const MAX_IMPORTED_NAME = 200;
+/** The longest name an import gives an element, a relation or a view, in characters: every reader's. */
+export { MAX_IMPORTED_NAME };
 
 /** The longest description an import gives, in characters. */
 export const MAX_IMPORTED_DESCRIPTION = 10_000;

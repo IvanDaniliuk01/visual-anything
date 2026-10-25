@@ -12,6 +12,8 @@ import {
   baseName,
   hasExtension,
   own,
+  usesOf,
+  type ReadOptions,
   type ImportInput,
   type ImportReader,
   type ReadResult,
@@ -28,6 +30,8 @@ export interface MermaidLine {
 export type DiagramReader = (
   lines: readonly MermaidLine[],
   builder: () => PlanBuilder,
+  /** What the project uses, so that suggestions name only that, when the reader is told. */
+  options: { uses?: (id: string) => boolean },
 ) => { builder: PlanBuilder; title?: string } | { problems: string[] };
 
 /** The diagrams Visual Anything reads, by the keyword that starts them. */
@@ -81,11 +85,11 @@ export const MERMAID: ImportReader = {
   extensions: ['.mmd', '.mermaid'],
   recognizes: (input) =>
     hasExtension(input.name, MERMAID.extensions) || diagramKeyword(input.text) !== undefined,
-  read: (input) => readMermaid(input),
+  read: (input, options) => readMermaid(input, options),
 };
 
 /** Reads a Mermaid diagram into a plan, or says why it cannot. */
-export function readMermaid(input: ImportInput): ReadResult {
+export function readMermaid(input: ImportInput, options: ReadOptions = {}): ReadResult {
   if (input.text.length > MAX_IMPORT_TEXT) {
     return {
       ok: false,
@@ -109,11 +113,16 @@ export function readMermaid(input: ImportInput): ReadResult {
   }
   let made: ReturnType<DiagramReader>;
   try {
-    made = diagram.read(lines, () => {
-      const builder = new PlanBuilder(diagram.format, input.name);
-      for (const directive of directives) builder.report(directive, 'Directives are not read.');
-      return builder;
-    });
+    const uses = usesOf(options);
+    made = diagram.read(
+      lines,
+      () => {
+        const builder = new PlanBuilder(diagram.format, input.name);
+        for (const directive of directives) builder.report(directive, 'Directives are not read.');
+        return builder;
+      },
+      uses === undefined ? {} : { uses },
+    );
   } catch (error) {
     if (error instanceof PastLimits) return { ok: false, problems: [error.message] };
     throw error;

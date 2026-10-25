@@ -782,8 +782,8 @@ function checkedValue(
     else removals.add('value that is not allowed', 'values that are not allowed');
     return undefined;
   }
-  for (const match of value.matchAll(/([A-Za-z_][\w-]*)\s*\(/g)) {
-    const called = (match[1] ?? '').toLowerCase();
+  for (const calledName of calledNames(value)) {
+    const called = calledName.toLowerCase();
     if (!FUNCTIONS.has(called)) {
       removals.add('value that is not allowed', 'values that are not allowed');
       return undefined;
@@ -990,6 +990,25 @@ export function pathCommandCount(d: string): number {
     count += arity === 0 ? 1 : Math.max(1, Math.ceil(numbers / arity));
   }
   return count;
+}
+
+/**
+ * The names of the functions a value calls, as `name(` with spaces allowed before the parenthesis, in
+ * order. Each name is read back from its parenthesis, so the scan stays linear however long the value,
+ * as a pattern tried at every position is not on long path data.
+ */
+export function calledNames(value: string): string[] {
+  const names: string[] = [];
+  for (let at = value.indexOf('('); at !== -1; at = value.indexOf('(', at + 1)) {
+    let end = at;
+    while (end > 0 && /\s/.test(value[end - 1] as string)) end -= 1;
+    let start = end;
+    while (start > 0 && /[\w-]/.test(value[start - 1] as string)) start -= 1;
+    // A name starts with a letter or an underscore; what comes before it in the run is not its own.
+    while (start < end && !/[A-Za-z_]/.test(value[start] as string)) start += 1;
+    if (start < end) names.push(value.slice(start, end));
+  }
+  return names;
 }
 
 function numbersIn(text: string): number {

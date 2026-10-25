@@ -9,6 +9,7 @@ import { IMPORT_LIMITS, type ImportPlan, type PlannedElement } from './plan';
 import { C4, CLASSES, ER, FLOWCHART, HOSTILE } from './fixtures/mermaid';
 import { MERMAID, readMermaid } from './mermaid';
 import { MAX_IMPORTED_NAME } from './text';
+import { systemsProject } from './fixtures/projects';
 
 function read(text: string, name = 'diagram.mmd'): ImportPlan {
   const result = readMermaid({ name, text });
@@ -289,18 +290,26 @@ describe('a Mermaid C4 diagram', () => {
     expect(plan.relations[3]?.attributes).toEqual({ technology: 'SQL' });
   });
 
-  it('suggests the Systems components for each macro', () => {
+  it('suggests the C4 starter package for each macro, told nothing of the project', () => {
     expect(kinds(plan, 'elements')).toEqual({
-      Person: { label: 'Person', count: 1, suggested: 'systems.person' },
-      System_Ext: { label: 'System_Ext', count: 1, suggested: 'systems.system' },
-      System_Boundary: { label: 'System_Boundary', count: 1, suggested: 'systems.system' },
-      Container: { label: 'Container', count: 2, suggested: 'systems.service' },
+      Person: { label: 'Person', count: 1, suggested: 'c4.person' },
+      System_Ext: { label: 'System_Ext', count: 1, suggested: 'c4.software-system' },
+      System_Boundary: { label: 'System_Boundary', count: 1, suggested: 'c4.software-system' },
+      Container: { label: 'Container', count: 2, suggested: 'c4.container' },
       ContainerDb: { label: 'ContainerDb', count: 1, suggested: 'systems.database' },
     });
     expect(kinds(plan, 'relations')).toEqual({
-      Rel: { label: 'Rel', count: 3, suggested: 'systems.communicates-with' },
-      BiRel: { label: 'BiRel', count: 1, suggested: 'systems.communicates-with' },
+      Rel: { label: 'Rel', count: 3, suggested: 'c4.uses' },
+      BiRel: { label: 'BiRel', count: 1, suggested: 'c4.uses' },
     });
+  });
+
+  it('suggests what the project uses, when told the project', () => {
+    const result = readMermaid({ name: 'clinic.mmd', text: C4 }, { project: systemsProject() });
+    if (!result.ok) throw new Error(result.problems.join(' '));
+    expect(kinds(result.plan, 'elements').Person?.suggested).toBe('systems.person');
+    expect(kinds(result.plan, 'elements').Container?.suggested).toBe('systems.service');
+    expect(kinds(result.plan, 'relations').Rel?.suggested).toBe('systems.communicates-with');
   });
 
   it('reports links, styles and layout it does not follow or read', () => {
@@ -484,7 +493,7 @@ describe('hostile Mermaid', () => {
     expect(Array.from(element(plan, 'a').name)).toHaveLength(MAX_IMPORTED_NAME);
     expect(plan.unmatched).toContainEqual({
       text: `${'x'.repeat(119)}…`,
-      why: `The name is longer than ${MAX_IMPORTED_NAME} characters, so it is cut.`,
+      why: 'The name is over 1,000 characters; it is cut there.',
     });
   });
 

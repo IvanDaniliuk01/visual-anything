@@ -3,8 +3,9 @@
  * appearance shows. The core cleans every image before it stores it, whoever sends it, and stores only
  * what cleaning gives.
  */
-import type { Appearance, Id, ImageDefinition } from '@visual-anything/schema';
+import type { Appearance, Id, ImageDefinition, PackageFile } from '@visual-anything/schema';
 import { isId } from '../ids';
+import { isLicenseId } from '../licenses';
 import { decodeBase64, encodeBase64 } from '../images/base64';
 import { readBitmap } from '../images/bitmap';
 import { IMAGE_CAPS, imageUsers, imagesIn } from '../images/catalog';
@@ -14,7 +15,7 @@ import type { Operation } from '../operations';
 import { problem, type Problem } from '../problems';
 import type { ProjectSnapshot } from '../snapshot';
 import { definitionsIn, modelIndexOf } from '../state';
-import { Rejection, count, reject, requireName, type Draft } from './draft';
+import { Rejection, compact, count, reject, requireName, type Draft } from './draft';
 import type { DefineImageCommand, RemoveImageCommand } from './types';
 
 /** The longest base64 a command may send for a bitmap, before its metadata is dropped. */
@@ -29,17 +30,7 @@ export function defineImage(draft: Draft, command: DefineImageCommand): string {
   if (typeof asked !== 'object' || asked === null) {
     reject('invalid-command', 'define-image needs the image to define.');
   }
-  const name = requireName(asked.name, 'An image');
-  if (name.length > IMAGE_CAPS.name) {
-    reject('invalid-command', `An image's name has at most ${IMAGE_CAPS.name} characters.`);
-  }
-  const source = asked.source;
-  if (source !== undefined && (typeof source !== 'string' || source.length > IMAGE_CAPS.source)) {
-    reject(
-      'invalid-command',
-      `Where an image comes from is text of at most ${IMAGE_CAPS.source} characters.`,
-    );
-  }
+  const { name, source, license } = checkedImageAbout(asked, NEW_IMAGE_KEYS);
   const isSvg = asked.svg !== undefined;
   const isBitmap = asked.data !== undefined || asked.format !== undefined;
   if (isSvg === isBitmap) {
@@ -77,28 +68,15 @@ export function defineImage(draft: Draft, command: DefineImageCommand): string {
     id = draft.newDefinitionId(file.id, name, 'image');
   }
 
+  const about: ImageAbout = compact({ id, name, source, license });
   const { image, removed } = isSvg
-    ? cleanedSvg(asked.svg, id, name, source)
-    : cleanedBitmap(asked.format, asked.data, id, name, source);
+    ? cleanedSvg(asked.svg, about)
+    : cleanedBitmap(asked.format, asked.data, about);
 
   const next = existing
     ? images.map((each) => (each === existing ? image : each))
     : [...images, image];
-  if (next.length > IMAGE_CAPS.perPackage) {
-    reject(
-      'image-too-large',
-      `A package holds at most ${IMAGE_CAPS.perPackage} images; "${file.name}" is full.`,
-      [file.id],
-    );
-  }
-  const total = next.reduce((sum, each) => sum + imageText(each).length, 0);
-  if (total > IMAGE_CAPS.packageText) {
-    reject(
-      'image-too-large',
-      `The images of the package "${file.name}" would hold over 2 MiB; keep fewer or smaller pictures there.`,
-      [file.id],
-    );
-  }
+  checkImageCaps(file, next);
 
   const collection = { name: 'images', package: file.id } as const;
   draft.apply(
@@ -141,26 +119,124 @@ export function removeImage(draft: Draft, command: RemoveImageCommand): string {
   return `Remove the image "${defined.definition.name}"`;
 }
 
+/** Refuses images past what a package may hold: 128 of them, and 2 MiB of image text in all. */
+export function checkImageCaps(
+  file: Pick<PackageFile, 'id' | 'name'>,
+  images: readonly ImageDefinition[],
+): void {
+  if (images.length > IMAGE_CAPS.perPackage) {
+    reject(
+      'image-too-large',
+      `A package holds at most ${IMAGE_CAPS.perPackage} images; "${file.name}" is full.`,
+      [file.id],
+    );
+  }
+  const total = images.reduce((sum, each) => sum + imageText(each).length, 0);
+  if (total > IMAGE_CAPS.packageText) {
+    reject(
+      'image-too-large',
+      `The images of the package "${file.name}" would hold over 2 MiB; keep fewer or smaller pictures there.`,
+      [file.id],
+    );
+  }
+}
+
+/** What an image says about itself besides its picture: its id, name, source and license. */
+export interface ImageAbout {
+  id: Id;
+  name: string;
+  source?: string;
+  license?: string;
+}
+
+/** The keys `define-image` takes for an image. */
+const NEW_IMAGE_KEYS: readonly string[] = [
+  'id',
+  'name',
+  'source',
+  'license',
+  'svg',
+  'format',
+  'data',
+];
+
+/** The keys an image of each kind has, as a package file holds it. */
+const STORED_IMAGE_KEYS: Readonly<Record<ImageDefinition['kind'], readonly string[]>> = {
+  svg: ['kind', 'id', 'name', 'source', 'license', 'width', 'height', 'svg'],
+  bitmap: ['kind', 'id', 'name', 'source', 'license', 'format', 'width', 'height', 'data'],
+};
+
+/**
+ * Checks what an image says about itself, as every command that stores one checks it, wherever the
+ * image comes from: only the keys given, a name of at most 200 characters, a source of text of at
+ * most 500, and a license written as an SPDX identifier.
+ */
+function checkedImageAbout(
+  asked: Partial<Record<string, unknown>>,
+  keys: readonly string[],
+): { name: string; source?: string; license?: string } {
+  for (const key of Object.keys(asked)) {
+    if (!keys.includes(key)) reject('invalid-command', `An image has no "${key}".`);
+  }
+  const name = requireName(asked.name, 'An image');
+  if (name.length > IMAGE_CAPS.name) {
+    reject('invalid-command', `An image's name has at most ${IMAGE_CAPS.name} characters.`);
+  }
+  const source = asked.source;
+  if (source !== undefined && (typeof source !== 'string' || source.length > IMAGE_CAPS.source)) {
+    reject(
+      'invalid-command',
+      `Where an image comes from is text of at most ${IMAGE_CAPS.source} characters.`,
+    );
+  }
+  const license = asked.license;
+  if (license !== undefined && !isLicenseId(license)) {
+    reject(
+      'invalid-command',
+      'An image’s license is an SPDX license identifier, such as CC0-1.0 or MIT.',
+    );
+  }
+  return compact({ name, source, license });
+}
+
+/**
+ * An image as a package holds it, checked and cleaned again as `define-image` checks and cleans
+ * one, with what cleaning removed: an image that comes from another project is never trusted to be
+ * well formed or clean already. Its width and height are what cleaning finds, never what it says.
+ */
+export function cleanedImage(given: unknown): {
+  image: ImageDefinition;
+  removed: readonly string[];
+} {
+  if (typeof given !== 'object' || given === null || Array.isArray(given)) {
+    reject('invalid-command', 'Each definition and image of a package is an object.');
+  }
+  const image = given as Partial<Record<string, unknown>>;
+  const { kind } = image;
+  if (kind !== 'svg' && kind !== 'bitmap') {
+    reject('invalid-command', 'An image is of the kind "svg" or "bitmap".');
+  }
+  const { name, source, license } = checkedImageAbout(image, STORED_IMAGE_KEYS[kind]);
+  if (!isId(image.id)) {
+    reject('invalid-id', `${JSON.stringify(image.id) ?? 'undefined'} is not a valid id.`);
+  }
+  const about: ImageAbout = compact({ id: image.id, name, source, license });
+  return kind === 'svg'
+    ? cleanedSvg(image.svg, about)
+    : cleanedBitmap(image.format, image.data, about);
+}
+
 function cleanedSvg(
   svg: unknown,
-  id: Id,
-  name: string,
-  source: string | undefined,
+  about: ImageAbout,
 ): { image: ImageDefinition; removed: readonly string[] } {
+  const { name } = about;
   if (typeof svg !== 'string') reject('invalid-command', 'An SVG image is given as text.');
   const result = cleanSvg(svg);
   if (!result.ok) refuse(result.problem, name);
   const { width, height } = result.value;
   return {
-    image: {
-      kind: 'svg',
-      id,
-      name,
-      ...(source === undefined ? {} : { source }),
-      width,
-      height,
-      svg: result.value.svg,
-    },
+    image: { kind: 'svg', ...about, width, height, svg: result.value.svg },
     removed: result.removed,
   };
 }
@@ -168,10 +244,9 @@ function cleanedSvg(
 function cleanedBitmap(
   format: unknown,
   data: unknown,
-  id: Id,
-  name: string,
-  source: string | undefined,
+  about: ImageAbout,
 ): { image: ImageDefinition; removed: readonly string[] } {
+  const { name } = about;
   if (typeof format !== 'string' || !FORMATS.has(format)) {
     reject(
       'invalid-command',
@@ -192,9 +267,7 @@ function cleanedBitmap(
   return {
     image: {
       kind: 'bitmap',
-      id,
-      name,
-      ...(source === undefined ? {} : { source }),
+      ...about,
       format: format as 'png' | 'jpeg' | 'webp',
       width,
       height,

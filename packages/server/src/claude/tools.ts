@@ -27,6 +27,7 @@ import { IMAGE_TOOLS } from './image-tools';
 import { IMPORT_TOOLS } from './import-tools';
 import { RECIPES_IN_BRIEF } from './recipes';
 import { SCENARIO_TOOLS } from './scenario-tools';
+import { SCOPE_TOOLS } from './scope-tools';
 import { VIEW_STATE_TOOLS, openApp } from './view-tools';
 import {
   MAX_RESULTS,
@@ -214,7 +215,7 @@ Example: { "id": "booking-agent" }`,
 const readViewTool = tool({
   name: 'read_view',
   title: 'Read a view',
-  description: `Reads a view: its perspective, the nesting relation types that arrange it, the positions it stores (each relative to the container shape it sits in; pinned ones were set by hand), its free shapes (notes and arrows), the containers it shows collapsed, the routes chosen by hand for its relations (every other relation is routed automatically), and, for World and every container, the order it draws the shapes directly inside, back to front. An element without a position is placed by layout.
+  description: `Reads a view: its perspective, the nesting relation types that arrange it, the positions it stores (each relative to the container shape it sits in; pinned ones were set by hand), its free shapes (notes and arrows), the containers it shows collapsed, the routes chosen by hand for its relations (every other relation is routed automatically), and, for World and every container, the order it draws the shapes directly inside, back to front. An element without a position is placed by layout. It also says how many elements and relations the view shows out of the model's (shows), and its scope when it has one: get_scope says more.
 
 Example: { "view": "system-overview" }`,
   input: { view: id() },
@@ -315,6 +316,11 @@ Example: {
         }),
       )
       .optional(),
+    view: id()
+      .optional()
+      .describe(
+        'The view the person is building in: in a view with a scope, the new elements show there even where its rules would leave them out.',
+      ),
     label: z
       .string()
       .min(1)
@@ -471,8 +477,17 @@ const createPackage = tool({
   title: 'Create a package',
   description: `Creates an empty package of the project's own, which the project then uses, as one undoable action. Components and relation types are defined in a package; their ids start with its id and a dot.
 
-Example: { "id": "clinic", "name": "Clinic", "description": "What a clinic needs beyond Systems." }`,
-  input: { id: id(), name: z.string().min(1), description: z.string().optional() },
+A package can say which version it is (a semantic version, such as "1.0.0"), the license it is shared under (an SPDX identifier, such as "CC-BY-4.0") and whom to credit (attribution); exports carry the attribution.
+
+Example: { "id": "clinic", "name": "Clinic", "description": "What a clinic needs beyond Systems.", "version": "1.0.0", "license": "CC0-1.0" }`,
+  input: {
+    id: id(),
+    name: z.string().min(1),
+    description: z.string().optional(),
+    version: z.string().optional(),
+    license: z.string().optional(),
+    attribution: z.string().optional(),
+  },
   hints: WRITE,
   run: async (args, program) =>
     act(program, { type: 'create-package', package: withoutUndefined(args) }),
@@ -631,13 +646,16 @@ Example: { "id": "clinic.books", "direction": "directed", "limits": { "to": ["cl
 const updatePackage = tool({
   name: 'update_package',
   title: 'Rename a package',
-  description: `Changes the name or description of one of the project's own packages, as one undoable action. Its id stays.
+  description: `Changes the name, description, version, license or attribution of one of the project's own packages, as one undoable action; null takes the description, version, license or attribution out. Its id stays. A version is a semantic version, such as "1.2.0", and a license an SPDX identifier, such as "MIT".
 
 Example: { "id": "clinic", "name": "Clinic", "description": "What a clinic needs beyond Systems." }`,
   input: {
     id: id(),
     name: z.string().min(1).optional(),
     description: z.string().nullable().optional(),
+    version: z.string().nullable().optional(),
+    license: z.string().nullable().optional(),
+    attribution: z.string().nullable().optional(),
   },
   hints: WRITE,
   run: async ({ id: target, ...changes }, program) =>
@@ -671,7 +689,7 @@ const createView = tool({
   title: 'Create a view',
   description: `Creates a view, as one undoable action. A view shows the model from exactly one perspective, such as "Data flow", "Ownership" or "Security", and is arranged by the nesting relation types it lists; without them, every relation type that nests arranges it. A new view has no positions: layout places every shape until you set some.
 
-Every view shows the whole model, so what an import adds shows in the views already there. After an import, create a view when the material brings a perspective none of them has, such as a draw.io page, a Structurizr deployment or a SQL schema's tables, arranged by the nesting relation types that material uses.
+A new view shows the whole model, so what an import adds shows in the views without a scope; set_scope gives a view a scope, the part of the model it shows. After an import, create a view when the material brings a perspective none of them has, such as a draw.io page, a Structurizr deployment or a SQL schema's tables, arranged by the nesting relation types that material uses.
 
 Example: { "name": "Who owns what", "perspective": { "name": "Ownership", "description": "Which team runs each service." }, "nestingRelationTypes": ["systems.is-part-of"] }`,
   input: {
@@ -1097,6 +1115,8 @@ export const TOOLS: readonly Tool[] = [
   ...EXPLORE_TOOLS,
   ...VIEW_STATE_TOOLS,
   ...IMPORT_TOOLS,
+  // What a view shows of the model (ADR-0040).
+  ...SCOPE_TOOLS,
 ];
 
 /** Runs a tool, turning a program that cannot be reached into an outcome Claude reads. */
@@ -1299,6 +1319,7 @@ function buildAdditions(
         appearance: element.appearance,
       }),
       ...(containers.length === 0 ? {} : { containers }),
+      ...(args.view === undefined ? {} : { inView: args.view }),
       ...(element.positions === undefined
         ? {}
         : {

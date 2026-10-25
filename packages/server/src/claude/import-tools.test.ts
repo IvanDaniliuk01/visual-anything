@@ -47,7 +47,7 @@ describe('preview_import', () => {
 
   it('refuses what cannot be read, or a kind the file does not have', async () => {
     expect(await tools.failure('preview_import', { content: 'Just words.' })).toMatch(
-      /^It cannot be imported: Visual Anything cannot tell how to read this file\./,
+      /^It cannot be imported: Visual Anything cannot tell what this file is: name its format.$/,
     );
     expect(
       await tools.failure('preview_import', {

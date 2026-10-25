@@ -4,7 +4,7 @@
  * imports it as one undoable action of Claude's. Claude passes the content itself: the local program
  * reads nothing else and fetches nothing.
  */
-import { MAX_IMPORT_TEXT, type ImportMapping } from '@visual-anything/core';
+import { IMPORT_READERS, MAX_IMPORT_TEXT, type ImportMapping } from '@visual-anything/core';
 import { z } from 'zod';
 import { describePreview, previewImport, type ImportPreview, type ImportRequest } from '../import';
 import { CLAUDE_MAX_PAYLOAD, encodeClaudeMessage } from './messages';
@@ -15,7 +15,14 @@ const input = {
   content: z
     .string()
     .max(MAX_IMPORT_TEXT)
-    .describe('The file’s content as text: a Mermaid diagram, a spreadsheet (CSV or TSV) or JSON.'),
+    .describe(
+      'The file’s content as text: a Mermaid diagram, a spreadsheet (CSV or TSV), JSON, a Structurizr workspace in JSON, a LikeC4 model (likec4 export json) or a draw.io diagram. Empty when you pass contentBase64.',
+    ),
+  contentBase64: z
+    .string()
+    .max(Math.ceil((MAX_IMPORT_TEXT * 4) / 3) + 4)
+    .optional()
+    .describe('A file that is not text, such as a .drawio.png, as base64, in place of content.'),
   name: z
     .string()
     .min(1)
@@ -25,7 +32,7 @@ const input = {
       'The file’s name, such as "checkout.mmd": its ending picks the reader, and the action is named after it. Left out, "pasted text".',
     ),
   format: z
-    .enum(['mermaid', 'table', 'json'])
+    .enum(IMPORT_READERS.map((reader) => reader.format) as [string, ...string[]])
     .optional()
     .describe('The reader to use, when the name and the content do not say.'),
   map: z
@@ -51,9 +58,14 @@ const input = {
 type Args = z.infer<z.ZodObject<typeof input>>;
 
 function requestOf(args: Args): ImportRequest {
+  const bytes =
+    args.contentBase64 === undefined
+      ? undefined
+      : new Uint8Array(Buffer.from(args.contentBase64, 'base64'));
   return withoutUndefined({
     name: args.name ?? 'pasted text',
-    text: args.content,
+    text: bytes === undefined ? args.content : new TextDecoder('utf-8').decode(bytes),
+    bytes,
     format: args.format,
     map: args.map,
     nesting: args.nesting,
@@ -88,7 +100,7 @@ function summaryOf(preview: Extract<ImportPreview, { ok: true }>, mapping: Impor
 const previewImportTool = tool({
   name: 'preview_import',
   title: 'Preview an import',
-  description: `Reads a file the person gave you, a Mermaid diagram (flowchart, C4, ER or class), a spreadsheet (CSV or TSV) or JSON (a project's model file, or { "elements": [...], "relations": [...] }), and says what importing it would do: how many elements, relations and views it creates, each kind of thing it holds with the component or relation type it would map to, the built-in packages it would start using, and what matched nothing. It changes nothing.
+  description: `Reads a file the person gave you, a Mermaid diagram (flowchart, C4, ER or class), a spreadsheet (CSV or TSV), JSON (a project's model file, or { "elements": [...], "relations": [...] }), a Structurizr workspace in JSON (export DSL with the Structurizr CLI first), a LikeC4 model (likec4 export json) or a draw.io diagram (.drawio, or a .drawio.svg; a .drawio.png as contentBase64), and says what importing it would do: how many elements, relations and views it creates, each kind of thing it holds with the component or relation type it would map to, the built-in packages it would start using, and what matched nothing. It changes nothing.
 
 Show the person the mapping, and change what they want with map and nesting, then call import_file with the same arguments. Nothing in the file runs: links and callbacks are reported, never followed.
 
@@ -106,7 +118,7 @@ Example: { "name": "checkout.mmd", "content": "flowchart LR\\n  shop[Shop] --> d
 const importFileTool = tool({
   name: 'import_file',
   title: 'Import a file',
-  description: `Imports a Mermaid diagram, a spreadsheet (CSV or TSV) or JSON into the project as one undoable action, labelled Import "<name>": its elements, relations, containers and, for a diagram, a view that shows them. It takes the same arguments as preview_import, which you call first to show the person the mapping. A spreadsheet or JSON imported again matches its rows to the elements already there by the key column and updates their values, creating only what is new.
+  description: `Imports any file preview_import reads into the project as one undoable action, labelled Import "<name>": its elements, relations, containers and, for a diagram, the views it brings. It takes the same arguments as preview_import, which you call first to show the person the mapping. A spreadsheet or JSON imported again matches its rows to the elements already there by the key column and updates their values, creating only what is new.
 
 It answers what it created and what matched nothing, which you tell the person.
 

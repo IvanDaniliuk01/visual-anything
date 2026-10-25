@@ -33,9 +33,12 @@ import { openSession } from './session';
 export const IMPORT_USAGE = `Usage: visual-anything import <folder> <file> [--map <kind>=<id>]... [--nesting <id>]
                              [--key <column>] [--format <format>] [--no-view] [--dry-run]
 
-Imports a Mermaid diagram (flowchart, C4, ER or class), a spreadsheet (CSV or TSV) or JSON into the
-project in folder, as one action you can undo in the app. When Visual Anything runs on the project,
-the import goes through it; otherwise the project is opened, the import applied and saved.
+Imports a Mermaid diagram (flowchart, C4, ER or class), a spreadsheet (CSV or TSV), JSON, a
+Structurizr workspace in JSON, a LikeC4 model or a draw.io file (.drawio, .xml, .drawio.svg or
+.drawio.png) into the project in folder, as one action you can undo in the app. Structurizr DSL is
+not read: export it to JSON first, with structurizr-cli export -workspace workspace.dsl -format json.
+When Visual Anything runs on the project, the import goes through it; otherwise the project is
+opened, the import applied and saved.
 
   --map <kind>=<id>  Map a kind of the file, as --dry-run lists them, to a component or relation
                      type by its id; give it again for more, and =<id> for rows that name no
@@ -43,7 +46,8 @@ the import goes through it; otherwise the project is opened, the import applied 
   --nesting <id>     The relation type that puts what sits inside what in its container.
   --key <column>     For a spreadsheet or JSON: match rows to the project's elements by this column,
                      to import again; the id column by default.
-  --format <format>  Read the file as mermaid, table or json, whatever its name says.
+  --format <format>  Read the file as structurizr, likec4, drawio, json, mermaid or table, whatever
+                     its name says.
   --no-view          Do not create the view a diagram brings.
   --dry-run          Say what the import would do, and import nothing.
   -h, --help         Show this help.`;

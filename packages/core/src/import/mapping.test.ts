@@ -123,7 +123,9 @@ describe('mappingChoices', () => {
     });
     expect(ids.indexOf('systems.database')).toBeLessThan(ids.indexOf('data-modeling.table'));
     const nesting = choices.relationTypes.filter((each) => each.nests).map((each) => each.id);
-    expect(nesting).toEqual(['systems.is-part-of', 'data-modeling.is-column-of']);
+    // The project's own first, then the built-in packages' it does not use, the starter packages' too.
+    expect(nesting[0]).toBe('systems.is-part-of');
+    expect(nesting).toContain('data-modeling.is-column-of');
   });
 });
 

@@ -1,0 +1,67 @@
+{
+  "id": "pipeline",
+  "name": "Pipeline",
+  "description": "Every source, step, model and dashboard, and how data flows between them.",
+  "perspective": {
+    "name": "Data flow"
+  },
+  "nestingRelationTypes": [],
+  "positions": [
+    {
+      "element": "product-events",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "crm",
+      "x": 0,
+      "y": 112
+    },
+    {
+      "element": "billing",
+      "x": 0,
+      "y": 224
+    },
+    {
+      "element": "clean-events",
+      "x": 256,
+      "y": 0
+    },
+    {
+      "element": "join-customers",
+      "x": 256,
+      "y": 216
+    },
+    {
+      "element": "compute-features",
+      "x": 512,
+      "y": 200
+    },
+    {
+      "element": "customer-features",
+      "x": 768,
+      "y": 200
+    },
+    {
+      "element": "churn-model",
+      "x": 1024,
+      "y": 104
+    },
+    {
+      "element": "score-customers",
+      "x": 1280,
+      "y": 200
+    },
+    {
+      "element": "churn-dashboard",
+      "x": 1536,
+      "y": 200
+    },
+    {
+      "element": "model-monitoring",
+      "x": 1280,
+      "y": 88
+    }
+  ],
+  "freeShapes": []
+}

@@ -42,7 +42,7 @@ const FILES: readonly { name: string; text: string }[] = [
       '  click a "https://example.com"',
       '  d@{ img: "https://example.com/x.png" }',
       '  a -->',
-      `  e["${'x'.repeat(300)}"]`,
+      `  e["${'x'.repeat(1_200)}"]`,
     ].join('\n'),
   },
   { name: 'open.mmd', text: 'flowchart LR\n  subgraph s\n  a' },

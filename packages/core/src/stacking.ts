@@ -7,6 +7,7 @@
 import type { Element, Id, ViewFile } from '@visual-anything/schema';
 import { nestingTypesInView } from './containers';
 import { BULK, type Collection, type Operation } from './operations';
+import { shapesInView } from './scope-placement';
 import type { ProjectSnapshot } from './snapshot';
 import { modelIndexOf } from './state';
 
@@ -40,12 +41,15 @@ export function modelRankOf(state: ProjectSnapshot): (id: Id) => number {
  * The elements whose shapes sit directly inside `container` in a view, or directly in World when it
  * is absent or World, in model order. Inside a container: the elements with a relation of one of the
  * view's nesting relation types to it. In World: the elements with no such relation to another one.
+ * In a view with a scope, only what it shows, where `shapesInView` says it sits.
  */
 export function contentsInView(
   state: ProjectSnapshot,
   view: ViewFile,
   container: Id | undefined,
 ): Id[] {
+  // In a view with a scope, what shows sits in its nearest container that shows (ADR-0040).
+  if (view.scope !== undefined) return [...shapesInView(state, view).contentsOf(container)];
   const { world, elements, relations } = state.model;
   const types = new Set(nestingTypesInView(state, view));
   const index = modelIndexOf(state);

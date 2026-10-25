@@ -24,10 +24,13 @@ import type { Id } from '@visual-anything/schema';
 /** The largest message the live connection carries from an app (ADR-0027); a larger one closes it. */
 export const LIVE_MESSAGE_LIMIT = 4 * 1024 * 1024;
 
-/** The file name endings the file chooser offers: every reader's. */
-export const ACCEPTED = [...new Set(IMPORT_READERS.flatMap((reader) => reader.extensions))].join(
-  ',',
-);
+/**
+ * The file name endings the file chooser offers: every reader's, and the pictures a draw.io diagram
+ * can be kept in, whose own endings, as `.drawio.png`, a file chooser does not match.
+ */
+export const ACCEPTED = [
+  ...new Set([...IMPORT_READERS.flatMap((reader) => reader.extensions), '.svg', '.png']),
+].join(',');
 
 /** A file read for import, or why it was not. */
 export type ReadFile =

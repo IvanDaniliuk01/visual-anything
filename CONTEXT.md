@@ -316,3 +316,72 @@ _Avoid_: sync, conversion
 **Starter package**:
 A built-in package for one domain, with its icons, a sample project and a scenario, which a new project can start from. What it ships carries a license that lets it ship (ADR 0047).
 _Avoid_: template, library
+
+**Sample project**:
+A project that comes with Visual Anything to show a starter package at work, with its views and a scenario, from which a new project can start: the folder of the new project gets a copy of it (ADR 0051).
+_Avoid_: template, demo, example (as a product term)
+
+**Start screen**:
+What the app shows while the local program runs on a folder that holds no project yet: the sample projects a project there can start from, and an empty project (ADR 0051).
+_Avoid_: welcome screen, wizard
+
+**Shared package**:
+A package of a project's own copied from another project, with its images and its ids, and updated from there after a preview of what changed; the two copies live apart (ADR 0051).
+_Avoid_: linked package, imported package, dependency
+
+### Reading large models
+
+**Overlay**:
+A rule of a view that colors, sizes, marks or fades its shapes by an attribute, with a legend; stored in the view, since it is part of how the view reads (ADR 0055).
+_Avoid_: theme, style, layer
+
+**Legend**:
+What an overlay's colors, sizes and marks mean, drawn on the canvas and in every export.
+_Avoid_: key (alone)
+
+**Level of detail**:
+What a shape shows from a scale up: a silhouette, its name, its detail, its contents or rows, its image. An appearance declares its levels; without them, the canvas's own steps apply.
+_Avoid_: LOD (in the app's text), zoom level
+
+**External identifier**:
+What an element, component or relation type is in someone else's catalog, by scheme, such as `uberon: UBERON:0002135`. It is data, never followed (ADR 0056).
+_Avoid_: foreign key, reference
+
+**Crosswalk**:
+A table that maps the identifiers of one scheme to another's, used by importers.
+
+**Destination**:
+An attribute value that names a view of this project, a view of another project or a web address, and opens it when followed; a web address only after a confirmation.
+_Avoid_: link, hyperlink, reference
+
+**Live value**:
+An attribute's value that comes from outside while the app is open, shown with its mark and age, and never saved or put in the history (ADR 0057).
+_Avoid_: telemetry, metric, live data
+
+**Element list**:
+A panel that lists elements, by component or by scope, with their attributes as columns, edited in place.
+_Avoid_: spreadsheet, data table, grid
+
+### Explaining
+
+**Full-screen playback**:
+Playing a tour with the panels hidden, a caption card, a progress line and keys to go forward and back (ADR 0058).
+_Avoid_: presentation mode, slideshow
+
+**Thread**:
+Comments about one thing, an element, a relation, a view or a point of a view, kept in one file of the project until resolved (ADR 0059).
+_Avoid_: conversation, discussion
+
+**Comment**:
+A remark in a thread, with its author and time. It is not a note, which is a free shape drawn on a view.
+_Avoid_: annotation, note (a free shape)
+
+### Package code
+
+**Package code**:
+JavaScript kept in a package that computes attributes, checks elements and draws inside shapes, run in an interpreter inside WebAssembly only after the person approves it by its hash (ADR 0054).
+_Avoid_: plugin, script, macro
+
+**Capability**:
+What package code may reach beyond its element, declared by its package and approved by the person: the model, the clock, one web origin.
+_Avoid_: permission (alone), scope (a view's)

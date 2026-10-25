@@ -708,6 +708,63 @@ describe('update-package', () => {
       refused({ type: 'update-package', id: 'systems', changes: { name: 'S' } }, systems.state),
     ).toEqual(['built-in-package']);
   });
+
+  it('sets and takes out its version, license and attribution, each checked (ADR 0047)', () => {
+    const licensed = ok({
+      type: 'update-package',
+      id: 'test',
+      changes: { version: '1.0.0', license: 'CC-BY-4.0', attribution: 'Jane Doe' },
+    });
+    expect(licensed.label).toBe('Edit the package "Test"');
+    expect(licensed.state.packages[0]).toMatchObject({
+      version: '1.0.0',
+      license: 'CC-BY-4.0',
+      attribution: 'Jane Doe',
+    });
+    const cleared = ok(
+      {
+        type: 'update-package',
+        id: 'test',
+        changes: { version: null, license: null, attribution: null },
+      },
+      licensed.state,
+    );
+    expect(cleared.state.packages[0]).toEqual(testProject().packages[0]);
+    for (const changes of [
+      { version: '1' },
+      { license: 'CC BY' },
+      { attribution: '' },
+      { attribution: 5 },
+    ]) {
+      expect(
+        refused({ type: 'update-package', id: 'test', changes } as unknown as Command),
+      ).toEqual(['invalid-command']);
+    }
+  });
+});
+
+describe('create-package', () => {
+  it('creates an empty package with its version, license and attribution', () => {
+    const outcome = ok({
+      type: 'create-package',
+      package: { id: 'shop', name: 'Shop', version: '0.1.0', license: 'MIT', attribution: 'Us' },
+    });
+    expect(outcome.state.packages.at(-1)).toEqual({
+      id: 'shop',
+      name: 'Shop',
+      version: '0.1.0',
+      license: 'MIT',
+      attribution: 'Us',
+      components: [],
+      relationTypes: [],
+    });
+    expect(
+      refused({
+        type: 'create-package',
+        package: { id: 'shop', name: 'Shop', license: 'MIT or ISC' },
+      }),
+    ).toEqual(['invalid-command']);
+  });
 });
 
 describe("an element's own appearance and values", () => {

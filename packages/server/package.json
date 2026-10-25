@@ -5,7 +5,8 @@
   "description": "The local program: serves the app on 127.0.0.1, owns the model and its history, reads and writes the project folder, and exposes the MCP server.",
   "type": "module",
   "scripts": {
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "samples": "tsx scripts/samples.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",

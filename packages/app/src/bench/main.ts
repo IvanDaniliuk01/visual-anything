@@ -33,6 +33,7 @@ import {
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { EMPTY_SELECTION, selectionOf, type Selectable, type Selection } from '../editor/selection';
+import { ImageError, type ImageRequest } from '../export/image';
 import { panBy, screenToWorld, zoomAt, type Camera } from '../canvas/camera';
 import { CanvasController } from '../canvas/controller';
 import { centerOf } from '../canvas/geometry';
@@ -45,6 +46,7 @@ import { MAX_BANDS, plannedTiles } from '../canvas/tiles';
 import '../theme/tokens.css';
 import { THEMES } from '../theme/themes';
 import { RESTYLING, SHOWN, TARGET_FPS, WORK, addRow, percentile, showVerdict } from './report';
+import { measureScopeChanges } from './scope';
 import {
   LARGE_TABLE,
   LARGE_TABLE_COLUMNS,
@@ -350,8 +352,14 @@ async function run(): Promise<void> {
   const timed: Timed[] = [await measureEdits(10)];
   if (tables) timed.push(await measureColumnEdits(10));
   timed.push(await measureLayouts(4));
+  // Changes of the view's scope (ADR-0040): `scope.ts` beside this file.
+  if (!tables) {
+    const bench = { project: () => project, show: showProject, settle, view: VIEW };
+    timed.push(...(await measureScopeChanges(bench, 4)));
+  }
   if (!tables && (overlap === 'none' || overlap === 'stairs'))
     timed.push(await measureRestacks(20));
+  timed.push(...(await measureExports()));
   if (!tables && routeCount > 0) await measureRoutes(phases, timed);
 
   report(phases, timed, latency, themeNotes);
@@ -782,6 +790,47 @@ async function measureRestacks(count: number): Promise<Timed> {
     mark: RESTACK_MARK,
     note: `the longest stacking list written holds ${largest.toLocaleString()} ids`,
   };
+}
+
+/**
+ * PNG export (R27): the whole view at 1×, and what is visible at 2× at the scale names show at and
+ * at the whole view, each timed from the request to the image, with the drawings the canvas keeps
+ * before and after it: what an image draws in full and names for itself goes once it is drawn. At
+ * 10,000 elements the whole view is larger than an image may be, and is refused: `?elements=1500`
+ * measures one that is not.
+ */
+async function measureExports(): Promise<Timed[]> {
+  performance.mark('phase Export');
+  const { renderer } = controller;
+  const kept = () => renderer.drawnInFull;
+  const results: Timed[] = [];
+  const exported = async (name: string, request: ImageRequest): Promise<void> => {
+    await settle(300);
+    const before = kept();
+    const began = performance.now();
+    let note: string;
+    try {
+      const image = await renderer.exportImage(request);
+      const taken = performance.now() - began;
+      const after = kept();
+      note = `${(image.size / 2 ** 20).toFixed(1)} MiB of PNG; drawn in full ${before.tiles.toLocaleString()} tiles and named ${before.labels.toLocaleString()} shapes and relations before it, ${after.tiles.toLocaleString()} and ${after.labels.toLocaleString()} after it`;
+      results.push({ name, times: [taken], note });
+    } catch (error) {
+      note =
+        error instanceof ImageError && error.problem.reason === 'too-large'
+          ? `refused at once: ${error.problem.width.toLocaleString()} × ${error.problem.height.toLocaleString()} pixels is larger than an image may be`
+          : `failed: ${error instanceof Error ? error.message : String(error)}`;
+      results.push({ name, times: [performance.now() - began], note });
+    }
+  };
+  await exported('Export the whole view at 1×', { area: 'view', scale: 1 });
+  move(cameraAt(NAMES_FROM * 1.3));
+  await exported('Export what is visible at 2×, names shown', { area: 'visible', scale: 2 });
+  controller.fit();
+  await exported('Export what is visible at 2×, whole view', { area: 'visible', scale: 2 });
+  move(cameraAt(NAMES_FROM * 1.3));
+  await settle(300);
+  return results;
 }
 
 /**

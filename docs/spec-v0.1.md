@@ -322,21 +322,69 @@ Eight milestones in build order, each ending in something you can use, and Track
 - a package can be added from another project.
 
 - [x] Scopes in the schema and the core, test-first with property tests (ADR 0040): the rules, `added` and `leftOut`, the commands `set-scope`, `add-to-view` and `leave-out-of-view`, and new elements added to the scope of the view they were made in
-- [ ] Scopes on the canvas:
+- [x] Scopes on the canvas:
   - the scene, layout, aggregation, search and the perspective switcher follow the scope;
   - playback marks steps outside the view;
   - the inspector edits the scope;
   - the canvas and the outline offer Add to this view and Leave out of this view;
   - shapes count the relations that leave the view
-- [ ] Claude's tools to read and set a scope, and to add to a view or leave out of it
+- [x] Claude's tools to read and set a scope, and to add to a view or leave out of it
 - [x] The import pipeline (ADR 0042): the plan, the mapping dialog, one batch, the report; Import… in the header, `visual-anything import <folder> <file>`, and Claude's `import_file`
 - [x] The Mermaid reader: flowcharts, C4, ER and class diagrams
 - [x] The spreadsheet (CSV and TSV) and JSON readers, importing again by a key
-- [ ] The Structurizr workspace JSON and LikeC4 model readers, with their views as scopes
-- [ ] The draw.io reader: compressed and plain files, `.drawio.svg` and `.drawio.png`, shapes, containers, edges with their waypoints, and pages as views
-- [ ] License fields in the schema, and the license test (ADR 0047)
-- [ ] Starter packages for C4 architecture and data-science pipelines, each with icons, a sample project and a scenario, in English and Spanish; New project from a sample
-- [ ] A package added from another project, with its version and attribution, and updated from it after a preview
+- [x] The Structurizr workspace JSON and LikeC4 model readers, with their views as scopes
+- [x] The draw.io reader: compressed and plain files, `.drawio.svg` and `.drawio.png`, shapes, containers, edges with their waypoints, and pages as views
+- [x] License fields in the schema, and the license test (ADR 0047)
+- [x] Starter packages for C4 architecture and data-science pipelines, each with icons, a sample project and a scenario, in English and Spanish; New project from a sample
+- [x] A package added from another project, with its version and attribution, and updated from it after a preview
+
+**M7 · Package code.** It is planned here so that it can run in the second wave after v0.1. Done when:
+
+- a package's code computes attributes, checks elements and draws inside shapes through its three hooks, in QuickJS inside WebAssembly in a worker (ADR 0054);
+- it runs only after you approve it by its hash, and any change to it asks again;
+- a call past 50 ms or 32 MiB stops without stalling a frame;
+- the hostile-code tests pass: loops, allocation bombs, reaching for `globalThis`, `fetch`, the page or another package;
+- Claude can read, write and run a package's code after your approval.
+
+- [ ] `PackageFile.code` and `capabilities` in the schema, and the hooks' types and the checks of their answers in the core, test-first
+- [ ] The worker: one QuickJS runtime per package, the limits, the messages, turning a failing package off
+- [ ] Approval by hash and by capability, kept in your preferences; the approval dialog; computed values marked as computed
+- [ ] `draw` answers drawn inside shapes through the declarative drawing format, within the frame budget
+- [ ] Claude's tools for package code, approved in the app
+- [ ] A sample package with code (a unit converter that computes an attribute, a check, and a gauge drawn inside its shape)
+
+**M8 · Detail and data.** Planned beside M7 and M11. Done when:
+
+- a view colors, sizes, marks and fades shapes by an attribute through its overlays, with a legend, also in every export (ADR 0055);
+- appearances declare levels of detail by scale, without flicker, and zooming far into a collapsed container can expand it;
+- elements carry external identifiers that search and importers use, and destination attributes open a view, another project or a web address after a confirmation (ADR 0056);
+- live values from Claude, the command line and approved package code show with their mark and age, and are never saved (ADR 0057);
+- an element list edits a component's or a scope's elements in bulk, and a pasted block of cells is one action;
+- a time range on an attribute filters and plays;
+- the reading benchmark of 100,000 elements and 200,000 relations meets its marks.
+
+- [ ] Overlays in the schema and the core (discrete, continuous and passthrough mappings to fill, stroke, size, badge and opacity), with their commands; the scene applies them; the legend on the canvas and in exports; Claude's tools
+- [ ] Levels of detail in appearances, with their inheritance and hysteresis; the renderer switches levels by tile; expanding and collapsing by zoom
+- [ ] External identifiers in the schema; search by identifier; crosswalk tables for importers
+- [ ] The destination attribute type: the mark, following it, the confirmation, opening another project at a view state through its own program, and the checks on opening
+- [ ] Live values: protocol version 6, the program's store and limits, the app's lookup with marks and age, Keep as attribute, `set_live_values` and `visual-anything live`
+- [ ] The element list: a panel of elements by component or by scope, with attributes as columns, sorting, filters, editing in place, a pasted block of cells as one action, and selection in step with the canvas
+- [ ] Time ranges: a range filter on a date, time or number attribute, with a slider and playback, kept by the app as filters are (ADR 0025)
+- [ ] The reading benchmark: 100,000 elements and 200,000 relations opened with containers collapsed; 60 fps while fewer than 10,000 shapes show; expanding a container of 1,000 under 100 ms; a search under 50 ms; drawing many instances at once when zoomed out, and layout only for what is open
+
+**M11 · Tours and comments.** Planned beside M7 and M8, moved ahead of M9. Done when:
+
+- a tour is made in the app or by Claude, one step at a time from view states, saved as a `.vatour` file, and played full screen with captions, marks, scenarios and speaker notes, by keys, with short eased moves and cuts under reduced motion (ADR 0058);
+- it plays in the read-only page too;
+- comment threads anchored to elements, relations, views or points are kept as `.vacomment` files, one thread per file, shown as pins and in a panel, answered by Claude, and resolved (ADR 0059).
+
+- [ ] Tour files in the schema and the loader; tour commands in the core, test-first, steps naming deleted things kept and flagged
+- [ ] The tours panel: Add step from the view state, captions and marks edited in place, steps reordered
+- [ ] Full-screen playback: the caption card, the progress line, keys, the camera's capped and eased moves, speaker notes in a second window, and tours in the read-only page
+- [ ] Claude's tools for tours
+- [ ] Comment files in the schema and the loader; comment commands in the core, test-first, threads whose anchor is deleted kept as detached
+- [ ] Pins on the canvas and the comments panel, with filters; authors from your preferences
+- [ ] Claude's tools for comments, and working through the open ones
 
 **Track A · Look and feel**, beside the milestones: A1 right after M2 and before M3's app tasks; A2's core before M3's commands for collapse, expand and filters, and A2 tagged before M4's write tools are fixed; A3 after M3's canvas tasks; A4 before M4's UI tasks. Its commits start with `A<n>:`, and each stage is tagged `a<n>` when its Done when holds.
 
@@ -396,9 +444,9 @@ The order below follows the two benchmarks of what Visual Anything needs to repr
 | --- | --- |
 | 1 | **M6b · Out**, planned above. SVG and PDF export, from the app and the command line; a read-only page in one file, to share, embed and read on a phone; text exports: the outline in Markdown, Mermaid and Structurizr DSL. |
 | 1 | **M6c · In**, planned above. Views that show part of the model, a scope of rules and hand-picked elements (a new ADR superseding part of ADR 0025), first; then Mermaid, spreadsheet and JSON, Structurizr and LikeC4, and draw.io imports; starter packages and sample projects per domain; packages shared between projects. |
-| 2 | **M7 · Package code.** Code kept in packages computes attributes, checks elements and draws shapes; it runs sandboxed (ADR 0012), only after you approve it, and changing it asks again; Claude can read, write and check it. |
-| 2 | **M8 · Detail and data.** Semantic zoom declared as data; overlays that color shapes by an attribute, with a legend; external identifiers and crosswalks; destinations, attributes that open a view, a project or a web address; live values from running systems; an element list edited in bulk; time ranges with playback; a reading benchmark at 100,000 elements. |
-| 2 | **M11 · Tours and comments.** Tours made from recorded guidance and played full screen, built on view states; comments kept in the project. |
+| 2 | **M7 · Package code**, planned above. Code kept in packages computes attributes, checks elements and draws shapes; it runs sandboxed (ADR 0012), only after you approve it, and changing it asks again; Claude can read, write and check it. |
+| 2 | **M8 · Detail and data**, planned above. Semantic zoom declared as data; overlays that color shapes by an attribute, with a legend; external identifiers and crosswalks; destinations, attributes that open a view, a project or a web address; live values from running systems; an element list edited in bulk; time ranges with playback; a reading benchmark at 100,000 elements. |
+| 2 | **M11 · Tours and comments**, planned above. Tours made from recorded guidance and played full screen, built on view states; comments kept in the project. |
 | 3 | **M8b · Beyond boxes.** Free 2D geometry for a component's shape, with exact hit testing and connection points; SVG with named parts, each part an anchored shape of its element; static HTML imported as a cleaned drawing; curved routes drawn by layout. |
 | 3 | **M11b · Versions.** Comparing versions between git commits, in the app and for pull requests; proposals to review Claude's changes before they apply; a git merge driver for project files. |
 | 4 | **M9 · Physical space inside components.** A component can draw its element's 3D model (glTF, cleaned by the local program and never carrying behavior) inside its shape: a cached picture while you pan, live when you focus it, with three.js loaded only when a view needs it. |

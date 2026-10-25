@@ -6,6 +6,7 @@
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { PROTOCOL_VERSION } from '@visual-anything/core';
 import type { ModelFile } from '@visual-anything/schema';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -150,8 +151,28 @@ describe('importing with no program running', () => {
     expect(await runImport(['project', 'words.txt'], unknown.env)).toBe(1);
     expect(unknown.err).toEqual([
       'Could not import "words.txt":',
-      '  Visual Anything cannot tell how to read this file. It imports these formats: JSON, Mermaid and Spreadsheet.',
+      '  Visual Anything cannot tell what this file is: name its format.',
     ]);
+  });
+
+  it('imports a draw.io picture and a Structurizr workspace, told apart by what they hold', async () => {
+    const fixtures = fileURLToPath(new URL('../../core/src/import/fixtures/', import.meta.url));
+    await writeFile(
+      join(root, 'checkout.png'),
+      await readFile(join(fixtures, 'checkout.drawio.png')),
+    );
+    await writeFile(
+      join(root, 'workspace.json'),
+      await readFile(join(fixtures, 'big-bank.structurizr.json')),
+    );
+    const picture = environment();
+    expect(await runImport(['project', 'checkout.png'], picture.env)).toBe(0);
+    expect(picture.out[0]).toMatch(/^Read "checkout.png" as drawio-png \(draw.io file\)/);
+    const workspace = environment();
+    expect(await runImport(['project', 'workspace.json', '--dry-run'], workspace.env)).toBe(0);
+    expect(workspace.out[0]).toMatch(
+      /^Read "workspace.json" as structurizr \(Structurizr workspace\)/,
+    );
   });
 
   it('imports a spreadsheet again by its key, updating what it matched', async () => {

@@ -20,6 +20,7 @@ import { useModalFocus } from '../canvas/focus';
 import { useT, type Translator } from '../i18n';
 import type { CommandResult } from '../live/connection';
 import './import.css';
+import { diagramFormatsHelp } from './diagram-formats';
 import {
   ACCEPTED,
   LIVE_MESSAGE_LIMIT,
@@ -239,9 +240,22 @@ function ImportDialog({ project, viewId, send, openView, onClose }: ImportDialog
             <h2 id={titleId}>{t('Import')}</h2>
             <p className="dialog-note">
               {t(
-                'Mermaid diagrams (flowcharts, C4, ER and class diagrams), spreadsheets (CSV or TSV) and JSON. The file is read here, in this tab, and nothing in it runs.',
+                'Mermaid diagrams (flowcharts, C4, ER and class diagrams), spreadsheets (CSV or TSV), JSON, Structurizr workspaces, LikeC4 models and draw.io files. The file is read here, in this tab, and nothing in it runs.',
               )}
             </p>
+            <details className="import-help">
+              <summary>{t('Which files it reads')}</summary>
+              <dl>
+                {diagramFormatsHelp(t).map((format) => (
+                  <div key={format.format}>
+                    <dt>
+                      {format.name} <span className="import-format">{format.files.join(', ')}</span>
+                    </dt>
+                    <dd>{format.help}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
             <fieldset className="import-choices">
               <legend>{t('Read from')}</legend>
               {(['file', 'paste'] as const).map((each) => (
@@ -304,7 +318,7 @@ function ImportDialog({ project, viewId, send, openView, onClose }: ImportDialog
                 <option value="">{t('As the file says')}</option>
                 {IMPORT_READERS.map((reader) => (
                   <option key={reader.format} value={reader.format}>
-                    {t.message(reader.name)}
+                    {t(reader.name)}
                   </option>
                 ))}
               </select>

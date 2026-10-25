@@ -235,7 +235,7 @@ describe('hostile JSON', () => {
 
   it('cuts a megabyte name, and refuses more elements than an import brings', () => {
     const long = read(JSON.stringify({ elements: [{ name: 'z'.repeat(1024 * 1024) }] }));
-    expect(long.elements[0]?.name).toHaveLength(200);
+    expect(long.elements[0]?.name).toHaveLength(1_000);
     const many = JSON.stringify({
       elements: Array.from({ length: IMPORT_LIMITS.elements + 1 }, (_, at) => ({ name: `n${at}` })),
     });

@@ -1,0 +1,45 @@
+{
+  "id": "system-context",
+  "name": "System context",
+  "description": "The internet banking system, the people who use it and the systems around it. Expand it to see its containers.",
+  "perspective": {
+    "name": "System context"
+  },
+  "nestingRelationTypes": [
+    "c4.is-part-of"
+  ],
+  "positions": [
+    {
+      "element": "customer",
+      "x": 0,
+      "y": 8
+    },
+    {
+      "element": "internet-banking",
+      "x": 240,
+      "y": 112
+    },
+    {
+      "element": "mainframe",
+      "x": 528,
+      "y": 128
+    },
+    {
+      "element": "email-system",
+      "x": 528,
+      "y": 0
+    }
+  ],
+  "freeShapes": [],
+  "collapsed": [
+    "internet-banking"
+  ],
+  "scope": {
+    "exclude": [
+      {
+        "kind": "component",
+        "component": "c4.deployment-node"
+      }
+    ]
+  }
+}

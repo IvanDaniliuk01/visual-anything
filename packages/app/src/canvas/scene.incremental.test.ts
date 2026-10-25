@@ -10,13 +10,14 @@ import {
   type Command,
   type ProjectSnapshot,
 } from '@visual-anything/core';
-import type { Note, ShapePosition, ViewFile } from '@visual-anything/schema';
+import type { Note, ScopeRule, ShapePosition, ViewFile } from '@visual-anything/schema';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { syntheticProject } from '../bench/synthetic';
 import { loadSample } from '../test/sample';
 import { withWovenRelations } from '../test/woven';
 import { collapsedIn, setCollapsedCommand } from './collapse';
+import { addToViewCommand, leaveOutCommand } from './scope';
 import { hitAt, indexScene, indexSceneAfresh, shapesAt, type IndexedScene } from './hit';
 import { buildScene, buildSceneAfresh, type ElementShape, type Scene } from './scene';
 
@@ -130,6 +131,10 @@ type Edit =
   | { kind: 'collapse'; element: number }
   | { kind: 'restack'; shape: number; front: boolean }
   | { kind: 'take-out'; shape: number }
+  // What the view's scope shows (ADR-0040).
+  | { kind: 'leave-out'; element: number }
+  | { kind: 'add-back'; element: number }
+  | { kind: 'scope'; element: number; rule: number }
   | { kind: 'undo' };
 
 const small = fc.integer({ min: -300, max: 300 });
@@ -191,6 +196,12 @@ const edit: fc.Arbitrary<Edit> = fc.oneof(
     arbitrary: fc.record({ kind: fc.constant('restack'), shape: pick, front: fc.boolean() }),
   },
   { weight: 1, arbitrary: fc.record({ kind: fc.constant('take-out'), shape: pick }) },
+  { weight: 2, arbitrary: fc.record({ kind: fc.constant('leave-out'), element: pick }) },
+  { weight: 1, arbitrary: fc.record({ kind: fc.constant('add-back'), element: pick }) },
+  {
+    weight: 1,
+    arbitrary: fc.record({ kind: fc.constant('scope'), element: pick, rule: fc.nat({ max: 3 }) }),
+  },
   { weight: 2, arbitrary: fc.constant({ kind: 'undo' as const }) },
 );
 
@@ -375,6 +386,28 @@ function commandOf(edit: Edit, project: ProjectSnapshot, scene: Scene): Command 
         shape &&
         setCollapsedCommand(VIEW, [shape.element], !collapsedIn(viewIn(project)).has(shape.element))
       );
+    }
+    case 'leave-out': {
+      const element = at(elements, edit.element);
+      return element && leaveOutCommand(VIEW, [element.id]);
+    }
+    case 'add-back': {
+      // One of those left out, as the inspector adds back, or else any element.
+      const left = viewIn(project).scope?.leftOut ?? elements.map((each) => each.id);
+      const element = at(left, edit.element);
+      return element === undefined ? undefined : addToViewCommand(VIEW, [element]);
+    }
+    case 'scope': {
+      const element = at(elements, edit.element);
+      if (!element) return undefined;
+      const rules: (ScopeRule[] | null)[] = [
+        [{ kind: 'contents', container: element.id }],
+        [{ kind: 'component', component: element.component }],
+        [{ kind: 'contents', container: element.id, depth: 1 }],
+        null,
+      ];
+      const include = rules[edit.rule % rules.length] ?? null;
+      return { type: 'set-scope', view: VIEW, scope: include && { include } };
     }
     case 'undo':
       return undefined;

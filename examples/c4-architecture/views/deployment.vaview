@@ -1,0 +1,83 @@
+{
+  "id": "deployment",
+  "name": "Deployment",
+  "description": "Where each container runs.",
+  "perspective": {
+    "name": "Deployment"
+  },
+  "nestingRelationTypes": [
+    "c4.runs-in"
+  ],
+  "positions": [
+    {
+      "element": "web-app",
+      "container": "app-server",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "api-app",
+      "container": "app-server",
+      "x": 24,
+      "y": 168
+    },
+    {
+      "element": "database",
+      "container": "db-server",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "spa",
+      "container": "customer-computer",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "mobile-app",
+      "container": "customer-phone",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "app-server",
+      "container": "data-center",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "db-server",
+      "container": "data-center",
+      "x": 24,
+      "y": 360
+    },
+    {
+      "element": "data-center",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "customer-computer",
+      "x": 328,
+      "y": 0
+    },
+    {
+      "element": "customer-phone",
+      "x": 0,
+      "y": 584
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "include": [
+      {
+        "kind": "component",
+        "component": "c4.deployment-node"
+      },
+      {
+        "kind": "component",
+        "component": "c4.container"
+      }
+    ]
+  }
+}

@@ -5,6 +5,7 @@
  */
 import type { Id, Relation, ViewFile } from '@visual-anything/schema';
 import { componentOrEssence } from './definitions';
+import { shapesInView } from './scope-placement';
 import type { ProjectSnapshot } from './snapshot';
 import { definitionsIn, modelIndexOf } from './state';
 
@@ -19,7 +20,8 @@ export function nestingTypesInView(state: ProjectSnapshot, view: ViewFile): Id[]
 
 /**
  * The relations of the view's nesting relation types that place an element inside `from`; none for
- * World, where an element sits when nothing else holds it.
+ * World, where an element sits when nothing else holds it. In a view with a scope, they include its
+ * relations to containers left out through which it sits in `from` (ADR-0040).
  */
 export function leavingRelations(
   state: ProjectSnapshot,
@@ -28,6 +30,10 @@ export function leavingRelations(
   from: Id | undefined,
 ): Relation[] {
   if (from === undefined || from === state.model.world.id) return [];
+  if (view.scope !== undefined) {
+    const placing = shapesInView(state, view).placing(element, from);
+    if (placing.length > 0) return [...placing];
+  }
   const types = new Set(nestingTypesInView(state, view));
   return modelIndexOf(state)
     .relationsOn(element)
