@@ -9,10 +9,13 @@ import { ESSENCE_ID, type Element } from '@visual-anything/schema';
 import { useId, type Ref } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import type { Selectable } from '../../editor/selection';
+import { isBuiltInDefinition } from '../definitions/commands';
+import { useOpenDefinition } from '../definitions/opened';
 import { AppearanceSection } from './AppearanceSection';
 import { AttributesSection } from './AttributesSection';
 import { byPackage, relationLabel, relationSentence } from './describe';
 import { SelectControl, TextControl } from './controls';
+import { describedAs } from './detail';
 import { End, FirstOnes, Lineage, SelectButton, Title } from './parts';
 import { perform } from './send';
 import { sameOptionalText } from './text';
@@ -49,7 +52,11 @@ export function ElementInspector({
 
   return (
     <>
-      <Title titleRef={titleRef} name={element.name} detail={component.name} />
+      <Title
+        titleRef={titleRef}
+        name={element.name}
+        detail={describedAs(element, index, definitions)}
+      />
       <div className="inspector-control">
         <label htmlFor={nameId}>Name</label>
         <TextControl
@@ -98,6 +105,7 @@ export function ElementInspector({
       />
       <AppearanceSection
         element={element}
+        index={index}
         definitions={definitions}
         disabled={disabled}
         update={update}
@@ -113,9 +121,14 @@ interface ComponentSectionProps {
   update: (changes: UpdateElementCommand['changes']) => Promise<boolean>;
 }
 
-/** The element's component, among the components of the packages in use, and what it derives from. */
+/**
+ * The element's component, among the components of the packages in use, and what it derives from;
+ * with the way into the component editor: editing a component of the project's own, or deriving one
+ * from a built-in component, which the element can then be created from.
+ */
 function ComponentSection({ element, definitions, disabled, update }: ComponentSectionProps) {
   const { project } = useEditor();
+  const { open } = useOpenDefinition();
   const headingId = useId();
   const selectId = useId();
   const component = componentOrEssence(definitions, element.component);
@@ -165,6 +178,36 @@ function ComponentSection({ element, definitions, disabled, update }: ComponentS
           No package in use defines the component “{element.component}”, so it looks like Essence.
         </p>
       )}
+      {open !== undefined &&
+        (known || element.component === ESSENCE_ID) &&
+        (isBuiltInDefinition(definitions, 'component', element.component) ? (
+          <button
+            type="button"
+            className="inspector-action"
+            disabled={disabled}
+            onClick={() =>
+              open(
+                {
+                  kind: 'derive',
+                  of: 'component',
+                  base: element.component,
+                  ...(element.id === project.model.world.id ? {} : { useFor: element.id }),
+                },
+                { focus: true },
+              )
+            }
+          >
+            Derive a component from “{component.name}”
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="inspector-action"
+            onClick={() => open({ kind: 'component', id: element.component }, { focus: true })}
+          >
+            Edit “{component.name}”
+          </button>
+        ))}
     </section>
   );
 }

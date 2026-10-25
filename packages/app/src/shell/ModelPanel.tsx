@@ -1,6 +1,7 @@
 import type { Definitions, ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useId, useRef, useState, type KeyboardEvent } from 'react';
+import { ComponentsTab } from './ComponentsTab';
 import { ModelTab } from './ModelTab';
 import { Outline } from './Outline';
 import './panel.css';
@@ -12,22 +13,24 @@ interface ModelPanelProps {
   openViewId: Id | undefined;
 }
 
-type Tab = 'outline' | 'model';
+type Tab = 'outline' | 'model' | 'components';
 
 const TABS: readonly { tab: Tab; name: string }[] = [
   { tab: 'outline', name: 'Outline' },
   { tab: 'model', name: 'Model' },
+  { tab: 'components', name: 'Components' },
 ];
 
 /**
- * The panel left of the canvas, in two tabs: the outline of the open view, which mirrors what the
- * canvas draws, and the model's contents with the project's views and scenarios. Each tab keeps its
- * rows open or closed while the other one shows.
+ * The panel left of the canvas, in three tabs: the outline of the open view, which mirrors what the
+ * canvas draws; the model's contents with the project's views and scenarios; and the components,
+ * relation types and packages, which open in the component editor. Each tab keeps its rows open or
+ * closed while another one shows.
  */
 export function ModelPanel({ project, definitions, openViewId }: ModelPanelProps) {
   const [tab, setTab] = useState<Tab>('outline');
   const heading = useId();
-  const ids = { outline: useId(), model: useId() };
+  const ids = { outline: useId(), model: useId(), components: useId() };
   const buttons = useRef(new Map<Tab, HTMLButtonElement>());
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -95,6 +98,15 @@ export function ModelPanel({ project, definitions, openViewId }: ModelPanelProps
           definitions={definitions}
           openViewId={openViewId}
         />
+      </div>
+      <div
+        role="tabpanel"
+        id={`${ids.components}-panel`}
+        aria-labelledby={`${ids.components}-tab`}
+        hidden={tab !== 'components'}
+        className="panel-tab-content"
+      >
+        <ComponentsTab active={tab === 'components'} />
       </div>
     </aside>
   );
