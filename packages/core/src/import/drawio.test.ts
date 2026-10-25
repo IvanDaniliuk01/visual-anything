@@ -6,7 +6,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { encodeBase64 } from '../images/base64';
 import { shownByScope } from '../scope';
-import { readDrawio } from './drawio';
+import { MAX_FILLED_FILE, MAX_FILLED_LABEL, MAX_PLACEHOLDERS, readDrawio } from './drawio';
 import compressed from './fixtures/checkout-compressed.drawio?raw';
 import plain from './fixtures/checkout.drawio?raw';
 import png from './fixtures/checkout.drawio.png?inline';
@@ -378,6 +378,101 @@ describe('readDrawio, on hostile files', () => {
       'On two lines',
     ]);
   });
+
+  it('never finds what every object inherits, by a style, a shape or an attribute’s name', () => {
+    const plan = read(
+      page(
+        '<mxCell id="a" value="A" style="constructor;" vertex="1" parent="1"><mxGeometry as="geometry"/></mxCell>' +
+          '<mxCell id="b" value="B" style="toString;html=1;" vertex="1" parent="1"><mxGeometry as="geometry"/></mxCell>' +
+          '<mxCell id="c" value="C" style="shape=__proto__;" vertex="1" parent="1"><mxGeometry as="geometry"/></mxCell>' +
+          '<object label="D" __proto__="polluted" constructor="built" toString="said" hasOwnProperty="no" id="d"><mxCell style="__proto__;" vertex="1" parent="1"><mxGeometry as="geometry"/></mxCell></object>' +
+          '<mxCell id="e" value="E" style="startArrow=constructor;" edge="1" parent="1" source="a" target="b"><mxGeometry relative="1" as="geometry"/></mxCell>',
+      ),
+    );
+    expect(plan.kinds.elements.map((each) => [each.kind, each.label])).toEqual([
+      ['"constructor"', 'constructor'],
+      ['"toString"', 'toString'],
+      ['shape=__proto__', 'shape=__proto__'],
+      ['"__proto__"', '__proto__'],
+    ]);
+    expect(plan.elements.map((each) => each.kind)).toEqual([
+      '"constructor"',
+      '"toString"',
+      'shape=__proto__',
+      '"__proto__"',
+    ]);
+    const attributes = plan.elements[3]?.attributes as Record<string, unknown>;
+    expect(Object.getPrototypeOf(attributes)).toBe(Object.prototype);
+    expect(Object.keys(attributes)).toEqual([
+      '__proto__',
+      'constructor',
+      'toString',
+      'hasOwnProperty',
+    ]);
+    expect(Object.hasOwn(attributes, '__proto__')).toBe(true);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    // Unmapped, such a kind is reported as unmapped, not mapped to what the prototype holds.
+    const mapping = suggestedMapping(plan);
+    expect(Object.keys(mapping.elements)).toHaveLength(4);
+    const { state } = applyPlan(systemsProject(), plan, mapping);
+    const d = state.model.elements.find((each) => each.name === 'D');
+    expect(Object.hasOwn(d?.attributes ?? {}, '__proto__')).toBe(true);
+    expect(d?.attributes?.constructor).toBe('built');
+  });
+
+  it('fills placeholders once, within caps on each label and on the whole file', () => {
+    const object = (id: string, label: string, values: string) =>
+      `<object label="${label}" placeholders="1" ${values} id="${id}"><mxCell vertex="1" parent="1"><mxGeometry as="geometry"/></mxCell></object>`;
+    const value = 'x'.repeat(997);
+    // Without caps, ten thousand placeholders of a kilobyte each would grow one label to ten million
+    // characters, and a value that holds a placeholder would be filled in again.
+    const plan = read(
+      page(
+        object('many', '%v%'.repeat(10_000), `v="${value}"`) +
+          object('some', '%v% %v% %v% %v% %v%', `v="${value}"`) +
+          object('again', 'Is %w%', 'w="%v%" v="never"'),
+      ),
+    );
+    const [many, some, again] = plan.elements;
+    expect(many?.name).toBe(`${'%v%'.repeat(333)}…`);
+    expect(some?.name.length).toBe(MAX_IMPORTED_NAME);
+    expect(again?.name).toBe('Is %v%');
+    expect(plan.unmatched.map((each) => each.why)).toContain(
+      `Its placeholders are filled in up to ${MAX_PLACEHOLDERS} of them and ${MAX_FILLED_LABEL.toLocaleString('en')} characters; the rest stay as written.`,
+    );
+    // Across a file, what placeholders add stops at its cap, reported once.
+    const short = 'x'.repeat(300);
+    const cells = Array.from({ length: 1200 }, (_, at) =>
+      object(`c${at}`, '%v% %v% %v%', `v="${short}"`),
+    ).join('');
+    const file = read(page(cells));
+    const filledCount = file.elements.filter((each) => !each.name.includes('%v%')).length;
+    expect(filledCount).toBe(Math.floor(MAX_FILLED_FILE / (3 * 297)));
+    expect(file.elements.at(-1)?.name).toBe('%v% %v% %v%');
+    expect(file.unmatched.filter((each) => each.why.startsWith('Placeholders are'))).toEqual([
+      {
+        text: '%v% %v% %v%',
+        why: 'Placeholders are filled in up to 1,000,000 characters across the file; the rest stay as written.',
+      },
+    ]);
+  });
+
+  it('drops many loops through a long chain of edges in time that grows with the edges', () => {
+    // Each edge ends on the next and on the first, so every edge is in a loop through the whole chain;
+    // marking each loop's members again for each would take hundreds of millions of steps.
+    const length = 40_000;
+    const cells =
+      vertex('a', 'A') +
+      Array.from({ length }, (_, at) =>
+        edge(`e${at}`, at + 1 < length ? `e${at + 1}` : 'a', 'e0'),
+      ).join('');
+    const plan = read(page(cells));
+    expect(plan.relations).toEqual([]);
+    expect(plan.unmatched).toHaveLength(501);
+    expect(plan.unmatched[0]?.why).toBe(
+      'Its relations end on each other in a loop, so none of them becomes a relation.',
+    );
+  }, 15_000);
 
   it('cuts a name of a megabyte, and reports it', () => {
     const plan = read(page(vertex('a', 'x'.repeat(1024 * 1024))));

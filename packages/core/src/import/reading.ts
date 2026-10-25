@@ -3,7 +3,13 @@
  * options it takes, how it suggests a component or relation type for a kind, and how it makes names
  * and quotes from what a file writes, within limits, as plain text.
  */
-import { ESSENCE_ID, RELATES_TO_ID, type Id } from '@visual-anything/schema';
+import {
+  ESSENCE_ID,
+  RELATES_TO_ID,
+  type Attributes,
+  type Id,
+  type JsonValue,
+} from '@visual-anything/schema';
 import { BUILTIN_PACKAGES } from '../builtin';
 import type { ImportPlan, PlannedKind } from './plan';
 
@@ -86,14 +92,18 @@ export class KindCounter {
     this.#suggest = suggest;
   }
 
-  /** Counts one more thing of a kind, labelled as the file names it. */
-  add(kind: string, label: string = kind): string {
+  /**
+   * Counts one more thing of a kind, labelled as the file names it, and gives the key the plan names
+   * the kind by: {@link safeKind}'s.
+   */
+  add(name: string, label: string = name): string {
+    const kind = safeKind(name);
     const known = this.#kinds.get(kind);
     if (known) {
       known.count += 1;
       return kind;
     }
-    const suggested = this.#suggest(kind);
+    const suggested = this.#suggest(name);
     this.#kinds.set(kind, {
       kind,
       label,
@@ -106,6 +116,26 @@ export class KindCounter {
   list(): PlannedKind[] {
     return [...this.#kinds.values()];
   }
+}
+
+/**
+ * A kind's key, safe to look up in a plain object such as a mapping: a name that every object
+ * inherits, such as `constructor`, `toString` or `__proto__`, is quoted, so that it never finds what
+ * the prototype holds. Its label keeps the name as the file writes it.
+ */
+export function safeKind(name: string): string {
+  return name in Object.prototype ? `"${name}"` : name;
+}
+
+/**
+ * Attributes from what a file gives, by name, as properties of their own whatever the names, so that
+ * `__proto__` is an attribute like any other; none when the file gives none.
+ */
+export function attributesFrom(
+  entries: ReadonlyMap<string, JsonValue> | readonly (readonly [string, JsonValue])[],
+): Attributes | undefined {
+  const list = [...entries];
+  return list.length === 0 ? undefined : Object.fromEntries<JsonValue>(list);
 }
 
 /** Collects what matched nothing, quoting the file within limits, and counts what is past the list. */

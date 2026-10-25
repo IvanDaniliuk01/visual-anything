@@ -12,14 +12,16 @@
  *
  * Nothing in the file runs, loads or is followed: a link is kept as text when it is a web address.
  */
-import type { Attributes, Id, Point } from '@visual-anything/schema';
+import type { Attributes, Id, JsonValue, Point } from '@visual-anything/schema';
 import { MAX_BEND_POINTS } from '../routes';
 import { drawioPages, type DrawioPage } from './drawio-files';
 import { plainTextOfHtml } from './markup-text';
 import type { ImportPlan, PlannedElement, PlannedRelation, PlannedView } from './plan';
 import {
   KindCounter,
+  MAX_IMPORTED_NAME,
   Unmatched,
+  attributesFrom,
   cleanText,
   descriptionFrom,
   nameFrom,
@@ -144,7 +146,12 @@ function geometryOf(cell: XmlElement): Geometry | undefined {
 }
 
 /** The cells of a page, in the order it writes them. */
-function cellsOf(page: DrawioPage, pageName: string): Cell[] {
+function cellsOf(
+  page: DrawioPage,
+  pageName: string,
+  filling: Filling,
+  unmatched: Unmatched,
+): Cell[] {
   const root = page.model.children.find((child) => child.name === 'root');
   const cells: Cell[] = [];
   const ids = new Set<string>();
@@ -169,11 +176,7 @@ function cellsOf(page: DrawioPage, pageName: string): Cell[] {
     if (tags !== undefined && tags.trim() !== '') custom.push(['tags', tags]);
     let label = (wrapper ? wrapper.attributes.get('label') : attributes.get('value')) ?? '';
     if (wrapper?.attributes.get('placeholders') === '1') {
-      // A placeholder names one of the object's own values, as `%team%`; nothing else is substituted.
-      const values = new Map(wrapper.attributes);
-      label = label.replace(/%([A-Za-z_][\w.-]{0,63})%/g, (whole, name: string) =>
-        name === 'label' || name === 'id' ? whole : (values.get(name) ?? whole),
-      );
+      label = filledIn(label, wrapper.attributes, filling, unmatched);
     }
     const html = style.values.get('html') === '1';
     cells.push({
@@ -192,6 +195,69 @@ function cellsOf(page: DrawioPage, pageName: string): Cell[] {
     });
   }
   return cells;
+}
+
+/** The most placeholders one label fills in. */
+export const MAX_PLACEHOLDERS = 64;
+/** The longest a label grows to by filling in its placeholders. */
+export const MAX_FILLED_LABEL = 4 * MAX_IMPORTED_NAME;
+/** The most characters filling in placeholders adds across a file. */
+export const MAX_FILLED_FILE = 1_000_000;
+
+/** What filling in placeholders may still add across a file. */
+class Filling {
+  remaining = MAX_FILLED_FILE;
+  reported = false;
+}
+
+const PLACEHOLDER = /%([A-Za-z_][\w.-]{0,63})%/g;
+
+/**
+ * A label with its placeholders filled in, as draw.io fills `%team%` from the object's own values:
+ * once, never again in what a value brings, and within caps on how many a label fills, how long it
+ * grows and what a whole file adds, past which the rest stay as written and are reported.
+ */
+function filledIn(
+  label: string,
+  values: ReadonlyMap<string, string>,
+  filling: Filling,
+  unmatched: Unmatched,
+): string {
+  let count = 0;
+  let length = label.length;
+  const limit = Math.max(label.length, MAX_FILLED_LABEL);
+  let stopped: 'label' | 'file' | undefined;
+  const filled = label.replace(PLACEHOLDER, (whole, name: string) => {
+    if (stopped !== undefined || name === 'label' || name === 'id') return whole;
+    const value = values.get(name);
+    if (value === undefined) return whole;
+    const growth = value.length - whole.length;
+    if (growth > 0 && growth > filling.remaining) {
+      stopped = 'file';
+      return whole;
+    }
+    if (count >= MAX_PLACEHOLDERS || length + growth > limit) {
+      stopped = 'label';
+      return whole;
+    }
+    count += 1;
+    length += growth;
+    if (growth > 0) filling.remaining -= growth;
+    return value;
+  });
+  if (stopped === 'label') {
+    unmatched.add(
+      label,
+      `Its placeholders are filled in up to ${MAX_PLACEHOLDERS} of them and ${MAX_FILLED_LABEL.toLocaleString('en')} characters; the rest stay as written.`,
+    );
+  } else if (stopped === 'file' && !filling.reported) {
+    filling.reported = true;
+    unmatched.add(
+      label,
+      `Placeholders are filled in up to ${MAX_FILLED_FILE.toLocaleString('en')} characters across the file; the rest stay as written.`,
+    );
+  }
+  return filled;
 }
 
 /** A vertex's kind, from its style, and whether it draws a stencil or an image left out. */
@@ -244,6 +310,7 @@ function planOf(
   options: ReadOptions | undefined,
 ): ImportPlan {
   const unmatched = new Unmatched();
+  const filling = new Filling();
   const elementKinds = new KindCounter((kind) => suggestionFor(vertexSuggestions(kind), options));
   const relationKinds = new KindCounter((kind) => suggestionFor(edgeSuggestions(kind), options));
   const elements: PlannedElement[] = [];
@@ -259,7 +326,7 @@ function planOf(
       pages.length === 1 ? pageNameOf(source) : `Page-${index + 1}`,
       unmatched,
     );
-    const cells = cellsOf(page, pageName);
+    const cells = cellsOf(page, pageName, filling, unmatched);
     const byId = new Map(cells.map((cell) => [cell.id, cell]));
     const keyOf = (id: string) => `${index + 1}:${id}`;
     const isElement = (cell: Cell) => cell.vertex && !byId.get(cell.parent ?? '')?.edge;
@@ -269,7 +336,7 @@ function planOf(
     for (const cell of cells) {
       if (!isElement(cell)) continue;
       const { kind, stencil, image } = vertexKind(cell.style);
-      elementKinds.add(kind);
+      const kindKey = elementKinds.add(kind);
       if (stencil) stencils.set(kind, (stencils.get(kind) ?? 0) + 1);
       if (image) images += 1;
       const attributes = attributesOf(cell, unmatched);
@@ -278,7 +345,7 @@ function planOf(
         key: keyOf(cell.id),
         sourceId: cell.id,
         name: nameFrom(cell.label, kind.replace(/^shape=/, ''), unmatched),
-        kind,
+        kind: kindKey,
         ...(description === undefined ? {} : { description }),
         ...(attributes === undefined ? {} : { attributes }),
       });
@@ -501,8 +568,11 @@ function cycleMembers(parentOf: ReadonlyMap<string, string>): string[] {
 }
 
 /**
- * The edges in an order in which each comes after the edges it ends on. An edge that ends on an edge
- * that becomes no relation becomes none either, and so do edges that end on each other in a loop.
+ * The edges in an order in which each comes after the edges it ends on. Edges that end on each other
+ * in a loop become no relation, nor does an edge that ends on an edge that becomes none. The loops
+ * are the strongly connected components of the edges that end on edges, found by Tarjan's algorithm
+ * without recursion, which gives them in an order where what each ends on comes first, in time
+ * linear in the edges.
  */
 function orderedEdges(
   planned: ReadonlyMap<string, PlannedEdge>,
@@ -510,42 +580,69 @@ function orderedEdges(
 ): (PlannedEdge & { why?: string })[] {
   const loop = 'Its relations end on each other in a loop, so none of them becomes a relation.';
   const none = 'It ends on an edge that becomes no relation, so it becomes none either.';
-  const ordered: (PlannedEdge & { why?: string })[] = [];
-  const state = new Map<string, 'visiting' | 'placed' | 'dropped'>();
-  const why = new Map<string, string>();
   const edgeEnds = (id: string) => {
     const edge = planned.get(id) as PlannedEdge;
     return [edge.from, edge.to].filter((end) => edgeIds.has(end));
   };
+  const index = new Map<string, number>();
+  const low = new Map<string, number>();
+  const open: string[] = [];
+  const onOpen = new Set<string>();
+  const components: string[][] = [];
+  let counter = 0;
+  const visit = (id: string) => {
+    index.set(id, counter);
+    low.set(id, counter);
+    counter += 1;
+    open.push(id);
+    onOpen.add(id);
+  };
   for (const start of planned.keys()) {
-    if (state.has(start)) continue;
-    // Depth first, without recursion: each frame is an edge, the edges it ends on, and the next one.
-    const stack = [{ id: start, ends: edgeEnds(start), next: 0 }];
-    state.set(start, 'visiting');
-    while (stack.length > 0) {
-      const frame = stack.at(-1) as { id: string; ends: string[]; next: number };
+    if (index.has(start)) continue;
+    visit(start);
+    const work = [{ id: start, ends: edgeEnds(start), next: 0 }];
+    while (work.length > 0) {
+      const frame = work.at(-1) as { id: string; ends: string[]; next: number };
       if (frame.next < frame.ends.length) {
         const end = frame.ends[frame.next++] as string;
-        const seen = state.get(end);
         if (!planned.has(end)) continue;
-        if (seen === undefined) {
-          state.set(end, 'visiting');
-          stack.push({ id: end, ends: edgeEnds(end), next: 0 });
-        } else if (seen === 'visiting') {
-          const from = stack.findIndex((each) => each.id === end);
-          for (const each of stack.slice(from)) why.set(each.id, loop);
+        if (!index.has(end)) {
+          visit(end);
+          work.push({ id: end, ends: edgeEnds(end), next: 0 });
+        } else if (onOpen.has(end)) {
+          low.set(frame.id, Math.min(low.get(frame.id) as number, index.get(end) as number));
         }
         continue;
       }
-      stack.pop();
-      // An end that became no relation, now that every end is done, makes this one none too.
-      const blocked = frame.ends.some(
-        (end) => !planned.has(end) || (end !== frame.id && state.get(end) === 'dropped'),
-      );
-      const reason = why.get(frame.id) ?? (blocked ? none : undefined);
-      state.set(frame.id, reason === undefined ? 'placed' : 'dropped');
-      const edge = planned.get(frame.id) as PlannedEdge;
-      ordered.push(reason === undefined ? edge : { ...edge, why: reason });
+      work.pop();
+      const parent = work.at(-1);
+      if (parent) {
+        low.set(parent.id, Math.min(low.get(parent.id) as number, low.get(frame.id) as number));
+      }
+      if (low.get(frame.id) === index.get(frame.id)) {
+        const component: string[] = [];
+        let member: string;
+        do {
+          member = open.pop() as string;
+          onOpen.delete(member);
+          component.push(member);
+        } while (member !== frame.id);
+        components.push(component);
+      }
+    }
+  }
+
+  const dropped = new Set<string>();
+  const ordered: (PlannedEdge & { why?: string })[] = [];
+  for (const component of components) {
+    const [only] = component;
+    const looped = component.length > 1 || edgeEnds(only as string).includes(only as string);
+    for (const id of component) {
+      const edge = planned.get(id) as PlannedEdge;
+      const blocked = edgeEnds(id).some((end) => !planned.has(end) || dropped.has(end));
+      const why = looped ? loop : blocked ? none : undefined;
+      if (why !== undefined) dropped.add(id);
+      ordered.push(why === undefined ? edge : { ...edge, why });
     }
   }
   return ordered;
@@ -553,26 +650,23 @@ function orderedEdges(
 
 /** What an element or relation keeps of an `object`'s values and its link, as attributes. */
 function attributesOf(cell: Cell, unmatched: Unmatched): Attributes | undefined {
-  const attributes: Attributes = {};
-  let count = 0;
+  const attributes = new Map<string, JsonValue>();
   for (const [name, value] of cell.custom) {
-    if (count >= MAX_ATTRIBUTES) break;
+    if (attributes.size >= MAX_ATTRIBUTES) break;
     if (name === 'tags') {
       const tags = cleanText(value)
         .split(' ')
         .filter((tag) => tag !== '');
-      if (tags.length > 0) attributes.tags = tags;
-    } else {
-      const text = descriptionFrom(value);
-      if (text === undefined) continue;
-      attributes[name] = text;
+      if (tags.length > 0) attributes.set('tags', tags);
+      continue;
     }
-    count += 1;
+    const text = descriptionFrom(value);
+    if (text !== undefined) attributes.set(name, text);
   }
   if (cell.link !== undefined && cell.link.trim() !== '') {
     const address = webAddress(cell.link);
-    if (address !== undefined) attributes.link = address;
+    if (address !== undefined) attributes.set('link', address);
     else unmatched.add(cell.link, 'A link that is not a web address is left out.');
   }
-  return Object.keys(attributes).length === 0 ? undefined : attributes;
+  return attributesFrom(attributes);
 }

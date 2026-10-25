@@ -40,6 +40,7 @@ export function placesInView(
   /** The container each shown shape sits in, or `null` for the canvas; absent when none can be stored. */
   const placedIn = new Map<string, string | null>();
   const contents = new Map<string, string[]>();
+  const known = new Map<string, boolean>();
   for (const key of showing) {
     const container = containerOf.get(key);
     if (container === undefined) {
@@ -49,7 +50,7 @@ export function placesInView(
       const inside = contents.get(container);
       if (inside) inside.push(key);
       else contents.set(container, [key]);
-    } else if (!anyShown(container, containerOf, showing)) {
+    } else if (!anyShown(container, containerOf, showing, known)) {
       placedIn.set(key, null);
     }
   }
@@ -91,14 +92,28 @@ function anyShown(
   container: string,
   containerOf: ReadonlyMap<string, string>,
   showing: ReadonlySet<string>,
+  known: Map<string, boolean>,
 ): boolean {
+  // Each container's answer is kept, so that many shapes under one long chain walk it once.
+  const chain: string[] = [];
   const seen = new Set<string>();
+  let found = false;
   for (let at: string | undefined = container; at !== undefined; at = containerOf.get(at)) {
-    if (showing.has(at)) return true;
-    if (seen.has(at)) return false;
+    const answer = known.get(at);
+    if (answer !== undefined) {
+      found = answer;
+      break;
+    }
+    if (showing.has(at)) {
+      found = true;
+      break;
+    }
+    if (seen.has(at)) break;
     seen.add(at);
+    chain.push(at);
   }
-  return false;
+  for (const each of chain) known.set(each, found);
+  return found;
 }
 
 /** The shown shapes, those deepest inside others in the view first. */
