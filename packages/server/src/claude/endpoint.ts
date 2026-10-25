@@ -1,6 +1,7 @@
 /**
  * The program's side of the Claude endpoint: one attached Claude. It greets Claude with the project,
- * runs its commands with Claude as their author, shows its guidance in the open apps and opens the
+ * runs its commands with Claude as their author, and an import from the command line with the person
+ * as its author (ADR-0049), shows its guidance in the open apps and opens the
  * app when asked. It never answers with the session token, and refuses every other message.
  */
 import {
@@ -49,6 +50,13 @@ export function attachClaude(
       case 'command':
         // The session answers through the client: the change, or why it was refused.
         await session.execute(message.command, 'claude', {
+          client,
+          requestId: message.requestId,
+        });
+        return;
+      case 'import':
+        // The person ran it on the command line, so it is the person's action (ADR-0049).
+        await session.execute(message.command, 'user', {
           client,
           requestId: message.requestId,
         });
