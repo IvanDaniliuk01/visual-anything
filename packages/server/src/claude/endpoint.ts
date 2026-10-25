@@ -5,7 +5,9 @@
  */
 import {
   ProtocolError,
+  packagesWithCode,
   viewStateProblems,
+  type CodeApproval,
   type Problem,
   type ServerMessage,
   type ViewState,
@@ -25,6 +27,11 @@ export interface ClaudeActions {
    * given; absent when it cannot.
    */
   openApp?: (state?: ViewState) => Promise<void>;
+  /**
+   * The person's approvals of package code, from their preferences (ADR 0054); absent where the
+   * program keeps none, and then no code is approved.
+   */
+  codeApprovals?: () => readonly CodeApproval[];
 }
 
 /** An attached Claude: what to call with each message it sends, and when it detaches. */
@@ -56,6 +63,13 @@ export function attachClaude(
       case 'guidance': {
         const apps = await session.guide(message.guidance);
         send({ type: 'guidance/shown', requestId: message.requestId, apps });
+        return;
+      }
+      case 'code-approvals': {
+        // Only the approvals of the code the project holds now: nothing of the person's other projects.
+        const hashes = new Set(packagesWithCode(session.snapshot).map((each) => each.hash));
+        const approvals = (actions.codeApprovals?.() ?? []).filter((each) => hashes.has(each.hash));
+        send({ type: 'code/approvals', requestId: message.requestId, approvals: [...approvals] });
         return;
       }
       case 'open-app': {

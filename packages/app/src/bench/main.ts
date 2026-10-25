@@ -14,7 +14,8 @@
  * `?images` gives the elements pictures (see `images.ts`), also with `?tables`, where every table
  * shows one in its header and every column at its row's left: every phase then draws them, and three
  * more phases start with the image store cleared, at scales whose buckets were not drawn yet, so that
- * the waits before the other phases cannot have decoded the pictures they pan over.
+ * the waits before the other phases cannot have decoded the pictures they pan over. `?code` adds the
+ * phases of package code drawing a gauge inside every shape (`code.ts`, ADR 0054).
  *
  * Work mode, the default, measures the work of each frame: it moves the camera, draws the frame and
  * waits until the GPU has drawn it, so the result does not depend on how often the browser offers
@@ -43,6 +44,7 @@ import { previewOf } from '../canvas/routing/editor';
 import { handlesOf } from '../canvas/routing/handles';
 import { buildScene, type ElementShape, type RelationLine } from '../canvas/scene';
 import { MAX_BANDS, plannedTiles } from '../canvas/tiles';
+import { gaugeDrawings } from './code';
 import '../theme/tokens.css';
 import { THEMES } from '../theme/themes';
 import { RESTYLING, SHOWN, TARGET_FPS, WORK, addRow, percentile, showVerdict } from './report';
@@ -212,6 +214,26 @@ async function run(): Promise<void> {
       move(panBy(controller.camera, frame < 90 ? -8 : 8, frame < 90 ? -4 : 4)),
     ),
   );
+
+  // With `?code`, every shape draws a gauge its package's code answered (ADR 0054, M7).
+  if (search.has('code')) {
+    controller.renderer.setCodeDrawings(gaugeDrawings(scene));
+    await settle(300);
+    phases.push(
+      await measure('Pan, details shown, package code drawing every shape', 180, (frame) =>
+        move(panBy(controller.camera, frame < 90 ? -8 : 8, frame < 90 ? -4 : 4)),
+      ),
+    );
+    move(cameraAt(NAMES_FROM * 1.3));
+    await settle(300);
+    phases.push(
+      await measure('Zoom across the drawings threshold', 180, (frame) =>
+        move(zoomAt(controller.camera, middle, frame < 90 ? 1 / 1.02 : 1.02)),
+      ),
+    );
+    controller.renderer.setCodeDrawings(new Map());
+    await settle(300);
+  }
 
   controller.fit();
   await settle(300);

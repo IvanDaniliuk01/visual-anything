@@ -33,6 +33,15 @@ const preferences: fc.Arbitrary<Preferences> = fc.record({
     color.map((each) => each.toUpperCase()),
     { maxLength: MAX_RECENT_COLORS },
   ),
+  // Approvals of package code (ADR 0054), as this build holds them: capabilities sorted.
+  codeApprovals: fc.uniqueArray(
+    fc.record({
+      hash: fc.stringMatching(/^[0-9a-f]{64}$/),
+      package: fc.constantFrom('gauges', 'clinic', 'sensors.v2'),
+      capabilities: fc.subarray(['model:read', 'network:https://status.example.com', 'time']),
+    }),
+    { maxLength: 4, selector: (approval) => approval.hash },
+  ),
 });
 
 /** Any JSON value, as it reads back from its text (so without -0). */
@@ -64,6 +73,7 @@ describe('DEFAULT_PREFERENCES', () => {
       snapToGrid: true,
       rulers: false,
       recentColors: [],
+      codeApprovals: [],
     });
     expect(PREFERENCE_NAMES).toEqual(Object.keys(DEFAULT_PREFERENCES));
   });
@@ -71,6 +81,7 @@ describe('DEFAULT_PREFERENCES', () => {
   it('cannot be changed by whoever reads it', () => {
     expect(Object.isFrozen(DEFAULT_PREFERENCES)).toBe(true);
     expect(Object.isFrozen(DEFAULT_PREFERENCES.recentColors)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_PREFERENCES.codeApprovals)).toBe(true);
   });
 });
 
@@ -113,6 +124,7 @@ describe('readPreferences', () => {
       snapToGrid: false,
       rulers: true,
       recentColors: ['#1D4F91', '#dceBff'],
+      codeApprovals: [{ hash: 'c'.repeat(64), package: 'gauges', capabilities: ['time'] }],
     });
     expect(read.preferences).toEqual({
       theme: 'light',
@@ -121,6 +133,7 @@ describe('readPreferences', () => {
       snapToGrid: false,
       rulers: true,
       recentColors: ['#1D4F91', '#DCEBFF'],
+      codeApprovals: [{ hash: 'c'.repeat(64), package: 'gauges', capabilities: ['time'] }],
     });
     expect(read.unread).toEqual([]);
   });
@@ -214,6 +227,7 @@ describe('formatPreferences', () => {
         '  "recentColors": [',
         '    "#1D4F91"',
         '  ],',
+        '  "codeApprovals": [],',
         '  "apple": [',
         '    1,',
         '    2',

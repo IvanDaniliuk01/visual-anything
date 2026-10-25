@@ -300,6 +300,8 @@ export async function runCommand(
         ),
       ...(idle === undefined ? {} : { onConnections: (count: number) => idle.connections(count) }),
       themeHint: () => themeHintOf(preferences.current()),
+      // What Claude's tools may run of package code (ADR 0054).
+      codeApprovals: () => preferences.current().codeApprovals,
     });
   } catch (error) {
     idle?.cancel();

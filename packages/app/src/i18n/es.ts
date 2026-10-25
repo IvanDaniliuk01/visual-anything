@@ -88,6 +88,10 @@
  * | language                | idioma                           |
  * | settings (of a view)    | opciones                         |
  * | the local program       | el programa local                |
+ * | package code            | código del paquete               |
+ * | capability              | capacidad                        |
+ * | approve, approval       | aprobar, aprobación              |
+ * | computed (value)        | calculado                        |
  *
  * The words CONTEXT.md avoids are not used for its terms either: no "nodo", "objeto" or "instancia"
  * for an element, "propiedad" or "campo" for an attribute, "capa" for the stacking order, "enlace" or
@@ -248,6 +252,8 @@ export const ui: Catalog = {
   Dark: 'Oscuro',
   'Your theme applies to this tab only: Visual Anything is not connected.':
     'El tema se aplica solo a esta pestaña: Visual Anything no está conectado.',
+  'Your approval of package code applies to this tab only: Visual Anything is not connected.':
+    'La aprobación del código del paquete se aplica solo a esta pestaña: Visual Anything no está conectado.',
 
   // Search and jump: the find field over the canvas.
   'Find in the project': 'Buscar en el proyecto',
@@ -1641,6 +1647,47 @@ export const ui: Catalog = {
     'Formas y relaciones para que Mermaid las organice; sin posiciones, detalles, notas ni imágenes.',
   'The C4 model of the view’s Systems components; no positions, notes, pictures or scenarios.':
     'El modelo C4 de los componentes de Sistemas de la vista; sin posiciones, notas, imágenes ni escenarios.',
+  // Package code (ADR 0054): the inspector, the component editor and the approval dialog.
+  'Package code': 'Código del paquete',
+  'Computed values': 'Valores calculados',
+  'Computed by the code of “{name}”, and never saved.':
+    'Calculado por el código de “{name}”, y nunca guardado.',
+  computed: 'calculado',
+  '“{name}” finds:': '“{name}” encuentra:',
+  'Review the code of “{name}”…': 'Revisar el código de “{name}”…',
+  'The code of “{name}” is over 256 KiB, so it never runs.':
+    'El código de “{name}” pasa de 256 KiB, así que nunca se ejecuta.',
+  'The code of “{name}” is not approved, so it does not run.':
+    'El código de “{name}” no está aprobado, así que no se ejecuta.',
+  'Read the whole model, without changing it': 'Leer todo el modelo, sin cambiarlo',
+  'Read the clock': 'Leer el reloj',
+  'Fetch from {origin}, through Visual Anything':
+    'Traer datos de {origin}, a través de Visual Anything',
+  'The code of “{name}”': 'El código de “{name}”',
+  'The code changed while it was open here: this is the code as it is now, and nothing was approved.':
+    'El código cambió mientras estaba abierto aquí: este es el código tal como es ahora, y no se aprobó nada.',
+  'It runs in a sandbox, with no access to your files, the page or the network beyond what you grant below. Approve it only if you trust where it comes from.':
+    'Se ejecuta aislado, sin acceso a los archivos, a la página ni a la red más allá de lo que se conceda abajo. Aprobarlo solo si se confía en su origen.',
+  'It is over 256 KiB, so it never runs, approved or not.':
+    'Pasa de 256 KiB, así que nunca se ejecuta, esté aprobado o no.',
+  '{count} lines': { one: '{count} línea', other: '{count} líneas' },
+  'hash {hash}…': 'resumen {hash}…',
+  'Its code': 'Su código',
+  'What it may reach beyond its element': 'A qué puede llegar más allá de su elemento',
+  'No hook fetches anything yet: fetching waits for live values.':
+    'Todavía no trae datos de ningún lado: eso llega con los valores en vivo.',
+  'It reaches nothing beyond its element.': 'No llega a nada más allá de su elemento.',
+  'Withdraw approval': 'Retirar la aprobación',
+  'Keep approved': 'Mantener aprobado',
+  'Approve and run': 'Aprobar y ejecutar',
+  'not granted': 'no concedida',
+  'Approved, and running.': 'Aprobado y en ejecución.',
+  'Approved: it runs once the worker starts.':
+    'Aprobado: se ejecuta en cuanto arranca el proceso que ejecuta el código.',
+  'Review the code…': 'Revisar el código…',
+  'Review and approve the code…': 'Revisar y aprobar el código…',
+  'The package “{name}” holds code that is not approved, so it does not run. Review it from one of its elements in the inspector, or from the package in the Components tab.':
+    'El paquete “{name}” tiene código que no está aprobado, así que no se ejecuta. Revisarlo desde uno de sus elementos en el inspector, o desde el paquete en la pestaña Componentes.',
 };
 
 /**
@@ -2945,6 +2992,118 @@ export const messages: Catalog = {
     'Se deja fuera un paso que no representa ninguna relación del modelo.',
   'It is drawn between containers of its ends; it shows in views that show its ends.':
     'Se dibuja entre contenedores de sus extremos; se muestra en las vistas que muestran sus extremos.',
+  // Package code (ADR 0054): writing it, what a project's files hold of it, and what its runs say.
+  'Add code to the package "{name}"': 'Agregar código al paquete "{name}"',
+  'Change the code of the package "{name}"': 'Cambiar el código del paquete "{name}"',
+  'Remove the code of the package "{name}"': 'Quitar el código del paquete "{name}"',
+  'Change what the code of the package "{name}" may reach':
+    'Cambiar a qué puede llegar el código del paquete "{name}"',
+  'set-package-code needs the code, the capabilities, or both.':
+    'set-package-code necesita el código, las capacidades o ambos.',
+  "A package's code is JavaScript text, or its lines as a list of texts.":
+    'El código de un paquete es texto en JavaScript, o sus líneas como una lista de textos.',
+  'The code has nothing in it; to remove it, set it to null.':
+    'El código no tiene nada; para quitarlo, darle el valor null.',
+  'The code of the package "{name}" would be over 256 KiB; keep it under that.':
+    'El código del paquete "{name}" pasaría de 256 KiB; debe quedar por debajo.',
+  'The code holds more than {n} lines.': 'El código tiene más de {n} líneas.',
+  'Line {n} of the code is over {m} characters.': 'La línea {n} del código pasa de {m} caracteres.',
+  'Line {n} of the code holds a line break; give each line as its own text.':
+    'La línea {n} del código tiene un salto de línea; dar cada línea como un texto aparte.',
+  'The capabilities are a list, such as ["model:read", "time"].':
+    'Las capacidades son una lista, como ["model:read", "time"].',
+  'Package code declares at most {n} capabilities.':
+    'El código de un paquete declara como máximo {n} capacidades.',
+  'The package "{name}" has no code to give capabilities to.':
+    'El paquete "{name}" no tiene código al que dar capacidades.',
+  '"{capability}" is not a capability: package code may have "model:read", "time" and "network:" with one web origin.':
+    '"{capability}" no es una capacidad: el código de un paquete puede tener "model:read", "time" y "network:" con un origen web.',
+  '"{capability}" is not a capability: write "network:" and one web origin, such as "network:https://status.example.com", with no path and no default port.':
+    '"{capability}" no es una capacidad: escribir "network:" y un origen web, como "network:https://status.example.com", sin ruta ni puerto predeterminado.',
+  'The code of the package "{name}" is over 256 KiB, so it never runs.':
+    'El código del paquete "{name}" pasa de 256 KiB, así que nunca se ejecuta.',
+  'The package "{name}" declares "{capability}", which is not a capability; its code never gets it.':
+    'El paquete "{name}" declara "{capability}", que no es una capacidad; su código nunca la recibe.',
+  'The package "{name}" declares capabilities but holds no code; they have no effect.':
+    'El paquete "{name}" declara capacidades pero no tiene código; no tienen efecto.',
+  'The code of the package "{name}" failed in {hook} on "{element}": it threw something that is not an error':
+    'El código del paquete "{name}" falló en {hook} sobre "{element}": lanzó algo que no es un error',
+  'The code of the package "{name}" failed in {hook} on "{element}": {error}':
+    'El código del paquete "{name}" falló en {hook} sobre "{element}": {error}',
+  'The code of the package "{name}" was stopped in {hook} on "{element}": it ran past 50 ms.':
+    'El código del paquete "{name}" se detuvo en {hook} sobre "{element}": pasó de 50 ms.',
+  'The code of the package "{name}" was stopped in {hook} on "{element}": it took more than 32 MiB.':
+    'El código del paquete "{name}" se detuvo en {hook} sobre "{element}": ocupó más de 32 MiB.',
+  'The answer of {hook} from the package "{name}" on "{element}" was dropped: {why}.':
+    'Se descartó la respuesta de {hook} del paquete "{name}" sobre "{element}": {why}.',
+  'The code of the package "{name}" did not load: it threw something that is not an error':
+    'El código del paquete "{name}" no se cargó: lanzó algo que no es un error',
+  'The code of the package "{name}" did not load: {error}':
+    'El código del paquete "{name}" no se cargó: {error}',
+  'The code of the package "{name}" was stopped as it loaded: it ran past 50 ms.':
+    'El código del paquete "{name}" se detuvo al cargarse: pasó de 50 ms.',
+  'The code of the package "{name}" was stopped as it loaded: it took more than 32 MiB.':
+    'El código del paquete "{name}" se detuvo al cargarse: ocupó más de 32 MiB.',
+  'The code of the package "{name}" is off until the project opens again: its calls stopped {n} times in a row.':
+    'El código del paquete "{name}" queda apagado hasta que el proyecto se vuelva a abrir: sus llamadas se detuvieron {n} veces seguidas.',
+  'The code of the package "{name}" is not approved: the person approves it in the app before it runs.':
+    'El código del paquete "{name}" no está aprobado: la persona lo aprueba en la app antes de que se ejecute.',
+  'The code of the package "{name}" was stopped: it kept the worker that runs package code from answering, so the worker started again.':
+    'El código del paquete "{name}" se detuvo: no dejaba responder al proceso que ejecuta el código de los paquetes, así que ese proceso volvió a empezar.',
+  // Why an answer of package code was dropped, as the messages above hold it.
+  'it is not plain data': 'no son datos simples',
+  'it nests deeper than {n} levels': 'anida más de {n} niveles',
+  'it is over {n} characters as JSON': 'pasa de {n} caracteres como JSON',
+  'it has the key "__proto__"': 'tiene la clave "__proto__"',
+  'it is not an object of attribute values': 'no es un objeto JSON de valores de atributos',
+  '"{name}" is not a name a computed attribute may have':
+    '"{name}" no es un nombre que pueda tener un atributo calculado',
+  '"" is not a name a computed attribute may have':
+    '"" no es un nombre que pueda tener un atributo calculado',
+  'the value of "{name}" is not plain data': 'el valor de "{name}" no son datos simples',
+  'the value of "{name}" is not plain data: {why}':
+    'el valor de "{name}" no son datos simples: {why}',
+  'the value of "{name}" is over {n} characters as JSON':
+    'el valor de "{name}" pasa de {n} caracteres como JSON',
+  'it computes more than {n} attributes': 'calcula más de {n} atributos',
+  'it is not a list of problems': 'no es una lista de problemas',
+  'problem {n} is not a message': 'el problema {n} no es un mensaje',
+  'problem {n} is over {m} characters': 'el problema {n} pasa de {m} caracteres',
+  'it answers more than {n} problems': 'responde más de {n} problemas',
+  'it is not a drawing': 'no es un dibujo',
+  'its box must be over 0 and at most {n} either way':
+    'su caja debe medir más de 0 y como máximo {n} en cada sentido',
+  'its items are not a list': 'sus partes no son una lista',
+  'it holds more than {n} items': 'tiene más de {n} partes',
+  'item {n} is not something a drawing holds': 'la parte {n} no es algo que un dibujo pueda tener',
+  'item {n} has a color that is not written #RRGGBB':
+    'la parte {n} tiene un color que no está escrito como #RRGGBB',
+  'item {n} has a number out of range': 'la parte {n} tiene un número fuera de rango',
+  'item {n} has the key "{key}", which a drawing item does not have':
+    'la parte {n} tiene la clave "{key}", que una parte de un dibujo no tiene',
+  'item {n} needs from 2 to {m} points': 'la parte {n} necesita de 2 a {m} puntos',
+  'item {n} has a text over {m} characters': 'la parte {n} tiene un texto de más de {m} caracteres',
+  'item {n} has a text that is not one line':
+    'la parte {n} tiene un texto que no es una sola línea',
+  'item {n} shows the image "{id}", which no package in use defines':
+    'la parte {n} muestra la imagen "{id}", que ningún paquete en uso define',
+  // What the schema says of a package's code, and what the program refuses of approvals.
+  'must be one line, without a line break': 'debe ser una sola línea, sin saltos de línea',
+  'must be "model:read", "time", or "network:" and one web origin, such as "network:https://status.example.com"':
+    'debe ser "model:read", "time", o "network:" y un origen web, como "network:https://status.example.com"',
+  '"codeApprovals" must be a list of approvals of package code.':
+    '"codeApprovals" debe ser una lista de aprobaciones del código de paquetes.',
+  'An approval of package code has a hash, a package and capabilities, and nothing else.':
+    'Una aprobación del código de un paquete tiene un hash, un paquete y capacidades, y nada más.',
+  'An approval of package code names its SHA-256 in 64 small hexadecimal digits.':
+    'Una aprobación del código de un paquete nombra su SHA-256 en 64 dígitos hexadecimales en minúscula.',
+  'An approval of package code names the package it was made in.':
+    'Una aprobación del código de un paquete nombra el paquete en el que se hizo.',
+  'An approval of package code lists the capabilities it grants.':
+    'Una aprobación del código de un paquete enumera las capacidades que concede.',
+  '"codeApprovals" approves {hash} twice.': '"codeApprovals" aprueba {hash} dos veces.',
+  '"codeApprovals" holds {n} approvals, more than {m}.':
+    '"codeApprovals" tiene {n} aprobaciones, más de {m}.',
 };
 
 /**

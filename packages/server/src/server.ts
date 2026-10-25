@@ -10,7 +10,13 @@ import { realpath } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
 import type { Duplex } from 'node:stream';
-import { LAUNCH_PARAM, LIVE_PATH, encodeServerMessage, withViewState } from '@visual-anything/core';
+import {
+  LAUNCH_PARAM,
+  LIVE_PATH,
+  encodeServerMessage,
+  withViewState,
+  type CodeApproval,
+} from '@visual-anything/core';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import { attachClaude } from './claude/endpoint';
 import { CLAUDE_PATH, encodeClaudeMessage } from './claude/messages';
@@ -26,6 +32,7 @@ import {
 } from './security';
 import {
   LIVE_MAX_PAYLOAD,
+  CODE_WORKER_POLICY,
   WORKER_POLICY,
   applyContentPolicies,
   createNonce,
@@ -75,6 +82,11 @@ export interface ServerOptions {
    * so that the page paints its first frame in it; a function is asked each time. It is no secret.
    */
   themeHint?: ThemeHint | (() => ThemeHint | undefined);
+  /**
+   * The person's approvals of package code, from their preferences, which Claude's endpoint answers
+   * about for the project's own code only (ADR 0054); absent, no code is approved for Claude.
+   */
+  codeApprovals?: () => readonly CodeApproval[];
 }
 
 /** A theme the page can paint its first frame in. */
@@ -183,15 +195,18 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       (message) => {
         if (socket.readyState === WebSocket.OPEN) socket.send(encodeClaudeMessage(message));
       },
-      openBrowser === undefined
-        ? {}
-        : {
-            openApp: async (state) => {
-              await openBrowser(
-                state === undefined ? launchUrl() : withViewState(launchUrl(), state),
-              );
-            },
-          },
+      {
+        ...(openBrowser === undefined
+          ? {}
+          : {
+              openApp: async (state) => {
+                await openBrowser(
+                  state === undefined ? launchUrl() : withViewState(launchUrl(), state),
+                );
+              },
+            }),
+        ...(options.codeApprovals === undefined ? {} : { codeApprovals: options.codeApprovals }),
+      },
     );
     socket.on('close', () => connection.detach());
     socket.on('message', (data) => {
@@ -208,7 +223,11 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       sendText(response, check.status, check.message);
       return;
     }
-    applyContentPolicies(response, { page: app.pagePolicyAt(port), worker: WORKER_POLICY });
+    applyContentPolicies(response, {
+      page: app.pagePolicyAt(port),
+      worker: WORKER_POLICY,
+      codeWorker: CODE_WORKER_POLICY,
+    });
     app.serve(request, response);
   });
 

@@ -32,6 +32,7 @@ import { setComponentAppearance, setRelationTypeAppearance } from './appearance'
 import { resetRoute, setRoute, settleRoutes } from './routes';
 import { restack } from './stacking';
 import { changeContainer } from './containers';
+import { setPackageCode } from './code';
 import { createScenario, deleteScenario, updateScenario } from './scenarios';
 import type { Command } from './types';
 import {
@@ -206,6 +207,8 @@ function dispatch(draft: Draft, command: Command): string {
       return setRoute(draft, command);
     case 'reset-route':
       return resetRoute(draft, command);
+    case 'set-package-code':
+      return setPackageCode(draft, command);
     case 'batch': {
       const label = requireName(command.label, 'A batch');
       const commands = requireList(command.commands, 'commands');

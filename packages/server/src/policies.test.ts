@@ -13,7 +13,9 @@ import { WebSocket } from 'ws';
 import { toForwardSlashes } from './paths';
 import {
   LIVE_MAX_PAYLOAD,
+  CODE_WORKER_POLICY,
   WORKER_POLICY,
+  isCodeWorkerPath,
   inlineScriptHashes,
   pagePolicy,
   servesProjectFile,
@@ -152,6 +154,7 @@ describe('the built app', () => {
     await writeFile(join(dist, 'index.html'), INDEX);
     await writeFile(join(dist, 'assets', 'app.js'), 'export {};');
     await writeFile(join(dist, 'assets', 'layout.worker.js'), 'self.onmessage = () => {};');
+    await writeFile(join(dist, 'assets', 'code.worker-AbC_12-x.js'), 'self.onmessage = () => {};');
     await writeFile(join(dist, 'assets', 'style.css'), 'body {}');
     server = await startServer({ session, port: 0, app: { mode: 'static', dir: dist } });
   });
@@ -174,6 +177,15 @@ describe('the built app', () => {
       const reply = await send(server.port, { path });
       expect(reply.headers['content-security-policy']).toBe(WORKER_POLICY);
     }
+  });
+
+  it('serves the code worker with its own policy, which compiles WebAssembly and connects nowhere', async () => {
+    const reply = await send(server.port, { path: '/assets/code.worker-AbC_12-x.js' });
+    expect(reply.headers['content-security-policy']).toBe(CODE_WORKER_POLICY);
+    expect(CODE_WORKER_POLICY).toContain("'wasm-unsafe-eval'");
+    expect(CODE_WORKER_POLICY).toContain("connect-src 'none'");
+    expect(CODE_WORKER_POLICY).not.toContain("'unsafe-eval'");
+    expect(WORKER_POLICY).not.toContain('wasm-unsafe-eval');
   });
 
   it('keeps frame-ancestors on everything else', async () => {
@@ -207,5 +219,22 @@ describe('the built app', () => {
     const closed = new Promise<number>((resolve) => socket.once('close', (code) => resolve(code)));
     socket.send(message(5 * 1024 * 1024));
     expect(await closed).toBe(1009);
+  });
+});
+
+describe('isCodeWorkerPath', () => {
+  it('names the code worker built and in dev mode, and nothing else', () => {
+    expect(isCodeWorkerPath('/assets/code.worker-BKa9oldY.js')).toBe(true);
+    expect(isCodeWorkerPath('/src/code/code.worker.ts?worker_file&type=module')).toBe(true);
+    for (const path of [
+      '/assets/layout.worker-BVII4DNO.js',
+      '/assets/index-DicLD6-D.js',
+      '/assets/code.worker-x.js/evil.js',
+      '/assets/mycode.worker.js',
+      '/assets/app.js?/code.worker.js',
+      undefined,
+    ]) {
+      expect(isCodeWorkerPath(path)).toBe(false);
+    }
   });
 });

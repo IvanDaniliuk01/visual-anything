@@ -464,6 +464,77 @@ describe('validateFile', () => {
     };
     const clinic = { id: 'clinic', name: 'Clinic', components: [queue], relationTypes: [feeds] };
 
+    // Package code (ADR 0054): data in the file, run only once the person approves it.
+    describe('with code', () => {
+      const coded = {
+        ...pkg,
+        id: 'gauges',
+        code: ['export function attributes(element) {', '  return { fahrenheit: 1 };', '}'],
+        capabilities: ['model:read', 'time', 'network:https://status.example.com:8443'],
+      };
+
+      it('accepts its lines and its capabilities', () => {
+        expect(validateFile('package', coded)).toEqual({ ok: true, value: coded });
+      });
+
+      it.each([
+        [
+          'a line that holds a line break',
+          { ...coded, code: ['export const a = 1;\nexport const b = 2;'] },
+          [{ path: '/code/0', message: 'must be one line, without a line break' }],
+        ],
+        [
+          'a line that holds a carriage return',
+          { ...coded, code: ['export const a = 1;\r'] },
+          [{ path: '/code/0', message: 'must be one line, without a line break' }],
+        ],
+        [
+          'code with no line',
+          { ...coded, code: [] },
+          [{ path: '/code', message: 'must have at least 1 item' }],
+        ],
+        [
+          'code written as one text',
+          { ...coded, code: 'export const a = 1;' },
+          [{ path: '/code', message: 'must be an array' }],
+        ],
+        [
+          'a capability it does not know',
+          { ...coded, capabilities: ['files:read'] },
+          [
+            {
+              path: '/capabilities/0',
+              message:
+                'must be "model:read", "time", or "network:" and one web origin, such as "network:https://status.example.com"',
+            },
+          ],
+        ],
+        [
+          'a network capability with a path',
+          { ...coded, capabilities: ['network:https://example.com/api'] },
+          [
+            {
+              path: '/capabilities/0',
+              message:
+                'must be "model:read", "time", or "network:" and one web origin, such as "network:https://status.example.com"',
+            },
+          ],
+        ],
+        [
+          'a capability declared twice',
+          { ...coded, capabilities: ['time', 'time'] },
+          [
+            {
+              path: '/capabilities',
+              message: 'must not have duplicate items (items 0 and 1 are the same)',
+            },
+          ],
+        ],
+      ])('rejects %s', (_, data, errors) => {
+        expect(problemsIn('package', data)).toEqual(errors);
+      });
+    });
+
     it('accepts every appearance trait, attribute choices and units, and limits lifted with "any"', () => {
       expect(validateFile('package', clinic)).toEqual({ ok: true, value: clinic });
       const empty = { ...queue, appearance: { connectionPoints: [], detail: {} } };

@@ -15,6 +15,7 @@ import {
   PROTOCOL_VERSION,
   ProtocolError,
   applyOperations,
+  type CodeApproval,
   type Command,
   type Guidance,
   type Problem,
@@ -73,6 +74,11 @@ export interface Program {
    * absent, or undefined, where it is not known.
    */
   address?(): Promise<string | undefined>;
+  /**
+   * The person's approvals of the code the project's packages hold now (ADR 0054); absent where it
+   * cannot ask, and then no code runs for Claude.
+   */
+  codeApprovals?(): Promise<CodeApproval[]>;
 }
 
 /** Raised when the program cannot be reached; its message is written for Claude to pass on. */
@@ -178,6 +184,15 @@ export class ProgramBridge implements Program {
         : { type: 'open-app', requestId, state },
     );
     if (answer.type === 'app/opened') return;
+    if (answer.type === 'command/rejected') {
+      throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
+    }
+    throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  async codeApprovals(): Promise<CodeApproval[]> {
+    const answer = await this.#request((requestId) => ({ type: 'code-approvals', requestId }));
+    if (answer.type === 'code/approvals') return answer.approvals;
     if (answer.type === 'command/rejected') {
       throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
     }
