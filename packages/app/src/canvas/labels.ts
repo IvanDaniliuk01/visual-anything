@@ -3,7 +3,7 @@
  * thousands of names costs little more than showing one. Shape labels are drawn in white and tinted
  * to the colour that reads on their shape's fill.
  */
-import { BitmapFont, BitmapText, type TextStyleOptions } from 'pixi.js';
+import { BitmapFont, BitmapText, Cache, type TextStyleOptions } from 'pixi.js';
 import { FONT_FAMILY, fitText, type LabelKind, type TextFactory } from './draw';
 import { RELATION_LABEL_HALO, RELATION_LABEL_TEXT } from './palette';
 
@@ -19,26 +19,30 @@ const FONTS: Record<LabelKind, string> = {
  */
 const CHARACTERS: (string | string[])[] = [[' ', '~'], 'áéíóúüñÁÉÍÓÚÜÑ¿¡…—–→·“”‘’×'];
 
-let installed = false;
+/** The keys PixiJS keeps the installed fonts under in its cache. */
+const CACHED = Object.values(FONTS).map((name) => `${name}-bitmap`);
 
-/** Draws the glyphs of the label fonts, which takes a moment the first time; done ahead of need. */
+/**
+ * Draws the glyphs of the label fonts, which takes a moment the first time; done ahead of need. Each
+ * font is installed only while PixiJS's cache lacks it: a renderer started again finds the fonts an
+ * earlier one installed, and so does this module loaded again by a hot reload, as PixiJS is not.
+ */
 export function installFonts(): void {
-  if (installed) return;
-  installed = true;
+  if (CACHED.every((key) => Cache.has(key))) return;
   // Drawn at twice the screen's density or more, so that names stay sharp when zoomed in.
   const resolution = Math.min(4, Math.max(2, (globalThis.devicePixelRatio || 1) * 2));
   const common = { chars: CHARACTERS, resolution, padding: 4 };
-  BitmapFont.install({
+  installOnce({
     name: FONTS.name,
     style: { fontFamily: FONT_FAMILY, fontSize: 14, fontWeight: '600', fill: '#ffffff' },
     ...common,
   });
-  BitmapFont.install({
+  installOnce({
     name: FONTS.detail,
     style: { fontFamily: FONT_FAMILY, fontSize: 11, fill: '#ffffff' },
     ...common,
   });
-  BitmapFont.install({
+  installOnce({
     name: FONTS.relation,
     style: {
       fontFamily: FONT_FAMILY,
@@ -48,6 +52,12 @@ export function installFonts(): void {
     },
     ...common,
   });
+}
+
+/** Installs a font unless PixiJS's cache already holds it. */
+function installOnce(options: Parameters<typeof BitmapFont.install>[0] & { name: string }): void {
+  if (Cache.has(`${options.name}-bitmap`)) return;
+  BitmapFont.install(options);
 }
 
 /**

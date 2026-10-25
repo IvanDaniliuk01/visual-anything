@@ -14,7 +14,7 @@ import {
   type IndexedScene,
 } from './hit';
 import { buildScene, type ElementShape, type Scene } from './scene';
-import { SpatialIndex, overlaps, rectBetween } from './spatial';
+import { SpatialIndex, meets, overlaps, rectBetween } from './spatial';
 
 const sample = loadSample();
 const indexed = indexScene(buildScene(sample, 'system-overview'));
@@ -334,29 +334,79 @@ describe('SpatialIndex', () => {
     expect(index.at({ x: 200, y: 200 })).toEqual([]);
   });
 
-  it('finds the highest score among the items that overlap a rectangle', () => {
+  it('keeps a rectangle a billion units wide in bounded time, and finds it', () => {
+    // Positions come from project files and from Claude; one shape that far must not fill millions
+    // of cells.
+    const index = new SpatialIndex<string>();
+    const began = performance.now();
+    index.insert('far', { x: 0, y: 0, width: 1e9, height: 100 });
+    index.insertParts('route', [
+      { x: 0, y: 0, width: 1e9, height: 0 },
+      { x: 1e9, y: 0, width: 0, height: 1e9 },
+    ]);
+    index.insert('near', { x: 10, y: 10, width: 20, height: 20 });
+    expect(index.query({ x: 5e8, y: 50, width: 10, height: 10 })).toEqual(['far']);
+    expect(index.at({ x: 1e9, y: 5e8 })).toEqual(['route']);
+    expect(index.query({ x: -1e9, y: -1e9, width: 3e9, height: 3e9 })).toEqual([
+      'far',
+      'route',
+      'near',
+    ]);
+    expect(index.highest({ x: 5e8, y: 0, width: 10, height: 10 }, (item) => item.length)).toBe(3);
+    expect(performance.now() - began).toBeLessThan(100);
+  });
+
+  it('finds what a search of every item finds, items and queries that span many cells included', () => {
     const rect = fc.record({
-      x: fc.integer({ min: -2000, max: 2000 }),
-      y: fc.integer({ min: -2000, max: 2000 }),
-      width: fc.integer({ min: 0, max: 900 }),
-      height: fc.integer({ min: 0, max: 900 }),
+      x: fc.integer({ min: -200, max: 200 }),
+      y: fc.integer({ min: -200, max: 200 }),
+      width: fc.integer({ min: 0, max: 150 }),
+      height: fc.integer({ min: 0, max: 150 }),
     });
+    const item = fc.array(rect, { minLength: 1, maxLength: 3 });
+    fc.assert(
+      fc.property(fc.array(item, { maxLength: 20 }), rect, (items, probe) => {
+        // Cells one unit wide, so that many items and queries cover more cells than are entered.
+        const index = new SpatialIndex<number>(1);
+        items.forEach((parts, at) => index.insertParts(at, parts));
+        const expected = items.flatMap((parts, at) =>
+          parts.some((part) => meets(part, probe)) ? [at] : [],
+        );
+        expect(index.query(probe)).toEqual(expected);
+      }),
+    );
+  });
+
+  it('finds the highest score among the items that overlap a rectangle, as a search of every item does', () => {
+    // On a coarse grid, so that rectangles that only touch, which do not overlap, come up often.
+    const step = (min: number, max: number) => fc.integer({ min, max }).map((n) => n * 50);
+    const rect = fc.record({
+      x: step(-40, 40),
+      y: step(-40, 40),
+      width: step(0, 18),
+      height: step(0, 18),
+    });
+    // An item covers one rectangle, or several, as a route covers its segments.
+    const item = fc.tuple(
+      fc.array(rect, { minLength: 1, maxLength: 3 }),
+      fc.integer({ min: 0, max: 50 }),
+    );
     fc.assert(
       fc.property(
-        fc.array(fc.tuple(rect, fc.integer({ min: 0, max: 50 })), { maxLength: 30 }),
+        fc.array(item, { maxLength: 30 }),
         rect,
-        (items, probe) => {
-          const index = new SpatialIndex<number>();
-          items.forEach(([each], at) => index.insert(at, each));
-          const scores = items.map(([, score]) => score);
+        fc.integer({ min: 16, max: 512 }),
+        (items, probe, cellSize) => {
+          const index = new SpatialIndex<number>(cellSize);
+          items.forEach(([parts], at) => index.insertParts(at, parts));
+          // Without the index: every item, by its own rectangles.
           const expected = Math.max(
             -1,
-            ...index
-              .query(probe)
-              .filter((at) => overlaps((items[at] as [Rect, number])[0], probe))
-              .map((at) => scores[at] as number),
+            ...items
+              .filter(([parts]) => parts.some((part) => overlaps(part, probe)))
+              .map(([, score]) => score),
           );
-          expect(index.highest(probe, (at) => scores[at] as number)).toBe(expected);
+          expect(index.highest(probe, (at) => (items[at] as [Rect[], number])[1])).toBe(expected);
         },
       ),
     );
