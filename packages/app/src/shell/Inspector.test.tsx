@@ -1559,4 +1559,29 @@ describe('Inspector, in this view', () => {
       }),
     ).toHaveAttribute('title', 'The project cannot be changed now.');
   });
+
+  it('says whether a container is collapsed in this view, and collapses or expands it', async () => {
+    const { send } = renderInspector({ selected: [element('scheduling')] });
+    const here = section();
+    expect(within(here).getByText('Expanded: its contents are drawn.')).toBeVisible();
+    await settle(() => fireEvent.click(within(here).getByRole('button', { name: 'Collapse' })));
+    expect(within(here).getByText(/^Collapsed, with 3 inside/)).toBeVisible();
+    const expand = within(here).getByRole('button', { name: 'Expand' });
+    await settle(() => fireEvent.click(expand));
+    expect(sent(send)).toEqual([
+      { type: 'set-collapsed', view: 'system-overview', elements: ['scheduling'], collapsed: true },
+      {
+        type: 'set-collapsed',
+        view: 'system-overview',
+        elements: ['scheduling'],
+        collapsed: false,
+      },
+    ]);
+    expect(within(here).getByRole('status')).toHaveTextContent('Expanded "Scheduling".');
+  });
+
+  it('offers no collapse for an element that holds nothing in this view', () => {
+    renderInspector({ selected: [element('patient')] });
+    expect(within(section()).queryByRole('button', { name: 'Collapse' })).not.toBeInTheDocument();
+  });
 });
