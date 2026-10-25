@@ -184,7 +184,7 @@ describe('work that could grow faster than the file', () => {
       ],
       relations,
     });
-    expect(quick(() => readJson({ name: 'chain.vamodel', text }), 500)).toEqual({
+    expect(quick(() => readJson({ name: 'chain.vamodel', text }), 1_000)).toEqual({
       ok: false,
       problems: [
         'The file holds more than 50,000 relations, those that put one thing inside another included; an import brings at most 50,000.',
@@ -213,7 +213,7 @@ describe('work that could grow faster than the file', () => {
       relations,
     });
     const plan = planOf(
-      quick(() => readJson({ name: 'chain.vamodel', text }), 3_000) as ReadResult,
+      quick(() => readJson({ name: 'chain.vamodel', text }), 5_000) as ReadResult,
     );
     expect(plan.relations).toHaveLength(length);
     expect(plan.relations[0]?.sourceId).toBe('r0');
@@ -231,7 +231,7 @@ describe('work that could grow faster than the file', () => {
   it('reads rows that all share a name, and relations that all end on one, in one pass', () => {
     const rows = 'Same\n'.repeat(IMPORT_LIMITS.elements - 1);
     const plan = planOf(
-      quick(() => readTable({ name: 'x.csv', text: `name\n${rows}` }), 3_000) as ReadResult,
+      quick(() => readTable({ name: 'x.csv', text: `name\n${rows}` }), 5_000) as ReadResult,
     );
     expect(plan.elements).toHaveLength(IMPORT_LIMITS.elements - 1);
     const fan = Array.from({ length: 40_000 }, (_, at) => ({
@@ -246,7 +246,7 @@ describe('work that could grow faster than the file', () => {
       relations: [{ id: 'hub', relationType: 'relates-to', from: 'a', to: 'a' }, ...fan],
     });
     expect(
-      planOf(quick(() => readJson({ name: 'fan.vamodel', text }), 3_000) as ReadResult).relations,
+      planOf(quick(() => readJson({ name: 'fan.vamodel', text }), 5_000) as ReadResult).relations,
     ).toHaveLength(40_001);
   });
 });

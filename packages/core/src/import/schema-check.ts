@@ -145,6 +145,14 @@ function lengthOf(text: string): number {
   return length;
 }
 
+/** A schema keyword's value, read as the schema's own key only. */
+function keyword(rule: Schema, name: string): unknown {
+  return Object.hasOwn(rule, name) ? rule[name] : undefined;
+}
+
+/** What each `$ref` of each root schema names, found once. */
+const resolved = new WeakMap<Schema, Map<string, unknown>>();
+
 class Checker {
   readonly #root: Schema;
   readonly #problems: SchemaProblem[];
@@ -162,13 +170,11 @@ class Checker {
     if (this.#problems.length >= MAX_SCHEMA_PROBLEMS * 4) return false;
     const rule = schema as Schema;
     const before = this.#problems.length;
-    const get = (keyword: string): unknown =>
-      Object.hasOwn(rule, keyword) ? rule[keyword] : undefined;
 
-    const ref = get('$ref');
+    const ref = keyword(rule, '$ref');
     if (typeof ref === 'string') return this.check(this.#resolve(ref), data, path);
 
-    const type = get('type');
+    const type = keyword(rule, 'type');
     if (type !== undefined) {
       const types = Array.isArray(type) ? (type as string[]) : [type as string];
       if (!types.some((each) => fitsType(data, each))) {
@@ -181,7 +187,7 @@ class Checker {
     if (Object.hasOwn(rule, 'const') && !equal(data, rule.const)) {
       this.#fail(path, `must be ${JSON.stringify(rule.const)}`);
     }
-    const choices = get('enum');
+    const choices = keyword(rule, 'enum');
     if (Array.isArray(choices) && !choices.some((each) => equal(data, each))) {
       this.#fail(path, `must be one of ${choices.map((each) => JSON.stringify(each)).join(', ')}`);
     }
@@ -190,15 +196,15 @@ class Checker {
     if (Array.isArray(data)) this.#array(rule, data, path);
     else if (typeOf(data) === 'object') this.#object(rule, data as Record<string, unknown>, path);
 
-    const anyOf = get('anyOf');
+    const anyOf = keyword(rule, 'anyOf');
     if (Array.isArray(anyOf)) this.#anyOf(anyOf, data, path);
-    const allOf = get('allOf');
+    const allOf = keyword(rule, 'allOf');
     if (Array.isArray(allOf)) for (const each of allOf) this.check(each, data, path);
-    const condition = get('if');
+    const condition = keyword(rule, 'if');
     if (condition !== undefined) {
       const quiet = new Checker(this.#root, []);
-      if (quiet.check(condition, data, path)) this.check(get('then'), data, path);
-      else this.check(get('else'), data, path);
+      if (quiet.check(condition, data, path)) this.check(keyword(rule, 'then'), data, path);
+      else this.check(keyword(rule, 'else'), data, path);
     }
     return this.#problems.length === before;
   }
@@ -208,14 +214,27 @@ class Checker {
     return false;
   }
 
+  /** The schema a `$ref` names, found once for each schema and kept. */
   #resolve(ref: string): unknown {
-    if (!ref.startsWith('#/')) return true;
-    let at: unknown = this.#root;
-    for (const part of ref.slice(2).split('/')) {
-      const key = part.replaceAll('~1', '/').replaceAll('~0', '~');
-      if (typeof at !== 'object' || at === null || !Object.hasOwn(at, key)) return true;
-      at = (at as Record<string, unknown>)[key];
+    let known = resolved.get(this.#root);
+    if (known === undefined) {
+      known = new Map();
+      resolved.set(this.#root, known);
     }
+    if (known.has(ref)) return known.get(ref);
+    let at: unknown = this.#root;
+    if (!ref.startsWith('#/')) at = true;
+    else {
+      for (const part of ref.slice(2).split('/')) {
+        const key = part.replaceAll('~1', '/').replaceAll('~0', '~');
+        if (typeof at !== 'object' || at === null || !Object.hasOwn(at, key)) {
+          at = true;
+          break;
+        }
+        at = (at as Record<string, unknown>)[key];
+      }
+    }
+    known.set(ref, at);
     return at;
   }
 

@@ -111,9 +111,6 @@ export function readJson(input: ImportInput, options: ReadOptions = {}): ReadRes
     const reason = error instanceof Error ? error.message : String(error);
     return { ok: false, problems: [`The file is not valid JSON: ${reason}`] };
   }
-  if (depthOf(data, MAX_JSON_DEPTH) > MAX_JSON_DEPTH) {
-    return { ok: false, problems: [`The file nests more than ${MAX_JSON_DEPTH} levels deep.`] };
-  }
   if (typeof data !== 'object' || data === null || Array.isArray(data)) {
     return { ok: false, problems: [NEITHER] };
   }
@@ -142,6 +139,9 @@ export function readJson(input: ImportInput, options: ReadOptions = {}): ReadRes
         `The file holds more than ${count(IMPORT_LIMITS.relations)} relations, those that put one thing inside another included; an import brings at most ${count(IMPORT_LIMITS.relations)}.`,
       ],
     };
+  }
+  if (depthOf(data, MAX_JSON_DEPTH) > MAX_JSON_DEPTH) {
+    return { ok: false, problems: [`The file nests more than ${MAX_JSON_DEPTH} levels deep.`] };
   }
   const problems = checkAgainstSchema(model ? modelSchema : SIMPLE_FORM_SCHEMA, data);
   if (problems.length > 0) {
