@@ -568,6 +568,13 @@ function ExportDialog({
                 t(
                   'Layout, which does not run in the page: shapes a view keeps no position for are drawn in a row, as before a layout.',
                 ),
+                ...(page.project.packages.some((pkg) => pkg.code !== undefined)
+                  ? [
+                      t(
+                        'Package code, and what it computes and draws: no code of a package runs in a page.',
+                      ),
+                    ]
+                  : []),
               ]}
             />
             {pageMade && large && (

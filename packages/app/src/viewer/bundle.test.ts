@@ -1,7 +1,7 @@
 /**
- * The viewer's bundle holds no live connection, no commands, no editors, no inspector controls and no
- * launch-address code (ADR 0041): this builds it as `pnpm build` does, in a process of its own, and
- * reads which modules its script holds and what it says.
+ * The viewer's bundle holds no live connection, no commands, no editors, no inspector controls, no
+ * launch-address code and no package code (ADR 0041, ADR 0054): this builds it as `pnpm build` does,
+ * in a process of its own, and reads which modules its script holds and what it says.
  */
 import { execFile } from 'node:child_process';
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
@@ -71,7 +71,13 @@ const NOT_IN_THE_PAGE = [
   'packages/app/src/shell/Outline.tsx',
   // The core's commands and history: nothing in the page changes the project.
   'packages/core/src/commands/index.ts',
+  'packages/core/src/commands/code.ts',
   'packages/core/src/history.ts',
+  // Package code (ADR 0054): its worker, its interpreter, its approvals and its sections. No package's
+  // code runs in a page, and the page's data holds none.
+  'packages/app/src/code/',
+  'node_modules/quickjs-emscripten-core/',
+  'node_modules/@jitl/',
   // Ajv, which compiles code; the page's validators are generated when it is built.
   'packages/schema/src/validate.ts',
   'node_modules/ajv/',
@@ -98,6 +104,8 @@ const NOT_SAID = [
   'launch=',
   'new Function',
   'eval(',
+  // An interpreter in WebAssembly, as package code runs in; the schema's own words may name it.
+  'WebAssembly.',
 ];
 
 let out = '';
@@ -164,7 +172,7 @@ describe('The viewer’s bundle', () => {
     expect(policy).toBeLessThan(first);
   });
 
-  it('holds no live connection, commands, editors, inspector controls or launch-address code', () => {
+  it('holds no live connection, commands, editors, inspector controls, launch-address code or package code', () => {
     const held = modules.filter((path) =>
       NOT_IN_THE_PAGE.some((left) =>
         left.endsWith('/') ? path.includes(left) : path === left || path.endsWith(`/${left}`),

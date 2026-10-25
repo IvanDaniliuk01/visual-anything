@@ -5,7 +5,8 @@
  * come with the viewer, as they come with the program.
  *
  * Writing keeps images only as the core cleans them, so that what cleaning drops, such as a photo's
- * position, never travels in a page. Reading makes the same checks as opening a project: each file
+ * position, never travels in a page, and leaves out package code and what it asks to reach (ADR 0054),
+ * which no page runs. Reading makes the same checks as opening a project: each file
  * against its kind's schema, the ids of packages, views and scenarios once each, the packages the
  * project lists, then the core's rules. A page whose data was changed by hand opens only when it is
  * still a valid project.
@@ -46,7 +47,10 @@ export interface PageData {
   made?: string;
   project: ProjectFile;
   model: ModelFile;
-  /** The packages of the project's own that it lists, with their images as cleaning gives them. */
+  /**
+   * The packages of the project's own that it lists, with their images as cleaning gives them, and
+   * without their code and capabilities.
+   */
   packages: PackageFile[];
   views: ViewFile[];
   scenarios: ScenarioFile[];
@@ -68,10 +72,19 @@ export function pageDataOf(project: ProjectSnapshot, options: PageDataOptions = 
     model: project.model,
     packages: project.packages
       .filter((pkg) => builtinPackage(pkg.id) === undefined)
-      .map(withCleanedImages),
+      .map((pkg) => withCleanedImages(withoutCode(pkg))),
     views: project.views,
     scenarios: project.scenarios,
   };
+}
+
+/** A package without its code and the capabilities its code asks for: nothing of it runs in a page. */
+function withoutCode(pkg: PackageFile): PackageFile {
+  if (pkg.code === undefined && pkg.capabilities === undefined) return pkg;
+  const read: PackageFile = { ...pkg };
+  delete read.code;
+  delete read.capabilities;
+  return read;
 }
 
 /** A package with its images as cleaning gives them, and without those cleaning refuses. */

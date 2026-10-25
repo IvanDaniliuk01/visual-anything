@@ -69,6 +69,25 @@ describe('The data a read-only page holds', () => {
     expect(data.made).toBe('2026-10-25T12:00:00.000Z');
   });
 
+  it('holds no package code, nor what its code asks to reach: nothing of a package runs in a page', () => {
+    const coded: ProjectSnapshot = {
+      ...sample,
+      packages: sample.packages.map((pkg) =>
+        pkg.id === 'clinic'
+          ? { ...pkg, code: ['export function check() { return []; }'], capabilities: ['time'] }
+          : pkg,
+      ),
+    };
+    const data = pageDataOf(coded);
+    const [clinic] = data.packages;
+    expect(clinic).not.toHaveProperty('code');
+    expect(clinic).not.toHaveProperty('capabilities');
+    expect(clinic?.components).toEqual(sample.packages[1]?.components);
+    expect(asText(data)).not.toContain('export function check');
+    // What it holds still opens.
+    expect(read(data).ok).toBe(true);
+  });
+
   it('holds images only as cleaning gives them', () => {
     const data = pageDataOf(withImage(SCRIPTED_SVG));
     const [image] = data.packages[0]?.images ?? [];

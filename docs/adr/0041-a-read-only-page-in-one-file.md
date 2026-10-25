@@ -99,3 +99,7 @@ Reading a project needs the local program today, so a project cannot be shared, 
   - Ajv, and the app's own Trusted Types policy.
 
   It also checks that the script holds none of the strings by which a page could reach a program, a session or the network.
+- 2026-10-25: **package code (ADR 0054) stays out of the page,** as its code and as data:
+  - the page's data leaves out each package's `code` and `capabilities`, so a package's code never travels in a page, though nothing in a page could run it;
+  - the page shows the attributes the model stores, and no value or drawing package code computes; the Export dialog says so when a package of the project holds code;
+  - the bundle test adds the code worker, its interpreter and the core's code commands to the modules the page must not hold, and `WebAssembly.` to what its script must not say.

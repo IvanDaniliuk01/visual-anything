@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import type { ProjectSnapshot } from '@visual-anything/core';
 import { describe, expect, it, vi } from 'vitest';
 import type { Rect } from '../canvas/geometry';
 import { buildScene } from '../canvas/scene';
@@ -34,6 +35,7 @@ interface Setup {
   start?: () => string | undefined;
   files?: readonly FileExport[];
   language?: 'en' | 'es';
+  project?: ProjectSnapshot;
 }
 
 function renderControl({
@@ -41,6 +43,7 @@ function renderControl({
   start = () => 'view=system-overview&select=booking-agent',
   files = [],
   language = 'en',
+  project = sample,
 }: Setup = {}) {
   const source = new ImageSource();
   source.lend(() => maker);
@@ -53,7 +56,7 @@ function renderControl({
         viewName={VIEW.name}
         bounds={BOUNDS}
         save={save}
-        project={sample}
+        project={project}
         page={{ start, assets }}
         drawn={{ view: VIEW, scene: buildScene(sample, VIEW.id), theme: 'light' }}
         files={files}
@@ -136,6 +139,28 @@ describe('Export, with the read-only page', () => {
     // The data writes `&` as an escape, which JSON reads the same.
     expect(html).toContain('"start":"view=system-overview\\u0026select=booking-agent"');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('says it leaves out package code, only when a package of the project holds some', async () => {
+    const CODE_LEFT_OUT =
+      'Package code, and what it computes and draws: no code of a package runs in a page.';
+    renderControl();
+    await choosePage();
+    expect(within(dialog()).queryByText(CODE_LEFT_OUT)).not.toBeInTheDocument();
+    cleanup();
+
+    const coded: ProjectSnapshot = {
+      ...sample,
+      packages: sample.packages.map((pkg) =>
+        pkg.id === 'clinic' ? { ...pkg, code: ['export function check() { return []; }'] } : pkg,
+      ),
+    };
+    const { save } = renderControl({ project: coded });
+    await choosePage();
+    expect(within(dialog()).getByText(CODE_LEFT_OUT)).toBeInTheDocument();
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Save the page' }));
+    const [blob] = save.mock.calls[0]!;
+    expect(await blob.text()).not.toContain('export function check');
   });
 
   it('opens at the project’s first view when asked not to open at what the canvas shows', async () => {

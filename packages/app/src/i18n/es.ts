@@ -409,6 +409,8 @@ export const ui: Catalog = {
     'La edición, el historial y la guía de Claude: la página solo lee.',
   'Layout, which does not run in the page: shapes a view keeps no position for are drawn in a row, as before a layout.':
     'El diseño automático, que no se ejecuta en la página: las formas para las que una vista no guarda posición se dibujan en una fila, como antes de organizar.',
+  'Package code, and what it computes and draws: no code of a package runs in a page.':
+    'El código de los paquetes, y lo que calcula y dibuja: ningún código de un paquete se ejecuta en una página.',
   'This page is {size}, past {limit}: it may open slowly, and some hosts and mail refuse files this large.':
     'Esta página pesa {size}, más de {limit}: puede abrirse con lentitud, y algunos servidores y correos rechazan archivos tan grandes.',
   'This copy of Visual Anything has no viewer for read-only pages, as when it runs from its sources. Run pnpm build, then start it again.':
