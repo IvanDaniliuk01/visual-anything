@@ -93,18 +93,14 @@ describe('the tools', () => {
     }
   });
 
-  it('say which only read', () => {
+  it('say which only read: those that get, list, find, read or preview', () => {
     const readOnly = TOOLS.filter((each) => each.hints.readOnlyHint).map((each) => each.name);
-    expect(readOnly).toEqual([
-      'get_project',
-      'list_definitions',
-      'find_elements',
-      'find_relations',
-      'get_item',
-      'read_view',
-      'read_scenario',
-      'preview_delete',
-    ]);
+    expect(readOnly).toEqual(
+      TOOLS.map((each) => each.name).filter((name) => /^(get|list|find|read|preview)_/.test(name)),
+    );
+    expect(readOnly).toEqual(
+      expect.arrayContaining(['get_project', 'read_scenario', 'list_images']),
+    );
   });
 });
 
