@@ -22,7 +22,6 @@ import { MCP_USAGE, createMcpServer, parseMcpCommandLine } from './claude/mcp';
 import { parseCommandLine, runCommand, type KeyInput } from './command';
 import { errorCode } from './errors';
 import { DEV_IN_EXECUTABLE, isExecutable, startProgramWith } from './executable';
-import { runExport } from './export-command';
 import { preferencesFolder } from './preferences';
 
 /** The subcommand that runs Claude's MCP entry point. */
@@ -61,15 +60,24 @@ export function main(argv: readonly string[]): void {
           usage: MCP_USAGE.replace('visual-anything-mcp', 'visual-anything mcp'),
         })
       : entry.kind === 'export'
-        ? runExport(entry.argv, {
-            cwd: process.cwd(),
-            stdout: (data) => process.stdout.write(data),
-            stdoutIsTerminal: process.stdout.isTTY === true,
-            err: (line) => console.error(line),
-          })
+        ? runExportCommand(entry.argv)
         : runProgram(entry.argv);
   void run.then((code) => {
     if (code !== undefined) process.exitCode = code;
+  });
+}
+
+/**
+ * Runs the export command on the process's own streams. Its writers, which draw scenes and make PDFs,
+ * are loaded only for it, so that the program and the MCP entry point start without them.
+ */
+export async function runExportCommand(argv: readonly string[]): Promise<number> {
+  const { runExport } = await import('./export-command');
+  return runExport(argv, {
+    cwd: process.cwd(),
+    stdout: (data) => process.stdout.write(data),
+    stdoutIsTerminal: process.stdout.isTTY === true,
+    err: (line) => console.error(line),
   });
 }
 

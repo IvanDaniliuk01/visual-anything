@@ -4,7 +4,7 @@
  * no file and changes nothing; the PDF and the read-only page are made in the app or by
  * `visual-anything export`, since they are files rather than text.
  */
-import { exportView, type ExportFormat } from '@visual-anything/app/src/export/exports';
+import type { ExportFormat } from '@visual-anything/app/src/export/exports';
 import { z } from 'zod';
 import { READ, fail, id, ok, tool } from './kit';
 import type { Tool } from './tools';
@@ -53,6 +53,8 @@ Example: { "view": "system-overview", "format": "svg", "theme": "dark" }`,
         `There is no view "${args.view}". The views are: ${project.views.map((view) => view.id).join(', ') || 'none'}.`,
       );
     }
+    // The writers, which draw scenes, are loaded the first time Claude exports.
+    const { exportView } = await import('@visual-anything/app/src/export/exports');
     const exported = await exportView(project, args.view, FORMATS[args.format], {
       ...(args.theme === undefined ? {} : { theme: args.theme }),
     });
