@@ -11,6 +11,14 @@ export interface Camera {
   scale: number;
 }
 
+/** How far in from the canvas's left and top side something covers it, such as the rulers. */
+export interface Inset {
+  left: number;
+  top: number;
+}
+
+const NO_INSET: Inset = { left: 0, top: 0 };
+
 /** The furthest out and in the camera zooms. */
 export const MIN_SCALE = 0.02;
 export const MAX_SCALE = 8;
@@ -37,17 +45,25 @@ export function panBy(camera: Camera, dx: number, dy: number): Camera {
   return { ...camera, x: camera.x + dx, y: camera.y + dy };
 }
 
-/** The camera that shows all of `bounds` in a viewport, with a margin. */
-export function fitCamera(bounds: Rect | undefined, viewport: Size, margin: number): Camera {
+/**
+ * The camera that shows all of `bounds` in a viewport, with a margin, in the room right of and below
+ * what covers its left and top sides.
+ */
+export function fitCamera(
+  bounds: Rect | undefined,
+  viewport: Size,
+  margin: number,
+  inset: Inset = NO_INSET,
+): Camera {
   // Centered at the scale the camera can take, so that a scene too large to fit shows its middle.
   const { scale, x, y } = fitTransform(
     bounds,
-    viewport,
+    { width: viewport.width - inset.left, height: viewport.height - inset.top },
     margin,
     Math.min(MAX_FIT_SCALE, MAX_SCALE),
     MIN_SCALE,
   );
-  return { scale, x, y };
+  return { scale, x: x + inset.left, y: y + inset.top };
 }
 
 /** The part of the scene the camera shows in a viewport. */
@@ -63,18 +79,22 @@ export function visibleRect(camera: Camera, viewport: Size): Rect {
 
 /**
  * The camera that brings `rect` into sight: none when it is wholly on screen at `scale` or larger;
- * otherwise one centered on it, at that scale or the present one when larger.
+ * otherwise one centered on it, at that scale or the present one when larger. On screen means in the
+ * room right of and below what covers the canvas's left and top sides, such as the rulers.
  */
 export function revealCamera(
   camera: Camera,
   viewport: Size,
   rect: Rect,
   scale: number,
+  inset: Inset = NO_INSET,
 ): Camera | undefined {
   const shown = visibleRect(camera, viewport);
+  const left = shown.x + inset.left / camera.scale;
+  const top = shown.y + inset.top / camera.scale;
   const onScreen =
-    rect.x >= shown.x &&
-    rect.y >= shown.y &&
+    rect.x >= left &&
+    rect.y >= top &&
     rect.x + rect.width <= shown.x + shown.width &&
     rect.y + rect.height <= shown.y + shown.height;
   if (onScreen && camera.scale >= scale) return undefined;
@@ -82,8 +102,8 @@ export function revealCamera(
   const middle = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
   return {
     scale: next,
-    x: viewport.width / 2 - middle.x * next,
-    y: viewport.height / 2 - middle.y * next,
+    x: inset.left + (viewport.width - inset.left) / 2 - middle.x * next,
+    y: inset.top + (viewport.height - inset.top) / 2 - middle.y * next,
   };
 }
 
