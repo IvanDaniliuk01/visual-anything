@@ -1,0 +1,64 @@
+{
+  "world": {
+    "id": "world",
+    "component": "essence",
+    "name": "Plant"
+  },
+  "elements": [
+    {
+      "id": "boiler-room",
+      "component": "systems.system",
+      "name": "Boiler room",
+      "description": "Where the water is heated."
+    },
+    {
+      "id": "boiler",
+      "component": "plant.thermometer",
+      "name": "Boiler",
+      "attributes": {
+        "celsius": 96
+      }
+    },
+    {
+      "id": "water-tank",
+      "component": "plant.thermometer",
+      "name": "Water tank",
+      "attributes": {
+        "celsius": 54
+      }
+    },
+    {
+      "id": "freezer",
+      "component": "plant.thermometer",
+      "name": "Freezer",
+      "attributes": {
+        "celsius": -18
+      }
+    },
+    {
+      "id": "spare",
+      "component": "plant.thermometer",
+      "name": "Spare sensor"
+    }
+  ],
+  "relations": [
+    {
+      "id": "boiler-in-room",
+      "relationType": "systems.is-part-of",
+      "from": "boiler",
+      "to": "boiler-room"
+    },
+    {
+      "id": "tank-in-room",
+      "relationType": "systems.is-part-of",
+      "from": "water-tank",
+      "to": "boiler-room"
+    },
+    {
+      "id": "boiler-heats-tank",
+      "relationType": "plant.heats",
+      "from": "boiler",
+      "to": "water-tank"
+    }
+  ]
+}
