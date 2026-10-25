@@ -22,6 +22,7 @@ import {
   type ChangeContainerCommand,
   type Command,
   type ProjectSnapshot,
+  type ThemeName,
 } from '@visual-anything/core';
 import type { Id, Note, ViewFile } from '@visual-anything/schema';
 import {
@@ -41,6 +42,7 @@ import { isTextEntry } from '../live/shortcuts';
 import { RecordingCue } from '../scenarios/RecordingCue';
 import type { ScenarioSession } from '../scenarios/session';
 import { useCanvasRecording } from '../scenarios/useCanvasRecording';
+import { THEMES } from '../theme/themes';
 import type { Camera } from './camera';
 import {
   collapseActions,
@@ -85,6 +87,10 @@ interface CanvasAreaProps {
   revealed?: { key: string; request: number };
   /** The scenario session, whose recording takes clicks on relations while it records. */
   scenarios?: ScenarioSession;
+  /** The theme to draw in; the light theme by default. */
+  theme?: ThemeName;
+  /** Called in the frame the canvas first shows a theme, so that the panels change with it. */
+  onThemeShown?: (theme: ThemeName) => void;
 }
 
 /**
@@ -157,6 +163,8 @@ export function CanvasArea({
   onCommand,
   revealed,
   scenarios,
+  theme = 'light',
+  onThemeShown,
 }: CanvasAreaProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
@@ -207,10 +215,11 @@ export function CanvasArea({
   }, [drawn]);
   const indexed = indexing.indexed;
   const editable = onCommand !== undefined;
-  const latest = useRef({ project, view, indexed, selection, onSelect, onCommand });
+  const latest = useRef({ project, view, indexed, selection, onSelect, onCommand, theme });
   useLayoutEffect(() => {
-    latest.current = { project, view, indexed, selection, onSelect, onCommand };
+    latest.current = { project, view, indexed, selection, onSelect, onCommand, theme };
   });
+  const themeShown = useEffectEvent((shown: ThemeName) => onThemeShown?.(shown));
 
   const announce = (text: string) => setAnnouncement((last) => ({ text, count: last.count + 1 }));
 
@@ -309,8 +318,10 @@ export function CanvasArea({
           })),
         collapse: (action, collapsed) => collapseFromCanvas(action, collapsed),
         addRow: (container, below) => addRowFromCanvas(container, below),
+        themeShown: (shown) => themeShown(shown),
       },
-      caption ? { caption } : {},
+      // The canvas starts in the theme shown now, and follows it from then on.
+      { ...(caption ? { caption } : {}), theme: THEMES[latest.current.theme].canvas },
     );
     controllerRef.current = controller;
     controller.setEmphasis(emphasis.current);
@@ -320,6 +331,10 @@ export function CanvasArea({
     };
     // The controller lives as long as the canvas area; `latest` gives it the current props.
   }, [cameras]);
+
+  useEffect(() => {
+    controllerRef.current?.renderer.setTheme(THEMES[theme].canvas);
+  }, [theme]);
 
   // While a scenario records, clicks on relations record its steps.
   const recording = useCanvasRecording(controllerRef, scenarios);

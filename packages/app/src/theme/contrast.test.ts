@@ -4,7 +4,7 @@
  */
 import { THEME_NAMES } from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
-import { contrastRatio } from '../canvas/palette';
+import { contrastRatio } from '../canvas/colors';
 import { THEMES, type ShellColors } from './themes';
 
 type Token = keyof ShellColors;

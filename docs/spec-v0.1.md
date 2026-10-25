@@ -35,18 +35,18 @@ v0.1 covers the model, views, layout, tables, the component editor, images, them
 | Layout | ELK automatic layout, pinned shapes, orthogonal routing; routes chosen by hand, straight, orthogonal or curved | Curved routes drawn by layout (after v0.1) |
 | Free shapes | Note and arrow | Free 2D geometry for shapes, and more free shapes (after v0.1) |
 | Scenarios | Record, play, data per step, simultaneous relations, aggregated steps | Import real traces through a package |
-| Tours | — | v0.2, able to play scenarios |
+| Tours | — | Recorded guidance played full screen, with comments (M11, after v0.1) |
 | Claude through MCP | Model, views, declarative components with their images, rows and connection points, appearances, scenarios, live guidance | Writing programmable code, with approval |
 | Time (model versions) | — | After v0.1 |
 | Attribute space | — | Case 3 (transformer) |
 | Physical space (3D) | — | Case 5 (robotic arm, human body): 3D models inside components first, then a 3D panel linked to the 2D views (after v0.1) |
 | Live data from your systems | Claude refreshes the model through its other MCPs | Packages that request network permission |
-| Export (image, PDF, shareable page) | — | SVG and PNG first (after v0.1) |
+| Export (image, PDF, shareable page) | PNG of the open view | SVG, PDF, text, and a read-only page to share, embed and read on a phone (M6b) |
 | HTML | — | Static HTML imported as a cleaned drawing (after v0.1); HTML that runs only with a new ADR |
 | Collaboration | Git on the project files | No real-time editing |
-| Platforms | Windows, macOS and Linux: the local program as one executable for each (ADR 0037), or from npm, with the app in any desktop browser | Mobile out of scope; installers and updates (Track D) |
+| Platforms | Windows, macOS and Linux: the local program as one executable for each (ADR 0037), or from npm, with the app in any desktop browser | Mobile reading through the read-only page (M6b); installers and updates (Track D) |
 | Embedded chat | — | Optional package |
-| draw.io import | — | Not planned |
+| Import | Claude builds models from Mermaid, draw.io, SQL, OpenAPI, Terraform, logs and more with its tools | Importers in the app for Mermaid, spreadsheets and JSON, Structurizr and LikeC4, and draw.io; starter packages per domain (M6c) |
 
 ## Domain model
 
@@ -282,6 +282,11 @@ Eight milestones in build order, each ending in something you can use, and Track
 **M6 · Dogfooding and v0.1.** Done when your own system is modeled end to end, with two views and one real scenario, and every success criterion above holds.
 
 - [ ] Model your system (case 1) together with Claude
+- [ ] Search and jump: a find field (Ctrl+F) over names, ids, components and attribute values, results grouped by view, Enter selects and shows
+- [ ] View addresses built on one view state (view, camera, selection, filters, focus, scenario step), kept in the address's fragment, with Copy address
+- [ ] PNG export of the open view or the whole view, at 1× or 2×, in the current theme
+- [ ] A history panel: each action's label, author (you or Claude) and time, and Undo to here
+- [x] Recipes for Claude to build models, views and scenarios from what exists (Mermaid, PlantUML, draw.io, Structurizr, SQL, OpenAPI, Terraform, Kubernetes, docker-compose, a repository, logs and traces) with its tools, as MCP prompts (`build_from_…`)
 - [ ] Fix what dogfooding surfaces
 - [ ] README with setup for Claude Desktop and Claude Code
 - [ ] Tag v0.1 in the private repository
@@ -294,14 +299,14 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [x] Theme tokens generated from one TypeScript source, light and dark, with contrast tests
 - [x] The header's Theme control and the first paint in the chosen theme
 - [x] Control states, focus rings, icons, the canvas message and the menus in place
-- [ ] The canvas follows the theme: background, marks, labels, casings and notes, built-in colors in their dark shades, tiles restyled within the frame budget and shown with the panels in one frame
-- [ ] Benchmark phases for theme switches, for panning and zooming after them, and for selecting everything
+- [x] The canvas follows the theme: background, marks, labels, casings and notes, built-in colors in their dark shades, tiles restyled within the frame budget and shown with the panels in one frame
+- [x] Benchmark phases for theme switches, for panning and zooming after them, and for selecting everything
 
 **A2 · Colors.** Done when, from the inspector, any #RRGGBB can be given to an element's fill and stroke, to every element of a built-in component and of one of the project's own, to a built-in relation type, to one relation, to a note, to a free arrow and to several selected shapes at once; each change is one undoable action whose git diff shows only the keys it changed; picking the color already shown records nothing; each has a command for Claude; and on the benchmark, recoloring every Service shows on screen in one frame and keeps every later frame within 33 ms.
 
 - [x] Project appearances, a relation's own appearance and free-shape colors in the file format and the core, with their commands
 - [x] Colors checked and normalized by every command that stores one
-- [ ] Recolors restyle tiles in place; the scene keeps what did not change
+- [x] Recolors restyle tiles in place; the scene keeps what did not change
 - [ ] The inspector edits colors for one shape, every shape of a definition and a selection, from a picker or a color code
 
 **A3 · Grid, rulers and snapping.** Done when the grid and rulers can be shown from the canvas toolbar and with Shift+G and Shift+R; with both shown, every benchmark phase meets the 60 frames per second target and the grid adds at most 0.5 ms per frame at the median; while the grid shows, a hand move stores the moved shapes at multiples of 8 canvas units inside their container and lands where its preview showed, a shape created by hand is stored at a multiple of 8, and Alt places freely; and Shift with an arrow key moves the selection by 8.
@@ -338,14 +343,21 @@ Eight milestones in build order, each ending in something you can use, and Track
 
 ## After v0.1
 
-The order below follows the benchmark of what Visual Anything needs to represent anything complex, such as the human body with all its parts: the model already holds what is hardest to add later (typed elements, several containers per element, relations on relations, perspectives), so what comes next is appearance beyond boxes, control of detail, physical space, and safe import. Each milestone gets its tasks, and the ADRs it needs, when it is planned.
+The order below follows the two benchmarks of what Visual Anything needs to represent anything complex (`docs/designs/benchmark.md` and `docs/designs/benchmark-2.md`): the model already holds what is hardest to add later, so what comes next is getting content out and in, control of detail and data, explanation, appearance beyond boxes, versions, and physical space. Milestones run in parallel waves; each gets its tasks, and the ADRs it needs, when it is planned.
 
-- **M7 · Package code.** Code kept in packages computes attributes, checks elements and draws shapes; it runs sandboxed (ADR 0012), only after you approve it, and changing it asks again; Claude can read, write and check it.
-- **M8 · Beyond boxes.** Free 2D geometry for a component's shape, with exact hit testing and connection points; SVG with named parts, each part an anchored shape of its element; semantic zoom declared as data; overlays that color shapes by an attribute, with a legend; external identifiers and crosswalks, so that Claude and importers never confuse parts; static HTML imported as a cleaned drawing; curved routes drawn by layout.
-- **M9 · Physical space inside components.** A component can draw its element's 3D model (glTF, cleaned by the local program and never carrying behavior) inside its shape: a cached picture while you pan, live when you focus it, with three.js loaded only when a view needs it.
-- **M10 · A linked physical-space panel.** A 3D panel beside the canvas, showing the same elements where they really are, with selection, focus and scenarios linked to the 2D views. A new ADR that supersedes ADR 0003 comes first.
-- **M11 · Tours and export.** Tours that play scenarios with an animated camera; SVG and PNG export of a view.
-- **M12 · Simulate (case 4).** A programmable component simulates a behavior from parameters you change, within its limits, and stops cleanly when it exceeds them.
-- **M13 · Anatomy.** A built-in anatomy package and import from open anatomical ontologies, with their licenses respected, built on M8 to M10.
+| Wave | Milestone |
+| --- | --- |
+| 1 | **M6b · Out.** SVG and PDF export, from the app and the command line; a read-only page in one file, to share, embed and read on a phone; text exports: the outline in Markdown, Mermaid and Structurizr DSL. |
+| 1 | **M6c · In.** Views that show part of the model, a scope of rules and hand-picked elements (a new ADR superseding part of ADR 0025), first; then Mermaid, spreadsheet and JSON, Structurizr and LikeC4, and draw.io imports; starter packages and sample projects per domain; packages shared between projects. |
+| 2 | **M7 · Package code.** Code kept in packages computes attributes, checks elements and draws shapes; it runs sandboxed (ADR 0012), only after you approve it, and changing it asks again; Claude can read, write and check it. |
+| 2 | **M8 · Detail and data.** Semantic zoom declared as data; overlays that color shapes by an attribute, with a legend; external identifiers and crosswalks; destinations, attributes that open a view, a project or a web address; live values from running systems; an element list edited in bulk; time ranges with playback; a reading benchmark at 100,000 elements. |
+| 2 | **M11 · Tours and comments.** Tours made from recorded guidance and played full screen, built on view states; comments kept in the project. |
+| 3 | **M8b · Beyond boxes.** Free 2D geometry for a component's shape, with exact hit testing and connection points; SVG with named parts, each part an anchored shape of its element; static HTML imported as a cleaned drawing; curved routes drawn by layout. |
+| 3 | **M11b · Versions.** Comparing versions between git commits, in the app and for pull requests; proposals to review Claude's changes before they apply; a git merge driver for project files. |
+| 4 | **M9 · Physical space inside components.** A component can draw its element's 3D model (glTF, cleaned by the local program and never carrying behavior) inside its shape: a cached picture while you pan, live when you focus it, with three.js loaded only when a view needs it. |
+| 4 | **M10 · A linked physical-space panel.** A 3D panel beside the canvas, showing the same elements where they really are, with selection, focus and scenarios linked to the 2D views. A new ADR that supersedes ADR 0003 comes first. |
+| 4 | **M12 · Simulate (case 4).** A programmable component simulates a behavior from parameters you change, within its limits, and stops cleanly when it exceeds them. |
+| 4 | **M13 · Anatomy.** A built-in anatomy package and import from open anatomical ontologies, with their licenses respected, built on M8 to M10. |
+| beside | **Track L, stage L2.** More languages, Portuguese first. |
 
-Not planned: a switch between 2D and 3D for each view, an iframe for each element, and storing HTML with scripts or 3D models with behavior in a project.
+Not planned: a switch between 2D and 3D for each view, an iframe for each element, storing HTML with scripts or 3D models with behavior in a project, editing together in real time, accounts or a hosted server, a package marketplace before M7, Claude regenerating whole views, and long Prezi-style zoom flights.

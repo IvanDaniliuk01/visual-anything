@@ -33,6 +33,13 @@ Paths are relative to the repository root. Line numbers are those of `e983c0b`. 
 - `editableAppearanceOf(state, 'component' | 'relation-type', id)` and `colorsInUse(state)` are in `core/src/project-appearances.ts`, with `projectAppearanceOf`.
 - A key of a project appearance that is not an id is reported at the map's path, naming the key, as W1 reports the keys of stacking orders; empty maps are refused on open.
 - Still to do outside the core: the app's call sites of `definitionsOf(project.packages)` (4.6) and the ESLint rule, the server's `Locations` (4.5), the sample's Booking agent stroke and its test pins (3.4), and T6 and T7.
+
+**Built in wave 3 (W17, 2026-10-25): the canvas side of A1 and A2.** ADR-0033's "How the canvas follows the theme" records what was built. Where the code differs from this design, the code holds:
+- The scene's `dark` and `darkStroke` are filled from the core; there is no `paintOf` resolver with previews. Drawing takes painted copies (`canvas/theme/paint.ts`) and `canvas/theme/painter.ts` draws them, so `draw.ts` changed only where it wrote the light theme's colors out.
+- Restyles go by stamps per drawing (`canvas/theme/restyle.ts`) instead of `themed`, `stale` and dependents; they swap GraphicsContexts on the drawings showing, so the tiles keep their objects. There are no dependents: the coarse guard outlines a block under 3:1 against either canvas, instead of mixing its colors against the drawn fill under it, and a relation label's back is the canvas, not the surface under the label.
+- The budget is `RESTYLE_BUDGET` (6 ms) in `restyle.ts`, which labels share; `LABEL_BUDGET` keeps its name. There is no `LABEL_RETINTS_PER_FRAME`: labels on and near the screen are retinted in the swap frame, the rest before they show.
+- Notes take the core's `noteColorsOf` with no dark rule of their own (3.6), as the inspector does.
+- Not built: `renderer.previewElement` and the inspector's live preview (4.6), the coarse `pixelLine` rings and the `shapeMarks` layer (3.6 Marks), and `?labels=dense` in the benchmark.
 ---
 
 ## 1. Summary

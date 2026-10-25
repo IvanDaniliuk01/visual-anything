@@ -124,6 +124,9 @@ export async function layOut(
   const now = options.now ?? (() => performance.now());
   const started = now();
   const ends = started + (options.timeLimit ?? ELK_TIME_LIMIT);
+  // Once a run is stopped for time, the time is up for every later one, even when a timer fired a
+  // little before the clock reached the end.
+  let outOfTime = false;
   const engines = Array.isArray(elk) ? (elk as readonly ElkEngine[]) : [elk as ElkEngine];
   const tree = new Tree(input);
   const stats = {
@@ -155,7 +158,7 @@ export async function layOut(
     const take = async (engine: ElkEngine): Promise<void> => {
       for (let chunk = chunks[next]; chunk !== undefined; chunk = chunks[next]) {
         const left = ends - now();
-        if (left <= 0) return;
+        if (outOfTime || left <= 0) return;
         next += 1;
         stats.elkRuns += 1;
         const result = await within(
@@ -163,6 +166,7 @@ export async function layOut(
           left,
         );
         if (result === undefined) {
+          outOfTime = true;
           engine.stop?.();
           return;
         }

@@ -3,8 +3,14 @@ import { describe, expect, it } from 'vitest';
 import { VIEW, usersAndOrders } from '../test/tables';
 import { drawShapeBlocks, drawShapeOutlines, writeShapeLabels, type TextFactory } from './draw';
 import { ROWS_FROM } from './rows';
-import { ROWS_BODY, ROW_SEPARATOR, levelWithRows, rowsBlocks } from './rowsDraw';
+import { LIGHT_ROWS, levelWithRows, rowsBlocks } from './rowsDraw';
 import { buildScene, type ElementShape } from './scene';
+import { shapeFollowsTheme } from './theme/paint';
+import { Painter } from './theme/painter';
+import { THEMES } from '../theme/themes';
+
+const ROWS_BODY = LIGHT_ROWS.body;
+const ROW_SEPARATOR = LIGHT_ROWS.separator;
 
 const scene = buildScene(usersAndOrders(), VIEW);
 const shape = (key: string) => scene.shapes.find((each) => each.key === key) as ElementShape;
@@ -99,6 +105,45 @@ describe('writing a table and its rows', () => {
     expect(name?.kind).toBe('name');
     expect(name?.options.y).toBe(users.rect.y + 16);
     expect(name?.options.x).toBe(users.rect.x + 12);
+  });
+});
+
+describe('a table in the dark theme', () => {
+  const dark = THEMES.dark.canvas;
+  const painter = new Painter(dark);
+  const drawn = (draw: (graphics: Graphics) => void) => fills(draw).map((each) => each.color);
+
+  it('draws its body in the theme’s, and its header and border in the table’s dark shades', () => {
+    const colors = drawn((graphics) => painter.shapeOutlines(graphics, [users]));
+    expect(users.dark).toBeDefined();
+    expect(colors.slice(0, 4)).toEqual([
+      hex(dark.rowsBody),
+      hex(users.dark?.fill ?? ''),
+      hex(users.dark?.stroke ?? ''),
+      hex(users.dark?.stroke ?? ''),
+    ]);
+  });
+
+  it('draws each row in its column’s dark shade, with the theme’s separators', () => {
+    expect(drawn((graphics) => painter.shapeOutlines(graphics, [email]))).toEqual([
+      hex(email.dark?.fill ?? ''),
+      hex(dark.rowSeparator),
+    ]);
+  });
+
+  it('draws its body far out in the theme’s too', () => {
+    const graphics = new Graphics();
+    painter.shapeBlocks(graphics, [users]);
+    const colors = graphics.context.instructions.map(
+      (instruction) => (instruction.data as { style: { color: number } }).style.color,
+    );
+    expect(colors).toContain(hex(dark.rowsBody));
+  });
+
+  it('follows the theme, rows of stored colors included, so that a switch restyles them', () => {
+    const stored = { ...email, dark: undefined };
+    expect(shapeFollowsTheme(stored)).toBe(true);
+    expect(shapeFollowsTheme(users)).toBe(true);
   });
 });
 
