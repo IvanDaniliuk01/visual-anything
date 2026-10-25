@@ -262,7 +262,7 @@ describe('writeSvg', () => {
       ...project,
       packages: project.packages.map((file) =>
         file.id === 'clinic'
-          ? ({ ...file, license: 'CC-BY-4.0', attribution: 'Drawn by the clinic' } as typeof file)
+          ? { ...file, license: 'CC-BY-4.0', attribution: 'Drawn by the clinic' }
           : file,
       ),
     };
