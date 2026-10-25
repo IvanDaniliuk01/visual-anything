@@ -3,7 +3,7 @@ import type { ElkNode } from 'elkjs/lib/elk-api';
 import { describe, expect, it, vi } from 'vitest';
 import type { Rect } from '../geometry';
 import { CONTENTS_ORIGIN } from '../scene';
-import { blockGraph, layOut, shareOut, strongestRelations, type ElkEngine } from './engine';
+import { blockGraph, chunksOf, layOut, strongestRelations, type ElkEngine } from './engine';
 import { LAYOUT_STEP, type LaidOutShape, type LayoutInput, type LayoutShape } from './types';
 
 const elk: ElkEngine = new ELK();
@@ -214,13 +214,21 @@ describe('layOut', () => {
     edges.push([1, 5]);
     const alone = await layOut(input(shapes, edges), elk);
     const first = vi.fn(elk.layout.bind(elk));
-    const second = vi.fn(new ELK().layout.bind(new ELK()));
-    const shared = await layOut(input(shapes, edges), [{ layout: first }, { layout: second }]);
+    const other = new ELK();
+    const second = vi.fn(other.layout.bind(other));
+    const progress: number[] = [];
+    // One container a chunk, so that the two engines take them in turn.
+    const shared = await layOut(input(shapes, edges), [{ layout: first }, { layout: second }], {
+      chunkWork: 5,
+      onProgress: ({ done }) => progress.push(done),
+    });
     expect(shared.shapes).toEqual(alone.shapes);
-    // The containers go to both; World, a single block, to one.
-    expect(first).toHaveBeenCalledTimes(2);
-    expect(second).toHaveBeenCalledTimes(1);
-    expect(shared.stats.elkRuns).toBe(3);
+    expect(first).toHaveBeenCalled();
+    expect(second).toHaveBeenCalled();
+    expect(first.mock.calls.length + second.mock.calls.length).toBe(6);
+    expect(shared.stats.elkRuns).toBe(6);
+    // Each chunk done is a step: the five containers, then World.
+    expect(progress).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it('keeps a short flow in one row, and wraps a long one into rows about 1.6 times wider than tall', async () => {
@@ -330,24 +338,26 @@ describe('strongestRelations', () => {
   });
 });
 
-describe('shareOut', () => {
+describe('chunksOf', () => {
   const graph = (id: string, nodes: number): ElkNode => ({
     id,
     children: Array.from({ length: nodes }, (_, at) => ({ id: `${id}${at}` })),
   });
 
-  it('gives each run about the same work, the largest first, and keeps every graph once', () => {
+  it('cuts graphs into chunks of at most the work given, in order, keeping every graph once', () => {
     const graphs = [graph('a', 2), graph('b', 9), graph('c', 4), graph('d', 5), graph('e', 1)];
-    const shares = shareOut(graphs, 2);
-    expect(shares.map((share) => share.map((each) => each.id))).toEqual([
-      ['b', 'a'],
-      ['d', 'c', 'e'],
+    expect(chunksOf(graphs, 10).map((chunk) => chunk.map((each) => each.id))).toEqual([
+      ['a'],
+      ['b'],
+      ['c', 'd', 'e'],
     ]);
   });
 
-  it('never makes more runs than graphs, nor fewer than one', () => {
-    expect(shareOut([graph('a', 1)], 3)).toHaveLength(1);
-    expect(shareOut([graph('a', 1), graph('b', 1)], 0)).toHaveLength(1);
+  it('gives a graph larger than the work a chunk of its own', () => {
+    expect(chunksOf([graph('a', 30), graph('b', 1)], 10).map((chunk) => chunk.length)).toEqual([
+      1, 1,
+    ]);
+    expect(chunksOf([], 10)).toEqual([]);
   });
 });
 

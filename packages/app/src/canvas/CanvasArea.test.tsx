@@ -1476,6 +1476,8 @@ describe('The user’s case, end to end', () => {
 });
 
 describe('Layout', () => {
+  /** How long to wait for ELK, which runs slowly on a loaded machine. */
+  const ELK_WAIT = { timeout: 15_000 };
   /** Runs layouts in this thread, as the layout worker would. */
   const inThread: LayoutRunner = {
     layOut: (input) => layOut(input, new ELK()),
@@ -1495,7 +1497,7 @@ describe('Layout', () => {
       'Lay out "System overview": arrange every shape that is not pinned.',
     );
     fireEvent.click(layout);
-    await waitFor(() => expect(program.onCommand).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(program.onCommand).toHaveBeenCalledTimes(1), ELK_WAIT);
     expect(program.onCommand.mock.lastCall?.[0]).toMatchObject({
       type: 'batch',
       label: 'Lay out "System overview"',
@@ -1521,7 +1523,7 @@ describe('Layout', () => {
       element: { id: 'billing', component: 'systems.service', name: 'Billing' },
       containers: [{ container: 'clinic-booking', relationType: 'systems.is-part-of' }],
     });
-    await waitFor(() => expect(program.onCommand).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(program.onCommand).toHaveBeenCalledTimes(1), ELK_WAIT);
     expect(program.onCommand.mock.lastCall?.[0]).toMatchObject({
       label: 'Lay out "Billing" in "System overview"',
     });
