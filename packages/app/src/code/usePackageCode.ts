@@ -12,15 +12,7 @@ import {
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { Capability, Id } from '@visual-anything/schema';
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  useSyncExternalStore,
-} from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { Scene } from '../canvas/scene';
 import { useT } from '../i18n';
 import { LiveContext } from '../live/context';
@@ -47,6 +39,8 @@ function defaultHost(): CodeHost | undefined {
 }
 
 const NONE = (): (() => void) => () => {};
+/** The code this tab said waits for approval, by hash, so that it says so once, however the shell mounts. */
+const TOLD = new Set<string>();
 const noAnswers = (): CodeAnswers => NO_ANSWERS;
 const oneScale = (): number => 1;
 
@@ -129,16 +123,18 @@ export function usePackageCode({
     store.set({ packages, elements: answers.elements, drawings: answers.drawings });
   }, [store, packages, answers.elements, answers.drawings]);
 
-  // Once a session, for each code that waits for approval, a notice that it does not run.
-  const told = useRef(new Set<string>());
+  // Once a tab, for each code that waits for approval, a notice that it does not run.
   const notify = live?.notify;
+  const sent = live?.preferences?.codeApprovals;
   useEffect(() => {
-    if (!notify) return;
+    // Only once the program sent the person's approvals: before, every code looks unapproved.
+    if (!notify || sent === undefined) return;
+    const known = [...approvals, ...sent];
     for (const code of codes) {
-      if (codeStatusOf(code, approvals).state !== 'unapproved' || told.current.has(code.hash)) {
+      if (codeStatusOf(code, known).state !== 'unapproved' || TOLD.has(code.hash)) {
         continue;
       }
-      told.current.add(code.hash);
+      TOLD.add(code.hash);
       notify(
         'warning',
         t(
@@ -147,7 +143,7 @@ export function usePackageCode({
         ),
       );
     }
-  }, [codes, approvals, notify, t]);
+  }, [codes, approvals, notify, sent, t]);
 
   // The approval is of the code the person read: refused when the package's code is another now.
   const approve = useCallback(

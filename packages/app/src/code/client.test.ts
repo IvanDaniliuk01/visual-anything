@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CodeHost, NO_ANSWERS, type CodeWorkerLike } from './client';
+import { CodeHost, NO_ANSWERS, STARTING_MS, WATCHDOG_MS, type CodeWorkerLike } from './client';
 import type { CodeReply, CodeRequest } from './messages';
 import { codeProject } from './test/project';
 
@@ -30,6 +30,7 @@ class FakeWorker implements CodeWorkerLike {
 function harness() {
   const workers: FakeWorker[] = [];
   const timers: (() => void)[] = [];
+  const delays: number[] = [];
   const host = new CodeHost(
     () => {
       const worker = new FakeWorker();
@@ -37,7 +38,8 @@ function harness() {
       return worker;
     },
     {
-      setTimer: (callback) => {
+      setTimer: (callback, ms) => {
+        delays.push(ms);
         timers.push(callback);
         return timers.length;
       },
@@ -46,7 +48,7 @@ function harness() {
       },
     },
   );
-  return { host, workers, fireWatchdog: () => timers.at(-1)?.() };
+  return { host, workers, delays, fireWatchdog: () => timers.at(-1)?.() };
 }
 
 const project = codeProject();
@@ -131,6 +133,20 @@ describe('the code host', () => {
     expect(workers[2]?.sent.find((each) => each.kind === 'packages')).toMatchObject({
       packages: [{ stops: 2 }],
     });
+  });
+
+  it('gives a new worker time to make its interpreter, and then the watchdog’s', () => {
+    const { host, workers, delays } = harness();
+    host.update({ project, packages: [gauges], view: undefined, scale: 1, shown: [] });
+    expect(delays.at(-1)).toBe(STARTING_MS);
+    workers[0]?.reply({
+      kind: 'answers',
+      calling: 'gauges',
+      elements: [],
+      cleared: [],
+      packages: [],
+    });
+    expect(delays.at(-1)).toBe(WATCHDOG_MS);
   });
 
   it('lets an idle worker be, and stops it when no approved code is left', () => {

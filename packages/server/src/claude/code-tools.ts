@@ -24,7 +24,7 @@ import {
   type HookName,
 } from '@visual-anything/core';
 import { loadNodeEngine } from '@visual-anything/app/src/code/engine-node';
-import { CodeSandbox } from '@visual-anything/app/src/code/sandbox';
+import { CodeSandbox, warmedUp } from '@visual-anything/app/src/code/sandbox';
 import { z } from 'zod';
 import { READ, WRITE, act, fail, id, ok, tool } from './kit';
 import type { Tool, ToolHints } from './tools';
@@ -224,18 +224,7 @@ let engine: Promise<QuickJSWASMModule> | undefined;
  * timed while its WebAssembly is still being compiled.
  */
 function warmEngine(): Promise<QuickJSWASMModule> {
-  engine ??= loadNodeEngine().then((module) => {
-    const runtime = module.newRuntime();
-    const context = runtime.newContext();
-    const result = context.evalCode(
-      'let s = 0; for (let i = 0; i < 20000; i++) s += JSON.stringify([i]).length; s',
-    );
-    if (result.error) result.error.dispose();
-    else result.value.dispose();
-    context.dispose();
-    runtime.dispose();
-    return module;
-  });
+  engine ??= loadNodeEngine().then(warmedUp);
   return engine;
 }
 

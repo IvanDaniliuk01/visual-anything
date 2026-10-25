@@ -47,8 +47,15 @@ export const NO_ANSWERS: CodeAnswers = Object.freeze({
 /** How long the worker may stay silent while it works, in milliseconds. */
 export const WATCHDOG_MS = 1500;
 
+/**
+ * How long a new worker may take to say anything at all: it first makes its interpreter, whose
+ * WebAssembly the browser compiles, which on a slow machine takes longer than any call may.
+ */
+export const STARTING_MS = 15_000;
+
 export interface CodeHostOptions {
   watchdogMs?: number;
+  startingMs?: number;
   setTimer?: (callback: () => void, ms: number) => unknown;
   clearTimer?: (timer: unknown) => void;
 }
@@ -68,10 +75,13 @@ export class CodeHost {
   /** Calls that stopped in a row, by the hash of the code that made them. */
   private readonly stops = new Map<string, number>();
   private calling: Id | undefined;
+  /** Whether the worker under way said anything yet. */
+  private heard = false;
   private timer: unknown;
   private answers: CodeAnswers = NO_ANSWERS;
   private readonly listeners = new Set<() => void>();
   private readonly watchdogMs: number;
+  private readonly startingMs: number;
   private readonly setTimer: (callback: () => void, ms: number) => unknown;
   private readonly clearTimer: (timer: unknown) => void;
 
@@ -80,6 +90,7 @@ export class CodeHost {
     options: CodeHostOptions = {},
   ) {
     this.watchdogMs = options.watchdogMs ?? WATCHDOG_MS;
+    this.startingMs = options.startingMs ?? STARTING_MS;
     this.setTimer = options.setTimer ?? ((callback, ms) => setTimeout(callback, ms));
     this.clearTimer =
       options.clearTimer ?? ((timer) => clearTimeout(timer as ReturnType<typeof setTimeout>));
@@ -149,6 +160,7 @@ export class CodeHost {
       if (this.worker === worker) this.restart();
     });
     this.worker = worker;
+    this.heard = false;
     this.sent = {};
     return worker;
   }
@@ -159,6 +171,7 @@ export class CodeHost {
   }
 
   private receive(reply: CodeReply): void {
+    this.heard = true;
     if (reply.kind === 'idle') {
       this.disarm();
       this.calling = undefined;
@@ -228,10 +241,13 @@ export class CodeHost {
 
   private arm(): void {
     this.disarm();
-    this.timer = this.setTimer(() => {
-      this.timer = undefined;
-      this.restart();
-    }, this.watchdogMs);
+    this.timer = this.setTimer(
+      () => {
+        this.timer = undefined;
+        this.restart();
+      },
+      this.heard ? this.watchdogMs : this.startingMs,
+    );
   }
 
   private disarm(): void {

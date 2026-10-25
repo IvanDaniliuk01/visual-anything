@@ -26,6 +26,32 @@ import { NOT_AN_ERROR, PRELUDE, REFUSED } from './prelude';
  */
 export const STACK_BYTES = 48 * 1024;
 
+/**
+ * Runs code of its own once in a new module, so that the browser or Node has compiled the
+ * interpreter's WebAssembly before any package's call is timed: a cold interpreter can take longer
+ * than a call may on its first runs. Gives back the module.
+ */
+export function warmedUp(module: QuickJSWASMModule): QuickJSWASMModule {
+  const runtime = module.newRuntime();
+  try {
+    const context = runtime.newContext();
+    try {
+      for (let round = 0; round < 3; round += 1) {
+        const result = context.evalCode(
+          'let s = 0; for (let i = 0; i < 20000; i++) { s += JSON.stringify({ i, a: [i] }).length; } JSON.parse(JSON.stringify({ s })).s',
+        );
+        if (result.error) result.error.dispose();
+        else result.value.dispose();
+      }
+    } finally {
+      context.dispose();
+    }
+  } finally {
+    runtime.dispose();
+  }
+  return module;
+}
+
 /** The code of one package, as the sandbox loads it. */
 export interface LoadRequest {
   package: Id;
