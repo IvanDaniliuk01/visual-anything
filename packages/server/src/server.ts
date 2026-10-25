@@ -32,6 +32,7 @@ import {
 } from './security';
 import {
   LIVE_MAX_PAYLOAD,
+  CODE_WORKER_POLICY,
   WORKER_POLICY,
   applyContentPolicies,
   createNonce,
@@ -222,7 +223,11 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
       sendText(response, check.status, check.message);
       return;
     }
-    applyContentPolicies(response, { page: app.pagePolicyAt(port), worker: WORKER_POLICY });
+    applyContentPolicies(response, {
+      page: app.pagePolicyAt(port),
+      worker: WORKER_POLICY,
+      codeWorker: CODE_WORKER_POLICY,
+    });
     app.serve(request, response);
   });
 
