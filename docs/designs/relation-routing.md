@@ -17,7 +17,7 @@ Where the code stands at f69223a:
 What changes:
 
 | Piece | What the person gets | Where |
-|---|---|---|
+| --- | --- | --- |
 | Storage | A view keeps, for each relation routed by hand, only what differs from the automatic route: each end's attachment, the bend points and the style | `ViewFile.routes`, view files only (ADR 0009) |
 | Commands | `set-route` and `reset-route`, one undoable action each, labelled by author | `core/src/commands/routes.ts` |
 | Upkeep | Deletes take routes with their relations; a removed connection point keeps the line where it was; a moved end goes back to automatic | `rules.ts`, `commands/model.ts`, `settleRoutes` |
@@ -202,7 +202,7 @@ export type RouteLookups = Pick<ModelIndex, 'world' | 'element' | 'relation'>;
 **Which attachments fit.** An end attaches by hand only where a line can meet a shape:
 
 | End | Connection point | Border |
-|---|---|---|
+| --- | --- | --- |
 | An element with its own shape | when its appearance has the name (the first of that name) | any side, `at` from 0 to 1 |
 | A row, or a shape that draws its contents as rows (§3.5 of `components.md`) | never: such shapes attach beside their header and rows | `left` or `right` only, at the middle (`at` 0.5) |
 | An element drawn inside a row, which has no shape | never | never |
@@ -256,7 +256,7 @@ Both are undone exactly by their operations' inverses, and both reach Claude thr
 ### 4.4 What happens when
 
 | When | What happens to the route | Stored change |
-|---|---|---|
+| --- | --- | --- |
 | An end's shape moves or resizes | Hand-chosen ends follow it: a border attachment keeps its side and `at`, a connection point follows the appearance. Bend points stay where they are in their container; an orthogonal route re-runs the segments next to the moved end. | None. |
 | Both ends move together, and the shape of the bend points' container does not | The bend points move with them, in the same action as the move (the canvas sends `set-route` in the move's batch, 7.6). | `bendPoints` |
 | The bend points' container moves | Everything inside moves together. | None. |
@@ -443,7 +443,7 @@ When a move takes both end shapes of a relation whose route has bend points, and
 Edit the route… enters a mode for the selected relation, announced as "Editing the route of "Client → API". Tab and Shift+Tab move between its handles; the arrow keys move the handle; Insert adds a bend point; Delete removes one; A attaches an end automatically; Enter applies; Escape cancels.", and listed in the keyboard help:
 
 | Key | In route editing |
-|---|---|
+| --- | --- |
 | Tab, Shift+Tab | The next or previous handle: start, bend points, segment middles, end |
 | Arrow keys | Move the bend point or segment by 1 unit; Shift+arrow by 8. On an end, move it along the border by 1 unit, round the corners; Shift+arrow jumps to the next connection point |
 | Insert (Ctrl+Enter on keyboards without it) | Add a bend point at the middle of the selected segment, or after the selected bend point |
@@ -457,7 +457,7 @@ Every change in the mode is drawn at once and sent as one action on Enter, as a 
 ### 7.6 What each gesture sends
 
 | Gesture | Command |
-|---|---|
+| --- | --- |
 | End dropped on its own shape | `set-route { from or to }` |
 | End dropped on another shape | `batch [update-relation, set-route]` |
 | Bend point moved, added or removed; segment moved | `set-route { bendPoints }` (all of them) |
@@ -521,7 +521,7 @@ Example: { "view": "system-overview", "relations": ["booking-agent-calls-api-k3f
 ## 12. Risks, and the tests that cover them
 
 | Risk | Covered by |
-|---|---|
+| --- | --- |
 | Undo of a route change leaves the view slightly different (an empty map, a key with `undefined`) | Property test: `toStrictEqual` after every undo |
 | A route keeps naming a deleted relation or a removed connection point | Property test over every command that can cause it, with undo and redo |
 | A delete removes routes it did not list, or misses one | Property test: removed and changed routes equal `preview.routes` |
