@@ -38,12 +38,20 @@
  * | stacking order          | orden de apilado                 |
  * | outline                 | esquema                          |
  * | aggregated relation     | relación agregada                |
+ * | collapsed container     | contenedor contraído             |
  * | view                    | vista                            |
  * | perspective             | perspectiva                      |
  * | component               | componente                       |
  * | component palette       | paleta de componentes            |
  * | appearance              | apariencia                       |
+ * | fill, stroke            | relleno, trazo                   |
+ * | dash                    | patrón de línea                  |
  * | connection point        | punto de conexión                |
+ * | attach (a relation end) | conectar                         |
+ * | route                   | ruta                             |
+ * | bend point              | punto de quiebre                 |
+ * | layout, lay out         | diseño automático, organizar     |
+ * | fit (the view)          | encuadrar                        |
  * | component editor        | editor de componentes            |
  * | Essence                 | Esencia                          |
  * | package                 | paquete                          |
@@ -69,7 +77,15 @@
  * | view address            | dirección de vista               |
  * | find, search            | buscar, búsqueda                 |
  * | undo, redo              | deshacer, rehacer                |
+ * | action, history         | acción, historial                |
+ * | language                | idioma                           |
+ * | settings (of a view)    | opciones                         |
  * | the local program       | el programa local                |
+ *
+ * The words CONTEXT.md avoids are not used for its terms either: no "nodo", "objeto" or "instancia"
+ * for an element, "propiedad" or "campo" for an attribute, "capa" for the stacking order, "enlace" or
+ * "vínculo" for a relation, nor "ajustes" for options, since "ajuste" is snapping. A JSON object is
+ * "objeto JSON" and a file system link "enlace simbólico", which are neither.
  *
  * Element, relation, view and scenario names are what people wrote and are never translated; they
  * keep their quotes as the English has them.
@@ -271,8 +287,8 @@ export const ui: Catalog = {
   'Open "{name}" on the canvas': 'Abrir "{name}" en el lienzo',
   // A badge: the view is open.
   Open: 'Abierta',
-  'Settings of "{name}"': 'Ajustes de "{name}"',
-  Settings: 'Ajustes',
+  'Settings of "{name}"': 'Opciones de "{name}"',
+  Settings: 'Opciones',
   'A view needs a name.': 'Una vista necesita un nombre.',
   'A perspective needs a name, such as Security.':
     'Una perspectiva necesita un nombre, como Seguridad.',
@@ -293,11 +309,11 @@ export const ui: Catalog = {
   'Delete view…': 'Eliminar vista…',
   'Give the view a name.': 'La vista necesita un nombre.',
   'Name the perspective it is seen from, such as Security or Ownership.':
-    'Nombrar la perspectiva desde la que se ve, como Seguridad o Propiedad.',
+    'Nombrar la perspectiva desde la que se ve, como Seguridad o Responsables.',
   'Security overview': 'Resumen de seguridad',
   Security: 'Seguridad',
   'Every relation type that nests arranges it at first; its settings change that.':
-    'Al principio la organizan todos los tipos de relación que anidan; sus ajustes lo cambian.',
+    'Al principio la organizan todos los tipos de relación que anidan; sus opciones lo cambian.',
 
   // The outline.
   'There is no view to outline.': 'No hay ninguna vista para mostrar en el esquema.',
@@ -696,7 +712,7 @@ export const ui: Catalog = {
   Keyboard: 'Teclado',
   'Arrow keys': 'Flechas',
   'Select the nearest shape in that direction, going into the containers on the way':
-    'Seleccionar la forma más cercana en esa dirección, entrando en los contenedores del camino',
+    'Seleccionar la forma más cercana en esa dirección, entrando en los contenedores que encuentra',
   'Alt+Up, Alt+Down': 'Alt+Arriba, Alt+Abajo',
   'Select the container of the selected shape, or the first shape inside it':
     'Seleccionar el contenedor de la forma seleccionada, o la primera forma dentro de ella',
@@ -737,7 +753,7 @@ export const ui: Catalog = {
   'Ctrl+A or ⌘A': 'Ctrl+A o ⌘A',
   'Select everything': 'Seleccionar todo',
   '+, − and 0': '+, − y 0',
-  'Zoom in, zoom out, and fit the view': 'Acercar, alejar y ajustar la vista',
+  'Zoom in, zoom out, and fit the view': 'Acercar, alejar y encuadrar la vista',
   'Alt+− and Alt++': 'Alt+− y Alt++',
   'Collapse or expand the selected containers':
     'Contraer o expandir los contenedores seleccionados',
@@ -1689,7 +1705,7 @@ export const messages: Catalog = {
   'The fill of {of} must be a color written as #RRGGBB, not {value}.':
     'El relleno de {of} debe ser un color escrito como #RRGGBB, no {value}.',
   'The stroke of {of} must be a color written as #RRGGBB, not {value}.':
-    'El borde de {of} debe ser un color escrito como #RRGGBB, no {value}.',
+    'El trazo de {of} debe ser un color escrito como #RRGGBB, no {value}.',
   'The tint of {of} must be a color written as #RRGGBB, not {value}.':
     'El tinte de {of} debe ser un color escrito como #RRGGBB, no {value}.',
   'The width of {of} must be a number above 0 and at most 100,000.':
@@ -1732,7 +1748,7 @@ export const messages: Catalog = {
   'The line width of {of} must be a number above 0.':
     'El grosor de línea de {of} debe ser un número mayor que 0.',
   'The dash of {of} must be "solid", "dashed" or "dotted".':
-    'El trazo de {of} debe ser "solid", "dashed" o "dotted".',
+    'El patrón de línea de {of} debe ser "solid", "dashed" o "dotted".',
   'How a relation is drawn has no trait "{trait}".':
     'La forma de dibujar una relación no tiene el rasgo "{trait}".',
   'An attribute definition has no "{key}".': 'Una definición de atributo no tiene "{key}".',
@@ -2359,11 +2375,11 @@ export const builtins: Readonly<
 > = {
   essence: {
     name: 'Esencia',
-    description: 'El componente del que derivan, en última instancia, todos los demás.',
+    description: 'El componente del que, en definitiva, derivan todos los demás.',
   },
   'relates-to': {
     name: 'se relaciona con',
-    description: 'El tipo de relación del que derivan, en última instancia, todos los demás.',
+    description: 'El tipo de relación del que, en definitiva, derivan todos los demás.',
   },
   systems: {
     name: 'Sistemas',

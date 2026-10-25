@@ -101,6 +101,26 @@ describe('the Spanish catalog', () => {
     expect(missing).toEqual([]);
   });
 
+  it('uses none of the words the glossary avoids for its terms', () => {
+    const found = ENTRIES.flatMap(([, key, entry]) => {
+      const forms = typeof entry === 'string' ? [entry] : [entry.one, entry.other];
+      return forms.flatMap((form) =>
+        AVOIDED.filter(
+          ({ word, unless }) => word.test(form) && !(unless !== undefined && unless.test(form)),
+        ).map(({ word }) => `${key} → ${form} (${word.source})`),
+      );
+    });
+    const named = Object.values(builtins).flatMap((each) => [
+      each.name,
+      each.description ?? '',
+      ...Object.values(each.attributes ?? {}),
+    ]);
+    const inBuiltins = named.filter((text) =>
+      AVOIDED.some(({ word, unless }) => word.test(text) && !(unless?.test(text) ?? false)),
+    );
+    expect([...found, ...inBuiltins]).toEqual([]);
+  });
+
   it('names every built-in package, component and relation type, and nothing else', () => {
     const ids = [
       ESSENCE.id,
@@ -261,6 +281,28 @@ describe('translateMessage', () => {
     expect(untranslatedParts('es', message)).toEqual(['Something no entry knows.']);
   });
 });
+
+/**
+ * The Spanish words for what CONTEXT.md avoids, which the catalog never uses for its terms; `unless`
+ * is where the word means something else, as a name a built-in definition has in English too.
+ */
+const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
+  { word: /\bnodos?\b/i },
+  { word: /\binstancias?\b/i },
+  { word: /\bpropiedad(es)?\b/i },
+  { word: /\bcapas?\b/i, unless: /\bcapa semántica\b/i },
+  { word: /\bv[ií]nculos?\b/i },
+  { word: /\baristas?\b/i },
+  { word: /\benlaces?\b/i, unless: /\benlace simbólico\b/i },
+  { word: /\bajustes\b/i },
+  { word: /\btableros?\b/i },
+  { word: /\bplantillas?\b/i },
+  { word: /\bbibliotecas?\b/i },
+  { word: /\bdiagramas?\b/i },
+  { word: /\bra[ií]z\b/i },
+  { word: /\binstant[áa]neas?\b/i },
+  { word: /\bsobrescrit/i },
+];
 
 /** Texts given to t() that Spanish writes the same: values and punctuation only. */
 const SAME_IN_SPANISH: ReadonlySet<string> = new Set([
