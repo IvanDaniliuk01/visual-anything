@@ -1,8 +1,10 @@
-import { Container, Graphics, type TextStyleOptions } from 'pixi.js';
+import { Container, Graphics, Texture, type GraphicsPath, type TextStyleOptions } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
 import { loadSample } from '../test/sample';
 import {
   detailOf,
+  drawPieceLines,
+  drawRoutePieces,
   drawShapeBlocks,
   drawShapeOutlines,
   fitText,
@@ -12,8 +14,10 @@ import {
   writeShapeLabels,
   type TextFactory,
 } from './draw';
-import { toggleRect, type Rect } from './geometry';
-import { buildScene, type ElementShape } from './scene';
+import { arrowheadAt, toggleRect, type Point, type Rect } from './geometry';
+import { midpointOf } from './route';
+import { buildScene, type ElementShape, type RelationLine } from './scene';
+import { routePieces } from './tiles';
 
 const scene = buildScene(loadSample(), 'system-overview');
 const textOf = (label: unknown) => (label as { text: string }).text;
@@ -32,6 +36,98 @@ describe('writeShapeLabels', () => {
     const written = writeShapeLabels(scene.shapes, false).map(textOf);
     expect(written).toHaveLength(scene.shapes.length);
     expect(written).not.toContain('Service');
+  });
+});
+
+describe('drawRoutePieces', () => {
+  const line = (route: Point[], dash: RelationLine['dash']): RelationLine => ({
+    relation: 'r',
+    route,
+    from: route[0] as Point,
+    to: route.at(-1) as Point,
+    middle: midpointOf(route),
+    stroke: '#3E4C59',
+    width: 4,
+    dash,
+  });
+  /** What each tile's drawing strokes: the points of each path, and the pattern's origin. */
+  const strokes = (pieces: ReturnType<typeof routePieces>) =>
+    pieces.map((piece) => {
+      const graphics = new Graphics();
+      drawRoutePieces(graphics, [piece], []);
+      return graphics.context.instructions.map((instruction) => {
+        const data = instruction.data as {
+          path: GraphicsPath;
+          style: { matrix?: { tx: number; ty: number } };
+        };
+        return {
+          points: data.path.instructions.map((each) => each.data.slice(0, 2) as number[]),
+          origin: data.style.matrix && { x: data.style.matrix.tx, y: data.style.matrix.ty },
+        };
+      });
+    });
+
+  it('goes on with the dashes where a relation passes from one tile to the next', () => {
+    const pieces = routePieces(
+      line(
+        [
+          { x: 100, y: 100 },
+          { x: 2500, y: 100 },
+        ],
+        'dashed',
+      ),
+    );
+    expect(pieces).toHaveLength(3);
+    // Every piece lays the pattern from the start of the route, as the whole route would.
+    const origins = strokes(pieces).flatMap((drawn) => drawn.map((each) => each.origin));
+    for (const origin of origins) {
+      expect(origin?.x).toBeCloseTo(100);
+      expect(origin?.y).toBeCloseTo(100 - 2);
+    }
+  });
+
+  it('draws a directed relation far out as a plain line all the way to its tip', () => {
+    const route = [
+      { x: 100, y: 100 },
+      { x: 600, y: 100 },
+    ];
+    const directed = {
+      ...line(route, 'dashed'),
+      arrowhead: arrowheadAt(route[0] as Point, route[1] as Point, 4),
+    };
+    const graphics = new Graphics();
+    drawPieceLines(graphics, routePieces(directed));
+    const [stroke] = graphics.context.instructions;
+    const path = (stroke?.data as { path: GraphicsPath }).path.instructions;
+    // Straight on from the start to the tip, through the arrowhead's base.
+    const points = path.map((each) => each.data.slice(0, 2) as number[]);
+    expect(points[0]).toEqual([100, 100]);
+    expect(points.at(-1)).toEqual([600, 100]);
+    expect(points.every(([, y]) => y === 100)).toBe(true);
+    expect((stroke?.data as { style: { texture: unknown } }).style.texture).toBe(Texture.WHITE);
+  });
+
+  it('fills the corner of a bend between two tiles from both sides', () => {
+    const pieces = routePieces(
+      line(
+        [
+          { x: 100, y: 100 },
+          { x: 1024, y: 100 },
+          { x: 1024, y: 900 },
+        ],
+        'solid',
+      ),
+    );
+    const [first, second] = strokes(pieces).map((drawn) => drawn[0]?.points);
+    // Half the width past the bend, each along its own segment.
+    expect(first).toEqual([
+      [100, 100],
+      [1026, 100],
+    ]);
+    expect(second).toEqual([
+      [1024, 98],
+      [1024, 900],
+    ]);
   });
 });
 

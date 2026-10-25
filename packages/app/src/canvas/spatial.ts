@@ -10,6 +10,13 @@ import type { Point, Rect } from './geometry';
 
 /** How many rows a column of cells holds before its cell numbers repeat; a repeat only adds candidates. */
 const ROWS = 1_048_576;
+/**
+ * The most cells an item enters, or a query visits. Positions come from project files and from
+ * Claude, so a rectangle can be a billion units wide: an item that would enter more cells is kept
+ * apart and looked at by every query, and a query over more cells looks at every item instead, so
+ * that the work stays bounded whatever the coordinates.
+ */
+const MAX_CELLS = 4096;
 
 export class SpatialIndex<T> {
   private items: T[] = [];
@@ -23,6 +30,8 @@ export class SpatialIndex<T> {
    * Cells shared with a copy are copied before they change.
    */
   private owned: Set<number> | undefined;
+  /** The slots of the items that cover too many cells to enter them. */
+  private large = new Set<number>();
   /** Which query last found each item, so that a query lists each item once without a set. */
   private seen: number[] = [];
   private queries = 0;
@@ -38,7 +47,7 @@ export class SpatialIndex<T> {
   /** Adds an item that covers `rect`, and says its slot. */
   insert(item: T, rect: Rect): number {
     const index = this.add(item, rect, undefined);
-    this.enter(index, rect);
+    this.place(index, [rect]);
     return index;
   }
 
@@ -52,7 +61,7 @@ export class SpatialIndex<T> {
     if (!first) return -1;
     if (parts.length === 1) return this.insert(item, first);
     const index = this.add(item, enclosing(parts), parts);
-    for (const part of parts) this.enter(index, part);
+    this.place(index, parts);
     return index;
   }
 
@@ -66,6 +75,7 @@ export class SpatialIndex<T> {
     copy.owned = new Set();
     copy.seen = new Array<number>(this.items.length).fill(0);
     copy.live = this.live;
+    copy.large = new Set(this.large);
     // The lists are now shared both ways.
     this.owned = new Set();
     return copy;
@@ -79,7 +89,7 @@ export class SpatialIndex<T> {
   /** Moves the item in a slot to cover these rectangles instead, keeping its slot. */
   replaceParts(slot: number, parts: readonly Rect[]): void {
     if (this.bounds[slot] === undefined) return;
-    this.leave(slot);
+    if (!this.large.delete(slot)) this.leave(slot);
     const [first] = parts;
     if (!first) {
       this.bounds[slot] = undefined;
@@ -89,7 +99,7 @@ export class SpatialIndex<T> {
     }
     this.bounds[slot] = parts.length === 1 ? first : enclosing(parts);
     this.parts[slot] = parts.length === 1 ? undefined : parts;
-    for (const part of parts) this.enter(slot, part);
+    this.place(slot, parts);
   }
 
   /** Takes the item in a slot out; its slot stays empty. */
@@ -101,13 +111,11 @@ export class SpatialIndex<T> {
   query(rect: Rect): T[] {
     const stamp = ++this.queries;
     const found: number[] = [];
-    this.eachCell(rect, (cell) => {
-      for (const index of cell) {
-        if (this.seen[index] === stamp) continue;
-        if (this.covers(index, rect, meets)) {
-          this.seen[index] = stamp;
-          found.push(index);
-        }
+    this.candidates(rect, (index) => {
+      if (this.seen[index] === stamp) return;
+      if (this.covers(index, rect, meets)) {
+        this.seen[index] = stamp;
+        found.push(index);
       }
     });
     found.sort((a, b) => a - b);
@@ -131,14 +139,52 @@ export class SpatialIndex<T> {
    */
   highest(rect: Rect, score: (item: T) => number, before = Infinity): number {
     let best = -1;
-    this.eachCell(rect, (cell) => {
-      for (const index of cell) {
-        if (index >= before || !this.covers(index, rect, overlaps)) continue;
-        const value = score(this.items[index] as T);
-        if (value > best) best = value;
-      }
+    this.candidates(rect, (index) => {
+      if (index >= before || !this.covers(index, rect, overlaps)) return;
+      const value = score(this.items[index] as T);
+      if (value > best) best = value;
     });
     return best;
+  }
+
+  /** Enters a slot in the cells its rectangles cover, or keeps it apart when they cover too many. */
+  private place(slot: number, parts: readonly Rect[]): void {
+    let cells = 0;
+    for (const part of parts) cells += this.cellCount(part);
+    // Written so that a rectangle whose coordinates are not finite numbers is kept apart too.
+    if (!(cells <= MAX_CELLS)) {
+      this.large.add(slot);
+      return;
+    }
+    for (const part of parts) this.enter(slot, part);
+  }
+
+  /**
+   * Visits the items that may meet `rect`, some more than once: those in the cells it covers and
+   * those kept apart, or every item when it covers too many cells to visit them.
+   */
+  private candidates(rect: Rect, visit: (index: number) => void): void {
+    if (!this.fewCells(rect)) {
+      for (let index = 0; index < this.items.length; index++) visit(index);
+      return;
+    }
+    this.eachCell(rect, (cell) => {
+      for (const index of cell) visit(index);
+    });
+    for (const index of this.large) visit(index);
+  }
+
+  /** How many cells a rectangle covers; not a number when its coordinates are not. */
+  private cellCount(rect: Rect): number {
+    const size = this.cellSize;
+    const columns = Math.floor((rect.x + rect.width) / size) - Math.floor(rect.x / size) + 1;
+    const rows = Math.floor((rect.y + rect.height) / size) - Math.floor(rect.y / size) + 1;
+    return columns * rows;
+  }
+
+  /** Whether a rectangle covers few enough cells to visit them; never when its coordinates are not numbers. */
+  private fewCells(rect: Rect): boolean {
+    return this.cellCount(rect) <= MAX_CELLS;
   }
 
   private add(item: T, rect: Rect, parts: readonly Rect[] | undefined): number {

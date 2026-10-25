@@ -33,12 +33,13 @@ interface TileView {
   container: Container;
   shapes: { key: string }[];
   lines: { relation: string }[];
+  coarse?: { alpha: number };
 }
 
 interface Inside {
   tiles: Map<string, TileView>;
   tileOfShape: Map<string, TileView>;
-  tileOfLine: Map<string, TileView>;
+  tilesOfLine: Map<string, Set<TileView>>;
   emphasisMarks: Graphics;
   markerMarks: Graphics;
 }
@@ -74,15 +75,17 @@ async function started(): Promise<CanvasRenderer> {
 
 /** What the tiles draw, in an order that does not depend on how they were made. */
 function drawnBy(renderer: CanvasRenderer): string[] {
-  const { tiles, tileOfShape, tileOfLine } = inside(renderer);
+  const { tiles, tileOfShape, tilesOfLine } = inside(renderer);
   const rows = [...tiles.values()].map(
     (tile) =>
-      `${tile.kind} ${tile.key} ${tile.dim} ${tile.container.alpha} ${tile.signature} ${
+      `${tile.kind} ${tile.key} ${tile.dim} ${tile.container.alpha} ${tile.coarse?.alpha} ${tile.signature} ${
         tile.kind === 'relations' ? tile.lines.map((line) => line.relation).join(',') : ''
       }`,
   );
   for (const [key, tile] of tileOfShape) rows.push(`shape ${key} in ${tile.key}`);
-  for (const [key, tile] of tileOfLine) rows.push(`line ${key} in ${tile.key}`);
+  for (const [key, each] of tilesOfLine) {
+    for (const tile of each) rows.push(`line ${key} in ${tile.key}`);
+  }
   return rows.sort();
 }
 
@@ -225,9 +228,9 @@ describe('CanvasRenderer emphasis (I2)', () => {
     );
     expect(toPatient.length).toBeGreaterThan(0);
     renderer.setEmphasis({ hidden: new Set(['patient', 'calendar-note']) });
-    const { tileOfShape, tileOfLine, tiles } = inside(renderer);
+    const { tileOfShape, tilesOfLine, tiles } = inside(renderer);
     expect(tileOfShape.has('patient')).toBe(false);
-    for (const line of toPatient) expect(tileOfLine.has(line.relation)).toBe(false);
+    for (const line of toPatient) expect(tilesOfLine.get(line.relation)?.size ?? 0).toBe(0);
     expect(tiles.has('free')).toBe(false);
     const rect = patient?.rect ?? { x: 0, y: 0, width: 0, height: 0 };
     const middle = { x: rect.x + rect.width / 2, y: rect.y + rect.height * 0.75 };
