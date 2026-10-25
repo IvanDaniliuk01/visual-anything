@@ -13,19 +13,19 @@
  * matches rows to the project's elements by a key column, the `id` one by default, so that it updates
  * their values and creates only what is new.
  */
-import type { Attributes, Id } from '@visual-anything/schema';
-import type { Definitions } from '../definitions';
-import type { ProjectSnapshot } from '../snapshot';
-import { definitionsIn } from '../state';
+import type { Attributes } from '@visual-anything/schema';
 import { PastLimits, PlanBuilder } from './builder';
 import {
+  FORBIDDEN_NAME,
   hasExtension,
+  own,
   type ImportInput,
   type ImportReader,
   type ReadOptions,
   type ReadResult,
 } from './reader';
-import { componentForWords, relationTypeForWords } from './suggest';
+import { References, type MatchBy } from './references';
+import { kindSuggester, type KindSuggester } from './suggest';
 import { MAX_IMPORT_TEXT, oneLine } from './text';
 
 /** A record of the file: its cells, and the line it starts on, counted from 1. */
@@ -259,9 +259,13 @@ function columnsOf<Role extends string>(
       unread.set(at, 'This column has no header, so it is not read.');
       return;
     }
-    const role = Object.hasOwn(known, normal(name)) ? known[normal(name)] : undefined;
+    const role = own(known, normal(name));
     if (role !== undefined && !roles.has(role)) {
       roles.set(role, at);
+      return;
+    }
+    if (name === FORBIDDEN_NAME) {
+      unread.set(at, `No attribute may be named "${FORBIDDEN_NAME}", so this column is not read.`);
       return;
     }
     if (named.has(name)) {
@@ -272,29 +276,6 @@ function columnsOf<Role extends string>(
     attributes.set(at, name);
   });
   return { roles, attributes, unread };
-}
-
-/** The suggestions for a spreadsheet's kinds: the project's own ids and names first, then words. */
-function suggester(definitions: Definitions | undefined) {
-  const byName = (map: ReadonlyMap<Id, { definition: { name: string } }>, value: string) => {
-    const wanted = value.toLowerCase();
-    for (const [id, { definition }] of map) if (definition.name.toLowerCase() === wanted) return id;
-    return undefined;
-  };
-  return {
-    component(value: string): Id | undefined {
-      if (value === '') return undefined;
-      if (definitions?.components.has(value)) return value;
-      return (definitions && byName(definitions.components, value)) ?? componentForWords(value);
-    },
-    relationType(value: string): Id | undefined {
-      if (value === '') return undefined;
-      if (definitions?.relationTypes.has(value)) return value;
-      return (
-        (definitions && byName(definitions.relationTypes, value)) ?? relationTypeForWords(value)
-      );
-    },
-  };
 }
 
 /** Reads a spreadsheet into a plan, or says why it cannot. */
@@ -330,13 +311,11 @@ export function readTable(input: ImportInput, options: ReadOptions = {}): ReadRe
 /** One reading of a spreadsheet's tables into a builder. */
 class TableReading {
   readonly #builder: PlanBuilder;
-  readonly #project: ProjectSnapshot | undefined;
+  readonly #matching: boolean;
   readonly #key: string | undefined;
-  readonly #suggest: ReturnType<typeof suggester>;
-  /** Rows of the file by their id, and by their name, to the keys of their elements. */
-  readonly #ids = new Map<string, string>();
-  readonly #names = new Map<string, string[]>();
-  readonly #containers: { key: string; container: string; line: number }[] = [];
+  readonly #suggest: KindSuggester;
+  readonly #references: References;
+  readonly #containers: { key: string; container: string }[] = [];
   readonly #relations: {
     from: string;
     to: string;
@@ -345,9 +324,14 @@ class TableReading {
 
   constructor(builder: PlanBuilder, options: ReadOptions) {
     this.#builder = builder;
-    this.#project = options.project;
+    this.#matching = options.project !== undefined;
     this.#key = options.key;
-    this.#suggest = suggester(options.project ? definitionsIn(options.project) : undefined);
+    this.#suggest = kindSuggester(options.project);
+    this.#references = new References(
+      builder,
+      options.project?.model.elements,
+      'the row is left out',
+    );
   }
 
   read(tables: readonly Table[]): string[] {
@@ -379,8 +363,9 @@ class TableReading {
     tables.forEach((table, at) => {
       if (kinds[at] === 'relations') this.#readRelations(table);
     });
+    const references = this.#references;
     for (const { key, container } of this.#containers) {
-      const found = this.#resolve(
+      const found = references.resolve(
         container,
         `"${container}" names no element of the file or the project, so this row sits in no container.`,
       );
@@ -389,9 +374,9 @@ class TableReading {
     for (const { from, to, relation } of this.#relations) {
       const why = (end: string) =>
         `"${end}" names no element of the file or the project, so the row is left out.`;
-      const start = this.#resolve(from, why(from));
+      const start = references.resolve(from, why(from));
       if (start === undefined) continue;
-      const end = this.#resolve(to, why(to));
+      const end = references.resolve(to, why(to));
       if (end === undefined) continue;
       const suggested = this.#suggest.relationType(relation.kind);
       this.#builder.relate(
@@ -404,6 +389,7 @@ class TableReading {
 
   #readElements(table: Table): void {
     const builder = this.#builder;
+    const references = this.#references;
     const columns = columnsOf(table.header, ELEMENT_HEADERS);
     const keyColumn = this.#keyColumn(table.header, columns);
     for (const row of table.rows) {
@@ -413,23 +399,20 @@ class TableReading {
       const id = cell(columns.roles.get('id'));
       const written = cell(columns.roles.get('name'));
       if (id === '' && written === '') {
-        if (!isBlank(row))
+        if (!isBlank(row)) {
           builder.report(row.cells.join(' '), 'This row has no name or id, so it is left out.');
+        }
         continue;
       }
-      if (id !== '' && this.#ids.has(id)) {
+      if (id !== '' && references.hasId(id)) {
         builder.report(id, `The id "${id}" is given to an earlier row, so this row is left out.`);
         continue;
       }
       const match =
-        keyColumn === undefined ? undefined : this.#match(keyColumn, cell(keyColumn.at));
+        keyColumn === undefined ? undefined : references.match(keyColumn.how, cell(keyColumn.at));
       if (match === 'several') continue;
       const kind = cell(columns.roles.get('component'));
-      const attributes: Attributes = {};
-      for (const [at, name] of columns.attributes) {
-        const value = cell(at);
-        if (value !== '') attributes[name] = value;
-      }
+      const attributes = attributesIn(columns, cell);
       const key = this.#keyFor(id, written, row.line);
       const name = builder.name(written === '' ? (match?.name ?? id) : written, id || key);
       const description = builder.description(cell(columns.roles.get('description')) || undefined);
@@ -441,18 +424,15 @@ class TableReading {
           name,
           kind,
           ...(description === undefined ? {} : { description }),
-          ...(Object.keys(attributes).length === 0 ? {} : { attributes }),
+          ...(attributes === undefined ? {} : { attributes }),
           ...(match === undefined ? {} : { existing: match.id }),
         },
         { label: kind, ...(suggested === undefined ? {} : { suggested }) },
       );
-      if (id !== '') this.#ids.set(id, key);
-      if (written !== '') this.#names.set(written, [...(this.#names.get(written) ?? []), key]);
+      references.register(key, id, written);
       const container = cell(columns.roles.get('container'));
       // A row that matched an element changes its values only: its containers stay as they are.
-      if (container !== '' && match === undefined) {
-        this.#containers.push({ key, container, line: row.line });
-      }
+      if (container !== '' && match === undefined) this.#containers.push({ key, container });
     }
   }
 
@@ -473,11 +453,7 @@ class TableReading {
         }
         continue;
       }
-      const attributes: Attributes = {};
-      for (const [at, name] of columns.attributes) {
-        const value = cell(at);
-        if (value !== '') attributes[name] = value;
-      }
+      const attributes = attributesIn(columns, cell);
       const id = cell(columns.roles.get('id'));
       const written = cell(columns.roles.get('name'));
       const name = written === '' ? '' : this.#builder.name(written, '');
@@ -488,7 +464,7 @@ class TableReading {
           ...(id === '' ? {} : { sourceId: id }),
           kind: cell(columns.roles.get('type')),
           ...(name === '' ? {} : { name }),
-          ...(Object.keys(attributes).length === 0 ? {} : { attributes }),
+          ...(attributes === undefined ? {} : { attributes }),
         },
       });
     }
@@ -504,50 +480,22 @@ class TableReading {
     }
   }
 
-  /** The column rows are matched by, and what it holds: the id, the name or an attribute. */
-  #keyColumn(
-    header: Row,
-    columns: Columns<ElementRole>,
-  ): { at: number; /** `id`, `name` or the attribute it holds. */ by: string } | undefined {
-    if (this.#project === undefined) return undefined;
+  /** The column rows are matched by, and what it matches: the id, the name or an attribute. */
+  #keyColumn(header: Row, columns: Columns<ElementRole>): { at: number; how: MatchBy } | undefined {
+    if (!this.#matching) return undefined;
     if (this.#key === undefined) {
       const at = columns.roles.get('id');
-      return at === undefined ? undefined : { at, by: 'id' };
+      return at === undefined ? undefined : { at, how: { by: 'id' } };
     }
     const wanted = normal(this.#key);
     const at = header.cells.findIndex((cell) => normal(cell) === wanted);
     if (at < 0) return undefined;
-    if (columns.roles.get('id') === at) return { at, by: 'id' };
-    if (columns.roles.get('name') === at) return { at, by: 'name' };
-    return { at, by: columns.attributes.get(at) ?? oneLine(header.cells[at] ?? '') };
-  }
-
-  /** The element of the project a row's key matches; `several` when more than one does, which is reported. */
-  #match(
-    column: { at: number; by: string },
-    value: string,
-  ): { id: Id; name: string } | 'several' | undefined {
-    const project = this.#project;
-    if (project === undefined || value === '') return undefined;
-    const elements = project.model.elements;
-    const found =
-      column.by === 'id'
-        ? elements.filter((element) => element.id === value)
-        : column.by === 'name'
-          ? elements.filter((element) => element.name === value)
-          : elements.filter((element) => {
-              const attribute = element.attributes?.[column.by];
-              return attribute !== undefined && attribute !== null && textOf(attribute) === value;
-            });
-    if (found.length > 1) {
-      this.#builder.report(
-        value,
-        `"${value}" matches ${found.length} elements of the project, so the row is left out.`,
-      );
-      return 'several';
-    }
-    const element = found[0];
-    return element === undefined ? undefined : { id: element.id, name: element.name };
+    if (columns.roles.get('id') === at) return { at, how: { by: 'id' } };
+    if (columns.roles.get('name') === at) return { at, how: { by: 'name' } };
+    return {
+      at,
+      how: { by: 'attribute', name: columns.attributes.get(at) ?? oneLine(header.cells[at] ?? '') },
+    };
   }
 
   /** A key for a row's element: its id, else its name, else its name and line. */
@@ -558,63 +506,17 @@ class TableReading {
     if (id === '' && free(name)) return name;
     return `${id || name} (line ${line})`;
   }
-
-  /**
-   * The key of the element a cell names: a row of the file by its id, or by a name only one row has;
-   * else an element of the project by its id, or by a name only one has. Reported when it names none.
-   */
-  #resolve(text: string, why: string): string | undefined {
-    const builder = this.#builder;
-    const byId = this.#ids.get(text);
-    if (byId !== undefined) return byId;
-    const byName = this.#names.get(text) ?? [];
-    if (byName.length === 1) return byName[0];
-    if (byName.length > 1) {
-      builder.report(
-        text,
-        `"${text}" names ${byName.length} rows of the file, so the row is left out.`,
-      );
-      return undefined;
-    }
-    const project = this.#project;
-    if (project !== undefined) {
-      const elements = project.model.elements;
-      const exact = elements.find((element) => element.id === text);
-      const named =
-        exact === undefined ? elements.filter((element) => element.name === text) : [exact];
-      if (named.length > 1) {
-        builder.report(
-          text,
-          `"${text}" names ${named.length} elements of the project, so the row is left out.`,
-        );
-        return undefined;
-      }
-      const element = named[0];
-      if (element !== undefined) return this.#reference(element.id, element.name);
-    }
-    builder.report(text, why);
-    return undefined;
-  }
-
-  /** The key of a planned element that only names an element of the project, made once. */
-  #reference(id: Id, name: string): string {
-    const builder = this.#builder;
-    for (const key of [id, `project ${id}`]) {
-      const known = builder.element(key);
-      if (known?.existing === id) return key;
-      if (known === undefined) {
-        builder.add({ key, name, kind: '', existing: id }, { label: '' });
-        return key;
-      }
-    }
-    // Both keys are taken by rows of the file: one more, made from the line-free id.
-    const key = `project ${id} (again)`;
-    builder.add({ key, name, kind: '', existing: id }, { label: '' });
-    return key;
-  }
 }
 
-/** An attribute value as a cell would write it. */
-function textOf(value: Attributes[string]): string {
-  return typeof value === 'string' ? value : JSON.stringify(value);
+/** A row's attributes: each column read as one, with a value. */
+function attributesIn(
+  columns: Columns<string>,
+  cell: (at: number | undefined) => string,
+): Attributes | undefined {
+  const entries: [string, string][] = [];
+  for (const [at, name] of columns.attributes) {
+    const value = cell(at);
+    if (value !== '') entries.push([name, value]);
+  }
+  return entries.length === 0 ? undefined : Object.fromEntries(entries);
 }

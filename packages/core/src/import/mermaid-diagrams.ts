@@ -9,6 +9,7 @@ import type { Attributes, JsonValue } from '@visual-anything/schema';
 import { attributesOf, type PlanBuilder } from './builder';
 import type { DiagramReader, MermaidLine } from './mermaid';
 import { mermaidText, splitOutsideQuotes, unquote } from './mermaid';
+import { own } from './reader';
 import { C4_ELEMENTS, C4_RELATIONS, ER_KINDS } from './suggest';
 import { importedName, oneLine } from './text';
 
@@ -144,7 +145,7 @@ export const readC4: DiagramReader = (all, makeBuilder) => {
         const value = named.get(parameter);
         if (value !== undefined) values[parameter] = value;
       }
-      const suggested = C4_ELEMENTS[macro.replace(/_Ext$/, '')];
+      const suggested = own(C4_ELEMENTS, macro.replace(/_Ext$/, ''));
       const element = builder.add(
         {
           key: alias,
@@ -210,7 +211,7 @@ export const readC4: DiagramReader = (all, makeBuilder) => {
       continue;
     }
     const name = relation.name === '' ? '' : builder.name(relation.name, '');
-    const suggested = C4_RELATIONS[relation.kind];
+    const suggested = own(C4_RELATIONS, relation.kind);
     builder.relate(
       {
         from: relation.from,
@@ -323,8 +324,8 @@ export const readErDiagram: DiagramReader = (all, makeBuilder) => {
         to,
         symbols[4] === '--',
         {
-          fromCardinality: LEFT_CARDINALITY[symbols[3] ?? ''],
-          toCardinality: RIGHT_CARDINALITY[symbols[5] ?? ''],
+          fromCardinality: own(LEFT_CARDINALITY, symbols[3] ?? ''),
+          toCardinality: own(RIGHT_CARDINALITY, symbols[5] ?? ''),
         },
         symbols[8] ?? '',
       );
@@ -340,8 +341,8 @@ export const readErDiagram: DiagramReader = (all, makeBuilder) => {
         to,
         words[4] === 'to',
         {
-          fromCardinality: WORD_CARDINALITY[words[3] ?? ''],
-          toCardinality: WORD_CARDINALITY[words[5] ?? ''],
+          fromCardinality: own(WORD_CARDINALITY, words[3] ?? ''),
+          toCardinality: own(WORD_CARDINALITY, words[5] ?? ''),
         },
         words[8] ?? '',
       );

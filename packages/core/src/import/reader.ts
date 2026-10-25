@@ -46,6 +46,35 @@ export interface ImportReader {
   read(input: ImportInput, options?: ReadOptions): ReadResult;
 }
 
+/**
+ * A record's own value for a key that comes from a file, or undefined: never what every object
+ * inherits, such as `constructor`, `toString` or `__proto__`. Every lookup keyed by text from a file
+ * goes through it, or through a `Map`.
+ */
+export function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
+/**
+ * A record of what a file names, keyed by its text, with no prototype: a key such as `__proto__` or
+ * `constructor` is an entry like any other, and a key it lacks reads as undefined.
+ */
+export function recordOf<T>(entries: Iterable<readonly [string, T]>): Record<string, T> {
+  const record = Object.create(null) as Record<string, T>;
+  for (const [key, value] of entries) {
+    Object.defineProperty(record, key, {
+      value,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+  }
+  return record;
+}
+
+/** The one key no attribute may have, since every object reads and writes its prototype through it. */
+export const FORBIDDEN_NAME = '__proto__';
+
 /** Whether a file's name ends with one of the endings, in any case. */
 export function hasExtension(name: string, extensions: readonly string[]): boolean {
   const lower = name.toLowerCase();

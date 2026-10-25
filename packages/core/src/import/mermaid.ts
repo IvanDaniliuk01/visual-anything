@@ -11,6 +11,7 @@ import { readFlowchart } from './mermaid-flowchart';
 import {
   baseName,
   hasExtension,
+  own,
   type ImportInput,
   type ImportReader,
   type ReadResult,
@@ -95,7 +96,7 @@ export function readMermaid(input: ImportInput): ReadResult {
   if ('problems' in prepared) return { ok: false, problems: prepared.problems };
   const { keyword, lines, title, directives } = prepared;
   if (keyword === undefined) return { ok: false, problems: ['The text holds no Mermaid diagram.'] };
-  const diagram = READ[keyword];
+  const diagram = own(READ, keyword);
   if (diagram === undefined) {
     return {
       ok: false,

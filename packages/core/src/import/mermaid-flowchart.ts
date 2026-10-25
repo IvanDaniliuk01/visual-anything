@@ -7,6 +7,7 @@
 import { RELATES_TO_ID } from '@visual-anything/schema';
 import type { DiagramReader } from './mermaid';
 import { mermaidText, splitOutsideQuotes } from './mermaid';
+import { own } from './reader';
 import { FLOWCHART_SHAPES, componentForWords } from './suggest';
 
 /** How each bracket form writes its kind, for the mapping dialog. */
@@ -317,9 +318,9 @@ function kindOf(state: NodeState): { kind: string; info: { label: string; sugges
 }
 
 function shapeInfo(shape: string): { label: string; suggested?: string } {
-  const suggested = FLOWCHART_SHAPES[shape];
+  const suggested = own(FLOWCHART_SHAPES, shape);
   return {
-    label: shape === 'subgraph' ? 'subgraph' : (SHAPE_LABELS[shape] ?? shape),
+    label: shape === 'subgraph' ? 'subgraph' : (own(SHAPE_LABELS, shape) ?? shape),
     ...(suggested === undefined ? {} : { suggested }),
   };
 }
@@ -345,7 +346,7 @@ const EDGE_LABELS: Readonly<Record<string, string>> = {
 
 function edgeInfo(kind: string): { label: string; suggested: string } {
   return {
-    label: EDGE_LABELS[kind] ?? kind,
+    label: own(EDGE_LABELS, kind) ?? kind,
     suggested: kind.endsWith('line') ? RELATES_TO_ID : 'systems.communicates-with',
   };
 }
@@ -471,7 +472,7 @@ function readNode(cursor: Cursor): NodeMention | undefined {
     if (object === undefined) return undefined;
     const shape = object.get('shape');
     if (shape !== undefined) {
-      const known = NAMED_SHAPES[shape.toLowerCase()];
+      const known = own(NAMED_SHAPES, shape.toLowerCase());
       if (known !== undefined) mention.shape = known;
       else {
         mention.shape = 'rectangle';

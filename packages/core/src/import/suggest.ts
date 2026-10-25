@@ -5,6 +5,8 @@
  * changes any of them.
  */
 import { RELATES_TO_ID, type Id } from '@visual-anything/schema';
+import type { ProjectSnapshot } from '../snapshot';
+import { definitionsIn } from '../state';
 
 /** A suggestion for words a file uses for a kind, such as a class name or a spreadsheet's value. */
 interface WordRule {
@@ -156,3 +158,36 @@ export const ER_KINDS = {
   attribute: 'data-modeling.column',
   relationship: 'data-modeling.references',
 } as const;
+
+/** Suggestions for kinds a file names in words, such as a spreadsheet's component column. */
+export interface KindSuggester {
+  component(value: string): Id | undefined;
+  relationType(value: string): Id | undefined;
+}
+
+/**
+ * Suggests, for a kind a file names in words, the project's component or relation type with that id,
+ * then the one with that name in any case, then the built-in one its words suit.
+ */
+export function kindSuggester(project: ProjectSnapshot | undefined): KindSuggester {
+  const definitions = project === undefined ? undefined : definitionsIn(project);
+  const byName = (map: ReadonlyMap<Id, { definition: { name: string } }>, value: string) => {
+    const wanted = value.toLowerCase();
+    for (const [id, { definition }] of map) if (definition.name.toLowerCase() === wanted) return id;
+    return undefined;
+  };
+  return {
+    component(value) {
+      if (value === '') return undefined;
+      if (definitions?.components.has(value)) return value;
+      return (definitions && byName(definitions.components, value)) ?? componentForWords(value);
+    },
+    relationType(value) {
+      if (value === '') return undefined;
+      if (definitions?.relationTypes.has(value)) return value;
+      return (
+        (definitions && byName(definitions.relationTypes, value)) ?? relationTypeForWords(value)
+      );
+    },
+  };
+}
