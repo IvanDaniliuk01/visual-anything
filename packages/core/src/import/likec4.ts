@@ -425,7 +425,7 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
         if (json.isObject(reference) && own(reference, 'element') !== undefined) {
           unmatched.add(
             json.textOr(own(object, 'title'), `${path}.title`) || entry,
-            'It ends inside an instance, so it ends on the instance.',
+            'It ends inside a deployed element, so it ends on the deployed element.',
           );
           break;
         }
@@ -557,7 +557,7 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
           if (points.length > MAX_BEND_POINTS) {
             unmatched.add(
               label,
-              `Its ${points.length} waypoints are left out: a route bends at most ${MAX_BEND_POINTS} times.`,
+              `Its ${points.length} bend points are left out: a route bends at most ${MAX_BEND_POINTS} times.`,
             );
             continue;
           }

@@ -223,7 +223,8 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
     parent: string | undefined,
     depth: number,
   ) => {
-    if (depth > MAX_DEPTH) refuse(`The workspace nests deployment nodes over ${MAX_DEPTH} deep.`);
+    if (depth > MAX_DEPTH)
+      refuse(`The workspace nests its deployment over ${MAX_DEPTH} levels deep.`);
     const node = element(value, path, 'Deployment Node', parent);
     each(own(node.object, 'children'), `${path}.children`, (child, childPath) =>
       deploymentNode(child, childPath, node.id, depth + 1),
@@ -385,7 +386,7 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
     if (!byId.has(read.instanceOf)) {
       unmatched.add(
         read.id,
-        `It is an instance of "${read.instanceOf}", which the workspace does not hold.`,
+        `It is deployed from "${read.instanceOf}", which the workspace does not hold.`,
       );
       continue;
     }
@@ -462,7 +463,7 @@ function planOf(parsed: unknown, source: string, options: ReadOptions | undefine
         if (points.length > MAX_BEND_POINTS) {
           unmatched.add(
             relationship.id,
-            `Its ${points.length} waypoints are left out: a route bends at most ${MAX_BEND_POINTS} times.`,
+            `Its ${points.length} bend points are left out: a route bends at most ${MAX_BEND_POINTS} times.`,
           );
           continue;
         }

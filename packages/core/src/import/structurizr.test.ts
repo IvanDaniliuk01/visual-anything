@@ -229,7 +229,7 @@ describe('readStructurizr, on hostile workspaces', () => {
     const deep = (depth: number): string =>
       depth === 0 ? '[]' : `[{"id": "n${depth}", "name": "N", "children": ${deep(depth - 1)}}]`;
     expect(refusal(`{"model": {"deploymentNodes": ${deep(65)}}}`)).toBe(
-      'The workspace nests deployment nodes over 64 deep.',
+      'The workspace nests its deployment over 64 levels deep.',
     );
   });
 

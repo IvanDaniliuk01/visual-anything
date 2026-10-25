@@ -168,7 +168,7 @@ describe('readDrawio, on a plain file', () => {
     expect(plan.unmatched).toEqual([
       {
         text: 'retries',
-        why: 'An edge that is not connected at both ends becomes no relation.',
+        why: 'A line that is not connected at both ends becomes no relation.',
       },
       { text: 'notifies', why: 'It ends on "ghost", which the page does not hold.' },
       {
@@ -291,7 +291,7 @@ describe('readDrawio, on hostile files', () => {
     expect(plan.relations).toEqual([]);
     expect(plan.unmatched).toEqual([
       { text: 'e1', why: 'It ends on "nowhere", which the page does not hold.' },
-      { text: 'e2', why: 'It ends on a layer, which is no element.' },
+      { text: 'e2', why: 'It ends on the page itself, which is no element.' },
     ]);
   });
 
@@ -350,10 +350,10 @@ describe('readDrawio, on hostile files', () => {
       ['1:e5', '1:e6', '1:b'],
     ]);
     expect(plan.unmatched.map((each) => [each.text, each.why])).toEqual([
-      ['four', 'An edge that is not connected at both ends becomes no relation.'],
+      ['four', 'A line that is not connected at both ends becomes no relation.'],
       ['two', 'Its relations end on each other in a loop, so none of them becomes a relation.'],
       ['one', 'Its relations end on each other in a loop, so none of them becomes a relation.'],
-      ['three', 'It ends on an edge that becomes no relation, so it becomes none either.'],
+      ['three', 'It ends on a line that becomes no relation, so it becomes none either.'],
     ]);
     applyPlan(systemsProject(), plan);
   });
@@ -521,7 +521,7 @@ describe('readDrawio, on hostile files', () => {
     );
     expect(plan.views[0]?.bendPoints).toBeUndefined();
     expect(plan.unmatched).toEqual([
-      { text: 'many', why: 'Its 65 waypoints are left out: a route bends at most 64 times.' },
+      { text: 'many', why: 'Its 65 bend points are left out: a route bends at most 64 times.' },
     ]);
     expect(plan.views[0]?.positions?.[0]).toEqual({
       element: '1:a',

@@ -416,7 +416,7 @@ function planOf(
     }
     const endOf = (edge: Cell, end: string | undefined): string | { why: string } => {
       if (end === undefined || end === '') {
-        return { why: 'An edge that is not connected at both ends becomes no relation.' };
+        return { why: 'A line that is not connected at both ends becomes no relation.' };
       }
       const cell = byId.get(end);
       if (!cell) return { why: `It ends on "${end}", which the page does not hold.` };
@@ -425,7 +425,7 @@ function planOf(
         const parent = byId.get(cell.parent ?? '');
         return parent?.edge ? parent.id : cell.id;
       }
-      return { why: 'It ends on a layer, which is no element.' };
+      return { why: 'It ends on the page itself, which is no element.' };
     };
     const planned = new Map<string, PlannedEdge>();
     for (const edge of edges) {
@@ -468,7 +468,7 @@ function planOf(
       if (points.length > MAX_BEND_POINTS) {
         unmatched.add(
           edgeText(edge, labels),
-          `Its ${points.length} waypoints are left out: a route bends at most ${MAX_BEND_POINTS} times.`,
+          `Its ${points.length} bend points are left out: a route bends at most ${MAX_BEND_POINTS} times.`,
         );
         continue;
       }
@@ -592,7 +592,7 @@ function orderedEdges(
   edgeIds: ReadonlySet<string>,
 ): (PlannedEdge & { why?: string })[] {
   const loop = 'Its relations end on each other in a loop, so none of them becomes a relation.';
-  const none = 'It ends on an edge that becomes no relation, so it becomes none either.';
+  const none = 'It ends on a line that becomes no relation, so it becomes none either.';
   const edgeEnds = (id: string) => {
     const edge = planned.get(id) as PlannedEdge;
     return [edge.from, edge.to].filter((end) => edgeIds.has(end));
