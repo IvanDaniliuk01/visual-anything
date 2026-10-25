@@ -262,7 +262,7 @@ The marks and moves Claude makes live on the open view while it explains: highli
 _Avoid_: spotlight
 
 **Caption**:
-A short plain text Claude shows over the canvas as part of its guidance, until it shows another, clears it, or the person dismisses it.
+A short plain text shown over the canvas: the one Claude shows as part of its guidance, until it shows another, clears it, or the person dismisses it; and a tour step's title and text, shown in a card while the step plays (ADR 0058).
 _Avoid_: toast
 
 **Simulate**:
@@ -367,6 +367,10 @@ _Avoid_: spreadsheet, data table, grid
 **Full-screen playback**:
 Playing a tour with the panels hidden, a caption card, a progress line and keys to go forward and back (ADR 0058).
 _Avoid_: presentation mode, slideshow
+
+**Speaker notes**:
+What the person playing a tour says at one of its steps: plain text kept with the step, shown only in a second window during full-screen playback, never on the canvas (ADR 0058).
+_Avoid_: presenter notes, comments (a comment is a remark in a thread)
 
 **Thread**:
 Comments about one thing, an element, a relation, a view or a point of a view, kept in one file of the project until resolved (ADR 0059).

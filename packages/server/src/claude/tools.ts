@@ -245,7 +245,7 @@ Example: { "scenario": "patient-books-appointment" }`,
 const previewDeleteTool = tool({
   name: 'preview_delete',
   title: 'Preview a delete',
-  description: `Shows what deleting elements and relations would remove, without deleting anything: the relations that would go with them because they end on something deleted, the view positions that would go, and the scenario steps that would become broken. Tell the person before a delete that cascades.
+  description: `Shows what deleting elements and relations would remove, without deleting anything: the relations that would go with them because they end on something deleted, the view positions that would go, the scenario steps that would become broken, and the tour steps that would name what is deleted (brokenTourSteps), which are kept and play without it. Tell the person before a delete that cascades.
 
 Call it before any delete, also when material you import again no longer has something the model has: an import adds, and deletes only what the person agreed to once they saw this preview.
 

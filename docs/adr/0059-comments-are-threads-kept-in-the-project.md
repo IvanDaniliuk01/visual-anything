@@ -43,3 +43,16 @@ People reviewing a model want to leave remarks on it that travel with the projec
 - The app gains pins and the comments panel.
 - Claude gets tools for threads.
 - CONTEXT.md gains **Comment** and **Thread**, both distinct from *Note*.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
+
+- 2026-10-25, the file (W38's plumbing, which the comments task builds on). A `.vacomment` holds one thread, read within 1 MiB:
+  - `id`;
+  - `anchor`, by its `kind`: `element` with its `element`, `relation` with its `relation`, `view` with its `view`, or `point` with its `view`, `x` and `y` in canvas units, at most ten million from 0 either way;
+  - `resolved`, left out while the thread is open;
+  - `comments`, 1 to 1,000, oldest first, each with an `id`, an `author`, a `time`, maybe an `edited` time, and a `text` of 1 to 20,000 characters.
+
+  An author is `{ "kind": "person", "name", "email"? }`, from the person's preferences, or `{ "kind": "claude" }`, so that a person named Claude is never taken for Claude. Times are in UTC as `Date.prototype.toISOString` writes them, such as `2026-10-25T14:03:00.000Z`. A comment's text is plain text as a tour's captions are (ADR 0058's clarifications).
+- 2026-10-25, the project. `ProjectSnapshot.comments` holds the threads, and the local program reads, watches and writes `comments/` as it does `views/`; a thread is saved to `comments/<id>.vacomment`.
