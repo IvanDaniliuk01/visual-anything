@@ -1019,7 +1019,6 @@ export const ui: Catalog = {
   'Attribute type': 'Tipo del atributo',
   'Add attribute': 'Agregar atributo',
   'Enter a JSON value, such as null.': 'Escribir un valor JSON, como null.',
-  'Not valid JSON: {reason}': 'No es JSON válido: {reason}',
   'Enter a number.': 'Escribir un número.',
 
   // Appearance in the inspector: shapes, colors, where each comes from and the contrast hints.
@@ -2033,6 +2032,85 @@ export const messages: Catalog = {
   'This browser encodes no picture.': 'Este navegador no codifica imágenes.',
   'The layout worker failed: {why}.': 'El proceso de diseño automático falló: {why}.',
   'The layout was stopped.': 'Se detuvo el diseño automático.',
+
+  // What is wrong with a project file, as the schema reads it, value by value.
+  'Not valid JSON: {reason}': 'No es JSON válido: {reason}',
+  'must have the key "{key}"': 'debe tener la clave "{key}"',
+  'must not have the key "{key}"': 'no debe tener la clave "{key}"',
+  'must be {n}': 'debe ser {n}',
+  'must be "{value}"': 'debe ser "{value}"',
+  'must be {kinds}': 'debe ser {kinds}',
+  'a string': 'un texto',
+  'a number': 'un número',
+  'an integer': 'un número entero',
+  'true or false': 'verdadero o falso',
+  'an object': 'un objeto JSON',
+  'an array': 'una lista',
+  null: 'null',
+  'must be one of {values}': 'debe ser uno de estos: {values}',
+  'must match the pattern {pattern}': 'debe coincidir con el patrón {pattern}',
+  'must be an id: 1 to 128 letters, digits, ".", "_" or "-", starting with a letter or digit':
+    'debe ser un id: de 1 a 128 letras, dígitos, ".", "_" o "-", que empiece con una letra o un dígito',
+  'must be a color written as #RRGGBB': 'debe ser un color escrito como #RRGGBB',
+  'must not be empty': 'no debe estar vacío',
+  'must have at least {n} characters': 'debe tener al menos {n} caracteres',
+  'must have at least 1 item': 'debe tener al menos 1 entrada',
+  'must have at least {n} items': 'debe tener al menos {n} entradas',
+  'must have at most 1 item': 'debe tener como máximo 1 entrada',
+  'must have at most {n} items': 'debe tener como máximo {n} entradas',
+  'must have at most 1 character': 'debe tener como máximo 1 carácter',
+  'must have at most {n} characters': 'debe tener como máximo {n} caracteres',
+  'must have at least {n} keys': 'debe tener al menos {n} claves',
+  'must have ids as its keys, and "{key}" is not one':
+    'debe tener ids como claves, y "{key}" no lo es',
+  'must not have duplicate items (items {first} and {last} are the same)':
+    'no debe tener entradas repetidas (las entradas {first} y {last} son iguales)',
+  'must be less than {n}': 'debe ser menor que {n}',
+  'must be at most {n}': 'debe ser como máximo {n}',
+  'must be greater than {n}': 'debe ser mayor que {n}',
+  'must be at least {n}': 'debe ser al menos {n}',
+  'does not satisfy "{keyword}"': 'no cumple "{keyword}"',
+
+  // What keeps the files of a project folder from opening, as the local program reads them.
+  'The file is not valid UTF-8.': 'El archivo no es UTF-8 válido.',
+  'There is no such file.': 'No existe ese archivo.',
+  'The file could not be read: {reason}': 'No se pudo leer el archivo: {reason}',
+  'The file is a link; Visual Anything opens only regular files inside the project folder.':
+    'El archivo es un enlace simbólico; Visual Anything solo abre archivos comunes dentro de la carpeta del proyecto.',
+  'The file is not a regular file; Visual Anything opens only regular files inside the project folder.':
+    'El archivo no es un archivo común; Visual Anything solo abre archivos comunes dentro de la carpeta del proyecto.',
+  'The file lies outside the project folder; Visual Anything opens only regular files inside the project folder.':
+    'El archivo está fuera de la carpeta del proyecto; Visual Anything solo abre archivos comunes dentro de la carpeta del proyecto.',
+  'The file changed while it was being opened; Visual Anything opens only regular files inside the project folder.':
+    'El archivo cambió mientras se abría; Visual Anything solo abre archivos comunes dentro de la carpeta del proyecto.',
+  'The file holds more than {size}, the most a file of this kind may hold.':
+    'El archivo ocupa más de {size}, lo máximo que puede ocupar un archivo de este tipo.',
+  'The folder has no {extension} file; a project has exactly one.':
+    'La carpeta no tiene ningún archivo {extension}; un proyecto tiene exactamente uno.',
+  'The folder has {n} {extension} files ({files}); a project has exactly one.':
+    'La carpeta tiene {n} archivos {extension} ({files}); un proyecto tiene exactamente uno.',
+  'The folder {folder} does not exist.': 'La carpeta {folder} no existe.',
+  '{folder} is not a folder.': '{folder} no es una carpeta.',
+  'The folder {folder} could not be read: {reason}':
+    'No se pudo leer la carpeta {folder}: {reason}',
+  'The folder {folder}/ could not be read: {reason}':
+    'No se pudo leer la carpeta {folder}/: {reason}',
+  '{folder} is not a folder; {extension} files go in {folder}/.':
+    '{folder} no es una carpeta; los archivos {extension} van en {folder}/.',
+  '{folder} is a link; Visual Anything opens only real folders and regular files inside the project folder.':
+    '{folder} es un enlace simbólico; Visual Anything solo abre carpetas reales y archivos comunes dentro de la carpeta del proyecto.',
+  'The package id "{id}" is already used by {file}.': 'El id de paquete "{id}" ya lo usa {file}.',
+  'The view id "{id}" is already used by {file}.': 'El id de vista "{id}" ya lo usa {file}.',
+  'The scenario id "{id}" is already used by {file}.':
+    'El id de escenario "{id}" ya lo usa {file}.',
+  '{file} takes the id "{id}", which Visual Anything keeps for its built-in {name} package. Give it another id: {how}':
+    '{file} usa el id "{id}", que Visual Anything reserva para su paquete incorporado {name}. Darle otro id: {how}',
+  '{file} takes the id "{id}", which Visual Anything keeps for a built-in package to come. Rename it before that package ships: {how}':
+    '{file} usa el id "{id}", que Visual Anything reserva para un paquete incorporado que vendrá. Cambiarlo antes de que ese paquete salga: {how}',
+  'change "id" in this file, the start of every component and relation type id in it, and every reference to them, and rename the file to match.':
+    'cambiar "id" en este archivo, el comienzo de cada id de componente y de tipo de relación que tiene, y cada referencia a ellos, y cambiar el nombre del archivo para que coincida.',
+  'The package "{id}" is listed, but neither packages/ nor the built-in packages hold it.':
+    'El paquete "{id}" figura en la lista, pero no está ni en packages/ ni entre los paquetes incorporados.',
 };
 
 /**

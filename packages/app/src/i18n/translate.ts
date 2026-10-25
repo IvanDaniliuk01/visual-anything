@@ -157,7 +157,15 @@ export const NESTED_VALUES: ReadonlySet<string> = new Set([
   'scenarios',
   'choices',
   'removed',
+  'how',
+  'kinds',
 ]);
+
+/**
+ * The braces whose parts are lists of what people wrote or of paths, such as "a.vaview and b.vaview":
+ * each item stays as it is, and the list is joined as the language joins lists.
+ */
+export const LISTED_VALUES: ReadonlySet<string> = new Set(['files']);
 
 /**
  * What each brace matches by its name: a number, a path, a message, or what people wrote, which never
@@ -297,6 +305,10 @@ function matchIn(
     const missing: string[] = [];
     template.names.forEach((name, at) => {
       const value = found[at + 1] as string;
+      if (LISTED_VALUES.has(name)) {
+        values[name] = joinedIn(catalog, value);
+        return;
+      }
       if (!NESTED_VALUES.has(name) || /^\d+$/.test(value)) {
         values[name] = value;
         return;
@@ -365,6 +377,18 @@ function listBy(
     text += item.text;
   }
   return { text, missing: [] };
+}
+
+/** A list of what people wrote, each item as it is, joined with the catalog's " and " and " or ". */
+function joinedIn(catalog: Catalog, value: string): string {
+  return value
+    .split(/( and | or )/)
+    .map((part, at) => {
+      if (at % 2 === 0) return part;
+      const joiner = entryOf(catalog, part);
+      return typeof joiner === 'string' ? joiner : part;
+    })
+    .join('');
 }
 
 /** Writes the values in, joining each to the words before it as the language does. */
