@@ -22,8 +22,10 @@ import type { ProjectSnapshot } from './snapshot';
  * 3: guidance; and a page opens the connection with a launch code that works once, for which
  * `project/opened` hands it the session token.
  * 4: guidance that filters and focuses the open view, and plays a scenario in it.
+ * 5: the history listed action by action, with each one's author and time, and undo or redo up to
+ * one of them.
  */
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';
@@ -57,7 +59,8 @@ export type ServerMessage =
   | ProjectReloadedMessage
   | NoticeMessage
   | PreferencesChangedMessage
-  | GuidanceMessage;
+  | GuidanceMessage
+  | HistoryListedMessage;
 
 /** Sent when the live connection opens: the project as it is now. */
 export interface ProjectOpenedMessage {
@@ -373,11 +376,75 @@ function readPlayback(value: Record<string, unknown>): Guidance {
   return { kind: 'playback', scenario: value.scenario, action, step: step as number };
 }
 
-/** A message the app sends to the local program. */
+/**
+ * One action the history keeps (ADR-0028), as the app's history panel lists it: what the history calls
+ * it, who did it and when, and whether it is undone.
+ */
+export interface ListedAction {
+  /**
+   * Names the action while the local program runs, from 1: no two actions share one, even across a
+   * reload of the project, which starts the history over.
+   */
+  id: number;
+  /** How the history names it, in English, as the core writes it. */
+  label: string;
+  author: Author;
+  /** When it was done, in milliseconds since 1970 began, in UTC. */
+  time: number;
+  /** Whether it is undone, so that it can be redone. */
+  undone: boolean;
+}
+
+/**
+ * The history the local program keeps, action by action, oldest first: the actions done, then those
+ * undone, the next one to redo first. Sent to every open app when it connects, after every action,
+ * undo or redo, and after a reload, which empties it. Claude does not get it.
+ */
+export interface HistoryListedMessage {
+  type: 'history/listed';
+  actions: ListedAction[];
+}
+
+/**
+ * Reads the actions of a history list strictly, keeping only what each one holds. Throws a
+ * {@link ProtocolError} for anything else.
+ */
+export function readListedActions(value: unknown): ListedAction[] {
+  if (!Array.isArray(value)) throw new ProtocolError('The actions of the history are a list.');
+  const seen = new Set<number>();
+  return value.map((item: unknown): ListedAction => {
+    if (!isRecord(item)) throw new ProtocolError('An action of the history is an object.');
+    const { id, label, author, time, undone } = item;
+    if (!isActionId(id)) throw new ProtocolError('An action of the history has a whole id from 1.');
+    if (seen.has(id)) throw new ProtocolError(`Two actions of the history have the id ${id}.`);
+    seen.add(id);
+    if (typeof label !== 'string') throw new ProtocolError('An action of the history has a label.');
+    if (author !== 'user' && author !== 'claude') {
+      throw new ProtocolError('An action of the history is the person’s or Claude’s.');
+    }
+    if (typeof time !== 'number' || !Number.isFinite(time)) {
+      throw new ProtocolError('An action of the history has the time it was done.');
+    }
+    if (typeof undone !== 'boolean') {
+      throw new ProtocolError('An action of the history says whether it is undone.');
+    }
+    return { id, label, author, time, undone };
+  });
+}
+
+/** Whether a value can name an action of the history: a whole number from 1. */
+function isActionId(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 1;
+}
+
+/**
+ * A message the app sends to the local program. An undo or a redo with `to` goes on until the action
+ * with that id is undone, or redone: the history panel's "Undo to here" and "Redo to here".
+ */
 export type AppMessage =
   | { type: 'command'; requestId: string; command: Command }
-  | { type: 'undo'; requestId: string }
-  | { type: 'redo'; requestId: string }
+  | { type: 'undo'; requestId: string; to?: number }
+  | { type: 'redo'; requestId: string; to?: number }
   | PreferencesSetMessage;
 
 /**
@@ -412,6 +479,7 @@ const SERVER_TYPES = new Set<string>([
   'notice',
   'preferences/changed',
   'guidance',
+  'history/listed',
 ]);
 
 /**
@@ -437,6 +505,8 @@ export function decodeServerMessage(text: string): ServerMessage {
       break;
     case 'guidance':
       return { type: 'guidance', guidance: readGuidance(message.guidance) };
+    case 'history/listed':
+      return { type: 'history/listed', actions: readListedActions(message.actions) };
     case 'project/reloaded':
       if (!isRecord(message.project)) throw new ProtocolError('The message has no project.');
       break;
@@ -477,6 +547,9 @@ export function decodeAppMessage(text: string): AppMessage {
       return message as unknown as AppMessage;
     case 'undo':
     case 'redo':
+      if (message.to !== undefined && !isActionId(message.to)) {
+        throw new ProtocolError(`The action to ${message.type} up to is named by its id.`);
+      }
       return message as unknown as AppMessage;
     case 'preferences/set':
       // The changes themselves are checked by checkPreferenceChanges, where they are used.

@@ -19,6 +19,13 @@ export interface Live extends LiveState {
   undo: () => Promise<CommandResult>;
   /** Redoes the newest undone action. A refusal is also shown as a notice. */
   redo: () => Promise<CommandResult>;
+  /**
+   * Undoes every action after the one with this id, and that one too, one at a time: the history
+   * panel's "Undo to here". Absent where there is no live session to ask.
+   */
+  undoTo?: (action: number) => Promise<CommandResult>;
+  /** Redoes every undone action up to the one with this id, and that one: "Redo to here". */
+  redoTo?: (action: number) => Promise<CommandResult>;
   /** Shows a notice, such as the problems of a command that was refused. */
   notify: (level: NoticeLevel, message: string) => void;
   /** Stops showing a notice. */

@@ -1,0 +1,105 @@
+/*
+ * The history panel: the actions newest first, each with its label, who did it and when, and a button
+ * that undoes or redoes up to it. Claude's actions carry its name and mark, and a bar in the accent
+ * color beside them; undone ones read muted, and say so.
+ */
+
+.history-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.history-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  padding: 0 0 var(--space-5);
+  list-style: none;
+}
+
+/* The button goes under the label, at the end, when the panel is too narrow for both on one line. */
+.history-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
+}
+
+.history-item[data-author='claude'] {
+  border-left-color: var(--accent);
+}
+
+.history-item-text {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.history-item-label {
+  overflow-wrap: anywhere;
+  font-weight: var(--weight-strong);
+}
+
+.history-item-about {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.history-item-author {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.history-item-claude {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: var(--weight-strong);
+}
+
+.history-item[data-undone='true'] .history-item-label {
+  color: var(--text-muted);
+  font-weight: var(--weight-medium);
+}
+
+.history-item-undone {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-full);
+}
+
+.history-item-button {
+  flex: none;
+  margin-left: auto;
+  min-height: var(--control-sm);
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.history-item-button:hover:not([aria-disabled='true']) {
+  background: var(--surface-hover);
+}
+
+.history-item-button:active:not([aria-disabled='true']) {
+  background: var(--surface-pressed);
+}

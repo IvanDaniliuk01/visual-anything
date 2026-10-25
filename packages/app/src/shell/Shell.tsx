@@ -3,6 +3,8 @@ import type { Id, ViewFile } from '@visual-anything/schema';
 import { useCallback, useId, useMemo, useState } from 'react';
 import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
 import { EditorContext, type Editor } from '../editor/EditorContext';
+import { ExportControl } from '../export/ExportControl';
+import { ImageSource, ImageSourceContext } from '../export/source';
 import { DefinitionProvider } from './definitions/DefinitionProvider';
 import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
 import { GuidanceLayer } from '../guidance/GuidanceLayer';
@@ -72,13 +74,23 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   // The canvas draws in the person's theme, and the panels change with it in the frame it shows it.
   const { theme } = usePreferences();
   const onThemeShown = useThemeHold(view !== undefined);
+  // The header's Export, which draws with the renderer the canvas lends it (R27).
+  const [images] = useState(() => new ImageSource());
+  const exportTool = (
+    <ExportControl
+      source={images}
+      projectName={project.project.name}
+      viewName={view?.name}
+      bounds={scene?.bounds}
+    />
+  );
 
   return (
     <EditorContext.Provider value={editor}>
       <DefinitionProvider>
         <EmphasisContext.Provider value={emphasis}>
           <div className="shell">
-            <Header projectName={project.project.name} viewName={view?.name} />
+            <Header projectName={project.project.name} viewName={view?.name} tools={exportTool} />
             {notice !== undefined && (
               <p className="shell-notice" role="alert">
                 {notice}
@@ -90,19 +102,21 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                 {view ? view.name : t('Canvas')}
               </h2>
               {view && scene ? (
-                <CanvasArea
-                  project={project}
-                  view={view}
-                  scene={scene}
-                  label={describeDrawing(t, view, scene)}
-                  selection={selection}
-                  onSelect={setSelection}
-                  {...(onCommand ? { onCommand } : {})}
-                  {...(revealed ? { revealed } : {})}
-                  scenarios={scenarios}
-                  theme={theme}
-                  onThemeShown={onThemeShown}
-                />
+                <ImageSourceContext value={images}>
+                  <CanvasArea
+                    project={project}
+                    view={view}
+                    scene={scene}
+                    label={describeDrawing(t, view, scene)}
+                    selection={selection}
+                    onSelect={setSelection}
+                    {...(onCommand ? { onCommand } : {})}
+                    {...(revealed ? { revealed } : {})}
+                    scenarios={scenarios}
+                    theme={theme}
+                    onThemeShown={onThemeShown}
+                  />
+                </ImageSourceContext>
               ) : (
                 <p className="canvas-message">{t('There is no view to draw.')}</p>
               )}

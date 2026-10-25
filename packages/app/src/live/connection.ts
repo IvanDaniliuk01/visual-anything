@@ -15,6 +15,7 @@ import {
   type Command,
   type CommandRejectedMessage,
   type HistorySummary,
+  type ListedAction,
   type PreferenceChanges,
   type Preferences,
   type Problem,
@@ -72,6 +73,12 @@ export interface LiveState {
   readonly project: ProjectSnapshot | undefined;
   /** What the next undo and redo would do. */
   readonly history: HistorySummary;
+  /**
+   * The actions the history keeps, oldest first, as the local program last listed them (protocol 5):
+   * those done, then those undone, the next to redo first. Absent until it lists them, which it does
+   * when the tab connects and after every change.
+   */
+  readonly actions?: readonly ListedAction[];
   /** The notices to show, oldest first. */
   readonly notices: readonly Notice[];
   /** What Claude's live guidance shows now; it never changes the project. */
@@ -254,6 +261,17 @@ export class LiveConnection {
     this.request('redo', (requestId) => ({ type: 'redo', requestId }));
 
   /**
+   * Undoes, one action at a time, every action after the one with this id and that one too, whoever
+   * did each. A refusal is also shown as a notice.
+   */
+  readonly undoTo = (action: number): Promise<CommandResult> =>
+    this.request('undo', (requestId) => ({ type: 'undo', requestId, to: action }));
+
+  /** Redoes, one action at a time, every undone action up to the one with this id, and that one. */
+  readonly redoTo = (action: number): Promise<CommandResult> =>
+    this.request('redo', (requestId) => ({ type: 'redo', requestId, to: action }));
+
+  /**
    * Asks the local program to change some of the person's preferences, which are never commands:
    * resolves with the preferences it then holds, or with why it refused. A refusal is not shown here;
    * whoever asked says so.
@@ -411,6 +429,9 @@ export class LiveConnection {
         }
         break;
       }
+      case 'history/listed':
+        this.update({ actions: message.actions });
+        break;
       case 'guidance':
         this.guidanceCount += 1;
         this.update({

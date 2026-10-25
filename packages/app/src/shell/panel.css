@@ -13,10 +13,12 @@
 
 /* Tabs */
 
+/* Four tabs fill more than the panel's width: they go on to a second row, so that each one shows. */
 .panel-tabs {
   display: flex;
   flex: none;
-  gap: 0.25rem;
+  flex-wrap: wrap;
+  gap: 0 0.25rem;
   padding: 0.55rem 0.75rem 0;
   border-bottom: 1px solid var(--border);
 }
