@@ -46,6 +46,10 @@
     "collapsed": {
       "$ref": "#/definitions/CollapsedList",
       "description": "The containers this view shows collapsed, by element id, sorted. A collapsed container's shapes show none of its contents, and the relations to and from them are drawn as aggregated relations. An id that is no element of the model is ignored."
+    },
+    "routes": {
+      "$ref": "#/definitions/Routes",
+      "description": "The relations this view routes by hand, by relation id, each with only what differs from its automatic route: where its ends attach, the points it bends at, and its style. A relation it does not name is routed automatically, and a route whose relation is no relation of the model is ignored."
     }
   },
   "required": [
@@ -298,6 +302,156 @@
       "description": "Element ids, sorted, each once.",
       "minItems": 1,
       "uniqueItems": true
+    },
+    "Routes": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/RelationRoute"
+      },
+      "propertyNames": {
+        "description": "An identifier, generated once and never reused. Files refer to each other only by id. Element and relation ids share one namespace, because a relation can end on either. Component and relation type ids start with their package's id, as in `systems.service`.",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+      },
+      "description": "Routes chosen by hand, by the id of the relation each one routes.",
+      "minProperties": 1
+    },
+    "RelationRoute": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "$ref": "#/definitions/EndAttachment",
+          "description": "Where the line attaches to the relation's `from` end. An end that is a relation takes none: the line attaches to the middle of that relation's line."
+        },
+        "to": {
+          "$ref": "#/definitions/EndAttachment",
+          "description": "Where the line attaches to the relation's `to` end."
+        },
+        "style": {
+          "type": "string",
+          "enum": [
+            "straight",
+            "curved"
+          ],
+          "description": "`straight` runs straight from point to point and `curved` runs a smooth curve through them; left out, the route is orthogonal."
+        },
+        "container": {
+          "$ref": "#/definitions/Id",
+          "description": "The container whose shape the bend points are relative to: one that holds the shapes of both ends, the nearest when they were set. Left out, they are relative to the canvas. While its shape no longer holds both ends, the bend points are ignored, and they come back with the containment."
+        },
+        "bendPoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Point"
+          },
+          "description": "The points the line passes through, in order from its `from` end, in canvas units, relative to the shape of `container`, or to the canvas.",
+          "minItems": 1,
+          "maxItems": 64
+        }
+      },
+      "additionalProperties": false,
+      "description": "How a view routes one relation by hand: only what differs from its automatic route. An end left out attaches where the automatic route attaches it, a route without bend points runs directly between its ends, and one without a style is orthogonal.",
+      "minProperties": 1
+    },
+    "EndAttachment": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "connection-point",
+            "border"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "connection-point"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/ConnectionPointAttachment"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "border"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/BorderAttachment"
+          }
+        }
+      ],
+      "description": "Where a line attaches to one of its ends, chosen by hand: one of the end's connection points, by name, or a fixed place on its border."
+    },
+    "ConnectionPointAttachment": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "connection-point"
+        },
+        "name": {
+          "type": "string",
+          "description": "The name of one of the connection points of the end's appearance.",
+          "minLength": 1,
+          "maxLength": 32
+        }
+      },
+      "required": [
+        "kind",
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "The line attaches at one of the end's connection points, wherever the end's appearance puts it."
+    },
+    "BorderAttachment": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "border"
+        },
+        "side": {
+          "type": "string",
+          "enum": [
+            "top",
+            "right",
+            "bottom",
+            "left"
+          ]
+        },
+        "at": {
+          "type": "number",
+          "description": "Where it sits along its side, from 0 at the side's left or top end to 1 at its right or bottom end.",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "kind",
+        "side",
+        "at"
+      ],
+      "additionalProperties": false,
+      "description": "The line attaches at a fixed place on the end's border, which follows the shape as it moves and resizes."
     }
   }
 }

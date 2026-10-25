@@ -12,11 +12,13 @@ import type {
   Color,
   Component,
   ConnectionPoint,
+  EndAttachment,
   FreeShape,
   Id,
   LimitList,
   Note,
   Perspective,
+  Point,
   RelationAppearance,
   RelationType,
   ShapePosition,
@@ -58,6 +60,8 @@ export type Command =
   | SetCollapsedCommand
   | DefineImageCommand
   | RemoveImageCommand
+  | SetRouteCommand
+  | ResetRouteCommand
   | BatchCommand;
 
 /** The kinds of command. */
@@ -535,4 +539,47 @@ export interface DefineImageCommand {
 export interface RemoveImageCommand {
   type: 'remove-image';
   id: Id;
+}
+
+/** How a relation's line runs through its bend points: orthogonal, the default, straight or curved. */
+export type RouteStyle = 'orthogonal' | 'straight' | 'curved';
+
+/**
+ * Routes a relation by hand in a view, as one action (ADR 0039). It changes only what it names, and
+ * the view keeps only what differs from the automatic route: when nothing does, the route goes.
+ */
+export interface SetRouteCommand {
+  type: 'set-route';
+  view: Id;
+  relation: Id;
+  /**
+   * Where the line attaches to the relation's `from` end: one of its connection points, or a place
+   * on its border. `null` attaches it automatically again.
+   */
+  from?: EndAttachment | null;
+  /** Where the line attaches to the relation's `to` end; `null` attaches it automatically again. */
+  to?: EndAttachment | null;
+  /**
+   * The points the line passes through, in order from its `from` end, in canvas units relative to
+   * the shape of `container`; `null` or an empty list removes them. At most 64.
+   */
+  bendPoints?: Point[] | null;
+  /**
+   * The container whose shape `bendPoints` are given relative to: World's id for the canvas, or a
+   * container that holds the shapes of both ends in the view. Left out, the nearest one that does,
+   * which `routeOf` gives as `frame`. Only with bend points.
+   */
+  container?: Id;
+  /** `orthogonal` is the default, and stores nothing. */
+  style?: RouteStyle;
+}
+
+/**
+ * Routes relations automatically again in a view, as one action: their routes go. Relations the
+ * view routes automatically already are left as they are.
+ */
+export interface ResetRouteCommand {
+  type: 'reset-route';
+  view: Id;
+  relations: Id[];
 }

@@ -10,6 +10,7 @@ import { appearanceOf, isBuiltInDefinition, type Definitions } from './definitio
 import { checkImages } from './images/check';
 import { positionKey } from './operations';
 import { problem, type Problem } from './problems';
+import { routeWarnings } from './routes';
 import { cappedWarnings, choiceWarnings, containmentCycles, limitWarnings } from './rules';
 import type { ProjectSnapshot } from './snapshot';
 import { definitionsIn, modelIndexOf } from './state';
@@ -273,6 +274,8 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
   const images = checkImages(state);
   errors.push(...images.errors);
   warnings.push(...images.warnings);
+  // Routes chosen by hand never keep a project from opening (ADR 0039).
+  warnings.push(...routeWarnings(state));
   return { errors, warnings };
 }
 

@@ -406,6 +406,89 @@ export interface ViewFile {
    * An id that is no element of the model is ignored.
    */
   collapsed?: CollapsedList;
+  /**
+   * The relations this view routes by hand, by relation id, each with only what differs from its
+   * automatic route: where its ends attach, the points it bends at, and its style. A relation it does
+   * not name is routed automatically, and a route whose relation is no relation of the model is
+   * ignored.
+   */
+  routes?: Routes;
+}
+
+/**
+ * Routes chosen by hand, by the id of the relation each one routes.
+ *
+ * @minProperties 1
+ */
+export type Routes = Record<Id, RelationRoute>;
+
+/**
+ * How a view routes one relation by hand: only what differs from its automatic route. An end left
+ * out attaches where the automatic route attaches it, a route without bend points runs directly
+ * between its ends, and one without a style is orthogonal.
+ *
+ * @minProperties 1
+ */
+export interface RelationRoute {
+  /**
+   * Where the line attaches to the relation's `from` end. An end that is a relation takes none: the
+   * line attaches to the middle of that relation's line.
+   */
+  from?: EndAttachment;
+  /** Where the line attaches to the relation's `to` end. */
+  to?: EndAttachment;
+  /**
+   * `straight` runs straight from point to point and `curved` runs a smooth curve through them; left
+   * out, the route is orthogonal.
+   */
+  style?: 'straight' | 'curved';
+  /**
+   * The container whose shape the bend points are relative to: one that holds the shapes of both
+   * ends, the nearest when they were set. Left out, they are relative to the canvas. While its shape
+   * no longer holds both ends, the bend points are ignored, and they come back with the containment.
+   */
+  container?: Id;
+  /**
+   * The points the line passes through, in order from its `from` end, in canvas units, relative to
+   * the shape of `container`, or to the canvas.
+   *
+   * @minItems 1
+   * @maxItems 64
+   */
+  bendPoints?: Point[];
+}
+
+/**
+ * Where a line attaches to one of its ends, chosen by hand: one of the end's connection points, by
+ * name, or a fixed place on its border.
+ *
+ * @discriminator kind
+ */
+export type EndAttachment = ConnectionPointAttachment | BorderAttachment;
+
+/** The line attaches at one of the end's connection points, wherever the end's appearance puts it. */
+export interface ConnectionPointAttachment {
+  kind: 'connection-point';
+  /**
+   * The name of one of the connection points of the end's appearance.
+   *
+   * @minLength 1
+   * @maxLength 32
+   */
+  name: string;
+}
+
+/** The line attaches at a fixed place on the end's border, which follows the shape as it moves and resizes. */
+export interface BorderAttachment {
+  kind: 'border';
+  side: 'top' | 'right' | 'bottom' | 'left';
+  /**
+   * Where it sits along its side, from 0 at the side's left or top end to 1 at its right or bottom end.
+   *
+   * @minimum 0
+   * @maximum 1
+   */
+  at: number;
 }
 
 /**

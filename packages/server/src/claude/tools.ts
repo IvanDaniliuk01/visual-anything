@@ -12,6 +12,7 @@ import {
   modelIndexOf,
   previewDelete,
   randomIds,
+  routeOf,
   slug,
   type Command,
   type Guidance,
@@ -801,6 +802,80 @@ Example: { "view": "system-overview", "elements": ["scheduling"], "collapsed": t
     actOnNewer(program, { type: 'set-collapsed', ...args }, 'Collapsing and expanding are'),
 });
 
+/** Where a line attaches to one of its ends, or `null` for automatically. */
+const attachment = () =>
+  z
+    .discriminatedUnion('kind', [
+      z.object({ kind: z.literal('connection-point'), name: z.string().min(1).max(32) }),
+      z.object({
+        kind: z.literal('border'),
+        side: z.enum(['top', 'right', 'bottom', 'left']),
+        at: z.number().min(0).max(1),
+      }),
+    ])
+    .nullable()
+    .optional();
+
+const setRoute = tool({
+  name: 'set_route',
+  title: 'Route a relation by hand',
+  description: `Routes a relation by hand in a view, as the person does by dragging its ends and bend points, as one undoable action; only what you give changes, and the rest stays as it is. from and to say where the line attaches to each end: { "kind": "connection-point", "name": "out" } for one of the end's connection points (list_definitions gives a component's), or { "kind": "border", "side": "left", "at": 0.25 } for a place on its border, at going from 0 at the side's top or left end to 1 at its bottom or right end; null attaches it automatically again. An end that is a relation attaches to the middle of that relation's line and takes neither; a row, or a table that draws rows, takes only its left or right side. bendPoints are the points the line passes through, in order from its from end, in canvas units relative to the shape of the nearest container that holds both ends (or to the canvas when that is World), as read_view gives positions; the answer says which container; null removes them. style is orthogonal (the default), straight or curved. A relation the view draws as containment has no route.
+
+Example: { "view": "system-overview", "relation": "booking-agent-calls-api-k3f9q2", "from": { "kind": "connection-point", "name": "out" }, "to": { "kind": "border", "side": "top", "at": 0.5 } }
+Example: { "view": "system-overview", "relation": "api-reads-db-p0x7aa", "bendPoints": [{ "x": 320, "y": 96 }, { "x": 320, "y": 220 }], "style": "curved" }`,
+  input: {
+    view: id(),
+    relation: id(),
+    from: attachment().describe(
+      "Where the line attaches to the relation's from end; null attaches it automatically again.",
+    ),
+    to: attachment().describe(
+      "Where the line attaches to the relation's to end; null attaches it automatically again.",
+    ),
+    bendPoints: z
+      .array(z.object({ x: z.number(), y: z.number() }))
+      .max(64)
+      .nullable()
+      .optional()
+      .describe(
+        'The points the line passes through, from its from end, relative to the nearest container holding both ends; null removes them.',
+      ),
+    style: z.enum(['orthogonal', 'straight', 'curved']).optional(),
+  },
+  hints: WRITE,
+  run: async ({ view, relation, ...changes }, program) => {
+    const outcome = await act(program, {
+      type: 'set-route',
+      view,
+      relation,
+      ...withoutUndefined(changes),
+    });
+    if (!outcome.ok) return outcome;
+    const state = await program.project();
+    const kept = state.views.find((each) => each.id === view)?.routes;
+    const route = kept !== undefined && Object.hasOwn(kept, relation) ? kept[relation] : undefined;
+    const container =
+      route?.bendPoints === undefined ? routeOf(state, view, relation)?.frame : route.container;
+    const name = container === undefined ? undefined : modelIndexOf(state).element(container)?.name;
+    return ok({
+      ...(outcome.value as Record<string, unknown>),
+      route: route ?? 'automatic',
+      bendPointsRelativeTo: container === undefined ? 'the canvas' : { container, name },
+    });
+  },
+});
+
+const resetRoute = tool({
+  name: 'reset_route',
+  title: 'Route relations automatically again',
+  description: `Routes relations automatically again in a view, as one undoable action: their ends attach where layout puts them, with no bend points, orthogonally. Relations the view does not route by hand are left as they are.
+
+Example: { "view": "system-overview", "relations": ["booking-agent-calls-api-k3f9q2"] }`,
+  input: { view: id(), relations: z.array(id()).min(1) },
+  hints: WRITE,
+  run: async (args, program) => act(program, { type: 'reset-route', ...args }),
+});
+
 const freeShape = () =>
   z.discriminatedUnion('kind', [
     z.object({
@@ -877,7 +952,7 @@ Example: { "name": "Clinic systems" }`,
 const runCommands = tool({
   name: 'run_commands',
   title: 'Run commands as one action',
-  description: `Runs several of Visual Anything's commands as one undoable action, for changes no other tool makes at once. Each command is an object with a type, as the program's core takes it, such as "create-element", "update-element", "delete", "create-relation", "update-relation", "create-package", "define-component", "remove-component", "define-relation-type", "remove-relation-type", "create-view", "update-view", "delete-view", "set-positions", "remove-positions", "create-free-shape", "update-free-shape", "delete-free-shapes", "update-project", "restack" and "change-container". Either all of them are done, or none is and the answer says which one was refused and why. Prefer the other tools when one fits.
+  description: `Runs several of Visual Anything's commands as one undoable action, for changes no other tool makes at once. Each command is an object with a type, as the program's core takes it, such as "create-element", "update-element", "delete", "create-relation", "update-relation", "create-package", "define-component", "remove-component", "define-relation-type", "remove-relation-type", "create-view", "update-view", "delete-view", "set-positions", "remove-positions", "create-free-shape", "update-free-shape", "delete-free-shapes", "update-project", "restack", "change-container", "set-route" and "reset-route". Either all of them are done, or none is and the answer says which one was refused and why. Prefer the other tools when one fits.
 
 Example: { "label": "Move the reminders into Scheduling", "commands": [{ "type": "update-element", "id": "reminder-service", "changes": { "name": "Reminders" } }, { "type": "set-positions", "view": "system-overview", "positions": [{ "element": "reminder-service", "container": "scheduling", "x": 40, "y": 260 }] }] }`,
   input: {
@@ -1001,6 +1076,8 @@ export const TOOLS: readonly Tool[] = [
   forgetPositions,
   restack,
   setCollapsed,
+  setRoute,
+  resetRoute,
   addFreeShape,
   updateFreeShape,
   deleteFreeShapes,
