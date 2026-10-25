@@ -79,7 +79,24 @@ const id = () => z.string().min(1).max(128);
 const attributes = () =>
   z
     .record(z.string(), z.unknown())
-    .describe('Attribute values by attribute name: strings, numbers, booleans or JSON.');
+    .describe(
+      'Attribute values by attribute name: strings, numbers, booleans or JSON. An attribute of type destination holds { "view": id, "focus": [ids] }, { "project": "../folder", "view": id } or { "url": "https://…" }, and nothing else.',
+    );
+/** External identifiers by scheme, as a new element takes them (ADR 0056). */
+const externalIds = () =>
+  z
+    .record(z.string(), z.string())
+    .describe(
+      'What it is in other catalogs, by scheme: a short lowercase name such as "uberon", "fma" or "wikidata", each with an identifier of up to 200 characters. Data only: nothing follows them.',
+    );
+/** Changes to external identifiers by scheme: a text sets one, null takes it out; null takes all. */
+const externalIdChanges = () =>
+  z
+    .record(z.string(), z.string().nullable())
+    .nullable()
+    .describe(
+      'External identifiers by scheme to set, such as { "uberon": "UBERON:0002135" }; null for a scheme takes it out, and null for the whole takes them all out.',
+    );
 const appearance = () =>
   z
     .object({
@@ -140,17 +157,20 @@ Example: { "package": "systems" }`,
 const findElementsTool = tool({
   name: 'find_elements',
   title: 'Find elements',
-  description: `Finds elements by component, attribute, container or name. Every filter given must hold. A component matches the elements created from it and from components deriving from it, unless exactComponent. A container finds what sits directly inside it, or at any depth with deep; World's id finds what sits directly in World. Results come in model order, ${MAX_RESULTS} at most per call: page with offset.
+  description: `Finds elements by component, attribute, external identifier, container or name. Every filter given must hold. A component matches the elements created from it and from components deriving from it, unless exactComponent. An attribute named id:<scheme>, as id:uberon, finds the elements with an external identifier in that scheme, and that identifier when equals gives it. A container finds what sits directly inside it, or at any depth with deep; World's id finds what sits directly in World. Results come in model order, ${MAX_RESULTS} at most per call: page with offset.
 
 Example: { "component": "systems.service", "container": "clinic-booking", "deep": true }
-Example: { "attribute": { "name": "owner", "equals": "Scheduling team" } }`,
+Example: { "attribute": { "name": "owner", "equals": "Scheduling team" } }
+Example: { "attribute": { "name": "id:uberon", "equals": "UBERON:0002135" } }`,
   input: {
     component: id().optional(),
     exactComponent: z.boolean().optional(),
     attribute: z
       .object({ name: z.string().min(1), equals: z.unknown().optional() })
       .optional()
-      .describe('Elements that hold this attribute, with this value when equals is given.'),
+      .describe(
+        'Elements that hold this attribute, with this value when equals is given; id:<scheme> for an external identifier.',
+      ),
     container: id().optional(),
     deep: z.boolean().optional(),
     nameContains: z.string().optional().describe('Text the name holds, whatever its case.'),
@@ -280,6 +300,7 @@ Example: {
           component: id(),
           name: z.string().min(1),
           description: z.string().optional(),
+          ids: externalIds().optional(),
           attributes: attributes().optional(),
           appearance: appearance().optional(),
           inside: z.array(z.string().min(1)).optional().describe('Containers: refs or ids.'),
@@ -341,12 +362,16 @@ Example: {
 const updateElement = tool({
   name: 'update_element',
   title: 'Change an element',
-  description: `Changes an element, World included, as one undoable action: its name, description, component, attribute values, attributes to remove, or its own appearance (replaced whole; null makes it look like its component again). A description of null removes it.
+  description: `Changes an element, World included, as one undoable action: its name, description, component, attribute values, attributes to remove, its external identifiers, or its own appearance (replaced whole; null makes it look like its component again). A description of null removes it.
 
 To change some traits of its own appearance and keep the others, give appearanceTraits instead: a value sets a trait, null makes it inherited again.
 
+An attribute whose type is destination opens something when the person follows the mark on its shape: a view of this project, focused on some elements; a view of another project, by a path relative to this project's folder that stays inside the folder holding it, opened by that project's own program after the person agrees; or an https: web address, opened only after the person confirms. Any other scheme is refused.
+
 Example: { "id": "appointments-db", "attributes": { "engine": "postgres", "sizeGb": 20 } }
-Example: { "id": "booking-agent", "appearanceTraits": { "fill": "#F8E1EC", "stroke": null } }`,
+Example: { "id": "booking-agent", "appearanceTraits": { "fill": "#F8E1EC", "stroke": null } }
+Example: { "id": "mitral-valve", "ids": { "uberon": "UBERON:0002135", "fma": "FMA:7235" } }
+Example: { "id": "billing-api", "attributes": { "details": { "project": "../billing", "view": "overview" } } }`,
   input: {
     id: id(),
     name: z.string().min(1).optional(),
@@ -354,6 +379,7 @@ Example: { "id": "booking-agent", "appearanceTraits": { "fill": "#F8E1EC", "stro
     component: id().optional(),
     attributes: attributes().optional(),
     removeAttributes: z.array(z.string()).optional(),
+    ids: externalIdChanges().optional(),
     appearance: appearance().nullable().optional(),
     appearanceTraits: z
       .record(z.string(), z.unknown())
@@ -495,7 +521,9 @@ Example: { "package": "clinic", "createOnly": true, "component": { "name": "Cale
     component: z
       .object({ id: id().optional(), name: z.string().min(1), derivesFrom: id() })
       .catchall(z.unknown())
-      .describe('name, derivesFrom, and optionally id, description, attributes and appearance.'),
+      .describe(
+        'name, derivesFrom, and optionally id, description, ids (external identifiers by scheme), attributes and appearance. An attribute may be of type "destination".',
+      ),
   },
   hints: WRITE,
   run: async (args, program) =>
@@ -524,7 +552,7 @@ Example: { "package": "clinic", "createOnly": true, "relationType": { "name": "b
       .object({ id: id().optional(), name: z.string().min(1), derivesFrom: id() })
       .catchall(z.unknown())
       .describe(
-        'name, derivesFrom, and optionally id, description, direction, nests, attributes, appearance and limits.',
+        'name, derivesFrom, and optionally id, description, ids (external identifiers by scheme), direction, nests, attributes, appearance and limits.',
       ),
   },
   hints: WRITE,
@@ -586,6 +614,7 @@ Example: { "id": "clinic.calendar", "name": "Calendar", "appearance": { "fill": 
     derivesFrom: id().optional(),
     appearance: z.record(z.string(), z.unknown()).optional(),
     attributes: attributeChanges().optional(),
+    ids: externalIdChanges().optional(),
   },
   hints: WRITE,
   run: async ({ id: target, ...changes }, program) =>
@@ -623,6 +652,7 @@ Example: { "id": "clinic.books", "direction": "directed", "limits": { "to": ["cl
           .optional(),
       })
       .optional(),
+    ids: externalIdChanges().optional(),
   },
   hints: WRITE,
   run: async ({ id: target, ...changes }, program) =>
@@ -1301,6 +1331,7 @@ function buildAdditions(
         component: element.component,
         name: element.name,
         description: element.description,
+        ids: element.ids,
         attributes: element.attributes as Attributes | undefined,
         appearance: element.appearance,
       }),
