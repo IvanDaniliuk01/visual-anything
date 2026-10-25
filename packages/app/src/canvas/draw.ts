@@ -36,6 +36,7 @@ import {
   readableTextColors,
 } from './palette';
 import { patternMatrix, patternTexture } from './patterns';
+import { drawRowsShape, rowsBlocks, writeRowsText } from './rowsDraw';
 import {
   ARROW_WIDTH,
   type ArrowShape,
@@ -134,6 +135,19 @@ export function drawShapeBlocks(
   const outlines = new Map<Color, Rect[]>();
   const fills = new Map<Color, Rect[]>();
   for (const shape of shapes) {
+    // A table is its body and its header, and its rows draw nothing (ADR 0023).
+    const rows = rowsBlocks(shape, BLOCK_OUTLINE);
+    if (rows) {
+      if (rows.outline) {
+        if (inOrder) fillRects(graphics, rows.outline.color, [rows.outline.rect]);
+        else addRect(outlines, rows.outline.color, rows.outline.rect);
+      }
+      for (const { color, rect } of rows.fills) {
+        if (inOrder) fillRects(graphics, color, [rect]);
+        else addRect(fills, color, rect);
+      }
+      continue;
+    }
     const outlined = isContainer(shape) || needsOutline(shape.fill);
     const inner = outlined ? grow(shape.rect, -BLOCK_OUTLINE) : shape.rect;
     const filled = inner.width > 0 && inner.height > 0;
@@ -178,6 +192,10 @@ export function drawRelationLines(graphics: Graphics, lines: readonly RelationLi
  */
 export function drawShapeOutlines(graphics: Graphics, shapes: readonly ElementShape[]): void {
   for (const shape of shapes) {
+    if (drawRowsShape(graphics, shape)) {
+      drawToggle(graphics, shape);
+      continue;
+    }
     if (shape.collapsed !== undefined) {
       const body = bodyOf(shape);
       if (body !== shape.rect) {
@@ -419,6 +437,7 @@ function writeShapeText(
   shape: ElementShape,
   write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
 ): void {
+  if (writeRowsText(shape, write)) return;
   const colors = readableTextColors(shape.fill);
   const rooms = labelRooms(shape);
   if (isContainer(shape)) {
