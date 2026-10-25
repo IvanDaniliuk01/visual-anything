@@ -115,6 +115,39 @@ Scenarios, images and exploring work through Claude too:
 
 Try, for example: "Turn this log into a scenario and play it", "Give the Calendar component this SVG icon", or "Show me only the services and what they write to".
 
+### Building from what you already have
+
+Claude can build a model, views and scenarios from material you already have, with the same tools, following a recipe for each kind of material. Each recipe is a prompt of the MCP server, which you pick:
+
+- **Claude Code**: type `/mcp__visual-anything__` and choose the recipe, then say where the material is, as in `/mcp__visual-anything__build_from_sql_ddl db/schema.sql`.
+- **Claude Desktop**: choose the recipe from the + menu of the chat box, under visual-anything.
+
+Each recipe takes three arguments, all optional: `source`, where the material is (files or a folder) or the material itself; `view`, a view to show it in, or a name for a new one; and `into`, an element to put it inside. Without a `source`, Claude asks for it.
+
+| Material | Recipe | What it becomes |
+| --- | --- | --- |
+| Mermaid: flowcharts, C4, ER and sequence diagrams | `build_from_mermaid` | Boxes become services, databases and people, subgraphs the systems that hold them, and arrows relations. Sequence diagrams become scenarios. |
+| PlantUML | `build_from_plantuml` | Components, databases, actors and the packages that hold them, and arrows; sequence diagrams become scenarios. |
+| draw.io | `build_from_drawio` | Shapes, the shapes they sit in, and arrows; each page becomes a view, with the drawing's positions. |
+| Structurizr DSL | `build_from_structurizr` | People, and software systems holding their containers and components; dynamic views become scenarios. |
+| SQL DDL | `build_from_sql_ddl` | Each table becomes a Table that draws its columns as rows, and each foreign key a "references" relation. |
+| OpenAPI | `build_from_openapi` | The API becomes a service that draws its operations as rows, and its schemas tables when you want them. |
+| Terraform | `build_from_terraform` | What runs and stores data, placed in its network, and which resource calls which. |
+| Kubernetes manifests | `build_from_kubernetes` | Workloads inside their namespaces, and which workload calls which. |
+| docker-compose | `build_from_docker_compose` | The services inside their system; `depends_on` becomes "communicates with". |
+| A repository | `build_from_repository` | The parts that run, the code they share, and what they call. |
+| Logs and OpenTelemetry traces | `build_from_logs_and_traces` | One scenario per request, with the services and calls the model lacks added first. |
+
+Every recipe holds Claude to the same rules:
+
+- **Claude reads the material itself.** Visual Anything fetches nothing: no web address, no cloud and no tracing service. When the material points somewhere it does not hold, Claude asks you for it.
+- **Nothing is made up.** Claude maps only what the material says, reuses what the project already has, and ends with a list of everything that matched nothing, asking what each should become.
+- **One action per call.** An import is one action in your history, labelled Claude, that you undo in the app. An import only adds: before any delete, Claude shows you what it would take with it (`preview_delete`) and waits for your yes.
+- **Secrets stay out.** Passwords, tokens and keys, such as the password in a connection string, and personal data in logs are never copied into the project.
+- **Layout places the shapes,** except where the material has positions of its own, as draw.io does.
+
+The tools' descriptions sum the recipes up too, so asking in your own words works: "Model what docker-compose.yml runs", "Turn the Mermaid diagrams in docs/ into views", or "Make a scenario of this trace". Each recipe ends with a worked example, which the tests run through the real MCP server.
+
 ## Contributor notes
 
 The commands are in [CLAUDE.md](CLAUDE.md). Two of them make and check the executable for the system you are on: `pnpm package` builds the app and writes `dist-exe/visual-anything` (`.exe` on Windows), and `pnpm smoke` starts it on a copy of `examples/my-systems` with no Node.js on its search path, checks that it answers on 127.0.0.1 and that `visual-anything mcp` lists its tools and reads the project, and stops it. `pnpm smoke --browser` also checks that it opens the browser: on macOS and Linux through a stand-in for `open` or `xdg-open` that records the address, on Windows by opening yours.

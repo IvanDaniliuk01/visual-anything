@@ -286,7 +286,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [ ] View addresses built on one view state (view, camera, selection, filters, focus, scenario step), kept in the address's fragment, with Copy address
 - [ ] PNG export of the open view or the whole view, at 1× or 2×, in the current theme
 - [ ] A history panel: each action's label, author (you or Claude) and time, and Undo to here
-- [ ] Recipes for Claude to build models, views and scenarios from what exists (Mermaid, PlantUML, draw.io, Structurizr, SQL, OpenAPI, Terraform, Kubernetes, docker-compose, a repository, logs and traces) with its tools
+- [x] Recipes for Claude to build models, views and scenarios from what exists (Mermaid, PlantUML, draw.io, Structurizr, SQL, OpenAPI, Terraform, Kubernetes, docker-compose, a repository, logs and traces) with its tools, as MCP prompts (`build_from_…`)
 - [ ] Fix what dogfooding surfaces
 - [ ] README with setup for Claude Desktop and Claude Code
 - [ ] Tag v0.1 in the private repository
