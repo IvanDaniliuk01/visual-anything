@@ -2222,7 +2222,10 @@ export class CanvasRenderer {
   }
 
   /** Where a retint finds the shapes and notes as the scene shown holds them. */
-  private lookups(): { shape(key: string): ElementShape | undefined; note(id: Id): NoteShape | undefined } {
+  private lookups(): {
+    shape(key: string): ElementShape | undefined;
+    note(id: Id): NoteShape | undefined;
+  } {
     const indexed = this.indexed;
     return {
       shape: (key) => indexed?.byKey.get(key),

@@ -96,7 +96,11 @@ export function labelsFollowTheme(tile: TileItems): boolean {
 }
 
 function membersOf(tile: TileItems): readonly object[] {
-  return tile.kind === 'shapes' ? tile.shapes : tile.kind === 'relations' ? tile.touching : tile.notes;
+  return tile.kind === 'shapes'
+    ? tile.shapes
+    : tile.kind === 'relations'
+      ? tile.touching
+      : tile.notes;
 }
 
 /**
