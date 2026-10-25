@@ -12,7 +12,7 @@ export type {
   TimelineEntry,
   TimelineStep,
 } from './timeline';
-export { brokenStepsOf, entryOfStep, isBroken, scenarioTimeline } from './timeline';
+export { brokenStepsOf, entryOfStep, isBroken, isOutside, scenarioTimeline } from './timeline';
 
 export type { Playback, PlaybackMode, Speed } from './playback';
 export {

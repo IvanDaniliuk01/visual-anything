@@ -3,6 +3,7 @@ import type { FreeShape, Id, ShapePosition, ViewFile } from '@visual-anything/sc
 import { slug } from '../ids';
 import { nestingTypesInView } from '../containers';
 import { appearanceOf } from '../definitions';
+import { shapesInView } from '../scope-placement';
 import {
   BULK,
   keyOf,
@@ -125,7 +126,12 @@ export function putPositions(draft: Draft, viewId: Id, positions: readonly Shape
             relation.to === container.id &&
             nesting.has(relation.relationType),
         );
-      if (!inside) {
+      // In a view with a scope, a shape sits in its nearest container that shows (ADR-0040).
+      const sits =
+        inside ||
+        (view.scope !== undefined &&
+          (shapesInView(draft.state, view).containersOf(element.id) ?? []).includes(container.id));
+      if (!sits) {
         reject(
           'unknown-position',
           `"${element.name}" does not sit inside "${container.name}" in the view "${view.name}".`,
