@@ -198,3 +198,25 @@ export { LAUNCH_PARAM, MAX_CAPTION_LENGTH, MAX_GUIDANCE_TARGETS, readGuidance } 
 // Relations routed by hand, per view (ADR 0039).
 export type { ResolvedAttachment, ResolvedRoute, RouteLookups, RouteShapes, Side } from './routes';
 export { MAX_BEND_POINTS, routeOf } from './routes';
+// The view state a view address carries (ADR 0030's addendum of 2026-10-25).
+export type {
+  ViewCamera,
+  ViewFilters,
+  ViewFocus,
+  ViewState,
+  ViewStateCheck,
+  ViewStateRead,
+} from './view-state';
+export {
+  MAX_CAMERA_DISTANCE,
+  MAX_CAMERA_ZOOM,
+  MAX_VIEW_STATE_ADDRESS,
+  MAX_VIEW_STATE_IDS,
+  MIN_CAMERA_ZOOM,
+  VIEW_STATE_KEYS,
+  checkViewState,
+  readViewState,
+  viewStateProblems,
+  withViewState,
+  writeViewState,
+} from './view-state';
