@@ -9,6 +9,7 @@ import type { Id } from '@visual-anything/schema';
 import { arrowheadAt, type Point, type Rect } from '../geometry';
 import { midpointOf, routeBetweenEnds } from '../route';
 import type { ElementShape, RelationLine, Scene } from '../scene';
+import { movedImage } from '../shape-images';
 
 /** How long a layout's result takes to move in, in milliseconds. */
 export const TRANSITION_MS = 320;
@@ -64,7 +65,12 @@ export function frameAt(transition: Transition, progress: number): Scene {
     if (!was) return shape;
     const rect = between(was.rect, shape.rect, t);
     rects.set(shape.key, rect);
-    return { ...shape, rect, extent: between(was.extent, shape.extent, t) };
+    return {
+      ...shape,
+      rect,
+      extent: between(was.extent, shape.extent, t),
+      ...movedImage(shape, rect.x - shape.rect.x, rect.y - shape.rect.y),
+    };
   });
   const middles = new Map<Id, Point>();
   const relations = to.relations.map((line) => {

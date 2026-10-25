@@ -12,6 +12,7 @@
  */
 import type { ThemeName } from '@visual-anything/core';
 import type { ArrowShape, ElementShape, NoteShape, RelationLine } from '../scene';
+import { nameBandOf } from '../shape-images';
 import type { TilePlan } from '../tiles';
 import { lineFollowsTheme, noteFollowsTheme, shapeFollowsTheme } from './paint';
 
@@ -91,7 +92,8 @@ export function labelsFollowTheme(tile: TileItems): boolean {
   if (follows === undefined) {
     follows =
       tile.kind === 'shapes'
-        ? tile.shapes.some(shapeFollowsTheme)
+        ? // The name under a picture is written on the canvas or its container, which follow it.
+          tile.shapes.some((shape) => shapeFollowsTheme(shape) || nameBandOf(shape) !== undefined)
         : tile.kind === 'relations'
           ? tile.lines.some((line) => line.label !== undefined)
           : tile.notes.some((note) => note.fill === undefined);

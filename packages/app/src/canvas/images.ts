@@ -8,7 +8,8 @@
  *   screen) and whether it is a silhouette, rasterized once in white and tinted on the GPU. No key
  *   holds a colour, so a theme switch rasterizes nothing.
  * - **Atlas.** Buckets of 64 pixels or less share 2048² atlas pages, with 4-pixel gutters whose edges
- *   are extruded and no mipmaps; larger ones get textures of their own, mipmapped.
+ *   are extruded and no mipmaps; larger ones get textures of their own, mipmapped. A page keeps its
+ *   pixels on the CPU, and a frame uploads only the rows of the cells drawn into since the last one.
  * - **Work per frame.** An SVG's cost is unknown until its first rasterization, which happens only
  *   while the camera rests, at the 32 bucket, timed; one that takes over 16 ms is broken for the
  *   session. During motion, an SVG is rasterized only at a bucket whose cost is known and that fits the
@@ -21,7 +22,8 @@
  * The renderer wires it in (wave 2): see `docs/designs/components.md` §5.7.
  */
 import type { CleanedImage } from '@visual-anything/core';
-import { CanvasSource, Rectangle, Texture } from 'pixi.js';
+import { BufferImageSource, CanvasSource, Rectangle, Texture } from 'pixi.js';
+import { imageSerial, pruneImageSerials } from './image-serials';
 
 /** The sizes textures are made at, in device pixels along the picture's longer side. */
 export const BUCKETS = [16, 32, 64, 128, 256, 512] as const;
@@ -39,6 +41,8 @@ export const IMAGE_LIMITS = {
   bitmapDecodes: 2,
   /** Decoded bitmaps a frame turns into textures. */
   bitmapUploads: 2,
+  /** Of those, how many may be textures of their own, larger than the atlas takes. */
+  largeUploads: 1,
   /** Tiles a frame asks to rebuild their image drawings. */
   tileRebuilds: 4,
   /** No new image work once the frame has spent this many milliseconds. */
@@ -66,38 +70,8 @@ const MIPMAPS = 1.33;
 
 // --- Serials -------------------------------------------------------------------------------------
 
-const serialsByContent = new Map<string, number>();
-const serialsByImage = new WeakMap<CleanedImage, number>();
-let lastSerial = 0;
-
-function contentKey(image: CleanedImage): string {
-  return image.kind === 'svg' ? `svg:${image.svg}` : `${image.format}:${image.data}`;
-}
-
-/**
- * The serial of a cleaned image's content: equal content has one serial, across reloads that bring new
- * image objects, and changed content gets a new one. It is looked up once per image object.
- */
-export function imageSerial(image: CleanedImage): number {
-  let serial = serialsByImage.get(image);
-  if (serial === undefined) {
-    const key = contentKey(image);
-    serial = serialsByContent.get(key);
-    if (serial === undefined) {
-      serial = ++lastSerial;
-      serialsByContent.set(key, serial);
-    }
-    serialsByImage.set(image, serial);
-  }
-  return serial;
-}
-
-/** Forgets the serials of content the project no longer holds, as after a reload. */
-export function pruneImageSerials(images: Iterable<CleanedImage>): void {
-  const present = new Set<string>();
-  for (const image of images) present.add(contentKey(image));
-  for (const key of serialsByContent.keys()) if (!present.has(key)) serialsByContent.delete(key);
-}
+// Kept apart, in a module without PixiJS, so that the scene can name pictures by them.
+export { imageSerial, pruneImageSerials } from './image-serials';
 
 // --- Buckets and keys ----------------------------------------------------------------------------
 
@@ -325,12 +299,27 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
   readonly #usedBy = new Map<string, Set<string>>();
   readonly #outSince = new Map<string, number>();
   readonly #rebuild: string[] = [];
-  readonly #atlas = new AtlasLayout();
+  #atlas = new AtlasLayout();
   #pageBytes = 0;
   #textureBytes = 0;
+  readonly #onArrive: (() => void) | undefined;
+  #more = false;
 
-  constructor(platform: ImagePlatform<T, P>) {
+  /**
+   * `onArrive` is called when a picture finishes loading or decoding, or fails to, off the frame: the
+   * canvas then draws a frame to make its texture.
+   */
+  constructor(platform: ImagePlatform<T, P>, onArrive?: () => void) {
     this.#platform = platform;
+    this.#onArrive = onArrive;
+  }
+
+  /**
+   * Whether the last frame left work it could have done but for its limits, so that the next frame
+   * should come soon; work that waits for the camera to rest, or for a picture to load, does not count.
+   */
+  get more(): boolean {
+    return this.#more;
   }
 
   /**
@@ -352,6 +341,12 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
       // Its cost is learned at the first bucket, while the camera rests.
       const first = IMAGE_LIMITS.firstBucket;
       this.#want(request, serial, first, textureKey(serial, first, request.silhouette));
+    } else if (request.image.kind === 'svg') {
+      // Too costly to draw at once: one bucket larger than it has, whose cost is then measured.
+      const step = this.#stepToward(serial, bucket, request.silhouette);
+      if (step !== undefined) {
+        this.#want(request, serial, step, textureKey(serial, step, request.silhouette));
+      }
     }
     const standIn = this.#standIn(serial, bucket, request.silhouette);
     return standIn
@@ -440,33 +435,52 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
 
     let decodes = 0;
     let uploads = 0;
+    let largeUploads = 0;
     let loads = 0;
     let rasterized = 0;
+    let more = false;
     for (const wanted of nearest) {
-      if (spent() >= IMAGE_LIMITS.workAfter) break;
+      if (spent() >= IMAGE_LIMITS.workAfter) {
+        more = true;
+        break;
+      }
       if (this.#broken.has(wanted.serial)) {
         this.#wanted.delete(wanted.key);
         continue;
       }
       if (wanted.image.kind === 'bitmap') {
-        if (wanted.state === 'new' && decodes < IMAGE_LIMITS.bitmapDecodes) {
-          decodes += 1;
-          this.#decode(wanted);
-        } else if (wanted.state === 'ready' && uploads < IMAGE_LIMITS.bitmapUploads) {
-          uploads += 1;
-          this.#make(wanted);
+        if (wanted.state === 'new') {
+          if (decodes < IMAGE_LIMITS.bitmapDecodes) {
+            decodes += 1;
+            this.#decode(wanted);
+          } else more = true;
+        } else if (wanted.state === 'ready') {
+          const large = wanted.bucket > IMAGE_LIMITS.atlasBucket;
+          if (
+            uploads < IMAGE_LIMITS.bitmapUploads &&
+            (!large || largeUploads < IMAGE_LIMITS.largeUploads)
+          ) {
+            uploads += 1;
+            if (large) largeUploads += 1;
+            this.#make(wanted);
+          } else more = true;
         }
         continue;
       }
       if (!this.#mayRasterize(wanted, frame.moving, spent())) continue;
-      if (wanted.state === 'new' && loads < IMAGE_LIMITS.svgLoads) {
-        loads += 1;
-        this.#load(wanted);
-      } else if (wanted.state === 'ready' && rasterized < IMAGE_LIMITS.svgRasterizations) {
-        rasterized += 1;
-        this.#rasterize(wanted);
+      if (wanted.state === 'new') {
+        if (loads < IMAGE_LIMITS.svgLoads) {
+          loads += 1;
+          this.#load(wanted);
+        } else more = true;
+      } else if (wanted.state === 'ready') {
+        if (rasterized < IMAGE_LIMITS.svgRasterizations) {
+          rasterized += 1;
+          this.#rasterize(wanted);
+        } else more = true;
       }
     }
+    this.#more = more || this.#rebuild.length > IMAGE_LIMITS.tileRebuilds;
     platform.flush();
     this.#evict();
     return this.#rebuild.splice(0, IMAGE_LIMITS.tileRebuilds);
@@ -502,6 +516,25 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
       if (wanted.picture !== undefined) this.#platform.releasePicture(wanted.picture);
     }
     this.#wanted.clear();
+  }
+
+  /**
+   * Starts again from nothing: every texture and picture goes, and what it learned of each SVG's cost,
+   * and that some pictures cannot be drawn, is forgotten. The tiles must draw their pictures again, as
+   * the benchmark's cold runs do.
+   */
+  clear(): void {
+    this.destroy();
+    this.#costs.clear();
+    this.#broken.clear();
+    this.#uses.clear();
+    this.#usedBy.clear();
+    this.#outSince.clear();
+    this.#rebuild.length = 0;
+    this.#atlas = new AtlasLayout();
+    this.#pageBytes = 0;
+    this.#textureBytes = 0;
+    this.#more = false;
   }
 
   #want(request: ImageRequest, serial: number, bucket: Bucket, key: string): void {
@@ -547,10 +580,49 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
     return undefined;
   }
 
+  /**
+   * What rasterizing an SVG at a bucket should cost: what it cost at that bucket or a larger one, or
+   * at a smaller one grown with the pixels, the side squared; the least of these.
+   */
+  #estimatedCost(serial: number, bucket: Bucket): number | undefined {
+    const costs = this.#costs.get(serial);
+    if (!costs) return undefined;
+    let estimate: number | undefined;
+    for (const [each, cost] of costs) {
+      const grown = each >= bucket ? cost : cost * (bucket / each) ** 2;
+      if (estimate === undefined || grown < estimate) estimate = grown;
+    }
+    return estimate;
+  }
+
+  /**
+   * The bucket to rasterize an SVG at on the way to `bucket`, when `bucket` itself should take too
+   * long from what is known: the one after the largest one made, if that one should not.
+   */
+  #stepToward(serial: number, bucket: Bucket, silhouette: boolean): Bucket | undefined {
+    const fits = (each: Bucket) => {
+      const estimate = this.#estimatedCost(serial, each);
+      return estimate !== undefined && estimate <= IMAGE_LIMITS.slowFirst;
+    };
+    if (fits(bucket)) return undefined;
+    let largest: Bucket | undefined;
+    for (const each of BUCKETS) {
+      if (each < bucket && this.#made.has(textureKey(serial, each, silhouette))) largest = each;
+    }
+    if (largest === undefined) return undefined;
+    const step = BUCKETS[BUCKETS.indexOf(largest) + 1];
+    return step !== undefined && step < bucket && fits(step) ? step : undefined;
+  }
+
   #mayRasterize(wanted: Wanted<P>, moving: boolean, spent: number): boolean {
     if (!this.#costs.has(wanted.serial))
       return !moving && wanted.bucket === IMAGE_LIMITS.firstBucket;
-    if (!moving) return true;
+    if (!moving) {
+      // At rest too, a frame keeps to what a first rasterization may take: a picture whose larger
+      // bucket would take longer stays drawn from a smaller one.
+      const estimate = this.#estimatedCost(wanted.serial, wanted.bucket);
+      return estimate !== undefined && spent + estimate <= IMAGE_LIMITS.slowFirst;
+    }
     const cost = this.#knownCost(wanted.serial, wanted.bucket);
     return cost !== undefined && spent + cost < IMAGE_LIMITS.motionBudget;
   }
@@ -569,7 +641,7 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
     this.#platform
       .decodeBitmap(bytes, `image/${wanted.image.format}`, size.width, size.height)
       .then((picture) => this.#arrived(wanted, picture))
-      .catch(() => this.#break(wanted.serial));
+      .catch(() => this.#failed(wanted.serial));
   }
 
   #load(wanted: Wanted<P>): void {
@@ -579,7 +651,7 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
     this.#platform
       .loadSvg(wanted.image.svg, size.width, size.height)
       .then((picture) => this.#arrived(wanted, picture))
-      .catch(() => this.#break(wanted.serial));
+      .catch(() => this.#failed(wanted.serial));
   }
 
   #arrived(wanted: Wanted<P>, picture: P): void {
@@ -589,6 +661,13 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
     }
     wanted.picture = picture;
     wanted.state = 'ready';
+    this.#onArrive?.();
+  }
+
+  /** A picture that does not load or decode is broken for the session; its tiles draw again. */
+  #failed(serial: number): void {
+    this.#break(serial);
+    this.#onArrive?.();
   }
 
   #rasterize(wanted: Wanted<P>): void {
@@ -775,13 +854,21 @@ export function extrudeEdges(
 type Canvas = HTMLCanvasElement | OffscreenCanvas;
 type Context = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
 
-function newCanvas(width: number, height: number): { canvas: Canvas; context: Context } {
-  const canvas =
-    typeof OffscreenCanvas === 'undefined'
-      ? Object.assign(document.createElement('canvas'), { width, height })
-      : new OffscreenCanvas(width, height);
-  const context = canvas.getContext('2d');
-  if (!context) throw new Error('This browser draws no 2D canvas.');
+function newCanvas(
+  width: number,
+  height: number,
+  settings?: CanvasRenderingContext2DSettings,
+): { canvas: Canvas; context: Context } {
+  const offscreen =
+    typeof OffscreenCanvas === 'undefined' ? undefined : new OffscreenCanvas(width, height);
+  const element = offscreen
+    ? undefined
+    : Object.assign(document.createElement('canvas'), { width, height });
+  const context = offscreen
+    ? offscreen.getContext('2d', settings)
+    : element?.getContext('2d', settings);
+  const canvas = offscreen ?? element;
+  if (!context || !canvas) throw new Error('This browser draws no 2D canvas.');
   return { canvas, context };
 }
 
@@ -820,24 +907,65 @@ function bytesFromBase64(base64: string): Uint8Array {
   return bytes;
 }
 
+/**
+ * An atlas page's pixels, kept apart from the GPU so that a frame uploads only the rows drawn into
+ * since the one before: a whole 2048² page is 16 MiB to upload, the rows of a cell about half a MiB.
+ */
+export class AtlasPage {
+  readonly data: Uint8Array<ArrayBuffer>;
+  #from = Infinity;
+  #to = -Infinity;
+
+  constructor(readonly side: number) {
+    this.data = new Uint8Array(side * side * 4);
+  }
+
+  /** Copies the RGBA pixels of a square cell, `cell` texels a side, with its top left at (x, y). */
+  put(pixels: Uint8ClampedArray | Uint8Array, cell: number, x: number, y: number): void {
+    const rowBytes = cell * 4;
+    for (let row = 0; row < cell; row++) {
+      this.data.set(
+        pixels.subarray(row * rowBytes, (row + 1) * rowBytes),
+        ((y + row) * this.side + x) * 4,
+      );
+    }
+    this.#from = Math.min(this.#from, y);
+    this.#to = Math.max(this.#to, y + cell);
+  }
+
+  /** The texels of the rows drawn into since it was last asked, then none until more are drawn. */
+  takeDirty(): { start: number; end: number } | undefined {
+    if (this.#to <= this.#from) return undefined;
+    const range = { start: this.#from * this.side, end: this.#to * this.side };
+    this.#from = Infinity;
+    this.#to = -Infinity;
+    return range;
+  }
+}
+
 /** The store's platform in the browser: PixiJS textures from canvases, pictures decoded off the main thread. */
 export function browserImagePlatform(): ImagePlatform<Texture, CanvasImageSource> {
   const { atlasPage: side, gutter } = IMAGE_LIMITS;
-  const pages = new Map<
-    number,
-    { canvas: Canvas; context: Context; source: CanvasSource; dirty: boolean }
-  >();
+  const pages = new Map<number, { pixels: AtlasPage; source: BufferImageSource }>();
+  // Where a cell is drawn before its pixels are copied into its page, read back often and so kept
+  // on the CPU.
+  const most = IMAGE_LIMITS.atlasBucket + 2 * gutter;
+  let scratch: { canvas: Canvas; context: Context } | undefined;
+  const scratchOf = () => (scratch ??= newCanvas(most, most, { willReadFrequently: true }));
   const pageOf = (number: number) => {
     let page = pages.get(number);
     if (!page) {
-      const { canvas, context } = newCanvas(side, side);
+      const pixels = new AtlasPage(side);
       // The bucket follows the size on screen within 2×, so atlas pages need no mipmaps.
-      const source = new CanvasSource({
-        resource: canvas,
+      const source = new BufferImageSource({
+        resource: pixels.data,
+        width: side,
+        height: side,
+        format: 'rgba8unorm',
         scaleMode: 'linear',
         autoGenerateMipmaps: false,
       });
-      page = { canvas, context, source, dirty: false };
+      page = { pixels, source };
       pages.set(number, page);
     }
     return page;
@@ -865,11 +993,12 @@ export function browserImagePlatform(): ImagePlatform<Texture, CanvasImageSource
     },
     atlasTexture: (slot, picture, width, height, silhouette) => {
       const page = pageOf(slot.page);
-      const { context, canvas } = page;
-      context.clearRect(slot.x - gutter, slot.y - gutter, slot.cell, slot.cell);
-      drawPicture(context, picture, slot.x, slot.y, width, height, silhouette);
-      extrudeEdges(context, canvas, slot.x, slot.y, width, height, gutter);
-      page.dirty = true;
+      const { canvas, context } = scratchOf();
+      context.clearRect(0, 0, slot.cell, slot.cell);
+      drawPicture(context, picture, gutter, gutter, width, height, silhouette);
+      extrudeEdges(context, canvas, gutter, gutter, width, height, gutter);
+      const cell = context.getImageData(0, 0, slot.cell, slot.cell);
+      page.pixels.put(cell.data, slot.cell, slot.x - gutter, slot.y - gutter);
       return new Texture({
         source: page.source,
         frame: new Rectangle(slot.x, slot.y, width, height),
@@ -877,9 +1006,8 @@ export function browserImagePlatform(): ImagePlatform<Texture, CanvasImageSource
     },
     flush: () => {
       for (const page of pages.values()) {
-        if (!page.dirty) continue;
-        page.source.update();
-        page.dirty = false;
+        const dirty = page.pixels.takeDirty();
+        if (dirty) page.source.update(dirty.start, dirty.end);
       }
     },
     destroyTexture: (texture, own) => texture.destroy(own),

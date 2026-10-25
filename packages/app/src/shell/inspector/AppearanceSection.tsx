@@ -13,6 +13,7 @@ import {
 import { ESSENCE_ID, type Element, type Id } from '@visual-anything/schema';
 import { useId, useState } from 'react';
 import { useEditor } from '../../editor/EditorContext';
+import { ElementImageTrait } from '../definitions/ElementImageTrait';
 import { TraitRow } from '../definitions/TraitRow';
 import { ColorHints, ScopeChoice } from './colorParts';
 import { idsOf, originText, savedIn, shapeHints, wayBack, type ColorTrait } from './colors';
@@ -187,6 +188,7 @@ function OwnTraits({
         </TraitRow>
         {colorRow('fill', 'Fill')}
         {colorRow('stroke', 'Stroke')}
+        <ElementImageTrait element={element} disabled={disabled} />
       </ul>
       <ColorHints id={hintId} hints={hints} />
       {(own.width !== undefined || own.height !== undefined) && (

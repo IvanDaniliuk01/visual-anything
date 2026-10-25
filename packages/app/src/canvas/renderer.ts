@@ -21,6 +21,7 @@ import {
   RenderTexture,
   Text,
   type GraphicsContext,
+  type Texture,
 } from 'pixi.js';
 import type { ThemeName } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
@@ -51,6 +52,8 @@ import type { IndexedScene, Skipped } from './hit';
 import { GridMarks } from './gridMarks';
 import { watchResolution } from './resolution';
 import { ScreenMarks, selectionBounds } from './screenMarks';
+import { browserImagePlatform, type ImagePlatform } from './images';
+import { TileImages, type ImageView } from './images-draw';
 import { bitmapText, installFonts } from './labels';
 import { THEMES, type CanvasTheme } from '../theme/themes';
 import { DIMMED_ALPHA } from './colors';
@@ -301,6 +304,8 @@ export interface RendererCallbacks {
 export interface RendererOptions {
   /** Makes the labels; bitmap text by default. */
   text?: TextFactory;
+  /** Decodes pictures and makes their textures; the browser's by default. */
+  images?: ImagePlatform<Texture, unknown>;
   /** The theme to draw in from the start; the light theme by default. */
   theme?: CanvasTheme;
 }
@@ -357,6 +362,8 @@ export class CanvasRenderer {
   /** The tiles each relation draws something in: the pieces of its route, its arrowhead, its name. */
   private readonly tilesOfLine = new Map<string, Set<Tile>>();
   private readonly text: TextFactory;
+  /** The pictures drawn in the tiles, and the textures they are drawn with. */
+  private readonly pictures: TileImages<Texture, unknown>;
   /** Draws in the theme the canvas shows; a switch draws in the next one until it shows (ADR-0033). */
   private painter: Painter;
   /** A switch or a recolor being drawn, all shown in one frame once the screen is ready for it. */
@@ -426,6 +433,9 @@ export class CanvasRenderer {
     options: RendererOptions = {},
   ) {
     this.text = options.text ?? bitmapText;
+    this.pictures = new TileImages(options.images ?? browserImagePlatform(), () =>
+      this.requestRender(),
+    );
     this.painter = painterOf(options.theme ?? THEMES.light.canvas);
     this.tintMarks();
     this.elementShapes.addChild(this.overflowBand);
@@ -465,6 +475,7 @@ export class CanvasRenderer {
   /** Draws this scene from now on, redrawing only the tiles that changed. */
   show(indexed: IndexedScene): void {
     this.indexed = indexed;
+    this.pictures.show(indexed.scene.shapes);
     if (this.status !== 'ready') return;
     try {
       this.updateEmphasized();
@@ -1032,7 +1043,34 @@ export class CanvasRenderer {
       clearTimeout(this.settleTimer);
       this.app.destroy(true, { children: true, context: true });
     }
+    this.pictures.destroy();
     this.status = 'destroyed';
+  }
+
+  /**
+   * Lets every picture's texture go and forgets what each SVG costs, so that the pictures on screen are
+   * decoded again as when nothing was drawn yet: the benchmark's cold runs start so.
+   */
+  resetImages(): void {
+    this.pictures.reset();
+    this.requestRender();
+  }
+
+  /** How many textures the pictures take now, and the estimate of their GPU memory, in bytes. */
+  get imageMemory(): { textures: number; bytes: number } {
+    return { textures: this.pictures.store.size, bytes: this.pictures.store.gpuBytes };
+  }
+
+  /** How the canvas is seen now, for the image drawings, the frame having spent `spent` ms so far. */
+  private imageView(spent: number): ImageView {
+    return {
+      scale: this.camera.scale,
+      shown: visibleRect(this.camera, this.viewport),
+      resolution: this.resolution,
+      settled: this.settled,
+      theme: this.painter.name,
+      spent,
+    };
   }
 
   private async start(): Promise<void> {
@@ -1648,6 +1686,7 @@ export class CanvasRenderer {
   /** Draws a tile in full and writes all its labels for `shown` now, outside the frame's budget. */
   private drawAtOnce(tile: Tile, shown: Tile['level']): void {
     this.drawFully(tile);
+    this.pictures.drawAtOnce(tile, this.imageView(0));
     const wanted = wantedFor(tile.kind, shown);
     if (wanted === 0) return;
     try {
@@ -1676,7 +1715,13 @@ export class CanvasRenderer {
     const { painter } = this;
     const texts =
       tile.kind === 'shapes'
-        ? painter.shapeLabels(tile.shapes.slice(from, to), wanted === 2, this.text, tile.labelPaint)
+        ? painter.shapeLabels(
+            tile.shapes.slice(from, to),
+            wanted === 2,
+            this.text,
+            tile.labelPaint,
+            this.lookups(),
+          )
         : tile.kind === 'relations'
           ? painter.relationLabels(tile.lines.slice(from, to), this.text, tile.labelPaint)
           : painter.noteTexts(tile.notes, tile.labelPaint);
@@ -1860,7 +1905,13 @@ export class CanvasRenderer {
       const room = Math.max(0, DRAG_DETAIL - names);
       names += Math.min(room, wanted.length);
       try {
-        return this.painter.shapeLabels(wanted.slice(0, room), details, this.text);
+        return this.painter.shapeLabels(
+          wanted.slice(0, room),
+          details,
+          this.text,
+          undefined,
+          this.lookups(),
+        );
       } catch {
         // Without fonts, the shapes move unnamed.
         return [];
@@ -1874,7 +1925,11 @@ export class CanvasRenderer {
         shapes.filter((shape) => !inFull(shape)),
       );
       this.painter.shapeOutlines(graphics, shapes.filter(inFull));
-      this.dragged.addChild(graphics, ...label(shapes));
+      this.dragged.addChild(
+        graphics,
+        ...this.pictures.dragged(shapes.filter(inFull), this.imageView(0)),
+        ...label(shapes),
+      );
     }
     // Beyond the bands, one after another, each over the names of those before it.
     let graphics: Graphics | undefined;
@@ -1885,9 +1940,10 @@ export class CanvasRenderer {
       }
       if (inFull(shape)) this.painter.shapeOutlines(graphics, [shape]);
       else this.painter.shapeBlocks(graphics, [shape], true);
+      const pictures = inFull(shape) ? this.pictures.dragged([shape], this.imageView(0)) : [];
       const names = label([shape]);
-      if (names.length > 0) {
-        this.dragged.addChild(...names);
+      if (names.length > 0 || pictures.length > 0) {
+        this.dragged.addChild(...pictures, ...names);
         graphics = undefined;
       }
     }
@@ -1961,7 +2017,8 @@ export class CanvasRenderer {
       if (end.kind === 'shape') {
         const shape = indexed.byKey.get(end.key);
         if (!shape) return undefined;
-        return { rect: hidden.shapes.has(end.key) ? moved(shape.rect, delta) : shape.rect };
+        const rect = shape.plate ?? shape.rect;
+        return { rect: hidden.shapes.has(end.key) ? moved(rect, delta) : rect };
       }
       const other = byId.get(end.relation);
       if (!other) return undefined;
@@ -2065,7 +2122,9 @@ export class CanvasRenderer {
     };
     for (const id of this.selection.elements) {
       for (const shape of indexed.byElement.get(id) ?? []) {
-        if (!unseen.shapes.has(shape.key)) box(shape.rect, hidden.shapes.has(shape.key));
+        if (!unseen.shapes.has(shape.key)) {
+          box(shape.plate ?? shape.rect, hidden.shapes.has(shape.key));
+        }
       }
     }
     const free = freeShapesById(scene.notes, scene.arrows);
@@ -2235,7 +2294,7 @@ export class CanvasRenderer {
     mark.clear();
     const shape = this.hovered === undefined ? undefined : this.indexed?.byKey.get(this.hovered);
     if (!shape) return;
-    const rect = grow(shape.rect, 3 / this.camera.scale);
+    const rect = grow(shape.plate ?? shape.rect, 3 / this.camera.scale);
     mark
       .rect(rect.x, rect.y, rect.width, rect.height)
       .stroke({ color: this.painter.theme.selected, width: 1 / this.camera.scale });
@@ -2336,9 +2395,14 @@ export class CanvasRenderer {
    */
   renderNow(waitForGpu = false): void {
     if (this.status !== 'ready') return;
+    const began = performance.now();
     try {
       if (this.marksDrawn < this.markRects.length) this.drawChunks();
       this.updateDetail();
+      // Pictures within what is left of the frame's budget; the store asks for frames as they arrive.
+      if (this.pictures.frame(this.tiles.values(), this.imageView(performance.now() - began))) {
+        this.requestRender();
+      }
       const drag = this.drag;
       if (drag && drag.routed.length > 0 && drag.routedAt !== drag.delta) this.routeDrag();
       this.cull();
