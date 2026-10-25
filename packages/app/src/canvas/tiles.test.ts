@@ -8,8 +8,13 @@ import { buildScene, type ElementShape, type RelationLine, type Scene } from './
 import {
   MAX_BANDS,
   MAX_RUN,
+  MAX_TILE_LINES,
+  MAX_TILE_SHAPES,
   TILE,
   cellOf,
+  chunkBase,
+  chunkKey,
+  cutAtItsCells,
   drawnRoute,
   planTiles,
   plannedTiles,
@@ -420,5 +425,97 @@ describe('relationTiles', () => {
       '0,0',
     ]);
     expect(distance(directed.to, { x: 3000, y: 100 })).toBe(0);
+  });
+});
+
+describe('tiles of crowded cells', () => {
+  it('shares a crowded cell’s shapes of one band among tiles of at most a chunk each', () => {
+    // 150 shapes side by side in the first cell, none over another: one band, one cell.
+    const shapes = Array.from({ length: 150 }, (_, at) =>
+      shapeAt(`s${String(at).padStart(3, '0')}`, {
+        x: (at % 15) * 60,
+        y: Math.floor(at / 15) * 60,
+        width: 40,
+        height: 20,
+      }),
+    );
+    const tiles = plannedTiles(indexScene(sceneOf(shapes)), new Set());
+    const base = 'shapes 0 0,0';
+    expect(tiles.map((tile) => tile.key)).toEqual([base, `${base} #1`, `${base} #2`]);
+    expect(tiles.map((tile) => tile.shapes.length)).toEqual([
+      MAX_TILE_SHAPES,
+      MAX_TILE_SHAPES,
+      150 - 2 * MAX_TILE_SHAPES,
+    ]);
+    expect(tiles.every((tile) => chunkBase(tile.key) === base)).toBe(true);
+    // Together, every shape once, in key order.
+    expect(tiles.flatMap((tile) => tile.shapes.map((shape) => shape.key))).toEqual(
+      shapes.map((shape) => shape.key),
+    );
+    expect(chunkKey(base, 0)).toBe(base);
+    expect(chunkBase(chunkKey(base, 3))).toBe(base);
+  });
+
+  it('shares a crowded cell’s relations among tiles of at most a chunk each', () => {
+    const count = MAX_TILE_LINES + 20;
+    const lines = Array.from({ length: count }, (_, at) =>
+      lineAlong(
+        [
+          { x: 100, y: 100 + at * 2 },
+          { x: 600, y: 100 + at * 2 },
+        ],
+        { relation: `r${at}`, label: `r${at}` },
+      ),
+    );
+    const tiles = relationTiles(lines, new Set());
+    expect(tiles.map((tile) => tile.key)).toEqual(['relations 0,0', 'relations 0,0 #1']);
+    expect(tiles.map((tile) => tile.touching.length)).toEqual([MAX_TILE_LINES, 20]);
+    for (const tile of tiles) {
+      // Each draws, and names, only the relations it holds.
+      const held = new Set(tile.touching);
+      expect(tile.pieces.every((piece) => held.has(piece.line))).toBe(true);
+      expect(tile.lines.every((line) => held.has(line))).toBe(true);
+    }
+    expect(tiles.flatMap((tile) => tile.touching)).toEqual(lines);
+    expect(lines.every(cutAtItsCells)).toBe(true);
+  });
+
+  it('plans the tiles of some cells exactly as they are among the tiles of every cell', () => {
+    const shape = fc.record({
+      x: fc.integer({ min: 0, max: 3 * TILE }),
+      y: fc.integer({ min: 0, max: 3 * TILE }),
+      width: fc.integer({ min: 20, max: 900 }),
+      height: fc.integer({ min: 20, max: 900 }),
+    });
+    fc.assert(
+      fc.property(
+        fc.array(shape, { maxLength: 60 }),
+        fc.option(fc.integer({ min: 0, max: 2 * TILE })),
+        fc.array(fc.integer({ min: 0, max: 15 })),
+        (rects, stairs, picked) => {
+          // Shapes anywhere over sixteen cells, and maybe a staircase deeper than the bands.
+          const shapes = [
+            ...rects.map((rect, at) => shapeAt(`r${String(at).padStart(2, '0')}`, rect)),
+            ...(stairs === null ? [] : stacked(MAX_BANDS + 8, { x: stairs, y: stairs })),
+          ];
+          const indexed = indexScene(sceneOf(shapes));
+          const cells = new Set(picked.map((at) => `${at % 4},${Math.floor(at / 4)}`));
+          const summary = (tiles: readonly PlannedTile[]) =>
+            tiles
+              .map((tile) => [
+                tile.key,
+                tile.band,
+                tile.cell,
+                tile.rank,
+                tile.signature,
+                tile.shapes.map((each) => each.key).join(' '),
+              ])
+              .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+          const all = plannedTiles(indexed, new Set());
+          const some = plannedTiles(indexed, new Set(), new Set(), cells);
+          expect(summary(some)).toEqual(summary(all.filter((tile) => cells.has(tile.cell))));
+        },
+      ),
+    );
   });
 });

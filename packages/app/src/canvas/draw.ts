@@ -339,6 +339,34 @@ export function drawPieceLines(graphics: Graphics, pieces: readonly RoutePiece[]
 }
 
 /**
+ * Draws the pieces of relations' routes as `drawPieceLines` does, all in one color, each `extra`
+ * wider than its line: one path a width, since in one color the order they are drawn in shows not.
+ */
+export function drawPieceCasings(
+  graphics: Graphics,
+  pieces: readonly RoutePiece[],
+  color: Color,
+  extra: number,
+): void {
+  const byWidth = new Map<number, RoutePiece[]>();
+  for (const piece of pieces) {
+    const width = piece.line.width + extra;
+    const same = byWidth.get(width);
+    if (same) same.push(piece);
+    else byWidth.set(width, [piece]);
+  }
+  for (const [width, same] of byWidth) {
+    let traced = false;
+    for (const piece of same) {
+      const { line } = piece;
+      const points = piece.last && line.arrowhead ? [...piece.points, line.to] : piece.points;
+      traced = traceSolid(graphics, points, width, piece) || traced;
+    }
+    if (traced) graphics.stroke({ color, width, cap: 'butt', join: 'miter' });
+  }
+}
+
+/**
  * Writes the names of the relations that have one, at the middle of their routes, in `colors`: the
  * text, and what is drawn behind it, which the light theme's by default.
  */
@@ -709,15 +737,7 @@ function strokeLine(
   if (!first || rest.length === 0) return;
   const { color, width, dash } = style;
   if (dash === 'solid') {
-    const from = bendAtStart ? reachedPast(points[1] as Point, first, width / 2) : first;
-    graphics.moveTo(from.x, from.y);
-    rest.forEach((point, at) => {
-      const to =
-        bendAtEnd && at === rest.length - 1
-          ? reachedPast(points.at(-2) as Point, point, width / 2)
-          : point;
-      graphics.lineTo(to.x, to.y);
-    });
+    traceSolid(graphics, points, width, { bendAtStart, bendAtEnd });
     graphics.stroke({ color, width, cap: 'butt', join: 'miter' });
     return;
   }
@@ -745,6 +765,30 @@ function strokeLine(
       });
     travelled += length;
   }
+}
+
+/**
+ * Traces a solid line through `points`, ends at a bend reaching half a width past it, as inner
+ * corners do, so that the outside of the bend is filled; says whether there was a line to trace.
+ */
+function traceSolid(
+  graphics: Graphics,
+  points: readonly Point[],
+  width: number,
+  { bendAtStart = false, bendAtEnd = false }: { bendAtStart?: boolean; bendAtEnd?: boolean },
+): boolean {
+  const [first, ...rest] = points;
+  if (!first || rest.length === 0) return false;
+  const from = bendAtStart ? reachedPast(points[1] as Point, first, width / 2) : first;
+  graphics.moveTo(from.x, from.y);
+  rest.forEach((point, at) => {
+    const to =
+      bendAtEnd && at === rest.length - 1
+        ? reachedPast(points.at(-2) as Point, point, width / 2)
+        : point;
+    graphics.lineTo(to.x, to.y);
+  });
+  return true;
 }
 
 /** `to`, moved `by` further along the line from `from`. */

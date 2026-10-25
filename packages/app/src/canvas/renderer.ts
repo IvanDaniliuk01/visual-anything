@@ -20,6 +20,7 @@ import {
   Matrix,
   RenderTexture,
   Text,
+  type Buffer,
   type GraphicsContext,
   type Texture,
 } from 'pixi.js';
@@ -80,11 +81,17 @@ import {
   MAX_BANDS,
   TILE,
   bandTileKeyOf,
+  cellsOfShapes,
+  chunkBase,
+  chunkKey,
+  cutAtItsCells,
   planTiles,
   plannedTiles,
+  relationTileKey,
   relationTileKeysOf,
   relationTiles,
   replannedTiles,
+  routePieces,
   type PlannedTile,
   type RelationTile,
   type RoutePiece,
@@ -98,8 +105,8 @@ import {
   type Painter,
 } from './theme/painter';
 import {
-  CATCH_UP_BUDGET,
   RESTYLE_BUDGET,
+  RestyleCosts,
   SWAP_WITHIN,
   drawingsFollowTheme,
   labelsFollowTheme,
@@ -127,6 +134,13 @@ const LABEL_BATCH = 6;
  * has stopped, so the work is counted rather than timed.
  */
 const FULL_SHAPES_PER_FRAME = 150;
+/**
+ * How long a frame may spend on those new drawings, their geometry included, which it builds itself
+ * so that the clock sees it: crowded tiles of heavy shapes are far costlier than their count says.
+ */
+const FULL_BUDGET = 4;
+/** How many shapes or pieces a frame draws in full whatever its clock says, so that it goes on. */
+const FULL_SHAPES_AT_LEAST = 40;
 const LABELS_PER_FRAME = 32;
 /**
  * How many labels written before a frame shows again, nearest the middle first, when zooming in brings
@@ -170,6 +184,22 @@ const SETTLE_AFTER = 180;
 
 /** Where a frame measured with the GPU reads its one pixel back. */
 const ONE_PIXEL = new Uint8Array(4);
+/** How long destroying the drawings no frame shows any longer may take at a time, between frames. */
+const DISPOSE_BUDGET = 3;
+/**
+ * How many tiles' plain drawings a frame puts together in the copies of their regions a switch will
+ * show: PixiJS gathers each copy in the frame it is put together, outside the clock.
+ */
+const SHADOW_TILES_PER_FRAME = 240;
+/**
+ * How long a frame may take, from its start, before it stops what the camera's rest leaves to do:
+ * planning the cells left after a change, and drawing again what a switch or a recolor left off
+ * screen. A frame busy with what shows does none of it, and each region it changes makes PixiJS
+ * gather that region's drawings again after the clock, so a frame changes one region at most.
+ */
+const IDLE_BUDGET = 5;
+/** The most cells listed at once; beyond them every cell is planned at once, as before. */
+const MAX_LISTED_CELLS = 4096;
 
 /**
  * The selection's marks are drawn in white and tinted to the theme's selection color, so that a theme
@@ -261,6 +291,8 @@ interface Tile {
   arrows: readonly ArrowShape[];
   /** For relations drawn in full: the casings under their lines, in white, tinted to the canvas. */
   casing?: Graphics;
+  /** The theme whose canvas the casings are tinted to; those off screen are tinted before they show. */
+  casingTheme?: ThemeName;
   /**
    * How many times the colors of what it draws changed, and what its drawings and labels were made
    * for, as `theme/restyle.ts` stamps them; and drawings made for another stamp, until they show.
@@ -280,6 +312,29 @@ interface Tile {
   labelPaint: LabelPaint[];
   /** Whether it had a full drawing when the colors of what it draws last changed. */
   hadFull?: boolean;
+}
+
+/** What the tiles of element shapes were last made from. */
+interface ShapesFrom {
+  indexed: IndexedScene;
+  hidden: ReadonlySet<string>;
+  dimmed: ReadonlySet<string>;
+}
+
+/** What the tiles of relations were last made from. */
+interface RelationsFrom {
+  lines: readonly RelationLine[];
+  hidden: ReadonlySet<Id>;
+  dimmed: ReadonlySet<Id>;
+}
+
+/**
+ * Which cells are planned: every one while `partial` is off; while it is on, only those in
+ * `planned`, the others keeping, off screen, the tiles they had before.
+ */
+interface CellPlan {
+  partial: boolean;
+  planned: Set<string>;
 }
 
 /** How far a shape was drawn before an edit: in full, and named for which detail, or not yet. */
@@ -383,6 +438,23 @@ export class CanvasRenderer {
   private restyleFrames = 0;
   /** Drawings replaced by restyles, destroyed once the frame that replaced them is rendered. */
   private retired: GraphicsContext[] = [];
+  /**
+   * Drawings no frame shows any longer, and regions a switch replaced, destroyed between frames a
+   * few milliseconds at a time: destroying hundreds at once, as a switch of the whole view retires,
+   * takes a frame of its own.
+   */
+  private disposal: (GraphicsContext | Container)[] = [];
+  private disposing: ReturnType<typeof setTimeout> | undefined;
+  /** What drawing tiles again costs, so that a restyle stops before it overruns the frame's clock. */
+  private readonly restyleCosts = new RestyleCosts();
+  /** What drawing tiles in full costs, geometry included, for the same reason. */
+  private readonly drawCosts = new RestyleCosts();
+  /** The copies of regions of plain drawings a switch or a recolor will show, by region. */
+  private readonly shadows = new Map<Container, Shadow>();
+  /** What this frame's restyle left off screen, for `catchUp` once the frame's other work is done. */
+  private catchUpWork: CatchUp | undefined;
+  /** Whether this frame found the cells near the screen planned, so that the rest may be. */
+  private nearPlanned = false;
   /** What restyles did, for the benchmark. */
   readonly stats: RestyleStats = { fallbacks: 0, staleShown: 0, swapAfter: [] };
   private status: Status = 'starting';
@@ -403,10 +475,25 @@ export class CanvasRenderer {
   /** How far the shapes of a drag ended without a redraw were drawn, for the next rebuild. */
   private endedReady: ReadonlyMap<string, Readiness> | undefined;
   /** What the tiles of element shapes, of relations and of free shapes were last made from. */
-  private shapesFrom:
-    { indexed: IndexedScene; hidden: ReadonlySet<string>; dimmed: ReadonlySet<string> } | undefined;
-  private relationsFrom:
-    | { lines: readonly RelationLine[]; hidden: ReadonlySet<Id>; dimmed: ReadonlySet<Id> }
+  private shapesFrom: ShapesFrom | undefined;
+  private relationsFrom: RelationsFrom | undefined;
+  /**
+   * Which cells' tiles of shapes, and of relations, are planned from what the tiles were last made
+   * from. A change that touches most of them plans at once only the cells near the screen; the
+   * others keep the tiles they had, off screen, until they come near or the camera rests.
+   */
+  private readonly shapeCells: CellPlan = { partial: false, planned: new Set() };
+  private readonly relationCells: CellPlan = { partial: false, planned: new Set() };
+  /** What the cells near the screen were last planned for: the camera, the canvas and the scene. */
+  private nearFor:
+    | {
+        camera: Camera;
+        width: number;
+        height: number;
+        settled: boolean;
+        shapes: ShapesFrom | undefined;
+        relations: RelationsFrom | undefined;
+      }
     | undefined;
   private freeFrom:
     | {
@@ -424,6 +511,12 @@ export class CanvasRenderer {
   private settleTimer: ReturnType<typeof setTimeout> | undefined;
   /** Whether the camera rests, so that spare time can go to the tiles around the screen. */
   private settled = false;
+  /**
+   * Runs from each change shown or made on the canvas, a selection, a gesture's marks, a drag or an
+   * edit, until it has rested as long as the camera must: what the camera's rest leaves to do waits
+   * for that too, so that it never takes time from frames the person is using.
+   */
+  private activeTimer: ReturnType<typeof setTimeout> | undefined;
   private fitted = false;
   private resolution = 1;
   camera: Camera = { x: 0, y: 0, scale: 1 };
@@ -483,13 +576,15 @@ export class CanvasRenderer {
 
   /** Draws this scene from now on, redrawing only the tiles that changed. */
   show(indexed: IndexedScene): void {
+    this.noteActivity();
     this.indexed = indexed;
     this.pictures.show(indexed.scene.shapes);
     if (this.status !== 'ready') return;
     try {
       this.updateEmphasized();
-      this.rebuild();
+      // Fitted first, so that the first plan knows what is near the screen.
       if (!this.fitted) this.fit();
+      this.rebuild();
       this.drawSelection();
       this.drawHover();
       this.drawEmphasis();
@@ -507,6 +602,7 @@ export class CanvasRenderer {
    */
   setEmphasis(emphasis: Emphasis): void {
     if (emphasis === this.emphasis) return;
+    this.noteActivity();
     const before = this.emphasized;
     this.emphasis = emphasis;
     const after = this.updateEmphasized();
@@ -577,6 +673,7 @@ export class CanvasRenderer {
   /** Marks what is selected and the shape under the pointer. */
   setSelection(selection: Selection, hovered: string | undefined): void {
     if (selection === this.selection && hovered === this.hovered) return;
+    this.noteActivity();
     if (selection !== this.selection) {
       this.selection = selection;
       this.drawSelection();
@@ -591,6 +688,7 @@ export class CanvasRenderer {
 
   /** Draws the marks of the gesture under way. */
   setOverlay(overlay: Overlay): void {
+    this.noteActivity();
     this.overlay = overlay;
     this.drawGesture();
     this.requestRender();
@@ -602,6 +700,7 @@ export class CanvasRenderer {
    * else is drawn again while the edit goes on.
    */
   setRouteOverlay(overlay: RouteOverlay | undefined): void {
+    this.noteActivity();
     this.routeOverlay = overlay;
     const hides = overlay?.preview ? overlay.relation : undefined;
     const hiding =
@@ -644,6 +743,7 @@ export class CanvasRenderer {
     const id = ++this.drags;
     const indexed = this.indexed;
     if (!indexed || this.status === 'destroyed') return id;
+    this.noteActivity();
     this.clearDrag();
     const ready = new Map<string, Readiness>();
     for (const key of shapes) {
@@ -676,6 +776,7 @@ export class CanvasRenderer {
    * container's grid and the readout (A3).
    */
   dragTo(delta: Point, frame?: DragFrame): void {
+    this.noteActivity();
     this.dragged.position.set(delta.x, delta.y);
     this.movingMarks.position.set(delta.x, delta.y);
     if (this.drag) this.drag.delta = delta;
@@ -737,12 +838,30 @@ export class CanvasRenderer {
   shownInFull(key: string): boolean {
     const tile = this.tileOfShape.get(key);
     if (!tile?.full || (tile.coarse && tile.plainShown)) return false;
+    if (!isPlanned(this.shapeCells, tile.cell)) return false;
     const level = levelWithRows(
       tile.shapes,
       wantedFor(tile.kind, this.detailNow().wanted),
       this.camera.scale,
     );
     return level === 0 || (tile.level === level && tile.labelled >= labelCount(tile));
+  }
+
+  /**
+   * Starts again the time the canvas must rest, from a change shown or made on it, before what the
+   * camera's rest leaves to do goes on; a frame comes once it has.
+   */
+  private noteActivity(): void {
+    clearTimeout(this.activeTimer);
+    this.activeTimer = setTimeout(() => {
+      this.activeTimer = undefined;
+      this.requestRender();
+    }, SETTLE_AFTER);
+  }
+
+  /** Whether the camera rests and nothing else happened on the canvas for as long. */
+  private get resting(): boolean {
+    return this.settled && this.activeTimer === undefined;
   }
 
   /** Looks at the scene through this camera. */
@@ -922,7 +1041,7 @@ export class CanvasRenderer {
   }
 
   /**
-   * Draws the open view as a PNG image (R27): what is visible, or the whole view, at 1× or 2×, as the
+   * Draws the open view as a PNG image (R27): what is visible, or the whole view, at 1Ã— or 2Ã—, as the
    * canvas draws it in the current theme, on its background: what filters and focus hide is left out
    * and what they dim is faint, but no mark of the selection, the pointer, guidance or a gesture
    * shows. Every tile the image shows is first drawn in full and named for the image's scale, outside
@@ -974,14 +1093,30 @@ export class CanvasRenderer {
       }
       // A container's grid is drawn among the shapes, but it is a mark too.
       change(this.gridMarks.inside, 'visible', false);
+      // Every cell the image shows is planned from the scene as it is.
+      if (request.area === 'view') this.planEverything();
+      else this.planWithin(plan.frame);
+      const lookups = this.lookups();
       for (const tile of this.tiles.values()) {
         if (!meets(tile.bounds, plan.frame)) continue;
         const plain = tile.plainShown;
         putBack.push(() => showPlain(tile, plain));
+        // What the image alone draws in full and names, away from the screen, goes once it is drawn.
+        const before = {
+          full: tile.full,
+          labels: tile.labels,
+          level: tile.level,
+          labelled: tile.labelled,
+        };
+        putBack.push(() => this.forgetDrawnFor(tile, before));
+        // Drawn in the theme and colors shown, off screen too: a tile the canvas would draw again
+        // before it shows is drawn again now.
+        if (!this.pending) this.restyleNow(tile, lookups);
         if (!coarse && !tile.full) this.drawFully(tile);
         const full = !coarse && tile.full !== undefined;
         showPlain(tile, !full);
         if (tile.full) change(tile.full, 'visible', full || !tile.coarse);
+        if (tile.casing) change(tile.casing, 'visible', full || !tile.coarse);
         const level = wantedFor(tile.kind, wanted);
         if (level > 0 && (full || !tile.coarse)) {
           try {
@@ -1043,6 +1178,52 @@ export class CanvasRenderer {
     return toPng(canvas);
   }
 
+  /**
+   * Lets go of what an image drew for a tile that the canvas had not drawn so, unless the tile is
+   * near the screen, where the canvas would draw it so anyway: its full drawing and casings, and the
+   * labels it wrote. The drawings go between frames.
+   */
+  private forgetDrawnFor(
+    tile: Tile,
+    before: { full?: Graphics; labels?: Container; level: Tile['level']; labelled: number },
+  ): void {
+    if (meets(tile.bounds, this.nearRect())) return;
+    if (!before.full && tile.full) {
+      const gone: Container[] = [tile.full];
+      if (tile.casing) gone.push(tile.casing);
+      for (const each of gone) each.removeFromParent();
+      this.dispose(gone);
+      tile.full = undefined;
+      tile.casing = undefined;
+      tile.casingTheme = undefined;
+      showPlain(tile, true);
+    }
+    const wrote =
+      tile.labels !== before.labels ||
+      tile.level !== before.level ||
+      tile.labelled !== before.labelled;
+    if (wrote && tile.labels) {
+      tile.labels.removeFromParent();
+      this.dispose([tile.labels]);
+      tile.labels = undefined;
+      tile.level = 0;
+      tile.labelled = 0;
+      tile.labelPaint = [];
+      tile.labelStamp = '';
+    }
+  }
+
+  /** How many tiles are drawn in full, and how many shapes and relations are named, for the benchmark. */
+  get drawnInFull(): { tiles: number; labels: number } {
+    let tiles = 0;
+    let labels = 0;
+    for (const tile of this.tiles.values()) {
+      if (tile.full) tiles += 1;
+      if (tile.labels) labels += tile.labelled;
+    }
+    return { tiles, labels };
+  }
+
   /** Releases the canvas, now or as soon as its start finishes. */
   destroy(): void {
     if (this.status === 'ready') {
@@ -1050,6 +1231,12 @@ export class CanvasRenderer {
       this.observer?.disconnect();
       cancelFrame(this.frame);
       clearTimeout(this.settleTimer);
+      clearTimeout(this.activeTimer);
+      clearTimeout(this.disposing);
+      this.disposing = undefined;
+      this.dropShadows();
+      for (const item of this.disposal.splice(0)) destroyDisposed(item);
+      for (const context of this.retired.splice(0)) context.destroy();
       this.app.destroy(true, { children: true, context: true });
     }
     this.pictures.destroy();
@@ -1181,6 +1368,9 @@ export class CanvasRenderer {
   private rebuild(ready?: ReadonlyMap<string, Readiness>): void {
     const indexed = this.indexed;
     if (!indexed) return;
+    // Tiles made, moved or dropped would leave the copies of their regions behind: a switch under way
+    // puts them together again.
+    this.dropShadows();
     const budget = { left: AT_ONCE };
     const ended = this.endedReady;
     this.endedReady = undefined;
@@ -1199,29 +1389,46 @@ export class CanvasRenderer {
     const from = this.shapesFrom;
     if (from?.indexed === indexed && from.hidden === hidden && from.dimmed === dimmed) return;
     const changed = from && changedShapes(from, indexed, hidden, dimmed);
+    this.shapesFrom = { indexed, hidden, dimmed };
     if (!from || changed === undefined) {
-      const previous = new Map<string, Tile>();
-      for (const tile of this.tiles.values())
-        if (tile.kind === 'shapes') previous.set(tile.key, tile);
-      const planned = plannedTiles(indexed, hidden, dimmed);
-      this.applyShapePlan(previous, planned, extra, budget);
-      this.tileOfShape = new Map();
-      for (const tile of this.tiles.values()) {
-        if (tile.kind !== 'shapes') continue;
-        for (const shape of tile.shapes) this.tileOfShape.set(shape.key, tile);
+      // Every cell is planned again: those near the screen now, the rest before they come near or
+      // while the camera rests, so that the cost goes with what shows, not with the whole view.
+      const near = this.cellsNear('shapes');
+      if (near === undefined) this.planAllShapes(extra, budget);
+      else {
+        this.shapeCells.partial = true;
+        this.shapeCells.planned.clear();
+        this.planShapeCells(near, extra, budget);
       }
     } else if (changed.length > 0) {
-      // Only the tiles the changed shapes leave and enter are planned again.
+      // Only the tiles the changed shapes leave and enter are planned again, in cells already
+      // planned: the others are planned from the scene as it is then.
+      const inPlanned = (cell: string) => isPlanned(this.shapeCells, cell);
       const before = new Map<string, Tile>();
+      // A cell's tile in a band is planned again with all its chunks.
+      const addGroup = (key: string) => {
+        for (const tile of this.chunksOf(chunkBase(key))) {
+          if (tile.kind === 'shapes' && inPlanned(tile.cell)) before.set(tile.key, tile);
+        }
+      };
       const shapesBefore = from.indexed.scene.shapes;
       for (const at of changed) {
         const left = this.tileOfShape.get((shapesBefore[at] as ElementShape).key);
-        if (left) before.set(left.key, left);
+        if (left && inPlanned(left.cell)) {
+          if (left.band >= MAX_BANDS) before.set(left.key, left);
+          else addGroup(left.key);
+        }
         const key = bandTileKeyOf(indexed, at, hidden, dimmed);
-        const entered = key === undefined ? undefined : this.tiles.get(key);
-        if (entered?.kind === 'shapes') before.set(entered.key, entered);
+        if (key !== undefined) addGroup(key);
       }
-      const planned = replannedTiles(indexed, before, changed, hidden, dimmed);
+      const planned = replannedTiles(
+        indexed,
+        before,
+        changed,
+        hidden,
+        dimmed,
+        this.shapeCells.partial ? inPlanned : undefined,
+      );
       for (const tile of before.values()) {
         for (const shape of tile.shapes) {
           if (this.tileOfShape.get(shape.key) === tile) this.tileOfShape.delete(shape.key);
@@ -1233,7 +1440,270 @@ export class CanvasRenderer {
       }
     }
     this.retintUnderRecolored(from?.indexed, indexed);
-    this.shapesFrom = { indexed, hidden, dimmed };
+  }
+
+  /** Plans every tile of element shapes again, in every cell. */
+  private planAllShapes(
+    extra: ReadonlyMap<string, Readiness> | undefined,
+    budget: { left: number },
+  ): void {
+    const { indexed, hidden, dimmed } = this.shapesFrom as ShapesFrom;
+    const previous = new Map<string, Tile>();
+    for (const tile of this.tiles.values())
+      if (tile.kind === 'shapes') previous.set(tile.key, tile);
+    const planned = plannedTiles(indexed, hidden, dimmed);
+    this.applyShapePlan(previous, planned, extra, budget);
+    this.tileOfShape = new Map();
+    for (const tile of this.tiles.values()) {
+      if (tile.kind !== 'shapes') continue;
+      for (const shape of tile.shapes) this.tileOfShape.set(shape.key, tile);
+    }
+    this.shapeCells.partial = false;
+    this.shapeCells.planned.clear();
+  }
+
+  /**
+   * Plans the tiles of element shapes of these cells from the scene as it is, in place of the ones
+   * they had, and counts them planned.
+   */
+  private planShapeCells(
+    cells: ReadonlySet<string>,
+    extra: ReadonlyMap<string, Readiness> | undefined,
+    budget: { left: number },
+  ): void {
+    if (cells.size === 0) return;
+    const { indexed, hidden, dimmed } = this.shapesFrom as ShapesFrom;
+    const planned = plannedTiles(indexed, hidden, dimmed, cells);
+    const previous = new Map<string, Tile>();
+    for (const tile of this.tiles.values()) {
+      if (tile.kind === 'shapes' && cells.has(tile.cell)) previous.set(tile.key, tile);
+    }
+    // Shapes beyond the bands are keyed by their first shape, which another cell may still hold.
+    for (const next of planned) {
+      const held = this.tiles.get(next.key);
+      if (held?.kind === 'shapes' && !previous.has(next.key)) previous.set(next.key, held);
+    }
+    for (const tile of previous.values()) {
+      for (const shape of tile.shapes) {
+        if (this.tileOfShape.get(shape.key) === tile) this.tileOfShape.delete(shape.key);
+      }
+    }
+    const touched = this.applyShapePlan(previous, planned, extra, budget);
+    for (const tile of touched) {
+      for (const shape of tile.shapes) this.tileOfShape.set(shape.key, tile);
+    }
+    for (const cell of cells) this.shapeCells.planned.add(cell);
+  }
+
+  /**
+   * The cells of `kind` near the screen, which a change plans at once: those that meet the screen
+   * grown as `updateDetail` grows it, those of the shapes or the pieces of routes that reach into
+   * it, and those of the tiles drawn before that reach into it. Undefined when that is every cell of
+   * the view, or more cells than are worth listing: then every cell is planned at once, as before.
+   */
+  private cellsNear(kind: 'shapes' | 'relations'): Set<string> | undefined {
+    const indexed = this.indexed;
+    const { width, height } = this.viewport;
+    if (!indexed || width === 0 || height === 0) return undefined;
+    const near = this.nearRect();
+    const bounds = indexed.scene.bounds;
+    if (!bounds) return undefined;
+    // The whole view near the screen, as fitted or far out: every cell at once.
+    if (contains(near, bounds)) return undefined;
+    const cells = cellsMeeting(near);
+    if (cells === undefined) return undefined;
+    // What reaches into `near` from a cell outside it crosses its border, or holds all of it: only
+    // what lies on its border, or on its middle, is looked at, however much `near` holds.
+    const edges = edgesOf(near);
+    if (kind === 'shapes') {
+      const cellOfShape = cellsOfShapes(indexed.scene.shapes);
+      for (const edge of edges) {
+        for (const at of indexed.shapes.query(edge)) cells.add(cellOfShape[at] as string);
+      }
+    } else {
+      // What a tile of relations draws lies in its cell, but for a little more than a line's width,
+      // an arrowhead, half a piece of a curve or a name, all far short of how far `near` reaches
+      // beyond the screen; but for a route left whole, which reaches as far as it goes.
+      const lines = indexed.scene.relations;
+      for (const edge of edges) {
+        for (const at of indexed.relations.query(edge)) {
+          const line = lines[at] as RelationLine;
+          if (cutAtItsCells(line)) continue;
+          for (const piece of routePieces(line)) cells.add(piece.cell);
+        }
+      }
+    }
+    for (const tile of this.tiles.values()) {
+      if (tile.kind === kind && meets(tile.bounds, near)) cells.add(tile.cell);
+    }
+    return cells;
+  }
+
+  /** The tiles of a cell's chunks, by the key of the first, in order. */
+  private chunksOf(base: string): Tile[] {
+    const found: Tile[] = [];
+    for (let index = 0; ; index++) {
+      const tile = this.tiles.get(chunkKey(base, index));
+      if (!tile) return found;
+      found.push(tile);
+    }
+  }
+
+  /** Whether a tile's cell is planned: a tile of free shapes always is. */
+  private tilePlanned(tile: Tile): boolean {
+    if (tile.kind === 'free') return true;
+    return isPlanned(tile.kind === 'shapes' ? this.shapeCells : this.relationCells, tile.cell);
+  }
+
+  /**
+   * The screen, grown as far as `updateDetail` draws ahead of the camera, and at least half a cell:
+   * what a tile of relations draws beyond its cell stays within that.
+   */
+  private nearRect(): Rect {
+    const shown = visibleRect(this.camera, this.viewport);
+    const reach = this.settled
+      ? Math.max(shown.width, shown.height) / 2
+      : Math.max(64 / this.camera.scale, TILE / 2);
+    return grow(shown, Math.max(reach, TILE / 2));
+  }
+
+  /**
+   * Plans, before the frame draws, the cells near the screen not planned since the last change that
+   * touched most shapes or lines: those the camera brought near. While the camera rests, it plans the
+   * others too, the nearest first, within a clock of its own, until every cell is planned.
+   */
+  private planNear(): void {
+    if (!this.shapeCells.partial && !this.relationCells.partial) return;
+    const { width, height } = this.viewport;
+    const looked = this.nearFor;
+    const same =
+      looked !== undefined &&
+      looked.camera === this.camera &&
+      looked.width === width &&
+      looked.height === height &&
+      looked.settled === this.settled &&
+      looked.shapes === this.shapesFrom &&
+      looked.relations === this.relationsFrom;
+    if (!same) {
+      const budget = { left: AT_ONCE };
+      if (this.shapeCells.partial) {
+        const near = this.cellsNear('shapes');
+        if (near === undefined) this.planAllShapes(undefined, budget);
+        else this.planShapeCells(unplanned(near, this.shapeCells), undefined, budget);
+      }
+      if (this.relationCells.partial) {
+        const near = this.cellsNear('relations');
+        if (near === undefined) this.planAllRelations(budget);
+        else this.planRelationCells(unplanned(near, this.relationCells), budget);
+      }
+      this.nearFor = {
+        camera: this.camera,
+        width,
+        height,
+        settled: this.settled,
+        shapes: this.shapesFrom,
+        relations: this.relationsFrom,
+      };
+      // The frame that draws a change, or a camera that moves, draws nothing more than that.
+      if (this.shapeCells.partial || this.relationCells.partial) this.requestRender();
+      return;
+    }
+    this.nearPlanned = true;
+  }
+
+  /**
+   * Does, while the camera rests, what that leaves to do, in what the frame's own work leaves of
+   * `IDLE_BUDGET`: first the cells not planned yet, then what a switch or a recolor left off screen,
+   * one region at a time.
+   */
+  private idle(frameBegan: number): void {
+    const work = this.catchUpWork;
+    this.catchUpWork = undefined;
+    const near = this.nearPlanned;
+    this.nearPlanned = false;
+    if (!this.resting) return;
+    const left = () => IDLE_BUDGET - (performance.now() - frameBegan);
+    if (near && (this.shapeCells.partial || this.relationCells.partial) && this.planRest(left)) {
+      return;
+    }
+    if (work && !this.pending) this.catchUp(work, left);
+  }
+
+  /**
+   * Plans the cells not planned yet of one region, the nearest the middle of the screen first, as
+   * many as `left` allows; asks for another frame while some are left. Says whether it planned any.
+   */
+  private planRest(left: () => number): boolean {
+    const indexed = this.indexed;
+    if (!indexed) return false;
+    const waiting = new Set<string>();
+    const bounds = indexed.scene.bounds;
+    if (bounds) for (const cell of cellsMeeting(bounds) ?? []) waiting.add(cell);
+    for (const tile of this.tiles.values()) if (tile.kind !== 'free') waiting.add(tile.cell);
+    const middle = centerOf(visibleRect(this.camera, this.viewport));
+    const isLeft = (cell: string) =>
+      !isPlanned(this.shapeCells, cell) || !isPlanned(this.relationCells, cell);
+    const waitingCells = [...waiting]
+      .filter(isLeft)
+      .map((cell) => ({ cell, distance: cellDistance(cell, middle) }))
+      .sort((a, b) => a.distance - b.distance);
+    const budget = { left: 0 };
+    const first = waitingCells[0];
+    let planned = 0;
+    if (first) {
+      // The cells of one region, the nearest first, as many as the clock allows: the frame then
+      // gathers again the drawings of that region only, which PixiJS does after the clock. A frame
+      // that left most of its time plans one at least, so that planning always ends.
+      const region = regionOfCell(first.cell);
+      for (const { cell } of waitingCells) {
+        if (left() <= (planned > 0 ? 0 : IDLE_BUDGET / 2)) break;
+        if (regionOfCell(cell) !== region) continue;
+        const cells = new Set([cell]);
+        if (this.shapeCells.partial) {
+          this.planShapeCells(unplanned(cells, this.shapeCells), undefined, budget);
+        }
+        if (this.relationCells.partial) {
+          this.planRelationCells(unplanned(cells, this.relationCells), budget);
+        }
+        planned += 1;
+      }
+    }
+    if (!waitingCells.some(({ cell }) => isLeft(cell))) {
+      // Every cell is planned: the tiles are as a full plan would make them.
+      this.shapeCells.partial = false;
+      this.shapeCells.planned.clear();
+      this.relationCells.partial = false;
+      this.relationCells.planned.clear();
+    } else {
+      this.requestRender();
+    }
+    return planned > 0;
+  }
+
+  /** Plans at once every cell not planned yet: the tiles are then as a plan of the whole view makes them. */
+  private planEverything(): void {
+    const budget = { left: 0 };
+    if (this.shapeCells.partial) this.planAllShapes(undefined, budget);
+    if (this.relationCells.partial) this.planAllRelations(budget);
+  }
+
+  /** Plans at once every cell that meets `rect` and is not planned yet, as an image needs. */
+  private planWithin(rect: Rect): void {
+    if (!this.shapeCells.partial && !this.relationCells.partial) return;
+    const cells = cellsMeeting(rect);
+    const budget = { left: 0 };
+    if (cells === undefined) {
+      if (this.shapeCells.partial) this.planAllShapes(undefined, budget);
+      if (this.relationCells.partial) this.planAllRelations(budget);
+      return;
+    }
+    for (const tile of this.tiles.values()) {
+      if (tile.kind !== 'free' && meets(tile.bounds, rect)) cells.add(tile.cell);
+    }
+    if (this.shapeCells.partial)
+      this.planShapeCells(unplanned(cells, this.shapeCells), undefined, budget);
+    if (this.relationCells.partial)
+      this.planRelationCells(unplanned(cells, this.relationCells), budget);
   }
 
   /**
@@ -1334,42 +1804,101 @@ export class CanvasRenderer {
     const from = this.relationsFrom;
     if (from?.lines === relations && from.hidden === hidden && from.dimmed === dimmed) return;
     const changed = from && changedLines(from, relations, hidden, dimmed);
-    const previous = new Map<string, Tile>();
-    let planned: RelationTile[];
+    this.relationsFrom = { lines: relations, hidden, dimmed };
     if (!from || changed === undefined) {
-      for (const tile of this.tiles.values()) {
+      // As for shapes: the cells near the screen now, the rest before they show.
+      const near = this.cellsNear('relations');
+      if (near === undefined) this.planAllRelations(budget);
+      else {
+        this.relationCells.partial = true;
+        this.relationCells.planned.clear();
+        this.planRelationCells(near, budget);
+      }
+      return;
+    }
+    if (changed.changed.size === 0) return;
+    // Only in cells already planned: the others are planned from the scene as it is then. A cell's
+    // tile of relations is planned again with all its chunks.
+    const keys = new Set<string>();
+    const add = (key: string) => {
+      if (isPlanned(this.relationCells, relationCellOf(key))) keys.add(chunkBase(key));
+    };
+    for (const [id, line] of changed.changed) {
+      for (const tile of this.tilesOfLine.get(id) ?? []) add(tile.key);
+      if (line && !hidden.has(id)) {
+        for (const key of relationTileKeysOf(line, dimmed.has(id))) add(key);
+      }
+    }
+    const previous = new Map<string, Tile>();
+    for (const key of keys) {
+      for (const tile of this.chunksOf(key)) {
         if (tile.kind === 'relations') previous.set(tile.key, tile);
       }
-      planned = relationTiles(relations, hidden, dimmed);
-    } else {
-      if (changed.changed.size === 0) {
-        this.relationsFrom = { lines: relations, hidden, dimmed };
-        return;
-      }
-      const keys = new Set<string>();
-      for (const [id, line] of changed.changed) {
-        for (const tile of this.tilesOfLine.get(id) ?? []) keys.add(tile.key);
-        if (line && !hidden.has(id)) {
-          for (const key of relationTileKeysOf(line, dimmed.has(id))) keys.add(key);
-        }
-      }
-      for (const key of keys) {
-        const tile = this.tiles.get(key);
-        if (tile?.kind === 'relations') previous.set(key, tile);
-      }
-      const lines = new Map<string, RelationLine>();
-      for (const tile of previous.values()) {
-        for (const line of tile.touching) {
-          if (!changed.changed.has(line.relation)) lines.set(line.relation, line);
-        }
-      }
-      for (const [id, line] of changed.changed) if (line) lines.set(id, line);
-      const order = changed.order();
-      const sorted = [...lines.values()].sort(
-        (a, b) => (order.get(a.relation) ?? 0) - (order.get(b.relation) ?? 0),
-      );
-      planned = relationTiles(sorted, hidden, dimmed, keys);
     }
+    const lines = new Map<string, RelationLine>();
+    for (const tile of previous.values()) {
+      for (const line of tile.touching) {
+        if (!changed.changed.has(line.relation)) lines.set(line.relation, line);
+      }
+    }
+    for (const [id, line] of changed.changed) if (line) lines.set(id, line);
+    const order = changed.order();
+    const sorted = [...lines.values()].sort(
+      (a, b) => (order.get(a.relation) ?? 0) - (order.get(b.relation) ?? 0),
+    );
+    this.applyRelationPlan(previous, relationTiles(sorted, hidden, dimmed, keys), budget);
+  }
+
+  /** Plans every tile of relations again, in every cell. */
+  private planAllRelations(budget: { left: number }): void {
+    const { lines, hidden, dimmed } = this.relationsFrom as RelationsFrom;
+    const previous = new Map<string, Tile>();
+    for (const tile of this.tiles.values()) {
+      if (tile.kind === 'relations') previous.set(tile.key, tile);
+    }
+    this.applyRelationPlan(previous, relationTiles(lines, hidden, dimmed), budget);
+    this.relationCells.partial = false;
+    this.relationCells.planned.clear();
+  }
+
+  /**
+   * Plans the tiles of relations of these cells from the scene as it is, from the lines that reach
+   * them, in place of the ones they had, and counts them planned.
+   */
+  private planRelationCells(cells: ReadonlySet<string>, budget: { left: number }): void {
+    if (cells.size === 0) return;
+    const { lines, hidden, dimmed } = this.relationsFrom as RelationsFrom;
+    const keys = new Set<string>();
+    for (const cell of cells) {
+      keys.add(relationTileKey(cell, false));
+      keys.add(relationTileKey(cell, true));
+    }
+    // The lines whose routes cross the cells, in the scene's order: those whose pieces, arrowheads
+    // and names go in them are among these.
+    const index = this.indexed?.relations;
+    let reaching: readonly RelationLine[] = lines;
+    if (index && this.indexed?.scene.relations === lines) {
+      const found = new Set<number>();
+      for (const cell of cells) for (const at of index.query(cellRect(cell))) found.add(at);
+      reaching = [...found].sort((a, b) => a - b).map((at) => lines[at] as RelationLine);
+    }
+    const previous = new Map<string, Tile>();
+    for (const tile of this.tiles.values()) {
+      if (tile.kind === 'relations' && cells.has(tile.cell)) previous.set(tile.key, tile);
+    }
+    this.applyRelationPlan(previous, relationTiles(reaching, hidden, dimmed, keys), budget);
+    for (const cell of cells) this.relationCells.planned.add(cell);
+  }
+
+  /**
+   * Draws the planned tiles of relations in place of the `previous` ones, as `applyShapePlan` does
+   * for shapes, and keeps the tiles each relation draws something in.
+   */
+  private applyRelationPlan(
+    previous: ReadonlyMap<string, Tile>,
+    planned: readonly RelationTile[],
+    budget: { left: number },
+  ): void {
     const byKey = new Map(planned.map((tile) => [tile.key, tile]));
     const plan = planTiles(previous, planned);
     // Tiles made again only for new colors are kept, and restyled in place.
@@ -1443,7 +1972,6 @@ export class CanvasRenderer {
         else this.tilesOfLine.set(line.relation, new Set([tile]));
       }
     }
-    this.relationsFrom = { lines: relations, hidden, dimmed };
   }
 
   private rebuildFree(notes: readonly NoteShape[], arrows: readonly ArrowShape[]): void {
@@ -1694,6 +2222,16 @@ export class CanvasRenderer {
     showPlain(tile, false);
   }
 
+  /**
+   * Builds the geometry of a tile's full drawing and casings now, inside the frame's clock, rather
+   * than when PixiJS first renders them, after it.
+   */
+  private buildFullGeometry(tile: Tile): void {
+    const builder = this.geometryBuilder();
+    if (tile.full) buildGeometry(builder, tile.full.context);
+    if (tile.casing) buildGeometry(builder, tile.casing.context);
+  }
+
   /** Draws a tile in full and writes all its labels for `shown` now, outside the frame's budget. */
   private drawAtOnce(tile: Tile, shown: Tile['level']): void {
     this.drawFully(tile);
@@ -1792,7 +2330,12 @@ export class CanvasRenderer {
       const wanted = levelWithRows(tile.shapes, wantedFor(tile.kind, detail), scale);
       const full = !coarse && tile.full !== undefined;
       showPlain(tile, !full);
-      if (tile.full) tile.full.visible = full || !tile.coarse;
+      if (tile.full) {
+        const visible = full || !tile.coarse;
+        if (tile.full.visible !== visible) tile.full.visible = visible;
+        // The casings under the lines go with the lines they case: far out, neither is drawn.
+        if (tile.casing && tile.casing.visible !== visible) tile.casing.visible = visible;
+      }
       if (tile.labels) {
         if (wanted === 0) tile.labels.visible = false;
         else if (!tile.labels.visible)
@@ -1825,13 +2368,23 @@ export class CanvasRenderer {
     }
     let drawn = 0;
     let drawings = 0;
+    const drawing = performance.now();
     for (const { tile, draw } of work) {
       if (!draw) continue;
-      if (drawings > 0 && drawn >= FULL_SHAPES_PER_FRAME) {
+      // Within a count, and within a clock that the geometry built with each drawing counts in,
+      // stopping before a drawing that would overrun it, by what drawings like it cost so far.
+      const kind = `full ${tile.kind}`;
+      const expected = this.drawCosts.estimate(kind, drawingSize(tile));
+      const late =
+        drawn >= FULL_SHAPES_AT_LEAST && performance.now() - drawing + expected > FULL_BUDGET;
+      if (drawings > 0 && (drawn >= FULL_SHAPES_PER_FRAME || late)) {
         more = true;
         break;
       }
+      const began = performance.now();
       this.drawFully(tile);
+      this.buildFullGeometry(tile);
+      this.drawCosts.learn(kind, drawingSize(tile), performance.now() - began);
       drawings += 1;
       drawn += drawingSize(tile);
     }
@@ -2413,22 +2966,48 @@ export class CanvasRenderer {
     if (this.status !== 'ready') return;
     const began = performance.now();
     try {
+      // What comes near the screen is planned from the scene as it is, before anything draws it.
+      this.planNear();
       if (this.marksDrawn < this.markRects.length) this.drawChunks();
       this.updateDetail();
       // Pictures within what is left of the frame's budget; the store asks for frames as they arrive.
       if (this.pictures.frame(this.tiles.values(), this.imageView(performance.now() - began))) {
         this.requestRender();
       }
+      // What the camera's rest leaves to do, in what the frame has left of its time.
+      this.idle(began);
       const drag = this.drag;
       if (drag && drag.routed.length > 0 && drag.routedAt !== drag.delta) this.routeDrag();
       this.cull();
       this.countStale();
       this.app.render();
-      for (const context of this.retired.splice(0)) context.destroy();
+      this.sendShadows();
+      this.dispose(this.retired.splice(0));
       if (waitForGpu) this.waitForGpu();
     } catch (error) {
       this.callbacks.onFailure(error);
     }
+  }
+
+  /**
+   * Destroys between frames these drawings, or these containers with what they hold but not the
+   * geometry of their drawings, which no frame shows any longer.
+   */
+  private dispose(items: readonly (GraphicsContext | Container)[]): void {
+    if (items.length === 0) return;
+    this.disposal.push(...items);
+    this.disposing ??= setTimeout(() => this.drainDisposal(), 0);
+  }
+
+  /** Destroys what waits for it, for a few milliseconds, and leaves the rest for later. */
+  private drainDisposal(): void {
+    this.disposing = undefined;
+    const began = performance.now();
+    while (this.disposal.length > 0) {
+      destroyDisposed(this.disposal.pop() as GraphicsContext | Container);
+      if (performance.now() - began > DISPOSE_BUDGET) break;
+    }
+    if (this.disposal.length > 0) this.disposing = setTimeout(() => this.drainDisposal(), 0);
   }
 
   /**
@@ -2527,9 +3106,14 @@ export class CanvasRenderer {
   private restyle(): number {
     if (!this.restyling) return 0;
     const began = performance.now();
-    const spent = () => performance.now() - began > RESTYLE_BUDGET;
+    const elapsed = () => performance.now() - began;
+    // Whether drawing this tile again still fits the clock, by what drawings like it cost so far.
+    const fits = (work: Work) =>
+      elapsed() + this.restyleCosts.estimate(costKind(work), drawingSize(work.tile)) <=
+      RESTYLE_BUDGET;
     this.restyleFrames += 1;
-    const painter = this.pending ? painterOf(this.pending.theme) : this.painter;
+    const opened = this.pending;
+    const painter = opened ? painterOf(opened.theme) : this.painter;
     const coarse = this.camera.scale < COARSE_BELOW;
     const screen = visibleRect(this.camera, this.viewport);
     const near = grow(
@@ -2540,25 +3124,27 @@ export class CanvasRenderer {
     );
     const middle = centerOf(screen);
     const pixels = this.camera.scale * this.resolution;
-    interface Work {
-      tile: Tile;
-      drawings: Drawing[];
-      distance: number;
-      onScreen: boolean;
-    }
     const shown: Work[] = [];
     const hidden: Work[] = [];
+    const drawnAgain: Work[] = [];
     for (const tile of this.tiles.values()) {
+      // A tile of a cell not planned yet is planned again, in the theme shown, before it shows.
+      if (!this.tilePlanned(tile)) continue;
       const stamp = this.stampFor(tile, painter.name, 'drawings');
+      // Drawn again off screen while the camera rested, and kept until the rest of its region is.
+      const unshown = opened === undefined && tile.prepared?.stamp === stamp;
       const stale = staleDrawings(tile, stamp);
-      if (stale.length === 0) continue;
+      if (stale.length === 0 && !unshown) continue;
       const center = centerOf(tile.bounds);
       const distance = Math.hypot(center.x - middle.x, center.y - middle.y);
       const onScreen = meets(tile.bounds, screen);
-      const showing =
-        onScreen || meets(tile.bounds, near)
-          ? shownDrawings(tile, coarse, pixels).filter((drawing) => stale.includes(drawing))
-          : [];
+      const isNear = onScreen || meets(tile.bounds, near);
+      // Shown as soon as it comes near, before it shows on screen.
+      if (unshown && isNear) this.showPrepared(tile);
+      else if (unshown) drawnAgain.push({ tile, drawings: [], distance, onScreen: false });
+      const showing = isNear
+        ? shownDrawings(tile, coarse, pixels).filter((drawing) => stale.includes(drawing))
+        : [];
       if (showing.length > 0) shown.push({ tile, drawings: showing, distance, onScreen });
       const rest = stale.filter((drawing) => !showing.includes(drawing));
       if (rest.length > 0) hidden.push({ tile, drawings: rest, distance, onScreen: false });
@@ -2567,52 +3153,143 @@ export class CanvasRenderer {
     shown.sort((a, b) =>
       a.onScreen === b.onScreen ? a.distance - b.distance : a.onScreen ? -1 : 1,
     );
-    let next = 0;
+    // Once a switch has waited long enough, what is on screen is drawn at once, and it shows.
+    const capped = opened !== undefined && this.restyleFrames - opened.opened >= SWAP_WITHIN;
+    // A switch whose tiles on screen are all drawn again shows in a frame of its own, which draws
+    // nothing else again: showing it costs that frame enough.
+    const ready = opened !== undefined && !shown.some((work) => work.onScreen);
+    let next = ready ? shown.length : 0;
+    let drew = false;
     for (; next < shown.length; next++) {
-      if (next > 0 && spent()) break;
       const work = shown[next] as Work;
-      this.prepare(work.tile, work.drawings, painter);
+      // What shows a theme or colors no longer current is never shown so: once a switch or a recolor
+      // has shown, or once it waited long enough, what is on screen is drawn again whatever the clock.
+      const now = work.onScreen && (opened === undefined || capped);
+      if (drew && !now && !fits(work)) break;
+      this.prepareTimed(work.tile, work.drawings, painter);
+      drew = true;
       if (!this.pending) this.showPrepared(work.tile);
     }
-    const left = next < shown.length;
-    const pending = this.pending;
-    if (pending) {
-      const onScreenLeft = shown.slice(next).some((work) => work.onScreen);
-      if (!onScreenLeft || this.restyleFrames - pending.opened >= SWAP_WITHIN) this.swap(painter);
+    // What was left near the screen is drawn again once the switch shows, before it shows itself.
+    const left = ready ? shown.length > 0 : next < shown.length;
+    // A region whose plain drawings are all ready is put together behind the one that shows, so that
+    // the switch shows it whole rather than gathering it again; it shows a frame later for that.
+    // Only plain drawings are copied, so only where they show, far out.
+    const shadowed = opened !== undefined && !ready && coarse && this.shadowRegions(painter);
+    let swapped = false;
+    if (this.pending && ready && !shadowed) {
+      this.swap(painter);
+      swapped = true;
     }
-    let hiddenLeft = false;
     let labelsLeft = false;
-    let shownSpent = performance.now() - began;
+    let shownSpent = elapsed();
+    this.catchUpWork = undefined;
     if (!this.pending) {
-      // Labels are tinted again for what shows, before they show.
+      // Labels are tinted again for what shows, or is about to, before they show; the rest while the
+      // camera rests, in what is left of a frame (`catchUp`).
       const lookups = this.lookups();
+      const theme = this.painter.name;
+      const later: Tile[] = [];
+      // Labels show only from the scale names show at, and casings with the full drawings: far out,
+      // tinting them again waits for the camera to rest, or to come close enough.
+      const named = this.camera.scale >= NAMES_FROM;
       for (const tile of this.tiles.values()) {
-        if (!tile.labels) continue;
-        const stamp = this.stampFor(tile, this.painter.name, 'labels');
-        if (tile.labelStamp === stamp) continue;
-        if (this.settled || !tile.container.culled || meets(tile.bounds, near)) {
-          this.painter.retint(tile.labelPaint, lookups);
-          tile.labelStamp = stamp;
+        if (!this.tilePlanned(tile)) continue;
+        const casing = tile.casing !== undefined && tile.casingTheme !== theme;
+        const stamp = tile.labels ? this.stampFor(tile, theme, 'labels') : undefined;
+        const labels = stamp !== undefined && tile.labelStamp !== stamp;
+        if (!casing && !labels) continue;
+        const shows = (labels && named) || (casing && !coarse);
+        if (shows && (!tile.container.culled || meets(tile.bounds, near))) {
+          if (labels) {
+            this.painter.retint(tile.labelPaint, lookups);
+            tile.labelStamp = stamp;
+          }
+          // The casings under its lines, in white, take the canvas's color.
+          if (casing) this.tintCasing(tile);
         } else {
           labelsLeft = true;
+          later.push(tile);
         }
       }
-      shownSpent = performance.now() - began;
-      // The rest while the camera rests, nearest the screen first, on a clock of its own.
+      shownSpent = elapsed();
+      // The rest while the camera rests, nearest the screen first, never in the frame that shows a
+      // switch, and only in what the frame's other work leaves of its time.
       hidden.sort((a, b) => a.distance - b.distance);
-      for (const work of hidden) {
-        if (!this.settled || performance.now() - began > CATCH_UP_BUDGET) {
-          hiddenLeft = true;
-          break;
-        }
-        this.prepare(work.tile, work.drawings, this.painter);
-        this.showPrepared(work.tile);
-      }
+      if (!swapped) this.catchUpWork = { drawings: hidden, drawnAgain, labels: later };
     }
-    this.restyling = this.pending !== undefined || left || hiddenLeft || labelsLeft;
-    if (this.pending || left || (this.settled && hiddenLeft)) this.requestRender();
+    const waiting = hidden.length > 0 || drawnAgain.length > 0 || labelsLeft;
+    this.restyling = this.pending !== undefined || left || waiting;
+    if (this.pending || left || (this.resting && waiting)) this.requestRender();
     // Labels share the clock of what shows, not that of catching up while the camera rests.
     return shownSpent;
+  }
+
+  /**
+   * Draws again, while the camera rests, what a switch or a recolor left off screen, as `left` allows:
+   * first the tints of its labels and casings, then one region at a time, the nearest the screen
+   * first, its drawings kept until all of them are drawn again and then shown together, since each
+   * change of a region's drawings makes PixiJS gather all of them again.
+   */
+  private catchUp(work: CatchUp, left: () => number): void {
+    const lookups = this.lookups();
+    const theme = this.painter.name;
+    for (const tile of work.labels) {
+      if (left() <= 0) return;
+      const stamp = tile.labels ? this.stampFor(tile, theme, 'labels') : undefined;
+      if (stamp !== undefined && tile.labelStamp !== stamp) {
+        this.painter.retint(tile.labelPaint, lookups);
+        tile.labelStamp = stamp;
+      }
+      if (tile.casing && tile.casingTheme !== theme) this.tintCasing(tile);
+    }
+    let nearest: Work | undefined;
+    for (const each of [...work.drawings, ...work.drawnAgain]) {
+      if (!nearest || each.distance < nearest.distance) nearest = each;
+    }
+    if (!nearest) return;
+    const region = regionOf(nearest.tile);
+    let drew = false;
+    for (const drawing of work.drawings) {
+      if (regionOf(drawing.tile) !== region) continue;
+      const expected = this.restyleCosts.estimate(costKind(drawing), drawingSize(drawing.tile));
+      // A frame that left most of its time draws one at least, so that catching up always ends.
+      if (left() < expected && (drew || left() < IDLE_BUDGET / 2)) return;
+      this.prepareTimed(drawing.tile, drawing.drawings, this.painter);
+      drew = true;
+    }
+    for (const each of [...work.drawings, ...work.drawnAgain]) {
+      if (regionOf(each.tile) === region) this.showPrepared(each.tile);
+    }
+  }
+
+  /**
+   * Draws a tile now in the theme and colors shown, whatever it still had to draw again: its
+   * drawings, its labels' tints and its casings.
+   */
+  private restyleNow(tile: Tile, lookups: ReturnType<CanvasRenderer['lookups']>): void {
+    const { painter } = this;
+    const stamp = this.stampFor(tile, painter.name, 'drawings');
+    const stale = staleDrawings(tile, stamp);
+    if (stale.length > 0) this.prepare(tile, stale, painter);
+    if (tile.prepared?.stamp === stamp) this.showPrepared(tile);
+    const labels = tile.labels ? this.stampFor(tile, painter.name, 'labels') : undefined;
+    if (labels !== undefined && tile.labelStamp !== labels) {
+      painter.retint(tile.labelPaint, lookups);
+      tile.labelStamp = labels;
+    }
+    if (tile.casing && tile.casingTheme !== painter.name) this.tintCasing(tile);
+  }
+
+  /** Draws a tile again as `prepare` does, and learns what drawing it cost. */
+  private prepareTimed(tile: Tile, drawings: readonly Drawing[], painter: Painter): void {
+    const began = performance.now();
+    this.prepare(tile, drawings, painter);
+    this.restyleCosts.learn(
+      costKind({ tile, drawings }),
+      drawingSize(tile),
+      performance.now() - began,
+    );
   }
 
   /** Draws again, for `painter`'s theme, the given drawings of a tile, behind the ones showing. */
@@ -2672,6 +3349,7 @@ export class CanvasRenderer {
   private swap(painter: Painter): void {
     const pending = this.pending;
     if (!pending) return;
+    this.showShadows(painter);
     for (const tile of this.tiles.values()) {
       if (!tile.prepared) continue;
       if (tile.prepared.stamp === this.stampFor(tile, painter.name, 'drawings')) {
@@ -2687,7 +3365,11 @@ export class CanvasRenderer {
     if (before === painter) return;
     const { theme } = painter;
     this.app.renderer.background.color = theme.background;
-    for (const tile of this.tiles.values()) if (tile.casing) tile.casing.tint = theme.background;
+    // The casings of what shows take the canvas's color now; the others before they show.
+    for (const tile of this.tiles.values()) {
+      if (tile.casing && !tile.container.culled) this.tintCasing(tile);
+    }
+    this.restyling = true;
     this.tintMarks();
     // Many marks keep their tint, and take the new theme's glow once the camera rests.
     if (this.markCount <= MARKS_WHILE_MOVING) this.drawSelection();
@@ -2698,6 +3380,163 @@ export class CanvasRenderer {
     this.drawRouteMarks();
     this.redrawDrag();
     if (before.name !== painter.name) this.callbacks.onThemeShown?.(painter.name);
+  }
+
+  /**
+   * Puts together, behind each region of plain drawings that shows, a copy of it in the theme or the
+   * colors a switch or a recolor brings, once every plain drawing of the region is ready for it: the
+   * copy is drawn by PixiJS on its own while hidden, so that showing it costs the switch's frame
+   * nothing, where changing the drawings of the region in place would make PixiJS gather all of them
+   * again in that frame. A copy that no longer holds what its region does is put together again.
+   * Says whether it put any together in this frame.
+   */
+  private shadowRegions(painter: Painter): boolean {
+    const byRegion = plainTilesByRegion(this.tiles.values());
+    let built = 0;
+    for (const [region, tiles] of byRegion) {
+      const known = this.shadows.get(region);
+      if (known && this.shadowHolds(known, tiles, painter)) continue;
+      if (known) this.dropShadow(region);
+      if (built >= SHADOW_TILES_PER_FRAME) continue;
+      // Ready once each plain drawing is current for the switch, made again or as it was.
+      let changes = false;
+      let ready = true;
+      for (const tile of tiles) {
+        const target = this.shadowTarget(tile, painter);
+        if (target === undefined) {
+          ready = false;
+          break;
+        }
+        if (target !== tile.coarse?.context) changes = true;
+      }
+      if (!ready || !changes) continue;
+      const shadow = new Container({ isRenderGroup: true });
+      shadow.visible = false;
+      const copies = new Map<Tile, Graphics>();
+      for (const tile of tiles) {
+        const copy = new Graphics(this.shadowTarget(tile, painter));
+        copy.alpha = (tile.coarse as Graphics).alpha;
+        shadow.addChild(copy);
+        copies.set(tile, copy);
+      }
+      const parent = region.parent as Container;
+      parent.addChildAt(shadow, parent.getChildIndex(region) + 1);
+      this.shadows.set(region, { shadow, copies, theme: painter.name, sent: false });
+      built += tiles.length;
+    }
+    return built > 0;
+  }
+
+  /**
+   * The drawing a tile's plain drawing shows once the switch or recolor `painter` draws for has
+   * shown: the one made again for it, or the one it has when that one is current; none while its new
+   * one is still to be made.
+   */
+  private shadowTarget(tile: Tile, painter: Painter): GraphicsContext | undefined {
+    const stamp = this.stampFor(tile, painter.name, 'drawings');
+    if (tile.prepared?.stamp === stamp && tile.prepared.coarse) return tile.prepared.coarse;
+    return tile.coarseStamp === stamp ? tile.coarse?.context : undefined;
+  }
+
+  /** Whether a region's copy still holds the region's tiles, each with the drawing it will show. */
+  private shadowHolds(shadow: Shadow, tiles: readonly Tile[], painter: Painter): boolean {
+    if (shadow.theme !== painter.name || shadow.copies.size !== tiles.length) return false;
+    for (const tile of tiles) {
+      const copy = shadow.copies.get(tile);
+      if (!copy || copy.context !== this.shadowTarget(tile, painter)) return false;
+      // A plain drawing shown or made clear since follows in its copy.
+      const alpha = (tile.coarse as Graphics).alpha;
+      if (copy.alpha !== alpha) copy.alpha = alpha;
+    }
+    return true;
+  }
+
+  /** Shows, in place of their regions, the copies that still hold what their regions do. */
+  private showShadows(painter: Painter): void {
+    if (this.shadows.size === 0) return;
+    const byRegion = plainTilesByRegion(this.tiles.values());
+    for (const [region, shadow] of [...this.shadows]) {
+      const tiles = byRegion.get(region) ?? [];
+      if (!this.shadowHolds(shadow, tiles, painter)) {
+        this.dropShadow(region);
+        continue;
+      }
+      this.shadows.delete(region);
+      for (const tile of tiles) {
+        const copy = shadow.copies.get(tile) as Graphics;
+        const old = tile.coarse as Graphics;
+        const prepared = tile.prepared;
+        if (prepared?.coarse === copy.context) {
+          // The drawing replaced goes once the frame that replaced it is rendered.
+          this.retired.push(old.context);
+          tile.coarseStamp = prepared.stamp;
+          prepared.coarse = undefined;
+        }
+        tile.coarse = copy;
+      }
+      // The region leaves whole, and its drawings go between frames, their geometry apart: the copies
+      // draw with what did not change, and what did goes with the drawings retired.
+      (region.parent as Container).removeChild(region);
+      const where = regionPlaces.get(region);
+      if (where) {
+        where.regions.set(where.key, shadow.shadow);
+        regionPlaces.set(shadow.shadow, where);
+      }
+      shadow.shadow.culled = region.culled;
+      shadow.shadow.visible = true;
+      this.dispose([region]);
+      this.plainBounds = undefined;
+    }
+  }
+
+  /**
+   * Sends to the GPU the geometry of the copies of regions this frame put together. PixiJS gathers a
+   * hidden copy's drawings in the frame it is put together, but sends them only the first time it
+   * draws them, which would be the switch's frame, every copy at once.
+   */
+  private sendShadows(): void {
+    const renderer = this.app.renderer as unknown as {
+      geometry?: { unbind?: () => void };
+      buffer?: { updateBuffer?: (buffer: Buffer) => unknown };
+    };
+    const unbind = renderer.geometry?.unbind;
+    const send = renderer.buffer?.updateBuffer;
+    if (typeof unbind !== 'function' || typeof send !== 'function') return;
+    let unbound = false;
+    for (const shadow of this.shadows.values()) {
+      if (shadow.sent) continue;
+      const set = shadow.shadow.renderGroup?.instructionSet;
+      if (!set) continue;
+      shadow.sent = true;
+      for (let at = 0; at < set.instructionSize; at++) {
+        const instruction = set.instructions[at] as {
+          renderPipeId?: string;
+          action?: string;
+          batcher?: { geometry?: { buffers: Buffer[] } };
+        };
+        if (instruction.renderPipeId !== 'batch' || instruction.action !== 'startBatch') continue;
+        const buffers = instruction.batcher?.geometry?.buffers ?? [];
+        // No vertex array stays bound, so that sending an index buffer changes none PixiJS keeps.
+        if (!unbound) {
+          unbind.call(renderer.geometry);
+          unbound = true;
+        }
+        for (const buffer of buffers) send.call(renderer.buffer, buffer);
+      }
+    }
+  }
+
+  /** Lets a region's copy go, its drawings with it but not their geometry, which tiles still hold. */
+  private dropShadow(region: Container): void {
+    const shadow = this.shadows.get(region);
+    if (!shadow) return;
+    this.shadows.delete(region);
+    shadow.shadow.destroy({ children: true, context: false });
+  }
+
+  /** Lets every region's copy go. */
+  private dropShadows(): void {
+    for (const region of [...this.shadows.keys()]) this.dropShadow(region);
   }
 
   /** Draws again what a drag carries, where it is now, as at a switch. */
@@ -2721,9 +3560,16 @@ export class CanvasRenderer {
   private casingOf(tile: Tile): Graphics {
     const casing = new Graphics();
     this.painter.casings(casing, tile.pieces, tile.ends);
-    casing.tint = this.painter.theme.background;
     tile.casing = casing;
+    this.tintCasing(tile);
     return casing;
+  }
+
+  /** Tints a tile's casings to the canvas the theme shown draws. */
+  private tintCasing(tile: Tile): void {
+    if (!tile.casing) return;
+    tile.casing.tint = this.painter.theme.background;
+    tile.casingTheme = this.painter.name;
   }
 
   /** Where a retint finds the shapes and notes as the scene shown holds them. */
@@ -2766,6 +3612,64 @@ export class CanvasRenderer {
       if (!coarse && tile.hadFull && !tile.full) this.stats.fallbacks += 1;
     }
   }
+}
+
+/**
+ * A region of plain drawings as a switch or a recolor will show it: a hidden copy beside it, with a
+ * drawing for each of its tiles, in the theme `theme`.
+ */
+interface Shadow {
+  shadow: Container;
+  copies: Map<Tile, Graphics>;
+  theme: ThemeName;
+  /** Whether its geometry was sent to the GPU, in the frame that put it together. */
+  sent: boolean;
+}
+
+/** The tiles whose plain drawings are drawn in each region of plain drawings, by region. */
+function plainTilesByRegion(tiles: Iterable<Tile>): Map<Container, Tile[]> {
+  const byRegion = new Map<Container, Tile[]>();
+  for (const tile of tiles) {
+    const region = tile.coarse?.parent;
+    if (!region || region === tile.container) continue;
+    const list = byRegion.get(region);
+    if (list) list.push(tile);
+    else byRegion.set(region, [tile]);
+  }
+  return byRegion;
+}
+
+/** Drawings of a tile to draw again for a switch or a recolor, and where the tile is. */
+interface Work {
+  tile: Tile;
+  drawings: Drawing[];
+  distance: number;
+  onScreen: boolean;
+}
+
+/**
+ * What a switch or a recolor left off screen once it showed: drawings to draw again, tiles drawn
+ * again but not shown yet, and tiles whose labels or casings are still to tint.
+ */
+interface CatchUp {
+  drawings: Work[];
+  drawnAgain: Work[];
+  labels: Tile[];
+}
+
+/**
+ * The region PixiJS gathers again when a tile's drawings change: its plain drawing's, or the one its
+ * own container is in.
+ */
+function regionOf(tile: Tile): Container {
+  const plain = tile.coarse?.parent;
+  if (plain && plain !== tile.container) return plain;
+  return tile.container.parent ?? tile.container;
+}
+
+/** What drawings `RestyleCosts` learns the cost of together: a tile's kind and the drawings made. */
+function costKind(work: { tile: Tile; drawings: readonly Drawing[] }): string {
+  return `${work.tile.kind} ${work.drawings.join('+')}`;
 }
 
 /** The drawings of a tile made for another stamp than `stamp`, and not made again for it yet. */
@@ -2874,6 +3778,9 @@ function showPlain(tile: Tile, shown: boolean): void {
   if (coarse.alpha !== alpha) coarse.alpha = alpha;
 }
 
+/** Where each region's container is kept, so that a copy shown in its place takes its place there. */
+const regionPlaces = new WeakMap<Container, { regions: Map<string, Container>; key: string }>();
+
 /** The container for the region a cell falls in, among the regions of `container`. */
 function regionIn(container: Container, regions: Map<string, Container>, cell: string): Container {
   const [column = 0, row = 0] = cell.split(',').map(Number);
@@ -2882,6 +3789,7 @@ function regionIn(container: Container, regions: Map<string, Container>, cell: s
   if (!region) {
     region = new Container({ isRenderGroup: true });
     regions.set(key, region);
+    regionPlaces.set(region, { regions, key });
     container.addChild(region);
   }
   return region;
@@ -2894,6 +3802,87 @@ function regionIn(container: Container, regions: Map<string, Container>, cell: s
 function batched(graphics: Graphics): Graphics {
   graphics.context.batchMode = 'batch';
   return graphics;
+}
+
+/** Whether a cell's tiles are planned from what the tiles were last made from. */
+function isPlanned(plan: CellPlan, cell: string): boolean {
+  return !plan.partial || plan.planned.has(cell);
+}
+
+/** The cells of these that are not planned. */
+function unplanned(cells: Iterable<string>, plan: CellPlan): Set<string> {
+  const left = new Set<string>();
+  for (const cell of cells) if (!isPlanned(plan, cell)) left.add(cell);
+  return left;
+}
+
+/**
+ * The cells a rectangle meets; undefined when they would be more than `MAX_LISTED_CELLS`, as far
+ * out over a view whose places reach far, which then plans every cell at once.
+ */
+function cellsMeeting(rect: Rect): Set<string> | undefined {
+  const left = Math.floor(rect.x / TILE);
+  const top = Math.floor(rect.y / TILE);
+  const right = Math.floor((rect.x + rect.width) / TILE);
+  const bottom = Math.floor((rect.y + rect.height) / TILE);
+  const count = (right - left + 1) * (bottom - top + 1);
+  if (!(count <= MAX_LISTED_CELLS)) return undefined;
+  const cells = new Set<string>();
+  for (let column = left; column <= right; column++) {
+    for (let row = top; row <= bottom; row++) cells.add(`${column},${row}`);
+  }
+  return cells;
+}
+
+/** A cell's rectangle, in canvas units. */
+function cellRect(cell: string): Rect {
+  const [column = 0, row = 0] = cell.split(',').map(Number);
+  return { x: column * TILE, y: row * TILE, width: TILE, height: TILE };
+}
+
+/** How far a cell's middle is from a point. */
+function cellDistance(cell: string, point: Point): number {
+  const middle = centerOf(cellRect(cell));
+  return Math.hypot(middle.x - point.x, middle.y - point.y);
+}
+
+/** The key of the region a cell falls in. */
+function regionOfCell(cell: string): string {
+  const [column = 0, row = 0] = cell.split(',').map(Number);
+  return `${Math.floor(column / REGION)},${Math.floor(row / REGION)}`;
+}
+
+/** The cell of a tile of relations, from its key: `relations ${cell}`, ` dim` after it when dimmed. */
+function relationCellOf(key: string): string {
+  return key.split(' ')[1] ?? '';
+}
+
+/** A rectangle's four sides, as rectangles without breadth, and its middle, as one without size. */
+function edgesOf(rect: Rect): Rect[] {
+  const { x, y, width, height } = rect;
+  return [
+    { x, y, width, height: 0 },
+    { x, y: y + height, width, height: 0 },
+    { x, y, width: 0, height },
+    { x: x + width, y, width: 0, height },
+    { x: x + width / 2, y: y + height / 2, width: 0, height: 0 },
+  ];
+}
+
+/** Whether `inner` lies within `outer`. */
+function contains(outer: Rect, inner: Rect): boolean {
+  return (
+    inner.x >= outer.x &&
+    inner.y >= outer.y &&
+    inner.x + inner.width <= outer.x + outer.width &&
+    inner.y + inner.height <= outer.y + outer.height
+  );
+}
+
+/** Destroys a drawing no frame shows, or a container that left the canvas, without its geometry. */
+function destroyDisposed(item: GraphicsContext | Container): void {
+  if (item instanceof Container) item.destroy({ children: true, context: false });
+  else item.destroy();
 }
 
 /** Destroys a tile with all it drew, its drawings' geometry included, its plain drawing wherever it is. */
