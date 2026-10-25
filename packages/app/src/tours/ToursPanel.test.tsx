@@ -157,7 +157,26 @@ describe('full-screen playback', () => {
     fireEvent.click(within(tab).getByRole('button', { name: 'Play full screen from step 3' }));
     expect(screen.getByRole('article')).toHaveTextContent('One request, step by step');
     expect(screen.getByRole('button', { name: 'Next step' })).toBeDisabled();
+    // The step opens its scenario, which plays from its first step.
+    const scenarios = screen.getByRole('complementary', { name: 'Scenarios' });
+    expect(
+      within(scenarios).getByRole('heading', { name: 'Patient books an appointment' }),
+    ).toBeInTheDocument();
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(sent).toEqual([]);
+  });
+
+  it('goes back to where the tab was once the tour ends', () => {
+    const { tab } = openTours();
+    const scenarios = screen.getByRole('complementary', { name: 'Scenarios' });
+    const opened = () =>
+      within(scenarios).queryByRole('heading', { name: 'Patient books an appointment' });
+    expect(opened()).toBeNull();
+    fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));
+    fireEvent.click(within(tab).getByRole('button', { name: 'Play full screen from step 3' }));
+    expect(opened()).not.toBeNull();
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    // The scenario the step opened closes again with the view state from before the tour.
+    expect(opened()).toBeNull();
   });
 });
