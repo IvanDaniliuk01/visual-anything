@@ -60,7 +60,32 @@ export type ServerMessage =
   | NoticeMessage
   | PreferencesChangedMessage
   | GuidanceMessage
-  | HistoryListedMessage;
+  | HistoryListedMessage
+  | StartOfferedMessage;
+
+/**
+ * Sent in place of `project/opened` while the local program runs on a folder that holds no project yet
+ * (ADR 0051): the sample projects a new project there can start from. The app shows its start screen
+ * and answers with `start/create`; once the project is written, every app gets `project/opened`.
+ */
+export interface StartOfferedMessage {
+  type: 'start/offered';
+  protocolVersion: typeof PROTOCOL_VERSION;
+  /** The name of the folder the project goes in. */
+  folder: string;
+  samples: OfferedSample[];
+  /** The session token, as `project/opened` hands it to a page that opened with a launch code. */
+  token?: string;
+}
+
+/** A sample project a new project can start from, as the start screen offers it. */
+export interface OfferedSample {
+  id: Id;
+  /** Its name, as its project file gives it. */
+  name: string;
+  /** The packages it uses. */
+  packages: Id[];
+}
 
 /** Sent when the live connection opens: the project as it is now. */
 export interface ProjectOpenedMessage {
@@ -445,7 +470,24 @@ export type AppMessage =
   | { type: 'command'; requestId: string; command: Command }
   | { type: 'undo'; requestId: string; to?: number }
   | { type: 'redo'; requestId: string; to?: number }
-  | PreferencesSetMessage;
+  | PreferencesSetMessage
+  | StartCreateMessage;
+
+/** The longest name the start screen may give a new project or its first view. */
+export const MAX_START_NAME = 200;
+
+/**
+ * Asks the local program, while it runs on a folder that holds no project yet, to start one there:
+ * from the sample with this id, or empty when `sample` is left out, named as `names` says. It is
+ * answered with `project/opened`, to every app, or with `command/rejected`.
+ */
+export interface StartCreateMessage {
+  type: 'start/create';
+  requestId: string;
+  sample?: Id;
+  /** For an empty project: its name, the folder's by default, and its first view's. */
+  names?: { project?: string; view?: string };
+}
 
 /**
  * Asks the local program to change some preferences. It is answered with `preferences/changed`, or
@@ -480,6 +522,7 @@ const SERVER_TYPES = new Set<string>([
   'preferences/changed',
   'guidance',
   'history/listed',
+  'start/offered',
 ]);
 
 /**
@@ -519,6 +562,8 @@ export function decodeServerMessage(text: string): ServerMessage {
       if (!isRecord(message.preferences))
         throw new ProtocolError('The message has no preferences.');
       break;
+    case 'start/offered':
+      return readStartOffered(message);
   }
   return message as unknown as ServerMessage;
 }
@@ -557,9 +602,69 @@ export function decodeAppMessage(text: string): AppMessage {
         throw new ProtocolError('The message has no preferences to change.');
       }
       return message as unknown as AppMessage;
+    case 'start/create':
+      return readStartCreate(message, message.requestId);
     default:
       throw new ProtocolError(`Unknown message type: ${JSON.stringify(message.type)}.`);
   }
+}
+
+/** Reads the samples a start screen offers: each with an id, a name and the packages it uses. */
+function readStartOffered(message: Record<string, unknown>): StartOfferedMessage {
+  if (message.protocolVersion !== PROTOCOL_VERSION) {
+    throw new ProtocolError(
+      `Protocol version ${JSON.stringify(message.protocolVersion)} is not ${PROTOCOL_VERSION}.`,
+    );
+  }
+  if (typeof message.folder !== 'string') throw new ProtocolError('The folder is named by text.');
+  if (message.token !== undefined && typeof message.token !== 'string') {
+    throw new ProtocolError('The session token is text.');
+  }
+  if (!Array.isArray(message.samples)) throw new ProtocolError('The message has no samples.');
+  const samples = message.samples.map((each: unknown): OfferedSample => {
+    if (!isRecord(each) || !isId(each.id) || typeof each.name !== 'string') {
+      throw new ProtocolError('A sample has an id and a name.');
+    }
+    const packages = Array.isArray(each.packages) ? each.packages.filter(isId) : [];
+    return { id: each.id, name: each.name, packages };
+  });
+  return {
+    type: 'start/offered',
+    protocolVersion: PROTOCOL_VERSION,
+    folder: message.folder,
+    samples,
+    ...(message.token === undefined ? {} : { token: message.token }),
+  };
+}
+
+/** Reads an app's choice of how to start a project: a sample by its id, and the names it gives. */
+function readStartCreate(message: Record<string, unknown>, requestId: string): StartCreateMessage {
+  const { sample, names } = message;
+  if (sample !== undefined && !isId(sample)) {
+    throw new ProtocolError('A sample is named by its id.');
+  }
+  const read: { project?: string; view?: string } = {};
+  if (names !== undefined) {
+    if (!isRecord(names)) throw new ProtocolError('The names of a new project are an object.');
+    for (const [key, value] of Object.entries(names)) {
+      if (
+        (key !== 'project' && key !== 'view') ||
+        typeof value !== 'string' ||
+        value.length > MAX_START_NAME
+      ) {
+        throw new ProtocolError(
+          `A new project's names are its "project" and its first "view", each text of at most ${MAX_START_NAME} characters.`,
+        );
+      }
+      read[key] = value;
+    }
+  }
+  return {
+    type: 'start/create',
+    requestId,
+    ...(sample === undefined ? {} : { sample }),
+    ...(names === undefined ? {} : { names: read }),
+  };
 }
 
 function parseObject(text: string): Record<string, unknown> {

@@ -226,3 +226,131 @@ describe('planToCommand, past its limits', () => {
     expect(!places.ok && places.problems.join(' ')).toMatch(/positions and bend points/);
   });
 });
+
+describe('planToCommand, on what a mapping or a file can get wrong', () => {
+  it('reads a mapping by its own entries only, never by what every object inherits', () => {
+    const state = testProject();
+    const named = planToCommand(
+      state,
+      {
+        ...plan(),
+        elements: [{ key: 'x', name: 'X', kind: 'toString' }],
+        relations: [],
+        containment: [],
+        views: [],
+      },
+      MAPPING,
+    );
+    expect(!named.ok && named.problems).toEqual(['No component is chosen for "toString".']);
+  });
+
+  it('refuses a relation type no package defines, and a nesting relation type that does not nest', () => {
+    const state = testProject();
+    const unknown = planToCommand(state, plan(), {
+      ...MAPPING,
+      relations: { arrow: 'nope.link' },
+    });
+    expect(!unknown.ok && unknown.problems).toContain(
+      'No package in use defines the relation type "nope.link".',
+    );
+    const flat = planToCommand(state, plan(), { ...MAPPING, nesting: 'test.calls' });
+    expect(!flat.ok && flat.problems).toContain('The relation type "test.calls" does not nest.');
+  });
+
+  it('leaves out, and says so, positions inside what draws rows and bend points of what nests', () => {
+    const state = testProject();
+    state.packages = [
+      {
+        ...state.packages[0]!,
+        components: [
+          ...state.packages[0]!.components,
+          {
+            id: 'test.table',
+            name: 'Table',
+            derivesFrom: 'essence',
+            appearance: { contentsAsRows: true },
+          },
+        ],
+      },
+    ];
+    const rows: ImportPlan = {
+      ...plan(),
+      elements: [
+        { key: 'users', name: 'users', kind: 'table' },
+        { key: 'id', name: 'id', kind: 'box' },
+        { key: 'shop', name: 'Shop', kind: 'box' },
+      ],
+      relations: [{ key: 'in', from: 'id', to: 'shop', kind: 'part' }],
+      containment: [{ element: 'id', container: 'users' }],
+      views: [
+        {
+          key: 'v',
+          name: 'Tables',
+          description: 'What the database holds.',
+          positions: [
+            { element: 'users', x: 0, y: 0 },
+            { element: 'id', container: 'users', x: 0, y: 40 },
+          ],
+          bendPoints: [{ relation: 'in', points: [{ x: 10, y: 10 }] }],
+        },
+      ],
+    };
+    const planned = planToCommand(
+      state,
+      rows,
+      {
+        elements: { table: 'test.table', box: 'test.box' },
+        relations: { part: 'test.inside' },
+        nesting: 'test.inside',
+      },
+      sequentialIds(),
+    );
+    if (!planned.ok) throw new Error(planned.problems.join(' '));
+    expect(planned.notes).toEqual([
+      '1 position in "Tables" left out: rows take their place from their table.',
+      'The bend points of a relation in "Tables" left out: it puts one thing inside another.',
+    ]);
+    const outcome = executeCommand(state, planned.command, { newId: sequentialIds() });
+    if (!outcome.ok) throw new Error(outcome.problems.map((each) => each.message).join(' '));
+    const view = outcome.state.views.find((each) => each.id === planned.ids.get('v'))!;
+    expect(view.description).toBe('What the database holds.');
+    expect(view.positions.map((position) => position.element)).toEqual([planned.ids.get('users')]);
+  });
+});
+
+describe('planToCommand, on a large plan', () => {
+  it('stays linear: 40,000 relations, each with a bend point in one view', () => {
+    const state = testProject();
+    const elements = Array.from({ length: 2_000 }, (_, at) => ({
+      key: `e${at}`,
+      name: `E${at}`,
+      kind: 'box',
+    }));
+    const relations = Array.from({ length: 40_000 }, (_, at) => ({
+      key: `r${at}`,
+      from: `e${at % 2_000}`,
+      to: `e${(at * 7 + 1) % 2_000}`,
+      kind: 'arrow',
+    }));
+    const big: ImportPlan = {
+      ...plan(),
+      elements,
+      relations,
+      containment: [],
+      views: [
+        {
+          key: 'v',
+          name: 'All',
+          bendPoints: relations.map((relation) => ({
+            relation: relation.key,
+            points: [{ x: 1, y: 2 }],
+          })),
+        },
+      ],
+    };
+    const start = Date.now();
+    const planned = planToCommand(state, big, MAPPING, sequentialIds());
+    expect(planned.ok).toBe(true);
+    expect(Date.now() - start).toBeLessThan(3_000);
+  });
+});

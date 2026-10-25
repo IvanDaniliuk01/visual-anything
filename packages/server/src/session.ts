@@ -412,6 +412,14 @@ export class Session implements LiveSession {
       case 'preferences/set':
         await this.#setPreferences(client, message);
         return;
+      case 'start/create':
+        // Only a program on a folder that holds no project yet starts one (ADR 0051).
+        this.#send(client, {
+          type: 'command/rejected',
+          requestId: message.requestId,
+          problems: [refusal('invalid-command', 'A project is open here already.')],
+        });
+        return;
     }
   }
 

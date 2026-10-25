@@ -92,6 +92,51 @@ export function PackageEditor({ id, titleRef }: PackageEditorProps) {
             />
           )}
         </Field>
+        {/* What it is shared under (ADR 0047): a built-in package says; a project's own may. */}
+        <Field label={t('Version')}>
+          {({ id: controlId, describedBy, send: sendIt }) => (
+            <TextControl
+              id={controlId}
+              value={file.version ?? ''}
+              disabled={readOnly}
+              describedBy={describedBy}
+              same={sameOptionalText}
+              onCommit={(text) =>
+                sendIt(update({ version: text.trim() === '' ? null : text.trim() }))
+              }
+            />
+          )}
+        </Field>
+        <Field
+          label={t('License')}
+          note={t('An SPDX identifier, such as CC0-1.0, CC-BY-4.0 or MIT.')}
+        >
+          {({ id: controlId, describedBy, send: sendIt }) => (
+            <TextControl
+              id={controlId}
+              value={file.license ?? ''}
+              disabled={readOnly}
+              describedBy={describedBy}
+              same={sameOptionalText}
+              onCommit={(text) =>
+                sendIt(update({ license: text.trim() === '' ? null : text.trim() }))
+              }
+            />
+          )}
+        </Field>
+        <Field label={t('Attribution')}>
+          {({ id: controlId, describedBy, send: sendIt }) => (
+            <TextControl
+              id={controlId}
+              value={file.attribution ?? ''}
+              multiline
+              disabled={readOnly}
+              describedBy={describedBy}
+              same={sameOptionalText}
+              onCommit={(text) => sendIt(update({ attribution: text.trim() === '' ? null : text }))}
+            />
+          )}
+        </Field>
         <dl className="details">
           <Detail term={t('Id')}>
             <code>{id}</code>
@@ -129,6 +174,18 @@ export function PackageEditor({ id, titleRef }: PackageEditorProps) {
           open={inUse ? (other) => opener('relation-type', other) : () => undefined}
         />
       </section>
+      {inUse && builtin === undefined && open !== undefined && (
+        <section className="inspector-section">
+          <button
+            type="button"
+            className="inspector-action"
+            disabled={send === undefined}
+            onClick={() => open({ kind: 'update-package', id }, { focus: true })}
+          >
+            {t('Update from another project…')}
+          </button>
+        </section>
+      )}
       {inUse ? (
         <StopUsing id={id} own={builtin === undefined} />
       ) : (

@@ -317,6 +317,18 @@ _Avoid_: sync, conversion
 A built-in package for one domain, with its icons, a sample project and a scenario, which a new project can start from. What it ships carries a license that lets it ship (ADR 0047).
 _Avoid_: template, library
 
+**Sample project**:
+A project that comes with Visual Anything to show a starter package at work, with its views and a scenario, from which a new project can start: the folder of the new project gets a copy of it (ADR 0051).
+_Avoid_: template, demo, example (as a product term)
+
+**Start screen**:
+What the app shows while the local program runs on a folder that holds no project yet: the sample projects a project there can start from, and an empty project (ADR 0051).
+_Avoid_: welcome screen, wizard
+
+**Shared package**:
+A package of a project's own copied from another project, with its images and its ids, and updated from there after a preview of what changed; the two copies live apart (ADR 0051).
+_Avoid_: linked package, imported package, dependency
+
 ### Reading large models
 
 **Overlay**:

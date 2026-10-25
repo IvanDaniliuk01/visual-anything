@@ -1,0 +1,391 @@
+{
+  "world": {
+    "id": "world",
+    "component": "essence",
+    "name": "World"
+  },
+  "elements": [
+    {
+      "id": "customer",
+      "component": "c4.person",
+      "name": "Personal banking customer",
+      "description": "A customer of the bank, with personal accounts."
+    },
+    {
+      "id": "internet-banking",
+      "component": "c4.software-system",
+      "name": "Internet banking system",
+      "description": "Lets customers read about their accounts and make payments."
+    },
+    {
+      "id": "mainframe",
+      "component": "c4.software-system",
+      "name": "Mainframe banking system",
+      "description": "Keeps the core banking information: customers, accounts and transactions.",
+      "attributes": {
+        "external": true
+      }
+    },
+    {
+      "id": "email-system",
+      "component": "c4.software-system",
+      "name": "E-mail system",
+      "description": "The bank’s e-mail system, which another team runs.",
+      "attributes": {
+        "external": true
+      }
+    },
+    {
+      "id": "web-app",
+      "component": "c4.container",
+      "name": "Web application",
+      "description": "Delivers the single-page app and its static content.",
+      "attributes": {
+        "technology": "Java and Spring MVC"
+      }
+    },
+    {
+      "id": "spa",
+      "component": "c4.container",
+      "name": "Single-page app",
+      "description": "Gives customers every internet banking function in their browser.",
+      "attributes": {
+        "technology": "TypeScript and Angular"
+      }
+    },
+    {
+      "id": "mobile-app",
+      "component": "c4.container",
+      "name": "Mobile app",
+      "description": "Gives customers the most used functions on their phone.",
+      "attributes": {
+        "technology": "Kotlin and Swift"
+      }
+    },
+    {
+      "id": "api-app",
+      "component": "c4.container",
+      "name": "API application",
+      "description": "Gives the banking functions over a JSON API.",
+      "attributes": {
+        "technology": "Java and Spring Boot"
+      }
+    },
+    {
+      "id": "database",
+      "component": "c4.container",
+      "name": "Database",
+      "description": "Keeps registrations, hashed credentials and access logs.",
+      "attributes": {
+        "technology": "PostgreSQL"
+      }
+    },
+    {
+      "id": "sign-in-controller",
+      "component": "c4.component",
+      "name": "Sign-in controller",
+      "description": "Lets customers sign in.",
+      "attributes": {
+        "technology": "Spring REST controller"
+      }
+    },
+    {
+      "id": "accounts-controller",
+      "component": "c4.component",
+      "name": "Accounts controller",
+      "description": "Gives customers a summary of their accounts.",
+      "attributes": {
+        "technology": "Spring REST controller"
+      }
+    },
+    {
+      "id": "security-component",
+      "component": "c4.component",
+      "name": "Security component",
+      "description": "Checks credentials and changes passwords.",
+      "attributes": {
+        "technology": "Spring bean"
+      }
+    },
+    {
+      "id": "mainframe-facade",
+      "component": "c4.component",
+      "name": "Mainframe facade",
+      "description": "Talks to the mainframe banking system.",
+      "attributes": {
+        "technology": "Spring bean"
+      }
+    },
+    {
+      "id": "data-center",
+      "component": "c4.deployment-node",
+      "name": "Bank data center",
+      "description": "Where the bank runs its own servers.",
+      "attributes": {
+        "technology": "Big Bank plc"
+      }
+    },
+    {
+      "id": "app-server",
+      "component": "c4.deployment-node",
+      "name": "Application server",
+      "description": "Runs the web and API applications.",
+      "attributes": {
+        "technology": "Ubuntu 24.04 LTS"
+      }
+    },
+    {
+      "id": "db-server",
+      "component": "c4.deployment-node",
+      "name": "Database server",
+      "description": "Runs the database, with a standby beside it.",
+      "attributes": {
+        "technology": "Ubuntu 24.04 LTS"
+      }
+    },
+    {
+      "id": "customer-computer",
+      "component": "c4.deployment-node",
+      "name": "Customer’s computer",
+      "description": "Any desktop browser.",
+      "attributes": {
+        "technology": "Windows, macOS or Linux"
+      }
+    },
+    {
+      "id": "customer-phone",
+      "component": "c4.deployment-node",
+      "name": "Customer’s phone",
+      "description": "A phone with the bank’s app installed.",
+      "attributes": {
+        "technology": "iOS or Android"
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "web-app-in-banking",
+      "relationType": "c4.is-part-of",
+      "from": "web-app",
+      "to": "internet-banking"
+    },
+    {
+      "id": "spa-in-banking",
+      "relationType": "c4.is-part-of",
+      "from": "spa",
+      "to": "internet-banking"
+    },
+    {
+      "id": "mobile-app-in-banking",
+      "relationType": "c4.is-part-of",
+      "from": "mobile-app",
+      "to": "internet-banking"
+    },
+    {
+      "id": "api-app-in-banking",
+      "relationType": "c4.is-part-of",
+      "from": "api-app",
+      "to": "internet-banking"
+    },
+    {
+      "id": "database-in-banking",
+      "relationType": "c4.is-part-of",
+      "from": "database",
+      "to": "internet-banking"
+    },
+    {
+      "id": "sign-in-controller-in-api",
+      "relationType": "c4.is-part-of",
+      "from": "sign-in-controller",
+      "to": "api-app"
+    },
+    {
+      "id": "accounts-controller-in-api",
+      "relationType": "c4.is-part-of",
+      "from": "accounts-controller",
+      "to": "api-app"
+    },
+    {
+      "id": "security-component-in-api",
+      "relationType": "c4.is-part-of",
+      "from": "security-component",
+      "to": "api-app"
+    },
+    {
+      "id": "mainframe-facade-in-api",
+      "relationType": "c4.is-part-of",
+      "from": "mainframe-facade",
+      "to": "api-app"
+    },
+    {
+      "id": "app-server-in-data-center",
+      "relationType": "c4.runs-in",
+      "from": "app-server",
+      "to": "data-center"
+    },
+    {
+      "id": "db-server-in-data-center",
+      "relationType": "c4.runs-in",
+      "from": "db-server",
+      "to": "data-center"
+    },
+    {
+      "id": "web-app-on-app-server",
+      "relationType": "c4.runs-in",
+      "from": "web-app",
+      "to": "app-server"
+    },
+    {
+      "id": "api-app-on-app-server",
+      "relationType": "c4.runs-in",
+      "from": "api-app",
+      "to": "app-server"
+    },
+    {
+      "id": "database-on-db-server",
+      "relationType": "c4.runs-in",
+      "from": "database",
+      "to": "db-server"
+    },
+    {
+      "id": "spa-on-computer",
+      "relationType": "c4.runs-in",
+      "from": "spa",
+      "to": "customer-computer"
+    },
+    {
+      "id": "mobile-app-on-phone",
+      "relationType": "c4.runs-in",
+      "from": "mobile-app",
+      "to": "customer-phone"
+    },
+    {
+      "id": "customer-visits-web-app",
+      "relationType": "c4.uses",
+      "from": "customer",
+      "to": "web-app",
+      "name": "Visits the internet banking site",
+      "attributes": {
+        "technology": "HTTPS"
+      }
+    },
+    {
+      "id": "web-app-delivers-spa",
+      "relationType": "c4.delivers-to",
+      "from": "web-app",
+      "to": "customer",
+      "name": "Delivers the single-page app",
+      "attributes": {
+        "technology": "HTTPS"
+      }
+    },
+    {
+      "id": "customer-uses-spa",
+      "relationType": "c4.uses",
+      "from": "customer",
+      "to": "spa",
+      "name": "Signs in and reads their accounts"
+    },
+    {
+      "id": "customer-uses-mobile-app",
+      "relationType": "c4.uses",
+      "from": "customer",
+      "to": "mobile-app",
+      "name": "Reads their accounts on the go"
+    },
+    {
+      "id": "spa-signs-in",
+      "relationType": "c4.uses",
+      "from": "spa",
+      "to": "sign-in-controller",
+      "name": "Sends the credentials",
+      "attributes": {
+        "technology": "JSON over HTTPS"
+      }
+    },
+    {
+      "id": "spa-gets-accounts",
+      "relationType": "c4.uses",
+      "from": "spa",
+      "to": "accounts-controller",
+      "name": "Asks for the accounts",
+      "attributes": {
+        "technology": "JSON over HTTPS"
+      }
+    },
+    {
+      "id": "mobile-app-signs-in",
+      "relationType": "c4.uses",
+      "from": "mobile-app",
+      "to": "sign-in-controller",
+      "name": "Sends the credentials",
+      "attributes": {
+        "technology": "JSON over HTTPS"
+      }
+    },
+    {
+      "id": "mobile-app-gets-accounts",
+      "relationType": "c4.uses",
+      "from": "mobile-app",
+      "to": "accounts-controller",
+      "name": "Asks for the accounts",
+      "attributes": {
+        "technology": "JSON over HTTPS"
+      }
+    },
+    {
+      "id": "sign-in-checks-credentials",
+      "relationType": "c4.uses",
+      "from": "sign-in-controller",
+      "to": "security-component",
+      "name": "Checks the credentials"
+    },
+    {
+      "id": "accounts-ask-facade",
+      "relationType": "c4.uses",
+      "from": "accounts-controller",
+      "to": "mainframe-facade",
+      "name": "Asks for the balances"
+    },
+    {
+      "id": "security-reads-database",
+      "relationType": "c4.uses",
+      "from": "security-component",
+      "to": "database",
+      "name": "Reads the hashed credentials",
+      "attributes": {
+        "technology": "SQL"
+      }
+    },
+    {
+      "id": "security-sends-notice",
+      "relationType": "c4.uses",
+      "from": "security-component",
+      "to": "email-system",
+      "name": "Sends a sign-in notice",
+      "attributes": {
+        "technology": "SMTP"
+      }
+    },
+    {
+      "id": "facade-calls-mainframe",
+      "relationType": "c4.uses",
+      "from": "mainframe-facade",
+      "to": "mainframe",
+      "name": "Gets the balances",
+      "attributes": {
+        "technology": "XML over HTTPS"
+      }
+    },
+    {
+      "id": "email-delivers-notice",
+      "relationType": "c4.delivers-to",
+      "from": "email-system",
+      "to": "customer",
+      "name": "E-mails the sign-in notice",
+      "attributes": {
+        "technology": "SMTP"
+      }
+    }
+  ]
+}

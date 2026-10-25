@@ -58,6 +58,11 @@
  * | Essence                 | Esencia                          |
  * | package                 | paquete                          |
  * | built-in package        | paquete incorporado              |
+ * | starter package         | paquete inicial                  |
+ * | sample project          | proyecto de ejemplo              |
+ * | start screen            | pantalla de inicio               |
+ * | shared package          | paquete compartido               |
+ * | license, attribution    | licencia, atribución             |
  * | image                   | imagen                           |
  * | explore                 | explorar                         |
  * | filter                  | filtro, filtrar                  |
@@ -97,6 +102,67 @@ import type { Catalog } from './translate';
 
 /** The app's own texts, keyed by the exact English given to `t()`. */
 export const ui: Catalog = {
+  // The start screen of a folder that holds no project yet (ADR 0051).
+  'Start a project in “{folder}”': 'Empezar un proyecto en “{folder}”',
+  'This folder holds no project yet. Start one from a sample, or empty; everything can be changed afterwards.':
+    'Esta carpeta todavía no tiene ningún proyecto. Empezar uno a partir de un ejemplo, o vacío; después se puede cambiar todo.',
+  'Ways to start': 'Formas de empezar',
+  'C4 architecture: internet banking': 'Arquitectura C4: banca por internet',
+  'A bank’s internet banking system, from the people who use it down to its components and the servers it runs on, with a scenario of a customer signing in.':
+    'El sistema de banca por internet de un banco, desde las personas que lo usan hasta sus componentes y los servidores en los que se ejecuta, con un escenario de un cliente que inicia sesión.',
+  'Data science pipeline: churn prediction':
+    'Canalización de ciencia de datos: predicción de bajas',
+  'The data a subscription business turns into a churn model, and the dashboards it feeds, with a scenario of the nightly run.':
+    'Los datos que un negocio de suscripciones convierte en un modelo de bajas, y los paneles de indicadores que alimenta, con un escenario de la ejecución nocturna.',
+  'Start from the sample “{name}”': 'Empezar a partir del ejemplo “{name}”',
+  'Start from this sample': 'Empezar a partir de este ejemplo',
+  'Starting…': 'Empezando…',
+  'An empty project': 'Un proyecto vacío',
+  'It uses the built-in Systems package and has one view; the Components tab adds more packages.':
+    'Usa el paquete incorporado Sistemas y tiene una vista; la pestaña Componentes agrega más paquetes.',
+  'Start an empty project': 'Empezar un proyecto vacío',
+  Overview: 'Vista general',
+
+  // A package from another project (ADR 0051), and what a package is shared under (ADR 0047).
+  'Add from another project…': 'Agregar de otro proyecto…',
+  'Update from another project…': 'Actualizar desde otro proyecto…',
+  'Add a package from another project': 'Agregar un paquete de otro proyecto',
+  'Update “{name}” from another project': 'Actualizar “{name}” desde otro proyecto',
+  'Choose the folder of another project, then one of its packages: it is copied here with its images, keeping its ids, so that it can be updated from there later.':
+    'Elegir la carpeta de otro proyecto y luego uno de sus paquetes: se copia aquí con sus imágenes y sus mismos ids, para poder actualizarlo desde allí más adelante.',
+  'Choose the folder of the project this package came from: what changed there is listed before anything changes here.':
+    'Elegir la carpeta del proyecto del que vino este paquete: lo que cambió allí se lista antes de que cambie nada aquí.',
+  'Choose a project folder…': 'Elegir la carpeta de un proyecto…',
+  'Reading the folder…': 'Leyendo la carpeta…',
+  'A folder with no project file': 'Una carpeta sin archivo de proyecto',
+  '{path} could not be read: {why}': 'No se pudo leer {path}: {why}',
+  'The file is over 4 MiB.': 'El archivo pesa más de 4 MiB.',
+  'The file is not valid JSON.': 'El archivo no es JSON válido.',
+  'The file holds no package.': 'El archivo no contiene ningún paquete.',
+  'That project has no package of its own.': 'Ese proyecto no tiene ningún paquete propio.',
+  'Its packages': 'Sus paquetes',
+  'That project has no package “{id}”.': 'Ese proyecto no tiene ningún paquete “{id}”.',
+  'Add this package': 'Agregar este paquete',
+  'Apply the update': 'Aplicar la actualización',
+  Holds: 'Contiene',
+  '{components}, {relationTypes} and {images}': '{components}, {relationTypes} y {images}',
+  'It needs the built-in packages {names}, which the project starts using with it.':
+    'Necesita los paquetes incorporados {names}, que el proyecto empieza a usar con él.',
+  Version: 'Versión',
+  License: 'Licencia',
+  Attribution: 'Atribución',
+  'An SPDX identifier, such as CC0-1.0, CC-BY-4.0 or MIT.':
+    'Un identificador SPDX, como CC0-1.0, CC-BY-4.0 o MIT.',
+  'Nothing differs: the package is the same there.':
+    'No hay diferencias: el paquete es el mismo allí.',
+  none: 'ninguno',
+  'The version there, {there}, is older than this one, {here}.':
+    'La versión de allí, {there}, es anterior a esta, {here}.',
+  '{before} → {after}': '{before} → {after}',
+  'Added: “{name}”': 'Se agrega: “{name}”',
+  'Changed: “{name}”': 'Cambia: “{name}”',
+  'Removed: “{name}”': 'Se quita: “{name}”',
+  'In another order': 'En otro orden',
   // Words many screens use.
   Cancel: 'Cancelar',
   Create: 'Crear',
@@ -1536,6 +1602,136 @@ export const ui: Catalog = {
     one: 'Agregar su extremo a esta vista',
     other: 'Agregar sus {count} extremos a esta vista',
   },
+  // The import dialog's help for Structurizr, LikeC4 and draw.io files (import/diagram-formats.ts).
+  'Structurizr workspace': 'Espacio de trabajo de Structurizr',
+  'A workspace in JSON. Workspace DSL is not read: export it to JSON first with the Structurizr CLI, as in structurizr-cli export -workspace workspace.dsl -format json.':
+    'Un espacio de trabajo en JSON. El DSL de Structurizr no se lee: primero hay que exportarlo a JSON con la CLI de Structurizr, como en structurizr-cli export -workspace workspace.dsl -format json.',
+  'LikeC4 model': 'Modelo de LikeC4',
+  'The model likec4 export json writes, with the positions of its views.':
+    'El modelo que escribe likec4 export json, con las posiciones de sus vistas.',
+  'draw.io file': 'Archivo de draw.io',
+  'Plain or compressed, or inside a .drawio.svg or .drawio.png picture. Each page becomes a view; stencils and images are left out.':
+    'Sin comprimir o comprimido, o dentro de una imagen .drawio.svg o .drawio.png. Cada página se vuelve una vista; los stencils y las imágenes se dejan fuera.',
+  // The exports of a view as SVG, PDF and text (M6b): what each writes, and what it could not hold.
+  'The view draws nothing.': 'La vista no dibuja nada.',
+  'A picture whose SVG could not be read back is left out.':
+    'Se omite una imagen cuyo SVG no se pudo volver a leer.',
+  'Pictures in {format} are left out: this format cannot hold them.':
+    'Se omiten las imágenes en {format}: este formato no puede contenerlas.',
+  'Bitmaps shown as silhouettes are drawn in their own colors.':
+    'Los mapas de bits que se muestran como silueta se dibujan en sus propios colores.',
+  'Its long description, an outline of every shape and relation, is the view exported as Markdown.':
+    'Su descripción larga, un esquema de cada forma y relación, es la vista exportada como Markdown.',
+  'Its long description, an outline of every shape and relation, is in “{file}”.':
+    'Su descripción larga, un esquema de cada forma y relación, está en “{file}”.',
+  'Drawn at {percent}% of its size, so that its page stays within 200 inches a side.':
+    'Dibujada al {percent} % de su tamaño, para que su página no pase de 200 pulgadas por lado.',
+  'The embedded font has no {characters}, which show as empty boxes.':
+    'La fuente incluida no tiene {characters}, que se ven como cuadros vacíos.',
+  '{count} parts of the drawing could not be drawn in the PDF.': {
+    one: 'Una parte del dibujo no se pudo dibujar en el PDF.',
+    other: '{count} partes del dibujo no se pudieron dibujar en el PDF.',
+  },
+  'The long description of the view: an outline of every shape and relation.':
+    'La descripción larga de la vista: un esquema de cada forma y relación.',
+  'Perspective: {perspective}.': 'Perspectiva: {perspective}.',
+  'An outline of the view “{view}” of the project “{project}”: what sits directly in World, what sits inside each container, and the relations drawn from each shape, in the model’s order.':
+    'Un esquema de la vista “{view}” del proyecto “{project}”: lo que está directamente en Mundo, lo que está dentro de cada contenedor y las relaciones que se dibujan desde cada forma, en el orden del modelo.',
+  '{name}, held by its row and not drawn': '{name}, que contiene su fila y no se dibuja',
+  'Shapes and relations': 'Formas y relaciones',
+  'The view draws no shape.': 'La vista no dibuja ninguna forma.',
+  Notes: 'Notas',
+  'What this outline leaves out': 'Lo que este esquema omite',
+  '{name} ({component}), collapsed, with {count} inside':
+    '{name} ({component}), contraído, con {count} dentro',
+  '{way} {count} relations “{type}” with {far}, aggregated': {
+    one: '{way} {count} relación “{type}” con {far}, agregada',
+    other: '{way} {count} relaciones “{type}” con {far}, agregadas',
+  },
+  '(no description)': '(sin descripción)',
+  'A relation that no longer exists: a broken step.':
+    'Una relación que ya no existe: un paso roto.',
+  'Takes in': 'Recibe',
+  Produces: 'Produce',
+  'Where each shape is, its size and its colors: the outline lists what the view shows, not how it draws it.':
+    'Dónde está cada forma, su tamaño y sus colores: el esquema enumera lo que la vista muestra, no cómo lo dibuja.',
+  'The routes of relations and their bend points.':
+    'Las rutas de las relaciones y sus puntos de quiebre.',
+  'Pictures.': 'Las imágenes.',
+  'Free arrows, which point at places rather than at shapes.':
+    'Las flechas libres, que señalan lugares y no formas.',
+  'What collapsed containers hold, as the view draws none of it.':
+    'Lo que contienen los contenedores contraídos, ya que la vista no dibuja nada de ello.',
+  'The view “{view}” of the project “{project}”, from Visual Anything.':
+    'La vista “{view}” del proyecto “{project}”, desde Visual Anything.',
+  'Lost: {what}': 'Se pierde: {what}',
+  'Mermaid lays the chart out itself: positions, sizes, routes and bend points are left out.':
+    'Mermaid organiza las formas por su cuenta: se omiten las posiciones, los tamaños, las rutas y los puntos de quiebre.',
+  'Details under names, badges among them, are left out.':
+    'Se omiten los detalles bajo los nombres, insignias incluidas.',
+  '{count} elements sit in more than one container: each is drawn once, in its first one.': {
+    one: 'Un elemento está en más de un contenedor: se dibuja una vez, en el primero.',
+    other:
+      '{count} elementos están en más de un contenedor: cada uno se dibuja una vez, en el primero.',
+  },
+  '{count} relations that end on relations are left out: Mermaid draws relations between shapes only.':
+    {
+      one: 'Se omite una relación que termina en una relación: Mermaid dibuja relaciones solo entre formas.',
+      other:
+        'Se omiten {count} relaciones que terminan en relaciones: Mermaid dibuja relaciones solo entre formas.',
+    },
+  '{count} shapes drawn as people are drawn as rounded rectangles.': {
+    one: 'Una forma dibujada como persona se dibuja como rectángulo redondeado.',
+    other: '{count} formas dibujadas como personas se dibujan como rectángulos redondeados.',
+  },
+  '{count} notes and free arrows are left out.': {
+    one: 'Se omite una nota o flecha libre.',
+    other: 'Se omiten {count} notas y flechas libres.',
+  },
+  '{count} pictures are left out.': {
+    one: 'Se omite una imagen.',
+    other: 'Se omiten {count} imágenes.',
+  },
+  '{count} elements of other packages than Systems are left out.': {
+    one: 'Se omite un elemento de un paquete que no es Sistemas.',
+    other: 'Se omiten {count} elementos de paquetes que no son Sistemas.',
+  },
+  '{count} elements sat deeper than C4 nests: each is a component beside the one that held it.': {
+    one: 'Un elemento estaba más adentro de lo que C4 anida: es un componente junto al que lo contenía.',
+    other:
+      '{count} elementos estaban más adentro de lo que C4 anida: cada uno es un componente junto al que lo contenía.',
+  },
+  '{count} people and systems sat inside other elements: they are at the top of the model.': {
+    one: 'Una persona o un sistema estaba dentro de otro elemento: está en lo más alto del modelo.',
+    other:
+      '{count} personas y sistemas estaban dentro de otros elementos: están en lo más alto del modelo.',
+  },
+  '{count} elements sit in more than one container: each is in its first one.': {
+    one: 'Un elemento está en más de un contenedor: está en el primero.',
+    other: '{count} elementos están en más de un contenedor: cada uno está en el primero.',
+  },
+  '{count} relations are left out: they end on relations, on elements left out, or on what holds them, which Structurizr does not take.':
+    {
+      one: 'Se omite una relación: termina en una relación, en un elemento omitido o en lo que la contiene, que Structurizr no admite.',
+      other:
+        'Se omiten {count} relaciones: terminan en relaciones, en elementos omitidos o en lo que las contiene, que Structurizr no admite.',
+    },
+  'Structurizr lays the views out itself: positions, sizes, routes and bend points are left out.':
+    'Structurizr organiza las vistas por su cuenta: se omiten las posiciones, los tamaños, las rutas y los puntos de quiebre.',
+  'The view shows no element of the Systems package.':
+    'La vista no muestra ningún elemento del paquete Sistemas.',
+  'Pictures are left out.': 'Se omiten las imágenes.',
+  'Scenarios are left out.': 'Se omiten los escenarios.',
+  'The whole view as the canvas draws it, without the selection, filters, focus or guidance.':
+    'Toda la vista como la dibuja el lienzo, sin la selección, los filtros, el foco ni la guía.',
+  'The whole view on one page, without the selection, filters, focus or guidance; WebP pictures and the colors of bitmap silhouettes are left out.':
+    'Toda la vista en una página, sin la selección, los filtros, el foco ni la guía; se omiten las imágenes WebP y los colores de las siluetas de mapas de bits.',
+  'Every shape and relation as text, and the scenarios; no positions, colors or pictures.':
+    'Cada forma y relación como texto, y los escenarios; sin posiciones, colores ni imágenes.',
+  'Shapes and relations for Mermaid to lay out; no positions, details, notes or pictures.':
+    'Formas y relaciones para que Mermaid las organice; sin posiciones, detalles, notas ni imágenes.',
+  'The C4 model of the view’s Systems components; no positions, notes, pictures or scenarios.':
+    'El modelo C4 de los componentes de Sistemas de la vista; sin posiciones, notas, imágenes ni escenarios.',
 };
 
 /**
@@ -1583,6 +1779,12 @@ export const messages: Catalog = {
   '{n} relations': '{n} relaciones',
   '1 shape': '1 forma',
   '{n} shapes': '{n} formas',
+  '1 position': '1 posición',
+  '{n} positions': '{n} posiciones',
+  '{positions} in "{view}" left out: rows take their place from their table.':
+    '{positions} en "{view}" quedaron fuera: las filas toman su lugar de su tabla.',
+  'The bend points of a relation in "{view}" left out: it puts one thing inside another.':
+    'Los puntos de quiebre de una relación en "{view}" quedaron fuera: pone una cosa dentro de otra.',
   '1 container': '1 contenedor',
   '{n} containers': '{n} contenedores',
   '1 free shape': '1 forma libre',
@@ -1669,6 +1871,8 @@ export const messages: Catalog = {
   'Create the package "{name}"': 'Crear el paquete "{name}"',
   'Rename the package "{old}" to "{new}"': 'Cambiar el nombre del paquete "{old}" a "{new}"',
   'Edit the package "{name}"': 'Editar el paquete "{name}"',
+  'Add the package "{name}"': 'Agregar el paquete "{name}"',
+  'Update the package "{name}"': 'Actualizar el paquete "{name}"',
   'Define the component "{name}"': 'Definir el componente "{name}"',
   'Redefine the component "{name}"': 'Redefinir el componente "{name}"',
   'Define the relation type "{name}"': 'Definir el tipo de relación "{name}"',
@@ -1910,6 +2114,48 @@ export const messages: Catalog = {
     'El componente "{name}" no se puede quitar: lo usan {users}.',
   'The relation type "{name}" cannot be removed: {users} use it.':
     'El tipo de relación "{name}" no se puede quitar: lo usan {users}.',
+
+  // Packages shared between projects (ADR 0051).
+  'The package "{name}" cannot be added: this project already has a package with the id "{id}".':
+    'El paquete "{name}" no se puede agregar: este proyecto ya tiene un paquete con el id "{id}".',
+  'The package "{name}" cannot be added: this project already uses these ids of it: {ids}.':
+    'El paquete "{name}" no se puede agregar: este proyecto ya usa estos ids suyos: {ids}.',
+  'The package "{name}" cannot be updated: this project already uses these ids of it: {ids}.':
+    'El paquete "{name}" no se puede actualizar: este proyecto ya usa estos ids suyos: {ids}.',
+  'The package "{name}" cannot be added: these ids of it do not start with "{id}.", the id of the package: {ids}.':
+    'El paquete "{name}" no se puede agregar: estos ids suyos no empiezan con "{id}.", el id del paquete: {ids}.',
+  'The package "{name}" cannot be updated: these ids of it do not start with "{id}.", the id of the package: {ids}.':
+    'El paquete "{name}" no se puede actualizar: estos ids suyos no empiezan con "{id}.", el id del paquete: {ids}.',
+  'The package "{name}" cannot be added: it uses these ids more than once: {ids}.':
+    'El paquete "{name}" no se puede agregar: usa estos ids más de una vez: {ids}.',
+  'The package "{name}" cannot be updated: it uses these ids more than once: {ids}.':
+    'El paquete "{name}" no se puede actualizar: usa estos ids más de una vez: {ids}.',
+  'The package "{name}" needs what no package in use, and no built-in package, defines; add the packages that define it first: {ids}.':
+    'El paquete "{name}" necesita lo que no define ningún paquete en uso ni ningún paquete incorporado; agregar primero los paquetes que lo definen: {ids}.',
+  'The update of "{name}" removes the component "{component}", which is still used here by {users}; change or delete what uses it first.':
+    'La actualización de "{name}" quita el componente "{component}", que aquí todavía usan {users}; primero cambiar o eliminar lo que lo usa.',
+  'The update of "{name}" removes the relation type "{type}", which is still used here by {users}; change or delete what uses it first.':
+    'La actualización de "{name}" quita el tipo de relación "{type}", que aquí todavía usan {users}; primero cambiar o eliminar lo que lo usa.',
+  'add-package needs the package, as its file holds it.':
+    'add-package necesita el paquete, tal como lo guarda su archivo.',
+  'replace-package needs the package, as its file holds it.':
+    'replace-package necesita el paquete, tal como lo guarda su archivo.',
+  'A package holds a list of components and one of relation types.':
+    'Un paquete tiene una lista de componentes y otra de tipos de relación.',
+  'A package’s images are a list.': 'Las imágenes de un paquete son una lista.',
+  'Each definition and image of a package is an object.':
+    'Cada definición e imagen de un paquete es un objeto JSON.',
+  'An image is of the kind "svg" or "bitmap".': 'Una imagen es de la clase "svg" o "bitmap".',
+  'An image has no "{key}".': 'Una imagen no tiene "{key}".',
+  'A package has no "{key}".': 'Un paquete no tiene "{key}".',
+  'A package’s version is a semantic version, such as 1.2.0.':
+    'La versión de un paquete es una versión semántica, como 1.2.0.',
+  'A package’s license is an SPDX license identifier, such as CC0-1.0 or MIT.':
+    'La licencia de un paquete es un identificador de licencia SPDX, como CC0-1.0 o MIT.',
+  'A package’s attribution is text of 1 to 2,000 characters.':
+    'La atribución de un paquete es un texto de 1 a 2000 caracteres.',
+  'An image’s license is an SPDX license identifier, such as CC0-1.0 or MIT.':
+    'La licencia de una imagen es un identificador de licencia SPDX, como CC0-1.0 o MIT.',
   'A component has no "{key}".': 'Un componente no tiene "{key}".',
   'A relation type has no "{key}".': 'Un tipo de relación no tiene "{key}".',
   'The component "{id}" must start with "{prefix}.", the id of its package.':
@@ -2160,6 +2406,18 @@ export const messages: Catalog = {
     'Más de un paso en el escenario "{name}" tiene el id "{key}".',
 
   // What the local program says.
+  'No project is open here yet: choose how to start one first.':
+    'Todavía no hay ningún proyecto abierto aquí: primero elegir cómo empezar uno.',
+  'The project here is being started already.': 'El proyecto de aquí ya se está empezando.',
+  'There is no sample "{id}" to start from.': 'No hay ningún ejemplo "{id}" del que partir.',
+  '{folder} already holds files, or is no folder; a new project starts in an empty folder.':
+    '{folder} ya tiene archivos, o no es una carpeta; un proyecto nuevo empieza en una carpeta vacía.',
+  'The new project could not be written in {folder}: {reason}':
+    'No se pudo escribir el proyecto nuevo en {folder}: {reason}',
+  'The new project could not be opened: {why}': 'No se pudo abrir el proyecto nuevo: {why}',
+  'The new project could not be started: {reason}':
+    'No se pudo empezar el proyecto nuevo: {reason}',
+  'A project is open here already.': 'Ya hay un proyecto abierto aquí.',
   'This program keeps no preferences.': 'Este programa no guarda preferencias.',
   'Your preferences could not be changed: {why}': 'No se pudieron cambiar las preferencias: {why}',
   'Your preference applies until Visual Anything stops: it could not be saved ({reason}).':
@@ -2335,6 +2593,9 @@ export const messages: Catalog = {
   'must be an id: 1 to 128 letters, digits, ".", "_" or "-", starting with a letter or digit':
     'debe ser un id: de 1 a 128 letras, dígitos, ".", "_" o "-", que empiece con una letra o un dígito',
   'must be a color written as #RRGGBB': 'debe ser un color escrito como #RRGGBB',
+  'must be a semantic version, such as 1.2.0': 'debe ser una versión semántica, como 1.2.0',
+  'must be an SPDX license identifier, such as CC0-1.0 or MIT':
+    'debe ser un identificador de licencia SPDX, como CC0-1.0 o MIT',
   'must not be empty': 'no debe estar vacío',
   'must have at least {n} characters': 'debe tener al menos {n} caracteres',
   'must have at least 1 item': 'debe tener al menos 1 entrada',
@@ -2645,6 +2906,153 @@ export const messages: Catalog = {
   '"recentColors" holds {n} colors, more than {limit}.':
     '"recentColors" tiene {n} colores, más de {limit}.',
   '"{name}" must be true or false, not {value}.': '"{name}" debe ser true o false, no {value}.',
+
+  // Why the Structurizr, LikeC4 and draw.io readers refuse a file, and what they leave out (ADR 0042).
+  'The file nests too deeply to be read.': 'El archivo anida demasiado hondo para leerse.',
+  'The file is not JSON.': 'El archivo no es JSON.',
+  'The file is over 32 MiB, the most an import reads.':
+    'El archivo tiene más de 32 MiB, lo máximo que lee una importación.',
+  'The file holds {count} elements; an import brings at most 20,000.':
+    'El archivo tiene {count} elementos; una importación trae como máximo 20.000.',
+  'The file holds {count} relations, those that put one thing inside another included; an import brings at most 50,000.':
+    'El archivo tiene {count} relaciones, contando las que ponen una cosa dentro de otra; una importación trae como máximo 50.000.',
+  'The name is over 1,000 characters; it is cut there.':
+    'El nombre tiene más de 1.000 caracteres; se corta ahí.',
+  'One more thing matched nothing; the list stops here.':
+    'Una cosa más no coincidió con nada; la lista se detiene aquí.',
+  '{count} more things matched nothing; the list stops here.':
+    '{count} cosas más no coincidieron con nada; la lista se detiene aquí.',
+  'A link that is not a web address is left out.':
+    'Se deja fuera una referencia que no es una dirección web.',
+  'Its {n} bend points are left out: a route bends at most 64 times.':
+    'Se dejan fuera sus {n} puntos de quiebre: una ruta se quiebra como máximo 64 veces.',
+  'The view is left out: an import brings at most 500 views.':
+    'Se deja fuera la vista: una importación trae como máximo 500 vistas.',
+  'The view is left out: the views would show over 200,000 shapes in all.':
+    'Se deja fuera la vista: las vistas mostrarían más de 200.000 formas en total.',
+  'The order of its steps is left out; a scenario can be recorded over the view.':
+    'Se deja fuera el orden de sus pasos; se puede grabar un escenario sobre la vista.',
+  'The XML has text outside its outermost element.':
+    'El XML tiene texto fuera de su elemento exterior.',
+  'The XML has an unfinished processing instruction.':
+    'El XML tiene una instrucción de procesamiento sin terminar.',
+  'The XML has an unfinished comment.': 'El XML tiene un comentario sin terminar.',
+  'The XML has an unfinished CDATA section.': 'El XML tiene una sección CDATA sin terminar.',
+  'The XML has a DOCTYPE out of place.': 'El XML tiene un DOCTYPE fuera de lugar.',
+  'The XML has a DOCTYPE with declarations of its own, which is not read.':
+    'El XML tiene un DOCTYPE con declaraciones propias, que no se lee.',
+  'The XML has a declaration, such as an ENTITY, outside a DOCTYPE; it is not read.':
+    'El XML tiene una declaración, como un ENTITY, fuera de un DOCTYPE; no se lee.',
+  'The XML has an unfinished declaration.': 'El XML tiene una declaración sin terminar.',
+  'The XML has an unfinished end tag.': 'El XML tiene una etiqueta de cierre sin terminar.',
+  'The XML closes "{name}" out of order.': 'El XML cierra "{name}" fuera de orden.',
+  'The XML has more than one outermost element.': 'El XML tiene más de un elemento exterior.',
+  'The XML has over 500,000 elements.': 'El XML tiene más de 500.000 elementos.',
+  'The XML nests elements over 256 deep.': 'El XML anida elementos a más de 256 niveles.',
+  'The XML leaves "{name}" open.': 'El XML deja "{name}" abierto.',
+  'The XML has no element.': 'El XML no tiene ningún elemento.',
+  'The XML leaves the tag "{name}" unfinished.': 'El XML deja la etiqueta "{name}" sin terminar.',
+  'The tag "{name}" has over 1,024 attributes.':
+    'La etiqueta "{name}" tiene más de 1.024 atributos.',
+  'The XML has a malformed tag.': 'El XML tiene una etiqueta mal formada.',
+  'The XML has an "&" that starts no reference.':
+    'El XML tiene un "&" que no empieza ninguna referencia.',
+  'The XML uses the entity "&{name};", which is not read.':
+    'El XML usa la entidad "&{name};", que no se lee.',
+  'The XML refers to a character XML does not allow (&{name};).':
+    'El XML se refiere a un carácter que XML no permite (&{name};).',
+  'The compressed content is not valid deflate data.':
+    'El contenido comprimido no son datos deflate válidos.',
+  'The compressed content inflates to over 32 MiB, the most an import reads.':
+    'El contenido comprimido se descomprime en más de 32 MiB, lo máximo que lee una importación.',
+  'The compressed content is not valid base64.': 'El contenido comprimido no es base64 válido.',
+  'The compressed content is not valid URI-encoded text.':
+    'El contenido comprimido no es texto codificado como URI válido.',
+  'The SVG picture holds no draw.io diagram: its outermost element has no content.':
+    'La imagen SVG no contiene ningún dibujo de draw.io: su elemento exterior no tiene content.',
+  'The file is not a draw.io diagram: its outermost element is "{name}", not "mxfile".':
+    'El archivo no es un dibujo de draw.io: su elemento exterior es "{name}", no "mxfile".',
+  'The draw.io file has no page.': 'El archivo de draw.io no tiene ninguna página.',
+  'A page of the draw.io file holds "{name}", not "mxGraphModel".':
+    'Una página del archivo de draw.io contiene "{name}", no "mxGraphModel".',
+  'A chunk of the PNG picture is damaged.': 'Un bloque de la imagen PNG está dañado.',
+  'The PNG picture holds no draw.io diagram.':
+    'La imagen PNG no contiene ningún dibujo de draw.io.',
+  'A cell on the page "{page}" has no id.': 'Una celda de la página "{page}" no tiene id.',
+  'The page "{page}" holds the id "{id}" twice.':
+    'La página "{page}" tiene el id "{id}" dos veces.',
+  'Its placeholders are filled in up to 64 of them and 4,000 characters; the rest stay as written.':
+    'Sus marcadores de posición se completan hasta 64 de ellos y 4.000 caracteres; el resto queda como está escrito.',
+  'Placeholders are filled in up to 1,000,000 characters across the file; the rest stay as written.':
+    'Los marcadores de posición se completan hasta 1.000.000 de caracteres en todo el archivo; el resto queda como está escrito.',
+  'Its container "{id}" is not on the page, so it sits directly in World.':
+    'Su contenedor "{id}" no está en la página, así que queda directamente en Mundo.',
+  'It sits inside itself through its containers, so it sits directly in World.':
+    'Queda dentro de sí mismo a través de sus contenedores, así que queda directamente en Mundo.',
+  'A line that is not connected at both ends becomes no relation.':
+    'Una línea que no está conectada en ambos extremos no se vuelve una relación.',
+  'It ends on "{id}", which the page does not hold.': 'Termina en "{id}", que la página no tiene.',
+  'It ends on the page itself, which is no element.':
+    'Termina en la página misma, que no es un elemento.',
+  'Its relations end on each other in a loop, so none of them becomes a relation.':
+    'Sus relaciones terminan unas en otras en un ciclo, así que ninguna se vuelve una relación.',
+  'It ends on a line that becomes no relation, so it becomes none either.':
+    'Termina en una línea que no se vuelve una relación, así que tampoco se vuelve una.',
+  'The page is left out: an import brings at most 500 views.':
+    'Se deja fuera la página: una importación trae como máximo 500 vistas.',
+  'A shape draws this draw.io stencil, which is left out; the component chosen for it draws it.':
+    'Una forma dibuja este stencil de draw.io, que se deja fuera; la dibuja el componente elegido para ella.',
+  '{count} shapes draw this draw.io stencil, which is left out; the component chosen for them draws them.':
+    '{count} formas dibujan este stencil de draw.io, que se deja fuera; las dibuja el componente elegido para ellas.',
+  'A shape shows an image, which is left out: images in imports are left out, and the component chosen for it draws it.':
+    'Una forma muestra una imagen, que se deja fuera: las imágenes de las importaciones se dejan fuera, y la dibuja el componente elegido para ella.',
+  '{count} shapes show an image, which is left out: images in imports are left out, and the component chosen for them draws them.':
+    '{count} formas muestran una imagen, que se deja fuera: las imágenes de las importaciones se dejan fuera, y las dibuja el componente elegido para ellas.',
+  'The workspace\'s "{where}" is not what Structurizr writes.':
+    'El "{where}" del espacio de trabajo no es lo que escribe Structurizr.',
+  'The file is not a Structurizr workspace: it has no model.':
+    'El archivo no es un espacio de trabajo de Structurizr: no tiene modelo.',
+  'The workspace holds the id "{id}" twice.': 'El espacio de trabajo tiene el id "{id}" dos veces.',
+  'The workspace nests its deployment over 64 levels deep.':
+    'El espacio de trabajo anida su despliegue a más de 64 niveles.',
+  'It ends on "{id}", which the workspace does not hold.':
+    'Termina en "{id}", que el espacio de trabajo no tiene.',
+  'It is deployed from "{id}", which the workspace does not hold.':
+    'Se despliega a partir de "{id}", que el espacio de trabajo no tiene.',
+  'A relationship between what the view shows is not in it, but a view shows every relation between what it shows.':
+    'Una relación entre lo que muestra la vista no está en ella, pero una vista muestra todas las relaciones entre lo que muestra.',
+  '{count} relationships between what the view shows are not in it, but a view shows every relation between what it shows.':
+    '{count} relaciones entre lo que muestra la vista no están en ella, pero una vista muestra todas las relaciones entre lo que muestra.',
+  'The view "{view}" shows "{id}", which the workspace does not hold.':
+    'La vista "{view}" muestra "{id}", que el espacio de trabajo no tiene.',
+  'Its base view "{view}" is not in the workspace.':
+    'Su vista de base "{view}" no está en el espacio de trabajo.',
+  'Image views are left out: images in imports are left out.':
+    'Se dejan fuera las vistas de imagen: las imágenes de las importaciones se dejan fuera.',
+  'Documentation and decisions are left out.': 'Se dejan fuera la documentación y las decisiones.',
+  'The LikeC4 model\'s "{where}" is not what LikeC4 writes.':
+    'El "{where}" del modelo de LikeC4 no es lo que escribe LikeC4.',
+  'The file is not a LikeC4 model: it has no elements.':
+    'El archivo no es un modelo de LikeC4: no tiene elementos.',
+  'The LikeC4 model holds a name over 256 characters or 32 levels deep: "{name}".':
+    'El modelo de LikeC4 tiene un nombre de más de 256 caracteres o 32 niveles: "{name}".',
+  'The LikeC4 model holds the element "{name}" twice.':
+    'El modelo de LikeC4 tiene el elemento "{name}" dos veces.',
+  'The LikeC4 model holds the deployment element "{name}" twice.':
+    'El modelo de LikeC4 tiene el elemento de despliegue "{name}" dos veces.',
+  'The LikeC4 model holds the relation "{id}" twice.':
+    'El modelo de LikeC4 tiene la relación "{id}" dos veces.',
+  'It ends on "{id}", which the model does not hold.': 'Termina en "{id}", que el modelo no tiene.',
+  'It ends inside a deployed element, so it ends on the deployed element.':
+    'Termina dentro de un elemento desplegado, así que termina en el elemento desplegado.',
+  'The view "{view}" shows "{id}", which the model does not hold.':
+    'La vista "{view}" muestra "{id}", que el modelo no tiene.',
+  'Groups are left out; what they hold sits in the view without them.':
+    'Se dejan fuera los grupos; lo que contienen queda en la vista sin ellos.',
+  'A step that no relation of the model stands for is left out.':
+    'Se deja fuera un paso que no representa ninguna relación del modelo.',
+  'It is drawn between containers of its ends; it shows in views that show its ends.':
+    'Se dibuja entre contenedores de sus extremos; se muestra en las vistas que muestran sus extremos.',
 };
 
 /**
@@ -2776,5 +3184,106 @@ export const builtins: Readonly<
       onDelete:
         'Qué pasa con los registros que tienen este valor cuando se elimina el registro al que se refieren.',
     },
+  },
+  c4: {
+    name: 'Arquitectura C4',
+    description:
+      'Personas, sistemas de software, contenedores, componentes y nodos de despliegue, como el modelo C4 dibuja la arquitectura de software.',
+  },
+  'c4.person': {
+    name: 'Persona',
+    description: 'Alguien que usa los sistemas de software, como un cliente o un operador.',
+    attributes: { external: 'Si queda fuera de la organización cuyos sistemas se modelan.' },
+  },
+  'c4.software-system': {
+    name: 'Sistema de software',
+    description:
+      'Algo que da valor a sus usuarios como un todo, hecho de contenedores; el nivel más alto del modelo C4.',
+    attributes: { external: 'Si queda fuera de la organización cuyos sistemas se modelan.' },
+  },
+  'c4.container': {
+    name: 'Contenedor',
+    description:
+      'Algo que se ejecuta por sí mismo y tiene código o datos, como una aplicación web, una app móvil o una base de datos.',
+    attributes: { technology: 'Con qué está hecho, como "Java y Spring Boot" o "PostgreSQL".' },
+  },
+  'c4.component': {
+    name: 'Componente',
+    description:
+      'Un grupo de funciones relacionadas detrás de una interfaz, dentro de un contenedor.',
+    attributes: { technology: 'Con qué está hecho, como "Java y Spring Boot" o "PostgreSQL".' },
+  },
+  'c4.deployment-node': {
+    name: 'Nodo de despliegue',
+    description:
+      'Donde se ejecuta el software, como un servidor, un dispositivo, un clúster o todo un centro de datos.',
+    attributes: { technology: 'Con qué está hecho, como "Java y Spring Boot" o "PostgreSQL".' },
+  },
+  'c4.uses': {
+    name: 'usa',
+    description:
+      'Depende de otro elemento para hacer su trabajo, como llamar a su API o leer sus datos.',
+    attributes: { technology: 'Cómo, como "JSON sobre HTTPS" o "SQL".' },
+  },
+  'c4.runs-in': {
+    name: 'se ejecuta en',
+    description:
+      'Ubica un sistema de software, un contenedor o un nodo de despliegue en el nodo de despliegue en el que se ejecuta.',
+  },
+  'c4.delivers-to': {
+    name: 'entrega a',
+    description: 'Envía algo a una persona, como un correo electrónico o una página para leer.',
+    attributes: { technology: 'Cómo, como "SMTP" o "HTTPS".' },
+  },
+  'c4.is-part-of': {
+    name: 'es parte de',
+    description: 'Ubica un contenedor en su sistema de software, o un componente en su contenedor.',
+  },
+  'data-science': {
+    name: 'Canalizaciones de ciencia de datos',
+    description:
+      'Fuentes, transformaciones, almacenes de características, modelos y paneles de indicadores, y cómo los datos los alimentan y entrenan modelos.',
+  },
+  'data-science.source': {
+    name: 'Fuente',
+    description:
+      'De donde vienen los datos, como una base de datos, una API, archivos o un flujo de eventos.',
+    attributes: { system: 'Qué los guarda, como "PostgreSQL", "Kafka" o "S3".' },
+  },
+  'data-science.transform': {
+    name: 'Transformación',
+    description: 'Un paso que limpia, combina o reorganiza datos para dar otros datos.',
+    attributes: {
+      engine: 'Qué la ejecuta, como "dbt", "Spark" o "pandas".',
+      schedule: 'Cuándo se ejecuta, como "cada hora" o "con cada evento".',
+    },
+  },
+  'data-science.feature-store': {
+    name: 'Almacén de características',
+    description:
+      'Un almacén de características, calculadas una vez y servidas igual al entrenamiento y a las predicciones.',
+    attributes: { engine: 'Como "Feast" o "Tecton".' },
+  },
+  'data-science.model': {
+    name: 'Modelo',
+    description: 'Un modelo entrenado con datos, que predice, clasifica o genera.',
+    attributes: {
+      framework: 'Con qué está hecho, como "PyTorch" o "scikit-learn".',
+      metric: 'Cómo se lo evalúa, como "AUC 0.91".',
+    },
+  },
+  'data-science.dashboard': {
+    name: 'Panel de indicadores',
+    description: 'Donde las personas leen los resultados: gráficos, tablas y alertas.',
+    attributes: { tool: 'Como "Superset", "Grafana" o "Streamlit".' },
+  },
+  'data-science.feeds': {
+    name: 'alimenta',
+    description: 'Pasa datos al paso siguiente.',
+    attributes: { format: 'Como "Parquet", "JSON" o "Avro".' },
+  },
+  'data-science.trains': {
+    name: 'entrena',
+    description: 'Le da a un modelo los datos con los que aprende.',
   },
 };

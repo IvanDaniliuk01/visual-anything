@@ -119,6 +119,12 @@ export function ComponentsTab({ active }: ComponentsTabProps) {
           >
             {t('New package')}
           </NewButton>
+          <NewButton
+            disabled={!creating}
+            onClick={() => open?.({ kind: 'add-package' }, { focus: true })}
+          >
+            {t('Add from another project…')}
+          </NewButton>
         </div>
       </section>
     </div>

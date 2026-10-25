@@ -3,14 +3,21 @@ import { cleanup } from '@testing-library/react';
 import { afterEach } from 'vitest';
 import { resetLanguageForTests } from '../i18n/language';
 
+/**
+ * Whether the test runs in jsdom. A test of what runs outside the browser, such as the exports the
+ * command line writes, runs in Node instead (`@vitest-environment node`), where there is no page.
+ */
+const inPage = typeof window !== 'undefined';
+
 // jsdom draws nothing: like a browser without canvas support, it has no 2D or WebGL context. Answer
 // that directly instead of letting jsdom report "not implemented" when PixiJS probes for one on import.
-HTMLCanvasElement.prototype.getContext = () => null;
+if (inPage) HTMLCanvasElement.prototype.getContext = () => null;
 
 // Vitest runs without globals, so Testing Library cannot register its own cleanup.
 afterEach(() => {
   cleanup();
   resetLanguageForTests();
+  if (!inPage) return;
   window.sessionStorage.clear();
   window.history.replaceState(null, '', '/');
 });

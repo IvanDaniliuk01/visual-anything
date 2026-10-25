@@ -7,6 +7,7 @@ import { NewPackageForm } from './NewPackageForm';
 import { openedKey, useOpenDefinition } from './opened';
 import { PackageEditor } from './PackageEditor';
 import { RelationTypeEditor } from './RelationTypeEditor';
+import { SharePackageForm } from './SharePackageForm';
 import './definitions.css';
 
 /**
@@ -42,6 +43,12 @@ export function DefinitionInspector({ children }: { children?: ReactNode }) {
           <DeriveForm of={opened.of} base={opened.base} useFor={opened.useFor} titleRef={title} />
         )}
         {opened.kind === 'new-package' && <NewPackageForm titleRef={title} />}
+        {opened.kind === 'add-package' && (
+          <SharePackageForm mode={{ kind: 'add' }} titleRef={title} />
+        )}
+        {opened.kind === 'update-package' && (
+          <SharePackageForm mode={{ kind: 'update', id: opened.id }} titleRef={title} />
+        )}
       </div>
     </div>
   );

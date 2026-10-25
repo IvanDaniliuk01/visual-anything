@@ -23,6 +23,7 @@ import type { Attributes, Id } from '@visual-anything/schema';
 import { z } from 'zod';
 import { ProgramUnavailableError, type CommandAnswer, type Program } from './bridge';
 import { EXPLORE_TOOLS } from './explore-tools';
+import { EXPORT_TOOLS } from './export-tools';
 import { IMAGE_TOOLS } from './image-tools';
 import { RECIPES_IN_BRIEF } from './recipes';
 import { SCENARIO_TOOLS } from './scenario-tools';
@@ -476,8 +477,17 @@ const createPackage = tool({
   title: 'Create a package',
   description: `Creates an empty package of the project's own, which the project then uses, as one undoable action. Components and relation types are defined in a package; their ids start with its id and a dot.
 
-Example: { "id": "clinic", "name": "Clinic", "description": "What a clinic needs beyond Systems." }`,
-  input: { id: id(), name: z.string().min(1), description: z.string().optional() },
+A package can say which version it is (a semantic version, such as "1.0.0"), the license it is shared under (an SPDX identifier, such as "CC-BY-4.0") and whom to credit (attribution); exports carry the attribution.
+
+Example: { "id": "clinic", "name": "Clinic", "description": "What a clinic needs beyond Systems.", "version": "1.0.0", "license": "CC0-1.0" }`,
+  input: {
+    id: id(),
+    name: z.string().min(1),
+    description: z.string().optional(),
+    version: z.string().optional(),
+    license: z.string().optional(),
+    attribution: z.string().optional(),
+  },
   hints: WRITE,
   run: async (args, program) =>
     act(program, { type: 'create-package', package: withoutUndefined(args) }),
@@ -636,13 +646,16 @@ Example: { "id": "clinic.books", "direction": "directed", "limits": { "to": ["cl
 const updatePackage = tool({
   name: 'update_package',
   title: 'Rename a package',
-  description: `Changes the name or description of one of the project's own packages, as one undoable action. Its id stays.
+  description: `Changes the name, description, version, license or attribution of one of the project's own packages, as one undoable action; null takes the description, version, license or attribution out. Its id stays. A version is a semantic version, such as "1.2.0", and a license an SPDX identifier, such as "MIT".
 
 Example: { "id": "clinic", "name": "Clinic", "description": "What a clinic needs beyond Systems." }`,
   input: {
     id: id(),
     name: z.string().min(1).optional(),
     description: z.string().nullable().optional(),
+    version: z.string().nullable().optional(),
+    license: z.string().nullable().optional(),
+    attribution: z.string().nullable().optional(),
   },
   hints: WRITE,
   run: async ({ id: target, ...changes }, program) =>
@@ -1103,6 +1116,7 @@ export const TOOLS: readonly Tool[] = [
   ...VIEW_STATE_TOOLS,
   // What a view shows of the model (ADR-0040).
   ...SCOPE_TOOLS,
+  ...EXPORT_TOOLS,
 ];
 
 /** Runs a tool, turning a program that cannot be reached into an outcome Claude reads. */

@@ -114,7 +114,9 @@ describe('the Components tab', () => {
         ],
       },
     ]);
-    expect(within(tab).getByText('The project uses every built-in package.')).toBeVisible();
+    const still = within(tab).getByRole('list', { name: 'Not in use yet' });
+    expect(within(still).queryByText('Data modeling')).toBeNull();
+    expect(within(still).getByText('C4 architecture')).toBeVisible();
     expect(
       within(tab).getByRole('treeitem', { name: 'Data modeling, Built-in package' }),
     ).toBeVisible();

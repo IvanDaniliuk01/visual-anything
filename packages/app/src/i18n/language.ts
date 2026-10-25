@@ -38,6 +38,15 @@ export function navigatorLanguages(): readonly string[] {
   return navigator.language ? [navigator.language] : [];
 }
 
+/**
+ * The page's root element, whose `lang` follows the language; none outside a page, as when the
+ * command line exports a view, which types this module without the DOM.
+ */
+function pageRoot(): { lang: string } | undefined {
+  return (globalThis as { document?: { documentElement?: { lang: string } } }).document
+    ?.documentElement;
+}
+
 let current: Language = 'en';
 /** The language the listeners last heard of. */
 let announced: Language = 'en';
@@ -61,7 +70,8 @@ export function subscribeLanguage(listener: () => void): () => void {
  * `<html lang>` follows it.
  */
 export function setCurrentLanguage(language: Language): void {
-  if (typeof document !== 'undefined') document.documentElement.lang = language;
+  const root = pageRoot();
+  if (root) root.lang = language;
   current = language;
   if (language === announced) return;
   announced = language;
@@ -82,5 +92,6 @@ export function resetLanguageForTests(): void {
   listeners.clear();
   current = 'en';
   announced = 'en';
-  if (typeof document !== 'undefined') document.documentElement.lang = 'en';
+  const root = pageRoot();
+  if (root) root.lang = 'en';
 }

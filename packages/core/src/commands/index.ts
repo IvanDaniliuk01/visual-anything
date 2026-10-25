@@ -15,6 +15,7 @@ import {
   updateRelationType,
 } from './definitions';
 import { reorderElements } from './order';
+import { addPackage, replacePackage } from './packages';
 import { setCollapsed } from './collapse';
 import { addToView, leaveOutOfView, setScope } from './scopes';
 import { Draft, Rejection, reject, requireList, requireName } from './draft';
@@ -183,6 +184,10 @@ function dispatch(draft: Draft, command: Command): string {
       return setRelationTypeAppearance(draft, command);
     case 'update-package':
       return updatePackage(draft, command);
+    case 'add-package':
+      return addPackage(draft, command);
+    case 'replace-package':
+      return replacePackage(draft, command);
     case 'reorder-elements':
       return reorderElements(draft, command);
     case 'set-collapsed':

@@ -1,0 +1,94 @@
+{
+  "id": "customer-signs-in",
+  "name": "A customer signs in and reads their balances",
+  "description": "From the browser to the mainframe and back, with the notice by e-mail.",
+  "view": "containers",
+  "steps": [
+    {
+      "id": "opens-app",
+      "description": "The customer signs in with their username and password.",
+      "relations": [
+        "customer-uses-spa"
+      ],
+      "dataIn": {
+        "username": "ana.lopez"
+      }
+    },
+    {
+      "id": "sends-credentials",
+      "description": "The single-page app sends the credentials to the API.",
+      "relations": [
+        "spa-signs-in"
+      ],
+      "dataIn": {
+        "password": "••••••••",
+        "username": "ana.lopez"
+      }
+    },
+    {
+      "id": "checks-credentials",
+      "description": "The sign-in controller has the security component check them.",
+      "relations": [
+        "sign-in-checks-credentials"
+      ]
+    },
+    {
+      "id": "reads-hash",
+      "description": "The security component compares them with the stored hash.",
+      "relations": [
+        "security-reads-database"
+      ],
+      "dataOut": {
+        "match": true
+      }
+    },
+    {
+      "id": "sends-notice",
+      "description": "It sends a sign-in notice, which the e-mail system delivers.",
+      "relations": [
+        "security-sends-notice",
+        "email-delivers-notice"
+      ],
+      "dataOut": {
+        "subject": "New sign-in",
+        "to": "ana.lopez@example.com"
+      }
+    },
+    {
+      "id": "asks-accounts",
+      "description": "Signed in, the app asks for the accounts.",
+      "relations": [
+        "spa-gets-accounts"
+      ],
+      "dataIn": {
+        "token": "eyJhbGciOi…"
+      }
+    },
+    {
+      "id": "asks-balances",
+      "description": "The accounts controller asks the facade for the balances.",
+      "relations": [
+        "accounts-ask-facade"
+      ]
+    },
+    {
+      "id": "gets-balances",
+      "description": "The facade gets them from the mainframe.",
+      "relations": [
+        "facade-calls-mainframe"
+      ],
+      "dataOut": {
+        "accounts": [
+          {
+            "balance": 2350.4,
+            "number": "•••• 4821"
+          },
+          {
+            "balance": 120,
+            "number": "•••• 9310"
+          }
+        ]
+      }
+    }
+  ]
+}

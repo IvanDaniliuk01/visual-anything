@@ -2,7 +2,9 @@ export type { ProjectSnapshot } from './snapshot';
 
 export {
   BUILTIN_PACKAGES,
+  C4,
   DATA_MODELING,
+  DATA_SCIENCE,
   ESSENCE,
   RELATES_TO,
   RESERVED_PACKAGE_IDS,
@@ -109,6 +111,29 @@ export { relationLabel } from './commands/model';
 
 export type { Problem, ProblemCode } from './problems';
 
+// What ships with Visual Anything carries a license that lets it ship (ADR 0047).
+export type { ShippableLicense } from './licenses';
+export {
+  LICENSE_PATTERN,
+  MAX_ATTRIBUTION,
+  SHIPPABLE_LICENSES,
+  VERSION_PATTERN,
+  isLicenseId,
+  isPackageVersion,
+  isShippableLicense,
+  shippingProblems,
+} from './licenses';
+// Packages shared between projects (ADR 0051).
+export type {
+  ListChanges,
+  NamedItem,
+  PackageChanges,
+  PackageNeeds,
+  PackageProperty,
+  PropertyChange,
+} from './package-sharing';
+export { compareVersions, packageChanges, packageNeeds } from './package-sharing';
+
 export type { IdGenerator } from './ids';
 export { ID_PATTERN, definitionIdFor, freshId, isId, randomIds, slug } from './ids';
 
@@ -209,6 +234,9 @@ export type { ResolvedAttachment, ResolvedRoute, RouteLookups, RouteShapes, Side
 export { MAX_BEND_POINTS, routeOf } from './routes';
 // The live protocol's history list, and undo or redo up to an action (version 5).
 export type { HistoryListedMessage, ListedAction } from './protocol';
+// The start screen of a folder that holds no project yet (ADR 0051).
+export type { OfferedSample, StartCreateMessage, StartOfferedMessage } from './protocol';
+export { MAX_START_NAME } from './protocol';
 export { readListedActions } from './protocol';
 // The view state a view address carries (ADR 0030's addendum of 2026-10-25).
 export type {

@@ -1,0 +1,63 @@
+{
+  "id": "model-training",
+  "name": "Model training",
+  "description": "What the churn model learns from, without what scoring and the dashboards add.",
+  "perspective": {
+    "name": "Training"
+  },
+  "nestingRelationTypes": [],
+  "positions": [
+    {
+      "element": "product-events",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "crm",
+      "x": 0,
+      "y": 112
+    },
+    {
+      "element": "billing",
+      "x": 0,
+      "y": 224
+    },
+    {
+      "element": "clean-events",
+      "x": 256,
+      "y": 0
+    },
+    {
+      "element": "join-customers",
+      "x": 256,
+      "y": 128
+    },
+    {
+      "element": "compute-features",
+      "x": 512,
+      "y": 16
+    },
+    {
+      "element": "customer-features",
+      "x": 768,
+      "y": 8
+    },
+    {
+      "element": "churn-model",
+      "x": 1024,
+      "y": 16
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "exclude": [
+      {
+        "kind": "component",
+        "component": "data-science.dashboard"
+      }
+    ],
+    "leftOut": [
+      "score-customers"
+    ]
+  }
+}

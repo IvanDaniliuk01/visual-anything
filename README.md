@@ -11,6 +11,21 @@ Make any concept or system visual and explore it interactively. Private, work in
 
 Run `pnpm dev` (or `pnpm start`) at the repository root. Visual Anything opens your browser on the sample project at an address that works once, within two minutes. In the terminal where it runs, press `o` to open another tab, or `a` to print another such address; with `--no-open` it prints one at start. The session token never appears on screen or in an address: the tab gets it when it opens and keeps it for reloads.
 
+## Starting a new project
+
+`visual-anything new <folder>` starts a new project in a folder that does not exist yet or holds nothing, then opens it; with `--from c4-architecture` or `--from data-science-pipeline` it starts from a sample project (ADR 0051). From the repository, run `pnpm exec tsx packages/server/src/cli.ts new <folder> --from <sample>`. Opening a folder that holds nothing yet, as `visual-anything <folder>`, shows a start screen in the browser instead, with the same choices.
+
+A package of another project comes in from the Components tab, with **Add from another project…**: choose that project's folder, then one of its packages. It is copied with its images, keeping its ids; a package of the project's own updates from there with **Update from another project…**, which lists what changed before it applies.
+
+### Starter packages
+
+Each starter package is built in, with its icons and a sample project in `examples/` that plays a scenario. Everything they ship is CC0-1.0, credited to the Visual Anything contributors (ADR 0047).
+
+- **C4 architecture** (`c4`): Person, Software system, Container, Component and Deployment node; uses, runs in, delivers to, and is part of. Sample: `examples/c4-architecture`, a bank's internet banking system with its system context, containers and deployment, and a customer signing in. Its icons were drawn for Visual Anything, as plain SVG.
+- **Data science pipelines** (`data-science`): Source, Transform, Feature store, Model and Dashboard; feeds and trains. Sample: `examples/data-science-pipeline`, a churn prediction pipeline with its training view, and the nightly run. Its icons were drawn for Visual Anything, as plain SVG.
+
+After changing a sample, run `pnpm --filter @visual-anything/server samples` so that the program holds the new version, and commit both.
+
 ## View addresses
 
 Every tab keeps its address in step with where you are: the open view, where the canvas looks, the selection, the filters, focus mode and the scenario step played, all by id, as in `http://127.0.0.1:47123/#view=system-overview&select=appointments-api`. A view address holds no secret, so it is safe to paste anywhere.
@@ -60,6 +75,20 @@ The executables are not signed yet, so each system warns the first time:
 - **Windows.** Started from Explorer, a file you downloaded shows "Windows protected your PC: Microsoft Defender SmartScreen prevented an unrecognized app from starting". Choose **More info**, then **Run anyway**. To start it from a terminal without that, unblock it once: right-click it, choose **Properties** and tick **Unblock**, or run `Unblock-File .\visual-anything-windows-x64.exe` in PowerShell. If Smart App Control is on (Windows 11), it blocks unsigned programs and offers no way through for one program; until releases are signed, the executable then cannot run there, and `pnpm start` from the repository still can. Windows Firewall does not ask, since Visual Anything listens on 127.0.0.1 only.
 - **macOS.** The executable is signed ad hoc, which lets it run but does not identify its maker. Make it executable after downloading, with `chmod +x visual-anything-macos-arm64`. The first run of a file a browser downloaded shows "“visual-anything-macos-arm64” Not Opened: Apple could not verify it is free of malware". Choose **Done**, open **System Settings**, then **Privacy & Security**, choose **Open Anyway** beside the message about it, and run it again; macOS asks once more, with your password. Or remove the quarantine a browser puts on downloads before the first run: `xattr -d com.apple.quarantine visual-anything-macos-arm64`.
 - **Linux.** Nothing warns. Make it executable after downloading, with `chmod +x visual-anything-linux-x64`. It needs glibc 2.28 or later (Debian 10, Ubuntu 20.04, Fedora 29, RHEL 8 or later; not Alpine), and opens the browser through `xdg-open`, which comes with `xdg-utils`; without it, use `--no-open`.
+
+## Exporting a view
+
+```sh
+visual-anything export <folder> --view <id> --format svg|pdf|md|mermaid|structurizr [--theme light|dark] [--out <file>]
+```
+
+From the repository, run `pnpm exec tsx packages/server/src/cli.ts export …`. It writes one view of the project in `folder`, reading the project itself, so it needs no Visual Anything running and suits CI, a README or a pull request:
+
+- **svg** and **pdf** draw the whole view as the canvas does, in the theme asked for, without the selection, filters or focus. The SVG names each shape's element and each line's relation in `data-element` and `data-relation` attributes, and takes its title and description from the view. The PDF embeds its fonts (Roboto), and carries the view's outline as an attachment.
+- **md** writes the view's outline in Markdown: what sits in each container, the relations drawn from each shape, the notes and the scenarios' steps. It is the view's long description, which the SVG and the PDF name.
+- **mermaid** writes a Mermaid flowchart, which GitHub renders, and **structurizr** a Structurizr DSL workspace of the view's Systems components.
+
+Each says on standard error what it could not hold. It writes only the file given with `--out`, and never a project file; without `--out`, the export goes to standard output.
 
 ## Claude through MCP
 

@@ -1,0 +1,207 @@
+{
+  "world": {
+    "id": "world",
+    "component": "essence",
+    "name": "World"
+  },
+  "elements": [
+    {
+      "id": "product-events",
+      "component": "data-science.source",
+      "name": "Product events",
+      "description": "Clicks, sessions and purchases, as they happen.",
+      "attributes": {
+        "system": "Kafka"
+      }
+    },
+    {
+      "id": "crm",
+      "component": "data-science.source",
+      "name": "CRM database",
+      "description": "Customers, plans and support tickets.",
+      "attributes": {
+        "system": "PostgreSQL"
+      }
+    },
+    {
+      "id": "billing",
+      "component": "data-science.source",
+      "name": "Billing API",
+      "description": "Invoices and failed payments.",
+      "attributes": {
+        "system": "Stripe"
+      }
+    },
+    {
+      "id": "clean-events",
+      "component": "data-science.transform",
+      "name": "Clean events",
+      "description": "Drops bots and duplicates, and groups events into sessions.",
+      "attributes": {
+        "engine": "Spark",
+        "schedule": "hourly"
+      }
+    },
+    {
+      "id": "join-customers",
+      "component": "data-science.transform",
+      "name": "Join customer data",
+      "description": "One row per customer, with their plan, tickets and payments.",
+      "attributes": {
+        "engine": "dbt",
+        "schedule": "daily"
+      }
+    },
+    {
+      "id": "compute-features",
+      "component": "data-science.transform",
+      "name": "Compute features",
+      "description": "Activity, tenure, tickets and failed payments per customer.",
+      "attributes": {
+        "engine": "Spark",
+        "schedule": "daily"
+      }
+    },
+    {
+      "id": "customer-features",
+      "component": "data-science.feature-store",
+      "name": "Customer features",
+      "description": "The same features for training and for scoring.",
+      "attributes": {
+        "engine": "Feast"
+      }
+    },
+    {
+      "id": "churn-model",
+      "component": "data-science.model",
+      "name": "Churn model",
+      "description": "Predicts which customers will cancel within 30 days.",
+      "attributes": {
+        "framework": "XGBoost",
+        "metric": "AUC 0.87"
+      }
+    },
+    {
+      "id": "score-customers",
+      "component": "data-science.transform",
+      "name": "Score customers",
+      "description": "Applies the model to every active customer.",
+      "attributes": {
+        "engine": "Python",
+        "schedule": "daily"
+      }
+    },
+    {
+      "id": "churn-dashboard",
+      "component": "data-science.dashboard",
+      "name": "Churn dashboard",
+      "description": "Customers at risk, by plan and region.",
+      "attributes": {
+        "tool": "Superset"
+      }
+    },
+    {
+      "id": "model-monitoring",
+      "component": "data-science.dashboard",
+      "name": "Model monitoring",
+      "description": "How the churn model drifts and how well it predicts.",
+      "attributes": {
+        "tool": "Grafana"
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "events-to-cleaning",
+      "relationType": "data-science.feeds",
+      "from": "product-events",
+      "to": "clean-events",
+      "name": "Raw events",
+      "attributes": {
+        "format": "Avro"
+      }
+    },
+    {
+      "id": "crm-to-join",
+      "relationType": "data-science.feeds",
+      "from": "crm",
+      "to": "join-customers",
+      "name": "Customers and tickets"
+    },
+    {
+      "id": "billing-to-join",
+      "relationType": "data-science.feeds",
+      "from": "billing",
+      "to": "join-customers",
+      "name": "Invoices",
+      "attributes": {
+        "format": "JSON"
+      }
+    },
+    {
+      "id": "sessions-to-features",
+      "relationType": "data-science.feeds",
+      "from": "clean-events",
+      "to": "compute-features",
+      "name": "Sessions",
+      "attributes": {
+        "format": "Parquet"
+      }
+    },
+    {
+      "id": "customers-to-features",
+      "relationType": "data-science.feeds",
+      "from": "join-customers",
+      "to": "compute-features",
+      "name": "Customers",
+      "attributes": {
+        "format": "Parquet"
+      }
+    },
+    {
+      "id": "features-to-store",
+      "relationType": "data-science.feeds",
+      "from": "compute-features",
+      "to": "customer-features",
+      "name": "Features"
+    },
+    {
+      "id": "store-trains-model",
+      "relationType": "data-science.trains",
+      "from": "customer-features",
+      "to": "churn-model",
+      "name": "Training set"
+    },
+    {
+      "id": "store-to-scoring",
+      "relationType": "data-science.feeds",
+      "from": "customer-features",
+      "to": "score-customers",
+      "name": "Today’s features"
+    },
+    {
+      "id": "model-to-scoring",
+      "relationType": "data-science.feeds",
+      "from": "churn-model",
+      "to": "score-customers",
+      "name": "The trained model"
+    },
+    {
+      "id": "model-to-monitoring",
+      "relationType": "data-science.feeds",
+      "from": "churn-model",
+      "to": "model-monitoring",
+      "name": "Metrics"
+    },
+    {
+      "id": "scores-to-dashboard",
+      "relationType": "data-science.feeds",
+      "from": "score-customers",
+      "to": "churn-dashboard",
+      "name": "Scores",
+      "attributes": {
+        "format": "Parquet"
+      }
+    }
+  ]
+}

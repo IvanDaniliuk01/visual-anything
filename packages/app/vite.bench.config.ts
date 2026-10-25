@@ -14,7 +14,12 @@ export default defineConfig({
     outDir: 'dist-bench',
     emptyOutDir: true,
     rollupOptions: {
-      input: { canvas: 'bench.html', app: 'app-bench.html', page: 'page-bench.html' },
+      input: {
+        canvas: 'bench.html',
+        app: 'app-bench.html',
+        exports: 'exports-bench.html',
+        page: 'page-bench.html',
+      },
     },
   },
   preview: { host: '127.0.0.1', port: 47707, strictPort: true },
