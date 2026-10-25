@@ -18,7 +18,7 @@
  * resizes, the lines are kept as they were. A build is always equal, field by field, to one made from
  * nothing (`buildSceneAfresh`).
  */
-import type { ProjectSnapshot, RouteStyle } from '@visual-anything/core';
+import { imagesIn, type ProjectSnapshot, type RouteStyle } from '@visual-anything/core';
 import type {
   Arrow,
   Color,
@@ -80,6 +80,16 @@ import {
   type RowSides,
   type SideInfo,
 } from './rowShapes';
+import {
+  imageLookOf,
+  movedImage,
+  placeImage,
+  sameRect as sameImageRect,
+  sameShapeImage,
+  setImageCatalog,
+  type ImageLook,
+  type ShapeImage,
+} from './shape-images';
 
 /** Everything a view draws. */
 export interface Scene {
@@ -163,6 +173,13 @@ export interface ElementShape {
    * cut to one line each, ending in "…" when cut. `name` stays whole, for the editor and the outline.
    */
   fitted?: { name: string; detail: string };
+  /** The image its appearance shows, placed on it (`shape-images.ts`). */
+  image?: ShapeImage;
+  /**
+   * Present when its image is its whole drawing: the plate the picture sits on, with the band its name
+   * is written in. Routes, the selection and pointing go by it rather than by `rect`.
+   */
+  plate?: Rect;
 }
 
 /** A relation drawn along an orthogonal route, or an aggregated relation standing for several. */
@@ -460,6 +477,7 @@ function layOut(
   const { model, packages } = project;
   const worldId = model.world.id;
   const definitions = definitionsIn(project);
+  setImageCatalog(definitions, imagesIn(project));
   // Only the listed types that a package defines and that nest arrange the view, as in the core.
   const listed = nestingTypesInView(project, view);
   const nesting =
@@ -596,6 +614,8 @@ export interface Look {
   dark?: { fill: Color; stroke: Color };
   componentName: string;
   details: Map<string, string>;
+  /** The image its shapes show, if any. */
+  image: ImageLook | undefined;
 }
 
 const NO_TYPES: ReadonlySet<Id> = new Set();
@@ -668,6 +688,7 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
       appearance: appearanceOf(element, definitions),
       componentName: componentOrEssence(definitions, element.component).name,
       details: new Map(),
+      image: imageLookOf(element, definitions),
     };
     const dark = darkColorsOf(element, definitions);
     if (dark.fill !== look.appearance.fill || dark.stroke !== look.appearance.stroke) {
@@ -1070,6 +1091,7 @@ function replaceShapes(
       ...(offset && !samePoint(offset, shape.offset) ? { offset } : {}),
       rect: { ...shape.rect, x: shape.rect.x + dx, y: shape.rect.y + dy },
       extent: { ...shape.extent, x: shape.extent.x + dx, y: shape.extent.y + dy },
+      ...movedImage(shape, dx, dy),
     });
     for (const inner of contents[at] as number[]) translate(inner, dx, dy, undefined);
   };
@@ -1196,6 +1218,17 @@ function shapeFor(
   const container = box.placement.container;
   const holdsContents = parts.contents.length > 0;
   const rowish = rowFieldsOf(parts, width, holdsContents);
+  const placed = placeImage(
+    look.image,
+    {
+      kind: appearance.shape,
+      rect: { x, y, width, height },
+      holdsContents,
+      ...(folded === undefined ? {} : { collapsed: true }),
+      rows: appearance.contentsAsRows,
+    },
+    detail !== '',
+  );
   if (
     before &&
     sameRowFields(before, rowish) &&
@@ -1226,7 +1259,9 @@ function shapeFor(
     before.extent.height === y2 - y1 &&
     before.holdsContents === holdsContents &&
     before.collapsed?.contents === folded &&
-    before.points === points
+    before.points === points &&
+    sameShapeImage(before.image, placed?.image) &&
+    sameImageRect(before.plate, placed?.plate)
   ) {
     return before;
   }
@@ -1260,6 +1295,8 @@ function shapeFor(
   withRowFields(shape, rowish);
   if (look.dark) shape.dark = look.dark;
   if (points) shape.points = points;
+  if (placed) shape.image = placed.image;
+  if (placed?.plate) shape.plate = placed.plate;
   return shape;
 }
 
@@ -1708,7 +1745,7 @@ function routeEndOf(
     const shape = shapes[end.at] as ElementShape;
     // A row, or a shape that draws rows, is left beside it (ADR 0023).
     if (side) return sideEndOf(shape, shapes, keyIndexOf(shapes), side);
-    return { rect: shape.rect };
+    return { rect: shape.plate ?? shape.rect };
   }
   const at = plan.byKey.get(end.key);
   const line = at === undefined ? undefined : lineAt(at);

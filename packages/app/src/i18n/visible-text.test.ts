@@ -43,6 +43,9 @@ const TRANSLATED = [
   'shell/inspector/RowsSection.tsx',
   'view-state/CopyAddress.tsx',
   'search/FindBar.tsx',
+  'shell/definitions/ImageControl.tsx',
+  'shell/definitions/ImagePreview.tsx',
+  'shell/definitions/ElementImageTrait.tsx',
 ];
 
 /** The attributes whose text people read or hear. */

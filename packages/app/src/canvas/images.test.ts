@@ -3,6 +3,7 @@ import { SVG_ALLOWED, cleanSvg, cleanedImage, type CleanedImage } from '@visual-
 import { describe, expect, it, vi } from 'vitest';
 import {
   AtlasLayout,
+  AtlasPage,
   IMAGE_LIMITS,
   ImageStore,
   bucketFor,
@@ -338,6 +339,30 @@ describe('the image store', () => {
     ]);
   });
 
+  it('at rest, rasterizes an SVG only at buckets it should draw within 16 ms, a bucket at a time', async () => {
+    const platform = new FakePlatform();
+    platform.svgCost = 3;
+    const store = new ImageStore(platform);
+    const picture = svg();
+    const rasterized = () =>
+      platform.calls.filter((call) => call.startsWith('rasterize')).map((call) => call.slice(10));
+    const wanted = request(picture, { devicePixels: 256, sharp: true });
+    store.texture(wanted);
+    await rest(store);
+    // From 3 ms at 32, 256 pixels a side, 64 times as many, would take about 192 ms.
+    expect(rasterized()).toEqual(['32×32']);
+    // Drawn meanwhile from the largest bucket it has, as the canvas asks again each time.
+    expect(store.texture(wanted)).toMatchObject({ bucket: 32, exact: false });
+    await rest(store);
+    expect(rasterized()).toEqual(['32×32', '64×64']);
+    for (let again = 0; again < 3; again++) {
+      store.texture(wanted);
+      await rest(store);
+    }
+    // Each bucket's cost, measured, says the next one fits.
+    expect(rasterized()).toEqual(['32×32', '64×64', '128×128', '256×256']);
+  });
+
   it('breaks an SVG for the session when its first rasterization takes over 16 ms', async () => {
     const platform = new FakePlatform();
     platform.svgCost = 17;
@@ -534,6 +559,23 @@ describe('the image store', () => {
 });
 
 describe('the atlas', () => {
+  it('keeps a page’s pixels, and uploads only the rows of the cells drawn since the last upload', () => {
+    const page = new AtlasPage(64);
+    expect(page.takeDirty()).toBeUndefined();
+    const cell = new Uint8ClampedArray(8 * 8 * 4).fill(200);
+    page.put(cell, 8, 16, 24);
+    page.put(cell, 8, 40, 28);
+    // Rows 24 to 36, whole.
+    expect(page.takeDirty()).toEqual({ start: 24 * 64, end: 36 * 64 });
+    expect(page.takeDirty()).toBeUndefined();
+    const at = (x: number, y: number) => page.data[(y * 64 + x) * 4];
+    expect(at(16, 24)).toBe(200);
+    expect(at(23, 31)).toBe(200);
+    expect(at(24, 31)).toBe(0);
+    expect(at(15, 24)).toBe(0);
+    expect(at(47, 35)).toBe(200);
+  });
+
   it('places 16-pixel pictures in 24-pixel cells, 4-pixel gutters around each, row by row', () => {
     const atlas = new AtlasLayout();
     const slots = Array.from({ length: 90 }, () => atlas.place(16).slot);

@@ -9,7 +9,7 @@
  * a theme switch only tints them; those of free arrows are drawn in the canvas color with the arrows.
  */
 import type { ThemeName } from '@visual-anything/core';
-import type { Id } from '@visual-anything/schema';
+import type { Color, Id } from '@visual-anything/schema';
 import type { Container, Graphics, GraphicsContext } from 'pixi.js';
 import { THEMES, type CanvasTheme } from '../../theme/themes';
 import { readableTextColors } from '../colors';
@@ -36,6 +36,7 @@ import {
   type NoteShape,
   type RelationLine,
 } from '../scene';
+import { nameBandOf } from '../shape-images';
 import type { RoutePiece } from '../tiles';
 import {
   noteColors,
@@ -144,13 +145,15 @@ export class Painter {
 
   /**
    * Each shape's name and, with `details`, its detail, tinted to read on the fill it is drawn in;
-   * `records` gets each label with the shape it is on.
+   * `records` gets each label with the shape it is on. A shape drawn by its picture writes its name
+   * under the picture, on what the shape sits on, which `lookups` finds.
    */
   shapeLabels(
     shapes: readonly ElementShape[],
     details: boolean,
     make: TextFactory,
     records?: LabelPaint[],
+    lookups?: PaintLookups,
   ): Container[] {
     let current = '';
     const recording: TextFactory | undefined = records
@@ -165,7 +168,9 @@ export class Painter {
     for (const shape of shapes) {
       current = shape.key;
       written.push(
-        ...writeShapeLabels([paintedShape(shape, this.name)], details, recording ?? make),
+        ...writeShapeLabels([paintedShape(shape, this.name)], details, recording ?? make, () =>
+          this.backdropOf(shape, lookups),
+        ),
       );
     }
     return written;
@@ -213,9 +218,20 @@ export class Painter {
       }
       const shape = lookups.shape(record.shape);
       if (!shape) continue;
-      const colors = readableTextColors(shapeColors(shape, this.name).fill);
+      const under = nameBandOf(shape) ? this.backdropOf(shape, lookups) : undefined;
+      const colors = readableTextColors(under ?? shapeColors(shape, this.name).fill);
       label.tint = record.role === 'name' ? colors.name : colors.detail;
     }
+  }
+
+  /**
+   * What a shape sits on, in this theme: its container's fill, or the canvas. The name of a shape
+   * drawn by its picture is written there, under the picture.
+   */
+  private backdropOf(shape: ElementShape, lookups: PaintLookups | undefined): Color {
+    const holder =
+      shape.containerShape === undefined ? undefined : lookups?.shape(shape.containerShape);
+    return holder ? shapeColors(holder, this.name).fill : this.theme.background;
   }
 
   private shapes(shapes: readonly ElementShape[]): readonly ElementShape[] {

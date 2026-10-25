@@ -11,6 +11,9 @@
  * must stay within 0.5 ms, is measured in blocks of frames with and without it, one after another, so
  * that a machine busy with something else weighs on both alike. `?only=grid` measures only these.
  * `?tables` draws a view of tables instead (`syntheticTables`), and adds the edit of one column.
+ * `?images` gives the elements pictures (see `images.ts`): every phase then draws them, and three
+ * more phases start with the image store cleared, at scales whose buckets were not drawn yet, so that
+ * the waits before the other phases cannot have decoded the pictures they pan over.
  *
  * Work mode, the default, measures the work of each frame: it moves the camera, draws the frame and
  * waits until the GPU has drawn it, so the result does not depend on how often the browser offers
@@ -100,6 +103,7 @@ const gridOn = search.get('grid') === 'on';
 const onlyGrid = search.get('only') === 'grid';
 /** How many relations the routes phases route by hand; `?routes=0` leaves them out. */
 const routeCount = Number(search.get('routes') ?? 1000);
+const images = search.has('images');
 const startTheme: ThemeName = search.get('theme') === 'dark' ? 'dark' : 'light';
 // The page's panel follows the canvas's theme, as the app's do.
 document.documentElement.setAttribute('data-theme', startTheme);
@@ -109,7 +113,7 @@ const status = document.getElementById('status') as HTMLElement;
 const started = performance.now();
 // `?tables` measures a view of tables instead (ADR 0023): see `syntheticTables`.
 const tables = search.has('tables');
-let project: ProjectSnapshot = syntheticProject({ elements: size, overlap, tables });
+let project: ProjectSnapshot = syntheticProject({ elements: size, overlap, tables, images });
 const VIEW = project.views[0]?.id ?? 'everything';
 // What the recolor phase recolors: every Service, or in a view of tables every Column.
 const RECOLORED = tables ? 'Column' : 'Service';
@@ -324,6 +328,23 @@ async function run(): Promise<void> {
   phases.push(recolor.phase);
   themeNotes.push(recolor.note);
 
+  if (images) {
+    // Each from a cleared store, at scales not drawn before: nothing is decoded ahead of the pan.
+    const cold = async (name: string, scale: number, step: (frame: number) => void) => {
+      move(cameraAt(scale));
+      controller.renderer.resetImages();
+      phases.push(await measure(name, 180, step));
+    };
+    const pan = (frame: number) =>
+      move(panBy(controller.camera, frame < 90 ? -8 : 8, frame < 90 ? -4 : 4));
+    await cold('Pan, icons shown, images cold', NAMES_FROM * 1.6, pan);
+    await cold('Pan, drawings shown, images cold', 0.35, pan);
+    await cold('Zoom, images cold', DETAILS_FROM * 1.4, (frame) =>
+      move(zoomAt(controller.camera, middle, frame < 90 ? 1.02 : 1 / 1.02)),
+    );
+    await settle(300);
+  }
+
   // Edits, near the middle of the screen, where they are drawn in full and named.
   move(cameraAt(NAMES_FROM * 1.3));
   await settle(300);
@@ -504,14 +525,37 @@ function measure(
       renderer.renderNow(true);
       frames.push(performance.now() - began);
     };
-    for (let frame = 0; frame < count; frame++) {
+    const run = (frame: number) => {
       if (before) {
         before();
         renderer.renderNow(true);
       }
       timed(() => step(frame));
       while (more?.()) timed(() => undefined);
+    };
+    if (images) {
+      // Pictures decode off the main thread and arrive between frames, as they do in the app; the
+      // canvas draws no frame of its own meanwhile, so that every frame's work is measured.
+      return (async () => {
+        const own = Object.getOwnPropertyDescriptor(window, 'requestAnimationFrame');
+        Object.defineProperty(window, 'requestAnimationFrame', {
+          configurable: true,
+          writable: true,
+          value: () => 0,
+        });
+        try {
+          for (let frame = 0; frame < count; frame++) {
+            run(frame);
+            await nextTask();
+          }
+        } finally {
+          if (own) Object.defineProperty(window, 'requestAnimationFrame', own);
+          else Reflect.deleteProperty(window, 'requestAnimationFrame');
+        }
+        return { name, frames };
+      })();
     }
+    for (let frame = 0; frame < count; frame++) run(frame);
     return Promise.resolve({ name, frames });
   }
   return new Promise((resolve) => {
@@ -892,6 +936,21 @@ function settle(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+/**
+ * Lets the tasks waiting run, such as pictures decoded meanwhile, and resumes: through a message,
+ * which a browser does not slow down for a tab in the background as it does timers.
+ */
+function nextTask(): Promise<void> {
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    channel.port1.onmessage = () => {
+      channel.port1.close();
+      resolve();
+    };
+    channel.port2.postMessage(null);
+  });
+}
+
 /** How the scene's shapes fall in bands and tiles. */
 function bandReport(): string {
   const counts = new Map<number, number>();
@@ -958,6 +1017,7 @@ function report(phases: Phase[], timed: Timed[], latency: number[], themeNotes: 
   }
   (document.getElementById('edits') as HTMLElement).hidden = false;
   const notes = document.getElementById('notes') as HTMLElement;
+  const memory = controller.renderer.imageMemory;
   notes.textContent = [
     bands,
     ...(gridOn
@@ -967,6 +1027,11 @@ function report(phases: Phase[], timed: Timed[], latency: number[], themeNotes: 
             `The grid adds ${grid.pan.toFixed(2)} ms per frame at the median panning and ${grid.zoom.toFixed(2)} ms zooming (at most ${GRID_MARK} ms): ${gridPasses ? 'passes' : 'fails'}.`,
           ]
         : []),
+    ...(images
+      ? [
+          `Pictures: ${memory.textures.toLocaleString()} textures, about ${(memory.bytes / 2 ** 20).toFixed(1)} MiB of GPU memory at the end (the budget is 64 MiB).`,
+        ]
+      : []),
     ...actions.flatMap((action) => (action.note ? [`${action.name}: ${action.note}.`] : [])),
     ...themeNotes.map((note) => `${note}.`),
   ].join('\n');
@@ -984,6 +1049,8 @@ function report(phases: Phase[], timed: Timed[], latency: number[], themeNotes: 
       relations: scene.relations.length,
       mode,
       overlap,
+      images,
+      ...(images ? { imageMemory: memory } : {}),
       prepared,
       rows,
       actions: actions.map(({ name, p50, p95, worst, mark, note }) => ({

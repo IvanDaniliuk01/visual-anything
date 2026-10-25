@@ -1,0 +1,91 @@
+/* The image picker: the picture shown, its actions, the project's pictures and how it is shown. */
+
+.image-control {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.image-control-current {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.image-preview {
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+.image-control-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.5rem;
+}
+
+.image-control-actions .inspector-action {
+  margin-top: 0;
+}
+
+.image-control-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
+  gap: 0.3rem;
+  max-height: 14rem;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.image-control-pick {
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-raised);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.image-control-pick:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.image-control-pick[aria-pressed='true'] {
+  border-color: var(--selected);
+}
+
+.image-control-options {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.3rem 0.5rem;
+}
+
+.image-control-silhouette {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.image-control-report {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.image-control-report:empty {
+  display: none;
+}

@@ -29,6 +29,7 @@ import type { IndexedScene } from './hit';
 import { curvePieces } from './routing/curves';
 import type { CurveSpan } from './routing/hand';
 import type { ElementShape, RelationLine } from './scene';
+import { imageSignature } from './shape-images';
 import { rectAround } from './spatial';
 
 /** How many bands have tiles of their own. */
@@ -375,6 +376,7 @@ export function shapeSignature(shape: ElementShape): string {
       shape.rowCount ?? -1,
       shape.row ?? -1,
       shape.fitted ? `${shape.fitted.name}\u0000${shape.fitted.detail}` : '',
+      imageSignature(shape),
     ].join(' ');
     signatures.set(shape, signature);
   }
