@@ -8,6 +8,7 @@ import { createContext, useContext } from 'react';
 import type { SendCommand } from '../canvas/CanvasArea';
 import type { Scene } from '../canvas/scene';
 import type { Explore } from '../canvas/useExplorer';
+import type { CodeStore } from '../code/context';
 import type { Selection } from './selection';
 
 export interface Editor {
@@ -41,6 +42,11 @@ export interface Editor {
    * the project is open. The shell always sets it; it is optional only so that tests can leave it out.
    */
   explore?: Explore;
+  /**
+   * Package code (ADR 0054): its store, which never changes while the shell lives. The shell always
+   * sets it; it is optional only so that tests can leave it out.
+   */
+  code?: CodeStore;
 }
 
 export const EditorContext = createContext<Editor | undefined>(undefined);

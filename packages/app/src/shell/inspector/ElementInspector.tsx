@@ -7,6 +7,7 @@ import {
 } from '@visual-anything/core';
 import { ESSENCE_ID, type Element } from '@visual-anything/schema';
 import { useId, type Ref } from 'react';
+import { CodeSection } from '../../code/CodeSection';
 import { useEditor } from '../../editor/EditorContext';
 import type { Selectable } from '../../editor/selection';
 import { useT } from '../../i18n';
@@ -108,6 +109,7 @@ export function ElementInspector({
         disabled={disabled}
         change={update}
       />
+      <CodeSection element={element} />
       <AppearanceSection
         element={element}
         index={index}

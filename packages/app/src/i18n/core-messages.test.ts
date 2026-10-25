@@ -457,6 +457,49 @@ const COMMANDS: readonly [string, Command][] = [
         shape: { kind: 'arrow', from: { x: 0, y: 0 }, to: { x: 9, y: 9 }, fill: '#FFFFFF' },
       },
     ],
+    // Package code (ADR 0054).
+    ['add code', { type: 'set-package-code', package: 'clinic', code: 'export const a = 1;' }],
+    ['code reaching', { type: 'set-package-code', package: 'clinic', capabilities: ['time'] }],
+    ['change code', { type: 'set-package-code', package: 'clinic', code: 'export const b = 2;' }],
+    ['code with nothing', { type: 'set-package-code', package: 'clinic' }],
+    ['code not text', { type: 'set-package-code', package: 'clinic', code: 5 }],
+    ['empty code', { type: 'set-package-code', package: 'clinic', code: ' ' }],
+    ['code too long', { type: 'set-package-code', package: 'clinic', code: 'x'.repeat(262145) }],
+    [
+      'code line too long',
+      { type: 'set-package-code', package: 'clinic', code: ['x'.repeat(10001)] },
+    ],
+    ['code line broken', { type: 'set-package-code', package: 'clinic', code: ['a();\nb();'] }],
+    [
+      'code too many lines',
+      {
+        type: 'set-package-code',
+        package: 'clinic',
+        code: Array.from({ length: 20001 }, () => 'a'),
+      },
+    ],
+    ['unknown capability', { type: 'set-package-code', package: 'clinic', capabilities: ['x'] }],
+    [
+      'capability with a path',
+      { type: 'set-package-code', package: 'clinic', capabilities: ['network:https://a.com/x'] },
+    ],
+    [
+      'capabilities not a list',
+      { type: 'set-package-code', package: 'clinic', capabilities: 'time' },
+    ],
+    [
+      'too many capabilities',
+      {
+        type: 'set-package-code',
+        package: 'clinic',
+        capabilities: Array.from({ length: 17 }, (_, i) => `network:https://h${i}.example.com`),
+      },
+    ],
+    ['remove code', { type: 'set-package-code', package: 'clinic', code: null }],
+    [
+      'capabilities without code',
+      { type: 'set-package-code', package: 'clinic', capabilities: ['time'] },
+    ],
     ['image without one', { type: 'define-image', package: 'clinic' }],
     ['description not text', { type: 'update-package', id: 'clinic', changes: { description: 5 } }],
     ['unreadable position', { type: 'set-positions', view: VIEW, positions: [null] }],

@@ -56,6 +56,7 @@ export {
   loadProblem,
   notApprovedProblem,
   offProblem,
+  stalledProblem,
   tooLargeProblem,
 } from './messages';
 export type { PackageCode } from './packages';

@@ -1,0 +1,71 @@
+/* Package code (ADR 0054): the approval dialog, and what the inspector says of computed values. */
+.code-approval {
+  width: min(44rem, calc(100vw - var(--space-6)));
+}
+
+.code-approval-text {
+  max-height: 18rem;
+  overflow: auto;
+  margin: var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+  color: var(--text);
+  font-size: var(--text-xs);
+  line-height: var(--line-normal);
+  white-space: pre;
+}
+
+.code-approval-text:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.code-approval-capabilities {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.code-approval-capabilities legend {
+  padding: 0 var(--space-1);
+  font-weight: var(--weight-strong);
+}
+
+.code-approval-capabilities code {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+/* A value package code computed: shown as stored ones are, with its mark. */
+.code-values {
+  margin: var(--space-1) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.code-values li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  padding: var(--space-1) 0;
+}
+
+.code-value-name {
+  color: var(--text-muted);
+}
+
+.code-value {
+  overflow-wrap: anywhere;
+}
+
+.code-mark {
+  padding: 0 var(--space-1);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-size: var(--text-xs);
+}

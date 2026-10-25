@@ -79,6 +79,18 @@ export function offProblem(pkg: Named): Problem {
   );
 }
 
+/**
+ * The package's code kept the code worker from answering, in work the interpreter could not stop in
+ * time, so the worker was stopped and started again; it counts as a call that stopped.
+ */
+export function stalledProblem(pkg: Named): Problem {
+  return problem(
+    'code-stopped',
+    `The code of the package ${JSON.stringify(pkg.name)} was stopped: it kept the worker that runs package code from answering, so the worker started again.`,
+    [pkg.id],
+  );
+}
+
 /** The package's code waits for the person's approval. */
 export function notApprovedProblem(pkg: Named): Problem {
   return problem(

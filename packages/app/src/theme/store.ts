@@ -43,11 +43,16 @@ export const LANGUAGE_NOT_CONNECTED =
 export const GRID_NOT_CONNECTED =
   'The grid and the rulers apply to this tab only: Visual Anything is not connected.';
 
+/** What an approval of package code says while the tab is not connected (ADR 0054). */
+export const APPROVAL_NOT_CONNECTED =
+  'Your approval of package code applies to this tab only: Visual Anything is not connected.';
+
 /**
  * What a change says while the tab is not connected: about the language, or the grid and the rulers,
  * when it changes only that.
  */
 function notConnected(changes: PreferenceChanges): string {
+  if (changes.codeApprovals !== undefined) return APPROVAL_NOT_CONNECTED;
   if (changes.theme !== undefined) return NOT_CONNECTED;
   if (changes.language !== undefined) return LANGUAGE_NOT_CONNECTED;
   if (
@@ -415,6 +420,17 @@ function samePreferences(a: Preferences, b: Preferences): boolean {
     a.snapToGrid === b.snapToGrid &&
     a.rulers === b.rulers &&
     a.recentColors.length === b.recentColors.length &&
-    a.recentColors.every((color, index) => color === b.recentColors[index])
+    a.recentColors.every((color, index) => color === b.recentColors[index]) &&
+    // Approvals of package code (ADR 0054).
+    a.codeApprovals.length === b.codeApprovals.length &&
+    a.codeApprovals.every((approval, index) => {
+      const other = b.codeApprovals[index];
+      return (
+        other !== undefined &&
+        approval.hash === other.hash &&
+        approval.package === other.package &&
+        approval.capabilities.join(' ') === other.capabilities.join(' ')
+      );
+    })
   );
 }

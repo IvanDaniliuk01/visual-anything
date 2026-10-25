@@ -37,6 +37,7 @@ import {
   type ComponentProps,
 } from 'react';
 import { useEmphasis, type Emphasis } from '../editor/emphasis';
+import { useCodeDrawings } from '../code/context';
 import { useLendRenderer } from '../export/source';
 import { t as translateNow, useT, type Translator } from '../i18n';
 import { EMPTY_SELECTION, selectionOf, sizeOf, type Selection } from '../editor/selection';
@@ -398,6 +399,12 @@ export function CanvasArea({
   useEffect(() => {
     controllerRef.current?.renderer.setTheme(THEMES[theme].canvas);
   }, [theme]);
+
+  // What package code draws inside shapes (ADR 0054).
+  const codeDrawings = useCodeDrawings();
+  useEffect(() => {
+    controllerRef.current?.renderer.setCodeDrawings(codeDrawings);
+  }, [codeDrawings]);
 
   // The view state follows and moves the camera through this.
   useEffect(() => {

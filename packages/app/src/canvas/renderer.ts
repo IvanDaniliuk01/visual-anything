@@ -53,6 +53,8 @@ import { GridMarks } from './gridMarks';
 import { watchResolution } from './resolution';
 import { ScreenMarks, selectionBounds } from './screenMarks';
 import { browserImagePlatform, type ImagePlatform } from './images';
+import { CodeDrawingLayer } from './code-drawings';
+import type { Drawing as CodeDrawing } from '@visual-anything/core';
 import { TileImages, type ImageView } from './images-draw';
 import { bitmapText, installFonts } from './labels';
 import { THEMES, type CanvasTheme } from '../theme/themes';
@@ -435,6 +437,8 @@ export class CanvasRenderer {
   private gridHover: string | undefined;
   private gridDrag: DragFrame | undefined;
   private stopFollowingResolution: (() => void) | undefined;
+  /** What package code draws inside shapes (ADR 0054), above the shapes and under the relations. */
+  private readonly codeDrawings: CodeDrawingLayer;
 
   constructor(
     private readonly host: HTMLElement,
@@ -446,6 +450,8 @@ export class CanvasRenderer {
       this.requestRender(),
     );
     this.painter = painterOf(options.theme ?? THEMES.light.canvas);
+    this.codeDrawings = new CodeDrawingLayer(this.text);
+    this.codeDrawings.setDark(this.painter.theme.name === 'dark');
     this.tintMarks();
     this.elementShapes.addChild(this.overflowBand);
     this.rerouted.addChild(this.reroutedLines);
@@ -461,6 +467,7 @@ export class CanvasRenderer {
     );
     this.world.addChild(
       this.elementShapes,
+      this.codeDrawings.container,
       this.relations.container,
       this.freeShapes,
       this.rerouted,
@@ -488,6 +495,7 @@ export class CanvasRenderer {
     if (this.status !== 'ready') return;
     try {
       this.updateEmphasized();
+      this.followCodeDrawings();
       this.rebuild();
       if (!this.fitted) this.fit();
       this.drawSelection();
@@ -510,6 +518,7 @@ export class CanvasRenderer {
     const before = this.emphasized;
     this.emphasis = emphasis;
     const after = this.updateEmphasized();
+    this.followCodeDrawings();
     if (this.status !== 'ready') return;
     try {
       if (after.hidden !== before.hidden || after.dimmed !== before.dimmed) {
@@ -770,8 +779,26 @@ export class CanvasRenderer {
       this.requestRender();
     }, SETTLE_AFTER);
     this.followGrid();
+    this.codeDrawings.setCamera(camera, this.viewport, NAMES_FROM);
     this.callbacks.onCamera?.(camera);
     this.requestRender();
+  }
+
+  /** Draws what package code drew inside shapes from now on, by element (ADR 0054). */
+  setCodeDrawings(drawings: ReadonlyMap<Id, CodeDrawing>): void {
+    this.codeDrawings.setDrawings(drawings);
+    this.followCodeDrawings();
+    this.requestRender();
+  }
+
+  /** Keeps package code's drawings on the shapes shown, as the emphasis leaves them, on screen. */
+  private followCodeDrawings(): void {
+    this.codeDrawings.setScene(
+      this.indexed?.scene,
+      this.emphasized.hidden.shapes,
+      this.emphasized.dimmed.shapes,
+    );
+    this.codeDrawings.setCamera(this.camera, this.viewport, NAMES_FROM);
   }
 
   /** Zooms and pans so that the whole scene shows. */
@@ -2468,6 +2495,7 @@ export class CanvasRenderer {
   setTheme(theme: CanvasTheme): void {
     const target = this.pending?.theme ?? this.painter.theme;
     if (theme === target) return;
+    this.codeDrawings.setDark(theme.name === 'dark');
     if (this.status !== 'ready') {
       this.painter = painterOf(theme);
       this.pending = undefined;

@@ -330,10 +330,8 @@ describe('hostile code', () => {
     expect(attributes(`throw new Proxy(new Error("x"), ${traps});`)).toMatchObject(notAnError);
     expect(attributes(`throw new Proxy({}, ${traps});`)).toMatchObject(notAnError);
     // A module that throws such a proxy as it loads.
-    expect(sandboxWith(`throw new Proxy({}, ${traps});\nexport const a = 1;`).loaded).toEqual({
-      ok: false,
-      ...notAnError,
-    });
+    const module = `throw new Proxy({}, ${traps});\nexport const a = 1;`;
+    expect(sandboxWith(module).loaded).toEqual(notAnError);
     // Plain values thrown read as what they are.
     expect(attributes('throw "plain text";')).toMatchObject({
       failure: { kind: 'threw', message: 'plain text' },
