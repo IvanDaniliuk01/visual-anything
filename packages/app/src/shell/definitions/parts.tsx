@@ -24,8 +24,8 @@ export function BuiltInNote({ kind, id, name }: { kind: DefinitionKind; id: Id; 
   return (
     <div className="definition-built-in">
       <p className="inspector-notes">
-        It is built into Visual Anything, so it cannot be changed here. Derive a {NOUN[kind]} from
-        it to have one of the project’s own that you can change.
+        It is built into Visual Anything, so only its colors can be changed here, for this project.
+        Derive a {NOUN[kind]} from it to have one of the project’s own that you can change.
       </p>
       {open !== undefined && (
         <button
