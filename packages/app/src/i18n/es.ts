@@ -83,6 +83,11 @@
  * | language                | idioma                           |
  * | settings (of a view)    | opciones                         |
  * | the local program       | el programa local                |
+ * | overlay                 | superposición                    |
+ * | legend                  | referencias                      |
+ * | level of detail         | nivel de detalle                 |
+ * | silhouette              | silueta                          |
+ * | opacity, fade           | opacidad, atenuar                |
  *
  * The words CONTEXT.md avoids are not used for its terms either: no "nodo", "objeto" or "instancia"
  * for an element, "propiedad" or "campo" for an attribute, "capa" for the stacking order, "enlace" or
@@ -2449,6 +2454,130 @@ export const messages: Catalog = {
   '"recentColors" holds {n} colors, more than {limit}.':
     '"recentColors" tiene {n} colores, más de {limit}.',
   '"{name}" must be true or false, not {value}.': '"{name}" debe ser true o false, no {value}.',
+
+  // Overlays, their legend, and levels of detail (ADR 0055).
+  'Set the overlays of "{view}"': 'Definir las superposiciones de "{view}"',
+  'Remove the overlays of "{view}"': 'Quitar las superposiciones de "{view}"',
+  'Add the overlay "{name}" to "{view}"': 'Agregar la superposición "{name}" a "{view}"',
+  'Turn off the overlay "{name}" in "{view}"': 'Desactivar la superposición "{name}" en "{view}"',
+  'Turn on the overlay "{name}" in "{view}"': 'Activar la superposición "{name}" en "{view}"',
+  'Edit the overlay "{name}" in "{view}"': 'Editar la superposición "{name}" en "{view}"',
+  'Remove the overlay "{name}" from "{view}"': 'Quitar la superposición "{name}" de "{view}"',
+  'Remove {n} overlays from "{view}"': 'Quitar {n} superposiciones de "{view}"',
+  'Move the overlay "{name}" in "{view}"': 'Mover la superposición "{name}" en "{view}"',
+  'A view has at most {n} overlays.': 'Una vista tiene como máximo {n} superposiciones.',
+  'The view "{view}" has no overlay "{id}".':
+    'La vista "{view}" no tiene ninguna superposición "{id}".',
+  'The view "{view}" already has an overlay "{id}".':
+    'La vista "{view}" ya tiene una superposición "{id}".',
+  'The changes to an overlay are an object.': 'Los cambios a una superposición son un objeto JSON.',
+  'An overlay has no "{key}" to change.': 'Una superposición no tiene "{key}" para cambiar.',
+  'No overlays were given to remove.': 'No se dio ninguna superposición para quitar.',
+  'The overlay "{name}" is given twice.': 'La superposición "{name}" se da dos veces.',
+  'An overlay cannot go before itself.': 'Una superposición no puede ir antes de sí misma.',
+  'An overlay is an object with a channel.': 'Una superposición es un objeto JSON con un canal.',
+  'An overlay holds id, name, of, attribute, channel, mapping and off, not "{key}".':
+    'Una superposición tiene id, name, of, attribute, channel, mapping y off, no "{key}".',
+  'An overlay names the attribute it reads.': 'Una superposición nombra el atributo que lee.',
+  'The name of an overlay has 1 to 64 characters.':
+    'El nombre de una superposición tiene de 1 a 64 caracteres.',
+  'The overlay "{name}" reads the attributes of "elements" or of "relations".':
+    'La superposición "{name}" lee los atributos de "elements" o de "relations".',
+  'The overlay "{name}" sets "fill", "stroke", "size", "badge" or "opacity".':
+    'La superposición "{name}" define "fill", "stroke", "size", "badge" u "opacity".',
+  'A relation has no fill: the overlay "{name}" can color the stroke of relations instead.':
+    'Una relación no tiene relleno: la superposición "{name}" puede colorear en cambio el trazo de las relaciones.',
+  'Whether the overlay "{name}" is off is true or false.':
+    'Si la superposición "{name}" está desactivada es verdadero o falso.',
+  'The overlay "{name}" maps its attribute "discrete", "continuous" or "passthrough".':
+    'La superposición "{name}" asigna su atributo "discrete", "continuous" o "passthrough".',
+  'The overlay "{name}" writes badges, which take no range: map its values one by one, or write the value itself.':
+    'La superposición "{name}" escribe insignias, que no admiten un rango: asignar sus valores uno por uno, o escribir el valor mismo.',
+  'The mapping of the overlay "{name}" has no "{key}".':
+    'La asignación de la superposición "{name}" no tiene "{key}".',
+  'Only an overlay of "fill", "stroke" or "badge" takes the value itself; "{name}" sets "{channel}".':
+    'Solo una superposición de "fill", "stroke" o "badge" toma el valor mismo; "{name}" define "{channel}".',
+  'The overlay "{name}" maps 1 to {n} values one by one.':
+    'La superposición "{name}" asigna de 1 a {n} valores uno por uno.',
+  'A value the overlay "{name}" maps is an object.':
+    'Un valor que asigna la superposición "{name}" es un objeto JSON.',
+  'A value the overlay "{name}" maps has no "{key}".':
+    'Un valor que asigna la superposición "{name}" no tiene "{key}".',
+  'A value the overlay "{name}" maps is text, a number, or true or false.':
+    'Un valor que asigna la superposición "{name}" es texto, un número, o verdadero o falso.',
+  'The overlay "{name}" maps "{value}" twice.':
+    'La superposición "{name}" asigna "{value}" dos veces.',
+  'The overlay "{name}" maps a range through 2 to {n} stops.':
+    'La superposición "{name}" asigna un rango con de 2 a {n} paradas.',
+  'A stop of the overlay "{name}" is an object.':
+    'Una parada de la superposición "{name}" es un objeto JSON.',
+  'A stop of the overlay "{name}" has no "{key}".':
+    'Una parada de la superposición "{name}" no tiene "{key}".',
+  'A stop of the overlay "{name}" is at a number.':
+    'Una parada de la superposición "{name}" está en un número.',
+  'The stops of the overlay "{name}" go up: each at a number above the one before it.':
+    'Las paradas de la superposición "{name}" van en aumento: cada una en un número mayor que la anterior.',
+  'The overlay "{name}" colors with colors written as #RRGGBB, not {value}.':
+    'La superposición "{name}" colorea con colores escritos como #RRGGBB, no {value}.',
+  'The overlay "{name}" sizes by a factor from 0.5 to 2.':
+    'La superposición "{name}" cambia el tamaño por un factor de 0,5 a 2.',
+  'The overlay "{name}" fades to an opacity from 0.1 to 1.':
+    'La superposición "{name}" atenúa hasta una opacidad de 0,1 a 1.',
+  'The overlay "{name}" writes badges of 1 to 12 characters.':
+    'La superposición "{name}" escribe insignias de 1 a 12 caracteres.',
+  'What the legend of "{name}" says for a value has 1 to 64 characters.':
+    'Lo que dicen las referencias de "{name}" para un valor tiene de 1 a 64 caracteres.',
+  'No element has "{attribute}", which the overlay "{name}" reads: it changes nothing yet.':
+    'Ningún elemento tiene "{attribute}", que lee la superposición "{name}": todavía no cambia nada.',
+  'No relation has "{attribute}", which the overlay "{name}" reads: it changes nothing yet.':
+    'Ninguna relación tiene "{attribute}", que lee la superposición "{name}": todavía no cambia nada.',
+  'the overlay "{name}" of the view "{view}"': 'la superposición "{name}" de la vista "{view}"',
+  'The overlay "{name}" of the view "{view}"': 'La superposición "{name}" de la vista "{view}"',
+  'More than one overlay in the view "{view}" has the id "{key}".':
+    'Más de una superposición de la vista "{view}" tiene el id "{key}".',
+  '{Of} fills relations, which have no fill; it changes nothing.':
+    '{Of} rellena relaciones, que no tienen relleno; no cambia nada.',
+  'The stops of {of} do not go up; they are read in order of where they are.':
+    'Las paradas de {of} no van en aumento; se leen en el orden de dónde están.',
+  '{Of} maps "{value}" twice; the first is used.':
+    '{Of} asigna "{value}" dos veces; se usa el primero.',
+  '{Of} reads "{attribute}", which no element has; it changes nothing.':
+    '{Of} lee "{attribute}", que ningún elemento tiene; no cambia nada.',
+  '{Of} reads "{attribute}", which no relation has; it changes nothing.':
+    '{Of} lee "{attribute}", que ninguna relación tiene; no cambia nada.',
+  '"{label}" of "{overlay}" is {n}:1 against the light canvas, under 3:1.':
+    '"{label}" de "{overlay}" tiene {n}:1 contra el lienzo claro, menos de 3:1.',
+  '"{label}" of "{overlay}" is {n}:1 against the dark canvas, under 3:1.':
+    '"{label}" de "{overlay}" tiene {n}:1 contra el lienzo oscuro, menos de 3:1.',
+  'Any other value of "{overlay}" is {n}:1 against the light canvas, under 3:1.':
+    'Cualquier otro valor de "{overlay}" tiene {n}:1 contra el lienzo claro, menos de 3:1.',
+  'Any other value of "{overlay}" is {n}:1 against the dark canvas, under 3:1.':
+    'Cualquier otro valor de "{overlay}" tiene {n}:1 contra el lienzo oscuro, menos de 3:1.',
+  '"{label}" and "{other}" of "{overlay}" are {n}:1 apart, under 3:1.':
+    '"{label}" y "{other}" de "{overlay}" están a {n}:1, menos de 3:1.',
+  '"{label}" and any other value of "{overlay}" are {n}:1 apart, under 3:1.':
+    '"{label}" y cualquier otro valor de "{overlay}" están a {n}:1, menos de 3:1.',
+  '…and {n} more warnings about the colors of "{overlay}".':
+    '…y {n} advertencias más sobre los colores de "{overlay}".',
+  'The levels of {of} must be a list.': 'Los niveles de {of} deben ser una lista.',
+  '{Of} declares at most {n} levels.': '{Of} declara como máximo {n} niveles.',
+  'A level of {of} must be an object.': 'Un nivel de {of} debe ser un objeto JSON.',
+  'A level of {of} has no "{key}".': 'Un nivel de {of} no tiene "{key}".',
+  'A level of {of} starts at a scale from 0 to {n}.':
+    'Un nivel de {of} empieza en una escala de 0 a {n}.',
+  'Two levels of {of} start at {n}.': 'Dos niveles de {of} empiezan en {n}.',
+  'The level at {n} of {of} shows a silhouette, or some of the name, the detail, the contents and the image.':
+    'El nivel en {n} de {of} muestra una silueta, o algo del nombre, el detalle, el contenido y la imagen.',
+  'The level at {n} of {of} shows "{part}" twice.':
+    'El nivel en {n} de {of} muestra "{part}" dos veces.',
+  'The level at {n} of {of} shows a silhouette only, with nothing else.':
+    'El nivel en {n} de {of} muestra solo una silueta, sin nada más.',
+  '{Of} expands from a scale above 0 and at most {n}.':
+    '{Of} se expande desde una escala mayor que 0 y de {n} como máximo.',
+  'Two levels of {of} start at {n}; the last is used.':
+    'Dos niveles de {of} empiezan en {n}; se usa el último.',
+  'The level at {n} of {of} shows a silhouette only, and nothing else it lists.':
+    'El nivel en {n} de {of} muestra solo una silueta, y nada más de lo que enumera.',
 };
 
 /**

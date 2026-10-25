@@ -115,6 +115,8 @@ describe('resolveAppearance', () => {
       'contentsAsRows',
       'connectionPoints',
       'image',
+      'levels',
+      'expandFrom',
     ]);
   });
 
@@ -195,6 +197,9 @@ describe('traitSources', () => {
       connectionPoints: 'layered.service',
       // Nothing in the chain shows an image, so it comes from Essence, which shows none.
       image: 'essence',
+      // Nor declares levels of detail or a scale to expand from (ADR 0055).
+      levels: 'essence',
+      expandFrom: 'essence',
     });
     expect(Object.keys(sources.traits)).toEqual([...TRAIT_PATHS]);
     expect([...sources.attributes]).toEqual([

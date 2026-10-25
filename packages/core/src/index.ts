@@ -233,3 +233,17 @@ export {
 } from './view-state';
 // The limits a view state's filters share with guidance's.
 export { MAX_FILTER_CONDITIONS, MAX_FILTER_TEXT } from './protocol';
+// Overlays, their legend, and levels of detail (ADR 0055).
+export * from './overlays';
+export { MAX_OVERLAY_CASES, MAX_OVERLAY_STOPS } from './commands/overlays';
+export {
+  LEVEL_EXIT,
+  LEVEL_PARTS,
+  MAX_LEVELS,
+  MAX_LEVEL_SCALE,
+  expandedAt,
+  levelAt,
+  levelsKey,
+  partsAt,
+  sortedLevels,
+} from './levels';

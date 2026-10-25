@@ -29,6 +29,13 @@ import {
 import { updateProject } from './project';
 import { setComponentAppearance, setRelationTypeAppearance } from './appearance';
 import { resetRoute, setRoute, settleRoutes } from './routes';
+import {
+  addOverlay,
+  moveOverlay,
+  removeOverlays,
+  setOverlays,
+  updateOverlay,
+} from './overlays';
 import { restack } from './stacking';
 import { changeContainer } from './containers';
 import { createScenario, deleteScenario, updateScenario } from './scenarios';
@@ -201,6 +208,16 @@ function dispatch(draft: Draft, command: Command): string {
       return setRoute(draft, command);
     case 'reset-route':
       return resetRoute(draft, command);
+    case 'set-overlays':
+      return setOverlays(draft, command);
+    case 'add-overlay':
+      return addOverlay(draft, command);
+    case 'update-overlay':
+      return updateOverlay(draft, command);
+    case 'remove-overlays':
+      return removeOverlays(draft, command);
+    case 'move-overlay':
+      return moveOverlay(draft, command);
     case 'batch': {
       const label = requireName(command.label, 'A batch');
       const commands = requireList(command.commands, 'commands');
