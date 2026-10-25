@@ -1,6 +1,6 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
-import { useCallback, useId, useMemo, useState } from 'react';
+import { useCallback, useContext, useId, useMemo, useState } from 'react';
 import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { DefinitionProvider } from './definitions/DefinitionProvider';
@@ -11,8 +11,12 @@ import { buildScene, type Scene } from '../canvas/scene';
 import { useExplorer } from '../canvas/useExplorer';
 import { definitionsIn } from '@visual-anything/core';
 import { useT, type Translator } from '../i18n';
+import { LiveContext } from '../live/context';
 import { ScenarioPanel } from '../scenarios/ScenarioPanel';
 import { ScenarioSession } from '../scenarios/session';
+import type { CanvasCamera } from '../view-state/canvas';
+import { CopyAddress } from '../view-state/CopyAddress';
+import { useViewState } from '../view-state/useViewState';
 import { Header } from './Header';
 import { Inspector } from './Inspector';
 import { ModelPanel } from './ModelPanel';
@@ -68,13 +72,34 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   const canvasHeading = useId();
   // The scenario open in the scenario panel, with its playback and its recording on the canvas.
   const [scenarios] = useState(() => new ScenarioSession());
+  // The view state: what the tab's address holds and Copy address copies, and where search jumps.
+  const live = useContext(LiveContext);
+  const [canvas, setCanvas] = useState<CanvasCamera>();
+  const viewState = useViewState({
+    project,
+    viewId: view?.id,
+    scene,
+    selection,
+    select: setSelection,
+    explore,
+    openView: setOpenViewId,
+    reveal,
+    scenarios,
+    emphasis,
+    canvas,
+    notify: live?.notify,
+  });
 
   return (
     <EditorContext.Provider value={editor}>
       <DefinitionProvider>
         <EmphasisContext.Provider value={emphasis}>
           <div className="shell">
-            <Header projectName={project.project.name} viewName={view?.name} />
+            <Header
+              projectName={project.project.name}
+              viewName={view?.name}
+              actions={view ? <CopyAddress link={viewState} /> : undefined}
+            />
             {notice !== undefined && (
               <p className="shell-notice" role="alert">
                 {notice}
@@ -96,6 +121,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                   {...(onCommand ? { onCommand } : {})}
                   {...(revealed ? { revealed } : {})}
                   scenarios={scenarios}
+                  onCanvas={setCanvas}
                 />
               ) : (
                 <p className="canvas-message">{t('There is no view to draw.')}</p>

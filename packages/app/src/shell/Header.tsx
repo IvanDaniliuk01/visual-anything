@@ -1,5 +1,5 @@
 import type { HistorySummary } from '@visual-anything/core';
-import { useContext, useEffect, useEffectEvent, useRef } from 'react';
+import { useContext, useEffect, useEffectEvent, useRef, type ReactNode } from 'react';
 import { LanguageControl } from '../i18n/LanguageControl';
 import { useT, type Translator } from '../i18n';
 import { LiveContext, type Live } from '../live/context';
@@ -17,6 +17,8 @@ interface HeaderProps {
   projectName?: string | undefined;
   /** The open view's name; absent when no view is open. */
   viewName?: string | undefined;
+  /** Controls the shell adds for the open project, before undo and redo, such as Copy address. */
+  actions?: ReactNode;
 }
 
 /**
@@ -25,7 +27,7 @@ interface HeaderProps {
  * screen, so it also keeps the person's preferences in step with the local program, and names the tab
  * after the open project.
  */
-export function Header({ projectName, viewName }: HeaderProps) {
+export function Header({ projectName, viewName, actions }: HeaderProps) {
   const t = useT();
   const live = useContext(LiveContext);
   usePreferencesLink();
@@ -53,6 +55,7 @@ export function Header({ projectName, viewName }: HeaderProps) {
         </dl>
       )}
       <div className="shell-actions">
+        {projectName !== undefined && actions}
         {projectName !== undefined && live !== null && <HistoryControls live={live} />}
         <LanguageControl />
         <ThemeControl />

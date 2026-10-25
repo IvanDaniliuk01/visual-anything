@@ -1,0 +1,28 @@
+/* Copy address, in the header, drawn as the header's other buttons are. */
+
+.copy-address {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: var(--control-sm);
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.copy-address:hover {
+  background: var(--surface-hover);
+}
+
+.copy-address:active {
+  background: var(--surface-pressed);
+}
+
+.copy-address:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
