@@ -272,6 +272,8 @@ const COMMANDS: readonly [string, Command][] = [
   ],
   ['route nothing', { type: 'set-route', view: VIEW, relation: 'nothing-here', style: 'straight' }],
   ['reset routes', { type: 'reset-route', view: VIEW, relations: ['api-writes-db'] }],
+  // Tours (ADR 0058).
+  ...tourCommands(),
   // Scenarios.
   [
     'create scenario',
@@ -677,6 +679,117 @@ const COMMANDS: readonly [string, Command][] = [
     ['unreadable position', { type: 'set-positions', view: VIEW, positions: [null] }],
   ]),
 ];
+
+/** The commands on tours, well formed and not, on the sample's tour (ADR 0058). */
+function tourCommands(): [string, Command][] {
+  const tour = 'how-booking-works';
+  const steps = sample.tours.find((each) => each.id === tour)?.steps ?? [];
+  const [first, second, third] = steps;
+  if (!first || !second || !third) throw new Error('The sample has no tour of three steps.');
+  const step = { viewState: { view: VIEW }, caption: { title: 'Here' } };
+  const created = (name: string, made: unknown): [string, Command] => [
+    name,
+    { type: 'create-tour', tour: { name: 'T', steps: [made] } } as Command,
+  ];
+  return [
+    ['create tour', { type: 'create-tour', tour: { name: 'Walk', steps: [step] } }],
+    ['add tour step', { type: 'update-tour', id: tour, changes: { steps: [...steps, step] } }],
+    ['delete tour step', { type: 'update-tour', id: tour, changes: { steps: [first, second] } }],
+    ['reorder tour steps', { type: 'update-tour', id: tour, changes: { steps: [second, first] } }],
+    ['edit tour', { type: 'update-tour', id: tour, changes: { description: 'Booking.' } }],
+    ['unknown tour', { type: 'update-tour', id: 'gone', changes: {} }],
+    ['tour without name', { type: 'create-tour', tour: { name: '' } }],
+    ['tour name too long', { type: 'create-tour', tour: { name: 'x'.repeat(201) } }],
+    [
+      'tour description too long',
+      { type: 'create-tour', tour: { name: 'T', description: 'x'.repeat(4001) } },
+    ],
+    [
+      'tour too long',
+      { type: 'create-tour', tour: { name: 'T', steps: Array.from({ length: 1001 }, () => step) } },
+    ],
+    created('step over no view', { ...step, viewState: { view: 'gone' } }),
+    created('step selecting nothing there', {
+      ...step,
+      viewState: { view: VIEW, select: ['gone'] },
+    }),
+    created('step marking nothing there', { ...step, marks: ['gone'] }),
+    created('step marking twice', { ...step, marks: ['patient', 'patient'] }),
+    created('step marking too much', {
+      ...step,
+      marks: Array.from({ length: 501 }, (_, at) => `e${at}`),
+    }),
+    created('step playing backwards', {
+      ...step,
+      play: { scenario: 'patient-books-appointment', from: 'book', to: 'ask' },
+    }),
+    created('step playing no scenario', { ...step, play: { scenario: 'gone' } }),
+    created('step with a title too long', { ...step, caption: { title: 'x'.repeat(201) } }),
+    created('step with a text too long', {
+      ...step,
+      caption: { title: 'T', text: 'x'.repeat(4001) },
+    }),
+    created('step with notes too long', { ...step, notes: 'x'.repeat(20001) }),
+    created('step without its view state', { caption: { title: 'T' } }),
+    ...malformed([
+      ['tour not an object', { type: 'create-tour', tour: 5 }],
+      ['tour changes not an object', { type: 'update-tour', id: tour, changes: 5 }],
+      ['tour description not text', { type: 'update-tour', id: tour, changes: { description: 5 } }],
+      ['tour step not an object', { type: 'create-tour', tour: { name: 'T', steps: [5] } }],
+      [
+        'tour steps with one id',
+        {
+          type: 'create-tour',
+          tour: {
+            name: 'T',
+            steps: [
+              { ...step, id: 'a' },
+              { ...step, id: 'a' },
+            ],
+          },
+        },
+      ],
+      [
+        'step without a caption',
+        { type: 'create-tour', tour: { name: 'T', steps: [{ viewState: { view: VIEW } }] } },
+      ],
+      [
+        'caption with HTML',
+        {
+          type: 'create-tour',
+          tour: { name: 'T', steps: [{ ...step, caption: { title: 'T', html: '<b>' } }] },
+        },
+      ],
+      [
+        'caption text not text',
+        {
+          type: 'create-tour',
+          tour: { name: 'T', steps: [{ ...step, caption: { title: 'T', text: 5 } }] },
+        },
+      ],
+      [
+        'notes not text',
+        { type: 'create-tour', tour: { name: 'T', steps: [{ ...step, notes: 5 }] } },
+      ],
+      [
+        'marks not a list',
+        { type: 'create-tour', tour: { name: 'T', steps: [{ ...step, marks: 'patient' }] } },
+      ],
+      [
+        'play not an object',
+        { type: 'create-tour', tour: { name: 'T', steps: [{ ...step, play: 'x' }] } },
+      ],
+      [
+        'play with more',
+        {
+          type: 'create-tour',
+          tour: { name: 'T', steps: [{ ...step, play: { scenario: 'x', speed: 2 } }] },
+        },
+      ],
+    ]),
+    ['delete tour', { type: 'delete-tour', id: tour }],
+  ];
+}
 
 /** Commands written by hand, which the core reads as it reads any; their types say nothing of them. */
 function malformed(commands: readonly [string, unknown][]): [string, Command][] {

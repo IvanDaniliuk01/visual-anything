@@ -9,6 +9,7 @@ import type {
   Id,
   RelationType,
   ScenarioFile,
+  TourFile,
   ViewFile,
 } from '@visual-anything/schema';
 import { nestingTypesInView } from './containers';
@@ -150,6 +151,11 @@ export interface DeletePreview {
   stacking: { view: Id; container: Id; element: Id }[];
   /** The scenario steps that would become broken steps. They are kept so they can be fixed. */
   brokenSteps: { scenario: Id; step: Id }[];
+  /**
+   * The tour steps that would name what is deleted, as what they select, mark or focus from (ADR
+   * 0058). They are kept, flagged, and play without it.
+   */
+  brokenTourSteps: { tour: Id; step: Id }[];
   /** The deleted elements that views show collapsed, which leave those views' lists. */
   collapsed: { view: Id; element: Id }[];
   /** The deleted elements that a view's scope adds or leaves out by hand, which leave those lists (ADR 0040). */
@@ -236,6 +242,7 @@ export function previewDelete(
     positions: removedPositions(state.views, askedElements),
     stacking: removedStacking(state.views, askedElements),
     brokenSteps: brokenSteps(state.scenarios, relations),
+    brokenTourSteps: brokenTourSteps(state.tours, new Set([...askedElements, ...relations])),
     collapsed: state.views.flatMap((each) =>
       (each.collapsed ?? [])
         .filter((id) => askedElements.has(id))
@@ -404,6 +411,25 @@ function brokenSteps(
       if (step.relations.some((id) => relations.has(id))) {
         broken.push({ scenario: scenario.id, step: step.id });
       }
+    }
+  }
+  return broken;
+}
+
+/** The tour steps that select, mark or focus from any of the deleted ids. */
+function brokenTourSteps(
+  tours: readonly TourFile[],
+  deleted: ReadonlySet<Id>,
+): { tour: Id; step: Id }[] {
+  const broken: { tour: Id; step: Id }[] = [];
+  for (const tour of tours) {
+    for (const step of tour.steps) {
+      const named = [
+        ...(step.viewState.select ?? []),
+        ...(step.marks ?? []),
+        ...(step.viewState.focus?.from ?? []),
+      ];
+      if (named.some((id) => deleted.has(id))) broken.push({ tour: tour.id, step: step.id });
     }
   }
   return broken;

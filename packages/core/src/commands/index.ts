@@ -34,6 +34,7 @@ import { restack } from './stacking';
 import { changeContainer } from './containers';
 import { setPackageCode } from './code';
 import { createScenario, deleteScenario, updateScenario } from './scenarios';
+import { createTour, deleteTour, updateTour } from './tours';
 import type { Command } from './types';
 import {
   createFreeShape,
@@ -209,6 +210,12 @@ function dispatch(draft: Draft, command: Command): string {
       return resetRoute(draft, command);
     case 'set-package-code':
       return setPackageCode(draft, command);
+    case 'create-tour':
+      return createTour(draft, command);
+    case 'update-tour':
+      return updateTour(draft, command);
+    case 'delete-tour':
+      return deleteTour(draft, command);
     case 'batch': {
       const label = requireName(command.label, 'A batch');
       const commands = requireList(command.commands, 'commands');

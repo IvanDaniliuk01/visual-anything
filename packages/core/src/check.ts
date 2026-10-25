@@ -315,6 +315,22 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
       ),
     );
   }
+  // Tours (ADR 0058): what their steps name may be gone, which only flags them; ids may not repeat.
+  errors.push(
+    ...repeated(
+      state.tours.map((tour) => tour.id),
+      'tour',
+    ),
+  );
+  for (const tour of state.tours) {
+    errors.push(
+      ...repeated(
+        tour.steps.map((step) => step.id),
+        `step in the tour "${tour.name}"`,
+        [tour.id],
+      ),
+    );
+  }
   const images = checkImages(state);
   errors.push(...images.errors);
   warnings.push(...images.warnings);

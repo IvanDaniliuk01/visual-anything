@@ -2366,6 +2366,57 @@ export const messages: Catalog = {
   'More than one step in the scenario "{name}" has the id "{key}".':
     'Más de un paso en el escenario "{name}" tiene el id "{key}".',
 
+  // Tours (ADR 0058): the history's labels, the refusals of their commands and what a step names
+  // that the project no longer holds.
+  'Create the tour "{name}"': 'Crear el recorrido "{name}"',
+  'Edit the tour "{name}"': 'Editar el recorrido "{name}"',
+  'Delete the tour "{name}"': 'Eliminar el recorrido "{name}"',
+  'Add a step to the tour "{name}"': 'Agregar un paso al recorrido "{name}"',
+  'Delete a step of the tour "{name}"': 'Eliminar un paso del recorrido "{name}"',
+  'Reorder the steps of the tour "{name}"': 'Reordenar los pasos del recorrido "{name}"',
+  'There is no tour "{id}".': 'No hay ningún recorrido "{id}".',
+  'A tour needs a name.': 'Un recorrido necesita un nombre.',
+  'A tour is an object with a name.': 'Un recorrido es un objeto JSON con un nombre.',
+  'The changes to a tour are an object.': 'Los cambios de un recorrido son un objeto JSON.',
+  "A tour's name holds at most {limit} characters.":
+    'El nombre de un recorrido tiene como máximo {limit} caracteres.',
+  'A description is text.': 'Una descripción es texto.',
+  "A tour's description holds at most {limit} characters.":
+    'La descripción de un recorrido tiene como máximo {limit} caracteres.',
+  'A tour holds at most {limit} steps.': 'Un recorrido tiene como máximo {limit} pasos.',
+  'Step {n} of the tour is not a step.': 'El paso {n} del recorrido no es un paso.',
+  'Step {n} of the tour takes the id "{id}", which an earlier step has.':
+    'El paso {n} del recorrido usa el id "{id}", que ya tiene un paso anterior.',
+  'Step {n} of the tour: {why}': 'Paso {n} del recorrido: {why}',
+  'A view state is an object.': 'Un estado de vista es un objeto JSON.',
+  'Step {n} of the tour needs a caption with a title.':
+    'El paso {n} del recorrido necesita una leyenda con un título.',
+  'A caption holds a title and a text, nothing else.':
+    'Una leyenda tiene un título y un texto, nada más.',
+  "A caption's title holds at most {limit} characters.":
+    'El título de una leyenda tiene como máximo {limit} caracteres.',
+  "A caption's text is text.": 'El texto de una leyenda es texto.',
+  "A caption's text holds at most {limit} characters.":
+    'El texto de una leyenda tiene como máximo {limit} caracteres.',
+  'Speaker notes are text.': 'Las notas del orador son texto.',
+  'Speaker notes hold at most {limit} characters.':
+    'Las notas del orador tienen como máximo {limit} caracteres.',
+  'Step {n} of the tour marks a list of ids.': 'El paso {n} del recorrido marca una lista de ids.',
+  'A step marks at most {limit} elements and relations.':
+    'Un paso marca como máximo {limit} elementos y relaciones.',
+  'Step {n} of the tour marks "{id}" twice.': 'El paso {n} del recorrido marca "{id}" dos veces.',
+  'Step {n} of the tour plays a scenario: an object with its id.':
+    'El paso {n} del recorrido reproduce un escenario: un objeto JSON con su id.',
+  'A step plays a scenario, from a step to a step, nothing else.':
+    'Un paso reproduce un escenario, desde un paso hasta otro, nada más.',
+  'A step marks elements and relations, and "{id}" is neither.':
+    'Un paso marca elementos y relaciones, y "{id}" no es ninguna de las dos cosas.',
+  'The step "{from}" comes after "{to}" in the scenario "{name}".':
+    'El paso "{from}" viene después de "{to}" en el escenario "{name}".',
+  'More than one tour has the id "{key}".': 'Más de un recorrido tiene el id "{key}".',
+  'More than one step in the tour "{name}" has the id "{key}".':
+    'Más de un paso en el recorrido "{name}" tiene el id "{key}".',
+
   // What the local program says.
   'No project is open here yet: choose how to start one first.':
     'Todavía no hay ningún proyecto abierto aquí: primero elegir cómo empezar uno.',
