@@ -26,7 +26,7 @@ function testClock() {
   };
   return {
     clock,
-    frame(passed: number) {
+    frame: (passed: number) => {
       now += passed;
       const run = waiting;
       waiting = undefined;

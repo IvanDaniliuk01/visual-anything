@@ -9,7 +9,7 @@
  */
 import type { ProjectSnapshot, ThemeName } from '@visual-anything/core';
 import type { ViewFile } from '@visual-anything/schema';
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useModalFocus } from '../canvas/focus';
 import type { Rect } from '../canvas/geometry';
 import type { Scene } from '../canvas/scene';
@@ -199,50 +199,40 @@ function ExportDialog({
     saveButton.current?.focus();
   }, []);
 
-  // A writer's file is made once it is chosen, so that its size shows before it is saved.
   const chosenFile =
     chosen.kind === 'file' ? files.find((each) => each.format.id === chosen.id) : undefined;
   const fileMade = chosenFile ? madeFiles[chosenFile.format.id] : undefined;
-  useEffect(() => {
-    if (!chosenFile || fileMade) return;
-    const { format, context } = chosenFile;
-    setMadeFiles((all) => ({ ...all, [format.id]: { state: 'making' } }));
+
+  /** Makes a writer's file once it is chosen, so that its size shows before it is saved. */
+  const makeFile = (id: string) => {
+    const chosenWriter = files.find((each) => each.format.id === id);
+    if (!chosenWriter || madeFiles[id]) return;
+    const { format, context } = chosenWriter;
+    setMadeFiles((all) => ({ ...all, [id]: { state: 'making' } }));
     format.make(context).then(
       (blob) =>
-        setMadeFiles((all) => ({
-          ...all,
-          [format.id]: { state: 'made', value: blob, bytes: blob.size },
-        })),
+        setMadeFiles((all) => ({ ...all, [id]: { state: 'made', value: blob, bytes: blob.size } })),
       (error: unknown) =>
         setMadeFiles((all) => ({
           ...all,
-          [format.id]: {
-            state: 'failed',
-            why: error instanceof Error ? error.message : String(error),
-          },
+          [id]: { state: 'failed', why: error instanceof Error ? error.message : String(error) },
         })),
     );
-  }, [chosenFile, fileMade]);
+  };
 
   // The page is written once it is chosen, and again when where it opens changes; only the answer
   // to the latest request shows.
   const pageChosen = chosen.kind === 'page';
-  const pageSource = useRef(page);
-  useLayoutEffect(() => {
-    pageSource.current = page;
-  });
   const requested = useRef<boolean | undefined>(undefined);
-  useEffect(() => {
-    const source = pageSource.current;
-    if (!pageChosen || !source || requested.current === openAtNow) return;
-    const asked = openAtNow;
+  const writePageAt = (asked: boolean) => {
+    if (!page || requested.current === asked) return;
     requested.current = asked;
     setMadePage({ state: 'making', openAtNow: asked });
-    const assets = source.assets ?? (() => fetchViewerAssets());
+    const assets = page.assets ?? (() => fetchViewerAssets());
     assets()
       .then((viewer) =>
-        makePage(source.project, viewer, {
-          start: asked ? source.start() : undefined,
+        makePage(page.project, viewer, {
+          start: asked ? page.start() : undefined,
           made: new Date(),
         }),
       )
@@ -268,7 +258,7 @@ function ExportDialog({
           });
         },
       );
-  }, [pageChosen, openAtNow, t]);
+  };
 
   const problem =
     chosen.kind !== 'png'
@@ -330,6 +320,8 @@ function ExportDialog({
   const choose = (next: Chosen) => {
     setChosen(next);
     setDrawing({ state: 'idle' });
+    if (next.kind === 'file') makeFile(next.id);
+    else if (next.kind === 'page') writePageAt(openAtNow);
   };
   const formatGroup = `${titleId}-format`;
 
@@ -475,7 +467,10 @@ function ExportDialog({
               <input
                 type="checkbox"
                 checked={openAtNow}
-                onChange={(event) => setOpenAtNow(event.target.checked)}
+                onChange={(event) => {
+                  setOpenAtNow(event.target.checked);
+                  writePageAt(event.target.checked);
+                }}
               />
               <span className="export-choice-name">{t('Open at what the canvas shows now')}</span>{' '}
               <span className="export-choice-hint">
