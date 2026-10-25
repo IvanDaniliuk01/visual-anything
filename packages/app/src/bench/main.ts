@@ -82,8 +82,6 @@ const RESTACK_MARK = 100;
 const GRID_MARK = 0.5;
 /** How long a route edit may take at 10,000 elements, from the command to the frame drawn (§6.1.8). */
 const ROUTE_EDIT_MARK = 50;
-/** How long each frame of a route drag may take at most, in milliseconds: one frame at 60 fps. */
-const ROUTE_DRAG_MARK = 1000 / 60;
 /** How long one edit, an edit of one column on screen, and a whole layout may take, from the
  * operations to the frame drawn, at the 95th percentile (components.md §3.9). */
 const EDIT_MARK = 50;
@@ -840,14 +838,9 @@ async function measureRoutes(phases: Phase[], timed: Timed[]): Promise<void> {
         preview,
       });
     });
+    // A frame phase, judged by the frame budget as a pan is.
     phases.push(drag);
     controller.renderer.setRouteOverlay(undefined);
-    timed.push({
-      name: 'Route drag, each frame',
-      times: drag.frames,
-      mark: ROUTE_DRAG_MARK,
-      note: `the line dragged has ${dragged.route.length} points; the mark is on the 95th percentile`,
-    });
   }
   timed.push(await measureRouteEdits(10, dragged));
   const summary = `${lines.length.toLocaleString()} relations routed by hand, ${curved.toLocaleString()} curved: the scene built in ${taken.build.toFixed(0)} ms, indexed in ${taken.index.toFixed(0)} ms, drawn in ${taken.draw.toFixed(0)} ms (${shown.toFixed(0)} ms in all, the project included)`;

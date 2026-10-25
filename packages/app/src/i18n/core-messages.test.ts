@@ -188,6 +188,28 @@ const COMMANDS: readonly [string, Command][] = [
     'send to back',
     { type: 'restack', view: VIEW, moves: [{ shape: { element: 'patient' }, to: 'back' }] },
   ],
+  // Routes drawn by hand (ADR 0039).
+  ['curve a route', { type: 'set-route', view: VIEW, relation: 'api-writes-db', style: 'curved' }],
+  [
+    'bend a route',
+    {
+      type: 'set-route',
+      view: VIEW,
+      relation: 'api-writes-db',
+      bendPoints: [{ x: 120, y: 40 }],
+    },
+  ],
+  [
+    'attach an end',
+    {
+      type: 'set-route',
+      view: VIEW,
+      relation: 'api-writes-db',
+      from: { kind: 'border', side: 'top', at: 0.5 },
+    },
+  ],
+  ['route nothing', { type: 'set-route', view: VIEW, relation: 'nothing-here', style: 'straight' }],
+  ['reset routes', { type: 'reset-route', view: VIEW, relations: ['api-writes-db'] }],
   // Scenarios.
   [
     'create scenario',

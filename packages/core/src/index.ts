@@ -98,6 +98,8 @@ export {
 export type { ModelIndex } from './model-index';
 export { indexModel } from './model-index';
 export { definitionsIn, modelIndexOf } from './state';
+// A relation in words, as the history names it.
+export { relationLabel } from './commands/model';
 
 export type { Problem, ProblemCode } from './problems';
 

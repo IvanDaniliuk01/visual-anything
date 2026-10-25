@@ -17,6 +17,7 @@
 import {
   MAX_BEND_POINTS,
   modelIndexOf,
+  relationLabel,
   type Command,
   type ProjectSnapshot,
   type ResolvedAttachment,
@@ -34,7 +35,6 @@ import { relationLinesOf, type ElementShape, type RelationLine } from '../scene'
 import {
   frameOriginOf,
   reconnectCommand,
-  relationLabel,
   relativeBendPoints,
   routeOfLine,
   sameAttachment,

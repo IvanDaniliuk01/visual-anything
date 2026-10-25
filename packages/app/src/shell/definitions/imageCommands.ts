@@ -103,12 +103,9 @@ function shown(id: Id, placement: ShownImage['placement'], tint: string | undefi
   };
 }
 
-/**
- * An appearance's changes that set its image. The core takes the image trait by trait as any other,
- * though its `AppearanceChanges` type does not list it yet.
- */
+/** An appearance's changes that set its image, trait by trait as any other. */
 export function imageChanges(image: ShownImage | 'none' | null): AppearanceChanges {
-  return { image } as unknown as AppearanceChanges;
+  return { image };
 }
 
 /** One command, or a batch named for the whole gesture when it takes several. */

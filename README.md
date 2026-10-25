@@ -28,10 +28,10 @@ Each release also holds `SHA256SUMS`. Check your file against it with `sha256sum
 Run it in a terminal, in the folder where it is or with its full path:
 
 ```sh
-visual-anything [folder] [--port <n>] [--no-open]
+visual-anything [open] [folder] [--view <id> [--select <id>]...] [--port <n>] [--no-open]
 ```
 
-It opens the project in `folder` (the current folder when left out), serves it on 127.0.0.1 and opens your browser, as `pnpm start` does; with `--no-open` it prints an address that works once instead. Press Ctrl+C to stop it. `visual-anything mcp` is the MCP server Claude starts (see below); to open a folder that is named `mcp`, write `./mcp`. The executable serves the app it was built with, so `--dev` works only from the repository.
+It opens the project in `folder` (the current folder when left out), serves it on 127.0.0.1 and opens your browser, as `pnpm start` does; with `--no-open` it prints an address that works once instead. `--view` opens the app at a view, and `--select` selects an element, relation or free shape there (give it again for more), as a view address does. Press Ctrl+C to stop it. `visual-anything mcp` is the MCP server Claude starts (see below); to open a folder that is named `mcp`, write `./mcp`. The executable serves the app it was built with, so `--dev` works only from the repository.
 
 The executables are not signed yet, so each system warns the first time:
 

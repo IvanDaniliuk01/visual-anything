@@ -4,6 +4,7 @@
  */
 import type {
   Appearance,
+  AppearanceImage,
   Arrow,
   AttributeDefinition,
   BitmapImage,
@@ -133,6 +134,8 @@ export interface AppearanceChanges {
   contentsAsRows?: boolean | null;
   /** An empty list has relations attach anywhere on the border, whatever is inherited. */
   connectionPoints?: ConnectionPoint[] | null;
+  /** The image its shapes show; `none` shows none, whatever is inherited (ADR 0027). */
+  image?: AppearanceImage | 'none' | null;
 }
 
 /** Changes to how a relation type's relations are drawn, trait by trait, as for an appearance. */

@@ -1,4 +1,9 @@
-import { modelIndexOf, type Command, type ProjectSnapshot } from '@visual-anything/core';
+import {
+  modelIndexOf,
+  relationLabel,
+  type Command,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useEffect, type KeyboardEvent } from 'react';
 import { useT } from '../../i18n';
@@ -7,7 +12,6 @@ import type { Point } from '../geometry';
 import type { RelationLine } from '../scene';
 import {
   attachAutomaticallyCommand,
-  relationLabel,
   resetCommand,
   routedByHand,
   styleCommand,

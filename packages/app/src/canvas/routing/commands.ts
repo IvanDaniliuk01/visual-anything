@@ -6,10 +6,10 @@
  */
 import {
   modelIndexOf,
+  relationLabel,
   routeOf,
   type ChangeContainerCommand,
   type Command,
-  type ModelIndex,
   type ProjectSnapshot,
   type ResolvedAttachment,
   type ResolvedRoute,
@@ -20,18 +20,6 @@ import type { IndexedScene } from '../hit';
 import type { ElementShape, RelationLine } from '../scene';
 import type { RouteStyle } from './hand';
 import { originOf } from './scene-routes';
-
-/** A relation as the history names it: its name, or its ends' names with an arrow between them. */
-export function relationLabel(index: ModelIndex, id: Id, depth = 0): string {
-  const relation = index.relation(id);
-  if (!relation) return index.element(id)?.name ?? id;
-  if (relation.name !== undefined) return relation.name;
-  const end = (each: Id) =>
-    index.relation(each) && depth < 3
-      ? `(${relationLabel(index, each, depth + 1)})`
-      : (index.element(each)?.name ?? each);
-  return `${end(relation.from)} → ${end(relation.to)}`;
-}
 
 /** The view with an id, if the project has it. */
 export function viewIn(project: ProjectSnapshot, viewId: Id): ViewFile | undefined {
