@@ -384,6 +384,44 @@ describe('validateFile', () => {
       expect(validateFile('package', pkg)).toEqual({ ok: true, value: pkg });
     });
 
+    it('accepts a version, a license and an attribution (ADR 0047)', () => {
+      const shared = {
+        ...pkg,
+        version: '1.2.0',
+        license: 'CC-BY-4.0',
+        attribution: 'Icons by Jane Doe, from the Clinic Icons set.',
+      };
+      expect(validateFile('package', shared)).toEqual({ ok: true, value: shared });
+      for (const version of ['0.0.1', '10.20.30', '2.0.0-beta.1', '1.0.0-rc-2.x']) {
+        expect(problemsIn('package', { ...pkg, version }), version).toEqual([]);
+      }
+      for (const license of ['CC0-1.0', 'MIT', 'Apache-2.0', 'GPL-3.0+', 'LicenseRef-mine']) {
+        expect(problemsIn('package', { ...pkg, license }), license).toEqual([]);
+      }
+    });
+
+    it('says in words what a version and a license must be', () => {
+      for (const version of ['1.2', 'v1.2.0', '01.2.0', '1.2.0-', '1.2.0 ', '']) {
+        expect(problemsIn('package', { ...pkg, version }), version).toEqual([
+          { path: '/version', message: 'must be a semantic version, such as 1.2.0' },
+        ]);
+      }
+      for (const license of ['', 'MIT OR Apache-2.0', '-MIT', 'CC BY 4.0', 'x'.repeat(65)]) {
+        expect(problemsIn('package', { ...pkg, license }), license).toEqual([
+          {
+            path: '/license',
+            message: 'must be an SPDX license identifier, such as CC0-1.0 or MIT',
+          },
+        ]);
+      }
+      expect(problemsIn('package', { ...pkg, attribution: '' })).toEqual([
+        { path: '/attribution', message: 'must not be empty' },
+      ]);
+      expect(problemsIn('package', { ...pkg, attribution: 'x'.repeat(2001) })).toEqual([
+        { path: '/attribution', message: 'must have at most 2000 characters' },
+      ]);
+    });
+
     /** A component that sets every appearance trait, and a relation type with every kind of limit. */
     const queue = {
       id: 'clinic.queue',

@@ -63,6 +63,71 @@ describe('package images in the schema', () => {
     expect(validateFile('package', tinted).ok).toBe(true);
   });
 
+  it('accepts the license of an image, by its SPDX identifier (ADR 0047)', () => {
+    const file = clinic({
+      images: [
+        { ...SVG, source: 'Simple Icons', license: 'CC0-1.0' },
+        { ...BITMAP, license: 'CC-BY-4.0' },
+      ],
+    });
+    expect(validateFile('package', file)).toEqual({ ok: true, value: file });
+    const unlicensed = clinic({ images: [{ ...SVG, license: 'CC BY 4.0' }] });
+    expect(validateFile('package', unlicensed)).toEqual({
+      ok: false,
+      errors: [
+        {
+          path: '/images/0/license',
+          message: 'must be an SPDX license identifier, such as CC0-1.0 or MIT',
+        },
+      ],
+    });
+  });
+
+  it('writes the version, license and attribution after the description, and an image’s license after its source', () => {
+    const image = { ...SVG, source: 'Drawn by hand', license: 'MIT' };
+    const file = {
+      images: [image],
+      relationTypes: [],
+      components: [],
+      attribution: 'Jane Doe',
+      license: 'CC-BY-4.0',
+      version: '1.0.0',
+      description: 'Clinics.',
+      name: 'Clinic',
+      id: 'clinic',
+    } satisfies PackageFile;
+    const keys = (text: string) => [...text.matchAll(/^ {2,6}"(\w+)"/gm)].map((match) => match[1]);
+    const reordered = {
+      license: image.license,
+      svg: image.svg,
+      height: image.height,
+      width: image.width,
+      source: image.source,
+      name: image.name,
+      id: image.id,
+      kind: image.kind,
+    };
+    expect(keys(formatFile('package', { ...file, images: [reordered] }))).toEqual([
+      'id',
+      'name',
+      'description',
+      'version',
+      'license',
+      'attribution',
+      'components',
+      'relationTypes',
+      'images',
+      'kind',
+      'id',
+      'name',
+      'source',
+      'license',
+      'width',
+      'height',
+      'svg',
+    ]);
+  });
+
   it('refuses an empty list of images: a package without images leaves the key out', () => {
     expect(validateFile('package', clinic({ images: [] })).ok).toBe(false);
   });

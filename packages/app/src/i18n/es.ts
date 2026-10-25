@@ -2156,6 +2156,9 @@ export const messages: Catalog = {
   'must be an id: 1 to 128 letters, digits, ".", "_" or "-", starting with a letter or digit':
     'debe ser un id: de 1 a 128 letras, dígitos, ".", "_" o "-", que empiece con una letra o un dígito',
   'must be a color written as #RRGGBB': 'debe ser un color escrito como #RRGGBB',
+  'must be a semantic version, such as 1.2.0': 'debe ser una versión semántica, como 1.2.0',
+  'must be an SPDX license identifier, such as CC0-1.0 or MIT':
+    'debe ser un identificador de licencia SPDX, como CC0-1.0 o MIT',
   'must not be empty': 'no debe estar vacío',
   'must have at least {n} characters': 'debe tener al menos {n} caracteres',
   'must have at least 1 item': 'debe tener al menos 1 entrada',
