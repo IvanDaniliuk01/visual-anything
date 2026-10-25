@@ -1522,6 +1522,34 @@ export const ui: Catalog = {
   'Open the whole view': 'Abrir la vista completa',
   'This is not a destination: {why}': 'Esto no es un destino: {why}',
   '{scheme} identifier {identifier}': 'identificador de {scheme} {identifier}',
+  'Element list': 'Lista de elementos',
+  'List the elements with their attributes, to read and edit them as a table':
+    'Listar los elementos con sus atributos, para leerlos y editarlos como una tabla',
+  'Close the element list': 'Cerrar la lista de elementos',
+  List: 'Listar',
+  'What this view shows': 'Lo que muestra esta vista',
+  'Only this component': 'Solo este componente',
+  Filter: 'Filtrar',
+  'Filter in': 'Filtrar en',
+  'Any column': 'Cualquier columna',
+  '{shown} of {count} elements': {
+    one: '{shown} de {count} elemento',
+    other: '{shown} de {count} elementos',
+  },
+  'Sort by {column}': 'Ordenar por {column}',
+  identifier: 'identificador',
+  'In the model’s order again.': 'De nuevo en el orden del modelo.',
+  'Sorted by {column}, ascending.': 'Ordenado por {column}, de menor a mayor.',
+  'Sorted by {column}, descending.': 'Ordenado por {column}, de mayor a menor.',
+  'Nothing is listed here. Choose another component, or add elements on the canvas.':
+    'Aquí no hay nada en la lista. Elegir otro componente, o agregar elementos en el lienzo.',
+  'No element matches “{filter}”.': 'Ningún elemento coincide con “{filter}”.',
+  'The component is changed in the inspector.': 'El componente se cambia en el inspector.',
+  '“{name}”, {column}: {why}': '“{name}”, {column}: {why}',
+  'This cell holds no destination to follow.': 'Esta celda no tiene ningún destino que seguir.',
+  'A paste sets at most {n} cells at once.': 'Un pegado cambia como máximo {n} celdas a la vez.',
+  'Nothing here could be pasted.': 'Aquí no se pudo pegar nada.',
+  'Pasted {count} cells.': { one: 'Se pegó {count} celda.', other: 'Se pegaron {count} celdas.' },
 };
 
 /**
@@ -2722,6 +2750,8 @@ export const messages: Catalog = {
     'debe tener catálogos como claves, nombres cortos en minúsculas como "uberon", y "{key}" no lo es',
   'must have identifiers as its keys, and "{key}" is not one':
     'debe tener identificadores como claves, y "{key}" no lo es',
+  'Paste 1 cell into the element list': 'Pegar 1 celda en la lista de elementos',
+  'Paste {n} cells into the element list': 'Pegar {n} celdas en la lista de elementos',
 };
 
 /**

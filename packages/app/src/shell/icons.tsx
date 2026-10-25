@@ -232,3 +232,14 @@ export const MoreIcon = icon(
     <circle cx="5" cy="12" r="1" />
   </>,
 );
+
+/** Lucide's "table", for the element list (M8, W36). */
+export const TableIcon = icon(
+  'Table',
+  <>
+    <path d="M12 3v18" />
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="M3 9h18" />
+    <path d="M3 15h18" />
+  </>,
+);

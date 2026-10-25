@@ -19,6 +19,7 @@ import { ScenarioSession } from '../scenarios/session';
 import { usePreferences, useThemeHold } from '../theme/usePreferences';
 import { FindBar } from '../search/FindBar';
 import { useFollower, type GoToState } from '../destinations/FollowProvider';
+import { useElementList } from '../element-list/ElementList';
 import type { CanvasCamera } from '../view-state/canvas';
 import { CopyAddress } from '../view-state/CopyAddress';
 import { useViewState } from '../view-state/useViewState';
@@ -120,6 +121,8 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   useLayoutEffect(() => {
     followGoTo.current = viewState.goTo;
   });
+  // The element list, below the canvas, and its toggle in the header (R42).
+  const elementList = useElementList();
 
   return (
     <EditorContext.Provider value={editor}>
@@ -133,6 +136,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                 <>
                   {view && <CopyAddress link={viewState} />}
                   {exportTool}
+                  {elementList.toggle}
                 </>
               }
             />
@@ -176,6 +180,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
             </main>
             <Inspector view={view} scene={scene} definitions={definitions} />
             <ScenarioPanel session={scenarios} />
+            {elementList.panel}
             {followDialog}
           </div>
         </EmphasisContext.Provider>
