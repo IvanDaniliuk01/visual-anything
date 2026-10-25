@@ -6,6 +6,7 @@
  */
 import type { Color } from '@visual-anything/schema';
 import { checkCodeApprovals, readCodeApprovals, type CodeApproval } from './code/approvals';
+import { MAX_AUTHOR_NAME, checkPerson } from './comments/authors';
 import type { Problem } from './problems';
 
 /** The themes the app and the canvas can be drawn in. */
@@ -39,6 +40,14 @@ export interface Preferences {
   recentColors: Color[];
   /** The package code the person approved, by its hash, newest first (ADR 0054). */
   codeApprovals: CodeApproval[];
+  /** Who the person's comments are signed as (ADR 0059); none until they say. */
+  author: AuthorPreference | null;
+}
+
+/** The name, and optional email, a person's comments are signed with (ADR 0059). */
+export interface AuthorPreference {
+  name: string;
+  email?: string;
 }
 
 /** Some preferences, to change. */
@@ -64,6 +73,7 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
   rulers: false,
   recentColors: Object.freeze([]) as unknown as Color[],
   codeApprovals: Object.freeze([]) as unknown as CodeApproval[],
+  author: null,
 });
 
 /** The known names, in the order the file writes them. */
@@ -75,6 +85,7 @@ export const PREFERENCE_NAMES: readonly PreferenceName[] = Object.freeze([
   'rulers',
   'recentColors',
   'codeApprovals',
+  'author',
 ]);
 
 /** What the preferences file holds, read leniently. */
@@ -176,7 +187,11 @@ export function applyPreferenceChanges(
   for (const name of PREFERENCE_NAMES) {
     const value = changes[name];
     if (value !== undefined) {
-      (next as Record<PreferenceName, unknown>)[name] = Array.isArray(value) ? [...value] : value;
+      (next as Record<PreferenceName, unknown>)[name] = Array.isArray(value)
+        ? [...value]
+        : typeof value === 'object' && value !== null
+          ? { ...(value as object) }
+          : value;
     }
   }
   return next;
@@ -228,9 +243,40 @@ const LENIENT: Record<PreferenceName, Lenient> = {
     return colors.slice(0, MAX_RECENT_COLORS);
   },
   codeApprovals: readCodeApprovals,
+  author: (value) => {
+    if (value === null) return null;
+    const checked = checkAuthor(value);
+    return checked.ok ? checked.value : undefined;
+  },
 };
 
 type Checked = { ok: true; value: unknown } | { ok: false; message: string };
+
+/**
+ * Checks who the person's comments are signed as: a name, trimmed, of 1 to 200 characters, and an
+ * optional email, trimmed and left out when empty, as a comment's author keeps them.
+ */
+function checkAuthor(value: unknown): Checked {
+  if (!isRecord(value)) {
+    return { ok: false, message: '"author" must be null, or a name and an email.' };
+  }
+  if (Object.keys(value).some((key) => key !== 'name' && key !== 'email')) {
+    return { ok: false, message: '"author" has a name and an email, and nothing else.' };
+  }
+  const checked = checkPerson({ kind: 'person', name: value.name, email: value.email });
+  if (checked.ok) {
+    const { name, email } = checked.author;
+    return { ok: true, value: email === undefined ? { name } : { name, email } };
+  }
+  if (checked.code === 'no-comment-author') return { ok: false, message: '"author" needs a name.' };
+  if (typeof value.name === 'string' && value.name.trim().length > MAX_AUTHOR_NAME) {
+    return { ok: false, message: '"author" has a name of at most 200 characters.' };
+  }
+  return {
+    ok: false,
+    message: `"author" has an email that is not one: ${JSON.stringify(value.email)}.`,
+  };
+}
 
 /** How each known name is checked in a change: its value as stored, or why it is refused. */
 const STRICT: Record<PreferenceName, (value: unknown) => Checked> = {
@@ -278,6 +324,7 @@ const STRICT: Record<PreferenceName, (value: unknown) => Checked> = {
     return { ok: true, value: colors };
   },
   codeApprovals: checkCodeApprovals,
+  author: (value) => (value === null ? { ok: true, value: null } : checkAuthor(value)),
 };
 
 function booleanOrUndefined(value: unknown): boolean | undefined {
@@ -300,6 +347,7 @@ function copyOf(preferences: Readonly<Preferences>): Preferences {
     ...preferences,
     recentColors: [...preferences.recentColors],
     codeApprovals: [...preferences.codeApprovals],
+    author: preferences.author === null ? null : { ...preferences.author },
   };
 }
 

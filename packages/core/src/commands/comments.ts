@@ -205,6 +205,13 @@ function checkedText(text: unknown): string {
  * names, as their preferences do.
  */
 function authorOf(draft: Draft, given: CommentAuthor | undefined): CommentAuthor {
+  // Fails closed: a caller that does not say who sends the command signs nothing.
+  if (draft.author === undefined) {
+    reject(
+      'invalid-command',
+      'A comment is signed by whoever sends it, and the program did not say who sends this one.',
+    );
+  }
   if (draft.author === 'claude') {
     if (given !== undefined && (given as { kind?: unknown }).kind !== 'claude') {
       reject('invalid-author', 'Claude’s comments are signed as Claude: they never name a person.');

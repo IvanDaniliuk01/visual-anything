@@ -39,7 +39,10 @@ export function reject(code: ProblemCode, message: string, subjects?: readonly I
 
 /** Who runs a command and when, for what records them: a comment's author and time (ADR 0059). */
 export interface DraftContext {
-  /** Who sends the command; the person by default. */
+  /**
+   * Who sends the command. Nothing assumes one: a command that signs something, such as a comment,
+   * is refused without it, so that no caller that forgets it signs Claude's words as the person's.
+   */
   author?: Author;
   /** The time now, in milliseconds since 1970; the computer's clock by default. */
   now?: () => number;
@@ -60,9 +63,9 @@ export class Draft {
     this.state = state;
   }
 
-  /** Who sends the command: the person, or Claude. */
-  get author(): Author {
-    return this.context.author ?? 'user';
+  /** Who sends the command: the person, or Claude; undefined when the caller did not say. */
+  get author(): Author | undefined {
+    return this.context.author;
   }
 
   /** The time now, in milliseconds since 1970. */

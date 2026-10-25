@@ -42,6 +42,17 @@ const preferences: fc.Arbitrary<Preferences> = fc.record({
     }),
     { maxLength: 4, selector: (approval) => approval.hash },
   ),
+  // Who the person's comments are signed as (ADR 0059): none, or a name and maybe an email.
+  author: fc.option(
+    fc.record(
+      {
+        name: fc.constantFrom('Ana', 'Bruno Díaz', 'Zoë', 'x'.repeat(200)),
+        email: fc.constantFrom('ana@example.com', 'b@d'),
+      },
+      { requiredKeys: ['name'] },
+    ),
+    { nil: null },
+  ),
 });
 
 /** Any JSON value, as it reads back from its text (so without -0). */
@@ -74,6 +85,7 @@ describe('DEFAULT_PREFERENCES', () => {
       rulers: false,
       recentColors: [],
       codeApprovals: [],
+      author: null,
     });
     expect(PREFERENCE_NAMES).toEqual(Object.keys(DEFAULT_PREFERENCES));
   });
@@ -125,6 +137,7 @@ describe('readPreferences', () => {
       rulers: true,
       recentColors: ['#1D4F91', '#dceBff'],
       codeApprovals: [{ hash: 'c'.repeat(64), package: 'gauges', capabilities: ['time'] }],
+      author: { name: ' Ana ', email: 'ana@example.com' },
     });
     expect(read.preferences).toEqual({
       theme: 'light',
@@ -134,8 +147,19 @@ describe('readPreferences', () => {
       rulers: true,
       recentColors: ['#1D4F91', '#DCEBFF'],
       codeApprovals: [{ hash: 'c'.repeat(64), package: 'gauges', capabilities: ['time'] }],
+      author: { name: 'Ana', email: 'ana@example.com' },
     });
     expect(read.unread).toEqual([]);
+  });
+
+  it('reads an author without an email, and keeps one it cannot read as it is', () => {
+    expect(readPreferences({ author: { name: 'Ana', email: '' } }).preferences.author).toEqual({
+      name: 'Ana',
+    });
+    const read = readPreferences({ author: { name: '', nickname: 'A' } });
+    expect(read.preferences.author).toBeNull();
+    expect(read.kept).toEqual({ author: { name: '', nickname: 'A' } });
+    expect(read.unread).toEqual(['author']);
   });
 
   it('keeps the names it does not know as they are', () => {
@@ -228,6 +252,7 @@ describe('formatPreferences', () => {
         '    "#1D4F91"',
         '  ],',
         '  "codeApprovals": [],',
+        '  "author": null,',
         '  "apple": [',
         '    1,',
         '    2',
@@ -289,6 +314,17 @@ describe('checkPreferenceChanges', () => {
     );
   });
 
+  it('takes an author trimmed, without an empty email, and null to forget it', () => {
+    expect(checkPreferenceChanges({ author: { name: ' Ana ', email: ' ' } })).toEqual({
+      ok: true,
+      changes: { author: { name: 'Ana' } },
+    });
+    expect(checkPreferenceChanges({ author: null })).toEqual({
+      ok: true,
+      changes: { author: null },
+    });
+  });
+
   it('writes the colors it takes in capitals', () => {
     expect(checkPreferenceChanges({ recentColors: ['#dcebff', '#1d4F91'] })).toEqual({
       ok: true,
@@ -346,6 +382,27 @@ describe('checkPreferenceChanges', () => {
       { recentColors: Array.from({ length: 9 }, (_, n) => `#00000${n}`) },
       '"recentColors" holds 9 colors, more than 8.',
     ],
+    [
+      'an author that is no object',
+      { author: 'Ana' },
+      '"author" must be null, or a name and an email.',
+    ],
+    [
+      'an author with more than a name and an email',
+      { author: { name: 'Ana', role: 'admin' } },
+      '"author" has a name and an email, and nothing else.',
+    ],
+    ['an author with no name', { author: { name: '  ' } }, '"author" needs a name.'],
+    [
+      'an author with a long name',
+      { author: { name: 'x'.repeat(201) } },
+      '"author" has a name of at most 200 characters.',
+    ],
+    [
+      'an author with an email that is not one',
+      { author: { name: 'Ana', email: 'ana at example' } },
+      '"author" has an email that is not one: "ana at example".',
+    ],
   ])('refuses %s', (_, value, message) => {
     expect(checkPreferenceChanges(value)).toEqual({
       ok: false,
@@ -374,5 +431,13 @@ describe('applyPreferenceChanges', () => {
     expect(after).toEqual({ ...DEFAULT_PREFERENCES, theme: 'dark', recentColors: ['#000000'] });
     expect(after.recentColors).not.toBe(changes.recentColors);
     expect(before.recentColors).toEqual(['#FFFFFF']);
+  });
+
+  it('shares no author with the changes', () => {
+    const changes: PreferenceChanges = { author: { name: 'Ana' } };
+    const after = applyPreferenceChanges(DEFAULT_PREFERENCES, changes);
+    expect(after.author).toEqual({ name: 'Ana' });
+    expect(after.author).not.toBe(changes.author);
+    expect(applyPreferenceChanges(after, { author: null }).author).toBeNull();
   });
 });

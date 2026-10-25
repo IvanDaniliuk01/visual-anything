@@ -47,12 +47,17 @@ export const GRID_NOT_CONNECTED =
 export const APPROVAL_NOT_CONNECTED =
   'Your approval of package code applies to this tab only: Visual Anything is not connected.';
 
+/** What a change of the name the person's comments are signed with says while not connected (ADR 0059). */
+export const AUTHOR_NOT_CONNECTED =
+  'Your name for comments applies to this tab only: Visual Anything is not connected.';
+
 /**
  * What a change says while the tab is not connected: about the language, or the grid and the rulers,
  * when it changes only that.
  */
 function notConnected(changes: PreferenceChanges): string {
   if (changes.codeApprovals !== undefined) return APPROVAL_NOT_CONNECTED;
+  if (changes.author !== undefined) return AUTHOR_NOT_CONNECTED;
   if (changes.theme !== undefined) return NOT_CONNECTED;
   if (changes.language !== undefined) return LANGUAGE_NOT_CONNECTED;
   if (
@@ -431,6 +436,9 @@ function samePreferences(a: Preferences, b: Preferences): boolean {
         approval.package === other.package &&
         approval.capabilities.join(' ') === other.capabilities.join(' ')
       );
-    })
+    }) &&
+    // Who the person's comments are signed as (ADR 0059).
+    a.author?.name === b.author?.name &&
+    a.author?.email === b.author?.email
   );
 }

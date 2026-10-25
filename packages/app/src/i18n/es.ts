@@ -259,6 +259,8 @@ export const ui: Catalog = {
     'El tema se aplica solo a esta pestaña: Visual Anything no está conectado.',
   'Your approval of package code applies to this tab only: Visual Anything is not connected.':
     'La aprobación del código del paquete se aplica solo a esta pestaña: Visual Anything no está conectado.',
+  'Your name for comments applies to this tab only: Visual Anything is not connected.':
+    'El nombre para los comentarios se aplica solo a esta pestaña: Visual Anything no está conectado.',
 
   // Search and jump: the find field over the canvas.
   'Find in the project': 'Buscar en el proyecto',
@@ -2858,6 +2860,16 @@ export const messages: Catalog = {
   '"recentColors" holds {n} colors, more than {limit}.':
     '"recentColors" tiene {n} colores, más de {limit}.',
   '"{name}" must be true or false, not {value}.': '"{name}" debe ser true o false, no {value}.',
+  // Who the person's comments are signed as (ADR 0059).
+  '"author" must be null, or a name and an email.':
+    '"author" debe ser null, o un nombre y un correo electrónico.',
+  '"author" has a name and an email, and nothing else.':
+    '"author" tiene un nombre y un correo electrónico, y nada más.',
+  '"author" needs a name.': '"author" necesita un nombre.',
+  '"author" has a name of at most 200 characters.':
+    '"author" tiene un nombre de como máximo 200 caracteres.',
+  '"author" has an email that is not one: {value}.':
+    '"author" tiene un correo electrónico que no lo es: {value}.',
 
   // Why the Structurizr, LikeC4 and draw.io readers refuse a file, and what they leave out (ADR 0042).
   'The file nests too deeply to be read.': 'El archivo anida demasiado hondo para leerse.',
@@ -3152,6 +3164,8 @@ export const messages: Catalog = {
     'La y de un punto debe estar entre -10.000.000 y 10.000.000.',
   '"{kind}" is not an anchor: a thread is about an element, a relation, a view or a point.':
     '"{kind}" no es algo sobre lo que pueda tratar un hilo: un hilo trata sobre un elemento, una relación, una vista o un punto.',
+  'A comment is signed by whoever sends it, and the program did not say who sends this one.':
+    'Un comentario lo firma quien lo envía, y el programa no dijo quién envía este.',
   'Claude’s comments are signed as Claude: they never name a person.':
     'Los comentarios de Claude se firman como Claude: nunca nombran a una persona.',
   'The clock gives a time a comment cannot keep.':

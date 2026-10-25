@@ -5,6 +5,7 @@ import {
 } from '@visual-anything/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  AUTHOR_NOT_CONNECTED,
   GRID_NOT_CONNECTED,
   HOLD_TIMEOUT_MS,
   LANGUAGE_NOT_CONNECTED,
@@ -309,6 +310,17 @@ describe('changePreferences', () => {
     expect(asked).toEqual([]);
     expect(link.notify).toHaveBeenCalledWith('info', NOT_CONNECTED);
     expect(appliedPreferences().preferences.theme).toBe('dark');
+  });
+
+  it('says the name for comments applies to this tab only while not connected (ADR 0059)', () => {
+    startPreferences(window);
+    const { link, asked } = fakeLink({ status: 'closed' });
+    linkPreferences(link);
+    changePreferences({ author: { name: 'Ana' } });
+    vi.advanceTimersByTime(SEND_DELAY_MS);
+    expect(asked).toEqual([]);
+    expect(link.notify).toHaveBeenCalledWith('info', AUTHOR_NOT_CONNECTED);
+    expect(appliedPreferences().preferences.author).toEqual({ name: 'Ana' });
   });
 
   it('keeps the change in the tab, silently, when the session cannot carry preferences', () => {

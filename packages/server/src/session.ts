@@ -484,11 +484,13 @@ export class Session implements LiveSession {
       this.#guarded(origin, async () => {
         let outcome: CommandOutcome;
         try {
-          outcome = executeCommand(
-            this.#state,
-            command,
-            this.#options.newId === undefined ? {} : { newId: this.#options.newId },
-          );
+          outcome = executeCommand(this.#state, command, {
+            ...(this.#options.newId === undefined ? {} : { newId: this.#options.newId }),
+            // Who sent it signs what it writes, such as a comment (ADR 0059): the core refuses a
+            // comment whose sender is not said, so that Claude's words are never the person's.
+            author,
+            now: () => this.#now(),
+          });
         } catch (error) {
           return this.#refuse(origin, [
             refusal('program-failed', `The command could not be run: ${reasonOf(error)}`),

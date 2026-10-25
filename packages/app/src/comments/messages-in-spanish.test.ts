@@ -23,7 +23,8 @@ const BRUNO = { kind: 'person', name: 'Bruno' } as const;
 /** Commands written by hand, as Claude's can be; their types say nothing of them. */
 const hand = (command: unknown) => command as Command;
 
-const COMMANDS: readonly [string, Author, Command][] = [
+/** Each command, with who sends it: undefined for a caller that does not say, which is refused. */
+const COMMANDS: readonly [string, Author | undefined, Command][] = [
   [
     'comment',
     'user',
@@ -244,6 +245,11 @@ const COMMANDS: readonly [string, Author, Command][] = [
   ['resolve', 'user', { type: 'resolve-thread', thread: 'why', resolved: true }],
   ['reopen', 'claude', { type: 'resolve-thread', thread: 'why', resolved: false }],
   ['resolve unclearly', 'user', hand({ type: 'resolve-thread', thread: 'why', resolved: 'yes' })],
+  [
+    'no sender said',
+    undefined,
+    { type: 'add-comment', thread: 'why', comment: { text: 'x', author: ANA } },
+  ],
   ['delete', 'user', { type: 'delete-thread', thread: 'why' }],
   [
     'the sample’s thread',
@@ -263,7 +269,7 @@ function allMessages(): Said[] {
   const said: Said[] = [];
   for (const [name, author, command] of COMMANDS) {
     const outcome = executeCommand(state, command, {
-      author,
+      ...(author === undefined ? {} : { author }),
       newId: (base) => `${base}-${(made += 1)}`,
       now: () => Date.UTC(2026, 9, 25, 12),
     });
@@ -287,6 +293,7 @@ function allMessages(): Said[] {
   const outcome = executeCommand(
     { ...sample, comments: [full] },
     { type: 'add-comment', thread: thread.id, comment: { text: 'x', author: ANA } },
+    { author: 'user' },
   );
   if (!outcome.ok)
     for (const problem of outcome.problems)

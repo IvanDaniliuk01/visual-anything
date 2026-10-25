@@ -18,8 +18,9 @@ function clock(start = Date.UTC(2026, 9, 25, 14, 3)): () => number {
 }
 
 let made = 0;
+/** Sent by the person unless `more` says otherwise, as the local program says for every command. */
 function context(more: CommandContext = {}): CommandContext {
-  return { newId: (base) => `${base}-${(made += 1)}`, now: clock(), ...more };
+  return { newId: (base) => `${base}-${(made += 1)}`, now: clock(), author: 'user', ...more };
 }
 
 function run(state: ProjectSnapshot, command: Command, more: CommandContext = {}) {
@@ -52,6 +53,40 @@ function withThread(): { state: ProjectSnapshot; thread: CommentFile } {
   if (!thread) throw new Error('No thread was made.');
   return { state: outcome.state, thread };
 }
+
+describe('who signs a comment', () => {
+  it('is never assumed: a comment command whose sender is not said is refused', () => {
+    const { state } = withThread();
+    const unsaid: CommandContext = { newId: (base) => `${base}-${(made += 1)}`, now: clock() };
+    const commands: Command[] = [
+      {
+        type: 'create-thread',
+        thread: {
+          anchor: { kind: 'element', element: 'db' },
+          comment: { text: 'Hi', author: ANA },
+        },
+      },
+      { type: 'add-comment', thread: 'why-api', comment: { text: 'Hi', author: ANA } },
+      { type: 'edit-comment', thread: 'why-api', comment: 'first', text: 'Hi', author: ANA },
+      {
+        type: 'batch',
+        label: 'Answer',
+        commands: [{ type: 'add-comment', thread: 'why-api', comment: { text: 'Hi' } }],
+      },
+    ];
+    for (const command of commands) {
+      const outcome = executeCommand(state, command, unsaid);
+      expect(outcome.ok ? [] : outcome.problems.map((each) => each.code)).toEqual([
+        'invalid-command',
+      ]);
+    }
+    // What signs nothing needs no sender.
+    expect(
+      executeCommand(state, { type: 'resolve-thread', thread: 'why-api', resolved: true }, unsaid)
+        .ok,
+    ).toBe(true);
+  });
+});
 
 describe('create-thread', () => {
   it('starts a thread about an element with its first comment, signed and timed', () => {

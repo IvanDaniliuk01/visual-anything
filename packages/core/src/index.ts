@@ -204,6 +204,7 @@ export {
 } from './protocol';
 
 export type {
+  AuthorPreference,
   PreferenceChanges,
   PreferenceName,
   Preferences,

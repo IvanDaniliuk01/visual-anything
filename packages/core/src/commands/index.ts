@@ -56,8 +56,8 @@ export interface CommandContext {
   /** Makes new ids; random suffixes by default. */
   newId?: IdGenerator;
   /**
-   * Who sends the command, the person by default: Claude's comments are signed as Claude, and only
-   * the person's carry their name (ADR 0059).
+   * Who sends the command: Claude's comments are signed as Claude, and only the person's carry their
+   * name (ADR 0059). Nothing defaults to the person: a comment command without it is refused.
    */
   author?: Author;
   /** The time now, in milliseconds since 1970, which comments are dated with; the clock by default. */
