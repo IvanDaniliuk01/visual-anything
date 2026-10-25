@@ -7,9 +7,10 @@ import type { Id, RelationAppearance } from '@visual-anything/schema';
 import { useId, type Ref } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import { readNumber } from '../inspector/attributes';
-import { ColorControl, SelectControl, TextControl } from '../inspector/controls';
+import { SelectControl, TextControl } from '../inspector/controls';
 import { Title } from '../inspector/parts';
 import { AttributeDefinitionsSection } from './AttributeDefinitionsSection';
+import { ColorRow } from './ColorRow';
 import { isBuiltInDefinition } from './commands';
 import { IdentitySection } from './IdentitySection';
 import { LimitsSection } from './LimitsSection';
@@ -213,18 +214,8 @@ function LineSection({
     <section className="inspector-section" aria-labelledby={headingId}>
       <h4 id={headingId}>Line</h4>
       <ul className="definition-traits">
-        <TraitRow label="Stroke" {...row('stroke')} inherit={() => update({ stroke: null })}>
-          {({ id: controlId, describedBy, send }) => (
-            <ColorControl
-              id={controlId}
-              label="Stroke"
-              value={shown.stroke}
-              disabled={readOnly}
-              describedBy={describedBy}
-              onCommit={(stroke) => send(update({ stroke }))}
-            />
-          )}
-        </TraitRow>
+        {/* The color changes at the level the project can change, so a built-in one's too. */}
+        <ColorRow kind="relation-type" id={id} trait="stroke" label="Stroke" hints />
         <TraitRow label="Width" {...row('width')} inherit={() => update({ width: null })}>
           {({ id: controlId, describedBy, send }) => (
             <TextControl

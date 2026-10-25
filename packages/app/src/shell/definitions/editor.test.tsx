@@ -114,36 +114,62 @@ describe('the component editor', () => {
   it('sends only the trait a control changes, as one command', async () => {
     const { send, inspector } = await editCalendar();
     const fill = within(inspector).getByLabelText('Fill');
-    expect(fill).toHaveAccessibleDescription('from Database');
+    expect(fill).toHaveAccessibleDescription('built in, from Database');
     await settle(() => fireEvent.change(fill, { target: { value: '#112233' } }));
+    // A color goes where the project can change it: for Calendar, its package.
     expect(sent(send)).toEqual([
       {
-        type: 'update-component',
-        id: 'clinic.calendar',
-        changes: { appearance: { fill: '#112233' } },
+        type: 'set-component-appearance',
+        component: 'clinic.calendar',
+        appearanceTraits: { fill: '#112233' },
       },
     ]);
     expect(within(inspector).getByLabelText('Fill')).toHaveAccessibleDescription('its own');
+    await settle(() =>
+      fireEvent.change(within(inspector).getByRole('combobox', { name: 'Shape' }), {
+        target: { value: 'rectangle' },
+      }),
+    );
+    expect(sent(send).at(-1)).toEqual({
+      type: 'update-component',
+      id: 'clinic.calendar',
+      changes: { appearance: { shape: 'rectangle' } },
+    });
   });
 
   it('inherits a trait again with "Use the inherited value", which sends null', async () => {
     const { send, inspector } = await editCalendar({ project: withCalendarFill('#E0F0FF') });
     await settle(() =>
       fireEvent.click(
-        within(inspector).getByRole('button', { name: 'Use the inherited value for Fill' }),
+        within(inspector).getByRole('button', { name: 'Use the inherited color for Fill' }),
       ),
     );
     expect(sent(send)).toEqual([
       {
-        type: 'update-component',
-        id: 'clinic.calendar',
-        changes: { appearance: { fill: null } },
+        type: 'set-component-appearance',
+        component: 'clinic.calendar',
+        appearanceTraits: { fill: null },
       },
     ]);
     expect(within(inspector).getByLabelText('Fill')).toHaveValue('#fff3c9');
     expect(
-      within(inspector).queryByRole('button', { name: 'Use the inherited value for Fill' }),
+      within(inspector).queryByRole('button', { name: 'Use the inherited color for Fill' }),
     ).not.toBeInTheDocument();
+    await settle(() =>
+      fireEvent.change(within(inspector).getByRole('combobox', { name: 'Shape' }), {
+        target: { value: 'rectangle' },
+      }),
+    );
+    await settle(() =>
+      fireEvent.click(
+        within(inspector).getByRole('button', { name: 'Use the inherited value for Shape' }),
+      ),
+    );
+    expect(sent(send).at(-1)).toEqual({
+      type: 'update-component',
+      id: 'clinic.calendar',
+      changes: { appearance: { shape: null } },
+    });
   });
 
   it('shows a refusal of the core on the app’s copy inline, and sends nothing', async () => {
@@ -321,8 +347,8 @@ describe('the component editor', () => {
     ).toHaveFocus();
   });
 
-  it('is read-only for a built-in component, and offers to derive one', async () => {
-    const { inspector } = renderEditor();
+  it('is read-only for a built-in component but for its colors, and offers to derive one', async () => {
+    const { inspector, send } = renderEditor();
     const tab = screen.getByRole('region', { name: 'Components tab' });
     const systems = within(tab).getByRole('treeitem', { name: 'Systems, Built-in package' });
     expect(systems).toHaveAttribute('aria-expanded', 'false');
@@ -336,13 +362,41 @@ describe('the component editor', () => {
     ).toBeInTheDocument();
     const identity = within(inspector).getByRole('region', { name: 'Identity' });
     expect(within(identity).getByRole('textbox', { name: 'Name' })).toBeDisabled();
-    expect(within(inspector).getByLabelText('Fill')).toBeDisabled();
+    expect(within(inspector).getByRole('combobox', { name: 'Shape' })).toBeDisabled();
     expect(
-      within(inspector).queryByRole('button', { name: /Use the inherited value/ }),
+      within(inspector).queryByRole('button', { name: /Use the inherited/ }),
     ).not.toBeInTheDocument();
     expect(
       within(inspector).queryByRole('button', { name: 'Remove the component' }),
     ).not.toBeInTheDocument();
+    // Its colors change for this project only, in the project file (ADR-0034).
+    const fill = within(inspector).getByLabelText('Fill');
+    expect(fill).toBeEnabled();
+    expect(fill).toHaveAccessibleDescription(
+      'built in Saved in this project; the built-in package Systems stays as it is.',
+    );
+    await settle(() => fireEvent.change(fill, { target: { value: '#ffe3e3' } }));
+    expect(sent(send)).toEqual([
+      {
+        type: 'set-component-appearance',
+        component: 'systems.service',
+        appearanceTraits: { fill: '#FFE3E3' },
+      },
+    ]);
+    expect(within(inspector).getByLabelText('Fill')).toHaveAccessibleDescription(
+      /^set in this project/,
+    );
+    await settle(() =>
+      fireEvent.click(
+        within(inspector).getByRole('button', { name: 'Use the inherited color for Fill' }),
+      ),
+    );
+    expect(sent(send).at(-1)).toEqual({
+      type: 'set-component-appearance',
+      component: 'systems.service',
+      appearanceTraits: { fill: null },
+    });
+    expect(within(inspector).getByLabelText('Fill')).toHaveValue('#dcebff');
     await settle(() =>
       fireEvent.click(
         within(inspector).getByRole('button', { name: 'Derive a component from “Service”' }),
