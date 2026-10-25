@@ -116,6 +116,20 @@ describe('The read-only page', () => {
     expect(policyOf(html).get('script-src')).toContain(hashOf(viewer));
   });
 
+  it('writes what the browser would read otherwise as escapes, so that the hash still matches', async () => {
+    const nul = String.fromCharCode(0);
+    const script = `const d = "a${nul}b"; const e = \`x\r\ny\`;`;
+    const { html } = await writePage({
+      assets: { ...ASSETS, script },
+      data: pageDataOf(sample),
+      title: 'x',
+    });
+    const viewer = elementsOf(html, 'script')[2]?.body ?? '';
+    expect(viewer).toBe('const d = "a\\x00b"; const e = `x\\r\ny`;');
+    expect(viewer).not.toMatch(/[\0\r]/);
+    expect(policyOf(html).get('script-src')).toContain(hashOf(viewer));
+  });
+
   it('refuses a style that would end its element', async () => {
     await expect(
       writePage({

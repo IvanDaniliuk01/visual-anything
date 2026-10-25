@@ -126,12 +126,21 @@ export function dataText(data: PageData): string {
 }
 
 /**
- * The viewer's script as the text of an inline script: `</script` and `<!--`, which would end it or
- * change how the browser finds its end, written as `<\/script` and `<\x21--`, which read the same in
- * strings, templates and regular expressions, the only places a built script holds them.
+ * The viewer's script as the text of an inline script, which the browser reads exactly as written,
+ * so that its hash matches:
+ * - `</script` and `<!--`, which would end it or change how the browser finds its end, are written
+ *   `<\/script` and `<\x21--`;
+ * - a NUL, which the browser reads as U+FFFD, and a carriage return, which it reads as a line feed,
+ *   are written `\x00` and `\r`.
+ * These read the same in strings, templates and regular expressions, the only places a built script
+ * holds them.
  */
 export function scriptText(script: string): string {
-  return script.replace(/<\/(script)/gi, '<\\/$1').replace(/<!--/g, '<\\x21--');
+  return script
+    .replace(/<\/(script)/gi, '<\\/$1')
+    .replace(/<!--/g, '<\\x21--')
+    .replace(/\0/g, '\\x00')
+    .replace(/\r/g, '\\r');
 }
 
 function escapeText(text: string): string {
