@@ -14,6 +14,7 @@
 import modelSchema from '@visual-anything/schema/schemas/model.schema.json' with { type: 'json' };
 import type { Attributes, Element, JsonValue, Relation } from '@visual-anything/schema';
 import { PastLimits, PlanBuilder } from './builder';
+import { IMPORT_LIMITS } from './plan';
 import { References, type MatchBy } from './references';
 import {
   FORBIDDEN_NAME,
@@ -119,6 +120,28 @@ export function readJson(input: ImportInput, options: ReadOptions = {}): ReadRes
   const model = Object.hasOwn(data, 'world');
   if (!model && !Object.hasOwn(data, 'elements') && !Object.hasOwn(data, 'relations')) {
     return { ok: false, problems: [NEITHER] };
+  }
+  // The limits come before anything that grows with the file: checking it, and ordering relations.
+  const listed = (key: string) => {
+    const list = Object.hasOwn(data, key) ? (data as Record<string, unknown>)[key] : undefined;
+    return Array.isArray(list) ? list.length : 0;
+  };
+  const count = (amount: number) => amount.toLocaleString('en');
+  if (listed('elements') > IMPORT_LIMITS.elements) {
+    return {
+      ok: false,
+      problems: [
+        `The file holds more than ${count(IMPORT_LIMITS.elements)} elements; an import brings at most ${count(IMPORT_LIMITS.elements)}.`,
+      ],
+    };
+  }
+  if (listed('relations') > IMPORT_LIMITS.relations) {
+    return {
+      ok: false,
+      problems: [
+        `The file holds more than ${count(IMPORT_LIMITS.relations)} relations, those that put one thing inside another included; an import brings at most ${count(IMPORT_LIMITS.relations)}.`,
+      ],
+    };
   }
   const problems = checkAgainstSchema(model ? modelSchema : SIMPLE_FORM_SCHEMA, data);
   if (problems.length > 0) {
@@ -227,69 +250,124 @@ class JsonReading {
         );
       }
     }
-    // A relation that ends on a relation comes after it; what never can is reported.
-    const keys = new Map<string, string>();
-    const world = (file as { world?: Element }).world?.id;
-    let waiting = file.relations.filter((relation) => {
-      const end = [relation.from, relation.to].find((each) => each === world);
-      if (end === undefined) return true;
-      builder.report(
-        relation.id,
-        'It ends on World, which an import does not bring, so it is left out.',
-      );
-      return false;
-    });
-    const ids = new Set(file.relations.map((relation) => relation.id));
-    for (const relation of [...waiting]) {
+    this.#modelRelations(file, elements);
+  }
+
+  /**
+   * A model's relations, each after the relations it ends on, in one topological sort; those that end
+   * on World, on nothing the file holds, on a relation left out, or on a cycle of relations are
+   * reported.
+   */
+  #modelRelations(
+    file: { relations: Relation[]; world?: Element },
+    elements: ReadonlySet<string>,
+  ): void {
+    const builder = this.#builder;
+    const world = file.world?.id;
+    const byId = new Map<string, Relation>();
+    for (const relation of file.relations) {
+      if (byId.has(relation.id)) {
+        builder.report(
+          relation.id,
+          `The id "${relation.id}" is given to an earlier relation, so this one is left out.`,
+        );
+        continue;
+      }
+      byId.set(relation.id, relation);
+    }
+    const leftOut = new Set<string>();
+    const kept: Relation[] = [];
+    for (const relation of byId.values()) {
+      if (relation.from === world || relation.to === world) {
+        builder.report(
+          relation.id,
+          'It ends on World, which an import does not bring, so it is left out.',
+        );
+        leftOut.add(relation.id);
+        continue;
+      }
       const missing = [relation.from, relation.to].find(
-        (end) => !elements.has(end) && !ids.has(end),
+        (end) => !elements.has(end) && !byId.has(end),
       );
-      if (missing === undefined) continue;
+      if (missing !== undefined) {
+        builder.report(
+          relation.id,
+          `It ends on "${quote(missing)}", which the file does not hold, so it is left out.`,
+        );
+        leftOut.add(relation.id);
+        continue;
+      }
+      kept.push(relation);
+    }
+    // How many relations each one waits for, and who waits for each: those it ends on come first.
+    const waiting = new Map<string, number>();
+    const dependents = new Map<string, string[]>();
+    const ready: Relation[] = [];
+    for (const relation of kept) {
+      const ends = new Set([relation.from, relation.to].filter((end) => !elements.has(end)));
+      waiting.set(relation.id, ends.size);
+      for (const end of ends) {
+        const list = dependents.get(end);
+        if (list === undefined) dependents.set(end, [relation.id]);
+        else list.push(relation.id);
+      }
+      if (ends.size === 0) ready.push(relation);
+    }
+    const keys = new Map<string, string>();
+    const keyOf = (end: string) => (elements.has(end) ? end : (keys.get(end) ?? end));
+    for (let at = 0; at < ready.length; at++) {
+      const relation = ready[at] as Relation;
+      keys.set(relation.id, this.#modelRelation(relation, keyOf));
+      for (const dependent of dependents.get(relation.id) ?? []) {
+        const left = (waiting.get(dependent) ?? 1) - 1;
+        waiting.set(dependent, left);
+        const next = byId.get(dependent);
+        if (left === 0 && next !== undefined) ready.push(next);
+      }
+    }
+    // What never came: behind a relation left out, or in a cycle of relations.
+    const behind = new Set<string>();
+    const queue = [...leftOut];
+    for (let at = 0; at < queue.length; at++) {
+      for (const dependent of dependents.get(queue[at] as string) ?? []) {
+        if (behind.has(dependent)) continue;
+        behind.add(dependent);
+        queue.push(dependent);
+      }
+    }
+    for (const relation of kept) {
+      if (keys.has(relation.id)) continue;
       builder.report(
         relation.id,
-        `It ends on "${quote(missing)}", which the file does not hold, so it is left out.`,
-      );
-      waiting = waiting.filter((each) => each !== relation);
-    }
-    for (let progress = true; progress && waiting.length > 0;) {
-      progress = false;
-      waiting = waiting.filter((relation) => {
-        const end = (id: string) => (elements.has(id) ? id : keys.get(id));
-        const from = end(relation.from);
-        const to = end(relation.to);
-        if (from === undefined || to === undefined) return true;
-        const attributes = this.#attributes(
-          relation.description === undefined
-            ? relation.attributes
-            : { ...relation.attributes, description: relation.description },
-          relation.name ?? relation.id,
-        );
-        if (relation.description !== undefined)
-          builder.report(relation.name ?? relation.id, DESCRIPTION_KEPT);
-        const planned = builder.relate(
-          {
-            sourceId: relation.id,
-            from,
-            to,
-            kind: relation.relationType,
-            ...(relation.name === undefined
-              ? {}
-              : { name: builder.name(relation.name, relation.id) }),
-            ...(attributes === undefined ? {} : { attributes }),
-          },
-          { label: relation.relationType, suggested: relation.relationType },
-        );
-        keys.set(relation.id, planned.key);
-        progress = true;
-        return false;
-      });
-    }
-    for (const relation of waiting) {
-      builder.report(
-        relation.id,
-        'It ends on a relation that ends on it in turn, so it is left out.',
+        behind.has(relation.id)
+          ? 'It ends on a relation that is left out, so it is left out too.'
+          : 'It ends on a relation that ends on it in turn, so it is left out.',
       );
     }
+  }
+
+  /** Plans one relation of a model, its ends given as keys, and gives its key. */
+  #modelRelation(relation: Relation, keyOf: (end: string) => string): string {
+    const builder = this.#builder;
+    const label = relation.name ?? relation.id;
+    if (relation.description !== undefined) builder.report(label, DESCRIPTION_KEPT);
+    const attributes = this.#attributes(
+      relation.description === undefined
+        ? relation.attributes
+        : { ...relation.attributes, description: relation.description },
+      label,
+    );
+    return builder.relate(
+      {
+        sourceId: relation.id,
+        from: keyOf(relation.from),
+        to: keyOf(relation.to),
+        kind: relation.relationType,
+        ...(relation.name === undefined ? {} : { name: builder.name(relation.name, relation.id) }),
+        ...(attributes === undefined ? {} : { attributes }),
+      },
+      { label: relation.relationType, suggested: relation.relationType },
+    ).key;
   }
 
   /** The simple form: its elements, then what sits inside what, then its relations. */

@@ -37,7 +37,10 @@ export class References {
   /** Registers an element of the file, by its id and its name, under its key. */
   register(key: string, id: string, name: string): void {
     if (id !== '') this.#ids.set(id, key);
-    if (name !== '') this.#names.set(name, [...(this.#names.get(name) ?? []), key]);
+    if (name === '') return;
+    const list = this.#names.get(name);
+    if (list === undefined) this.#names.set(name, [key]);
+    else list.push(key);
   }
 
   /**

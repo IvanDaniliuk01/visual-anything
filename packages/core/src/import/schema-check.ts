@@ -116,6 +116,17 @@ function equal(a: unknown, b: unknown): boolean {
   );
 }
 
+/** A value as JSON with its keys in order, so that two equal values write the same text. */
+function canonical(value: unknown): string {
+  if (typeof value !== 'object' || value === null) return JSON.stringify(value) ?? 'undefined';
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonical(record[key])}`)
+    .join(',')}}`;
+}
+
 /** A JSON pointer's next part. */
 function pointer(path: string, key: string | number): string {
   return `${path}/${String(key).replaceAll('~', '~0').replaceAll('/', '~1')}`;
@@ -246,25 +257,26 @@ class Checker {
     }
     const maxItems = rule.maxItems;
     if (typeof maxItems === 'number' && data.length > maxItems) {
+      // A list past its length is not read further: its items could be any number of them.
       this.#fail(path, `must have at most ${maxItems} item${maxItems === 1 ? '' : 's'}`);
+      return;
     }
     if (rule.uniqueItems === true) {
-      // As Ajv finds them: the last item that repeats an earlier one, and the latest such earlier one.
-      for (let later = data.length - 1; later > 0; later--) {
-        let earlier = -1;
-        for (let at = later - 1; at >= 0; at--) {
-          if (equal(data[at], data[later])) {
-            earlier = at;
-            break;
-          }
-        }
-        if (earlier >= 0) {
-          this.#fail(
-            path,
-            `must not have duplicate items (items ${earlier} and ${later} are the same)`,
-          );
-          break;
-        }
+      // As Ajv finds them: the last item that repeats an earlier one, with the latest such earlier
+      // one; found in one pass, by each item's canonical JSON.
+      const last = new Map<string, number>();
+      let pair: [number, number] | undefined;
+      data.forEach((item, at) => {
+        const key = canonical(item);
+        const earlier = last.get(key);
+        if (earlier !== undefined) pair = [earlier, at];
+        last.set(key, at);
+      });
+      if (pair !== undefined) {
+        this.#fail(
+          path,
+          `must not have duplicate items (items ${pair[0]} and ${pair[1]} are the same)`,
+        );
       }
     }
     if (Object.hasOwn(rule, 'items') && !Array.isArray(rule.items)) {

@@ -15,6 +15,7 @@
  */
 import type { Attributes } from '@visual-anything/schema';
 import { PastLimits, PlanBuilder } from './builder';
+import { IMPORT_LIMITS } from './plan';
 import {
   FORBIDDEN_NAME,
   hasExtension,
@@ -33,6 +34,12 @@ export interface Row {
   cells: string[];
   line: number;
 }
+
+/**
+ * The most records a spreadsheet may hold: a row for every element and relation an import brings,
+ * and room for headers and blank lines.
+ */
+export const MAX_ROWS = IMPORT_LIMITS.elements + IMPORT_LIMITS.relations + 1_000;
 
 /** The delimiters a spreadsheet may use. */
 export type Delimiter = ',' | '\t' | ';';
@@ -118,6 +125,8 @@ function delimiterOf(firstLine: string, name: string): Delimiter {
 export function parseDelimited(
   text: string,
   delimiter: string,
+  /** The most records it reads; past them, it stops and says so. */
+  limit = Number.POSITIVE_INFINITY,
 ): { ok: true; rows: Row[] } | { ok: false; problem: string } {
   const rows: Row[] = [];
   const separator = delimiter.charCodeAt(0);
@@ -167,6 +176,12 @@ export function parseDelimited(
       continue;
     }
     if (code === 0x0a || code === 0x0d) {
+      if (rows.length >= limit) {
+        return {
+          ok: false,
+          problem: `The file holds more rows than an import brings: at most ${limit.toLocaleString('en')}.`,
+        };
+      }
       endRow();
       at += code === 0x0d && text.charCodeAt(at + 1) === 0x0a ? 2 : 1;
       line += 1;
@@ -293,7 +308,7 @@ export function readTable(input: ImportInput, options: ReadOptions = {}): ReadRe
       .split(/\r\n|\r|\n/)
       .find((line) => line.trim() !== '') ?? '';
   const delimiter = delimiterOf(firstLine, input.name);
-  const parsed = parseDelimited(text, delimiter);
+  const parsed = parseDelimited(text, delimiter, MAX_ROWS);
   if (!parsed.ok) return { ok: false, problems: [parsed.problem] };
   const tables = tablesOf(parsed.rows);
   if (tables.length === 0) return { ok: false, problems: ['The spreadsheet holds no table.'] };
