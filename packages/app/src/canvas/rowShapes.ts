@@ -161,7 +161,7 @@ export function rowFieldsOf(parts: Measured, width: number, holdsContents: boole
       kind: 'rectangle',
       row: rows.index,
       ...(rows.undrawn.length > 0 ? { undrawn: rows.undrawn } : {}),
-      fitted: fitRow(element.name, detail, width),
+      fitted: fittedOnce('row', element.name, detail, width, false),
     };
   }
   const collapsed = parts.folded !== undefined;
@@ -175,8 +175,31 @@ export function rowFieldsOf(parts: Measured, width: number, holdsContents: boole
   return {
     kind: rowsShapeKind(look.appearance.shape),
     rowCount: rows.count,
-    fitted: fitHeader(element.name, said, width, { toggle: holdsContents || collapsed }),
+    fitted: fittedOnce('header', element.name, said, width, holdsContents || collapsed),
   };
+}
+
+/** Texts fitted before, by what they were fitted from: a table that moves fits none of its rows again. */
+const fittedTexts = new Map<string, { name: string; detail: string }>();
+/** How many fitted texts are kept before they are all let go. */
+const MOST_FITTED = 50_000;
+
+function fittedOnce(
+  kind: 'row' | 'header',
+  name: string,
+  detail: string,
+  width: number,
+  toggle: boolean,
+): { name: string; detail: string } {
+  const key = `${kind}\u0000${width}\u0000${toggle ? 1 : 0}\u0000${name}\u0000${detail}`;
+  let fitted = fittedTexts.get(key);
+  if (!fitted) {
+    fitted =
+      kind === 'row' ? fitRow(name, detail, width) : fitHeader(name, detail, width, { toggle });
+    if (fittedTexts.size >= MOST_FITTED) fittedTexts.clear();
+    fittedTexts.set(key, fitted);
+  }
+  return fitted;
 }
 
 /** Whether a shape drawn before has the fields its rows give it now. */
