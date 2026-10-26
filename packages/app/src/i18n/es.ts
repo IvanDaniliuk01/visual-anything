@@ -2413,6 +2413,86 @@ export const ui: Catalog = {
   // W43, from the review of L1: the name a picture takes when its file gives none, written in the
   // language read in as every name the app gives (ADR 0038).
   Picture: 'Imagen',
+  // M8b W55: the editors. The component editor's Shape section, with free geometry and the part
+  // shapes are drawn as; the image placement With its parts; the Route of a relation type and of a
+  // relation, a view's Lines, and the Style control's Automatic (ADR 0066, 0067, 0069, 0039).
+  'Free geometry': 'Geometría libre',
+  'Drawn as a part': 'Dibujada como una parte',
+  'While it draws rows, its shapes ignore free geometry.':
+    'Mientras dibuja filas, sus formas no usan la geometría libre.',
+  'Drawn as a named part, its shapes are the part itself: in a drawing with parts, in the part’s place; elsewhere, with the part’s outline and picture.':
+    'Dibujadas como una parte con nombre, sus formas son la parte misma: en un dibujo con partes, en el lugar de la parte; en otro lugar, con el contorno y la imagen de la parte.',
+  'Its free geometry or the part it is drawn as takes the place of this kind.':
+    'Su geometría libre, o la parte como la que se dibuja, ocupa el lugar de este tipo.',
+  'None: its shapes are drawn as their kind, whatever is inherited.':
+    'Ninguna: sus formas se dibujan según su tipo, herede lo que herede.',
+  'None: its shapes are drawn as their kind.': 'Ninguna: sus formas se dibujan según su tipo.',
+  '{count} contours in a box of {width} by {height}': {
+    one: '{count} trazo en una caja de {width} por {height}',
+    other: '{count} trazos en una caja de {width} por {height}',
+  },
+  'At {width} by {height}, its name does not fit inside its outline: the hover and selection marks write it beside the shape.':
+    'A {width} por {height}, su nombre no cabe dentro de su contorno: las marcas al pasar el puntero y al seleccionar lo escriben junto a la forma.',
+  'Preview of its free geometry, {width} by {height}':
+    'Vista previa de su geometría libre, {width} por {height}',
+  'Path data': 'Datos de trazado',
+  'SVG path data': 'Datos de trazado SVG',
+  'Box width': 'Ancho de la caja',
+  'Box height': 'Alto de la caja',
+  'Fits the path': 'Se ajusta al trazado',
+  'Use this path data': 'Usar estos datos de trazado',
+  'Take the outline of an SVG file…': 'Tomar el contorno de un archivo SVG…',
+  'Copy the outline of a named part…': 'Copiar el contorno de una parte con nombre…',
+  'Copy the outline of a named part': 'Copiar el contorno de una parte con nombre',
+  'Draw its kind instead': 'Dibujar su tipo en su lugar',
+  'This picture has no named parts.': 'Esta imagen no tiene partes con nombre.',
+  'Named part': 'Parte con nombre',
+  'Choose a part…': 'Elegir una parte…',
+  'A copy of its outline stays as it is when the picture changes; to draw the shapes as the part itself, choose it under Drawn as a part.':
+    'Una copia de su contorno queda como está cuando la imagen cambia; para dibujar las formas como la parte misma, elegirla en Dibujada como una parte.',
+  'Copy its outline': 'Copiar su contorno',
+  'Keep proportions': 'Mantener proporciones',
+  'Label area': 'Zona de la etiqueta',
+  'Label area’s x': 'x de la zona de la etiqueta',
+  'Label area’s y': 'y de la zona de la etiqueta',
+  'Label area’s width': 'Ancho de la zona de la etiqueta',
+  'Label area’s height': 'Alto de la zona de la etiqueta',
+  'Worked out: the largest rectangle around a point well inside the outline, in the box’s units.':
+    'Calculada: el rectángulo más grande alrededor de un punto bien adentro del contorno, en las unidades de la caja.',
+  'Its own, in the box’s units.': 'Propia, en las unidades de la caja.',
+  'Work the label area out': 'Calcular la zona de la etiqueta',
+  'None: drawn as its own shape, whatever is inherited.':
+    'Ninguna: se dibuja como su propia forma, herede lo que herede.',
+  'None: drawn as its own shape.': 'Ninguna: se dibuja como su propia forma.',
+  'The part “{part}” of the picture its container shows with its parts':
+    'La parte “{part}” de la imagen que su contenedor muestra con sus partes',
+  'The part “{part}” of “{picture}”': 'La parte “{part}” de “{picture}”',
+  '“{picture}” has no part “{part}”, so it is drawn as an ordinary shape.':
+    '“{picture}” no tiene ninguna parte “{part}”, así que se dibuja como una forma común.',
+  'The one its container shows with its parts': 'La que su contenedor muestra con sus partes',
+  'A part is named by its id in its picture: a letter or _ first, then letters, digits, _, . or -, 64 at most.':
+    'Una parte se nombra por su id en su imagen: primero una letra o _, luego letras, dígitos, _, . o -, 64 como máximo.',
+  'Draw it as its own shape': 'Dibujarla como su propia forma',
+  'Use the component’s part': 'Usar la parte del componente',
+  '{name}, with its parts': '{name}, con sus partes',
+  'With its parts, which its contents are drawn as':
+    'Con sus partes, como las que se dibujan sus contenidos',
+  'Automatic routes': 'Rutas automáticas',
+  'Automatic route': 'Ruta automática',
+  'How its relations’ lines run wherever they are routed automatically. Routes chosen by hand in a view keep their own style.':
+    'Cómo van las líneas de sus relaciones dondequiera que se tracen automáticamente. Las rutas elegidas a mano en una vista mantienen su propio estilo.',
+  'Inherited: as each view draws its lines': 'Heredado: como cada vista dibuja sus líneas',
+  orthogonal: 'ortogonal',
+  straight: 'recta',
+  curved: 'curva',
+  'Automatic: {style}': 'Automático: {style}',
+  'This relation has an automatic route of its own: a change here takes it back, so that it follows.':
+    'Esta relación tiene su propia ruta automática: un cambio aquí la quita, para que la siga.',
+  'Routes chosen by hand in a view keep their own style.':
+    'Las rutas elegidas a mano en una vista mantienen su propio estilo.',
+  Lines: 'Líneas',
+  'How the view draws the automatic routes of relations whose relation type or own appearance sets no style. Routes chosen by hand keep their own.':
+    'Cómo dibuja la vista las rutas automáticas de las relaciones cuyo tipo de relación o apariencia propia no fija ningún estilo. Las rutas elegidas a mano mantienen el suyo.',
 };
 
 /**
@@ -4830,6 +4910,19 @@ export const messages: Catalog = {
     'Los contornos de sus partes dejan afuera {count} trazos de formas que tienen más de 256.',
   "Its parts' outlines leave out what its shapes draw past 100,000 segments.":
     'Los contornos de sus partes dejan afuera lo que sus formas dibujan más allá de los 100.000 segmentos.',
+  // M8b W55: the editors. Why a file or a part gives no outline, and the history's labels of the
+  // Style control's Automatic and of a view's Lines (ADR 0066, 0069, 0039).
+  'The picture draws nothing to take an outline from.':
+    'La imagen no dibuja nada de lo que tomar un contorno.',
+  'The part draws nothing to take an outline from.':
+    'La parte no dibuja nada de lo que tomar un contorno.',
+  'Draw "{relation}" in its automatic style in "{view}"':
+    'Dibujar "{relation}" en su estilo automático en "{view}"',
+  'Draw {n} relations in their automatic styles in "{view}"':
+    'Dibujar {n} relaciones en sus estilos automáticos en "{view}"',
+  'Draw the lines of "{view}" orthogonal': 'Dibujar ortogonales las líneas de "{view}"',
+  'Draw the lines of "{view}" straight': 'Dibujar rectas las líneas de "{view}"',
+  'Draw the lines of "{view}" curved': 'Dibujar curvas las líneas de "{view}"',
 };
 
 /**

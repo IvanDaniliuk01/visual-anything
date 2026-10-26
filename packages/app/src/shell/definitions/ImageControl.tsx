@@ -24,6 +24,11 @@ interface ImageControlProps {
   codec?: PictureCodec;
 }
 
+/** A placement the select gives, as an appearance stores it. */
+function placementOf(value: string): NonNullable<AppearanceImage['placement']> {
+  return value === 'drawing' || value === 'parts' ? value : 'icon';
+}
+
 /** The longer side of the previews, in pixels. */
 const PREVIEW = 40;
 const PICK_PREVIEW = 32;
@@ -214,12 +219,16 @@ export function ImageControl({
             value={placement}
             disabled={off}
             onChange={(event) => {
-              const next = event.target.value === 'drawing' ? 'drawing' : 'icon';
+              const next = placementOf(event.target.value);
               void run(actionFor({ kind: 'same' }, options({ placement: next })));
             }}
           >
             <option value="icon">{t('Icon, beside the name')}</option>
             <option value="drawing">{t('Drawing, in place of the shape')}</option>
+            {/* Only an SVG picture has named parts (ADR 0067). */}
+            {(current?.kind === 'svg' || placement === 'parts') && (
+              <option value="parts">{t('With its parts, which its contents are drawn as')}</option>
+            )}
           </select>
           <span className="image-control-silhouette">
             <input

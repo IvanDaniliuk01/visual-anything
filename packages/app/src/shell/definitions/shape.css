@@ -1,0 +1,66 @@
+/*
+ * The Shape section: free geometry with its preview, path data and label area, and the named part a
+ * shape is drawn as (ADR 0066, ADR 0067). Colors come from the theme tokens.
+ */
+
+.geometry-editor,
+.part-control {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.geometry-preview {
+  justify-self: start;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+}
+
+.geometry-path,
+.geometry-copy,
+.geometry-label {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.geometry-path-label {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.geometry-path-data {
+  width: 100%;
+  min-height: 3.5rem;
+  resize: vertical;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.geometry-box,
+.geometry-label-fields {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.25rem 0.4rem;
+}
+
+.geometry-box input {
+  min-width: 0;
+}
+
+.geometry-label-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.geometry-path .inspector-problem:empty {
+  display: none;
+}
+
+.definition-check {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
