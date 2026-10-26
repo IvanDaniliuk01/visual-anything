@@ -4,10 +4,9 @@
  * part, the one action that stores what changes, and why nothing would.
  *
  * Shapes align on the canvas, by the selection's bounds, whichever containers they sit in, and each
- * is stored relative to its own container, pinned. A row stands for its table and what sits inside a
- * shape that takes part goes with it, as when they are dragged; an anchored part in a drawing has no
- * place of its own and takes no part. Notes and free arrows align with element shapes; notes take a
- * size, and arrows do not.
+ * is stored relative to its own container, pinned. A row stands for its table, an anchored part for
+ * its drawing, and what sits inside a shape that takes part goes with it, as when they are dragged.
+ * Notes and free arrows align with element shapes; notes take a size, and arrows do not.
  */
 import { positionKey, type Command, type ProjectSnapshot } from '@visual-anything/core';
 import type { Arrow, FreeShape, Id, Note, ShapePosition } from '@visual-anything/schema';
@@ -146,21 +145,24 @@ function partsOf(
 
 /**
  * The element shapes that take part, as a drag of the selection moves them (`movingShapes`): every
- * shape of every selected element, a row standing for its table however deep, each once, but those
- * inside another that takes part, which it carries; and none that is an anchored part in a drawing.
- * Kept here rather than read from the gestures, so that Claude's tool loads no key handling.
+ * shape of every selected element, a row standing for its table and an anchored part for its drawing,
+ * however deep, each once, but those inside another that takes part, which it carries. Kept here
+ * rather than read from the gestures, so that Claude's tool loads no key handling.
  */
 function shapesTakingPart(indexed: IndexedScene, selection: Selection): ElementShape[] {
   const unique = new Map<string, ElementShape>();
   for (const id of selection.elements) {
     for (const each of indexed.byElement.get(id) ?? []) {
       let shape = each;
-      while (shape.row !== undefined && shape.containerShape !== undefined) {
+      while (
+        (shape.row !== undefined || shape.part?.inDrawing === true) &&
+        shape.containerShape !== undefined
+      ) {
         const container = indexed.byKey.get(shape.containerShape);
         if (!container) break;
         shape = container;
       }
-      if (shape.part?.inDrawing === true || unique.has(shape.key)) continue;
+      if (unique.has(shape.key)) continue;
       unique.set(shape.key, shape);
     }
   }

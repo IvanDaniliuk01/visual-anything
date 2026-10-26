@@ -1,7 +1,7 @@
 /**
  * What resizing and the alignment guides draw above everything (ADR 0074), in the marks layer: the
- * handles of the shape selected alone, at a constant size on screen; while it is resized, where it
- * would be, as a ghost with its handles; and the guides where the edges or the middle of what is
+ * handles of the shape selected alone, on its box at a constant size on screen; while it is resized,
+ * where it would be, as a ghost along its own outline where it has one, with its handles; and the guides where the edges or the middle of what is
  * dragged or resized line up with a shape beside it.
  *
  * It is drawn in the theme shown (ADR 0033): handles as the relate handle is, filled with the theme's
@@ -10,7 +10,9 @@
  */
 import type { Graphics } from 'pixi.js';
 import type { GuideLine } from './align';
+import { traceMark } from './draw';
 import type { Rect } from './geometry';
+import type { ShapeOutline } from './outlines';
 import { handlePoint, type HandleName } from './resize';
 import type { Painter } from './theme/painter';
 
@@ -20,6 +22,8 @@ export interface ShapeEditOverlay {
   handles?: { rect: Rect; names: readonly HandleName[] };
   /** Where the shape being resized would be, or was let go and waits for its change. */
   ghost?: Rect;
+  /** The ghost's own outline, for a shape with one, fitted to the ghost's size; else a box. */
+  ghostOutline?: ShapeOutline;
   /** The guides to draw. */
   guides?: readonly GuideLine[];
 }
@@ -42,9 +46,13 @@ export function drawShapeEditOverlay(
   const px = (pixels: number) => pixels / scale;
   const { selected, handleFill, boxFillAlpha } = painter.theme;
   if (overlay.ghost) {
-    const { x, y, width, height } = overlay.ghost;
+    // Along the shape's own outline, fitted to the ghost's size, as its marks go (ADR 0066).
+    traceMark(
+      graphics,
+      overlay.ghostOutline ? { rect: overlay.ghost, outline: overlay.ghostOutline } : overlay.ghost,
+      0,
+    );
     graphics
-      .rect(x, y, width, height)
       .fill({ color: selected, alpha: boxFillAlpha })
       .stroke({ color: selected, width: px(1.5) });
   }

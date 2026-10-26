@@ -32,7 +32,7 @@ const alignShapes = tool({
 - top, middles, bottom: their top edges, their middles or their bottom edges on one line across;
 - distribute-horizontally, distribute-vertically: equal gaps between them, the first and the last staying (three shapes or more);
 - same-width, same-height: the widest one's width, or the tallest one's height, each keeping its top left corner.
-Shapes in different containers align on the canvas. A row moves its table, and an element drawn as a part of a drawing has no place of its own, so it takes no part. Nothing changes when they are aligned already. Use it to tidy what the person arranged, or what you placed with set_positions; lay_out_view arranges a whole view.
+Shapes in different containers align on the canvas. A row moves its table, and an element drawn as a part of a drawing with parts moves that drawing, as dragging it does. Nothing changes when they are aligned already. Use it to tidy what the person arranged, or what you placed with set_positions; lay_out_view arranges a whole view.
 
 Example: { "view": "system-overview", "elements": ["booking-agent", "appointments-api", "reminder-service"], "how": "top" }
 Example: { "view": "system-overview", "elements": ["whatsapp", "booking-agent", "scheduling"], "how": "distribute-horizontally" }`,

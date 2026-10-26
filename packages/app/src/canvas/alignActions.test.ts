@@ -153,6 +153,18 @@ describe('aligning the selection', () => {
     ]);
   });
 
+  it('takes an anchored part for its drawing, as dragging it does', () => {
+    const beyond = loadSample('beyond-boxes');
+    const index = indexScene(buildScene(beyond, 'heart'));
+    const part = index.scene.shapes.find((each) => each.part?.inDrawing === true)!;
+    const result = alignCommand(index, beyond, 'heart', elements(part.element, 'body'), 'top');
+    if (!('command' in result)) throw new Error(result.reason);
+    expect(result.label).toBe('Align 2 shapes to the top');
+    for (const position of positionsOf(result.command)) {
+      expect(['heart', 'body']).toContain(position.element);
+    }
+  });
+
   it('says why when there is too little to align, or nothing would move', () => {
     const indexed = indexedOf(sample);
     expect(alignCommand(indexed, sample, VIEW, elements('patient'), 'left')).toEqual({

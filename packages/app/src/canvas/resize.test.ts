@@ -394,3 +394,45 @@ describe('the command a resize sends', () => {
     expect(untranslatedParts('es', 'Resize a note')).toEqual([]);
   });
 });
+
+describe('resizing the heart of the beyond-boxes sample', () => {
+  const beyond = loadSample('beyond-boxes');
+  const scene = buildScene(beyond, 'heart');
+  const heart = scene.shapes.find((each) => each.key === 'heart')!;
+  const parts = scene.shapes.filter((each) => each.part?.inDrawing === true);
+
+  it('scales its picture and its anchored parts with the size it stores', () => {
+    expect(heart.picture).toBeDefined();
+    expect(sizeTakenBy(heart)).toBe('both');
+    // Anchored parts have no size of their own, and take no part in what it must hold.
+    expect(parts.every((each) => sizeTakenBy(each) === undefined)).toBe(true);
+    const index = indexScene(scene);
+    const command = resizeCommand(index, beyond, 'heart', heart, {
+      ...heart.rect,
+      width: Math.round(heart.rect.width * 1.5),
+      height: Math.round(heart.rect.height * 1.5),
+    });
+    const stored = positionsOf(command).find((each) => each.element === 'heart');
+    expect(stored).toMatchObject({ width: Math.round(heart.rect.width * 1.5), pinned: true });
+    const now = buildScene(after(beyond, command!), 'heart');
+    const grown = now.shapes.find((each) => each.key === 'heart')!;
+    expect(grown.picture!.scale).toBeGreaterThan(heart.picture!.scale * 1.3);
+    const [first] = parts;
+    const moved = now.shapes.find((each) => each.key === first!.key)!;
+    expect(moved.rect.width).toBeGreaterThan(first!.rect.width * 1.3);
+  });
+
+  it('cannot be smaller than what it holds below its picture', () => {
+    const index = indexScene(scene);
+    const holds = holdsOf(index, heart);
+    const others = (index.contentsOf.get('heart') ?? []).filter(
+      (each) => each.part?.inDrawing !== true,
+    );
+    expect(others.length).toBeGreaterThan(0);
+    expect(holds).toBeDefined();
+    const shrunk = resizedRect(heart.rect, 'se', { x: -5000, y: -5000 }, { holds: holds! });
+    for (const other of others) {
+      expect(shrunk.y + shrunk.height).toBeGreaterThanOrEqual(other.extent.y + other.extent.height);
+    }
+  });
+});

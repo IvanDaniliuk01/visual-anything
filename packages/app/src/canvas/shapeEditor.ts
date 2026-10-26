@@ -32,6 +32,7 @@ import { visibleRect, type Camera } from './camera';
 import { boundsOf, distance, type Point, type Rect, type Size } from './geometry';
 import { GRID_STEP, snap } from './grid';
 import type { Hit, IndexedScene, Skipped } from './hit';
+import { outlineIn } from './outlines';
 import {
   handlePoint,
   handlesFor,
@@ -358,7 +359,11 @@ export class ShapeEditor {
       ? guideLines(drag.result, drag.candidates, movingEdges(handle, fromMiddle))
       : [];
     const names = handlesFor(target.taken);
-    this.show({ ghost: drag.result, guides, handles: { rect: drag.result, names } });
+    this.show({
+      ...ghostOf(target, drag.result),
+      guides,
+      handles: { rect: drag.result, names },
+    });
     this.host.caption({ text: `${drag.result.width} × ${drag.result.height}` }, drag.screen);
   }
 
@@ -384,7 +389,7 @@ export class ShapeEditor {
       this.refresh();
       return;
     }
-    const overlay: ShapeEditOverlay = { ghost: result };
+    const overlay: ShapeEditOverlay = ghostOf(target, result);
     this.pending = { project: state.project, overlay };
     this.show(overlay);
     const label = command.type === 'batch' ? command.label : undefined;
@@ -498,6 +503,17 @@ export class ShapeEditor {
     this.moveLines = lines;
     this.show(lines.length > 0 ? { guides: lines } : undefined);
   }
+}
+
+/**
+ * Where a resized shape would be: its rectangle, and for a shape with its own outline and no plate,
+ * that outline fitted to the new size, which the ghost follows as the shape's marks do (ADR 0066).
+ */
+function ghostOf(target: Target, rect: Rect): Pick<ShapeEditOverlay, 'ghost' | 'ghostOutline'> {
+  const outline = target.kind === 'shape' && !target.shape.plate ? target.shape.outline : undefined;
+  return outline
+    ? { ghost: rect, ghostOutline: outlineIn(outline.source, rect.width, rect.height) }
+    : { ghost: rect };
 }
 
 /** Whether two overlays show only the same handles on the same rectangle, which draw alike. */

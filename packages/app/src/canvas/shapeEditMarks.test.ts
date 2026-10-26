@@ -1,8 +1,11 @@
-import { Color, Graphics } from 'pixi.js';
+import { Color, Graphics, type GraphicsPath } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
+import { loadSample } from '../test/sample';
 import { THEMES } from '../theme/themes';
+import { outlineIn } from './outlines';
 import { HANDLE_SIZE, drawShapeEditOverlay } from './shapeEditMarks';
 import { handlesFor } from './resize';
+import { buildScene } from './scene';
 import { painterOf } from './theme/painter';
 
 /** What a drawing paints: each fill's and each stroke's color and width. */
@@ -72,5 +75,34 @@ describe('the marks of resizing and of the guides', () => {
     const graphics = new Graphics();
     drawShapeEditOverlay(graphics, undefined, 1, painterOf(THEMES.light.canvas));
     expect(graphics.context.instructions).toHaveLength(0);
+  });
+
+  it('draw the ghost of a shape with its own outline along that outline, fitted to its new size', () => {
+    const shape = buildScene(loadSample('beyond-boxes'), 'circulation').shapes.find(
+      (each) => each.outline !== undefined && each.plate === undefined,
+    );
+    if (!shape?.outline) throw new Error('The sample draws no shape with an outline of its own.');
+    const drawnAt = (times: number) => {
+      const ghost = {
+        ...shape.rect,
+        width: shape.rect.width * times,
+        height: shape.rect.height * times,
+      };
+      const graphics = new Graphics();
+      drawShapeEditOverlay(
+        graphics,
+        { ghost, ghostOutline: outlineIn(shape.outline!.source, ghost.width, ghost.height) },
+        1,
+        painterOf(THEMES.light.canvas),
+      );
+      return graphics;
+    };
+    const twice = drawnAt(2);
+    const [fill] = twice.context.instructions;
+    const path = (fill?.data as { path: GraphicsPath }).path;
+    // Polygons along the outline, not one rectangle around it.
+    expect(path.instructions.map((each) => each.action)).not.toEqual(['rect']);
+    // Twice as large, but for the stroke around it.
+    expect(twice.bounds.width / drawnAt(1).bounds.width).toBeGreaterThan(1.8);
   });
 });
