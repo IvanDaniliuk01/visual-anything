@@ -17,6 +17,7 @@ import { useT, type Translator } from '../i18n';
 import { DownloadIcon } from '../shell/icons';
 import { LARGE_PAGE, type ViewerAssets, type WrittenPage } from '../viewer/page';
 import './export.css';
+import { isStopped } from './exports';
 import { FILE_EXPORTS, type FileExport, type FileExportContext, type MadeFile } from './formats';
 import {
   ImageError,
@@ -204,13 +205,18 @@ function ExportDialog({
     chosen.kind === 'file' ? files.find((each) => each.format.id === chosen.id) : undefined;
   const fileMade = chosenFile ? madeFiles[chosenFile.format.id] : undefined;
 
-  // Which request each writer's file answers: stopping, or closing the dialog, drops one on its way.
+  // Which request each writer's file answers, and what stops its writer: stopping, or closing the
+  // dialog, stops one on its way and drops what it made.
   const fileRequests = useRef(new Map<string, number>());
+  const stoppers = useRef(new Map<string, AbortController>());
   const open = useRef(true);
   useEffect(() => {
     open.current = true;
+    const writers = stoppers.current;
     return () => {
       open.current = false;
+      for (const stopper of writers.values()) stopper.abort();
+      writers.clear();
     };
   }, []);
 
@@ -226,9 +232,15 @@ function ExportDialog({
     fileRequests.current.set(id, request);
     const current = () => open.current && fileRequests.current.get(id) === request;
     const { format, context } = chosenWriter;
+    const stopper = new AbortController();
+    stoppers.current.set(id, stopper);
+    const done = () => {
+      if (stoppers.current.get(id) === stopper) stoppers.current.delete(id);
+    };
     setMadeFiles((all) => ({ ...all, [id]: { state: 'making' } }));
-    format.make(context).then(
+    format.make(context, stopper.signal).then(
       (made) => {
+        done();
         if (!current()) return;
         setMadeFiles((all) => ({
           ...all,
@@ -240,7 +252,13 @@ function ExportDialog({
         }
       },
       (error: unknown) => {
+        done();
         if (!current()) return;
+        // A writer that stopped was stopped, and nothing went wrong: the file is just not made.
+        if (isStopped(error, stopper.signal)) {
+          forget(id);
+          return;
+        }
         setMadeFiles((all) => ({
           ...all,
           [id]: { state: 'failed', why: error instanceof Error ? error.message : String(error) },
@@ -249,14 +267,21 @@ function ExportDialog({
     );
   };
 
-  /** Stops waiting for a writer's file: what it makes meanwhile is dropped. */
-  const stopMaking = (id: string) => {
-    fileRequests.current.set(id, (fileRequests.current.get(id) ?? 0) + 1);
+  /** Forgets a writer's file, as if it had never been asked for. */
+  const forget = (id: string) => {
     setMadeFiles((all) => {
       const left = { ...all };
       delete left[id];
       return left;
     });
+  };
+
+  /** Stops a writer's file: its writer stops, and what it made meanwhile is dropped. */
+  const stopMaking = (id: string) => {
+    fileRequests.current.set(id, (fileRequests.current.get(id) ?? 0) + 1);
+    stoppers.current.get(id)?.abort();
+    stoppers.current.delete(id);
+    forget(id);
   };
 
   // The page is written once it is chosen, and again when where it opens changes; only the answer

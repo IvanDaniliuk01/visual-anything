@@ -3,10 +3,34 @@
  * expands as the canvas zooms into them (ADR 0055, `expansion.ts`). Kept apart from what works the
  * expansion out, which reads scenes, so that the scene reads this alone.
  */
-import type { Id } from '@visual-anything/schema';
+import type { Id, ViewFile } from '@visual-anything/schema';
 
 /** No container expanded by zoom: the set every build without one shares. */
 export const NOT_EXPANDED: ReadonlySet<Id> = Object.freeze(new Set<Id>());
+
+const drawnViews = new WeakMap<ViewFile, WeakMap<ReadonlySet<Id>, ViewFile>>();
+
+/**
+ * A view as the canvas draws it while the zoom expands some of its collapsed containers: its file,
+ * with those left out of what it keeps collapsed, for what reads collapse from the view, as scenario
+ * playback does. The view itself when the zoom expands none of them, and the same object for the
+ * same view and set, so that what is worked out from it changes only when what shows does.
+ */
+export function viewAsDrawn(view: ViewFile, expanded: ReadonlySet<Id>): ViewFile {
+  const collapsed = view.collapsed ?? [];
+  if (expanded.size === 0 || !collapsed.some((id) => expanded.has(id))) return view;
+  let byExpanded = drawnViews.get(view);
+  if (!byExpanded) {
+    byExpanded = new WeakMap();
+    drawnViews.set(view, byExpanded);
+  }
+  let drawn = byExpanded.get(expanded);
+  if (!drawn) {
+    drawn = { ...view, collapsed: collapsed.filter((id) => !expanded.has(id)) };
+    byExpanded.set(expanded, drawn);
+  }
+  return drawn;
+}
 
 const without = new WeakMap<ReadonlySet<Id>, WeakMap<ReadonlySet<Id>, ReadonlySet<Id>>>();
 

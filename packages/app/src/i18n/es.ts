@@ -1935,6 +1935,29 @@ export const ui: Catalog = {
   'Add a value': 'Agregar un valor',
   'Add a stop': 'Agregar una parada',
   'Add each value it has': 'Agregar cada valor que tiene',
+  // What Mermaid and Structurizr lose of a view with overlays: they draw no legend (ADR 0055).
+  'The legend of the view’s overlays, whose colors it draws: the outline in Markdown, the SVG and the PDF carry it.':
+    'Las referencias de las superposiciones de la vista, cuyos colores dibuja: el esquema en Markdown, el SVG y el PDF las incluyen.',
+  // A component's levels of detail in the component editor (ADR 0055).
+  'Levels of detail': 'Niveles de detalle',
+  'From each level’s zoom up, its shapes show what the level lists; below the first, a silhouette. A level is left only 10% below its zoom, so nothing flickers.':
+    'Desde el zoom de cada nivel hacia arriba, sus formas muestran lo que el nivel indica; debajo del primero, una silueta. Un nivel se deja solo un 10 % por debajo de su zoom, así que nada parpadea.',
+  'What its shapes show as you zoom': 'Lo que muestran sus formas al hacer zoom',
+  'None: its shapes follow the canvas’s defaults, names from 45% and details from 90%.':
+    'Ninguno: sus formas siguen los valores predeterminados del lienzo, nombres desde el 45 % y detalles desde el 90 %.',
+  'Add a level': 'Agregar un nivel',
+  'Follow the canvas’s defaults': 'Seguir los valores predeterminados del lienzo',
+  'Level from {zoom}': 'Nivel desde {zoom}',
+  'From a zoom of (%)': 'Desde un zoom de (%)',
+  'A silhouette only': 'Solo una silueta',
+  'Contents or rows': 'Contenido o filas',
+  'Remove the level from {zoom}': 'Quitar el nivel desde {zoom}',
+  'Enter a zoom from 0% to 800%.': 'Escribir un zoom de 0 % a 800 %.',
+  'Expand a collapsed container from a zoom of (%)':
+    'Expandir un contenedor contraído desde un zoom de (%)',
+  'Zooming into a collapsed container of it shows it expanded from this zoom, and collapses it again below 90% of it; nothing about it is saved. Empty, it stays collapsed.':
+    'Al acercarse a un contenedor contraído de este componente, se muestra expandido desde este zoom, y se contrae de nuevo por debajo del 90 % de él; nada de esto se guarda. Vacío, queda contraído.',
+  'Enter a zoom above 0%, at most 800%.': 'Escribir un zoom mayor que 0 %, de 800 % como máximo.',
 
   // External identifiers, destinations and the element list (M8, ADR 0056).
   destination: 'destino',

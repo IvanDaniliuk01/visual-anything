@@ -43,6 +43,29 @@ export interface ExportOptions {
   theme?: ThemeName;
   /** When a PDF is made; now by default. A fixed date makes the same file each time. */
   date?: Date;
+  /**
+   * Stops the export: it then rejects with the signal's reason, an `AbortError` unless the signal was
+   * given another, and does no further work. A PDF stops between two pieces of its drawing; the
+   * others, which take a moment, before and after they are written.
+   */
+  signal?: AbortSignal;
+}
+
+/**
+ * Whether an export ended because it was stopped, rather than failing: its signal was aborted, which
+ * whatever it threw then answers, or it threw an `AbortError`.
+ */
+export function isStopped(error: unknown, signal?: AbortSignal): boolean {
+  return signal?.aborted === true || isAbortError(error);
+}
+
+/** Whether an error is the `AbortError` an aborted signal throws by default. */
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { name?: unknown }).name === 'AbortError'
+  );
 }
 
 /** A view exported: its text or its bytes, and how to save it. */
@@ -86,27 +109,36 @@ function utf8Size(text: string): number {
   return new TextEncoder().encode(text).byteLength;
 }
 
-/** Exports the view with this id to a format. Throws an `ExportError` when the project has no such view. */
+/**
+ * Exports the view with this id to a format. Throws an `ExportError` when the project has no such
+ * view, and rejects with the signal's reason once `options.signal` stops it.
+ */
 export async function exportView(
   project: ProjectSnapshot,
   viewId: Id,
   format: ExportFormat,
   options: ExportOptions = {},
 ): Promise<Exported> {
+  const { signal } = options;
+  signal?.throwIfAborted();
   const view = project.views.find((each) => each.id === viewId);
   if (!view) throw new ExportError(`The project has no view "${viewId}".`);
   const fileName = exportFileName(project.project.name, view.name, format);
   const outlineFile = exportFileName(project.project.name, view.name, 'md');
   const { mediaType } = FORMAT_FILES[format];
   const theme = options.theme === undefined ? {} : { theme: options.theme };
-  const textOf = (written: { text: string; lost: string[] }): Exported => ({
-    format,
-    fileName,
-    mediaType,
-    text: written.text,
-    size: utf8Size(written.text),
-    lost: written.lost,
-  });
+  const textOf = (written: { text: string; lost: string[] }): Exported => {
+    // Written all at once, so stopped only once it is: what it wrote goes unused.
+    signal?.throwIfAborted();
+    return {
+      format,
+      fileName,
+      mediaType,
+      text: written.text,
+      size: utf8Size(written.text),
+      lost: written.lost,
+    };
+  };
   switch (format) {
     case 'svg':
       return textOf(writeSvg(project, viewId, { ...theme, outlineFile }));
@@ -122,6 +154,7 @@ export async function exportView(
         outline: { text: writeOutline(project, viewId).text, file: outlineFile },
         language: t.language,
         ...(options.date === undefined ? {} : { date: options.date }),
+        ...(signal === undefined ? {} : { signal }),
       });
       return {
         format,

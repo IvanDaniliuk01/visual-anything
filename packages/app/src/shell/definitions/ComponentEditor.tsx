@@ -25,6 +25,7 @@ import { ExternalIdsSection } from '../../destinations/ExternalIdsSection';
 import { perform } from '../inspector/send';
 import { componentImageAction } from './imageCommands';
 import { ImageControl } from './ImageControl';
+import { LevelsSection } from './LevelsSection';
 import { BuiltInNote, Gone, RemoveDefinition } from './parts';
 import { TraitRow } from './TraitRow';
 import { sizeProblem, sourceText } from './traits';
@@ -42,10 +43,11 @@ interface ComponentEditorProps {
 }
 
 /**
- * The component editor for one component: what it is and derives from, its appearance, detail and
- * connection points, its attributes, and what uses it. Every trait shows where it comes from, and the
- * project's own components change trait by trait, one command for each committed control. Built-in
- * components are read-only and offer to derive one instead.
+ * The component editor for one component: what it is and derives from, its appearance, detail,
+ * connection points and levels of detail, its attributes, and what uses it. Every trait shows where
+ * it comes from, and the project's own components change trait by trait, one command for each
+ * committed control. Built-in components are read-only and offer to derive one instead, but for
+ * their colors and levels of detail, which the project file holds for them.
  */
 export function ComponentEditor({ id, titleRef }: ComponentEditorProps) {
   const t = useT();
@@ -102,6 +104,8 @@ export function ComponentEditor({ id, titleRef }: ComponentEditorProps) {
       <AppearanceTraits id={id} readOnly={readOnly} update={appearance} />
       <DetailSection id={id} readOnly={readOnly} update={appearance} />
       <ConnectionPointsSection id={id} readOnly={readOnly} update={appearance} />
+      {/* Levels change at the level the project can change, so a built-in component's too. */}
+      <LevelsSection id={id} />
       <AttributeDefinitionsSection
         kind="component"
         id={id}

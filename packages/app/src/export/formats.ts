@@ -44,8 +44,11 @@ export interface FileExport {
   unavailable: (context: FileExportContext) => string | undefined;
   /** What it leaves out of the view, in sentences in the language read in. */
   leavesOut: (context: FileExportContext, t: Translator) => readonly string[];
-  /** Makes the file. */
-  make: (context: FileExportContext) => Promise<MadeFile>;
+  /**
+   * Makes the file. Once `signal` is aborted it stops, as soon as it can, and rejects with the
+   * signal's reason, which the dialog takes as stopped, not as a failure.
+   */
+  make: (context: FileExportContext, signal?: AbortSignal) => Promise<MadeFile>;
 }
 
 /** A format of `exports.ts`, offered by the Export dialog. */
@@ -70,8 +73,11 @@ function writer(
       const choice = choiceIn(context);
       return choice ? [choice.leavesOut] : [];
     },
-    make: async ({ project, view, theme }) => {
-      const exported = await exportView(project, view.id, format, { theme });
+    make: async ({ project, view, theme }, signal) => {
+      const exported = await exportView(project, view.id, format, {
+        theme,
+        ...(signal === undefined ? {} : { signal }),
+      });
       // A copy of the bytes, in a buffer of their own, as a Blob takes them.
       const content: BlobPart =
         exported.bytes === undefined ? exported.text : new Uint8Array(exported.bytes);

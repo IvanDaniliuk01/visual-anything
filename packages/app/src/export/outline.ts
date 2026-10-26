@@ -2,15 +2,23 @@
  * The outline of a view in Markdown (M6b, R33): what the outline panel lists, as text. What sits
  * directly in World, then what sits inside each container, in the model's order, with the relations
  * drawn from each shape under it, the relations that end on a relation under that one, the view's
- * notes, and the steps of the scenarios that play over it.
+ * notes, the legend of its overlays, and the steps of the scenarios that play over it.
  *
  * It is the view's long description (W3C's complex images; the SVG's `<desc>` and the PDF name it),
  * and context for a language model, as IcePanel's LLMs.txt export is. Everything people wrote is
  * escaped, so that a name can never become a heading, a link, a list or HTML where it is read.
  */
-import { modelIndexOf, type ProjectSnapshot } from '@visual-anything/core';
+import {
+  definitionsIn,
+  legendOf,
+  legendShows,
+  modelIndexOf,
+  type LegendEntry,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import type { Id, JsonValue, ScenarioFile, Step, ViewFile } from '@visual-anything/schema';
 import { nameOfEnd } from '../canvas/announce';
+import { entryAmount, entryLabel, legendSubtitle } from '../canvas/overlays/legendText';
 import { buildScene } from '../canvas/scene';
 import { t } from '../i18n';
 import {
@@ -82,6 +90,7 @@ export function writeOutline(project: ProjectSnapshot, viewId: Id): TextExport {
   lines.push(`## ${t('Shapes and relations')}`, '');
   lines.push(...(shapes.length > 0 ? shapes : [t('The view draws no shape.')]), '');
   if (notes.length > 0) lines.push(`## ${t('Notes')}`, '', ...notes, '');
+  lines.push(...legendLines(project, view));
 
   const scenarios = project.scenarios.filter((scenario) => scenario.view === view.id);
   if (scenarios.length > 0) {
@@ -125,6 +134,38 @@ function relationLine(item: RelationItem): string {
   }
   const line = `${WAYS[item.way]} ${type} ${far}`;
   return item.name ? `${line}: “${markdownInline(item.name)}”` : line;
+}
+
+/**
+ * The legend of the view's overlays (ADR 0055), in words: each overlay that is on, under its title,
+ * with what it changes by which attribute, then each of its cases and stops with what it gives,
+ * colors as `#RRGGBB`. What the drawings warn about their colors' contrast is left to them: an
+ * outline draws no color. Nothing while no overlay is on.
+ */
+function legendLines(project: ProjectSnapshot, view: ViewFile): string[] {
+  // The entries are the same in every theme; only the warnings, left out here, differ.
+  const legend = legendOf(view, definitionsIn(project), 'light');
+  if (!legendShows(legend)) return [];
+  const lines = [`## ${t('Legend')}`, ''];
+  for (const part of legend.overlays) {
+    const subtitle = legendSubtitle(t, { ...part, attribute: markdownInline(part.attribute) });
+    lines.push(`### ${markdownInline(part.title)}`, '', `${subtitle}.`, '');
+    for (const entry of part.entries) lines.push(`- ${entryLine(entry)}`);
+    lines.push('');
+  }
+  return lines;
+}
+
+/** An entry of the legend: what it stands for, and what it gives, a color, a size, a fade or a badge. */
+function entryLine(entry: LegendEntry): string {
+  const label = markdownInline(entryLabel(t, entry));
+  const given =
+    entry.color !== undefined
+      ? codeSpan(entry.color)
+      : entry.badge !== undefined
+        ? `“${markdownInline(entry.badge)}”`
+        : entryAmount(t, entry);
+  return given === undefined ? label : `${label}: ${given}`;
 }
 
 /** A scenario's heading, description and steps, each step with its relations and its data. */

@@ -234,3 +234,43 @@ describe('writeStructurizr', () => {
     expect(text).not.toContain('${');
   });
 });
+
+describe('Structurizr DSL of a view with overlays', () => {
+  const NO_LEGEND =
+    'The legend of the view’s overlays, whose colors it draws: the outline in Markdown, the SVG and the PDF carry it.';
+
+  function withOverlay(off: boolean): ProjectSnapshot {
+    const project = loadSample();
+    return {
+      ...project,
+      views: project.views.map((view) =>
+        view.id === SAMPLE_VIEW
+          ? {
+              ...view,
+              overlays: [
+                {
+                  id: 'team',
+                  of: 'elements',
+                  attribute: 'owner',
+                  channel: 'fill',
+                  mapping: {
+                    kind: 'discrete',
+                    cases: [{ value: 'Scheduling team', color: '#FFFF00' }],
+                  },
+                  ...(off ? { off: true } : {}),
+                },
+              ],
+            }
+          : view,
+      ),
+    };
+  }
+
+  it('says it carries no legend while an overlay is on', () => {
+    const { text, lost } = writeStructurizr(withOverlay(false), SAMPLE_VIEW);
+    expect(lost).toContain(NO_LEGEND);
+    expect(text).toContain(NO_LEGEND);
+    expect(writeStructurizr(withOverlay(true), SAMPLE_VIEW).lost).not.toContain(NO_LEGEND);
+    expect(writeStructurizr(loadSample(), SAMPLE_VIEW).lost).not.toContain(NO_LEGEND);
+  });
+});

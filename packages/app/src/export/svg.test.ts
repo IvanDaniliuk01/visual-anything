@@ -1,4 +1,5 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
+import type { Overlay } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { textWidth } from './measure';
 import type { Rect } from '../canvas/geometry';
@@ -285,5 +286,148 @@ describe('writeSvg', () => {
 
   it('refuses a view the project does not have', () => {
     expect(() => writeSvg(loadSample(), 'nowhere')).toThrow(/no view "nowhere"/);
+  });
+});
+
+describe('the legend of an SVG', () => {
+  const team: Overlay = {
+    id: 'team',
+    name: 'Team',
+    of: 'elements',
+    attribute: 'owner',
+    channel: 'fill',
+    mapping: {
+      kind: 'discrete',
+      cases: [
+        { value: 'Scheduling team', color: '#FFFF00' },
+        { value: 'Patient experience', color: '#FFFF33', label: 'Patients' },
+      ],
+      otherwise: '#6B7280',
+    },
+  };
+  const rate: Overlay = {
+    id: 'rate',
+    of: 'relations',
+    attribute: 'rate',
+    channel: 'size',
+    mapping: {
+      kind: 'continuous',
+      stops: [
+        { at: 0, size: 0.5 },
+        { at: 100, size: 2 },
+      ],
+    },
+  };
+
+  /** The sample with its view's overlays. */
+  function withOverlays(overlays: Overlay[]): ProjectSnapshot {
+    const project = loadSample();
+    return {
+      ...project,
+      views: project.views.map((view) => (view.id === SAMPLE_VIEW ? { ...view, overlays } : view)),
+    };
+  }
+
+  /** Every text a part of an SVG writes, line by line. */
+  function textsIn(part: Element | null): string[] {
+    return [...(part?.querySelectorAll('text') ?? [])].flatMap((text) =>
+      text.querySelectorAll('tspan').length > 0
+        ? [...text.querySelectorAll('tspan')].map((span) => span.textContent ?? '')
+        : [text.textContent ?? ''],
+    );
+  }
+
+  it('writes it below the drawing as text, each overlay in a group of its own', () => {
+    const project = withOverlays([team, rate]);
+    const drawing = writeSvg(project, SAMPLE_VIEW);
+    const document = readSvg(drawing.text);
+    const legend = document.querySelector('svg > g[data-part="legend"]');
+    expect(legend).not.toBeNull();
+    // In front of everything, after the free shapes.
+    expect(legend?.previousElementSibling?.getAttribute('data-part')).toBe('free-shapes');
+    const parts = [...(legend?.querySelectorAll(':scope > g[data-overlay]') ?? [])];
+    expect(parts.map((part) => part.getAttribute('data-overlay'))).toEqual(['team', 'rate']);
+    expect(textsIn(parts[0] ?? null)).toEqual(
+      expect.arrayContaining([
+        'Team',
+        'Fill by owner',
+        'Scheduling team',
+        'Patients',
+        'Any other value',
+      ]),
+    );
+    expect(textsIn(parts[1] ?? null)).toEqual(['rate', 'Line width by rate', '0 ×0.5', '100 ×2']);
+    // Its texts are among those the PDF checks its font for.
+    expect(drawing.texts).toEqual(expect.arrayContaining(['Team', 'Patients', '100 ×2']));
+    // Its swatches are drawn in the overlay's colors.
+    expect(parts[0]?.querySelector('rect[fill="#FFFF00"]')).not.toBeNull();
+  });
+
+  it('never covers the drawing: the view box grows below the scene’s bounds to hold it', () => {
+    const project = withOverlays([team]);
+    const scene = buildScene(project, SAMPLE_VIEW);
+    const drawing = writeSvg(project, SAMPLE_VIEW);
+    const document = readSvg(drawing.text);
+    const bounds = scene.bounds as Rect;
+    const drawn = {
+      x: bounds.x - SVG_MARGIN,
+      y: bounds.y - SVG_MARGIN,
+      width: bounds.width + 2 * SVG_MARGIN,
+      height: bounds.height + 2 * SVG_MARGIN,
+    };
+    // The drawing is as it was, and the legend lies wholly below it.
+    expectSameRect(drawnBounds(document), bounds, 0.6);
+    const legend = drawing.legend as Rect;
+    expect(legend.x).toBeCloseTo(drawn.x);
+    expect(legend.y).toBeCloseTo(drawn.y + drawn.height);
+    expect(legend.height).toBeGreaterThan(0);
+    for (const each of document.querySelectorAll(
+      'g[data-part="legend"] rect, g[data-part="legend"] text, g[data-part="legend"] tspan',
+    )) {
+      const y = Number(each.getAttribute('y'));
+      if (each.getAttribute('y') !== null) expect(y).toBeGreaterThanOrEqual(legend.y - 0.01);
+    }
+    expectSameRect(drawing.viewBox, {
+      ...drawn,
+      width: Math.max(drawn.width, legend.width),
+      height: drawn.height + legend.height,
+    });
+    expectSameRect(viewBoxOf(document), drawing.viewBox);
+    // The canvas's color lies under the legend too.
+    const background = document.querySelector('rect[data-part="background"]');
+    expect(Number(background?.getAttribute('height'))).toBeCloseTo(drawing.viewBox.height);
+  });
+
+  it('says what it warns about its colors, in the language the app reads in', () => {
+    const english = readSvg(writeSvg(withOverlays([team]), SAMPLE_VIEW).text);
+    const warned = textsIn(english.querySelector('g[data-part="legend"]')).join(' ');
+    expect(warned).toContain(
+      '"Scheduling team" and "Patients" of "Team" are 1.0:1 apart, under 3:1.',
+    );
+
+    setCurrentLanguage('es');
+    const spanish = readSvg(writeSvg(withOverlays([team]), SAMPLE_VIEW).text);
+    const said = textsIn(spanish.querySelector('g[data-part="legend"]')).join(' ');
+    expect(said).toContain('Relleno según owner');
+    expect(said).toContain('Cualquier otro valor');
+    expect(said).toContain('"Scheduling team" y "Patients" de "Team" están a 1.0:1, menos de 3:1.');
+  });
+
+  it('measures its warnings against the canvas of the theme it is drawn in', () => {
+    const dark = readSvg(writeSvg(withOverlays([team]), SAMPLE_VIEW, { theme: 'dark' }).text);
+    const said = textsIn(dark.querySelector('g[data-part="legend"]')).join(' ');
+    expect(said).not.toContain('against the light canvas');
+    const light = readSvg(writeSvg(withOverlays([team]), SAMPLE_VIEW).text);
+    expect(textsIn(light.querySelector('g[data-part="legend"]')).join(' ')).toContain(
+      'against the light canvas',
+    );
+  });
+
+  it('writes none while no overlay is on, and keeps the view box to the drawing', () => {
+    for (const overlays of [[], [{ ...team, off: true }]]) {
+      const drawing = writeSvg(withOverlays(overlays), SAMPLE_VIEW);
+      expect(readSvg(drawing.text).querySelector('g[data-part="legend"]')).toBeNull();
+      expect(drawing.legend).toBeUndefined();
+    }
   });
 });

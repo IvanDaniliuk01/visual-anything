@@ -18,9 +18,10 @@ import {
   type Timeline,
   type TimelineEntry,
 } from '@visual-anything/core';
-import type { Id, ScenarioFile } from '@visual-anything/schema';
+import type { Id, ScenarioFile, ViewFile } from '@visual-anything/schema';
 import {
   useCallback,
+  useContext,
   useEffect,
   useId,
   useLayoutEffect,
@@ -31,6 +32,8 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from 'react';
+import { viewAsDrawn } from '../canvas/overlays/collapsed';
+import { ZoomExpansionContext, useZoomExpanded } from '../canvas/overlays/useZoomExpansion';
 import { useEditor } from '../editor/EditorContext';
 import { useT, type Translator } from '../i18n';
 import {
@@ -64,9 +67,15 @@ export function ScenarioPanel({ session }: { session: ScenarioSession }) {
 
   const scenario = project.scenarios.find((each) => each.id === state.scenario);
   const active = scenario !== undefined && scenario.view === viewId;
+  // Playback goes over its view as the canvas draws it: a container the zoom expands plays expanded
+  // (ADR 0055), and its steps on their own lines, until the zoom collapses it again.
+  const zoom = useContext(ZoomExpansionContext);
+  const zoomed = useZoomExpanded(zoom, active ? viewId : undefined);
+  const stored = scenario && project.views.find((each) => each.id === scenario.view);
+  const drawn = stored && active ? viewAsDrawn(stored, zoomed) : stored;
   const timeline = useMemo(
-    () => (scenario ? scenarioTimeline(project, scenario) : undefined),
-    [project, scenario],
+    () => (scenario ? scenarioTimeline(project, scenario, drawn) : undefined),
+    [project, scenario, drawn],
   );
   const playing = active ? timeline : undefined;
 
@@ -89,7 +98,7 @@ export function ScenarioPanel({ session }: { session: ScenarioSession }) {
     [send, announce, t],
   );
 
-  const view = active ? project.views.find((each) => each.id === scenario.view) : undefined;
+  const view = active ? drawn : undefined;
 
   return (
     <aside className="panel scenario-panel" aria-labelledby={heading}>
@@ -102,6 +111,7 @@ export function ScenarioPanel({ session }: { session: ScenarioSession }) {
           state={state}
           scenario={scenario}
           timeline={timeline}
+          view={view}
           active={active}
           send={sendCommand}
           onClosed={() => headingRef.current?.focus()}
@@ -228,6 +238,7 @@ function OpenScenario({
   state,
   scenario,
   timeline,
+  view,
   active,
   send,
   onClosed,
@@ -236,6 +247,8 @@ function OpenScenario({
   state: ScenarioState;
   scenario: ScenarioFile;
   timeline: Timeline;
+  /** The scenario's view as the canvas draws it, while it is the one open. */
+  view: ViewFile | undefined;
   active: boolean;
   send: (command: Command, done?: string) => Promise<boolean>;
   /** Gives the focus a place once the scenario closes, or is deleted. */
@@ -463,6 +476,7 @@ function OpenScenario({
         timeline={timeline}
         current={at}
         entry={entry}
+        view={view}
         active={active}
         send={send}
       />
@@ -495,6 +509,7 @@ function StepList({
   timeline,
   current,
   entry,
+  view,
   active,
   send,
 }: {
@@ -503,6 +518,8 @@ function StepList({
   timeline: Timeline;
   current: number | undefined;
   entry: TimelineEntry | undefined;
+  /** The scenario's view as the canvas draws it, while it is the one open. */
+  view: ViewFile | undefined;
   active: boolean;
   send: (command: Command, done?: string) => Promise<boolean>;
 }) {
@@ -513,7 +530,6 @@ function StepList({
   const buttons = useRef(new Map<number, HTMLButtonElement>());
   const index = modelIndexOf(project);
   const nameOf = (id: Id) => index.element(id)?.name ?? id;
-  const view = project.views.find((each) => each.id === scenario.view);
 
   if (timeline.entries.length === 0) {
     return (
