@@ -254,7 +254,7 @@ A saved sequence of steps, each a view state with an explanation, that is played
 _Avoid_: walkthrough, presentation, story
 
 **Route**:
-The path a relation's line takes in a view: where it attaches to each end, the points it bends at, and its style (orthogonal, straight or curved). Automatic unless chosen by hand; a view keeps only what was chosen by hand, and Reset route goes back to the automatic route.
+The path a relation's line takes in a view: where it attaches to each end, the points it bends at, and its style (orthogonal, straight or curved). Automatic unless chosen by hand; a view keeps only what was chosen by hand, and Reset route goes back to the automatic route. An automatic orthogonal route goes around the shapes in its way, and the name plates of the containers it runs in, inside the container that holds both its ends (ADR 0039).
 _Avoid_: path, connector, edge route, waypoints
 
 **Bend point**:

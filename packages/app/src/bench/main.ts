@@ -11,6 +11,8 @@
  * the whole view are measured again with them, and the grid's cost per frame at the median, which
  * must stay within 0.5 ms, is measured in blocks of frames with and without it, one after another, so
  * that a machine busy with something else weighs on both alike. `?only=grid` measures only these.
+ * The phases of routes around shapes come last (`avoid.ts`, ADR 0039); `?only=avoid` measures only
+ * them, as far as the names show, after the pan and zoom of the whole view.
  * `?tables` draws a view of tables instead (`syntheticTables`), and adds the edit of one column.
  * `?images` gives the elements pictures (see `images.ts`), also with `?tables`, where every table
  * shows one in its header and every column at its row's left: every phase then draws them, and three
@@ -53,6 +55,7 @@ import { THEMES } from '../theme/themes';
 import { measureLevelCrossing, measureOverlays, type OverlayBench } from './overlays';
 import { RESTYLING, SHOWN, TARGET_FPS, WORK, addRow, percentile, showVerdict } from './report';
 import { measureScopeChanges } from './scope';
+import { measureAvoidance, type AvoidBench } from './avoid';
 import { measureElementList } from './elementList';
 import {
   LARGE_TABLE,
@@ -109,6 +112,7 @@ const overlap: Overlap = OVERLAPS.find((each) => each === search.get('overlap'))
 /** Whether every phase runs with the grid and the rulers shown, and whether only the grid's are run. */
 const gridOn = search.get('grid') === 'on';
 const onlyGrid = search.get('only') === 'grid';
+const onlyAvoid = search.get('only') === 'avoid';
 /** How many relations the routes phases route by hand; `?routes=0` leaves them out. */
 const routeCount = Number(search.get('routes') ?? 1000);
 const images = search.has('images');
@@ -189,6 +193,13 @@ async function run(): Promise<void> {
   }
   if (onlyGrid) {
     report(phases, [], [], []);
+    return;
+  }
+  if (onlyAvoid) {
+    move(cameraAt(NAMES_FROM * 1.3));
+    await settle(300);
+    const avoidance = await measureAvoidance(avoidBench(), 10);
+    report([...phases, ...avoidance.phases], avoidance.timed, [], [avoidance.note]);
     return;
   }
 
@@ -438,6 +449,15 @@ async function run(): Promise<void> {
   phases.push(overlays.phase);
   themeNotes.push(overlays.note);
   if (!tables) phases.push(await measureLevelCrossing(overlayBench()));
+  // Routes around the shapes in their way, routed in the worker (ADR 0039): `avoid.ts` beside this.
+  if (!tables) {
+    move(cameraAt(NAMES_FROM * 1.3));
+    await settle(300);
+    const avoidance = await measureAvoidance(avoidBench(), 10);
+    phases.push(...avoidance.phases);
+    timed.push(...avoidance.timed);
+    themeNotes.push(avoidance.note);
+  }
 
   report(phases, timed, latency, themeNotes);
 }
@@ -671,6 +691,19 @@ function measure(
     };
     requestAnimationFrame(tick);
   });
+}
+
+/** What the phases of routes around shapes need of the benchmark (`avoid.ts`). */
+function avoidBench(): AvoidBench {
+  return {
+    project: () => project,
+    view: VIEW,
+    controller,
+    settle,
+    nextTask,
+    move,
+    shapeInTheMiddle,
+  };
 }
 
 /** What the phases of overlays and levels of detail need of the benchmark (`overlays.ts`). */

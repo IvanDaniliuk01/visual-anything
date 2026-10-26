@@ -55,6 +55,7 @@ import {
   type Rect,
 } from '../canvas/geometry';
 import { COUNT_LINE_TOP, headerLines } from '../canvas/collapse';
+import { avoidedScene } from '../canvas/routing/avoided';
 import { drawnCurve } from '../canvas/routing/curves';
 import { ROWS_HEADER } from '../canvas/rows';
 import { drawsRows, isRow, rowColorsOf } from '../canvas/rowsDraw';
@@ -169,7 +170,8 @@ export function writeSvg(
 ): SvgDrawing {
   const view = viewOf(project, viewId);
   if (!view) throw new RangeError(`The project has no view "${viewId}".`);
-  return svgOfScene(project, view, buildScene(project, viewId), options);
+  // Its lines go around the shapes in their way, as the canvas routes them once its worker is done.
+  return svgOfScene(project, view, avoidedScene(buildScene(project, viewId)), options);
 }
 
 const SHAPE_STROKE_WIDTH = 1.5;

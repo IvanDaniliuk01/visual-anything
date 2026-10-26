@@ -53,7 +53,7 @@ import type { ScenarioSession } from '../scenarios/session';
 import { useCanvasRecording } from '../scenarios/useCanvasRecording';
 import { THEMES } from '../theme/themes';
 import { canvasCamera, type CanvasCamera } from '../view-state/canvas';
-import type { Camera } from './camera';
+import { screenToWorld, type Camera } from './camera';
 import {
   collapseActions,
   collapseDone,
@@ -85,6 +85,7 @@ import { forThisTab } from '../guidance/tabs';
 import type { LayoutScope } from './layout/input';
 import { laidOutBounds } from './layout/laidOut';
 import { useLayout } from './layout/useLayout';
+import { useAvoidedRoutes } from './routing/useAvoidedRoutes';
 import { RelationMenu } from './RelationMenu';
 import { onRouteEditingRequest } from './routing/requests';
 import { RouteMenu } from './routing/RouteMenu';
@@ -274,9 +275,18 @@ export function CanvasArea({
   useEffect(() => {
     if (guidedLaidOut) fitLaidOut(guidedLaidOut.scopes);
   }, [guidedLaidOut]);
+  // Lines go around the shapes in their way, as the routing worker routes them, once a layout's move
+  // is drawn (ADR 0039): what the canvas draws is a frame of the move, or the scene so routed.
+  const settled = layout.scene === scene ? scene : undefined;
+  const routed = useAvoidedRoutes(settled, view.id, () => {
+    const now = controllerRef.current;
+    if (!now) return undefined;
+    const { width, height } = now.renderer.viewport;
+    return screenToWorld(now.camera, { x: width / 2, y: height / 2 });
+  });
   // A scene that cannot be indexed cannot be drawn either: the canvas area says so, and the rest of
   // the app keeps working.
-  const drawn = layout.scene;
+  const drawn = routed ?? layout.scene;
   const indexing = useMemo(() => {
     try {
       return { indexed: indexScene(drawn) };

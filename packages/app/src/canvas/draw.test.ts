@@ -380,7 +380,8 @@ describe('outlines one device pixel wide at any zoom', () => {
     expect(outlineColorOf(faint)).toBe(readableTextColors('#E4EAF2').detail);
     expect(outlineColorOf({ ...faint, stroke: '#52606D' })).toBe('#52606D');
     // On the canvas, a shape's stroke is drawn as stored.
-    const { containerShape: _, ...onCanvas } = faint;
+    const onCanvas: ElementShape = { ...faint };
+    delete onCanvas.containerShape;
     expect(outlineColorOf(onCanvas)).toBe('#DDE3EB');
     const graphics = new Graphics();
     drawShapeOutlines(graphics, [faint]);

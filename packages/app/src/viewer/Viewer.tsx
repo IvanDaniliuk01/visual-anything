@@ -19,6 +19,7 @@ import {
   type ReactNode,
 } from 'react';
 import { collapseDone, type CollapseAction } from '../canvas/collapse';
+import { pageScene } from '../canvas/routing/avoided';
 import { buildScene, type Scene } from '../canvas/scene';
 import { useExplorer } from '../canvas/useExplorer';
 import { EditorContext, type Editor } from '../editor/EditorContext';
@@ -153,8 +154,9 @@ export function Viewer({ project: opened, made, preferences }: ViewerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the definitions follow the packages and the project appearances only
     [project.packages, project.project.appearances],
   );
+  // Lines go around the shapes in their way, as on the canvas, in a view with few enough (ADR 0039).
   const scene = useMemo(
-    () => (view ? buildScene(project, view.id) : undefined),
+    () => (view ? pageScene(buildScene(project, view.id)) : undefined),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the language is read by buildScene
     [project, view, t.language],
   );
