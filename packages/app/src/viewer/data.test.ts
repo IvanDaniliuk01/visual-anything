@@ -323,7 +323,9 @@ describe('A page of a view beyond boxes (M8b)', () => {
     expect(drawn.shapes.filter((shape) => shape.part?.inDrawing)).toHaveLength(2);
     expect(drawn.shapes.filter((shape) => shape.part && !shape.part.inDrawing)).toHaveLength(1);
     expect(drawn.shapes.filter((shape) => shape.picture)).toHaveLength(1);
-    expect(drawn.lines.every((line) => line.style === 'curved' && line.curve)).toBe(true);
+    expect(drawn.lines.every((line) => line.style === 'curved')).toBe(true);
+    // A line between parts that touch runs over them straight; the others are curves.
+    expect(drawn.lines.filter((line) => line.curve).length).toBeGreaterThan(1);
     // Its drawing is the one the exports write of the app's.
     expect(writeSvg(result.project, 'anatomy').text).toBe(writeSvg(project, 'anatomy').text);
   });

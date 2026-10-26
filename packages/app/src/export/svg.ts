@@ -10,10 +10,12 @@
  *   its kind, a collapsed container on its sheet, a table with its header and rows, a container's
  *   toggle, its picture (cleaned, written once as a symbol), and its name and detail, badges included,
  *   wrapped and cut as the canvas writes them;
- * - beyond boxes (M8b): a shape's free geometry as its outline in place of its body, written once as
- *   a symbol of `path`s filled by the even-odd rule, with its name in its label area (ADR 0066); a
- *   drawing with parts as its picture under its header, with what an overlay changes of each anchored
- *   part drawn over its place, and a part on its own as its part's picture (ADR 0067);
+ * - beyond boxes (M8b): a shape's own outline in place of its body, written once as a symbol of
+ *   `path`s filled by the even-odd rule, its holes cut as the canvas cuts them, with its name where
+ *   `outlined.ts` says (ADR 0066); a drawing with parts as its picture, its anchored parts as their
+ *   names, and a part on its own as its outline under its part's own picture (ADR 0067);
+ * - what changes how anchored parts look, as the canvas's part layer draws it (`partMarks.ts`), over
+ *   every shape: overlays' fills, veils, strokes and badges;
  * - every relation in front of the shapes: its casing in the canvas's color, its route with its bends
  *   or its curve, automatic curves and straight lines included (ADR 0069), its dashes, its arrowhead,
  *   and its name on a back of the canvas's color;
@@ -26,22 +28,19 @@
  * the view's long description. The packages' attribution goes in its metadata (ADR-0047).
  */
 import {
-  attributeValue,
   definitionsIn,
-  fadedColor,
+  flattenOutline,
   imagesIn,
   legendOf,
   legendShows,
   modelIndexOf,
   namedPart,
-  outlineLabelArea,
   outlinePathData,
-  overlayLookOf,
   partPicture,
   type CleanedImage,
   type FittedOutline,
+  type FlatContour,
   type OutlineContour,
-  type OverlayLook,
   type ProjectSnapshot,
   type ThemeName,
 } from '@visual-anything/core';
@@ -49,7 +48,25 @@ import type { Color, Id, ViewFile } from '@visual-anything/schema';
 import { t } from '../i18n';
 import { outlineColorOf, readableTextColors } from '../canvas/colors';
 import { imageSerial } from '../canvas/image-serials';
-import { outlineAt, type PlacedOutline } from '../canvas/outlines';
+import {
+  LEAST_HEADER_WIDTH,
+  LEAST_LABEL_HEIGHT,
+  PART_NAME_LINE,
+  PART_NAME_SIZE,
+  headerStretch,
+  labelAreaOn,
+  partNameLines,
+  showsContents,
+} from '../canvas/outlined';
+import { outlineAt, type PlacedOutline, type ShapeOutline } from '../canvas/outlines';
+import {
+  BADGE_HALO,
+  BADGE_SIZE,
+  OVERLAY_STROKE,
+  holesByFill,
+  partMarksOf,
+  type DrawingMarks,
+} from '../canvas/partMarks';
 import type { ShapePart } from '../canvas/partShapes';
 import {
   HEADER_DETAIL_INSET,
@@ -210,40 +227,62 @@ const ROW_SEPARATOR = 1;
 const PLATE_RADIUS = 6;
 /** How far a cubic Bézier's handles reach along a quarter of an ellipse, of its radius. */
 const KAPPA = 0.5522847498;
-/** How tall a label area must be for a shape with its own outline to write its name in it (ADR 0066). */
-const SMALLEST_LABEL = 14;
 /** The least side an outline's symbol takes, so that a straight line's bounds still draw. */
 const LEAST_SIDE = 0.01;
+/** How tall a line of a name is where a shape with its own outline writes it, as on the canvas. */
+const NAME_LINE = 20;
+/** No shape: what an export hides and draws faintly, since it draws no filter, focus or drag. */
+const NONE: ReadonlySet<string> = new Set();
 
 /** A picture to draw: its cleaned view, the serial of its content, and the tint of a silhouette. */
 type PictureSource = Pick<ShapeImage, 'image' | 'serial' | 'tint'>;
 
-/** How an outline is painted where a shape draws it (ADR 0066, ADR 0067). */
+/**
+ * How an outline's lines are stroked: each at its own width, at least `least`, as a shape's body and
+ * a fill draw them, or all at one `width`, as an overlay's stroke draws them.
+ */
+type LineWidths = { least: number } | { width: number };
+
+/**
+ * How an outline is painted where a shape draws it (ADR 0066, ADR 0067), as the canvas paints it:
+ * its body (`drawOutline`), a fill over a part (`fillOutline`) or an overlay's stroke along it.
+ */
 interface OutlinePaint {
-  /** What fills its fills; none: they are not filled. */
+  /** What fills its fills, their holes cut; none: they are not filled. */
   fill?: Color;
-  /** What strokes the contours of its fills, at a shape's stroke width; none: they are not stroked. */
+  /** What strokes its closed contours; none: they are not stroked. */
   stroke?: Color;
-  /** What strokes its lines, each at its own width; none: they are not drawn. */
-  lines?: Color;
+  /** How wide that stroke is, a shape's stroke width by default, and whether its corners are round. */
+  strokeWidth?: number;
+  round?: boolean;
+  /** What strokes its lines, and how wide; none: they are not drawn. */
+  lines?: { color: Color; widths: LineWidths };
   /** How much of it shows, below 1 for a veil; all of it by default. */
   opacity?: number;
 }
 
-/** An outline's symbols: one for its fills and one for its lines, as it has them, and their size. */
+/** An outline's symbols: one for its fills, written once, and one for its lines in each width. */
 interface OutlineSymbols {
   fills?: string;
-  lines?: string;
+  /** The symbol of its lines, by the key of their widths; none when it has no line. */
+  lines: Map<string, string> | undefined;
+  /** The id its symbols are named from, and their size. */
+  id: string;
   width: number;
   height: number;
+  box: { viewBox: string; overflow: string };
 }
 
 /** What the writer reads of the project beyond the scene. */
 interface WriterReading {
-  /** What the view's overlays give a shape's element, as stored; none when they give nothing. */
-  lookOf(shape: ElementShape): OverlayLook | undefined;
   /** The cleaned view of a picture the project draws, by its id. */
   shown(image: Id): CleanedImage | undefined;
+}
+
+/** A halo drawn around a text, in this color and this wide, under it. */
+interface Halo {
+  color: Color;
+  width: number;
 }
 
 /** Everything one drawing is written with. */
@@ -281,27 +320,44 @@ class Writer {
     return holder ? shapeColors(holder, this.theme.name).fill : this.theme.background;
   }
 
-  /** A text laid out and written, each line by its baseline; nothing when it does not fit. */
-  text(spec: TextSpec & { fill: Color }): string {
+  /**
+   * A text laid out and written, each line by its baseline; nothing when it does not fit. With a
+   * halo, the same text is written first in the halo's color, stroked as wide, which every reader of
+   * SVG draws, the PDF writer among them.
+   */
+  text(spec: TextSpec & { fill: Color; halo?: Halo }): string {
     const { lines } = layOutText(spec);
     if (lines.length === 0) return '';
     for (const line of lines) this.texts.push(line.text);
-    const values = {
-      'font-size': spec.size,
-      'font-weight': spec.bold ? 600 : undefined,
-      fill: spec.fill,
-      'text-anchor': spec.align === 'start' ? undefined : spec.align,
+    const write = (paint: Readonly<Record<string, AttributeValue>>) => {
+      const values = {
+        'font-size': spec.size,
+        'font-weight': spec.bold ? 600 : undefined,
+        ...paint,
+        'text-anchor': spec.align === 'start' ? undefined : spec.align,
+      };
+      if (lines.length === 1) {
+        const [line] = lines as [(typeof lines)[number]];
+        return textElement('text', { x: spec.x, y: line.baseline, ...values }, line.text);
+      }
+      return element(
+        'text',
+        values,
+        lines
+          .map((line) => textElement('tspan', { x: spec.x, y: line.baseline }, line.text))
+          .join(''),
+      );
     };
-    if (lines.length === 1) {
-      const [line] = lines as [(typeof lines)[number]];
-      return textElement('text', { x: spec.x, y: line.baseline, ...values }, line.text);
-    }
-    return element(
-      'text',
-      values,
-      lines
-        .map((line) => textElement('tspan', { x: spec.x, y: line.baseline }, line.text))
-        .join(''),
+    const { halo } = spec;
+    return (
+      (halo
+        ? write({
+            fill: halo.color,
+            stroke: halo.color,
+            'stroke-width': halo.width,
+            'stroke-linejoin': 'round',
+          })
+        : '') + write({ fill: spec.fill })
     );
   }
 
@@ -358,10 +414,10 @@ class Writer {
   }
 
   /**
-   * Where an outline is drawn, in this paint (ADR 0066, ADR 0067): its fills and its lines, each
-   * written once as a symbol whose view box is the outline's bounds, and used here at its place. The
-   * fills hold by their own rule, `evenodd` for free geometry, so that a contour inside another cuts
-   * a hole; the lines are stroked at their widths, with round ends.
+   * Where an outline is drawn, painted as the canvas paints it (ADR 0066, ADR 0067): each fill a
+   * `path` with the holes the canvas cuts from it, filled by the even-odd rule; every closed contour
+   * stroked; and each line stroked with round ends. The fills, and the lines at each width, are
+   * written once, as symbols whose view box is the outline's bounds, and used here at its place.
    */
   outline(placed: PlacedOutline, paint: OutlinePaint): string {
     const symbols = this.#outlineSymbols(placed.fitted);
@@ -373,81 +429,115 @@ class Writer {
       height: symbols.height,
     };
     const opacity = paint.opacity === undefined || paint.opacity >= 1 ? undefined : paint.opacity;
+    const stroked = paint.stroke !== undefined;
     let markup = '';
-    if (symbols.fills !== undefined && (paint.fill !== undefined || paint.stroke !== undefined)) {
+    if (symbols.fills !== undefined && (paint.fill !== undefined || stroked)) {
       markup += empty('use', {
         href: `#${symbols.fills}`,
         ...at,
         fill: paint.fill ?? 'none',
         'fill-opacity': paint.fill === undefined ? undefined : opacity,
         stroke: paint.stroke,
-        'stroke-width': paint.stroke === undefined ? undefined : SHAPE_STROKE_WIDTH,
-        'stroke-opacity': paint.stroke === undefined ? undefined : opacity,
+        'stroke-width': stroked ? (paint.strokeWidth ?? SHAPE_STROKE_WIDTH) : undefined,
+        'stroke-linejoin': stroked && paint.round ? 'round' : undefined,
+        'stroke-linecap': stroked && paint.round ? 'round' : undefined,
+        'stroke-opacity': stroked ? opacity : undefined,
       });
     }
-    if (symbols.lines !== undefined && paint.lines !== undefined) {
+    const lines = paint.lines && this.#linesSymbol(placed.fitted, symbols, paint.lines.widths);
+    if (paint.lines && lines !== undefined) {
       markup += empty('use', {
-        href: `#${symbols.lines}`,
+        href: `#${lines}`,
         ...at,
-        stroke: paint.lines,
+        stroke: paint.lines.color,
         'stroke-opacity': opacity,
       });
     }
     return markup;
   }
 
-  /** An outline's symbols, written the first time it is drawn. */
+  /**
+   * An outline's symbols, the first time it is drawn: its fills, each with the holes cut from the
+   * smallest fill around them (`holesByFill`, as the canvas cuts them), and the closed contours that
+   * fill nothing, stroked only.
+   */
   #outlineSymbols(fitted: FittedOutline): OutlineSymbols {
     const known = this.#outlines.get(fitted);
     if (known) return known;
-    const { bounds } = fitted;
+    const { bounds, contours } = fitted;
     const width = Math.max(bounds.width, LEAST_SIDE);
     const height = Math.max(bounds.height, LEAST_SIDE);
     const box = {
       viewBox: [bounds.x, bounds.y, width, height].map(num).join(' '),
       overflow: 'visible',
     };
-    const made = `va-outline-${this.#outlines.size + 1}`;
-    const symbols: OutlineSymbols = { width, height };
-    // The closed contours of each fill, in one path that holds by the fill's rule.
-    const fills = new Map<number, OutlineContour[]>();
-    const lines: OutlineContour[] = [];
-    for (const contour of fitted.contours) {
-      if (contour.role === 'line') {
-        lines.push(contour);
-        continue;
-      }
-      const group = contour.group ?? 0;
-      const fill = fills.get(group);
-      if (fill) fill.push(contour);
-      else fills.set(group, [contour]);
+    const id = `va-outline-${this.#outlines.size + 1}`;
+    const flat = flattenOutline(fitted);
+    const index = new Map(flat.map((contour, at) => [contour, at]));
+    const contourAt = (contour: FlatContour) => contours[index.get(contour) ?? -1];
+    const fills = flat.filter((contour) => contour.role === 'fill' && contour.points.length >= 6);
+    const holesIn = holesByFill(flat, fills);
+    const drawn = new Set<FlatContour>(fills);
+    for (const holes of holesIn.values()) for (const hole of holes) drawn.add(hole);
+    const paths: string[] = [];
+    for (const fill of fills) {
+      const cut = [fill, ...(holesIn.get(fill) ?? [])].flatMap((each) => contourAt(each) ?? []);
+      paths.push(empty('path', { d: pathDataOf(cut), 'fill-rule': 'evenodd' }));
     }
-    if (fills.size > 0) {
-      symbols.fills = made;
-      const paths = [...fills.values()].map((contours) =>
-        empty('path', {
-          d: pathDataOf(contours),
-          'fill-rule': contours[0]?.nonzero ? 'nonzero' : 'evenodd',
-        }),
-      );
-      this.defsById.set(made, element('symbol', { id: made, ...box }, paths.join('')));
-    }
-    if (lines.length > 0) {
-      const id = `${made}-lines`;
-      symbols.lines = id;
-      const paths = lines.map((line) =>
-        empty('path', {
-          d: pathDataOf([line]),
-          fill: 'none',
-          'stroke-width': Math.max(SHAPE_STROKE_WIDTH, line.width ?? 0),
-          'stroke-linecap': 'round',
-          'stroke-linejoin': 'round',
-        }),
-      );
+    // A closed contour that fills nothing and cuts nothing is still stroked, as the canvas strokes it.
+    const left = flat.flatMap((contour) =>
+      contour.role !== 'line' && contour.points.length >= 4 && !drawn.has(contour)
+        ? (contourAt(contour) ?? [])
+        : [],
+    );
+    if (left.length > 0) paths.push(empty('path', { d: pathDataOf(left), fill: 'none' }));
+    const symbols: OutlineSymbols = {
+      id,
+      width,
+      height,
+      box,
+      lines: flat.some((contour) => contour.role === 'line' && contour.points.length >= 4)
+        ? new Map()
+        : undefined,
+    };
+    if (paths.length > 0) {
+      symbols.fills = id;
       this.defsById.set(id, element('symbol', { id, ...box }, paths.join('')));
     }
     this.#outlines.set(fitted, symbols);
     return symbols;
+  }
+
+  /** The symbol of an outline's lines at these widths, written the first time it is drawn so. */
+  #linesSymbol(
+    fitted: FittedOutline,
+    symbols: OutlineSymbols,
+    widths: LineWidths,
+  ): string | undefined {
+    const { lines } = symbols;
+    if (!lines) return undefined;
+    const key = 'least' in widths ? `least ${widths.least}` : `width ${widths.width}`;
+    const known = lines.get(key);
+    if (known !== undefined) return known;
+    const id = `${symbols.id}-lines-${lines.size + 1}`;
+    const { contours } = fitted;
+    const paths = flattenOutline(fitted).flatMap((contour, at) => {
+      const line = contours[at];
+      if (contour.role !== 'line' || contour.points.length < 4 || !line) return [];
+      return [
+        empty('path', {
+          d: pathDataOf([line]),
+          fill: 'none',
+          'stroke-width':
+            'least' in widths ? Math.max(widths.least, line.width ?? 0) : widths.width,
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+        }),
+      ];
+    });
+    lines.set(key, id);
+    this.defsById.set(id, element('symbol', { id, ...symbols.box }, paths.join('')));
+    return id;
   }
 }
 
@@ -468,18 +558,7 @@ export function svgOfScene(
   const index = modelIndexOf(project);
   const definitions = definitionsIn(project);
   const catalog = imagesIn(project);
-  const writer = new Writer(scene, options, {
-    // What changes how a part looks is drawn over it (ADR 0067), so its overlays' look is read again.
-    lookOf: (shape) => {
-      const element = index.element(shape.element);
-      return element
-        ? overlayLookOf(view.overlays, 'elements', (name) =>
-            attributeValue(element, name, definitions),
-          )
-        : undefined;
-    },
-    shown: (image) => catalog.shown(image),
-  });
+  const writer = new Writer(scene, options, { shown: (image) => catalog.shown(image) });
   const { theme } = writer;
   const bounds = scene.bounds;
   const drawn = bounds
@@ -533,8 +612,12 @@ export function svgOfScene(
       }
     : drawn;
 
+  // What changes how anchored parts look lies over every shape and under the relations, as the
+  // canvas's part layer draws it (ADR 0067); a view without drawings with parts writes no such layer.
+  const marked = partMarksOf(scene, NONE, NONE).flatMap((marks) => partMarksParts(writer, marks));
   const layers: SvgLayer[] = [
     { values: { 'data-part': 'shapes' }, parts: shapes },
+    ...(marked.length > 0 ? [{ values: { 'data-part': 'parts' }, parts: marked }] : []),
     { values: { 'data-part': 'casings', fill: 'none', 'stroke-linecap': 'butt' }, parts: casings },
     { values: { 'data-part': 'relations', 'stroke-linecap': 'butt' }, parts: routes },
     { values: { 'data-part': 'relation-names' }, parts: labels },
@@ -739,21 +822,21 @@ function swatchOf(writer: Writer, item: Extract<BandItem, { kind: 'swatch' }>, a
 
 // --- Shapes --------------------------------------------------------------------------------------
 
-/**
- * Whether a shape is drawn as a container: one that holds shapes, one the view collapses, or a
- * drawing with parts, which writes its name in its header whatever it holds (ADR 0067).
- */
+/** Whether a shape is drawn as a container: one that holds shapes, or one the view collapses. */
 function isContainer(shape: ElementShape): boolean {
-  return shape.holdsContents || shape.collapsed !== undefined || shape.picture !== undefined;
+  return shape.holdsContents || shape.collapsed !== undefined;
 }
 
 /**
- * Everything one shape draws: its body, toggle and picture, then its texts. A shape drawn as a named
- * part draws its part (`partParts`), and one with free geometry its outline (`outlineParts`).
+ * Everything one shape draws: its body, toggle and picture, then its texts. A shape with its own
+ * outline draws it (`outlineParts`), and an anchored part only its name, since its drawing's picture
+ * shows it (ADR 0067).
  */
 function shapeParts(writer: Writer, shape: ElementShape): string {
-  const placed = outlineAt(shape);
-  if (shape.part && placed) return partParts(writer, shape, shape.part, placed);
+  const { outline } = shape;
+  if (outline && shape.part?.inDrawing === true) {
+    return outlinedText(writer, shape, outline, shape.part.color);
+  }
   const painted = shapeColors(shape, writer.theme.name);
   // A shape in a container of nearly its own fill keeps an outline that tells it apart, as on the canvas.
   const colors = {
@@ -765,7 +848,7 @@ function shapeParts(writer: Writer, shape: ElementShape): string {
     ),
   };
   if (isRow(shape)) return rowParts(writer, shape, colors.fill);
-  if (placed) return outlineParts(writer, shape, placed, colors);
+  if (outline) return outlineParts(writer, shape, outline, colors);
   if (drawsRows(shape)) {
     return (
       tableParts(writer, shape, colors) +
@@ -1104,109 +1187,244 @@ function centredText(
 // --- Free geometry and named parts (ADR 0066, ADR 0067) --------------------------------------------
 
 /**
- * Where a shape with its own outline writes its name: the outline's label area, placed on the canvas;
- * none when that area is less than 14 units tall, as the canvas then writes the name only in the
- * marks of hovering and selecting, which an export does not draw.
- */
-function labelAreaAt(placed: PlacedOutline): Rect | undefined {
-  const area = outlineLabelArea(placed.fitted);
-  if (!(area.height >= SMALLEST_LABEL)) return undefined;
-  return { x: placed.x + area.x, y: placed.y + area.y, width: area.width, height: area.height };
-}
-
-/**
- * A shape drawn by its free geometry (ADR 0066): its outline in its colors in place of its kind's
- * body, a collapsed container's sheet as its outline offset as the sheet is, its toggle and its
- * picture where the scene places them, and its name and detail in its label area. A container writes
- * them as its header does, from the top left of that area, so that its contents do not cover them.
+ * A shape drawn by its own outline, as the canvas draws its body (`drawOutlinedBody`): free geometry,
+ * or a part drawn on its own. Its outline is filled in its fill, or its part's main color, its holes
+ * cut and every contour stroked, on a collapsed container over a sheet of its outline offset as a
+ * box's sheet is; then its toggle, its picture (a part on its own its part's own picture, as
+ * `pictureOf` places it), and its name and detail as `writeOutlinedText` writes them.
  */
 function outlineParts(
   writer: Writer,
   shape: ElementShape,
-  placed: PlacedOutline,
+  outline: ShapeOutline,
   colors: { fill: Color; stroke: Color },
 ): string {
-  const paint = { fill: colors.fill, stroke: colors.stroke, lines: colors.stroke };
+  const fill = shape.part ? shape.part.color : colors.fill;
+  const paint: OutlinePaint = {
+    fill,
+    stroke: colors.stroke,
+    lines: { color: colors.stroke, widths: { least: SHAPE_STROKE_WIDTH } },
+  };
+  const placed = outlineAt({ rect: shape.rect, outline }) as PlacedOutline;
   let body = '';
   if (shape.collapsed !== undefined && bodyOf(shape) !== shape.rect) {
     body += writer.outline({ ...placed, x: placed.x + SHEET, y: placed.y + SHEET }, paint);
   }
   body += writer.outline(placed, paint) + toggleOf(shape, colors);
-  if (shape.image) body += writer.picture(shape.image, shape.image.rect);
-  const label = labelAreaAt(placed);
-  if (!label) return body;
-  const text = readableTextColors(colors.fill);
-  if (!isContainer(shape)) {
-    return body + centredText(writer, besideImage(shape, label), text, shape.name, detailOf(shape));
-  }
-  return body + headerText(writer, shape, label, text, { shift: 0, beside: 0 });
+  const picture = shape.part ? ownPartPicture(writer, shape, shape.part) : undefined;
+  if (picture) body += writer.picture(picture.image, picture.rect);
+  else if (shape.image) body += writer.picture(shape.image, shape.image.rect);
+  return body + outlinedText(writer, shape, outline, fill);
 }
 
 /**
- * A shape drawn as a named part (ADR 0067). An anchored part lies over its drawing's picture, which
- * shows it; a part on its own draws its part's own picture where its part lies in its outline, or,
- * when no picture can be had, its outline filled in the part's main color. Over either is drawn what
- * changes how it looks: an overlay's fill fills the outline, its stroke strokes it, and its opacity
- * lays a veil of what it sits on over the part, a drawing's fill for an anchored part. Its name, and
- * an overlay's badge under it, go in its label area when the name fits.
+ * A part drawn on its own's own picture (`partPicture`), placed as the canvas places it
+ * (`images-draw.ts`): the part's bounds fitted to its shape, their proportions kept, centred.
  */
-function partParts(
+function ownPartPicture(
   writer: Writer,
   shape: ElementShape,
   part: ShapePart,
-  placed: PlacedOutline,
-): string {
-  const look = writer.reading.lookOf(shape);
-  const drawn = shapeColors(shape, writer.theme.name);
-  const backdrop = writer.backdropOf(shape);
-  let parts = '';
-  if (!part.inDrawing) {
-    const picture = partPictureOf(writer, part, placed);
-    parts +=
-      picture === '' ? writer.outline(placed, { fill: part.color, lines: part.color }) : picture;
-  }
-  /** What its name is written on: what is drawn over its part, or the part's own main color. */
-  let under = part.color;
-  if (look?.fill !== undefined) {
-    parts += writer.outline(placed, { fill: drawn.fill, lines: drawn.fill });
-    under = drawn.fill;
-  } else if (look?.opacity !== undefined && look.opacity < 1) {
-    parts += writer.outline(placed, { fill: backdrop, lines: backdrop, opacity: 1 - look.opacity });
-    under = fadedColor(part.color, backdrop, look.opacity);
-  }
-  if (look?.stroke !== undefined) {
-    parts += writer.outline(placed, {
-      stroke: drawn.stroke,
-      ...(look.fill === undefined ? { lines: drawn.stroke } : {}),
-    });
-  }
-  const label = labelAreaAt(placed);
-  if (!label) return parts;
-  return (
-    parts + centredText(writer, label, readableTextColors(under), shape.name, look?.badge ?? '')
-  );
+): { image: PictureSource; rect: Rect } | undefined {
+  const whole = writer.reading.shown(part.image);
+  const named = whole && namedPart(whole, part.part);
+  const own = whole && partPicture(whole, part.part);
+  if (!named || !own) return undefined;
+  const { width, height } = named.bounds;
+  const { rect } = shape;
+  const scale = Math.min(rect.width / width, rect.height / height);
+  if (!(scale > 0) || !Number.isFinite(scale)) return undefined;
+  return {
+    image: { image: own, serial: imageSerial(own) },
+    rect: {
+      x: rect.x + (rect.width - width * scale) / 2,
+      y: rect.y + (rect.height - height * scale) / 2,
+      width: width * scale,
+      height: height * scale,
+    },
+  };
 }
 
 /**
- * A part's own picture, whose view box is the part's bounds, drawn where those bounds lie in its
- * outline; nothing when none can be had.
+ * The name and detail of a shape with its own outline, as the canvas writes them
+ * (`writeOutlinedText`), in colors that read on its fill or its part's main color:
+ *
+ * - an anchored part its name alone, whole, centred in its label area, when it fits there
+ *   (`partNameLines`), and never its component's name or its detail;
+ * - an expanded container in its header, along the stretch of the header line its outline holds;
+ * - any other shape centred in its label area: its name above the middle and its detail below when
+ *   the area is two lines tall, else its name alone in the middle. A collapsed container's detail
+ *   starts with its count.
+ *
+ * Where the outline leaves no room, it writes nothing, as the canvas then names it beside itself only
+ * in the marks of hovering and selecting, which no export draws.
  */
-function partPictureOf(writer: Writer, part: ShapePart, placed: PlacedOutline): string {
-  const whole = writer.reading.shown(part.image);
-  const found = whole && namedPart(whole, part.part);
-  const picture = whole && partPicture(whole, part.part);
-  if (!found || !picture) return '';
-  const { fitted } = placed;
-  const { bounds } = found;
-  return writer.picture(
-    { image: picture, serial: imageSerial(picture) },
-    {
-      x: placed.x + bounds.x * fitted.scaleX + fitted.offsetX,
-      y: placed.y + bounds.y * fitted.scaleY + fitted.offsetY,
-      width: bounds.width * fitted.scaleX,
-      height: bounds.height * fitted.scaleY,
-    },
+function outlinedText(
+  writer: Writer,
+  shape: ElementShape,
+  outline: ShapeOutline,
+  fill: Color,
+): string {
+  const colors = readableTextColors(fill);
+  const area = labelAreaOn({ rect: shape.rect, outline });
+  if (shape.part?.inDrawing === true) {
+    const lines = partNameLines(shape.name, area);
+    if (!lines) return '';
+    const top = area.y + area.height / 2 - (lines.length * PART_NAME_LINE) / 2;
+    return lines
+      .map((line, at) =>
+        writer.text({
+          text: line,
+          size: PART_NAME_SIZE,
+          bold: true,
+          fill: colors.name,
+          x: area.x + area.width / 2,
+          align: 'middle',
+          y: top + (at + 0.5) * PART_NAME_LINE,
+          anchor: 'middle',
+        }),
+      )
+      .join('');
+  }
+  if (showsContents(shape)) {
+    const stretch = headerStretch({ ...shape, outline });
+    if (!stretch || stretch.width < LEAST_HEADER_WIDTH) return '';
+    const { y, height } = shape.rect;
+    const rooms = { name: Math.min(NAME_LINE, height - 12), detail: Math.min(16, height - 32) };
+    const left = stretch.x + 2 + headerShift(shape);
+    const wrap = Math.max(1, stretch.x + stretch.width - left);
+    const detail = detailOf(shape);
+    return (
+      (rooms.name > 0
+        ? writer.text({
+            text: shape.name,
+            size: NAME_SIZE,
+            bold: true,
+            fill: colors.name,
+            x: left,
+            align: 'start',
+            y: y + 8,
+            anchor: 'top',
+            wrap,
+            room: rooms.name,
+          })
+        : '') +
+      (rooms.detail > 0 && detail !== ''
+        ? writer.text({
+            text: detail,
+            size: DETAIL_SIZE,
+            fill: colors.detail,
+            x: left,
+            align: 'start',
+            y: y + 8 + NAME_SIZE + 6,
+            anchor: 'top',
+            wrap,
+            room: rooms.detail,
+          })
+        : '')
+    );
+  }
+  if (area.height < LEAST_LABEL_HEIGHT) return '';
+  const twoLines = area.height >= 2 * NAME_LINE;
+  const rooms = twoLines
+    ? { name: area.height / 2, detail: area.height / 2 - 6 }
+    : { name: Math.max(area.height, NAME_LINE), detail: 0 };
+  const text = besideImage(shape, area);
+  const centerX = text.x + text.width / 2;
+  const centerY = area.y + area.height / 2;
+  const wrap = Math.max(1, text.width);
+  const detail = outlinedDetailOf(shape);
+  return (
+    writer.text({
+      text: shape.name,
+      size: NAME_SIZE,
+      bold: true,
+      fill: colors.name,
+      x: centerX,
+      align: 'middle',
+      y: twoLines ? centerY + 2 : centerY,
+      anchor: twoLines ? 'bottom' : 'middle',
+      wrap,
+      room: rooms.name,
+    }) +
+    (twoLines && detail !== ''
+      ? writer.text({
+          text: detail,
+          size: DETAIL_SIZE,
+          fill: colors.detail,
+          x: centerX,
+          align: 'middle',
+          y: centerY + 4,
+          anchor: 'top',
+          wrap,
+          room: rooms.detail,
+        })
+      : '')
   );
+}
+
+/** A collapsed container's detail with its count first, as the canvas writes it; any other's detail. */
+function outlinedDetailOf(shape: ElementShape): string {
+  if (shape.collapsed === undefined) return detailOf(shape);
+  const detail = shape.detail ?? shape.componentName;
+  const inside = t('{count} inside', { count: shape.collapsed.contents });
+  return detail === '' ? inside : `${inside} · ${detail}`;
+}
+
+/**
+ * What changes how a drawing's anchored parts look, over their places, as the canvas's part layer
+ * draws it where the picture shows (`drawPartMarks`, `writePartBadges`), with nothing hidden or faint:
+ * an overlay's fill fills the part's outline, its holes cut and its lines as bands; its opacity then
+ * lays a veil of the drawing's fill, of one less that opacity; its stroke strokes every contour two
+ * units wide; and its badge is written at the part's label point, under the lines of its name when it
+ * writes one, in the text that reads on its fill or its main color, over a halo of that color. One
+ * group for each part something changes, named by its element and its shape.
+ */
+function partMarksParts(writer: Writer, marks: DrawingMarks): string[] {
+  const fill = shapeColors(marks.drawing, writer.theme.name).fill;
+  return marks.parts.flatMap((mark) => {
+    const { outline, shape } = mark;
+    let parts = '';
+    if (mark.fill !== undefined) {
+      parts += writer.outline(outline, {
+        fill: mark.fill,
+        lines: { color: mark.fill, widths: { least: 1 } },
+      });
+    }
+    if (mark.opacity !== undefined) {
+      parts += writer.outline(outline, {
+        fill,
+        lines: { color: fill, widths: { least: 1 } },
+        opacity: 1 - mark.opacity,
+      });
+    }
+    if (mark.stroke !== undefined) {
+      parts += writer.outline(outline, {
+        stroke: mark.stroke,
+        strokeWidth: OVERLAY_STROKE,
+        round: true,
+        lines: { color: mark.stroke, widths: { width: OVERLAY_STROKE } },
+      });
+    }
+    if (mark.badge !== undefined && shape.outline) {
+      const area = labelAreaOn({ rect: shape.rect, outline: shape.outline });
+      const lines = partNameLines(shape.name, area);
+      const under = mark.fill ?? mark.color;
+      parts += writer.text({
+        text: mark.badge,
+        size: BADGE_SIZE,
+        fill: readableTextColors(under).detail,
+        halo: { color: under, width: BADGE_HALO },
+        x: area.x + area.width / 2,
+        align: 'middle',
+        y: area.y + area.height / 2 + (lines ? (lines.length * PART_NAME_LINE) / 2 + 2 : 0),
+        anchor: lines ? 'top' : 'middle',
+      });
+    }
+    return parts === ''
+      ? []
+      : [element('g', { 'data-element': shape.element, 'data-shape': shape.key }, parts)];
+  });
 }
 
 /** A table's body: its sheet when collapsed, then its body, header band, the rule and its border. */

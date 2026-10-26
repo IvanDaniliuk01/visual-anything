@@ -587,9 +587,11 @@ describe('writeSvg beyond boxes', () => {
     // Its name and detail in its outline's label area, a side of the frame, cut to its width.
     const placed = outlineAt(framed);
     const area = placed && outlineLabelArea(placed.fitted);
-    expect(area?.height).toBeGreaterThanOrEqual(14);
+    expect(area?.height).toBeGreaterThanOrEqual(40);
     const texts = [...group.querySelectorAll(':scope > text')];
-    expect(texts.map((text) => text.textContent)).toEqual(['fra…', 'Cha…']);
+    expect(texts).toHaveLength(2);
+    expect(texts[0]?.textContent).toMatch(/^fra/);
+    expect(texts[1]?.textContent).toMatch(/^Cha/);
     for (const text of texts) {
       const x = Number(text.getAttribute('x'));
       const y = Number(text.getAttribute('y'));
@@ -630,7 +632,10 @@ describe('writeSvg beyond boxes', () => {
           { id: 'cell-in-framed', relationType: 'anatomy.is-part-of', from: 'cell', to: 'framed' },
         ],
       },
-      views: base.views.map((view) => ({ ...view, ...(collapsed ? { collapsed: ['framed'] } : {}) })),
+      views: base.views.map((view) => ({
+        ...view,
+        ...(collapsed ? { collapsed: ['framed'] } : {}),
+      })),
     });
     const open = holding(false);
     const framed = shapeIn(open, 'framed');
@@ -774,41 +779,73 @@ describe('writeSvg beyond boxes', () => {
       ElementShape,
     ];
     const document = readSvg(writeSvg(project, BEYOND_VIEW).text);
+    // As the canvas's part layer: over every shape, under the relations.
+    const layer = document.querySelector('svg > g[data-part="parts"]');
+    expect(layer?.previousElementSibling?.getAttribute('data-part')).toBe('shapes');
+    expect(layer?.nextElementSibling?.getAttribute('data-part')).toBe('casings');
+    const marksOf = (element: string): Element => {
+      const group = layer?.querySelector(`:scope > g[data-element="${element}"]`);
+      if (!group) throw new Error(`Nothing is drawn over "${element}".`);
+      return group;
+    };
+    // The parts' marks in the drawing's order, the picture's.
+    expect(
+      [...(layer?.querySelectorAll(':scope > g') ?? [])].map((each) =>
+        each.getAttribute('data-element'),
+      ),
+    ).toEqual(['left', 'right']);
 
-    const hot = groupOf(document, 'left');
-    const filled = outlineUses(document, hot);
-    // Its fill fills its part's outline, then its stroke strokes it.
-    expect(filled.map(({ use }) => [use.getAttribute('fill'), use.getAttribute('stroke')])).toEqual(
-      [
-        ['#FF0000', null],
-        ['none', '#000000'],
-      ],
-    );
+    const hot = marksOf('left');
+    // Its fill fills its part's outline, then its stroke strokes it two units wide, as the canvas does.
+    expect(
+      outlineUses(document, hot).map(({ use }) => [
+        use.getAttribute('fill'),
+        use.getAttribute('stroke'),
+        use.getAttribute('stroke-width'),
+      ]),
+    ).toEqual([
+      ['#FF0000', null, null],
+      ['none', '#000000', '2'],
+    ]);
     expectSameRect(usedOutlineBounds(document, hot), outlineBounds(left), 0.6);
-    // Its badge after its name, in its label area.
-    expect(writtenIn(hot)).toEqual(['left', 'HOT']);
+    // Its badge at its label point, under its name, over a halo of its fill.
+    const badge = [...hot.querySelectorAll(':scope > text')];
+    expect(badge.map((text) => [text.textContent, text.getAttribute('stroke')])).toEqual([
+      ['HOT', '#FF0000'],
+      ['HOT', null],
+    ]);
+    const name = groupOf(document, 'left').querySelector(':scope > text');
+    expect(name?.textContent).toBe('left');
+    expect(Number(badge[1]?.getAttribute('y'))).toBeGreaterThan(Number(name?.getAttribute('y')));
 
-    const cold = groupOf(document, 'right');
+    const cold = marksOf('right');
     const veiled = outlineUses(document, cold);
     expect(veiled).toHaveLength(2);
-    // A veil of the drawing's fill over its part, as much as the overlay fades it.
+    // A veil of the drawing's fill over its part, of one less the overlay's opacity.
     expect(veiled[0]?.use.getAttribute('fill')).toBe(shapeColors(body, 'light').fill);
     expect(Number(veiled[0]?.use.getAttribute('fill-opacity'))).toBeCloseTo(0.6);
-    // Its stroke, faded as the overlay fades it.
-    expect(veiled[1]?.use.getAttribute('stroke')).toBe(shapeColors(right, 'light').stroke);
-    expect(veiled[1]?.use.getAttribute('stroke')).not.toBe('#0000FF');
+    // Its stroke in the overlay's color, as the canvas strokes it.
+    expect(veiled[1]?.use.getAttribute('stroke')).toBe('#0000FF');
+    expect(right.part?.inDrawing).toBe(true);
     expectSameRect(usedOutlineBounds(document, cold), outlineBounds(right), 0.6);
+    // A view whose parts nothing changes writes no such layer.
+    expect(writeSvg(beyond(), BEYOND_VIEW).text).not.toContain('data-part="parts"');
   });
 
-  it('draws a part on its own as its part’s picture, where its outline lies', () => {
+  it('draws a part on its own as its outline in its main color, and its part’s picture over it', () => {
     const project = beyond();
     const loose = shapeIn(project, 'loose');
     const document = readSvg(writeSvg(project, BEYOND_VIEW).text);
     const group = groupOf(document, 'loose');
     expect(group.querySelector(':scope > rect')).toBeNull();
+    const [body] = outlineUses(document, group);
+    expect(body?.use.getAttribute('fill')).toBe(loose.part?.color);
+    expect(body?.use.getAttribute('fill')).toBe('#27AE60');
+    expectSameRect(usedOutlineBounds(document, group), outlineBounds(loose), 0.6);
     const uses = [...group.querySelectorAll(':scope > use')];
-    expect(uses).toHaveLength(1);
-    const use = uses[0] as Element;
+    expect(uses).toHaveLength(2);
+    expect(uses[0]).toBe(body?.use);
+    const use = uses[1] as Element;
     // The ring alone, as the core writes its picture, not the whole picture of organs.
     const cleaned = imagesIn(project).shown(ORGANS_ID);
     expect(cleaned).toBeDefined();
@@ -835,12 +872,19 @@ describe('writeSvg beyond boxes', () => {
     expect(scene.relations.length).toBeGreaterThan(0);
     const document = readSvg(writeSvg(curved, BEYOND_VIEW).text);
     const routes = [...document.querySelectorAll('g[data-part="relations"] > g')];
+    expect(scene.relations.filter((line) => line.curve).length).toBeGreaterThan(1);
     scene.relations.forEach((line, at) => {
       expect(line.style).toBe('curved');
       expect(line.hand).toBeUndefined();
+      const d = routes[at]?.querySelector('path')?.getAttribute('d') ?? '';
+      if (!line.curve) {
+        // A line between parts that touch runs over them, as the canvas draws it (ADR 0067).
+        expect(d).not.toMatch(/C/);
+        expect(pathPoints(d)[0]?.x).toBeCloseTo(line.route[0]?.x ?? NaN, 1);
+        return;
+      }
       const spans = drawnCurve(line);
       expect(spans.length).toBeGreaterThan(0);
-      const d = routes[at]?.querySelector('path')?.getAttribute('d') ?? '';
       expect(d).toMatch(/^M[^C]*C/);
       const points = pathPoints(d);
       const end = spans.at(-1)?.to;
