@@ -13,7 +13,10 @@ import { parentPort } from 'node:worker_threads';
 
 const tries: [string, () => unknown][] = [
   ['fetch', () => fetch('http://127.0.0.1:9/')],
-  ['XMLHttpRequest', () => new (globalThis as unknown as { XMLHttpRequest: new () => unknown }).XMLHttpRequest()],
+  [
+    'XMLHttpRequest',
+    () => new (globalThis as unknown as { XMLHttpRequest: new () => unknown }).XMLHttpRequest(),
+  ],
   ['WebSocket', () => new WebSocket('ws://127.0.0.1:9/')],
   ['http.get', () => http.get('http://127.0.0.1:9/')],
   ['https.request', () => request('https://127.0.0.1:9/')],

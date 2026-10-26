@@ -30,7 +30,13 @@ describe('cleanHtml', () => {
       '<section><h2>Pricing</h2><p>Basic <strong>plan</strong></p><ul><li>One</li></ul></section>',
     );
     expect(outline(children)).toEqual([
-      { section: [{ h2: ['Pricing'] }, { p: ['Basic ', { strong: ['plan'] }] }, { ul: [{ li: ['One'] }] }] },
+      {
+        section: [
+          { h2: ['Pricing'] },
+          { p: ['Basic ', { strong: ['plan'] }] },
+          { ul: [{ li: ['One'] }] },
+        ],
+      },
     ]);
     expect(report).toEqual([]);
   });
@@ -215,7 +221,9 @@ describe('cleanHtml', () => {
       'The HTML has over 256 style rules.',
     );
     expect(
-      refusal(`<style>${Array.from({ length: 17 }, (_, at) => `.c${at}`).join(',')}{color:red}</style>`),
+      refusal(
+        `<style>${Array.from({ length: 17 }, (_, at) => `.c${at}`).join(',')}{color:red}</style>`,
+      ),
     ).toBe('A style rule has over 16 selectors.');
     const bomb = `<style>${'p{color:red;color:blue;color:green;color:red;color:blue}'.repeat(250)}</style>${'<p>x</p>'.repeat(100)}`;
     expect(refusal(bomb)).toBe(

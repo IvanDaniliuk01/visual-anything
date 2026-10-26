@@ -8,7 +8,13 @@ import {
   type ServerMessage,
 } from './protocol';
 
-const make = { type: 'drawing/make', requestId: 'r1', name: 'card.html', html: '<p>Hi</p>', width: 800 };
+const make = {
+  type: 'drawing/make',
+  requestId: 'r1',
+  name: 'card.html',
+  html: '<p>Hi</p>',
+  width: 800,
+};
 const made = {
   type: 'drawing/made',
   requestId: 'r1',
@@ -59,7 +65,8 @@ describe('making a drawing over the live connection (ADR 0068)', () => {
   });
 
   it('refuses an answer that is not a drawing', () => {
-    const server = (more: object) => () => decodeServerMessage(JSON.stringify({ ...made, ...more }));
+    const server = (more: object) => () =>
+      decodeServerMessage(JSON.stringify({ ...made, ...more }));
     for (const more of [
       { svg: '<html/>' },
       { svg: `<svg>${'x'.repeat(70_000)}</svg>` },

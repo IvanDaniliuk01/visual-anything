@@ -198,7 +198,8 @@ let built: Promise<string> | undefined;
 export async function drawingWorker(): Promise<WorkerSource> {
   if (sea.isSea()) return { script: sea.getAsset(DRAWING_WORKER_ASSET, 'utf8'), eval: true };
   const here = import.meta.url;
-  if (!here.endsWith('.ts')) return { script: new URL(`./${DRAWING_WORKER_FILE}`, here), eval: false };
+  if (!here.endsWith('.ts'))
+    return { script: new URL(`./${DRAWING_WORKER_FILE}`, here), eval: false };
   // A name the bundle of the server does not follow: the executable never builds anything.
   const bundler = './bundle';
   built ??= (import(bundler) as Promise<typeof import('./bundle')>).then(

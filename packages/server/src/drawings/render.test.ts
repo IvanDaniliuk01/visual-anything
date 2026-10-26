@@ -21,7 +21,8 @@ async function rendered(html: string, width = 400) {
 describe('Roboto', () => {
   it('draws Latin text, and no emoji or CJK', () => {
     const { coverage } = robotoFonts();
-    for (const character of 'Aé€ñ—') expect(covers(coverage, character.codePointAt(0) as number)).toBe(true);
+    for (const character of 'Aé€ñ—')
+      expect(covers(coverage, character.codePointAt(0) as number)).toBe(true);
     for (const character of ['😀', '你', '✓']) {
       expect(covers(coverage, character.codePointAt(0) as number)).toBe(false);
     }

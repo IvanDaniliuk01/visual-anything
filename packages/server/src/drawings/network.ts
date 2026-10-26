@@ -51,7 +51,14 @@ export function guardNetwork(): void {
   replace(net.Socket.prototype, ['connect']);
   replace(tls, ['connect']);
   replace(dns, ['lookup', 'resolve', 'resolve4', 'resolve6', 'resolveAny', 'lookupService']);
-  replace(dnsPromises, ['lookup', 'resolve', 'resolve4', 'resolve6', 'resolveAny', 'lookupService']);
+  replace(dnsPromises, [
+    'lookup',
+    'resolve',
+    'resolve4',
+    'resolve6',
+    'resolveAny',
+    'lookupService',
+  ]);
   // What `import { request } from 'node:http'` gives follows the replacements too.
   syncBuiltinESMExports();
 }

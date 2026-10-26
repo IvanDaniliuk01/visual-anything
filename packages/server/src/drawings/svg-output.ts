@@ -18,7 +18,9 @@ const PASSES = 8;
 export function withoutUnusedDefinitions(svg: string): string {
   let text = svg;
   for (let pass = 0; pass < PASSES; pass++) {
-    const referred = new Set([...text.matchAll(/url\(#([A-Za-z_][\w.-]*)\)/g)].map((each) => each[1]));
+    const referred = new Set(
+      [...text.matchAll(/url\(#([A-Za-z_][\w.-]*)\)/g)].map((each) => each[1]),
+    );
     let removed = false;
     text = text.replace(DEFINITION, (whole: string, _kind: string, id: string) => {
       if (referred.has(id)) return whole;

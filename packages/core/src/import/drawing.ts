@@ -147,7 +147,9 @@ export function prepareDrawingImport(
     component = target.component ?? DRAWING_COMPONENT;
     const choice = mappingChoices(state).components.find((each) => each.id === component);
     if (choice === undefined) {
-      return refused(`No component "${component}" is defined by the project or a built-in package.`);
+      return refused(
+        `No component "${component}" is defined by the project or a built-in package.`,
+      );
     }
     if (!choice.inUse && choice.package !== undefined) {
       const problems = step({

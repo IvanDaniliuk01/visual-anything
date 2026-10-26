@@ -70,12 +70,30 @@ const HOSTILE: readonly [string, string][] = [
   ['nested list items', '<ul><li>'.repeat(SIZE / 8)],
   ['nested tables', '<table><tr><td>'.repeat(SIZE / 15)],
   ['nested formatting', '<b><b><b><b>x</b>'.repeat(SIZE / 17)],
-  ['formatting reconstructed', Array.from({ length: SIZE / 20 }, (_, at) => `<p><b x=${at}></p>`).join('')],
+  [
+    'formatting reconstructed',
+    Array.from({ length: SIZE / 20 }, (_, at) => `<p><b x=${at}></p>`).join(''),
+  ],
   ['stray end tags under deep nesting', `${'<div>'.repeat(120)}${'</p>'.repeat((SIZE - 600) / 4)}`],
   ['stray end tags of other names', `${'<div>'.repeat(120)}${'</span>'.repeat((SIZE - 600) / 7)}`],
-  ['one tag of many distinct attributes', `<div ${Array.from({ length: SIZE / 10 }, (_, at) => `a${at}=1`).join(' ')}>`],
-  ['many tags of many distinct attributes', Array.from({ length: 200 }, (_, tag) => `<i ${Array.from({ length: 300 }, (_, at) => `a${tag}x${at}`).join(' ')}>`).join('')],
-  ['html tags giving attributes', Array.from({ length: 2000 }, (_, tag) => `<html ${Array.from({ length: 30 }, (_, at) => `h${tag}x${at}`).join(' ')}>`).join('')],
+  [
+    'one tag of many distinct attributes',
+    `<div ${Array.from({ length: SIZE / 10 }, (_, at) => `a${at}=1`).join(' ')}>`,
+  ],
+  [
+    'many tags of many distinct attributes',
+    Array.from(
+      { length: 200 },
+      (_, tag) => `<i ${Array.from({ length: 300 }, (_, at) => `a${tag}x${at}`).join(' ')}>`,
+    ).join(''),
+  ],
+  [
+    'html tags giving attributes',
+    Array.from(
+      { length: 2000 },
+      (_, tag) => `<html ${Array.from({ length: 30 }, (_, at) => `h${tag}x${at}`).join(' ')}>`,
+    ).join(''),
+  ],
   ['entities', '&amp;&lt;&#x26;&#38;&notin;'.repeat(SIZE / 27)],
   ['foster parented text and elements', `<table>${'x<b>'.repeat((SIZE - 7) / 4)}`],
   ['comments', '<!--x-->'.repeat(SIZE / 8)],
