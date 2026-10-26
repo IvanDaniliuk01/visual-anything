@@ -171,3 +171,42 @@ describe('an element and the scope, in the inspector', () => {
     });
   });
 });
+
+describe('the relation types the view leaves out, beside its scope (ADR 0064)', () => {
+  it('leaves one out through its form, and draws it again, each as one command', async () => {
+    const { sent, inspector } = renderWith(scoped(undefined));
+    const editor = within(inspector).getByRole('region', { name: 'What it shows' });
+    expect(within(editor).getByText('It draws the relations of every relation type.')).toBeTruthy();
+    fireEvent.click(within(editor).getByRole('button', { name: 'Leave out a relation type…' }));
+    const form = within(editor).getByRole('form', { name: 'Leave out a relation type' });
+    // The relation type the view nests by draws containment, so it is not offered.
+    const options = within(form)
+      .getAllByRole('option')
+      .map((option) => (option as HTMLOptionElement).value);
+    expect(options).not.toContain('systems.is-part-of');
+    expect(options).toContain('relates-to');
+    fireEvent.change(within(form).getByLabelText('Relation type'), {
+      target: { value: 'systems.writes-to' },
+    });
+    fireEvent.click(within(form).getByLabelText('And what derives from it'));
+    fireEvent.click(within(form).getByRole('button', { name: 'Leave out' }));
+    expect(sent).toHaveBeenLastCalledWith({
+      type: 'set-relation-types-left-out',
+      view: VIEW,
+      relationTypes: [{ relationType: 'systems.writes-to', exactly: true }],
+    });
+    const again = await within(editor).findByRole('button', {
+      name: 'Draw the relations of “writes to” again',
+    });
+    expect(within(editor).getByText('“writes to” only')).toBeTruthy();
+    fireEvent.click(again);
+    expect(sent).toHaveBeenLastCalledWith({
+      type: 'set-relation-types-left-out',
+      view: VIEW,
+      relationTypes: [],
+    });
+    expect(
+      await within(editor).findByText('It draws the relations of every relation type.'),
+    ).toBeTruthy();
+  });
+});

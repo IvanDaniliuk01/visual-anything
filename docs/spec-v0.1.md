@@ -295,7 +295,7 @@ Eight milestones in build order, each ending in something you can use, and Track
   - [ ] Placing new shapes inside a container never moves the shapes beside it, so a container that grows with what Claude adds covers its neighbours until the whole view is laid out (ADR 0015 moves only new shapes)
   - [ ] Placing what Claude adds is recorded as the person's action (`Lay out 22 new shapes`, by you), also after `change_container` without places: one change of Claude's takes two undos, and the history shows layouts nobody asked for
   - [ ] The canvas's routes do not go around the shapes between their ends, so in nested views lines cross other shapes and their names
-  - [ ] A view cannot leave out relation types: a Structure view of a code base draws every call and connection between its parts, which only filters, never kept with the view, hide (needs an ADR beside ADR 0025 and ADR 0040)
+  - [x] A view cannot leave out relation types: a Structure view of a code base draws every call and connection between its parts, which only filters, never kept with the view, hide; a view's `relationTypesLeftOut` leaves them out now, set beside the scope and by Claude's `leave_out_relation_types` (ADR 0064)
   - [ ] Below about 60%, straight edges thinner than a pixel vanish and only rounded corners draw, so a shape inside a container of the same fill disappears
   - [ ] Fit can choose a zoom at which no names draw (17% for 84 shapes), and `lay_out_view` leaves the camera where it was, so the person may see blank boxes or empty canvas
   - [ ] Playback and `go_to_step` never bring the step played into view, so a step off screen plays unseen

@@ -23,6 +23,7 @@ import { addToViewCommand } from '../../canvas/scope';
 import { scopeLabel } from '../../canvas/scopeActions';
 import { useEditor } from '../../editor/EditorContext';
 import { useT, type Translator } from '../../i18n';
+import { LeftOutTypes } from './LeftOutTypes';
 import '../scope.css';
 
 /** How many elements each list of the scope shows before it says how many more. */
@@ -170,6 +171,8 @@ export function ScopeEditor({ view }: { view: ViewFile }) {
           void run(addToViewCommand(view.id, [id]), scopeLabel('add', view, [id], nameOf))
         }
       />
+      {/* Beside the scope, the relation types whose relations the view does not draw (ADR 0064). */}
+      <LeftOutTypes view={view} />
       <p className="visually-hidden" aria-live="polite">
         {message.text}
         {message.count % 2 === 1 ? ' ' : ''}

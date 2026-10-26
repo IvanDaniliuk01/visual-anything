@@ -100,6 +100,67 @@ const MALL: PackageFile = {
   ],
 };
 
+/** What leaving relation types out of a view says (ADR 0064), done and refused, in order. */
+function leftOutCommands(): [string, Command][] {
+  const leave = (relationTypes: unknown): Command =>
+    ({ type: 'set-relation-types-left-out', view: VIEW, relationTypes }) as Command;
+  return [
+    [
+      'leave out two relation types',
+      leave([{ relationType: 'systems.writes-to' }, { relationType: 'systems.reads-from' }]),
+    ],
+    [
+      'leave out one more',
+      leave([
+        { relationType: 'systems.writes-to' },
+        { relationType: 'systems.reads-from' },
+        { relationType: 'relates-to', exactly: true },
+      ]),
+    ],
+    [
+      'draw one again',
+      leave([{ relationType: 'systems.writes-to' }, { relationType: 'systems.reads-from' }]),
+    ],
+    ['change the list', leave([{ relationType: 'systems.writes-to', exactly: true }])],
+    ['leave out the nesting type', leave([{ relationType: 'systems.is-part-of' }])],
+    [
+      'leave out one twice',
+      leave([{ relationType: 'systems.writes-to' }, { relationType: 'systems.writes-to' }]),
+    ],
+    [
+      'leave out too many',
+      leave(Array.from({ length: 257 }, () => ({ relationType: 'systems.writes-to' }))),
+    ],
+    ['leave out what is not one', leave([1])],
+    ['leave out with more', leave([{ relationType: 'systems.writes-to', also: true }])],
+    ['leave out not quite exactly', leave([{ relationType: 'systems.writes-to', exactly: 'yes' }])],
+    ['leave out no list', leave({})],
+    [
+      'nest by one left out',
+      {
+        type: 'define-relation-type',
+        package: 'clinic',
+        relationType: {
+          id: 'clinic.houses',
+          name: 'houses',
+          derivesFrom: 'relates-to',
+          nests: true,
+        },
+      },
+    ],
+    ['leave out the new nesting type', leave([{ relationType: 'clinic.houses' }])],
+    [
+      'arrange by one left out',
+      {
+        type: 'update-view',
+        id: VIEW,
+        changes: { nestingRelationTypes: ['systems.is-part-of', 'clinic.houses'] },
+      },
+    ],
+    ['draw every relation type', leave([])],
+  ];
+}
+
 const COMMANDS: readonly [string, Command][] = [
   // Elements and relations.
   [
@@ -256,6 +317,8 @@ const COMMANDS: readonly [string, Command][] = [
     { type: 'set-scope', view: VIEW, scope: { added: ['patient'], leftOut: ['patient'] } },
   ],
   ['show the whole model', { type: 'set-scope', view: VIEW, scope: null }],
+  // The relation types a view leaves out (ADR 0064).
+  ...leftOutCommands(),
   // Routes drawn by hand (ADR 0039).
   ['curve a route', { type: 'set-route', view: VIEW, relation: 'api-writes-db', style: 'curved' }],
   [
@@ -1210,6 +1273,11 @@ function allMessages(): Outcome[] {
         { id: 'stray', component: 'gone.component', name: 'Stray' },
       ],
     },
+    // A relation type a view leaves out that no package defines (ADR 0064).
+    views: sample.views.map((view) => ({
+      ...view,
+      relationTypesLeftOut: [{ relationType: 'gone.relation-type' }],
+    })),
   };
   for (const warning of checkProject(broken).warnings) {
     said.push({ command: 'check', message: warning.message });

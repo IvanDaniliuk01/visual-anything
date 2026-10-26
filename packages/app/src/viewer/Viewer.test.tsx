@@ -1,6 +1,6 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import { validateFile } from '@visual-anything/schema/validate';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FakeApplication, FakeResizeObserver } from '../test/FakeApplication';
 import { loadSample } from '../test/sample';
@@ -176,6 +176,30 @@ describe('The read-only page', () => {
     await open({ ok: false, problems: ['This page’s data is not a project.'] });
     expect(screen.getByRole('alert')).toHaveTextContent('This page cannot show its project');
     expect(screen.getByRole('alert')).toHaveTextContent('This page’s data is not a project.');
+  });
+});
+
+describe('A view that leaves out relation types, in the read-only page (ADR 0064)', () => {
+  const leaving: ProjectSnapshot = {
+    ...sample,
+    views: sample.views.map((view) => ({
+      ...view,
+      relationTypesLeftOut: [{ relationType: 'systems.communicates-with' }],
+    })),
+  };
+
+  it('reads the view file, and draws every shape but none of those lines', async () => {
+    const page = read(leaving);
+    expect(page.ok).toBe(true);
+    await open(read(sample));
+    const whole = canvas().getAttribute('aria-label') ?? '';
+    const count = (label: string) => Number(/(\d+) relations?/.exec(label)?.[1]);
+    const shapes = (label: string) => /\d+ element shapes?/.exec(label)?.[0];
+    cleanup();
+    await open(page);
+    const left = canvas().getAttribute('aria-label') ?? '';
+    expect(shapes(left)).toBe(shapes(whole));
+    expect(count(left)).toBeLessThan(count(whole));
   });
 });
 

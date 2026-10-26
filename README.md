@@ -47,6 +47,7 @@ A view shows the whole model, or the part its scope gives (ADR 0040): rules on c
 - **Search** finds what the open view leaves out, under the views that show it, with Add to this view; the perspective switcher lists first the views with the same scope.
 - **Playback** marks a step whose relations the view's scope shows none of as outside the view, and plays on.
 - **Claude** reads a scope with `get_scope`, sets it with `set_scope`, and changes it with `add_to_view` and `leave_out_of_view`; `read_view` says how many elements a view shows out of how many.
+- **Relation types left out** (ADR 0064): a view can leave out relation types, with what derives from each, so that a view of how parts nest draws none of the calls between them. Their relations draw no line, aggregate into no collapsed container and count as leaving nothing, and a step on one plays as outside the view; the inspector sets them beside the scope, and Claude with `leave_out_relation_types`. A relation type the view nests by cannot be left out.
 
 ## Identifiers, destinations and the element list
 

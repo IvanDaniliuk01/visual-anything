@@ -115,7 +115,7 @@ A single relation drawn in place of many relations of the same type between the 
 _Avoid_: bundle, summary edge
 
 **View**:
-A projection of the model onto the canvas, seen from exactly one perspective and keeping its own positions. It shows the whole model, or the part its scope gives.
+A projection of the model onto the canvas, seen from exactly one perspective and keeping its own positions. It shows the whole model, or the part its scope gives. It can also leave out relation types, each with the relation types derived from it unless exactly that one: their relations it draws as no line, aggregates into no collapsed container and counts as leaving nothing, though they stay in the model; a relation type it nests by is never left out (ADR 0064).
 _Avoid_: page, diagram, layer
 
 **Scope**:
@@ -123,7 +123,7 @@ The part of the model a view shows: elements chosen by rules (a component, a rel
 _Avoid_: subset, query, filter (a filter hides shapes of what the scope shows)
 
 **Outside the view**:
-Said of a scenario step whose relations are all out of the scope of the view it plays over. It still plays, saying so, and is not a broken step, whose relation was deleted.
+Said of a scenario step whose relations are all out of the scope of the view it plays over, or of relation types that view leaves out. It still plays, saying so, and is not a broken step, whose relation was deleted.
 
 **View state**:
 Where someone is in a project and how they read it there: the open view, where the canvas looks, what is selected, the filters, focus mode, and the scenario and step played, each named by id. A view address carries one; tour steps and the read-only page reuse it.

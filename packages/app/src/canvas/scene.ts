@@ -22,7 +22,9 @@ import {
   destinationsOf,
   imagesIn,
   overlaysApply,
+  relationTypesLeftOutBy,
   shownByScope,
+  type LeftOutTypes,
   type ProjectSnapshot,
   type RouteStyle,
 } from '@visual-anything/core';
@@ -662,6 +664,7 @@ function routedAgain(
   const drawn = drawRelations(
     built.model.relations,
     built.nesting,
+    relationTypesLeftOutBy(project, built.view),
     placed,
     built.definitions,
     built,
@@ -956,6 +959,7 @@ function layOut(
   const scopeKept =
     before !== undefined &&
     before.view.scope === scope &&
+    before.view.relationTypesLeftOut === view.relationTypesLeftOut &&
     before.model === model &&
     before.packages === packages &&
     before.definitions === definitions;
@@ -1025,13 +1029,16 @@ function layOut(
   };
   const { shapes } = placed;
 
+  // The relation types the view leaves out draw no lines, aggregated or not (ADR 0064).
+  const leftOut = relationTypesLeftOutBy(project, view);
   const drawn = drawRelations(
     model.relations,
     nesting,
+    leftOut,
     placed,
     definitions,
     keep ? before : undefined,
-    replaced !== undefined,
+    replaced !== undefined && before?.view.relationTypesLeftOut === view.relationTypesLeftOut,
     sceneRouting(project, view, shapes),
   );
   const baseRelations =
@@ -2053,6 +2060,7 @@ function relationsById(relations: readonly Relation[]): Map<Id, Relation> {
 function drawRelations(
   relations: readonly Relation[],
   nesting: ReadonlySet<Id>,
+  leftOut: LeftOutTypes,
   placed: Placed,
   definitions: Definitions,
   before: Built | undefined,
@@ -2107,7 +2115,7 @@ function drawRelations(
       };
     }
   } else {
-    plan = planRelations(relations, nesting, shapes, placed.hiddenIn, definitions);
+    plan = planRelations(relations, nesting, leftOut, shapes, placed.hiddenIn, definitions);
     sides = rowSidesOf(plan.specs, shapes, keyIndexOf(shapes));
   }
 
@@ -2189,6 +2197,7 @@ function changedRelations(
 function planRelations(
   relations: readonly Relation[],
   nesting: ReadonlySet<Id>,
+  leftOut: LeftOutTypes,
   shapes: readonly ElementShape[],
   hiddenIn: ReadonlyMap<Id, number>,
   definitions: Definitions,
@@ -2200,7 +2209,8 @@ function planRelations(
   const candidates = new Map<Id, Relation>();
   const rankOf = new Map<Id, number>();
   for (const relation of relations) {
-    if (!nesting.has(relation.relationType) && !candidates.has(relation.id)) {
+    if (nesting.has(relation.relationType) || leftOut.has(relation.relationType)) continue;
+    if (!candidates.has(relation.id)) {
       rankOf.set(relation.id, candidates.size);
       candidates.set(relation.id, relation);
     }

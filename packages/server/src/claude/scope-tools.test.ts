@@ -152,6 +152,50 @@ describe('add_to_view and leave_out_of_view', () => {
   });
 });
 
+describe('leave_out_relation_types (ADR 0064)', () => {
+  it('sets the list as one action of Claude’s, which get_scope and read_view read', async () => {
+    const result = await tools.value('leave_out_relation_types', {
+      view: 'overview',
+      relationTypes: [{ relationType: 'systems.communicates-with' }],
+    });
+    expect(result).toMatchObject({
+      done: 'Leave the relations of "communicates with" out of "Overview"',
+      shows: { whole: false, elements: 5, ofElements: 5, relations: 3, ofRelations: 4 },
+    });
+    expect(overview()?.relationTypesLeftOut).toEqual([
+      { relationType: 'systems.communicates-with' },
+    ]);
+    expect(tools.session.history.undo).toEqual({
+      label: 'Leave the relations of "communicates with" out of "Overview"',
+      author: 'claude',
+    });
+    expect(await tools.value('get_scope', { view: 'overview' })).toMatchObject({
+      scope: null,
+      relationTypesLeftOut: [
+        { relationType: 'systems.communicates-with', name: 'communicates with' },
+      ],
+    });
+    expect(await tools.value('read_view', { view: 'overview' })).toMatchObject({
+      relationTypesLeftOut: [{ relationType: 'systems.communicates-with' }],
+    });
+    expect(
+      await tools.value('leave_out_relation_types', { view: 'overview', relationTypes: [] }),
+    ).toMatchObject({ done: 'Draw every relation type in "Overview"' });
+    expect(overview()).not.toHaveProperty('relationTypesLeftOut');
+  });
+
+  it('refuses a relation type the view nests by, changing nothing', async () => {
+    const before = tools.session.snapshot;
+    expect(
+      await tools.failure('leave_out_relation_types', {
+        view: 'overview',
+        relationTypes: [{ relationType: 'systems.is-part-of' }],
+      }),
+    ).toMatch(/not-drawn-as-line/);
+    expect(tools.session.snapshot).toBe(before);
+  });
+});
+
 describe('add_to_model in a view with a scope', () => {
   it('shows what it makes in the view it is given, where the rules would leave it out', async () => {
     await tools.value('set_scope', {

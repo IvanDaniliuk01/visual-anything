@@ -11,6 +11,7 @@ import {
   endsOf,
   modelIndexOf,
   nestingTypesInView,
+  relationTypesLeftOutBy,
   shapesInView,
   shownByScope,
   type AddToViewCommand,
@@ -60,7 +61,8 @@ const leavingMaps = new WeakMap<
 /**
  * For each element a view shows, the relations that leave the view from it, in model order: those
  * of a relation type that does not arrange the view, with the element at one end, that the view does
- * not show because their other end is out of its scope. Nothing leaves a view without a scope.
+ * not show because their other end is out of its scope. Nothing leaves a view without a scope, and a
+ * relation of a type the view leaves out never leaves it (ADR 0064).
  */
 export function leavingByElement(
   project: ProjectSnapshot,
@@ -74,6 +76,7 @@ export function leavingByElement(
   const kept = leavingMaps.get(shown);
   if (kept && kept.relations === relations && kept.nesting === key) return kept.leaving;
   const arranging = new Set(nesting);
+  const leftOut = relationTypesLeftOutBy(project, view);
   const index = modelIndexOf(project);
   const leaving = new Map<Id, Id[]>();
   const add = (element: Id, relation: Id) => {
@@ -83,7 +86,8 @@ export function leavingByElement(
     } else leaving.set(element, [relation]);
   };
   for (const relation of relations) {
-    if (arranging.has(relation.relationType) || shown.relation(relation.id)) continue;
+    if (arranging.has(relation.relationType) || leftOut.has(relation.relationType)) continue;
+    if (shown.relationByScope(relation.id)) continue;
     for (const end of [relation.from, relation.to]) {
       if (index.element(end) && end !== project.model.world.id && shown.element(end)) {
         add(end, relation.id);
