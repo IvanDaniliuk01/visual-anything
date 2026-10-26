@@ -7,6 +7,7 @@
 import {
   MAX_CAPTION_LENGTH,
   MAX_GUIDANCE_TARGETS,
+  automaticRouteStyleOf,
   definitionsIn,
   freshId,
   modelIndexOf,
@@ -38,6 +39,7 @@ import { EXPLORE_TOOLS } from './explore-tools';
 import { CODE_TOOLS } from './code-tools';
 import { COMMENT_TOOLS } from './comment-tools';
 import { EXPORT_TOOLS } from './export-tools';
+import { fullGeometry } from './geometry-brief';
 import { IMAGE_TOOLS } from './image-tools';
 import { PART_TOOLS } from './part-tools';
 import { OVERLAY_TOOLS } from './overlay-tools';
@@ -164,18 +166,16 @@ Example: {}`,
 const listDefinitionsTool = tool({
   name: 'list_definitions',
   title: 'List components and relation types',
-  description: `Lists the components (kinds of element) and relation types the project can use, each with its package, what it derives from, its attributes (inherited ones included) and, for relation types, its direction, whether it nests (puts one element inside another) and its limits. Every component derives from "essence" and every relation type from "relates-to". Use it before creating elements or relations, to pick the right component and relation type ids.
+  description: `Lists the components (kinds of element) and relation types the project can use, each with its package, what it derives from, its attributes (inherited ones included), its appearance as it inherits it (free geometry in brief unless fullGeometry) and, for relation types, its direction, whether it nests (puts one element inside another) and its limits. Every component derives from "essence" and every relation type from "relates-to". Use it before creating elements or relations, to pick the right component and relation type ids.
 
 Example: { "package": "systems" }`,
-  input: { package: id().optional().describe('Only the definitions of this package.') },
+  input: {
+    package: id().optional().describe('Only the definitions of this package.'),
+    fullGeometry: fullGeometry(),
+  },
   hints: READ,
   run: async (args, program) =>
-    ok(
-      listDefinitions(
-        await program.project(),
-        args.package === undefined ? {} : { package: args.package },
-      ),
-    ),
+    ok(listDefinitions(await program.project(), withoutUndefined(args))),
 });
 
 const findElementsTool = tool({
@@ -252,13 +252,15 @@ Example: { "relationType": "systems.writes-to", "to": "appointments-db" }`,
 const getItem = tool({
   name: 'get_item',
   title: 'Read an element or a relation',
-  description: `Reads one element or relation by id, with everything around it. For an element: its component, attributes and the definitions of the attributes it can have, its own appearance, its containers (with the nesting relation that places it in each), its contents, the relations from and to it, and the views that place it. For a relation: its type, ends, attributes, the relations that end on it, and the scenario steps that use it. ${LIVE_VALUES_BESIDE}
+  description: `Reads one element or relation by id, with everything around it. For an element: its component, attributes and the definitions of the attributes it can have, its own appearance (free geometry in brief unless fullGeometry), its containers (with the nesting relation that places it in each), its contents, the relations from and to it, and the views that place it. For a relation: its type, ends, attributes, its own appearance, the relations that end on it, and the scenario steps that use it. ${LIVE_VALUES_BESIDE}
 
 Example: { "id": "booking-agent" }`,
-  input: { id: id() },
+  input: { id: id(), fullGeometry: fullGeometry() },
   hints: READ,
   run: async (args, program) => {
-    const item = describeItem(await program.project(), args.id);
+    const item = describeItem(await program.project(), args.id, {
+      fullGeometry: args.fullGeometry === true,
+    });
     if (item === undefined) return fail(`There is no element or relation "${args.id}".`);
     // Its live values, beside its stored attributes (ADR 0057).
     const live = await liveBeside(program, [args.id]);
@@ -272,7 +274,7 @@ Example: { "id": "booking-agent" }`,
 const readViewTool = tool({
   name: 'read_view',
   title: 'Read a view',
-  description: `Reads a view: its perspective, the nesting relation types that arrange it, the positions it stores (each relative to the container shape it sits in; pinned ones were set by hand), its free shapes (notes and arrows), the containers it shows collapsed, the routes chosen by hand for its relations (every other relation is routed automatically), and, for World and every container, the order it draws the shapes directly inside, back to front. An element without a position is placed by layout. It also says how many elements and relations the view shows out of the model's (shows), and its scope when it has one: get_scope says more.
+  description: `Reads a view: its perspective, the nesting relation types that arrange it, the positions it stores (each relative to the container shape it sits in; pinned ones were set by hand), its free shapes (notes and arrows), the containers it shows collapsed, the routes chosen by hand for its relations (every other relation is routed automatically), its routeStyle when it draws its automatic routes straight or curved, and, for World and every container, the order it draws the shapes directly inside, back to front. An element without a position is placed by layout. It also says how many elements and relations the view shows out of the model's (shows), and its scope when it has one: get_scope says more.
 
 Example: { "view": "system-overview" }`,
   input: { view: id() },
@@ -374,7 +376,7 @@ Example: {
           appearance: relationAppearance()
             .optional()
             .describe(
-              'An appearance of its own: stroke (#RRGGBB), width and dash; what it leaves out comes from its relation type.',
+              'An appearance of its own: stroke (#RRGGBB), width, dash and route; what it leaves out comes from its relation type.',
             ),
         }),
       )
@@ -438,7 +440,7 @@ Example: { "id": "billing-api", "attributes": { "details": { "project": "../bill
       .record(z.string(), z.unknown())
       .optional()
       .describe(
-        'Traits of its own appearance to set, or null to inherit again: shape, fill, stroke, width, height, detail, contentsAsRows, connectionPoints, image (from list_images, as { "image": id, "placement": "icon" or "drawing", "tint": "#RRGGBB" }, or "none").',
+        'Traits of its own appearance to set, or null to inherit again: shape, fill, stroke, width, height, detail, contentsAsRows, connectionPoints, image (from list_images, as { "image": id, "placement": "icon", "drawing" or "parts", "tint": "#RRGGBB" }, or "none"), geometry and part (set_appearance shows them, with examples).',
       ),
   },
   hints: WRITE,
@@ -460,7 +462,7 @@ Example: { "id": "billing-api", "attributes": { "details": { "project": "../bill
 const updateRelation = tool({
   name: 'update_relation',
   title: 'Change a relation',
-  description: `Changes a relation as one undoable action: its relation type, its ends, name, description, attributes, or its own appearance (stroke, width and dash), which is a particularity of this relation: replaced whole with appearance, where null makes it look like its relation type again, or trait by trait with appearanceTraits, where a value sets a trait and null makes it inherited again. A name or description of null removes it.
+  description: `Changes a relation as one undoable action: its relation type, its ends, name, description, attributes, or its own appearance (stroke, width, dash, and route: the style of its automatic routes, orthogonal, straight or curved), which is a particularity of this relation: replaced whole with appearance, where null makes it look like its relation type again, or trait by trait with appearanceTraits, where a value sets a trait and null makes it inherited again. A name or description of null removes it.
 
 Colors are #RRGGBB, drawn as stored in both themes; a line needs 3:1 against the light and the dark canvas, and the answer warns about a stroke under it, never refusing one. To recolor every relation of a relation type, built-in ones included, use set_appearance.
 
@@ -868,9 +870,12 @@ Example: { "name": "Who owns what", "perspective": { "name": "Ownership", "descr
 const updateView = tool({
   name: 'update_view',
   title: 'Change a view',
-  description: `Changes a view's name, description, perspective or nesting relation types, as one undoable action. A description of null removes it.
+  description: `Changes a view's name, description, perspective, nesting relation types or route style, as one undoable action. A description of null removes it.
 
-Example: { "id": "system-overview", "perspective": { "name": "Data flow" }, "nestingRelationTypes": ["systems.is-part-of"] }`,
+routeStyle draws the view's automatic routes straight or curved, after every layout and move; null draws them orthogonal again. It is for the relations whose appearances set no route (set_appearance's route comes first); a route chosen by hand keeps a style it stores.
+
+Example: { "id": "system-overview", "perspective": { "name": "Data flow" }, "nestingRelationTypes": ["systems.is-part-of"] }
+Example, a view drawn curved: { "id": "signal-flow", "routeStyle": "curved" }`,
   input: {
     id: id(),
     name: z.string().min(1).optional(),
@@ -879,10 +884,26 @@ Example: { "id": "system-overview", "perspective": { "name": "Data flow" }, "nes
       .object({ name: z.string().min(1), description: z.string().optional() })
       .optional(),
     nestingRelationTypes: z.array(id()).optional(),
+    routeStyle: z
+      .enum(['straight', 'curved'])
+      .nullable()
+      .optional()
+      .describe('Its automatic routes straight or curved; null for orthogonal.'),
   },
   hints: WRITE,
   run: async ({ id: target, ...changes }, program) =>
-    act(program, { type: 'update-view', id: target, changes: withoutUndefined(changes) }),
+    act(
+      program,
+      { type: 'update-view', id: target, changes: withoutUndefined(changes) },
+      async () => {
+        if (changes.routeStyle === undefined) return {};
+        const view = (await program.project()).views.find((each) => each.id === target);
+        return {
+          automaticRoutes: view?.routeStyle ?? 'orthogonal',
+          note: 'This draws the automatic routes of the relations whose appearances set no route; a relation type or relation that sets one keeps it, and so does a route chosen by hand with a style of its own.',
+        };
+      },
+    ),
 });
 
 const deleteView = tool({
@@ -1004,10 +1025,11 @@ const attachment = () =>
 const setRoute = tool({
   name: 'set_route',
   title: 'Route a relation by hand',
-  description: `Routes a relation by hand in a view, as the person does by dragging its ends and bend points, as one undoable action; only what you give changes, and the rest stays as it is. from and to say where the line attaches to each end: { "kind": "connection-point", "name": "out" } for one of the end's connection points (list_definitions gives a component's), { "kind": "border", "side": "left", "at": 0.25 } for a place on its border, at going from 0 at the side's top or left end to 1 at its bottom or right end, or { "kind": "inside", "x": 0.3, "y": 0.6 } for a place anywhere inside the shape, x and y going from 0 at its left or top to 1 at its right or bottom; null attaches it automatically again. An end that is a relation attaches to the middle of that relation's line and takes neither; a row, or a table that draws rows, takes only its left or right side. bendPoints are the points the line passes through, in order from its from end, in canvas units relative to the shape of the nearest container that holds both ends (or to the canvas when that is World), as read_view gives positions; the answer says which container; null removes them. style is orthogonal (the default), straight or curved. A relation the view draws as containment has no route.
+  description: `Routes a relation by hand in a view, as the person does by dragging its ends and bend points, as one undoable action; only what you give changes, and the rest stays as it is. from and to say where the line attaches to each end: { "kind": "connection-point", "name": "out" } for one of the end's connection points (list_definitions gives a component's), { "kind": "border", "side": "left", "at": 0.25 } for a place on its border, at going from 0 at the side's top or left end to 1 at its bottom or right end, or { "kind": "inside", "x": 0.3, "y": 0.6 } for a place anywhere inside the shape, x and y going from 0 at its left or top to 1 at its right or bottom; null attaches it automatically again. An end that is a relation attaches to the middle of that relation's line and takes neither; a row, or a table that draws rows, takes only its left or right side. bendPoints are the points the line passes through, in order from its from end, in canvas units relative to the shape of the nearest container that holds both ends (or to the canvas when that is World), as read_view gives positions; the answer says which container; null removes them. style is orthogonal, straight or curved. Left out, the route takes the automatic style: its relation's appearance's route, else the view's routeStyle, else orthogonal; a style equal to it is not stored, and the answer says what it is and where it comes from. A relation the view draws as containment has no route.
 
 Example: { "view": "system-overview", "relation": "booking-agent-calls-api-k3f9q2", "from": { "kind": "connection-point", "name": "out" }, "to": { "kind": "border", "side": "top", "at": 0.5 } }
-Example: { "view": "system-overview", "relation": "api-reads-db-p0x7aa", "bendPoints": [{ "x": 320, "y": 96 }, { "x": 320, "y": 220 }], "style": "curved" }`,
+Example: { "view": "system-overview", "relation": "api-reads-db-p0x7aa", "bendPoints": [{ "x": 320, "y": 96 }, { "x": 320, "y": 220 }], "style": "curved" }
+Example, orthogonal in a view drawn curved: { "view": "signal-flow", "relation": "api-reads-db-p0x7aa", "style": "orthogonal" }`,
   input: {
     view: id(),
     relation: id(),
@@ -1042,18 +1064,50 @@ Example: { "view": "system-overview", "relation": "api-reads-db-p0x7aa", "bendPo
     const container =
       route?.bendPoints === undefined ? routeOf(state, view, relation)?.frame : route.container;
     const name = container === undefined ? undefined : modelIndexOf(state).element(container)?.name;
+    const automatic = automaticStyleOf(state, view, relation);
     return ok({
       ...(outcome.value as Record<string, unknown>),
       route: route ?? 'automatic',
       bendPointsRelativeTo: container === undefined ? 'the canvas' : { container, name },
+      ...(automatic === undefined ? {} : { automaticStyle: automatic }),
+      ...(automatic !== undefined && changes.style === automatic.style
+        ? {
+            note: `The style "${changes.style}" is the automatic style of this relation here, so it is not stored: the route follows the automatic style when that changes.`,
+          }
+        : {}),
     });
   },
 });
 
+/**
+ * The style of a relation's automatic route in a view (ADR 0069), and what gives it: the relation's
+ * own appearance, its relation type's chain, project appearances included, the view, or nothing.
+ */
+function automaticStyleOf(
+  state: ProjectSnapshot,
+  viewId: Id,
+  relationId: Id,
+): { style: string; from: string } | undefined {
+  const view = state.views.find((each) => each.id === viewId);
+  const relation = modelIndexOf(state).relation(relationId);
+  if (view === undefined || relation === undefined) return undefined;
+  const style = automaticRouteStyleOf(state, view, relation);
+  const type = definitionsIn(state).relationType(relation.relationType);
+  const from =
+    relation.appearance?.route !== undefined
+      ? 'the relation’s own appearance'
+      : type?.appearance.route !== undefined
+        ? `the relation type "${type.name}"`
+        : view.routeStyle !== undefined
+          ? `the view "${view.name}"`
+          : 'nothing sets one, so it is orthogonal';
+  return { style, from };
+}
+
 const resetRoute = tool({
   name: 'reset_route',
   title: 'Route relations automatically again',
-  description: `Routes relations automatically again in a view, as one undoable action: their ends attach where layout puts them, with no bend points, orthogonally. Relations the view does not route by hand are left as they are.
+  description: `Routes relations automatically again in a view, as one undoable action: their ends attach where layout puts them, with no bend points, in their automatic style (set_route's answer says which). Relations the view does not route by hand are left as they are.
 
 Example: { "view": "system-overview", "relations": ["booking-agent-calls-api-k3f9q2"] }`,
   input: { view: id(), relations: z.array(id()).min(1) },
