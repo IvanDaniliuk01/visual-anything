@@ -44,6 +44,7 @@ import { IMAGE_TOOLS } from './image-tools';
 import { PART_TOOLS } from './part-tools';
 import { OVERLAY_TOOLS } from './overlay-tools';
 import { IMPORT_TOOLS } from './import-tools';
+import { DRAWING_TOOLS } from './drawing-tools';
 import {
   DELETE,
   GUIDE,
@@ -1498,6 +1499,8 @@ export const TOOLS: readonly Tool[] = [
   ...EXPLORE_TOOLS,
   ...VIEW_STATE_TOOLS,
   ...IMPORT_TOOLS,
+  // HTML imported as a drawing (ADR 0068).
+  ...DRAWING_TOOLS,
   // What a view shows of the model (ADR-0040).
   ...SCOPE_TOOLS,
   ...EXPORT_TOOLS,
