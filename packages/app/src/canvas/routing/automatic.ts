@@ -105,13 +105,21 @@ function flowRoute(a: AutomaticEnd, b: AutomaticEnd, offset: number): HandRoute 
     return undefined;
   }
   const shift = across(aimA, aimB, offset);
+  // Each end stops short of its inner point, so that pressing a part's middle still finds the part.
+  const dx = aimB.x - aimA.x;
+  const dy = aimB.y - aimA.y;
+  const span = Math.hypot(dx, dy);
+  const trim = span === 0 ? 0 : Math.min(FLOW_CLEARANCE, span / 4) / span;
   return {
     route: [
-      { x: aimA.x + shift.x, y: aimA.y + shift.y },
-      { x: aimB.x + shift.x, y: aimB.y + shift.y },
+      { x: aimA.x + dx * trim + shift.x, y: aimA.y + dy * trim + shift.y },
+      { x: aimB.x - dx * trim + shift.x, y: aimB.y - dy * trim + shift.y },
     ],
   };
 }
+
+/** How far short of each inner point a line between touching outlines stops. */
+const FLOW_CLEARANCE = 12;
 
 /** An end on a part of lines alone, as a point: its lines' point nearest the other end. */
 function byStroke(end: AutomaticEnd, other: AutomaticEnd): AutomaticEnd {

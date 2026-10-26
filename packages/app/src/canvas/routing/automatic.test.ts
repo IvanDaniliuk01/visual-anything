@@ -32,13 +32,17 @@ const length = (route: readonly { x: number; y: number }[]) =>
   }, 0);
 
 describe('automatic routes between outlines', () => {
-  it('join two outlines that touch from inner point to inner point, in every style', () => {
+  it('join two outlines that touch from near inner point to near inner point, in every style', () => {
     const left = end({ x: 0, y: 0, width: 100, height: 100 });
     const right = end({ x: 100, y: 0, width: 100, height: 100 });
     for (const style of ['orthogonal', 'straight', 'curved'] as const) {
       const { route } = automaticRoute(left, right, style, 0);
-      expect(route[0]).toEqual(innerPointOf(left.outline as PlacedOutline));
-      expect(route.at(-1)).toEqual(innerPointOf(right.outline as PlacedOutline));
+      const from = innerPointOf(left.outline as PlacedOutline);
+      const to = innerPointOf(right.outline as PlacedOutline);
+      // It stops 12 short of each middle, so that pressing a part's middle finds the part.
+      expect(route[0]?.x).toBeCloseTo(from.x + 12, 6);
+      expect(route[0]?.y).toBeCloseTo(from.y, 6);
+      expect(route.at(-1)?.x).toBeCloseTo(to.x - 12, 6);
       expect(length(route)).toBeGreaterThanOrEqual(SHORTEST_BETWEEN_OUTLINES);
     }
   });
