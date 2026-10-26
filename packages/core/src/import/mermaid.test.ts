@@ -10,6 +10,7 @@ import { C4, CLASSES, ER, FLOWCHART, HOSTILE } from './fixtures/mermaid';
 import { MERMAID, readMermaid } from './mermaid';
 import { MAX_IMPORTED_NAME } from './text';
 import { systemsProject } from './fixtures/projects';
+import { cpuNow } from '../test/cpu';
 
 function read(text: string, name = 'diagram.mmd'): ImportPlan {
   const result = readMermaid({ name, text });
@@ -500,20 +501,20 @@ describe('hostile Mermaid', () => {
   it('refuses more elements than an import brings, without reading on', () => {
     const lines = ['flowchart LR'];
     for (let at = 0; at <= IMPORT_LIMITS.elements; at++) lines.push(`  n${at}`);
-    const start = Date.now();
+    const start = cpuNow();
     expect(readMermaid({ name: 'big.mmd', text: lines.join('\n') })).toEqual({
       ok: false,
       problems: ['The file holds more than 20,000 elements; an import brings at most 20,000.'],
     });
-    expect(Date.now() - start).toBeLessThan(5_000);
+    expect(cpuNow() - start).toBeLessThan(5_000);
   });
 
   it('reads 20,000 nodes and their edges in a few seconds at most', () => {
     const lines = ['flowchart LR'];
     for (let at = 1; at < IMPORT_LIMITS.elements; at++) lines.push(`  n${at - 1} --> n${at}`);
-    const start = Date.now();
+    const start = cpuNow();
     const plan = read(lines.join('\n'));
-    expect(Date.now() - start).toBeLessThan(5_000);
+    expect(cpuNow() - start).toBeLessThan(5_000);
     expect(plan.elements).toHaveLength(IMPORT_LIMITS.elements);
     expect(plan.relations).toHaveLength(IMPORT_LIMITS.elements - 1);
   });
@@ -534,9 +535,9 @@ describe('hostile Mermaid', () => {
       `flowchart LR\n  a ${'-.'.repeat(long / 2)}`,
     ];
     for (const text of texts) {
-      const start = Date.now();
+      const start = cpuNow();
       readMermaid({ name: 'hostile.mmd', text });
-      expect(Date.now() - start, text.slice(0, 40)).toBeLessThan(2_000);
+      expect(cpuNow() - start, text.slice(0, 40)).toBeLessThan(2_000);
     }
     const tooLong = read(`classDiagram\n  class A["${'x'.repeat(20_000)}"]`);
     expect(tooLong.unmatched[0]?.why).toBe(

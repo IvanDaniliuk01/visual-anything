@@ -5,12 +5,7 @@ import { createElement, type ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { loadSample } from '../../test/sample';
 import type { Point, Rect } from '../geometry';
-import {
-  buildScene,
-  type ElementShape,
-  type RelationLine,
-  type Scene,
-} from '../scene';
+import { buildScene, type ElementShape, type RelationLine, type Scene } from '../scene';
 import { PLATE_HEIGHT, segmentCrosses } from './avoid';
 import { avoidShapesOf, avoidedScene, routedLinesOf } from './avoided';
 import { AvoidRunnerContext, inThreadAvoidRunner, type AvoidRunner } from './avoidRunner';

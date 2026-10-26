@@ -7,6 +7,7 @@ import type { ProblemCode } from './problems';
 import type { ProjectSnapshot } from './snapshot';
 import { stackingOrderOf } from './stacking';
 import { sequentialIds, TEST_PACKAGE, testProject } from './test/fixtures';
+import { cpuNow } from './test/cpu';
 
 function ok(command: Command, state: ProjectSnapshot = testProject()) {
   const outcome = executeCommand(state, command, { newId: sequentialIds() });
@@ -198,9 +199,9 @@ describe('restack', () => {
       to: at % 2 === 0 ? 'front' : 'back',
     }));
     moves.push({ shape: { element: 'client' }, to: { behind: 'e0' } });
-    const started = Date.now();
+    const started = cpuNow();
     const outcome = executeCommand(crowded, restack(...moves), { newId: sequentialIds() });
-    expect(Date.now() - started).toBeLessThan(250);
+    expect(cpuNow() - started).toBeLessThan(250);
     if (!outcome.ok) throw new Error('Rejected');
     const order = stackingOrderOf(outcome.state, 'overview');
     expect(order.slice(0, 2)).toEqual(['e8999', 'e8997']);

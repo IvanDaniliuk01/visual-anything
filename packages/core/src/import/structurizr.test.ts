@@ -8,6 +8,7 @@ import workspace from './fixtures/big-bank.structurizr.json';
 import type { ImportPlan, PlannedView } from './plan';
 import { readStructurizr } from './structurizr';
 import { applyPlan, optionsFor, planOf, systemsProject } from './test/apply';
+import { cpuNow } from '../test/cpu';
 
 const text = JSON.stringify(workspace);
 const options = optionsFor(systemsProject());
@@ -317,9 +318,9 @@ describe('readStructurizr, on workspaces at the limits', () => {
       tags: ['Nobody has this tag'],
     }));
     const text = large(20_000, { systemLandscapeViews: [all], filteredViews: filtered });
-    const started = Date.now();
+    const started = cpuNow();
     const plan = read(text);
-    const elapsed = Date.now() - started;
+    const elapsed = cpuNow() - started;
     // The base view and nine filtered views show 200,000 shapes; the rest are left out and reported.
     expect(plan.views).toHaveLength(10);
     expect(plan.views.reduce((sum, each) => sum + (each.shows?.length ?? 0), 0)).toBe(200_000);

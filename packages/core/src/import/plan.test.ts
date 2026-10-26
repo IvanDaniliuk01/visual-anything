@@ -9,6 +9,7 @@ import { applyOperations } from '../operations';
 import { shownByScope } from '../scope';
 import { sequentialIds, testProject } from '../test/fixtures';
 import { IMPORT_LIMITS, planToCommand, type ImportMapping, type ImportPlan } from './plan';
+import { cpuNow } from '../test/cpu';
 
 function plan(): ImportPlan {
   return {
@@ -410,9 +411,9 @@ describe('planToCommand, on a large plan', () => {
         },
       ],
     };
-    const start = Date.now();
+    const start = cpuNow();
     const planned = planToCommand(state, big, MAPPING, sequentialIds());
     expect(planned.ok).toBe(true);
-    expect(Date.now() - start).toBeLessThan(3_000);
+    expect(cpuNow() - start).toBeLessThan(3_000);
   });
 });

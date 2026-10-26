@@ -18,6 +18,7 @@ import { IMPORT_LIMITS } from './plan';
 import { TABLE, parseDelimited, readTable } from './table';
 import type { ReadOptions } from './reader';
 import { testProject } from '../test/fixtures';
+import { cpuNow } from '../test/cpu';
 
 function read(text: string, name = 'model.csv', options: ReadOptions = {}): ImportPlan {
   const result = readTable({ name, text }, options);
@@ -274,9 +275,9 @@ describe('hostile spreadsheets', () => {
   });
 
   it('cuts a megabyte cell to a name, quickly', () => {
-    const start = Date.now();
+    const start = cpuNow();
     const plan = read(`name\n"${'y'.repeat(1024 * 1024)}"\n`);
-    expect(Date.now() - start).toBeLessThan(2_000);
+    expect(cpuNow() - start).toBeLessThan(2_000);
     expect(plan.elements[0]?.name).toHaveLength(1_000);
   });
 });

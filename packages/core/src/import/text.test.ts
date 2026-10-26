@@ -15,6 +15,7 @@ import {
   plainText,
   quote,
 } from './text';
+import { cpuNow } from '../test/cpu';
 
 describe('plainText', () => {
   it.each([
@@ -68,9 +69,9 @@ describe('plainText', () => {
       '&#1'.repeat(250_000),
     ];
     for (const label of hostile) {
-      const start = Date.now();
+      const start = cpuNow();
       plainText(label);
-      expect(Date.now() - start).toBeLessThan(1_000);
+      expect(cpuNow() - start).toBeLessThan(1_000);
     }
   });
 });
@@ -93,9 +94,9 @@ describe('names and quotes', () => {
 
   it('cuts a megabyte label quickly', () => {
     const label = 'x'.repeat(1024 * 1024);
-    const start = Date.now();
+    const start = cpuNow();
     const { text, cut } = importedName(plainText(label));
-    expect(Date.now() - start).toBeLessThan(1_000);
+    expect(cpuNow() - start).toBeLessThan(1_000);
     expect(cut).toBe(true);
     expect(text).toHaveLength(MAX_IMPORTED_NAME);
   });

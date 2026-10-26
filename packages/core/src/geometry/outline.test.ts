@@ -32,6 +32,7 @@ import {
   type OutlineContour,
 } from './outline';
 import { readPathData } from './path';
+import { cpuNow } from '../test/cpu';
 
 const HEART: GeometryInput = {
   width: 120,
@@ -388,9 +389,9 @@ describe('lines, several fills and the nonzero rule', () => {
       [2500, false, true],
     ] as const) {
       const contours = contoursOf(squares(count, nested), nonzero ? { nonzero: true } : {});
-      const start = Date.now();
+      const start = cpuNow();
       const classed = classContours(contours);
-      expect(Date.now() - start, `${count} ${nested} ${nonzero}`).toBeLessThan(1500);
+      expect(cpuNow() - start, `${count} ${nested} ${nonzero}`).toBeLessThan(1500);
       if (nested && !nonzero) {
         expect(classed.slice(0, 4).map((contour) => contour.role)).toEqual([
           'fill',
@@ -403,9 +404,9 @@ describe('lines, several fills and the nonzero rule', () => {
     // A long contour is read only every so many points when another is tried against it.
     const ring = `M0 0 ${Array.from({ length: 20_000 }, (_, at) => `L${at / 10} ${(at % 2) * 0.01}`).join(' ')} L2000 2000 L0 2000 Z`;
     const many = contoursOf(`${ring} ${squares(200, false)}`);
-    const start = Date.now();
+    const start = cpuNow();
     classContours(many);
-    expect(Date.now() - start).toBeLessThan(1500);
+    expect(cpuNow() - start).toBeLessThan(1500);
   });
 
   it('keeps free geometry read by the even-odd rule over all its contours, which cross or not', () => {

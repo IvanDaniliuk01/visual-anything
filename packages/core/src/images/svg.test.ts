@@ -10,6 +10,7 @@ import {
   type CleanedSvg,
 } from './svg';
 import { NS, expectNothingRuns, tree, writeTree } from './test/svg-corpus';
+import { cpuNow } from '../test/cpu';
 
 const SQUARE = '<path d="M0 0h1v1z"/>';
 
@@ -450,9 +451,9 @@ function timed(text: string): { result: ReturnType<typeof cleanSvg>; ms: number 
   let ms = Infinity;
   let result = cleanSvg(text);
   for (let run = 0; run < 3; run++) {
-    const start = Date.now();
+    const start = cpuNow();
     result = cleanSvg(text);
-    ms = Math.min(ms, Date.now() - start);
+    ms = Math.min(ms, cpuNow() - start);
   }
   return { result, ms };
 }
@@ -634,8 +635,8 @@ describe('reading the functions a value calls', () => {
     expect(text.length).toBeLessThanOrEqual(SVG_CAPS.input);
     const { ms } = timed(text);
     expect(ms).toBeLessThan(BOUND_MS);
-    const start = Date.now();
+    const start = cpuNow();
     expect(calledNames(`${'a'.repeat(100_000)}(`)).toEqual(['a'.repeat(100_000)]);
-    expect(Date.now() - start).toBeLessThan(BOUND_MS);
+    expect(cpuNow() - start).toBeLessThan(BOUND_MS);
   });
 });

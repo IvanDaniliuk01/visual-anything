@@ -8,6 +8,7 @@ import model from './fixtures/shop.likec4.json';
 import { readLikeC4 } from './likec4';
 import type { ImportPlan, PlannedView } from './plan';
 import { applyPlan, optionsFor, planOf, systemsProject } from './test/apply';
+import { cpuNow } from '../test/cpu';
 
 const text = JSON.stringify(model);
 const options = optionsFor(systemsProject());
@@ -299,13 +300,13 @@ describe('readLikeC4, on hostile models', () => {
 
   it('refuses a name too long or too deep, and more elements than an import brings, before reading them', () => {
     const long = 'a.'.repeat(50_000) + 'a';
-    let started = Date.now();
+    let started = cpuNow();
     expect(
       refusal(JSON.stringify({ elements: { [long]: { id: long, kind: 'box', title: 'Long' } } })),
     ).toBe(
       `The LikeC4 model holds a name over 256 characters or 32 levels deep: "${'a.'.repeat(79)}a…".`,
     );
-    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(cpuNow() - started).toBeLessThan(2_000);
     const deep = Array.from({ length: 34 }, (_, at) => `n${at}`).join('.');
     expect(refusal(JSON.stringify({ elements: { x: { id: deep, kind: 'box' } } }))).toMatch(
       /^The LikeC4 model holds a name over 256 characters or 32 levels deep/,
@@ -313,11 +314,11 @@ describe('readLikeC4, on hostile models', () => {
     const elements = Object.fromEntries(
       Array.from({ length: 20_001 }, (_, at) => [`e${at}`, { id: `e${at}`, kind: 'box' }]),
     );
-    started = Date.now();
+    started = cpuNow();
     expect(refusal(JSON.stringify({ elements, relations: {} }))).toBe(
       'The file holds 20,001 elements; an import brings at most 20,000.',
     );
-    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(cpuNow() - started).toBeLessThan(2_000);
   });
 
   it('places an element whose parents the model leaves out inside the nearest one it holds', () => {
@@ -348,7 +349,7 @@ describe('readLikeC4, on hostile models', () => {
         { id: `v${at}`, title: `View ${at}`, nodes, edges: [] },
       ]),
     );
-    const started = Date.now();
+    const started = cpuNow();
     const plan = read(JSON.stringify({ elements, relations: {}, views }));
     expect(plan.views).toHaveLength(10);
     expect(plan.unmatched).toEqual([
@@ -361,7 +362,7 @@ describe('readLikeC4, on hostile models', () => {
         why: 'The view is left out: the views would show over 200,000 shapes in all.',
       },
     ]);
-    expect(Date.now() - started).toBeLessThan(10_000);
+    expect(cpuNow() - started).toBeLessThan(10_000);
     const many = Object.fromEntries(
       Array.from({ length: 501 }, (_, at) => [`v${at}`, { id: `v${at}`, nodes: [], edges: [] }]),
     );

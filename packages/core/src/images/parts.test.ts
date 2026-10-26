@@ -31,6 +31,7 @@ import { cleanSvg } from './svg';
 import { HEART_PARTS, HEART_SVG } from './test/heart';
 import { DESK, clinicPackage, imageProject, svgImage } from './test/project';
 import { ATTACKS, NS, expectNothingRuns, tree, writeTree } from './test/svg-corpus';
+import { cpuNow } from '../test/cpu';
 
 let serial = 0;
 
@@ -377,10 +378,10 @@ describe('partsOf', () => {
       `<defs><path id="rings" d="${rings}"/></defs>${uses.join('')}`,
     );
     expect(text.length).toBeLessThan(64 * 1024);
-    const start = Date.now();
+    const start = cpuNow();
     const cleaned = picture(text);
     const parts = partsOf(cleaned);
-    expect(Date.now() - start).toBeLessThan(3000);
+    expect(cpuNow() - start).toBeLessThan(3000);
     expect(parts.length).toBeGreaterThan(0);
     const first = part(cleaned, 'u0');
     expect(first.outline.contours.length).toBeLessThanOrEqual(PART_CAPS.contours);
@@ -633,9 +634,9 @@ describe('geometryOf', () => {
       ),
     );
     for (const id of ['comb', 'crowd', 'scribble']) {
-      const start = Date.now();
+      const start = cpuNow();
       const free = readFree(cleaned, id);
-      expect(Date.now() - start, id).toBeLessThan(2000);
+      expect(cpuNow() - start, id).toBeLessThan(2000);
       expect(free.contours.length, id).toBeGreaterThan(0);
     }
     // The comb's strips cross past the cap on crossings: they are written as they are.
@@ -737,12 +738,12 @@ describe('the attack corpus, read for parts', () => {
   it.each(ATTACKS)('%s stays safe, within its caps, and never throws', (_name, text) => {
     const result = cleanSvg(text);
     if (!result.ok) return;
-    const start = Date.now();
+    const start = cpuNow();
     const cleaned = picture(text);
     expectSafeParts(cleaned);
     const whole = geometryOf(cleaned);
     if (whole) expect(readGeometry(whole).ok).toBe(true);
-    expect(Date.now() - start).toBeLessThan(5000);
+    expect(cpuNow() - start).toBeLessThan(5000);
   });
 
   it('reads fuzzed pictures safely: every part’s picture is what cleaning gives for it', () => {

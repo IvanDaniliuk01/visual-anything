@@ -4,6 +4,7 @@ import { applyOperations } from './operations';
 import { modelIndexOf } from './state';
 import { testProject } from './test/fixtures';
 import type { ProjectSnapshot } from './snapshot';
+import { cpuNow } from './test/cpu';
 
 /**
  * A batch creating `count` elements inside the system, each with its shape in the view and a
@@ -45,9 +46,9 @@ describe('a large batch', () => {
   // kind of slowness fails it.
   it('creates thousands of elements, shapes and relations in time linear in their number', () => {
     const state = routedProject();
-    const started = Date.now();
+    const started = cpuNow();
     const outcome = executeCommand(state, importBatch(5000));
-    const took = Date.now() - started;
+    const took = cpuNow() - started;
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     expect(outcome.state.model.elements).toHaveLength(state.model.elements.length + 5000);

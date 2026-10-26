@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { evenOddHolds } from './outline';
 import { UNION_CAPS, fillBoundary, type FillPolygon } from './union';
+import { cpuNow } from '../test/cpu';
 
 function square(x: number, y: number, size: number, group = 0, nonzero = false): FillPolygon {
   return {
@@ -41,9 +42,9 @@ function timed<T>(run: () => T): { value: T; ms: number } {
   let ms = Number.POSITIVE_INFINITY;
   let value = run();
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    const start = Date.now();
+    const start = cpuNow();
     value = run();
-    ms = Math.min(ms, Date.now() - start);
+    ms = Math.min(ms, cpuNow() - start);
   }
   return { value, ms };
 }
