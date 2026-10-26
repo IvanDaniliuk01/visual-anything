@@ -1378,7 +1378,7 @@ export interface SavedCamera {
 
 /**
  * What a view state's filters hide: the elements created from some components, the relations of some
- * relation types, and whatever does not meet some conditions.
+ * relation types, whatever does not meet some conditions, and what falls outside a time range.
  *
  * @minProperties 1
  */
@@ -1400,6 +1400,39 @@ export interface SavedFilters {
    * @maxItems 32
    */
   conditions?: SavedCondition[];
+  /** The time range what stays shown must meet (ADR 0025's clarification of W37). */
+  range?: SavedTimeRange;
+}
+
+/**
+ * A time range of a view state's filters: what has a value for it outside the range is hidden, and
+ * what has none stays shown.
+ */
+export interface SavedTimeRange {
+  of: 'elements' | 'relations';
+  /**
+   * The attribute of the point, or of the start of a period.
+   *
+   * @minLength 1
+   * @maxLength 200
+   */
+  attribute: string;
+  /**
+   * The attribute of the end of a period, when the range is on periods.
+   *
+   * @minLength 1
+   * @maxLength 200
+   */
+  until?: string;
+  /**
+   * What the values read as: numbers, dates and date-times (milliseconds since 1970, UTC), or times
+   * of day (seconds since midnight).
+   */
+  kind: 'number' | 'date' | 'time';
+  /** One end of the range, on that axis; both are included, whichever way round. */
+  from: number;
+  /** The other end of the range. */
+  to: number;
 }
 
 /** A condition on an attribute that elements, or relations, must meet to stay shown. */

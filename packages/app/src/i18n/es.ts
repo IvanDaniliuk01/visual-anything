@@ -4267,6 +4267,24 @@ export const messages: Catalog = {
   'More than one thread has the id "{id}".': 'Más de un hilo tiene el id "{id}".',
   'More than one comment in the thread "{thread}" has the id "{id}".':
     'Más de un comentario del hilo "{thread}" tiene el id "{id}".',
+
+  // W44: the time range a view state holds (ADR 0044's clarification), and how one is refused.
+  'Filters hold components, relation-types, where and range, not "{clause}".':
+    'Los filtros tienen components, relation-types, where y range, no "{clause}".',
+  'A time range is range:<of>,<attribute>,<kind>,<from>,<to>, then the attribute its periods end at, if it is on periods.':
+    'Un rango de tiempo es range:<of>,<attribute>,<kind>,<from>,<to>, y luego el atributo en el que terminan sus períodos, si es sobre períodos.',
+  'A time range runs between two numbers.': 'Un rango de tiempo va de un número a otro.',
+  'A time range is an object.': 'Un rango de tiempo es un objeto JSON.',
+  'A time range has no "{key}".': 'Un rango de tiempo no tiene "{key}".',
+  'A time range is on elements or on relations, not "{side}".':
+    'Un rango de tiempo es sobre elementos o sobre relaciones, no "{side}".',
+  'A time range names the attributes it reads.': 'Un rango de tiempo nombra los atributos que lee.',
+  "A time range's attributes hold at most {max} characters.":
+    'Los atributos de un rango de tiempo tienen como máximo {max} caracteres.',
+  "A time range's attributes are text without broken characters.":
+    'Los atributos de un rango de tiempo son texto sin caracteres rotos.',
+  'A time range reads its values as one of: {kinds}.':
+    'Un rango de tiempo lee sus valores como uno de: {kinds}.',
 };
 
 /**

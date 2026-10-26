@@ -181,10 +181,14 @@
           },
           "minItems": 1,
           "maxItems": 32
+        },
+        "range": {
+          "$ref": "#/definitions/SavedTimeRange",
+          "description": "The time range what stays shown must meet (ADR 0025's clarification of W37)."
         }
       },
       "additionalProperties": false,
-      "description": "What a view state's filters hide: the elements created from some components, the relations of some relation types, and whatever does not meet some conditions.",
+      "description": "What a view state's filters hide: the elements created from some components, the relations of some relation types, whatever does not meet some conditions, and what falls outside a time range.",
       "minProperties": 1
     },
     "SavedCondition": {
@@ -228,6 +232,56 @@
       ],
       "additionalProperties": false,
       "description": "A condition on an attribute that elements, or relations, must meet to stay shown."
+    },
+    "SavedTimeRange": {
+      "type": "object",
+      "properties": {
+        "of": {
+          "type": "string",
+          "enum": [
+            "elements",
+            "relations"
+          ]
+        },
+        "attribute": {
+          "type": "string",
+          "description": "The attribute of the point, or of the start of a period.",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "until": {
+          "type": "string",
+          "description": "The attribute of the end of a period, when the range is on periods.",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "number",
+            "date",
+            "time"
+          ],
+          "description": "What the values read as: numbers, dates and date-times (milliseconds since 1970, UTC), or times of day (seconds since midnight)."
+        },
+        "from": {
+          "type": "number",
+          "description": "One end of the range, on that axis; both are included, whichever way round."
+        },
+        "to": {
+          "type": "number",
+          "description": "The other end of the range."
+        }
+      },
+      "required": [
+        "of",
+        "attribute",
+        "kind",
+        "from",
+        "to"
+      ],
+      "additionalProperties": false,
+      "description": "A time range of a view state's filters: what has a value for it outside the range is hidden, and what has none stays shown."
     },
     "SavedFocus": {
       "type": "object",

@@ -31,6 +31,7 @@ import type {
   RelationType,
   RelationTypeLimits,
   SavedCondition,
+  SavedTimeRange,
   SavedViewState,
   ScenarioFile,
   Scope,
@@ -484,6 +485,18 @@ const condition: fc.Arbitrary<SavedCondition> = fc.oneof(
   ),
 );
 
+const timeRange: fc.Arbitrary<SavedTimeRange> = fc.record(
+  {
+    of: fc.constantFrom('elements' as const, 'relations' as const),
+    attribute: filled(),
+    until: filled(),
+    kind: fc.constantFrom('number' as const, 'date' as const, 'time' as const),
+    from: finite,
+    to: finite,
+  },
+  { requiredKeys: ['of', 'attribute', 'kind', 'from', 'to'], noNullPrototype: true },
+);
+
 const viewState: fc.Arbitrary<SavedViewState> = fc.record(
   {
     view: id,
@@ -502,6 +515,7 @@ const viewState: fc.Arbitrary<SavedViewState> = fc.record(
           components: someIds,
           relationTypes: someIds,
           conditions: fc.array(condition, { minLength: 1, maxLength: 3 }),
+          range: timeRange,
         },
         { requiredKeys: [], noNullPrototype: true },
       )

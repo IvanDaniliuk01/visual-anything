@@ -103,6 +103,35 @@ describe('the view state a step keeps', () => {
     );
   });
 
+  it('keeps the time range of the filters, alone or beside the rest', () => {
+    const range = {
+      of: 'elements' as const,
+      attribute: 'started',
+      until: 'ended',
+      kind: 'date' as const,
+      from: 1767225600000,
+      to: 1772323200000,
+    };
+    const saved: SavedViewState = { view: 'overview', filters: { range } };
+    expect(viewStateOfStep(saved)).toEqual({
+      view: 'overview',
+      filters: { components: [], relationTypes: [], conditions: [], range },
+    });
+    expect(savedViewStateOf(viewStateOfStep(saved))).toEqual(saved);
+    expect(checkSavedViewState(saved)).toEqual({ ok: true, state: saved });
+    const beside: SavedViewState = { ...FULL, filters: { ...FULL.filters, range } };
+    expect(savedViewStateOf(viewStateOfStep(beside))).toEqual(beside);
+    expect(checkSavedViewState(beside)).toEqual({ ok: true, state: beside });
+    // What a step wrote before view states held a time range reads as it did.
+    expect(viewStateOfStep(FULL).filters).not.toHaveProperty('range');
+    expect(
+      checkSavedViewState({ view: 'v', filters: { range: { ...range, kind: 'week' } } }),
+    ).toEqual({
+      ok: false,
+      message: 'A time range reads its values as one of: number, date, time.',
+    });
+  });
+
   it('is checked as an address is, in the form the step keeps it', () => {
     expect(checkSavedViewState(FULL)).toEqual({ ok: true, state: FULL });
     expect(checkSavedViewState({ view: 'v', filters: { components: ['x'] } })).toEqual({
@@ -282,6 +311,24 @@ describe('how a step plays', () => {
       viewState: { view: 'overview', select: ['api'] },
       marks: ['db'],
       play: { scenario: 'request', from: 0, to: 1 },
+    });
+  });
+
+  it('plays its time range, also when the components its filters name are gone', () => {
+    const range = {
+      of: 'elements' as const,
+      attribute: 'load',
+      kind: 'number' as const,
+      from: 1,
+      to: 5,
+    };
+    const played = playableStep(
+      project(),
+      step({ viewState: { view: 'overview', filters: { components: ['test.gone'], range } } }),
+    );
+    expect(played?.viewState).toEqual({
+      view: 'overview',
+      filters: { components: [], relationTypes: [], conditions: [], range },
     });
   });
 

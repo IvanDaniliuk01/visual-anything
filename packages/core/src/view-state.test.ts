@@ -6,8 +6,10 @@ import {
   FILTER_TESTS,
   FOCUS_DIRECTIONS,
   MAX_FILTER_CONDITIONS,
+  MAX_FILTER_TEXT,
   MAX_FOCUS_DEGREES,
 } from './protocol';
+import { RANGE_KINDS } from './time-range';
 import type { ProjectSnapshot } from './snapshot';
 import {
   MAX_VIEW_STATE_IDS,
@@ -17,6 +19,7 @@ import {
   withViewState,
   writeViewState,
   type ViewState,
+  type ViewTimeRange,
 } from './view-state';
 
 /**
@@ -177,7 +180,10 @@ describe('readViewState', () => {
     ['view=v&camera=1,2,0', 'The camera zooms from 0.001 to 1000.'],
     ['view=v&camera=1e12,2,1', 'The camera looks at most 1000000000 canvas units from the origin.'],
     ['view=v&step=s1', 'A step needs its scenario: scenario=<id>.'],
-    ['view=v&filters=hide:a', 'Filters hold components, relation-types and where, not "hide".'],
+    [
+      'view=v&filters=hide:a',
+      'Filters hold components, relation-types, where and range, not "hide".',
+    ],
     ['view=v&filters=components:a;components:b', 'The filters hold "components" twice.'],
     ['view=v&filters=components:', '"" is not an id.'],
     [
@@ -265,14 +271,38 @@ const condition = fc.oneof(
   }),
 );
 
+/** A point of a time range: any finite number, a negative zero read back as 0. */
+const rangePoint = fc
+  .double({ noNaN: true, noDefaultInfinity: true })
+  .map((value) => (value === 0 ? 0 : value));
+
+const rangeAttribute = fc
+  .string({ minLength: 1, maxLength: 30 })
+  .filter((text) => text.trim() !== '');
+
+const range: fc.Arbitrary<ViewTimeRange> = fc
+  .record({
+    of: fc.constantFrom('elements' as const, 'relations' as const),
+    attribute: rangeAttribute,
+    until: fc.option(rangeAttribute, { nil: undefined }),
+    kind: fc.constantFrom(...RANGE_KINDS),
+    from: rangePoint,
+    to: rangePoint,
+  })
+  .map(({ until, ...rest }) => (until === undefined ? rest : { ...rest, until }));
+
 const filters = fc
   .record({
     components: fc.uniqueArray(anId, { maxLength: 4 }),
     relationTypes: fc.uniqueArray(anId, { maxLength: 4 }),
     conditions: fc.array(condition, { maxLength: 4 }),
+    range: fc.option(range, { nil: undefined }),
   })
+  .map(({ range: kept, ...rest }) => (kept === undefined ? rest : { ...rest, range: kept }))
   .filter(
-    (each) => each.components.length + each.relationTypes.length + each.conditions.length > 0,
+    (each) =>
+      each.components.length + each.relationTypes.length + each.conditions.length > 0 ||
+      'range' in each,
   );
 
 const focus = fc
@@ -473,4 +503,157 @@ describe('viewStateProblems', () => {
       'The project has no view "gone".',
     ]);
   });
+});
+
+describe('a time range in the view state', () => {
+  const STARTED: ViewTimeRange = {
+    of: 'elements',
+    attribute: 'started',
+    kind: 'date',
+    from: 1767225600000,
+    to: 1772323200000,
+  };
+
+  it('is written as the last clause of the filters, its attributes encoded as conditions’ are', () => {
+    const state: ViewState = {
+      view: 'v',
+      filters: {
+        components: ['systems.person'],
+        relationTypes: [],
+        conditions: [],
+        range: { ...STARTED, attribute: 'started, at', until: 'ended' },
+      },
+    };
+    expect(writeViewState(state)).toBe(
+      'view=v&filters=components:systems.person;range:elements,started%252C%2520at,date,1767225600000,1772323200000,ended',
+    );
+    expect(read(writeViewState(state))).toEqual(state);
+  });
+
+  it('can be all the filters hold', () => {
+    const state: ViewState = {
+      view: 'v',
+      filters: { components: [], relationTypes: [], conditions: [], range: STARTED },
+    };
+    expect(writeViewState(state)).toBe(
+      'view=v&filters=range:elements,started,date,1767225600000,1772323200000',
+    );
+    expect(read(writeViewState(state))).toEqual(state);
+    expect(checkViewState(JSON.parse(JSON.stringify(state)))).toEqual({ ok: true, state });
+  });
+
+  it('keeps its ends as given, whichever way round, and numbers of any size', () => {
+    const state: ViewState = {
+      view: 'v',
+      filters: {
+        components: [],
+        relationTypes: [],
+        conditions: [],
+        range: { of: 'relations', attribute: 'count', kind: 'number', from: 6.02e23, to: -1.5e-7 },
+      },
+    };
+    const written = writeViewState(state);
+    expect(written).toBe('view=v&filters=range:relations,count,number,6.02e23,-1.5e-7');
+    expect(read(written)).toEqual(state);
+    expect(read(formEncoded(written))).toEqual(state);
+  });
+
+  it('leaves an address written before it as it was read', () => {
+    // An address as the app wrote one before view states held a time range.
+    expect(
+      read('view=system-overview&filters=components:systems.database;where:elements,owner,set'),
+    ).toEqual({
+      view: 'system-overview',
+      filters: {
+        components: ['systems.database'],
+        relationTypes: [],
+        conditions: [{ of: 'elements', attribute: 'owner', test: 'set', value: '' }],
+      },
+    });
+    expect(read(writeViewState(FULL))).toEqual(FULL);
+    expect(read(writeViewState(FULL))).not.toHaveProperty('filters.range');
+  });
+
+  const FORM =
+    'A time range is range:<of>,<attribute>,<kind>,<from>,<to>, then the attribute its periods end at, if it is on periods.';
+
+  it.each<[string, string]>([
+    ['view=v&filters=range:elements,started,date,1', FORM],
+    ['view=v&filters=range:elements,a,date,1,2,b,c', FORM],
+    [
+      'view=v&filters=range:nodes,a,date,1,2',
+      'A time range is on elements or on relations, not "nodes".',
+    ],
+    ['view=v&filters=range:elements,,date,1,2', 'A time range names the attributes it reads.'],
+    ['view=v&filters=range:elements,a,date,1,2,', 'A time range names the attributes it reads.'],
+    [
+      'view=v&filters=range:elements,a,week,1,2',
+      'A time range reads its values as one of: number, date, time.',
+    ],
+    ['view=v&filters=range:elements,a,date,one,2', 'A time range runs between two numbers.'],
+    ['view=v&filters=range:elements,a,date,1,Infinity', 'A time range runs between two numbers.'],
+    ['view=v&filters=range:elements,a,date,1,1e999', 'A time range runs between two numbers.'],
+    [
+      'view=v&filters=range:elements,a,date,1,2;range:elements,a,date,1,2',
+      'The filters hold "range" twice.',
+    ],
+    ['view=v&filters=range:elements,%25zz,date,1,2', 'The address is not well formed.'],
+  ])('refuses %s', (fragment, message) => {
+    expect(read(fragment)).toBe(message);
+  });
+
+  it.each<[unknown, string]>([
+    ['started', 'A time range is an object.'],
+    [{ ...STARTED, width: 2 }, 'A time range has no "width".'],
+    [{ ...STARTED, of: 'nodes' }, 'A time range is on elements or on relations, not "nodes".'],
+    [{ ...STARTED, attribute: ' ' }, 'A time range names the attributes it reads.'],
+    [{ ...STARTED, until: '' }, 'A time range names the attributes it reads.'],
+    [{ ...STARTED, kind: 'week' }, 'A time range reads its values as one of: number, date, time.'],
+    [{ ...STARTED, from: '1' }, 'A time range runs between two numbers.'],
+    [{ ...STARTED, to: Number.NaN }, 'A time range runs between two numbers.'],
+    [{ ...STARTED, to: Number.POSITIVE_INFINITY }, 'A time range runs between two numbers.'],
+    [
+      { ...STARTED, attribute: 'a'.repeat(MAX_FILTER_TEXT + 1) },
+      `A time range's attributes hold at most ${MAX_FILTER_TEXT} characters.`,
+    ],
+    [
+      { ...STARTED, attribute: '\uD800' },
+      "A time range's attributes are text without broken characters.",
+    ],
+  ])('refuses %j as a time range', (given, message) => {
+    expect(
+      checkViewState({
+        view: 'v',
+        filters: { components: [], relationTypes: [], conditions: [], range: given },
+      }),
+    ).toEqual({ ok: false, message });
+  });
+
+  it('takes a negative zero as zero, which the address writes as 0', () => {
+    expect(checkViewState({ view: 'v', filters: { range: { ...STARTED, from: -0 } } })).toEqual({
+      ok: true,
+      state: {
+        view: 'v',
+        filters: {
+          components: [],
+          relationTypes: [],
+          conditions: [],
+          range: { ...STARTED, from: 0 },
+        },
+      },
+    });
+  });
+
+  it('never makes reading an address throw, whatever its time range holds', () => {
+    const piece = fc.oneof(
+      fc.string({ unit: 'binary', maxLength: 12 }),
+      fc.constantFrom('elements', 'relations', 'date', 'time', 'number', '1', '-0', '1e309', ''),
+    );
+    fc.assert(
+      fc.property(fc.array(piece, { maxLength: 8 }), (pieces) => {
+        const result = readViewState(`view=v&filters=range:${pieces.join(',')}`);
+        expect(typeof result.ok).toBe('boolean');
+      }),
+    );
+  }, 30_000);
 });
