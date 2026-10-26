@@ -28,7 +28,20 @@ interface OutlineTreeProps {
    * where rows have no menu, as in the read-only page, which changes nothing.
    */
   onMenu?: (element: Id, at: { x: number; y: number }, from: HTMLElement | null) => void;
+  /**
+   * Alt with − or + on an element's row: collapses (true) or expands (false) it, or the selection
+   * that holds it, as on the canvas; absent where rows change nothing, as in the read-only page.
+   */
+  onCollapse?: (element: Id, collapsed: boolean) => void;
 }
+
+/** The keys that collapse (true) or expand (false) with Alt, by their place, as on the canvas. */
+const COLLAPSE_KEYS: Partial<Record<string, boolean>> = {
+  Minus: true,
+  NumpadSubtract: true,
+  Equal: false,
+  NumpadAdd: false,
+};
 
 /** How a relation's row shows its direction, seen from the shape it sits under. */
 const ARROWS: Record<RelationItem['way'], string> = { out: '→', in: '←', both: '—' };
@@ -39,7 +52,7 @@ const ARROWS: Record<RelationItem['way'], string> = { out: '→', in: '←', bot
  * Enter on the row of the selected relation goes to its far end, as Enter does on the canvas. The
  * app's `Outline` adds the menu of an element's row; the read-only page shows the tree alone.
  */
-export function OutlineTree({ active, onMenu }: OutlineTreeProps) {
+export function OutlineTree({ active, onMenu, onCollapse }: OutlineTreeProps) {
   const t = useT();
   const editor = useEditor();
   const { project, viewId, scene, selection } = editor;
@@ -112,6 +125,13 @@ export function OutlineTree({ active, onMenu }: OutlineTreeProps) {
         if (!onMenu || item.kind !== 'shape') return false;
         const from = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         onMenu(item.shape.element, at, from);
+        return true;
+      }}
+      onKey={(row, event) => {
+        const folding =
+          event.altKey && !event.ctrlKey && !event.metaKey ? COLLAPSE_KEYS[event.code] : undefined;
+        if (folding === undefined || !onCollapse || row.item.kind !== 'shape') return false;
+        onCollapse(row.item.shape.element, folding);
         return true;
       }}
     />

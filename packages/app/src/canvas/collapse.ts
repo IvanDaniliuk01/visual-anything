@@ -11,7 +11,7 @@ import type { Id, ViewFile } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
 import { t } from '../i18n';
 import type { IndexedScene } from './hit';
-import type { ElementShape } from './scene';
+import type { ElementShape, Scene } from './scene';
 
 const NONE: ReadonlySet<Id> = new Set();
 const collapsedSets = new WeakMap<readonly Id[], ReadonlySet<Id>>();
@@ -72,10 +72,47 @@ export function collapseActions(
   project: ProjectSnapshot,
   selection: Selection,
 ): CollapseActions {
+  return collapseActionsFor(project, selection.elements, (id) => indexed.byElement.get(id)?.[0]);
+}
+
+/**
+ * What the outline offers for an element's row: collapse actions for it alone, or for every element
+ * selected when the selection holds it, as the canvas offers them (`collapseActions`); the scene's
+ * shapes say which are containers.
+ */
+export function rowCollapseActions(
+  scene: Scene,
+  project: ProjectSnapshot,
+  selection: Selection,
+  element: Id,
+): CollapseActions {
+  const elements = selection.elements.has(element) ? selection.elements : [element];
+  const first = firstShapesOf(scene);
+  return collapseActionsFor(project, elements, (id) => first.get(id));
+}
+
+const firstShapes = new WeakMap<readonly ElementShape[], Map<Id, ElementShape>>();
+
+function firstShapesOf(scene: Scene): Map<Id, ElementShape> {
+  let first = firstShapes.get(scene.shapes);
+  if (!first) {
+    first = new Map();
+    for (const shape of scene.shapes)
+      if (!first.has(shape.element)) first.set(shape.element, shape);
+    firstShapes.set(scene.shapes, first);
+  }
+  return first;
+}
+
+function collapseActionsFor(
+  project: ProjectSnapshot,
+  elements: Iterable<Id>,
+  shapeOf: (id: Id) => ElementShape | undefined,
+): CollapseActions {
   const expanded: Id[] = [];
   const collapsed: Id[] = [];
-  for (const id of selection.elements) {
-    const shape = indexed.byElement.get(id)?.[0];
+  for (const id of elements) {
+    const shape = shapeOf(id);
     if (!shape) continue;
     if (shape.collapsed !== undefined) collapsed.push(id);
     else if (shape.holdsContents) expanded.push(id);

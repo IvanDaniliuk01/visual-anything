@@ -34,3 +34,10 @@ We chose these because a container that collapses to the size it had while open 
 - The outline's rows, the inspector and Claude's read tools must say when a container is collapsed and list what an aggregated relation stands for; the scene gives `collapsed.contents` on the shape and `aggregate.relations` on the line.
 - A relation inside a collapsed container cannot be recorded in a scenario until the container is expanded: its line stands for several.
 - Components whose detail shows attributes or badges are drawn with them (W1's `detailParts`); a relation that turns a badge on or off makes only its `from` end's shapes again.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (W49): **the outline collapses and expands too.** Dogfooding found Alt+− doing nothing while the focus was in the outline, which offered no collapse. On an element's row, Alt with − collapses and Alt with + expands, by the key's place as on the canvas, the element or every element selected when the selection holds it, and says why nothing does on a row that is no container; the row's menu offers Collapse "X" or Expand "X" first, above Leave out of this view and Add to this view (ADR 0040). Both send the canvas's one command, `set-collapsed`, a container the zoom shows expanded being collapsed again by the zoom alone, and say once it is done what they did. The read-only page's outline changes nothing, so it has neither.
+- 2026-10-26 (W49): **a collapsed container's count always shows.** It was cut off with its detail at the component's size (`Code package…`). The header writes it on a line of its own under the detail when the body has room for a third line, and else first on the detail's line, `12 inside · Code package`, so that cutting the line to the shape's width cuts the detail, never the count; the SVG writes it the same way.
