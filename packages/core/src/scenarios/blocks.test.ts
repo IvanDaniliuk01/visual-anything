@@ -98,7 +98,7 @@ function written(tree: Segment[]): Written {
         ids.push(...inner);
       });
       if (segment.byDefault !== undefined) {
-        block.default = block.alternatives[segment.byDefault]?.id as string;
+        block.default = block.alternatives[segment.byDefault]?.id;
       }
     }
     return ids;
