@@ -1178,6 +1178,8 @@ export const ui: Catalog = {
   'Apply every change, as one action': 'Aplicar todos los cambios, como una sola acción',
   'Escape, editing a route': 'Esc, al editar una ruta',
   'Cancel, and leave the route as it was': 'Cancelar y dejar la ruta como estaba',
+  // M8b W53: an end dragged onto a shape with free geometry or onto an anchored part.
+  'Attach at this point of its edge': 'Conectar en este punto de su borde',
   // The image picker.
   Image: 'Imagen',
   'Choose an image…': 'Elegir una imagen…',

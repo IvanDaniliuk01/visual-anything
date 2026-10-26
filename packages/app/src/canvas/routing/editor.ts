@@ -46,6 +46,13 @@ import {
 } from './commands';
 import { STUB, attachPoint, nearestBorderAttach, type Attach, type Side } from './hand';
 import { handleAt, handlesOf, segmentAt, stubsOf, type Handle } from './handles';
+import {
+  carriedOrthogonal,
+  endOutline,
+  onlyStrokes,
+  placeOfEnd,
+  type OutlinedEnd,
+} from './outline-ends';
 import { sameHandle, type RouteOverlay } from './overlay';
 import { routeLine, type LineEnds } from './scene-routes';
 import { cornersOf, moveSegment, type SegmentEnd } from './segments';
@@ -991,18 +998,45 @@ function segmentEnds(
   indexed: IndexedScene,
   line: RelationLine,
 ): { from: SegmentEnd; to: SegmentEnd } {
-  const endOf = (which: 'from' | 'to', point: Point): SegmentEnd => {
+  const endOf = (which: 'from' | 'to', point: Point, next: Point | undefined): SegmentEnd => {
     const drawn = line.ends?.[which];
     const shape = drawn?.kind === 'shape' ? indexed.byKey.get(drawn.key) : undefined;
     if (!shape) return { kind: 'fixed' };
     const attachment = line.hand?.route[which];
+    // On an outline, the side the route crosses the box by, which the end lies inside of.
+    const crossed =
+      next && endOutline(shape, shape.rect) ? placeOfEnd(shape.rect, point, next)?.side : undefined;
     const side =
-      attachment && attachment.kind !== 'automatic' ? attachment.side : sideOfPoint(shape, point);
+      attachment && attachment.kind !== 'automatic'
+        ? attachment.side
+        : (crossed ?? sideOfPoint(shape, point));
     if (attachment && attachment.kind !== 'automatic') return { kind: 'stub', side };
     if (shape.points) return { kind: 'stub', side };
     return { kind: 'slides', rect: shape.rect, side };
   };
-  return { from: endOf('from', line.from), to: endOf('to', line.to) };
+  return {
+    from: endOf('from', line.from, line.route[1]),
+    to: endOf('to', line.to, line.route.at(-2)),
+  };
+}
+
+/**
+ * A route a segment drag drew, its ends that attach automatically on outlines carried on from the
+ * boxes to them again (ADR 0066), as the scene will route it once the drag is let go.
+ */
+function carriedDraft(indexed: IndexedScene, line: RelationLine, route: Point[]): Point[] {
+  const outlined = (which: 'from' | 'to'): OutlinedEnd | undefined => {
+    const drawn = line.ends?.[which];
+    const shape = drawn?.kind === 'shape' ? indexed.byKey.get(drawn.key) : undefined;
+    const attachment = line.hand?.route[which];
+    if (!shape || shape.points || (attachment && attachment.kind !== 'automatic')) return undefined;
+    const rect = shape.plate ?? shape.rect;
+    const outline = endOutline(shape, rect);
+    return outline && !onlyStrokes(outline) ? { rect, outline } : undefined;
+  };
+  const from = outlined('from');
+  const to = outlined('to');
+  return from || to ? carriedOrthogonal(route, from, to) : route;
 }
 
 /** The sides the stubs of a line's ends leave, for the ends attached by hand. */
@@ -1027,7 +1061,7 @@ export function previewOf(
   draft: Draft,
 ): RelationLine | undefined {
   if (!changed(draft)) return undefined;
-  if (draft.route) return lineAlong(line, draft.route, undefined);
+  if (draft.route) return lineAlong(line, carriedDraft(indexed, line, draft.route), undefined);
   const lines = relationLinesOf(indexed.scene);
   const shapeOf = (which: 'from' | 'to') => {
     if (draft.reconnect?.end === which) return draft.reconnect.shape;
@@ -1184,11 +1218,11 @@ function endCaption(aim: EndAim, alt: boolean): { text: string; detail?: string 
     case 'back':
       return undefined;
     case 'attach':
-      return withHint({ text: attachText(aim.attachment) });
+      return withHint({ text: attachText(aim.attachment, onOutline(aim.shape)) });
     case 'reconnect':
       return withHint({
         text: t('Reconnect to "{name}"', { name: aim.shape.name }),
-        detail: attachText(aim.attachment),
+        detail: attachText(aim.attachment, onOutline(aim.shape)),
       });
     case 'refused':
       return {
@@ -1201,11 +1235,20 @@ function endCaption(aim: EndAim, alt: boolean): { text: string; detail?: string 
   }
 }
 
-/** What attaching an end somewhere says. */
-export function attachText(attachment: EndAttachment | null): string {
+/** Whether a shape attaches lines on an outline of its own (ADR 0066, ADR 0067), not on its box. */
+function onOutline(shape: ElementShape): boolean {
+  return endOutline(shape, shape.rect) !== undefined;
+}
+
+/**
+ * What attaching an end somewhere says; on a shape with an outline of its own, a place on a side is
+ * where it meets the outline, which the canvas marks.
+ */
+export function attachText(attachment: EndAttachment | null, outlined = false): string {
   if (attachment === null) return t('Attach automatically');
   if (attachment.kind === 'connection-point')
     return t('Attach at "{name}"', { name: attachment.name });
+  if (outlined) return t('Attach at this point of its edge');
   switch (attachment.side) {
     case 'top':
       return t('Attach to the top side');
