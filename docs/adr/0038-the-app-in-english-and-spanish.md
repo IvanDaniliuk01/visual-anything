@@ -71,3 +71,8 @@ We chose this because the person wants to use Visual Anything in Spanish, while 
 - The core's messages and the catalog's templates must change together. A test runs the core's labels and problems on fixtures through the templates, hand-written commands included, and fails on any with no Spanish entry but the one that stays English; another does the same for the local program's notices and refusals.
 - The catalog has a test that its Spanish uses none of the words CONTEXT.md avoids for its terms.
 - A third language is one more catalog.
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+- 2026-10-26 (after W43): **two words kept in Spanish.**
+  - **"Esquema" names the Outline.** CONTEXT.md avoids "schema" for the Model in English, but "esquema" is the plain Spanish for an outline, and nothing in the app calls the model "esquema". JSON Schema keeps its own name, "JSON Schema", wherever Spanish text refers to it.
+  - **"Fijada" says a shape is pinned.** CONTEXT.md avoids "fixed" in English because it reads as "repaired". "Fijada" carries no such sense in Spanish, and is what Spanish software says of something pinned.

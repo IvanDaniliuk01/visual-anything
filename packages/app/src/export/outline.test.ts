@@ -237,7 +237,7 @@ describe('the legend of an outline', () => {
   it('writes its words in the language the app reads in', () => {
     setCurrentLanguage('es');
     const { text } = writeOutline(withOverlays([team, latency]), SAMPLE_VIEW);
-    expect(text).toContain('## Referencias');
+    expect(text).toContain('## Leyenda');
     expect(text).toContain('Relleno según owner.');
     expect(text).toContain('- Cualquier otro valor: `#6B7280`');
     // Spanish writes a no-break space before the percent sign.
