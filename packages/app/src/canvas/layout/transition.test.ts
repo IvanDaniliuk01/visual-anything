@@ -3,7 +3,14 @@ import { describe, expect, it } from 'vitest';
 import { loadSample } from '../../test/sample';
 import type { Point, Rect } from '../geometry';
 import { buildScene, type ElementShape, type RelationLine, type Scene } from '../scene';
-import { eased, frameAt, MAX_ANIMATED_SHAPES, transitionBetween } from './transition';
+import {
+  eased,
+  frameAt,
+  MAX_ANIMATED_SHAPES,
+  retargeted,
+  sameGeometry,
+  transitionBetween,
+} from './transition';
 
 const sample = loadSample();
 const VIEW = 'system-overview';
@@ -88,6 +95,61 @@ describe('a layout moving in', () => {
       expect(onBorder(line.to, shapeOf(frame, 'whatsapp').rect)).toBe(true);
       expect(line.arrowhead?.tip).toEqual(line.to);
     }
+  });
+
+  it('goes on to a scene with other values and colors in the same places, from where it is', () => {
+    if (!transition) throw new Error('Nothing moves.');
+    // A live update: a new scene, whatsapp recolored and its detail written anew, nothing moved.
+    const live: Scene = {
+      ...after,
+      shapes: after.shapes.map((shape) =>
+        shape.element === 'whatsapp' ? { ...shape, fill: '#123456', detail: '● 12 ms' } : shape,
+      ),
+      relations: after.relations.map((line) => ({ ...line, stroke: '#654321' })),
+    };
+    expect(sameGeometry(after, live)).toBe(true);
+    const next = retargeted(transition, live);
+    expect(next.to).toBe(live);
+    const half = frameAt(next, 0.5);
+    expect(shapeOf(half, 'whatsapp').rect).toEqual(
+      shapeOf(frameAt(transition, 0.5), 'whatsapp').rect,
+    );
+    expect(shapeOf(half, 'whatsapp').fill).toBe('#123456');
+    expect(lineBetween(half, 'patient', 'whatsapp').stroke).toBe('#654321');
+    expect(frameAt(next, 1)).toBe(live);
+  });
+
+  it('tells a scene whose shapes or routes moved from one that only reads otherwise', () => {
+    expect(sameGeometry(after, after)).toBe(true);
+    expect(sameGeometry(before, after)).toBe(false);
+    const grown: Scene = {
+      ...after,
+      shapes: after.shapes.map((shape) =>
+        shape.element === 'patient'
+          ? { ...shape, rect: { ...shape.rect, width: shape.rect.width * 2 } }
+          : shape,
+      ),
+    };
+    expect(sameGeometry(after, grown)).toBe(false);
+    const rerouted: Scene = {
+      ...after,
+      relations: after.relations.map((line, at) =>
+        at === 0
+          ? { ...line, route: line.route.map((point) => ({ ...point, y: point.y + 1 })) }
+          : line,
+      ),
+    };
+    expect(sameGeometry(after, rerouted)).toBe(false);
+    expect(sameGeometry(after, { ...after, shapes: after.shapes.slice(1) })).toBe(false);
+    const extended: Scene = {
+      ...after,
+      shapes: after.shapes.map((shape, at) =>
+        at === 0
+          ? { ...shape, extent: { ...shape.extent, height: shape.extent.height + 5 } }
+          : shape,
+      ),
+    };
+    expect(sameGeometry(after, extended)).toBe(false);
   });
 
   it('is nothing when nothing moves, or when the view is too large to draw on every frame', () => {

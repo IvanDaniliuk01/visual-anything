@@ -29,6 +29,8 @@ import { layoutInput, type LayoutScope } from './input';
 import {
   frameAt,
   prefersReducedMotion,
+  retargeted,
+  sameGeometry,
   TRANSITION_MS,
   transitionBetween,
   type Transition,
@@ -85,6 +87,16 @@ interface Armed {
 }
 
 /**
+ * A layout moving in: the move, how far through it is, and the move it started as, which stays the
+ * same while a live update retargets it, so that its frames go on rather than start again.
+ */
+interface Moving {
+  transition: Transition;
+  progress: number;
+  started: Transition;
+}
+
+/**
  * Layout for one canvas: the scene to draw, which is a frame of a layout moving in or else `scene`,
  * and the toolbar's control.
  */
@@ -104,7 +116,7 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
 
   const [running, setRunning] = useState<Running>();
   const [armed, setArmed] = useState<Armed>();
-  const [moving, setMoving] = useState<{ transition: Transition; progress: number }>();
+  const [moving, setMoving] = useState<Moving>();
   const queue = useRef<Promise<void>>(Promise.resolve());
 
   // Once a layout's change is drawn, it moves in from the scene it was made from.
@@ -112,29 +124,36 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
     setArmed(undefined);
     const transition =
       armed.animate && armed.view === view.id ? transitionBetween(armed.before, scene) : undefined;
-    setMoving(transition && { transition, progress: 0 });
+    setMoving(transition && { transition, progress: 0, started: transition });
   } else if (moving && moving.transition.to !== scene) {
-    // Something else changed the view meanwhile: it shows as it is now.
-    setMoving(undefined);
+    // A live update reads otherwise in the same places (ADR 0057): the move goes on to it. Anything
+    // that moved a shape or a line meanwhile shows as it is now.
+    setMoving(
+      sameGeometry(moving.transition.to, scene)
+        ? { ...moving, transition: retargeted(moving.transition, scene) }
+        : undefined,
+    );
   }
 
-  const transition = moving?.transition;
+  // Each frame moves on the move it started as, whatever it now ends on.
+  const started = moving?.started;
   useEffect(() => {
-    if (!transition) return;
+    if (!started) return;
+    const ours = (now: Moving | undefined): now is Moving => now?.started === started;
     let start: number | undefined;
     const tick = (time: number) => {
       start ??= time;
       const progress = (time - start) / TRANSITION_MS;
       if (progress >= 1) {
-        setMoving(undefined);
+        setMoving((now) => (ours(now) ? undefined : now));
         return;
       }
-      setMoving({ transition, progress });
+      setMoving((now) => (ours(now) ? { ...now, progress } : now));
       frame = requestAnimationFrame(tick);
     };
     let frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [transition]);
+  }, [started]);
 
   const drawn = useMemo(
     () =>

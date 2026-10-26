@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { EMPTY_SELECTION, selectionOf, type Selection } from '../../editor/selection';
 import { loadSample } from '../../test/sample';
-import { buildScene } from '../scene';
+import { buildScene, type Scene } from '../scene';
 import { LayoutStopped, type LayoutRunner } from './client';
 import { layOut } from './engine';
 import type { LayoutProgress } from './types';
@@ -73,6 +73,8 @@ function canvas(
   } = {},
 ) {
   let project = start;
+  // What the canvas makes of the view's scene, as live values do (ADR 0057); nothing at first.
+  let dress = (scene: Scene): Scene => scene;
   const sent: Command[] = [];
   const said: string[] = [];
   const send = vi.fn((command: Command) => {
@@ -89,7 +91,7 @@ function canvas(
     return {
       project,
       view,
-      scene: buildScene(project, view.id),
+      scene: dress(buildScene(project, view.id)),
       selection,
       send: editable ? send : undefined,
       announce: (text) => said.push(text),
@@ -113,6 +115,11 @@ function canvas(
     show(next: ProjectSnapshot, options: { editable?: boolean } = {}) {
       project = next;
       if (options.editable !== undefined) editable = options.editable;
+      hook.rerender(props());
+    },
+    /** Shows the same project's scene as a live update makes it, a new scene object each time. */
+    dress(how: (scene: Scene) => Scene) {
+      dress = how;
       hook.rerender(props());
     },
   };
@@ -314,6 +321,73 @@ describe('moving in', () => {
     expect(whatsapp(view.hook.result.current.scene)).not.toEqual(whatsapp(before));
     act(() => frames.shift()?.(2000));
     expect(view.hook.result.current.scene).toBe(after);
+  });
+
+  it('goes on moving in through a live update that changes only values and colors', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      frames.push(callback),
+    );
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    const view = canvas(loadSample());
+    const before = view.hook.result.current.scene;
+    act(() => view.hook.result.current.control.run());
+    await waitFor(() => expect(view.sent).toHaveLength(1), ELK_WAIT);
+    const whatsapp = (scene: Scene) =>
+      scene.shapes.find((shape) => shape.element === 'whatsapp') as Scene['shapes'][number];
+    act(() => frames.shift()?.(1000));
+    act(() => frames.shift()?.(1100));
+    const partWay = whatsapp(view.hook.result.current.scene).rect;
+    expect(partWay).not.toEqual(whatsapp(before).rect);
+    // Live values come: a new scene, its shapes recolored and their details written anew.
+    const live = (scene: Scene): Scene => ({
+      ...scene,
+      shapes: scene.shapes.map((shape) => ({ ...shape, fill: '#123456', detail: '● 12 ms' })),
+    });
+    act(() => view.dress(live));
+    const during = view.hook.result.current.scene;
+    expect(whatsapp(during).rect).toEqual(partWay);
+    expect(whatsapp(during).fill).toBe('#123456');
+    // The move goes on from where it was, and was not asked for again.
+    expect(frames).toHaveLength(1);
+    act(() => frames.shift()?.(1200));
+    const later = whatsapp(view.hook.result.current.scene).rect;
+    expect(later).not.toEqual(partWay);
+    expect(later).not.toEqual(whatsapp(before).rect);
+    // Another one comes, and the move still ends on the scene as it is then.
+    act(() => view.dress((scene) => live(live(scene))));
+    act(() => frames.shift()?.(2000));
+    const ended = view.hook.result.current.scene;
+    expect(ended.shapes.every((shape) => shape.fill === '#123456')).toBe(true);
+    expect(whatsapp(ended).rect).toEqual(whatsapp(buildScene(view.project, VIEW)).rect);
+    expect(frames).toHaveLength(0);
+  });
+
+  it('stops moving in when shapes move or change size meanwhile', async () => {
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      frames.push(callback),
+    );
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+    const view = canvas(loadSample());
+    act(() => view.hook.result.current.control.run());
+    await waitFor(() => expect(view.sent).toHaveLength(1), ELK_WAIT);
+    act(() => frames.shift()?.(1000));
+    act(() => frames.shift()?.(1100));
+    // An overlay's size from a live value grows a shape: the view shows as it is now.
+    const grown = (scene: Scene): Scene => ({
+      ...scene,
+      shapes: scene.shapes.map((shape) =>
+        shape.element === 'patient'
+          ? { ...shape, rect: { ...shape.rect, width: shape.rect.width * 2 } }
+          : shape,
+      ),
+    });
+    act(() => view.dress(grown));
+    const shown = view.hook.result.current.scene;
+    expect(shown.shapes.find((shape) => shape.element === 'whatsapp')?.rect).toEqual(
+      buildScene(view.project, VIEW).shapes.find((shape) => shape.element === 'whatsapp')?.rect,
+    );
   });
 
   it('shows the result at once when the system asks for reduced motion', async () => {

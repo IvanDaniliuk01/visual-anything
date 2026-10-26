@@ -3,7 +3,9 @@
  * are, and the relations on them are routed again on the way, as when a shape is dragged. Each frame is
  * a scene of its own, which the canvas draws as any other; every shape keeps its stored offset in it,
  * so a gesture that starts during the move works from where the shape ends. When the system asks for
- * reduced motion, or the view is too large to draw again on every frame, the result shows at once.
+ * reduced motion, or the view is too large to draw again on every frame, the result shows at once. A
+ * scene that reads otherwise in the same places, as a live update gives, takes the move's place as
+ * where it ends (`sameGeometry`, `retargeted`), so that the move goes on.
  */
 import type { Id } from '@visual-anything/schema';
 import { arrowheadAt, type Point, type Rect } from '../geometry';
@@ -52,6 +54,60 @@ export function transitionBetween(before: Scene, after: Scene): Transition | und
     if (old && old !== line) lines.set(line.relation, old);
   }
   return { to: after, from, lines, ends };
+}
+
+/**
+ * Whether two scenes draw their shapes and lines in the same places, whatever they read: the same
+ * shapes, by key, with the same rectangles and extents, and the same lines along the same routes. A
+ * live update that changes only values, details or colors (ADR 0057) gives such a scene.
+ */
+export function sameGeometry(a: Scene, b: Scene): boolean {
+  if (a === b) return true;
+  if (a.shapes.length !== b.shapes.length || a.relations.length !== b.relations.length) {
+    return false;
+  }
+  for (let at = 0; at < a.shapes.length; at++) {
+    const one = a.shapes[at] as ElementShape;
+    const other = b.shapes[at] as ElementShape;
+    if (one === other) continue;
+    if (one.key !== other.key || !sameRect(one.rect, other.rect)) return false;
+    if (!sameRect(one.extent, other.extent)) return false;
+  }
+  for (let at = 0; at < a.relations.length; at++) {
+    const one = a.relations[at] as RelationLine;
+    const other = b.relations[at] as RelationLine;
+    if (one === other || (one.relation === other.relation && one.route === other.route)) continue;
+    if (one.relation !== other.relation || !sameRoute(one.route, other.route)) return false;
+  }
+  return (
+    sameItems(a.notes, b.notes, (one, other) => sameRect(one.rect, other.rect)) &&
+    sameItems(
+      a.arrows,
+      b.arrows,
+      (one, other) => samePoint(one.from, other.from) && samePoint(one.to, other.to),
+    )
+  );
+}
+
+/**
+ * The move going on to `to` instead, a scene in the same places as the one it moved to: from where it
+ * is, with what `to` reads, so that a live update neither cuts it short nor starts it again.
+ */
+export function retargeted(transition: Transition, to: Scene): Transition {
+  return { ...transition, to };
+}
+
+function sameRoute(a: readonly Point[], b: readonly Point[]): boolean {
+  return a.length === b.length && a.every((point, at) => samePoint(point, b[at] as Point));
+}
+
+function samePoint(a: Point, b: Point): boolean {
+  return a.x === b.x && a.y === b.y;
+}
+
+function sameItems<T>(a: readonly T[], b: readonly T[], same: (a: T, b: T) => boolean): boolean {
+  if (a === b) return true;
+  return a.length === b.length && a.every((item, at) => item === b[at] || same(item, b[at] as T));
 }
 
 /** The scene drawn at `progress` through a move, from 0 at its start to 1 at its end. */
