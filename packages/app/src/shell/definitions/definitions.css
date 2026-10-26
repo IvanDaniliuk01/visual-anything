@@ -137,6 +137,28 @@
   border-top: 1px solid var(--border);
 }
 
+/* What a level of detail shows: its parts, each a checkbox with its name (ADR 0055) */
+
+.definition-level-parts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.definition-level-parts-label {
+  flex-basis: 100%;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.definition-level-part {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
 /* The four sides of a shape with its connection points */
 
 .definition-sketch {
