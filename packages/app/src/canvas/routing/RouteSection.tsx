@@ -151,6 +151,8 @@ function attachedAt(t: Translator, attachment: ResolvedAttachment): string {
       return t('Automatic');
     case 'connection-point':
       return t('At "{name}"', { name: attachment.name });
+    case 'inside':
+      return t('At a place inside it');
     case 'border':
       switch (attachment.side) {
         case 'top':

@@ -91,6 +91,8 @@ export function storedAttachment(attachment: ResolvedAttachment): EndAttachment 
       return { kind: 'connection-point', name: attachment.name };
     case 'border':
       return { kind: 'border', side: attachment.side, at: attachment.at };
+    case 'inside':
+      return { kind: 'inside', x: attachment.x, y: attachment.y };
   }
 }
 
@@ -98,6 +100,7 @@ export function storedAttachment(attachment: ResolvedAttachment): EndAttachment 
 export function sameAttachment(a: EndAttachment | null, b: EndAttachment | null): boolean {
   if (a === null || b === null) return a === b;
   if (a.kind === 'connection-point') return b.kind === 'connection-point' && a.name === b.name;
+  if (a.kind === 'inside') return b.kind === 'inside' && a.x === b.x && a.y === b.y;
   return b.kind === 'border' && a.side === b.side && a.at === b.at;
 }
 

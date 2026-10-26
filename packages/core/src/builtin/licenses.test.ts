@@ -20,7 +20,7 @@ describe('licenses and versions as files write them', () => {
 });
 
 describe('the licenses content may ship under (ADR 0047)', () => {
-  it('are exactly the ones ADR 0047 allows', () => {
+  it('are exactly the ones ADR 0047 and ADR 0079 allow', () => {
     expect([...SHIPPABLE_LICENSES]).toEqual([
       'CC0-1.0',
       'CC-BY-4.0',
@@ -29,6 +29,8 @@ describe('the licenses content may ship under (ADR 0047)', () => {
       'BSD-2-Clause',
       'BSD-3-Clause',
       'Apache-2.0',
+      'CC-PDM-1.0',
+      'LicenseRef-public-domain',
     ]);
   });
 

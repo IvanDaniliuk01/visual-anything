@@ -7,7 +7,9 @@
  * so the canvas draws the bands in order and draws every overlapping pair in drawing order, and the
  * shape under the pointer is the last one in that order that holds it: the one drawn on top.
  */
-import { type Point, type Rect } from './geometry';
+import { holdsPoint, type Point, type Rect } from './geometry';
+import { OUTLINE_REACH, outlineBoundsOn, simplifiedHolds } from './outlined';
+import { shapeHolds } from './outlines';
 import { distanceToRoute } from './route';
 import type { ArrowShape, ElementShape, NoteShape, RelationLine, Scene } from './scene';
 import { holdsDrawn } from './shape-images';
@@ -455,8 +457,9 @@ const NOTHING_SKIPPED: Skipped = { has: () => false };
 /**
  * What lies at a point of the scene. `tolerance` is how far, in scene units, a line may be from the
  * point and still count as under it. An element shape counts by its drawn outline where `exact` says
- * so for it, and by its rectangle otherwise, as while the canvas draws it as a plain block. What
- * `hidden` holds is not drawn, and is not found.
+ * so for it, and as a plain block otherwise, as while the canvas draws it so: by its rectangle, or by
+ * its simplified outline for a shape with its own (`holdsAsDrawn`). What `hidden` holds is not drawn,
+ * and is not found.
  */
 export function hitAt(
   indexed: IndexedScene,
@@ -515,16 +518,46 @@ function shapesUnder(
 ): ElementShape[] {
   const found: ElementShape[] = [];
   // The index lists shapes in drawing order, so the last one that holds the point is drawn on top.
-  const under = indexed.shapes.at(point);
+  // It is asked as far around the point as an outline's stroke reaches past the shape's rectangle.
+  const under = indexed.shapes.at(point, OUTLINE_REACH);
   for (let each = under.length - 1; each >= 0 && found.length < most; each--) {
     const shape = indexed.scene.shapes[under[each] as number] as ElementShape;
     if (hidden.has(shape.key)) continue;
-    if (!exact(shape) || holdsDrawn(shape, point)) found.push(shape);
+    if (holdsAsDrawn(shape, point, exact(shape))) found.push(shape);
   }
   return found;
 }
 
-/** What a dragged box encloses entirely: element shapes, notes and arrows, but what `hidden` holds. */
+/**
+ * Whether an element shape holds a point as the canvas draws it. A shape with its own outline holds
+ * by it (ADR 0066): drawn in full, inside the outline or within half its stroke's width of it, so
+ * that a point in a hole or beside the outline inside its box falls to what lies behind, exactly to
+ * within the flattening's quarter of a canvas unit; drawn as a plain block, inside its simplified
+ * outline, holes filled, as far out draws it. Any other shape holds by its kind's outline drawn in
+ * full, or by its rectangle as a plain block.
+ */
+export function holdsAsDrawn(shape: ElementShape, point: Point, exact: boolean): boolean {
+  const { outline } = shape;
+  if (outline) {
+    return exact
+      ? shapeHolds(shape, point, OUTLINE_REACH)
+      : simplifiedHolds({ rect: shape.rect, outline }, point);
+  }
+  return exact ? holdsDrawn(shape, point) : holdsPoint('rectangle', shape.rect, point);
+}
+
+/**
+ * What box selection reads of a shape: the bounds of its own outline, which a dragged box must hold
+ * whole (ADR 0066), or its rectangle.
+ */
+export function selectedBoxOf(shape: ElementShape): Rect {
+  return shape.outline ? outlineBoundsOn({ rect: shape.rect, outline: shape.outline }) : shape.rect;
+}
+
+/**
+ * What a dragged box encloses entirely: element shapes, by their own outline's bounds where they have
+ * one, notes and arrows, but what `hidden` holds.
+ */
 export function enclosedBy(
   indexed: IndexedScene,
   box: Rect,
@@ -534,7 +567,7 @@ export function enclosedBy(
   const shapes = indexed.shapes
     .query(box)
     .map((at) => scene.shapes[at] as ElementShape)
-    .filter((shape) => !hidden.has(shape.key) && within(shape.rect, box));
+    .filter((shape) => !hidden.has(shape.key) && within(selectedBoxOf(shape), box));
   return {
     // A box around a table selects the table, not its rows as well (ADR 0023).
     shapes: withoutRowsOfEnclosed(shapes),

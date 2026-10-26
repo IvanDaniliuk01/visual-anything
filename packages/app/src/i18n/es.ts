@@ -26,6 +26,7 @@
  * | grid                    | cuadrícula                       |
  * | ruler                   | regla                            |
  * | snapping, snap          | ajuste, ajustar a la cuadrícula  |
+ * | alignment guide         | línea de alineación              |
  * | shape                   | forma                            |
  * | anchored shape          | forma anclada                    |
  * | free shape              | forma libre                      |
@@ -959,6 +960,63 @@ export const ui: Catalog = {
   'The grid is hidden.': 'Se ocultó la cuadrícula.',
   'The rulers show.': 'Se muestran las reglas.',
   'The rulers are hidden.': 'Se ocultaron las reglas.',
+  // W51: resizing, aligning and distributing shapes on the canvas (ADR 0074). An alignment guide is
+  // "línea de alineación", since "guía" is Claude's guidance.
+  Align: 'Alinear',
+  'Align, distribute or size alike the selected shapes':
+    'Alinear, distribuir o igualar el tamaño de las formas seleccionadas',
+  'Align left': 'Alinear a la izquierda',
+  'Align centers': 'Alinear los centros',
+  'Align right': 'Alinear a la derecha',
+  'Align top': 'Alinear arriba',
+  'Align middles': 'Alinear al medio',
+  'Align bottom': 'Alinear abajo',
+  'Distribute horizontally': 'Distribuir horizontalmente',
+  'Distribute vertically': 'Distribuir verticalmente',
+  'Same width': 'Mismo ancho',
+  'Same height': 'Mismo alto',
+  'Lines up the left edges of the selected shapes on the leftmost one’s. Alt+Shift+←':
+    'Alinea los bordes izquierdos de las formas seleccionadas con el de la que está más a la izquierda. Alt+Mayús+←',
+  'Lines up the selected shapes’ centers, on a line down the middle of their bounds.':
+    'Alinea los centros de las formas seleccionadas sobre una línea vertical, en el medio del espacio que ocupan.',
+  'Lines up the right edges of the selected shapes on the rightmost one’s. Alt+Shift+→':
+    'Alinea los bordes derechos de las formas seleccionadas con el de la que está más a la derecha. Alt+Mayús+→',
+  'Lines up the top edges of the selected shapes on the highest one’s. Alt+Shift+↑':
+    'Alinea los bordes superiores de las formas seleccionadas con el de la que está más arriba. Alt+Mayús+↑',
+  'Lines up the selected shapes’ middles, on a line across the middle of their bounds.':
+    'Alinea los medios de las formas seleccionadas sobre una línea horizontal, en el medio del espacio que ocupan.',
+  'Lines up the bottom edges of the selected shapes on the lowest one’s. Alt+Shift+↓':
+    'Alinea los bordes inferiores de las formas seleccionadas con el de la que está más abajo. Alt+Mayús+↓',
+  'Spaces the selected shapes with equal gaps from left to right; the first and the last stay.':
+    'Distribuye las formas seleccionadas con espacios iguales de izquierda a derecha; la primera y la última no se mueven.',
+  'Spaces the selected shapes with equal gaps from top to bottom; the first and the last stay.':
+    'Distribuye las formas seleccionadas con espacios iguales de arriba abajo; la primera y la última no se mueven.',
+  'Gives the selected shapes the width of the widest of them.':
+    'Da a las formas seleccionadas el ancho de la más ancha.',
+  'Gives the selected shapes the height of the tallest of them.':
+    'Da a las formas seleccionadas el alto de la más alta.',
+  'Select two or more shapes to align them.': 'Seleccionar dos formas o más para alinearlas.',
+  'Select three or more shapes to distribute them.':
+    'Seleccionar tres formas o más para distribuirlas.',
+  'Select two or more shapes whose size can change.':
+    'Seleccionar dos formas o más cuyo tamaño pueda cambiar.',
+  'They are aligned already.': 'Ya están alineadas.',
+  'They are distributed already.': 'Ya están distribuidas.',
+  'They have that size already.': 'Ya tienen ese tamaño.',
+  'Alt+Shift+arrow keys (⌥⇧ on macOS)': 'Alt+Mayús+flechas (⌥⇧ en macOS)',
+  'Align the selected shapes to that side: left, right, top or bottom':
+    'Alinear las formas seleccionadas de ese lado: a la izquierda, a la derecha, arriba o abajo',
+  'Shift while resizing': 'Mayús mientras se cambia el tamaño',
+  'Keep the shape’s proportions; a shape whose outline keeps them changes them':
+    'Mantener las proporciones de la forma; una forma cuyo contorno las mantiene las cambia',
+  'Alt while resizing (⌥ on macOS)': 'Alt mientras se cambia el tamaño (⌥ en macOS)',
+  'Resize the shape from its middle': 'Cambiar el tamaño de la forma desde su centro',
+  'Ctrl while dragging or resizing (⌘ on macOS)':
+    'Ctrl mientras se arrastra o se cambia el tamaño (⌘ en macOS)',
+  'Turn the alignment guides off, as Alt does while dragging':
+    'Desactivar las líneas de alineación, como hace Alt mientras se arrastra',
+  'Escape while dragging or resizing': 'Esc mientras se arrastra o se cambia el tamaño',
+  'Stop, and leave the shapes as they were': 'Detener, y dejar las formas como estaban',
   // A table's columns, and any shape's rows, in the inspector.
   Columns: 'Columnas',
   Rows: 'Filas',
@@ -1178,6 +1236,11 @@ export const ui: Catalog = {
   'Apply every change, as one action': 'Aplicar todos los cambios, como una sola acción',
   'Escape, editing a route': 'Esc, al editar una ruta',
   'Cancel, and leave the route as it was': 'Cancelar y dejar la ruta como estaba',
+  // M8b W53: an end dragged onto a shape with free geometry or onto an anchored part.
+  'Attach at this point of its edge': 'Conectar en este punto de su borde',
+  'Attach at this point inside it': 'Conectar en este punto, dentro de la forma',
+  'at a place inside it': 'en un lugar dentro de la forma',
+  'At a place inside it': 'En un lugar dentro de la forma',
   // The image picker.
   Image: 'Imagen',
   'Choose an image…': 'Elegir una imagen…',
@@ -2289,6 +2352,64 @@ export const ui: Catalog = {
   '{count} threads: {about}': { one: '{count} hilo: {about}', other: '{count} hilos: {about}' },
   'Place the comment: click where it goes, or press Enter for the middle of the canvas. Escape gives up.':
     'Ubicar el comentario: hacer clic donde va, o pulsar Enter para ubicarlo en el centro del lienzo. Escape cancela.',
+  // M8b W54: the parts of a drawing with parts, Anchor parts… and Replace the picture… (ADR 0067).
+  Parts: 'Partes',
+  parts: 'partes',
+  'Its picture, “{image}”, has {count} named parts.': {
+    one: 'Su imagen, “{image}”, tiene {count} parte con nombre.',
+    other: 'Su imagen, “{image}”, tiene {count} partes con nombre.',
+  },
+  '{count} of them are drawn as contents.': {
+    one: '{count} de ellas se dibuja como un contenido.',
+    other: '{count} de ellas se dibujan como contenidos.',
+  },
+  'drawn as it': 'se dibuja como ella',
+  'Nothing is drawn as it.': 'Nada se dibuja como ella.',
+  '“{name}” names the part “{part}”, which “{other}” is drawn as already, so it sits below the picture.':
+    '“{name}” nombra la parte “{part}”, como la que ya se dibuja “{other}”, así que se ubica debajo de la imagen.',
+  'Anchor parts…': 'Anclar partes…',
+  'Anchor the parts of “{name}”': 'Anclar las partes de “{name}”',
+  'Match each part': 'Hacer coincidir cada parte',
+  'By name, to a content named alike': 'Por nombre, con un contenido de nombre parecido',
+  'By id, to the element with that id': 'Por id, con el elemento que tiene ese id',
+  'By an external identifier, read in a scheme':
+    'Por un identificador externo, leído en un catálogo',
+  'A part’s id is read as an identifier as it is, or with its first “_” as “:”; the crosswalks of the project’s packages translate it when contents use another scheme.':
+    'El id de una parte se lee como identificador tal cual, o con su primer “_” como “:”; las tablas de correspondencias de los paquetes del proyecto lo traducen cuando los contenidos usan otro catálogo.',
+  'Create an element for each part that matches nothing, named after the part':
+    'Crear un elemento por cada parte que no coincide con nada, con el nombre de la parte',
+  '{count} parts are matched to contents:': {
+    one: '{count} parte coincide con un contenido:',
+    other: '{count} partes coinciden con contenidos:',
+  },
+  '{count} parts get an element of their own:': {
+    one: '{count} parte recibe un elemento propio:',
+    other: '{count} partes reciben un elemento propio:',
+  },
+  '{count} parts match nothing.': {
+    one: '{count} parte no coincide con nada.',
+    other: '{count} partes no coinciden con nada.',
+  },
+  '{count} parts are drawn as contents already, and keep them.': {
+    one: '{count} parte ya se dibuja como un contenido, y lo conserva.',
+    other: '{count} partes ya se dibujan como contenidos, y los conservan.',
+  },
+  'Anchor {count} parts': { one: 'Anclar {count} parte', other: 'Anclar {count} partes' },
+  '…and {count} more.': { one: '…y {count} más.', other: '…y {count} más.' },
+  '“{part}” → “{name}”': '“{part}” → “{name}”',
+  '“{part}” → a new “{name}”': '“{part}” → un nuevo “{name}”',
+  'Nothing would be anchored.': 'No se anclaría nada.',
+  'Replace the picture…': 'Reemplazar la imagen…',
+  'Replace the picture of “{name}”': 'Reemplazar la imagen de “{name}”',
+  'Replace the picture of “{name}”?': '¿Reemplazar la imagen de “{name}”?',
+  'The new picture lacks {count} parts that elements are drawn as. Until a picture has them again, their elements are drawn as ordinary shapes; undoing brings them back:':
+    {
+      one: 'A la nueva imagen le falta {count} parte como la que se dibuja un elemento. Hasta que una imagen vuelva a tenerla, su elemento se dibuja como una forma común; deshacer la recupera:',
+      other:
+        'A la nueva imagen le faltan {count} partes como las que se dibujan elementos. Hasta que una imagen vuelva a tenerlas, sus elementos se dibujan como formas comunes; deshacer las recupera:',
+    },
+  '“{part}”, drawn as {elements}': '“{part}”, como la que se dibuja {elements}',
+  Replace: 'Reemplazar',
   // W43, from the review of L1: the name a picture takes when its file gives none, written in the
   // language read in as every name the app gives (ADR 0038).
   Picture: 'Imagen',
@@ -2533,6 +2654,19 @@ export const messages: Catalog = {
   '{base}, and move {n} other shapes': '{base} y mover {n} formas más',
   'Move {moved} to the end': 'Mover {moved} al final',
   'Move {moved} before "{name}"': 'Mover {moved} antes de "{name}"',
+  // W51: resizing, aligning and distributing shapes on the canvas (ADR 0074), as the history names it.
+  'Resize "{name}"': 'Cambiar el tamaño de "{name}"',
+  'Resize a note': 'Cambiar el tamaño de una nota',
+  'Align {n} shapes to the left': 'Alinear {n} formas a la izquierda',
+  'Align the centers of {n} shapes': 'Alinear los centros de {n} formas',
+  'Align {n} shapes to the right': 'Alinear {n} formas a la derecha',
+  'Align {n} shapes to the top': 'Alinear {n} formas arriba',
+  'Align the middles of {n} shapes': 'Alinear al medio {n} formas',
+  'Align {n} shapes to the bottom': 'Alinear {n} formas abajo',
+  'Distribute {n} shapes horizontally': 'Distribuir {n} formas horizontalmente',
+  'Distribute {n} shapes vertically': 'Distribuir {n} formas verticalmente',
+  'Give {n} shapes the same width': 'Dar el mismo ancho a {n} formas',
+  'Give {n} shapes the same height': 'Dar el mismo alto a {n} formas',
   'Create the package "{name}"': 'Crear el paquete "{name}"',
   'Rename the package "{old}" to "{new}"': 'Cambiar el nombre del paquete "{old}" a "{new}"',
   'Edit the package "{name}"': 'Editar el paquete "{name}"',
@@ -2760,6 +2894,28 @@ export const messages: Catalog = {
   'Step {n} activates no relation; a step needs at least one.':
     'El paso {n} no activa ninguna relación; un paso necesita al menos una.',
   'Step {n} lists the same relation twice.': 'El paso {n} incluye la misma relación dos veces.',
+  // M11c seam 2: decisions in scenarios (ADR 0078).
+  'A scenario holds at most 64 decisions.': 'Un escenario tiene como máximo 64 decisiones.',
+  'The id "{id}" is used twice in the scenario.': 'El id "{id}" se usa dos veces en el escenario.',
+  'The decision "{question}" has 2 to 8 alternatives.':
+    'La decisión "{question}" tiene de 2 a 8 alternativas.',
+  'The alternative "{label}" lists "{id}", which is not a step of the scenario.':
+    'La alternativa "{label}" incluye "{id}", que no es un paso del escenario.',
+  'The steps of the alternative "{label}" do not follow one another.':
+    'Los pasos de la alternativa "{label}" no van uno detrás de otro.',
+  'The alternatives of the decision "{question}" do not follow one another.':
+    'Las alternativas de la decisión "{question}" no van una detrás de otra.',
+  'The decision "{question}" needs an alternative with steps.':
+    'La decisión "{question}" necesita una alternativa con pasos.',
+  'The decision "{question}" names a default that is none of its alternatives.':
+    'La decisión "{question}" nombra como predeterminada una alternativa que no es suya.',
+  'The decisions "{a}" and "{b}" cross: one must sit inside an alternative of the other, or stand apart.':
+    'Las decisiones "{a}" y "{b}" se cruzan: una tiene que estar dentro de una alternativa de la otra, o aparte.',
+  'Decisions sit at most three deep.': 'Las decisiones se anidan como máximo en tres niveles.',
+  'A decision has an id, the kind "decision", a question, its alternatives and maybe a default; an alternative has an id, a label, its steps and maybe ends.':
+    'Una decisión tiene un id, el tipo "decision", una pregunta, sus alternativas y quizás una predeterminada; una alternativa tiene un id, un rótulo, sus pasos y quizás ends.',
+  'The decisions of the scenario "{name}" do not hold together: {why} It plays every step in order.':
+    'Las decisiones del escenario "{name}" no encajan: {why} Se reproducen todos sus pasos en orden.',
   'Step {n} uses "{id}", which is not a relation of the model.':
     'El paso {n} usa "{id}", que no es una relación del modelo.',
   'Step {n} needs a description.': 'El paso {n} necesita una descripción.',
@@ -3474,8 +3630,10 @@ export const messages: Catalog = {
     'Una ruta es ortogonal, recta o curva, no {style}.',
   'No relations were given to route again.': 'No se indicó ninguna relación para volver a trazar.',
   'A relation is given by its id.': 'Una relación se da por su id.',
-  'An attachment is a connection point or a place on the border.':
-    'Una conexión es un punto de conexión o un lugar del borde.',
+  'An attachment is a connection point, a place on the border or a place inside the shape.':
+    'Una conexión es un punto de conexión, un lugar del borde o un lugar dentro de la forma.',
+  'Where an end attaches inside its shape goes from 0 to 1 across and down, not {x} and {y}.':
+    'El lugar donde un extremo se conecta dentro de su forma va de 0 a 1 a lo ancho y a lo alto, no {x} y {y}.',
   'A side is top, right, bottom or left, not {side}.':
     'Un lado es top, right, bottom o left, no {side}.',
   'Where an end attaches along its side goes from 0 to 1, not {at}.':
@@ -4643,6 +4801,17 @@ export const messages: Catalog = {
     'Los atributos de un rango de tiempo son texto sin caracteres rotos.',
   'A time range reads its values as one of: {kinds}.':
     'Un rango de tiempo lee sus valores como uno de: {kinds}.',
+  // M8b W54: Anchor parts… (ADR 0067).
+  'Anchor 1 part of "{name}"': 'Anclar 1 parte de "{name}"',
+  'Anchor {count} parts of "{name}"': 'Anclar {count} partes de "{name}"',
+  'The element "{name}" is no drawing with parts: it does not show an SVG image with its parts.':
+    'El elemento "{name}" no es un dibujo con partes: no muestra una imagen SVG con sus partes.',
+  'Parts are matched by an external identifier in a scheme, a short lowercase name such as "uberon"; "{scheme}" is not one.':
+    'Las partes coinciden por un identificador externo en un catálogo, un nombre corto en minúsculas como "uberon"; "{scheme}" no lo es.',
+  'The picture of "{name}" has no part "{part}".':
+    'La imagen de "{name}" no tiene ninguna parte "{part}".',
+  'No nesting relation type can hold a new element of "{component}" inside "{name}".':
+    'Ningún tipo de relación que anida puede contener un nuevo elemento de "{component}" dentro de "{name}".',
   // M8b seam 1: free geometry, named parts and automatic route styles (ADR 0066, 0067, 0069).
   'the element "{name}"': 'el elemento "{name}"',
   'The package "{name}"': 'El paquete "{name}"',

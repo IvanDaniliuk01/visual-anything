@@ -15,6 +15,11 @@
  *   session. During motion, an SVG is rasterized only at a bucket whose cost is known and that fits the
  *   frame. At most one SVG rasterization and two bitmap decodes a frame, nearest the middle of the
  *   screen first, and no new work once the frame has spent 8 ms.
+ * - **Large pictures** (ADR 0067): the picture of a drawing with parts, up to 1,600 units a side, and a
+ *   part's own picture may also be made at 1,024 and 2,048 pixels, while what the canvas uses stays
+ *   within the GPU budget. Once the camera rests, and while no theme switch or recolor is being
+ *   drawn, such a picture is rasterized even when that takes longer than a frame, up to 250 ms, alone
+ *   in its frame; during motion only at a cost known to fit the frame, as any picture.
  * - **Lifetime.** Tiles say which textures their image drawing uses. A tile out of the settled reach
  *   for 3 seconds gives them up. Only textures that no tile uses are evicted, oldest use first, while
  *   the estimate of GPU memory is over 64 MiB.
@@ -28,8 +33,17 @@ import { imageSerial, pruneImageSerials } from './image-serials';
 /** The sizes textures are made at, in device pixels along the picture's longer side. */
 export const BUCKETS = [16, 32, 64, 128, 256, 512] as const;
 
+/**
+ * The larger sizes a large picture may also be made at (ADR 0067): the picture of a drawing with parts,
+ * up to 1,600 units a side, and a part's own picture, which a small texture would show blurred.
+ */
+export const LARGE_BUCKETS = [1024, 2048] as const;
+
+/** Every size a texture is made at, smallest first. */
+const ALL_BUCKETS = [...BUCKETS, ...LARGE_BUCKETS] as const;
+
 /** A size a texture is made at. */
-export type Bucket = (typeof BUCKETS)[number];
+export type Bucket = (typeof ALL_BUCKETS)[number];
 
 /** The limits the store keeps. */
 export const IMAGE_LIMITS = {
@@ -63,6 +77,11 @@ export const IMAGE_LIMITS = {
   gutter: 4,
   /** The largest bucket kept in atlas pages. */
   atlasBucket: 64 as Bucket,
+  /**
+   * At rest, a large picture is rasterized alone in its frame while what it should cost stays under
+   * this many milliseconds, past what a frame keeps to; during a theme switch or a recolor, never.
+   */
+  largeAtRest: 250,
 } as const;
 
 /** How much more memory mipmaps take. */
@@ -80,9 +99,9 @@ export { imageSerial, pruneImageSerials } from './image-serials';
  * by ratio, so that the texture is within 1.5 times the size on screen, ties going to the larger. An
  * 18-unit icon at scale 0.45 on a 1× screen is about 8 pixels, and takes the 16 bucket.
  */
-export function bucketFor(devicePixels: number): Bucket {
+export function bucketFor(devicePixels: number, large = false): Bucket {
   let best: Bucket = BUCKETS[0];
-  for (const bucket of BUCKETS) {
+  for (const bucket of large ? ALL_BUCKETS : BUCKETS) {
     if (Math.abs(Math.log2(devicePixels / bucket)) <= Math.abs(Math.log2(devicePixels / best))) {
       best = bucket;
     }
@@ -94,9 +113,10 @@ export function bucketFor(devicePixels: number): Bucket {
  * The bucket for a picture shown this large once the camera rests: the smallest one at least as large,
  * so that it is never drawn larger than its texture, as resting text is sharpened.
  */
-export function sharpBucketFor(devicePixels: number): Bucket {
-  for (const bucket of BUCKETS) if (devicePixels <= bucket) return bucket;
-  return 512;
+export function sharpBucketFor(devicePixels: number, large = false): Bucket {
+  const buckets = large ? ALL_BUCKETS : BUCKETS;
+  for (const bucket of buckets) if (devicePixels <= bucket) return bucket;
+  return buckets[buckets.length - 1] as Bucket;
 }
 
 /** The key of a texture: a serial, a bucket and whether it is a silhouette. */
@@ -243,6 +263,11 @@ export interface ImageRequest {
   distance: number;
   /** The tile whose image drawing shows it, which is rebuilt when a better texture is ready. */
   tile: string;
+  /**
+   * Whether it is a large picture (ADR 0067), the picture of a drawing with parts or a part's own:
+   * it may take the large buckets, and at rest it is rasterized past a frame's budget.
+   */
+  large?: boolean;
 }
 
 /** A texture to draw a picture with. */
@@ -260,6 +285,11 @@ export interface ImageFrame {
   spent: number;
   /** Whether the camera moves. */
   moving: boolean;
+  /**
+   * Whether a theme switch or a recolor is being drawn, whose frames keep their budget: no large
+   * picture is rasterized past a frame's budget meanwhile.
+   */
+  busy?: boolean;
 }
 
 interface Made<T> {
@@ -279,6 +309,8 @@ interface Wanted<P> {
   serial: number;
   bucket: Bucket;
   silhouette: boolean;
+  /** Whether it is a large picture, rasterized at rest past a frame's budget. */
+  large: boolean;
   distance: number;
   tiles: Set<string>;
   /** Since when none of its tiles is within the settled reach. */
@@ -330,9 +362,13 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
   texture(request: ImageRequest): ImageTexture<T> | undefined {
     const serial = imageSerial(request.image);
     if (this.#broken.has(serial)) return undefined;
-    const bucket = request.sharp
-      ? sharpBucketFor(request.devicePixels)
-      : bucketFor(request.devicePixels);
+    const large = request.large === true;
+    const bucket = this.#affordable(
+      request.sharp
+        ? sharpBucketFor(request.devicePixels, large)
+        : bucketFor(request.devicePixels, large),
+      request.image,
+    );
     const key = textureKey(serial, bucket, request.silhouette);
     const made = this.#made.get(key);
     if (made) return { texture: made.texture, key, bucket, exact: true };
@@ -343,7 +379,7 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
       this.#want(request, serial, first, textureKey(serial, first, request.silhouette));
     } else if (request.image.kind === 'svg') {
       // Too costly to draw at once: one bucket larger than it has, whose cost is then measured.
-      const step = this.#stepToward(serial, bucket, request.silhouette);
+      const step = this.#stepToward(serial, bucket, request.silhouette, large);
       if (step !== undefined) {
         this.#want(request, serial, step, textureKey(serial, step, request.silhouette));
       }
@@ -467,7 +503,7 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
         }
         continue;
       }
-      if (!this.#mayRasterize(wanted, frame.moving, spent())) continue;
+      if (!this.#mayRasterize(wanted, frame, spent(), rasterized)) continue;
       if (wanted.state === 'new') {
         if (loads < IMAGE_LIMITS.svgLoads) {
           loads += 1;
@@ -551,15 +587,36 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
       serial,
       bucket,
       silhouette: request.silhouette,
+      large: request.large === true,
       distance: request.distance,
       tiles: new Set([request.tile]),
       state: 'new',
     });
   }
 
+  /**
+   * The largest bucket, up to the one asked for, whose texture fits the GPU budget beside the
+   * textures in use: a large bucket only while it does, so that what shows is never evicted for it.
+   */
+  #affordable(bucket: Bucket, image: CleanedImage): Bucket {
+    if (bucket <= 512) return bucket;
+    let used = this.#pageBytes;
+    for (const made of this.#made.values()) if (this.#usedBy.has(made.key)) used += made.bytes;
+    let at = ALL_BUCKETS.indexOf(bucket);
+    while (at > BUCKETS.length - 1) {
+      const each = ALL_BUCKETS[at] as Bucket;
+      const size = sizeIn(each, image.width, image.height);
+      const made = this.#made.get(textureKey(imageSerial(image), each, false));
+      const bytes = made ? 0 : Math.round(size.width * size.height * 4 * MIPMAPS);
+      if (used + bytes <= IMAGE_LIMITS.gpuBudget) return each;
+      at -= 1;
+    }
+    return ALL_BUCKETS[at] as Bucket;
+  }
+
   #standIn(serial: number, bucket: Bucket, silhouette: boolean): Made<T> | undefined {
     let best: Made<T> | undefined;
-    for (const each of BUCKETS) {
+    for (const each of ALL_BUCKETS) {
       const made = this.#made.get(textureKey(serial, each, silhouette));
       if (!made) continue;
       if (!best || Math.abs(Math.log2(each / bucket)) < Math.abs(Math.log2(best.bucket / bucket)))
@@ -572,7 +629,7 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
   #knownCost(serial: number, bucket: Bucket): number | undefined {
     const costs = this.#costs.get(serial);
     if (!costs) return undefined;
-    for (const each of BUCKETS) {
+    for (const each of ALL_BUCKETS) {
       if (each < bucket) continue;
       const cost = costs.get(each);
       if (cost !== undefined) return cost;
@@ -599,29 +656,44 @@ export class ImageStore<T = Texture, P = CanvasImageSource> {
    * The bucket to rasterize an SVG at on the way to `bucket`, when `bucket` itself should take too
    * long from what is known: the one after the largest one made, if that one should not.
    */
-  #stepToward(serial: number, bucket: Bucket, silhouette: boolean): Bucket | undefined {
+  #stepToward(
+    serial: number,
+    bucket: Bucket,
+    silhouette: boolean,
+    large = false,
+  ): Bucket | undefined {
+    const limit = large ? IMAGE_LIMITS.largeAtRest : IMAGE_LIMITS.slowFirst;
     const fits = (each: Bucket) => {
       const estimate = this.#estimatedCost(serial, each);
-      return estimate !== undefined && estimate <= IMAGE_LIMITS.slowFirst;
+      return estimate !== undefined && estimate <= limit;
     };
     if (fits(bucket)) return undefined;
     let largest: Bucket | undefined;
-    for (const each of BUCKETS) {
+    for (const each of ALL_BUCKETS) {
       if (each < bucket && this.#made.has(textureKey(serial, each, silhouette))) largest = each;
     }
     if (largest === undefined) return undefined;
-    const step = BUCKETS[BUCKETS.indexOf(largest) + 1];
+    const step = ALL_BUCKETS[ALL_BUCKETS.indexOf(largest) + 1];
     return step !== undefined && step < bucket && fits(step) ? step : undefined;
   }
 
-  #mayRasterize(wanted: Wanted<P>, moving: boolean, spent: number): boolean {
+  #mayRasterize(wanted: Wanted<P>, frame: ImageFrame, spent: number, done: number): boolean {
+    const { moving } = frame;
     if (!this.#costs.has(wanted.serial))
       return !moving && wanted.bucket === IMAGE_LIMITS.firstBucket;
     if (!moving) {
+      const estimate = this.#estimatedCost(wanted.serial, wanted.bucket);
+      if (estimate === undefined) return false;
+      // A large picture, once the camera rests and no switch is drawn, alone in its frame and past
+      // the frame's budget, so that it is drawn sharp (ADR 0067).
+      if (wanted.large && frame.busy !== true && estimate > IMAGE_LIMITS.slowFirst) {
+        return (
+          done === 0 && spent <= IMAGE_LIMITS.workAfter / 2 && estimate <= IMAGE_LIMITS.largeAtRest
+        );
+      }
       // At rest too, a frame keeps to what a first rasterization may take: a picture whose larger
       // bucket would take longer stays drawn from a smaller one.
-      const estimate = this.#estimatedCost(wanted.serial, wanted.bucket);
-      return estimate !== undefined && spent + estimate <= IMAGE_LIMITS.slowFirst;
+      return spent + estimate <= IMAGE_LIMITS.slowFirst;
     }
     const cost = this.#knownCost(wanted.serial, wanted.bucket);
     return cost !== undefined && spent + cost < IMAGE_LIMITS.motionBudget;

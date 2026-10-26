@@ -31,6 +31,7 @@ import {
   relationColorWarnings,
   strokeWarnings,
 } from './appearance-tools';
+import { ALIGN_TOOLS } from './align-tools';
 import { ProgramUnavailableError, type Program } from './bridge';
 import { cascadeOf, cascadeRefusal, takesMore } from './cascade';
 import { EXPLORE_TOOLS } from './explore-tools';
@@ -38,6 +39,7 @@ import { CODE_TOOLS } from './code-tools';
 import { COMMENT_TOOLS } from './comment-tools';
 import { EXPORT_TOOLS } from './export-tools';
 import { IMAGE_TOOLS } from './image-tools';
+import { PART_TOOLS } from './part-tools';
 import { OVERLAY_TOOLS } from './overlay-tools';
 import { IMPORT_TOOLS } from './import-tools';
 import {
@@ -990,6 +992,11 @@ const attachment = () =>
         side: z.enum(['top', 'right', 'bottom', 'left']),
         at: z.number().min(0).max(1),
       }),
+      z.object({
+        kind: z.literal('inside'),
+        x: z.number().min(0).max(1),
+        y: z.number().min(0).max(1),
+      }),
     ])
     .nullable()
     .optional();
@@ -997,7 +1004,7 @@ const attachment = () =>
 const setRoute = tool({
   name: 'set_route',
   title: 'Route a relation by hand',
-  description: `Routes a relation by hand in a view, as the person does by dragging its ends and bend points, as one undoable action; only what you give changes, and the rest stays as it is. from and to say where the line attaches to each end: { "kind": "connection-point", "name": "out" } for one of the end's connection points (list_definitions gives a component's), or { "kind": "border", "side": "left", "at": 0.25 } for a place on its border, at going from 0 at the side's top or left end to 1 at its bottom or right end; null attaches it automatically again. An end that is a relation attaches to the middle of that relation's line and takes neither; a row, or a table that draws rows, takes only its left or right side. bendPoints are the points the line passes through, in order from its from end, in canvas units relative to the shape of the nearest container that holds both ends (or to the canvas when that is World), as read_view gives positions; the answer says which container; null removes them. style is orthogonal (the default), straight or curved. A relation the view draws as containment has no route.
+  description: `Routes a relation by hand in a view, as the person does by dragging its ends and bend points, as one undoable action; only what you give changes, and the rest stays as it is. from and to say where the line attaches to each end: { "kind": "connection-point", "name": "out" } for one of the end's connection points (list_definitions gives a component's), { "kind": "border", "side": "left", "at": 0.25 } for a place on its border, at going from 0 at the side's top or left end to 1 at its bottom or right end, or { "kind": "inside", "x": 0.3, "y": 0.6 } for a place anywhere inside the shape, x and y going from 0 at its left or top to 1 at its right or bottom; null attaches it automatically again. An end that is a relation attaches to the middle of that relation's line and takes neither; a row, or a table that draws rows, takes only its left or right side. bendPoints are the points the line passes through, in order from its from end, in canvas units relative to the shape of the nearest container that holds both ends (or to the canvas when that is World), as read_view gives positions; the answer says which container; null removes them. style is orthogonal (the default), straight or curved. A relation the view draws as containment has no route.
 
 Example: { "view": "system-overview", "relation": "booking-agent-calls-api-k3f9q2", "from": { "kind": "connection-point", "name": "out" }, "to": { "kind": "border", "side": "top", "at": 0.5 } }
 Example: { "view": "system-overview", "relation": "api-reads-db-p0x7aa", "bendPoints": [{ "x": 320, "y": 96 }, { "x": 320, "y": 220 }], "style": "curved" }`,
@@ -1407,6 +1414,8 @@ export const TOOLS: readonly Tool[] = [
   deleteView,
   setPositions,
   forgetPositions,
+  // Aligning, distributing and sizing alike, as the canvas's Align does (ADR 0074).
+  ...ALIGN_TOOLS,
   restack,
   setCollapsed,
   setRoute,
@@ -1427,6 +1436,8 @@ export const TOOLS: readonly Tool[] = [
   // Tours (ADR 0058).
   ...TOUR_TOOLS,
   ...IMAGE_TOOLS,
+  // Named parts of SVG images (ADR 0067).
+  ...PART_TOOLS,
   ...CODE_TOOLS,
   // Threads of comments (ADR 0059).
   ...COMMENT_TOOLS,
