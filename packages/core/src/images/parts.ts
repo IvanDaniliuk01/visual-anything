@@ -54,9 +54,28 @@ export const PART_CAPS = {
    * at most about 20,000, so only `use` drawn over and over reaches this.
    */
   segments: 100_000,
+  /**
+   * Closed contours of one shape classed as fills and holes, which costs the square of their
+   * number: past them, the largest are kept and the rest left out of every outline, counted before
+   * any is classed. A shape is classed once, however many times a `use` draws it.
+   */
+  contours: 256,
   /** Coordinates past this, once transformed, leave their shape out of every outline. */
   coordinate: 1e9,
 } as const;
+
+/** What the caps on parts left out of a picture's outlines. */
+export interface PartsLeftOut {
+  /** Closed contours left out of shapes that have more than {@link PART_CAPS.contours}. */
+  readonly contours: number;
+  /** Whether shapes were left out past {@link PART_CAPS.segments}. */
+  readonly segments: boolean;
+}
+
+/** What the caps on parts left out of a cleaned picture's outlines; nothing for most pictures. */
+export function partsLeftOut(cleaned: CleanedImage): PartsLeftOut {
+  return readingOf(cleaned).leftOut;
+}
 
 /** A named part of an SVG image, read from its cleaned view. */
 export interface NamedPart {
@@ -219,27 +238,62 @@ export function partImageId(
   return reference === undefined || reference === 'none' ? undefined : reference.image;
 }
 
-/** The `too-many-parts` warning for a picture with more named parts than it lists. */
+/**
+ * The `too-many-parts` warning for a picture past the caps on parts: more named parts than it lists,
+ * or shapes whose contours, or whose copies drawn by `use`, were left out of its parts' outlines.
+ */
 export function tooManyPartsProblem(
   image: Pick<ImageDefinition, 'id' | 'name'>,
   cleaned: CleanedImage,
   packageId: Id,
 ): Problem | undefined {
-  // No picture with fewer ids than the cap can be past it: counting them reads nothing.
-  if (cleaned.kind !== 'svg' || idsIn(cleaned.svg) <= PART_CAPS.parts) return undefined;
+  // A picture whose text can reach no cap is not read: telling costs one pass over its text.
+  if (cleaned.kind !== 'svg' || !mayPassCaps(cleaned.svg)) return undefined;
   const count = namedPartCount(cleaned);
-  if (count <= PART_CAPS.parts) return undefined;
+  const { contours, segments } = partsLeftOut(cleaned);
+  const said: string[] = [];
+  if (count > PART_CAPS.parts) {
+    said.push(
+      `it has ${count.toLocaleString('en')} named parts, and only its first ${PART_CAPS.parts.toLocaleString('en')}, in document order, can be drawn as parts`,
+    );
+  }
+  if (contours > 0) {
+    said.push(
+      `${contours.toLocaleString('en')} contours of shapes with more than ${PART_CAPS.contours} are left out of its parts' outlines`,
+    );
+  }
+  if (segments) {
+    said.push(
+      `past ${PART_CAPS.segments.toLocaleString('en')} segments, what its shapes draw is left out of its parts' outlines`,
+    );
+  }
+  if (said.length === 0) return undefined;
   return problem(
     'too-many-parts',
-    `The image "${image.name}" (${image.id}) has ${count.toLocaleString('en')} named parts; only its first ${PART_CAPS.parts.toLocaleString('en')}, in document order, can be drawn as parts.`,
+    `The image "${image.name}" (${image.id}) is past the caps on parts: ${said.join('; ')}.`,
     [image.id, packageId],
   );
 }
 
-function idsIn(svg: string): number {
-  let count = 0;
-  for (let at = svg.indexOf(' id="'); at !== -1; at = svg.indexOf(' id="', at + 1)) count += 1;
-  return count;
+/**
+ * Whether cleaned text can reach a cap on parts: more ids than parts are listed, a `use`, which
+ * alone can pass the cap on segments, or path data of more subpaths than a shape classes.
+ */
+function mayPassCaps(svg: string): boolean {
+  let ids = 0;
+  for (let at = svg.indexOf(' id="'); at !== -1; at = svg.indexOf(' id="', at + 1)) {
+    ids += 1;
+    if (ids > PART_CAPS.parts) return true;
+  }
+  if (svg.includes('<use')) return true;
+  for (let at = svg.indexOf(' d="'); at !== -1; at = svg.indexOf(' d="', at + 1)) {
+    let moves = 0;
+    for (let i = at + 4; i < svg.length && svg[i] !== '"'; i += 1) {
+      if (svg[i] === 'M' || svg[i] === 'm') moves += 1;
+    }
+    if (moves > PART_CAPS.contours) return true;
+  }
+  return false;
 }
 
 /** Keeps the readings of only the cleaned texts given, as the cleaned images' cache is pruned. */
@@ -263,15 +317,19 @@ interface Reading {
   /** The named parts that draw something, listed or past the cap, by id, with their elements. */
   readonly drawn: ReadonlyMap<string, SvgNode>;
   readonly total: number;
+  readonly leftOut: PartsLeftOut;
   picture(id: string): CleanedSvg | undefined;
   geometry(id: string | undefined): GeometryInput | undefined;
 }
+
+const NOTHING_LEFT_OUT: PartsLeftOut = Object.freeze({ contours: 0, segments: false });
 
 const EMPTY: Reading = {
   parts: Object.freeze([]),
   byId: new Map(),
   drawn: new Map(),
   total: 0,
+  leftOut: NOTHING_LEFT_OUT,
   picture: () => undefined,
   geometry: () => undefined,
 };
@@ -319,15 +377,21 @@ function read(svg: string): Reading {
     parts.push(found);
     byId.set(opened.id, found);
   }
-  const whole = walker.drawings.length > 0 ? walker.outlineOf(walker.drawings) : undefined;
+  // The whole picture's outline is made only when its free geometry is asked for.
+  let whole: Shaped | null | undefined;
   let elements: ElementIndex | undefined;
   const picturesById = new Map<string, CleanedSvg | null>();
   const geometries = new Map<string, GeometryInput | null>();
+  const leftOut =
+    walker.droppedContours === 0 && !walker.exhausted
+      ? NOTHING_LEFT_OUT
+      : Object.freeze({ contours: walker.droppedContours, segments: walker.exhausted });
   return {
     parts: Object.freeze(parts),
     byId,
     drawn,
     total: drawn.size,
+    leftOut,
     picture(id) {
       const found = byId.get(id);
       const node = drawn.get(id);
@@ -344,7 +408,10 @@ function read(svg: string): Reading {
       const key = id === undefined ? '' : `#${id}`;
       let geometry = geometries.get(key);
       if (geometry === undefined) {
-        const target = id === undefined ? whole : byId.get(id);
+        if (id === undefined && whole === undefined) {
+          whole = walker.drawings.length > 0 ? walker.outlineOf(walker.drawings) : null;
+        }
+        const target = id === undefined ? (whole ?? undefined) : byId.get(id);
         geometry = target ? (geometryFromOutline(target.outline, target.bounds) ?? null) : null;
         geometries.set(key, geometry);
       }
@@ -414,6 +481,8 @@ class Walker {
   readonly byId = new Map<string, SvgNode>();
   /** A quarter unit of the picture drawn 1,600 a side, in its own units. */
   readonly tolerance: number;
+  /** Closed contours left out of shapes past {@link PART_CAPS.contours}, each shape counted once. */
+  droppedContours = 0;
   #open: Opened[] = [];
   #segments = 0;
   #exhausted = false;
@@ -421,6 +490,13 @@ class Walker {
   readonly #ranks = new WeakMap<readonly Segment[], RankedPolyline>();
   /** Each shape's own geometry, by the size of the viewport its lengths are measured on. */
   readonly #shapes = new Map<SvgNode, Map<string, ShapeGeometry | null>>();
+  /** Each shape's fill in its own coordinates, classed, by viewport size and fill rule. */
+  readonly #fills = new Map<SvgNode, Map<string, readonly OutlineContour[]>>();
+
+  /** Whether shapes were left out past {@link PART_CAPS.segments}. */
+  get exhausted(): boolean {
+    return this.#exhausted;
+  }
 
   constructor(
     readonly root: SvgNode,
@@ -545,12 +621,17 @@ class Walker {
     if (!filled && !stroked) return;
     const geometry = this.geometryOf(node, size);
     if (!geometry) return;
-    const local = geometry.subpaths.reduce((sum, subpath) => sum + subpath.segments.length + 1, 0);
-    if (this.#segments + local * ((filled ? 1 : 0) + (stroked ? 1 : 0)) > PART_CAPS.segments) {
+    // The fill classed once for the shape, in its own coordinates: an affine map keeps what holds what.
+    const local =
+      filled && geometry.fillable ? this.fillsOf(node, size, geometry, paint.fillRule) : [];
+    let cost = 0;
+    for (const contour of local) cost += contour.segments.length;
+    if (stroked) for (const subpath of geometry.subpaths) cost += subpath.segments.length + 1;
+    if (this.#segments + cost > PART_CAPS.segments) {
       this.#exhausted = true;
       return;
     }
-    this.#segments += local * ((filled ? 1 : 0) + (stroked ? 1 : 0));
+    this.#segments += cost;
     // Every point finite and near enough, control points included: NaN never reaches an outline.
     const far = PART_CAPS.coordinate;
     const near = (point: { x: number; y: number }) =>
@@ -562,23 +643,12 @@ class Walker {
           ? near(segment.to)
           : near(segment.c1) && near(segment.c2) && near(segment.to),
       );
-    const fills: OutlineContour[] = [];
-    if (filled && geometry.fillable) {
-      for (const subpath of geometry.subpaths) {
-        if (subpath.segments.length === 0) continue;
-        const contour = transformContour(
-          {
-            start: subpath.start,
-            segments: closed(subpath.start, subpath.segments),
-            role: 'fill',
-            ...(paint.fillRule === 'nonzero' ? { nonzero: true as const } : {}),
-          },
-          m,
-        );
-        if (!usable(contour)) continue;
-        const { width, height } = boundsOf([contour]);
-        if (width > 0 && height > 0) fills.push(contour);
-      }
+    const classed: OutlineContour[] = [];
+    for (const contour of local) {
+      const placed = transformContour(contour, m);
+      if (!usable(placed)) continue;
+      const { width, height } = boundsOf([placed]);
+      if (width > 0 && height > 0) classed.push(placed);
     }
     const lines: OutlineContour[] = [];
     if (stroked) {
@@ -599,8 +669,7 @@ class Walker {
         if (box.width > 0 || box.height > 0) lines.push(contour);
       }
     }
-    if (fills.length === 0 && lines.length === 0) return;
-    const classed = classContours(fills);
+    if (classed.length === 0 && lines.length === 0) return;
     const boxes = [
       ...(classed.length > 0 ? [boundsOf(classed)] : []),
       ...lines.map((line) => grown(boundsOf([line]), (line.width ?? 0) / 2)),
@@ -628,6 +697,56 @@ class Walker {
     };
     this.drawings.push(drawing);
     for (const opened of this.#open) opened.drawings.push(drawing);
+  }
+
+  /**
+   * A shape's fill in its own coordinates, classed once however many times a `use` draws it: its
+   * closed contours that have a size, at most {@link PART_CAPS.contours} of them, the largest kept.
+   * They are counted before any is classed, since classing costs the square of their number.
+   */
+  fillsOf(
+    node: SvgNode,
+    size: Size,
+    geometry: ShapeGeometry,
+    rule: Paint['fillRule'],
+  ): readonly OutlineContour[] {
+    let byKey = this.#fills.get(node);
+    if (!byKey) {
+      byKey = new Map();
+      this.#fills.set(node, byKey);
+    }
+    const key = `${size.width} ${size.height} ${rule}`;
+    const known = byKey.get(key);
+    if (known) return known;
+    const contours: OutlineContour[] = [];
+    const areas: number[] = [];
+    for (const subpath of geometry.subpaths) {
+      if (subpath.segments.length === 0) continue;
+      const contour: OutlineContour = {
+        start: subpath.start,
+        segments: closed(subpath.start, subpath.segments),
+        role: 'fill',
+        ...(rule === 'nonzero' ? { nonzero: true as const } : {}),
+      };
+      const { x, y, width, height } = boundsOf([contour]);
+      if (![x, y, width, height].every(Number.isFinite) || !(width > 0 && height > 0)) continue;
+      contours.push(contour);
+      areas.push(width * height);
+    }
+    let kept = contours;
+    if (contours.length > PART_CAPS.contours) {
+      const largest = contours
+        .map((_, at) => at)
+        .sort((a, b) => (areas[b] as number) - (areas[a] as number) || a - b)
+        .slice(0, PART_CAPS.contours)
+        .sort((a, b) => a - b);
+      kept = largest.map((at) => contours[at] as OutlineContour);
+      // Counted once for the shape, whatever its viewports and rules.
+      if (byKey.size === 0) this.droppedContours += contours.length - kept.length;
+    }
+    const classed = classContours(kept);
+    byKey.set(key, classed);
+    return classed;
   }
 
   /** A shape's own geometry, read once however many times a `use` draws it. */

@@ -151,6 +151,13 @@ Anatomical atlases, maps, plans and machine drawings already exist as SVG whose 
   - **Points** are counted with the outline flattened to a quarter unit of the picture drawn 1,600 units on its longer side. Past 4,096, the part's contours are flattened and simplified together into straight pieces, by Visvalingam and Whyatt's method, with one threshold for all of them.
   - **A cap is added on the work of reading**: at most 100,000 segments of shapes are read in all, each `use` reading its own copy. A picture's own 64 KiB of text holds about 20,000, so only a `use` drawn over and over reaches it. Past it, the shapes that follow in document order are left out of every outline.
   - **A shape whose coordinates, transformed, reach past 10⁹ units** is left out of every outline too.
+  - **At most 256 closed contours of one shape are classed** as fills and holes, since classing costs the square of their number. They are counted before any is classed; past 256, the largest by their bounds are kept and the rest left out of every outline. A shape is classed once, in its own coordinates, for each viewport size and fill rule, however many times a `use` draws it, since an affine map keeps what holds what. A `use` then costs only the contours kept.
+  - **What the caps left out is reported.** `partsLeftOut` gives the contours left out and whether the cap on segments was passed. `too-many-parts` warns on open for a picture past any cap on parts, not only the one on their number. Whether a picture can reach a cap at all is told first from one pass over its text: its ids, a `use`, or path data with more than 256 subpaths.
+- 2026-10-26 (M8b, Seam 2, after a security review): **the caps on writing a part as free geometry**, whose union of fills and bands is bounded whatever the picture (`UNION_CAPS` in `core/src/geometry/union.ts`).
+  - **Edges.** At most 16,384 edges are joined, counted before anything is built, a stroke's band counting 12 edges for each point of its line. Past that, the flattened contours and lines are simplified together to fit.
+  - **The grid.** Each edge is kept only in the cells it crosses, walked from cell to cell as a digital differential analyser does, never in every cell of its bounds.
+  - **Crossings and work.** At most 16,384 crossings are found, each once, in the cell that holds it, and at most 4,000,000 steps are spent in all: cells an edge is kept in, pairs of edges compared, cells and edges a ray meets, and pieces joined into loops.
+  - **Past a cap,** the union is given up, and the part is written as it is, its contours flattened and each band as one ring around its line. That is linear work, though shapes that overlap then read as their difference where they overlap.
 - 2026-10-26 (M8b, Seam 2): **a part's own picture.**
   - It is a cleaned image of its own. Its id is `<image id>#<part id>`, its name the part's id, and it keeps the image's source and license.
   - The outermost element's paint goes on the new `svg`, and its transform before the first copy's own.
@@ -164,6 +171,6 @@ Anatomical atlases, maps, plans and machine drawings already exist as SVG whose 
   - At most its 64 largest contours are written, simplified together to 2,000 segments and 32 KiB, with numbers rounded to about 1/20,000 of its box.
 - 2026-10-26 (M8b, Seam 2): **lost parts, checks and caching.**
   - The anchored parts a replacement loses are those that the picture before lists and the one after does not.
-  - `too-many-parts` is warned on open for every SVG image drawn whose named parts pass 1,024.
+  - `too-many-parts` is warned on open for every SVG image drawn that is past a cap on parts: more than 1,024 named parts, or contours or shapes left out of its outlines.
   - The functions the appearance checks call take a `part` as `{ part, image? }`: `findPart`; `unknownPartProblem`, which gives no warning when no image is named or the image is not drawn, since other warnings cover those; and `partImageId`, which `in-use` adds to the images an appearance names.
   - A reading is kept for each cleaned view's text, so that equal content is read once, and pruned with the cleaned images. Each part's picture is kept for each cleaned image.

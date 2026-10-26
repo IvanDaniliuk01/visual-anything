@@ -375,6 +375,39 @@ describe('lines, several fills and the nonzero rule', () => {
     ).toBe(false);
   });
 
+  it('classes many contours, nested or apart, in bounded time', () => {
+    const squares = (count: number, nested: boolean, d = '') =>
+      Array.from({ length: count }, (_, at) =>
+        nested
+          ? `M${at} ${at} H${2000 - at} V${2000 - at} H${at} Z`
+          : `M${(at % 50) * 40} ${Math.floor(at / 50) * 40} h20 v20 h-20 Z`,
+      ).join(' ') + d;
+    for (const [count, nested, nonzero] of [
+      [1000, true, false],
+      [1000, true, true],
+      [2500, false, true],
+    ] as const) {
+      const contours = contoursOf(squares(count, nested), nonzero ? { nonzero: true } : {});
+      const start = Date.now();
+      const classed = classContours(contours);
+      expect(Date.now() - start, `${count} ${nested} ${nonzero}`).toBeLessThan(1500);
+      if (nested && !nonzero) {
+        expect(classed.slice(0, 4).map((contour) => contour.role)).toEqual([
+          'fill',
+          'hole',
+          'fill',
+          'hole',
+        ]);
+      }
+    }
+    // A long contour is read only every so many points when another is tried against it.
+    const ring = `M0 0 ${Array.from({ length: 20_000 }, (_, at) => `L${at / 10} ${(at % 2) * 0.01}`).join(' ')} L2000 2000 L0 2000 Z`;
+    const many = contoursOf(`${ring} ${squares(200, false)}`);
+    const start = Date.now();
+    classContours(many);
+    expect(Date.now() - start).toBeLessThan(1500);
+  });
+
   it('keeps free geometry read by the even-odd rule over all its contours, which cross or not', () => {
     const crossing = outlineOf({
       width: 100,

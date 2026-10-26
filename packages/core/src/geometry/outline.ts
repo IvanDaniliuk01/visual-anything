@@ -374,35 +374,92 @@ function withRoles(
 export function classContours<
   T extends Pick<OutlineContour, 'start' | 'segments' | 'role' | 'group' | 'nonzero'>,
 >(contours: readonly T[]): (T & { role: OutlineContour['role'] })[] {
-  const polygons = contours.map((contour) =>
-    contour.role === 'line' ? undefined : coarse(contour.start, contour.segments),
+  const shapes = contours.map((contour) =>
+    contour.role === 'line' ? undefined : classingShape(contour.start, contour.segments),
   );
+  // Each contour is tried only against the others of its fill whose bounds hold the point tried,
+  // each read at most CLASSING_POINTS points. The work grows with the square of the contours given,
+  // so every caller caps them first: free geometry by its segments, a named part shape by shape.
+  const others = (own: number, point: Point) => {
+    const group = contours[own]?.group ?? 0;
+    const found: number[][] = [];
+    for (const [at, shape] of shapes.entries()) {
+      if (shape === undefined || at === own || (contours[at]?.group ?? 0) !== group) continue;
+      if (point.x < shape.minX || point.x > shape.maxX) continue;
+      if (point.y < shape.minY || point.y > shape.maxY) continue;
+      found.push(shape.tested);
+    }
+    return found;
+  };
   return contours.map((contour, own) => {
-    const polygon = polygons[own];
-    if (polygon === undefined) return contour;
-    const group = contour.group ?? 0;
-    const others = polygons.filter(
-      (other, at): other is number[] =>
-        other !== undefined && at !== own && (contours[at]?.group ?? 0) === group,
-    );
+    const shape = shapes[own];
+    if (shape === undefined) return contour;
     let role: 'fill' | 'hole';
-    if (contour.nonzero) role = roleByWinding(polygon, [polygon, ...others]);
-    else {
-      const probe = probePoint(polygon);
-      const holders = others.filter((other) => evenOddHolds(other, probe.x, probe.y)).length;
+    if (contour.nonzero) {
+      const inner = innerProbe(shape.polygon);
+      const winding =
+        inner === undefined
+          ? 1
+          : others(own, inner).reduce(
+              (sum, polygon) => sum + windingNumber(polygon, inner.x, inner.y),
+              windingNumber(shape.polygon, inner.x, inner.y),
+            );
+      role = winding !== 0 ? 'fill' : 'hole';
+    } else {
+      const probe = probePoint(shape.polygon);
+      const holders = others(own, probe).filter((other) =>
+        evenOddHolds(other, probe.x, probe.y),
+      ).length;
       role = holders % 2 === 1 ? 'hole' : 'fill';
     }
     return { ...contour, role };
   });
 }
 
-/** A contour of a nonzero fill, classed by the winding numbers just inside it. */
-function roleByWinding(
-  own: readonly number[],
-  fill: readonly (readonly number[])[],
-): 'fill' | 'hole' {
+/** The most points of a contour that classing another contour against it reads. */
+const CLASSING_POINTS = 128;
+
+/** A contour as classing reads it: coarsely flattened, its bounds, and what others are tried on. */
+interface ClassingShape {
+  polygon: number[];
+  /** The polygon with every so many points kept, so that it has at most {@link CLASSING_POINTS}. */
+  tested: number[];
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+function classingShape(start: Point, segments: readonly Segment[]): ClassingShape {
+  const polygon = coarse(start, segments);
+  const count = polygon.length / 2;
+  let tested = polygon;
+  if (count > CLASSING_POINTS) {
+    const stride = Math.ceil(count / CLASSING_POINTS);
+    tested = [];
+    for (let i = 0; i < count; i += stride) {
+      tested.push(polygon[2 * i] as number, polygon[2 * i + 1] as number);
+    }
+  }
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (let at = 0; at < polygon.length; at += 2) {
+    const x = polygon[at] as number;
+    const y = polygon[at + 1] as number;
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  return { polygon, tested, minX, minY, maxX, maxY };
+}
+
+/** A point just inside a contour, beside the middle of its longest piece. */
+function innerProbe(own: readonly number[]): Point | undefined {
   const piece = longestPiece(own);
-  if (piece === undefined) return 'fill';
+  if (piece === undefined) return undefined;
   const { x0, y0, x1, y1, length } = piece;
   const [width, height] = extent(own);
   const step = Math.min(length / 4, Math.max(width, height) * 1e-6);
@@ -410,11 +467,9 @@ function roleByWinding(
   const my = (y0 + y1) / 2;
   const nx = (-(y1 - y0) / length) * step;
   const ny = ((x1 - x0) / length) * step;
-  const inner = evenOddHolds(own, mx + nx, my + ny)
+  return evenOddHolds(own, mx + nx, my + ny)
     ? { x: mx + nx, y: my + ny }
     : { x: mx - nx, y: my - ny };
-  const winding = fill.reduce((sum, polygon) => sum + windingNumber(polygon, inner.x, inner.y), 0);
-  return winding !== 0 ? 'fill' : 'hole';
 }
 
 /** The longest piece of a closed polygon, as x, y pairs: where classing it is safest. */

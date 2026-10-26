@@ -21,7 +21,9 @@ import {
   namedPartCount,
   partImageId,
   partPicture,
+  partsLeftOut,
   partsOf,
+  tooManyPartsProblem,
   unknownPartProblem,
   type NamedPart,
 } from './parts';
@@ -360,6 +362,37 @@ describe('partsOf', () => {
     expect(part(small, 'curve').outline.contours[0]?.segments[0]?.kind).toBe('cubic');
   });
 
+  it('classes at most 256 closed contours of a shape, once however often it is drawn, and says what it left out', () => {
+    const rings = Array.from(
+      { length: 2500 },
+      (_, at) =>
+        `m${at === 0 ? 0 : 1} ${at === 0 ? 0 : 1}h${6000 - 2 * at}v${6000 - 2 * at}h-${6000 - 2 * at}z`,
+    ).join('');
+    const uses = Array.from(
+      { length: 64 },
+      (_, at) => `<use id="u${at}" href="#rings" x="${at}"/>`,
+    );
+    const text = svg(
+      '0 0 6100 6000',
+      `<defs><path id="rings" d="${rings}"/></defs>${uses.join('')}`,
+    );
+    expect(text.length).toBeLessThan(64 * 1024);
+    const start = Date.now();
+    const cleaned = picture(text);
+    const parts = partsOf(cleaned);
+    expect(Date.now() - start).toBeLessThan(3000);
+    expect(parts.length).toBeGreaterThan(0);
+    const first = part(cleaned, 'u0');
+    expect(first.outline.contours.length).toBeLessThanOrEqual(PART_CAPS.contours);
+    // The largest are kept: the outermost ring is there, and nonzero fills all the rings run one way.
+    expect(holds(first, 5, 5)).toBe(true);
+    // Only the contours kept are drawn again for each use, so 64 copies stay within the segments.
+    expect(partsLeftOut(cleaned)).toEqual({ contours: 2500 - PART_CAPS.contours, segments: false });
+    const warning = tooManyPartsProblem({ id: 'clinic.rings', name: 'Rings' }, cleaned, 'clinic');
+    expect(warning?.code).toBe('too-many-parts');
+    expect(warning?.message).toContain('2,244 contours');
+  });
+
   it('reads each cleaned view once, and equal content once for every image that holds it', () => {
     const text = svg('0 0 10 10', `<path id="a" d="${SQUARE}"/>`);
     const first = picture(text, 'clinic.first');
@@ -576,6 +609,37 @@ describe('geometryOf', () => {
     );
     const many = picture(svg('0 0 100 100', `<g id="grid">${squares.join('')}</g>`));
     expect(readFree(many, 'grid').contours.length).toBe(GEOMETRY_CAPS.contours);
+  });
+
+  it('stays within its bounds on outlines built to make joining them slow, falling back to what is linear', () => {
+    const across = Array.from(
+      { length: 120 },
+      (_, at) => `<rect x="0" y="${at * 10}" width="1200" height="2"/>`,
+    ).join('');
+    const down = Array.from(
+      { length: 120 },
+      (_, at) => `<rect x="${at * 10}" y="0" width="2" height="1200"/>`,
+    ).join('');
+    const crowd = Array.from(
+      { length: 6 },
+      (_, k) => `<path d="M${9990 + k} 9990${' m0.1 0h0.05v0.05h-0.05z'.repeat(150)}"/>`,
+    ).join('');
+    const cleaned = picture(
+      svg(
+        '0 0 10000 10000',
+        `<g id="comb">${across}${down}</g>` +
+          `<g id="crowd"><path d="M0 0 L10000 10000 L0 10 Z"/>${crowd}</g>` +
+          `<path id="scribble" d="M0 5000${' l7 3 l-6 2'.repeat(1500)}" fill="none" stroke="#000000" stroke-width="3"/>`,
+      ),
+    );
+    for (const id of ['comb', 'crowd', 'scribble']) {
+      const start = Date.now();
+      const free = readFree(cleaned, id);
+      expect(Date.now() - start, id).toBeLessThan(2000);
+      expect(free.contours.length, id).toBeGreaterThan(0);
+    }
+    // The comb's strips cross past the cap on crossings: they are written as they are.
+    expect(geometryOf(cleaned, 'comb')?.outline.length).toBe(GEOMETRY_CAPS.contours);
   });
 
   it('gives nothing for an id that is no part', () => {

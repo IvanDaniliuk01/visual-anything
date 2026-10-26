@@ -7,7 +7,10 @@
  * - its contours as they are, curves and all, when no two of them cross, without those that bound
  *   nothing, such as a shape drawn wholly over another;
  * - otherwise, and for strokes, whose bands become polygons, the loops around what its fills and bands
- *   cover together, flattened.
+ *   cover together, flattened;
+ * - past the caps on finding those loops (UNION_CAPS), its contours flattened as they are, and each
+ *   band as one ring around its line: linear work, though shapes that overlap then read as their
+ *   difference where they overlap.
  */
 import { flatten } from '../geometry/fit';
 import {
@@ -19,7 +22,7 @@ import {
   type OutlineContour,
 } from '../geometry/outline';
 import { rankPolyline, simplifyToBudget } from '../geometry/simplify';
-import { fillBoundary, type FillPolygon } from '../geometry/union';
+import { UNION_CAPS, fillBoundary, type FillPolygon } from '../geometry/union';
 
 /** Free geometry for an outline whose bounds are given; `undefined` when nothing of it can be written. */
 export function geometryFromOutline(outline: Outline, bounds: Box): GeometryInput | undefined {
@@ -34,29 +37,99 @@ export function geometryFromOutline(outline: Outline, bounds: Box): GeometryInpu
   const lines = outline.contours.filter(
     (contour) => contour.role === 'line' && (contour.width ?? 0) > 0,
   );
-  const polygons: FillPolygon[] = closed.map((contour) => ({
-    points: ring(flatten(contour, tolerance).points),
-    group: contour.group ?? 0,
-    nonzero: contour.nonzero === true,
-  }));
+  // Flattened once, then simplified together to the edges the union may take, counted with each
+  // stroke's band, before anything is done that grows faster than they do.
+  let rings: (Float64Array | undefined)[] = closed.map((contour) =>
+    ring(flatten(contour, tolerance).points),
+  );
+  let centres: (Float64Array | undefined)[] = lines.map(
+    (line) => flatten({ ...line, width: undefined }, tolerance).points,
+  );
+  const ringEdges = rings.reduce((sum, points) => sum + (points?.length ?? 0) / 2, 0);
+  const bandEdges =
+    BAND_EDGES * centres.reduce((sum, points) => sum + (points?.length ?? 0) / 2, 0);
+  if (ringEdges + bandEdges > UNION_CAPS.edges) {
+    const share = ringEdges / (ringEdges + bandEdges);
+    const kept = simplifyToBudget(
+      rings.map((points) => rankPolyline(closedRing(points as Float64Array), true)),
+      Math.floor(UNION_CAPS.edges * share),
+    );
+    rings = kept.map((points) => (points === undefined ? undefined : ring(points)));
+    centres = simplifyToBudget(
+      centres.map((points) => rankPolyline(points as Float64Array, false)),
+      Math.floor((UNION_CAPS.edges * (1 - share)) / BAND_EDGES),
+    );
+  }
+  // Past the caps on the union, the outline is written as it is: its rings, and each stroke's band
+  // as one ring around its line. Shapes that overlap then read as their difference where they do.
+  const withoutUnion = () =>
+    writer.polylines([
+      ...rings.flatMap((points) => (points && points.length >= 6 ? [closedRing(points)] : [])),
+      ...centres.flatMap((points, at) => {
+        const around = points && aroundLine(points, (lines[at]?.width ?? 0) / 2);
+        return around ? [around] : [];
+      }),
+    ]);
+  const polygons: FillPolygon[] = [];
+  const sources: number[] = [];
+  for (const [at, points] of rings.entries()) {
+    if (!points || points.length < 6) continue;
+    const contour = closed[at] as OutlineContour;
+    polygons.push({ points, group: contour.group ?? 0, nonzero: contour.nonzero === true });
+    sources.push(at);
+  }
   if (lines.length === 0) {
     const boundary = fillBoundary(polygons);
+    if (!boundary) return withoutUnion();
     if (!boundary.crossing) {
-      const kept = closed.filter((_, at) => boundary.bounding[at]);
+      const kept = sources.filter((_, at) => boundary.bounding[at]);
       return (
-        writer.curves(kept) ??
-        writer.polylines(kept.map((contour) => flatten(contour, tolerance).points))
+        writer.curves(kept.map((at) => closed[at] as OutlineContour)) ??
+        writer.polylines(kept.map((at) => closedRing(rings[at] as Float64Array)))
       );
     }
     return writer.polylines(boundary.loops.map(closedRing));
   }
   const group = Math.max(-1, ...polygons.map((polygon) => polygon.group)) + 1;
-  for (const line of lines) polygons.push(...band(line, tolerance, group));
+  for (const [at, points] of centres.entries()) {
+    if (points) polygons.push(...band(points, (lines[at]?.width ?? 0) / 2, group));
+  }
   const boundary = fillBoundary(polygons);
+  if (!boundary) return withoutUnion();
   const loops = boundary.crossing
     ? boundary.loops
     : polygons.filter((_, at) => boundary.bounding[at]).map((polygon) => polygon.points);
   return writer.polylines(loops.map(closedRing));
+}
+
+/** The edges a stroke's band takes for each point of its line: an octagon's and a rectangle's. */
+const BAND_EDGES = 12;
+
+/** One ring around a line, half its width on each side, for writing its band without the union. */
+function aroundLine(points: Float64Array, half: number): Float64Array | undefined {
+  const count = points.length / 2;
+  if (count < 2 || !(half > 0)) return undefined;
+  const left: number[] = [];
+  const right: number[] = [];
+  for (let i = 0; i < count; i += 1) {
+    const before = Math.max(0, i - 1);
+    const after = Math.min(count - 1, i + 1);
+    const dx = (points[2 * after] as number) - (points[2 * before] as number);
+    const dy = (points[2 * after + 1] as number) - (points[2 * before + 1] as number);
+    const length = Math.hypot(dx, dy);
+    if (!(length > 0)) continue;
+    const x = points[2 * i] as number;
+    const y = points[2 * i + 1] as number;
+    const nx = (-dy / length) * half;
+    const ny = (dx / length) * half;
+    left.push(x + nx, y + ny);
+    right.push(x - nx, y - ny);
+  }
+  if (left.length < 4) return undefined;
+  // The far side runs back along the line.
+  for (let at = right.length - 2; at >= 0; at -= 2)
+    left.push(right[at] as number, right[at + 1] as number);
+  return closedRing(Float64Array.from(left));
 }
 
 /** A closed contour's flattened points without its first point repeated at its end. */
@@ -78,13 +151,11 @@ function closedRing(points: Float64Array): Float64Array {
 }
 
 /**
- * The band a line holds, as polygons of one fill read by the nonzero rule, all run the same way so
- * that they join: a rectangle along each piece of the line and an octagon around each of its points,
- * for its round ends and joins.
+ * The band a line holds, half its width on each side of its flattened points, as polygons of one
+ * fill read by the nonzero rule, all run the same way so that they join: a rectangle along each piece
+ * of the line and an octagon around each of its points, for its round ends and joins.
  */
-function band(line: OutlineContour, tolerance: number, group: number): FillPolygon[] {
-  const half = (line.width ?? 0) / 2;
-  const points = flatten({ ...line, width: undefined }, tolerance).points;
+function band(points: Float64Array, half: number, group: number): FillPolygon[] {
   const count = points.length / 2;
   const polygons: FillPolygon[] = [];
   const radius = half / Math.cos(Math.PI / 8);

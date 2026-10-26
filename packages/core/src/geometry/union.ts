@@ -7,8 +7,12 @@
  * pieces kept are joined into closed loops, whose even-odd reading is exactly what the fills cover.
  *
  * When no two edges cross, whole polygons are kept or left out instead, so that their curves can be
- * written as they are. A uniform grid finds crossings and answers whether the fills hold a point, so
- * the work grows with the edges near each other rather than with every pair.
+ * written as they are.
+ *
+ * The work is bounded whatever the polygons, by {@link UNION_CAPS}: the edges are counted before
+ * anything is built, each edge is kept only in the cells of a uniform grid that it crosses, and every
+ * step after that, from comparing two edges in a cell to following a ray, is paid from one budget.
+ * Past a cap the boundary is given up, and the caller writes something linear instead.
  */
 
 /** A closed polygon, as x, y pairs without its first point repeated, with the fill it belongs to. */
@@ -25,27 +29,56 @@ export type FillBoundary =
   | { readonly crossing: false; readonly bounding: readonly boolean[] }
   | { readonly crossing: true; readonly loops: readonly Float64Array[] };
 
+/** The caps on finding the boundary of what fills cover. */
+export const UNION_CAPS = {
+  /** Edges of all the polygons, counted before anything is built; the caller simplifies to them. */
+  edges: 16_384,
+  /** Points where edges cross or run along one another. */
+  crossings: 16_384,
+  /**
+   * Steps of work in all: each cell an edge is kept in, each pair of edges compared in a cell, each
+   * cell and edge a ray from a point meets, and each piece joined into a loop.
+   */
+  work: 4_000_000,
+} as const;
+
 const T_EPSILON = 1e-10;
 
-/** The boundary of what the polygons' fills cover together. */
-export function fillBoundary(polygons: readonly FillPolygon[]): FillBoundary {
-  const field = new Field(polygons);
-  const splits = field.crossings();
-  if (splits.size === 0) {
-    // Polygons that lie on one another bound once: read twice by the even-odd rule, they would cancel.
-    const seen = new Set<string>();
-    return {
-      crossing: false,
-      bounding: polygons.map((polygon) => {
-        if (!field.bounds(polygon)) return false;
-        const key = ringKey(polygon.points);
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      }),
-    };
+/** Thrown inside the walk when a cap is passed; the walk then gives up. */
+class OverCap extends Error {
+  override name = 'OverCap';
+}
+
+/**
+ * The boundary of what the polygons' fills cover together; `undefined` when the polygons have more
+ * edges than {@link UNION_CAPS.edges}, or finding it would pass another cap.
+ */
+export function fillBoundary(polygons: readonly FillPolygon[]): FillBoundary | undefined {
+  let edges = 0;
+  for (const polygon of polygons) edges += polygon.points.length / 2;
+  if (edges > UNION_CAPS.edges) return undefined;
+  try {
+    const field = new Field(polygons, edges);
+    const splits = field.crossings();
+    if (splits.size === 0) {
+      // Polygons that lie on one another bound once: read twice by the even-odd rule, they cancel.
+      const seen = new Set<string>();
+      return {
+        crossing: false,
+        bounding: polygons.map((polygon) => {
+          if (!field.bounds(polygon)) return false;
+          const key = ringKey(polygon.points);
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        }),
+      };
+    }
+    return { crossing: true, loops: field.loops(splits) };
+  } catch (error) {
+    if (error instanceof OverCap) return undefined;
+    throw error;
   }
-  return { crossing: true, loops: field.loops(splits) };
 }
 
 /** The same text for rings of the same points in the same cyclic order, whichever way they run. */
@@ -74,9 +107,8 @@ interface Split {
   y: number;
 }
 
-/** The polygons' edges in a grid, and what their fills hold. */
+/** The polygons' edges in a grid, what their fills hold, and the work done so far. */
 class Field {
-  readonly count: number;
   readonly x0: Float64Array;
   readonly y0: Float64Array;
   readonly x1: Float64Array;
@@ -91,16 +123,17 @@ class Field {
   readonly side: number;
   readonly cellWidth: number;
   readonly cellHeight: number;
+  /** The edges that cross each cell, row by row. */
   readonly cells: number[][];
-  /** Each edge's columns and rows, first and last. */
-  readonly spans: Int32Array;
-  #stamp: Int32Array;
+  #work: number = UNION_CAPS.work;
+  #crossings = 0;
+  readonly #stamp: Int32Array;
   #query = 0;
 
-  constructor(readonly polygons: readonly FillPolygon[]) {
-    let count = 0;
-    for (const polygon of polygons) count += polygon.points.length / 2;
-    this.count = count;
+  constructor(
+    readonly polygons: readonly FillPolygon[],
+    readonly count: number,
+  ) {
     this.x0 = new Float64Array(count);
     this.y0 = new Float64Array(count);
     this.x1 = new Float64Array(count);
@@ -132,7 +165,7 @@ class Field {
         if (ay > maxY) maxY = ay;
       }
     }
-    if (minX > maxX) {
+    if (!(minX <= maxX && minY <= maxY)) {
       minX = 0;
       minY = 0;
       maxX = 1;
@@ -141,30 +174,74 @@ class Field {
     this.minX = minX;
     this.minY = minY;
     this.size = Math.max(maxX - minX, maxY - minY, Number.MIN_VALUE);
-    this.side = Math.max(1, Math.min(512, Math.ceil(Math.sqrt(count) / 2)));
+    // About one edge to a cell when they are spread out.
+    this.side = Math.max(1, Math.min(256, Math.ceil(Math.sqrt(count))));
     this.cellWidth = (maxX - minX) / this.side || 1;
     this.cellHeight = (maxY - minY) / this.side || 1;
     this.cells = Array.from({ length: this.side * this.side }, () => []);
-    this.spans = new Int32Array(count * 4);
-    for (let e = 0; e < count; e += 1) {
-      const c0 = this.column(Math.min(this.x0[e] as number, this.x1[e] as number));
-      const c1 = this.column(Math.max(this.x0[e] as number, this.x1[e] as number));
-      const r0 = this.row(Math.min(this.y0[e] as number, this.y1[e] as number));
-      const r1 = this.row(Math.max(this.y0[e] as number, this.y1[e] as number));
-      this.spans.set([c0, c1, r0, r1], e * 4);
-      for (let r = r0; r <= r1; r += 1) {
-        for (let c = c0; c <= c1; c += 1) (this.cells[r * this.side + c] as number[]).push(e);
-      }
-    }
+    for (let e = 0; e < count; e += 1) this.#index(e);
     this.#stamp = new Int32Array(count);
   }
 
+  /** Pays for steps of work, and gives up past the budget. */
+  spend(steps: number): void {
+    this.#work -= steps;
+    if (this.#work < 0) throw new OverCap();
+  }
+
   column(x: number): number {
-    return Math.max(0, Math.min(this.side - 1, Math.floor((x - this.minX) / this.cellWidth)));
+    const at = Math.floor((x - this.minX) / this.cellWidth);
+    return at < 0 ? 0 : at >= this.side ? this.side - 1 : at;
   }
 
   row(y: number): number {
-    return Math.max(0, Math.min(this.side - 1, Math.floor((y - this.minY) / this.cellHeight)));
+    const at = Math.floor((y - this.minY) / this.cellHeight);
+    return at < 0 ? 0 : at >= this.side ? this.side - 1 : at;
+  }
+
+  /**
+   * Keeps an edge in the cells it crosses, walking the grid from cell to cell along it, as a
+   * digital differential analyser does: as many cells as the columns and rows it spans, not the
+   * square of them.
+   */
+  #index(edge: number): void {
+    const gx0 = ((this.x0[edge] as number) - this.minX) / this.cellWidth;
+    const gy0 = ((this.y0[edge] as number) - this.minY) / this.cellHeight;
+    const gx1 = ((this.x1[edge] as number) - this.minX) / this.cellWidth;
+    const gy1 = ((this.y1[edge] as number) - this.minY) / this.cellHeight;
+    const clamp = (value: number) => (value < 0 ? 0 : value >= this.side ? this.side - 1 : value);
+    let c = clamp(Math.floor(gx0));
+    let r = clamp(Math.floor(gy0));
+    const endC = clamp(Math.floor(gx1));
+    const endR = clamp(Math.floor(gy1));
+    const dx = gx1 - gx0;
+    const dy = gy1 - gy0;
+    const stepX = dx > 0 ? 1 : dx < 0 ? -1 : 0;
+    const stepY = dy > 0 ? 1 : dy < 0 ? -1 : 0;
+    let nextX = stepX === 0 ? Number.POSITIVE_INFINITY : ((stepX > 0 ? c + 1 : c) - gx0) / dx;
+    let nextY = stepY === 0 ? Number.POSITIVE_INFINITY : ((stepY > 0 ? r + 1 : r) - gy0) / dy;
+    const deltaX = stepX === 0 ? Number.POSITIVE_INFINITY : stepX / dx;
+    const deltaY = stepY === 0 ? Number.POSITIVE_INFINITY : stepY / dy;
+    const steps = Math.abs(endC - c) + Math.abs(endR - r);
+    let last = -1;
+    const keep = (cell: number) => {
+      if (cell === last) return;
+      last = cell;
+      this.spend(1);
+      (this.cells[cell] as number[]).push(edge);
+    };
+    keep(r * this.side + c);
+    for (let k = 0; k < steps; k += 1) {
+      if (nextX < nextY) {
+        c = clamp(c + stepX);
+        nextX += deltaX;
+      } else {
+        r = clamp(r + stepY);
+        nextY += deltaY;
+      }
+      keep(r * this.side + c);
+    }
+    keep(endR * this.side + endC);
   }
 
   /** Whether the fills hold a point: whether any fill does, by its rule, along a ray toward +x. */
@@ -174,7 +251,9 @@ class Field {
     const sums = new Map<number, number>();
     const r = this.row(y);
     for (let c = this.column(x); c < this.side; c += 1) {
-      for (const e of this.cells[r * this.side + c] as number[]) {
+      const cell = this.cells[r * this.side + c] as number[];
+      this.spend(1 + cell.length);
+      for (const e of cell) {
         if (this.#stamp[e] === query) continue;
         this.#stamp[e] = query;
         const ax = this.x0[e] as number;
@@ -211,6 +290,7 @@ class Field {
   bounds(polygon: FillPolygon): boolean {
     const points = polygon.points;
     const n = points.length / 2;
+    this.spend(n);
     let best = -1;
     let longest = 0;
     for (let i = 0; i < n; i += 1) {
@@ -236,32 +316,29 @@ class Field {
     );
   }
 
-  /** Where edges cross or overlap, as the points each edge is split at. */
+  /**
+   * Where edges cross or run along one another, as the points each edge is split at. Two edges are
+   * compared in each cell they share, and a point is kept only in the cell that holds it, so that
+   * each is found once.
+   */
   crossings(): Map<number, Split[]> {
     const splits = new Map<number, Split[]>();
-    const add = (edge: number, t: number, x: number, y: number) => {
-      if (!(t > T_EPSILON && t < 1 - T_EPSILON)) return;
-      const list = splits.get(edge);
-      if (list) list.push({ t, x, y });
-      else splits.set(edge, [{ t, x, y }]);
-    };
-    const { spans } = this;
     for (let r = 0; r < this.side; r += 1) {
       for (let c = 0; c < this.side; c += 1) {
         const cell = this.cells[r * this.side + c] as number[];
+        const add = (edge: number, t: number, x: number, y: number) => {
+          if (!(t > T_EPSILON && t < 1 - T_EPSILON)) return;
+          if (this.column(x) !== c || this.row(y) !== r) return;
+          this.#crossings += 1;
+          if (this.#crossings > UNION_CAPS.crossings) throw new OverCap();
+          const list = splits.get(edge);
+          if (list) list.push({ t, x, y });
+          else splits.set(edge, [{ t, x, y }]);
+        };
         for (let i = 0; i < cell.length; i += 1) {
           const a = cell[i] as number;
-          for (let k = i + 1; k < cell.length; k += 1) {
-            const b = cell[k] as number;
-            // Each pair once: in the first cell the two share.
-            if (
-              Math.max(spans[a * 4] as number, spans[b * 4] as number) !== c ||
-              Math.max(spans[a * 4 + 2] as number, spans[b * 4 + 2] as number) !== r
-            ) {
-              continue;
-            }
-            this.cross(a, b, add);
-          }
+          this.spend(cell.length - i);
+          for (let k = i + 1; k < cell.length; k += 1) this.cross(a, cell[k] as number, add);
         }
       }
     }
@@ -272,14 +349,21 @@ class Field {
   cross(a: number, b: number, add: (edge: number, t: number, x: number, y: number) => void): void {
     const ax = this.x0[a] as number;
     const ay = this.y0[a] as number;
-    const adx = (this.x1[a] as number) - ax;
-    const ady = (this.y1[a] as number) - ay;
+    const ex = this.x1[a] as number;
+    const ey = this.y1[a] as number;
     const bx = this.x0[b] as number;
     const by = this.y0[b] as number;
-    const bdx = (this.x1[b] as number) - bx;
-    const bdy = (this.y1[b] as number) - by;
-    const aLength = Math.hypot(adx, ady);
-    const bLength = Math.hypot(bdx, bdy);
+    const fx = this.x1[b] as number;
+    const fy = this.y1[b] as number;
+    // Edges whose bounds are apart meet nothing: most pairs in a crowded cell end here.
+    if (Math.max(ax, ex) < Math.min(bx, fx) || Math.max(bx, fx) < Math.min(ax, ex)) return;
+    if (Math.max(ay, ey) < Math.min(by, fy) || Math.max(by, fy) < Math.min(ay, ey)) return;
+    const adx = ex - ax;
+    const ady = ey - ay;
+    const bdx = fx - bx;
+    const bdy = fy - by;
+    const aLength = Math.sqrt(adx * adx + ady * ady);
+    const bLength = Math.sqrt(bdx * bdx + bdy * bdy);
     if (aLength === 0 || bLength === 0) return;
     const denominator = adx * bdy - ady * bdx;
     const wx = bx - ax;
@@ -355,10 +439,13 @@ class Field {
       const [sx, sy, fx, fy] = pieces[first] as [number, number, number, number];
       const loop: number[] = [sx, sy];
       let [x, y] = [fx, fy];
+      // Each piece is followed once, so loops cost as many steps as there are pieces.
       for (;;) {
         if (x === sx && y === sy) break;
         loop.push(x, y);
-        const next = (leaving.get(`${x} ${y}`) ?? []).find((at) => !used[at]);
+        const leavingHere = leaving.get(`${x} ${y}`) ?? [];
+        this.spend(1 + leavingHere.length);
+        const next = leavingHere.find((at) => !used[at]);
         // A loop that cannot be followed further is closed where it stands.
         if (next === undefined) break;
         used[next] = 1;
