@@ -26,6 +26,8 @@ Each starter package is built in, with its icons and a sample project in `exampl
 
 After changing a sample, run `pnpm --filter @visual-anything/server samples` so that the program holds the new version, and commit both.
 
+`examples/beyond-boxes` shows shapes beyond boxes (M8b): a heart drawn with its named parts, lungs drawn as free geometry, lines drawn curved, and blood played through them. A new project does not start from it: open it as any project folder, and see its README.
+
 ## View addresses
 
 Every tab keeps its address in step with where you are: the open view, where the canvas looks, the selection, the filters, focus mode and the scenario step played, all by id, as in `http://127.0.0.1:47123/#view=system-overview&select=appointments-api`. A view address holds no secret, so it is safe to paste anywhere.

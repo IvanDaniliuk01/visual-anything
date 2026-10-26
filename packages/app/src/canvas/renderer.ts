@@ -41,7 +41,8 @@ import {
   type Emphasized,
   type Hidden,
 } from './emphasize';
-import type { TextFactory } from './draw';
+import { traceMark, type MarkTarget, type TextFactory } from './draw';
+import { MOST_NAMES_BESIDE, NamesBeside, namedBeside } from './namesBeside';
 import {
   arrowheadAt,
   boundsOf,
@@ -421,16 +422,21 @@ export class CanvasRenderer {
   private readonly lineMarks = new Graphics();
   private readonly selectionChunks: Graphics[] = [];
   /**
-   * The shapes to draw boxes around, how many are drawn, the boxes' width and their gap to the
-   * shapes, and the chunks used.
+   * The shapes to draw boxes around, or marks along their own outlines, how many are drawn, the
+   * marks' width and their gap to the shapes, and the chunks used.
    */
-  private markRects: Rect[] = [];
+  private markRects: MarkTarget[] = [];
   private marksDrawn = 0;
   private markWidth = 1;
   private markGap = 0;
   private chunksUsed = 0;
   /** The marks of what is dragged, which move with it. */
   private readonly movingMarks = new Graphics();
+  /** The names the hover and selection marks write beside shapes that write none inside (ADR 0066). */
+  private readonly namesBeside = new NamesBeside();
+  /** The shapes whose names the hover mark and the selection's marks write beside them. */
+  private besideHovered: ElementShape[] = [];
+  private besideSelected: ElementShape[] = [];
   private readonly gestureMarks = new Graphics();
   /** What editing a route draws: its handles and its line as it now runs, above everything. */
   private readonly routeMarks = new Graphics();
@@ -580,6 +586,7 @@ export class CanvasRenderer {
       this.hoverMark,
       this.selectionMarks,
       this.movingMarks,
+      this.namesBeside.container,
       this.markerMarks,
       this.gestureMarks,
       this.routeMarks,
@@ -2878,6 +2885,7 @@ export class CanvasRenderer {
     this.markRects = [];
     this.marksDrawn = 0;
     this.chunksUsed = 0;
+    this.besideSelected = [];
     const indexed = this.indexed;
     if (!indexed) return;
     const { scene } = indexed;
@@ -2890,22 +2898,30 @@ export class CanvasRenderer {
     // What the emphasis hides shows no mark.
     const unseen = this.emphasized.hidden;
     let carriedBoxes = 0;
-    const box = (rect: Rect, carried: boolean) => {
+    // A shape's mark goes around its plate, or along its own outline (ADR 0066).
+    const box = (target: MarkTarget, carried: boolean) => {
       if (carried) {
-        const around = grow(rect, gap);
-        moving.rect(around.x, around.y, around.width, around.height);
+        traceMark(moving, target, gap);
         carriedBoxes += 1;
       } else {
-        this.markRects.push(rect);
+        this.markRects.push(target);
       }
     };
+    // Names are written beside the shapes of a selection of a few shapes, which they help tell apart.
+    let shapesMarked = 0;
+    const still: ElementShape[] = [];
     for (const id of this.selection.elements) {
       for (const shape of indexed.byElement.get(id) ?? []) {
         if (!unseen.shapes.has(shape.key)) {
-          box(shape.plate ?? shape.rect, hidden.shapes.has(shape.key));
+          const carried = hidden.shapes.has(shape.key);
+          box(shape, carried);
+          shapesMarked += 1;
+          if (!carried && shapesMarked <= MOST_NAMES_BESIDE) still.push(shape);
         }
       }
     }
+    this.besideSelected = shapesMarked <= MOST_NAMES_BESIDE ? still.filter(namedBeside) : [];
+    this.showNamesBeside();
     const free = freeShapesById(scene.notes, scene.arrows);
     const arrows: ArrowShape[] = [];
     for (const id of this.selection.freeShapes) {
@@ -2991,8 +3007,7 @@ export class CanvasRenderer {
       const until = Math.min(rects.length, this.marksDrawn + MARKS_PER_CHUNK);
       const gap = this.markGap;
       for (let at = this.marksDrawn; at < until; at++) {
-        const { x, y, width, height } = rects[at] as Rect;
-        chunk.rect(x - gap, y - gap, width + 2 * gap, height + 2 * gap);
+        traceMark(chunk, rects[at] as MarkTarget, gap);
       }
       chunk.stroke({ color: MARK, width: this.markWidth });
       this.marksDrawn = until;
@@ -3021,15 +3036,16 @@ export class CanvasRenderer {
     const { highlight } = this.painter.theme;
     const halo = { color: highlight, alpha: 0.28, join: 'round', cap: 'round' } as const;
     const rects = [...shapes.map((shape) => shape.rect), ...notes.map((note) => note.rect)];
-    for (const rect of rects) {
-      const around = grow(rect, 5 / scale);
-      marks.rect(around.x, around.y, around.width, around.height);
-    }
+    // The halo and the ring go along a shape's own outline (ADR 0066), the corners around its box.
+    const ringed: MarkTarget[] = [
+      ...shapes.map((shape) =>
+        shape.outline ? { rect: shape.rect, outline: shape.outline } : shape.rect,
+      ),
+      ...notes.map((note) => note.rect),
+    ];
+    for (const target of ringed) traceMark(marks, target, 5 / scale);
     if (rects.length > 0) marks.stroke({ ...halo, width: 10 / scale });
-    for (const rect of rects) {
-      const around = grow(rect, 5 / scale);
-      marks.rect(around.x, around.y, around.width, around.height);
-    }
+    for (const target of ringed) traceMark(marks, target, 5 / scale);
     if (rects.length > 0) marks.stroke({ color: highlight, width: 2.5 / scale });
     for (const rect of rects) traceCorners(marks, grow(rect, 11 / scale), 14 / scale);
     if (rects.length > 0) marks.stroke({ color: highlight, width: 3 / scale, cap: 'square' });
@@ -3067,16 +3083,28 @@ export class CanvasRenderer {
     marks.fill(highlight).stroke({ color: background, width: 2.5 / scale });
   }
 
-  /** Marks the shape under the pointer, under the selection's marks. */
+  /**
+   * Marks the shape under the pointer, under the selection's marks: around its plate or its box, or
+   * along its own outline, with its name written beside it when it writes none inside (ADR 0066).
+   */
   private drawHover(): void {
     const mark = this.hoverMark;
     mark.clear();
     const shape = this.hovered === undefined ? undefined : this.indexed?.byKey.get(this.hovered);
+    this.besideHovered = shape && namedBeside(shape) ? [shape] : [];
+    this.showNamesBeside();
     if (!shape) return;
-    const rect = grow(shape.plate ?? shape.rect, 3 / this.camera.scale);
-    mark
-      .rect(rect.x, rect.y, rect.width, rect.height)
-      .stroke({ color: this.painter.theme.selected, width: 1 / this.camera.scale });
+    traceMark(mark, shape, 3 / this.camera.scale);
+    mark.stroke({ color: this.painter.theme.selected, width: 1 / this.camera.scale });
+  }
+
+  /** Writes the names the hover and selection marks write beside their shapes, the hovered first. */
+  private showNamesBeside(): void {
+    const { relationLabelText: text, relationLabelBack: back } = this.painter.theme;
+    this.namesBeside.show([...this.besideHovered, ...this.besideSelected], this.camera.scale, {
+      text,
+      back,
+    });
   }
 
   private drawGesture(): void {
@@ -3776,6 +3804,7 @@ export class CanvasRenderer {
     this.selectionMarks.tint = this.painter.theme.selected;
     this.movingMarks.tint = this.painter.theme.selected;
     this.themeGrid(this.painter.theme);
+    this.showNamesBeside();
   }
 
   /** The casings under a tile's relations: white, tinted to the canvas, the same in every theme. */

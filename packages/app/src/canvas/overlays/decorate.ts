@@ -699,6 +699,7 @@ function resize(
         holdsContents: false,
         ...(shape.collapsed === undefined ? {} : { collapsed: true }),
         rows: false,
+        ...(next.outline ? { outline: next.outline } : {}),
       },
       (next.detail ?? '') !== '',
     );

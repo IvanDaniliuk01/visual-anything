@@ -73,6 +73,12 @@ describe('the built-in Data modeling package', () => {
       'data-science',
       'neuroscience',
       'physical-ai',
+      'machine-learning',
+      'process',
+      'networks',
+      'kubernetes',
+      'control-and-circuits',
+      'anatomy',
     ]);
     for (const builtin of BUILTIN_PACKAGES) expect(RESERVED_PACKAGE_IDS.has(builtin.id)).toBe(true);
   });

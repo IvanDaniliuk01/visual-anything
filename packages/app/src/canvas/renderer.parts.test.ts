@@ -21,7 +21,7 @@ vi.mock('pixi.js', async (importOriginal) => {
 interface Inside {
   world: Container;
   elementShapes: Container;
-  partLayer: PartLayer & {
+  partLayer: Pick<PartLayer, 'container' | 'drawings'> & {
     drawn: {
       marks: { parts: { shape: { key: string }; ownPicture: boolean; veiled: boolean }[] };
     }[];
