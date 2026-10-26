@@ -1,8 +1,9 @@
 /**
  * How the scene routes the lines that are not plain automatic routes between two rectangles: the
- * lines a view routes by hand (ADR 0039, `relation-routing.md` §6.1), and the lines that attach to
- * the connection points of their ends' shapes (`components.md` §3.5). Everything else keeps the
- * stand-in router of `route.ts`.
+ * lines a view routes by hand (ADR 0039, `relation-routing.md` §6.1), the lines that attach to the
+ * connection points of their ends' shapes (`components.md` §3.5), automatic lines drawn straight or
+ * curved (ADR 0069, `automatic.ts`), and the lines that attach on their ends' own outlines (ADR 0066,
+ * ADR 0067, `outline-ends.ts`). Everything else keeps the stand-in router of `route.ts`.
  *
  * The scene calls `routeOf` only for the relations the view keeps a route for, with the shapes it
  * placed, so that a call costs the depth of the two ends; a view without routes pays nothing here but
@@ -18,12 +19,12 @@ import {
 } from '@visual-anything/core';
 import type { ConnectionPoint, Id, RelationRoute, ViewFile } from '@visual-anything/schema';
 import type { Point } from '../geometry';
-import { isSideEnd, routeWithSides, type AnyEnd } from '../rowRoutes';
+import type { ShapeOutline } from '../outlines';
+import { isSideEnd, type AnyEnd } from '../rowRoutes';
 import type { ElementShape, RelationLine } from '../scene';
+import { automaticRoute, type AutomaticEnd } from './automatic';
 import { routeByHand, type Attach, type CurveSpan, type HandEnd, type RouteStyle } from './hand';
-
-/** How far apart the scene draws relations between the same two ends, as `scene.ts` offsets them. */
-const PARALLEL_GAP = 24;
+import { endOutline } from './outline-ends';
 
 /** What a line drawn by hand holds besides its route, as `RelationLine` carries it. */
 export interface HandOfLine {
@@ -126,6 +127,8 @@ export function sceneRouting(
         !resolved &&
         !ends.fromShape?.points &&
         !ends.toShape?.points &&
+        !outlined(ends.fromShape) &&
+        !outlined(ends.toShape) &&
         (ends.automatic ?? 'orthogonal') === 'orthogonal'
       ) {
         return undefined;
@@ -164,8 +167,9 @@ export function sceneRouting(
 
 /**
  * Routes a line whose ends moved, as while shapes are dragged: by hand when the line is, through its
- * bend points where they are, or to the connection points of its ends' shapes; undefined for a plain
- * automatic route between rectangles, which the stand-in router draws.
+ * bend points where they are, to the connection points of its ends' shapes, in its automatic style,
+ * or on its ends' outlines; undefined for a plain automatic route between rectangles, which the
+ * stand-in router draws.
  */
 export function rerouted(
   line: RelationLine,
@@ -175,7 +179,14 @@ export function rerouted(
   toShape: ElementShape | undefined,
 ): RoutedLine | undefined {
   const automatic = line.hand ? undefined : line.style;
-  if (!line.hand && !fromShape?.points && !toShape?.points && automatic === undefined) {
+  if (
+    !line.hand &&
+    !fromShape?.points &&
+    !toShape?.points &&
+    !outlined(fromShape) &&
+    !outlined(toShape) &&
+    automatic === undefined
+  ) {
     return undefined;
   }
   const ends: LineEnds = {
@@ -191,8 +202,9 @@ export function rerouted(
 }
 
 /**
- * The route of a line: by hand through what applies of its route, or else automatically, to the
- * connection points facing each other end where its shapes have some.
+ * The route of a line: by hand through what applies of its route, or else automatically in its
+ * style, to the connection points facing each other end where its shapes have some; on the outlines
+ * of its ends' shapes where they have their own (ADR 0066, ADR 0067).
  */
 export function routeLine(ends: LineEnds, hand: HandOfLine | undefined): RoutedLine {
   const resolved = hand?.route;
@@ -200,7 +212,6 @@ export function routeLine(ends: LineEnds, hand: HandOfLine | undefined): RoutedL
   const fromAttach = attachOf(resolved?.from);
   const toAttach = attachOf(resolved?.to);
   const bendPoints = hand?.bendPoints ?? [];
-  const pointed = ends.fromShape?.points !== undefined || ends.toShape?.points !== undefined;
   // An automatic style is not chosen by hand: its lines still run beside each other.
   const byHand =
     fromAttach !== undefined ||
@@ -211,18 +222,21 @@ export function routeLine(ends: LineEnds, hand: HandOfLine | undefined): RoutedL
     ...(style === 'orthogonal' ? {} : { style }),
     ...(hand ? { hand } : {}),
   };
-  if (!byHand && !pointed && style === 'orthogonal') {
-    return { route: routeWithSides(ends.from, ends.to, ends.offset), ...extras };
-  }
   // Siblings run beside each other only while nothing about them is chosen by hand.
-  const sibling = byHand ? 0 : ends.offset / PARALLEL_GAP;
-  const routed = routeByHand(
-    handEnd(ends.from, ends.fromShape, fromAttach),
-    handEnd(ends.to, ends.toShape, toAttach),
-    bendPoints,
-    style,
-    sibling,
-  );
+  const routed = byHand
+    ? routeByHand(
+        handEnd(ends.from, ends.fromShape, fromAttach),
+        handEnd(ends.to, ends.toShape, toAttach),
+        bendPoints,
+        style,
+        0,
+      )
+    : automaticRoute(
+        automaticEnd(ends.from, ends.fromShape),
+        automaticEnd(ends.to, ends.toShape),
+        style,
+        ends.offset,
+      );
   return { route: routed.route, ...extras, ...(routed.curve ? { curve: routed.curve } : {}) };
 }
 
@@ -233,12 +247,44 @@ function handEnd(
 ): HandEnd {
   if (isSideEnd(end)) return end;
   if ('point' in end) return { kind: 'point', point: end.point };
+  const outline = endOutline(shape, end.rect);
   return {
     kind: 'shape',
     rect: end.rect,
     ...(attach ? { attach } : {}),
     ...(shape?.points ? { points: shape.points } : {}),
+    ...(outline ? { outline } : {}),
   };
+}
+
+function automaticEnd(end: AnyEnd, shape: ElementShape | undefined): AutomaticEnd {
+  if (isSideEnd(end) || 'point' in end) return { end };
+  const outline = endOutline(shape, end.rect);
+  return {
+    end,
+    ...(shape?.points ? { points: shape.points } : {}),
+    ...(outline ? { outline } : {}),
+  };
+}
+
+/** Whether lines attach to a shape on its own outline (ADR 0066, ADR 0067), rather than its box. */
+function outlined(shape: ElementShape | undefined): boolean {
+  return shape?.outline !== undefined && shape.plate === undefined;
+}
+
+const outlineSerials = new WeakMap<ShapeOutline, number>();
+let nextOutlineSerial = 0;
+
+/** A number for each outline a shape carries, the same for the same object, as a route depends on it. */
+function outlineKey(shape: ElementShape | undefined): string {
+  if (!outlined(shape)) return '-';
+  const outline = shape?.outline as ShapeOutline;
+  let serial = outlineSerials.get(outline);
+  if (serial === undefined) {
+    serial = nextOutlineSerial++;
+    outlineSerials.set(outline, serial);
+  }
+  return `o${serial}`;
 }
 
 /** Where a resolved attachment puts the line on its end's border; undefined while automatic. */
@@ -286,6 +332,8 @@ function signatureOf(ends: LineEnds, hand: HandOfLine | undefined): string {
   const parts: (string | number)[] = [
     pointsKey(ends.fromShape?.points),
     pointsKey(ends.toShape?.points),
+    outlineKey(ends.fromShape),
+    outlineKey(ends.toShape),
     ends.automatic ?? 'orthogonal',
   ];
   if (hand) {
