@@ -1,0 +1,56 @@
+/* Live values in the inspector (ADR 0057): each with its mark and its age; a stale one fades. */
+.live-values-note {
+  margin: 0 0 var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.live-values {
+  margin: var(--space-1) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.live-value {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  align-items: baseline;
+  padding: var(--space-1) 0;
+}
+
+.live-value-name {
+  color: var(--text-muted);
+}
+
+.live-value-text {
+  overflow-wrap: anywhere;
+  font-weight: var(--weight-strong);
+}
+
+.live-mark {
+  padding: 0 var(--space-1);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-size: var(--text-xs);
+}
+
+.live-value-age,
+.live-value-stored {
+  flex-basis: 100%;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+/* Past its sender's freshness, the value fades but stays readable, and says how old it is. */
+.live-value-stale .live-value-text {
+  color: var(--text-muted);
+  font-weight: normal;
+}
+
+.live-value-stale .live-mark {
+  border-style: dashed;
+  border-color: var(--border);
+  color: var(--text-muted);
+}

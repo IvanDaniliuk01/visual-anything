@@ -4,7 +4,8 @@
  * each with a header row:
  *
  * - **Elements:** `id`, `name` (or `label`), `component` (or `kind`), `container` (or `parent`) and
- *   `description`; every other column is an attribute, named by its header.
+ *   `description`; `id:<scheme>`, such as `id:uberon`, for the element's identifier in that scheme
+ *   (ADR 0056); every other column is an attribute, named by its header.
  * - **Relations:** a table whose header has `from` and `to` (or `source` and `target`), with
  *   `relation type` (or `type`, `kind`), `name` (or `label`) and `id`; every other column is an
  *   attribute.
@@ -256,16 +257,23 @@ function tablesOf(rows: readonly Row[]): Table[] {
 interface Columns<Role extends string> {
   roles: Map<Role, number>;
   attributes: Map<number, string>;
+  /** The columns that hold external identifiers, with their scheme: `id:uberon` holds `uberon`'s. */
+  schemes: Map<number, string>;
   /** Columns that are not read, with why, reported at the first value they hold. */
   unread: Map<number, string>;
 }
 
+/** A header that names a scheme of external identifiers, such as `id:uberon`. */
+const SCHEME_HEADER = /^id:\s*([a-z][a-z0-9_-]{0,31})$/i;
+
 function columnsOf<Role extends string>(
   header: Row,
   known: Readonly<Record<string, Role>>,
+  withSchemes = false,
 ): Columns<Role> {
   const roles = new Map<Role, number>();
   const attributes = new Map<number, string>();
+  const schemes = new Map<number, string>();
   const unread = new Map<number, string>();
   const named = new Set<string>();
   header.cells.forEach((cell, at) => {
@@ -279,6 +287,13 @@ function columnsOf<Role extends string>(
       roles.set(role, at);
       return;
     }
+    const scheme = withSchemes ? SCHEME_HEADER.exec(name)?.[1]?.toLowerCase() : undefined;
+    if (scheme !== undefined) {
+      if ([...schemes.values()].includes(scheme)) {
+        unread.set(at, `This column repeats the scheme "${scheme}", so it is not read.`);
+      } else schemes.set(at, scheme);
+      return;
+    }
     if (name === FORBIDDEN_NAME) {
       unread.set(at, `No attribute may be named "${FORBIDDEN_NAME}", so this column is not read.`);
       return;
@@ -290,7 +305,7 @@ function columnsOf<Role extends string>(
     named.add(name);
     attributes.set(at, name);
   });
-  return { roles, attributes, unread };
+  return { roles, attributes, schemes, unread };
 }
 
 /** Reads a spreadsheet into a plan, or says why it cannot. */
@@ -405,7 +420,7 @@ class TableReading {
   #readElements(table: Table): void {
     const builder = this.#builder;
     const references = this.#references;
-    const columns = columnsOf(table.header, ELEMENT_HEADERS);
+    const columns = columnsOf(table.header, ELEMENT_HEADERS, true);
     const keyColumn = this.#keyColumn(table.header, columns);
     for (const row of table.rows) {
       const cell = (at: number | undefined) =>
@@ -428,6 +443,13 @@ class TableReading {
       if (match === 'several') continue;
       const kind = cell(columns.roles.get('component'));
       const attributes = attributesIn(columns, cell);
+      // Checked, and matched to the project's elements, by `matchByExternalIds` (ADR 0056).
+      const ids = Object.fromEntries(
+        [...columns.schemes].flatMap(([at, scheme]) => {
+          const identifier = cell(at);
+          return identifier === '' ? [] : [[scheme, identifier] as const];
+        }),
+      );
       const key = this.#keyFor(id, written, row.line);
       const name = builder.name(written === '' ? (match?.name ?? id) : written, id || key);
       const description = builder.description(cell(columns.roles.get('description')) || undefined);
@@ -440,6 +462,7 @@ class TableReading {
           kind,
           ...(description === undefined ? {} : { description }),
           ...(attributes === undefined ? {} : { attributes }),
+          ...(Object.keys(ids).length === 0 ? {} : { ids }),
           ...(match === undefined ? {} : { existing: match.id }),
         },
         { label: kind, ...(suggested === undefined ? {} : { suggested }) },

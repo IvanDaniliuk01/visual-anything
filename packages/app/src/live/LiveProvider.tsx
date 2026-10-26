@@ -69,6 +69,9 @@ export function LiveProvider({
       setPreferences: connection.setPreferences,
       startProject: connection.startProject,
       openOtherProject: connection.openOtherProject,
+      liveValues: connection.liveValues,
+      fetchForPackage: connection.fetchForPackage,
+      sendLiveValues: connection.sendLiveValues,
     }),
     [state, connection],
   );

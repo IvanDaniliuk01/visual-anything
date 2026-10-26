@@ -31,7 +31,7 @@ const project: ProjectSnapshot = {
 };
 
 describe('PROTOCOL_VERSION', () => {
-  it('is 6, since a destination can open another project through its own program', () => {
+  it('is 6, since a destination can open another project through its own program, and live values travel on it', () => {
     expect(PROTOCOL_VERSION).toBe(6);
   });
 

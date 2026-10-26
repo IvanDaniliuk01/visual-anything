@@ -16,8 +16,10 @@ import {
   PROTOCOL_VERSION,
   checkPreferenceChanges,
   checkProject,
+  codePackagesOn,
   decodeAppMessage,
   executeCommand,
+  modelIndexOf,
   record,
   redo as redoAction,
   summarize,
@@ -33,6 +35,10 @@ import {
   type HistorySummary,
   type IdGenerator,
   type ListedAction,
+  type LiveFetchMessage,
+  type LiveFilter,
+  type LiveSender,
+  type LiveSetMessage,
   type NoticeMessage,
   type Operation,
   type PreferencesSetMessage,
@@ -56,6 +62,8 @@ import {
 } from './file-plan';
 import { FOLDERS, newFilePath, type FolderKind } from './layout';
 import { projectDestinationWarnings, type OpenOtherProject } from './other-project';
+import { LiveValues, type LiveKept } from './live';
+import { PackageFetcher, networkGrantOf, type FetcherOptions } from './live-fetch';
 import type { PreferencesStore } from './preferences';
 import { toForwardSlashes } from './paths';
 import {
@@ -111,6 +119,18 @@ export interface LiveSession {
    * many apps it reached. Guidance changes nothing: no file, no history.
    */
   guide(guidance: Guidance): Promise<number>;
+  /**
+   * Takes live values (ADR 0057) that a sender sent on a connection, and says what it kept. They are
+   * never commands: nothing is saved and nothing enters the history.
+   */
+  setLive(connection: object, sender: LiveSender, values: unknown, freshFor?: number): LiveKept;
+  /** Clears the live values that match; gives back how many it cleared. */
+  clearLive(filter: LiveFilter): number;
+  /**
+   * Says the port the local program listens on, on 127.0.0.1, which package code never fetches from
+   * (ADR 0057's clarification on addresses).
+   */
+  servesAt?(port: number): void;
 }
 
 /** Who asked for a change: the app it is answered to, and the id of its request. */
@@ -158,6 +178,11 @@ export interface SessionOptions {
    * destination to it (ADR 0056); absent, the program refuses to.
    */
   openOtherProject?: OpenOtherProject;
+  /**
+   * How the program resolves names and fetches for package code granted an origin (ADR 0063), and
+   * how long and how much a fetch may take; the system's resolver, ten seconds and 256 KiB by default.
+   */
+  fetcher?: FetcherOptions;
 }
 
 /** The outcome of opening a session: the session, or every problem that keeps the project closed. */
@@ -229,12 +254,23 @@ export class Session implements LiveSession {
   #closed = false;
   #closing: Promise<void> | undefined;
   #warnings: { state: ProjectSnapshot; warnings: ProjectFileProblem[] } | undefined;
+  /** The live values of the open project (ADR 0057), in memory only. */
+  readonly #live: LiveValues;
+  /** What fetches for package code granted an origin (ADR 0063). */
+  readonly #fetcher: PackageFetcher;
 
   private constructor(folder: string, loaded: LoadedProject, options: SessionOptions) {
     this.folder = folder;
     this.#options = options;
     this.#state = loaded.project;
     this.#adopt(loaded);
+    this.#live = new LiveValues({
+      now: () => this.#now(),
+      broadcast: (message) => this.#broadcast(message),
+      notice: (message) => this.#broadcast({ type: 'notice', level: 'warning', message }),
+      err: (line) => this.#err(line),
+    });
+    this.#fetcher = new PackageFetcher(options.fetcher);
   }
 
   /** Opens the project in a folder; see {@link openSession}. */
@@ -367,8 +403,10 @@ export class Session implements LiveSession {
     if (preferences !== undefined) {
       this.#send(client, { type: 'preferences/changed', preferences: preferences.current() });
     }
+    for (const message of this.#live.greeting()) this.#send(client, message);
     return () => {
       this.#clients.delete(client);
+      this.#live.forget(client);
     };
   }
 
@@ -382,7 +420,51 @@ export class Session implements LiveSession {
     });
     return () => {
       this.#claudes.delete(client);
+      this.#live.forget(client);
     };
+  }
+
+  setLive(connection: object, sender: LiveSender, values: unknown, freshFor?: number): LiveKept {
+    const exists = this.#exists();
+    let refuseTarget: ((target: Id) => string | undefined) | undefined;
+    let senderName: string;
+    if (sender.kind === 'package') {
+      const name =
+        this.#state.packages.find((each) => each.id === sender.package)?.name ?? sender.package;
+      senderName = `the code of “${name}”`;
+      // Package code sends values only of the elements its hooks run on.
+      refuseTarget = (target) =>
+        codePackagesOn(this.#state, target).includes(sender.package)
+          ? undefined
+          : `is of something the code of “${name}” does not run on`;
+    } else {
+      senderName = sender.kind === 'claude' ? 'Claude' : 'the command line';
+    }
+    return this.#live.set(connection, sender, values, {
+      ...(freshFor === undefined ? {} : { freshFor }),
+      exists,
+      ...(refuseTarget === undefined ? {} : { refuseTarget }),
+      senderName,
+    });
+  }
+
+  clearLive(filter: LiveFilter): number {
+    return this.#live.clear(filter);
+  }
+
+  servesAt(port: number): void {
+    this.#fetcher.servesAt(port);
+  }
+
+  /** Forgets the live values of what the model no longer holds. */
+  #pruneLive(): void {
+    if (this.#live.size > 0) this.#live.prune(this.#exists());
+  }
+
+  /** Whether an id names an element or a relation of the model as it is now. */
+  #exists(): (target: Id) => boolean {
+    const index = modelIndexOf(this.#state);
+    return (target) => index.element(target) !== undefined || index.relation(target) !== undefined;
   }
 
   guide(guidance: Guidance): Promise<number> {
@@ -427,6 +509,12 @@ export class Session implements LiveSession {
         return;
       case 'preferences/set':
         await this.#setPreferences(client, message);
+        return;
+      case 'live/fetch':
+        await this.#fetchForPackage(client, message);
+        return;
+      case 'live/set':
+        this.#liveFromPackage(client, message);
         return;
       case 'start/create':
         // Only a program on a folder that holds no project yet starts one (ADR 0051).
@@ -480,6 +568,60 @@ export class Session implements LiveSession {
         ? { type: 'other-project/opened', requestId, name: outcome.name }
         : { type: 'command/rejected', requestId, problems: outcome.problems },
     );
+  }
+
+  /**
+   * Fetches an address for the code of an approved package granted its origin (ADR 0063), and answers
+   * with what the origin answered. Like preferences, it never waits behind the project's own work.
+   */
+  async #fetchForPackage(client: SessionClient, message: LiveFetchMessage): Promise<void> {
+    const { requestId } = message;
+    const refuse = (problems: Problem[]) =>
+      this.#send(client, { type: 'command/rejected', requestId, problems });
+    const grant = networkGrantOf(
+      this.#state,
+      this.#options.preferences?.current().codeApprovals ?? [],
+      message.package,
+    );
+    if (!grant.ok) {
+      refuse([grant.problem]);
+      return;
+    }
+    const fetched = await this.#fetcher.fetch(
+      { id: message.package, name: grant.name, granted: grant.granted },
+      message.url,
+    );
+    if (!fetched.ok) {
+      refuse([fetched.problem]);
+      return;
+    }
+    this.#send(client, {
+      type: 'live/fetched',
+      requestId,
+      status: fetched.status,
+      text: fetched.text,
+    });
+  }
+
+  /** Takes live values the code of an approved package granted an origin made, from an app. */
+  #liveFromPackage(client: SessionClient, message: LiveSetMessage): void {
+    const { requestId } = message;
+    const grant = networkGrantOf(
+      this.#state,
+      this.#options.preferences?.current().codeApprovals ?? [],
+      message.package,
+    );
+    if (!grant.ok) {
+      this.#send(client, { type: 'command/rejected', requestId, problems: [grant.problem] });
+      return;
+    }
+    const kept = this.setLive(
+      client,
+      { kind: 'package', package: message.package },
+      message.values,
+      message.freshFor,
+    );
+    this.#send(client, { type: 'live/kept', requestId, ...kept });
   }
 
   /**
@@ -610,6 +752,7 @@ export class Session implements LiveSession {
       this.#closed = true;
       this.#watcher?.close();
       this.#watcher = undefined;
+      this.#live.close();
       await this.#queue;
     })();
     return this.#closing;
@@ -738,6 +881,8 @@ export class Session implements LiveSession {
   ): SessionOutcome {
     const history = this.history;
     const message: ProjectChangedMessage = { type: 'project/changed', ...change, history };
+    // The live values of what the change took away go, once every app has heard of the change.
+    queueMicrotask(() => this.#pruneLive());
     for (const client of [...this.#clients, ...this.#claudes]) {
       this.#send(
         client,
@@ -1043,6 +1188,7 @@ export class Session implements LiveSession {
     };
     this.#broadcast(announcement);
     for (const client of this.#claudes) this.#send(client, announcement);
+    this.#pruneLive();
     this.#listHistory();
     const warnings = this.warnings();
     if (warnings.length > 0) this.#broadcast(warningNotice(warnings));

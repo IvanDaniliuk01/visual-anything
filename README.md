@@ -96,6 +96,14 @@ From the repository, run `pnpm exec tsx packages/server/src/cli.ts export …`. 
 
 Each says on standard error what it could not hold. It writes only the file given with `--out`, and never a project file; without `--out`, the export goes to standard output.
 
+## Live values
+
+```sh
+my-metrics-script | visual-anything live <folder> [--fresh-for <seconds>]
+```
+
+A running system's numbers, such as a service's latency now, can show over the attributes they name while the project is open (ADR 0057): in the detail of shapes, in filters and in the inspector, each with a live mark (● on the canvas) and its age, fading (○, with how old it is) once older than its freshness, one minute by default. They are never saved and never enter the history; the inspector's Keep as attribute turns one into an ordinary, undoable edit. `visual-anything live` reads them from standard input, one JSON object a line, `{"target": "api", "attribute": "latency", "value": 120}`, with `"measuredAt"` when known, and sends them to the Visual Anything running on the folder. Claude sends them with `set_live_values`, and package code granted an origin makes them of what the local program fetched for it from that origin (ADR 0063).
+
 ## Claude through MCP
 
 Claude works on the project Visual Anything has open through an MCP server that Claude Code or Claude Desktop starts. It attaches to the Visual Anything running on the project, and starts one in the background when none runs, which stops by itself once nothing has been connected to it for a minute. Every change Claude makes is one action in your undo history, labelled Claude, and you undo it in the app like your own. Claude's guidance (highlights, focus, moves of the canvas and captions) shows while the app is open; ask Claude to open it.
@@ -180,7 +188,7 @@ A Mermaid diagram (flowchart, C4, ER or class), a spreadsheet (CSV or TSV) or JS
 - **From the command line**, `visual-anything import <folder> <file>` imports it. Use `--map <kind>=<id>` to map a kind yourself, and `--dry-run` to see the mapping first. When Visual Anything runs on the project, the import goes through it.
 - **With Claude**, ask it to import a file: it shows you the mapping with `preview_import`, then imports with `import_file`.
 
-A spreadsheet holds elements with `id`, `name`, `component` and `container` columns, and relations with `from`, `to` and `relation type` columns, in tables separated by a blank line. Every other column is an attribute. Importing it again updates the elements it matches by `id`, or by another column you choose. Nothing in a file runs, and links in it are never followed.
+A spreadsheet holds elements with `id`, `name`, `component` and `container` columns, and relations with `from`, `to` and `relation type` columns, in tables separated by a blank line. A column named `id:` and a scheme, such as `id:uberon`, holds identifiers in that scheme. Every other column is an attribute. Importing it again updates the elements it matches by `id`, or by another column you choose, and the elements that share an identifier with a row. Nothing in a file runs, and links in it are never followed.
 
 ### Building from what you already have
 

@@ -175,6 +175,22 @@ describe('the simple form', () => {
     ]);
   });
 
+  it('reads elements’ external identifiers, by scheme, for the import to check and match', () => {
+    const simple = read(
+      JSON.stringify({ elements: [{ name: 'Heart', ids: { uberon: 'UBERON:0000948', fma: 7 } }] }),
+    );
+    expect(simple.elements[0]?.ids).toEqual({ uberon: 'UBERON:0000948', fma: 7 });
+    const model = read(
+      JSON.stringify({
+        world: { id: 'world', component: 'essence', name: 'World' },
+        elements: [{ id: 'heart', component: 'essence', name: 'Heart', ids: { fma: 'FMA:7088' } }],
+        relations: [],
+      }),
+      'model.vamodel',
+    );
+    expect(model.elements[0]?.ids).toEqual({ fma: 'FMA:7088' });
+  });
+
   it('refuses keys its schema does not have, and missing names', () => {
     expect(
       readJson({ name: 'x.json', text: '{"elements":[{"name":"A","color":"red"},{"id":"b"}]}' }),

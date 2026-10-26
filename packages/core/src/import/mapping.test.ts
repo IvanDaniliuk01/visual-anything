@@ -192,6 +192,33 @@ describe('prepareImport', () => {
     expect(after.model.relations).toHaveLength(state.model.relations.length + 1);
   });
 
+  it('updates the element that shares an external identifier with a row, rather than adding one', () => {
+    const base = testProject();
+    const state: ProjectSnapshot = {
+      ...base,
+      model: {
+        ...base.model,
+        elements: base.model.elements.map((each) =>
+          each.id === 'db' ? { ...each, ids: { uberon: 'UBERON:0000948' } } : each,
+        ),
+      },
+    };
+    const plan = table(
+      'name,id:uberon,id:fma\nHeart,UBERON:0000948,FMA:7088\nLung,UBERON:0002048,\n',
+      state,
+    );
+    const { prepared, after } = land(state, plan);
+    expect(prepared.updates).toEqual({ elements: 1, relations: 0 });
+    expect(prepared.creates.elements).toBe(1);
+    expect(after.model.elements.find((each) => each.id === 'db')).toMatchObject({
+      name: 'Heart',
+      ids: { fma: 'FMA:7088', uberon: 'UBERON:0000948' },
+    });
+    expect(after.model.elements.find((each) => each.name === 'Lung')?.ids).toEqual({
+      uberon: 'UBERON:0002048',
+    });
+  });
+
   it('counts the elements it updates by what changes in them', () => {
     const state = testProject();
     const { prepared } = land(state, table('id,name,latency\napi,API,20\ndb,Database,\n', state));

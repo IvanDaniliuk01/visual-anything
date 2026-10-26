@@ -4,7 +4,8 @@
  * - **A project's own model file** (`.vamodel`, or its JSON), with World, elements and relations,
  *   checked against the published model schema; its components and relation types are its kinds.
  * - **The simple form:** `{ "elements": [...], "relations": [...] }`, whose elements have a `name`
- *   and may have an `id`, a `component`, a `container`, a `description` and `attributes`, and whose
+ *   and may have an `id`, a `component`, a `container`, a `description`, `attributes` and `ids`,
+ *   its external identifiers by scheme (ADR 0056), and whose
  *   relations have `from` and `to` and may have an `id`, a `relationType`, a `name`, a `description`
  *   and `attributes`. It is checked against `SIMPLE_FORM_SCHEMA`.
  *
@@ -12,7 +13,13 @@
  * Importing again matches elements to the project's by a key, the id by default, as spreadsheets do.
  */
 import modelSchema from '@visual-anything/schema/schemas/model.schema.json' with { type: 'json' };
-import type { Attributes, Element, JsonValue, Relation } from '@visual-anything/schema';
+import type {
+  Attributes,
+  Element,
+  ExternalIds,
+  JsonValue,
+  Relation,
+} from '@visual-anything/schema';
 import { PastLimits, PlanBuilder } from './builder';
 import { IMPORT_LIMITS } from './plan';
 import { References, type MatchBy } from './references';
@@ -57,6 +64,7 @@ export const SIMPLE_FORM_SCHEMA = {
         container: { $ref: '#/definitions/Text' },
         description: { type: 'string' },
         attributes: { $ref: '#/definitions/Attributes' },
+        ids: { type: 'object' },
       },
       required: ['name'],
       additionalProperties: false,
@@ -172,6 +180,8 @@ interface SimpleElement {
   container?: string;
   description?: string;
   attributes?: Attributes;
+  /** Checked by `matchByExternalIds`, which reports what is not an identifier. */
+  ids?: ExternalIds;
 }
 
 interface SimpleRelation {
@@ -236,6 +246,7 @@ class JsonReading {
           kind: element.component,
           ...(description === undefined ? {} : { description }),
           ...(attributes === undefined ? {} : { attributes }),
+          ...(element.ids === undefined ? {} : { ids: element.ids }),
           ...(match === undefined ? {} : { existing: match.id }),
         },
         { label: element.component, suggested: element.component },
@@ -392,6 +403,7 @@ class JsonReading {
           kind,
           ...(description === undefined ? {} : { description }),
           ...(attributes === undefined ? {} : { attributes }),
+          ...(element.ids === undefined ? {} : { ids: element.ids }),
           ...(match === undefined ? {} : { existing: match.id }),
         },
         { label: kind, ...(suggested === undefined ? {} : { suggested }) },

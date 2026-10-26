@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { syntheticProject } from '../bench/synthetic';
 import { loadSample } from '../test/sample';
 import { IndexBuilder, find, indexProject, normalized, type FindIndex, type Found } from './find';
+import { cpuNow } from '../test/cpu';
 
 const sample = loadSample();
 const index = indexProject(sample, definitionsIn(sample));
@@ -93,28 +94,25 @@ describe('find', () => {
     const definitions = definitionsIn(big);
     // Indexing the first time goes a slice at a time, each well within a frame.
     const builder = new IndexBuilder(big, definitions);
-    const steps: number[] = [];
-    for (let done = false; !done;) {
-      const start = performance.now();
-      done = builder.step(4);
-      steps.push(performance.now() - start);
-    }
+    // Measured in the CPU time the work takes, which a loaded machine does not stretch as it
+    // stretches the clock. That time moves in ticks (about 15.6 ms on Windows), so each measure is
+    // an average over enough work to span many of them.
+    let steps = 0;
+    const indexing = cpuNow();
+    for (let done = false; !done; steps += 1) done = builder.step(4);
+    const perStep = (cpuNow() - indexing) / steps;
     const built = builder.index as FindIndex;
     expect(built.entries.length).toBeGreaterThan(10_000);
-    expect(steps.length).toBeGreaterThan(1);
-    // Nine steps in ten, at least; a pause to collect garbage can come in any of them.
-    const sorted = [...steps].sort((a, b) => a - b);
-    expect(sorted[Math.floor(sorted.length * 0.9)]).toBeLessThan(16);
-    // A search, warmed up as typing is after the first key, fits in a frame (16.7 ms), by the median
-    // of three tries, even with other tests running beside it. Measured so, it took 0.1 to 6 ms,
-    // and 7 to 11 for a single letter, which matches nearly everything.
+    expect(steps).toBeGreaterThan(1);
+    expect(perStep).toBeLessThan(16);
+    // A search, warmed up as typing is after the first key, fits in a frame (16.7 ms) on average.
+    // Measured on a quiet machine, one took 0.1 to 6 ms, and 7 to 11 for a single letter, which
+    // matches nearly everything.
     const queries = ['service', 's', 'servicio', 'system 42', 'xyz', 'service 9999'];
     for (const query of queries) find(built, query);
-    const tries = [0, 1, 2].map(() => {
-      const start = performance.now();
-      for (const query of queries) find(built, query);
-      return (performance.now() - start) / queries.length;
-    });
-    expect(tries.sort((a, b) => a - b)[1]).toBeLessThan(16);
+    const rounds = 10;
+    const searching = cpuNow();
+    for (let round = 0; round < rounds; round += 1) for (const query of queries) find(built, query);
+    expect((cpuNow() - searching) / (rounds * queries.length)).toBeLessThan(16);
   });
 });

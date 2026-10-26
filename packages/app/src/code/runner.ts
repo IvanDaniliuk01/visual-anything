@@ -4,10 +4,19 @@
  * an element whose input changed. It works a slice at a time, telling the app what changed and which
  * package it runs, so that the app knows it is alive; and it turns off a package whose calls stopped
  * three times in a row, until the project opens again. Nothing here touches the page.
+ *
+ * For a package granted an origin (ADR 0063), `attributes` reads through `context.fetched` what the
+ * local program fetched for it: the runner says which addresses each package wants, the app has them
+ * fetched and hands back what came, and the elements that read an address are called again when its
+ * answer changes. What such a call answers is a live value, not a computed one: the app sends it to
+ * the program, as the package's.
  */
 import {
   CODE_LIMITS,
+  LIVE_FETCH_LIMITS,
+  LIVE_LIMITS,
   callProblem,
+  checkFetchAddress,
   checkAttributesAnswer,
   checkDrawAnswer,
   checkProblemsAnswer,
@@ -32,10 +41,12 @@ import type {
   CodeRequest,
   ComputedValue,
   ElementAnswers,
+  FetchedResponse,
   PackageRun,
   RunPackage,
+  WantedAddress,
 } from './messages';
-import type { CodeSandbox } from './sandbox';
+import type { CodeSandbox, NetworkReader } from './sandbox';
 
 /** What one hook of one package answered for one element, kept until its input changes. */
 interface HookResult {
@@ -44,6 +55,16 @@ interface HookResult {
   attributes?: ComputedValue[];
   problems: Problem[];
   drawing?: Drawing;
+  /** The addresses the call read through `context.fetched`: the version of each it read, and how often it asked. */
+  reads?: Map<string, { version: number; every: number }>;
+  /** Whether what it answered was made of what was fetched: live values, not computed ones. */
+  live?: { freshFor: number };
+}
+
+/** An address a package's code reads: what the program last fetched from it, and its version. */
+interface Fetched {
+  version: number;
+  response?: FetchedResponse;
 }
 
 interface Running {
@@ -75,6 +96,10 @@ export class CodeRunner {
   private readonly running = new Map<Id, Running>();
   /** By package, hook and element. */
   private readonly results = new Map<Id, Map<HookName, Map<Id, HookResult>>>();
+  /** What was fetched for each package, by address. */
+  private readonly fetched = new Map<Id, Map<string, Fetched>>();
+  /** What each package was last said to want fetched, as JSON. */
+  private readonly wantedSaid = new Map<Id, string>();
   /** What the app was last told of each element, as JSON. */
   private readonly told = new Map<Id, string>();
   private readonly pendingElements = new Map<Id, ElementAnswers>();
@@ -104,6 +129,9 @@ export class CodeRunner {
         break;
       case 'view':
         this.view = { view: request.view, scale: request.scale, shown: new Set(request.shown) };
+        break;
+      case 'fetched':
+        if (!this.takeFetched(request)) return;
         break;
     }
     this.generation += 1;
@@ -174,6 +202,111 @@ export class CodeRunner {
     }
     // Told again: a package turned off on the way took the answers it gave earlier in the round.
     for (const element of [...this.told.keys()]) this.tell(element);
+    this.sayWanted();
+    return true;
+  }
+
+  /**
+   * Takes what the program fetched for a package: false when it changes nothing to call again, as
+   * the same answer again or a failure, which shows as the package's last problem.
+   */
+  private takeFetched(request: Extract<CodeRequest, { kind: 'fetched' }>): boolean {
+    const running = this.running.get(request.package);
+    const known = this.fetched.get(request.package)?.get(request.url);
+    if (!running || !known) return false;
+    if (request.response === undefined) {
+      if (request.problem !== undefined) {
+        running.run = { ...running.run, problem: request.problem };
+        this.pendingPackages.set(request.package, running.run);
+        this.flush();
+      }
+      return false;
+    }
+    const before = known.response;
+    if (before?.status === request.response.status && before.text === request.response.text) {
+      return false;
+    }
+    known.response = { status: request.response.status, text: request.response.text };
+    known.version += 1;
+    return true;
+  }
+
+  /** Says, for each package granted an origin, every address its code reads now, when that changed. */
+  private sayWanted(): void {
+    for (const [id, running] of this.running) {
+      if (!running.request.granted.some((each) => each.startsWith('network:'))) continue;
+      const wanted = new Map<string, number>();
+      for (const result of this.results.get(id)?.get('attributes')?.values() ?? []) {
+        for (const [url, read] of result.reads ?? []) {
+          wanted.set(url, Math.min(wanted.get(url) ?? Number.POSITIVE_INFINITY, read.every));
+        }
+      }
+      // What no call reads any longer is no longer fetched, nor kept.
+      const fetched = this.fetched.get(id);
+      for (const url of [...(fetched?.keys() ?? [])]) if (!wanted.has(url)) fetched?.delete(url);
+      const list: WantedAddress[] = [...wanted].map(([url, every]) => ({ url, every }));
+      this.say(id, list);
+    }
+    for (const id of [...this.wantedSaid.keys()]) {
+      if (!this.running.has(id)) this.say(id, []);
+    }
+  }
+
+  private say(id: Id, wanted: WantedAddress[]): void {
+    const text = JSON.stringify(wanted);
+    if ((this.wantedSaid.get(id) ?? '[]') === text) return;
+    if (wanted.length === 0) this.wantedSaid.delete(id);
+    else this.wantedSaid.set(id, text);
+    this.options.post({ kind: 'network', package: id, wanted });
+  }
+
+  /**
+   * What `context.fetched` reads in one call of a package granted an origin, and what it read: only
+   * addresses on an origin granted, at most so many for the package, each version as it is now.
+   */
+  private networkFor(request: RunPackage): {
+    reader: NetworkReader;
+    reads: Map<string, { version: number; every: number }>;
+    answered: () => boolean;
+  } {
+    const reads = new Map<string, { version: number; every: number }>();
+    let answered = false;
+    let fetched = this.fetched.get(request.package);
+    if (!fetched) {
+      fetched = new Map();
+      this.fetched.set(request.package, fetched);
+    }
+    const known = fetched;
+    const reader: NetworkReader = {
+      fetched: (url, everySeconds) => {
+        const checked = checkFetchAddress(url, request.granted);
+        if (!checked.ok)
+          return { kind: 'refused', reason: `${url.slice(0, 200)} ${checked.reason}.` };
+        let entry = known.get(checked.url);
+        if (!entry) {
+          if (known.size >= LIVE_FETCH_LIMITS.urls) {
+            return {
+              kind: 'refused',
+              reason: `Package code fetches at most ${LIVE_FETCH_LIMITS.urls} addresses.`,
+            };
+          }
+          entry = { version: 0 };
+          known.set(checked.url, entry);
+        }
+        reads.set(checked.url, { version: entry.version, every: everyOf(everySeconds) });
+        if (entry.response === undefined) return { kind: 'not-yet' };
+        answered = true;
+        return { kind: 'answer', status: entry.response.status, text: entry.response.text };
+      },
+    };
+    return { reader, reads, answered: () => answered };
+  }
+
+  /** Whether every address a call read is still at the version it read. */
+  private readsCurrent(id: Id, reads: HookResult['reads']): boolean {
+    if (reads === undefined) return true;
+    const fetched = this.fetched.get(id);
+    for (const [url, read] of reads) if (fetched?.get(url)?.version !== read.version) return false;
     return true;
   }
 
@@ -188,6 +321,7 @@ export class CodeRunner {
         sandbox.unload(id);
         this.running.delete(id);
         this.results.delete(id);
+        this.fetched.delete(id);
       }
     }
     for (const request of this.requested) {
@@ -253,12 +387,28 @@ export class CodeRunner {
     // With model:read, the whole model is part of what a hook is given: any change calls it again.
     const key = `${request.hash}\n${reads ? modelToken(project) : ''}\n${JSON.stringify(input)}`;
     const results = this.resultsOf(request.package, hook);
-    if (results.get(id)?.key === key) return;
+    const before = results.get(id);
+    if (before?.key === key && this.readsCurrent(request.package, before.reads)) return;
     this.calling = request.package;
-    const outcome = sandbox.call(request.package, hook, input, reads ? reader : undefined);
+    const network =
+      hook === 'attributes' && request.granted.some((each) => each.startsWith('network:'))
+        ? this.networkFor(request)
+        : undefined;
+    const outcome = sandbox.call(
+      request.package,
+      hook,
+      input,
+      reads ? reader : undefined,
+      network?.reader,
+    );
     const named = { id: request.package, name: request.name };
     const element = { id, name: input.element.name };
-    const result: HookResult = { key, problems: [] };
+    const result: HookResult = {
+      key,
+      problems: [],
+      ...(network === undefined || network.reads.size === 0 ? {} : { reads: network.reads }),
+      ...(network?.answered() === true ? { live: { freshFor: freshForOf(network.reads) } } : {}),
+    };
     const dropped = (reason: string) =>
       result.problems.push(callProblem(named, hook, element, { kind: 'answer', reason }));
     if (outcome.ok) {
@@ -348,13 +498,24 @@ export class CodeRunner {
     if (!project) return;
     const answers: ElementAnswers = { element, attributes: [], problems: [] };
     const names = new Set<string>();
+    const live: ComputedValue[] = [];
+    let freshFor = 0;
     for (const id of codePackagesOn(project, element)) {
       const byHook = this.results.get(id);
       if (!byHook) continue;
-      for (const each of byHook.get('attributes')?.get(element)?.attributes ?? []) {
+      const attributes = byHook.get('attributes')?.get(element);
+      for (const each of attributes?.attributes ?? []) {
         if (names.has(each.name)) continue;
         names.add(each.name);
-        answers.attributes.push(each);
+        // What was made of what was fetched goes to the program as live values, never as computed.
+        if (attributes?.live) live.push(each);
+        else answers.attributes.push(each);
+      }
+      if (attributes?.live) freshFor = Math.max(freshFor, attributes.live.freshFor);
+      if (live.length > 0 && answers.live === undefined) {
+        answers.live = { values: live, freshFor };
+      } else if (answers.live) {
+        answers.live.freshFor = freshFor;
       }
       for (const hook of ['attributes', 'check', 'draw'] as const) {
         answers.problems.push(...(byHook.get(hook)?.get(element)?.problems ?? []));
@@ -365,7 +526,8 @@ export class CodeRunner {
     const empty =
       answers.attributes.length === 0 &&
       answers.problems.length === 0 &&
-      answers.drawing === undefined;
+      answers.drawing === undefined &&
+      answers.live === undefined;
     const text = empty ? '' : JSON.stringify(answers);
     if (text === (this.told.get(element) ?? '')) return;
     if (empty) {
@@ -392,6 +554,19 @@ export class CodeRunner {
     this.pendingCleared.clear();
     this.pendingPackages.clear();
   }
+}
+
+/** How often an address is fetched again, in milliseconds, from the seconds the code asked for. */
+function everyOf(seconds: number): number {
+  if (!Number.isFinite(seconds) || seconds <= 0) return LIVE_FETCH_LIMITS.every;
+  return Math.min(LIVE_FETCH_LIMITS.everyMax, Math.max(LIVE_FETCH_LIMITS.everyMin, seconds * 1000));
+}
+
+/** How long values made of what was fetched stay fresh: twice as long as the slowest fetch they read. */
+function freshForOf(reads: ReadonlyMap<string, { every: number }>): number {
+  let every = 0;
+  for (const read of reads.values()) every = Math.max(every, read.every);
+  return Math.min(LIVE_LIMITS.freshForMax, Math.max(LIVE_LIMITS.freshForMin, 2 * every));
 }
 
 function off(id: Id, stops: number, problem: Problem): PackageRun {

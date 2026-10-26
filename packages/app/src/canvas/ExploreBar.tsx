@@ -31,6 +31,8 @@ import {
 import './explore.css';
 import { holdsTargets, type Explore } from './useExplorer';
 import { useOutsidePress } from './focus';
+import { useAttributeLookup } from '../live-values/context';
+import { TimeRangeChooser, TimeRangeStrip } from './TimeRangeControls';
 import { indexScene, type IndexedScene } from './hit';
 import { drawnRelations, hiddenIn } from './navigation';
 import type { Scene } from './scene';
@@ -91,6 +93,7 @@ export function ExploreStrip() {
           </button>
         </div>
       )}
+      {explore.filters.range !== undefined && <TimeRangeStrip editor={editor} explore={explore} />}
       {following !== undefined && <FollowRow editor={editor} relation={following} />}
     </div>
   );
@@ -213,9 +216,11 @@ function FilterPanel({ id, editor, explore, onClose }: FilterPanelProps) {
   const t = useT();
   const { scene, project } = editor;
   const { filters, setFilters } = explore;
+  // Attributes only live values or package code give can be filtered on too (ADR 0057).
+  const lookup = useAttributeLookup();
   const choices = useMemo(
-    () => (scene ? filterChoices(scene, project) : NO_CHOICES),
-    [scene, project],
+    () => (scene ? filterChoices(scene, project, lookup) : NO_CHOICES),
+    [scene, project, lookup],
   );
   const panel = useRef<HTMLDivElement>(null);
   const added = useRef(false);
@@ -315,6 +320,7 @@ function FilterPanel({ id, editor, explore, onClose }: FilterPanelProps) {
           {t('Add a condition')}
         </button>
       </fieldset>
+      <TimeRangeChooser editor={editor} explore={explore} />
       <div className="explore-panel-actions">
         <button
           type="button"

@@ -23,6 +23,7 @@ import { definitionsOf } from '../definitions';
 import { randomIds, type IdGenerator } from '../ids';
 import type { ProjectSnapshot } from '../snapshot';
 import { definitionsIn } from '../state';
+import { matchByExternalIds } from './crosswalks';
 import { planToCommand, type ImportMapping, type ImportPlan, type PlannedRelation } from './plan';
 import { own, recordOf } from './reader';
 import { quote } from './text';
@@ -228,10 +229,12 @@ export interface PreparedImport {
  */
 export function prepareImport(
   state: ProjectSnapshot,
-  plan: ImportPlan,
+  read: ImportPlan,
   mapping: ImportMapping,
   generate: IdGenerator = randomIds(),
 ): PreparedImport | { ok: false; problems: string[] } {
+  // Rows that share an external identifier with an element of the project update it (ADR 0056).
+  const plan = matchByExternalIds(state, read);
   const normalized = normalizedMapping(plan, mapping);
   // The built-in packages the mapping chooses from that the project does not use yet.
   const project = definitionsIn(state);
@@ -276,6 +279,10 @@ export function prepareImport(
     const current = elements.get(element.existing);
     if (current === undefined) return false;
     if (current.name !== element.name) return true;
+    // Identifiers merge by scheme, as `update-element` merges them.
+    const ids = Object.entries(element.ids ?? {});
+    if (ids.some(([scheme, identifier]) => own(current.ids ?? {}, scheme) !== identifier))
+      return true;
     return changesAttributes(current, element.attributes);
   }).length;
   // A relation is matched only when it changes something.

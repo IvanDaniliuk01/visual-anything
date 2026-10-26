@@ -136,10 +136,18 @@ describe('names every object inherits', () => {
 });
 
 describe('work that could grow faster than the file', () => {
+  // Measured in the CPU time the work takes, where tests run in Node, which a loaded machine does not
+  // stretch as it stretches the clock: these fail for work that grows faster than the file.
+  const cpuNow = () => {
+    const usage = (
+      globalThis as { process?: { cpuUsage?: () => { user: number; system: number } } }
+    ).process?.cpuUsage?.();
+    return usage === undefined ? Date.now() : (usage.user + usage.system) / 1000;
+  };
   const quick = (run: () => unknown, ms = 1_500) => {
-    const start = Date.now();
+    const start = cpuNow();
     const result = run();
-    expect(Date.now() - start).toBeLessThan(ms);
+    expect(cpuNow() - start).toBeLessThan(ms);
     return result;
   };
 

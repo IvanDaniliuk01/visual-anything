@@ -274,6 +274,8 @@ export async function startServer(options: ServerOptions): Promise<RunningServer
 
   try {
     port = await listen(httpServer, options.port);
+    // Package code never fetches from the program itself (ADR 0057's clarification on addresses).
+    options.session.servesAt?.(port);
   } catch (error) {
     live.close();
     claude.close();

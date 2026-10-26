@@ -7,14 +7,16 @@
  *   visual-anything new <folder> [--from <sample>] [--port <n>] [--no-open] [--dev]
  *   visual-anything export <folder> --view <id> --format <format> [--theme <theme>] [--out <file>]
  *   visual-anything import <folder> <file> [--map <kind>=<id>]... [--dry-run]
+ *   visual-anything live <folder> [--fresh-for <seconds>] < values.jsonl
  *
  * The first opens the project folder, serves the app on 127.0.0.1 and opens the browser on it, at
  * the view and selection asked for; `open` says so and changes nothing. The second is Claude's MCP
  * entry point, which Claude Code and Claude Desktop start: it speaks MCP on
  * stdin and stdout, so it writes nothing else there, and every line of its own goes to stderr. `new`
  * starts a new project; `export` writes a view as a file, reading the project itself
- * (`export-command.ts`); and `import` imports a file into a project as one action of the person's
- * (ADR-0042).
+ * (`export-command.ts`); `import` imports a file into a project as one action of the person's
+ * (ADR-0042); and `live` pipes live values into the program running on the folder
+ * (`live-command.ts`, ADR 0057).
  */
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
@@ -45,9 +47,12 @@ export const NEW_COMMAND = 'new';
 /** The subcommand that imports a file into a project (ADR-0042). */
 export const IMPORT_COMMAND = 'import';
 
+/** The subcommand that pipes live values into the program running on a folder (ADR 0057). */
+export const LIVE_COMMAND = 'live';
+
 /** Which entry point a command line runs, with the arguments that entry point reads. */
 export interface Entry {
-  kind: 'program' | 'mcp' | 'new' | 'export' | 'import';
+  kind: 'program' | 'mcp' | 'new' | 'export' | 'import' | 'live';
   argv: string[];
 }
 
@@ -63,6 +68,7 @@ export function entryOf(argv: readonly string[]): Entry {
   if (argv[0] === IMPORT_COMMAND) return { kind: 'import', argv: argv.slice(1) };
   if (argv[0] === OPEN_COMMAND) return { kind: 'program', argv: argv.slice(1) };
   if (argv[0] === NEW_COMMAND) return { kind: 'new', argv: argv.slice(1) };
+  if (argv[0] === LIVE_COMMAND) return { kind: 'live', argv: argv.slice(1) };
   return { kind: 'program', argv: [...argv] };
 }
 
@@ -83,11 +89,13 @@ export function main(argv: readonly string[]): void {
               err: (line) => console.error(line),
               runtimeFolder: runtimeFolder(process.platform, process.env, homedir()),
             })
-          : runProgram(
-              entry.argv,
-              isExecutable(),
-              entry.kind === 'new' ? runNewCommand : runCommand,
-            );
+          : entry.kind === 'live'
+            ? runLiveCommand(entry.argv)
+            : runProgram(
+                entry.argv,
+                isExecutable(),
+                entry.kind === 'new' ? runNewCommand : runCommand,
+              );
   void run.then((code) => {
     if (code !== undefined) process.exitCode = code;
   });
@@ -104,6 +112,18 @@ export async function runExportCommand(argv: readonly string[]): Promise<number>
     stdout: (data) => process.stdout.write(data),
     stdoutIsTerminal: process.stdout.isTTY === true,
     err: (line) => console.error(line),
+  });
+}
+
+/** Runs the live command on the process's own streams, until its input ends. */
+export async function runLiveCommand(argv: readonly string[]): Promise<number> {
+  const { runLive } = await import('./live-command');
+  return runLive(argv, {
+    cwd: process.cwd(),
+    input: process.stdin,
+    out: (line) => console.log(line),
+    err: (line) => console.error(line),
+    runtimeFolder: runtimeFolder(process.platform, process.env, homedir()),
   });
 }
 

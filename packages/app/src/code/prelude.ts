@@ -30,7 +30,11 @@ export const ANSWER_DEPTH = 16;
 
 /**
  * A function expression of `(global, grantTime)`: it locks the context down and gives back
- * `[run(hook, inputJson, limit, readModel), describe(thrown)]`.
+ * `[run(hook, inputJson, limit, readModel, readNetwork), describe(thrown)]`. With `readNetwork`, for
+ * `attributes` in a package granted an origin (ADR 0063), `context.fetched(url, { every })` gives
+ * what the local program last fetched from that address, or undefined until it has, and asks for it
+ * to be fetched every `every` seconds; `readNetwork` answers `A` and the answer's JSON, `R` and why
+ * the address may not be fetched, or nothing.
  */
 export const PRELUDE = String.raw`(function (global, grantTime) {
   'use strict';
@@ -51,6 +55,8 @@ export const PRELUDE = String.raw`(function (global, grantTime) {
   const toText = String;
   const apply = Reflect.apply;
   const sliceText = String.prototype.slice;
+  const MadeError = Error;
+  const MadeTypeError = TypeError;
 
   // No code made from text: neither eval nor any kind of Function constructor.
   const blocked = function Function() {
@@ -158,6 +164,23 @@ export const PRELUDE = String.raw`(function (global, grantTime) {
     });
   }
 
+  // What the local program fetched for the package (ADR 0063), read through the app.
+  function fetchedOf(read) {
+    return freeze(function fetched(url, options) {
+      if (typeof url !== 'string') throw new MadeTypeError('context.fetched takes an address as text.');
+      let every = 0;
+      if (typeof options === 'object' && options !== null) {
+        const given = options.every;
+        if (typeof given === 'number') every = given;
+      }
+      const text = read(url, every);
+      if (typeof text !== 'string' || text.length === 0) return undefined;
+      const rest = apply(sliceText, text, [1]);
+      if (text[0] === 'R') throw new MadeError(rest);
+      return deepFreeze(parse(rest), 0);
+    });
+  }
+
   // The longest description of a thrown value.
   const LONGEST = 1000;
 
@@ -200,13 +223,16 @@ export const PRELUDE = String.raw`(function (global, grantTime) {
     }
   }
 
-  function run(hook, inputJson, limit, readModel) {
+  function run(hook, inputJson, limit, readModel, readNetwork) {
     try {
       const input = parse(inputJson);
       const element = input[0];
       const context = input[1];
       if (readModel !== undefined) {
         defineProperty(context, 'model', { value: modelOf(readModel), enumerable: true });
+      }
+      if (readNetwork !== undefined) {
+        defineProperty(context, 'fetched', { value: fetchedOf(readNetwork), enumerable: true });
       }
       deepFreeze(input, 0);
       const answer = hook(element, context);

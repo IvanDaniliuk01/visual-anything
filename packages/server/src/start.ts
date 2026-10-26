@@ -9,11 +9,14 @@
 import { basename } from 'node:path';
 import {
   PROTOCOL_VERSION,
+  checkLiveValues,
   checkPreferenceChanges,
   decodeAppMessage,
   type Author,
   type Command,
   type Guidance,
+  type LiveFilter,
+  type LiveSender,
   type PreferencesSetMessage,
   type Problem,
   type ProblemCode,
@@ -22,6 +25,7 @@ import {
   type StartCreateMessage,
 } from '@visual-anything/core';
 import { errorReason } from './errors';
+import type { LiveKept } from './live';
 import type { PreferencesStore } from './preferences';
 import { formatProjectProblem } from './project';
 import {
@@ -82,6 +86,8 @@ export class StartingSession implements LiveSession {
   readonly #claudes = new Map<SessionClient, (() => void) | undefined>();
   #starting = false;
   #closed = false;
+  /** The ports the program listens on, which the project's session hears of once started. */
+  readonly #ports: number[] = [];
   readonly #started: Promise<Session>;
   #resolveStarted: (session: Session) => void = () => {};
 
@@ -173,6 +179,29 @@ export class StartingSession implements LiveSession {
     return this.#session?.guide(guidance) ?? Promise.resolve(0);
   }
 
+  setLive(connection: object, sender: LiveSender, values: unknown, freshFor?: number): LiveKept {
+    if (this.#session !== undefined)
+      return this.#session.setLive(connection, sender, values, freshFor);
+    // No project yet, so no target is known.
+    const checked = checkLiveValues(values);
+    return {
+      kept: 0,
+      waiting: 0,
+      dropped: checked.dropped,
+      unknown: [...new Set(checked.values.map((each) => each.target))],
+      refused: checked.refused,
+    };
+  }
+
+  clearLive(filter: LiveFilter): number {
+    return this.#session?.clearLive(filter) ?? 0;
+  }
+
+  servesAt(port: number): void {
+    this.#ports.push(port);
+    this.#session?.servesAt(port);
+  }
+
   /** Closes the project's session, once started; until then there is nothing to close. */
   async close(): Promise<void> {
     this.#closed = true;
@@ -230,6 +259,7 @@ export class StartingSession implements LiveSession {
   /** Becomes the session of the project just started, for every app and Claude connected meanwhile. */
   #adopt(session: Session): void {
     this.#session = session;
+    for (const port of this.#ports) session.servesAt(port);
     // The token went with the offer already: each app reconnects with it from then on.
     for (const client of this.#waiting) this.#disconnects.set(client, session.connect(client));
     this.#waiting.clear();

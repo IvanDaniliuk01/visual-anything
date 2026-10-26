@@ -4,6 +4,7 @@ import { centerOf } from '../canvas/geometry';
 import { indexScene, type IndexedScene } from '../canvas/hit';
 import { buildScene } from '../canvas/scene';
 import { MAX_BANDS, MAX_TILE_SHAPES, cellOf, chunkBase, plannedTiles } from '../canvas/tiles';
+import { cpuNow } from '../test/cpu';
 import { SYNTHETIC_IMAGES } from './images';
 import {
   LARGE_TABLE,
@@ -16,9 +17,10 @@ import {
 /** Builds and indexes a mode at 10,000 elements, and how long that took. */
 function built(overlap: Overlap): { indexed: IndexedScene; elapsed: number } {
   const project = syntheticProject({ elements: 10_000, overlap });
-  const started = performance.now();
+  // In CPU time, which a loaded machine does not stretch as it stretches the clock.
+  const started = cpuNow();
   const indexed = indexScene(buildScene(project, 'everything'));
-  return { indexed, elapsed: performance.now() - started };
+  return { indexed, elapsed: cpuNow() - started };
 }
 
 const modes = new Map<Overlap, ReturnType<typeof built>>();

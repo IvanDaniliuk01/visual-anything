@@ -12,11 +12,13 @@ import type { Id } from '@visual-anything/schema';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Emphasis, EmphasisStore } from '../editor/emphasis';
 import type { Selection } from '../editor/selection';
+import type { AttributeLookup } from '../live-values/lookup';
 import {
   NO_FILTERS,
   applyFilters,
   filterEmphasis,
   focusEmphasis,
+  isComplete,
   type FilterResult,
   type Filters,
   type FocusSettings,
@@ -70,6 +72,8 @@ export interface ExplorerInput {
   scene: Scene | undefined;
   selection: Selection;
   emphasis: EmphasisStore;
+  /** How attributes read, live and computed values over stored ones (ADR 0057). */
+  lookup?: AttributeLookup;
 }
 
 /**
@@ -82,6 +86,7 @@ export function useExplorer({
   scene,
   selection,
   emphasis,
+  lookup,
 }: ExplorerInput): Explore {
   const [byView, setByView] = useState<ReadonlyMap<Id, ViewExplore>>(new Map());
   const current = (viewId === undefined ? undefined : byView.get(viewId)) ?? UNEXPLORED;
@@ -110,9 +115,13 @@ export function useExplorer({
   }
 
   const { filters, focus } = current;
+  // Only conditions on attributes and time ranges read the lookup: without them, live values change
+  // nothing here.
+  const reading =
+    filters.conditions.some(isComplete) || filters.range !== undefined ? lookup : undefined;
   const filtered = useMemo(
-    () => applyFilters(scene ?? EMPTY, project, filters),
-    [scene, project, filters],
+    () => applyFilters(scene ?? EMPTY, project, filters, reading),
+    [scene, project, filters, reading],
   );
   const filterShown = useMemo(() => filterEmphasis(filtered), [filtered]);
   const focusShown = useMemo(

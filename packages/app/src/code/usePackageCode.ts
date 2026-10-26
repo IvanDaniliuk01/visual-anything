@@ -3,6 +3,9 @@
  * approved each, by its hash, in their preferences; the code worker that runs the approved ones, and
  * what it answers. Code that is not approved never reaches the worker, and the app says so once when
  * the project opens.
+ *
+ * For code granted an origin (ADR 0063), the addresses it reads are fetched through the local program,
+ * never from the page, and the live values it made of them are sent to the program as the package's.
  */
 import {
   codeStatusOf,
@@ -12,7 +15,15 @@ import {
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { Capability, Id } from '@visual-anything/schema';
-import { useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import type { Scene } from '../canvas/scene';
 import { useT } from '../i18n';
 import { LiveContext } from '../live/context';
@@ -20,6 +31,7 @@ import { usePreferences } from '../theme/usePreferences';
 import type { CanvasCamera } from '../view-state/canvas';
 import { CodeHost, NO_ANSWERS, type CodeAnswers } from './client';
 import type { CodeStore, PackageCodeView } from './context';
+import { PackageLiveValues, PackageNetwork } from './network';
 import { drawScaleOf } from './scale';
 
 export interface PackageCodeInput {
@@ -122,6 +134,65 @@ export function usePackageCode({
   useEffect(() => {
     store.set({ packages, elements: answers.elements, drawings: answers.drawings });
   }, [store, packages, answers.elements, answers.drawings]);
+
+  // What code granted an origin reads is fetched through the local program (ADR 0063).
+  const fetchForPackage = live?.fetchForPackage;
+  const sendLiveValues = live?.sendLiveValues;
+  const said = useRef({ notify: live?.notify, t });
+  useEffect(() => {
+    said.current = { notify: live?.notify, t };
+  });
+  const network = useRef<PackageNetwork | undefined>(undefined);
+  useEffect(() => {
+    if (!host || !fetchForPackage) return;
+    const made = new PackageNetwork({
+      fetch: fetchForPackage,
+      deliver: (request) => host.fetched(request),
+      tell: (message) => said.current.notify?.('warning', said.current.t.message(message)),
+    });
+    network.current = made;
+    const stop = host.onWanted((pkg, wanted) => made.want(pkg, wanted));
+    return () => {
+      stop();
+      made.dispose();
+      network.current = undefined;
+    };
+  }, [host, fetchForPackage]);
+  useEffect(() => {
+    network.current?.keep(new Set(approved.map((each) => each.package)));
+  }, [approved]);
+
+  // The live values it made of what was fetched go to the program, which every app hears them from.
+  const sender = useRef<PackageLiveValues | undefined>(undefined);
+  useEffect(() => {
+    if (!sendLiveValues) return;
+    const made = new PackageLiveValues({
+      send: (pkg, values, freshFor) => void sendLiveValues(pkg, values, freshFor),
+    });
+    sender.current = made;
+    return () => {
+      made.dispose();
+      sender.current = undefined;
+    };
+  }, [sendLiveValues]);
+  const sentLive = useRef(new Map<Id, string>());
+  useEffect(() => {
+    const made = sender.current;
+    if (!made) return;
+    const sent = sentLive.current;
+    for (const element of [...sent.keys()]) {
+      if (answers.elements.get(element)?.live === undefined) sent.delete(element);
+    }
+    for (const [element, each] of answers.elements) {
+      if (each.live === undefined) continue;
+      const text = JSON.stringify(each.live);
+      if (sent.get(element) === text) continue;
+      sent.set(element, text);
+      for (const value of each.live.values) {
+        made.add(value.package, each.live.freshFor, element, value.name, value.value);
+      }
+    }
+  }, [answers.elements]);
 
   // Once a tab, for each code that waits for approval, a notice that it does not run.
   const notify = live?.notify;
