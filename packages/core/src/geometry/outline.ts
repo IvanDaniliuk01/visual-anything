@@ -2,7 +2,8 @@
  * Free geometry read into a normalized outline (ADR 0066): contours of absolute moves, lines and
  * cubics, each a fill, a hole cut from what holds it, or a line drawn with a stroke only, with the
  * bounds of the curves themselves. Reading checks the grammar, the caps and the box, and stops at a
- * cap before the work grows past it.
+ * cap before the work grows past it. A named part's outline (ADR 0067) is the same type: lines with
+ * the width of their stroke, and the fills of several shapes joined, each read by its own rule.
  */
 import type { Point } from '@visual-anything/schema';
 import { readPathData, readPolygonPoints, type Segment } from './path';
@@ -36,6 +37,23 @@ export interface OutlineContour {
   segments: readonly Segment[];
   /** A fill, a hole cut from the fill around it, or a line drawn with a stroke only. */
   role: 'fill' | 'hole' | 'line';
+  /**
+   * A line's width, the width of its stroke in the outline's units: a line holds a band of half
+   * this on each side of it, with round ends. Left out, it holds only itself.
+   */
+  width?: number;
+  /**
+   * Which fill of the outline a closed contour belongs to, from 0, when the outline joins the fills
+   * of several shapes, as a named part's does (ADR 0067). The contours of one fill hold by its rule
+   * among themselves, and the outline holds what any of its fills holds, so that one shape drawn over
+   * another is not a hole in it. Left out, 0: free geometry is one fill.
+   */
+  group?: number;
+  /**
+   * Its fill holds by SVG's nonzero rule: where the winding numbers of its contours add up to
+   * anything but 0. Left out, by the even-odd rule. Every contour of one fill says the same.
+   */
+  nonzero?: true;
 }
 
 /** Free geometry read once, which every reading of a shape's outline starts from. */
@@ -333,25 +351,105 @@ function within(box: Box, around: Box, slack: number): boolean {
   );
 }
 
-/**
- * Each closed contour is a fill or a hole by how many others hold it: an odd number makes it a hole,
- * which is SVG's even-odd rule, whichever way it runs. Lines stay lines.
- */
+/** Free geometry's contours classed: one fill, read by the even-odd rule. */
 function withRoles(
   contours: readonly { start: Point; segments: Segment[]; role: 'fill' | 'line' }[],
 ): OutlineContour[] {
-  const closedOnes = contours.filter((contour) => contour.role !== 'line');
-  const polygons = closedOnes.map((contour) => coarse(contour.start, contour.segments));
-  return contours.map((contour) => {
-    if (contour.role === 'line') return contour;
-    const own = closedOnes.indexOf(contour);
-    const probe = probePoint(polygons[own] as number[]);
-    let holders = 0;
-    for (const [at, polygon] of polygons.entries()) {
-      if (at !== own && evenOddHolds(polygon, probe.x, probe.y)) holders += 1;
+  return classContours(contours);
+}
+
+/**
+ * Classes the closed contours of an outline as fills and holes, fill by fill (see
+ * {@link OutlineContour.group}); lines stay lines.
+ *
+ * - In a fill read by the even-odd rule, a contour that an odd number of the fill's others hold is a
+ *   hole, whichever way it runs.
+ * - In a fill read by the nonzero rule, a contour is classed by winding: a fill where the side it
+ *   holds is filled, otherwise a hole. One with both sides filled, such as an inner contour that runs
+ *   the way the outer one does, is a fill.
+ *
+ * Drawing fills and cutting holes, fill by fill, then paints what each rule fills wherever no two
+ * contours of a fill cross; holding a point reads the rule itself, so it is exact even where they do.
+ */
+export function classContours<
+  T extends Pick<OutlineContour, 'start' | 'segments' | 'role' | 'group' | 'nonzero'>,
+>(contours: readonly T[]): (T & { role: OutlineContour['role'] })[] {
+  const polygons = contours.map((contour) =>
+    contour.role === 'line' ? undefined : coarse(contour.start, contour.segments),
+  );
+  return contours.map((contour, own) => {
+    const polygon = polygons[own];
+    if (polygon === undefined) return contour;
+    const group = contour.group ?? 0;
+    const others = polygons.filter(
+      (other, at): other is number[] =>
+        other !== undefined && at !== own && (contours[at]?.group ?? 0) === group,
+    );
+    let role: 'fill' | 'hole';
+    if (contour.nonzero) role = roleByWinding(polygon, [polygon, ...others]);
+    else {
+      const probe = probePoint(polygon);
+      const holders = others.filter((other) => evenOddHolds(other, probe.x, probe.y)).length;
+      role = holders % 2 === 1 ? 'hole' : 'fill';
     }
-    return { ...contour, role: holders % 2 === 1 ? 'hole' : 'fill' };
+    return { ...contour, role };
   });
+}
+
+/** A contour of a nonzero fill, classed by the winding numbers just inside it. */
+function roleByWinding(
+  own: readonly number[],
+  fill: readonly (readonly number[])[],
+): 'fill' | 'hole' {
+  const piece = longestPiece(own);
+  if (piece === undefined) return 'fill';
+  const { x0, y0, x1, y1, length } = piece;
+  const [width, height] = extent(own);
+  const step = Math.min(length / 4, Math.max(width, height) * 1e-6);
+  const mx = (x0 + x1) / 2;
+  const my = (y0 + y1) / 2;
+  const nx = (-(y1 - y0) / length) * step;
+  const ny = ((x1 - x0) / length) * step;
+  const inner = evenOddHolds(own, mx + nx, my + ny)
+    ? { x: mx + nx, y: my + ny }
+    : { x: mx - nx, y: my - ny };
+  const winding = fill.reduce((sum, polygon) => sum + windingNumber(polygon, inner.x, inner.y), 0);
+  return winding !== 0 ? 'fill' : 'hole';
+}
+
+/** The longest piece of a closed polygon, as x, y pairs: where classing it is safest. */
+function longestPiece(
+  polygon: readonly number[],
+): { x0: number; y0: number; x1: number; y1: number; length: number } | undefined {
+  const count = polygon.length / 2;
+  let best: { x0: number; y0: number; x1: number; y1: number; length: number } | undefined;
+  for (let i = 0; i < count; i += 1) {
+    const j = (i + 1) % count;
+    const x0 = polygon[2 * i] as number;
+    const y0 = polygon[2 * i + 1] as number;
+    const x1 = polygon[2 * j] as number;
+    const y1 = polygon[2 * j + 1] as number;
+    const length = Math.hypot(x1 - x0, y1 - y0);
+    if (length > (best?.length ?? 0)) best = { x0, y0, x1, y1, length };
+  }
+  return best;
+}
+
+/** The width and height of a polygon's points, as x, y pairs. */
+function extent(polygon: readonly number[]): [number, number] {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (let at = 0; at < polygon.length; at += 2) {
+    const x = polygon[at] as number;
+    const y = polygon[at + 1] as number;
+    if (x < minX) minX = x;
+    if (y < minY) minY = y;
+    if (x > maxX) maxX = x;
+    if (y > maxY) maxY = y;
+  }
+  return [maxX - minX, maxY - minY];
 }
 
 /** A point on a contour away from its corners: the middle of its first piece. */
@@ -393,6 +491,26 @@ export function evenOddHolds(polygon: ArrayLike<number>, x: number, y: number): 
     if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
   }
   return inside;
+}
+
+/**
+ * How many times a closed polygon, as x, y pairs, winds around a point, counted with its direction.
+ * SVG's nonzero rule fills where the winding numbers of a fill's contours add up to anything but 0.
+ * It counts the edges {@link evenOddHolds} crosses, so it is odd exactly when that holds the point.
+ */
+export function windingNumber(polygon: ArrayLike<number>, x: number, y: number): number {
+  let winding = 0;
+  const count = polygon.length / 2;
+  for (let i = 0, j = count - 1; i < count; j = i, i += 1) {
+    const xi = polygon[2 * i] as number;
+    const yi = polygon[2 * i + 1] as number;
+    const xj = polygon[2 * j] as number;
+    const yj = polygon[2 * j + 1] as number;
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) {
+      winding += yi > yj ? 1 : -1;
+    }
+  }
+  return winding;
 }
 
 /** The point at `t` of a cubic Bézier. */

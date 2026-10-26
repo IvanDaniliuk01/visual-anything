@@ -9,6 +9,7 @@ import {
   distanceToEdges,
   fitOutline,
   flatten,
+  flattenOutline,
   outlineExit,
   outlineHolds,
   outlineInnerPoint,
@@ -21,11 +22,16 @@ import {
 } from './fit';
 import {
   GEOMETRY_CAPS,
+  boundsOf,
+  classContours,
   evenOddHolds,
   readGeometry,
+  windingNumber,
   type GeometryInput,
   type Outline,
+  type OutlineContour,
 } from './outline';
+import { readPathData } from './path';
 
 const HEART: GeometryInput = {
   width: 120,
@@ -250,6 +256,136 @@ describe('a fitted outline', () => {
   });
 });
 
+/** The contours of path data, each subpath closed, as a fill or a line. */
+function contoursOf(
+  d: string,
+  extra: Partial<OutlineContour> & { role?: 'fill' | 'line' } = {},
+): OutlineContour[] {
+  const read = readPathData(d);
+  if (!read.ok) throw new Error(read.reason);
+  return read.subpaths.map((subpath) => {
+    const last = subpath.segments.at(-1)?.to ?? subpath.start;
+    const role = extra.role ?? 'fill';
+    const closing =
+      role !== 'line' && (last.x !== subpath.start.x || last.y !== subpath.start.y)
+        ? [{ kind: 'line' as const, to: subpath.start }]
+        : [];
+    return {
+      ...extra,
+      role,
+      start: subpath.start,
+      segments: [...subpath.segments, ...closing],
+    };
+  });
+}
+
+/** An outline of contours in a box, classed as readings of named parts class them. */
+function outlineFrom(contours: readonly OutlineContour[], width = 100, height = 100): Outline {
+  return {
+    width,
+    height,
+    contours: classContours(contours),
+    bounds: boundsOf(contours),
+    keepProportions: false,
+  };
+}
+
+describe('lines, several fills and the nonzero rule', () => {
+  it('holds a band of half a line’s width on each side of it, and none past its ends', () => {
+    const line = outlineFrom(contoursOf('M10 50 L90 50', { role: 'line', width: 10 }));
+    const fitted = fitOutline(line, 100, 100);
+    expect(outlineHolds(fitted, { x: 50, y: 50 })).toBe(true);
+    expect(outlineHolds(fitted, { x: 50, y: 54.9 })).toBe(true);
+    expect(outlineHolds(fitted, { x: 50, y: 55.1 })).toBe(false);
+    expect(outlineHolds(fitted, { x: 50, y: 56 }, 1.5)).toBe(true);
+    expect(outlineHolds(fitted, { x: 50, y: 70 }, 1.5)).toBe(false);
+    // Its ends are round, as half its width reaches.
+    expect(outlineHolds(fitted, { x: 94, y: 50 })).toBe(true);
+    expect(outlineHolds(fitted, { x: 96, y: 50 })).toBe(false);
+    // Its distance is measured from the band, not from the line.
+    expect(distanceToEdges(flattenOutline(fitted), { x: 50, y: 60 })).toBeCloseTo(5, 9);
+    // A line without a width holds only what lies on it.
+    const hairline = fitOutline(
+      outlineFrom(contoursOf('M10 50 L90 50', { role: 'line' })),
+      100,
+      100,
+    );
+    expect(outlineHolds(hairline, { x: 50, y: 50.5 })).toBe(false);
+    expect(outlineHolds(hairline, { x: 50, y: 50.5 }, 1)).toBe(true);
+  });
+
+  it('scales a line’s width with the rectangle it is fitted to', () => {
+    const line = outlineFrom(contoursOf('M10 50 L90 50', { role: 'line', width: 10 }));
+    const fitted = fitOutline(line, 200, 200);
+    expect(fitted.contours[0]?.width).toBe(20);
+    expect(outlineHolds(fitted, { x: 100, y: 109 })).toBe(true);
+    expect(outlineHolds(fitted, { x: 100, y: 111 })).toBe(false);
+  });
+
+  it('holds what any of its fills holds, each by its own contours', () => {
+    const squares = 'M10 10 H60 V60 H10 Z M40 40 H90 V90 H40 Z';
+    const oneFill = fitOutline(outlineFrom(contoursOf(squares)), 100, 100);
+    // In one fill, read by the even-odd rule, two squares that overlap leave their overlap out.
+    expect(outlineHolds(oneFill, { x: 50, y: 50 })).toBe(false);
+    const [first, second] = contoursOf(squares);
+    const twoFills = fitOutline(
+      outlineFrom([
+        { ...(first as OutlineContour), group: 0 },
+        { ...(second as OutlineContour), group: 1 },
+      ]),
+      100,
+      100,
+    );
+    expect(outlineHolds(twoFills, { x: 50, y: 50 })).toBe(true);
+    expect(outlineHolds(twoFills, { x: 20, y: 20 })).toBe(true);
+    expect(outlineHolds(twoFills, { x: 80, y: 20 })).toBe(false);
+    // A fill inside another fill is not a hole of it.
+    const nested = outlineFrom([
+      ...contoursOf('M0 0 H100 V100 H0 Z', { group: 0 }),
+      ...contoursOf('M30 30 H70 V70 H30 Z', { group: 1 }),
+    ]);
+    expect(nested.contours.map((contour) => contour.role)).toEqual(['fill', 'fill']);
+    expect(outlineHolds(fitOutline(nested, 100, 100), { x: 50, y: 50 })).toBe(true);
+  });
+
+  it('reads a nonzero fill by its winding numbers, and classes its contours by them', () => {
+    // Both squares run the same way: nonzero fills the inner one too.
+    const same = outlineFrom(
+      contoursOf('M0 0 H100 V100 H0 Z M30 30 H70 V70 H30 Z', { nonzero: true }),
+    );
+    expect(same.contours.map((contour) => contour.role)).toEqual(['fill', 'fill']);
+    expect(outlineHolds(fitOutline(same, 100, 100), { x: 50, y: 50 })).toBe(true);
+    // Run the other way, the inner one is a hole.
+    const opposite = outlineFrom(
+      contoursOf('M0 0 H100 V100 H0 Z M30 30 V70 H70 V30 Z', { nonzero: true }),
+    );
+    expect(opposite.contours.map((contour) => contour.role)).toEqual(['fill', 'hole']);
+    expect(outlineHolds(fitOutline(opposite, 100, 100), { x: 50, y: 50 })).toBe(false);
+    expect(outlineHolds(fitOutline(opposite, 100, 100), { x: 10, y: 50 })).toBe(true);
+    // A star drawn in one stroke fills its middle by nonzero, and leaves it out by even-odd.
+    const star = 'M50 0 L79 90 L2 35 L98 35 L21 90 Z';
+    expect(
+      outlineHolds(fitOutline(outlineFrom(contoursOf(star, { nonzero: true })), 100, 100), {
+        x: 50,
+        y: 50,
+      }),
+    ).toBe(true);
+    expect(
+      outlineHolds(fitOutline(outlineFrom(contoursOf(star)), 100, 100), { x: 50, y: 50 }),
+    ).toBe(false);
+  });
+
+  it('keeps free geometry read by the even-odd rule over all its contours, which cross or not', () => {
+    const crossing = outlineOf({
+      width: 100,
+      height: 100,
+      outline: [{ kind: 'path', d: 'M10 10 H60 V60 H10 Z M40 40 H90 V90 H40 Z' }],
+    });
+    expect(crossing.contours.every((contour) => contour.group === undefined)).toBe(true);
+    expect(outlineHolds(fitOutline(crossing, 100, 100), { x: 50, y: 50 })).toBe(false);
+  });
+});
+
 /** Free geometry made at random: star polygons, ellipses and cubic paths in a box of 100 by 100, a hole sometimes. */
 const geometry: fc.Arbitrary<GeometryInput> = fc
   .tuple(
@@ -302,6 +438,87 @@ function fineHolds(flat: readonly FlatContour[], x: number, y: number): boolean 
 }
 
 const size = fc.tuple(fc.integer({ min: 20, max: 400 }), fc.integer({ min: 20, max: 400 }));
+
+/** Places in a rectangle, as fractions of its width and height. */
+const places = fc.array(
+  fc.tuple(fc.double({ min: 0, max: 1, noNaN: true }), fc.double({ min: 0, max: 1, noNaN: true })),
+  { minLength: 20, maxLength: 40 },
+);
+
+const coordinate = fc.double({ min: 5, max: 95, noNaN: true });
+
+/** Lines made at random: polylines and curves in the box, each with a width of its own. */
+const randomLines: fc.Arbitrary<OutlineContour[]> = fc
+  .array(
+    fc.tuple(
+      fc.array(fc.tuple(coordinate, coordinate), { minLength: 2, maxLength: 5 }),
+      fc.boolean(),
+      fc.double({ min: 0.5, max: 12, noNaN: true }),
+    ),
+    { minLength: 1, maxLength: 3 },
+  )
+  .map((lines) =>
+    lines.flatMap(([points, curved, width]) => {
+      const [[x0, y0]] = points as [[number, number]];
+      let d = `M${x0} ${y0}`;
+      for (let at = 1; at < points.length; at += 1) {
+        const [fx, fy] = points[at - 1] as [number, number];
+        const [tx, ty] = points[at] as [number, number];
+        d += curved
+          ? ` Q${(fx + tx) / 2 + (ty - fy) / 3} ${(fy + ty) / 2 - (tx - fx) / 3} ${tx} ${ty}`
+          : ` L${tx} ${ty}`;
+      }
+      return contoursOf(d, { role: 'line', width });
+    }),
+  );
+
+/** A star polygon's path data around a centre, run either way. */
+function starPath(
+  cx: number,
+  cy: number,
+  radii: readonly number[],
+  turn: number,
+  reversed: boolean,
+) {
+  const points = radii.map((radius, at) => {
+    const angle = turn + (2 * Math.PI * at) / radii.length;
+    return `${cx + radius * Math.cos(angle)} ${cy + radius * Math.sin(angle)}`;
+  });
+  if (reversed) points.reverse();
+  return `M${points.join(' L')} Z`;
+}
+
+/** One to three fills made at random, overlapping or not, each by even-odd or nonzero, some with an inner contour run either way. */
+const randomFills: fc.Arbitrary<OutlineContour[][]> = fc
+  .array(
+    fc.tuple(
+      fc.array(fc.double({ min: 10, max: 30, noNaN: true }), { minLength: 3, maxLength: 9 }),
+      fc.tuple(
+        fc.double({ min: 30, max: 70, noNaN: true }),
+        fc.double({ min: 30, max: 70, noNaN: true }),
+      ),
+      fc.double({ min: 0, max: 2 * Math.PI, noNaN: true }),
+      fc.boolean(),
+      fc.boolean(),
+      fc.boolean(),
+    ),
+    { minLength: 1, maxLength: 3 },
+  )
+  .map((fills) =>
+    fills.map(([radii, [cx, cy], turn, nonzero, inner, reversed], group) => {
+      const outer = starPath(cx, cy, radii, turn, false);
+      const inside = inner
+        ? ` ${starPath(
+            cx,
+            cy,
+            radii.map(() => 4),
+            turn,
+            reversed,
+          )}`
+        : '';
+      return contoursOf(outer + inside, { group, ...(nonzero ? { nonzero: true as const } : {}) });
+    }),
+  );
 
 describe('the outline maths, under random geometry', () => {
   it('holds a point exactly when a much finer flattening holds it, but within a quarter unit of the edge', () => {
@@ -360,6 +577,64 @@ describe('the outline maths, under random geometry', () => {
           }
         },
       ),
+      { numRuns: 150 },
+    );
+  });
+
+  it('holds a line’s band exactly when a much finer flattening of it does, beside its fills', () => {
+    fc.assert(
+      fc.property(geometry, randomLines, size, places, (input, lines, [width, height], at) => {
+        const filled = outlineOf(input);
+        const outline = outlineFrom([...filled.contours, ...lines]);
+        const fitted = fitOutline(outline, width, height);
+        const fills = fine(fitted).filter((contour) => contour.role !== 'line');
+        const centres = fitted.contours
+          .filter((contour) => contour.role === 'line')
+          .map((contour) => ({
+            half: (contour.width ?? 0) / 2,
+            flat: flatten({ ...contour, width: undefined }, 0.002, 4096),
+          }));
+        for (const [u, v] of at) {
+          const point = { x: u * width, y: v * height };
+          if (distanceToEdges(fills, point, 1) <= 0.25) continue;
+          const distances = centres.map(({ half, flat }) => ({
+            half,
+            d: distanceToEdges([flat], point),
+          }));
+          if (distances.some(({ half, d }) => Math.abs(d - half) <= 0.25)) continue;
+          const expected =
+            fineHolds(fills, point.x, point.y) || distances.some(({ half, d }) => d <= half);
+          expect(outlineHolds(fitted, point)).toBe(expected);
+        }
+      }),
+      { numRuns: 150 },
+    );
+  });
+
+  it('holds what any of several fills holds, each read by its own rule, as a much finer flattening does', () => {
+    fc.assert(
+      fc.property(randomFills, size, places, (fills, [width, height], at) => {
+        const outline = outlineFrom(fills.flat());
+        const fitted = fitOutline(outline, width, height);
+        const reference = fine(fitted);
+        for (const [u, v] of at) {
+          const point = { x: u * width, y: v * height };
+          if (distanceToEdges(reference, point, 1) <= 0.25) continue;
+          const sums = new Map<number, number>();
+          for (const contour of reference) {
+            const group = contour.group;
+            const own = sums.get(group) ?? 0;
+            sums.set(
+              group,
+              contour.nonzero
+                ? own + windingNumber(contour.points, point.x, point.y)
+                : own ^ (evenOddHolds(contour.points, point.x, point.y) ? 1 : 0),
+            );
+          }
+          const expected = [...sums.values()].some((sum) => sum !== 0);
+          expect(outlineHolds(fitted, point)).toBe(expected);
+        }
+      }),
       { numRuns: 150 },
     );
   });

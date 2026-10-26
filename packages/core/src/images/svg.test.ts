@@ -1,15 +1,16 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
-  SVG_ALLOWED,
   SVG_CAPS,
   calledNames,
   cleanSvg,
   pathCommandCount,
+  readCleanedSvg,
+  writeSvg,
   type CleanedSvg,
 } from './svg';
+import { NS, expectNothingRuns, tree, writeTree } from './test/svg-corpus';
 
-const NS = 'xmlns="http://www.w3.org/2000/svg"';
 const SQUARE = '<path d="M0 0h1v1z"/>';
 
 /** The cleaned SVG of text that cleaning accepts. */
@@ -24,24 +25,6 @@ function refusal(text: string): string {
   const result = cleanSvg(text);
   if (result.ok) throw new Error(`Accepted: ${result.value.svg}`);
   return result.problem.code;
-}
-
-/** Element and attribute names in cleaned output, which is canonical and holds no text. */
-function namesIn(svg: string): { elements: string[]; attributes: string[] } {
-  const elements = [...svg.matchAll(/<\/?([A-Za-z][\w:.-]*)/g)].map((match) => match[1] ?? '');
-  const attributes = [...svg.matchAll(/\s([^\s=<>"]+)="/g)].map((match) => match[1] ?? '');
-  return { elements, attributes };
-}
-
-/** What must never survive cleaning. */
-function expectNothingRuns(svg: string): void {
-  expect(svg.replaceAll(NS, '')).not.toMatch(
-    /script|foreignObject|javascript|data:|https?:|@import|<!|<\?|\son\w+=/i,
-  );
-  expect(svg).not.toMatch(/<(set|animate\w*|image|iframe|text|style|a)[\s/>]/);
-  const { elements, attributes } = namesIn(svg);
-  for (const name of elements) expect(SVG_ALLOWED.elements.has(name), name).toBe(true);
-  for (const name of attributes) expect(SVG_ALLOWED.attributes.has(name), name).toBe(true);
 }
 
 describe('cleanSvg on real exports', () => {
@@ -586,147 +569,6 @@ describe('pathCommandCount', () => {
 
 // --- The fuzz property ---------------------------------------------------------------------------
 
-interface Tree {
-  name: string;
-  attributes: [string, string][];
-  children: (Tree | string)[];
-}
-
-const NAMES = [
-  'g',
-  'path',
-  'rect',
-  'circle',
-  'use',
-  'defs',
-  'symbol',
-  'linearGradient',
-  'stop',
-  'clipPath',
-  'mask',
-  'svg',
-  'script',
-  'SCRIPT',
-  'foreignObject',
-  'set',
-  'animate',
-  'image',
-  'iframe',
-  'a',
-  'switch',
-  'style',
-  'text',
-  'title',
-  'desc',
-  'filter',
-  'pattern',
-  'marker',
-  'sodipodi:namedview',
-  'html:div',
-];
-const ATTRIBUTES = [
-  'id',
-  'd',
-  'x',
-  'width',
-  'fill',
-  'stroke',
-  'mask',
-  'clip-path',
-  'opacity',
-  'transform',
-  'style',
-  'class',
-  'href',
-  'xlink:href',
-  'onload',
-  'onclick',
-  'stroke-dasharray',
-  'stroke-width',
-  'attributeName',
-  'to',
-  'values',
-  'src',
-  'begin',
-];
-const VALUES = [
-  'a',
-  'b',
-  '#a',
-  '#b',
-  'url(#a)',
-  'url(#b)',
-  'M0 0h1v1z',
-  '#123456',
-  '0.5',
-  'red',
-  'translate(1 2)',
-  'javascript:alert(1)',
-  'JaVaScRiPt:alert(1)',
-  '&#106;avascript:alert(1)',
-  'data:text/html,<b>x</b>',
-  'http://evil.example/x',
-  '//evil.example/x',
-  'url(http://evil.example/x)',
-  'url(javascript:x)',
-  'fill:url(http://evil.example/x)',
-  'fill:red;stroke:url(#a)',
-  'expression(alert(1))',
-  '@import url(x)',
-  'onload',
-  '0.001',
-  '1 1',
-  'none',
-];
-const TEXTS = [
-  '@import url(http://evil.example/x.css);',
-  '.a{fill:url(http://evil.example/x)} path{stroke:#000000}',
-  '<![CDATA[ .b { fill: url(#a) } ]]>',
-  'alert(1)',
-  '&lt;script&gt;alert(1)&lt;/script&gt;',
-  '<!-- comment -->',
-];
-
-const tree: fc.Arbitrary<Tree> = fc.letrec<{ node: Tree }>((tie) => ({
-  node: fc.record({
-    name: fc.constantFrom(...NAMES),
-    attributes: fc.uniqueArray(
-      fc.tuple(fc.constantFrom(...ATTRIBUTES), fc.constantFrom(...VALUES)),
-      {
-        maxLength: 4,
-        selector: ([name]) => name,
-      },
-    ),
-    children: fc.array(
-      fc.oneof({ depthSize: 'small', maxDepth: 4 }, fc.constantFrom(...TEXTS), tie('node')),
-      {
-        maxLength: 4,
-      },
-    ),
-  }),
-})).node;
-
-/** Writes a tree as SVG text, escaping values, except for text that is meant to be markup or a reference. */
-function writeTree(node: Tree | string): string {
-  if (typeof node === 'string') return node;
-  const attributes = node.attributes
-    .map(([name, value]) => {
-      const escaped = value.startsWith('&#')
-        ? value
-        : value.replaceAll('&', '&amp;').replaceAll('<', '&lt;');
-      return ` ${name}="${escaped.replaceAll('"', '&quot;')}"`;
-    })
-    .join('');
-  const prefix = node.name.split(':')[0];
-  const declared =
-    prefix === 'sodipodi'
-      ? ' xmlns:sodipodi="urn:sodipodi"'
-      : prefix === 'html'
-        ? ' xmlns:html="http://www.w3.org/1999/xhtml"'
-        : '';
-  return `<${node.name}${declared}${attributes}>${node.children.map(writeTree).join('')}</${node.name}>`;
-}
-
 describe('cleanSvg, fuzzed', () => {
   it('lets nothing that runs or loads through, is idempotent, and stays within its caps', () => {
     fc.assert(
@@ -745,9 +587,33 @@ describe('cleanSvg, fuzzed', () => {
         const again = cleanSvg(svg);
         expect(again.ok && again.value).toEqual(result.value);
         expect(again.ok && again.removed).toEqual([]);
+        // The cleaner's own reader reads its output back, and its writer writes it again unchanged.
+        const read = readCleanedSvg(svg);
+        expect(read?.name).toBe('svg');
+        expect(read && writeSvg(read)).toBe(svg);
       }),
       { numRuns: 400 },
     );
+  });
+});
+
+describe('reading cleaned SVG back', () => {
+  it('reads the elements of cleaned text with the cleaner’s own strict reader', () => {
+    const { svg } = cleaned(
+      `<svg viewBox="0 0 10 10" ${NS}><g id="a" transform="translate(1 2)"><path d="M0 0h1v1z" fill="#123456"/></g></svg>`,
+    );
+    const root = readCleanedSvg(svg);
+    expect(root?.attributes.get('viewBox')).toBe('0 0 10 10');
+    const group = root?.children[0];
+    expect(group?.name).toBe('g');
+    expect(group?.attributes.get('transform')).toBe('translate(1 2)');
+    expect(group?.children[0]?.attributes.get('fill')).toBe('#123456');
+    expect(root && writeSvg(root)).toBe(svg);
+  });
+
+  it('reads nothing from text its reader refuses', () => {
+    expect(readCleanedSvg('<svg><g></svg>')).toBeUndefined();
+    expect(readCleanedSvg('<!DOCTYPE x><svg/>')).toBeUndefined();
   });
 });
 

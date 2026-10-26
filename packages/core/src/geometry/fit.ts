@@ -7,7 +7,14 @@
  * once for an outline and a size, as is everything asked of it.
  */
 import type { Point } from '@visual-anything/schema';
-import { cubicAt, evenOddHolds, type Box, type Outline, type OutlineContour } from './outline';
+import {
+  cubicAt,
+  evenOddHolds,
+  windingNumber,
+  type Box,
+  type Outline,
+  type OutlineContour,
+} from './outline';
 import type { Segment } from './path';
 
 /** How far a flattening may stray from the curve, in canvas units. */
@@ -19,7 +26,10 @@ const SIMPLIFIED_POINTS = 32;
 /** The most fitted sizes kept for one outline; shapes come in few sizes. */
 const SIZES_KEPT = 256;
 
-/** A contour flattened, as x, y pairs, with its bounds and role. */
+/**
+ * A contour flattened, as x, y pairs, with the bounds of its points, its role, and how it holds: a
+ * closed one by its fill's rule, a line within half its width.
+ */
 export interface FlatContour {
   role: OutlineContour['role'];
   points: Float64Array;
@@ -27,6 +37,12 @@ export interface FlatContour {
   minY: number;
   maxX: number;
   maxY: number;
+  /** Half a line's width, which it holds on each side; 0 for a closed contour. */
+  halfWidth: number;
+  /** The fill it belongs to (see {@link OutlineContour.group}). */
+  group: number;
+  /** Its fill holds by the nonzero rule. */
+  nonzero: boolean;
 }
 
 /** An outline fitted to a rectangle, in the rectangle's coordinates. */
@@ -79,14 +95,17 @@ export function fitOutline(outline: Outline, width: number, height: number): Fit
     x: point.x * scaleX + offsetX,
     y: point.y * scaleY + offsetY,
   });
-  const contours = outline.contours.map((contour) => ({
-    role: contour.role,
+  // A line's width grows with the area it is stretched by, as a stroke drawn stretched roughly does.
+  const widthScale = Math.sqrt(scaleX * scaleY);
+  const contours = outline.contours.map((contour): OutlineContour => ({
+    ...contour,
     start: map(contour.start),
     segments: contour.segments.map((segment): Segment =>
       segment.kind === 'line'
         ? { kind: 'line', to: map(segment.to) }
         : { kind: 'cubic', c1: map(segment.c1), c2: map(segment.c2), to: map(segment.to) },
     ),
+    ...(contour.width === undefined ? {} : { width: contour.width * widthScale }),
   }));
   const fitted: FittedOutline = {
     outline,
@@ -157,7 +176,35 @@ export function flatten(
     if (x > maxX) maxX = x;
     if (y > maxY) maxY = y;
   }
-  return { role: contour.role, points: Float64Array.from(points), minX, minY, maxX, maxY };
+  return {
+    role: contour.role,
+    points: Float64Array.from(points),
+    minX,
+    minY,
+    maxX,
+    maxY,
+    halfWidth: contour.role === 'line' ? Math.max(0, contour.width ?? 0) / 2 : 0,
+    group: contour.group ?? 0,
+    nonzero: contour.nonzero === true,
+  };
+}
+
+/** How many points {@link flatten} gives a contour at a tolerance, counted without making them. */
+export function flatPointCount(
+  contour: Pick<OutlineContour, 'start' | 'segments'>,
+  tolerance: number,
+  maxPieces = MAX_PIECES,
+): number {
+  let count = 1;
+  let from = contour.start;
+  for (const segment of contour.segments) {
+    count +=
+      segment.kind === 'line'
+        ? 1
+        : piecesFor(from, segment.c1, segment.c2, segment.to, tolerance, maxPieces);
+    from = segment.to;
+  }
+  return count;
 }
 
 function piecesFor(
@@ -176,25 +223,52 @@ function piecesFor(
 }
 
 /**
- * Whether the fitted outline holds a point, in the rectangle's coordinates: inside its fills and
- * outside their holes, by the even-odd rule, or within `margin` of its edges, as half a stroke's width
- * reaches. A line holds what lies within `margin` of it.
+ * Whether the fitted outline holds a point, in the rectangle's coordinates: inside one of its fills,
+ * by that fill's rule (holes cut by the even-odd rule unless the fill is nonzero), within half a
+ * line's width of a line, or within `margin` of any of that, as half a stroke's width reaches.
  */
 export function outlineHolds(fitted: FittedOutline, point: Point, margin = 0): boolean {
   const flat = flattenOutline(fitted);
-  const { x, y } = point;
-  let inside = false;
+  if (fillsHold(flat, point.x, point.y)) return true;
+  const reach = Math.max(0, margin);
+  if (reach === 0 && !flat.some((contour) => contour.role === 'line')) return false;
+  return distanceToEdges(flat, point, reach + 1) <= reach;
+}
+
+/**
+ * Whether the closed contours of a flattened outline hold a point: whether any of its fills does, by
+ * its own rule. Lines hold nothing here.
+ */
+export function fillsHold(flat: readonly FlatContour[], x: number, y: number): boolean {
+  // Free geometry is one fill read by the even-odd rule, counted without a map.
+  let parity = 0;
+  let others: Map<number, number> | undefined;
   for (const contour of flat) {
     if (contour.role === 'line') continue;
     if (x < contour.minX || x > contour.maxX || y < contour.minY || y > contour.maxY) continue;
-    if (evenOddHolds(contour.points, x, y)) inside = !inside;
+    if (contour.group === 0 && !contour.nonzero) {
+      if (evenOddHolds(contour.points, x, y)) parity ^= 1;
+      continue;
+    }
+    others ??= new Map();
+    const sum = others.get(contour.group) ?? 0;
+    others.set(
+      contour.group,
+      contour.nonzero
+        ? sum + windingNumber(contour.points, x, y)
+        : sum ^ (evenOddHolds(contour.points, x, y) ? 1 : 0),
+    );
   }
-  if (inside) return true;
-  if (margin <= 0) return false;
-  return distanceToEdges(flat, point, margin) <= margin;
+  if (parity === 1) return true;
+  if (others) for (const sum of others.values()) if (sum !== 0) return true;
+  return false;
 }
 
-/** How far a point is from the nearest edge of the flattened outline, up to `limit` (further reads as `limit`). */
+/**
+ * How far a point is from the nearest edge of the flattened outline, up to `limit` (further reads as
+ * `limit`). A line's edge is its band's, half its width from it, and a point inside the band is 0
+ * from it.
+ */
 export function distanceToEdges(
   flat: readonly FlatContour[],
   point: Point,
@@ -202,11 +276,12 @@ export function distanceToEdges(
 ): number {
   let best = limit;
   for (const contour of flat) {
+    const reach = best + contour.halfWidth;
     if (
-      point.x < contour.minX - best ||
-      point.x > contour.maxX + best ||
-      point.y < contour.minY - best ||
-      point.y > contour.maxY + best
+      point.x < contour.minX - reach ||
+      point.x > contour.maxX + reach ||
+      point.y < contour.minY - reach ||
+      point.y > contour.maxY + reach
     ) {
       continue;
     }
@@ -216,15 +291,23 @@ export function distanceToEdges(
     const last = closed ? count : count - 1;
     for (let i = 0; i < last; i += 1) {
       const j = (i + 1) % count;
-      const d = segmentDistance(
-        point.x,
-        point.y,
-        points[2 * i] as number,
-        points[2 * i + 1] as number,
-        points[2 * j] as number,
-        points[2 * j + 1] as number,
-      );
-      if (d < best) best = d;
+      const d =
+        segmentDistance(
+          point.x,
+          point.y,
+          points[2 * i] as number,
+          points[2 * i + 1] as number,
+          points[2 * j] as number,
+          points[2 * j + 1] as number,
+        ) - contour.halfWidth;
+      if (d < best) best = Math.max(0, d);
+    }
+    // A line of one point is a dot as wide as the line.
+    if (!closed && count === 1) {
+      const d =
+        Math.hypot(point.x - (points[0] as number), point.y - (points[1] as number)) -
+        contour.halfWidth;
+      if (d < best) best = Math.max(0, d);
     }
   }
   return best;
@@ -384,7 +467,7 @@ function innerPoint(fitted: FittedOutline): Point {
   if (flat.length === 0 || bounds.width <= 0 || bounds.height <= 0) return middle;
   const signed = (x: number, y: number) => {
     const d = distanceToEdges(flat, { x, y });
-    return outlineHolds(fitted, { x, y }) ? d : -d;
+    return fillsHold(flat, x, y) ? d : -d;
   };
   const size = Math.min(bounds.width, bounds.height);
   const precision = Math.max(1, size / 200);
@@ -555,7 +638,11 @@ function odds(points: Float64Array): number[] {
   return Array.from({ length: points.length / 2 }, (_, i) => points[2 * i + 1] as number);
 }
 
-function douglasPeucker(points: Float64Array, tolerance: number): Float64Array {
+/**
+ * A polyline, as x, y pairs, reduced by Ramer, Douglas and Peucker to the points that stray more than
+ * `tolerance` from the line through those kept; its ends are kept.
+ */
+export function douglasPeucker(points: Float64Array, tolerance: number): Float64Array {
   const count = points.length / 2;
   const keep = new Uint8Array(count);
   keep[0] = 1;

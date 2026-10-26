@@ -6,6 +6,7 @@
 import type { BitmapImage, ImageDefinition } from '@visual-anything/schema';
 import { decodeBase64, encodeBase64 } from './base64';
 import { readBitmap } from './bitmap';
+import { pruneImageParts } from './parts';
 import { cleanSvg } from './svg';
 
 declare const CLEANED: unique symbol;
@@ -89,6 +90,10 @@ export function pruneCleanedImages(images: Iterable<ImageDefinition>): void {
     const present = bitmaps.get(format);
     for (const key of cache.keys()) if (!present?.has(key)) cache.delete(key);
   }
+  // The named parts read of each cleaned view go with it (ADR 0067).
+  const cleanedTexts = new Set<string>();
+  for (const content of svgCache.values()) if (content) cleanedTexts.add(content.text);
+  pruneImageParts(cleanedTexts);
 }
 
 /** How many contents the cache holds, for tests. */

@@ -38,9 +38,15 @@ const ARGUMENTS: Readonly<Record<string, number>> = {
 
 /**
  * Reads path data. `maxCommands` stops the reading once more commands than that are read, so that
- * path data past a cap costs no more than the cap.
+ * path data past a cap costs no more than the cap. With `upToError`, a path that leaves the grammar
+ * reads as what comes before its first error, as SVG draws it, and a command that would end past every
+ * finite number is dropped there; the cap still refuses it.
  */
-export function readPathData(d: string, maxCommands = Number.POSITIVE_INFINITY): PathRead {
+export function readPathData(
+  d: string,
+  maxCommands = Number.POSITIVE_INFINITY,
+  options: { upToError?: boolean } = {},
+): PathRead {
   const scanner = new Scanner(d);
   const subpaths: Subpath[] = [];
   let commands = 0;
@@ -62,20 +68,23 @@ export function readPathData(d: string, maxCommands = Number.POSITIVE_INFINITY):
     return open as Subpath;
   };
 
+  const fail = (reason: string): PathRead =>
+    options.upToError ? { ok: true, subpaths, commands } : { ok: false, reason };
+
   scanner.skipSpace();
-  if (scanner.done()) return { ok: false, reason: 'The path data is empty.' };
+  if (scanner.done()) return fail('The path data is empty.');
   while (!scanner.done()) {
     const letter = scanner.peekCommand();
     if (letter !== undefined) {
       scanner.advance();
       command = letter;
     } else if (command === undefined) {
-      return { ok: false, reason: 'Path data must start with a move, M or m.' };
+      return fail('Path data must start with a move, M or m.');
     } else if (command === 'Z' || command === 'z') {
-      return { ok: false, reason: `${scanner.where()}: a close, Z, takes no numbers.` };
+      return fail(`${scanner.where()}: a close, Z, takes no numbers.`);
     }
     if (commands === 0 && command !== 'M' && command !== 'm') {
-      return { ok: false, reason: 'Path data must start with a move, M or m.' };
+      return fail('Path data must start with a move, M or m.');
     }
     commands += 1;
     if (commands > maxCommands) return { ok: false, reason: 'too many commands' };
@@ -88,13 +97,15 @@ export function readPathData(d: string, maxCommands = Number.POSITIVE_INFINITY):
       const isFlag = upper === 'A' && (at === 3 || at === 4);
       const value = isFlag ? scanner.flag() : scanner.number();
       if (value === undefined) {
-        return {
-          ok: false,
-          reason: `${scanner.where()}: the command ${command} needs ${count} numbers${isFlag ? ', its flags each 0 or 1' : ''}.`,
-        };
+        commands -= 1;
+        return fail(
+          `${scanner.where()}: the command ${command} needs ${count} numbers${isFlag ? ', its flags each 0 or 1' : ''}.`,
+        );
       }
       numbers.push(value);
     }
+    // What this command adds, so that one ending past every finite number can be taken back.
+    const mark = { subpaths: subpaths.length, open, segments: open?.segments.length ?? 0 };
     const x = (at: number) => (numbers[at] as number) + (relative ? current.x : 0);
     const y = (at: number) => (numbers[at] as number) + (relative ? current.y : 0);
     let nextCubic: Point | undefined;
@@ -180,13 +191,16 @@ export function readPathData(d: string, maxCommands = Number.POSITIVE_INFINITY):
     lastCubic = nextCubic;
     lastQuadratic = nextQuadratic;
     if (!Number.isFinite(current.x) || !Number.isFinite(current.y)) {
-      return { ok: false, reason: `${scanner.where()}: a number is not finite.` };
+      subpaths.length = mark.subpaths;
+      if (mark.open) mark.open.segments.length = mark.segments;
+      commands -= 1;
+      return fail(`${scanner.where()}: a number is not finite.`);
     }
     scanner.skipSpace();
     // A comma may part the numbers of a command repeated, never a command from what follows it.
     if (!scanner.done() && scanner.peekCommand() === undefined && scanner.skipComma()) {
       if (scanner.done() || scanner.peekCommand() !== undefined) {
-        return { ok: false, reason: `${scanner.where()}: a comma is followed by no number.` };
+        return fail(`${scanner.where()}: a comma is followed by no number.`);
       }
     }
   }
@@ -286,10 +300,15 @@ export function arcSegments(
   return segments;
 }
 
-/** Reads a polygon's points as SVG writes them: x,y pairs apart by spaces or commas. */
+/**
+ * Reads a polygon's points as SVG writes them: x,y pairs apart by spaces or commas. With `upToError`,
+ * points that leave the grammar read as the pairs before the first error, as SVG draws them; the cap
+ * still refuses them.
+ */
 export function readPolygonPoints(
   text: string,
   maxPoints = Number.POSITIVE_INFINITY,
+  upToError = false,
 ): { ok: true; points: Point[] } | { ok: false; reason: string } {
   const scanner = new Scanner(text);
   const points: Point[] = [];
@@ -300,6 +319,7 @@ export function readPolygonPoints(
     scanner.skipSeparator(true);
     const y = scanner.number();
     if (x === undefined || y === undefined) {
+      if (upToError) return { ok: true, points };
       return {
         ok: false,
         reason: `${scanner.where()}: a polygon's points are x,y pairs of numbers.`,

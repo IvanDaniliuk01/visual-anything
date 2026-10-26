@@ -13,16 +13,20 @@ export {
   GEOMETRY_CAPS,
   GEOMETRY_FILE_CAPS,
   boundsOf,
+  classContours,
   cubicAt,
   ellipseContour,
   evenOddHolds,
   geometryText,
   readGeometry,
+  windingNumber,
 } from './outline';
 export type { BoxSide, FittedOutline, FlatContour } from './fit';
 export {
   FLATTENING_TOLERANCE,
   distanceToEdges,
+  douglasPeucker,
+  fillsHold,
   fitOutline,
   flatten,
   flattenOutline,
