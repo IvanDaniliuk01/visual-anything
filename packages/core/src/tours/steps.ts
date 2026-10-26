@@ -50,6 +50,7 @@ export function viewStateOfStep(saved: SavedViewState): ViewState {
         test,
         value: value ?? '',
       })),
+      ...(saved.filters.range ? { range: { ...saved.filters.range } } : {}),
     };
   }
   if (saved.focus) {
@@ -88,6 +89,7 @@ export function savedViewStateOf(state: ViewState): SavedViewState {
             : { of, attribute, test, value },
       );
     }
+    if (state.filters.range) filters.range = { ...state.filters.range };
     if (Object.keys(filters).length > 0) saved.filters = filters;
   }
   if (state.focus) {
@@ -329,14 +331,17 @@ export function playableStep(project: ProjectSnapshot, step: TourStep): Playable
     else delete state.focus;
   }
   if (state.filters) {
+    const { range } = state.filters;
     const filters = {
       components: kept(state.filters.components),
       relationTypes: kept(state.filters.relationTypes),
       conditions: state.filters.conditions,
+      ...(range === undefined ? {} : { range }),
     };
-    if (filters.components.length + filters.relationTypes.length + filters.conditions.length > 0) {
-      state.filters = filters;
-    } else delete state.filters;
+    const hides =
+      filters.components.length + filters.relationTypes.length + filters.conditions.length > 0;
+    if (hides || range !== undefined) state.filters = filters;
+    else delete state.filters;
   }
   const opened =
     state.scenario === undefined ? undefined : playedOver(project, view.id, state.scenario);

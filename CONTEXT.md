@@ -363,11 +363,11 @@ An attribute's value that comes from outside while the app is open, from Claude,
 _Avoid_: telemetry, metric, live data
 
 **Time range**:
-A filter of a view on a date, time or number attribute, or on a period between two, that hides what falls outside the range and keeps what has no value; moved with sliders and played, and kept by the open app with the view's filters (ADR 0025).
+A filter of a view on a date, time or number attribute, or on a period between two, that hides what falls outside the range and keeps what has no value; moved with sliders and played, kept by the open app with the view's filters (ADR 0025), and carried with them by view states, so by view addresses and tour steps (ADR 0044).
 _Avoid_: timeline, time slider, time window
 
 **Element list**:
-A panel that lists elements, by component or by scope, with their attributes as columns, edited in place.
+A panel that lists elements, by component or by scope, with their attributes as columns, edited in place. It shows live and computed values with the canvas's marks, and an edit changes what is stored.
 _Avoid_: spreadsheet, data table, grid
 
 ### Explaining

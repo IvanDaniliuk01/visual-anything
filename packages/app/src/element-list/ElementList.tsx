@@ -5,6 +5,10 @@
  * cells pasted from a spreadsheet is one action. Pressing a row selects its element, on the canvas
  * too, and what the canvas selects is marked here; Alt+Enter on a destination follows it. Only the
  * rows in sight are drawn, so that ten thousand elements scroll at once.
+ *
+ * Its cells read attributes through the app's lookup (ADR 0057): live and computed values show over
+ * stored ones with the canvas's marks, and the list sorts, filters and copies what it shows. Editing,
+ * clearing and pasting change what is stored.
  */
 import type { Element, Id } from '@visual-anything/schema';
 import {
@@ -24,26 +28,30 @@ import { readDestination } from '@visual-anything/core';
 import { useFollow } from '../destinations/follower';
 import { useEditor } from '../editor/EditorContext';
 import { selectionOf, type Selection } from '../editor/selection';
-import { useT } from '../i18n';
+import { useT, type Translator } from '../i18n';
 import { LiveContext } from '../live/context';
+import { useAttributeLookup } from '../live-values/context';
+import { senderWords } from '../live-values/words';
 import { DismissIcon } from '../shell/icons';
 import { byPackage } from '../shell/inspector/describe';
 import { perform } from '../shell/inspector/send';
 import { cellsText, parseCells, pasteCommand, readCell } from './edit';
 import {
-  cellText,
   cellValue,
   columnKey,
   columnLabel,
   columnsOf,
   editText,
   editable,
+  extraNamesOf,
   filterElements,
   listedElements,
   ownValue,
+  shownCell,
   sortElements,
   type Column,
   type ListSource,
+  type ShownCell,
   type SortDirection,
 } from './rows';
 import './elementList.css';
@@ -74,6 +82,43 @@ function templateOf(columns: readonly Column[]): string {
 /** What the list lists at first, and when the component it listed goes. */
 const VIEW_SOURCE: ListSource = { kind: 'view' };
 
+/** The class a cell takes by where its value comes from. */
+function cellClass(shown: ShownCell): string {
+  switch (shown.origin) {
+    case 'default':
+      return 'element-list-cell element-list-default';
+    case 'live':
+      return shown.stale
+        ? 'element-list-cell element-list-live element-list-stale'
+        : 'element-list-cell element-list-live';
+    case 'computed':
+      return 'element-list-cell element-list-computed';
+    default:
+      return 'element-list-cell';
+  }
+}
+
+/** What a cell's value from outside says when pointed at: who sent it, and that it is never saved. */
+function cellTitle(
+  t: Translator,
+  shown: ShownCell,
+  packageName: (id: Id) => string,
+): string | undefined {
+  const { from } = shown;
+  if (from === undefined) return undefined;
+  if (shown.origin === 'computed' && 'package' in from) {
+    return t('Computed by the code of “{name}”, and never saved.', {
+      name: packageName(from.package),
+    });
+  }
+  const sender = senderWords(
+    t,
+    'package' in from ? { kind: 'package', package: from.package } : { kind: from.sender },
+    packageName,
+  );
+  return t('A live value from {sender}, never saved.', { sender });
+}
+
 /** The value a select writes for a source. */
 function sourceValue(source: ListSource): string {
   return source.kind === 'view' ? 'view' : `component ${source.component}`;
@@ -84,6 +129,8 @@ export function ElementList({ onClose }: { onClose: () => void }) {
   const editor = useEditor();
   const { project, definitions, viewId, selection, send, scene } = editor;
   const live = useContext(LiveContext);
+  // How attributes read: live and computed values over stored ones (ADR 0057).
+  const lookup = useAttributeLookup();
   const follower = useFollow();
   const ids = {
     heading: useId(),
@@ -120,11 +167,17 @@ export function ElementList({ onClose }: { onClose: () => void }) {
     () => listedElements(project, definitions, viewId, shownSource),
     [project, definitions, viewId, shownSource],
   );
-  const columns = useMemo(() => columnsOf(definitions, listed), [definitions, listed]);
+  // The attributes only live values or package code give have columns too; the columns change only
+  // when those names do, not with every live update.
+  const extraText = useMemo(() => extraNamesOf(listed, lookup).join('\n'), [listed, lookup]);
+  const columns = useMemo(
+    () => columnsOf(definitions, listed, extraText === '' ? [] : extraText.split('\n')),
+    [definitions, listed, extraText],
+  );
   const withinColumn = columns.find((column) => columnKey(column) === within);
   const filtered = useMemo(
-    () => filterElements(t, project, listed, columns, filter, withinColumn, definitions),
-    [t, project, listed, columns, filter, withinColumn, definitions],
+    () => filterElements(t, project, listed, columns, filter, withinColumn, definitions, lookup),
+    [t, project, listed, columns, filter, withinColumn, definitions, lookup],
   );
   const sortColumn =
     sort === undefined ? undefined : columns.find((column) => columnKey(column) === sort.column);
@@ -132,8 +185,8 @@ export function ElementList({ onClose }: { onClose: () => void }) {
     () =>
       sortColumn === undefined || sort === undefined
         ? filtered
-        : sortElements(filtered, sortColumn, sort.direction, definitions),
-    [filtered, sortColumn, sort, definitions],
+        : sortElements(filtered, sortColumn, sort.direction, definitions, lookup),
+    [filtered, sortColumn, sort, definitions, lookup],
   );
   const rowAt = useMemo(() => new Map(rows.map((element, at) => [element.id, at])), [rows]);
 
@@ -367,22 +420,22 @@ export function ElementList({ onClose }: { onClose: () => void }) {
     }
   };
 
+  /** A cell's value as it shows, without its mark: what a copy takes. */
+  const copied = (element: Element, column: Column) =>
+    editText(shownCell(t, project, element, column, definitions, lookup).value);
+
   const onCopy = (event: ClipboardEvent<HTMLDivElement>) => {
     if (editing !== undefined) return;
     const chosen = rows.filter((element) => selection.elements.has(element.id));
     const text =
       chosen.length > 1
-        ? cellsText(
-            chosen.map((element) =>
-              columns.map((column) => editText(cellValue(element, column, definitions))),
-            ),
-          )
+        ? cellsText(chosen.map((element) => columns.map((column) => copied(element, column))))
         : (() => {
             const element = rows[at.row];
             const column = columns[at.column];
             return element === undefined || column === undefined
               ? ''
-              : cellsText([[editText(cellValue(element, column, definitions))]]);
+              : cellsText([[copied(element, column)]]);
           })();
     event.clipboardData.setData('text/plain', text);
     event.preventDefault();
@@ -442,6 +495,7 @@ export function ElementList({ onClose }: { onClose: () => void }) {
 
   const offered = byPackage(definitions.components, project.packages);
   const nameOf = (id: Id) => t.definition(id, definitions.component(id)?.name ?? id);
+  const packageName = (id: Id) => project.packages.find((each) => each.id === id)?.name ?? id;
   const template = templateOf(columns);
   const empty: ReactNode =
     listed.length === 0 ? (
@@ -612,7 +666,7 @@ export function ElementList({ onClose }: { onClose: () => void }) {
                     {columns.map((column, index) => {
                       const key = columnKey(column);
                       const isActive = row === at.row && index === at.column;
-                      const value = cellValue(element, column, definitions);
+                      const shown = shownCell(t, project, element, column, definitions, lookup);
                       const editingHere =
                         editing !== undefined &&
                         editing.row === element.id &&
@@ -625,12 +679,8 @@ export function ElementList({ onClose }: { onClose: () => void }) {
                           aria-readonly={editable(column) ? undefined : true}
                           tabIndex={isActive ? 0 : -1}
                           data-cell={`${row}:${index}`}
-                          className={[
-                            'element-list-cell',
-                            ownValue(element, column) ? '' : 'element-list-default',
-                          ]
-                            .filter((each) => each !== '')
-                            .join(' ')}
+                          className={cellClass(shown)}
+                          title={cellTitle(t, shown, packageName)}
                           onClick={(event: MouseEvent) => {
                             setActive({ row: element.id, column: key });
                             selectRow(element, {
@@ -666,7 +716,7 @@ export function ElementList({ onClose }: { onClose: () => void }) {
                               }}
                             />
                           ) : (
-                            cellText(t, project, value)
+                            shown.text
                           )}
                         </div>
                       );

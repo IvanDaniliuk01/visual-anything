@@ -340,10 +340,12 @@ export function detailParts(
     attributeValue(element, name, definitions),
 ): DetailPart[] {
   const component = definitions.component(element.component);
-  const detail = resolveAppearance(
-    [element.appearance],
-    (component ?? definitions.component(ESSENCE_ID))?.appearance ?? ESSENCE.appearance,
-  ).detail;
+  const base = (component ?? definitions.component(ESSENCE_ID))?.appearance ?? ESSENCE.appearance;
+  // An element without an appearance of its own writes its component's detail, resolved already.
+  const detail =
+    element.appearance === undefined
+      ? base.detail
+      : resolveAppearance([element.appearance], base).detail;
   const parts: DetailPart[] = [];
   if (detail.componentName) {
     parts.push({ kind: 'component-name', text: component?.name ?? element.component });

@@ -59,6 +59,23 @@ export const STATE_PARTS = {
           }),
         )
         .optional(),
+      range: z
+        .object({
+          of: z.enum(['elements', 'relations']),
+          attribute: z.string().min(1),
+          until: z
+            .string()
+            .min(1)
+            .optional()
+            .describe('The attribute its periods end at, when the range is on periods.'),
+          kind: z.enum(['number', 'date', 'time']),
+          from: z.number(),
+          to: z.number(),
+        })
+        .optional()
+        .describe(
+          'A time range: shows only what has its value of the attribute in the range, and what has none. Dates are milliseconds since 1970 in UTC, times of day seconds since midnight.',
+        ),
     })
     .optional(),
   focus: z
@@ -77,7 +94,7 @@ export const STATE_PARTS = {
 export type StateArgs = z.infer<z.ZodObject<typeof STATE_PARTS>> & { view: string };
 
 /** What `get_view_address` and `open_app` say a view state holds, after the view. */
-export const STATE_HELP = `camera is the point of the view at the middle of the canvas, in canvas units, and the zoom (1 is 100%). select names elements, relations and free shapes of the view. focus starts from the selection unless from names where it starts. step names a step of the scenario by its id or its number from 1; the scenario must play over the view.`;
+export const STATE_HELP = `camera is the point of the view at the middle of the canvas, in canvas units, and the zoom (1 is 100%). select names elements, relations and free shapes of the view. filters.range is the app's time range on one date, time or number attribute, which hides what falls outside it. focus starts from the selection unless from names where it starts. step names a step of the scenario by its id or its number from 1; the scenario must play over the view.`;
 
 const getViewAddress = tool({
   name: 'get_view_address',
@@ -176,6 +193,7 @@ export function askedState(
         test,
         value: value === undefined || test === 'set' || test === 'unset' ? '' : String(value),
       })),
+      ...(args.filters.range ? { range: args.filters.range } : {}),
     };
   }
   if (args.focus) {

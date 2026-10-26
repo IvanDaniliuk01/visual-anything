@@ -16,7 +16,7 @@ import { buildScene } from '../canvas/scene';
 import type { ElementAnswers } from '../code/messages';
 import { t } from '../i18n';
 import { NO_LIVE_VALUES, type LiveView } from './book';
-import { withLiveDetails } from './details';
+import { liveSceneOf } from './details';
 import { AttributeLookup } from './lookup';
 
 const OPS: PackageFile = {
@@ -129,6 +129,36 @@ describe('AttributeLookup', () => {
   });
 });
 
+describe('what changed between two lookups', () => {
+  it('names the targets whose live values or computed values changed, when it can tell', () => {
+    const before = viewOf([live('api', 'latency', 95)]);
+    const after: LiveView = {
+      ...viewOf([live('api', 'latency', 95), live('web', 'latency', 3)]),
+      changedSince: (view) => (view === before ? new Set(['web']) : undefined),
+    };
+    const first = new AttributeLookup(before, computedTier);
+    expect(first.changedSince(first)).toEqual(new Set());
+    expect(new AttributeLookup(after, computedTier).changedSince(first)).toEqual(new Set(['web']));
+    // Package code answering anew for the API: it is named too.
+    const answered: ReadonlyMap<Id, ElementAnswers> = new Map([
+      ...computedTier,
+      [
+        'api',
+        {
+          element: 'api',
+          attributes: [{ name: 'tier', value: 'silver', package: 'ops' }],
+          problems: [],
+        },
+      ],
+    ]);
+    expect(new AttributeLookup(before, answered).changedSince(first)).toEqual(new Set(['api']));
+    // Its answers for Web gone, and Web's live value new: Web, once.
+    expect(new AttributeLookup(after, new Map()).changedSince(first)).toEqual(new Set(['web']));
+    // A view that cannot say what changed since.
+    expect(new AttributeLookup(viewOf([])).changedSince(first)).toBeUndefined();
+  });
+});
+
 describe('the detail on the canvas', () => {
   const state = project();
   const definitions = definitionsIn(state);
@@ -138,13 +168,13 @@ describe('the detail on the canvas', () => {
 
   it('writes stored values as the view does, and leaves the scene as it is without values from outside', () => {
     expect(detailOf(scene, 'api')).toBe('Service · 120 ms · bronze');
-    expect(withLiveDetails(scene, state, definitions, new AttributeLookup(NO_LIVE_VALUES), t)).toBe(
+    expect(liveSceneOf(scene, state, definitions, new AttributeLookup(NO_LIVE_VALUES), t)).toBe(
       scene,
     );
   });
 
   it('writes a live value with its mark, and a stale one faded with its age', () => {
-    const fresh = withLiveDetails(
+    const fresh = liveSceneOf(
       scene,
       state,
       definitions,
@@ -152,7 +182,7 @@ describe('the detail on the canvas', () => {
       t,
     );
     expect(detailOf(fresh, 'api')).toBe('Service · ● 95 ms · bronze');
-    const stale = withLiveDetails(
+    const stale = liveSceneOf(
       scene,
       state,
       definitions,
@@ -163,7 +193,7 @@ describe('the detail on the canvas', () => {
   });
 
   it('writes a computed value with its mark', () => {
-    const drawn = withLiveDetails(
+    const drawn = liveSceneOf(
       scene,
       state,
       definitions,
@@ -175,7 +205,7 @@ describe('the detail on the canvas', () => {
 
   it('changes only the shapes whose detail reads otherwise, the same objects for the same values', () => {
     const lookup = new AttributeLookup(viewOf([live('api', 'latency', 95)]));
-    const drawn = withLiveDetails(scene, state, definitions, lookup, t);
+    const drawn = liveSceneOf(scene, state, definitions, lookup, t);
     drawn.shapes.forEach((shape, at) => {
       const was = scene.shapes[at]!;
       if (shape.element === 'api') {
@@ -184,7 +214,7 @@ describe('the detail on the canvas', () => {
         expect(shape.key).toBe(was.key);
       } else expect(shape).toBe(was);
     });
-    const again = withLiveDetails(
+    const again = liveSceneOf(
       scene,
       state,
       definitions,

@@ -18,6 +18,17 @@ export function shortAge(t: Translator, ms: number): string {
   return t('{count} d', { count: Math.floor(ms / DAY) });
 }
 
+/**
+ * Which step of `shortAge` an age is on: the same number exactly when `shortAge` writes the same
+ * text, in any language, so that what writes it knows when to write it again.
+ */
+export function ageStep(ms: number): number {
+  if (ms < MINUTE) return Math.floor(ms / SECOND);
+  if (ms < HOUR) return 100 + Math.floor(ms / MINUTE);
+  if (ms < DAY) return 200 + Math.floor(ms / HOUR);
+  return 300 + Math.floor(ms / DAY);
+}
+
 /** How old a value is, in words, as the inspector says it: "12 seconds ago", "3 minutes ago". */
 export function ageWords(t: Translator, ms: number): string {
   if (ms < 5 * SECOND) return t('just now');

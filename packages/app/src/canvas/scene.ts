@@ -21,6 +21,7 @@
 import {
   destinationsOf,
   imagesIn,
+  overlaysApply,
   shownByScope,
   type ProjectSnapshot,
   type RouteStyle,
@@ -59,7 +60,18 @@ import {
 } from '@visual-anything/core';
 import { currentLanguage, t, type Language } from '../i18n';
 import { collapsedIn } from './collapse';
-import { decorateLines, decorateShapes } from './overlays/decorate';
+import {
+  decorateLine,
+  decorateLines,
+  decorateShape,
+  decorateShapes,
+  growExtents,
+  holdersOf,
+  passOf,
+  type DecorationInputs,
+  type LineInputs as LineDecoration,
+  type OverlayValues,
+} from './overlays/decorate';
 import { collapsedWithout, NOT_EXPANDED } from './overlays/collapsed';
 import type { Dash, ShapeKind } from './geometry';
 import { arrowheadAt, directionOf, type Arrowhead, type Point, type Rect } from './geometry';
@@ -341,16 +353,386 @@ export function shapeKeyOf(path: readonly Id[]): string {
 const hidings = new WeakMap<Scene, ReadonlyMap<Id, number>>();
 const firstShapeMaps = new WeakMap<readonly ElementShape[], Map<Id, ElementShape>>();
 
+/** What the canvas reads attributes through, beyond the model: the app's lookup (ADR 0057). */
+export interface SceneValues {
+  /** How the view's overlays read attributes. */
+  overlays: OverlayValues;
+  /** A shape before its overlays, with the detail it writes with these values; itself when that is its own. */
+  detailed(shape: ElementShape): ElementShape;
+  /**
+   * The elements and relations that may read otherwise than through `before`, the values the last
+   * canvas scene of the same view scene was made with; undefined when it cannot tell, and every
+   * shape and line is read again.
+   */
+  changedSince(before: SceneValues): ReadonlySet<Id> | undefined;
+}
+
+/** The build each scene came from, which the canvas's scene is made from. */
+const builtScenes = new WeakMap<Scene, Built>();
+
+/** A canvas scene, with what the next one of the same view scene starts from. */
+interface Valued {
+  values: SceneValues;
+  /** The shapes before overlays, with their details as these values write them. */
+  base: ElementShape[];
+  /** The shapes decorated, before what holds a sized one grows. */
+  pre: ElementShape[];
+  /** Whether an overlay sizes some shape. */
+  sized: boolean;
+  shapes: ElementShape[];
+  /** The indexes of the shapes whose rectangle differs from the view scene's. */
+  moved: readonly number[];
+  /** The lines before overlays: the view's, or routed again on shapes that moved. */
+  baseLines: RelationLine[];
+  lines: RelationLine[];
+  /** How many shapes, and lines, are other objects than the view scene's. */
+  shapeDiffs: number;
+  lineDiffs: number;
+  scene: Scene;
+}
+
+/** The canvas scene last made from each scene. */
+const valuedScenes = new WeakMap<Scene, Valued>();
+
 /**
- * The scene with these shapes in place of its own, each in the same place and with the same key, as
- * the canvas draws live values in details (ADR 0057): what the scene knows of elements hidden in
- * collapsed containers stays with it.
+ * The scene the canvas draws (ADR 0057, ADR 0063): the view's scene with the details its shapes write
+ * and its overlays reading attributes through the app's lookup, live and computed values over stored
+ * ones. It is made from the view's build as the build makes its own, without laying out anything
+ * again: details first, then overlays and levels, and only the lines on shapes an overlay's size moved
+ * are routed again. Every shape and line that reads as in the view's scene is that same object, so
+ * that a live update draws again only what it changed; while nothing reads otherwise, it is the
+ * scene itself. Equal, field by field, to the view's scene built from nothing with those values
+ * stored, but for the marks the details write.
+ *
+ * A live update costs what it changed: from the canvas scene made last for the same view scene, only
+ * the shapes of the elements whose values changed, what sits in those whose colors changed, and the
+ * lines of the relations whose values changed are worked out again (ADR 0057's clarification of
+ * W44). While an overlay sizes shapes, their extents, the routes on them and the bounds are worked
+ * out again over the whole view, as a layout's.
  */
-export function withSameShapes(scene: Scene, shapes: ElementShape[]): Scene {
-  const derived: Scene = { ...scene, shapes };
-  const hiding = hidings.get(scene);
-  if (hiding !== undefined) hidings.set(derived, hiding);
-  return derived;
+export function sceneWithValues(
+  scene: Scene,
+  project: ProjectSnapshot,
+  values: SceneValues,
+): Scene {
+  const built = builtScenes.get(scene);
+  if (built === undefined) return scene;
+  const last = valuedScenes.get(scene);
+  const changed = last === undefined ? undefined : values.changedSince(last.values);
+  const made =
+    last === undefined || changed === undefined
+      ? valuedAfresh(scene, built, project, values, last)
+      : valuedAgain(scene, built, project, values, last, changed);
+  valuedScenes.set(scene, made);
+  return made.scene;
+}
+
+/** What the decoration of a view's build reads, with these values. */
+function decorationOf(built: Built, values: SceneValues): DecorationInputs {
+  const { view, definitions, model } = built;
+  return {
+    overlays: view.overlays,
+    definitions,
+    elements: elementsById(model.elements),
+    allElements: model.elements,
+    values: values.overlays,
+  };
+}
+
+function lineDecorationOf(built: Built, values: SceneValues): LineDecoration {
+  return {
+    overlays: built.view.overlays,
+    definitions: built.definitions,
+    relations: relationsById(built.model.relations),
+    values: values.overlays,
+  };
+}
+
+/** Every shape and line of the canvas scene worked out from the view's build. */
+function valuedAfresh(
+  scene: Scene,
+  built: Built,
+  project: ProjectSnapshot,
+  values: SceneValues,
+  last: Valued | undefined,
+): Valued {
+  const { layout } = built;
+  let base: ElementShape[] = built.base;
+  for (let at = 0; at < built.base.length; at++) {
+    const shape = built.base[at] as ElementShape;
+    const detailed = values.detailed(shape);
+    if (detailed === shape) continue;
+    if (base === built.base) base = [...built.base];
+    base[at] = detailed;
+  }
+  const decorated = decorateShapes(
+    base,
+    decorationOf(built, values),
+    layout.shapes,
+    holdersOf(built.base),
+  );
+  const shapes = sameItems(decorated.shapes, layout.shapes) ? layout.shapes : decorated.shapes;
+  const baseLines = routedAgain(built, project, shapes, decorated.moved);
+  const lines = decorateLines(baseLines, lineDecorationOf(built, values));
+  const relations = sameItems(lines, layout.relations) ? layout.relations : lines;
+  return finished(scene, built, last, {
+    values,
+    base,
+    pre: decorated.pre,
+    sized: decorated.sized,
+    shapes,
+    moved: decorated.moved,
+    baseLines,
+    lines: relations,
+    shapeDiffs: differing(shapes, layout.shapes),
+    lineDiffs: differing(relations, layout.relations),
+  });
+}
+
+/** The canvas scene worked out again for the elements and relations in `changed` alone. */
+function valuedAgain(
+  scene: Scene,
+  built: Built,
+  project: ProjectSnapshot,
+  values: SceneValues,
+  last: Valued,
+  changed: ReadonlySet<Id>,
+): Valued {
+  if (changed.size === 0) return { ...last, values };
+  const { layout } = built;
+  const count = built.base.length;
+  const byElement = shapeIndexesOf(built);
+  // The shapes to work out again, marked by index, from the first.
+  const again = new Uint8Array(count);
+  let first = count;
+  for (const target of changed) {
+    for (const at of byElement.get(target) ?? []) {
+      again[at] = 1;
+      if (at < first) first = at;
+    }
+  }
+  let base = last.base;
+  let pre = last.pre;
+  let sized = last.sized;
+  let shapeDiffs = last.shapeDiffs;
+  if (first < count) {
+    const inputs = decorationOf(built, values);
+    const { overlaid, decorates } = passOf(inputs);
+    const holders = holdersOf(built.base);
+    // Containers come before what they hold, so one pass carries a container's new colors inward.
+    for (let at = first; at < count; at++) {
+      if (again[at] === 0) continue;
+      const detailed = values.detailed(built.base[at] as ElementShape);
+      if (detailed !== base[at]) {
+        if (base === last.base) base = [...last.base];
+        base[at] = detailed;
+      }
+      const holderAt = holders[at] ?? -1;
+      const holder = holderAt < 0 ? undefined : pre[holderAt];
+      const was = pre[at] as ElementShape;
+      const next = decorates ? decorateShape(detailed, holder, inputs, overlaid) : detailed;
+      if (next === was) continue;
+      if (pre === last.pre) pre = [...last.pre];
+      pre[at] = next;
+      if (next.laidOut !== undefined) sized = true;
+      if (
+        was.fill !== next.fill ||
+        was.dark?.fill !== next.dark?.fill ||
+        was.levels !== next.levels
+      ) {
+        for (const inside of layout.contents[at] ?? []) again[inside] = 1;
+      }
+      if (!last.sized && next.laidOut === undefined) {
+        const view = layout.shapes[at];
+        shapeDiffs += (next !== view ? 1 : 0) - (was !== view ? 1 : 0);
+      }
+    }
+  }
+  let shapes: ElementShape[];
+  let moved = last.moved;
+  if (sized || last.sized || viewSized(built)) {
+    // A shape an overlay sizes: what holds it grows, and what moved is worked out over the view.
+    sized = pre.some((shape) => shape.laidOut !== undefined);
+    if (pre === last.pre && !sized) shapes = last.shapes;
+    else {
+      const grown = [...pre];
+      if (sized) growExtents(grown, holdersOf(built.base), true);
+      shapes = sameItems(grown, last.shapes) ? last.shapes : grown;
+    }
+    moved = movedFrom(shapes, layout.shapes);
+    shapeDiffs = differing(shapes, layout.shapes);
+  } else shapes = pre === last.pre ? last.shapes : pre;
+  // The routes on shapes that moved, when what moved, or where it went, is not as it was.
+  const routesKept =
+    shapes === last.shapes ||
+    (sameItems(moved, last.moved) &&
+      moved.every((at) => sameRect(shapes[at]?.rect, last.shapes[at]?.rect)));
+  const baseLines = routesKept ? last.baseLines : routedAgain(built, project, shapes, moved);
+  let lines = last.lines;
+  let lineDiffs = last.lineDiffs;
+  const lineInputs = lineDecorationOf(built, values);
+  if (baseLines !== last.baseLines) {
+    const decorated = decorateLines(baseLines, lineInputs);
+    lines = sameItems(decorated, layout.relations) ? layout.relations : decorated;
+    lineDiffs = differing(lines, layout.relations);
+  } else if (overlaysApply(built.view.overlays, 'relations')) {
+    const byRelation = lineIndexesOf(baseLines);
+    for (const target of changed) {
+      const at = byRelation.get(target);
+      if (at === undefined) continue;
+      const next = decorateLine(baseLines[at] as RelationLine, lineInputs);
+      const was = lines[at] as RelationLine;
+      if (next === was) continue;
+      if (lines === last.lines) lines = [...last.lines];
+      lines[at] = next;
+      const view = layout.relations[at];
+      lineDiffs += (next !== view ? 1 : 0) - (was !== view ? 1 : 0);
+    }
+  }
+  if (base === last.base && shapes === last.shapes && lines === last.lines) {
+    return { ...last, values };
+  }
+  return finished(scene, built, last, {
+    values,
+    base,
+    pre,
+    sized,
+    shapes,
+    moved,
+    baseLines,
+    lines,
+    shapeDiffs,
+    lineDiffs,
+  });
+}
+
+/** The canvas scene of these parts: the view's own while nothing differs, the last while nothing changed. */
+function finished(
+  scene: Scene,
+  built: Built,
+  last: Valued | undefined,
+  parts: Omit<Valued, 'scene'>,
+): Valued {
+  const { layout } = built;
+  if (parts.shapeDiffs === 0 && parts.lineDiffs === 0) {
+    return { ...parts, shapes: layout.shapes, lines: layout.relations, scene };
+  }
+  const geometryKept = !parts.sized && !viewSized(built) && parts.baseLines === built.baseRelations;
+  const bounds = geometryKept
+    ? layout.bounds
+    : sceneBounds(parts.shapes, parts.lines, layout.notes, layout.arrows);
+  if (
+    last !== undefined &&
+    last.scene !== scene &&
+    sameItems(last.scene.shapes, parts.shapes) &&
+    sameItems(last.scene.relations, parts.lines) &&
+    sameRect(last.scene.bounds, bounds)
+  ) {
+    return { ...parts, shapes: last.scene.shapes, lines: last.scene.relations, scene: last.scene };
+  }
+  const valued: Scene = {
+    ...scene,
+    shapes: parts.shapes,
+    relations: parts.lines,
+    bounds: sameRect(bounds, layout.bounds) ? layout.bounds : bounds,
+  };
+  hidings.set(valued, built.hiddenIn);
+  return { ...parts, scene: valued };
+}
+
+/** The lines before overlays: the view's, or routed again on the shapes that moved from the view's. */
+function routedAgain(
+  built: Built,
+  project: ProjectSnapshot,
+  shapes: ElementShape[],
+  moved: readonly number[],
+): RelationLine[] {
+  if (moved.length === 0) return built.baseRelations;
+  const { layout } = built;
+  const placed: Placed = {
+    shapes,
+    inWorld: layout.inWorld,
+    contents: layout.contents,
+    identity: layout.identity,
+    hiddenIn: built.hiddenIn,
+    keysKept: true,
+    geometryKept: false,
+    moved,
+  };
+  const drawn = drawRelations(
+    built.model.relations,
+    built.nesting,
+    placed,
+    built.definitions,
+    built,
+    true,
+    sceneRouting(project, built.view, shapes),
+  );
+  return sameItems(drawn.relations, built.baseRelations) ? built.baseRelations : drawn.relations;
+}
+
+const sizedViews = new WeakMap<Built, boolean>();
+
+/** Whether an overlay sizes some shape of the view's own scene, by what it stores. */
+function viewSized(built: Built): boolean {
+  let sized = sizedViews.get(built);
+  if (sized === undefined) {
+    sized = built.layout.shapes.some((shape) => shape.laidOut !== undefined);
+    sizedViews.set(built, sized);
+  }
+  return sized;
+}
+
+/** The indexes of the shapes whose rectangle differs between two lists of one length. */
+function movedFrom(shapes: readonly ElementShape[], view: readonly ElementShape[]): number[] {
+  const moved: number[] = [];
+  shapes.forEach((shape, at) => {
+    const was = view[at];
+    if (was !== undefined && shape !== was && !sameRect(shape.rect, was.rect)) moved.push(at);
+  });
+  return moved;
+}
+
+/** How many items of a list are other objects than those of another, at one index. */
+function differing<T>(items: readonly T[], view: readonly T[]): number {
+  if (items === view) return 0;
+  let count = 0;
+  items.forEach((item, at) => {
+    if (item !== view[at]) count += 1;
+  });
+  return count;
+}
+
+const shapeIndexes = new WeakMap<Built, Map<Id, number[]>>();
+
+/** The indexes of each element's shapes in a build, worked out once for it. */
+function shapeIndexesOf(built: Built): Map<Id, number[]> {
+  let byElement = shapeIndexes.get(built);
+  if (byElement === undefined) {
+    byElement = new Map();
+    built.base.forEach((shape, at) => {
+      const list = (byElement as Map<Id, number[]>).get(shape.element);
+      if (list === undefined) (byElement as Map<Id, number[]>).set(shape.element, [at]);
+      else list.push(at);
+    });
+    shapeIndexes.set(built, byElement);
+  }
+  return byElement;
+}
+
+const lineIndexes = new WeakMap<readonly RelationLine[], Map<Id, number>>();
+
+/** The index of each relation's own line in a list of lines; aggregated relations have none. */
+function lineIndexesOf(lines: readonly RelationLine[]): Map<Id, number> {
+  let byRelation = lineIndexes.get(lines);
+  if (byRelation === undefined) {
+    byRelation = new Map();
+    lines.forEach((line, at) => {
+      if (!line.aggregate) (byRelation as Map<Id, number>).set(line.relation, at);
+    });
+    lineIndexes.set(lines, byRelation);
+  }
+  return byRelation;
 }
 
 /**
@@ -511,6 +893,7 @@ function redrawn(kept: Built, project: ProjectSnapshot, view: ViewFile): Scene {
   const scene = sceneOf(kept.layout, drawing);
   hidings.set(scene, kept.hiddenIn);
   const next: Built = { ...kept, view, scene };
+  builtScenes.set(scene, next);
   exactly.set(view.positions, next);
   latest.set(view.id, next);
   return scene;
@@ -702,7 +1085,7 @@ function layOut(
       ? before.scene
       : sceneOf(layout, drawing);
   hidings.set(scene, placed.hiddenIn);
-  return {
+  const built: Built = {
     viewId: view.id,
     model,
     packages,
@@ -724,6 +1107,8 @@ function layOut(
     lines: drawn.lines,
     sides: drawn.sides,
   };
+  builtScenes.set(scene, built);
+  return built;
 }
 
 /**

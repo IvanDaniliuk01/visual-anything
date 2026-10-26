@@ -1,7 +1,8 @@
 /**
  * The view state (core's `ViewState`) as the app holds it: the open view, the camera, the selection,
- * the explorer's filters and focus (ADR-0025), and the scenario session's scenario and step
- * (ADR-0031). These functions turn the one into the other, both ways, without touching anything.
+ * the explorer's filters with their time range and focus (ADR-0025, ADR 0044's clarification of
+ * W44), and the scenario session's scenario and step (ADR-0031). These functions turn the one into
+ * the other, both ways, without touching anything.
  */
 import {
   MAX_CAMERA_DISTANCE,
@@ -18,6 +19,7 @@ import {
   type ViewFilters,
   type ViewFocus,
   type ViewState,
+  type ViewTimeRange,
 } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
 import { MAX_SCALE, MIN_SCALE, screenToWorld, type Camera } from '../canvas/camera';
@@ -27,6 +29,7 @@ import {
   type Filters,
   type FocusSettings,
   type FocusTargets,
+  type TimeRange,
 } from '../canvas/explore';
 import type { Size } from '../canvas/geometry';
 import type { FocusState } from '../canvas/useExplorer';
@@ -95,7 +98,7 @@ export function viewStateOf(input: AppViewState): { state: ViewState; selectionL
   return { state: checkViewState(plain).ok ? plain : { view: viewId }, selectionLeftOut };
 }
 
-/** The filters that hide something, as lists; none when they hide nothing. */
+/** The filters that hide something, as lists, with their time range; none when they hide nothing. */
 function filtersOf(filters: Filters): ViewFilters | undefined {
   const conditions = filters.conditions
     .filter(isComplete)
@@ -111,8 +114,21 @@ function filtersOf(filters: Filters): ViewFilters | undefined {
     }));
   const components = [...filters.components].slice(0, MAX_GUIDANCE_TARGETS);
   const relationTypes = [...filters.relationTypes].slice(0, MAX_GUIDANCE_TARGETS);
-  if (components.length + relationTypes.length + conditions.length === 0) return undefined;
-  return { components, relationTypes, conditions };
+  const range = rangeOf(filters.range);
+  if (components.length + relationTypes.length + conditions.length === 0 && !range) {
+    return undefined;
+  }
+  return { components, relationTypes, conditions, ...(range ? { range } : {}) };
+}
+
+/** The time range as an address holds it; none when there is none, or an address cannot hold it. */
+function rangeOf(range: TimeRange | undefined): ViewTimeRange | undefined {
+  if (range === undefined) return undefined;
+  const { of, attribute, until, kind, from, to } = range;
+  const names = until === undefined ? [attribute] : [attribute, until];
+  if (names.some((name) => name.trim() === '' || name.length > MAX_FILTER_TEXT)) return undefined;
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return undefined;
+  return { of, attribute, ...(until === undefined ? {} : { until }), kind, from, to };
 }
 
 /** Focus as an address holds it: without what it starts from when that is the selection. */

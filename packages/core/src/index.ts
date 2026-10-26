@@ -249,6 +249,7 @@ export type {
   ViewState,
   ViewStateCheck,
   ViewStateRead,
+  ViewTimeRange,
 } from './view-state';
 export {
   MAX_CAMERA_DISTANCE,

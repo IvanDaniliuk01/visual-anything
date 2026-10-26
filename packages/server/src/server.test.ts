@@ -9,6 +9,7 @@ import {
   PROTOCOL_VERSION,
   TOKEN_PARAM,
   decodeServerMessage,
+  readViewState,
   type ProjectSnapshot,
   type ServerMessage,
 } from '@visual-anything/core';
@@ -606,6 +607,24 @@ describe('the Claude endpoint', () => {
     expect(fragment.get('view')).toBe('system-overview');
     expect(fragment.get('select')).toBe('appointments-api');
     expect(opened[0]).not.toContain(running.token);
+  });
+
+  it('opens the app at a view state whose filters hold a time range', async () => {
+    const range = { of: 'elements', attribute: 'sizeGb', kind: 'number', from: 2, to: 20 };
+    claude.send({
+      type: 'open-app',
+      requestId: 'o5',
+      state: { view: 'system-overview', filters: { range } },
+    });
+    expect(await claude.answers('o5')).toEqual([{ type: 'app/opened', requestId: 'o5' }]);
+    const hash = new URL(opened[0] ?? '').hash;
+    expect(readViewState(hash)).toEqual({
+      ok: true,
+      state: {
+        view: 'system-overview',
+        filters: { components: [], relationTypes: [], conditions: [], range },
+      },
+    });
   });
 
   it('refuses to open the app at a view state the project does not hold, or cannot be one', async () => {

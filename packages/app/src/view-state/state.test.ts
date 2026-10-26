@@ -94,6 +94,61 @@ describe('viewStateOf', () => {
     expect(readViewState(writeViewState(state))).toEqual({ ok: true, state });
   });
 
+  it('holds the time range of the filters, alone or beside the rest', () => {
+    const range = {
+      of: 'elements' as const,
+      attribute: 'sizeGb',
+      kind: 'number' as const,
+      from: 2,
+      to: 20,
+    };
+    const { state } = viewStateOf({
+      project: sample,
+      viewId: VIEW,
+      selection: EMPTY_SELECTION,
+      ...UNEXPLORED,
+      filters: { ...NO_FILTERS, range },
+    });
+    expect(state).toEqual({
+      view: VIEW,
+      filters: { components: [], relationTypes: [], conditions: [], range },
+    });
+    expect(readViewState(writeViewState(state))).toEqual({ ok: true, state });
+    const period = { ...range, attribute: 'opened', until: 'closed', kind: 'date' as const };
+    const beside = viewStateOf({
+      project: sample,
+      viewId: VIEW,
+      selection: EMPTY_SELECTION,
+      ...UNEXPLORED,
+      filters: { ...NO_FILTERS, components: new Set(['systems.person']), range: period },
+    }).state;
+    expect(beside.filters).toEqual({
+      components: ['systems.person'],
+      relationTypes: [],
+      conditions: [],
+      range: period,
+    });
+  });
+
+  it('leaves out a time range an address cannot hold, keeping the other filters', () => {
+    const { state } = viewStateOf({
+      project: sample,
+      viewId: VIEW,
+      selection: EMPTY_SELECTION,
+      ...UNEXPLORED,
+      filters: {
+        ...NO_FILTERS,
+        components: new Set(['systems.person']),
+        range: { of: 'elements', attribute: 'a'.repeat(201), kind: 'number', from: 0, to: 1 },
+      },
+    });
+    expect(state.filters).toEqual({
+      components: ['systems.person'],
+      relationTypes: [],
+      conditions: [],
+    });
+  });
+
   it('names what focus starts from when it is not the selection', () => {
     const { state } = viewStateOf({
       project: sample,

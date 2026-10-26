@@ -17,7 +17,8 @@
  * more phases start with the image store cleared, at scales whose buckets were not drawn yet, so that
  * the waits before the other phases cannot have decoded the pictures they pan over. `?code` adds the
  * phases of package code drawing a gauge inside every shape (`code.ts`, ADR 0054). `?live` adds the
- * phases of live values changing four times a second in every shape's detail (`live.ts`, ADR 0057).
+ * phases of live values changing four times a second in every shape's detail, and of 1,000 of them
+ * changing at a time under an overlay that colors every shape by them (`live.ts`, ADR 0057).
  *
  * Work mode, the default, measures the work of each frame: it moves the camera, draws the frame and
  * waits until the GPU has drawn it, so the result does not depend on how often the browser offers
@@ -47,7 +48,17 @@ import { handlesOf } from '../canvas/routing/handles';
 import { buildScene, type ElementShape, type RelationLine } from '../canvas/scene';
 import { MAX_BANDS, plannedTiles } from '../canvas/tiles';
 import { gaugeDrawings } from './code';
-import { LIVE_EVERY_FRAMES, LIVE_MARK, liveLookup, liveScene, withLiveDetail } from './live';
+import {
+  LIVE_CHANGED,
+  LIVE_EVERY_FRAMES,
+  LIVE_MARK,
+  LIVE_UPDATE_MARK,
+  liveLookup,
+  liveRounds,
+  liveScene,
+  withLatencyOverlay,
+  withLiveDetail,
+} from './live';
 import '../theme/tokens.css';
 import { THEMES } from '../theme/themes';
 import { measureLevelCrossing, measureOverlays, type OverlayBench } from './overlays';
@@ -276,6 +287,35 @@ async function run(): Promise<void> {
       name: 'Live values: every shape’s detail changes at once',
       times,
       mark: LIVE_MARK,
+    });
+    // An overlay colors every shape by its live value, and 1,000 of the values change at a time, the
+    // others staying as they were: from the values to the frame drawn, within one frame (W44).
+    performance.mark('phase Live values: some change under an overlay');
+    const colored = withLatencyOverlay(shown, VIEW);
+    const coloredBase = buildScene(colored, VIEW);
+    const rounds = liveRounds(coloredBase, LIVE_CHANGED);
+    let colorRound = 0;
+    const updateSome = () => {
+      colorRound += 1;
+      indexed = indexScene(liveScene(colored, coloredBase, rounds(colorRound, Date.now())));
+      controller.update(colored, VIEW, indexed, false);
+    };
+    updateSome();
+    controller.renderer.renderNow(true);
+    await settle(300);
+    const some: number[] = [];
+    for (let each = 0; each < 20; each++) {
+      const began = performance.now();
+      updateSome();
+      controller.renderer.renderNow(true);
+      some.push(performance.now() - began);
+      await settle(100);
+    }
+    liveTimed.push({
+      name: `Live values: ${LIVE_CHANGED.toLocaleString()} of them change under an overlay`,
+      times: some,
+      mark: LIVE_UPDATE_MARK,
+      note: 'From the values to the frame drawn: the book’s publish, the canvas’s scene, its index and the frame.',
     });
     indexed = indexScene(buildScene(project, VIEW));
     controller.update(project, VIEW, indexed, false);

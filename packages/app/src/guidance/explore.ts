@@ -1,8 +1,9 @@
 /**
  * Claude's filters and focus, as the open view's explorer holds them (ADR-0025). Guidance carries them
  * in lists, the way the live connection can; the explorer keeps sets, and every degree as infinity.
+ * A view state's filters are read the same way, with their time range.
  */
-import { modelIndexOf, type ProjectSnapshot } from '@visual-anything/core';
+import { modelIndexOf, type ProjectSnapshot, type ViewFilters } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import {
   ALL_DEGREES,
@@ -13,8 +14,9 @@ import {
 } from '../canvas/explore';
 import type { GuidedFilters, GuidedFocus } from './state';
 
-/** Claude's filters as the explorer's. */
-export function filtersOf(guided: GuidedFilters): Filters {
+/** Claude's filters, or a view state's with its time range, as the explorer's. */
+export function filtersOf(guided: GuidedFilters | ViewFilters): Filters {
+  const range = 'range' in guided ? guided.range : undefined;
   return {
     components: new Set(guided.components),
     relationTypes: new Set(guided.relationTypes),
@@ -24,6 +26,7 @@ export function filtersOf(guided: GuidedFilters): Filters {
       test,
       value,
     })),
+    ...(range === undefined ? {} : { range: { ...range } }),
   };
 }
 

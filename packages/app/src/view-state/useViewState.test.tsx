@@ -56,6 +56,17 @@ describe('opening an address', () => {
     expect(strip()).toHaveTextContent('The filters hide 1 element shape');
   });
 
+  it('sets the time range it holds, and keeps it in the address', async () => {
+    openAt('#view=system-overview&filters=range:elements,sizeGb,number,2,20');
+    expect(openViewName()).toHaveTextContent('System overview');
+    expect(strip()).toHaveTextContent('sizeGb from 2 to 20');
+    await waitFor(() =>
+      expect(window.location.hash).toBe(
+        '#view=system-overview&filters=range:elements,sizeGb,number,2,20',
+      ),
+    );
+  });
+
   it('turns focus on from what it names, and opens the scenario at its step', () => {
     openAt(
       '#view=system-overview&focus=2,outgoing,isolate;from:booking-agent&scenario=patient-books-appointment&step=find-slots',
