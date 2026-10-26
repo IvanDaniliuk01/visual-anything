@@ -57,3 +57,13 @@ Those numbers change every second, and saving them would fill the files and the 
   - **Never the local program itself:** its own port on this computer is refused whatever is granted.
   - **The rest stays:** a plain GET with no body, cookie or credential; no redirect followed; ten seconds, the name's resolution included; 256 KiB at most; four fetches of one package under way at once.
 - **2026-10-25, what the build settled (W37).** ADR-0063 records the messages of protocol 6, each sender's limits, how package code fetches through the program, and how live values read and are marked. The values of a target that leaves the model are forgotten with it, and an undo that brings it back does not bring them back. On the canvas, a stale value's fade is the mark `○` and its age, written in the detail.
+
+<!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
+- 2026-10-25 (merging W37): **what follows.**
+  - Protocol version 6 also carries following a destination to another project (ADR 0056); no version shipped between them, so they share it.
+  - Overlays (ADR 0055) and the element list read attributes through the app's lookup, live and computed values over stored ones, as filters and the inspector already do.
+  - A view state gains the time range, as it holds the filters, so that view addresses and tours carry it.
+  - Claude's read tools show live values with their sender and age, and `filter_view` sets a time range.
+  - A stale value keeps its `○` mark and its age; it is not faded.
+  - A live update that comes during a layout animation does not cut it short.
+  - Each of these is a task in the spec's M8 section.
