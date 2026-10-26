@@ -584,7 +584,7 @@ function ExportDialog({
             </p>
             <p className="dialog-note">
               {t(
-                'It holds the whole project, every view and scenario, whatever this view shows: share it only with those who may read all of it. It connects nowhere, and the browser saves it.',
+                'It holds the whole project, every view, scenario and tour, whatever this view shows: share it only with those who may read all of it. It connects nowhere, and the browser saves it.',
               )}
             </p>
             <LeavesOut
@@ -597,6 +597,17 @@ function ExportDialog({
                   ? [
                       t(
                         'Package code, and what it computes and draws: no code of a package runs in a page.',
+                      ),
+                    ]
+                  : []),
+                // Comments name people, and speaker notes are the presenter's (ADR 0058, ADR 0059).
+                ...(page.project.comments.length > 0
+                  ? [t('Threads of comments, which name the people who wrote them.')]
+                  : []),
+                ...(page.project.tours.some((tour) => tour.steps.some((step) => step.notes))
+                  ? [
+                      t(
+                        'Speaker notes: its tours play with their captions and marks, and the notes stay with whoever presents.',
                       ),
                     ]
                   : []),

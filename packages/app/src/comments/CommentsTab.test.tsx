@@ -233,13 +233,77 @@ describe('the comments tab', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 
+  it('never takes a person named Claude for Claude, in the thread, the list or the filter', () => {
+    const both: CommentFile = {
+      id: 'two-claudes',
+      anchor: { kind: 'view', view: VIEW },
+      comments: [
+        {
+          id: 'a',
+          author: { kind: 'claude' },
+          time: '2026-10-25T11:00:00.000Z',
+          text: 'I am the AI.',
+        },
+        {
+          id: 'b',
+          author: { kind: 'person', name: 'Claude' },
+          time: '2026-10-25T12:00:00.000Z',
+          text: 'I am a person.',
+        },
+      ],
+    };
+    const { store } = renderTab({ project: { ...sample, comments: [both] } });
+    expect(screen.getByRole('button', { name: /The view/ })).toHaveTextContent(/last by Claude,/);
+    expect(
+      [...screen.getByLabelText<HTMLSelectElement>('Author').options].map(
+        (option) => option.textContent,
+      ),
+    ).toEqual(['Everyone', 'Claude (AI)', 'Claude']);
+
+    act(() => store.openThread('two-claudes'));
+    const thread = screen.getByRole('region', { name: /^Thread:/ });
+    const [ai, person] = within(thread).getAllByRole('listitem');
+    expect(ai).toHaveTextContent(/^Claude \(AI\)/);
+    expect(person).toHaveTextContent(/^Claude\b/);
+    expect(person).not.toHaveTextContent('(AI)');
+
+    // The other way round, the list says who wrote last.
+    act(() => store.openThread(undefined));
+    const reversed = { ...both, comments: [...both.comments].reverse() };
+    renderTab({ project: { ...sample, comments: [reversed] } });
+    expect(screen.getAllByRole('button', { name: /The view/ }).at(-1)).toHaveTextContent(
+      /last by Claude \(AI\),/,
+    );
+  });
+
   it('reads in Spanish', () => {
     setCurrentLanguage('es');
     signIn();
-    renderTab();
+    const { store } = renderTab({
+      project: {
+        ...sample,
+        comments: [
+          {
+            id: 'by-claude',
+            anchor: { kind: 'view', view: VIEW },
+            comments: [
+              {
+                id: 'c',
+                author: { kind: 'claude' },
+                time: '2026-10-25T11:00:00.000Z',
+                text: 'Hola.',
+              },
+            ],
+          },
+          ...sample.comments,
+        ],
+      },
+    });
     expect(screen.getByRole('button', { name: 'Comentar esta vista' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Reminder service/ })).toHaveTextContent(
       '1 comentario',
     );
+    act(() => store.openThread('by-claude'));
+    expect(screen.getByRole('region', { name: /^Hilo/ })).toHaveTextContent('Claude (IA)');
   });
 });

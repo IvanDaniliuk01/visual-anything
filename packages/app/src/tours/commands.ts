@@ -1,6 +1,8 @@
 /**
  * The commands the tours panel sends (ADR 0058): each edit is one `update-tour` with the whole list of
  * steps, so that adding, editing, duplicating, reordering and deleting a step are each one action.
+ * The live connection carries at most 4 MiB from the app, so a change that would not fit is not
+ * sent: it would close the connection instead of being refused.
  */
 import {
   MAX_CAPTION_TITLE,
@@ -11,6 +13,18 @@ import {
 } from '@visual-anything/core';
 import type { Id, TourFile, TourStep } from '@visual-anything/schema';
 import { t } from '../i18n';
+import { LIVE_MESSAGE_LIMIT } from '../import/importing';
+
+/** What the message around a command takes beyond it, at most: its type and request id. */
+const ENVELOPE = 1024;
+
+/** Whether a command would take more than the live connection carries from the app. */
+export function tooLargeToSend(command: Command): boolean {
+  const json = JSON.stringify(command);
+  // No character takes more than three bytes in UTF-8 for each of its UTF-16 code units.
+  if (json.length * 3 + ENVELOPE <= LIVE_MESSAGE_LIMIT) return false;
+  return new TextEncoder().encode(json).length + ENVELOPE > LIVE_MESSAGE_LIMIT;
+}
 
 /** A name for a new tour that no tour of the project has yet, in the language read in. */
 export function newTourName(tours: readonly TourFile[]): string {

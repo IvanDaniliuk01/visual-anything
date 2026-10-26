@@ -56,8 +56,9 @@ export interface PageData {
   views: ViewFile[];
   scenarios: ScenarioFile[];
   /**
-   * Its tours, which the page plays full screen (ADR 0058); left out when it has none. Threads of
-   * comments never travel in a page: they are often working notes (ADR 0059).
+   * Its tours, which the page plays full screen (ADR 0058), without their steps' speaker notes,
+   * which are the presenter's own; left out when it has none. Threads of comments never travel in a
+   * page: they are often remarks still being worked out, and they name people (ADR 0059).
    */
   tours?: TourFile[];
 }
@@ -81,7 +82,21 @@ export function pageDataOf(project: ProjectSnapshot, options: PageDataOptions = 
       .map((pkg) => withCleanedImages(withoutCode(pkg))),
     views: project.views,
     scenarios: project.scenarios,
-    ...(project.tours.length === 0 ? {} : { tours: project.tours }),
+    ...(project.tours.length === 0 ? {} : { tours: project.tours.map(withoutNotes) }),
+  };
+}
+
+/** A tour without its speaker notes: a page is shared, and the notes are the presenter's (ADR 0058). */
+function withoutNotes(tour: TourFile): TourFile {
+  if (tour.steps.every((step) => step.notes === undefined)) return tour;
+  return {
+    ...tour,
+    steps: tour.steps.map((step) => {
+      if (step.notes === undefined) return step;
+      const shared = { ...step };
+      delete shared.notes;
+      return shared;
+    }),
   };
 }
 

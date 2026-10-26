@@ -3,8 +3,10 @@
  * line that starts with "- " or with a number and ". " is an item of a list, and `@[id]` mentions an
  * element or a relation of the model by its id. Reading it gives blocks of text and mentions, which
  * the app writes as text nodes and Claude reads as they are: nothing in a comment is ever markup.
+ * Its paragraphs and lists are read by `plain-text.ts`, as a tour's captions and speaker notes are.
  */
 import type { Id } from '@visual-anything/schema';
+import { textBlocks } from '../plain-text';
 
 /** The most characters a comment holds, as the file format says. */
 export const MAX_COMMENT_TEXT = 20_000;
@@ -24,9 +26,6 @@ const MENTION = /@\[([A-Za-z0-9][A-Za-z0-9._-]{0,127})\]/g;
 /** Control characters but the tab and the line feed, which plain text has no use for. */
 // eslint-disable-next-line no-control-regex -- finding them is what this pattern is for
 const CONTROL = /[\u0000-\u0008\u000B-\u001F\u007F]/;
-
-/** A list item: its marker, and what follows it. */
-const ITEM = /^[ \t]*(?:(- )|(\d{1,9})\. )(.*)$/;
 
 /**
  * The text as a comment keeps it: lines ended by LF alone, with no spaces or tabs at their ends, and
@@ -52,34 +51,20 @@ export function mentionsIn(text: string): Id[] {
   return [...new Set([...text.matchAll(MENTION)].map((match) => match[1] as Id))];
 }
 
-/** Reads a comment's text into paragraphs and lists, with its mentions. */
+/**
+ * Reads a comment's text into paragraphs and lists, with its mentions: the blocks plain text reads,
+ * each line of a paragraph and each item split into text and mentions.
+ */
 export function readCommentText(text: string): CommentBlock[] {
-  const blocks: CommentBlock[] = [];
-  let open: CommentBlock | undefined;
-  for (const line of normalizeCommentText(text).split('\n')) {
-    if (line.trim() === '') {
-      open = undefined;
-      continue;
+  return textBlocks(normalizeCommentText(text)).map((block): CommentBlock => {
+    if (block.kind === 'paragraph') {
+      return { kind: 'paragraph', lines: block.text.split('\n').map(inlineOf) };
     }
-    const item = ITEM.exec(line);
-    if (item === null) {
-      if (open?.kind !== 'paragraph') {
-        open = { kind: 'paragraph', lines: [] };
-        blocks.push(open);
-      }
-      open.lines.push(inlineOf(line));
-      continue;
-    }
-    const ordered = item[2] !== undefined;
-    if (open?.kind !== 'list' || open.ordered !== ordered) {
-      open = ordered
-        ? { kind: 'list', ordered: true, start: Number(item[2]), items: [] }
-        : { kind: 'list', ordered: false, items: [] };
-      blocks.push(open);
-    }
-    open.items.push(inlineOf(item[3] ?? ''));
-  }
-  return blocks;
+    const items = block.items.map(inlineOf);
+    return block.ordered
+      ? { kind: 'list', ordered: true, start: block.start, items }
+      : { kind: 'list', ordered: false, items };
+  });
 }
 
 /** A line, split into text and mentions. */

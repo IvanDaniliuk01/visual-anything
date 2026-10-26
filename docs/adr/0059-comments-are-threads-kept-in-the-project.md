@@ -29,7 +29,7 @@ People reviewing a model want to leave remarks on it that travel with the projec
 - **A comments panel** lists them, filtered by view, open or resolved, and author. Selecting a thread selects its anchor.
 - **Commands.** `create-thread`, `add-comment`, `edit-comment` (one's own), `resolve-thread` and `delete-thread` (after a confirmation), each one action.
 - **Claude** reads threads, answers them as "Claude", and can be asked to work through the open ones. Each answer and each change is its own action.
-- **Exports.** Comments are left out of exports and the read-only page unless asked for, since they are often working notes.
+- **Exports.** Comments are left out of exports and the read-only page unless asked for, since they are often remarks still being worked out.
 
 ## Considered options
 
@@ -71,3 +71,12 @@ M11's build of comments (W39) settled these.
 
   An author is `{ "kind": "person", "name", "email"? }`, from the person's preferences, or `{ "kind": "claude" }`, so that a person named Claude is never taken for Claude. Times are in UTC as `Date.prototype.toISOString` writes them, such as `2026-10-25T14:03:00.000Z`. A comment's text is plain text as a tour's captions are (ADR 0058's clarifications).
 - 2026-10-25, the project. `ProjectSnapshot.comments` holds the threads, and the local program reads, watches and writes `comments/` as it does `views/`; a thread is saved to `comments/<id>.vacomment`.
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (W47, from M11's spec review): **the size of a thread, who sends what signs nothing, and Claude's mark.**
+  - **The size of a thread.** A thread's comments hold at most 200,000 characters together (`MAX_THREAD_TEXT`), so that its file stays well within the 1 MiB it is read within, whatever characters they are written in. `add-comment` past it is refused with `invalid-comment`, saying to start another thread; an `edit-comment` that takes a thread past it says to write a shorter comment, or to put the rest in another thread. A thread kept longer than that, as one written by hand can be, can still be edited so long as it grows no longer.
+  - **Whatever the program writes, it opens again.** Text whose characters take more bytes in a file than most, such as a lone surrogate, which JSON writes in six, can still reach the cap first: the local program refuses any change that would write a file past the cap of its kind, with `invalid-file`, before anything is written, saying for a thread to start another thread. The project still opens, and later changes are made as before, instead of being refused as changed on disk.
+  - **Every comment command needs its sender,** `resolve-thread` and `delete-thread` too, though they sign nothing: a command whose sender is not said is refused with `invalid-command`, as the others are. The app and Claude's endpoint always say who sends one.
+  - **Claude's comments are marked in words,** "Claude (AI)", "Claude (IA)" in Spanish, in the thread, the author filter and the summary of the list, beside its accent color, so that a person who calls themselves Claude, shown by the name they gave, is never taken for Claude. "Assistant" is not used, since its Spanish, "asistente", is the word the catalog avoids for the start screen (a wizard).
+  - **Plain text.** A comment's paragraphs and lists are read by the core's `plain-text.ts`, as a tour's captions and speaker notes are: the comments' own reader, which read the spaces at the start of a line differently, is gone, and only the mentions are read on top of it.

@@ -216,6 +216,8 @@ describe('A view with a scope, in the read-only page', () => {
     const page = container.querySelector('.viewer');
     expect(page).toHaveClass('tour-playing');
     expect(screen.getByRole('article')).toHaveTextContent('Clinic booking');
+    // The page holds no speaker notes, so it offers no window for them.
+    expect(screen.queryByRole('button', { name: /Speaker notes/ })).not.toBeInTheDocument();
     fireEvent.keyDown(document.body, { key: 'ArrowRight' });
     expect(screen.getByRole('article')).toHaveTextContent('The booking agent');
     fireEvent.keyDown(document.body, { key: 'Escape' });

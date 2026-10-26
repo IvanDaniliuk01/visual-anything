@@ -9,6 +9,8 @@ import { EMPTY_SELECTION, selectionOf } from '../editor/selection';
 import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
 import type { CanvasCamera } from '../view-state/canvas';
 import { loadSample } from '../test/sample';
+import { ToursContext, type ToursHost } from '../tours/context';
+import { TourPlayer } from '../tours/player';
 import { CommentPins } from './CommentPins';
 import { CommentsContext, CommentsStore } from './store';
 
@@ -42,7 +44,7 @@ function fakeCanvas(start: Camera = { x: 10, y: 20, scale: 2 }) {
   return { canvas, move, setCamera };
 }
 
-function renderPins(project: ProjectSnapshot = sample) {
+function renderPins(project: ProjectSnapshot = sample, player = new TourPlayer()) {
   const store = new CommentsStore();
   const emphasis = new EmphasisStore();
   const select = vi.fn();
@@ -58,10 +60,18 @@ function renderPins(project: ProjectSnapshot = sample) {
     reveal: () => undefined,
     openView: () => undefined,
   };
+  const tours: ToursHost = {
+    player,
+    play: (tour, step) => player.start(tour, step),
+    current: () => undefined,
+    show: () => undefined,
+  };
   const wrap = (children: ReactNode) => (
     <EditorContext value={editor}>
       <EmphasisContext value={emphasis}>
-        <CommentsContext value={store}>{children}</CommentsContext>
+        <ToursContext value={tours}>
+          <CommentsContext value={store}>{children}</CommentsContext>
+        </ToursContext>
       </EmphasisContext>
     </EditorContext>
   );
@@ -140,6 +150,24 @@ describe('the comment pins', () => {
       key: 'Escape',
     });
     expect(store.getState().placing).toBe(false);
+  });
+
+  it('hide, with the layer that places a thread, while a tour plays full screen', () => {
+    const player = new TourPlayer();
+    const { store } = renderPins(sample, player);
+    act(() => store.setPlacing(true));
+    expect(screen.getByRole('button', { name: '1 thread: Reminder service' })).toBeVisible();
+    expect(screen.getByRole('button', { name: /^Place the comment/ })).toBeInTheDocument();
+
+    const [tour] = sample.tours;
+    if (!tour) throw new Error('The sample has no tour.');
+    act(() => player.start(tour));
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(document.querySelector('.comment-pins')).toBeNull();
+
+    act(() => player.end());
+    expect(screen.getByRole('button', { name: '1 thread: Reminder service' })).toBeVisible();
+    expect(screen.getByRole('button', { name: /^Place the comment/ })).toBeInTheDocument();
   });
 
   it('bring a point asked for into the middle of the canvas', () => {

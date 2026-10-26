@@ -1,5 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
+import { textBlocks, type TextBlock } from '../plain-text';
 import {
   MAX_COMMENT_TEXT,
   commentTextProblem,
@@ -7,6 +8,7 @@ import {
   normalizeCommentText,
   readCommentText,
   type CommentBlock,
+  type CommentInline,
 } from './text';
 
 describe('normalizeCommentText', () => {
@@ -100,6 +102,31 @@ describe('readCommentText', () => {
         ],
       },
     ]);
+  });
+
+  it('reads paragraphs and lists as captions and speaker notes are read, with the same reader', () => {
+    expect(readCommentText('  Indented\n - an item\n   2. numbered')).toEqual<CommentBlock[]>([
+      { kind: 'paragraph', lines: [[{ kind: 'text', text: 'Indented' }]] },
+      { kind: 'list', ordered: false, items: [[{ kind: 'text', text: 'an item' }]] },
+      { kind: 'list', ordered: true, start: 2, items: [[{ kind: 'text', text: 'numbered' }]] },
+    ]);
+    const unit = fc.constantFrom(' ', '\t', '\n', '\r', ' ', '-', '1', '.', 'a', '@', '[', ']');
+    const written = (parts: CommentInline[]) =>
+      parts.map((part) => (part.kind === 'text' ? part.text : `@[${part.id}]`)).join('');
+    fc.assert(
+      fc.property(fc.string({ unit, maxLength: 120 }), (text) => {
+        const blocks = readCommentText(text).map((block): TextBlock => {
+          if (block.kind === 'paragraph') {
+            return { kind: 'paragraph', text: block.lines.map(written).join('\n') };
+          }
+          const items = block.items.map(written);
+          return block.ordered
+            ? { kind: 'list', ordered: true, start: block.start, items }
+            : { kind: 'list', ordered: false, items };
+        });
+        expect(blocks).toEqual(textBlocks(normalizeCommentText(text)));
+      }),
+    );
   });
 
   it('keeps every character of a line, HTML included, as text', () => {

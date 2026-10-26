@@ -3,12 +3,18 @@
  * scenario session, as the person would from the scenario panel. The step's view state opens the
  * scenario at its first step; once it is there, it plays; past the last step, it pauses back on it.
  * The person can pause or close it at any time, and then it lets go. Playing changes nothing.
+ *
+ * Where playback is, is compared by the timeline's entries, not by steps: under a collapsed container
+ * one aggregated entry plays several steps, and going to any of them lands on the first.
  */
 import type { Id } from '@visual-anything/schema';
 import type { ScenarioSession } from '../scenarios/session';
 
 /** What the range needs of the scenario session. */
-export type RangeSession = Pick<ScenarioSession, 'getState' | 'play' | 'pause' | 'goToStep'>;
+export type RangeSession = Pick<
+  ScenarioSession,
+  'getState' | 'play' | 'pause' | 'goToStep' | 'entryOf'
+>;
 
 /** A scenario to play, by the indices of its first and last steps played. */
 export interface ScenarioPlay {
@@ -35,8 +41,9 @@ export class ScenarioRange {
     const range = this.range;
     if (!range) return;
     const state = this.session.getState();
+    const at = state.scenario === range.scenario ? this.session.entryOf(state.step) : undefined;
     if (this.phase === 'opening') {
-      if (state.scenario === range.scenario && state.step === range.from) {
+      if (at !== undefined && at === this.session.entryOf(range.from)) {
         this.phase = 'playing';
         this.session.play();
       }
@@ -47,7 +54,8 @@ export class ScenarioRange {
       this.range = undefined;
       return;
     }
-    if (state.step > range.to) {
+    const last = this.session.entryOf(range.to);
+    if (at !== undefined && last !== undefined && at > last) {
       this.range = undefined;
       this.session.pause();
       this.session.goToStep(range.to);

@@ -43,7 +43,7 @@ A tour walks someone through a concept (CONTEXT.md, *Tour*). Benchmark R45 build
 ## Considered options
 
 - **Tours inside view files:** rejected. A tour crosses views, and a file of its own diffs and merges on its own.
-- **Tours as recorded guidance replayed as-is:** rejected. A recording of moves is brittle; view states are what a step is.
+- **Tours as recorded guidance, played again exactly as it was recorded:** rejected. A recording of moves is brittle; view states are what a step is.
 
 ## Consequences
 
@@ -77,8 +77,8 @@ M11's tour build (W38) settled these.
   - A move's travel is measured in screen widths: how far the middle of the canvas moves, at the nearer of the two zooms, plus one for each doubling or halving of the zoom.
   - Up to three, the move eases in and out over 250 ms plus 150 ms per screen width, at most 700 ms. Past three, into another view, from no camera, or under reduced motion, it cuts.
   - A step without a camera shows its selection as a search result is shown, or else the whole view.
-- **Full screen** is the window, not the screen: the panels, the canvas toolbar, the explore strip and the find bar hide, and the canvas fills the window. The browser's full screen is not asked for, so that Escape always ends the tour. When the tour ends, the tab goes back to the view state it had when the tour started.
-- **Keys.** The right and down arrows, Space and Page Down go forward; the left and up arrows, Shift+Space and Page Up go back; Home and End go to the first and the last step; Escape ends the tour. Keys with Control, Alt or Meta stay the browser's. The tour takes them before the canvas does.
+- **Full screen** is the window, not the screen: the panels, the canvas toolbar, the explore strip, the find bar, and the comment pins with the layer that places a thread on a point hide (the pins since W47, below), and the canvas fills the window. The browser's full screen is not asked for, so that Escape always ends the tour. When the tour ends, the tab goes back to the view state it had when the tour started.
+- **Keys.** The right and down arrows, Space and Page Down go forward; the left and up arrows, Shift+Space and Page Up go back; Home and End go to the first and the last step; Escape ends the tour. Keys with Control, Alt or Meta move nothing in the tour, and stay the browser's. The tour takes them before the canvas does, and since W47 (below) it lets no key through to the app's own shortcuts.
 - **Marks** highlight as guidance's highlight does, through an emphasis source of their own, `tour`, while the tour plays.
 - **A step's scenario** opens at the first step it plays, plays, and pauses back on the last; once the person pauses or closes it, it is theirs.
 - **Speaker notes** show in a second window that the click on Speaker notes opens: a blank page of this origin with the app's stylesheets and theme, filled by React through the DOM, never through HTML. The keys pressed in it move the tour. When the browser blocks it, the stage says how to allow it.
@@ -100,3 +100,15 @@ M11's tour build (W38) settled these.
   - **Claude's marks, move and caption go** when a tour plays, since its stage shows its own caption card and marks (the `tour` emphasis source); the filters, focus and scenario playback Claude asked for stay as they were.
   - **Nothing is recorded:** the guidance changes no file and no history, and playing changes nothing, as this ADR says.
 - **2026-10-25 (W44): a step keeps the time range.** A step's `viewState.filters` may hold `range`, as a view state does (ADR 0044's clarification of W44): `of`, `attribute`, `until` when it is on periods, `kind`, `from` and `to`, checked by the schema and by the core as an address's range is. Filters that hold only a range are written `{ "range": … }`. Take the canvas and New tour from the canvas keep the range the strip shows, a step plays it with the other filters, and it is kept when the components or relation types its filters name are gone, since it names attributes, not ids. A step written before keeps reading as it did.
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (W47, from M11's spec review): **what a tour holds, how it plays, and what a page takes of it.**
+  - **The size of a tour.** Its text, the name, the description, and every step's caption and speaker notes, holds at most 1,000,000 characters together (`MAX_TOUR_TEXT`), so that a tour stays well within the 8 MiB its file is read within, and the 4 MiB one change from the app carries, whatever characters it is written in. `create-tour` and `update-tour` refuse a tour past it with `invalid-command`, saying to put the rest of its steps in another tour. A tour kept longer than that, as one written by hand can be, can still be changed so long as it grows no longer.
+  - **Whatever the program writes, it opens again.** A change that would write a file past the cap of its kind is refused with `invalid-file` before anything is written, and says what to do: for a tour, put the rest of its steps in another tour. Every later change is made as before.
+  - **From the app.** Each edit still sends the whole list of steps, since `update-tour` takes the list whole. The tours panel does not send an edit that the live connection could not carry; it says so in a notice, and that some steps can be deleted or put in another tour, instead of the connection closing on the way.
+  - **Full screen** also hides the comment pins and the layer that places a thread on a point (ADR 0059): the canvas is the tour's while it plays.
+  - **Keys.** While a tour plays, no key reaches the app's own shortcuts: undo and redo, the stacking keys, deleting, copying and pasting, and any other key that sends a command do nothing, so that playing changes nothing. The browser's own keys, such as Ctrl+R and Ctrl+L, stay the browser's: nothing keeps it from them. Space and Enter on a focused control of the stage press it, rather than moving the tour. A dialog shown over the tour, such as a request to approve package code, keeps its own keys; only the app's shortcuts are kept from it.
+  - **A step's scenario** plays from the timeline entry of its first step to that of its last, comparing entries, not steps: under a collapsed container one aggregated entry plays several steps, and going to any of them lands on the entry's first.
+  - **Free shapes.** The delete dialog lists the tour steps that select a free shape it deletes from their view, as it lists those that name a deleted element or relation (`previewDelete` takes the free shapes, with the view they are deleted from).
+  - **Speaker notes stay out of the read-only page.** They are the presenter's own words, kept for a second window that the audience never sees, and a page is made to be shared. The page's data holds each tour without its steps' `notes`, and the page offers no speaker notes window. The Export dialog says that the page holds every tour, and that it leaves out the speaker notes and the threads of comments, when the project has any. Whoever presents does so from the app, where the notes are.

@@ -13,6 +13,7 @@ import type {
 import { anchorPhrase } from '../comments/anchors';
 import { checkPerson, isSameAuthor } from '../comments/authors';
 import { commentTextProblem, mentionsIn, normalizeCommentText } from '../comments/text';
+import type { Author } from '../history';
 import { slug } from '../ids';
 import { problem } from '../problems';
 import { reject, requireNumber, type Draft } from './draft';
@@ -27,6 +28,13 @@ import type {
 
 /** The most comments a thread holds, as the file format says. */
 export const MAX_THREAD_COMMENTS = 1000;
+
+/**
+ * The most characters a thread's comments hold together, so that its file stays well within the
+ * 1 MiB a `.vacomment` is read within, whatever characters they are written in: ten comments of the
+ * longest, or many more short ones.
+ */
+export const MAX_THREAD_TEXT = 200_000;
 
 /** A time as a comment keeps it: ISO 8601 in UTC, to the millisecond. */
 const COMMENT_TIME = /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,3})?Z$/;
@@ -62,6 +70,9 @@ export function addComment(draft: Draft, command: AddCommentCommand): string {
     );
   }
   const text = checkedText(command.comment?.text);
+  if (textOf(thread) + text.length > MAX_THREAD_TEXT) {
+    reject('invalid-comment', `${TOO_LONG}: start another thread.`, [thread.id]);
+  }
   const comment = newComment(
     draft,
     command.comment,
@@ -103,6 +114,17 @@ export function editComment(draft: Draft, command: EditCommentCommand): string {
   const label = `Edit a comment on ${anchorPhrase(draft.state, thread.anchor)}`;
   const text = checkedText(command.text);
   if (text === current.text) return label;
+  // A thread kept longer than the commands make one can still be edited, so long as it grows no
+  // longer.
+  const before = textOf(thread);
+  const after = before - current.text.length + text.length;
+  if (after > MAX_THREAD_TEXT && after > before) {
+    reject(
+      'invalid-comment',
+      `${TOO_LONG}: write a shorter comment, or put the rest in another thread.`,
+      [thread.id],
+    );
+  }
   warnOfMentions(draft, text, current.text);
   const edited: ThreadComment = { ...current, edited: timeNow(draft), text };
   draft.apply({
@@ -114,6 +136,7 @@ export function editComment(draft: Draft, command: EditCommentCommand): string {
 }
 
 export function resolveThread(draft: Draft, command: ResolveThreadCommand): string {
+  senderOf(draft);
   const thread = threadOf(draft, command.thread);
   if (typeof command.resolved !== 'boolean') {
     reject('invalid-command', 'Say whether the thread is resolved: true or false.');
@@ -138,11 +161,21 @@ function opened(thread: CommentFile): CommentFile {
 }
 
 export function deleteThread(draft: Draft, command: DeleteThreadCommand): string {
+  senderOf(draft);
   const thread = threadOf(draft, command.thread);
   const label = `Delete the thread on ${anchorPhrase(draft.state, thread.anchor)}`;
   draft.apply({ op: 'remove', collection: { name: 'comments' }, key: thread.id });
   return label;
 }
+
+/** How many characters a thread's comments hold together. */
+function textOf(thread: CommentFile): number {
+  let length = 0;
+  for (const comment of thread.comments) length += comment.text.length;
+  return length;
+}
+
+const TOO_LONG = `The thread would hold more than ${MAX_THREAD_TEXT.toLocaleString('en-US')} characters of comments, as many as one holds`;
 
 /** A thread of the project. */
 function threadOf(draft: Draft, id: Id): CommentFile {
@@ -205,14 +238,7 @@ function checkedText(text: unknown): string {
  * names, as their preferences do.
  */
 function authorOf(draft: Draft, given: CommentAuthor | undefined): CommentAuthor {
-  // Fails closed: a caller that does not say who sends the command signs nothing.
-  if (draft.author === undefined) {
-    reject(
-      'invalid-command',
-      'A comment is signed by whoever sends it, and the program did not say who sends this one.',
-    );
-  }
-  if (draft.author === 'claude') {
+  if (senderOf(draft) === 'claude') {
     if (given !== undefined && (given as { kind?: unknown }).kind !== 'claude') {
       reject('invalid-author', 'Claude’s comments are signed as Claude: they never name a person.');
     }
@@ -221,6 +247,20 @@ function authorOf(draft: Draft, given: CommentAuthor | undefined): CommentAuthor
   const checked = checkPerson(given);
   if (!checked.ok) reject(checked.code, checked.message);
   return checked.author;
+}
+
+/**
+ * Who sends a comment command, as the program says. Fails closed: a caller that does not say who
+ * sends it is refused, whatever the command, so that nothing is ever done in no one's name.
+ */
+function senderOf(draft: Draft): Author {
+  if (draft.author === undefined) {
+    reject(
+      'invalid-command',
+      'A comment is signed by whoever sends it, and the program did not say who sends this one.',
+    );
+  }
+  return draft.author;
 }
 
 /** A new comment, with its id, author and time. */

@@ -3,7 +3,7 @@ import {
   builtinPackage,
   type ProjectSnapshot,
 } from '@visual-anything/core';
-import type { PackageFile, SvgImage } from '@visual-anything/schema';
+import type { PackageFile, SvgImage, TourStep } from '@visual-anything/schema';
 import { validateFile } from '@visual-anything/schema/validate';
 import { describe, expect, it } from 'vitest';
 import { translateMessage, untranslatedParts } from '../i18n/translate';
@@ -11,6 +11,13 @@ import { loadSample } from '../test/sample';
 import { PAGE_FORMAT, pageDataOf, readPageData, type PageData } from './data';
 
 const sample = loadSample();
+
+/** A tour step without its speaker notes. */
+function withoutNotes(step: TourStep): TourStep {
+  const shared = { ...step };
+  delete shared.notes;
+  return shared;
+}
 
 /** The page's data as the page holds it: JSON text. */
 function asText(data: unknown): string {
@@ -65,13 +72,25 @@ describe('The data a read-only page holds', () => {
     const data = pageDataOf(sample);
     expect(sample.tours.length).toBeGreaterThan(0);
     expect(sample.comments.length).toBeGreaterThan(0);
-    expect(data.tours).toEqual(sample.tours);
+    expect(data.tours?.map((tour) => tour.id)).toEqual(sample.tours.map((tour) => tour.id));
     expect(data).not.toHaveProperty('comments');
     expect(asText(data)).not.toContain(sample.comments[0]?.comments[0]?.text);
     const back = read(data);
-    expect(back.ok && back.project.tours).toEqual(sample.tours);
+    expect(back.ok && back.project.tours).toEqual(data.tours);
     expect(back.ok && back.project.comments).toEqual([]);
     expect(pageDataOf({ ...sample, tours: [] })).not.toHaveProperty('tours');
+  });
+
+  it('leaves the speaker notes out of the tours, and keeps everything else of them', () => {
+    const notes = sample.tours.flatMap((tour) => tour.steps.flatMap((step) => step.notes ?? []));
+    expect(notes.length).toBeGreaterThan(0);
+    const data = pageDataOf(sample);
+    const text = asText(data);
+    for (const each of notes) expect(text).not.toContain(JSON.stringify(each).slice(1, -1));
+    const plain = sample.tours.map((tour) => ({ ...tour, steps: tour.steps.map(withoutNotes) }));
+    expect(data.tours).toEqual(plain);
+    // A tour without notes travels as it is.
+    expect(pageDataOf({ ...sample, tours: plain }).tours?.[0]).toBe(plain[0]);
   });
 
   it('refuses a tour that is no tour, and two tours with one id', () => {

@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ProjectSnapshot } from '@visual-anything/core';
+import type { TourStep } from '@visual-anything/schema';
 import { describe, expect, it, vi } from 'vitest';
 import type { Rect } from '../canvas/geometry';
 import { buildScene } from '../canvas/scene';
@@ -19,6 +20,13 @@ import {
 import { ImageSource, type ImageMaker } from './source';
 
 const sample = loadSample();
+
+/** A tour step without its speaker notes. */
+function withoutNotes(step: TourStep): TourStep {
+  const shared = { ...step };
+  delete shared.notes;
+  return shared;
+}
 const VIEW = sample.views[0]!;
 const BOUNDS: Rect = { x: 0, y: 0, width: 2000, height: 1000 };
 const ASSETS: ViewerAssets = { script: 'document.title = "viewer";', style: 'body{margin:0}' };
@@ -123,6 +131,18 @@ describe('Export, with the read-only page', () => {
         'Editing, the history and Claude’s guidance: the page only reads.',
       ),
     ).toBeInTheDocument();
+    // It carries the tours, but not their speaker notes, nor the threads of comments.
+    expect(within(dialog()).getByText(/^It holds the whole project/)).toHaveTextContent(
+      'every view, scenario and tour',
+    );
+    expect(
+      within(dialog()).getByText('Threads of comments, which name the people who wrote them.'),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog()).getByText(
+        'Speaker notes: its tours play with their captions and marks, and the notes stay with whoever presents.',
+      ),
+    ).toBeInTheDocument();
 
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Save the page' }));
     expect(save).toHaveBeenCalledTimes(1);
@@ -156,6 +176,31 @@ describe('Export, with the read-only page', () => {
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Save the page' }));
     const [blob] = save.mock.calls[0]!;
     expect(await blob.text()).not.toContain('export function check');
+  });
+
+  it('says it leaves out comments and speaker notes only when the project has some, and saves neither', async () => {
+    const COMMENTS = 'Threads of comments, which name the people who wrote them.';
+    const NOTES =
+      'Speaker notes: its tours play with their captions and marks, and the notes stay with whoever presents.';
+    const { save } = renderControl();
+    await choosePage();
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Save the page' }));
+    const html = await save.mock.calls[0]![0].text();
+    const notes = sample.tours.flatMap((tour) => tour.steps.flatMap((step) => step.notes ?? []));
+    expect(notes.length).toBeGreaterThan(0);
+    for (const each of notes) expect(html).not.toContain(each);
+    expect(html).not.toContain(sample.comments[0]?.comments[0]?.text);
+    cleanup();
+
+    const plain: ProjectSnapshot = {
+      ...sample,
+      comments: [],
+      tours: sample.tours.map((tour) => ({ ...tour, steps: tour.steps.map(withoutNotes) })),
+    };
+    renderControl({ project: plain });
+    await choosePage();
+    expect(within(dialog()).queryByText(COMMENTS)).not.toBeInTheDocument();
+    expect(within(dialog()).queryByText(NOTES)).not.toBeInTheDocument();
   });
 
   it('opens at the project’s first view when asked not to open at what the canvas shows', async () => {

@@ -3,12 +3,16 @@ import type { TourFile } from '@visual-anything/schema';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LiveContext } from '../live/context';
+import { Header } from '../shell/Header';
+import { fakeLive } from '../test/fakeLive';
 import { loadSample } from '../test/sample';
 import { NOTES_WINDOW } from './notes-window';
 import { TourStage } from './TourStage';
 
 const sample = loadSample();
 const tour = sample.tours[0] as TourFile;
+const RENAME = { label: 'Rename "API" to "Gateway"', author: 'user' as const };
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -88,14 +92,100 @@ describe('TourStage', () => {
     ]);
   });
 
-  it('takes the keys before anything else in the tab does', () => {
+  it('takes the keys before anything else in the tab does, and lets none through to the app', () => {
     stage();
     const other = vi.fn();
     document.body.addEventListener('keydown', other);
+    window.addEventListener('keydown', other);
     fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
     fireEvent.keyDown(document.body, { key: 'Enter' });
+    fireEvent.keyDown(document.body, { key: 'Delete' });
+    fireEvent.keyDown(document.body, { key: 'ArrowUp', ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: 'v', ctrlKey: true });
     document.body.removeEventListener('keydown', other);
-    expect(other).toHaveBeenCalledTimes(1);
+    window.removeEventListener('keydown', other);
+    expect(other).not.toHaveBeenCalled();
+  });
+
+  it('changes nothing with the app’s shortcuts while it plays, and leaves the browser’s keys to it', async () => {
+    const live = fakeLive({ history: { undo: RENAME, redo: RENAME } });
+    const onAction = vi.fn();
+    const { rerender } = render(
+      <LiveContext value={live}>
+        <Header projectName="My systems" viewName="System overview" />
+        <TourStage project={sample} tour={tour} step={0} onAction={onAction} />
+      </LiveContext>,
+    );
+    const shown = screen.getByRole('region', { name: `Tour “${tour.name}”` });
+    expect(shown).toHaveFocus();
+    const pressed: boolean[] = [];
+    await act(async () => {
+      pressed.push(fireEvent.keyDown(shown, { key: 'z', ctrlKey: true }));
+      pressed.push(fireEvent.keyDown(shown, { key: 'z', metaKey: true }));
+      pressed.push(fireEvent.keyDown(shown, { key: 'y', ctrlKey: true }));
+      pressed.push(fireEvent.keyDown(shown, { key: 'r', ctrlKey: true }));
+      pressed.push(fireEvent.keyDown(shown, { key: 'l', ctrlKey: true }));
+      await Promise.resolve();
+    });
+    expect(live.undo).not.toHaveBeenCalled();
+    expect(live.redo).not.toHaveBeenCalled();
+    expect(onAction).not.toHaveBeenCalled();
+    // Nothing kept the browser from doing what it does with them.
+    expect(pressed).toEqual([true, true, true, true, true]);
+
+    // Once the tour ends, the shortcuts are the app's again.
+    rerender(
+      <LiveContext value={live}>
+        <Header projectName="My systems" viewName="System overview" />
+      </LiveContext>,
+    );
+    await act(async () => {
+      fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true });
+      await Promise.resolve();
+    });
+    expect(live.undo).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets Space and Enter press the control that has the focus', () => {
+    const { onAction } = stage({ step: 1 });
+    const next = screen.getByRole('button', { name: 'Next step' });
+    next.focus();
+    // The browser presses the button: the stage does not take the key for its own.
+    expect(fireEvent.keyDown(next, { key: ' ' })).toBe(true);
+    expect(fireEvent.keyDown(next, { key: 'Enter' })).toBe(true);
+    expect(onAction).not.toHaveBeenCalled();
+    fireEvent.keyDown(next, { key: 'ArrowRight' });
+    expect(onAction).toHaveBeenCalledWith('next');
+  });
+
+  it('leaves a dialog over the tour its own keys, but not the app’s shortcuts', async () => {
+    const live = fakeLive({ history: { undo: RENAME } });
+    const onAction = vi.fn();
+    const inDialog = vi.fn();
+    render(
+      <LiveContext value={live}>
+        <Header projectName="My systems" viewName="System overview" />
+        <TourStage project={sample} tour={tour} step={0} onAction={onAction} />
+        <div
+          role="dialog"
+          aria-label="Approve"
+          onKeyDown={() => {
+            inDialog();
+          }}
+        >
+          <button type="button">Approve</button>
+        </div>
+      </LiveContext>,
+    );
+    const button = screen.getByRole('button', { name: 'Approve' });
+    await act(async () => {
+      fireEvent.keyDown(button, { key: 'Escape' });
+      fireEvent.keyDown(button, { key: 'z', ctrlKey: true });
+      await Promise.resolve();
+    });
+    expect(inDialog).toHaveBeenCalledTimes(1);
+    expect(onAction).not.toHaveBeenCalled();
+    expect(live.undo).not.toHaveBeenCalled();
   });
 
   it('says when a step names what is gone, and when its view is', () => {

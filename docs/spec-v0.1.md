@@ -135,12 +135,17 @@ my-systems/
     system-overview.vaview   perspective, nesting relation types, positions, pinned and free shapes
   scenarios/
     patient-books-appointment.vascenario   view, steps, relations per step, data in and out
+  tours/
+    how-booking-works.vatour     steps, each a view state with a caption, marks and speaker notes
+  comments/
+    reminder-timing.vacomment    one thread: its anchor, whether resolved, and its comments
 ```
 
 - Ids are generated once and never reused; files refer to each other only by id.
 - Positions and stacking orders live only in view files, so moving shapes or changing which is drawn in front never touches the model; dropping a shape into or out of a container changes its containment, which is part of the model.
 - No file contains code that runs. Programmable code, after v0.1, lives in packages and runs sandboxed.
 - Writes are atomic (a temporary file, then a rename), so a crash never leaves a half-written file. Changes made outside the app, such as a git pull, are reloaded with a notice.
+- Each kind of file is read within a size cap, such as 1 MiB for a thread of comments, and a change that would write a file past its cap is refused before anything is written, so that whatever is written opens again.
 
 ## Canvas, views and layout
 

@@ -12,6 +12,7 @@ import {
   previewChangeContainer,
   previewDelete,
   type Command,
+  type CommandContext,
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
@@ -60,6 +61,13 @@ export function cascadeRefusal(cascade: Cascade, refused: string, endsOn: string
   return `${refused}: this would also delete ${cascade.cascaded.length} relation(s) that end on ${endsOn} (${cascade.cascaded.join(', ') || 'none'}) and mark ${cascade.brokenSteps.length} scenario step(s) broken.${data} Tell the person, then call again with cascade: true.`;
 }
 
+/**
+ * How the commands before a delete in a batch are run to preview it: as Claude's, as the real run
+ * signs them, since the core refuses a comment command whose sender is not said (ADR 0059). The time
+ * is any a comment can keep: nothing previewed depends on it.
+ */
+const AS_CLAUDE: CommandContext = { author: 'claude', now: () => 0 };
+
 function walk(state: ProjectSnapshot, command: Command, found: Cascade): void {
   try {
     switch (command.type) {
@@ -91,11 +99,11 @@ function walk(state: ProjectSnapshot, command: Command, found: Cascade): void {
         for (const [at, each] of commands.entries()) {
           if (!cascades(each)) continue;
           if (at > reached) {
-            const ran = executeCommand(current, {
-              type: 'batch',
-              label: command.label,
-              commands: commands.slice(reached, at),
-            });
+            const ran = executeCommand(
+              current,
+              { type: 'batch', label: command.label, commands: commands.slice(reached, at) },
+              AS_CLAUDE,
+            );
             if (!ran.ok) return;
             current = ran.state;
             reached = at;

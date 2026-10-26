@@ -3,10 +3,12 @@ import { validateFile } from '@visual-anything/schema/validate';
 import { describe, expect, it } from 'vitest';
 import { checkProject } from '../check';
 import { executeCommand, type Command, type CommandContext } from '../commands';
+import { MAX_THREAD_TEXT } from '../commands/comments';
 import { applyOperations } from '../operations';
 import type { ProjectSnapshot } from '../snapshot';
 import { testProject } from '../test/fixtures';
 import { detachedThreads, isDetached } from './anchors';
+import { MAX_COMMENT_TEXT } from './text';
 
 const ANA = { kind: 'person', name: 'Ana', email: 'ana@example.com' } as const;
 const BRUNO = { kind: 'person', name: 'Bruno' } as const;
@@ -73,6 +75,10 @@ describe('who signs a comment', () => {
         label: 'Answer',
         commands: [{ type: 'add-comment', thread: 'why-api', comment: { text: 'Hi' } }],
       },
+      // Resolving and deleting sign nothing, but they are comment commands too: the app and Claude
+      // always say who sends them, and a caller that forgets is refused as for the others.
+      { type: 'resolve-thread', thread: 'why-api', resolved: true },
+      { type: 'delete-thread', thread: 'why-api' },
     ];
     for (const command of commands) {
       const outcome = executeCommand(state, command, unsaid);
@@ -80,11 +86,128 @@ describe('who signs a comment', () => {
         'invalid-command',
       ]);
     }
-    // What signs nothing needs no sender.
+    for (const author of ['user', 'claude'] as const) {
+      expect(
+        executeCommand(
+          state,
+          { type: 'resolve-thread', thread: 'why-api', resolved: true },
+          { ...unsaid, author },
+        ).ok,
+      ).toBe(true);
+      expect(
+        executeCommand(state, { type: 'delete-thread', thread: 'why-api' }, { ...unsaid, author })
+          .ok,
+      ).toBe(true);
+    }
+  });
+});
+
+describe('the text a thread holds', () => {
+  /** The project of `withThread`, with as many more comments by Ana as `count`, of `size` letters. */
+  function long(count: number, size: number, letter = 'a'): ProjectSnapshot {
+    let { state } = withThread();
+    for (let at = 0; at < count; at += 1) {
+      state = done(state, {
+        type: 'add-comment',
+        thread: 'why-api',
+        comment: { text: letter.repeat(size), author: ANA },
+      }).state;
+    }
+    return state;
+  }
+  const firstLength = 'Why does the API read the DB directly?'.length;
+  /** What the thread of `long(9, …)` has room for. */
+  const room = MAX_THREAD_TEXT - firstLength - 9 * MAX_COMMENT_TEXT;
+
+  it('is at most 200,000 characters of comments: past that, another thread is started', () => {
+    expect(MAX_THREAD_TEXT).toBe(200_000);
+    // Characters that take two bytes or more in a file count as one, as everywhere else.
+    const state = long(9, MAX_COMMENT_TEXT, 'é');
+    const fits = done(state, {
+      type: 'add-comment',
+      thread: 'why-api',
+      comment: { text: 'é'.repeat(room), author: ANA },
+    });
+    expect(fits.state.comments[0]?.comments).toHaveLength(11);
     expect(
-      executeCommand(state, { type: 'resolve-thread', thread: 'why-api', resolved: true }, unsaid)
-        .ok,
-    ).toBe(true);
+      refusal(fits.state, {
+        type: 'add-comment',
+        thread: 'why-api',
+        comment: { text: 'One more.', author: ANA },
+      }),
+    ).toEqual([
+      {
+        code: 'invalid-comment',
+        message:
+          'The thread would hold more than 200,000 characters of comments, as many as one holds: start another thread.',
+        subjects: ['why-api'],
+      },
+    ]);
+  });
+
+  it('refuses an edit that takes a thread past it, and takes one that stays within it', () => {
+    // Room left for 962 more characters.
+    const state = done(long(9, MAX_COMMENT_TEXT), {
+      type: 'add-comment',
+      thread: 'why-api',
+      comment: { text: 'b'.repeat(room - 962), author: ANA },
+    }).state;
+    expect(
+      refusal(state, {
+        type: 'edit-comment',
+        thread: 'why-api',
+        comment: 'first',
+        text: 'x'.repeat(firstLength + 963),
+        author: ANA,
+      }),
+    ).toEqual([
+      {
+        code: 'invalid-comment',
+        message:
+          'The thread would hold more than 200,000 characters of comments, as many as one holds: write a shorter comment, or put the rest in another thread.',
+        subjects: ['why-api'],
+      },
+    ]);
+    expect(
+      done(state, {
+        type: 'edit-comment',
+        thread: 'why-api',
+        comment: 'first',
+        text: 'x'.repeat(firstLength + 962),
+        author: ANA,
+      }).state.comments[0]?.comments[0]?.text,
+    ).toHaveLength(firstLength + 962);
+  });
+
+  it('lets a thread kept past it be edited, as long as it grows no longer', () => {
+    const { state, thread } = withThread();
+    // A thread written by hand, longer than the commands make one.
+    const comments = Array.from({ length: 11 }, (_, at) => ({
+      ...(thread.comments[0] as CommentFile['comments'][number]),
+      id: `c${at}`,
+      text: 'x'.repeat(MAX_COMMENT_TEXT),
+    }));
+    const kept: ProjectSnapshot = { ...state, comments: [{ ...thread, comments }] };
+    const edit = (text: string): Command => ({
+      type: 'edit-comment',
+      thread: 'why-api',
+      comment: 'c0',
+      text,
+      author: ANA,
+    });
+    expect(done(kept, edit('y'.repeat(MAX_COMMENT_TEXT))).operations).not.toEqual([]);
+    const shorter = done(kept, edit('Shorter.'));
+    expect(shorter.state.comments[0]?.comments[0]?.text).toBe('Shorter.');
+    expect(
+      refusal(shorter.state, edit('x'.repeat(MAX_COMMENT_TEXT))).map((each) => each.code),
+    ).toEqual(['invalid-comment']);
+    expect(
+      refusal(kept, {
+        type: 'add-comment',
+        thread: 'why-api',
+        comment: { text: 'More.', author: ANA },
+      }).map((each) => each.code),
+    ).toEqual(['invalid-comment']);
   });
 });
 

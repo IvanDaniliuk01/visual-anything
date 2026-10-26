@@ -3,8 +3,16 @@
  * reads in; names are as people wrote them.
  */
 import { modelIndexOf, relationLabel, type ProjectSnapshot } from '@visual-anything/core';
-import type { CommentAnchor } from '@visual-anything/schema';
+import type { CommentAnchor, CommentAuthor } from '@visual-anything/schema';
 import type { Translator } from '../i18n';
+
+/**
+ * Who wrote a comment, in words: a person by the name they gave, and Claude marked as an AI,
+ * so that a person who calls themselves Claude is never taken for Claude (ADR 0059).
+ */
+export function authorText(t: Translator, author: CommentAuthor): string {
+  return author.kind === 'claude' ? t('Claude (AI)') : author.name;
+}
 
 export function aboutText(t: Translator, project: ProjectSnapshot, anchor: CommentAnchor): string {
   const index = modelIndexOf(project);
