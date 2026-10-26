@@ -280,7 +280,7 @@ describe('layout of random views', () => {
     );
   }, 120_000);
 
-  it('places every shape without a position and moves no other', async () => {
+  it('places every shape without a position, and moves no other but aside, right or down', async () => {
     await fc.assert(
       fc.asyncProperty(projects, async (project) => {
         const scene = buildScene(project, 'v');
@@ -290,13 +290,26 @@ describe('layout of random views', () => {
           after: drawn,
           action,
         } = await lay(project, 'v', { kind: 'new', keys });
+        const now = new Map(viewOf(after, 'v').positions.map((each) => [positionKey(each), each]));
         for (const position of viewOf(project, 'v').positions) {
-          expect(viewOf(after, 'v').positions).toContainEqual(position);
+          const kept = now.get(positionKey(position));
+          // A pinned shape never moves; an unpinned one only moves aside for a container that grew,
+          // right or down, keeping its size (ADR 0015's clarification of W48).
+          if (position.pinned) expect(kept).toEqual(position);
+          else {
+            expect(kept?.x).toBeGreaterThanOrEqual(position.x);
+            expect(kept?.y).toBeGreaterThanOrEqual(position.y);
+            expect({ ...kept, x: position.x, y: position.y }).toEqual(position);
+          }
         }
         expect(drawn.shapes.every((shape) => shape.positioned !== 'placed')).toBe(true);
+        // What layout placed, as against what it moved aside, is laid out as any layout is.
+        const placed = new Set(
+          scene.shapes.filter((shape) => shape.positioned === 'placed').map((shape) => shape.key),
+        );
         expectLaidOut(
           drawn,
-          action,
+          action && { ...action, keys: new Set([...action.keys].filter((key) => placed.has(key))) },
           scene.notes.map((note) => note.rect),
         );
       }),

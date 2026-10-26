@@ -52,3 +52,7 @@ We chose this because a process Claude starts must reach a program the person ma
 <!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
 
 - 2026-10-25 (W45): **the endpoint reads live values back, and guidance plays a tour.** The endpoint also takes `live/list`, answered with `live/listed`, so that Claude's read tools show the live values the program keeps (ADR 0063's and ADR 0057's clarifications of this date); its refusal still names "live values" among what it takes. Guidance gains `{ kind: "tour", tour, step? }`, which plays a tour full screen in the open apps as the person would (ADR 0058's clarification of this date), carried by protocol 6 as `layout` is.
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (W48): **placing what Claude adds joins Claude's action** (ADR 0065). The app's automatic layout of the shapes an action of Claude's added, `add_to_model`'s or `change_container`'s without places, is recorded as part of that action, under Claude's label and author, when ADR 0065's conditions hold: one change of Claude's takes one undo, and the history no longer says the person laid it out. A layout that comes later or does more stays the person's action, as does the layout `lay_out_view` asks for.

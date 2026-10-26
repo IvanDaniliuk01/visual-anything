@@ -17,7 +17,7 @@
  */
 import type { ElkExtendedEdge, ElkNode, ElkPort, LayoutOptions } from 'elkjs/lib/elk-api';
 import { boundsOf, type Point, type Rect, type Size } from '../geometry';
-import { measuredSize, packInRows, placeBlock, roundToStep } from './place';
+import { ceilToStep, measuredSize, packInRows, placeBlock, roundToStep } from './place';
 import { ELK_SIDES, pointOnBorder, pointToward } from './ports';
 import {
   ELK_TIME_LIMIT,
@@ -236,7 +236,70 @@ export async function layOut(
         }
       }
     }
-    for (const block of blocks) placeAt(block.level, block.nodes, block.places);
+    for (const level of levels) {
+      // What grew inside this level moves aside what it would cover, before the block is placed.
+      const roomMade = makeRoom(level);
+      const block = blocks.find((each) => each.level === level);
+      if (block) placeAt(block.level, block.nodes, block.places);
+      else if (roomMade && level !== WORLD) tree.markChanged(level);
+    }
+  };
+
+  /**
+   * Moves aside, right or down, the shapes of a level that may move aside and that a container of the
+   * level now covers, since it grew with what layout placed in it; and those that the moved ones then
+   * cover, in turn. Shapes that may not move stay, and a shape moved aside goes past them. Says whether
+   * it moved any.
+   */
+  const makeRoom = (level: number): boolean => {
+    const children = tree.childrenOf(level);
+    const waiting: { node: number; before: Rect }[] = [];
+    for (const child of children) {
+      const shape = input.shapes[child];
+      if (!shape || shape.free) continue;
+      // The scene may draw a container grown already around a new shape it put somewhere: what it
+      // grew from is its size around what it kept.
+      const before = { x: shape.x, y: shape.y, ...tree.keptSizeOf(child) };
+      const now = tree.rectOf(child);
+      if (now.width > before.width || now.height > before.height) {
+        waiting.push({ node: child, before });
+      }
+    }
+    if (waiting.length === 0) return false;
+    const movable = (node: number) => input.shapes[node]?.aside === true;
+    const stays = children
+      .filter((child) => !input.shapes[child]?.free && !movable(child))
+      .map((child) => tree.rectOf(child));
+    if (level === WORLD) stays.push(...input.obstacles);
+    const container = level === WORLD ? undefined : input.shapes[level]?.element;
+    let moved = false;
+    // Each move goes right or down by a step at least, so this many always suffice.
+    let budget = children.length * (children.length + stays.length + 1);
+    for (let next = waiting.shift(); next !== undefined && budget > 0; next = waiting.shift()) {
+      const after = tree.rectOf(next.node);
+      for (const other of children) {
+        budget -= 1;
+        if (other === next.node || !movable(other)) continue;
+        const rect = tree.rectOf(other);
+        const place = movedAside(next.before, after, rect, stays);
+        if (!place) continue;
+        tree.moveTo(other, place);
+        moved = true;
+        waiting.push({ node: other, before: rect });
+        const shape = input.shapes[other] as (typeof input.shapes)[number];
+        const at = placed.findIndex((each) => each.key === shape.key);
+        const entry: LaidOutShape = {
+          key: shape.key,
+          element: shape.element,
+          ...(container === undefined ? {} : { container }),
+          ...place,
+          aside: true,
+        };
+        if (at === -1) placed.push(entry);
+        else placed[at] = entry;
+      }
+    }
+    return moved;
   };
 
   /** Moves a block clear of what its level keeps, on the step, and records where its shapes go. */
@@ -285,6 +348,54 @@ export async function layOut(
 
   stats.totalMs = now() - started;
   return { shapes: placed, stats };
+}
+
+/**
+ * Where a shape goes when a shape beside it grew or moved from `before` to `after`: right, when it lay
+ * right of it before, or down, when it lay below it, whichever moves it less, keeping the room it had
+ * from it up to `NODE_GAP`, and past every rectangle of `stays` it would land on. Undefined when the
+ * shape lay neither right of it nor below it, or `after` does not come closer than it had.
+ */
+export function movedAside(
+  before: Rect,
+  after: Rect,
+  shape: Rect,
+  stays: readonly Rect[],
+): Point | undefined {
+  const right = shape.x >= before.x + before.width;
+  const down = shape.y >= before.y + before.height;
+  if (!right && !down) return undefined;
+  const gapX = right ? Math.min(NODE_GAP, shape.x - (before.x + before.width)) : 0;
+  const gapY = down ? Math.min(NODE_GAP, shape.y - (before.y + before.height)) : 0;
+  const reach = { x: after.x, y: after.y, width: after.width + gapX, height: after.height + gapY };
+  if (!overlapping(reach, shape)) return undefined;
+  const choices: Point[] = [];
+  if (right) choices.push(past({ x: ceilToStep(after.x + after.width + gapX), y: shape.y }, 'x'));
+  if (down) choices.push(past({ x: shape.x, y: ceilToStep(after.y + after.height + gapY) }, 'y'));
+  return choices.reduce((best, each) =>
+    each.x - shape.x + (each.y - shape.y) < best.x - shape.x + (best.y - shape.y) ? each : best,
+  );
+
+  /** A place moved on along its axis past whatever stays there. */
+  function past(place: Point, axis: 'x' | 'y'): Point {
+    let at = place;
+    for (let more = stays.length; more >= 0; more -= 1) {
+      const blocking = stays.find((each) =>
+        overlapping({ ...at, width: shape.width, height: shape.height }, each),
+      );
+      if (!blocking) return at;
+      at =
+        axis === 'x'
+          ? { ...at, x: ceilToStep(blocking.x + blocking.width + NODE_GAP) }
+          : { ...at, y: ceilToStep(blocking.y + blocking.height + NODE_GAP) };
+    }
+    return at;
+  }
+}
+
+/** Whether two rectangles share some area. */
+function overlapping(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 }
 
 /**
@@ -627,6 +738,31 @@ class Tree {
     );
     this.sizes.set(node, size);
     return size;
+  }
+
+  /**
+   * The size a shape had around what layout keeps, before it placed anything: its size now for one
+   * whose contents layout leaves alone, and otherwise the size it takes around its kept contents
+   * where they were, each at the size it had so, without the shapes layout arranges.
+   */
+  keptSizeOf(node: number): Size {
+    const shape = this.input.shapes[node];
+    if (!shape) return { width: 1, height: 1 };
+    const first = this.firstCopy.get(shape.element);
+    if (first === undefined || !this.changed.has(shape.element)) {
+      return { width: shape.width, height: shape.height };
+    }
+    const contents = this.childrenOf(first).flatMap((child) => {
+      const content = this.input.shapes[child];
+      return !content || content.free
+        ? []
+        : [{ x: content.x, y: content.y, ...this.keptSizeOf(child) }];
+    });
+    return measuredSize(
+      contents,
+      { width: shape.baseWidth ?? shape.width, height: shape.baseHeight ?? shape.height },
+      { width: shape.storedWidth, height: shape.storedHeight },
+    );
   }
 
   /** Where a shape is after layout so far, with its size, relative to its container. */

@@ -276,7 +276,7 @@ To compute a behavior from parameters the user changes: learning rate and loss c
 To change the model or the canvas: create, move, put inside or take out of a container, connect, change the stacking order, delete.
 
 **Action**:
-One edit as the history keeps it: what a command, a batch or a pasted list did, with its label, its author (the person or Claude) and when it was done. Undo and redo take back or bring back one action at a time.
+One edit as the history keeps it: what a command, a batch or a pasted list did, with its label, its author (the person or Claude) and when it was done. The placement of the shapes it added, which the open app lays out, joins it when it only places them and makes room for them (ADR 0065). Undo and redo take back or bring back one action at a time.
 _Avoid_: transaction, change set
 
 **History**:
