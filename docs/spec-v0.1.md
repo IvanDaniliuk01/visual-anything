@@ -476,7 +476,7 @@ Eight milestones in build order, each ending in something you can use, and Track
   - `outlines.ts`'s `shapeHolds(shape, point)` and `shapeBorderPoint(shape, inside, toward)`, and `draw.ts`'s `drawOutline(graphics, outline, colors)`, over the core's outline maths. They sit beside the outlines rather than in `geometry.ts`, which the layout worker loads, so that the worker never loads the core.
   - Automatic straight and curved lines, routed as routes chosen by hand without bend points are, and side by side as automatic lines are; the routing task carries their ends onto outlines.
   - The incremental scene keeps outlines and parts across moves and recolors, which its property test checks against a full build.
-- [ ] **Free geometry on the canvas** (ADR 0066):
+- [x] **Free geometry on the canvas** (ADR 0066):
   - tiles' plain and full drawings of outlines, holes cut;
   - silhouettes and plain blocks drawn as simplified outlines, and collapsed containers' sheets;
   - names in the label area, or beside the shape in the hover and selection marks, and icons;

@@ -222,7 +222,10 @@ export class Painter {
       const shape = lookups.shape(record.shape);
       if (!shape) continue;
       const under = nameBandOf(shape) ? this.backdropOf(shape, lookups) : undefined;
-      const colors = readableTextColors(under ?? shapeColors(shape, this.name).fill);
+      // A shape drawn as a named part writes on its part's main color (ADR 0067).
+      const colors = readableTextColors(
+        under ?? shape.part?.color ?? shapeColors(shape, this.name).fill,
+      );
       label.tint = record.role === 'name' ? colors.name : colors.detail;
     }
   }
