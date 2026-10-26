@@ -52,6 +52,82 @@ describe('live values on the Claude endpoint', () => {
     ).toThrow(ProtocolError);
   });
 
+  it('asks for live values by targets and attributes, at most a thousand', () => {
+    expect(
+      decodeClaudeMessage(
+        JSON.stringify({
+          type: 'live/list',
+          requestId: 'r',
+          targets: ['api'],
+          limit: 5,
+          from: 'x',
+        }),
+      ),
+    ).toEqual({ type: 'live/list', requestId: 'r', targets: ['api'], limit: 5 });
+    expect(decodeClaudeMessage(JSON.stringify({ type: 'live/list', requestId: 'r' }))).toEqual({
+      type: 'live/list',
+      requestId: 'r',
+    });
+    for (const message of [
+      { type: 'live/list', requestId: 'r', targets: ['not an id'] },
+      { type: 'live/list', requestId: 'r', attributes: [''] },
+      { type: 'live/list', requestId: 'r', limit: 0 },
+      { type: 'live/list', requestId: 'r', limit: 1001 },
+      { type: 'live/list', requestId: 'r', limit: 2.5 },
+    ]) {
+      expect(() => decodeClaudeMessage(JSON.stringify(message))).toThrow(ProtocolError);
+    }
+  });
+
+  it('reads the live values listed strictly, each rebuilt from its parts', () => {
+    const value = {
+      target: 'api',
+      attribute: 'latency',
+      value: 120,
+      sender: { kind: 'claude' },
+      arrivedAt: 1000,
+      freshFor: 60_000,
+    };
+    const summary = {
+      targets: 1,
+      stale: 0,
+      attributes: [{ attribute: 'latency', values: 2, stale: 0 }],
+    };
+    expect(
+      decodeProgramMessage(
+        JSON.stringify({
+          type: 'live/listed',
+          requestId: 'r',
+          values: [{ ...value, extra: true }],
+          total: 2,
+          at: 2000,
+          summary,
+        }),
+      ),
+    ).toEqual({
+      type: 'live/listed',
+      requestId: 'r',
+      values: [value],
+      total: 2,
+      at: 2000,
+      summary,
+    });
+    for (const message of [
+      { type: 'live/listed', requestId: 'r', values: [value], total: -1, at: 0 },
+      {
+        type: 'live/listed',
+        requestId: 'r',
+        values: [{ ...value, sender: 'me' }],
+        total: 1,
+        at: 0,
+      },
+      { type: 'live/listed', requestId: 'r', values: {}, total: 0, at: 0 },
+      { type: 'live/listed', requestId: 'r', values: [], total: 0, at: 0, summary: { targets: 1 } },
+    ]) {
+      expect(() => decodeProgramMessage(JSON.stringify(message))).toThrow(ProtocolError);
+    }
+  });
+
   it('reads what it is given or refuses it with the protocol’s own error', () => {
     const hostile: unknown[] = [
       null,
@@ -70,6 +146,7 @@ describe('live values on the Claude endpoint', () => {
         for (const message of [
           { type: 'live/set', requestId: 'r', values, from },
           { type: 'live/clear', requestId: 'r', targets: values, attributes: from, from },
+          { type: 'live/list', requestId: 'r', targets: values, attributes: from, limit: from },
         ]) {
           try {
             decodeClaudeMessage(JSON.stringify(message));

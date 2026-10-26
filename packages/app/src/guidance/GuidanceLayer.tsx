@@ -3,7 +3,8 @@
  * the "guidance" source; a move goes through the editor's `reveal`; and its caption, or what its marks
  * say when there is no caption, shows over the canvas with a way to dismiss it. Guidance names a view
  * when Claude wants it seen there: that view opens first. Filters, focus mode and playback go to the
- * explorer and the scenario session, as the person's would. Nothing here changes the project.
+ * explorer and the scenario session, and a tour to the tab's full-screen playback, as the person's
+ * would. Nothing here changes the project.
  */
 import type { ProjectSnapshot } from '@visual-anything/core';
 import { useContext, useEffect, useMemo, useRef } from 'react';

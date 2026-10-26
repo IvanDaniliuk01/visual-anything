@@ -13,6 +13,8 @@ import {
   LiveGate,
   LiveValueStore,
   checkLiveValues,
+  liveAge,
+  sameSender,
   type LiveFilter,
   type LiveKeptMessage,
   type LiveKey,
@@ -25,6 +27,39 @@ import type { Id } from '@visual-anything/schema';
 
 /** What the program answers live values with, but for its request id. */
 export type LiveKept = Omit<LiveKeptMessage, 'type' | 'requestId'>;
+
+/** The live values a reader asked for (ADR 0057): some of them, how many match, and when. */
+export interface LiveListing {
+  /** The values that match, the latest first, at most as many as asked for. */
+  values: LiveValue[];
+  /** How many match in all. */
+  total: number;
+  /** When the program read them, in milliseconds since 1970: their ages count to it. */
+  at: number;
+  /** Of every value that matches, when more match than came. */
+  summary?: LiveSummary;
+}
+
+/** What the live values that match come to, when more match than a listing holds. */
+export interface LiveSummary {
+  /** How many targets they are of. */
+  targets: number;
+  /** How many are older than their sender said they stay fresh. */
+  stale: number;
+  /** By attribute, the most values first: how many, and how many of those are stale. */
+  attributes: LiveAttributeCount[];
+  /** How many attributes more than those listed they are of. */
+  otherAttributes?: number;
+}
+
+export interface LiveAttributeCount {
+  attribute: string;
+  values: number;
+  stale: number;
+}
+
+/** The most attributes a summary of live values names. */
+export const SUMMARY_ATTRIBUTES = 50;
 
 export interface LiveValuesOptions {
   /** The time now, in milliseconds since 1970. */
@@ -76,6 +111,28 @@ export class LiveValues {
   /** Every live value it keeps, oldest first. */
   all(): LiveValue[] {
     return this.#store.all();
+  }
+
+  /**
+   * The live values that match, the latest first, at most `limit` of them, with how many match and
+   * the time it read them at; past `limit`, a summary of all that match. Reading changes nothing.
+   */
+  list(filter: LiveFilter, limit: number): LiveListing {
+    const targets = filter.targets === undefined ? undefined : new Set(filter.targets);
+    const attributes = filter.attributes === undefined ? undefined : new Set(filter.attributes);
+    const matching = this.#store
+      .all()
+      .filter(
+        (value) =>
+          (filter.sender === undefined || sameSender(value.sender, filter.sender)) &&
+          (targets === undefined || targets.has(value.target)) &&
+          (attributes === undefined || attributes.has(value.attribute)),
+      )
+      .reverse();
+    const at = this.#options.now();
+    const values = matching.slice(0, Math.max(0, limit));
+    if (values.length === matching.length) return { values, total: matching.length, at };
+    return { values, total: matching.length, at, summary: summaryOf(matching, at) };
   }
 
   /**
@@ -284,6 +341,36 @@ function defaultLater(task: () => void, ms: number): { cancel(): void } {
   const timer = setTimeout(task, ms);
   timer.unref?.();
   return { cancel: () => clearTimeout(timer) };
+}
+
+/** What live values come to: their targets, how many are stale, and how many of each attribute. */
+function summaryOf(values: readonly LiveValue[], at: number): LiveSummary {
+  const targets = new Set<Id>();
+  const byAttribute = new Map<string, LiveAttributeCount>();
+  let stale = 0;
+  for (const value of values) {
+    targets.add(value.target);
+    let count = byAttribute.get(value.attribute);
+    if (count === undefined) {
+      count = { attribute: value.attribute, values: 0, stale: 0 };
+      byAttribute.set(value.attribute, count);
+    }
+    count.values += 1;
+    if (liveAge(value, at).stale) {
+      count.stale += 1;
+      stale += 1;
+    }
+  }
+  const counts = [...byAttribute.values()].sort(
+    (a, b) => b.values - a.values || (a.attribute < b.attribute ? -1 : 1),
+  );
+  const listed = counts.slice(0, SUMMARY_ATTRIBUTES);
+  return {
+    targets: targets.size,
+    stale,
+    attributes: listed,
+    ...(counts.length > listed.length ? { otherAttributes: counts.length - listed.length } : {}),
+  };
 }
 
 function sameKind(a: LiveSender, b: LiveSender): boolean {

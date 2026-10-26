@@ -39,7 +39,8 @@ import type { ProjectSnapshot } from './snapshot';
  * one of them.
  * 6: following a destination to another project, which that project's own program opens (ADR 0056);
  *    and live values (ADR 0057, ADR 0063): the program sends the live values it keeps, and an app
- *    fetches for approved package code granted an origin, and sends the live values it made.
+ *    fetches for approved package code granted an origin, and sends the live values it made. Guidance
+ *    that lays out a view, or plays a tour full screen, came in 6 too, since no build shipped.
  */
 export const PROTOCOL_VERSION = 6;
 
@@ -218,7 +219,13 @@ export type Guidance =
    * guidance itself changes nothing: the app records the layout it runs as it records any layout
    * (ADR-0015, ADR-0029).
    */
-  | { kind: 'layout'; view?: Id; containers?: Id[] };
+  | { kind: 'layout'; view?: Id; containers?: Id[] }
+  /**
+   * Plays a tour full screen in the open app, as the tours panel's Play does (ADR 0058), from the
+   * step at `step`, an index among the tour's steps from 0, or from its first. The person moves
+   * through it and ends it with Escape, as always; playing it changes nothing.
+   */
+  | { kind: 'tour'; tour: Id; step?: number };
 
 /** What filters hide in a view, as the app's explorer holds them (ADR-0025), in lists. */
 export interface GuidedFilters {
@@ -345,6 +352,15 @@ export function readGuidance(value: unknown): Guidance {
         );
       }
       return { kind: 'layout', ...view(), containers: [...containers] };
+    }
+    case 'tour': {
+      if (!isId(value.tour)) throw new ProtocolError('Playing a tour names the tour by id.');
+      const { step } = value;
+      if (step === undefined) return { kind: 'tour', tour: value.tour };
+      if (!Number.isSafeInteger(step) || (step as number) < 0) {
+        throw new ProtocolError('A tour plays from the index of one of its steps, from 0.');
+      }
+      return { kind: 'tour', tour: value.tour, step: step as number };
     }
     default:
       throw new ProtocolError(`Unknown kind of guidance: ${JSON.stringify(value.kind)}.`);

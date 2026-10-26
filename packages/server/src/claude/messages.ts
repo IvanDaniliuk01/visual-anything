@@ -4,18 +4,19 @@
  * and it accepts only these messages: commands, which always run with Claude as their author;
  * guidance for the open apps; a request to open the app in the browser; a question about which
  * package code the person approved, which Claude can never approve itself (ADR 0054); live values,
- * set and cleared, which are never saved (ADR 0057); and an import the person ran on the command
- * line, which carries a file, never a command, and runs as the person's (ADR-0049). Undo, redo and
- * preferences are the person's, and are refused.
+ * set, cleared and read back, which are never saved (ADR 0057); and an import the person ran on the
+ * command line, which carries a file, never a command, and runs as the person's (ADR-0049). Undo, redo
+ * and preferences are the person's, and are refused.
  *
  * The program answers with the live protocol's own messages (`project/opened`, `project/changed`,
  * `command/rejected`, `project/reloaded`, `live/kept`), so the MCP entry point keeps its copy of the
  * project in step exactly as an app does, plus answers of its own: `guidance/shown`, `app/opened`,
- * `code/approvals` and `live/cleared`.
+ * `code/approvals`, `live/cleared` and `live/listed`.
  */
 import {
   FRESHNESS,
   LIVE_LIMITS,
+  LiveProtocolProblem,
   ProtocolError,
   checkViewState,
   decodeServerMessage,
@@ -24,13 +25,16 @@ import {
   readCodeApprovals,
   readFreshFor,
   readGuidance,
+  readLiveValuesMessage,
   type CodeApproval,
   type Command,
   type Guidance,
+  type LiveValue,
   type ServerMessage,
   type ViewState,
 } from '@visual-anything/core';
 import type { ImportRequest } from '../import';
+import type { LiveAttributeCount, LiveListing, LiveSummary } from '../live';
 import type { Id } from '@visual-anything/schema';
 
 /** The path of the Claude endpoint. */
@@ -89,6 +93,19 @@ export type ClaudeMessage =
       targets?: Id[];
       attributes?: string[];
       from: LiveSenderKind | 'everyone';
+    }
+  /**
+   * Asks for the live values kept now, everyone's, of the targets and attributes named or of all of
+   * them, so that Claude's read tools show them beside the stored values; answered with
+   * `live/listed`. Reading them changes nothing.
+   */
+  | {
+      type: 'live/list';
+      requestId: string;
+      targets?: Id[];
+      attributes?: string[];
+      /** At most this many, the latest first; {@link MAX_LIVE_LISTED} when left out. */
+      limit?: number;
     };
 
 /** Who sends live values through this endpoint. */
@@ -100,6 +117,9 @@ export interface LiveClearedMessage {
   requestId: string;
   cleared: number;
 }
+
+/** The answer to `live/list`: the live values that match, the latest first, and how many match. */
+export type LiveListedMessage = { type: 'live/listed'; requestId: string } & LiveListing;
 
 /** What the command line asks the program to import: `ImportRequest`, with the file in base64. */
 export interface ImportMessageRequest {
@@ -142,7 +162,8 @@ export type ProgramMessage =
   | GuidanceShownMessage
   | AppOpenedMessage
   | CodeApprovalsMessage
-  | LiveClearedMessage;
+  | LiveClearedMessage
+  | LiveListedMessage;
 
 /** Writes a message for the Claude endpoint. */
 export function encodeClaudeMessage(message: ClaudeMessage | ProgramMessage): string {
@@ -179,6 +200,8 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
       return readLiveSet(message, requestId);
     case 'live/clear':
       return readLiveClear(message, requestId);
+    case 'live/list':
+      return readLiveList(message, requestId);
     default:
       throw new ProtocolError(
         `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance, opening the app, asking which package code is approved, live values and imports from the command line. Undo, redo and preferences are the person's, in the app.`,
@@ -218,6 +241,8 @@ export function decodeProgramMessage(text: string): ProgramMessage {
       }
       return { type: 'live/cleared', requestId, cleared: cleared as number };
     }
+    case 'live/listed':
+      return readLiveListed(message);
     default:
       return decodeServerMessage(text);
   }
@@ -249,12 +274,44 @@ function readLiveSet(message: Record<string, unknown>, requestId: string): Claud
 }
 
 function readLiveClear(message: Record<string, unknown>, requestId: string): ClaudeMessage {
+  return {
+    type: 'live/clear',
+    requestId,
+    ...readLiveSelection(message, 'Clearing'),
+    from: readSenderKind(message.from, true),
+  };
+}
+
+/** The most live values one answer to `live/list` holds. */
+export const MAX_LIVE_LISTED = LIVE_LIMITS.valuesPerMessage;
+
+function readLiveList(message: Record<string, unknown>, requestId: string): ClaudeMessage {
+  const { limit } = message;
+  if (
+    limit !== undefined &&
+    (!Number.isSafeInteger(limit) || (limit as number) < 1 || (limit as number) > MAX_LIVE_LISTED)
+  ) {
+    throw new ProtocolError(`Reading live values asks for 1 to ${MAX_LIVE_LISTED} of them.`);
+  }
+  return {
+    type: 'live/list',
+    requestId,
+    ...readLiveSelection(message, 'Reading'),
+    ...(limit === undefined ? {} : { limit: limit as number }),
+  };
+}
+
+/** The targets and attributes a message about live values names, each list when given. */
+function readLiveSelection(
+  message: Record<string, unknown>,
+  doing: 'Clearing' | 'Reading',
+): { targets?: Id[]; attributes?: string[] } {
   const { targets, attributes } = message;
   if (
     targets !== undefined &&
     (!Array.isArray(targets) || targets.length > MAX_LIVE_CLEAR || !targets.every(isId))
   ) {
-    throw new ProtocolError(`Clearing live values names at most ${MAX_LIVE_CLEAR} targets, by id.`);
+    throw new ProtocolError(`${doing} live values names at most ${MAX_LIVE_CLEAR} targets, by id.`);
   }
   if (
     attributes !== undefined &&
@@ -263,16 +320,57 @@ function readLiveClear(message: Record<string, unknown>, requestId: string): Cla
       !attributes.every(isLiveAttributeName))
   ) {
     throw new ProtocolError(
-      `Clearing live values names at most ${MAX_LIVE_CLEAR} attributes, by name.`,
+      `${doing} live values names at most ${MAX_LIVE_CLEAR} attributes, by name.`,
     );
   }
   return {
-    type: 'live/clear',
-    requestId,
     ...(targets === undefined ? {} : { targets: [...targets] }),
     ...(attributes === undefined ? {} : { attributes: [...attributes] }),
-    from: readSenderKind(message.from, true),
   };
+}
+
+/** Reads the answer to `live/list` strictly: each value rebuilt from its parts only (ADR 0063). */
+function readLiveListed(message: Record<string, unknown>): LiveListedMessage {
+  const requestId = requestIdOf(message);
+  const { values, total, at, summary } = message;
+  if (requestId === undefined || !isCount(total) || !isCount(at)) {
+    throw new ProtocolError('The answer about live values is not valid.');
+  }
+  let read: LiveValue[];
+  try {
+    read = readLiveValuesMessage({ values, removed: [] }).values;
+  } catch (error) {
+    if (error instanceof LiveProtocolProblem) throw new ProtocolError(error.message);
+    throw error;
+  }
+  const answer: LiveListedMessage = { type: 'live/listed', requestId, values: read, total, at };
+  if (summary !== undefined) answer.summary = readLiveSummary(summary);
+  return answer;
+}
+
+function readLiveSummary(value: unknown): LiveSummary {
+  const refuse = (): never => {
+    throw new ProtocolError('The summary of live values is not valid.');
+  };
+  if (!isRecord(value)) return refuse();
+  const { targets, stale, attributes, otherAttributes } = value;
+  if (!isCount(targets) || !isCount(stale) || !Array.isArray(attributes)) return refuse();
+  if (otherAttributes !== undefined && !isCount(otherAttributes)) return refuse();
+  const counts: LiveAttributeCount[] = attributes.map((each: unknown) => {
+    if (!isRecord(each) || !isLiveAttributeName(each.attribute)) return refuse();
+    if (!isCount(each.values) || !isCount(each.stale)) return refuse();
+    return { attribute: each.attribute, values: each.values, stale: each.stale };
+  });
+  return {
+    targets,
+    stale,
+    attributes: counts,
+    ...(otherAttributes === undefined ? {} : { otherAttributes }),
+  };
+}
+
+function isCount(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 0;
 }
 
 /** The request id of a message as text, when it has a valid one, even if the rest is not valid. */

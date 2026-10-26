@@ -84,6 +84,7 @@ describe('decodeServerMessage', () => {
       type: 'guidance',
       guidance: { kind: 'playback', scenario: 'request', action: 'go-to-step', step: 2 },
     },
+    { type: 'guidance', guidance: { kind: 'tour', tour: 'checkout', step: 1 } },
     {
       type: 'project/changed',
       operations: [{ op: 'set-project', project: project.project }],
@@ -343,6 +344,35 @@ describe('readGuidance for laying out the open view', () => {
       },
     ],
     ['a view that is not an id', { kind: 'layout', view: 3 }],
+  ])('refuses %s', (_case, value) => {
+    expect(() => readGuidance(value)).toThrow(ProtocolError);
+  });
+});
+
+describe('readGuidance for playing a tour', () => {
+  it('reads a tour played from its first step, or from a step by its index, and nothing else', () => {
+    expect(readGuidance({ kind: 'tour', tour: 't', view: 'v', targets: ['a'] })).toEqual({
+      kind: 'tour',
+      tour: 't',
+    });
+    expect(readGuidance({ kind: 'tour', tour: 't', step: 0 })).toEqual({
+      kind: 'tour',
+      tour: 't',
+      step: 0,
+    });
+    expect(readGuidance({ kind: 'tour', tour: 't', step: 4 })).toEqual({
+      kind: 'tour',
+      tour: 't',
+      step: 4,
+    });
+  });
+
+  it.each([
+    ['no tour', { kind: 'tour' }],
+    ['a tour that is not an id', { kind: 'tour', tour: '' }],
+    ['a step before the first', { kind: 'tour', tour: 't', step: -1 }],
+    ['half a step', { kind: 'tour', tour: 't', step: 0.5 }],
+    ['a step that is not a number', { kind: 'tour', tour: 't', step: '2' }],
   ])('refuses %s', (_case, value) => {
     expect(() => readGuidance(value)).toThrow(ProtocolError);
   });

@@ -87,5 +87,15 @@ M11's tour build (W38) settled these.
   - Take the canvas gives a step the view state as it is now; Show goes to a step without full screen.
   - Captions and notes are sent when the person leaves their field.
   - Each edit is one `update-tour`, which the history names by what it did: "Add a step to the tour", "Delete a step of the tour", "Reorder the steps of the tour", or "Edit the tour".
-- **Claude's tools.** `read_tour`, `create_tour`, `add_tour_step`, `update_tour_step` (which also moves a step), `remove_tour_step`, `update_tour` and `delete_tour`, each call one undoable action of Claude's; a step's view state is given as `get_view_address` takes one. `get_project` lists the tours with their broken steps. Claude cannot play a tour in the app yet: it opens a step's view state with `open_app`.
+- **Claude's tools.** `read_tour`, `create_tour`, `add_tour_step`, `update_tour_step` (which also moves a step), `remove_tour_step`, `update_tour` and `delete_tour`, each call one undoable action of Claude's; a step's view state is given as `get_view_address` takes one. `get_project` lists the tours with their broken steps. Claude cannot play a tour in the app yet: it opens a step's view state with `open_app` (it can since W45, below).
 - **The read-only page.** The page's data holds the project's tours, checked as a project's are, and never its threads of comments (ADR 0059). Its Tours tool lists them and plays one full screen with the app's stage, keys and moves (`TourStage` and `useTourPlayback`, which know nothing of the live editor), while the page's header, panels and bars hide.
+
+<!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
+
+- 2026-10-25 (W45): **Claude plays a tour in the app (`play_tour`).**
+  - **The guidance.** `play_tour` sends `{ kind: "tour", tour, step? }`, where `step` is the index of the step it plays from, from 0, and its first when left out. Protocol 6 carries it beside the other guidance without a new version, as W42's `layout` did, since no version has shipped since 6 began.
+  - **The tool** takes the tour, and a step by its id or its number from 1, as the other tour tools do. It refuses a tour or a step the project does not have, and a tour of no steps. It answers how many open apps it reached and the step it plays from; with none, it says that nothing plays and that `open_app` opens one.
+  - **Each app plays it with the tours' own playback,** the shell's tours host and its player, which `TourPlaybackLayer` shows, as the tours panel's Play does: full screen, from where the tab is, which the tab goes back to when the tour ends. A tour the app does not have is ignored.
+  - **The tour is the person's from then on.** The keys move through it and Escape ends it, as always. Claude cannot move it on or end it, and `clear_guidance` does not end it; a new `play_tour` plays it again from its step.
+  - **Claude's marks, move and caption go** when a tour plays, since its stage shows its own caption card and marks (the `tour` emphasis source); the filters, focus and scenario playback Claude asked for stay as they were.
+  - **Nothing is recorded:** the guidance changes no file and no history, and playing changes nothing, as this ADR says.

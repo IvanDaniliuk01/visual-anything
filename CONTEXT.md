@@ -262,7 +262,7 @@ A point a relation's route passes through, set by hand in a view, relative to th
 _Avoid_: waypoint, control point, vertex, elbow
 
 **Guidance**:
-The marks and moves Claude makes live on the open view while it explains: highlighting shapes, focusing on some and dimming the rest, moving the canvas to one, showing a caption, filtering or focusing the view as a person would, opening, playing and stepping through a scenario, and asking for a layout. Guidance itself never changes the model, a view file or the history, shows only while the app is open, and the person can end it; a layout it asks for is run by the app and recorded as the app records any layout, as the person's action (ADR 0029). What a collapsed container hides is marked through the container or the aggregated relation that shows it.
+The marks and moves Claude makes live on the open view while it explains: highlighting shapes, focusing on some and dimming the rest, moving the canvas to one, showing a caption, filtering or focusing the view as a person would, opening, playing and stepping through a scenario, asking for a layout, and playing a tour full screen, which is the person's to watch and end from then on. Guidance itself never changes the model, a view file or the history, shows only while the app is open, and the person can end it; a layout it asks for is run by the app and recorded as the app records any layout, as the person's action (ADR 0029). What a collapsed container hides is marked through the container or the aggregated relation that shows it.
 _Avoid_: spotlight
 
 **Caption**:

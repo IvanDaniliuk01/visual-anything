@@ -54,7 +54,7 @@ import {
   tool,
   withoutUndefined,
 } from './kit';
-import { LIVE_TOOLS } from './live-tools';
+import { LIVE_TOOLS, LIVE_VALUES_BESIDE, besideAttributes, liveBeside } from './live-tools';
 import { RECIPES_IN_BRIEF } from './recipes';
 import { SCENARIO_TOOLS } from './scenario-tools';
 import { SCOPE_TOOLS } from './scope-tools';
@@ -178,7 +178,7 @@ Example: { "package": "systems" }`,
 const findElementsTool = tool({
   name: 'find_elements',
   title: 'Find elements',
-  description: `Finds elements by component, attribute, external identifier, container or name. Every filter given must hold. A component matches the elements created from it and from components deriving from it, unless exactComponent. An attribute named id:<scheme>, as id:uberon, finds the elements with an external identifier in that scheme, and that identifier when equals gives it. A container finds what sits directly inside it, or at any depth with deep; World's id finds what sits directly in World. Results come in model order, ${MAX_RESULTS} at most per call: page with offset.
+  description: `Finds elements by component, attribute, external identifier, container or name. Every filter given must hold. A component matches the elements created from it and from components deriving from it, unless exactComponent. An attribute named id:<scheme>, as id:uberon, finds the elements with an external identifier in that scheme, and that identifier when equals gives it. A container finds what sits directly inside it, or at any depth with deep; World's id finds what sits directly in World. Results come in model order, ${MAX_RESULTS} at most per call: page with offset. The attribute filter matches stored values only. ${LIVE_VALUES_BESIDE}
 
 Example: { "component": "systems.service", "container": "clinic-booking", "deep": true }
 Example: { "attribute": { "name": "owner", "equals": "Scheduling team" } }
@@ -201,19 +201,27 @@ Example: { "attribute": { "name": "id:uberon", "equals": "UBERON:0002135" } }`,
   hints: READ,
   run: async (args, program) => {
     const { attribute, ...rest } = args;
-    return ok(
-      findElements(await program.project(), {
-        ...withoutUndefined(rest),
-        ...(attribute === undefined
-          ? {}
-          : {
-              attribute: {
-                name: attribute.name,
-                ...(attribute.equals === undefined ? {} : { equals: attribute.equals as never }),
-              },
-            }),
-      }),
+    const found = findElements(await program.project(), {
+      ...withoutUndefined(rest),
+      ...(attribute === undefined
+        ? {}
+        : {
+            attribute: {
+              name: attribute.name,
+              ...(attribute.equals === undefined ? {} : { equals: attribute.equals as never }),
+            },
+          }),
+    });
+    // The live values over what it found, beside the stored attributes (ADR 0057).
+    const live = await liveBeside(
+      program,
+      found.elements.map((each) => each.id),
     );
+    return ok({
+      ...found,
+      elements: found.elements.map((each) => besideAttributes(each, live.of.get(each.id))),
+      ...(live.cut === undefined ? {} : { liveValuesCut: live.cut }),
+    });
   },
 });
 
@@ -241,14 +249,20 @@ Example: { "relationType": "systems.writes-to", "to": "appointments-db" }`,
 const getItem = tool({
   name: 'get_item',
   title: 'Read an element or a relation',
-  description: `Reads one element or relation by id, with everything around it. For an element: its component, attributes and the definitions of the attributes it can have, its own appearance, its containers (with the nesting relation that places it in each), its contents, the relations from and to it, and the views that place it. For a relation: its type, ends, attributes, the relations that end on it, and the scenario steps that use it.
+  description: `Reads one element or relation by id, with everything around it. For an element: its component, attributes and the definitions of the attributes it can have, its own appearance, its containers (with the nesting relation that places it in each), its contents, the relations from and to it, and the views that place it. For a relation: its type, ends, attributes, the relations that end on it, and the scenario steps that use it. ${LIVE_VALUES_BESIDE}
 
 Example: { "id": "booking-agent" }`,
   input: { id: id() },
   hints: READ,
   run: async (args, program) => {
     const item = describeItem(await program.project(), args.id);
-    return item === undefined ? fail(`There is no element or relation "${args.id}".`) : ok(item);
+    if (item === undefined) return fail(`There is no element or relation "${args.id}".`);
+    // Its live values, beside its stored attributes (ADR 0057).
+    const live = await liveBeside(program, [args.id]);
+    return ok({
+      ...besideAttributes(item, live.of.get(args.id)),
+      ...(live.cut === undefined ? {} : { liveValuesCut: live.cut }),
+    });
   },
 });
 

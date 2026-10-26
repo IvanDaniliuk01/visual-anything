@@ -140,3 +140,38 @@ describe('Claude’s playback', () => {
     expect(within(panel()).getByRole('list', { name: 'Scenarios of the project' })).toBeVisible();
   });
 });
+
+describe('Claude’s tour', () => {
+  const TOUR = 'how-booking-works';
+  const shellOf = () => document.querySelector('.shell');
+
+  it('plays full screen from the step Claude names, with the tour’s own playback, until Escape', () => {
+    const shell = renderShell({ tour: { tour: TOUR, step: 1, request: 1 } });
+    expect(shellOf()).toHaveClass('tour-playing');
+    expect(screen.getByRole('article')).toHaveTextContent('The booking agent');
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Step 2 of 3');
+    // The person moves through it by keys, as through any tour.
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+    expect(screen.getByRole('article')).toHaveTextContent('One request, step by step');
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(screen.queryByRole('article')).toBeNull();
+    expect(shellOf()).not.toHaveClass('tour-playing');
+    // The same request does not start it again once the person ended it.
+    shell.rerender({ tour: { tour: TOUR, step: 1, request: 1 }, caption: 'Here.' });
+    expect(screen.queryByRole('article')).toBeNull();
+  });
+
+  it('plays from the first step when Claude names none, and again on a new request', () => {
+    const shell = renderShell({ tour: { tour: TOUR, request: 1 } });
+    expect(screen.getByRole('article')).toHaveTextContent('Clinic booking');
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    shell.rerender({ tour: { tour: TOUR, step: 2, request: 2 } });
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Step 3 of 3');
+  });
+
+  it('ignores a tour the project does not have', () => {
+    renderShell({ tour: { tour: 'nothing', request: 1 } });
+    expect(shellOf()).not.toHaveClass('tour-playing');
+    expect(screen.queryByRole('article')).toBeNull();
+  });
+});
