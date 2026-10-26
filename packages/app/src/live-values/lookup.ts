@@ -2,8 +2,8 @@
  * The app's attribute lookup (ADR 0057, ADR 0063): how every attribute of an element or a relation
  * reads in this tab, a live value over a computed one, a computed one over the stored one, the stored
  * one over its definition's default, each with where it comes from. The inspector, the detail on the
- * canvas, overlays and filters all read attributes through it, so that each shows the same value
- * with the same mark.
+ * canvas, overlays, the element list and filters all read attributes through it, so that each shows
+ * the same value with the same mark.
  *
  * One lookup stands for one moment: a new one is made when the live values or what package code
  * computed change, so that its identity says when to read again.
@@ -24,6 +24,7 @@ export type Attributed =
   { kind: 'element'; element: Element } | { kind: 'relation'; relation: Relation };
 
 const NO_COMPUTED: ReadonlyMap<Id, ElementAnswers> = new Map();
+const NOTHING_CHANGED: ReadonlySet<Id> = new Set();
 
 export class AttributeLookup {
   private readonly computedByTarget = new Map<Id, ReadonlyMap<string, ComputedReading>>();
@@ -40,14 +41,41 @@ export class AttributeLookup {
     return this.live.now;
   }
 
-  /** Whether a target has a value from outside the model: live or computed. */
-  overrides(target: Id): boolean {
-    return this.live.targets.has(target) || (this.computed.get(target)?.attributes.length ?? 0) > 0;
+  /**
+   * The targets that may read otherwise here than through `before`: those whose live values the
+   * live values book says changed since, and those package code answered otherwise for. Undefined
+   * when it cannot tell, and what reads them must read everything again.
+   */
+  changedSince(before: AttributeLookup): ReadonlySet<Id> | undefined {
+    if (before === this) return NOTHING_CHANGED;
+    const live =
+      before.live === this.live ? NOTHING_CHANGED : this.live.changedSince?.(before.live);
+    if (live === undefined || before.computed === this.computed) return live;
+    const changed = new Set(live);
+    for (const [target, answers] of this.computed) {
+      if (before.computed.get(target) !== answers) changed.add(target);
+    }
+    for (const target of before.computed.keys()) {
+      if (!this.computed.has(target)) changed.add(target);
+    }
+    return changed;
   }
 
-  /** The live values of a target, by attribute. */
+  /** Whether a target has a value from outside the model: live or computed. */
+  overrides(target: Id): boolean {
+    return (
+      this.live.of(target) !== undefined || (this.computed.get(target)?.attributes.length ?? 0) > 0
+    );
+  }
+
+  /** The live values of a target, by attribute: the same map while they do not change. */
   liveOf(target: Id): ReadonlyMap<string, LiveValue> | undefined {
     return this.live.of(target);
+  }
+
+  /** What package code answered for a target: the same object while it does not answer anew. */
+  answersOf(target: Id): ElementAnswers | undefined {
+    return this.computed.get(target);
   }
 
   /** What package code computed for a target, by attribute, the nearest package's first. */

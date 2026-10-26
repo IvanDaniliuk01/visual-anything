@@ -1,7 +1,7 @@
 /**
  * What the shell does with live values (ADR 0057): it makes the attribute lookup of each moment,
  * from the live values the program sent and what package code computed, and the scene the canvas
- * draws with them in the details of shapes.
+ * draws with them in the details of shapes and in the view's overlays.
  */
 import type { Definitions, ProjectSnapshot } from '@visual-anything/core';
 import { useContext, useEffect, useMemo, useSyncExternalStore } from 'react';
@@ -12,7 +12,7 @@ import type { EmphasisStore } from '../editor/emphasis';
 import { useT } from '../i18n';
 import { LiveContext } from '../live/context';
 import { NO_LIVE_VALUES, type LiveView } from './book';
-import { withLiveDetails } from './details';
+import { liveSceneOf } from './details';
 import { AttributeLookup } from './lookup';
 
 const NONE = (): (() => void) => () => {};
@@ -28,8 +28,9 @@ export function useLookup(code: CodeStore): AttributeLookup {
 }
 
 /**
- * The scene the canvas draws: the view's scene with the lookup's values in the details of shapes.
- * What the canvas hides of it is what it hides of the view's scene, which the keys skip.
+ * The scene the canvas draws: the view's scene with the lookup's values in the details of shapes and
+ * in its overlays. What the canvas hides of it is what it hides of the view's scene, which the keys
+ * skip.
  */
 export function useLiveScene(
   scene: Scene | undefined,
@@ -40,8 +41,7 @@ export function useLiveScene(
 ): Scene | undefined {
   const t = useT();
   const live = useMemo(
-    () =>
-      scene === undefined ? undefined : withLiveDetails(scene, project, definitions, lookup, t),
+    () => (scene === undefined ? undefined : liveSceneOf(scene, project, definitions, lookup, t)),
     [scene, project, definitions, lookup, t],
   );
   useEffect(() => {

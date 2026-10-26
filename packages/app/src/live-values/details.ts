@@ -1,18 +1,20 @@
 /**
- * Live and computed values in the detail shapes write (ADR 0057, ADR 0063): the canvas writes an
+ * Live and computed values on the canvas (ADR 0057, ADR 0063, ADR 0055): the canvas writes an
  * attribute as the lookup reads it, with its mark, so that a value from outside is never taken for a
- * stored one. A live value is marked "●" while fresh; once stale it fades to "○" and says how old it
- * is, "○ 95 ms (3 min)"; a computed value is marked "ƒ".
+ * stored one, and the view's overlays color, size, mark and fade shapes by the values the lookup
+ * reads. A live value is marked "●" while fresh; once stale it keeps "○" and says how old it is,
+ * "○ 95 ms (3 min)"; a computed value is marked "ƒ".
  *
  * The scene the view builds stays as it is: this makes, for the canvas only, the scene with the
- * shapes whose detail reads otherwise, each a new shape in the same place, and every other shape the
- * same object, so that the renderer draws again only those. Each shape's detail is worked out again
- * only when what it reads changed.
+ * shapes and lines that read otherwise, each a new object in the same place, but for what an
+ * overlay's size moves, and every other one the same object, so that the renderer draws again only
+ * those (`sceneWithValues`). Each shape's detail is worked out again only when what it reads changed.
  */
 import {
   detailParts,
   liveAge,
   startedTypesByElement,
+  type AttributeReading,
   type Definitions,
   type LiveValue,
   type ProjectSnapshot,
@@ -20,7 +22,7 @@ import {
 import { modelIndexOf } from '@visual-anything/core';
 import type { Element, Id, Relation } from '@visual-anything/schema';
 import { fitHeader, fitRow } from '../canvas/fit';
-import { withSameShapes, type ElementShape, type Scene } from '../canvas/scene';
+import { sceneWithValues, type ElementShape, type Scene, type SceneValues } from '../canvas/scene';
 import type { Translator } from '../i18n';
 import type { AttributeLookup } from './lookup';
 import { shortAge } from './words';
@@ -48,16 +50,14 @@ const worked = new Map<Id, Worked>();
 const MOST_WORKED = 50_000;
 /** The shape last made from each shape of a scene, by its detail. */
 const made = new WeakMap<ElementShape, { detail: string; shape: ElementShape }>();
-/** The scene last made from each scene, by the shapes it holds. */
-const madeScenes = new WeakMap<Scene, { shapes: readonly ElementShape[]; scene: Scene }>();
 const startedMaps = new WeakMap<readonly Relation[], Map<Id, Set<Id>>>();
 const NO_TYPES: ReadonlySet<Id> = new Set();
 
 /**
- * The scene as the canvas draws it with the lookup's values in details: the same scene while no shape
- * reads otherwise.
+ * The scene as the canvas draws it with the lookup's values in details and in overlays: the same
+ * scene while nothing reads otherwise.
  */
-export function withLiveDetails(
+export function liveSceneOf(
   scene: Scene,
   project: ProjectSnapshot,
   definitions: Definitions,
@@ -70,23 +70,36 @@ export function withLiveDetails(
     started = startedTypesByElement(project.model.relations);
     startedMaps.set(project.model.relations, started);
   }
-  let shapes: ElementShape[] | undefined;
-  scene.shapes.forEach((shape, at) => {
-    if (!lookup.overrides(shape.element)) return;
-    const element = index.element(shape.element);
-    if (element === undefined) return;
-    const detail = detailOf(element, definitions, lookup, t, started.get(element.id) ?? NO_TYPES);
-    const drawn = shapeWith(shape, detail);
-    if (drawn === shape) return;
-    shapes ??= [...scene.shapes];
-    shapes[at] = drawn;
-  });
-  if (shapes === undefined) return scene;
-  const before = madeScenes.get(scene);
-  if (before !== undefined && sameShapes(before.shapes, shapes)) return before.scene;
-  const live = withSameShapes(scene, shapes);
-  madeScenes.set(scene, { shapes, scene: live });
-  return live;
+  const values: LiveSceneValues = {
+    lookup,
+    definitions,
+    translator: t,
+    overlays: lookup,
+    detailed: (shape) => {
+      if (!lookup.overrides(shape.element)) return shape;
+      const element = index.element(shape.element);
+      if (element === undefined) return shape;
+      const detail = detailOf(element, definitions, lookup, t, started.get(element.id) ?? NO_TYPES);
+      return shapeWith(shape, detail);
+    },
+    // What may read otherwise: what the lookup says changed, while the words and definitions are
+    // the same; otherwise everything.
+    changedSince: (before) => {
+      const last = before as Partial<LiveSceneValues>;
+      if (last.lookup === undefined || last.translator !== t || last.definitions !== definitions) {
+        return undefined;
+      }
+      return lookup.changedSince(last.lookup);
+    },
+  };
+  return sceneWithValues(scene, project, values);
+}
+
+/** The values the canvas's scene is made with, and what they come from. */
+interface LiveSceneValues extends SceneValues {
+  lookup: AttributeLookup;
+  definitions: Definitions;
+  translator: Translator;
 }
 
 /** An element's detail as the lookup reads its attributes, with the marks of what comes from outside. */
@@ -113,25 +126,45 @@ function detailOf(
     return known.detail;
   }
   const item = { kind: 'element', element } as const;
-  const parts = detailParts(element, definitions, started, (name) =>
-    lookup.value(item, name, definitions),
-  );
+  // Each attribute is read once, for the parts and for their marks.
+  const names: string[] = [];
+  const readings: (AttributeReading | undefined)[] = [];
+  const readingOf = (name: string): AttributeReading | undefined => {
+    const at = names.indexOf(name);
+    if (at >= 0) return readings[at];
+    const reading = lookup.read(item, name, definitions);
+    names.push(name);
+    readings.push(reading);
+    return reading;
+  };
+  const parts = detailParts(element, definitions, started, (name) => readingOf(name)?.value);
   const detail = parts
     .map((part) => {
       if (part.kind === 'component-name') return t.definition(element.component, part.text);
       if (part.kind !== 'attribute') return part.text;
-      const reading = lookup.read(item, part.attribute, definitions);
-      if (reading?.origin === 'computed') return `${COMPUTED_MARK} ${part.text}`;
-      if (reading?.origin !== 'live' || reading.live === undefined) return part.text;
-      const age = liveAge(reading.live, lookup.now);
-      return age.stale
-        ? `${STALE_MARK} ${part.text} (${shortAge(t, age.age)})`
-        : `${LIVE_MARK} ${part.text}`;
+      return markedText(t, readingOf(part.attribute), part.text, lookup.now);
     })
     .join(' · ');
   if (worked.size >= MOST_WORKED) worked.clear();
   worked.set(element.id, { element, live, computed, definitions, translator: t, ages, detail });
   return detail;
+}
+
+/**
+ * A value's text with the mark of where it comes from, as the canvas and the element list write it:
+ * "● 95 ms" while live and fresh, "○ 95 ms (3 min)" once stale, "ƒ gold" when computed, and as it is
+ * when stored.
+ */
+export function markedText(
+  t: Translator,
+  reading: AttributeReading | undefined,
+  text: string,
+  now: number,
+): string {
+  if (reading?.origin === 'computed') return `${COMPUTED_MARK} ${text}`;
+  if (reading?.origin !== 'live' || reading.live === undefined) return text;
+  const age = liveAge(reading.live, now);
+  return age.stale ? `${STALE_MARK} ${text} (${shortAge(t, age.age)})` : `${LIVE_MARK} ${text}`;
 }
 
 /** How each of a target's live values reads by the clock: nothing while fresh, its age once stale. */
@@ -177,8 +210,4 @@ function shapeWith(shape: ElementShape, detail: string): ElementShape {
   }
   made.set(shape, { detail, shape: drawn });
   return drawn;
-}
-
-function sameShapes(a: readonly ElementShape[], b: readonly ElementShape[]): boolean {
-  return a.length === b.length && a.every((shape, at) => shape === b[at]);
 }

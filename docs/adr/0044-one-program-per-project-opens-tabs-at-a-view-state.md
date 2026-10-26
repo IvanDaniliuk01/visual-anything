@@ -34,3 +34,13 @@ We chose this because one program must own a project's files and history (ADR-00
 - The command line attaches to the Claude endpoint, so the running program counts it as one more connection for a moment, as it counts Claude.
 - A full address from `link_to` names this run's port; once the program starts again elsewhere, its fragment still opens the same view state from a tab of the new run.
 - The CLI's usage, the MCP instructions and the tool descriptions say this.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
+
+- **2026-10-25 (W44): a view state carries the time range,** as it carries the filters it belongs to (ADR 0025's clarification of W37).
+  - **The value.** The core's `ViewFilters` gains `range`, a `ViewTimeRange`: what it is on (`elements` or `relations`), its `attribute`, the `until` attribute when it is on periods, how its values read (`kind`: `number`, `date` or `time`), and its two ends `from` and `to` on that axis, both included and kept in the order given. Dates are milliseconds since 1970 in UTC and times of day seconds since midnight, as the app's range keeps them, so a view state says exactly the range the strip shows. `checkViewState` takes it: an attribute of 1 to 200 characters that can be percent-encoded, a kind of the three, and two finite numbers, a negative zero taken as zero; filters that hold only a range are filters that hide something.
+  - **The address.** The range is the last clause of `filters=`: `range:<of>,<attribute>,<kind>,<from>,<to>[,<until>]`, its attributes encoded as a condition's are, its ends written as the shortest digits that read back as the same number, a large one's exponent without its `+`, which an address reads as a space. An address without it reads as before; one with a malformed range is refused, as any malformed part is, with what is wrong.
+  - **Where it goes.** The tab's address and Copy address carry the range of the open view; while it plays, the address follows it as it follows any change, a moment after it last moved. A range the address cannot hold, as on an attribute longer than 200 characters, is left out, and the other filters kept. The Claude endpoint's `open-app`, and so the launch address, carry it; `open_app`, `link_to` and the tour tools take it as `filters.range`. Applying a view state sets the range with the other filters, and the strip under the toolbar shows it. `filter_view` and the read tools are left to the task after W42.
+  - **Tour steps** keep it too (ADR 0058's clarification of W44).

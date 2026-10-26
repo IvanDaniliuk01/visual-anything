@@ -19,6 +19,10 @@ import { buildScene } from '../canvas/scene';
 import type { Follower } from '../destinations/follower';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { EMPTY_SELECTION, selectionOf, type Selection } from '../editor/selection';
+import type { ElementAnswers } from '../code/messages';
+import type { LiveView } from '../live-values/book';
+import { AttributeLookupContext } from '../live-values/context';
+import { AttributeLookup, STORED_ONLY } from '../live-values/lookup';
 import { loadSample } from '../test/sample';
 import { ElementList } from './ElementList';
 
@@ -57,7 +61,17 @@ interface Handle {
   select: (selection: Selection) => void;
 }
 
-function Harness({ run, initial, ref }: { run: Run; initial: ProjectSnapshot; ref: Ref<Handle> }) {
+function Harness({
+  run,
+  initial,
+  ref,
+  lookup = STORED_ONLY,
+}: {
+  run: Run;
+  initial: ProjectSnapshot;
+  ref: Ref<Handle>;
+  lookup?: AttributeLookup;
+}) {
   const [project, setProject] = useState(initial);
   const [selection, setSelection] = useState<Selection>(EMPTY_SELECTION);
   useImperativeHandle(ref, () => ({ select: setSelection }), []);
@@ -89,12 +103,14 @@ function Harness({ run, initial, ref }: { run: Run; initial: ProjectSnapshot; re
   };
   return (
     <EditorContext.Provider value={editor}>
-      <ElementList onClose={() => {}} />
+      <AttributeLookupContext value={lookup}>
+        <ElementList onClose={() => {}} />
+      </AttributeLookupContext>
     </EditorContext.Provider>
   );
 }
 
-function renderList() {
+function renderList(lookup?: AttributeLookup) {
   const handle = createRef<Handle>();
   const run: Run = {
     sent: [],
@@ -103,7 +119,14 @@ function renderList() {
     follow: vi.fn<Follower['follow']>(),
     select: (next) => act(() => handle.current?.select(next)),
   };
-  render(<Harness run={run} initial={linkedSample()} ref={handle} />);
+  render(
+    <Harness
+      run={run}
+      initial={linkedSample()}
+      ref={handle}
+      {...(lookup === undefined ? {} : { lookup })}
+    />,
+  );
   const grid = screen.getByRole('grid', { name: 'Element list' });
   return { run, grid };
 }
@@ -225,6 +248,62 @@ describe('the element list', () => {
     });
     const grid = screen.getByRole('grid', { name: 'Element list' });
     expect(names(grid)).toEqual(['Patient']);
+  });
+
+  it('shows live and computed values with the canvas’s marks, sorts by them, and edits what is stored', () => {
+    const db = new Map([
+      [
+        'sizeGb',
+        {
+          target: 'appointments-db',
+          attribute: 'sizeGb',
+          value: 30,
+          sender: { kind: 'claude' as const },
+          arrivedAt: 10_000,
+          freshFor: 60_000,
+        },
+      ],
+    ]);
+    const live: LiveView = {
+      version: 1,
+      now: 20_000,
+      of: (target) => (target === 'appointments-db' ? db : undefined),
+      targets: new Set(['appointments-db']),
+      size: 1,
+    };
+    const computed: ReadonlyMap<string, ElementAnswers> = new Map([
+      [
+        'reminder-service',
+        {
+          element: 'reminder-service',
+          attributes: [{ name: 'sizeGb', value: 7, package: 'clinic' }],
+          problems: [],
+        },
+      ],
+    ]);
+    const { run, grid } = renderList(new AttributeLookup(live, computed));
+    const header = within(grid).getAllByRole('columnheader');
+    const size = header.findIndex((each) => each.textContent === 'sizeGb');
+    const cellOf = (name: RegExp) =>
+      within(within(grid).getByRole('row', { name })).getAllByRole('gridcell')[size] as HTMLElement;
+    expect(cellOf(/Appointments DB/).textContent).toBe('● 30');
+    expect(cellOf(/Appointments DB/).title).toBe('A live value from Claude, never saved.');
+    expect(cellOf(/Appointments DB/).className).toContain('element-list-live');
+    expect(cellOf(/Reminder service/).textContent).toBe('ƒ 7');
+    expect(cellOf(/Reminder service/).title).toMatch(
+      /^Computed by the code of “.+”, and never saved\.$/,
+    );
+    expect(cellOf(/Appointments API/).textContent).toBe('3');
+    fireEvent.click(within(grid).getByRole('button', { name: 'sizeGb' }));
+    expect(names(grid).slice(0, 3)).toEqual([
+      'Appointments API',
+      'Reminder service',
+      'Appointments DB',
+    ]);
+    // Editing a cell edits the stored value under the live one.
+    fireEvent.doubleClick(cellOf(/Appointments DB/));
+    expect(within(grid).getByRole('textbox')).toHaveValue('20');
+    expect(run.sent).toEqual([]);
   });
 
   it('follows a destination in a cell with Alt+Enter', () => {

@@ -19,6 +19,12 @@
  *
  * Each shape and line equal to one made before is that same object, so that what draws, indexes and
  * lists the scene tells what changed by identity; without overlays or levels it is the shape itself.
+ *
+ * The view's own scene reads attributes as stored. The canvas's reads them through the app's
+ * attribute lookup (`values`, ADR 0057): live and computed values over stored ones. Its caches are
+ * kept apart, and keyed by the values the overlays read, so that a live value changes a shape or a
+ * line only when an overlay reads it and what it reads changed; a shape whose overlays read what is
+ * stored is the view scene's own object.
  */
 import {
   CANVAS_BACKGROUNDS,
@@ -27,7 +33,9 @@ import {
   attributeValue,
   contrastRatio,
   fadedColor,
+  overlayApplies,
   overlayLookOf,
+  overlayValue,
   overlaysApply,
   relationTypeOrRelatesTo,
   type Definitions,
@@ -43,6 +51,7 @@ import type {
   Relation,
 } from '@visual-anything/schema';
 import { ESSENCE_ID } from '@visual-anything/schema';
+import type { Attributed } from '../../live-values/lookup';
 import { fitHeader, fitRow } from '../fit';
 import { arrowheadAt, type Point, type Rect } from '../geometry';
 import type { ElementShape, RelationLine } from '../scene';
@@ -53,6 +62,21 @@ export function laidOutRect(shape: { rect: Rect; laidOut?: Rect }): Rect {
   return shape.laidOut ?? shape.rect;
 }
 
+/**
+ * How overlays read attributes when not as stored: the app's attribute lookup (ADR 0057), live
+ * values over computed ones over stored ones.
+ */
+export interface OverlayValues {
+  /** Whether a target has values from outside the model; when not, overlays read what is stored. */
+  overrides(target: Id): boolean;
+  /** A target's live values now: the same object while they do not change. */
+  liveOf(target: Id): unknown;
+  /** What package code answered for a target now: the same object while it does not change. */
+  answersOf(target: Id): unknown;
+  /** How an attribute of an element or a relation reads. */
+  value(item: Attributed, name: string, definitions: Definitions): JsonValue | undefined;
+}
+
 /** What the pass reads besides the shapes: the view's overlays, the definitions and the model. */
 export interface DecorationInputs {
   overlays: readonly Overlay[] | undefined;
@@ -60,44 +84,83 @@ export interface DecorationInputs {
   elements: ReadonlyMap<Id, Element>;
   /** Every element, to tell whether any declares levels of its own. */
   allElements: readonly Element[];
+  /** How overlays read attributes; absent, as stored. */
+  values?: OverlayValues | undefined;
 }
 
 /** The shapes after the pass, and which of them it moved or grew, by their indexes. */
 export interface DecoratedShapes {
   shapes: ElementShape[];
+  /** The shapes as decorated, before what holds a sized shape grows: `shapes` itself while none is. */
+  pre: ElementShape[];
+  /** Whether an overlay sizes some shape. */
+  sized: boolean;
   /** The shapes whose rectangle the pass gives differs from the one `before` gave, at one index. */
   moved: number[];
   /** Whether some extent differs from the one `before` gave. */
   extentChanged: boolean;
 }
 
+/** What the pass does: whether overlays set something on elements, and whether it decorates at all. */
+export function passOf(inputs: DecorationInputs): { overlaid: boolean; decorates: boolean } {
+  const overlaid = overlaysApply(inputs.overlays, 'elements');
+  return {
+    overlaid,
+    decorates: overlaid || declaresLevels(inputs.definitions, inputs.allElements),
+  };
+}
+
+const holderLists = new WeakMap<readonly ElementShape[], Int32Array>();
+
+/**
+ * The index of the shape each shape sits in, -1 for none, by the keys: worked out once for a list of
+ * shapes, and the same for any list with the same keys at the same indexes.
+ */
+export function holdersOf(shapes: readonly ElementShape[]): Int32Array {
+  let holders = holderLists.get(shapes);
+  if (holders === undefined) {
+    holders = new Int32Array(shapes.length);
+    const byKey = new Map<string, number>();
+    shapes.forEach((shape, at) => {
+      byKey.set(shape.key, at);
+      const holderAt =
+        shape.containerShape === undefined ? undefined : byKey.get(shape.containerShape);
+      (holders as Int32Array)[at] = holderAt ?? -1;
+    });
+    holderLists.set(shapes, holders);
+  }
+  return holders;
+}
+
 /**
  * The shapes as the view's overlays and the levels of detail make them. With `before`, the decorated
- * shapes of the last build, whose shapes keep their indexes, it says which ones moved.
+ * shapes of the last build, whose shapes keep their indexes, it says which ones moved. `holders`
+ * says what each shape sits in, when it is known already.
  */
 export function decorateShapes(
   base: readonly ElementShape[],
   inputs: DecorationInputs,
   before: readonly ElementShape[] | undefined,
+  holders: Int32Array = holdersOf(base),
 ): DecoratedShapes {
-  const overlaid = overlaysApply(inputs.overlays, 'elements');
-  if (!overlaid && !declaresLevels(inputs.definitions, inputs.allElements)) {
-    return { shapes: base as ElementShape[], ...changesFrom(base, before) };
+  const { overlaid, decorates } = passOf(inputs);
+  if (!decorates) {
+    const shapes = base as ElementShape[];
+    return { shapes, pre: shapes, sized: false, ...changesFrom(base, before) };
   }
   const out: ElementShape[] = new Array<ElementShape>(base.length);
-  const byKey = new Map<string, number>();
   let sized = false;
   base.forEach((shape, at) => {
-    byKey.set(shape.key, at);
-    const holderAt =
-      shape.containerShape === undefined ? undefined : byKey.get(shape.containerShape);
-    const holder = holderAt === undefined ? undefined : out[holderAt];
+    const holderAt = holders[at] ?? -1;
+    const holder = holderAt < 0 ? undefined : out[holderAt];
     const decorated = decorateShape(shape, holder, inputs, overlaid);
     if (decorated.laidOut !== undefined) sized = true;
     out[at] = decorated;
   });
-  if (sized) growExtents(out, byKey);
-  return { shapes: out, ...changesFrom(out, before) };
+  if (!sized) return { shapes: out, pre: out, sized, ...changesFrom(out, before) };
+  const shapes = [...out];
+  growExtents(shapes, holders, inputs.values !== undefined);
+  return { shapes, pre: out, sized, ...changesFrom(shapes, before) };
 }
 
 /** Which shapes moved, and whether an extent changed, between two lists of shapes of one length. */
@@ -120,41 +183,57 @@ function changesFrom(
 /**
  * What one shape was decorated from, to give the same object for the same inputs: of what holds it,
  * only what the pass reads, its colors and its levels, so that a container whose extent alone grew
- * leaves its contents as they were.
+ * leaves its contents as they were; and the look its overlays gave it.
  */
 interface ShapeMade {
   overlays: readonly Overlay[] | undefined;
   definitions: Definitions;
   element: Element | undefined;
+  look: OverlayLook | undefined;
   holderFill: Color | undefined;
   holderDark: Color | undefined;
   holderLevels: readonly LevelOfDetail[] | undefined;
   shape: ElementShape;
 }
 
+/** The shapes the view's own scene decorated, as stored. */
 const madeShapes = new WeakMap<ElementShape, ShapeMade>();
+/** The shapes the canvas's scene decorated through the lookup, where they differ. */
+const liveShapes = new WeakMap<ElementShape, ShapeMade>();
 
-function decorateShape(
+function madeFrom(
+  known: ShapeMade | undefined,
+  inputs: DecorationInputs,
+  element: Element | undefined,
+  look: OverlayLook | undefined,
+  holder: ElementShape | undefined,
+): boolean {
+  return (
+    known !== undefined &&
+    known.overlays === inputs.overlays &&
+    known.definitions === inputs.definitions &&
+    known.element === element &&
+    sameLook(known.look, look) &&
+    known.holderFill === holder?.fill &&
+    known.holderDark === holder?.dark?.fill &&
+    known.holderLevels === holder?.levels
+  );
+}
+
+export function decorateShape(
   shape: ElementShape,
   holder: ElementShape | undefined,
   inputs: DecorationInputs,
   overlaid: boolean,
 ): ElementShape {
   const element = inputs.elements.get(shape.element);
-  const known = madeShapes.get(shape);
-  if (
-    known &&
-    known.overlays === inputs.overlays &&
-    known.definitions === inputs.definitions &&
-    known.element === element &&
-    known.holderFill === holder?.fill &&
-    known.holderDark === holder?.dark?.fill &&
-    known.holderLevels === holder?.levels
-  ) {
-    return known.shape;
-  }
-  const look =
-    overlaid && element ? elementLookOf(element, inputs.overlays, inputs.definitions) : undefined;
+  const look = overlaid && element ? lookOfElement(element, inputs) : undefined;
+  // What reads as stored is drawn as the view's own scene draws it, the same object.
+  const stored = madeShapes.get(shape);
+  if (stored && madeFrom(stored, inputs, element, look, holder)) return stored.shape;
+  const cache = inputs.values === undefined ? madeShapes : liveShapes;
+  const known = cache === madeShapes ? stored : cache.get(shape);
+  if (known && madeFrom(known, inputs, element, look, holder)) return known.shape;
   const levels =
     shape.row !== undefined
       ? holder?.levels
@@ -163,17 +242,36 @@ function decorateShape(
         : undefined;
   const made = withLook(shape, look, levels, holder, element, inputs.definitions);
   // Made again for other inputs, as after a change of definitions, it is the same if it draws alike.
-  const decorated = known && sameDecoration(known.shape, made) ? known.shape : made;
-  madeShapes.set(shape, {
+  const decorated =
+    stored && sameDecoration(stored.shape, made)
+      ? stored.shape
+      : known && sameDecoration(known.shape, made)
+        ? known.shape
+        : made;
+  cache.set(shape, {
     overlays: inputs.overlays,
     definitions: inputs.definitions,
     element,
+    look,
     holderFill: holder?.fill,
     holderDark: holder?.dark?.fill,
     holderLevels: holder?.levels,
     shape: decorated,
   });
   return decorated;
+}
+
+/** Whether two looks set the same channels to the same values. */
+function sameLook(a: OverlayLook | undefined, b: OverlayLook | undefined): boolean {
+  if (a === b) return true;
+  if (a === undefined || b === undefined) return false;
+  return (
+    a.fill === b.fill &&
+    a.stroke === b.stroke &&
+    a.size === b.size &&
+    a.badge === b.badge &&
+    a.opacity === b.opacity
+  );
 }
 
 /** Whether two decorations of one shape are alike in everything the pass changes. */
@@ -242,6 +340,166 @@ function elementLookOf(
     elementAttribute(element, name, definitions),
   );
   elementLooks.set(element, { overlays, definitions, look });
+  return look;
+}
+
+/** The look an element's overlays give it: as stored, or through the lookup when it has values from outside. */
+function lookOfElement(element: Element, inputs: DecorationInputs): OverlayLook | undefined {
+  const stored = elementLookOf(element, inputs.overlays, inputs.definitions);
+  const { values } = inputs;
+  if (values === undefined || !values.overrides(element.id)) return stored;
+  return liveLookOf(
+    liveElementLooks,
+    element,
+    element.id,
+    { kind: 'element', element },
+    'elements',
+    inputs.overlays,
+    inputs.definitions,
+    values,
+    stored,
+  );
+}
+
+/**
+ * The look a target's overlays give it through the lookup, and what it was worked out from: the
+ * target's live values and computed answers, by identity, and the values the overlays read, by
+ * `key`. A target whose values from outside changed is read again; its look is worked out again
+ * only when what its overlays read changed.
+ */
+interface LiveLook {
+  overlays: readonly Overlay[] | undefined;
+  definitions: Definitions;
+  live: unknown;
+  answers: unknown;
+  key: string;
+  look: OverlayLook | undefined;
+}
+
+const liveElementLooks = new WeakMap<Element, LiveLook>();
+const liveRelationLooks = new WeakMap<Relation, LiveLook>();
+
+function liveLookOf<T extends object>(
+  cache: WeakMap<T, LiveLook>,
+  target: T,
+  id: Id,
+  item: Attributed,
+  of: 'elements' | 'relations',
+  overlays: readonly Overlay[] | undefined,
+  definitions: Definitions,
+  values: OverlayValues,
+  stored: OverlayLook | undefined,
+): OverlayLook | undefined {
+  const live = values.liveOf(id);
+  const answers = values.answersOf(id);
+  const known = cache.get(target);
+  const sameInputs =
+    known !== undefined && known.overlays === overlays && known.definitions === definitions;
+  if (sameInputs && known.live === live && known.answers === answers) return known.look;
+  // Each attribute an overlay reads is read once, for the key and for the look.
+  const read = valuesRead(overlays, of, (name) => values.value(item, name, definitions));
+  const key = keyOf(read);
+  let look: OverlayLook | undefined;
+  if (sameInputs && known.key === key) look = known.look;
+  else {
+    look = lookByValues(overlays, of, key, read);
+    // What reads as stored is the stored look itself, so that its shape is the view scene's own.
+    if (sameLook(look, stored)) look = stored;
+  }
+  cache.set(target, { overlays, definitions, live, answers, key, look });
+  return look;
+}
+
+/** The looks the canvas's overlays gave values, by the key of the values, for each list of overlays. */
+const looksByValues = new WeakMap<readonly Overlay[], Map<string, OverlayLook | null>>();
+/** The most looks kept for one list of overlays before they are all let go. */
+const MOST_LOOKS = 10_000;
+
+/** The look overlays give these values: the same object for the same values, which recur. */
+function lookByValues(
+  overlays: readonly Overlay[] | undefined,
+  of: 'elements' | 'relations',
+  key: string,
+  read: readonly (JsonValue | undefined)[],
+): OverlayLook | undefined {
+  if (overlays === undefined) return undefined;
+  let looks = looksByValues.get(overlays);
+  if (looks === undefined) {
+    looks = new Map();
+    looksByValues.set(overlays, looks);
+  }
+  const named = `${of}:${key}`;
+  const known = looks.get(named);
+  if (known !== undefined) return known ?? undefined;
+  const look = lookFrom(overlays, of, read);
+  if (looks.size >= MOST_LOOKS) looks.clear();
+  looks.set(named, look ?? null);
+  return look;
+}
+
+/** The values the overlays that apply to things of a kind read, in their order. */
+function valuesRead(
+  overlays: readonly Overlay[] | undefined,
+  of: 'elements' | 'relations',
+  read: (name: string) => JsonValue | undefined,
+): (JsonValue | undefined)[] {
+  const found: (JsonValue | undefined)[] = [];
+  const names: string[] = [];
+  for (const overlay of overlays ?? []) {
+    if (!overlayApplies(overlay, of)) continue;
+    // Overlays of one attribute read it once.
+    const before = names.indexOf(overlay.attribute);
+    found.push(before < 0 ? read(overlay.attribute) : found[before]);
+    names.push(overlay.attribute);
+  }
+  return found;
+}
+
+/** The values overlays read, as one text: the same text for the same values. */
+function keyOf(values: readonly (JsonValue | undefined)[]): string {
+  let key = '';
+  for (const value of values) {
+    switch (typeof value) {
+      case 'undefined':
+        key += 'u;';
+        break;
+      case 'number':
+        key += `n${value};`;
+        break;
+      case 'string':
+        key += `s${value.length}:${value};`;
+        break;
+      case 'boolean':
+        key += value ? 't;' : 'f;';
+        break;
+      default:
+        key += `j${JSON.stringify(value)};`;
+    }
+  }
+  return key;
+}
+
+/**
+ * What the overlays that apply set, from the values they read in their order (`valuesRead`): each
+ * channel by the first that sets it, as the core's `overlayLookOf` gives it.
+ */
+function lookFrom(
+  overlays: readonly Overlay[] | undefined,
+  of: 'elements' | 'relations',
+  values: readonly (JsonValue | undefined)[],
+): OverlayLook | undefined {
+  let look: OverlayLook | undefined;
+  let at = 0;
+  for (const overlay of overlays ?? []) {
+    if (!overlayApplies(overlay, of)) continue;
+    const value = values[at];
+    at += 1;
+    if (look !== undefined && look[overlay.channel] !== undefined) continue;
+    const set = overlayValue(overlay, value);
+    if (set === undefined) continue;
+    look ??= {};
+    (look as Record<string, unknown>)[overlay.channel] = set;
+  }
   return look;
 }
 
@@ -413,31 +671,39 @@ function resize(
   }
 }
 
+/** The shapes grown in the view's own scene, and in the canvas's, by the shape each was grown from. */
 const grownShapes = new WeakMap<ElementShape, ElementShape>();
+const liveGrownShapes = new WeakMap<ElementShape, ElementShape>();
 
 /**
  * Grows the extent of every shape that holds one an overlay sized beyond it, so that what holds a
  * shape still holds all of it, as hit testing and the bands of drawing need. Contents come after what
  * holds them, so one pass from the last shape to the first carries each reach up; a shape grown as
- * before is the same object.
+ * before is the same object, the view's own where the view's scene grew it alike. `live` is on for
+ * the canvas's scene, which reads values through the lookup.
  */
-function growExtents(out: ElementShape[], byKey: ReadonlyMap<string, number>): void {
+export function growExtents(out: ElementShape[], holders: Int32Array, live: boolean): void {
+  const cache = live ? liveGrownShapes : grownShapes;
   const reaches = new Map<number, Rect>();
   for (let at = out.length - 1; at >= 0; at--) {
     let shape = out[at] as ElementShape;
     const reached = reaches.get(at);
     if (reached !== undefined && !within(reached, shape.extent)) {
       const extent = union(shape.extent, reached);
-      const known = grownShapes.get(shape);
-      const grown = known && sameRect(known.extent, extent) ? known : { ...shape, extent };
-      grownShapes.set(shape, grown);
+      const stored = grownShapes.get(shape);
+      let grown: ElementShape;
+      if (stored && sameRect(stored.extent, extent)) grown = stored;
+      else {
+        const known = cache.get(shape);
+        grown = known && sameRect(known.extent, extent) ? known : { ...shape, extent };
+        cache.set(shape, grown);
+      }
       out[at] = grown;
       shape = grown;
     }
     if (shape.laidOut === undefined && reached === undefined) continue;
-    const holderAt =
-      shape.containerShape === undefined ? undefined : byKey.get(shape.containerShape);
-    if (holderAt === undefined) continue;
+    const holderAt = holders[at] ?? -1;
+    if (holderAt < 0) continue;
     const holder = out[holderAt] as ElementShape;
     if (within(shape.extent, holder.extent)) continue;
     const before = reaches.get(holderAt);
@@ -476,16 +742,70 @@ export interface LineInputs {
   overlays: readonly Overlay[] | undefined;
   definitions: Definitions;
   relations: ReadonlyMap<Id, Relation>;
+  /** How overlays read attributes; absent, as stored. */
+  values?: OverlayValues | undefined;
 }
 
 interface LineMade {
   overlays: readonly Overlay[] | undefined;
   definitions: Definitions;
   relation: Relation | undefined;
+  look: OverlayLook | undefined;
   line: RelationLine;
 }
 
+/** The lines the view's own scene decorated, and those the canvas's decorated otherwise. */
 const madeLines = new WeakMap<RelationLine, LineMade>();
+const liveLines = new WeakMap<RelationLine, LineMade>();
+
+function lineMadeFrom(
+  known: LineMade | undefined,
+  inputs: LineInputs,
+  relation: Relation | undefined,
+  look: OverlayLook | undefined,
+): boolean {
+  return (
+    known !== undefined &&
+    known.overlays === inputs.overlays &&
+    known.definitions === inputs.definitions &&
+    known.relation === relation &&
+    sameLook(known.look, look)
+  );
+}
+
+const relationLooks = new WeakMap<
+  Relation,
+  {
+    overlays: readonly Overlay[] | undefined;
+    definitions: Definitions;
+    look: OverlayLook | undefined;
+  }
+>();
+
+/** The look a relation's overlays give its line: as stored, or through the lookup. */
+function lookOfRelation(relation: Relation, inputs: LineInputs): OverlayLook | undefined {
+  const { overlays, definitions, values } = inputs;
+  let known = relationLooks.get(relation);
+  if (!known || known.overlays !== overlays || known.definitions !== definitions) {
+    const look = overlayLookOf(overlays, 'relations', (name) =>
+      relationAttribute(relation, name, definitions),
+    );
+    known = { overlays, definitions, look };
+    relationLooks.set(relation, known);
+  }
+  if (values === undefined || !values.overrides(relation.id)) return known.look;
+  return liveLookOf(
+    liveRelationLooks,
+    relation,
+    relation.id,
+    { kind: 'relation', relation },
+    'relations',
+    overlays,
+    definitions,
+    values,
+    known.look,
+  );
+}
 
 /**
  * The lines as the view's overlays of relations make them: an aggregated relation stands for many
@@ -502,29 +822,28 @@ export function decorateLines(lines: readonly RelationLine[], inputs: LineInputs
   return changed ? out : (lines as RelationLine[]);
 }
 
-function decorateLine(line: RelationLine, inputs: LineInputs): RelationLine {
+export function decorateLine(line: RelationLine, inputs: LineInputs): RelationLine {
   if (line.aggregate) return line;
   const relation = inputs.relations.get(line.relation);
-  const known = madeLines.get(line);
-  if (
-    known &&
-    known.overlays === inputs.overlays &&
-    known.definitions === inputs.definitions &&
-    known.relation === relation
-  ) {
-    return known.line;
-  }
-  const look = relation
-    ? overlayLookOf(inputs.overlays, 'relations', (name) =>
-        relationAttribute(relation, name, inputs.definitions),
-      )
-    : undefined;
+  const look = relation ? lookOfRelation(relation, inputs) : undefined;
+  // What reads as stored is drawn as the view's own scene draws it, the same object.
+  const stored = madeLines.get(line);
+  if (stored && lineMadeFrom(stored, inputs, relation, look)) return stored.line;
+  const cache = inputs.values === undefined ? madeLines : liveLines;
+  const known = cache === madeLines ? stored : cache.get(line);
+  if (known && lineMadeFrom(known, inputs, relation, look)) return known.line;
   const made = look === undefined ? line : lineWithLook(line, look, relation?.name);
-  const decorated = known && sameLine(known.line, made) ? known.line : made;
-  madeLines.set(line, {
+  const decorated =
+    stored && sameLine(stored.line, made)
+      ? stored.line
+      : known && sameLine(known.line, made)
+        ? known.line
+        : made;
+  cache.set(line, {
     overlays: inputs.overlays,
     definitions: inputs.definitions,
     relation,
+    look,
     line: decorated,
   });
   return decorated;
