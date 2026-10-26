@@ -1,0 +1,168 @@
+{
+  "id": "a-shape-moves-g3vvy3",
+  "name": "A shape moves",
+  "description": "From logs/a-shape-moves.log: Person dragged 60 canvas units down in “A command's path” in one tab, while a second tab had the project open, recorded at 2026-10-26T04:12:25Z from the browser's live WebSocket frames and the project folder's file events. Steps marked “not in the log” follow the code (session.ts, LiveProvider, Shell.tsx), since the program logs nothing between receiving a command and announcing it.",
+  "view": "a-command-s-path-5np65s",
+  "steps": [
+    {
+      "id": "step-pidkqx",
+      "description": "The person drags Person 60 canvas units down on the canvas of tab 1.",
+      "relations": [
+        "drags-clicks-and-types-on-yojzfz"
+      ],
+      "dataIn": {
+        "pointer": "pressed at 276,454 on Person, moved 10 times, released at 276,499",
+        "zoom": 0.75
+      }
+    },
+    {
+      "id": "step-uqwmrx",
+      "description": "The controller turns the drag into one set-positions command, with the shape pinned where it was dropped.",
+      "relations": [
+        "sends-each-command-through-j82rpv"
+      ],
+      "dataOut": {
+        "positions": [
+          {
+            "element": "person-q8wuyh",
+            "pinned": true,
+            "x": 0,
+            "y": 380
+          }
+        ],
+        "type": "set-positions",
+        "view": "a-command-s-path-5np65s"
+      }
+    },
+    {
+      "id": "step-j91f61",
+      "description": "Tab 1's live connection sends the command to the program over /live.",
+      "relations": [
+        "sends-commands-4zu6v6"
+      ],
+      "dataIn": {
+        "command": "set-positions",
+        "requestId": "request-8",
+        "type": "command"
+      }
+    },
+    {
+      "id": "step-9vz48o",
+      "description": "The Live WebSocket passes the message to the session, which queues it behind any other task (not in the log).",
+      "relations": [
+        "passes-each-message-to-w9h5yo"
+      ],
+      "dataIn": {
+        "requestId": "request-8",
+        "type": "command"
+      }
+    },
+    {
+      "id": "step-bbgssm",
+      "description": "The session runs the command through core: one replace operation on the view's positions, labelled Move “Person” in “A command's path”, with no warnings.",
+      "relations": [
+        "runs-each-command-with-i02nx1"
+      ],
+      "dataOut": {
+        "label": "Move \"Person\" in \"A command's path\"",
+        "operations": [
+          {
+            "collection": {
+              "name": "positions",
+              "view": "a-command-s-path-5np65s"
+            },
+            "item": {
+              "element": "person-q8wuyh",
+              "pinned": true,
+              "x": 0,
+              "y": 380
+            },
+            "op": "replace"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "id": "step-805noi",
+      "description": "The session works out the one file the action changes, formats it with a stable key order and validates it (not in the log).",
+      "relations": [
+        "formats-each-changed-file-with-8404ia",
+        "validates-each-changed-file-with-pdbfh6"
+      ],
+      "dataOut": {
+        "file": "views/a-command-s-path-5np65s.vaview"
+      }
+    },
+    {
+      "id": "step-5moo9i",
+      "description": "The writer saves the view file atomically: the new text in a temporary file, a backup link of the old one, then a rename over it, all within 50 ms.",
+      "relations": [
+        "saves-each-changed-file-with-qlba3x",
+        "writes-atomically-y161xz"
+      ],
+      "dataIn": {
+        "file": "views/a-command-s-path-5np65s.vaview"
+      },
+      "dataOut": {
+        "backup": "views/.a-command-s-path-5np65s.vaview.14f7cb57a1c6.va-tmp",
+        "renamed": "views/a-command-s-path-5np65s.vaview",
+        "temporary": "views/.a-command-s-path-5np65s.vaview.c0a99211ddec.va-tmp"
+      }
+    },
+    {
+      "id": "step-g9bdm7",
+      "description": "The session records the action in the history, by the person, as the next one to undo.",
+      "relations": [
+        "records-each-action-in-x8j9ej"
+      ],
+      "dataOut": {
+        "undo": {
+          "author": "user",
+          "label": "Move \"Person\" in \"A command's path\""
+        }
+      }
+    },
+    {
+      "id": "step-2mw4rp",
+      "description": "The session announces the action to every app: the Live WebSocket pushes project/changed to tab 1, with its requestId, and to tab 2, then history/listed with the 24 actions.",
+      "relations": [
+        "announces-each-action-to-every-app-throu-9fzvhp",
+        "pushes-every-change-tourtd"
+      ],
+      "dataOut": {
+        "author": "user",
+        "kind": "do",
+        "tab-1": "project/changed at 04:12:25.074Z, requestId request-8; history/listed at 04:12:25.097Z",
+        "tab-2": "project/changed at 04:12:25.253Z; history/listed at 04:12:25.753Z"
+      }
+    },
+    {
+      "id": "step-dc1f7c",
+      "description": "Each tab applies the same operation to its copy of the project (not in the log).",
+      "relations": [
+        "applies-each-change-with-0yjp6d"
+      ],
+      "dataIn": {
+        "collection": "positions",
+        "op": "replace"
+      }
+    },
+    {
+      "id": "step-t0nzgc",
+      "description": "Each tab's shell gets the new project and builds the view's scene again (not in the log).",
+      "relations": [
+        "hands-the-new-project-to-s7f1g3",
+        "builds-the-scene-with-q0751u"
+      ]
+    },
+    {
+      "id": "step-1bxhr0",
+      "description": "The controller gets the new scene and the renderer redraws the tiles that changed, Person now where it was dropped; in tab 1 the drop's ghost goes away (not in the log).",
+      "relations": [
+        "gives-the-new-scene-to-rqc5l7",
+        "shows-the-scene-with-g773go"
+      ]
+    }
+  ]
+}

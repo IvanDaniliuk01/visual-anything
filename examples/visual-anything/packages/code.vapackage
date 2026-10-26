@@ -1,0 +1,183 @@
+{
+  "id": "code",
+  "name": "Code",
+  "description": "How the parts of a code base are made and use each other, beyond Systems: packages of code, their modules, the folders they keep files in, and the calls and connections between them.",
+  "version": "1.0.0",
+  "license": "CC0-1.0",
+  "components": [
+    {
+      "id": "code.package",
+      "name": "Code package",
+      "derivesFrom": "systems.box",
+      "description": "A package of a repository's code, built and tested on its own, such as a pnpm workspace package.",
+      "attributes": [
+        {
+          "name": "language",
+          "type": "string",
+          "description": "What it is written in, with its main libraries."
+        },
+        {
+          "name": "tests",
+          "type": "string",
+          "description": "How it is tested."
+        },
+        {
+          "name": "runsIn",
+          "type": "string",
+          "description": "Where its code runs: Node, the browser, or both."
+        },
+        {
+          "name": "io",
+          "type": "string",
+          "description": "What it reaches outside itself: files, the network, processes; none for pure code."
+        }
+      ]
+    },
+    {
+      "id": "code.module",
+      "name": "Module",
+      "derivesFrom": "systems.box",
+      "description": "A part of a package's code: a file, or a folder of files, with one job.",
+      "attributes": [
+        {
+          "name": "source",
+          "type": "string",
+          "description": "The files that make it, relative to its package's src folder."
+        },
+        {
+          "name": "technology",
+          "type": "string",
+          "description": "A library or platform feature it is built on, such as PixiJS or a Web Worker."
+        }
+      ],
+      "appearance": {
+        "fill": "#E4EAF2",
+        "stroke": "#52606D",
+        "width": 176,
+        "height": 56
+      }
+    },
+    {
+      "id": "code.folder",
+      "name": "Folder",
+      "derivesFrom": "systems.object-storage",
+      "description": "A folder of files on disk that a program reads and writes.",
+      "attributes": [
+        {
+          "name": "location",
+          "type": "string",
+          "description": "Where it is, as the program finds it."
+        },
+        {
+          "name": "holds",
+          "type": "string",
+          "description": "What files it holds."
+        }
+      ]
+    }
+  ],
+  "relationTypes": [
+    {
+      "id": "code.depends-on",
+      "name": "depends on",
+      "derivesFrom": "relates-to",
+      "description": "Uses the code of another part of the repository, as a workspace dependency.",
+      "direction": "directed",
+      "appearance": {
+        "stroke": "#7B8794",
+        "width": 2,
+        "dash": "dotted"
+      }
+    },
+    {
+      "id": "code.calls",
+      "name": "calls",
+      "derivesFrom": "systems.communicates-with",
+      "description": "Calls functions of another part in the same process.",
+      "direction": "directed",
+      "attributes": [
+        {
+          "name": "function",
+          "type": "string",
+          "description": "What it calls, such as Session.receive."
+        }
+      ]
+    },
+    {
+      "id": "code.connects-to",
+      "name": "connects to",
+      "derivesFrom": "systems.communicates-with",
+      "description": "Opens a connection to another part and sends messages over it: a WebSocket, HTTP, stdio or a worker's messages.",
+      "direction": "directed",
+      "attributes": [
+        {
+          "name": "path",
+          "type": "string",
+          "description": "The address path or channel, such as /live."
+        },
+        {
+          "name": "address",
+          "type": "string",
+          "description": "Where it may reach, such as 127.0.0.1 only."
+        },
+        {
+          "name": "port",
+          "type": "string",
+          "description": "Which port it listens on or reaches."
+        },
+        {
+          "name": "credential",
+          "type": "string",
+          "description": "What proves the sender may connect; never the secret itself."
+        },
+        {
+          "name": "messages",
+          "type": "string",
+          "description": "What it sends over the connection."
+        }
+      ],
+      "appearance": {
+        "stroke": "#1D4F91",
+        "width": 3
+      }
+    },
+    {
+      "id": "code.pushes-to",
+      "name": "pushes to",
+      "derivesFrom": "systems.communicates-with",
+      "description": "Sends messages, unasked, to a part that opened a connection to it, over that connection.",
+      "direction": "directed",
+      "attributes": [
+        {
+          "name": "messages",
+          "type": "string",
+          "description": "What it sends over the connection."
+        }
+      ],
+      "appearance": {
+        "stroke": "#0E6B61",
+        "width": 3,
+        "dash": "dashed"
+      }
+    },
+    {
+      "id": "code.guards",
+      "name": "guards",
+      "derivesFrom": "relates-to",
+      "description": "Checks every request of a connection before it goes through, and refuses the ones that fail.",
+      "direction": "directed",
+      "attributes": [
+        {
+          "name": "checks",
+          "type": "string",
+          "description": "What it checks."
+        }
+      ],
+      "appearance": {
+        "stroke": "#C05621",
+        "width": 2,
+        "dash": "dashed"
+      }
+    }
+  ]
+}

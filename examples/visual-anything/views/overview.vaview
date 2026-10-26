@@ -1,0 +1,581 @@
+{
+  "id": "overview",
+  "name": "Structure",
+  "description": "Visual Anything's four packages and their parts, nested by is part of, with the workspace dependencies between the packages and the calls between the parts.",
+  "perspective": {
+    "name": "Structure",
+    "description": "What each package is made of, and what depends on what."
+  },
+  "nestingRelationTypes": [
+    "systems.is-part-of"
+  ],
+  "positions": [
+    {
+      "element": "project-folder-ptj3sb",
+      "container": "file-system-6yurvg",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "preferences-folder-pyjr25",
+      "container": "file-system-6yurvg",
+      "x": 24,
+      "y": 168
+    },
+    {
+      "element": "runtime-folder-sfstje",
+      "container": "file-system-6yurvg",
+      "x": 24,
+      "y": 288
+    },
+    {
+      "element": "core-hnt4ih",
+      "container": "visual-anything-ksmhdr",
+      "x": 4032,
+      "y": 48
+    },
+    {
+      "element": "schema-nd8g5w",
+      "container": "visual-anything-ksmhdr",
+      "x": 5200,
+      "y": 696
+    },
+    {
+      "element": "server-w4u6le",
+      "container": "visual-anything-ksmhdr",
+      "x": 2048,
+      "y": 320
+    },
+    {
+      "element": "app-kk6aff",
+      "container": "visual-anything-ksmhdr",
+      "x": 24,
+      "y": 128
+    },
+    {
+      "element": "person-q8wuyh",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "claude-6ucwa1",
+      "x": 184,
+      "y": 0
+    },
+    {
+      "element": "browser-kvjvxb",
+      "x": 400,
+      "y": 0
+    },
+    {
+      "element": "web-origin-8z645q",
+      "x": 0,
+      "y": 120
+    },
+    {
+      "element": "file-system-6yurvg",
+      "x": 200,
+      "y": 120
+    },
+    {
+      "element": "visual-anything-ksmhdr",
+      "x": 0,
+      "y": 552
+    },
+    {
+      "element": "command-catalogue-n08cwi",
+      "container": "commands-1x11jh",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "dispatch-g01mws",
+      "container": "commands-1x11jh",
+      "x": 24,
+      "y": 144
+    },
+    {
+      "element": "the-draft-qwapji",
+      "container": "commands-1x11jh",
+      "x": 280,
+      "y": 144
+    },
+    {
+      "element": "operations-4npywn",
+      "container": "operations-and-history-dymdww",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "history-9uwkuo",
+      "container": "operations-and-history-dymdww",
+      "x": 24,
+      "y": 144
+    },
+    {
+      "element": "readers-hlxfaj",
+      "container": "imports-zloy9h",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "plan-and-mapping-9sn6d4",
+      "container": "imports-zloy9h",
+      "x": 24,
+      "y": 144
+    },
+    {
+      "element": "timeline-9owjec",
+      "container": "scenarios-pwdzzr",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "playback-olqp30",
+      "container": "scenarios-pwdzzr",
+      "x": 24,
+      "y": 144
+    },
+    {
+      "element": "recording-5wyc6v",
+      "container": "scenarios-pwdzzr",
+      "x": 24,
+      "y": 240
+    },
+    {
+      "element": "commands-1x11jh",
+      "container": "core-hnt4ih",
+      "x": 24,
+      "y": 504
+    },
+    {
+      "element": "model-index-grsmhl",
+      "container": "core-hnt4ih",
+      "x": 584,
+      "y": 552
+    },
+    {
+      "element": "operations-and-history-dymdww",
+      "container": "core-hnt4ih",
+      "x": 24,
+      "y": 144
+    },
+    {
+      "element": "invariants-and-rules-epj399",
+      "container": "core-hnt4ih",
+      "x": 584,
+      "y": 648
+    },
+    {
+      "element": "live-protocol-7q77ls",
+      "container": "core-hnt4ih",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "imports-zloy9h",
+      "container": "core-hnt4ih",
+      "x": 288,
+      "y": 144
+    },
+    {
+      "element": "overlays-and-levels-of-detail-mvb3a0",
+      "container": "core-hnt4ih",
+      "x": 240,
+      "y": 48
+    },
+    {
+      "element": "live-values-lwn9mq",
+      "container": "core-hnt4ih",
+      "x": 456,
+      "y": 48
+    },
+    {
+      "element": "scenarios-pwdzzr",
+      "container": "core-hnt4ih",
+      "x": 552,
+      "y": 144
+    },
+    {
+      "element": "tours-gt1u65",
+      "container": "core-hnt4ih",
+      "x": 672,
+      "y": 48
+    },
+    {
+      "element": "scope-and-view-state-i0e3m0",
+      "container": "core-hnt4ih",
+      "x": 856,
+      "y": 280
+    },
+    {
+      "element": "built-in-packages-k48uc4",
+      "container": "core-hnt4ih",
+      "x": 888,
+      "y": 48
+    },
+    {
+      "element": "project-file-types-k1ajwu",
+      "container": "file-types-g6uu5b",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "image-types-pbi1wn",
+      "container": "file-types-g6uu5b",
+      "x": 24,
+      "y": 144
+    },
+    {
+      "element": "open-9kxzjx",
+      "container": "command-line-8iw2p0",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "new-2rzz00",
+      "container": "command-line-8iw2p0",
+      "x": 240,
+      "y": 48
+    },
+    {
+      "element": "export-sps16w",
+      "container": "command-line-8iw2p0",
+      "x": 24,
+      "y": 144
+    },
+    {
+      "element": "import-g3qib5",
+      "container": "command-line-8iw2p0",
+      "x": 240,
+      "y": 144
+    },
+    {
+      "element": "live-fcx0l7",
+      "container": "command-line-8iw2p0",
+      "x": 24,
+      "y": 240
+    },
+    {
+      "element": "task-queue-qivajs",
+      "container": "session-839z14",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "file-plan-zfdee5",
+      "container": "session-839z14",
+      "x": 24,
+      "y": 144
+    },
+    {
+      "element": "loader-56cxva",
+      "container": "project-files-1j6g7d",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "writer-aimmvw",
+      "container": "project-files-1j6g7d",
+      "x": 24,
+      "y": 144
+    },
+    {
+      "element": "watcher-uu6b0q",
+      "container": "project-files-1j6g7d",
+      "x": 24,
+      "y": 240
+    },
+    {
+      "element": "checks-ykh1p6",
+      "container": "http-server-e6wcc0",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "content-security-policy-3oj4n6",
+      "container": "http-server-e6wcc0",
+      "x": 240,
+      "y": 48
+    },
+    {
+      "element": "static-app-9ac5ej",
+      "container": "http-server-e6wcc0",
+      "x": 24,
+      "y": 144
+    },
+    {
+      "element": "claude-s-messages-688sqa",
+      "container": "claude-endpoint-vxxqxs",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "tools-zye42c",
+      "container": "mcp-entry-point-ihvp4m",
+      "x": 24,
+      "y": 144
+    },
+    {
+      "element": "recipes-hwt7dj",
+      "container": "mcp-entry-point-ihvp4m",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "program-bridge-sfoasj",
+      "container": "mcp-entry-point-ihvp4m",
+      "x": 280,
+      "y": 144
+    },
+    {
+      "element": "file-types-g6uu5b",
+      "container": "schema-nd8g5w",
+      "x": 24,
+      "y": 240
+    },
+    {
+      "element": "file-kinds-bbldpz",
+      "container": "schema-nd8g5w",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "json-schema-gl4q1u",
+      "container": "schema-nd8g5w",
+      "x": 280,
+      "y": 144
+    },
+    {
+      "element": "validator-bus0vj",
+      "container": "schema-nd8g5w",
+      "x": 24,
+      "y": 144
+    },
+    {
+      "element": "formatter-k3u4yu",
+      "container": "schema-nd8g5w",
+      "x": 240,
+      "y": 48
+    },
+    {
+      "element": "command-line-8iw2p0",
+      "container": "server-w4u6le",
+      "x": 24,
+      "y": 632
+    },
+    {
+      "element": "session-839z14",
+      "container": "server-w4u6le",
+      "x": 544,
+      "y": 624
+    },
+    {
+      "element": "project-files-1j6g7d",
+      "container": "server-w4u6le",
+      "x": 880,
+      "y": 144
+    },
+    {
+      "element": "http-server-e6wcc0",
+      "container": "server-w4u6le",
+      "x": 880,
+      "y": 696
+    },
+    {
+      "element": "live-websocket-x6ym5f",
+      "container": "server-w4u6le",
+      "x": 288,
+      "y": 408
+    },
+    {
+      "element": "claude-endpoint-vxxqxs",
+      "container": "server-w4u6le",
+      "x": 504,
+      "y": 408
+    },
+    {
+      "element": "mcp-entry-point-ihvp4m",
+      "container": "server-w4u6le",
+      "x": 1400,
+      "y": 712
+    },
+    {
+      "element": "live-value-store-jwh6xz",
+      "container": "server-w4u6le",
+      "x": 880,
+      "y": 600
+    },
+    {
+      "element": "fetcher-5zsg5d",
+      "container": "server-w4u6le",
+      "x": 880,
+      "y": 48
+    },
+    {
+      "element": "preferences-q35x5d",
+      "container": "server-w4u6le",
+      "x": 880,
+      "y": 504
+    },
+    {
+      "element": "header-7m4f2l",
+      "container": "shell-3fx6vk",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "outline-p24ysl",
+      "container": "shell-3fx6vk",
+      "x": 24,
+      "y": 144
+    },
+    {
+      "element": "inspector-rux0hm",
+      "container": "shell-3fx6vk",
+      "x": 24,
+      "y": 240
+    },
+    {
+      "element": "component-editor-emdkot",
+      "container": "shell-3fx6vk",
+      "x": 24,
+      "y": 336
+    },
+    {
+      "element": "tiles-h57j40",
+      "container": "renderer-e9aatb",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "controller-n8tse7",
+      "container": "canvas-lbfjd4",
+      "x": 24,
+      "y": 184
+    },
+    {
+      "element": "scene-wm5jec",
+      "container": "canvas-lbfjd4",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "renderer-e9aatb",
+      "container": "canvas-lbfjd4",
+      "x": 280,
+      "y": 144
+    },
+    {
+      "element": "routes-dwklah",
+      "container": "canvas-lbfjd4",
+      "x": 584,
+      "y": 184
+    },
+    {
+      "element": "shell-3fx6vk",
+      "container": "app-kk6aff",
+      "x": 1696,
+      "y": 544
+    },
+    {
+      "element": "canvas-lbfjd4",
+      "container": "app-kk6aff",
+      "x": 832,
+      "y": 48
+    },
+    {
+      "element": "layout-worker-i5cc8n",
+      "container": "app-kk6aff",
+      "x": 576,
+      "y": 688
+    },
+    {
+      "element": "live-connection-lh20ap",
+      "container": "app-kk6aff",
+      "x": 1176,
+      "y": 736
+    },
+    {
+      "element": "package-code-worker-ig5gg6",
+      "container": "app-kk6aff",
+      "x": 1696,
+      "y": 1000
+    },
+    {
+      "element": "find-bar-6a2547",
+      "container": "app-kk6aff",
+      "x": 576,
+      "y": 72
+    },
+    {
+      "element": "import-dialog-xi8ebh",
+      "container": "app-kk6aff",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "export-dialog-flhm4n",
+      "container": "app-kk6aff",
+      "x": 576,
+      "y": 376
+    },
+    {
+      "element": "scenario-playback-n01j8d",
+      "container": "app-kk6aff",
+      "x": 576,
+      "y": 168
+    },
+    {
+      "element": "tours-panel-huikrh",
+      "container": "app-kk6aff",
+      "x": 240,
+      "y": 48
+    },
+    {
+      "element": "history-panel-ws3x3i",
+      "container": "app-kk6aff",
+      "x": 576,
+      "y": 792
+    },
+    {
+      "element": "guidance-layer-5omioy",
+      "container": "app-kk6aff",
+      "x": 1696,
+      "y": 1096
+    },
+    {
+      "element": "viewer-page-bd4ohc",
+      "container": "app-kk6aff",
+      "x": 832,
+      "y": 384
+    },
+    {
+      "element": "live-websocket-x6ym5f",
+      "container": "http-server-e6wcc0",
+      "x": 240,
+      "y": 144
+    },
+    {
+      "element": "claude-endpoint-vxxqxs",
+      "container": "http-server-e6wcc0",
+      "x": 24,
+      "y": 240
+    },
+    {
+      "element": "start-screen-session-xgj4n5",
+      "container": "server-w4u6le",
+      "x": 24,
+      "y": 1128
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "include": [
+      {
+        "kind": "contents",
+        "container": "visual-anything-ksmhdr"
+      }
+    ]
+  }
+}

@@ -10,6 +10,13 @@ describe('slug', () => {
     expect(slug('東京', 'element')).toBe('element');
   });
 
+  it('keeps a word with an apostrophe whole', () => {
+    expect(slug("Claude's messages", 'element')).toBe('claudes-messages');
+    expect(slug('A command’s path', 'view')).toBe('a-commands-path');
+    expect(slug("rock 'n' roll", 'element')).toBe('rock-n-roll');
+    expect(slug("'", 'element')).toBe('element');
+  });
+
   it('keeps bases short and makes valid ids', () => {
     fc.assert(
       fc.property(fc.string(), (name) => {

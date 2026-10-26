@@ -22,12 +22,14 @@ export function isId(value: unknown): value is Id {
 
 /**
  * The readable base of an id made from a name: lowercase ASCII letters and digits joined by dashes,
- * at most 40 characters; `fallback` when the name has none.
+ * at most 40 characters; `fallback` when the name has none. An apostrophe inside a word is dropped,
+ * so that "Claude's messages" makes `claudes-messages` rather than `claude-s-messages`.
  */
 export function slug(name: string, fallback: string): string {
   const base = name
     .normalize('NFKD')
     .replace(/\p{M}/gu, '')
+    .replace(/(?<=\p{L})['’](?=\p{L})/gu, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+/, '')

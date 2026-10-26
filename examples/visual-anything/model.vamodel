@@ -1,0 +1,2067 @@
+{
+  "world": {
+    "id": "world",
+    "component": "essence",
+    "name": "World"
+  },
+  "elements": [
+    {
+      "id": "person-q8wuyh",
+      "component": "systems.person",
+      "name": "Person",
+      "description": "Someone who models a system they run, and explores it on the canvas.",
+      "attributes": {
+        "role": "models and explores a system"
+      }
+    },
+    {
+      "id": "claude-6ucwa1",
+      "component": "systems.ai-agent",
+      "name": "Claude",
+      "description": "Claude Code or Claude Desktop, which starts Visual Anything's MCP entry point and calls its tools.",
+      "attributes": {
+        "model": "Claude, in Claude Code or Claude Desktop"
+      }
+    },
+    {
+      "id": "browser-kvjvxb",
+      "component": "systems.box",
+      "name": "Browser",
+      "description": "The person's desktop browser: each tab that has the project open runs the app."
+    },
+    {
+      "id": "web-origin-8z645q",
+      "component": "systems.box",
+      "name": "Web origin",
+      "description": "An https origin that a package's code was granted, on a public address (ADR 0063)."
+    },
+    {
+      "id": "file-system-6yurvg",
+      "component": "systems.box",
+      "name": "File system",
+      "description": "The disk of the computer Visual Anything runs on."
+    },
+    {
+      "id": "project-folder-ptj3sb",
+      "component": "code.folder",
+      "name": "Project folder",
+      "description": "A project: plain JSON files, validated when opened and written with a stable key order, kept in git.",
+      "attributes": {
+        "holds": "project.vaproject, model.vamodel, packages/*.vapackage, views/*.vaview, scenarios/*.vascenario, tours/*.vatour, comments/*.vacomment",
+        "location": "The folder the program opens, such as examples/visual-anything"
+      }
+    },
+    {
+      "id": "preferences-folder-pyjr25",
+      "component": "code.folder",
+      "name": "Preferences folder",
+      "description": "Each person's preferences, outside every project (ADR 0032).",
+      "attributes": {
+        "holds": "preferences.json: theme, language, grid, snapping, rulers, recent colors, code approvals, comment author",
+        "location": "%APPDATA%\\Visual Anything on Windows, ~/Library/Application Support/Visual Anything on macOS, ~/.config/visual-anything elsewhere; VISUAL_ANYTHING_PREFERENCES chooses another"
+      }
+    },
+    {
+      "id": "runtime-folder-sfstje",
+      "component": "code.folder",
+      "name": "Runtime folder",
+      "description": "Where each running program leaves the record that lets Claude's MCP entry point attach to it; only the person's account can read it.",
+      "attributes": {
+        "holds": "one record per program (port, folder, protocol version, the Claude credential), and the output of programs Claude started",
+        "location": "%LOCALAPPDATA%\\Visual Anything\\run on Windows, ~/Library/Application Support/Visual Anything/run on macOS, $XDG_RUNTIME_DIR/visual-anything elsewhere; VISUAL_ANYTHING_RUNTIME chooses another"
+      }
+    },
+    {
+      "id": "visual-anything-ksmhdr",
+      "component": "systems.system",
+      "name": "Visual Anything",
+      "description": "The local-first tool to make any concept or system visual: one local Node program and a browser app, in a pnpm workspace of four packages."
+    },
+    {
+      "id": "core-hnt4ih",
+      "component": "code.package",
+      "name": "core",
+      "description": "@visual-anything/core: the model, commands, invariants and the undo history. Only core changes the model, and only through commands.",
+      "attributes": {
+        "io": "none: no files, no network",
+        "language": "TypeScript",
+        "runsIn": "Node and the browser",
+        "tests": "Vitest, with property tests for the invariants (fast-check)"
+      }
+    },
+    {
+      "id": "schema-nd8g5w",
+      "component": "code.package",
+      "name": "schema",
+      "description": "@visual-anything/schema: the project file types, the JSON Schema generated from them, validation and the stable format.",
+      "attributes": {
+        "io": "none",
+        "language": "TypeScript, with Ajv and ts-json-schema-generator",
+        "runsIn": "Node and the browser",
+        "tests": "Vitest, with fast-check"
+      }
+    },
+    {
+      "id": "server-w4u6le",
+      "component": "code.package",
+      "name": "server",
+      "description": "@visual-anything/server: the local program. It owns the model and its history (ADR 0016), serves the app on 127.0.0.1, reads and writes the project folder, and is Claude's MCP server.",
+      "attributes": {
+        "io": "files, HTTP and WebSocket on 127.0.0.1, stdio, child processes, https fetches for approved package code",
+        "language": "TypeScript on Node 22.13 or later, with ws, open and the MCP SDK",
+        "runsIn": "Node, or one executable per system (ADR 0037)",
+        "tests": "Vitest"
+      }
+    },
+    {
+      "id": "app-kk6aff",
+      "component": "code.package",
+      "name": "app",
+      "description": "@visual-anything/app: the React UI. The canvas is drawn with PixiJS (ADR 0014) and ELK layout runs in a Web Worker (ADR 0015). It sends commands and renders what comes back.",
+      "attributes": {
+        "io": "the WebSocket to the program, workers, BroadcastChannel between tabs",
+        "language": "TypeScript with React 19, PixiJS 8, elkjs and QuickJS",
+        "runsIn": "the browser",
+        "tests": "Vitest with jsdom and Testing Library, some fast-check; benchmarks in a browser"
+      }
+    },
+    {
+      "id": "commands-1x11jh",
+      "component": "code.module",
+      "name": "Commands",
+      "description": "Every change to the model is a command; each compiles to invertible operations (ADR 0017).",
+      "attributes": {
+        "source": "commands/"
+      }
+    },
+    {
+      "id": "command-catalogue-n08cwi",
+      "component": "code.module",
+      "name": "Command catalogue",
+      "description": "The command types: create-element, set-positions, change-container, batch and the rest.",
+      "attributes": {
+        "source": "commands/types.ts"
+      }
+    },
+    {
+      "id": "dispatch-g01mws",
+      "component": "code.module",
+      "name": "Dispatch",
+      "description": "executeCommand: runs one command against a snapshot and answers the next state, its operations, their inverse, a label and the warnings; or why it is refused.",
+      "attributes": {
+        "source": "commands/index.ts"
+      }
+    },
+    {
+      "id": "the-draft-qwapji",
+      "component": "code.module",
+      "name": "The draft",
+      "description": "A command's working copy of the project, which keeps the model's index up to date as operations land, so that a batch of N creates is not quadratic (ADR 0042).",
+      "attributes": {
+        "source": "commands/draft.ts"
+      }
+    },
+    {
+      "id": "model-index-grsmhl",
+      "component": "code.module",
+      "name": "Model index",
+      "description": "Elements, relations, containers and contents by id, and the definitions in use.",
+      "attributes": {
+        "source": "model-index.ts, state.ts, containment.ts"
+      }
+    },
+    {
+      "id": "operations-and-history-dymdww",
+      "component": "code.module",
+      "name": "Operations and history",
+      "description": "What a command does, as data that can be applied and undone, and the actions kept to undo and redo.",
+      "attributes": {
+        "source": "operations.ts, history.ts"
+      }
+    },
+    {
+      "id": "operations-4npywn",
+      "component": "code.module",
+      "name": "Operations",
+      "description": "applyOperations: insert, replace, remove, replace-all and set-world, set-project, set-view, set-package; the program and every app apply the same ones.",
+      "attributes": {
+        "source": "operations.ts"
+      }
+    },
+    {
+      "id": "history-9uwkuo",
+      "component": "code.module",
+      "name": "History",
+      "description": "record, undo and redo, one action at a time, each with its label and author (the person or Claude), kept by count and size (ADR 0028).",
+      "attributes": {
+        "source": "history.ts"
+      }
+    },
+    {
+      "id": "invariants-and-rules-epj399",
+      "component": "code.module",
+      "name": "Invariants and rules",
+      "description": "One component per element, derivations up to Essence and relates to, no containment cycle, cascading deletes, warnings for relation-type limits, broken steps kept.",
+      "attributes": {
+        "source": "rules.ts, check.ts, problems.ts, containment.ts"
+      }
+    },
+    {
+      "id": "live-protocol-7q77ls",
+      "component": "code.module",
+      "name": "Live protocol",
+      "description": "The messages between the program and each app, encoded and checked on both sides; protocol version 6.",
+      "attributes": {
+        "source": "protocol.ts"
+      }
+    },
+    {
+      "id": "imports-zloy9h",
+      "component": "code.module",
+      "name": "Imports",
+      "description": "Files made elsewhere, read strictly and landed as one action (ADR 0042).",
+      "attributes": {
+        "source": "import/"
+      }
+    },
+    {
+      "id": "readers-hlxfaj",
+      "component": "code.module",
+      "name": "Readers",
+      "description": "Mermaid, CSV and TSV, JSON, Structurizr, LikeC4 and draw.io; nothing in a file runs and no link is followed.",
+      "attributes": {
+        "source": "import/mermaid*.ts, table.ts, json.ts, structurizr.ts, likec4.ts, drawio.ts"
+      }
+    },
+    {
+      "id": "plan-and-mapping-9sn6d4",
+      "component": "code.module",
+      "name": "Plan and mapping",
+      "description": "What a file would create, its kinds mapped to components and relation types, and what matched nothing.",
+      "attributes": {
+        "source": "import/plan.ts, mapping.ts, suggest.ts"
+      }
+    },
+    {
+      "id": "overlays-and-levels-of-detail-mvb3a0",
+      "component": "code.module",
+      "name": "Overlays and levels of detail",
+      "description": "A view's rules that color, size, mark and fade shapes by an attribute, with their legend; what shapes show from a scale up (ADR 0055).",
+      "attributes": {
+        "source": "overlays/, levels.ts"
+      }
+    },
+    {
+      "id": "live-values-lwn9mq",
+      "component": "code.module",
+      "name": "Live values",
+      "description": "Values from outside, with their sender, age and freshness, never saved (ADR 0057).",
+      "attributes": {
+        "source": "live/"
+      }
+    },
+    {
+      "id": "scenarios-pwdzzr",
+      "component": "code.module",
+      "name": "Scenarios",
+      "description": "What a scenario plays over its view, step by step.",
+      "attributes": {
+        "source": "scenarios/"
+      }
+    },
+    {
+      "id": "timeline-9owjec",
+      "component": "code.module",
+      "name": "Timeline",
+      "description": "A scenario's steps as one view draws them: aggregated steps inside collapsed containers, broken steps kept in place, worked out and never stored (ADR 0031).",
+      "attributes": {
+        "source": "scenarios/timeline.ts"
+      }
+    },
+    {
+      "id": "playback-olqp30",
+      "component": "code.module",
+      "name": "Playback",
+      "description": "Play, pause, step and speed, as a state each tab keeps.",
+      "attributes": {
+        "source": "scenarios/playback.ts"
+      }
+    },
+    {
+      "id": "recording-5wyc6v",
+      "component": "code.module",
+      "name": "Recording",
+      "description": "Steps recorded by clicking relations in order, Shift-click adding one to the same step.",
+      "attributes": {
+        "source": "scenarios/recording.ts"
+      }
+    },
+    {
+      "id": "tours-gt1u65",
+      "component": "code.module",
+      "name": "Tours",
+      "description": "Tour steps as view states with captions, and the camera's eased moves (ADR 0058).",
+      "attributes": {
+        "source": "tours/"
+      }
+    },
+    {
+      "id": "scope-and-view-state-i0e3m0",
+      "component": "code.module",
+      "name": "Scope and view state",
+      "description": "The part of the model a view shows (ADR 0040), and where someone is in a project, as a view address carries it.",
+      "attributes": {
+        "source": "scope.ts, scope-placement.ts, view-state.ts"
+      }
+    },
+    {
+      "id": "built-in-packages-k48uc4",
+      "component": "code.module",
+      "name": "Built-in packages",
+      "description": "Systems, Data modeling, C4 architecture and Data science pipelines, with their icons; a project lists them and never copies them.",
+      "attributes": {
+        "source": "builtin/"
+      }
+    },
+    {
+      "id": "file-types-g6uu5b",
+      "component": "code.module",
+      "name": "File types",
+      "description": "The TypeScript types of every project file, from which the JSON Schema is generated.",
+      "attributes": {
+        "source": "files.ts, images.ts"
+      }
+    },
+    {
+      "id": "project-file-types-k1ajwu",
+      "component": "code.module",
+      "name": "Project file types",
+      "description": "ProjectFile, ModelFile, PackageFile, ViewFile, ScenarioFile, TourFile and CommentFile.",
+      "attributes": {
+        "source": "files.ts"
+      }
+    },
+    {
+      "id": "image-types-pbi1wn",
+      "component": "code.module",
+      "name": "Image types",
+      "description": "The images packages keep: SVG and small PNG, JPEG or WebP bitmaps.",
+      "attributes": {
+        "source": "images.ts"
+      }
+    },
+    {
+      "id": "file-kinds-bbldpz",
+      "component": "code.module",
+      "name": "File kinds",
+      "description": "Each kind of file and its extension: .vaproject, .vamodel, .vapackage, .vaview, .vascenario, .vatour, .vacomment.",
+      "attributes": {
+        "source": "kinds.ts"
+      }
+    },
+    {
+      "id": "json-schema-gl4q1u",
+      "component": "code.module",
+      "name": "JSON Schema",
+      "description": "One schema per kind of file, generated from the file types by pnpm build and committed.",
+      "attributes": {
+        "source": "../schemas/*.schema.json"
+      }
+    },
+    {
+      "id": "validator-bus0vj",
+      "component": "code.module",
+      "name": "Validator",
+      "description": "Parses a file and checks it against its JSON Schema, saying where it fails.",
+      "attributes": {
+        "source": "validate.ts",
+        "technology": "Ajv"
+      }
+    },
+    {
+      "id": "formatter-k3u4yu",
+      "component": "code.module",
+      "name": "Formatter",
+      "description": "Writes a file's JSON with a stable key order, so that git diffs show only what changed.",
+      "attributes": {
+        "source": "format.ts"
+      }
+    },
+    {
+      "id": "command-line-8iw2p0",
+      "component": "code.module",
+      "name": "Command line",
+      "description": "visual-anything and its subcommands, from the repository and from the single executable.",
+      "attributes": {
+        "source": "main.ts, cli.ts, mcp-cli.ts"
+      }
+    },
+    {
+      "id": "open-9kxzjx",
+      "component": "code.module",
+      "name": "Open",
+      "description": "Opens a project folder, starts the program on 127.0.0.1 and opens the browser at an address that works once; when a program already runs there, asks it to open a tab instead (ADR 0044).",
+      "attributes": {
+        "source": "command.ts"
+      }
+    },
+    {
+      "id": "new-2rzz00",
+      "component": "code.module",
+      "name": "New",
+      "description": "Starts a project in an empty folder, from a sample project or empty, then opens it (ADR 0051).",
+      "attributes": {
+        "source": "new-command.ts, samples.ts"
+      }
+    },
+    {
+      "id": "export-sps16w",
+      "component": "code.module",
+      "name": "Export",
+      "description": "Writes one view as SVG, PDF, Markdown, Mermaid, Structurizr or the read-only page, reading the project itself.",
+      "attributes": {
+        "source": "export-command.ts, export-page.ts"
+      }
+    },
+    {
+      "id": "import-g3qib5",
+      "component": "code.module",
+      "name": "Import",
+      "description": "Imports a file as one action, through the running program when there is one (ADR 0049).",
+      "attributes": {
+        "source": "import-command.ts"
+      }
+    },
+    {
+      "id": "live-fcx0l7",
+      "component": "code.module",
+      "name": "Live",
+      "description": "Pipes live values, one JSON object a line, into the program running on a folder.",
+      "attributes": {
+        "source": "live-command.ts"
+      }
+    },
+    {
+      "id": "session-839z14",
+      "component": "code.module",
+      "name": "Session",
+      "description": "Owns the model and its history (ADR 0016): runs each command through core, saves the files it changes, records the action and announces it to every app and to Claude.",
+      "attributes": {
+        "source": "session.ts"
+      }
+    },
+    {
+      "id": "task-queue-qivajs",
+      "component": "code.module",
+      "name": "Task queue",
+      "description": "Runs one task at a time, so that commands, undo, redo and reloads never interleave.",
+      "attributes": {
+        "source": "session.ts (#enqueue)"
+      }
+    },
+    {
+      "id": "file-plan-zfdee5",
+      "component": "code.module",
+      "name": "File plan",
+      "description": "Which files an action's operations change, and the paths of new ones.",
+      "attributes": {
+        "source": "file-plan.ts, layout.ts"
+      }
+    },
+    {
+      "id": "project-files-1j6g7d",
+      "component": "code.module",
+      "name": "Project files",
+      "description": "Reading, writing and watching the project folder.",
+      "attributes": {
+        "source": "project.ts, writer.ts, watcher.ts"
+      }
+    },
+    {
+      "id": "loader-56cxva",
+      "component": "code.module",
+      "name": "Loader",
+      "description": "Reads every file of the project on open, as regular files within size caps, and validates each.",
+      "attributes": {
+        "source": "project.ts, regular-files.ts"
+      }
+    },
+    {
+      "id": "writer-aimmvw",
+      "component": "code.module",
+      "name": "Writer",
+      "description": "Writes a file atomically: the new text in a temporary .va-tmp file, flushed, a hard link of the old file kept as a backup, then a rename over the old one; the backup goes once the name leads to the new file inside the project folder.",
+      "attributes": {
+        "source": "writer.ts"
+      }
+    },
+    {
+      "id": "watcher-uu6b0q",
+      "component": "code.module",
+      "name": "Watcher",
+      "description": "Notices changes made outside, such as a git pull, once they go quiet, and has the session reload them with a notice.",
+      "attributes": {
+        "source": "watcher.ts"
+      }
+    },
+    {
+      "id": "http-server-e6wcc0",
+      "component": "code.module",
+      "name": "HTTP server",
+      "description": "Listens on 127.0.0.1 only, serves the app, and upgrades /live and /claude to WebSockets; every request passes its checks first.",
+      "attributes": {
+        "source": "server.ts",
+        "technology": "node:http and ws"
+      }
+    },
+    {
+      "id": "checks-ykh1p6",
+      "component": "code.module",
+      "name": "Checks",
+      "description": "The Host and Origin of every request, the session token or a launch code that works once on /live, and the Claude credential on /claude.",
+      "attributes": {
+        "source": "security.ts"
+      }
+    },
+    {
+      "id": "content-security-policy-3oj4n6",
+      "component": "code.module",
+      "name": "Content security policy",
+      "description": "The page's policy, with Trusted Types and the workers' policies.",
+      "attributes": {
+        "source": "policies.ts"
+      }
+    },
+    {
+      "id": "static-app-9ac5ej",
+      "component": "code.module",
+      "name": "Static app",
+      "description": "Serves the built app, or Vite's dev server with --dev; GET and HEAD only.",
+      "attributes": {
+        "source": "static.ts, app-source.ts, executable.ts"
+      }
+    },
+    {
+      "id": "live-websocket-x6ym5f",
+      "component": "code.module",
+      "name": "Live WebSocket",
+      "description": "The live connection of each tab, at /live: it passes every message to the session and pushes every change back.",
+      "attributes": {
+        "source": "server.ts (upgrades to /live)",
+        "technology": "ws"
+      }
+    },
+    {
+      "id": "claude-endpoint-vxxqxs",
+      "component": "code.module",
+      "name": "Claude endpoint",
+      "description": "Claude's own way in, at /claude, with a credential of its own; never undo, redo or preferences (ADR 0029).",
+      "attributes": {
+        "source": "claude/endpoint.ts"
+      }
+    },
+    {
+      "id": "claude-s-messages-688sqa",
+      "component": "code.module",
+      "name": "Claude's messages",
+      "description": "What Claude may send: command, guidance, open-app, code-approvals, import, live/set and live/clear; anything else is refused.",
+      "attributes": {
+        "source": "claude/messages.ts"
+      }
+    },
+    {
+      "id": "mcp-entry-point-ihvp4m",
+      "component": "systems.mcp-server",
+      "name": "MCP entry point",
+      "description": "The MCP server Claude Code and Claude Desktop start; it writes nothing but MCP on stdout.",
+      "attributes": {
+        "technology": "@modelcontextprotocol/sdk",
+        "transport": "stdio"
+      }
+    },
+    {
+      "id": "tools-zye42c",
+      "component": "code.module",
+      "name": "Tools",
+      "description": "Read, model, view, guidance, scenario, tour, comment, image, import, export, overlay and live-value tools, each write one undoable action labelled Claude.",
+      "attributes": {
+        "source": "claude/tools.ts, claude/*-tools.ts, queries.ts"
+      }
+    },
+    {
+      "id": "recipes-hwt7dj",
+      "component": "code.module",
+      "name": "Recipes",
+      "description": "The build_from_… prompts: how Claude builds models, views and scenarios from Mermaid, SQL, a repository, logs and more.",
+      "attributes": {
+        "source": "claude/prompts.ts, claude/recipes/"
+      }
+    },
+    {
+      "id": "program-bridge-sfoasj",
+      "component": "code.module",
+      "name": "Program bridge",
+      "description": "Finds the program running on the project from its record, starting one in the background when none runs, and keeps a copy of the project in step.",
+      "attributes": {
+        "source": "claude/bridge.ts, claude/discovery.ts"
+      }
+    },
+    {
+      "id": "live-value-store-jwh6xz",
+      "component": "code.module",
+      "name": "Live-value store",
+      "description": "The live values sent while the app is open, with their limits; in memory only, never saved (ADR 0057).",
+      "attributes": {
+        "source": "live.ts"
+      }
+    },
+    {
+      "id": "fetcher-5zsg5d",
+      "component": "code.module",
+      "name": "Fetcher",
+      "description": "Fetches for package code from the one origin it was granted: https and public addresses only (ADR 0063).",
+      "attributes": {
+        "source": "live-fetch.ts"
+      }
+    },
+    {
+      "id": "preferences-q35x5d",
+      "component": "code.module",
+      "name": "Preferences",
+      "description": "Each person's preferences, read and written atomically outside every project (ADR 0032).",
+      "attributes": {
+        "source": "preferences.ts"
+      }
+    },
+    {
+      "id": "shell-3fx6vk",
+      "component": "code.module",
+      "name": "Shell",
+      "description": "The page around the canvas: it holds the project as the live connection gives it and builds the open view's scene.",
+      "attributes": {
+        "source": "App.tsx, shell/Shell.tsx",
+        "technology": "React 19"
+      }
+    },
+    {
+      "id": "header-7m4f2l",
+      "component": "code.module",
+      "name": "Header",
+      "description": "Project and view names, Copy address, Import…, Export…, Element list, Undo and Redo, language and theme.",
+      "attributes": {
+        "source": "shell/Header.tsx"
+      }
+    },
+    {
+      "id": "outline-p24ysl",
+      "component": "code.module",
+      "name": "Outline",
+      "description": "The open view written out as a list, moved through from the keyboard, following the selection.",
+      "attributes": {
+        "source": "shell/Outline.tsx, OutlineTree.tsx"
+      }
+    },
+    {
+      "id": "inspector-rux0hm",
+      "component": "code.module",
+      "name": "Inspector",
+      "description": "Attributes, particularities, colors, containers and the view's scope, edited in place.",
+      "attributes": {
+        "source": "shell/Inspector.tsx, shell/inspector/"
+      }
+    },
+    {
+      "id": "component-editor-emdkot",
+      "component": "code.module",
+      "name": "Component editor",
+      "description": "Components and relation types with what they inherit, derived, defined, changed and removed trait by trait.",
+      "attributes": {
+        "source": "shell/ComponentsTab.tsx, shell/definitions/"
+      }
+    },
+    {
+      "id": "canvas-lbfjd4",
+      "component": "code.module",
+      "name": "Canvas",
+      "description": "The surface the open view is drawn and edited on.",
+      "attributes": {
+        "source": "canvas/CanvasArea.tsx"
+      }
+    },
+    {
+      "id": "controller-n8tse7",
+      "component": "code.module",
+      "name": "Controller",
+      "description": "Turns pointer and keyboard gestures into commands (a drag ends as one set-positions, a drop on a container as change-container) and hands each new scene to the renderer.",
+      "attributes": {
+        "source": "canvas/controller.ts, gestures.ts, drop.ts"
+      }
+    },
+    {
+      "id": "scene-wm5jec",
+      "component": "code.module",
+      "name": "Scene",
+      "description": "What the view draws: shapes, rows and relations with their places, aggregated relations of collapsed containers, filters and focus, indexed for hit tests.",
+      "attributes": {
+        "source": "canvas/scene.ts, hit.ts"
+      }
+    },
+    {
+      "id": "renderer-e9aatb",
+      "component": "code.module",
+      "name": "Renderer",
+      "description": "Draws the scene with WebGL, with an HTML layer for text being edited (ADR 0014).",
+      "attributes": {
+        "source": "canvas/renderer.ts",
+        "technology": "PixiJS 8"
+      }
+    },
+    {
+      "id": "tiles-h57j40",
+      "component": "code.module",
+      "name": "Tiles",
+      "description": "The canvas cut into tiles, so that an action redraws only the tiles it changed.",
+      "attributes": {
+        "source": "canvas/tiles.ts"
+      }
+    },
+    {
+      "id": "routes-dwklah",
+      "component": "code.module",
+      "name": "Routes",
+      "description": "Where each relation's line runs: orthogonal by default, or as chosen by hand (ADR 0039).",
+      "attributes": {
+        "source": "canvas/routing/, route.ts"
+      }
+    },
+    {
+      "id": "layout-worker-i5cc8n",
+      "component": "code.module",
+      "name": "Layout worker",
+      "description": "Lays out a view off the main thread, pinned shapes as fixed inputs; the result comes back as one command (ADR 0015).",
+      "attributes": {
+        "source": "canvas/layout/",
+        "technology": "ELK (elkjs) in a Web Worker"
+      }
+    },
+    {
+      "id": "live-connection-lh20ap",
+      "component": "code.module",
+      "name": "Live connection",
+      "description": "The tab's WebSocket to the program: sends commands, undo and redo, applies each change it pushes, and shares the session with the browser's other tabs (ADR 0043).",
+      "attributes": {
+        "source": "live/connection.ts, live/session.ts, live/share.ts"
+      }
+    },
+    {
+      "id": "package-code-worker-ig5gg6",
+      "component": "code.module",
+      "name": "Package-code worker",
+      "description": "Runs approved package code in QuickJS inside WebAssembly, one runtime per package, within 50 ms and 32 MiB a call (ADR 0054).",
+      "attributes": {
+        "source": "code/",
+        "technology": "QuickJS in a Web Worker"
+      }
+    },
+    {
+      "id": "find-bar-6a2547",
+      "component": "code.module",
+      "name": "Find bar",
+      "description": "Ctrl+F over names, ids, components and attribute values, grouped by view; Enter selects and shows.",
+      "attributes": {
+        "source": "search/"
+      }
+    },
+    {
+      "id": "import-dialog-xi8ebh",
+      "component": "code.module",
+      "name": "Import dialog",
+      "description": "Reads a file or pasted text in the tab, maps its kinds, and sends the import as one command.",
+      "attributes": {
+        "source": "import/"
+      }
+    },
+    {
+      "id": "export-dialog-flhm4n",
+      "component": "code.module",
+      "name": "Export dialog",
+      "description": "PNG, SVG, PDF, text exports and the read-only page, each with its size and what it leaves out.",
+      "attributes": {
+        "source": "export/"
+      }
+    },
+    {
+      "id": "scenario-playback-n01j8d",
+      "component": "code.module",
+      "name": "Scenario playback",
+      "description": "The scenario panel: record, play, step, speed, the travelling marker and the step's data.",
+      "attributes": {
+        "source": "scenarios/"
+      }
+    },
+    {
+      "id": "tours-panel-huikrh",
+      "component": "code.module",
+      "name": "Tours panel",
+      "description": "Tours made from view states and played full screen.",
+      "attributes": {
+        "source": "tours/"
+      }
+    },
+    {
+      "id": "history-panel-ws3x3i",
+      "component": "code.module",
+      "name": "History panel",
+      "description": "Each action's label, author and time, and Undo to here.",
+      "attributes": {
+        "source": "history/"
+      }
+    },
+    {
+      "id": "guidance-layer-5omioy",
+      "component": "code.module",
+      "name": "Guidance layer",
+      "description": "Claude's highlights, focus, moves of the canvas and captions, which change nothing.",
+      "attributes": {
+        "source": "guidance/"
+      }
+    },
+    {
+      "id": "viewer-page-bd4ohc",
+      "component": "code.module",
+      "name": "Viewer page",
+      "description": "The read-only page's own build: every view, scenario and tour in one file, with no token and no connection (ADR 0041).",
+      "attributes": {
+        "source": "viewer/"
+      }
+    },
+    {
+      "id": "start-screen-session-xgj4n5",
+      "component": "code.module",
+      "name": "Start screen session",
+      "description": "The program on a folder that holds no project yet (ADR 0051): it greets each app with the samples a project can start from, writes the one chosen, and from then on is that project's session.",
+      "attributes": {
+        "source": "start.ts, samples.ts"
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "is-part-of-ary514",
+      "relationType": "systems.is-part-of",
+      "from": "project-folder-ptj3sb",
+      "to": "file-system-6yurvg"
+    },
+    {
+      "id": "is-part-of-ywiz4z",
+      "relationType": "systems.is-part-of",
+      "from": "preferences-folder-pyjr25",
+      "to": "file-system-6yurvg"
+    },
+    {
+      "id": "is-part-of-tpwost",
+      "relationType": "systems.is-part-of",
+      "from": "runtime-folder-sfstje",
+      "to": "file-system-6yurvg"
+    },
+    {
+      "id": "is-part-of-k3d0yj",
+      "relationType": "systems.is-part-of",
+      "from": "core-hnt4ih",
+      "to": "visual-anything-ksmhdr"
+    },
+    {
+      "id": "is-part-of-746plh",
+      "relationType": "systems.is-part-of",
+      "from": "schema-nd8g5w",
+      "to": "visual-anything-ksmhdr"
+    },
+    {
+      "id": "is-part-of-lg6psw",
+      "relationType": "systems.is-part-of",
+      "from": "server-w4u6le",
+      "to": "visual-anything-ksmhdr"
+    },
+    {
+      "id": "is-part-of-i6np89",
+      "relationType": "systems.is-part-of",
+      "from": "app-kk6aff",
+      "to": "visual-anything-ksmhdr"
+    },
+    {
+      "id": "is-part-of-1v19gf",
+      "relationType": "systems.is-part-of",
+      "from": "commands-1x11jh",
+      "to": "core-hnt4ih"
+    },
+    {
+      "id": "is-part-of-hah648",
+      "relationType": "systems.is-part-of",
+      "from": "command-catalogue-n08cwi",
+      "to": "commands-1x11jh"
+    },
+    {
+      "id": "is-part-of-0fvq7y",
+      "relationType": "systems.is-part-of",
+      "from": "dispatch-g01mws",
+      "to": "commands-1x11jh"
+    },
+    {
+      "id": "is-part-of-o0rqsd",
+      "relationType": "systems.is-part-of",
+      "from": "the-draft-qwapji",
+      "to": "commands-1x11jh"
+    },
+    {
+      "id": "is-part-of-tyr07z",
+      "relationType": "systems.is-part-of",
+      "from": "model-index-grsmhl",
+      "to": "core-hnt4ih"
+    },
+    {
+      "id": "is-part-of-hv0gq8",
+      "relationType": "systems.is-part-of",
+      "from": "operations-and-history-dymdww",
+      "to": "core-hnt4ih"
+    },
+    {
+      "id": "is-part-of-58db2x",
+      "relationType": "systems.is-part-of",
+      "from": "operations-4npywn",
+      "to": "operations-and-history-dymdww"
+    },
+    {
+      "id": "is-part-of-8edakx",
+      "relationType": "systems.is-part-of",
+      "from": "history-9uwkuo",
+      "to": "operations-and-history-dymdww"
+    },
+    {
+      "id": "is-part-of-jvtnsg",
+      "relationType": "systems.is-part-of",
+      "from": "invariants-and-rules-epj399",
+      "to": "core-hnt4ih"
+    },
+    {
+      "id": "is-part-of-cfkp1i",
+      "relationType": "systems.is-part-of",
+      "from": "live-protocol-7q77ls",
+      "to": "core-hnt4ih"
+    },
+    {
+      "id": "is-part-of-nip79f",
+      "relationType": "systems.is-part-of",
+      "from": "imports-zloy9h",
+      "to": "core-hnt4ih"
+    },
+    {
+      "id": "is-part-of-ifvdlr",
+      "relationType": "systems.is-part-of",
+      "from": "readers-hlxfaj",
+      "to": "imports-zloy9h"
+    },
+    {
+      "id": "is-part-of-iuccab",
+      "relationType": "systems.is-part-of",
+      "from": "plan-and-mapping-9sn6d4",
+      "to": "imports-zloy9h"
+    },
+    {
+      "id": "is-part-of-eqldx5",
+      "relationType": "systems.is-part-of",
+      "from": "overlays-and-levels-of-detail-mvb3a0",
+      "to": "core-hnt4ih"
+    },
+    {
+      "id": "is-part-of-jgbdfu",
+      "relationType": "systems.is-part-of",
+      "from": "live-values-lwn9mq",
+      "to": "core-hnt4ih"
+    },
+    {
+      "id": "is-part-of-cs6uxq",
+      "relationType": "systems.is-part-of",
+      "from": "scenarios-pwdzzr",
+      "to": "core-hnt4ih"
+    },
+    {
+      "id": "is-part-of-a7malf",
+      "relationType": "systems.is-part-of",
+      "from": "timeline-9owjec",
+      "to": "scenarios-pwdzzr"
+    },
+    {
+      "id": "is-part-of-k4ywrz",
+      "relationType": "systems.is-part-of",
+      "from": "playback-olqp30",
+      "to": "scenarios-pwdzzr"
+    },
+    {
+      "id": "is-part-of-2dm4g7",
+      "relationType": "systems.is-part-of",
+      "from": "recording-5wyc6v",
+      "to": "scenarios-pwdzzr"
+    },
+    {
+      "id": "is-part-of-5hdmxb",
+      "relationType": "systems.is-part-of",
+      "from": "tours-gt1u65",
+      "to": "core-hnt4ih"
+    },
+    {
+      "id": "is-part-of-6fl2mz",
+      "relationType": "systems.is-part-of",
+      "from": "scope-and-view-state-i0e3m0",
+      "to": "core-hnt4ih"
+    },
+    {
+      "id": "is-part-of-15w2zk",
+      "relationType": "systems.is-part-of",
+      "from": "built-in-packages-k48uc4",
+      "to": "core-hnt4ih"
+    },
+    {
+      "id": "works-in-idnei3",
+      "relationType": "code.calls",
+      "from": "dispatch-g01mws",
+      "to": "the-draft-qwapji",
+      "name": "works in",
+      "attributes": {
+        "function": "the command's draft"
+      }
+    },
+    {
+      "id": "keeps-up-to-date-b0vk6p",
+      "relationType": "code.calls",
+      "from": "the-draft-qwapji",
+      "to": "model-index-grsmhl",
+      "name": "keeps up to date",
+      "attributes": {
+        "function": "modelIndexOf"
+      }
+    },
+    {
+      "id": "checks-dwzlvt",
+      "relationType": "code.calls",
+      "from": "dispatch-g01mws",
+      "to": "invariants-and-rules-epj399",
+      "name": "checks",
+      "attributes": {
+        "function": "the rules of each command"
+      }
+    },
+    {
+      "id": "places-steps-by-eiol9k",
+      "relationType": "code.calls",
+      "from": "timeline-9owjec",
+      "to": "scope-and-view-state-i0e3m0",
+      "name": "places steps by",
+      "attributes": {
+        "function": "shownByScope"
+      }
+    },
+    {
+      "id": "is-part-of-sicm45",
+      "relationType": "systems.is-part-of",
+      "from": "file-types-g6uu5b",
+      "to": "schema-nd8g5w"
+    },
+    {
+      "id": "is-part-of-n8sed2",
+      "relationType": "systems.is-part-of",
+      "from": "project-file-types-k1ajwu",
+      "to": "file-types-g6uu5b"
+    },
+    {
+      "id": "is-part-of-t96u6o",
+      "relationType": "systems.is-part-of",
+      "from": "image-types-pbi1wn",
+      "to": "file-types-g6uu5b"
+    },
+    {
+      "id": "is-part-of-9ntvsk",
+      "relationType": "systems.is-part-of",
+      "from": "file-kinds-bbldpz",
+      "to": "schema-nd8g5w"
+    },
+    {
+      "id": "is-part-of-elb48h",
+      "relationType": "systems.is-part-of",
+      "from": "json-schema-gl4q1u",
+      "to": "schema-nd8g5w"
+    },
+    {
+      "id": "is-part-of-xd3kcp",
+      "relationType": "systems.is-part-of",
+      "from": "validator-bus0vj",
+      "to": "schema-nd8g5w"
+    },
+    {
+      "id": "is-part-of-x8v54u",
+      "relationType": "systems.is-part-of",
+      "from": "formatter-k3u4yu",
+      "to": "schema-nd8g5w"
+    },
+    {
+      "id": "checks-files-against-z8vce1",
+      "relationType": "code.calls",
+      "from": "validator-bus0vj",
+      "to": "json-schema-gl4q1u",
+      "name": "checks files against",
+      "attributes": {
+        "function": "validateFile"
+      }
+    },
+    {
+      "id": "is-part-of-gxbnia",
+      "relationType": "systems.is-part-of",
+      "from": "command-line-8iw2p0",
+      "to": "server-w4u6le"
+    },
+    {
+      "id": "is-part-of-rv3xyk",
+      "relationType": "systems.is-part-of",
+      "from": "open-9kxzjx",
+      "to": "command-line-8iw2p0"
+    },
+    {
+      "id": "is-part-of-w2fceg",
+      "relationType": "systems.is-part-of",
+      "from": "new-2rzz00",
+      "to": "command-line-8iw2p0"
+    },
+    {
+      "id": "is-part-of-ta6xl8",
+      "relationType": "systems.is-part-of",
+      "from": "export-sps16w",
+      "to": "command-line-8iw2p0"
+    },
+    {
+      "id": "is-part-of-3on2rz",
+      "relationType": "systems.is-part-of",
+      "from": "import-g3qib5",
+      "to": "command-line-8iw2p0"
+    },
+    {
+      "id": "is-part-of-629l2r",
+      "relationType": "systems.is-part-of",
+      "from": "live-fcx0l7",
+      "to": "command-line-8iw2p0"
+    },
+    {
+      "id": "is-part-of-wjuybw",
+      "relationType": "systems.is-part-of",
+      "from": "session-839z14",
+      "to": "server-w4u6le"
+    },
+    {
+      "id": "is-part-of-gy7oe2",
+      "relationType": "systems.is-part-of",
+      "from": "task-queue-qivajs",
+      "to": "session-839z14"
+    },
+    {
+      "id": "is-part-of-umjywt",
+      "relationType": "systems.is-part-of",
+      "from": "file-plan-zfdee5",
+      "to": "session-839z14"
+    },
+    {
+      "id": "is-part-of-lmf5mg",
+      "relationType": "systems.is-part-of",
+      "from": "project-files-1j6g7d",
+      "to": "server-w4u6le"
+    },
+    {
+      "id": "is-part-of-g8iqoo",
+      "relationType": "systems.is-part-of",
+      "from": "loader-56cxva",
+      "to": "project-files-1j6g7d"
+    },
+    {
+      "id": "is-part-of-ljnc78",
+      "relationType": "systems.is-part-of",
+      "from": "writer-aimmvw",
+      "to": "project-files-1j6g7d"
+    },
+    {
+      "id": "is-part-of-ai0c89",
+      "relationType": "systems.is-part-of",
+      "from": "watcher-uu6b0q",
+      "to": "project-files-1j6g7d"
+    },
+    {
+      "id": "is-part-of-6gv098",
+      "relationType": "systems.is-part-of",
+      "from": "http-server-e6wcc0",
+      "to": "server-w4u6le"
+    },
+    {
+      "id": "is-part-of-2ygjgu",
+      "relationType": "systems.is-part-of",
+      "from": "checks-ykh1p6",
+      "to": "http-server-e6wcc0"
+    },
+    {
+      "id": "is-part-of-yg356d",
+      "relationType": "systems.is-part-of",
+      "from": "content-security-policy-3oj4n6",
+      "to": "http-server-e6wcc0"
+    },
+    {
+      "id": "is-part-of-zh8mce",
+      "relationType": "systems.is-part-of",
+      "from": "static-app-9ac5ej",
+      "to": "http-server-e6wcc0"
+    },
+    {
+      "id": "is-part-of-0gop4w",
+      "relationType": "systems.is-part-of",
+      "from": "claude-s-messages-688sqa",
+      "to": "claude-endpoint-vxxqxs"
+    },
+    {
+      "id": "is-part-of-lzbgvh",
+      "relationType": "systems.is-part-of",
+      "from": "mcp-entry-point-ihvp4m",
+      "to": "server-w4u6le"
+    },
+    {
+      "id": "is-part-of-d9o8a9",
+      "relationType": "systems.is-part-of",
+      "from": "tools-zye42c",
+      "to": "mcp-entry-point-ihvp4m"
+    },
+    {
+      "id": "is-part-of-2znnqt",
+      "relationType": "systems.is-part-of",
+      "from": "recipes-hwt7dj",
+      "to": "mcp-entry-point-ihvp4m"
+    },
+    {
+      "id": "is-part-of-x6yage",
+      "relationType": "systems.is-part-of",
+      "from": "program-bridge-sfoasj",
+      "to": "mcp-entry-point-ihvp4m"
+    },
+    {
+      "id": "is-part-of-67cxcc",
+      "relationType": "systems.is-part-of",
+      "from": "live-value-store-jwh6xz",
+      "to": "server-w4u6le"
+    },
+    {
+      "id": "is-part-of-esj73b",
+      "relationType": "systems.is-part-of",
+      "from": "fetcher-5zsg5d",
+      "to": "server-w4u6le"
+    },
+    {
+      "id": "is-part-of-80zdyh",
+      "relationType": "systems.is-part-of",
+      "from": "preferences-q35x5d",
+      "to": "server-w4u6le"
+    },
+    {
+      "id": "is-part-of-r381n0",
+      "relationType": "systems.is-part-of",
+      "from": "shell-3fx6vk",
+      "to": "app-kk6aff"
+    },
+    {
+      "id": "is-part-of-u40hps",
+      "relationType": "systems.is-part-of",
+      "from": "header-7m4f2l",
+      "to": "shell-3fx6vk"
+    },
+    {
+      "id": "is-part-of-2a16h5",
+      "relationType": "systems.is-part-of",
+      "from": "outline-p24ysl",
+      "to": "shell-3fx6vk"
+    },
+    {
+      "id": "is-part-of-zgwugb",
+      "relationType": "systems.is-part-of",
+      "from": "inspector-rux0hm",
+      "to": "shell-3fx6vk"
+    },
+    {
+      "id": "is-part-of-4or6sg",
+      "relationType": "systems.is-part-of",
+      "from": "component-editor-emdkot",
+      "to": "shell-3fx6vk"
+    },
+    {
+      "id": "is-part-of-4bn8ms",
+      "relationType": "systems.is-part-of",
+      "from": "canvas-lbfjd4",
+      "to": "app-kk6aff"
+    },
+    {
+      "id": "is-part-of-k9nhbi",
+      "relationType": "systems.is-part-of",
+      "from": "controller-n8tse7",
+      "to": "canvas-lbfjd4"
+    },
+    {
+      "id": "is-part-of-2djftm",
+      "relationType": "systems.is-part-of",
+      "from": "scene-wm5jec",
+      "to": "canvas-lbfjd4"
+    },
+    {
+      "id": "is-part-of-cte0r2",
+      "relationType": "systems.is-part-of",
+      "from": "renderer-e9aatb",
+      "to": "canvas-lbfjd4"
+    },
+    {
+      "id": "is-part-of-7uul2q",
+      "relationType": "systems.is-part-of",
+      "from": "tiles-h57j40",
+      "to": "renderer-e9aatb"
+    },
+    {
+      "id": "is-part-of-dzbh15",
+      "relationType": "systems.is-part-of",
+      "from": "routes-dwklah",
+      "to": "canvas-lbfjd4"
+    },
+    {
+      "id": "is-part-of-al5def",
+      "relationType": "systems.is-part-of",
+      "from": "layout-worker-i5cc8n",
+      "to": "app-kk6aff"
+    },
+    {
+      "id": "is-part-of-mi7a1x",
+      "relationType": "systems.is-part-of",
+      "from": "live-connection-lh20ap",
+      "to": "app-kk6aff"
+    },
+    {
+      "id": "is-part-of-wwmle6",
+      "relationType": "systems.is-part-of",
+      "from": "package-code-worker-ig5gg6",
+      "to": "app-kk6aff"
+    },
+    {
+      "id": "is-part-of-jgqngy",
+      "relationType": "systems.is-part-of",
+      "from": "find-bar-6a2547",
+      "to": "app-kk6aff"
+    },
+    {
+      "id": "is-part-of-m22zcq",
+      "relationType": "systems.is-part-of",
+      "from": "import-dialog-xi8ebh",
+      "to": "app-kk6aff"
+    },
+    {
+      "id": "is-part-of-3hwxil",
+      "relationType": "systems.is-part-of",
+      "from": "export-dialog-flhm4n",
+      "to": "app-kk6aff"
+    },
+    {
+      "id": "is-part-of-ylipie",
+      "relationType": "systems.is-part-of",
+      "from": "scenario-playback-n01j8d",
+      "to": "app-kk6aff"
+    },
+    {
+      "id": "is-part-of-jkmilk",
+      "relationType": "systems.is-part-of",
+      "from": "tours-panel-huikrh",
+      "to": "app-kk6aff"
+    },
+    {
+      "id": "is-part-of-ikj0ap",
+      "relationType": "systems.is-part-of",
+      "from": "history-panel-ws3x3i",
+      "to": "app-kk6aff"
+    },
+    {
+      "id": "is-part-of-jz3ak1",
+      "relationType": "systems.is-part-of",
+      "from": "guidance-layer-5omioy",
+      "to": "app-kk6aff"
+    },
+    {
+      "id": "is-part-of-94js5i",
+      "relationType": "systems.is-part-of",
+      "from": "viewer-page-bd4ohc",
+      "to": "app-kk6aff"
+    },
+    {
+      "id": "depends-on-qksm0t",
+      "relationType": "code.depends-on",
+      "from": "core-hnt4ih",
+      "to": "schema-nd8g5w"
+    },
+    {
+      "id": "depends-on-u3lktd",
+      "relationType": "code.depends-on",
+      "from": "app-kk6aff",
+      "to": "core-hnt4ih"
+    },
+    {
+      "id": "depends-on-p695qo",
+      "relationType": "code.depends-on",
+      "from": "app-kk6aff",
+      "to": "schema-nd8g5w"
+    },
+    {
+      "id": "depends-on-qdqdi8",
+      "relationType": "code.depends-on",
+      "from": "server-w4u6le",
+      "to": "core-hnt4ih"
+    },
+    {
+      "id": "depends-on-8zx8rb",
+      "relationType": "code.depends-on",
+      "from": "server-w4u6le",
+      "to": "schema-nd8g5w"
+    },
+    {
+      "id": "depends-on-ikjoez",
+      "relationType": "code.depends-on",
+      "from": "server-w4u6le",
+      "to": "app-kk6aff",
+      "description": "The server serves the app's build, and bundles it into the single executable."
+    },
+    {
+      "id": "uses-the-app-in-bg5vgb",
+      "relationType": "systems.communicates-with",
+      "from": "person-q8wuyh",
+      "to": "browser-kvjvxb",
+      "name": "uses the app in"
+    },
+    {
+      "id": "asks-v6dx6y",
+      "relationType": "systems.communicates-with",
+      "from": "person-q8wuyh",
+      "to": "claude-6ucwa1",
+      "name": "asks"
+    },
+    {
+      "id": "drags-clicks-and-types-on-yojzfz",
+      "relationType": "systems.communicates-with",
+      "from": "person-q8wuyh",
+      "to": "controller-n8tse7",
+      "name": "drags, clicks and types on",
+      "attributes": {
+        "protocol": "pointer and keyboard events"
+      }
+    },
+    {
+      "id": "loads-the-app-from-dj44rk",
+      "relationType": "code.connects-to",
+      "from": "browser-kvjvxb",
+      "to": "static-app-9ac5ej",
+      "name": "loads the app from",
+      "attributes": {
+        "address": "127.0.0.1 only",
+        "credential": "none: the page holds no secret; the address that opens it carries a launch code that works once, within two minutes",
+        "messages": "the built app: index.html, scripts, styles, fonts, workers",
+        "path": "/ (GET and HEAD only)",
+        "port": "--port n, or any free port",
+        "protocol": "HTTP"
+      }
+    },
+    {
+      "id": "sends-commands-4zu6v6",
+      "relationType": "code.connects-to",
+      "from": "live-connection-lh20ap",
+      "to": "live-websocket-x6ym5f",
+      "name": "sends commands",
+      "attributes": {
+        "address": "127.0.0.1 only",
+        "credential": "the per-session token, or once a launch code that is redeemed for it",
+        "messages": "command, undo, redo, preferences/set, start/create, project/open-other, live/fetch, live/set",
+        "path": "/live",
+        "port": "the program's port",
+        "protocol": "WebSocket"
+      }
+    },
+    {
+      "id": "pushes-every-change-tourtd",
+      "relationType": "code.pushes-to",
+      "from": "live-websocket-x6ym5f",
+      "to": "live-connection-lh20ap",
+      "name": "pushes every change",
+      "attributes": {
+        "messages": "project/opened, project/changed, command/rejected, project/reloaded, notice, history/listed, guidance, preferences/changed, live/values, live/fetched",
+        "protocol": "WebSocket"
+      }
+    },
+    {
+      "id": "calls-tools-of-kp64fl",
+      "relationType": "code.connects-to",
+      "from": "claude-6ucwa1",
+      "to": "mcp-entry-point-ihvp4m",
+      "name": "calls tools of",
+      "attributes": {
+        "address": "a child process of Claude Code or Claude Desktop",
+        "credential": "none: the process Claude starts",
+        "messages": "tool calls and prompts; answers as JSON",
+        "path": "visual-anything mcp <project>",
+        "protocol": "MCP over stdio"
+      }
+    },
+    {
+      "id": "sends-claude-s-commands-oc4d53",
+      "relationType": "code.connects-to",
+      "from": "program-bridge-sfoasj",
+      "to": "claude-endpoint-vxxqxs",
+      "name": "sends Claude's commands",
+      "attributes": {
+        "address": "127.0.0.1 only",
+        "credential": "a Bearer credential of Claude's own, from the program's record; a request carrying an Origin is refused",
+        "messages": "command, guidance, open-app, code-approvals, import, live/set, live/clear",
+        "path": "/claude",
+        "port": "the port in the program's record",
+        "protocol": "WebSocket"
+      }
+    },
+    {
+      "id": "pushes-every-change-24zkv9",
+      "relationType": "code.pushes-to",
+      "from": "claude-endpoint-vxxqxs",
+      "to": "program-bridge-sfoasj",
+      "name": "pushes every change",
+      "attributes": {
+        "messages": "project/opened, project/changed, command/rejected, guidance/shown, app/opened, code/approvals, live/cleared",
+        "protocol": "WebSocket"
+      }
+    },
+    {
+      "id": "sends-live-values-qfouts",
+      "relationType": "code.connects-to",
+      "from": "live-fcx0l7",
+      "to": "claude-endpoint-vxxqxs",
+      "name": "sends live values",
+      "attributes": {
+        "address": "127.0.0.1 only",
+        "credential": "the Claude credential, as the command line; it never starts a program",
+        "messages": "live/set",
+        "path": "/claude",
+        "protocol": "WebSocket"
+      }
+    },
+    {
+      "id": "sends-the-import-ne3a5z",
+      "relationType": "code.connects-to",
+      "from": "import-g3qib5",
+      "to": "claude-endpoint-vxxqxs",
+      "name": "sends the import",
+      "attributes": {
+        "address": "127.0.0.1 only",
+        "credential": "the Claude credential, as the person's own action",
+        "messages": "import",
+        "path": "/claude",
+        "protocol": "WebSocket"
+      }
+    },
+    {
+      "id": "asks-for-a-layout-kd0p8b",
+      "relationType": "code.connects-to",
+      "from": "canvas-lbfjd4",
+      "to": "layout-worker-i5cc8n",
+      "name": "asks for a layout",
+      "attributes": {
+        "messages": "the view's shapes, sizes, ports and pinned places; back: progress, done or failed",
+        "protocol": "postMessage to a Web Worker"
+      }
+    },
+    {
+      "id": "runs-package-code-in-7aww2b",
+      "relationType": "code.connects-to",
+      "from": "live-connection-lh20ap",
+      "to": "package-code-worker-ig5gg6",
+      "name": "runs package code in",
+      "attributes": {
+        "messages": "frozen copies of elements; back: computed values, problems and drawings",
+        "protocol": "postMessage to a Web Worker"
+      }
+    },
+    {
+      "id": "fetches-from-bm7ca1",
+      "relationType": "code.connects-to",
+      "from": "fetcher-5zsg5d",
+      "to": "web-origin-8z645q",
+      "name": "fetches from",
+      "attributes": {
+        "address": "public addresses only",
+        "credential": "the person's approval of the package's code, by its hash and capabilities",
+        "messages": "GET requests for package code",
+        "protocol": "HTTPS GET"
+      }
+    },
+    {
+      "id": "guards-9lcjra",
+      "relationType": "code.guards",
+      "from": "checks-ykh1p6",
+      "to": "sends-commands-4zu6v6",
+      "attributes": {
+        "checks": "Host names the program, Origin is the app's own, exactly one token or launch code"
+      }
+    },
+    {
+      "id": "guards-fdc009",
+      "relationType": "code.guards",
+      "from": "checks-ykh1p6",
+      "to": "sends-claude-s-commands-oc4d53",
+      "attributes": {
+        "checks": "Host names the program, no Origin, the Bearer credential"
+      }
+    },
+    {
+      "id": "guards-ip22gd",
+      "relationType": "code.guards",
+      "from": "checks-ykh1p6",
+      "to": "loads-the-app-from-dj44rk",
+      "attributes": {
+        "checks": "Host names the program; Origin, when there is one, is the app's own"
+      }
+    },
+    {
+      "id": "writes-atomically-y161xz",
+      "relationType": "systems.writes-to",
+      "from": "writer-aimmvw",
+      "to": "project-folder-ptj3sb",
+      "name": "writes atomically",
+      "description": "A temporary .va-tmp file, flushed, then renamed over the old file."
+    },
+    {
+      "id": "reads-every-file-on-open-1rji6r",
+      "relationType": "systems.reads-from",
+      "from": "loader-56cxva",
+      "to": "project-folder-ptj3sb",
+      "name": "reads every file on open"
+    },
+    {
+      "id": "watches-nuhrr1",
+      "relationType": "systems.reads-from",
+      "from": "watcher-uu6b0q",
+      "to": "project-folder-ptj3sb",
+      "name": "watches",
+      "description": "Changes made outside, such as a git pull; its own temporary files are ignored."
+    },
+    {
+      "id": "reads-and-writes-preferences-json-4e8t8n",
+      "relationType": "systems.writes-to",
+      "from": "preferences-q35x5d",
+      "to": "preferences-folder-pyjr25",
+      "name": "reads and writes preferences.json"
+    },
+    {
+      "id": "leaves-the-program-s-record-mb9he6",
+      "relationType": "systems.writes-to",
+      "from": "open-9kxzjx",
+      "to": "runtime-folder-sfstje",
+      "name": "leaves the program's record",
+      "description": "Once listening; removed when the program stops."
+    },
+    {
+      "id": "finds-the-program-s-record-bpc2rb",
+      "relationType": "systems.reads-from",
+      "from": "program-bridge-sfoasj",
+      "to": "runtime-folder-sfstje",
+      "name": "finds the program's record"
+    },
+    {
+      "id": "starts-in-the-background-when-none-runs-6jv9aa",
+      "relationType": "systems.communicates-with",
+      "from": "program-bridge-sfoasj",
+      "to": "open-9kxzjx",
+      "name": "starts in the background when none runs",
+      "attributes": {
+        "protocol": "a detached child process: visual-anything <folder> --no-open --stop-when-idle"
+      }
+    },
+    {
+      "id": "opens-jtd9kc",
+      "relationType": "code.calls",
+      "from": "open-9kxzjx",
+      "to": "session-839z14",
+      "name": "opens",
+      "attributes": {
+        "function": "openSession"
+      }
+    },
+    {
+      "id": "starts-jnkhgi",
+      "relationType": "code.calls",
+      "from": "open-9kxzjx",
+      "to": "http-server-e6wcc0",
+      "name": "starts",
+      "attributes": {
+        "function": "startServer"
+      }
+    },
+    {
+      "id": "passes-each-message-to-w9h5yo",
+      "relationType": "code.calls",
+      "from": "live-websocket-x6ym5f",
+      "to": "session-839z14",
+      "name": "passes each message to",
+      "attributes": {
+        "function": "Session.receive"
+      }
+    },
+    {
+      "id": "runs-claude-s-commands-in-oz2wj4",
+      "relationType": "code.calls",
+      "from": "claude-endpoint-vxxqxs",
+      "to": "session-839z14",
+      "name": "runs Claude's commands in",
+      "attributes": {
+        "function": "Session.execute, with Claude as author"
+      }
+    },
+    {
+      "id": "runs-each-command-with-i02nx1",
+      "relationType": "code.calls",
+      "from": "session-839z14",
+      "to": "dispatch-g01mws",
+      "name": "runs each command with",
+      "attributes": {
+        "function": "executeCommand"
+      }
+    },
+    {
+      "id": "validates-each-changed-file-with-pdbfh6",
+      "relationType": "code.calls",
+      "from": "session-839z14",
+      "to": "validator-bus0vj",
+      "name": "validates each changed file with",
+      "attributes": {
+        "function": "validateFile"
+      }
+    },
+    {
+      "id": "formats-each-changed-file-with-8404ia",
+      "relationType": "code.calls",
+      "from": "session-839z14",
+      "to": "formatter-k3u4yu",
+      "name": "formats each changed file with",
+      "attributes": {
+        "function": "formatFile"
+      }
+    },
+    {
+      "id": "saves-each-changed-file-with-qlba3x",
+      "relationType": "code.calls",
+      "from": "session-839z14",
+      "to": "writer-aimmvw",
+      "name": "saves each changed file with",
+      "attributes": {
+        "function": "writeFileAtomic"
+      }
+    },
+    {
+      "id": "records-each-action-in-x8j9ej",
+      "relationType": "code.calls",
+      "from": "session-839z14",
+      "to": "history-9uwkuo",
+      "name": "records each action in",
+      "attributes": {
+        "function": "record, undo, redo"
+      }
+    },
+    {
+      "id": "announces-each-action-to-every-app-throu-9fzvhp",
+      "relationType": "code.calls",
+      "from": "session-839z14",
+      "to": "live-websocket-x6ym5f",
+      "name": "announces each action to every app through",
+      "attributes": {
+        "function": "#announce, then #listHistory"
+      }
+    },
+    {
+      "id": "announces-each-action-to-claude-through-3ljud3",
+      "relationType": "code.calls",
+      "from": "session-839z14",
+      "to": "claude-endpoint-vxxqxs",
+      "name": "announces each action to Claude through",
+      "attributes": {
+        "function": "#announce"
+      }
+    },
+    {
+      "id": "keeps-live-values-in-io12zf",
+      "relationType": "code.calls",
+      "from": "session-839z14",
+      "to": "live-value-store-jwh6xz",
+      "name": "keeps live values in",
+      "attributes": {
+        "function": "LiveValues.set"
+      }
+    },
+    {
+      "id": "fetches-for-package-code-with-ndxq94",
+      "relationType": "code.calls",
+      "from": "session-839z14",
+      "to": "fetcher-5zsg5d",
+      "name": "fetches for package code with",
+      "attributes": {
+        "function": "PackageFetcher"
+      }
+    },
+    {
+      "id": "keeps-preferences-with-kdkec2",
+      "relationType": "code.calls",
+      "from": "session-839z14",
+      "to": "preferences-q35x5d",
+      "name": "keeps preferences with"
+    },
+    {
+      "id": "reads-the-project-with-uxuskb",
+      "relationType": "code.calls",
+      "from": "session-839z14",
+      "to": "loader-56cxva",
+      "name": "reads the project with",
+      "attributes": {
+        "function": "loadProject, readProjectFiles"
+      }
+    },
+    {
+      "id": "validates-each-file-with-ndu7ep",
+      "relationType": "code.calls",
+      "from": "loader-56cxva",
+      "to": "validator-bus0vj",
+      "name": "validates each file with",
+      "attributes": {
+        "function": "validateFile"
+      }
+    },
+    {
+      "id": "asks-for-a-reload-miucs1",
+      "relationType": "code.calls",
+      "from": "watcher-uu6b0q",
+      "to": "session-839z14",
+      "name": "asks for a reload",
+      "attributes": {
+        "function": "Session.#scan"
+      }
+    },
+    {
+      "id": "send-commands-and-guidance-through-hpjmov",
+      "relationType": "code.calls",
+      "from": "tools-zye42c",
+      "to": "program-bridge-sfoasj",
+      "name": "send commands and guidance through",
+      "attributes": {
+        "function": "Program.send, project"
+      }
+    },
+    {
+      "id": "keeps-its-copy-in-step-with-e54d1j",
+      "relationType": "code.calls",
+      "from": "program-bridge-sfoasj",
+      "to": "operations-4npywn",
+      "name": "keeps its copy in step with",
+      "attributes": {
+        "function": "applyOperations"
+      }
+    },
+    {
+      "id": "sends-each-command-through-j82rpv",
+      "relationType": "code.calls",
+      "from": "controller-n8tse7",
+      "to": "live-connection-lh20ap",
+      "name": "sends each command through",
+      "attributes": {
+        "function": "LiveConnection.send"
+      }
+    },
+    {
+      "id": "applies-each-change-with-0yjp6d",
+      "relationType": "code.calls",
+      "from": "live-connection-lh20ap",
+      "to": "operations-4npywn",
+      "name": "applies each change with",
+      "attributes": {
+        "function": "applyOperations"
+      }
+    },
+    {
+      "id": "hands-the-new-project-to-s7f1g3",
+      "relationType": "code.calls",
+      "from": "live-connection-lh20ap",
+      "to": "shell-3fx6vk",
+      "name": "hands the new project to",
+      "attributes": {
+        "function": "LiveProvider"
+      }
+    },
+    {
+      "id": "hands-claude-s-guidance-to-zpetpe",
+      "relationType": "code.calls",
+      "from": "live-connection-lh20ap",
+      "to": "guidance-layer-5omioy",
+      "name": "hands Claude's guidance to"
+    },
+    {
+      "id": "builds-the-scene-with-q0751u",
+      "relationType": "code.calls",
+      "from": "shell-3fx6vk",
+      "to": "scene-wm5jec",
+      "name": "builds the scene with",
+      "attributes": {
+        "function": "buildScene"
+      }
+    },
+    {
+      "id": "gives-the-new-scene-to-rqc5l7",
+      "relationType": "code.calls",
+      "from": "shell-3fx6vk",
+      "to": "controller-n8tse7",
+      "name": "gives the new scene to",
+      "attributes": {
+        "function": "CanvasArea: indexScene, controller.update"
+      }
+    },
+    {
+      "id": "shows-the-scene-with-g773go",
+      "relationType": "code.calls",
+      "from": "controller-n8tse7",
+      "to": "renderer-e9aatb",
+      "name": "shows the scene with",
+      "attributes": {
+        "function": "renderer.show"
+      }
+    },
+    {
+      "id": "draws-lines-along-vozlfi",
+      "relationType": "code.calls",
+      "from": "renderer-e9aatb",
+      "to": "routes-dwklah",
+      "name": "draws lines along"
+    },
+    {
+      "id": "sends-the-layout-as-one-command-through-9jw5n5",
+      "relationType": "code.calls",
+      "from": "layout-worker-i5cc8n",
+      "to": "live-connection-lh20ap",
+      "name": "sends the layout as one command through"
+    },
+    {
+      "id": "sends-edits-through-sdnnmh",
+      "relationType": "code.calls",
+      "from": "inspector-rux0hm",
+      "to": "live-connection-lh20ap",
+      "name": "sends edits through"
+    },
+    {
+      "id": "sends-undo-and-redo-through-8hv4js",
+      "relationType": "code.calls",
+      "from": "history-panel-ws3x3i",
+      "to": "live-connection-lh20ap",
+      "name": "sends undo and redo through"
+    },
+    {
+      "id": "selects-and-shows-with-c9i5yw",
+      "relationType": "code.calls",
+      "from": "find-bar-6a2547",
+      "to": "controller-n8tse7",
+      "name": "selects and shows with"
+    },
+    {
+      "id": "reads-files-with-dyuqoc",
+      "relationType": "code.calls",
+      "from": "import-dialog-xi8ebh",
+      "to": "readers-hlxfaj",
+      "name": "reads files with",
+      "attributes": {
+        "function": "readImport"
+      }
+    },
+    {
+      "id": "maps-and-plans-with-laqo9q",
+      "relationType": "code.calls",
+      "from": "import-dialog-xi8ebh",
+      "to": "plan-and-mapping-9sn6d4",
+      "name": "maps and plans with",
+      "attributes": {
+        "function": "suggestMapping, prepareImport"
+      }
+    },
+    {
+      "id": "writes-svg-and-pdf-from-k8vu84",
+      "relationType": "code.calls",
+      "from": "export-dialog-flhm4n",
+      "to": "scene-wm5jec",
+      "name": "writes SVG and PDF from"
+    },
+    {
+      "id": "writes-the-read-only-page-with-elyg3u",
+      "relationType": "code.calls",
+      "from": "export-dialog-flhm4n",
+      "to": "viewer-page-bd4ohc",
+      "name": "writes the read-only page with"
+    },
+    {
+      "id": "plays-the-timeline-of-cingk4",
+      "relationType": "code.calls",
+      "from": "scenario-playback-n01j8d",
+      "to": "timeline-9owjec",
+      "name": "plays the timeline of"
+    },
+    {
+      "id": "marks-each-step-s-relations-with-m4yvhu",
+      "relationType": "code.calls",
+      "from": "scenario-playback-n01j8d",
+      "to": "renderer-e9aatb",
+      "name": "marks each step's relations with"
+    },
+    {
+      "id": "plays-tours-with-94m3u5",
+      "relationType": "code.calls",
+      "from": "tours-panel-huikrh",
+      "to": "tours-gt1u65",
+      "name": "plays tours with"
+    },
+    {
+      "id": "is-part-of-y2aqrq",
+      "relationType": "systems.is-part-of",
+      "from": "live-websocket-x6ym5f",
+      "to": "http-server-e6wcc0"
+    },
+    {
+      "id": "is-part-of-hogyus",
+      "relationType": "systems.is-part-of",
+      "from": "claude-endpoint-vxxqxs",
+      "to": "http-server-e6wcc0"
+    },
+    {
+      "id": "is-part-of-2p7ffo",
+      "relationType": "systems.is-part-of",
+      "from": "start-screen-session-xgj4n5",
+      "to": "server-w4u6le"
+    },
+    {
+      "id": "opens-on-an-empty-folder-55mg6l",
+      "relationType": "code.calls",
+      "from": "open-9kxzjx",
+      "to": "start-screen-session-xgj4n5",
+      "name": "opens on an empty folder",
+      "attributes": {
+        "function": "startingOn"
+      }
+    },
+    {
+      "id": "becomes-once-a-project-is-written-6fcbqs",
+      "relationType": "code.calls",
+      "from": "start-screen-session-xgj4n5",
+      "to": "session-839z14",
+      "name": "becomes, once a project is written",
+      "attributes": {
+        "function": "openSession"
+      }
+    }
+  ]
+}
