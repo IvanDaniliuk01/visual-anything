@@ -513,7 +513,7 @@ Eight milestones in build order, each ending in something you can use, and Track
   - the SVG test's bounds for free geometry, a drawing with parts and automatic curves;
   - Mermaid and Structurizr say that they lost the outlines.
 - [ ] **A sample,** `examples/beyond-boxes`: a heart drawn for Visual Anything (CC0-1.0), whose chambers and vessels are anchored to its named parts; a component with free geometry; one view drawn curved; a card imported from HTML; and a scenario of blood flowing through the heart.
-- [ ] **The benchmark:** `?geometry` and `?curves`, in work and frames modes, with the phases of the "Done when" above:
+- [x] **The benchmark:** `?geometry` and `?curves`, in work and frames modes, with the phases of the "Done when" above (W60, the harness; the measurements wait for the other tasks to be merged and for a quiet machine):
   - pan, zoom and select, at the whole view and with names shown;
   - pointing along outlines;
   - dragging a shape with free geometry and 50 relations;

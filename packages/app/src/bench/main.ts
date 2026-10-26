@@ -21,6 +21,10 @@
  * phases of package code drawing a gauge inside every shape (`code.ts`, ADR 0054). `?live` adds the
  * phases of live values changing four times a second in every shape's detail, and of 1,000 of them
  * changing at a time under an overlay that colors every shape by them (`live.ts`, ADR 0057).
+ * `?geometry` measures the beyond-boxes project instead (`geometry.ts`, M8b): free geometry,
+ * drawings with parts and relations on outlines, through the phases of `beyond.ts` alone. `?curves`
+ * makes the view curve every automatic route that no appearance gives a style (ADR 0069), with
+ * `?geometry` or without it.
  *
  * Work mode, the default, measures the work of each frame: it moves the camera, draws the frame and
  * waits until the GPU has drawn it, so the result does not depend on how often the browser offers
@@ -67,7 +71,10 @@ import { measureLevelCrossing, measureOverlays, type OverlayBench } from './over
 import { RESTYLING, SHOWN, TARGET_FPS, WORK, addRow, percentile, showVerdict } from './report';
 import { measureScopeChanges } from './scope';
 import { measureAvoidance, type AvoidBench } from './avoid';
+import { measureBeyondBoxes, type BeyondBench } from './beyond';
 import { measureElementList } from './elementList';
+import { measureFrames, type FrameSteps } from './frames';
+import { syntheticGeometry, withCurves } from './geometry';
 import {
   LARGE_TABLE,
   LARGE_TABLE_COLUMNS,
@@ -127,6 +134,9 @@ const onlyAvoid = search.get('only') === 'avoid';
 /** How many relations the routes phases route by hand; `?routes=0` leaves them out. */
 const routeCount = Number(search.get('routes') ?? 1000);
 const images = search.has('images');
+/** The beyond-boxes project and its phases (M8b), and whether the view curves its automatic routes. */
+const geometry = search.has('geometry');
+const curves = search.has('curves');
 const startTheme: ThemeName = search.get('theme') === 'dark' ? 'dark' : 'light';
 // The page's panel follows the canvas's theme, as the app's do.
 document.documentElement.setAttribute('data-theme', startTheme);
@@ -136,7 +146,10 @@ const status = document.getElementById('status') as HTMLElement;
 const started = performance.now();
 // `?tables` measures a view of tables instead (ADR 0023): see `syntheticTables`.
 const tables = search.has('tables');
-let project: ProjectSnapshot = syntheticProject({ elements: size, overlap, tables, images });
+const synthetic = geometry
+  ? syntheticGeometry({ elements: size })
+  : syntheticProject({ elements: size, overlap, tables, images });
+let project: ProjectSnapshot = curves ? withCurves(synthetic) : synthetic;
 const VIEW = project.views[0]?.id ?? 'everything';
 // What the recolor phase recolors: every Service, or in a view of tables every Column.
 const RECOLORED = tables ? 'Column' : 'Service';
@@ -146,11 +159,13 @@ const { scene } = indexed;
 // Before any edit moves a shape over another.
 const bands = bandReport();
 
+/** What takes the commands the canvas sends, while a phase drives it as a person would. */
+let commandsTo: ((command: Command) => Promise<boolean>) | undefined;
 const controller = new CanvasController(
   host,
   {
     select: () => undefined,
-    command: () => Promise.resolve(false),
+    command: (command) => commandsTo?.(command) ?? Promise.resolve(false),
     relate: () => undefined,
     remove: () => undefined,
     rename: () => undefined,
@@ -175,6 +190,11 @@ async function run(): Promise<void> {
   await settle(2500);
   while (!controller.renderer.canvas) await settle(100);
   status.textContent = `Measuring ${mode === 'work' ? 'the work of each frame' : 'frames'} with ${size.toLocaleString()} elements and ${scene.relations.length.toLocaleString()} relations…`;
+  if (geometry) {
+    const beyond = await measureBeyondBoxes(beyondBench());
+    report(beyond.phases, beyond.timed, beyond.latency, beyond.notes);
+    return;
+  }
   const phases: Phase[] = [];
   const { width, height } = controller.renderer.viewport;
   const middle = { x: width / 2, y: height / 2 };
@@ -641,96 +661,43 @@ function selectAt(point: { x: number; y: number }): void {
   controller.setSelection(selectionOf(id === undefined ? [] : [{ kind: 'element', id }]));
 }
 
-interface Steps {
-  /** Runs before each step, with a frame of its own that is not recorded. */
-  before?: () => void;
-  /** After each step, frames go on being drawn and recorded while this says there is more to draw. */
-  more?: () => boolean;
-}
-
 /**
  * Takes `count` steps, one a frame, and records what each frame took, and each frame after a step
- * while `more` says it still draws what the step started.
+ * while `more` says it still draws what the step started (`frames.ts`). Pictures, which the images
+ * and beyond-boxes projects draw, decode between frames.
  */
 function measure(
   name: string,
   count: number,
   step: (frame: number) => void,
-  { before, more }: Steps = {},
+  steps: FrameSteps = {},
 ): Promise<Phase> {
-  const { renderer } = controller;
-  // Where each phase starts, for the browser's performance tools.
-  performance.mark(`phase ${name}`);
-  if (mode === 'work') {
-    const frames: number[] = [];
-    const timed = (work: () => void) => {
-      const began = performance.now();
-      work();
-      renderer.renderNow(true);
-      frames.push(performance.now() - began);
-    };
-    const run = (frame: number) => {
-      if (before) {
-        before();
-        renderer.renderNow(true);
-      }
-      timed(() => step(frame));
-      while (more?.()) timed(() => undefined);
-    };
-    if (images) {
-      // Pictures decode off the main thread and arrive between frames, as they do in the app; the
-      // canvas draws no frame of its own meanwhile, so that every frame's work is measured.
-      return (async () => {
-        const own = Object.getOwnPropertyDescriptor(window, 'requestAnimationFrame');
-        Object.defineProperty(window, 'requestAnimationFrame', {
-          configurable: true,
-          writable: true,
-          value: () => 0,
-        });
-        try {
-          for (let frame = 0; frame < count; frame++) {
-            run(frame);
-            await nextTask();
-          }
-        } finally {
-          if (own) Object.defineProperty(window, 'requestAnimationFrame', own);
-          else Reflect.deleteProperty(window, 'requestAnimationFrame');
-        }
-        return { name, frames };
-      })();
-    }
-    for (let frame = 0; frame < count; frame++) run(frame);
-    return Promise.resolve({ name, frames });
-  }
-  return new Promise((resolve) => {
-    const frames: number[] = [];
-    let previous: number | undefined;
-    let steps = 0;
-    let readied = false;
-    const tick = (now: number) => {
-      if (previous !== undefined) frames.push(now - previous);
-      previous = now;
-      // The renderer draws what is left in its own frames, which are the ones measured meanwhile.
-      if (more?.()) {
-        requestAnimationFrame(tick);
-        return;
-      }
-      if (steps >= count) {
-        resolve({ name, frames });
-        return;
-      }
-      if (before && !readied) {
-        before();
-        readied = true;
-      } else {
-        step(steps);
-        steps += 1;
-        readied = false;
-      }
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  });
+  const measuring = {
+    renderer: controller.renderer,
+    mode,
+    pictures: images || geometry,
+    nextTask,
+  };
+  return measureFrames(measuring, name, count, step, steps);
+}
+
+/** What the beyond-boxes phases need of the benchmark (`beyond.ts`). */
+function beyondBench(): BeyondBench {
+  return {
+    controller,
+    host,
+    view: VIEW,
+    project: () => project,
+    indexed: () => indexed,
+    show: showProject,
+    measure,
+    settle,
+    move,
+    cameraAt,
+    takeCommands: (handler) => {
+      commandsTo = handler;
+    },
+  };
 }
 
 /** What the phases of routes around shapes need of the benchmark (`avoid.ts`). */
@@ -762,14 +729,20 @@ function overlayBench(): OverlayBench {
   };
 }
 
-/** Shows a project as the app does after a change: a new scene, its index, and the next frame. */
-function showProject(next: ProjectSnapshot): { build: number; index: number; draw: number } {
+/**
+ * Shows a project as the app does after a change: a new scene, its index, and the next frame; the
+ * canvas editable only while a phase drags its shapes.
+ */
+function showProject(
+  next: ProjectSnapshot,
+  editable = false,
+): { build: number; index: number; draw: number } {
   const began = performance.now();
   const nextScene = buildScene(next, VIEW);
   const built = performance.now();
   indexed = indexScene(nextScene);
   const indexedAt = performance.now();
-  controller.update(next, VIEW, indexed, false);
+  controller.update(next, VIEW, indexed, editable);
   controller.renderer.renderNow(true);
   project = next;
   return { build: built - began, index: indexedAt - built, draw: performance.now() - indexedAt };
@@ -1007,7 +980,8 @@ async function measureExports(): Promise<Timed[]> {
 async function measureRoutes(phases: Phase[], timed: Timed[]): Promise<void> {
   performance.mark('phase Routes');
   const began = performance.now();
-  const routed = syntheticProject({ elements: size, overlap, routes: routeCount });
+  const routes = syntheticProject({ elements: size, overlap, routes: routeCount });
+  const routed = curves ? withCurves(routes) : routes;
   const taken = showProject(routed);
   const shown = performance.now() - began;
   const lines = indexed.scene.relations.filter((line) => line.hand);
@@ -1216,11 +1190,13 @@ function report(phases: Phase[], timed: Timed[], latency: number[], themeNotes: 
   }));
   for (const action of actions) {
     const passes = action.mark === undefined || action.p95 <= action.mark;
+    // Marks of a few milliseconds, such as pointing's, are read to a hundredth.
+    const digits = (action.mark ?? Infinity) < 10 ? 2 : 0;
     addRow(edits, action.mark === undefined ? '' : passes ? 'pass' : 'fail', [
       action.name,
-      action.p50.toFixed(0),
-      action.p95.toFixed(0),
-      action.worst.toFixed(0),
+      action.p50.toFixed(digits),
+      action.p95.toFixed(digits),
+      action.worst.toFixed(digits),
       action.mark === undefined ? 'none yet' : `p95 ≤ ${action.mark}`,
     ]);
   }
@@ -1236,7 +1212,7 @@ function report(phases: Phase[], timed: Timed[], latency: number[], themeNotes: 
             `The grid adds ${grid.pan.toFixed(2)} ms per frame at the median panning and ${grid.zoom.toFixed(2)} ms zooming (at most ${GRID_MARK} ms): ${gridPasses ? 'passes' : 'fails'}.`,
           ]
         : []),
-    ...(images
+    ...(images || geometry
       ? [
           `Pictures: ${memory.textures.toLocaleString()} textures, about ${(memory.bytes / 2 ** 20).toFixed(1)} MiB of GPU memory at the end (the budget is 64 MiB).`,
         ]
@@ -1259,7 +1235,9 @@ function report(phases: Phase[], timed: Timed[], latency: number[], themeNotes: 
       mode,
       overlap,
       images,
-      ...(images ? { imageMemory: memory } : {}),
+      geometry,
+      curves,
+      ...(images || geometry ? { imageMemory: memory } : {}),
       prepared,
       rows,
       actions: actions.map(({ name, p50, p95, worst, mark, note }) => ({

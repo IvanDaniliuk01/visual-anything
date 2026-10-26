@@ -187,3 +187,8 @@ Anatomical atlases, maps, plans and machine drawings already exist as SVG whose 
   - Its contents keep the model's order in the scene's shapes, as every container's do. The drawing order puts its anchored parts first, in its picture's order, then its other contents in the stacking order.
   - An anchored part carries `part` with `inDrawing`, its outline, and `undrawn` for what it holds. A position the view stores for it is kept and not used, and an overlay's size does not apply to it.
   - A part drawn on its own carries `part` without `inDrawing`, and its outline is fitted so that the part's bounds fill its shape, its proportions kept.
+- 2026-10-26 (M8b, the benchmark): **the beyond-boxes benchmark's drawings with parts.**
+  - **Where they sit.** The 20 drawings with parts, each a System showing a picture of its own placed with its parts, take cells of the systems' grid, spread evenly, one in the cell nearest the middle. That one shows a picture at the cap on parts, so that the camera on the middle of the view shows it.
+  - **The pictures.** All are 640 by 480 units, drawn at one canvas unit per unit. The two at the cap hold exactly 1,024 named parts, boxes in 32 rows of 32, and warn of nothing. The other 18 hold 72: 8 rows, each a named part that holds 8 cells drawn as discs, rings with holes, rounded boxes and stroked diamonds, in an order of their own. None passes a cap on parts, so nothing is left out of their outlines.
+  - **The anchors.** Each drawing anchors 50 contents to cells spread through its picture. Half name their image, and half find it in the drawing they sit in.
+  - **Cold runs** clear the image store at scales whose pictures were not drawn yet, as M3b's images benchmark does, and are judged by the frame budget.

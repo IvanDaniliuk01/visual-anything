@@ -78,3 +78,6 @@ Each change is one undoable action.
   - Every line carries its style, automatic ones included. Orthogonal stays written as no style, so that the routes that go around shapes (ADR 0039) still know the lines they route.
   - An automatic straight or curved line is routed as a route chosen by hand with no bend points is, without being one: it has no `hand`, and lines between the same two ends still run beside each other.
   - A change of the view's `routeStyle` routes every line again; a change of a relation's `route` routes its line again, and one of a relation type's changes the definitions, which builds the scene again.
+- 2026-10-26 (M8b, the benchmark): **`?curves`.**
+  - It sets every view's `routeStyle` to `curved`, with `?geometry` or without it, so that the canvas benchmark's other phases can be measured with every automatic route curved too.
+  - On the beyond-boxes project, the 1,000 relations on outlines that are curved automatically take their style from their relation type's appearance (`route: curved`), and stay curved without `?curves`. The other 1,000 inherit no route, and are orthogonal unless `?curves` curves them with the rest.
