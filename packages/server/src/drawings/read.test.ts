@@ -1,15 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { HTML_CAPS } from './caps';
-import { DrawingRefusal, readHtml, type HtmlElement, type HtmlNode } from './read';
+import type { Problem } from '@visual-anything/core';
+import {
+  DrawingRefusal,
+  readHtml,
+  type HtmlDocument,
+  type HtmlElement,
+  type HtmlNode,
+} from './read';
 import { DrawingReport } from './report';
 import { timed } from './test/cpu';
 
 const SIZE = HTML_CAPS.input;
 
+/** What reading gave: the page and its report, or why it was refused. */
+type Read = { document: HtmlDocument; report: string[] } | { refused: Problem };
+
 /** Reads HTML, saying what it refused, if anything, and how long it took. */
 function read(html: string) {
   const report = new DrawingReport();
-  return timed(() => {
+  return timed((): Read => {
     try {
       return { document: readHtml(html, report), report: report.lines() };
     } catch (error) {

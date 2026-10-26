@@ -38,6 +38,8 @@ import {
   type HistorySummary,
   type IdGenerator,
   type ListedAction,
+  MAX_DRAWING_REPORT,
+  type DrawingMakeMessage,
   type LiveFetchMessage,
   type LiveFilter,
   type LiveSender,
@@ -64,6 +66,8 @@ import {
   type FileKey,
 } from './file-plan';
 import { FOLDERS, newFilePath, type FolderKind } from './layout';
+import type { MadeDrawing } from './drawings/make';
+import { DrawingQueue, type DrawingMaker } from './drawings/queue';
 import { projectDestinationWarnings, type OpenOtherProject } from './other-project';
 import { LiveValues, type LiveKept, type LiveListing } from './live';
 import { PackageFetcher, networkGrantOf, type FetcherOptions } from './live-fetch';
@@ -142,6 +146,11 @@ export interface LiveSession {
    * (ADR 0057's clarification on addresses).
    */
   servesAt?(port: number): void;
+  /**
+   * Makes a drawing of HTML (ADR 0068), after those asked for before it, in a worker of its own; it
+   * changes nothing. Absent where the program makes none.
+   */
+  makeDrawing?(html: string, width: number): Promise<MadeDrawing>;
 }
 
 /**
@@ -207,6 +216,8 @@ export interface SessionOptions {
    * apps and Claude attaching and going, and files changed on disk. Absent, nothing is logged.
    */
   log?: LogEvent;
+  /** What makes drawings of HTML (ADR 0068); the drawing's own worker by default. Tests give their own. */
+  makeDrawing?: DrawingMaker;
 }
 
 /** The outcome of opening a session: the session, or every problem that keeps the project closed. */
@@ -282,6 +293,8 @@ export class Session implements LiveSession {
   readonly #live: LiveValues;
   /** What fetches for package code granted an origin (ADR 0063). */
   readonly #fetcher: PackageFetcher;
+  /** The drawings of HTML the apps and the command line ask for, made one at a time (ADR 0068). */
+  readonly #drawings: DrawingQueue;
 
   private constructor(folder: string, loaded: LoadedProject, options: SessionOptions) {
     this.folder = folder;
@@ -295,6 +308,7 @@ export class Session implements LiveSession {
       err: (line) => this.#err(line),
     });
     this.#fetcher = new PackageFetcher(options.fetcher);
+    this.#drawings = new DrawingQueue(options.makeDrawing);
   }
 
   /** Opens the project in a folder; see {@link openSession}. */
@@ -564,7 +578,36 @@ export class Session implements LiveSession {
       case 'project/open-other':
         await this.#openOtherProject(client, message);
         return;
+      case 'drawing/make':
+        await this.#makeDrawing(client, message);
+        return;
     }
+  }
+
+  makeDrawing(html: string, width: number): Promise<MadeDrawing> {
+    return this.#drawings.make(html, width);
+  }
+
+  /**
+   * Makes a drawing of the HTML an app sent (ADR 0068), and answers with it or with why not. It is
+   * never a command: it changes nothing, and never waits behind the project's own work.
+   */
+  async #makeDrawing(client: SessionClient, message: DrawingMakeMessage): Promise<void> {
+    const { requestId } = message;
+    const made = await this.#drawings.make(message.html, message.width);
+    this.#send(
+      client,
+      made.ok
+        ? {
+            type: 'drawing/made',
+            requestId,
+            svg: made.svg,
+            width: made.width,
+            height: made.height,
+            report: made.report.slice(0, MAX_DRAWING_REPORT.lines),
+          }
+        : { type: 'command/rejected', requestId, problems: made.problems },
+    );
   }
 
   /**

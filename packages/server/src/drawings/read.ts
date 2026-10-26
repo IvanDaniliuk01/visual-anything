@@ -31,6 +31,7 @@ import type { DrawingReport } from './report';
 export type HtmlDocument = DefaultTreeAdapterTypes.Document;
 export type HtmlElement = DefaultTreeAdapterTypes.Element;
 export type HtmlNode = DefaultTreeAdapterTypes.ChildNode;
+export type HtmlText = DefaultTreeAdapterTypes.TextNode;
 
 /** Thrown to refuse the HTML, with the problem that says why. */
 export class DrawingRefusal extends Error {

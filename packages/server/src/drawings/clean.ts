@@ -16,7 +16,7 @@
  * Every cost is capped (`caps.ts`): elements kept, nesting, text, and the folding steps.
  */
 import { HTML_CAPS } from './caps';
-import type { HtmlDocument, HtmlElement, HtmlNode } from './read';
+import type { HtmlDocument, HtmlElement, HtmlNode, HtmlText } from './read';
 import { tooLarge } from './read';
 import type { DrawingReport } from './report';
 import {
@@ -110,6 +110,11 @@ export function cleanHtml(
   return (cleaned[0] as CleanElement | undefined) ?? { tag: 'div', style: {}, children: [] };
 }
 
+/** Whether a node of the page is text. */
+function isText(node: HtmlNode): node is HtmlText {
+  return node.nodeName === '#text';
+}
+
 /** The text of every `<style>` of the page, in document order, as HTML reads it. */
 function styleTexts(document: HtmlDocument): string[] {
   const texts: string[] = [];
@@ -118,9 +123,7 @@ function styleTexts(document: HtmlDocument): string[] {
     const node = stack.pop() as HtmlNode;
     if (!('tagName' in node) || node.namespaceURI !== HTML_NS) continue;
     if (node.tagName === 'style') {
-      texts.push(
-        node.childNodes.map((child) => (child.nodeName === '#text' ? child.value : '')).join(''),
-      );
+      texts.push(node.childNodes.map((child) => (isText(child) ? child.value : '')).join(''));
       continue;
     }
     // A template's content is never part of the page.
@@ -239,7 +242,7 @@ class Cleaner {
       } else children.push(each);
     };
     for (const child of element.childNodes) {
-      if (child.nodeName === '#text') {
+      if (isText(child)) {
         if (spacingOnly && child.value.trim() === '') continue;
         const text = this.#textOf(child.value);
         if (text !== '') add(text);
