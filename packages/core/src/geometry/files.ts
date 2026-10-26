@@ -29,6 +29,20 @@ export function geometryFindings(state: ProjectSnapshot): GeometryFindings {
   return findings;
 }
 
+/**
+ * The `large-geometry` warnings an action brings, for its answer (ADR 0066): those the project gives
+ * after it and did not give, word for word, before it, so that changing a file's geometry while it
+ * holds past what slows saving it says so again, and changing anything else does not.
+ */
+export function newLargeGeometry(before: ProjectSnapshot, after: ProjectSnapshot): Problem[] {
+  if (before.model === after.model && before.packages === after.packages) return [];
+  const large = (state: ProjectSnapshot) =>
+    geometryFindings(state).warnings.filter((each) => each.code === 'large-geometry');
+  // Before first, so that the next action finds this one's project already checked.
+  const had = new Set(large(before).map((each) => each.message));
+  return large(after).filter((each) => !had.has(each.message));
+}
+
 function find(state: ProjectSnapshot): GeometryFindings {
   const warnings: Problem[] = [];
   const drawnAsKind = new Set<FreeGeometry>();

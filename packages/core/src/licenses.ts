@@ -18,6 +18,9 @@ export const SHIPPABLE_LICENSES = [
   'BSD-2-Clause',
   'BSD-3-Clause',
   'Apache-2.0',
+  // The public domain, marked or dedicated (ADR 0079).
+  'CC-PDM-1.0',
+  'LicenseRef-public-domain',
 ] as const;
 
 /** How a license is written in files: an SPDX identifier, as the schema's `LicenseId` says. */

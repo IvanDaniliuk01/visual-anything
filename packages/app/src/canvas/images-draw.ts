@@ -19,7 +19,7 @@
  * - A tile out of the settled reach for 3 seconds drops its image drawing and gives up its textures;
  *   it asks again when it comes back.
  */
-import type { ThemeName } from '@visual-anything/core';
+import { namedPart, partPicture, type ThemeName } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
 import { Container, Graphics, type Texture } from 'pixi.js';
 import { grow, type Rect } from './geometry';
@@ -31,6 +31,8 @@ import {
   type ImagePlatform,
   type ImageRequest,
 } from './images';
+import { imageSerial } from './image-serials';
+import { partImageOf, type ShapePart } from './partShapes';
 import type { ElementShape } from './scene';
 import { IMAGE_SCALES, type ShapeImage } from './shape-images';
 import { meets } from './spatial';
@@ -61,6 +63,11 @@ export interface ImageView {
   theme: ThemeName;
   /** How long the frame has taken so far, in milliseconds. */
   spent: number;
+  /**
+   * Whether a theme switch or a recolor is being drawn, whose frames keep their budget: no large
+   * picture is rasterized past it meanwhile.
+   */
+  busy?: boolean;
 }
 
 /** The image drawing of one tile. */
@@ -107,9 +114,19 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
   #asked = false;
   /** The drawings of the drag under way, and the textures they use. */
   #dragged: { graphics: Graphics[]; keys: Set<string> } = { graphics: [], keys: new Set() };
+  /** The names of other users of the store, such as the part layer, which are always within reach. */
+  readonly #kept = new Set<string>();
 
   constructor(platform: ImagePlatform<T, P>, onArrive?: () => void) {
     this.store = new ImageStore(platform, onArrive);
+  }
+
+  /**
+   * Keeps the textures another user of the store draws with, by the name it asks for them under, as
+   * though always within reach: the part layer's parts' own pictures (ADR 0067).
+   */
+  keep(user: string): void {
+    this.#kept.add(user);
   }
 
   /** Notes the shapes of the scene shown, and forgets the pictures it no longer shows. */
@@ -117,7 +134,10 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
     if (shapes === this.#shapes) return;
     this.#shapes = shapes;
     const images = new Map<number, ShapeImage['image']>();
-    for (const shape of shapes) if (shape.image) images.set(shape.image.serial, shape.image.image);
+    for (const shape of shapes) {
+      const picture = pictureOf(shape);
+      if (picture) images.set(picture.serial, picture.image);
+    }
     this.#any = images.size > 0;
     // An edit seldom changes which pictures the scene shows: the store is pruned only when it does.
     const serials = [...images.keys()].sort((a, b) => a - b).join(' ');
@@ -142,7 +162,7 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
     const near = view.settled ? reach : grow(shown, Math.max(64 / scale, 512));
     const middle = { x: shown.x + shown.width / 2, y: shown.y + shown.height / 2 };
     const iconsShown = scale >= IMAGE_SCALES.iconsFrom;
-    const inReach = new Set<string>();
+    const inReach = new Set<string>(this.#kept);
     // A drag's pictures keep their textures while it is drawn, and give them up once it ends.
     if (this.#dragged.graphics.some((each) => !each.destroyed)) inReach.add(DRAGGED);
     else if (this.#dragged.graphics.length > 0) {
@@ -187,7 +207,13 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
     // Zoomed out too far for any picture to show, nothing is decoded or uploaded meanwhile.
     const shows = scale >= IMAGE_SCALES.drawingsFrom;
     // Pictures that just became ready first: their tiles show stand-ins or placeholders meanwhile.
-    for (const id of shows ? this.store.frame({ spent: spent(), moving: !view.settled }) : []) {
+    for (const id of shows
+      ? this.store.frame({
+          spent: spent(),
+          moving: !view.settled,
+          ...(view.busy === true ? { busy: true } : {}),
+        })
+      : []) {
       const known = byId.get(id);
       if (!known || known.drawing.drawnFor === undefined) continue;
       this.#draw(known.tile, known.drawing, view, iconsShown, middle);
@@ -229,7 +255,7 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
   /** The pictures of dragged shapes, drawn with the textures already made, for the drag's drawing. */
   dragged(shapes: readonly ElementShape[], view: ImageView): Graphics[] {
     if (!this.#any || view.scale < IMAGE_SCALES.drawingsFrom) return [];
-    const pictured = shapes.filter((shape) => shape.image !== undefined);
+    const pictured = shapes.filter((shape) => pictureOf(shape) !== undefined);
     if (pictured.length === 0) return [];
     const graphics = new Graphics();
     const shown = view.shown;
@@ -276,7 +302,7 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
     }
     if (drawing.shapes !== tile.shapes) {
       drawing.shapes = tile.shapes;
-      drawing.pictured = tile.shapes.filter((shape) => shape.image !== undefined);
+      drawing.pictured = tile.shapes.filter((shape) => pictureOf(shape) !== undefined);
       // What it drew may be another shape's now.
       if (drawing.drawnFor !== undefined) drawing.drawnFor = '';
     }
@@ -287,7 +313,7 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
   #keyOf(drawing: Drawing, view: ImageView, iconsShown: boolean): string {
     let key = `${iconsShown ? 'i' : ''}${view.settled ? 's' : ''}`;
     for (const shape of drawing.pictured) {
-      const image = shape.image as ShapeImage;
+      const image = pictureOf(shape) as ShapeImage;
       if (!drawnWhole(image) && !iconsShown) continue;
       key += `,${bucketOf(image, view)}`;
     }
@@ -356,7 +382,7 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
   ): string[] {
     const keys: string[] = [];
     for (const shape of shapes) {
-      const image = shape.image as ShapeImage;
+      const image = pictureOf(shape) as ShapeImage;
       const isDrawing = drawnWhole(image);
       if (!isDrawing && !iconsShown) continue;
       const { rect } = image;
@@ -370,6 +396,8 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
           rect.y + rect.height / 2 - middle.y,
         ),
         tile,
+        // The picture of a drawing with parts, and a part's own, may be made large (ADR 0067).
+        ...(image.placement === 'parts' ? { large: true } : {}),
       };
       const made = this.store.texture(request);
       if (!made?.exact) this.#asked = true;
@@ -394,7 +422,8 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
 /** The bucket a picture is drawn from at this view, as the store chooses it. */
 function bucketOf(image: ShapeImage, view: ImageView): number {
   const pixels = Math.max(image.rect.width, image.rect.height) * view.scale * view.resolution;
-  return view.settled ? sharpBucketFor(pixels) : bucketFor(pixels);
+  const large = image.placement === 'parts';
+  return view.settled ? sharpBucketFor(pixels, large) : bucketFor(pixels, large);
 }
 
 const WHITE: Color = '#FFFFFF';
@@ -423,4 +452,50 @@ function plate(graphics: Graphics, box: Rect, fill: Color): void {
 /** Whether a picture is drawn as a whole drawing, which shows at the drawings' scales rather than the icons'. */
 function drawnWhole(image: ShapeImage): boolean {
   return image.placement === 'drawing' || image.placement === 'parts';
+}
+
+const ownPictures = new WeakMap<ElementShape, { of: unknown; picture: ShapeImage | undefined }>();
+
+/**
+ * The picture a shape draws: its image, as placed on it, or, for a shape drawn as a named part on its
+ * own (ADR 0067), its part's own picture inside its outline, where the part's bounds fill the shape,
+ * its proportions kept; worked out once for each shape and picture.
+ */
+export function pictureOf(shape: ElementShape): ShapeImage | undefined {
+  const { part } = shape;
+  if (!part || part.inDrawing) return shape.image;
+  const image = partImageOf(part.image);
+  const known = ownPictures.get(shape);
+  if (known && known.of === image) return known.picture ?? shape.image;
+  const picture = image && ownPartPicture(shape, part, image);
+  ownPictures.set(shape, { of: image, picture });
+  return picture ?? shape.image;
+}
+
+function ownPartPicture(
+  shape: ElementShape,
+  part: ShapePart,
+  image: ShapeImage['image'],
+): ShapeImage | undefined {
+  const named = namedPart(image, part.part);
+  const own = named && partPicture(image, part.part);
+  if (!named || !own) return undefined;
+  const { width, height } = named.bounds;
+  const { rect } = shape;
+  const scale = Math.min(rect.width / width, rect.height / height);
+  if (!(scale > 0) || !Number.isFinite(scale)) return undefined;
+  const placed = {
+    x: rect.x + (rect.width - width * scale) / 2,
+    y: rect.y + (rect.height - height * scale) / 2,
+    width: width * scale,
+    height: height * scale,
+  };
+  return {
+    id: own.id,
+    image: own,
+    serial: imageSerial(own),
+    placement: 'parts',
+    rect: placed,
+    box: placed,
+  };
 }

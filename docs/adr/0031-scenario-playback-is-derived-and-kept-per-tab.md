@@ -24,6 +24,11 @@ We chose this because the scenario files stay plain data that reads the same at 
 - **Recording locally and saving the scenario when recording stops**: rejected. A refresh would lose the steps, Claude's edits meanwhile would be overwritten, and undo could not take back one click.
 - **Aggregating a broken step with the steps around it**: rejected. Its missing relations have no ends to place, and it would hide what needs fixing.
 
+## Superseded in part, 2026-10-26
+
+- ADR 0078 supersedes "no branches": a scenario can hold decisions between labelled alternatives, kept as blocks over its flat list of steps. The timeline is then worked out from the scenario, the view and the tab's choices, `scenarioTimeline(project, scenario, view, choices?)`, and is exactly today's without them. Choices belong to the tab, as playback does, and are never stored.
+- ADR 0077 supersedes the part of the W49 clarification below that keeps playback from following while a tour plays: a tour step without a camera frames once all that its scenario's range plays, and in a step with a camera, playback brings into view the steps that fall outside it, with the tour's bounded move.
+
 ## Clarifications
 
 <!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->

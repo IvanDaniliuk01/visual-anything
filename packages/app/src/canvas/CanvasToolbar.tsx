@@ -2,6 +2,9 @@ import { definitionsIn, type ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useMemo, useRef, useState, type KeyboardEvent, type Ref } from 'react';
 import { useT } from '../i18n';
+import type { AlignHow } from './align';
+import type { AlignAction } from './alignActions';
+import { AlignMenu } from './AlignMenu';
 import './drop.css';
 import { ExploreControls, ExploreStrip } from './ExploreBar';
 import { GridToggles } from './GridToggles';
@@ -46,6 +49,12 @@ export interface CanvasToolbarProps {
   stacking?: Record<StackingMove, StackingAction>;
   /** Called on every press of a stacking button, also of one that would change nothing, to say why. */
   onRestack?: (move: StackingMove) => void;
+  /**
+   * Align's items' states (`alignActions`), asked for while its menu shows, and what pressing one
+   * does (ADR 0074); absent, the toolbar has no Align.
+   */
+  align?: () => Readonly<Record<AlignHow, AlignAction>>;
+  onAlign?: (how: AlignHow) => void;
   /** Takes the "Add element…" select, so that `Add inside "X"…` can move the focus to it. */
   addSelect?: Ref<HTMLSelectElement>;
   /**
@@ -79,6 +88,8 @@ export function CanvasToolbar({
   addPlace,
   stacking,
   onRestack,
+  align,
+  onAlign,
   addSelect,
   onAddLeave,
   layout,
@@ -127,6 +138,12 @@ export function CanvasToolbar({
             </button>
           ))}
         </OverflowDiv>
+      )}
+      {align && onAlign && (
+        // Beside the stacking order, and under More with it.
+        <Overflowing group="stacking">
+          <AlignMenu actions={align} onAlign={onAlign} />
+        </Overflowing>
       )}
       <Overflowing group="explore">
         <ExploreControls />

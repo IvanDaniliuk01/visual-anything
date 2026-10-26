@@ -1,0 +1,9 @@
+/* The canvas toolbar's Align, and the menu it opens under it (ADR 0074). */
+.canvas-toolbar-align {
+  position: relative;
+}
+
+.canvas-toolbar-align > .canvas-menu {
+  top: calc(100% + var(--space-1));
+  left: 0;
+}

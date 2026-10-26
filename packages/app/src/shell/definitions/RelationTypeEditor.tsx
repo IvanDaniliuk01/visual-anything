@@ -18,6 +18,7 @@ import { ExternalIdsSection } from '../../destinations/ExternalIdsSection';
 import { perform } from '../inspector/send';
 import { LimitsSection } from './LimitsSection';
 import { BuiltInNote, Gone, RemoveDefinition } from './parts';
+import { RouteStyleSection } from './RouteStyleSection';
 import { TraitRow } from './TraitRow';
 import {
   inheritedRelationType,
@@ -103,6 +104,8 @@ export function RelationTypeEditor({ id, titleRef }: RelationTypeEditorProps) {
       />
       <BehaviorSection id={id} readOnly={readOnly} update={update} />
       <LineSection id={id} readOnly={readOnly} update={(appearance) => update({ appearance })} />
+      {/* The style of its automatic routes changes at the level the project can change (ADR 0069). */}
+      <RouteStyleSection id={id} />
       <AttributeDefinitionsSection
         kind="relation-type"
         id={id}

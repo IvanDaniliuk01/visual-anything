@@ -29,6 +29,7 @@ import type {
   JsonValue,
   Relation,
 } from '@visual-anything/schema';
+import { appearanceRead } from './geometry-brief';
 
 /** The most items one query returns. */
 export const MAX_RESULTS = 500;
@@ -68,6 +69,8 @@ export function summarizeProject(state: ProjectSnapshot) {
       perspective: view.perspective.name,
       nestingRelationTypes: nestingTypesInView(state, view),
       positions: view.positions.length,
+      // How it draws its automatic routes, when not orthogonal (ADR 0069).
+      ...(view.routeStyle === undefined ? {} : { routeStyle: view.routeStyle }),
     })),
     scenarios: state.scenarios.map((scenario) => ({
       id: scenario.id,
@@ -92,8 +95,14 @@ export function summarizeProject(state: ProjectSnapshot) {
   };
 }
 
-/** The components and relation types in use, each with what it inherits. */
-export function listDefinitions(state: ProjectSnapshot, filter: { package?: Id } = {}) {
+/**
+ * The components and relation types in use, each with what it inherits; free geometry in brief
+ * unless `fullGeometry`.
+ */
+export function listDefinitions(
+  state: ProjectSnapshot,
+  filter: { package?: Id; fullGeometry?: boolean } = {},
+) {
   const definitions = definitionsIn(state);
   const inPackage = (pkg: Id | undefined) => filter.package === undefined || pkg === filter.package;
   const components = [
@@ -112,7 +121,7 @@ export function listDefinitions(state: ProjectSnapshot, filter: { package?: Id }
         ...(resolved.description === undefined ? {} : { description: resolved.description }),
         ...(own?.definition.ids === undefined ? {} : { ids: own.definition.ids }),
         attributes: [...resolved.attributes],
-        appearance: resolved.appearance,
+        appearance: appearanceRead(resolved.appearance, filter.fullGeometry),
       },
     ];
   });
@@ -137,6 +146,8 @@ export function listDefinitions(state: ProjectSnapshot, filter: { package?: Id }
         nests: resolved.nests,
         limits: resolved.limits,
         attributes: [...resolved.attributes],
+        // Stroke, width, dash, and route when its automatic routes are not left to the view.
+        appearance: resolved.appearance,
       },
     ];
   });
@@ -276,8 +287,15 @@ export function findRelations(state: ProjectSnapshot, filter: RelationFilter = {
   };
 }
 
-/** One element or relation, with what surrounds it; `undefined` for an id the model lacks. */
-export function describeItem(state: ProjectSnapshot, id: Id) {
+/**
+ * One element or relation, with what surrounds it; `undefined` for an id the model lacks. Its free
+ * geometry comes in brief unless `fullGeometry`.
+ */
+export function describeItem(
+  state: ProjectSnapshot,
+  id: Id,
+  options: { fullGeometry?: boolean } = {},
+) {
   const index = modelIndexOf(state);
   const definitions = definitionsIn(state);
   const element = index.element(id);
@@ -299,7 +317,9 @@ export function describeItem(state: ProjectSnapshot, id: Id) {
       attributes: element.attributes ?? {},
       attributeDefinitions: [...(component?.attributes ?? [])],
       ...describedDestinations(element, component?.attributes ?? []),
-      ...(element.appearance === undefined ? {} : { appearance: element.appearance }),
+      ...(element.appearance === undefined
+        ? {}
+        : { appearance: appearanceRead(element.appearance, options.fullGeometry) }),
       containers: containers.map((relation) => ({
         id: relation.to,
         name: endName(relation.to, state),
@@ -337,6 +357,8 @@ export function describeItem(state: ProjectSnapshot, id: Id) {
       ...(relation.description === undefined ? {} : { description: relation.description }),
       attributes: relation.attributes ?? {},
       ...describedDestinations(relation, type?.attributes ?? []),
+      // Its own appearance, a particularity: stroke, width, dash and route (ADR-0035, ADR 0069).
+      ...(relation.appearance === undefined ? {} : { appearance: relation.appearance }),
       relationsOnIt: index.relationsOn(id).map(relationBrief),
       inScenarios: state.scenarios.flatMap((scenario) =>
         scenario.steps
@@ -379,7 +401,7 @@ export function readView(state: ProjectSnapshot, viewId: Id) {
       }))
       .filter((each) => each.backToFront.length > 0),
   ];
-  const { collapsed, routes, scope, relationTypesLeftOut } = view;
+  const { collapsed, routes, routeStyle, scope, relationTypesLeftOut } = view;
   return {
     id: view.id,
     name: view.name,
@@ -398,6 +420,8 @@ export function readView(state: ProjectSnapshot, viewId: Id) {
     ...(collapsed === undefined ? {} : { collapsed }),
     // The routes chosen by hand, by relation; every other relation is routed automatically.
     ...(routes === undefined ? {} : { routes }),
+    // The style of the automatic routes its relations' appearances leave to it (ADR 0069).
+    ...(routeStyle === undefined ? {} : { routeStyle }),
   };
 }
 

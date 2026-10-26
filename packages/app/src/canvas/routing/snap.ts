@@ -1,9 +1,16 @@
 /**
  * Where a dragged end of a route would attach (`relation-routing.md` §7.1): over its own end's shape,
- * or close to its border, at the nearest connection point, at the nearest point of the border, or
- * automatically when deep inside; over another element's shape, the same way, reconnecting the
- * relation to that element; anywhere else, nowhere: let go, the end goes back. Alt places it at the
- * exact border point nearest the pointer. Where the bend points of a route snap to its other points.
+ * or close to its border, at the nearest connection point, at the nearest point of the border, or,
+ * deep inside, at that place inside the shape, and automatically at its middle (ADR 0039's
+ * clarification); over another element's shape, the same way, reconnecting the relation to that
+ * element; anywhere else, nowhere: let go, the end goes back. Alt places it at the exact border point
+ * nearest the pointer, never inside. Where the bend points of a route snap to its other points.
+ *
+ * On a shape with an outline of its own (ADR 0066, ADR 0067, ADR 0039's clarification), the border
+ * is the outline: an end attaches at the outline's point nearest the pointer, stored as the side and
+ * place of its box that carry in to that point, and deep inside the outline at that place inside the
+ * shape; with Alt, at the outline's point nearest the pointer, never inside the shape. Its connection
+ * points sit where they are carried in to the outline.
  */
 import {
   appearanceOf,
@@ -14,16 +21,26 @@ import {
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { EndAttachment, Id, Relation } from '@visual-anything/schema';
-import { holdsPoint, type Point, type Rect } from '../geometry';
+import { centerOf, holdsPoint, type Point, type Rect } from '../geometry';
 import { snap } from '../grid';
 import { shapesAt, type IndexedScene, type Skipped } from '../hit';
+import { shapeHolds, type PlacedOutline } from '../outlines';
 import type { ElementShape, RelationLine } from '../scene';
 import { attachPoint, nearestBorderAttach, type Side } from './hand';
+import {
+  carriedIn,
+  endOutline,
+  innerPointOf,
+  nearestOnOutline,
+  placeCarriedTo,
+} from './outline-ends';
 
 /** How close to a connection point, in screen pixels, a dragged end snaps to it. */
 export const POINT_REACH = 16;
-/** How deep inside its shape, in screen pixels, a dragged end attaches automatically. */
+/** How deep inside its shape, in screen pixels, a dragged end attaches inside it rather than on its border. */
 export const AUTOMATIC_DEPTH = 16;
+/** How close to its shape's middle, in screen pixels, a dragged end let go inside attaches automatically. */
+export const MIDDLE_REACH = 10;
 /** How close to its own shape's border, in screen pixels, a dragged end still attaches to it. */
 export const BORDER_REACH = 12;
 /** How close to a neighbour's x or y, in screen pixels, a dragged bend point snaps to it. */
@@ -37,6 +54,8 @@ export interface EndSnap {
   points: { at: Point; snapped: boolean }[];
   /** Where it snaps to the border, and the side it is on. */
   tick?: { at: Point; side: Side };
+  /** Where it attaches inside the shape. */
+  spot?: Point;
   /** The shape's outline, when it would attach automatically. */
   outline?: Rect;
 }
@@ -54,9 +73,9 @@ export type EndAim =
 
 /**
  * Where an end dragged to `point` would attach on a shape, at a scale: a connection point within reach
- * when the shape has any and is no row; automatically deeper than `AUTOMATIC_DEPTH` inside; otherwise
- * the nearest border point, on a row its left or right side. With `exact`, as Alt asks, always the
- * border point nearest the pointer.
+ * when the shape has any and is no row; deeper than `AUTOMATIC_DEPTH` inside, at that place inside it,
+ * or automatically within `MIDDLE_REACH` of its middle; otherwise the nearest border point, on a row
+ * its left or right side. With `exact`, as Alt asks, always the border point nearest the pointer.
  */
 export function snapEnd(
   shape: ElementShape,
@@ -66,9 +85,13 @@ export function snapEnd(
   rows: boolean,
 ): EndSnap {
   const { rect } = shape;
+  const outline = rows ? undefined : endOutline(shape, rect);
   const places = rows
     ? []
-    : (shape.points ?? []).map((each) => ({ point: each, at: attachPoint(rect, each) }));
+    : (shape.points ?? []).map((each) => ({
+        point: each,
+        at: outline ? carriedIn(outline, rect, each.side, each.at).point : attachPoint(rect, each),
+      }));
   let nearest: (typeof places)[number] | undefined;
   if (!exact) {
     let closest = POINT_REACH / scale;
@@ -84,8 +107,12 @@ export function snapEnd(
   if (nearest) {
     return { attachment: { kind: 'connection-point', name: nearest.point.name }, points };
   }
+  if (outline) return snapOnOutline(shape, outline, point, scale, exact, points);
   const depth = depthInside(rect, point);
-  if (!exact && depth > AUTOMATIC_DEPTH / scale) return { attachment: null, points, outline: rect };
+  if (!exact && depth > AUTOMATIC_DEPTH / scale) {
+    if (rows) return { attachment: null, points, outline: rect };
+    return inside(rect, point, centerOf(rect), scale, points);
+  }
   const border = rows
     ? { ...nearestBorderAttach(rect, point, ['left', 'right']), at: 0.5 }
     : nearestBorderAttach(rect, point);
@@ -93,6 +120,59 @@ export function snapEnd(
     attachment: { kind: 'border', side: border.side, at: border.at },
     points,
     tick: { at: attachPoint(rect, border), side: border.side },
+  };
+}
+
+/**
+ * Where an end dragged to `point` attaches on a shape with an outline of its own: automatically deep
+ * inside the outline, unless `exact`; otherwise at the outline's point nearest the pointer, stored as
+ * the side and place that carry in to it, with the tick where it attaches.
+ */
+function snapOnOutline(
+  shape: ElementShape,
+  outline: PlacedOutline,
+  point: Point,
+  scale: number,
+  exact: boolean,
+  points: EndSnap['points'],
+): EndSnap {
+  const { rect } = shape;
+  const nearest = nearestOnOutline(outline, point);
+  if (!exact && nearest.distance > AUTOMATIC_DEPTH / scale && shapeHolds(shape, point)) {
+    return inside(rect, point, innerPointOf(outline), scale, points);
+  }
+  const place = placeCarriedTo(outline, rect, nearest.point);
+  return {
+    attachment: { kind: 'border', side: place.side, at: place.at },
+    points,
+    tick: { at: carriedIn(outline, rect, place.side, place.at).point, side: place.side },
+  };
+}
+
+/**
+ * An end let go deep inside a shape: automatically when it is within `MIDDLE_REACH` of the shape's
+ * middle, or else at that place inside the shape, across and down its box.
+ */
+function inside(
+  rect: Rect,
+  point: Point,
+  middle: Point,
+  scale: number,
+  points: EndSnap['points'],
+): EndSnap {
+  if (Math.hypot(point.x - middle.x, point.y - middle.y) <= MIDDLE_REACH / scale) {
+    return { attachment: null, points, outline: rect };
+  }
+  const across = (value: number, start: number, size: number) =>
+    size <= 0 ? 0.5 : Math.round(Math.min(1, Math.max(0, (value - start) / size)) * 1000) / 1000;
+  return {
+    attachment: {
+      kind: 'inside',
+      x: across(point.x, rect.x, rect.width),
+      y: across(point.y, rect.y, rect.height),
+    },
+    points,
+    spot: point,
   };
 }
 
@@ -173,9 +253,10 @@ export function snapBend(
   return { at: { x, y }, snapped: { x: snappedX, y: snappedY } };
 }
 
-/** Whether a point is on a shape, or within `reach` of its border. */
+/** Whether a point is on a shape, or within `reach` of its border: of its own outline, when it has one. */
 function nearShape(shape: ElementShape, point: Point, reach: number): boolean {
   const { rect } = shape;
+  if (endOutline(shape, rect)) return shapeHolds(shape, point, reach);
   if (holdsPoint('rectangle', rect, point)) return true;
   const dx = Math.max(rect.x - point.x, 0, point.x - (rect.x + rect.width));
   const dy = Math.max(rect.y - point.y, 0, point.y - (rect.y + rect.height));

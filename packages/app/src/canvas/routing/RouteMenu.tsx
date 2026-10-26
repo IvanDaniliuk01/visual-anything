@@ -10,12 +10,16 @@ import { useT } from '../../i18n';
 import { useMenuInsideFrame, useOutsidePress } from '../focus';
 import type { Point } from '../geometry';
 import type { RelationLine } from '../scene';
+import { ROUTE_STYLE_WORDS } from '../../shell/inspector/routeStyles';
 import {
   attachAutomaticallyCommand,
+  automaticStyleOf,
+  chosenStyleOf,
   resetCommand,
   routedByHand,
   styleCommand,
   viewIn,
+  type StyleChoice,
 } from './commands';
 import type { RouteStyle } from './hand';
 import { attachedByHand } from './handles';
@@ -69,8 +73,12 @@ export function RouteMenu({
   const [only] = ids;
   const one = ids.length === 1 && only !== undefined ? only : undefined;
   const line = one === undefined ? undefined : lines.get(one);
-  const styleOf = (id: Id): RouteStyle =>
-    view && routedByHand(view, id) ? (view.routes?.[id]?.style ?? 'orthogonal') : 'orthogonal';
+  // A route without a style of its own takes the style of the automatic route (ADR 0069).
+  const styleOf = (id: Id): StyleChoice => (view ? chosenStyleOf(view, id) : 'automatic');
+  const automaticStyles = new Set(
+    view === undefined ? [] : ids.map((id) => automaticStyleOf(project, view, id)),
+  );
+  const [automatic] = automaticStyles;
   const anyByHand = view !== undefined && ids.some((id) => routedByHand(view, id));
   const title =
     one !== undefined
@@ -108,6 +116,20 @@ export function RouteMenu({
       </p>
       <div role="group" aria-label={t('Style')}>
         <p className="canvas-menu-title">{t('Style')}</p>
+        <button
+          type="button"
+          role="menuitemradio"
+          tabIndex={-1}
+          aria-checked={ids.length > 0 && ids.every((id) => styleOf(id) === 'automatic')}
+          title={readOnly ? notEditable : undefined}
+          aria-disabled={readOnly ? true : undefined}
+          onClick={press(() => styleCommand(project, viewId, ids, 'automatic'))}
+        >
+          {/* The automatic style, when the relations share one (ADR 0039's clarification). */}
+          {automatic !== undefined && automaticStyles.size === 1
+            ? t('Automatic: {style}', { style: t(ROUTE_STYLE_WORDS[automatic]) })
+            : t('Automatic')}
+        </button>
         {STYLES.map((style) => (
           <button
             key={style}

@@ -7,14 +7,15 @@ import type {
   AppearanceImage,
   Arrow,
   AttributeDefinition,
-  BitmapImage,
   Attributes,
   Badge,
+  BitmapImage,
   Color,
   CommentAnchor,
   CommentAuthor,
   Component,
   ConnectionPoint,
+  DecisionBlock,
   EndAttachment,
   ExternalId,
   ExternalIds,
@@ -582,14 +583,32 @@ export type NewStep = Omit<Step, 'id'> & { id?: Id };
 /** Creates a scenario over a view. */
 export interface CreateScenarioCommand {
   type: 'create-scenario';
-  scenario: { id?: Id; name: string; description?: string; view: Id; steps: NewStep[] };
+  scenario: {
+    id?: Id;
+    name: string;
+    description?: string;
+    view: Id;
+    steps: NewStep[];
+    /** Its decisions, over its steps by id (ADR 0078). */
+    blocks?: DecisionBlock[];
+  };
 }
 
 /** Changes a scenario; `steps` replaces all of them. */
 export interface UpdateScenarioCommand {
   type: 'update-scenario';
   id: Id;
-  changes: { name?: string; description?: string | null; view?: Id; steps?: NewStep[] };
+  changes: {
+    name?: string;
+    description?: string | null;
+    view?: Id;
+    steps?: NewStep[];
+    /**
+     * Its decisions (ADR 0078), replacing all of them; `null` takes them away. Left out, a change of
+     * its steps keeps them, without the steps it takes away.
+     */
+    blocks?: DecisionBlock[] | null;
+  };
 }
 
 /** Deletes a scenario. */
