@@ -150,6 +150,8 @@ const COMMANDS: readonly [string, Command][] = [
     { type: 'update-relation', id: 'agent-to-api', changes: { from: 'agent-to-api' } },
   ],
   ['edit relation', { type: 'update-relation', id: 'agent-to-api', changes: { name: 'Books' } }],
+  // Colors and appearances that are changed and reset (ADR 0034, ADR 0035).
+  ...colorCommands(),
   ['delete one', { type: 'delete', elements: ['reminder-service'] }],
   ['delete a relation', { type: 'delete', relations: ['api-reads-db'] }],
   ['delete several', { type: 'delete', elements: ['whatsapp', 'booking-agent'] }],
@@ -683,6 +685,122 @@ const COMMANDS: readonly [string, Command][] = [
   ]),
 ];
 
+/**
+ * The commands that change colors and appearances and take them back: a note's and an arrow's colors,
+ * an element's and a relation's own appearance, and the appearance of a built-in definition and of one
+ * of the project's own, at the level the project changes it (ADR 0034, ADR 0035).
+ */
+function colorCommands(): [string, Command][] {
+  const note = sample.views[0]?.freeShapes.find((shape) => shape.id === 'calendar-note');
+  if (note?.kind !== 'note') throw new Error('The sample has no note "calendar-note".');
+  const arrow = {
+    kind: 'arrow',
+    id: 'pointer',
+    from: { x: 0, y: 0 },
+    to: { x: 40, y: 0 },
+  } as const;
+  const shape = (name: string, changed: object): [string, Command] => [
+    name,
+    { type: 'update-free-shape', view: VIEW, shape: changed as typeof note },
+  ];
+  const definition = (
+    name: string,
+    kind: 'component' | 'relationType',
+    id: string,
+    changes: { appearance?: null; appearanceTraits?: object },
+  ): [string, Command] => [
+    name,
+    kind === 'component'
+      ? ({ type: 'set-component-appearance', component: id, ...changes } as Command)
+      : ({ type: 'set-relation-type-appearance', relationType: id, ...changes } as Command),
+  ];
+  return [
+    shape('color a note', { ...note, fill: '#FFF4E5', stroke: '#B4531A' }),
+    shape('take one color off a note', { ...note, stroke: '#B4531A' }),
+    shape('reset a note', note),
+    [
+      'add an arrow',
+      { type: 'create-free-shape', view: VIEW, shape: { ...arrow, stroke: '#B42318' } },
+    ],
+    shape('color an arrow', { ...arrow, stroke: '#1D4F91' }),
+    shape('reset an arrow', arrow),
+    [
+      'color an element',
+      { type: 'update-element', id: 'patient', changes: { appearanceTraits: { fill: '#FFF4E5' } } },
+    ],
+    [
+      'recolor an element whole',
+      { type: 'update-element', id: 'patient', changes: { appearance: { stroke: '#B4531A' } } },
+    ],
+    ['reset an element', { type: 'update-element', id: 'patient', changes: { appearance: null } }],
+    [
+      'color a relation',
+      {
+        type: 'update-relation',
+        id: 'agent-to-api',
+        changes: { appearanceTraits: { stroke: '#B42318' } },
+      },
+    ],
+    [
+      'reset a relation',
+      { type: 'update-relation', id: 'agent-to-api', changes: { appearance: null } },
+    ],
+    definition('color a built-in component', 'component', 'systems.database', {
+      appearanceTraits: { fill: '#FFF4E5' },
+    }),
+    definition('reset a built-in component', 'component', 'systems.database', {
+      appearance: null,
+    }),
+    definition('color a component of the project', 'component', 'clinic.calendar', {
+      appearanceTraits: { stroke: '#1D4F91' },
+    }),
+    definition('reset a component of the project', 'component', 'clinic.calendar', {
+      appearanceTraits: { stroke: null },
+    }),
+    definition('color a built-in relation type', 'relationType', 'systems.reads-from', {
+      appearanceTraits: { stroke: '#B42318', dash: 'dashed' },
+    }),
+    definition('reset a built-in relation type', 'relationType', 'systems.reads-from', {
+      appearance: null,
+    }),
+    definition('color a relation type of the project', 'relationType', 'clinic.reminds', {
+      appearanceTraits: { width: 3 },
+    }),
+    definition('reset a relation type of the project', 'relationType', 'clinic.reminds', {
+      appearanceTraits: { width: null },
+    }),
+  ];
+}
+
+/**
+ * The sample with project appearances that have no effect: for definitions no package in use defines,
+ * and for definitions of the project's own package, which keep their appearance there.
+ */
+function staleAppearanceSample(): ProjectSnapshot {
+  return {
+    ...sample,
+    project: {
+      ...sample.project,
+      appearances: {
+        components: { 'gone.kiosk': { fill: '#FFF4E5' }, 'clinic.calendar': { fill: '#FFF4E5' } },
+        relationTypes: { 'gone.sells': { stroke: '#B42318' }, 'clinic.reminds': { width: 2 } },
+      },
+    },
+  };
+}
+
+/** Forgetting the project appearances given to definitions no package in use defines. */
+const FORGET_COMMANDS: readonly [string, Command][] = [
+  [
+    'forget a component’s appearance',
+    { type: 'set-component-appearance', component: 'gone.kiosk', appearance: null },
+  ],
+  [
+    'forget a relation type’s appearance',
+    { type: 'set-relation-type-appearance', relationType: 'gone.sells', appearance: null },
+  ],
+];
+
 /** Commands written by hand, which the core reads as it reads any; their types say nothing of them. */
 function malformed(commands: readonly [string, unknown][]): [string, Command][] {
   return commands.map(([name, command]) => [name, command as Command]);
@@ -997,6 +1115,12 @@ function allMessages(): Outcome[] {
   for (const problem of previewDelete(sample, { elements: [sample.model.world.id] }).problems) {
     said.push({ command: 'preview', message: problem.message });
   }
+  // Project appearances that have no effect, as a project opens and as they are forgotten.
+  const stale = staleAppearanceSample();
+  for (const warning of checkProject(stale).warnings) {
+    said.push({ command: 'check appearances', message: warning.message });
+  }
+  said.push(...run(stale, FORGET_COMMANDS));
   return said;
 }
 
@@ -1031,6 +1155,42 @@ describe('the core’s messages in Spanish', () => {
         untranslatedParts('es', message).map((part) => `${command}: ${part}`),
       );
     expect(missing).toEqual([]);
+  });
+
+  it('changes and resets colors, as labels and not refusals', () => {
+    const labelOf = (command: string) =>
+      said.filter((each) => each.command === command).map((each) => each.message);
+    expect(labelOf('color a note')).toEqual(['Change the colors of a note in "System overview"']);
+    expect(labelOf('take one color off a note')).toEqual([
+      'Change the colors of a note in "System overview"',
+    ]);
+    expect(labelOf('reset a note')).toEqual(['Reset the colors of a note in "System overview"']);
+    expect(labelOf('color an arrow')).toEqual([
+      'Change the color of an arrow in "System overview"',
+    ]);
+    expect(labelOf('reset an arrow')).toEqual(['Reset the color of an arrow in "System overview"']);
+    expect(labelOf('color an element')).toEqual(['Change the appearance of "Client"']);
+    expect(labelOf('reset an element')).toEqual(['Reset the appearance of "Client"']);
+    expect(labelOf('reset a relation')).toEqual(['Reset the appearance of the relation "Books"']);
+    expect(labelOf('reset a built-in component')).toEqual([
+      'Reset the appearance of the component "Database"',
+    ]);
+    expect(labelOf('reset a component of the project')).toEqual([
+      'Reset the appearance of the component "Calendar"',
+    ]);
+    expect(labelOf('reset a built-in relation type')).toEqual([
+      'Reset the appearance of the relation type "reads from"',
+    ]);
+    expect(labelOf('reset a relation type of the project')).toEqual([
+      'Reset the appearance of the relation type "reminds"',
+    ]);
+    expect(labelOf('forget a component’s appearance')).toEqual([
+      'Forget the appearance given to "gone.kiosk"',
+    ]);
+    expect(labelOf('check appearances')).toHaveLength(4);
+    expect(translateMessage('es', labelOf('reset a note')[0] ?? '')).toBe(
+      'Restablecer los colores de una nota en "System overview"',
+    );
   });
 
   it('keeps what people wrote as they wrote it', () => {

@@ -3933,6 +3933,19 @@ export const messages: Catalog = {
   'it answered with more than {n} KiB': 'respondió con más de {n} KiB',
   'its answer broke off': 'su respuesta se cortó',
   'its name, {host}, does not resolve': 'su nombre, {host}, no se resuelve',
+
+  // W43, from the review of L1, A1 and A2. The labels of colors changed and taken back, and the
+  // project appearances that have no effect (ADR 0034, ADR 0035).
+  'Change the colors of a note in "{view}"': 'Cambiar los colores de una nota en "{view}"',
+  'Reset the colors of a note in "{view}"': 'Restablecer los colores de una nota en "{view}"',
+  'Change the color of an arrow in "{view}"': 'Cambiar el color de una flecha en "{view}"',
+  'Reset the color of an arrow in "{view}"': 'Restablecer el color de una flecha en "{view}"',
+  'Reset the appearance of {of}': 'Restablecer la apariencia de {of}',
+  'Forget the appearance given to "{id}"': 'Olvidar la apariencia dada a "{id}"',
+  'The project gives "{name}" an appearance, but no package in use defines it; it is ignored.':
+    'El proyecto le da una apariencia a "{name}", pero ningún paquete en uso lo define; se ignora.',
+  'The project gives "{name}" an appearance, but it belongs to the project’s package "{package}"; set it there. This entry is ignored.':
+    'El proyecto le da una apariencia a "{name}", pero pertenece al paquete propio "{package}"; definirla allí. Esta entrada se ignora.',
 };
 
 /**
