@@ -81,6 +81,101 @@ export function periodMeetsRange(
   return begins <= Math.max(from, to) && ends >= Math.min(from, to);
 }
 
+/**
+ * A time range of the filters (ADR-0025's clarification of W37): what is on one side of it is hidden,
+ * and what has no value for it stays shown. View states, and so view addresses and tour steps, carry
+ * it with the filters, and so does Claude's guidance that filters (ADR 0057).
+ */
+export interface ViewTimeRange {
+  of: 'elements' | 'relations';
+  /** The attribute of the point, or of the start of a period. */
+  attribute: string;
+  /** The attribute of the end of a period, when the range is on periods. */
+  until?: string;
+  /** What the values read as: numbers, dates (milliseconds since 1970, UTC) or times of day (seconds). */
+  kind: RangeKind;
+  /** The range's ends on that axis, both included, whichever way round they are given. */
+  from: number;
+  to: number;
+}
+
+const RANGE_KEYS: ReadonlySet<string> = new Set(['of', 'attribute', 'until', 'kind', 'from', 'to']);
+
+/** What a time range's ends are, when they are not two numbers. */
+export const RANGE_ENDS = 'A time range runs between two numbers.';
+
+/**
+ * Checks a time range as filters keep it: an object with only its own keys, on elements or relations,
+ * naming one or two attributes of at most `maxText` characters, reading one kind of value, between two
+ * finite numbers. View states and guidance check it here alike.
+ */
+export function checkTimeRange(
+  value: unknown,
+  maxText: number,
+): { ok: true; range: ViewTimeRange } | { ok: false; message: string } {
+  const refused = (message: string) => ({ ok: false as const, message });
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return refused('A time range is an object.');
+  }
+  const given = value as Record<string, unknown>;
+  for (const key of Object.keys(given)) {
+    if (!RANGE_KEYS.has(key)) return refused(`A time range has no "${shortened(key)}".`);
+  }
+  const { of, attribute, until, kind, from, to } = given;
+  if (of !== 'elements' && of !== 'relations') {
+    return refused(`A time range is on elements or on relations, not "${shortened(String(of))}".`);
+  }
+  const names = until === undefined ? [attribute] : [attribute, until];
+  for (const name of names) {
+    if (typeof name !== 'string' || name.trim() === '') {
+      return refused('A time range names the attributes it reads.');
+    }
+    if (name.length > maxText) {
+      return refused(`A time range's attributes hold at most ${maxText} characters.`);
+    }
+    if (!encodable(name)) {
+      return refused("A time range's attributes are text without broken characters.");
+    }
+  }
+  if (!RANGE_KINDS.some((each) => each === kind)) {
+    return refused(`A time range reads its values as one of: ${RANGE_KINDS.join(', ')}.`);
+  }
+  if (
+    typeof from !== 'number' ||
+    typeof to !== 'number' ||
+    !Number.isFinite(from) ||
+    !Number.isFinite(to)
+  ) {
+    return refused(RANGE_ENDS);
+  }
+  return {
+    ok: true,
+    range: {
+      of,
+      attribute: attribute as string,
+      ...(until === undefined ? {} : { until: until as string }),
+      kind: kind as RangeKind,
+      from: from === 0 ? 0 : from,
+      to: to === 0 ? 0 : to,
+    },
+  };
+}
+
+/** A text shown in a message, cut short when it is long. */
+function shortened(text: string): string {
+  return text.length > 40 ? `${text.slice(0, 40)}…` : text;
+}
+
+/** Whether a text can be percent-encoded: it holds no half of a surrogate pair on its own. */
+function encodable(text: string): boolean {
+  try {
+    encodeURIComponent(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function dateOf(text: string): number | undefined {
   const match = DATE.exec(text);
   if (!match) return undefined;

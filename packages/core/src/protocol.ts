@@ -26,6 +26,7 @@ import type { Operation } from './operations';
 import type { PreferenceChanges, Preferences } from './preferences';
 import type { Problem } from './problems';
 import type { ProjectSnapshot } from './snapshot';
+import { checkTimeRange, type ViewTimeRange } from './time-range';
 
 /**
  * The version of the live protocol; the app and the local program must agree on it, so that one from
@@ -241,6 +242,11 @@ export interface GuidedFilters {
   relationTypes: Id[];
   /** Conditions every element, or every relation, must meet to stay shown. */
   conditions: GuidedCondition[];
+  /**
+   * The time range what stays shown must meet; absent, none (ADR 0057). It is checked as a view
+   * state's is, so Claude's `filter_view` sets one as a view address carries it.
+   */
+  range?: ViewTimeRange;
 }
 
 /** How a filter tests an attribute's value, as the app's filters do. */
@@ -391,10 +397,17 @@ function readFilters(value: unknown): GuidedFilters {
   if (conditions.length > MAX_FILTER_CONDITIONS) {
     throw new ProtocolError(`Filters hold at most ${MAX_FILTER_CONDITIONS} conditions.`);
   }
+  let range: ViewTimeRange | undefined;
+  if (value.range !== undefined) {
+    const checked = checkTimeRange(value.range, MAX_FILTER_TEXT);
+    if (!checked.ok) throw new ProtocolError(checked.message);
+    range = checked.range;
+  }
   return {
     components: ids(value.components, 'components'),
     relationTypes: ids(value.relationTypes, 'relation types'),
     conditions: conditions.map(readCondition),
+    ...(range === undefined ? {} : { range }),
   };
 }
 

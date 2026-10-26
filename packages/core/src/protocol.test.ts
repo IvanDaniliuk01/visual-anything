@@ -226,6 +226,31 @@ describe('readGuidance for exploring the open view', () => {
     });
   });
 
+  it('takes a time range, checked as a view state checks it (ADR 0057)', () => {
+    const range = { of: 'elements', attribute: 'since', kind: 'date', from: 0, to: 86_400_000 };
+    expect(readGuidance({ kind: 'filter', filters: { range } })).toEqual({
+      kind: 'filter',
+      filters: { components: [], relationTypes: [], conditions: [], range },
+    });
+    const period = { ...range, until: 'until', from: -0 };
+    expect(readGuidance({ kind: 'filter', filters: { range: period } })).toMatchObject({
+      filters: { range: { ...period, from: 0 } },
+    });
+    for (const bad of [
+      { ...range, of: 'views' },
+      { ...range, kind: 'season' },
+      { ...range, from: '2026-01-01' },
+      { ...range, to: Number.POSITIVE_INFINITY },
+      { ...range, attribute: ' ' },
+      { ...range, extra: true },
+      'a range',
+    ]) {
+      expect(() => readGuidance({ kind: 'filter', filters: { range: bad } })).toThrow(
+        ProtocolError,
+      );
+    }
+  });
+
   it('takes every degree, or one to five', () => {
     for (const degrees of [1, 5, 'all'] as const) {
       expect(readGuidance({ kind: 'focus-view', targets: ['a'], degrees })).toMatchObject({

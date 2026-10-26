@@ -333,6 +333,8 @@ export * from './live';
 export type { RangeKind } from './time-range';
 export {
   RANGE_KINDS,
+  // Checked alike in view states and in guidance that filters (ADR 0057).
+  checkTimeRange,
   periodMeetsRange,
   pointInRange,
   rangeKindOf,

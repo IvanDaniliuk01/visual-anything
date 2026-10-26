@@ -5,11 +5,17 @@
  * to a view file and nothing enters the history.
  */
 import {
+  MAX_FILTER_TEXT,
   MAX_GUIDANCE_TARGETS,
+  RANGE_KINDS,
+  checkTimeRange,
   definitionsIn,
   modelIndexOf,
+  rangePointOf,
   type Guidance,
   type ProjectSnapshot,
+  type RangeKind,
+  type ViewTimeRange,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { z } from 'zod';
@@ -36,12 +42,16 @@ const NOTHING_WRITTEN =
 const filterView = tool({
   name: 'filter_view',
   title: 'Filter the open view',
-  description: `Sets the filters of the view the person has open in the app, replacing the ones it has, as if the person had set them: it hides the elements created from some components, the relations of some relation types, and what fails conditions on attributes. Nothing moves; a relation shows only while both its ends show, and a container that holds something still shown stays, drawn faintly. ${NOTHING_WRITTEN} Use it to cut a large view down to what you are explaining; end it with clear_explore.
+  description: `Sets the filters of the view the person has open in the app, replacing the ones it has, as if the person had set them: it hides the elements created from some components, the relations of some relation types, what fails conditions on attributes, and what falls outside a time range. Nothing moves; a relation shows only while both its ends show, and a container that holds something still shown stays, drawn faintly. ${NOTHING_WRITTEN} Use it to cut a large view down to what you are explaining; end it with clear_explore.
 
 components hides exactly the component each element is created from; onlyComponents keeps the elements created from the components named or ones deriving from them, and hides every other. relationTypes and onlyRelationTypes do the same for relations. A condition tests an attribute of elements or of relations: is, is-not, contains, below, above (numbers as numbers, text without minding case), set or unset; an element or relation stays only if it meets every condition, and a component's default counts as its value.
 
+range is a time range on one attribute of elements or of relations, or on a period from attribute to until: what falls outside from..to, both included, is hidden, and what has no value stays shown, as the app's time range does, which the person can then move and play. kind says how values read: number, date (ISO 8601, read in UTC) or time (HH:MM or HH:MM:SS); give from and to as numbers, or as dates or times written so, which are read as that kind. Without kind, two numbers read as numbers, and text as a date, else as a time.
+
 Example: { "onlyComponents": ["systems.service", "systems.database"] }
-Example: { "relationTypes": ["systems.is-part-of"], "conditions": [{ "of": "elements", "attribute": "owner", "test": "is", "value": "Scheduling team" }], "view": "system-overview" }`,
+Example: { "relationTypes": ["systems.is-part-of"], "conditions": [{ "of": "elements", "attribute": "owner", "test": "is", "value": "Scheduling team" }], "view": "system-overview" }
+Example: { "range": { "attribute": "launched", "kind": "date", "from": "2024-01-01", "to": "2025-06-30" } }
+Example: { "range": { "of": "relations", "attribute": "latencyMs", "from": 0, "to": 250 } }`,
   input: {
     components: z.array(id()).max(MAX_GUIDANCE_TARGETS).optional(),
     onlyComponents: z.array(id()).min(1).max(MAX_GUIDANCE_TARGETS).optional(),
@@ -60,6 +70,21 @@ Example: { "relationTypes": ["systems.is-part-of"], "conditions": [{ "of": "elem
         }),
       )
       .optional(),
+    range: z
+      .object({
+        of: z.enum(['elements', 'relations']).optional().describe('elements when left out.'),
+        attribute: z.string().min(1),
+        until: z
+          .string()
+          .min(1)
+          .optional()
+          .describe('The attribute a period ends at, for a range on periods.'),
+        kind: z.enum(RANGE_KINDS as [RangeKind, ...RangeKind[]]).optional(),
+        from: z.union([z.number(), z.string()]),
+        to: z.union([z.number(), z.string()]),
+      })
+      .optional()
+      .describe('A time range what stays shown must fall in.'),
     view: guidedView(),
   },
   hints: GUIDE,
@@ -67,6 +92,8 @@ Example: { "relationTypes": ["systems.is-part-of"], "conditions": [{ "of": "elem
     const state = await program.project();
     const viewProblem = unknownView(state, args.view);
     if (viewProblem !== undefined) return fail(viewProblem);
+    const range = args.range === undefined ? undefined : timeRangeOf(args.range);
+    if (typeof range === 'string') return fail(range);
     if (args.components !== undefined && args.onlyComponents !== undefined) {
       return fail('Give components to hide, or onlyComponents to keep, not both.');
     }
@@ -113,17 +140,26 @@ Example: { "relationTypes": ["systems.is-part-of"], "conditions": [{ "of": "elem
       value: value === undefined ? '' : String(value),
     }));
     const hidesNothing =
-      components.length === 0 && relationTypes.length === 0 && conditions.length === 0;
+      components.length === 0 &&
+      relationTypes.length === 0 &&
+      conditions.length === 0 &&
+      range === undefined;
     return guideApps(
       program,
       {
         kind: 'filter',
-        filters: { components, relationTypes, conditions },
+        filters: {
+          components,
+          relationTypes,
+          conditions,
+          ...(range === undefined ? {} : { range }),
+        },
         ...(args.view === undefined ? {} : { view: args.view }),
       },
       {
         hidden: { components, relationTypes },
         conditions: conditions.length,
+        ...(range === undefined ? {} : { range }),
         note: hidesNothing
           ? 'These filters hide nothing, so the view shows everything again.'
           : `The person sees the filters in the app, with a button that shows everything. ${NOTHING_WRITTEN}`,
@@ -224,6 +260,49 @@ export const EXPLORE_TOOLS: readonly Tool[] = [filterView, focusView, clearExplo
 function unknownView(state: ProjectSnapshot, view: Id | undefined): string | undefined {
   if (view === undefined || state.views.some((each) => each.id === view)) return undefined;
   return `There is no view "${view}". get_project lists the views.`;
+}
+
+/**
+ * A time range as filters keep it, from what Claude gives: ends written as dates or times read as
+ * that kind, the kind worked out when left out, and the whole checked as a view state's range is
+ * (ADR 0057). What is wrong with it, in words, when it is not one.
+ */
+function timeRangeOf(given: {
+  of?: 'elements' | 'relations' | undefined;
+  attribute: string;
+  until?: string | undefined;
+  kind?: RangeKind | undefined;
+  from: number | string;
+  to: number | string;
+}): ViewTimeRange | string {
+  const kind =
+    given.kind ??
+    (typeof given.from === 'number' && typeof given.to === 'number'
+      ? 'number'
+      : [given.from, given.to].every(
+            (end) => typeof end === 'number' || rangePointOf(end, 'date') !== undefined,
+          )
+        ? 'date'
+        : 'time');
+  const point = (end: number | string) =>
+    typeof end === 'number' ? end : rangePointOf(end, kind === 'number' ? 'number' : kind);
+  const from = point(given.from);
+  const to = point(given.to);
+  if (from === undefined || to === undefined) {
+    return `A time range of kind ${kind} runs between ${kind === 'date' ? 'dates written as ISO 8601, such as "2025-06-30"' : kind === 'time' ? 'times written as HH:MM or HH:MM:SS' : 'numbers'}, or numbers on its axis.`;
+  }
+  const checked = checkTimeRange(
+    {
+      of: given.of ?? 'elements',
+      attribute: given.attribute,
+      ...(given.until === undefined ? {} : { until: given.until }),
+      kind,
+      from,
+      to,
+    },
+    MAX_FILTER_TEXT,
+  );
+  return checked.ok ? checked.range : checked.message;
 }
 
 /** Each id used, once, that `kept` does not keep. */

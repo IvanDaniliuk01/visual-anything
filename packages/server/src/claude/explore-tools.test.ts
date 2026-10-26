@@ -71,6 +71,51 @@ describe('filter_view', () => {
     expect(boxes.hidden).toEqual({ components: ['systems.person'], relationTypes: [] });
   });
 
+  it('sets a time range, its ends read as its kind, as the view state carries one', async () => {
+    const app = await tools.openApp();
+    const result = await tools.value('filter_view', {
+      range: { attribute: 'launched', kind: 'date', from: '2024-01-01', to: '2025-06-30' },
+    });
+    const range = {
+      of: 'elements',
+      attribute: 'launched',
+      kind: 'date',
+      from: Date.UTC(2024, 0, 1),
+      to: Date.UTC(2025, 5, 30),
+    };
+    expect(result).toMatchObject({ range });
+    expect(result.note).toMatch(/Nothing is written to the view/);
+    await expect.poll(() => tools.guidanceOf(app).length).toBe(1);
+    expect(tools.guidanceOf(app)).toEqual([
+      { kind: 'filter', filters: { components: [], relationTypes: [], conditions: [], range } },
+    ]);
+    // Numbers read as numbers, and times of day as seconds, with a period's end.
+    expect(
+      await tools.value('filter_view', {
+        range: { of: 'relations', attribute: 'latencyMs', from: 0, to: 250 },
+      }),
+    ).toMatchObject({ range: { of: 'relations', kind: 'number', from: 0, to: 250 } });
+    expect(
+      await tools.value('filter_view', {
+        range: { attribute: 'opens', until: 'closes', from: '09:00', to: '17:30' },
+      }),
+    ).toMatchObject({ range: { kind: 'time', until: 'closes', from: 32_400, to: 63_000 } });
+  });
+
+  it.each([
+    [
+      { range: { attribute: 'launched', kind: 'date', from: 'soon', to: '2025-06-30' } },
+      /dates written as ISO 8601/,
+    ],
+    [
+      { range: { attribute: 'opens', kind: 'time', from: '25:00', to: '17:00' } },
+      /times written as HH:MM/,
+    ],
+    [{ range: { attribute: ' ', from: 0, to: 1 } }, /names the attributes it reads/],
+  ])('refuses the time range %j', async (args, message) => {
+    expect(await tools.failure('filter_view', args)).toMatch(message);
+  });
+
   it('says that filters which hide nothing show everything again', async () => {
     expect(await tools.value('filter_view', {})).toMatchObject({
       shown: 0,

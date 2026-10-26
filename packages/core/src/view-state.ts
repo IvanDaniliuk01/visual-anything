@@ -47,7 +47,7 @@ import {
 } from './protocol';
 import type { ProjectSnapshot } from './snapshot';
 import { definitionsIn, modelIndexOf } from './state';
-import { RANGE_KINDS, type RangeKind } from './time-range';
+import { RANGE_ENDS, checkTimeRange, type ViewTimeRange } from './time-range';
 
 /** Where the canvas looks: the point of the view at its middle, in canvas units, and the zoom. */
 export interface ViewCamera {
@@ -57,22 +57,8 @@ export interface ViewCamera {
   zoom: number;
 }
 
-/**
- * A time range of the filters (ADR-0025's clarification of W37): what is on one side of it is hidden,
- * and what has no value for it stays shown.
- */
-export interface ViewTimeRange {
-  of: 'elements' | 'relations';
-  /** The attribute of the point, or of the start of a period. */
-  attribute: string;
-  /** The attribute of the end of a period, when the range is on periods. */
-  until?: string;
-  /** What the values read as: numbers, dates (milliseconds since 1970, UTC) or times of day (seconds). */
-  kind: RangeKind;
-  /** The range's ends on that axis, both included, whichever way round they are given. */
-  from: number;
-  to: number;
-}
+// A time range of the filters, which Claude's guidance carries too, is checked where it is defined.
+export type { ViewTimeRange } from './time-range';
 
 /** What the filters hide (ADR-0025), in lists, as Claude's guidance carries them, and a time range. */
 export interface ViewFilters extends GuidedFilters {
@@ -259,7 +245,6 @@ function parseFilters(text: string): ViewFilters {
 
 const RANGE_FORM =
   'A time range is range:<of>,<attribute>,<kind>,<from>,<to>, then the attribute its periods end at, if it is on periods.';
-const RANGE_ENDS = 'A time range runs between two numbers.';
 
 function parseRange(text: string): ViewTimeRange {
   const items = text.split(',');
@@ -543,57 +528,18 @@ function checkFilters(value: unknown): ViewFilters {
     if (!isRecord(each)) refuse('A condition of filters is an object.');
     return checkCondition(each);
   });
-  let range: ViewTimeRange | undefined;
-  if (value.range !== undefined) {
-    if (!isRecord(value.range)) refuse('A time range is an object.');
-    for (const key of Object.keys(value.range)) {
-      if (!RANGE_KEYS.has(key)) refuse(`A time range has no "${shortened(key)}".`);
-    }
-    range = checkRange(value.range);
-  }
+  const range = value.range === undefined ? undefined : checkRange(value.range);
   if (components.length + relationTypes.length + conditions.length === 0 && range === undefined) {
     refuse('Filters that hide nothing are left out.');
   }
   return { components, relationTypes, conditions, ...(range === undefined ? {} : { range }) };
 }
 
-const RANGE_KEYS: ReadonlySet<string> = new Set(['of', 'attribute', 'until', 'kind', 'from', 'to']);
-
 /** A time range, as filters keep it (ADR-0025's clarification of W37); throws `Malformed`. */
-function checkRange(value: Record<string, unknown>): ViewTimeRange {
-  const { of, attribute, until, kind, from, to } = value;
-  if (of !== 'elements' && of !== 'relations') {
-    refuse(`A time range is on elements or on relations, not "${shortened(String(of))}".`);
-  }
-  const names = until === undefined ? [attribute] : [attribute, until];
-  for (const name of names) {
-    if (typeof name !== 'string' || name.trim() === '') {
-      refuse('A time range names the attributes it reads.');
-    }
-    if (name.length > MAX_FILTER_TEXT) {
-      refuse(`A time range's attributes hold at most ${MAX_FILTER_TEXT} characters.`);
-    }
-    if (!encodable(name)) refuse("A time range's attributes are text without broken characters.");
-  }
-  if (!RANGE_KINDS.some((each) => each === kind)) {
-    refuse(`A time range reads its values as one of: ${RANGE_KINDS.join(', ')}.`);
-  }
-  if (
-    typeof from !== 'number' ||
-    typeof to !== 'number' ||
-    !Number.isFinite(from) ||
-    !Number.isFinite(to)
-  ) {
-    refuse(RANGE_ENDS);
-  }
-  return {
-    of,
-    attribute: attribute as string,
-    ...(until === undefined ? {} : { until: until as string }),
-    kind: kind as RangeKind,
-    from: from === 0 ? 0 : from,
-    to: to === 0 ? 0 : to,
-  };
+function checkRange(value: unknown): ViewTimeRange {
+  const checked = checkTimeRange(value, MAX_FILTER_TEXT);
+  if (!checked.ok) refuse(checked.message);
+  return checked.range;
 }
 
 /** A condition, as filters test it (ADR-0025), with the limits guidance has. */
