@@ -2,8 +2,9 @@
  * The program's side of the Claude endpoint: one attached Claude. It greets Claude with the project,
  * runs its commands with Claude as their author, and an import from the command line, which it reads
  * and maps itself, with the person as its author (ADR-0049); it shows its guidance in the open apps,
- * keeps and clears live values (ADR 0057), says which package code the person approved (ADR 0054) and
- * opens the app when asked. It never answers with the session token, and refuses every other message.
+ * keeps, clears and reads back live values (ADR 0057), says which package code the person approved
+ * (ADR 0054) and opens the app when asked. It never answers with the session token, and refuses every
+ * other message.
  */
 import {
   ProtocolError,
@@ -17,6 +18,7 @@ import {
 import { previewImport } from '../import';
 import type { LiveSession, SessionClient } from '../session';
 import {
+  MAX_LIVE_LISTED,
   decodeClaudeMessage,
   importRequestOf,
   requestIdIn,
@@ -110,6 +112,20 @@ export function attachClaude(
           ...(message.attributes === undefined ? {} : { attributes: message.attributes }),
         });
         send({ type: 'live/cleared', requestId: message.requestId, cleared });
+        return;
+      }
+      case 'live/list': {
+        // Read from the program's own store, everyone's: reading them keeps and changes nothing.
+        const filter = {
+          ...(message.targets === undefined ? {} : { targets: message.targets }),
+          ...(message.attributes === undefined ? {} : { attributes: message.attributes }),
+        };
+        const listing = session.listLive?.(filter, message.limit ?? MAX_LIVE_LISTED) ?? {
+          values: [],
+          total: 0,
+          at: Date.now(),
+        };
+        send({ type: 'live/listed', requestId: message.requestId, ...listing });
         return;
       }
       case 'code-approvals': {

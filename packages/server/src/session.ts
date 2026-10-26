@@ -62,7 +62,7 @@ import {
 } from './file-plan';
 import { FOLDERS, newFilePath, type FolderKind } from './layout';
 import { projectDestinationWarnings, type OpenOtherProject } from './other-project';
-import { LiveValues, type LiveKept } from './live';
+import { LiveValues, type LiveKept, type LiveListing } from './live';
 import { PackageFetcher, networkGrantOf, type FetcherOptions } from './live-fetch';
 import type { PreferencesStore } from './preferences';
 import { toForwardSlashes } from './paths';
@@ -128,6 +128,11 @@ export interface LiveSession {
   setLive(connection: object, sender: LiveSender, values: unknown, freshFor?: number): LiveKept;
   /** Clears the live values that match; gives back how many it cleared. */
   clearLive(filter: LiveFilter): number;
+  /**
+   * The live values kept now that match, the latest first, at most `limit`, as Claude's read tools
+   * show them (ADR 0057); reading them changes nothing. Absent where none are kept.
+   */
+  listLive?(filter: LiveFilter, limit: number): LiveListing;
   /**
    * Says the port the local program listens on, on 127.0.0.1, which package code never fetches from
    * (ADR 0057's clarification on addresses).
@@ -460,6 +465,10 @@ export class Session implements LiveSession {
 
   clearLive(filter: LiveFilter): number {
     return this.#live.clear(filter);
+  }
+
+  listLive(filter: LiveFilter, limit: number): LiveListing {
+    return this.#live.list(filter, limit);
   }
 
   servesAt(port: number): void {

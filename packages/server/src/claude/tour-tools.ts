@@ -3,7 +3,8 @@
  * holds; creating one, so that "walk me through checkout" can be saved as a tour and not only shown
  * once as guidance; adding, changing, moving and removing its steps; renaming and deleting it. Each
  * call is one undoable action of Claude's. A step is a view state, as get_view_address takes one, with a
- * caption, the elements and relations it marks, a scenario it plays, and speaker notes.
+ * caption, the elements and relations it marks, a scenario it plays, and speaker notes. play_tour plays
+ * a tour full screen in the open apps, as guidance that records nothing.
  */
 import {
   MAX_CAPTION_TEXT,
@@ -19,7 +20,19 @@ import {
 } from '@visual-anything/core';
 import type { Id, TourFile, TourPlayback, TourStep } from '@visual-anything/schema';
 import { z } from 'zod';
-import { DELETE, READ, WRITE, act, counted, fail, id, ok, tool, withoutUndefined } from './kit';
+import {
+  DELETE,
+  GUIDE,
+  READ,
+  WRITE,
+  act,
+  counted,
+  fail,
+  id,
+  ok,
+  tool,
+  withoutUndefined,
+} from './kit';
 import type { Tool } from './tools';
 import { STATE_HELP, STATE_PARTS, askedState } from './view-tools';
 
@@ -311,6 +324,45 @@ Example: { "tour": "how-booking-works" }`,
   run: async (args, program) => act(program, { type: 'delete-tour', id: args.tour }),
 });
 
+// ——— Play, as guidance ———
+
+const playTour = tool({
+  name: 'play_tour',
+  title: 'Play a tour in the app',
+  description: `Plays a tour full screen in the app the person has open, from its first step or from the step you name, as the tours panel's Play does: the panels hide, each step's caption shows in a card, its marks highlight and its scenario plays. From then on the tour is the person's: they move through it with the arrow keys and end it with Escape, and the tab goes back to where it was; you cannot move it on or end it. Playing it changes nothing in the project, and nothing is recorded. It answers how many open apps it reached; with none, nothing plays, and open_app opens one. Use it when the person asks to see a tour, rather than walking them through the same steps with guidance.
+
+Example: { "tour": "how-booking-works" }
+Example: { "tour": "how-booking-works", "step": 3 }`,
+  input: {
+    tour: tourId(),
+    step: stepRef()
+      .optional()
+      .describe('The step it plays from, by id or number from 1; its first when left out.'),
+  },
+  hints: GUIDE,
+  run: async (args, program) => {
+    const state = await program.project();
+    const tour = state.tours.find((each) => each.id === args.tour);
+    if (!tour) return fail(`There is no tour "${args.tour}". get_project lists the tours.`);
+    if (tour.steps.length === 0) {
+      return fail(`The tour "${tour.name}" has no steps to play: add_tour_step adds one.`);
+    }
+    const at = args.step === undefined ? 0 : stepIndex(tour, args.step);
+    if (at === undefined) return fail(noStep(tour, args.step as Id | number));
+    const step = tour.steps[at] as TourStep;
+    const apps = await program.guide({ kind: 'tour', tour: tour.id, step: at });
+    return ok({
+      apps,
+      tour: tour.id,
+      from: { number: at + 1, id: step.id, title: step.caption.title },
+      note:
+        apps === 0
+          ? 'No app has the project open, so no tour plays: it plays full screen in the app. Call open_app to open it, or ask the person to, then call play_tour again.'
+          : `The tour plays full screen in ${apps === 1 ? 'the open app' : `each of the ${apps} open apps`}, from step ${at + 1} of ${tour.steps.length}. It is the person’s: they move through it with the arrow keys and end it with Escape. Nothing was recorded.`,
+    });
+  },
+});
+
 // ——— Helpers ———
 
 /** A step the arguments ask for, its view state checked as get_view_address checks one. */
@@ -405,4 +457,5 @@ export const TOUR_TOOLS: readonly Tool[] = [
   removeTourStep,
   updateTour,
   deleteTour,
+  playTour,
 ];

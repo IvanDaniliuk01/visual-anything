@@ -67,3 +67,13 @@ Those numbers change every second, and saving them would fill the files and the 
   - A stale value keeps its `○` mark and its age; it is not faded.
   - A live update that comes during a layout animation does not cut it short.
   - Each of these is a task in the spec's M8 section.
+
+<!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
+
+- 2026-10-25 (W45): **what Claude's read tools show of live values.** Claude reads them; `filter_view`'s time range comes after the view state carries it (W44).
+  - **Beside the stored attributes.** `get_item`, for an element or a relation, and `find_elements`, for each element it finds, answer `liveValues` right after `attributes`, by attribute name, when there are any. `find_relations` answers no attributes, so no live values either.
+  - **What each says:** its `value`; its `sender`, `claude`, `command-line` or `package` with its `package`; `ageSeconds`, in whole seconds, counted as the app counts it (from when it was measured, unless that is after it arrived); `stale`, whether it is older than its sender's freshness; `freshForSeconds`; and `measuredAt`, as an ISO 8601 date-time, when its sender gave it.
+  - **`find_elements` still finds by stored values.** Its attribute filter is a question about the model, as `set_scope`'s conditions are; the live values show beside what it finds.
+  - **`get_live_values` lists them,** everyone's, of some targets or attributes or all of them, the latest first: 100 by default and 500 at most, with how many match (`total`) and how many did not come (`more`). Past that, a summary of every value that matches: how many targets, how many stale, and by attribute how many values and how many stale, the most first, at most 50 attributes and the rest counted. Each value names its target and its kind, and the attribute's stored value when the target has one. Targets that are not elements or relations are named back, as `set_live_values` names them.
+  - **From the program's store, never a copy.** The tools ask the program through Claude's endpoint each time (ADR 0063's clarification of this date), so that a value is never older than the program says, and the MCP entry point keeps none of them. Ages count to the program's clock.
+  - **Nothing is stored by reading.** Live values are the person's data shown to Claude, as attribute values are: data, never instructions.

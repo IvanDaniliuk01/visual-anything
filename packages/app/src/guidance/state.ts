@@ -1,9 +1,9 @@
 /**
  * What Claude's live guidance shows in this tab: marks on some shapes, a move of the canvas, and a
- * caption; and what it asks of the tab's explorer, scenario session and layout, to apply once each:
- * filters, focus mode, playback and a layout. Guidance never changes the project itself: a layout it
- * asks for is run and recorded by the tab as any layout is. Each message replaces what it concerns,
- * and the person can dismiss all of it.
+ * caption; and what it asks of the tab's explorer, scenario session, layout and tours, to apply once
+ * each: filters, focus mode, playback, a layout and a tour played full screen. Guidance never changes
+ * the project itself: a layout it asks for is run and recorded by the tab as any layout is. Each
+ * message replaces what it concerns, and the person can dismiss all of it.
  */
 import type { Guidance } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
@@ -67,6 +67,17 @@ export interface GuidedLayoutRequest {
   request: number;
 }
 
+/**
+ * A request to play a tour full screen once, as the tours panel's Play does (ADR 0058): from the step
+ * at `step`, or from the first. From then on the tour is the person's, who ends it with Escape.
+ */
+export interface GuidedTourRequest {
+  tour: Id;
+  /** The index of the step it plays from, among the tour's steps. */
+  step?: number;
+  request: number;
+}
+
 /** Everything Claude's guidance shows now, and what it asks of the tab. */
 export interface GuidanceState {
   marks?: GuidanceMarks;
@@ -77,6 +88,7 @@ export interface GuidanceState {
   focusView?: GuidedFocusRequest;
   playback?: GuidedPlaybackRequest;
   layout?: GuidedLayoutRequest;
+  tour?: GuidedTourRequest;
 }
 
 /** No guidance at all. */
@@ -145,6 +157,19 @@ export function applyGuidance(
         request,
       };
       return { ...state, layout };
+    }
+    case 'tour': {
+      const tour: GuidedTourRequest = {
+        tour: guidance.tour,
+        ...(guidance.step === undefined ? {} : { step: guidance.step }),
+        request,
+      };
+      // The tour shows its own caption card and marks, full screen: Claude's go.
+      const next: GuidanceState = { ...state, tour };
+      delete next.marks;
+      delete next.panTo;
+      delete next.caption;
+      return next;
     }
   }
 }

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { filesIn } from '../test-support';
 import { startToolHarness, type ToolHarness } from './tool-harness';
 
 let tools: ToolHarness;
@@ -228,6 +229,64 @@ describe('read_tour', () => {
       brokenSteps: [2],
     });
     expect((read.steps as { broken?: boolean }[])[0]?.broken).toBeUndefined();
+  });
+});
+
+describe('play_tour', () => {
+  it('plays a tour full screen in every open app from a step, recording and writing nothing', async () => {
+    const tour = await walk();
+    const app = await tools.openApp();
+    const actions = tools.session.actions.length;
+    const before = await filesIn(tools.session.folder);
+    const second = tourNamed('Checkout')?.steps[1]?.id;
+    const played = await tools.value('play_tour', { tour, step: 2 });
+    expect(played).toMatchObject({
+      apps: 1,
+      tour,
+      from: { number: 2, id: second, title: 'The API' },
+    });
+    expect(played.note).toMatch(/the person’s: they move through it .* and end it with Escape/);
+    // Guidance names the step by its index, from 0.
+    await expect.poll(() => tools.guidanceOf(app)).toEqual([{ kind: 'tour', tour, step: 1 }]);
+    expect(tools.session.actions).toHaveLength(actions);
+    expect(await filesIn(tools.session.folder)).toEqual(before);
+  });
+
+  it('plays from the first step unless told, and takes a step by its id', async () => {
+    const tour = await walk();
+    const app = await tools.openApp();
+    await tools.value('play_tour', { tour });
+    const second = tourNamed('Checkout')?.steps[1]?.id as string;
+    expect(await tools.value('play_tour', { tour, step: second })).toMatchObject({
+      from: { number: 2 },
+    });
+    await expect
+      .poll(() => tools.guidanceOf(app))
+      .toEqual([
+        { kind: 'tour', tour, step: 0 },
+        { kind: 'tour', tour, step: 1 },
+      ]);
+  });
+
+  it('says so when no app is open, since a tour plays only in the app', async () => {
+    const tour = await walk();
+    const played = await tools.value('play_tour', { tour });
+    expect(played).toMatchObject({ apps: 0 });
+    expect(played.note).toMatch(/^No app has the project open, so no tour plays.*open_app/);
+  });
+
+  it('refuses a tour, or a step, the project does not have, and a tour of no steps', async () => {
+    const tour = await walk();
+    expect(await tools.failure('play_tour', { tour: 'gone' })).toBe(
+      'There is no tour "gone". get_project lists the tours.',
+    );
+    expect(await tools.failure('play_tour', { tour, step: 3 })).toBe(
+      'The tour "Checkout" has no step 3: it has 2.',
+    );
+    const empty = (await tools.value('create_tour', { name: 'Empty' })).tour as string;
+    expect(await tools.failure('play_tour', { tour: empty })).toBe(
+      'The tour "Empty" has no steps to play: add_tour_step adds one.',
+    );
   });
 });
 

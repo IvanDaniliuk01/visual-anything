@@ -122,4 +122,17 @@ describe('applyGuidance for exploring and playback', () => {
     // Clearing the guidance takes back what shows, never a layout already run.
     expect(applyGuidance(state, { kind: 'clear' }, 4)).toEqual({});
   });
+
+  it('keeps the last request of a tour, which takes Claude’s marks, move and caption away', () => {
+    let state = applyGuidance(NO_GUIDANCE, { kind: 'filter', filters }, 1);
+    state = applyGuidance(state, { kind: 'focus', targets: ['a'] }, 2);
+    state = applyGuidance(state, { kind: 'caption', text: 'Look here.' }, 3);
+    state = applyGuidance(state, { kind: 'tour', tour: 't' }, 4);
+    // The tour shows its own caption card and marks, full screen.
+    expect(state).toEqual({ filter: { filters, request: 1 }, tour: { tour: 't', request: 4 } });
+    state = applyGuidance(state, { kind: 'tour', tour: 't', step: 2 }, 5);
+    expect(state.tour).toEqual({ tour: 't', step: 2, request: 5 });
+    // Clearing the guidance never ends a tour the person watches: the request goes, nothing else.
+    expect(applyGuidance(state, { kind: 'clear' }, 6)).toEqual({});
+  });
 });

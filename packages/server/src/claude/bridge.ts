@@ -37,7 +37,7 @@ import {
   type ProgramRecord,
   type RuntimeContext,
 } from './discovery';
-import type { LiveKept } from '../live';
+import type { LiveKept, LiveListing } from '../live';
 import {
   CLAUDE_PATH,
   decodeProgramMessage,
@@ -90,6 +90,19 @@ export interface Program {
   setLive?(values: readonly unknown[], options?: LiveSetOptions): Promise<LiveKept>;
   /** Clears live values that match; resolves with how many went. Absent where it cannot. */
   clearLive?(filter: LiveClearFilter): Promise<number>;
+  /**
+   * The live values the program keeps now (ADR 0057), everyone's, of some targets or attributes or
+   * all of them, the latest first. Reading them changes nothing. Absent where it cannot.
+   */
+  listLive?(filter: LiveListFilter): Promise<LiveListing>;
+}
+
+/** Which live values to read: of some targets or attributes, or all of them, and at most how many. */
+export interface LiveListFilter {
+  targets?: Id[];
+  attributes?: string[];
+  /** A thousand at most, and when left out. */
+  limit?: number;
 }
 
 /** How live values are sent: how long they stay fresh, and who sends them. */
@@ -278,6 +291,24 @@ export class ProgramBridge implements Program {
       from: filter.from ?? 'claude',
     }));
     if (answer.type === 'live/cleared') return answer.cleared;
+    if (answer.type === 'command/rejected') {
+      throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
+    }
+    throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  async listLive(filter: LiveListFilter = {}): Promise<LiveListing> {
+    const answer = await this.#request((requestId) => ({
+      type: 'live/list',
+      requestId,
+      ...(filter.targets === undefined ? {} : { targets: filter.targets }),
+      ...(filter.attributes === undefined ? {} : { attributes: filter.attributes }),
+      ...(filter.limit === undefined ? {} : { limit: filter.limit }),
+    }));
+    if (answer.type === 'live/listed') {
+      const { values, total, at, summary } = answer;
+      return { values, total, at, ...(summary === undefined ? {} : { summary }) };
+    }
     if (answer.type === 'command/rejected') {
       throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
     }

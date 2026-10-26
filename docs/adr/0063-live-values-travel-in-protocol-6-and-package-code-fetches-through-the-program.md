@@ -48,3 +48,9 @@ ADR-0057 decided that live values come from Claude, the command line and approve
 - `PROTOCOL_VERSION` is 6; an app, a program or an MCP entry point of another version refuses to talk, as before.
 - The core has `packages/core/src/live/`: the checks, the store, the gate, the messages and the reading; the program has `live.ts`, `live-fetch.ts`, `addresses.ts` and `live-command.ts`; the app has `live-values/` and `code/network.ts`.
 - What package code fetches is the program's work, within its caps; a package that wants more is refused there and says so in the app once.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
+
+- 2026-10-25 (W45): **Claude's endpoint reads live values back.** It takes `live/list`, of some `targets` or `attributes` or all of them, everyone's, and at most `limit` (1 to 1,000; 1,000 when left out). The program answers with `live/listed`: the values that match, the latest first, each as a live value is sent (`{ target, attribute, value, measuredAt?, sender, arrivedAt, freshFor }`) and read back from those parts only; `total`, how many match; `at`, the program's time, which ages count to; and, when more match than came, a `summary` of all of them (ADR 0057's clarification of this date). Reading changes nothing, and nothing else of the endpoint changes: an app never gets these messages.
