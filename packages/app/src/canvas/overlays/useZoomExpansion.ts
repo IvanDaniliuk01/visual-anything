@@ -83,6 +83,22 @@ export function useExpandedByZoom(store: ZoomExpansion, viewId: Id | undefined):
   return useSyncExternalStore(store.subscribe, () => store.expandedIn(viewId));
 }
 
+const NOTHING_TO_FOLLOW = () => () => {};
+
+/**
+ * The same, for what may have no store, as a panel tested apart from the shell: none expanded then.
+ * Scenario playback reads it, so that it plays over the view as the canvas draws it.
+ */
+export function useZoomExpanded(
+  store: ZoomExpansion | null,
+  viewId: Id | undefined,
+): ReadonlySet<Id> {
+  return useSyncExternalStore(
+    store?.subscribe ?? NOTHING_TO_FOLLOW,
+    () => store?.expandedIn(viewId) ?? NOT_EXPANDED,
+  );
+}
+
 /**
  * Follows the canvas's camera for the open view, so that the store says which of its collapsed
  * containers show expanded where it looks.
