@@ -13,3 +13,13 @@ While a project is open, the local Node program holds the authoritative model an
 ## Consequences
 
 Editing requires the local program to be running; only the read-only demo runs in the browser alone. The core package must run both in Node and in the browser.
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+- 2026-10-26 (M6, W46): **the program's log.** Dogfooding needed a log of a command's path, which the program did not write.
+  - `--log <file>` writes one JSON line per event, appending to the file:
+    - an action done, undone or redone, with its time, author, label, operation count and the ids it created;
+    - a command refused, with its problems' codes;
+    - an app or Claude attached or gone;
+    - a file of the project changed on disk.
+  - It never writes a token, a launch code, a credential, a preference, or anything a file holds.
+  - Without the option, the program writes nothing more than it does now.
