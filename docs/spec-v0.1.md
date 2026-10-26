@@ -39,7 +39,7 @@ v0.1 covers the model, views, layout, tables, the component editor, images, them
 | Claude through MCP | Model, views, declarative components with their images, rows and connection points, appearances, scenarios, live guidance | Writing programmable code, with approval |
 | Time (model versions) | — | Comparing versions between git commits, in the app and for pull requests (M11b) |
 | Attribute space | — | Case 3 (transformer) |
-| Physical space (3D) | — | Case 5 (robotic arm, human body): 3D models inside components first, then a 3D panel linked to the 2D views (after v0.1) |
+| Physical space (3D) | — | Case 5 (robotic arm, human body): solids inside components first (M9, ADR 0075), then a physical-space panel linked to the 2D views (M10, ADR 0076) |
 | Live data from your systems | Claude refreshes the model through its other MCPs | Packages that request network permission |
 | Export (image, PDF, shareable page) | PNG of the open view | SVG, PDF, text, and a read-only page to share, embed and read on a phone (M6b) |
 | HTML | — | Static HTML imported as a cleaned drawing (M8b, ADR 0068); HTML that runs only with a new ADR |
@@ -82,7 +82,7 @@ Rules the core enforces:
 - An element can have several containers, and containment can never form a cycle.
 - Limits on what a relation type may connect only produce warnings.
 - A view has exactly one perspective, chooses which nesting relation types arrange it and keeps its own positions; pinned shapes keep theirs through layout.
-- A scenario plays over one view; each step activates one or more relations, and there are no branches.
+- A scenario plays over one view; each step activates one or more relations. In v0.1 there are no branches; decisions between labelled alternatives come with M11c (ADR 0078).
 
 ## Architecture
 
@@ -207,7 +207,7 @@ Three choices came up while writing this spec, and three more when its scope gre
 | Decision | Settled | Rejected alternative |
 | --- | --- | --- |
 | What v0.1 takes of the scope added on 2026-10-23 | Stacking order, putting shapes inside containers and the shape menu in M2; tables and appearance traits in M3; the component editor and images in a new M3b; themes, colors and the grid in Track A beside the milestones | v0.1 as planned plus tables, with the editor and images moved to v0.2 |
-| How 3D comes in | After v0.1, once shapes can have free 2D geometry: first 3D models drawn inside components, then a 3D panel linked to the 2D views, under a new ADR that supersedes ADR 0003 | A switch between 2D and 3D for each view, which ADR 0003 rejected: text and relations read worse in 3D |
+| How 3D comes in | After v0.1, once shapes can have free 2D geometry: first solids drawn inside components (M9, ADR 0075), then a physical-space panel linked to the 2D views (M10), under ADR 0076, which supersedes ADR 0003 | A switch between 2D and 3D for each view, which ADR 0003 rejected: text and relations read worse in 3D |
 | HTML | Static HTML enters as a drawing, cleaned and turned into SVG, after v0.1 | Storing HTML with scripts, which is code that runs |
 | Who owns the model while editing | The local program owns the model and its history; the browser sends commands and renders what comes back (ADR 0016) | The browser owns it and the local program relays Claude's calls, so Claude can only edit while the app is open |
 | File extensions | .vaproject, .vamodel, .vapackage, .vaview, .vascenario | Plain .json with a type field inside |
@@ -476,7 +476,7 @@ Eight milestones in build order, each ending in something you can use, and Track
   - `outlines.ts`'s `shapeHolds(shape, point)` and `shapeBorderPoint(shape, inside, toward)`, and `draw.ts`'s `drawOutline(graphics, outline, colors)`, over the core's outline maths. They sit beside the outlines rather than in `geometry.ts`, which the layout worker loads, so that the worker never loads the core.
   - Automatic straight and curved lines, routed as routes chosen by hand without bend points are, and side by side as automatic lines are; the routing task carries their ends onto outlines.
   - The incremental scene keeps outlines and parts across moves and recolors, which its property test checks against a full build.
-- [ ] **Free geometry on the canvas** (ADR 0066):
+- [x] **Free geometry on the canvas** (ADR 0066):
   - tiles' plain and full drawings of outlines, holes cut;
   - silhouettes and plain blocks drawn as simplified outlines, and collapsed containers' sheets;
   - names in the label area, or beside the shape in the hover and selection marks, and icons;
@@ -513,6 +513,8 @@ Eight milestones in build order, each ending in something you can use, and Track
   - the SVG test's bounds for free geometry, a drawing with parts and automatic curves;
   - Mermaid and Structurizr say that they lost the outlines.
 - [ ] **A sample,** `examples/beyond-boxes`: a heart drawn for Visual Anything (CC0-1.0), whose chambers and vessels are anchored to its named parts; a component with free geometry; one view drawn curved; a card imported from HTML; and a scenario of blood flowing through the heart.
+  - [x] The heart, its parts, the lungs as free geometry, the Heart view drawn curved beside the Circulation view, "paces" drawn straight, the scenario, and the test that opens it through the program's loader (W59).
+  - [ ] The card, imported from `sources/card.html` once HTML as a drawing is in.
 - [ ] **The benchmark:** `?geometry` and `?curves`, in work and frames modes, with the phases of the "Done when" above:
   - pan, zoom and select, at the whole view and with names shown;
   - pointing along outlines;
@@ -670,6 +672,215 @@ The first three tasks are the seams, built in the main session in this order. Th
   - merging a 10,000-element model file;
   - reading the benchmark project's version from git.
 
+**M11c · Tours that move, and scenarios that decide.** Planned beside the third wave's benchmarks, from the research on tours and on conditional processes. Its two seams, in the schema and the core, go first in the main session; then its tasks run in parallel. Done when:
+
+- a tour step's camera follows the bounded smooth path (at most 2.5 times zoomed out and 800 ms), and a step past it, into another view or under reduced motion cuts with a 200 ms cross-fade (ADR 0077);
+- every step's transition comes in its three stages within 1.1 s, a press during one finishes it at once, and the Motion and Fades preferences hold;
+- a step that plays a scenario says which step it is on, pauses and resumes with P, plays its range again with R, and brings the scenario's steps into view;
+- reveals and `dimRest` play one press at a time, from every forward key, a wireless presenter's included; I opens the steps' index, B goes back to the step's camera, the caption keeps clear of the marks, a step can advance by itself with a pause control, and the card says what each step and reveal marks;
+- `check_tour` and the Tours panel say where a tour cuts, what its marks miss and which steps could be reveals;
+- a scenario holds a decision between labelled alternatives (ADR 0078): the person chooses in the panel and with the keyboard, Claude chooses by guidance, a tour plays a given alternative, and an address opens a step in it;
+- a scenario without decisions is written byte for byte as before; deleting a relation that an alternative not chosen uses leaves a broken step there, marked in the list and in the delete preview;
+- the 10,000-element view keeps its budget through a tour step that filters, dims, moves the camera and reveals, and while a decision plays.
+
+- [ ] **Seam 1, in the main session: tours in the schema and the core** (ADR 0077): `TourStep.reveal`, `dimRest`, `advance` and `TourCaption.place`; `tourTransition` and the bounded camera path in `core/src/tours/camera.ts`, with property tests; reveals counted in a step's problems; the checks behind `check_tour`.
+- [x] **Seam 2, in the main session: decisions in the schema and the core** (ADR 0078): `ScenarioFile.blocks` with `DecisionBlock` and `Alternative`; their checks; `scenarioTimeline` with choices, `choicesToReach`, `alternativeOf` and broken steps with their alternative; `update-scenario` with blocks and the editing helpers; property tests (no blocks gives today's timeline; every step reachable; a broken step never deleted).
+- [ ] **Tours on the canvas:** the capture and cross-fade, fades of tiles' dimming and of the emphasis marks, the three stages in `useTourPlayback`, and the travelling marker's trail.
+- [ ] **The stage:** the scenario's card with pause and its range, the keys, the steps' index, Back to the step, the caption's placement, advancing by itself, the announcements, and the Motion and Fades preferences.
+- [ ] **Decisions in the app:** choices in the scenario session, the decision card with its keys and announcements, the grouped steps' list, the alternatives not chosen dimmed and dashed with their preview, recording's Add an alternative here, Rejoin here and End the alternative, and the read-only page.
+- [ ] **Claude:** the tour tools' new keys and `check_tour`; `read_scenario`, `create_scenario_from_steps` with decisions, `update_scenario`'s operations, the `choose` guidance and `choices` in the playback tools; the Mermaid and PlantUML recipes.
+- [ ] **View states, addresses and tours' `play` with choices**, and a decision in the sample's `patient-books-appointment`.
+- [ ] **The benchmark:** a tour phase and a decision phase on the 10,000-element view.
+
+**Track P · Visual packages**, beside the milestones, from the research on visual packages (ADR 0079). Its commits start with `P<n>:`. Each package follows ADR 0051: components and relation types with appearances that pass the contrast tests in both themes, names in English and Spanish, icons that pass the cleaner as stored, its licence and attribution (ADR 0047, ADR 0079), a sample project with a scenario, and a README section saying where its pictures come from.
+
+**P1 · Machine learning, physical AI and processes.** Done when the three packages ship built in and their samples open with no warnings:
+
+- [ ] **Machine learning** (`machine-learning`): datasets, tensors, layers of each kind, blocks, models (deriving from `data-science.model`), losses, optimizers, metrics and training runs; flows into, adds to, is part of, trains on, is measured by, minimizes and updates; a Transformer block and a small CNN drawn with parts that layers anchor to; a sample "Churn classifier" whose scenario plays the forward pass.
+- [ ] **Physical AI and robotics** (`physical-ai`): robots, links, joints, sensors, actuators, controllers and policies, compute units, nodes and topics; is attached to, is part of, drives, senses, commands, publishes to, subscribes to and runs on; a six-axis arm and a mobile robot drawn with parts; links drawn with free geometry; a sample whose scenario follows a command from a policy to a joint.
+- [ ] **Processes and state machines** (`process`): pools and lanes, events, tasks, subprocesses, gateways, data objects and stores, states, initial and final states and choices, each drawn with free geometry in the style of BPMN; sequence flows, message flows, associations and transitions; a sample whose scenario plays a process through its gateway.
+
+**P2 · Neuroscience.** Done when `neuroscience` ships with brain regions, nuclei, neuron populations, neurons, receptors, pathways, electrodes and stimuli; projects to, runs through, synapses onto, expresses, is part of, records from and stimulates; EBI's human and mouse brains simplified within the cleaner's caps, their UBERON ids kept as external identifiers, and Gray's lobes and Brodmann areas, drawn with parts; and exports write the credit of each CC-BY-4.0 picture they draw.
+
+**P3 · Networks and container orchestration.** Done when `networks` (regions, zones, virtual networks, subnets, routers, switches, firewalls, load balancers, gateways, DNS, CDN, servers, virtual machines, storage and devices, with Carbon's icons) and `kubernetes` (Container orchestration: clusters, namespaces, nodes and the control plane, pods, workloads, services and ingresses, configuration, storage and permissions, with the community's unlabelled icons) ship, `THIRD-PARTY-NOTICES.md` holds their licence texts, and Claude's Kubernetes and docker-compose recipes use them.
+
+**P4 · Control and circuits.** Done when `control-and-circuits` ships with control blocks drawn with free geometry, circuit symbols drawn for Visual Anything in the IEC style, microcontrollers whose pins are rows (ADR 0023), and a development board drawn with parts whose pins relations attach to.
+
+**M9 · Physical space inside components.** Planned for the fourth wave, beside M12; M10 builds on it. Its two seams, in the schema and the core, then in the scene and the solid worker's interface, go first and in order, in the main session, since every other task cleans, draws, points at, edits or exports what they define; the next seven tasks then run in parallel, and the benchmark is measured once they are merged. Done when:
+
+- a package defines solids (ADR 0075): glTF 2.0 files, `.glb` or `.gltf` with embedded data, that the local program cleans into a canonical GLB kept as `solids/<hash>.glb`, with its description, named parts, source, license and camera in the package:
+  - from Import…, from `visual-anything import` and from Claude's `import_solid`, each one undoable action with a report of what cleaning dropped or changed, in the units and with the up axis chosen, and simplified to fit when asked;
+  - the hostile-input tests show that behavior extensions (`KHR_interactivity`, `KHR_animation_pointer`), every address, cameras, lights, extras, skins, morph targets, points and lines are dropped or refused, that nothing is fetched and nothing runs, and that a file at every cap cleans within the worker thread's 1 GiB and 30 s;
+  - the same file always cleans into the same bytes; a solid file that is missing, or whose bytes are not its name's, is drawn as a placeholder and warned about, and the program never deletes one on its own;
+- an appearance shows a solid as an icon, as its drawing or with its parts, with its camera and lighting, set from the component editor and by Claude, each change one undoable action;
+- three.js loads only in the solid worker, and only once the open view draws a solid: the bundle tests show that neither the app's first chunk nor a read-only page without solids holds it;
+- the canvas draws each solid as its picture, drawn off the page's thread, the same in both themes; Turn, from the shape's handle, its menu or T, turns the selected shape's solid live by pointer and keys, Escape gives its picture back, and Use this view stores its camera in one action;
+- a drawing with parts can show a solid, and Anchor parts… anchors its contents to the solid's named parts in one action, from the app and by Claude:
+  - by name, by id, or by an external identifier through a crosswalk;
+  - creating an element for each part that matches nothing, when asked;
+- each anchored part of a solid is pointed at, selected, hovered, focused, filtered, colored by overlays' fill and opacity, played through, reached by keys and listed in the outline as its element's shape; a filter or isolation that hides parts draws the solid again without them; relations end at their parts' points, and layout gives each related part a port;
+- replacing a solid keeps the anchors of the parts it still has; before it applies, it says which anchored parts it loses, which then warn `unknown-part`, and an undo brings them back;
+- the app's PNG, SVG and PDF draw solids as the canvas does, the SVG with each anchored part as a traced path carrying its `data-` ids; the command line and `export_view` draw placeholders and say so; the read-only page carries the solids it shows with three.js, or only their pictures when asked, and its policy and bundle tests pass for both;
+- a solid's description, which the import dialog asks for, is its text alternative, given by the outline, the inspector and announcements, and every solid of the sample has one; turning works from the keyboard; animations play only when asked and never under reduced motion; marks on parts keep 3:1 in both themes;
+- the performance budget holds: the solids benchmark (`?solids`) meets these marks on the reference laptop, on 10,000 elements of which 200 show solids, from 20 distinct solids, 4 of them at the caps, and 10 are drawings with parts holding 1,000 anchored parts, 100 relations ending on them:
+  - pan, zoom and select at the 60 frames per second target, at the whole view and with names shown;
+  - with no picture made yet, the target holds while they arrive, and every picture on screen shows within 2 s of the solids' files reaching the app;
+  - a change of focus, selection, playback step or overlay shows on parts in the frame that shows it, and a filter that hides parts shows the solid drawn again within 150 ms;
+  - pointing at parts finds what is under the pointer within 1 ms at the 95th percentile;
+  - turning a solid of 200,000 triangles keeps its frames at the target, and one at the caps at 30 frames per second at least, while the canvas's own frames keep the target;
+  - its theme switch keeps A1's rule (every frame within 33 ms and 95% within 16.7 ms), and its runs with the image store cleared hold the target.
+
+- [ ] **Seam 1, in the main session: solids in the schema and the core**, test-first with property tests (ADR 0075).
+  - **Schema:**
+    - `schema/src/solids.ts`: `SolidDefinition` (`id`, `name`, `description`, `source`, `license`, `hash`, `bytes`, `bounds`, `counts`, `parts`, `camera`, `animations`), `SolidPart`, `SolidCamera`, `SpacePoint` and `AppearanceSolid` (`solid`, `placement`, `camera`, `lighting`);
+    - `PackageFile.solids`, `Appearance.solid` (also `none`) and `PartReference.solid`;
+    - the schemas regenerated, and the next free `PROTOCOL_VERSION`.
+  - **The canonical form,** `core/src/solids/`:
+    - `SOLID_CAPS`, and `readSolid(bytes)`, the strict reader of the canonical GLB, which answers its description or the problems that make it not canonical;
+    - `describeSolid`: bounds, counts, the named parts in depth-first order with their parents and points, and the animations' durations, worked out from the geometry;
+    - `solidHash`, synchronous, as `codeHash` is.
+  - **The camera's maths:** `fitSolidCamera(bounds, camera, aspect)`, `projectSolidPoint`, and where a shape's picture and its parts' points go, which the scene and the solid worker share.
+  - **Resolution and commands:**
+    - `Appearance.solid` resolved and inherited, project appearances included, and `part.solid`;
+    - `define-solid`, which also replaces a solid's file, `update-solid` and `remove-solid`, and the appearance commands with `solid`;
+    - `solidPartsLostByReplacing`, which the replace dialog and `replace_solid` call.
+  - **Checks:** `invalid-solid` and `solid-too-large`, refused by commands; `large-solids`, `solid-file-missing`, `solid-not-clean` and `unknown-solid` on open; `in-use`, `unknown-part` and `too-many-parts` for solids.
+  - **Protocol:** `solid/prepare`, `solid/prepared`, `solid/get`, `solid/piece` and `solid/refused`, with their decoders.
+  - **Property tests:**
+    - describing a canonical file read again gives the same description;
+    - every part's point lies on its part's geometry and within its bounds;
+    - a fitted camera's picture holds every corner of the bounds, and a point projects where the picture draws it;
+    - equal bytes have one hash, and a changed byte changes it.
+- [ ] **Seam 2, in the main session: the solid worker's interface and the scene's seam** (ADR 0075).
+  - `app/src/solids/protocol.ts`: the messages between the app and the solid worker:
+    - loading a file by its hash, and letting it go;
+    - drawing a picture (`{ key, solid, size, camera, lighting, hidden }`), answered with an `ImageBitmap` and, for a drawing with parts, its part buffer;
+    - turning frames, playing an animation, and picking;
+    - the worker's limits, and losing its context.
+  - `app/src/solids/client.ts`: the app's side, which starts the worker only once the open view draws a solid, gets files from the program over the live connection, asks for pictures nearest the middle of the screen first, and keeps them for the session.
+  - A stand-in worker for tests, which draws a box for each part.
+  - The scene:
+    - `ElementShape.solid`: the solid, its placement, camera and lighting, where its picture goes, and the parts it hides;
+    - anchored parts of a solid, with `part` holding `solid`, `inDrawing` and `point`, and no positions of their own;
+    - relations that end at a part's point;
+    - `solidPictureKey(shape)`, and the image store's serials for solid pictures.
+  - The incremental scene keeps all of it across moves and recolors, which its property test checks against a full build.
+- [ ] **The cleaner and solid files, in the program** (`server/src/solids/`, `server/src/project.ts`, the import pipeline; ADR 0075):
+  - reading `.glb` and `.gltf` with `@gltf-transform/core` and `@gltf-transform/extensions` 4.5.1, from bytes only, every address refused before reading, and meshopt-compressed input decoded with meshoptimizer 1.3.0;
+  - the allow-list and the caps, units and the up axis, part names, textures through the core's bitmap cleaner, simplifying with meshoptimizer when asked, and the canonical writer, whose output the core's reader takes;
+  - the worker thread, limited to 1 GiB and 30 s;
+  - `solids/`: files named by hash, written atomically and never again, read as regular files within their cap, checked by their hash and their description when first read, and those no package names listed, never deleted on their own;
+  - `solid/prepare` and `solid/get`, and `define-solid` taken only for a file the program holds, with the description it worked out;
+  - Import… with `.glb` and `.gltf`: the preview, the units, the up axis, the report and the single action; `visual-anything import` with `--units`, `--up` and `--simplify`;
+  - the hostile-input tests;
+  - the single executables carrying the reader and meshoptimizer, and their notice of bundled code.
+- [ ] **The solid worker** (`app/src/solids/worker/`; ADR 0075):
+  - three 0.186.1 and three-mesh-bvh 0.9.16, pinned, imported only by the worker;
+  - the canonical file read with the core's reader and built into three.js objects, without GLTFLoader;
+  - studio and flat lighting, the camera from the core's maths, pictures at their buckets with their part buffers, and pictures drawn again with parts hidden;
+  - turning frames with their part buffers, animations, and picking;
+  - one WebGL context, the memory limit and letting go of what was drawn least lately, and losing the context and getting it back;
+  - the worker's policy, which allows no connection, and the bundle test.
+- [ ] **Solids on the canvas** (`app/src/canvas/solids/`, the renderer; ADR 0075):
+  - pictures through the image store and its budgets, placeholders, and levels of detail;
+  - the parts' shader: the picture, its part buffer and the table of part states in one pass, with veils, overlays' fills and opacity, playback, guidance and tour marks, focus, and selection and hover marks along the parts' edges;
+  - pointing, hovering and box selection through the part buffer and the parts' points, and keyboard navigation in the parts' order;
+  - relations ending at the parts' points with their dots, and layout's ports for each related part (ADR 0015's clarification);
+  - drawing again when filters or isolation hide parts;
+  - Turn: the shape's handle, the shape menu and T, dragging, the wheel and the keys, Escape, relations following their parts while it turns, Play, and Use this view.
+- [ ] **The editors** (the inspector, the component editor and the Components tab):
+  - the component editor's Solid section: choosing a solid, its placement, its camera with Use this view, its lighting, and a preview that turns;
+  - the Components tab's solids: name, description, source, license, size and counts, Replace with the parts it loses, Remove, and the files no package names;
+  - Anchor parts… for solids;
+  - every text in English and Spanish, and the catalog test's avoided words extended with the new terms' avoid lists.
+- [ ] **Claude's tools** (`server/src/claude/solid-tools.ts`):
+  - `import_solid`, from a regular file inside the project folder, with `units`, `up` and `simplify`;
+  - `list_solid_parts`, `update_solid`, `replace_solid` with the parts it loses, and `remove_solid`;
+  - `set_appearance` with `solid` and with `part.solid`, and `anchor_parts` for solids;
+  - the guidance `turn`;
+  - descriptions with examples.
+- [ ] **Exports and the read-only page:**
+  - the app's PNG, SVG and PDF with solids' pictures and their parts' states, and the SVG's traced paths for anchored parts;
+  - placeholders from the command line and `export_view`, each saying what it lost; the outline in Markdown listing solids with their descriptions; Mermaid and Structurizr saying they lost them;
+  - the page with the solids it draws, three.js and the worker, its policy then allowing that worker, or with pictures only, from the Export dialog; the page's size said; the policy and bundle tests for both.
+- [ ] **A sample,** `examples/robot-arm`: an arm of six links, made for Visual Anything (CC0-1.0) by a script in the repository, whose links are anchored to its named parts, with a controller, motors, sensors and topics, a view of its structure and one of its control loop, and a scenario, "Pick a part".
+- [ ] **The benchmark:** `?solids`, with canonical files it makes itself, in work and frames modes, with the phases of the "Done when" above:
+  - pan, zoom and select, at the whole view and with names shown;
+  - a cold run while pictures arrive;
+  - pointing over parts;
+  - a change of focus, and a filter that hides parts;
+  - turning a solid of 200,000 triangles and one at the caps;
+  - a theme switch.
+
+**M10 · A linked physical-space panel.** Planned for the fourth wave, after M9: its seams can be built once M9's seams are merged, and its other tasks once M9's solid worker is. ADR 0076 supersedes ADR 0003 and comes first. Its two seams, poses and the space in the core, then the panel's seam, go first and in order, in the main session; the next seven tasks then run in parallel, and the benchmark is measured once they are merged. Done when:
+
+- an element can have a pose in the model (ADR 0076): a point in meters and a rotation, measured from one of its containers or from World, set from the panel, from the inspector and by Claude, each change one undoable action; and the core's property tests pass:
+  - an element is in physical space at most once, whatever its containers;
+  - poses never form a cycle;
+  - after random commands, `spaceOf` equals working it out afresh;
+  - posing an element in another container where it was keeps its place;
+- the physical-space panel opens beside the canvas and shows the elements of the open view that are in physical space, under World or one element, where they are: posed solids, anchored parts in their containers' solids, markers for posed elements without a solid, and, faintly, the containers the view does not show; Show in physical space opens it on one element;
+- the panel and the canvas are linked by element: selecting, hovering, focusing, isolating, filtering, time ranges, overlays' fill and opacity, collapsed containers, scenario playback, guidance and tour marks show in both, and a selection made in the panel selects every copy of its shape on the canvas and its row in the outline;
+- scenario playback draws the step's relations in space with travelling markers, and brings the step into view in the panel unless the person moved its camera;
+- view states carry the panel, its root, camera, cut and exploded view; view addresses, Copy address, `open_app`, `get_view_address` and tour steps carry it; full-screen playback shows the panel beside the canvas when a step opens it, with eased moves capped as a tour's are, which cut under reduced motion;
+- in the panel, Place in physical space, moving and rotating with handles, snapped unless Alt is held, and Take out of physical space are each one undoable action, and nothing else is edited there;
+- the cutting plane and the exploded view show inside solids, and Relations of the selection and Names show on request;
+- the panel's list, keys and announcements reach everything it shows from the keyboard and with a screen reader, and closing the panel loses nothing;
+- the read-only page has the panel when it holds solids or poses;
+- Claude reads where things are with `get_space`, poses them with `set_pose` and `clear_pose`, and opens, roots and moves the panel through guidance;
+- the space benchmark (`?space`) meets these marks on the reference laptop, for a space of 200 posed solids, from 20 distinct solids, 2 of them at the caps, with 2,000 anchored parts:
+  - moving the panel's camera around keeps the 60 frames per second target while a frame draws up to 2,000,000 triangles, and 30 at least up to 6,000,000, past which the farthest solids show as boxes while the camera moves;
+  - a selection or a change of focus made on the canvas shows in the panel within two frames, and a pick in the panel is answered within 16 ms;
+  - with the panel open and at rest, the canvas meets the 10,000-element benchmark's marks;
+  - playing a step whose 20 relations are drawn in space keeps the target.
+
+- [ ] **Seam 1, in the main session: poses and the space in the schema and the core**, test-first with property tests (ADR 0076).
+  - **Schema:** `Element.pose` (`Pose`: `in`, `at` and `rotation`; `Rotation`), and `SavedViewState.space` (`SavedSpace`: `root`, `camera`, `cut`, `explode`, `relations` and `names`; `SpaceCamera` and `SpaceCut`); the schemas regenerated.
+  - **Commands:** `pose` in `create-element` and `update-element`, `null` taking it out, and `set-poses`; the checks `invalid-pose` and `pose-not-in-container`.
+  - **The space,** `core/src/space/`:
+    - `spaceOf(project, view, root)`: what is in physical space under the root, each with how it is there (posed, anchored, or the root itself), what it is posed or anchored in, its matrix in the root's coordinates, its solid and parts, what it is drawn as when a collapsed container holds it, and the containers drawn faintly;
+    - quaternions and matrices, rotations from degrees about fixed axes, and `poseIn(project, element, container)`, which keeps an element's place when it is posed in another container;
+    - an element's point in space, where relations drawn in space end.
+  - **View states:** `space` in `checkViewState` and `viewStateProblems`, the address's `space=` clause, and tour steps' saved view states.
+  - **Property tests:** those of the "Done when" above.
+- [ ] **Seam 2, in the main session: the panel's seam** (ADR 0076).
+  - The panel's place in the shell (`app/src/space/`): opened and closed, resized, and kept by the tab for each view with its root and camera.
+  - The solid worker's messages for the panel, in `app/src/solids/protocol.ts`: showing a space, its elements' states, the camera, framing, the cut and the exploded view, names, picking, and gestures that ended; its frames handed to a `bitmaprenderer` canvas.
+  - `spaceStates(emphasis, space)`: each element's state in space from the canvas's emphasis, by element id.
+  - The selection and hover shared with the canvas by element id.
+  - A stand-in worker that draws boxes, for tests.
+- [ ] **Drawing a space** (`app/src/solids/worker/space/`):
+  - solids at their places, repeated ones as instances; anchored parts in their solids; markers; faint containers;
+  - the states: faint, hidden, highlighted, selected and hovered, overlays' fill and opacity, collapsed containers drawn as one;
+  - names facing the screen, the ground grid and its scale, and lines for relations with their markers;
+  - the cutting plane with its cut filled, and the exploded view;
+  - drawing only when something changes, and the farthest solids as boxes while the camera moves past the triangles' mark;
+  - picking on the solids' bounding volume hierarchies.
+- [ ] **The panel's interaction and its list** (`app/src/space/`):
+  - moving its camera around, panning and zooming it, Fit, framing, and touch;
+  - selecting and hovering, linked to the canvas, the outline, the element list and the inspector;
+  - Place in physical space, Take out of physical space, and the handles that move and rotate, snapped, each one action;
+  - the list of what it shows, by what each is posed or anchored in, with keyboard navigation and announcements;
+  - its keys in the keyboard help, and its text in English and Spanish.
+- [ ] **Playback, tours, guidance and addresses:**
+  - a step's relations drawn in space with travelling markers, and the step brought into view in the panel (ADR 0031's clarification);
+  - view addresses and Copy address with `space`;
+  - tour steps that open the panel, the stage showing it beside the canvas, and its eased and capped moves (ADR 0058);
+  - guidance that opens the panel, chooses its root, moves its camera and frames elements, and `open_app` and `get_view_address` with `space`.
+- [ ] **The inspector, the canvas and the outline:**
+  - the inspector's Pose section: where an element is, in which container, its rotation in degrees, lengths in mm, cm, m or km, and Pose in World where it was;
+  - Show in physical space in the shape menu, and the outline's mark for what is in physical space;
+  - English and Spanish, and the catalog test's avoided words extended with the new terms' avoid lists.
+- [ ] **Claude's tools** (`server/src/claude/space-tools.ts`): `get_space`, `set_pose` and `clear_pose`, the guidance `space`, and `space` in the tour tools' view states; descriptions with examples.
+- [ ] **The read-only page's panel:** linked as in the app, with touch, when the page holds solids or poses.
+- [ ] **A sample:** `examples/robot-arm` gains a workcell, with a table, two bins and a camera posed in it, the wrist camera posed on its link, and a tour that plays "Pick a part" with the panel open.
+- [ ] **The benchmark:** `?space`, in work and frames modes, with the phases of the "Done when" above:
+  - moving the panel's camera around, at the whole space and close in;
+  - a selection and a change of focus made on the canvas;
+  - picking in the panel;
+  - the canvas's phases with the panel open and at rest;
+  - a step played with its relations in space.
+
 **Track A · Look and feel**, beside the milestones: A1 right after M2 and before M3's app tasks; A2's core before M3's commands for collapse, expand and filters, and A2 tagged before M4's write tools are fixed; A3 after M3's canvas tasks; A4 before M4's UI tasks. Its commits start with `A<n>:`, and each stage is tagged `a<n>` when its Done when holds.
 
 **A1 · Themes.** Done when the app and the canvas follow the system's light or dark setting, and the Theme control in the header (also shown while connecting and on failure screens) switches between Match the system, Light and Dark; an explicit choice survives restarting Visual Anything and is in place on the first frame; the contrast tests pass for every pair in both themes; and on the benchmark a theme switch keeps every frame within 33 ms and 95% within 16.7 ms, shows on the canvas and the panels together in one frame, never shows a tile drawn in the other theme, and every M2 phase meets the 60 frames per second target in both themes.
@@ -733,10 +944,11 @@ The order below follows the two benchmarks of what Visual Anything needs to repr
 | 2 | **M11 · Tours and comments**, planned above. Tours made from recorded guidance and played full screen, built on view states; comments kept in the project. |
 | 3 | **M8b · Beyond boxes**, planned above. Free 2D geometry for a component's shape, with exact hit testing and connection points; SVG with named parts, each part an anchored shape of its element; static HTML imported as a cleaned drawing; curved routes drawn by layout. |
 | 3 | **M11b · Versions**, planned above. Comparing versions between git commits, in the app and for pull requests; proposals to review Claude's changes before they apply; a git merge driver for project files. |
-| 4 | **M9 · Physical space inside components.** A component can draw its element's 3D model (glTF, cleaned by the local program and never carrying behavior) inside its shape: a cached picture while you pan, live when you focus it, with three.js loaded only when a view needs it. |
-| 4 | **M10 · A linked physical-space panel.** A 3D panel beside the canvas, showing the same elements where they really are, with selection, focus and scenarios linked to the 2D views. A new ADR that supersedes ADR 0003 comes first. |
+| 3 | **M11c · Tours that move, and scenarios that decide**, planned above. Tour steps move in stages, cross-fade where they cut and reveal what they mark (ADR 0077); scenarios hold decisions between labelled alternatives that the viewer, Claude or a tour chooses (ADR 0078). |
+| 4 | **M9 · Physical space inside components**, planned above (ADR 0075). A component can draw its element's solid, a glTF file cleaned by the local program and never carrying behavior, inside its shape: a picture while you pan, live while you turn it, with three.js loaded only in a worker and only when a view needs it; elements are anchored to its named parts. |
+| 4 | **M10 · A linked physical-space panel**, planned above (ADR 0076, which supersedes ADR 0003). A panel beside the canvas shows the same elements where they really are, from their poses and their solids' parts, with selection, focus, filters, overlays, scenarios and tours linked to the 2D views. |
 | 4 | **M12 · Simulate (case 4).** A programmable component simulates a behavior from parameters you change, within its limits, and stops cleanly when it exceeds them. |
 | 4 | **M13 · Anatomy.** A built-in anatomy package and import from open anatomical ontologies, with their licenses respected, built on M8 to M10. |
 | beside | **Track L, stage L2.** More languages, Portuguese first; the core's messages and history labels name built-in definitions by id, so that their names read in the language chosen too. |
 
-Not planned: a switch between 2D and 3D for each view, an iframe for each element, storing HTML with scripts or 3D models with behavior in a project, editing together in real time, accounts or a hosted server, a package marketplace before M7, Claude regenerating whole views, and long Prezi-style zoom flights.
+Not planned: a switch between 2D and 3D for each view, an iframe for each element, storing HTML with scripts or solids with behavior in a project, editing together in real time, accounts or a hosted server, a package marketplace before M7, Claude regenerating whole views, and long Prezi-style zoom flights.

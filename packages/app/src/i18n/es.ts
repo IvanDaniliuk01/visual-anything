@@ -2682,6 +2682,28 @@ export const messages: Catalog = {
   'Step {n} activates no relation; a step needs at least one.':
     'El paso {n} no activa ninguna relación; un paso necesita al menos una.',
   'Step {n} lists the same relation twice.': 'El paso {n} incluye la misma relación dos veces.',
+  // M11c seam 2: decisions in scenarios (ADR 0078).
+  'A scenario holds at most 64 decisions.': 'Un escenario tiene como máximo 64 decisiones.',
+  'The id "{id}" is used twice in the scenario.': 'El id "{id}" se usa dos veces en el escenario.',
+  'The decision "{question}" has 2 to 8 alternatives.':
+    'La decisión "{question}" tiene de 2 a 8 alternativas.',
+  'The alternative "{label}" lists "{id}", which is not a step of the scenario.':
+    'La alternativa "{label}" incluye "{id}", que no es un paso del escenario.',
+  'The steps of the alternative "{label}" do not follow one another.':
+    'Los pasos de la alternativa "{label}" no van uno detrás de otro.',
+  'The alternatives of the decision "{question}" do not follow one another.':
+    'Las alternativas de la decisión "{question}" no van una detrás de otra.',
+  'The decision "{question}" needs an alternative with steps.':
+    'La decisión "{question}" necesita una alternativa con pasos.',
+  'The decision "{question}" names a default that is none of its alternatives.':
+    'La decisión "{question}" nombra como predeterminada una alternativa que no es suya.',
+  'The decisions "{a}" and "{b}" cross: one must sit inside an alternative of the other, or stand apart.':
+    'Las decisiones "{a}" y "{b}" se cruzan: una tiene que estar dentro de una alternativa de la otra, o aparte.',
+  'Decisions sit at most three deep.': 'Las decisiones se anidan como máximo en tres niveles.',
+  'A decision has an id, the kind "decision", a question, its alternatives and maybe a default; an alternative has an id, a label, its steps and maybe ends.':
+    'Una decisión tiene un id, el tipo "decision", una pregunta, sus alternativas y quizás una predeterminada; una alternativa tiene un id, un rótulo, sus pasos y quizás ends.',
+  'The decisions of the scenario "{name}" do not hold together: {why} It plays every step in order.':
+    'Las decisiones del escenario "{name}" no encajan: {why} Se reproducen todos sus pasos en orden.',
   'Step {n} uses "{id}", which is not a relation of the model.':
     'El paso {n} usa "{id}", que no es una relación del modelo.',
   'Step {n} needs a description.': 'El paso {n} necesita una descripción.',

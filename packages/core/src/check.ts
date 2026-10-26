@@ -20,6 +20,7 @@ import { cappedWarnings, choiceWarnings, containmentCycles, limitWarnings } from
 import type { ProjectSnapshot } from './snapshot';
 import { definitionsIn, modelIndexOf } from './state';
 import { geometryFindings } from './geometry';
+import { readBlocks } from './scenarios/blocks';
 
 /** What is wrong with a project. */
 export interface ProjectCheck {
@@ -333,6 +334,17 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
         [scenario.id],
       ),
     );
+    // Decisions that do not hold together only warn: the scenario plays every step in order.
+    const decisions = readBlocks(scenario);
+    if (!decisions.ok) {
+      warnings.push(
+        problem(
+          'invalid-decision',
+          `The decisions of the scenario "${scenario.name}" do not hold together: ${decisions.message} It plays every step in order.`,
+          [scenario.id],
+        ),
+      );
+    }
   }
   // Tours (ADR 0058): what their steps name may be gone, which only flags them; ids may not repeat.
   errors.push(
