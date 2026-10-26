@@ -47,7 +47,7 @@ M6c ships the first starter packages (R38), the sample projects a new project st
 
 ## Considered options
 
-- **Drawing icons from an outside set, such as Lucide (ISC):** rejected for now. Our own CC0 icons ask nothing of the people who export views, and keep the license test simple. An allowed set can come later, with its attribution travelling as ADR 0047 says.
+- **Drawing icons from an outside set, such as Lucide (ISC):** rejected for now; superseded by ADR 0079, which lets built-in packages draw on allowed sets. Our own CC0 icons ask nothing of the people who export views, and keep the license test simple. An allowed set can come later, with its attribution travelling as ADR 0047 says.
 - **MIT or CC-BY for Visual Anything's own content:** rejected. Either would ask every export made with a built-in package to carry a notice.
 - **Samples as TypeScript in the core, written out to `examples/`:** rejected. A sample is best edited by opening it in the app, as any project is; the embedded copy follows the folders, not the other way round.
 - **Reading the other project through the local program, by a path typed or browsed:** rejected. It would give the live connection a way to read folders outside the project. The browser's picker reads only what the person chooses.

@@ -33,4 +33,11 @@ export const RESERVED_PACKAGE_IDS: ReadonlySet<Id> = new Set([
   'data-science',
   'neuroscience',
   'physical-ai',
+  // The visual packages planned next (ADR 0079).
+  'machine-learning',
+  'process',
+  'networks',
+  'kubernetes',
+  'control-and-circuits',
+  'anatomy',
 ]);
