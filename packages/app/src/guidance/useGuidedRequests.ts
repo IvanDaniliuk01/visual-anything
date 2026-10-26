@@ -5,7 +5,8 @@
  * do, so the person pauses or closes it there. A request that names a view, or plays a scenario over
  * one, opens that view first; a layout then runs on the canvas, which records it as any layout. A
  * tour plays full screen through the shell's tour playback, as the tours panel's Play does, and the
- * person ends it with Escape. Nothing here changes the project.
+ * person ends it with Escape. What would show another view, and a tour, applies only in the tab the
+ * person used last (`tabs.ts`). Nothing here changes the project.
  */
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
@@ -14,6 +15,7 @@ import type { Editor } from '../editor/EditorContext';
 import type { PlaybackGuidance, ScenarioSession } from '../scenarios/session';
 import { useToursHost } from '../tours/context';
 import { filtersOf, focusSettingsOf, focusTargetsOf } from './explore';
+import { forThisTab, inTheTabUsedLast } from './tabs';
 import type {
   GuidanceState,
   GuidedFilterRequest,
@@ -40,10 +42,12 @@ export function useGuidedRequests(
   useEffect(() => {
     const explore = editor?.explore;
     if (!editor || !explore) return;
-    // Whether a request can apply now; it opens its view first, once, and waits for it.
+    // Whether a request can apply now; it opens its view first, once, and waits for it. A request
+    // for another view applies only in the tab the person used last (`tabs.ts`).
     const ready = (
       request: GuidedFilterRequest | GuidedFocusRequest | GuidedLayoutRequest,
     ): boolean => {
+      if (!forThisTab(request, editor.viewId)) return false;
       if (request.view === undefined || request.view === editor.viewId) return true;
       if (!hasView(editor.project, request.view)) return true;
       if (!opened.current.has(request.request)) {
@@ -77,6 +81,8 @@ export function useGuidedRequests(
   useEffect(() => {
     if (!tour || !editor || !tours || applied.current.tour === tour.request) return;
     applied.current.tour = tour.request;
+    // Full screen, in the tab the person used last only.
+    if (!inTheTabUsedLast(tour)) return;
     const played = editor.project.tours.find((each) => each.id === tour.tour);
     if (played) tours.play(played, tour.step ?? 0);
   }, [tour, editor, tours]);
@@ -88,6 +94,8 @@ export function useGuidedRequests(
     applied.current.playback = playback.request;
     const scenario = editor.project.scenarios.find((each) => each.id === playback.scenario);
     if (!scenario) return;
+    // Over another view, only in the tab the person used last, which opens it.
+    if (!forThisTab(playback, editor.viewId, scenario.view)) return;
     const asked: PlaybackGuidance = {
       scenario: playback.scenario,
       action: playback.action,

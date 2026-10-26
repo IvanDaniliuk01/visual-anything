@@ -313,6 +313,8 @@ export class CanvasController {
   private indexed: IndexedScene | undefined;
   private project: ProjectSnapshot | undefined;
   private viewId: Id | undefined;
+  /** The camera each view was last shown at on this canvas, while it lives. */
+  private readonly viewCameras = new Map<Id, Camera>();
   private selection: Selection = EMPTY_SELECTION;
   private gesture: Gesture = { kind: 'idle' };
   private hovered: ElementShape | undefined;
@@ -412,8 +414,18 @@ export class CanvasController {
     host.ownerDocument.defaultView?.addEventListener('blur', this.onBlur);
   }
 
-  /** Shows a project's view; `editable` says whether gestures may change the project. */
+  /**
+   * Shows a project's view; `editable` says whether gestures may change the project. A view this
+   * canvas showed before comes back at the camera it was left at; one it has not is fitted, as Fit
+   * fits it (ADR 0029's clarification of 2026-10-26).
+   */
   update(project: ProjectSnapshot, viewId: Id, indexed: IndexedScene, editable: boolean): void {
+    if (this.viewId !== undefined && this.viewId !== viewId) {
+      if (this.renderer.looking) this.viewCameras.set(this.viewId, this.renderer.camera);
+      const kept = this.viewCameras.get(viewId);
+      if (kept) this.renderer.setCamera(kept);
+      else this.renderer.fitWhenShown();
+    }
     this.project = project;
     this.viewId = viewId;
     this.indexed = indexed;

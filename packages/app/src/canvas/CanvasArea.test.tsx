@@ -9,7 +9,7 @@ import { EMPTY_SELECTION, selectionOf, type Selection } from '../editor/selectio
 import { Shell } from '../shell/Shell';
 import { FakeApplication, FakeResizeObserver } from '../test/FakeApplication';
 import { loadSample } from '../test/sample';
-import { fitCamera, worldToScreen } from './camera';
+import { fitCamera, readableFitCamera, worldToScreen } from './camera';
 import { CanvasArea, type SendCommand } from './CanvasArea';
 import { CanvasController } from './controller';
 import { centerOf } from './geometry';
@@ -17,7 +17,7 @@ import { indexScene } from './hit';
 import type { LayoutRunner } from './layout/client';
 import { layOut } from './layout/engine';
 import { LayoutRunnerContext } from './layout/useLayout';
-import { CanvasRenderer, type Overlay } from './renderer';
+import { CanvasRenderer, NAMES_FROM, type Overlay } from './renderer';
 import { buildScene, type Scene } from './scene';
 import { overlaps } from './spatial';
 
@@ -336,6 +336,58 @@ describe('CanvasArea', () => {
     expect(screen.getByRole('status', { name: 'Zoom' }).textContent).toBe(
       `${Math.round(camera.scale * 100)}%`,
     );
+  });
+
+  describe('a view switched to', () => {
+    // A second view, its shapes far to the right of the first's.
+    const second = {
+      ...view,
+      id: 'second',
+      name: 'Second',
+      positions: view.positions.map((position) =>
+        position.container === undefined ? { ...position, x: position.x + 5000 } : position,
+      ),
+    };
+    const two: ProjectSnapshot = { ...project, views: [view, second] };
+    const Switching = ({ viewId }: { viewId: string }) => (
+      <CanvasArea
+        project={two}
+        view={viewId === second.id ? second : view}
+        scene={buildScene(two, viewId)}
+        label={LABEL}
+        selection={EMPTY_SELECTION}
+        onSelect={() => undefined}
+      />
+    );
+    const shownBy = (app: FakeApplication) => {
+      const world = app.stage.contents.find((item): item is Container => item instanceof Container);
+      return { x: world?.position.x, scale: world?.scale.x };
+    };
+    // As Fit fits it: far wider than the canvas, from its top left at the zoom names draw from.
+    const fitted = readableFitCamera(buildScene(two, second.id).bounds, SIZE, 32, NAMES_FROM);
+
+    it('takes the camera it was left at, or is fitted when the canvas has not shown it', async () => {
+      const { app, camera, rerender } = await started(<Switching viewId={view.id} />);
+      fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+      const zoomed = shownBy(app);
+      expect(zoomed.scale).toBeGreaterThan(camera.scale);
+      await settle(() => rerender(<Switching viewId={second.id} />));
+      expect(shownBy(app).scale).toBeCloseTo(fitted.scale);
+      expect(shownBy(app).x).toBeCloseTo(fitted.x);
+      await settle(() => rerender(<Switching viewId={view.id} />));
+      expect(shownBy(app)).toEqual(zoomed);
+    });
+
+    it('is fitted when the canvas showed it only while it started', async () => {
+      const result = render(<Switching viewId={second.id} />);
+      sizeOf(screen.getByRole('application'), SIZE.width, SIZE.height);
+      result.rerender(<Switching viewId={view.id} />);
+      const [app] = FakeApplication.created as [FakeApplication];
+      await settle(() => app.finishInit());
+      await settle(() => result.rerender(<Switching viewId={second.id} />));
+      expect(shownBy(app).scale).toBeCloseTo(fitted.scale);
+      expect(shownBy(app).x).toBeCloseTo(fitted.x);
+    });
   });
 
   it('selects the shape under a click, and clears the selection on a click on empty canvas', async () => {

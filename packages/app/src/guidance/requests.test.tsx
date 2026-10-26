@@ -1,11 +1,21 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LiveContext } from '../live/context';
 import { Shell } from '../shell/Shell';
 import { fakeLive } from '../test/fakeLive';
 import { loadSample } from '../test/sample';
 import type { GuidanceState, GuidedFilters } from './state';
+import { setTabUseForTests, trackTabUse, type TabUse } from './tabs';
+
+/** Another tab of the browser was used after this one. */
+const usedElsewhere: TabUse = {
+  used: () => undefined,
+  isLastUsed: () => false,
+  dispose: () => undefined,
+};
+
+afterEach(() => setTabUseForTests(trackTabUse({ channel: undefined, shown: true })));
 
 // The fake canvas area, with the explore strip the real one shows under its toolbar.
 vi.mock('../canvas/CanvasArea', async () => {
@@ -103,6 +113,37 @@ describe('Claude’s layout', () => {
   it('opens the view it names first, where the canvas runs it', () => {
     renderShell({ layout: { view: 'ownership', request: 1 } });
     expect(openViewName()).toHaveTextContent('Ownership');
+  });
+});
+
+describe('guidance in a tab the person did not use last', () => {
+  it('opens no other view, applies nothing there, and plays no tour', () => {
+    setTabUseForTests(usedElsewhere);
+    renderShell({
+      layout: { view: 'ownership', request: 1 },
+      filter: { filters: PEOPLE, view: 'ownership', request: 1 },
+      tour: { tour: 'how-booking-works', request: 1 },
+    });
+    expect(openViewName()).toHaveTextContent('System overview');
+    expect(strip()).toBeNull();
+    expect(document.querySelector('.shell')).not.toHaveClass('tour-playing');
+  });
+
+  it('still applies what is for the view it shows', () => {
+    setTabUseForTests(usedElsewhere);
+    renderShell({ filter: { filters: PEOPLE, request: 1 } });
+    expect(strip()).toHaveTextContent('The filters hide 1 element shape');
+  });
+
+  it('plays no scenario over another view', () => {
+    setTabUseForTests(usedElsewhere);
+    renderShell(
+      { playback: { scenario: SCENARIO, action: 'play', request: 1 } },
+      projectWith(false),
+    );
+    expect(openViewName()).toHaveTextContent('Ownership');
+    const panel = screen.getByRole('complementary', { name: 'Scenarios' });
+    expect(within(panel).queryByRole('button', { name: 'Pause' })).toBeNull();
   });
 });
 

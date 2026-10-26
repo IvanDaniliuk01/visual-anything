@@ -81,6 +81,7 @@ import { indexScene, withoutShapes, type IndexedScene } from './hit';
 import { InlineEditor } from './InlineEditor';
 import { KeyboardHelp } from './KeyboardHelp';
 import { CANVAS_KEYS_HINT } from './keys';
+import { forThisTab } from '../guidance/tabs';
 import type { LayoutScope } from './layout/input';
 import { laidOutBounds } from './layout/laidOut';
 import { useLayout } from './layout/useLayout';
@@ -252,7 +253,9 @@ export function CanvasArea({
   // Layout: shapes without a position are laid out as they appear, and the toolbar's Layout, or
   // Claude's guidance, lays out on demand; what the canvas draws is a frame of a layout moving in, or
   // else the scene.
-  const guidedLayout = useContext(LiveContext)?.guidance?.layout;
+  const askedLayout = useContext(LiveContext)?.guidance?.layout;
+  // Claude's layout of another view runs only in the tab the person used last, which opens it.
+  const guidedLayout = askedLayout && forThisTab(askedLayout, view.id) ? askedLayout : undefined;
   // Once Claude's layout is done, the canvas fits what it laid out (ADR-0029, 2026-10-26).
   const [guidedLaidOut, setGuidedLaidOut] = useState<{ scopes: readonly LayoutScope[] }>();
   const layout = useLayout({

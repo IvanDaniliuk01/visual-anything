@@ -959,6 +959,19 @@ export class CanvasRenderer {
     );
   }
 
+  /** Fits the next scene shown, as the first one is: another view's, whose camera nothing set. */
+  fitWhenShown(): void {
+    this.fitted = false;
+  }
+
+  /**
+   * Whether the camera looks at the scene shown: it was fitted to it, or set since. Before, as while
+   * the canvas starts, it is where every canvas starts, which belongs to no view.
+   */
+  get looking(): boolean {
+    return this.fitted;
+  }
+
   /** Fits the first scene shown, as the options say. */
   private fitFirst(): void {
     if (this.firstFit === 'whole') this.fitWhole();
