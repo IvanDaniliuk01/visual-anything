@@ -1,8 +1,9 @@
 /**
  * The core's labels, refusals and warnings beyond those the core-messages test's run of commands
- * reaches: commands each run alone on the sample, short runs of commands in order, and projects
- * broken as their files can be, as they open. The core-messages test reads every one of them through
- * the Spanish templates (ADR-0038).
+ * reaches: commands each run alone on the sample, short runs of commands in order, projects broken as
+ * their files can be, as they open, and pictures past each of the image cleaner's limits. The
+ * core-messages test reads every one of them through the Spanish templates (ADR-0038); a message the
+ * core adds needs a fixture here or in that run.
  */
 import {
   checkProject,
