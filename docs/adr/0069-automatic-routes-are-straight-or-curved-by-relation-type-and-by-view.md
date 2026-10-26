@@ -71,3 +71,10 @@ Each change is one undoable action.
 - The exports and the read-only page draw automatic curves as the canvas does.
 - The benchmark gains a `?curves` variant.
 - ADR 0039 gains a clarification, and CONTEXT.md's **Route** says where an automatic route's style comes from.
+
+## Clarifications
+
+- 2026-10-26 (M8b, Seam 3): **the scene's lines.**
+  - Every line carries its style, automatic ones included. Orthogonal stays written as no style, so that the routes that go around shapes (ADR 0039) still know the lines they route.
+  - An automatic straight or curved line is routed as a route chosen by hand with no bend points is, without being one: it has no `hand`, and lines between the same two ends still run beside each other.
+  - A change of the view's `routeStyle` routes every line again; a change of a relation's `route` routes its line again, and one of a relation type's changes the definitions, which builds the scene again.

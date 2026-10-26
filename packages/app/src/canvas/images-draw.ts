@@ -288,7 +288,7 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
     let key = `${iconsShown ? 'i' : ''}${view.settled ? 's' : ''}`;
     for (const shape of drawing.pictured) {
       const image = shape.image as ShapeImage;
-      if (image.placement !== 'drawing' && !iconsShown) continue;
+      if (!drawnWhole(image) && !iconsShown) continue;
       key += `,${bucketOf(image, view)}`;
     }
     return key;
@@ -357,7 +357,7 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
     const keys: string[] = [];
     for (const shape of shapes) {
       const image = shape.image as ShapeImage;
-      const isDrawing = image.placement === 'drawing';
+      const isDrawing = drawnWhole(image);
       if (!isDrawing && !iconsShown) continue;
       const { rect } = image;
       const request: ImageRequest = {
@@ -376,7 +376,7 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
       if (!made) continue;
       keys.push(made.key);
       const into = isDrawing ? drawings : icons;
-      if (isDrawing) plateOf(shape, image.box);
+      if (image.placement === 'drawing') plateOf(shape, image.box);
       into.texture(made.texture, image.tint, rect.x, rect.y, rect.width, rect.height);
     }
     return keys;
@@ -418,4 +418,9 @@ function plate(graphics: Graphics, box: Rect, fill: Color): void {
       Math.min(PLATE_RADIUS, box.width / 4, box.height / 4),
     )
     .fill(fill);
+}
+
+/** Whether a picture is drawn as a whole drawing, which shows at the drawings' scales rather than the icons'. */
+function drawnWhole(image: ShapeImage): boolean {
+  return image.placement === 'drawing' || image.placement === 'parts';
 }

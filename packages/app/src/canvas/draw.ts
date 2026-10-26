@@ -5,7 +5,12 @@
  * metrics beyond that. The canvas draws a scene in tiles with these building blocks.
  */
 import { Container, Graphics, Text, type CanvasTextOptions, type TextStyleOptions } from 'pixi.js';
-import { CANVAS_BACKGROUNDS } from '@visual-anything/core';
+import {
+  CANVAS_BACKGROUNDS,
+  evenOddHolds,
+  flattenOutline,
+  type FlatContour,
+} from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
 import { t } from '../i18n';
 import type { Dash } from './geometry';
@@ -38,6 +43,7 @@ import {
 } from './colors';
 import { COUNT_LINE_TOP, headerLines } from './collapse';
 import { drawLeavingMark, writeLeavingMark } from './leavingMark';
+import type { PlacedOutline } from './outlines';
 import { drawDestinationMark } from './destinationMark';
 import { patternMatrix, patternTexture } from './patterns';
 import { drawnAsCurve, drawnCurve, strokeCurve } from './routing/curves';
@@ -514,6 +520,63 @@ class Hairlines {
     }
     this.byColor.clear();
   }
+}
+
+/**
+ * Draws an outline where it is placed (ADR 0066, ADR 0067): each fill filled with the holes that lie
+ * in it cut out, every closed contour stroked, and each line stroked at its own width, with round
+ * ends. A hole is cut from the smallest fill around it, so islands inside holes are filled again.
+ */
+export function drawOutline(
+  graphics: Graphics,
+  outline: PlacedOutline,
+  colors: { fill: Color; stroke: Color },
+): void {
+  const flat = flattenOutline(outline.fitted);
+  const { contours } = outline.fitted;
+  const shifted = (contour: FlatContour) => {
+    const points: number[] = new Array<number>(contour.points.length);
+    for (let at = 0; at < points.length; at += 2) {
+      points[at] = (contour.points[at] as number) + outline.x;
+      points[at + 1] = (contour.points[at + 1] as number) + outline.y;
+    }
+    return points;
+  };
+  const fills = flat.filter((contour) => contour.role === 'fill');
+  const holesIn = new Map<FlatContour, FlatContour[]>();
+  for (const hole of flat) {
+    if (hole.role !== 'hole' || hole.points.length < 6) continue;
+    const x = hole.points[0] as number;
+    const y = hole.points[1] as number;
+    let around: FlatContour | undefined;
+    let area = Infinity;
+    for (const fill of fills) {
+      if (x < fill.minX || x > fill.maxX || y < fill.minY || y > fill.maxY) continue;
+      const size = (fill.maxX - fill.minX) * (fill.maxY - fill.minY);
+      if (size < area && evenOddHolds(fill.points, x, y)) {
+        around = fill;
+        area = size;
+      }
+    }
+    if (around) holesIn.set(around, [...(holesIn.get(around) ?? []), hole]);
+  }
+  for (const fill of fills) {
+    if (fill.points.length < 6) continue;
+    graphics.poly(shifted(fill)).fill(colors.fill);
+    for (const hole of holesIn.get(fill) ?? []) graphics.poly(shifted(hole)).cut();
+  }
+  const stroke = { color: colors.stroke, width: SHAPE_STROKE_WIDTH };
+  flat.forEach((contour, at) => {
+    if (contour.points.length < 4) return;
+    if (contour.role !== 'line') {
+      graphics.poly(shifted(contour), true).stroke(stroke);
+      return;
+    }
+    const width = Math.max(SHAPE_STROKE_WIDTH, contours[at]?.width ?? 0);
+    graphics
+      .poly(shifted(contour), false)
+      .stroke({ color: colors.stroke, width, cap: 'round', join: 'round' });
+  });
 }
 
 /** Draws a shape's body in a rectangle, filled and stroked, approximating each kind of shape. */

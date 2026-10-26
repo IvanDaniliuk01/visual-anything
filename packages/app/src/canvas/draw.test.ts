@@ -1,11 +1,13 @@
 import { Container, Graphics, Texture, type GraphicsPath, type TextStyleOptions } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
+import { beyondBoxes } from '../test/beyond';
 import { loadSample } from '../test/sample';
 import {
   detailOf,
   drawPieceLines,
   drawRoutePieces,
   drawShapeBlocks,
+  drawOutline,
   drawShapeOutlines,
   fitText,
   labelRooms,
@@ -16,6 +18,7 @@ import {
 } from './draw';
 import { outlineColorOf, readableTextColors } from './colors';
 import { arrowheadAt, toggleRect, type Point, type Rect } from './geometry';
+import { outlineAt, type PlacedOutline } from './outlines';
 import { midpointOf } from './route';
 import { buildScene, type ElementShape, type RelationLine } from './scene';
 import { routePieces } from './tiles';
@@ -388,5 +391,25 @@ describe('outlines one device pixel wide at any zoom', () => {
     expect(pixelLines(graphics).map((line) => line.color)).toEqual([
       readableTextColors('#E4EAF2').detail,
     ]);
+  });
+});
+
+describe('drawOutline', () => {
+  it('fills each fill with its holes cut, and strokes every contour where the outline is placed', () => {
+    const scene = buildScene(beyondBoxes('anatomy'), 'anatomy');
+    const framed = scene.shapes.find((shape) => shape.key === 'framed') as ElementShape;
+    const graphics = new Graphics();
+    drawOutline(graphics, outlineAt(framed) as PlacedOutline, {
+      fill: '#FFFFFF',
+      stroke: '#000000',
+    });
+    const { instructions } = graphics.context;
+    const fills = instructions.filter((each) => each.action === 'fill');
+    expect(fills).toHaveLength(1);
+    expect((fills[0]?.data as { hole?: GraphicsPath }).hole).toBeDefined();
+    expect(instructions.filter((each) => each.action === 'stroke')).toHaveLength(2);
+    // Placed where the shape is: its outer contour starts at its rectangle's corner.
+    const path = (fills[0]?.data as { path: GraphicsPath }).path.instructions;
+    expect((path[0]?.data as number[][])[0]?.slice(0, 2)).toEqual([framed.rect.x, framed.rect.y]);
   });
 });

@@ -467,13 +467,14 @@ Eight milestones in build order, each ending in something you can use, and Track
     - every part's picture is exactly what `cleanSvg` gives for it;
     - parts come in document order, with their transforms applied;
     - ADR 0027's attack corpus goes through parts too.
-- [ ] **Seam 3, in the main session: the scene's seam**, which the parallel tasks use as it is.
+- [x] **Seam 3, in the main session: the scene's seam**, which the parallel tasks use as it is.
   - `ElementShape.outline`: the fitted outline of its free geometry or of its part.
   - `ElementShape.part`: `{ image, part, color, inDrawing }`.
   - `ElementShape.picture`: where a drawing with parts draws its picture.
   - Anchored parts placed in their drawings, without positions of their own, and a drawing's other contents below its picture.
   - `RelationLine.style` on every line, automatic ones included.
-  - `geometry.ts`'s `shapeHolds(shape, point)` and `shapeBorderPoint(shape, inside, toward)`, and `draw.ts`'s `drawOutline(graphics, outline, colors)`, over the core's outline maths.
+  - `outlines.ts`'s `shapeHolds(shape, point)` and `shapeBorderPoint(shape, inside, toward)`, and `draw.ts`'s `drawOutline(graphics, outline, colors)`, over the core's outline maths. They sit beside the outlines rather than in `geometry.ts`, which the layout worker loads, so that the worker never loads the core.
+  - Automatic straight and curved lines, routed as routes chosen by hand without bend points are, and side by side as automatic lines are; the routing task carries their ends onto outlines.
   - The incremental scene keeps outlines and parts across moves and recolors, which its property test checks against a full build.
 - [ ] **Free geometry on the canvas** (ADR 0066):
   - tiles' plain and full drawings of outlines, holes cut;

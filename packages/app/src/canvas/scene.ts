@@ -20,6 +20,7 @@
  */
 import {
   destinationsOf,
+  geometryFindings,
   imagesIn,
   overlaysApply,
   relationTypesLeftOutBy,
@@ -32,6 +33,7 @@ import type {
   Arrow,
   Color,
   Element,
+  FreeGeometry,
   FreeShape,
   Id,
   LevelOfDetail,
@@ -76,7 +78,32 @@ import {
 } from './overlays/decorate';
 import { collapsedWithout, NOT_EXPANDED } from './overlays/collapsed';
 import type { Dash, ShapeKind } from './geometry';
-import { arrowheadAt, directionOf, type Arrowhead, type Point, type Rect } from './geometry';
+import {
+  arrowheadAt,
+  bodyOf,
+  directionOf,
+  type Arrowhead,
+  type Point,
+  type Rect,
+} from './geometry';
+import { geometryOutline, geometrySource, outlineIn, partSource, sameOutline } from './outlines';
+import type { OutlineSource, ShapeOutline } from './outlines';
+import {
+  anchoredOf,
+  anchoredPart,
+  anchorsIn,
+  drawingImage,
+  ownPartOf,
+  partOrderOf,
+  pictureIn,
+  samePart,
+  samePicture,
+  type Anchor,
+  type Anchored,
+  type DrawingPicture,
+  type OwnPart,
+  type ShapePart,
+} from './partShapes';
 import { midpointOf } from './route';
 import { leavingByElement, scopedTree } from './scope';
 import type { CurveSpan } from './routing/hand';
@@ -101,6 +128,7 @@ import {
   sameRowFields,
   sideEndOf,
   withRowFields,
+  type RowFields,
   type RowParts,
   type RowSides,
   type SideInfo,
@@ -112,6 +140,7 @@ import {
   sameRect as sameImageRect,
   sameShapeImage,
   setImageCatalog,
+  shownImagesOf,
   type ImageLook,
   type ShapeImage,
 } from './shape-images';
@@ -121,7 +150,8 @@ export interface Scene {
   /**
    * The anchored shapes of elements in containment order: World's contents, and each container's
    * contents, in model order, a container before its contents. The outline, the keys, relations and an
-   * element's first shape follow this order, whatever the stacking order.
+   * element's first shape follow this order, whatever the stacking order. A drawing with parts draws
+   * its anchored parts in its picture's order, which `drawing` gives.
    */
   shapes: ElementShape[];
   /**
@@ -201,6 +231,23 @@ export interface ElementShape {
   /** The image its appearance shows, placed on it (`shape-images.ts`). */
   image?: ShapeImage;
   /**
+   * Its own outline, drawn, pointed at and attached to in place of its kind's (ADR 0066, ADR 0067):
+   * its free geometry fitted to its rectangle, or the outline of the named part it is drawn as.
+   * Absent: its kind's outline.
+   */
+  outline?: ShapeOutline;
+  /**
+   * Present when it is drawn as a named part of an image (ADR 0067): anchored in its drawing with
+   * parts, where it has no position of its own and draws none of what it holds (`undrawn`), or drawn
+   * on its own with its part's outline and picture.
+   */
+  part?: ShapePart;
+  /**
+   * On a drawing with parts (ADR 0067): where it draws its picture, under its header, and how many
+   * canvas units a unit of the image takes there. Its anchored parts lie over the picture.
+   */
+  picture?: DrawingPicture;
+  /**
    * In a view with a scope (ADR-0040): the relations that leave the view from its element, because
    * their other end is out of scope, in model order (`scope.ts`); its mark counts them. Absent when
    * none leave.
@@ -265,7 +312,10 @@ export interface RelationLine {
   ends?: { from: DrawnEnd; to: DrawnEnd; offset: number };
   /** Present on an aggregated relation: the relations it stands for. */
   aggregate?: AggregatedRelation;
-  /** How it runs; absent: orthogonal. */
+  /**
+   * How it runs: the style its route by hand chose, or else its automatic style, from its appearance's
+   * `route`, then the view's `routeStyle` (ADR 0069). Absent: orthogonal.
+   */
   style?: RouteStyle;
   /** Present while the view routes the relation by hand (ADR 0039). */
   hand?: HandOfLine;
@@ -319,6 +369,8 @@ export const ARROW_WIDTH = 2;
 const CONTAINER_PADDING = 24;
 /** Where the first row of contents starts inside a container, below the container's name. */
 const CONTAINER_HEADER = 48;
+/** What a container leaves around its contents, which a drawing with parts leaves around its picture. */
+const ROOM = { padding: CONTAINER_PADDING, header: CONTAINER_HEADER } as const;
 /** Where contents placed without a stored position start, relative to their container's shape. */
 export const CONTENTS_ORIGIN: Readonly<Point> = { x: CONTAINER_PADDING, y: CONTAINER_HEADER };
 /** The space between shapes in the stand-in row, and between that row and what is above it. */
@@ -1054,7 +1106,9 @@ function layOut(
     placed,
     definitions,
     keep ? before : undefined,
-    replaced !== undefined && before?.view.relationTypesLeftOut === view.relationTypesLeftOut,
+    replaced !== undefined &&
+      before?.view.relationTypesLeftOut === view.relationTypesLeftOut &&
+      before?.view.routeStyle === view.routeStyle,
     sceneRouting(project, view, shapes),
   );
   const baseRelations =
@@ -1091,8 +1145,12 @@ function layOut(
     arrows: free.arrows,
     bounds: before && sameRect(bounds, before.layout.bounds) ? before.layout.bounds : bounds,
   };
+  // Which contents are anchored parts, and in which order, can change while the keys stay.
   const orderKept =
-    before !== undefined && placed.keysKept && before.view.stackingOrder === view.stackingOrder;
+    before !== undefined &&
+    placed.keysKept &&
+    before.view.stackingOrder === view.stackingOrder &&
+    (before.layout.shapes === shapes || !shapes.some((shape) => shape.picture !== undefined));
   const drawing =
     orderKept && before
       ? (before.scene.drawing ?? before.layout.identity)
@@ -1140,21 +1198,33 @@ function layOut(
  * World, in the view's stacking order there. Every copy of a container orders its contents alike.
  */
 function drawingOrder(layout: Layout, view: ViewFile, worldId: Id): readonly number[] {
-  if (view.stackingOrder === undefined) return layout.identity;
   const { shapes, contents } = layout;
+  const drawsParts = shapes.some((shape) => shape.picture !== undefined);
+  if (view.stackingOrder === undefined && !drawsParts) return layout.identity;
   const order: number[] = [];
-  const visit = (indexes: readonly number[], key: Id): void => {
-    const stored = storedStacking(view, key);
-    const sorted = stored
+  const visit = (indexes: readonly number[], holder: ElementShape | undefined): void => {
+    const stored = storedStacking(view, holder?.element ?? worldId);
+    let sorted = stored
       ? orderByStacking(indexes, (at) => (shapes[at] as ElementShape).element, stored)
       : indexes;
+    // A drawing's anchored parts come first, in its picture's order, whatever the stacking order.
+    if (holder?.picture && holder.image) {
+      const inPicture = partOrderOf(holder.image.image);
+      const placeOf = (at: number) =>
+        inPicture.get((shapes[at] as ElementShape).part?.part ?? '') ?? 0;
+      const anchored = (at: number) => (shapes[at] as ElementShape).part?.inDrawing === true;
+      sorted = [
+        ...indexes.filter(anchored).sort((a, b) => placeOf(a) - placeOf(b)),
+        ...sorted.filter((at) => !anchored(at)),
+      ];
+    }
     for (const at of sorted) {
       order.push(at);
       const inside = contents[at] as number[];
-      if (inside.length > 0) visit(inside, (shapes[at] as ElementShape).element);
+      if (inside.length > 0) visit(inside, shapes[at]);
     }
   };
-  visit(layout.inWorld, worldId);
+  visit(layout.inWorld, undefined);
   return order;
 }
 
@@ -1172,6 +1242,8 @@ export interface Look {
   image: ImageLook | undefined;
   /** How many destinations its element has, which its shapes mark (ADR 0056). */
   destinations: number;
+  /** The named part its shapes are drawn as outside a drawing with parts, if any (ADR 0067). */
+  ownPart?: OwnPart;
 }
 
 const NO_TYPES: ReadonlySet<Id> = new Set();
@@ -1259,6 +1331,8 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
     if (dark.fill !== look.appearance.fill || dark.stroke !== look.appearance.stroke) {
       look.dark = dark;
     }
+    const ownPart = ownPartOf(look.appearance, shownImagesOf(definitions));
+    if (ownPart) look.ownPart = ownPart;
     kept.set(element, look);
   }
   return look;
@@ -1305,6 +1379,61 @@ export interface Measured {
   rows?: RowParts;
   /** The relations that leave the view from its element (`scope.ts`). */
   leaving?: readonly Id[];
+  /** What its own outline is fitted from, when it has one (ADR 0066, ADR 0067). */
+  outline?: OutlineSource;
+  /** The named part it is drawn as, if any. */
+  part?: ShapePart;
+  /** For a drawing with parts: its picture, from its top left. */
+  drawing?: DrawingPicture;
+  /** For an anchored part: its part's place, and what it holds and does not draw. */
+  anchored?: Anchored;
+}
+
+/**
+ * How a content is measured: as a row of its container (ADR 0023), as an anchored part of its
+ * drawing (ADR 0067), or as a shape of its own.
+ */
+type ContentMode = 'row' | Anchor | undefined;
+
+/** What measuring reads beyond each element: the geometries drawn as their kind, and each content's part. */
+interface Shaping {
+  drawnAsKind: ReadonlySet<FreeGeometry>;
+  /** The named part a content's appearance names, if any. */
+  partOf: (content: Placement) => ResolvedAppearance['part'];
+}
+
+/** The outline and part a shape of its own takes from its look: its part's, or its free geometry's. */
+function shapedBy(look: Look, shaping: Shaping): Pick<Measured, 'outline' | 'part'> {
+  if (look.ownPart) return { outline: look.ownPart.source, part: look.ownPart.part };
+  const outline = geometryOutline(look.appearance.geometry, shaping.drawnAsKind);
+  return outline ? { outline: geometrySource(outline) } : {};
+}
+
+/** An anchored part's box: its part's place and size in its drawing, none of what it holds measured. */
+function partBox(
+  placement: Placement,
+  element: Element,
+  look: Look,
+  detail: string,
+  anchor: Anchor,
+): Box {
+  return {
+    placement,
+    width: anchor.width,
+    height: anchor.height,
+    offset: anchor.offset,
+    stored: false,
+    measured: {
+      element,
+      look,
+      detail,
+      position: undefined,
+      contents: [],
+      outline: partSource(anchor.part),
+      part: anchoredPart(anchor),
+      anchored: anchoredOf(anchor, placement),
+    },
+  };
 }
 
 /** The view's shapes, and how they compare with the last build's. */
@@ -1330,17 +1459,23 @@ function measured(
   detail: string,
   position: ShapePosition | undefined,
   collapsed: boolean,
-  contentsOf: (asRows: boolean) => Box[],
-  asRow = false,
+  contentsOf: (modeOf: (at: number) => ContentMode) => Box[],
+  mode: ContentMode,
+  shaping: Shaping,
 ): Box {
   // A row, and a shape that draws its contents as rows, are measured by their rows (ADR 0023).
-  if (asRow) return rowBox(placement, element, look, detail);
+  if (mode === 'row') return rowBox(placement, element, look, detail);
+  // An anchored part takes its part's place and size (ADR 0067).
+  if (mode !== undefined) return partBox(placement, element, look, detail, mode);
   if (look.appearance.contentsAsRows) {
-    return rowsBox(placement, element, look, detail, position, collapsed, () => contentsOf(true));
+    return rowsBox(placement, element, look, detail, position, collapsed, () =>
+      contentsOf(() => 'row'),
+    );
   }
   const { appearance } = look;
   const offset = position ? { x: position.x, y: position.y } : undefined;
-  if (collapsed && placement.contents.length > 0) {
+  const folding = collapsed && placement.contents.length > 0;
+  if (folding) {
     return {
       placement,
       width: appearance.width,
@@ -1354,10 +1489,14 @@ function measured(
         position,
         contents: [],
         folded: placement.contents.length,
+        ...shapedBy(look, shaping),
       },
     };
   }
-  const contents = contentsOf(false);
+  const drawn = drawingImage(look, folding);
+  if (drawn)
+    return drawingBox(placement, element, look, detail, position, drawn, contentsOf, shaping);
+  const contents = contentsOf(() => undefined);
   arrangeContents(contents);
   let right: number | undefined;
   let bottom: number | undefined;
@@ -1373,7 +1512,50 @@ function measured(
     height: containerSize(position?.height, appearance.height, bottom),
     offset,
     stored: position !== undefined,
-    measured: { element, look, detail, position, contents },
+    measured: { element, look, detail, position, contents, ...shapedBy(look, shaping) },
+  };
+}
+
+/**
+ * A drawing with parts (ADR 0067): its picture under its header, its anchored parts over it, its
+ * other contents below it, and large enough for all of them.
+ */
+function drawingBox(
+  placement: Placement,
+  element: Element,
+  look: Look,
+  detail: string,
+  position: ShapePosition | undefined,
+  image: ImageLook,
+  contentsOf: (modeOf: (at: number) => ContentMode) => Box[],
+  shaping: Shaping,
+): Box {
+  const { appearance } = look;
+  const picture = pictureIn(image.image, appearance, position, ROOM);
+  const anchors = anchorsIn(image, picture, placement.contents, shaping.partOf);
+  const contents = contentsOf((at) => anchors[at]);
+  const below = picture.rect.y + picture.rect.height;
+  arrangeContents(
+    contents.filter((_, at) => anchors[at] === undefined),
+    below + STAND_IN_GAP,
+  );
+  let right: number | undefined;
+  let bottom: number | undefined;
+  for (const box of contents) {
+    const boxRight = (box.offset?.x ?? 0) + box.width;
+    const boxBottom = (box.offset?.y ?? 0) + box.height;
+    if (right === undefined || boxRight > right) right = boxRight;
+    if (bottom === undefined || boxBottom > bottom) bottom = boxBottom;
+  }
+  const width = Math.max(appearance.width, picture.rect.width + 2 * CONTAINER_PADDING);
+  const height = Math.max(appearance.height, below + CONTAINER_PADDING);
+  return {
+    placement,
+    width: containerSize(position?.width, width, right),
+    height: containerSize(position?.height, height, bottom),
+    offset: position ? { x: position.x, y: position.y } : undefined,
+    stored: position !== undefined,
+    measured: { element, look, detail, position, contents, drawing: picture },
   };
 }
 
@@ -1419,13 +1601,10 @@ function placeShapes(
   const positions = positionsOf(view, model.world.id);
   const kept = looksOf(definitions, keep);
   const started = startedOf(model.relations);
+  const shaping = shapingOf(project, definitions, elements, kept);
 
-  const measure = (placement: Placement, asRow = false): Box => {
-    const element = elements.get(placement.element) ?? {
-      id: placement.element,
-      component: ESSENCE_ID,
-      name: placement.element,
-    };
+  const measure = (placement: Placement, mode?: ContentMode): Box => {
+    const element = elementAt(elements, placement);
     return withLeaving(
       measured(
         placement,
@@ -1433,8 +1612,9 @@ function placeShapes(
         ...lookAndDetail(element, definitions, kept, started),
         positions.get(positionKey(placement.element, placement.container)),
         collapsed.has(placement.element),
-        (asRows) => placement.contents.map((content) => measure(content, asRows)),
-        asRow,
+        (each) => placement.contents.map((content, at) => measure(content, each(at))),
+        mode,
+        shaping,
       ),
       leaving,
     );
@@ -1488,12 +1668,18 @@ function placeShapes(
       keysKept = false;
       geometryKept = false;
     } else if (was !== shape) {
-      if (!sameRect(was.rect, shape.rect)) {
+      if (attachesElsewhere(was, shape)) {
         geometryKept = false;
         moved.push(at);
       } else if (!sameRect(was.extent, shape.extent)) geometryKept = false;
     }
-    if (parts.folded !== undefined || hidesContents(parts)) hide(box.placement, at);
+    if (
+      parts.folded !== undefined ||
+      hidesContents(parts) ||
+      (parts.anchored?.undrawn.length ?? 0) > 0
+    ) {
+      hide(box.placement, at);
+    }
     return at;
   };
   const inWorld = worldContents.map((box) => place(box, 0, 0, undefined));
@@ -1516,6 +1702,30 @@ function placeShapes(
 }
 
 const ORIGIN: Readonly<Point> = { x: 0, y: 0 };
+
+/** The element a placement draws, or a stand-in for one the model lacks. */
+function elementAt(elements: ReadonlyMap<Id, Element>, placement: Placement): Element {
+  return (
+    elements.get(placement.element) ?? {
+      id: placement.element,
+      component: ESSENCE_ID,
+      name: placement.element,
+    }
+  );
+}
+
+/** What measuring a build reads beyond each element. */
+function shapingOf(
+  project: ProjectSnapshot,
+  definitions: Definitions,
+  elements: ReadonlyMap<Id, Element>,
+  kept: WeakMap<Element, Look>,
+): Shaping {
+  return {
+    drawnAsKind: geometryFindings(project).drawnAsKind,
+    partOf: (content) => lookOf(elementAt(elements, content), definitions, kept).appearance.part,
+  };
+}
 
 /** Where each placement sits in a containment tree, and the placements of each element. */
 interface TreeIndex {
@@ -1616,12 +1826,20 @@ function replaceShapes(
   const elements = elementsById(now);
   const kept = looksOf(definitions, true);
   const started = startedOf(model.relations);
+  const shaping = shapingOf(project, definitions, elements, kept);
   const old = base.base;
   const { contents, inWorld } = base.layout;
   const collapsed = base.collapsed;
 
-  const measureAt = (at: number, placement: Placement, asRow = false): Box => {
-    if (!asRow && !dirty.has(placement)) {
+  const measureAt = (at: number, placement: Placement, mode?: ContentMode): Box => {
+    // A content that is anchored to a part, or stops being, changes which shapes there are.
+    if (
+      mode !== 'row' &&
+      ((old[at] as ElementShape).part?.inDrawing === true) !== (mode !== undefined)
+    ) {
+      throw new StaleShapes();
+    }
+    if (mode === undefined && !dirty.has(placement)) {
       const shape = old[at] as ElementShape;
       const stored = shape.positioned !== 'placed';
       return {
@@ -1632,15 +1850,11 @@ function replaceShapes(
         stored,
       };
     }
-    const element = elements.get(placement.element) ?? {
-      id: placement.element,
-      component: ESSENCE_ID,
-      name: placement.element,
-    };
-    const inside = asRow ? [] : (contents[at] as number[]);
+    const element = elementAt(elements, placement);
+    const inside = mode !== undefined ? [] : (contents[at] as number[]);
     const [look, detail] = lookAndDetail(element, definitions, kept, started);
     // A shape that starts or stops drawing its contents as rows changes which shapes there are.
-    if (!asRow && rowsChanged(old[at] as ElementShape, look)) throw new StaleShapes();
+    if (mode === undefined && rowsChanged(old[at] as ElementShape, look)) throw new StaleShapes();
     return withLeaving(
       measured(
         placement,
@@ -1649,11 +1863,10 @@ function replaceShapes(
         detail,
         positions.get(positionKey(placement.element, placement.container)),
         collapsed.has(placement.element),
-        (asRows) =>
-          placement.contents.map((content, each) =>
-            measureAt(inside[each] as number, content, asRows),
-          ),
-        asRow,
+        (each) =>
+          placement.contents.map((content, i) => measureAt(inside[i] as number, content, each(i))),
+        mode,
+        shaping,
       ),
       leaving,
     );
@@ -1675,7 +1888,7 @@ function replaceShapes(
     if (shape === before) return;
     shapes ??= old.slice();
     shapes[at] = shape;
-    if (!sameRect(before.rect, shape.rect)) moved.push(at);
+    if (attachesElsewhere(before, shape)) moved.push(at);
     else if (!sameRect(before.extent, shape.extent)) extentChanged = true;
   };
   const current = (at: number) => (shapes ?? old)[at] as ElementShape;
@@ -1688,6 +1901,18 @@ function replaceShapes(
       rect: { ...shape.rect, x: shape.rect.x + dx, y: shape.rect.y + dy },
       extent: { ...shape.extent, x: shape.extent.x + dx, y: shape.extent.y + dy },
       ...movedImage(shape, dx, dy),
+      ...(shape.picture
+        ? {
+            picture: {
+              ...shape.picture,
+              rect: {
+                ...shape.picture.rect,
+                x: shape.picture.rect.x + dx,
+                y: shape.picture.rect.y + dy,
+              },
+            },
+          }
+        : {}),
     });
     for (const inner of contents[at] as number[]) translate(inner, dx, dy, undefined);
   };
@@ -1804,8 +2029,28 @@ function shapeFor(
     if (extent.x + extent.width > x2) x2 = extent.x + extent.width;
     if (extent.y + extent.height > y2) y2 = extent.y + extent.height;
   }
-  const { element, look, detail, position, folded, leaving } = parts;
+  const { element, look, detail, position, folded, leaving, anchored, drawing } = parts;
   const { appearance } = look;
+  const body =
+    folded === undefined
+      ? { width, height }
+      : bodyOf({ rect: { x, y, width, height }, collapsed: true });
+  const fitted = parts.outline && outlineIn(parts.outline, body.width, body.height);
+  // Equal geometry read again, as after a command, keeps the outline drawn before.
+  const outline = before?.outline && sameOutline(before.outline, fitted) ? before.outline : fitted;
+  const part =
+    before?.part && parts.part && samePart(before.part, parts.part) ? before.part : parts.part;
+  const pictured: DrawingPicture | undefined = drawing && {
+    rect: {
+      x: x + drawing.rect.x,
+      y: y + drawing.rect.y,
+      width: drawing.rect.width,
+      height: drawing.rect.height,
+    },
+    scale: drawing.scale,
+  };
+  const picture =
+    before?.picture && samePicture(before.picture, pictured) ? before.picture : pictured;
   const points =
     before && samePoints(before.points, appearance.connectionPoints)
       ? before.points
@@ -1813,7 +2058,8 @@ function shapeFor(
   const positioned = position ? (position.pinned ? 'pinned' : 'stored') : 'placed';
   const container = box.placement.container;
   const holdsContents = parts.contents.length > 0;
-  const rowish = rowFieldsOf(parts, width, holdsContents);
+  // An anchored part, as a row, does not draw what it holds (ADR 0067).
+  const rowish = withUndrawn(rowFieldsOf(parts, width, holdsContents), anchored);
   const placed = placeImage(
     look.image,
     {
@@ -1823,9 +2069,13 @@ function shapeFor(
       ...(folded === undefined ? {} : { collapsed: true }),
       rows: appearance.contentsAsRows,
       ...(rowish.row === undefined ? {} : { row: true }),
+      ...(picture ? { picture: picture.rect } : {}),
     },
     detail !== '',
   );
+  // Its extent is its rectangle, exactly, when nothing inside it sticks out: (x + width) - x need not
+  // be width again in floating point.
+  const holdsOnlyItself = x1 === x && y1 === y && x2 === x + width && y2 === y + height;
   if (
     before &&
     sameRowFields(before, rowish) &&
@@ -1852,15 +2102,18 @@ function shapeFor(
     before.rect.height === height &&
     before.extent.x === x1 &&
     before.extent.y === y1 &&
-    before.extent.width === x2 - x1 &&
-    before.extent.height === y2 - y1 &&
+    before.extent.width === (holdsOnlyItself ? width : x2 - x1) &&
+    before.extent.height === (holdsOnlyItself ? height : y2 - y1) &&
     before.holdsContents === holdsContents &&
     before.collapsed?.contents === folded &&
     before.points === points &&
     sameShapeImage(before.image, placed?.image) &&
     sameImageRect(before.plate, placed?.plate) &&
     sameItems(before.leaving ?? NO_IDS, leaving ?? NO_IDS) &&
-    (before.destinations ?? 0) === look.destinations
+    (before.destinations ?? 0) === look.destinations &&
+    before.outline === outline &&
+    before.part === part &&
+    before.picture === picture
   ) {
     return before;
   }
@@ -1877,10 +2130,7 @@ function shapeFor(
     fill: appearance.fill,
     stroke: appearance.stroke,
     rect,
-    extent:
-      x1 === x && y1 === y && x2 === x + width && y2 === y + height
-        ? rect
-        : { x: x1, y: y1, width: x2 - x1, height: y2 - y1 },
+    extent: holdsOnlyItself ? rect : { x: x1, y: y1, width: x2 - x1, height: y2 - y1 },
     holdsContents,
   };
   if (container !== undefined) shape.container = container;
@@ -1898,10 +2148,20 @@ function shapeFor(
   if (placed?.plate) shape.plate = placed.plate;
   if (leaving !== undefined && leaving.length > 0) shape.leaving = leaving;
   if (look.destinations > 0) shape.destinations = look.destinations;
+  if (outline) shape.outline = outline;
+  if (part) shape.part = part;
+  if (picture) shape.picture = picture;
   return shape;
 }
 
 const NO_IDS: readonly Id[] = [];
+
+/** The fields a shape takes from its rows, with what an anchored part holds and does not draw. */
+function withUndrawn(fields: RowFields, anchored: Anchored | undefined): RowFields {
+  return anchored && anchored.undrawn.length > 0
+    ? { ...fields, undrawn: anchored.undrawn }
+    : fields;
+}
 
 /** A measured box with the relations that leave the view from its element, when any do. */
 function withLeaving(box: Box, leaving: ReadonlyMap<Id, readonly Id[]>): Box {
@@ -1915,7 +2175,7 @@ function withLeaving(box: Box, leaving: ReadonlyMap<Id, readonly Id[]>): Box {
  * Gives contents without a stored position a place in a row below the contents that have one, and
  * below the container's name, even when those stick out of its top.
  */
-function arrangeContents(contents: Box[]): void {
+function arrangeContents(contents: Box[], top = CONTAINER_HEADER): void {
   let below: number | undefined;
   for (const box of contents) {
     if (!box.stored || !box.offset) continue;
@@ -1925,7 +2185,7 @@ function arrangeContents(contents: Box[]): void {
   layOutStandIn(
     contents,
     CONTAINER_PADDING,
-    below === undefined ? CONTAINER_HEADER : Math.max(CONTAINER_HEADER, below + STAND_IN_GAP),
+    below === undefined ? top : Math.max(top, below + STAND_IN_GAP),
   );
 }
 
@@ -2155,6 +2415,7 @@ function drawRelations(
     const to = routeEndOf(spec.to, shapes, plan, lineAt, sides?.to[at]);
     const previous = previousAt?.get(spec.key);
     const shapeOf = (end: EndRef) => (end.kind === 'shape' ? shapes[end.at] : undefined);
+    const relation = spec.relation === undefined ? undefined : byId.get(spec.relation);
     const line =
       from && to
         ? lineBetween(
@@ -2162,10 +2423,14 @@ function drawRelations(
             from,
             to,
             definitions,
-            spec.relation === undefined ? undefined : byId.get(spec.relation),
+            relation,
             previous === undefined ? undefined : previousLines?.[previous],
             routing.plan({
               relation: spec.relation,
+              // An aggregated relation takes its relation type's style, or else the view's.
+              automatic: routing.automaticStyle(
+                relation && !spec.members ? relation : { relationType: spec.relationType },
+              ),
               offset: spec.offset,
               fromShape: shapeOf(spec.from),
               toShape: shapeOf(spec.to),
@@ -2595,6 +2860,18 @@ export function relationLinesOf(scene: Scene): ReadonlyMap<Id, RelationLine> {
 }
 
 const relationLines = new WeakMap<readonly RelationLine[], Map<Id, RelationLine>>();
+
+/**
+ * Whether lines attach to a shape elsewhere than before: its rectangle, the plate of a shape drawn by
+ * its picture, or its own outline changed, so that the lines on it are routed again.
+ */
+function attachesElsewhere(before: ElementShape, after: ElementShape): boolean {
+  return (
+    !sameRect(before.rect, after.rect) ||
+    !sameRect(before.plate, after.plate) ||
+    before.outline !== after.outline
+  );
+}
 
 function sameRect(a: Rect | undefined, b: Rect | undefined): boolean {
   if (a === b) return true;

@@ -10,6 +10,8 @@
  *   name and detail from x + 34.
  * - **An icon in a row**, whatever the placement asks: a 16-unit square 8 units in from the row's
  *   left, centred on it, with its name from x + 32.
+ * - **A drawing with parts** (ADR 0067), a container whose picture the scene places under its header:
+ *   the picture there, with its anchored parts drawn over it; its name stays in its header.
  * - **A drawing** in place of the shape: the picture, its proportions kept, on a plate 4 units larger
  *   in the shape's fill, above a band across the shape where its name is written (20 units, or 34
  *   with a detail), the whole centred in the shape. The plate with its band is the shape's `plate`,
@@ -66,7 +68,7 @@ export interface ImageLook {
   /** The serial of its content, which equal content keeps across reloads. */
   serial: number;
   /** As the appearance asks; a header or a row shows it as an icon whatever it asks. */
-  placement: 'icon' | 'drawing';
+  placement: 'icon' | 'drawing' | 'parts';
   /** Present for a silhouette of this colour: the picture's shape kept, its colours replaced. */
   tint?: Color;
 }
@@ -76,8 +78,11 @@ export interface ShapeImage {
   id: Id;
   image: CleanedImage;
   serial: number;
-  /** How the canvas draws it: beside the name, in a header, or as the shape's whole drawing. */
-  placement: 'icon' | 'header' | 'drawing';
+  /**
+   * How the canvas draws it: beside the name, in a header, as the shape's whole drawing, or as the
+   * picture of a drawing with parts, under its header.
+   */
+  placement: 'icon' | 'header' | 'drawing' | 'parts';
   /** Where the picture is drawn, its proportions kept. */
   rect: Rect;
   /** The square an icon is fitted in, or a drawing's plate. */
@@ -97,6 +102,8 @@ export interface ImageHolder {
   rows: boolean;
   /** Whether it is a row of its container (ADR 0023), which shows its image at its left. */
   row?: boolean;
+  /** On a drawing with parts: where the scene placed its picture (ADR 0067). */
+  picture?: Rect;
 }
 
 /** A placed image, with the plate a drawing puts in place of its shape's rectangle. */
@@ -113,6 +120,12 @@ const catalogs = new WeakMap<Definitions, ImageCatalog>();
  */
 export function setImageCatalog(definitions: Definitions, catalog: ImageCatalog): void {
   catalogs.set(definitions, catalog);
+}
+
+/** How the scene reads the cleaned view of an image by its id, with these definitions' catalog. */
+export function shownImagesOf(definitions: Definitions): (id: Id) => CleanedImage | undefined {
+  const catalog = catalogs.get(definitions);
+  return (id) => catalog?.shown(id);
 }
 
 /**
@@ -132,8 +145,7 @@ export function imageLookOf(
     id: shown.image,
     image,
     serial: imageSerial(image),
-    // A drawing with parts (ADR 0067) is drawn as a drawing until M8b's canvas task draws its parts.
-    placement: shown.placement === 'parts' ? 'drawing' : (shown.placement ?? 'icon'),
+    placement: shown.placement ?? 'icon',
     ...(shown.tint === undefined ? {} : { tint: shown.tint }),
   };
 }
@@ -159,6 +171,11 @@ export function placeImage(
     // A row shows its picture as an icon at its left, whatever the placement asks.
     const box = rowImageRect(holder.rect);
     return { image: { ...base, placement: 'icon', rect: fitted(width, height, box), box } };
+  }
+  if (holder.picture && holder.collapsed === undefined && !holder.rows) {
+    // A drawing with parts draws its picture where the scene placed it.
+    const box = holder.picture;
+    return { image: { ...base, placement: 'parts', rect: box, box } };
   }
   if (holder.holdsContents || holder.collapsed !== undefined || holder.rows) {
     const body = bodyOf(holder);

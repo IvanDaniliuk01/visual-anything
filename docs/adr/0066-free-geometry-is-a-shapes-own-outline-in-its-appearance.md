@@ -152,3 +152,8 @@ ELK sees a shape with free geometry by its rectangle, and its connection points 
   - **Classing contours is bounded.** Each contour is tried against the others of its fill only when their bounds hold the point tried, and each of those is read at most 128 points, every so many kept. The work still grows with the square of the contours, so every caller caps them before classing: free geometry by its 2,000 segments, and a named part shape by shape (ADR 0067).
   - **`outlineHolds` with a margin** holds only what lies within that margin of the outline. It held every point before, since its search for the nearest edge stopped at the margin itself.
 - 2026-10-26 (M8b, Seam 2): **a picture's path data is read up to its first error.** Free geometry's reader stays strict and refuses anything outside the grammar. Reading a picture's shapes for its named parts, the same reader keeps what comes before the first error, as SVG draws it.
+- 2026-10-26 (M8b, Seam 3): **the scene's outline.**
+  - Each shape that has one carries `outline`: the core's outline fitted to its rectangle, or to its body for a collapsed container, with where it sits from the rectangle's top left and what it was fitted from. One object stands for each source and size, so a move keeps it and the tiles can tell by identity that it did not change.
+  - Rows and shapes that draw rows have none, and neither has a drawing with parts, which is drawn as its kind with its header.
+  - An overlay's size fits it again to the size it gives.
+  - Pointing and attaching read it through `shapeHolds` and `shapeBorderPoint`, and drawing through `drawOutline`, which cuts each hole from the smallest fill around it.

@@ -181,3 +181,9 @@ Anatomical atlases, maps, plans and machine drawings already exist as SVG whose 
   - An action's answer carries only the `unknown-part` warnings it brings, not those the project already had, so that undoing and bringing a part back say nothing. `define-image`'s answer carries `too-many-parts` for the picture it stores.
   - `too-many-parts` says one sentence for each cap the picture passes, so that each can be translated (ADR 0038).
   - `partsLostByReplacing(project, image, next)` lists what a replacement would lose, part by part with the elements drawn as each. The replace dialog shows it before the replacement applies, and `replace_image`'s answer carries it.
+- 2026-10-26 (M8b, Seam 3): **drawings with parts in the scene.**
+  - A drawing with parts carries `picture`, where it draws its picture and at what scale, and its image is placed as `parts`, drawn at that place with no plate. It is still pointed at by its whole rectangle, as a container is.
+  - Its picture sits under its header, inset as a container's contents are. With a stored size too small for it, the picture is at least one unit across, and the drawing grows to hold what it holds.
+  - Its contents keep the model's order in the scene's shapes, as every container's do. The drawing order puts its anchored parts first, in its picture's order, then its other contents in the stacking order.
+  - An anchored part carries `part` with `inDrawing`, its outline, and `undrawn` for what it holds. A position the view stores for it is kept and not used, and an overlay's size does not apply to it.
+  - A part drawn on its own carries `part` without `inDrawing`, and its outline is fitted so that the part's bounds fill its shape, its proportions kept.

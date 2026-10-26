@@ -53,7 +53,8 @@ import type {
 import { ESSENCE_ID } from '@visual-anything/schema';
 import type { Attributed } from '../../live-values/lookup';
 import { fitHeader, fitRow } from '../fit';
-import { arrowheadAt, type Point, type Rect } from '../geometry';
+import { arrowheadAt, bodyOf, type Point, type Rect } from '../geometry';
+import { outlineIn } from '../outlines';
 import type { ElementShape, RelationLine } from '../scene';
 import { imageLookOf, placeImage, sameShapeImage } from '../shape-images';
 
@@ -627,9 +628,18 @@ function joined(detail: string, text: string): string {
   return detail === '' ? text : `${detail} · ${text}`;
 }
 
-/** Whether a shape takes an overlay's size: it shows no contents and is neither a row nor a table. */
+/**
+ * Whether a shape takes an overlay's size: it shows no contents and is neither a row nor a table, a
+ * drawing with parts nor one of its anchored parts, whose size is their part's (ADR 0067).
+ */
 function sizable(shape: ElementShape): boolean {
-  return !shape.holdsContents && shape.row === undefined && shape.rowCount === undefined;
+  return (
+    !shape.holdsContents &&
+    shape.row === undefined &&
+    shape.rowCount === undefined &&
+    shape.picture === undefined &&
+    shape.part?.inDrawing !== true
+  );
 }
 
 /** Scales a shape around its middle, keeping the rectangle layout gave it, and its picture with it. */
@@ -652,6 +662,11 @@ function resize(
   next.laidOut = rect;
   next.rect = scaled;
   next.extent = scaled;
+  // Its own outline is fitted again to the size it takes (ADR 0066).
+  if (shape.outline) {
+    const body = bodyOf({ rect: scaled, collapsed: shape.collapsed });
+    next.outline = outlineIn(shape.outline.source, body.width, body.height);
+  }
   delete next.image;
   delete next.plate;
   if (shape.image && element) {

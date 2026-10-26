@@ -9,7 +9,9 @@
  * a look at each line's ends.
  */
 import {
+  automaticRouteStyleOf,
   routeOf,
+  type DrawnRelation,
   type ProjectSnapshot,
   type ResolvedAttachment,
   type ResolvedRoute,
@@ -44,6 +46,11 @@ export interface RoutedLine {
 export interface LineEnds {
   /** The relation, for a line that draws one; absent on an aggregated relation. */
   relation: Id | undefined;
+  /**
+   * The style of its automatic route (ADR 0069): from its appearance's `route`, then the view's
+   * `routeStyle`. Absent: orthogonal.
+   */
+  automatic?: RouteStyle;
   /** How far the line runs beside others between the same two ends. */
   offset: number;
   /** Each end's shape, when the end is a shape rather than another relation's line. */
@@ -65,6 +72,8 @@ export interface LinePlan {
 export interface SceneRouting {
   /** How to route a line, or undefined when it is a plain automatic route between rectangles. */
   plan(ends: LineEnds): LinePlan | undefined;
+  /** The style a relation's automatic route takes in the view, or an aggregated one's by its type. */
+  automaticStyle(relation: DrawnRelation): RouteStyle;
   /** The relations whose route the view keeps changed since `before`: given, changed or taken away. */
   changedSince(before: ViewFile): Id[];
   /** The indexes of the shapes whose connection points differ between two lists with the same keys. */
@@ -113,7 +122,14 @@ export function sceneRouting(
         stored !== undefined && holders !== undefined && ends.relation !== undefined
           ? routeOf(project, view, ends.relation, holders)
           : undefined;
-      if (!resolved && !ends.fromShape?.points && !ends.toShape?.points) return undefined;
+      if (
+        !resolved &&
+        !ends.fromShape?.points &&
+        !ends.toShape?.points &&
+        (ends.automatic ?? 'orthogonal') === 'orthogonal'
+      ) {
+        return undefined;
+      }
       const bendOrigin = resolved ? originOf(shapes, ends, resolved.bendPointsIn) : ORIGIN;
       const bendPoints = resolved
         ? resolved.bendPoints.map((point) => ({
@@ -126,6 +142,9 @@ export function sceneRouting(
         signature: signatureOf(ends, hand),
         route: () => routeLine(ends, hand),
       };
+    },
+    automaticStyle(relation) {
+      return automaticRouteStyleOf(project, view, relation);
     },
     changedSince(before) {
       return changedRoutes(before.routes, routes);
@@ -155,9 +174,13 @@ export function rerouted(
   fromShape: ElementShape | undefined,
   toShape: ElementShape | undefined,
 ): RoutedLine | undefined {
-  if (!line.hand && !fromShape?.points && !toShape?.points) return undefined;
+  const automatic = line.hand ? undefined : line.style;
+  if (!line.hand && !fromShape?.points && !toShape?.points && automatic === undefined) {
+    return undefined;
+  }
   const ends: LineEnds = {
     relation: line.aggregate ? undefined : line.relation,
+    ...(automatic === undefined ? {} : { automatic }),
     offset: line.ends?.offset ?? 0,
     fromShape,
     toShape,
@@ -173,21 +196,22 @@ export function rerouted(
  */
 export function routeLine(ends: LineEnds, hand: HandOfLine | undefined): RoutedLine {
   const resolved = hand?.route;
-  const style = resolved?.style ?? 'orthogonal';
+  const style = resolved?.style ?? ends.automatic ?? 'orthogonal';
   const fromAttach = attachOf(resolved?.from);
   const toAttach = attachOf(resolved?.to);
   const bendPoints = hand?.bendPoints ?? [];
   const pointed = ends.fromShape?.points !== undefined || ends.toShape?.points !== undefined;
+  // An automatic style is not chosen by hand: its lines still run beside each other.
   const byHand =
     fromAttach !== undefined ||
     toAttach !== undefined ||
     bendPoints.length > 0 ||
-    style !== 'orthogonal';
+    (resolved !== undefined && style !== 'orthogonal');
   const extras = {
     ...(style === 'orthogonal' ? {} : { style }),
     ...(hand ? { hand } : {}),
   };
-  if (!byHand && !pointed) {
+  if (!byHand && !pointed && style === 'orthogonal') {
     return { route: routeWithSides(ends.from, ends.to, ends.offset), ...extras };
   }
   // Siblings run beside each other only while nothing about them is chosen by hand.
@@ -262,6 +286,7 @@ function signatureOf(ends: LineEnds, hand: HandOfLine | undefined): string {
   const parts: (string | number)[] = [
     pointsKey(ends.fromShape?.points),
     pointsKey(ends.toShape?.points),
+    ends.automatic ?? 'orthogonal',
   ];
   if (hand) {
     const { route } = hand;

@@ -14,6 +14,7 @@ import type { Note, ScopeRule, ShapePosition, ViewFile } from '@visual-anything/
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { syntheticProject } from '../bench/synthetic';
+import { FRAME, ORGANS_ID, TRIANGLE, beyondBoxes } from '../test/beyond';
 import { loadSample } from '../test/sample';
 import { withWovenRelations } from '../test/woven';
 import { collapsedIn, setCollapsedCommand } from './collapse';
@@ -139,6 +140,12 @@ type Edit =
   | { kind: 'scope'; element: number; rule: number }
   // The relation types the view leaves out (ADR 0064): one more, or none.
   | { kind: 'leave-out-type'; type: number; exactly: boolean }
+  // Beyond boxes (ADR 0066, ADR 0067, ADR 0069): an element's part and geometry, the view's
+  // automatic style, and a picture shown with its parts.
+  | { kind: 'part'; element: number; part: number }
+  | { kind: 'geometry'; element: number; which: number }
+  | { kind: 'route-style'; style: number }
+  | { kind: 'picture'; element: number; which: number }
   | { kind: 'undo' };
 
 const small = fc.integer({ min: -300, max: 300 });
@@ -214,6 +221,13 @@ const edit: fc.Arbitrary<Edit> = fc.oneof(
       exactly: fc.boolean(),
     }),
   },
+  { weight: 2, arbitrary: fc.record({ kind: fc.constant('part'), element: pick, part: pick }) },
+  {
+    weight: 1,
+    arbitrary: fc.record({ kind: fc.constant('geometry'), element: pick, which: pick }),
+  },
+  { weight: 1, arbitrary: fc.record({ kind: fc.constant('route-style'), style: pick }) },
+  { weight: 1, arbitrary: fc.record({ kind: fc.constant('picture'), element: pick, which: pick }) },
   { weight: 2, arbitrary: fc.constant({ kind: 'undo' as const }) },
 );
 
@@ -432,6 +446,49 @@ function commandOf(edit: Edit, project: ProjectSnapshot, scene: Scene): Command 
           : [...others, { relationType: type, ...(edit.exactly ? { exactly: true } : {}) }];
       return { type: 'set-relation-types-left-out', view: VIEW, relationTypes };
     }
+    case 'part': {
+      const element = at(elements, edit.element);
+      const names = ['left', 'right', 'ring', 'none-such'];
+      const name = names[edit.part % names.length] as string;
+      const choice = edit.part % 6;
+      const part =
+        choice === 5 ? 'none' : choice === 4 ? { part: name, image: ORGANS_ID } : { part: name };
+      return (
+        element && {
+          type: 'update-element',
+          id: element.id,
+          changes: { appearance: { ...element.appearance, part } },
+        }
+      );
+    }
+    case 'geometry': {
+      const element = at(elements, edit.element);
+      const geometry = [FRAME, TRIANGLE, 'none' as const][edit.which % 3];
+      return (
+        element && {
+          type: 'update-element',
+          id: element.id,
+          changes: { appearance: { ...element.appearance, geometry } },
+        }
+      );
+    }
+    case 'route-style': {
+      const routeStyle = (['straight', 'curved', null] as const)[edit.style % 3] ?? null;
+      return { type: 'update-view', id: VIEW, changes: { routeStyle } };
+    }
+    case 'picture': {
+      const element = at(elements, edit.element);
+      const placement = (['parts', 'icon', 'drawing'] as const)[edit.which % 3];
+      return (
+        element && {
+          type: 'update-element',
+          id: element.id,
+          changes: {
+            appearance: { ...element.appearance, image: { image: ORGANS_ID, placement } },
+          },
+        }
+      );
+    }
     case 'undo':
       return undefined;
   }
@@ -532,6 +589,15 @@ describe('a scene built after an edit', () => {
         run(tables(), edits);
       }),
       { numRuns: 40 },
+    );
+  }, 60_000);
+
+  it('equals one built from nothing in a view beyond boxes, with drawings with parts', () => {
+    fc.assert(
+      fc.property(fc.array(edit, { minLength: 1, maxLength: 20 }), (edits) => {
+        run(beyondBoxes(VIEW), edits);
+      }),
+      { numRuns: 60 },
     );
   }, 60_000);
 
