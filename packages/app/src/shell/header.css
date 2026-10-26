@@ -3,7 +3,72 @@
  * Undo and redo first leave out the action they name, then Copy address, Export, Undo and Redo show
  * only their icons. Each keeps its name for screen readers, and undo and redo say the action in their
  * tooltips.
+ *
+ * At every width it keeps one row (A4), so that the canvas never moves down while you work: the
+ * project's and the view's names and the action Undo and Redo name give up their width first, cut
+ * with "…", and stay whole in their tooltips and for screen readers; the other controls keep theirs.
  */
+
+.shell-header > .shell-product {
+  flex: none;
+  white-space: nowrap;
+}
+
+.shell-header .shell-context {
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.shell-header .shell-context > div {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* The view's name gives up its width before the project's. */
+.shell-header .shell-context > div + div {
+  flex-shrink: 4;
+}
+
+.shell-header .shell-context dt {
+  flex: none;
+}
+
+.shell-context-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell-header .shell-actions {
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.shell-header .shell-actions > * {
+  flex: none;
+}
+
+.shell-header .shell-actions > .shell-history {
+  flex: 0 4 auto;
+  min-width: 0;
+}
+
+/* Only a button that names its action gives up width, and only that name's. */
+.shell-header .history-button {
+  flex: none;
+  white-space: nowrap;
+}
+
+.shell-header .history-button:has(> .history-label) {
+  flex: 0 1 auto;
+}
+
+.shell-header .history-button > :not(.history-label) {
+  flex: none;
+}
 
 @media (max-width: 1366px) {
   .shell-header .history-label {

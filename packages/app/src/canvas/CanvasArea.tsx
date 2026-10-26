@@ -53,7 +53,7 @@ import type { ScenarioSession } from '../scenarios/session';
 import { useCanvasRecording } from '../scenarios/useCanvasRecording';
 import { THEMES } from '../theme/themes';
 import { canvasCamera, type CanvasCamera } from '../view-state/canvas';
-import type { Camera } from './camera';
+import { screenToWorld, type Camera } from './camera';
 import {
   collapseActions,
   collapseDone,
@@ -81,7 +81,11 @@ import { indexScene, withoutShapes, type IndexedScene } from './hit';
 import { InlineEditor } from './InlineEditor';
 import { KeyboardHelp } from './KeyboardHelp';
 import { CANVAS_KEYS_HINT } from './keys';
+import { forThisTab } from '../guidance/tabs';
+import type { LayoutScope } from './layout/input';
+import { laidOutBounds } from './layout/laidOut';
 import { useLayout } from './layout/useLayout';
+import { useAvoidedRoutes } from './routing/useAvoidedRoutes';
 import { RelationMenu } from './RelationMenu';
 import { onRouteEditingRequest } from './routing/requests';
 import { RouteMenu } from './routing/RouteMenu';
@@ -257,7 +261,11 @@ export function CanvasArea({
   // Claude's guidance, lays out on demand; what the canvas draws is a frame of a layout moving in, or
   // else the scene.
   const live = useContext(LiveContext);
-  const guidedLayout = live?.guidance?.layout;
+  const askedLayout = live?.guidance?.layout;
+  // Claude's layout of another view runs only in the tab the person used last, which opens it.
+  const guidedLayout = askedLayout && forThisTab(askedLayout, view.id) ? askedLayout : undefined;
+  // Once Claude's layout is done, the canvas fits what it laid out (ADR-0029, 2026-10-26).
+  const [guidedLaidOut, setGuidedLaidOut] = useState<{ scopes: readonly LayoutScope[] }>();
   const layout = useLayout({
     project,
     view,
@@ -268,10 +276,26 @@ export function CanvasArea({
     ...(guidedLayout === undefined ? {} : { guided: guidedLayout }),
     // Placing what the newest action added joins it (ADR 0065).
     ...(live?.actions === undefined ? {} : { actions: live.actions }),
+    onGuidedDone: (scopes) => setGuidedLaidOut({ scopes }),
+  });
+  const fitLaidOut = useEffectEvent((scopes: readonly LayoutScope[]) =>
+    controllerRef.current?.fit(laidOutBounds(scene, scopes)),
+  );
+  useEffect(() => {
+    if (guidedLaidOut) fitLaidOut(guidedLaidOut.scopes);
+  }, [guidedLaidOut]);
+  // Lines go around the shapes in their way, as the routing worker routes them, once a layout's move
+  // is drawn (ADR 0039): what the canvas draws is a frame of the move, or the scene so routed.
+  const settled = layout.scene === scene ? scene : undefined;
+  const routed = useAvoidedRoutes(settled, view.id, () => {
+    const now = controllerRef.current;
+    if (!now) return undefined;
+    const { width, height } = now.renderer.viewport;
+    return screenToWorld(now.camera, { x: width / 2, y: height / 2 });
   });
   // A scene that cannot be indexed cannot be drawn either: the canvas area says so, and the rest of
   // the app keeps working.
-  const drawn = layout.scene;
+  const drawn = routed ?? layout.scene;
   const indexing = useMemo(() => {
     try {
       return { indexed: indexScene(drawn) };

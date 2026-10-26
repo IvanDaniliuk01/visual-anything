@@ -36,7 +36,7 @@ import {
 } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  fitCamera,
+  readableFitCamera,
   panBy,
   screenToWorld,
   wheelFactor,
@@ -65,6 +65,7 @@ import {
 } from './report';
 import { importPhases } from './imports';
 import { OVERLAPS, seeded, syntheticProject, type Overlap } from './synthetic';
+import { namesFromOf } from '../canvas/levels';
 import { withCommentThreads } from './comments';
 import '../styles.css';
 
@@ -676,9 +677,15 @@ class Driver {
     this.showOutline();
     const host = this.host();
     host.focus();
-    // Fitted, then zoomed in around the middle to where names show.
+    // Fitted, as Fit fits a view whose whole draws no names, then zoomed in around the middle to
+    // where names show.
     this.key(host, '0');
-    this.camera = fitCamera(this.indexed.scene.bounds, this.viewport(), FIT_MARGIN);
+    this.camera = readableFitCamera(
+      this.indexed.scene.bounds,
+      this.viewport(),
+      FIT_MARGIN,
+      namesFromOf(this.indexed.scene.shapes, NAMES_FROM),
+    );
     this.zoomTo(CLICK_SCALE);
     await this.frames(2);
 

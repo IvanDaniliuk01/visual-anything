@@ -66,6 +66,34 @@ export function fitCamera(
   return { scale, x: x + inset.left, y: y + inset.top };
 }
 
+/**
+ * The camera Fit moves to (ADR 0055's clarification of 2026-10-26): the one that shows all of
+ * `bounds`, as `fitCamera` does, when names draw at its scale, `namesFrom` or more. When the whole
+ * would draw none, it keeps to `namesFrom`, where they start to, and shows as much of `bounds` as fits
+ * from its top left corner, where the view's top level begins, the margin left of and above it, and
+ * centred along a side that fits whole; the person goes in from there.
+ */
+export function readableFitCamera(
+  bounds: Rect | undefined,
+  viewport: Size,
+  margin: number,
+  namesFrom: number,
+  inset: Inset = NO_INSET,
+): Camera {
+  const whole = fitCamera(bounds, viewport, margin, inset);
+  if (!bounds || whole.scale >= namesFrom) return whole;
+  const scale = clampScale(namesFrom);
+  const along = (start: number, size: number, room: number, before: number): number =>
+    size * scale + 2 * margin <= room
+      ? before + (room - size * scale) / 2 - start * scale
+      : before + margin - start * scale;
+  return {
+    scale,
+    x: along(bounds.x, bounds.width, viewport.width - inset.left, inset.left),
+    y: along(bounds.y, bounds.height, viewport.height - inset.top, inset.top),
+  };
+}
+
 /** The part of the scene the camera shows in a viewport. */
 export function visibleRect(camera: Camera, viewport: Size): Rect {
   const topLeft = screenToWorld(camera, { x: 0, y: 0 });

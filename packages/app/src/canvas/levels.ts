@@ -54,3 +54,40 @@ export function levelDetail(
           : 0;
   return { at, detail: { coarse, wanted, images: !coarse && parts.has('image') } };
 }
+
+const namesFromLevels = new WeakMap<readonly LevelOfDetail[], number>();
+
+/**
+ * The least scale at which any of these shapes writes its name, which Fit keeps to (ADR 0055's
+ * clarification of 2026-10-26): by its levels, the lowest that shows its name or its detail, where it
+ * declares them, and `canvasNamesFrom`, the canvas's own step, where it does not. A row, which writes
+ * its texts and no name, and a shape whose levels never show its name, count for nothing; with none
+ * left, the canvas's own step.
+ */
+export function namesFromOf(
+  shapes: readonly { levels?: readonly LevelOfDetail[]; row?: unknown }[],
+  canvasNamesFrom: number,
+): number {
+  let least = Infinity;
+  for (const shape of shapes) {
+    if (shape.row !== undefined) continue;
+    const { levels } = shape;
+    if (levels === undefined || levels.length === 0) {
+      least = Math.min(least, canvasNamesFrom);
+      continue;
+    }
+    let from = namesFromLevels.get(levels);
+    if (from === undefined) {
+      from = Infinity;
+      for (const level of levels) {
+        if (level.shows.includes('silhouette')) continue;
+        if (level.shows.includes('name') || level.shows.includes('detail')) {
+          from = Math.min(from, level.from);
+        }
+      }
+      namesFromLevels.set(levels, from);
+    }
+    least = Math.min(least, from);
+  }
+  return Number.isFinite(least) ? least : canvasNamesFrom;
+}

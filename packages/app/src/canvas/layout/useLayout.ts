@@ -95,6 +95,12 @@ export interface LayoutOptions {
   guided?: GuidedLayoutRequest;
   /** The actions of the history, as the local program last listed them, oldest first. */
   actions?: readonly ListedAction[];
+  /**
+   * Called once every layout Claude's request asked for is done or given up, with what they laid
+   * out: the canvas then fits it, so that the person sees what moved (ADR-0029's clarification of
+   * 2026-10-26).
+   */
+  onGuidedDone?: (scopes: readonly LayoutScope[]) => void;
 }
 
 /** A layout's change on its way: the scene it was made from, to move in from once it is drawn. */
@@ -128,6 +134,7 @@ export function useLayout({
   announce,
   guided,
   actions,
+  onGuidedDone,
 }: LayoutOptions): {
   scene: Scene;
   control: LayoutControl;
@@ -300,6 +307,7 @@ export function useLayout({
   // Claude's request runs once, as Layout does, once its view is open and the project can change: the
   // whole view, or the contents of each container it names that the canvas draws holding contents.
   const ran = useRef<number | undefined>(undefined);
+  const guidedDone = useEffectEvent((scopes: readonly LayoutScope[]) => onGuidedDone?.(scopes));
   const layOutAsked = useEffectEvent((request: GuidedLayoutRequest) => {
     ran.current = request.request;
     const scopes: LayoutScope[] =
@@ -308,7 +316,7 @@ export function useLayout({
         : request.containers
             .filter((container) => holdsShapes(latest.current.scene, container))
             .map((container) => ({ kind: 'contents', container }));
-    for (const scope of scopes) void enqueue(scope, false);
+    void Promise.all(scopes.map((scope) => enqueue(scope, false))).then(() => guidedDone(scopes));
   });
   useEffect(() => {
     if (!guided || ran.current === guided.request || !editable || !runner) return;

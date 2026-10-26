@@ -11,7 +11,7 @@ import type { Id, ViewFile } from '@visual-anything/schema';
 import type { Selection } from '../editor/selection';
 import { t } from '../i18n';
 import type { IndexedScene } from './hit';
-import type { ElementShape } from './scene';
+import type { ElementShape, Scene } from './scene';
 
 const NONE: ReadonlySet<Id> = new Set();
 const collapsedSets = new WeakMap<readonly Id[], ReadonlySet<Id>>();
@@ -72,10 +72,47 @@ export function collapseActions(
   project: ProjectSnapshot,
   selection: Selection,
 ): CollapseActions {
+  return collapseActionsFor(project, selection.elements, (id) => indexed.byElement.get(id)?.[0]);
+}
+
+/**
+ * What the outline offers for an element's row: collapse actions for it alone, or for every element
+ * selected when the selection holds it, as the canvas offers them (`collapseActions`); the scene's
+ * shapes say which are containers.
+ */
+export function rowCollapseActions(
+  scene: Scene,
+  project: ProjectSnapshot,
+  selection: Selection,
+  element: Id,
+): CollapseActions {
+  const elements = selection.elements.has(element) ? selection.elements : [element];
+  const first = firstShapesOf(scene);
+  return collapseActionsFor(project, elements, (id) => first.get(id));
+}
+
+const firstShapes = new WeakMap<readonly ElementShape[], Map<Id, ElementShape>>();
+
+function firstShapesOf(scene: Scene): Map<Id, ElementShape> {
+  let first = firstShapes.get(scene.shapes);
+  if (!first) {
+    first = new Map();
+    for (const shape of scene.shapes)
+      if (!first.has(shape.element)) first.set(shape.element, shape);
+    firstShapes.set(scene.shapes, first);
+  }
+  return first;
+}
+
+function collapseActionsFor(
+  project: ProjectSnapshot,
+  elements: Iterable<Id>,
+  shapeOf: (id: Id) => ElementShape | undefined,
+): CollapseActions {
   const expanded: Id[] = [];
   const collapsed: Id[] = [];
-  for (const id of selection.elements) {
-    const shape = indexed.byElement.get(id)?.[0];
+  for (const id of elements) {
+    const shape = shapeOf(id);
     if (!shape) continue;
     if (shape.collapsed !== undefined) collapsed.push(id);
     else if (shape.holdsContents) expanded.push(id);
@@ -109,4 +146,29 @@ export function insideCount(shape: ElementShape): string | undefined {
   return shape.collapsed === undefined
     ? undefined
     : t('{count} inside', { count: shape.collapsed.contents });
+}
+
+/** Where a container's header writes its third line, below its top: under its name and detail. */
+export const COUNT_LINE_TOP = 44;
+/** How tall the third line of a container's header is at most, and how tall it must be to show. */
+const COUNT_ROOM = 16;
+const COUNT_LEAST = 14;
+
+/**
+ * What a container's header writes under its name, in a body `bodyHeight` tall: its detail, and on a
+ * collapsed container how many shapes it holds, on a line of its own when the body has room for it,
+ * or else first on the detail's line. Cutting a line to the shape's width then cuts the detail, never
+ * the count, which a collapsed container drawn at its component's size would otherwise lose.
+ */
+export function headerLines(
+  shape: Pick<ElementShape, 'detail' | 'componentName' | 'collapsed'>,
+  bodyHeight: number,
+): { detail: string; count?: string; countRoom?: number } {
+  const detail = shape.detail ?? shape.componentName;
+  if (shape.collapsed === undefined) return { detail };
+  const count = t('{count} inside', { count: shape.collapsed.contents });
+  if (detail === '') return { detail: count };
+  const room = Math.min(COUNT_ROOM, bodyHeight - COUNT_LINE_TOP);
+  if (room >= COUNT_LEAST) return { detail, count, countRoom: room };
+  return { detail: `${count} · ${detail}` };
 }

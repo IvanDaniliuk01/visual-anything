@@ -30,7 +30,7 @@ import {
 } from '@visual-anything/core';
 import type { Color, Id, ViewFile } from '@visual-anything/schema';
 import { t } from '../i18n';
-import { readableTextColors } from '../canvas/colors';
+import { outlineColorOf, readableTextColors } from '../canvas/colors';
 import {
   HEADER_DETAIL_INSET,
   HEADER_DETAIL_SIZE,
@@ -54,6 +54,8 @@ import {
   type Point,
   type Rect,
 } from '../canvas/geometry';
+import { COUNT_LINE_TOP, headerLines } from '../canvas/collapse';
+import { avoidedScene } from '../canvas/routing/avoided';
 import { drawnCurve } from '../canvas/routing/curves';
 import { ROWS_HEADER } from '../canvas/rows';
 import { drawsRows, isRow, rowColorsOf } from '../canvas/rowsDraw';
@@ -168,7 +170,8 @@ export function writeSvg(
 ): SvgDrawing {
   const view = viewOf(project, viewId);
   if (!view) throw new RangeError(`The project has no view "${viewId}".`);
-  return svgOfScene(project, view, buildScene(project, viewId), options);
+  // Its lines go around the shapes in their way, as the canvas routes them once its worker is done.
+  return svgOfScene(project, view, avoidedScene(buildScene(project, viewId)), options);
 }
 
 const SHAPE_STROKE_WIDTH = 1.5;
@@ -571,7 +574,16 @@ function isContainer(shape: ElementShape): boolean {
 
 /** Everything one shape draws: its body, toggle and picture, then its texts. */
 function shapeParts(writer: Writer, shape: ElementShape): string {
-  const colors = shapeColors(shape, writer.theme.name);
+  const painted = shapeColors(shape, writer.theme.name);
+  // A shape in a container of nearly its own fill keeps an outline that tells it apart, as on the canvas.
+  const colors = {
+    fill: painted.fill,
+    stroke: outlineColorOf(
+      shape.containerShape === undefined
+        ? painted
+        : { ...painted, containerShape: shape.containerShape },
+    ),
+  };
   if (isRow(shape)) return rowParts(writer, shape, colors.fill);
   if (drawsRows(shape)) {
     return (
@@ -800,6 +812,8 @@ function shapeText(writer: Writer, shape: ElementShape, fill: Color): string {
     const shift = headerShift(shape);
     const wrap = Math.max(1, width - 2 * TEXT_INSET - beside - shift);
     const rooms = { name: Math.min(20, height - 12), detail: Math.min(16, height - 32) };
+    // A collapsed container's count, on a line of its own or first on the detail's, as on the canvas.
+    const header = headerLines(shape, height);
     return (
       (rooms.name > 0
         ? writer.text({
@@ -815,9 +829,9 @@ function shapeText(writer: Writer, shape: ElementShape, fill: Color): string {
             room: rooms.name,
           })
         : '') +
-      (rooms.detail > 0 && detail !== ''
+      (rooms.detail > 0 && header.detail !== ''
         ? writer.text({
-            text: detail,
+            text: header.detail,
             size: DETAIL_SIZE,
             fill: colors.detail,
             x: x + TEXT_INSET + shift,
@@ -826,6 +840,19 @@ function shapeText(writer: Writer, shape: ElementShape, fill: Color): string {
             anchor: 'top',
             wrap,
             room: rooms.detail,
+          })
+        : '') +
+      (header.count !== undefined && header.countRoom !== undefined
+        ? writer.text({
+            text: header.count,
+            size: DETAIL_SIZE,
+            fill: colors.detail,
+            x: x + TEXT_INSET + shift,
+            align: 'start',
+            y: y + COUNT_LINE_TOP,
+            anchor: 'top',
+            wrap: Math.max(1, width - 2 * TEXT_INSET),
+            room: header.countRoom,
           })
         : '')
     );

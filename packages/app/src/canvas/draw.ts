@@ -33,8 +33,10 @@ import {
   RELATION_LABEL_HALO,
   RELATION_LABEL_TEXT,
   contrastRatio,
+  outlineColorOf,
   readableTextColors,
 } from './colors';
+import { COUNT_LINE_TOP, headerLines } from './collapse';
 import { drawLeavingMark, writeLeavingMark } from './leavingMark';
 import { drawDestinationMark } from './destinationMark';
 import { patternMatrix, patternTexture } from './patterns';
@@ -151,6 +153,8 @@ export function drawShapeBlocks(
 ): void {
   const outlines = new Map<Color, Rect[]>();
   const fills = new Map<Color, Rect[]>();
+  // An outline of plain blocks is a few canvas units wide, far less than a pixel far out.
+  const hairlines = new Hairlines();
   for (const shape of shapes) {
     // A table is its body and its header, and its rows draw nothing (ADR 0023).
     const rows = rowsBlocks(shape, BLOCK_OUTLINE, rowColors);
@@ -158,11 +162,13 @@ export function drawShapeBlocks(
       if (rows.outline) {
         if (inOrder) fillRects(graphics, rows.outline.color, [rows.outline.rect]);
         else addRect(outlines, rows.outline.color, rows.outline.rect);
+        hairlines.add(rows.outline.color, 'block', rows.outline.rect);
       }
       for (const { color, rect } of rows.fills) {
         if (inOrder) fillRects(graphics, color, [rect]);
         else addRect(fills, color, rect);
       }
+      if (inOrder) hairlines.stroke(graphics);
       continue;
     }
     // A shape drawn by its picture is a block of its plate.
@@ -170,16 +176,20 @@ export function drawShapeBlocks(
     const outlined = isContainer(shape) || needsOutline(shape.fill);
     const inner = outlined ? grow(rect, -BLOCK_OUTLINE) : rect;
     const filled = inner.width > 0 && inner.height > 0;
+    const stroke = outlineColorOf(shape);
+    if (outlined) hairlines.add(stroke, 'block', rect);
     if (inOrder) {
-      if (outlined) fillRects(graphics, shape.stroke, [rect]);
+      if (outlined) fillRects(graphics, stroke, [rect]);
       if (filled) fillRects(graphics, shape.fill, [inner]);
+      hairlines.stroke(graphics);
       continue;
     }
-    if (outlined) addRect(outlines, shape.stroke, rect);
+    if (outlined) addRect(outlines, stroke, rect);
     if (filled) addRect(fills, shape.fill, inner);
   }
   for (const [color, rects] of outlines) fillRects(graphics, color, rects);
   for (const [color, rects] of fills) fillRects(graphics, color, rects);
+  hairlines.stroke(graphics);
 }
 
 function addRect(byColor: Map<Color, Rect[]>, color: Color, rect: Rect): void {
@@ -214,26 +224,27 @@ export function drawShapeOutlines(
   shapes: readonly ElementShape[],
   rowColors: RowColors = LIGHT_ROWS,
 ): void {
+  const hairlines = new Hairlines();
   for (const shape of shapes) {
     if (drawRowsShape(graphics, shape, rowColors)) {
       drawToggle(graphics, shape);
       drawLeavingMark(graphics, shape);
       continue;
     }
-    if (shape.collapsed !== undefined) {
-      const body = bodyOf(shape);
-      if (body !== shape.rect) {
-        drawBody(graphics, shape.kind, { ...body, x: body.x + SHEET, y: body.y + SHEET }, shape);
-      }
-      drawBody(graphics, shape.kind, body, shape);
-    } else {
-      // Inside its plate for a shape drawn by its picture, which covers it once ready.
-      drawBody(graphics, shape.kind, bodyRectOf(shape), shape);
+    const colors = { fill: shape.fill, stroke: outlineColorOf(shape) };
+    // Inside its plate for a shape drawn by its picture, which covers it once ready.
+    const body = shape.collapsed === undefined ? bodyRectOf(shape) : bodyOf(shape);
+    if (shape.collapsed !== undefined && body !== shape.rect) {
+      // The sheet behind a collapsed container; the body covers most of its outline.
+      drawBody(graphics, shape.kind, { ...body, x: body.x + SHEET, y: body.y + SHEET }, colors);
     }
+    drawBody(graphics, shape.kind, body, colors);
+    hairlines.add(colors.stroke, shape.kind, body);
     drawToggle(graphics, shape);
     drawLeavingMark(graphics, shape);
     drawDestinationMark(graphics, shape);
   }
+  hairlines.stroke(graphics);
 }
 
 /** Whether a shape is drawn as a container: one that holds shapes, or one the view collapses. */
@@ -441,6 +452,70 @@ export function writeNoteTexts(notes: readonly NoteShape[]): Text[] {
   });
 }
 
+/**
+ * Traces the outline of a shape's body in a rectangle, as `drawBody` strokes it, for a stroke of
+ * its own: every part of it in the current path.
+ */
+function traceOutline(graphics: Graphics, kind: ShapeKind, rect: Rect): void {
+  const { x, y, width, height } = rect;
+  switch (kind) {
+    case 'rectangle':
+      graphics.rect(x, y, width, height);
+      return;
+    case 'rounded-rectangle':
+      graphics.roundRect(x, y, width, height, Math.min(10, width / 4, height / 4));
+      return;
+    case 'ellipse':
+      graphics.ellipse(x + width / 2, y + height / 2, width / 2, height / 2);
+      return;
+    case 'cylinder': {
+      const cap = cylinderCap(rect);
+      const centerX = x + width / 2;
+      const radiusX = width / 2;
+      graphics.poly([
+        ...arcPoints(centerX, y + height - cap, radiusX, cap, Math.PI, 0),
+        ...arcPoints(centerX, y + cap, radiusX, cap, 0, -Math.PI),
+      ]);
+      graphics.poly(arcPoints(centerX, y + cap, radiusX, cap, Math.PI, 0), false);
+      return;
+    }
+    case 'person': {
+      const head = personHead(rect);
+      graphics.roundRect(x, y + head * 1.6, width, height - head * 1.6, Math.min(12, width / 4));
+      graphics.circle(x + width / 2, y + head, head);
+      return;
+    }
+  }
+}
+
+/**
+ * Outlines one device pixel wide whatever the zoom, gathered by color: a stroke in canvas units
+ * thinner than a pixel, which a canvas drawn without antialiasing leaves out but at its round
+ * corners (ADR 0014), is drawn again as a pixel line, so that no shape's outline ever vanishes
+ * (ADR 0033). They are stroked after the drawings they outline, all of one color in one path, so
+ * that they cost one more batch, not one per shape.
+ */
+class Hairlines {
+  private readonly byColor = new Map<Color, { kind: ShapeKind | 'block'; rect: Rect }[]>();
+
+  add(color: Color, kind: ShapeKind | 'block', rect: Rect): void {
+    const list = this.byColor.get(color);
+    if (list) list.push({ kind, rect });
+    else this.byColor.set(color, [{ kind, rect }]);
+  }
+
+  stroke(graphics: Graphics): void {
+    for (const [color, outlines] of this.byColor) {
+      for (const { kind, rect } of outlines) {
+        if (kind === 'block') graphics.rect(rect.x, rect.y, rect.width, rect.height);
+        else traceOutline(graphics, kind, rect);
+      }
+      graphics.stroke({ color, width: 1, pixelLine: true });
+    }
+    this.byColor.clear();
+  }
+}
+
 /** Draws a shape's body in a rectangle, filled and stroked, approximating each kind of shape. */
 function drawBody(
   graphics: Graphics,
@@ -522,7 +597,7 @@ function writeShapeText(
   const colors = readableTextColors(shape.fill);
   const rooms = labelRooms(shape);
   if (isContainer(shape)) {
-    const { x, y, width } = bodyOf(shape);
+    const { x, y, width, height } = bodyOf(shape);
     const toggle = toggleRect(shape);
     const beside = toggle ? toggle.width + 4 : 0;
     // Right of the icon its header may show.
@@ -540,7 +615,8 @@ function writeShapeText(
         rooms.name,
       );
     }
-    const detail = detailOf(shape);
+    // A collapsed container's count, on a line of its own or first on the detail's.
+    const { detail, count, countRoom } = headerLines(shape, height);
     if (rooms.detail > 0 && detail !== '') {
       write(
         {
@@ -551,6 +627,18 @@ function writeShapeText(
         },
         true,
         rooms.detail,
+      );
+    }
+    if (count !== undefined && countRoom !== undefined) {
+      write(
+        {
+          text: count,
+          x: x + TEXT_INSET + shift,
+          y: y + COUNT_LINE_TOP,
+          style: textStyle(DETAIL_SIZE, colors.detail, Math.max(1, width - 2 * TEXT_INSET), 'left'),
+        },
+        true,
+        countRoom,
       );
     }
     return;

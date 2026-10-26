@@ -52,6 +52,11 @@ interface VirtualTreeProps<T> {
    * true when the row has one, so that the browser's own menu does not open.
    */
   onMenu?: (row: TreeRow<T>, at: { x: number; y: number }) => boolean;
+  /**
+   * A key pressed on a row, before the tree's own keys: true when it handled the key, which the tree
+   * then leaves, as Alt with − and + collapse and expand containers in the outline.
+   */
+  onKey?: (row: TreeRow<T>, event: KeyboardEvent<HTMLDivElement>) => boolean;
 }
 
 /**
@@ -74,6 +79,7 @@ export function VirtualTree<T>({
   onActivate,
   renderRow,
   onMenu,
+  onKey,
 }: VirtualTreeProps<T>) {
   const { rows, at } = shown;
   const viewport = useRef<HTMLDivElement>(null);
@@ -155,6 +161,10 @@ export function VirtualTree<T>({
     );
     const row = rows[index];
     if (!row) return;
+    if (onKey?.(row, event)) {
+      event.preventDefault();
+      return;
+    }
     switch (event.key) {
       case 'ArrowDown':
         moveTo(index + 1);

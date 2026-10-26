@@ -103,3 +103,79 @@ describe('the outline’s menu', () => {
     expect(sent).not.toHaveBeenCalled();
   });
 });
+
+describe('collapsing from the outline', () => {
+  const collapsedScheduling = (): ProjectSnapshot => {
+    const project = loadSample();
+    return {
+      ...project,
+      views: project.views.map((view) =>
+        view.id === VIEW ? { ...view, collapsed: ['scheduling'] } : view,
+      ),
+    };
+  };
+
+  it('collapses a container from its row’s menu, and expands a collapsed one', () => {
+    const sent = vi.fn<(command: Command) => void>();
+    const { unmount } = render(<Harness project={scoped(undefined)} sent={sent} />);
+    fireEvent.contextMenu(rowNamed(/^Scheduling/));
+    const menu = screen.getByRole('menu', { name: 'Scheduling' });
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Collapse "Scheduling"' }));
+    expect(sent).toHaveBeenCalledWith({
+      type: 'set-collapsed',
+      view: VIEW,
+      elements: ['scheduling'],
+      collapsed: true,
+    });
+    unmount();
+    render(<Harness project={collapsedScheduling()} sent={sent} />);
+    fireEvent.contextMenu(rowNamed(/^Scheduling/));
+    fireEvent.click(
+      within(screen.getByRole('menu', { name: 'Scheduling' })).getByRole('menuitem', {
+        name: 'Expand "Scheduling"',
+      }),
+    );
+    expect(sent).toHaveBeenLastCalledWith({
+      type: 'set-collapsed',
+      view: VIEW,
+      elements: ['scheduling'],
+      collapsed: false,
+    });
+  });
+
+  it('offers no collapse on the row of a shape that holds nothing', () => {
+    render(<Harness project={scoped(undefined)} sent={vi.fn()} />);
+    fireEvent.contextMenu(rowNamed(/^Patient/));
+    const menu = screen.getByRole('menu', { name: 'Patient' });
+    expect(within(menu).queryByRole('menuitem', { name: /^(Collapse|Expand)/ })).toBeNull();
+  });
+
+  it('collapses with Alt+− and expands with Alt++ on a container’s row, as the canvas does', () => {
+    const sent = vi.fn<(command: Command) => void>();
+    const { unmount } = render(<Harness project={scoped(undefined)} sent={sent} />);
+    fireEvent.keyDown(rowNamed(/^Scheduling/), { key: '-', code: 'Minus', altKey: true });
+    expect(sent).toHaveBeenCalledWith({
+      type: 'set-collapsed',
+      view: VIEW,
+      elements: ['scheduling'],
+      collapsed: true,
+    });
+    unmount();
+    render(<Harness project={collapsedScheduling()} sent={sent} />);
+    fireEvent.keyDown(rowNamed(/^Scheduling/), { key: '+', code: 'Equal', altKey: true });
+    expect(sent).toHaveBeenLastCalledWith({
+      type: 'set-collapsed',
+      view: VIEW,
+      elements: ['scheduling'],
+      collapsed: false,
+    });
+  });
+
+  it('says why Alt+− changes nothing on a row that is no container', () => {
+    const sent = vi.fn<(command: Command) => void>();
+    render(<Harness project={scoped(undefined)} sent={sent} />);
+    fireEvent.keyDown(rowNamed(/^Patient/), { key: '-', code: 'Minus', altKey: true });
+    expect(sent).not.toHaveBeenCalled();
+    expect(screen.getByText('Select an expanded container to collapse it.')).toBeInTheDocument();
+  });
+});

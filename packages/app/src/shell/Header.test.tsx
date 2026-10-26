@@ -373,3 +373,34 @@ describe('the Theme control', () => {
     expect(themeRadio('Light')).toBeChecked();
   });
 });
+
+describe('the header’s one row (A4)', () => {
+  const LONG_VIEW = 'How one gesture becomes a command and comes back to every app';
+  const LONG_UNDO = {
+    label: 'Collapse "Operations and history of every command"',
+    author: 'user' as const,
+  };
+
+  it('cuts the view’s name, and keeps it and the undo label whole in tooltips and for screen readers', () => {
+    render(
+      <LiveContext value={fakeLive({ history: { undo: LONG_UNDO } })}>
+        <Header projectName="My systems" viewName={LONG_VIEW} />
+      </LiveContext>,
+    );
+    const banner = within(screen.getByRole('banner'));
+    const view = banner.getByText(LONG_VIEW);
+    expect(view).toHaveAttribute('title', LONG_VIEW);
+    expect(view).toHaveClass('shell-context-value');
+    expect(banner.getByText('My systems')).toHaveAttribute('title', 'My systems');
+    expect(undoButton()).toHaveAccessibleName(`Undo: ${LONG_UNDO.label}`);
+    expect(undoButton().getAttribute('title')).toContain(LONG_UNDO.label);
+  });
+
+  it('never wraps: the row cuts the view’s name and the undo label with an ellipsis instead', () => {
+    expect(readSource('styles.css')).toMatch(/\.shell-header\s*\{[^}]*flex-wrap: nowrap/);
+    const css = readSource('shell/header.css');
+    expect(css).toMatch(/\.shell-context-value\s*\{[^}]*text-overflow: ellipsis/);
+    expect(css).toMatch(/\.shell-context-value\s*\{[^}]*white-space: nowrap/);
+    expect(css).toMatch(/\.shell-header \.shell-actions\s*\{[^}]*flex-wrap: nowrap/);
+  });
+});

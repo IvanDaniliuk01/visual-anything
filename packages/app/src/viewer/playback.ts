@@ -53,6 +53,8 @@ const INITIAL: ScenarioState = {
   step: 0,
   mode: 'paused',
   speed: 1,
+  // The read-only page does not bring the step it plays into view (`scenarios/follow.ts`).
+  asks: 0,
 };
 
 export class PlaybackSession {

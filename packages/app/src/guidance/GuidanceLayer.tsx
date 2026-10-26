@@ -2,7 +2,8 @@
  * Claude's live guidance on the open view. Its marks go to the canvas through the emphasis store, as
  * the "guidance" source; a move goes through the editor's `reveal`; and its caption, or what its marks
  * say when there is no caption, shows over the canvas with a way to dismiss it. Guidance names a view
- * when Claude wants it seen there: that view opens first. Filters, focus mode and playback go to the
+ * when Claude wants it seen there: that view opens first, in the tab the person used last
+ * (`tabs.ts`). Filters, focus mode and playback go to the
  * explorer and the scenario session, and a tour to the tab's full-screen playback, as the person's
  * would. Nothing here changes the project.
  */
@@ -14,6 +15,7 @@ import { useT } from '../i18n';
 import { LiveContext } from '../live/context';
 import type { ScenarioSession } from '../scenarios/session';
 import { NO_GUIDANCE } from './state';
+import { forThisTab } from './tabs';
 import { describeMarks, guidanceEmphasis, revealKeyFor } from './targets';
 import { useGuidedRequests } from './useGuidedRequests';
 import './guidance.css';
@@ -46,20 +48,32 @@ export function GuidanceLayer({ scenarios }: GuidanceLayerProps) {
   );
   useEmphasisSource('guidance', emphasis);
 
-  // Each request opens its view once; the person may go elsewhere afterwards.
+  // Each request opens its view once, in the tab the person used last only; the person may go
+  // elsewhere afterwards.
   const opened = useRef(new Set<number>());
   useEffect(() => {
     for (const request of [marks, panTo]) {
       if (request?.view === undefined || opened.current.has(request.request)) continue;
       opened.current.add(request.request);
-      if (request.view !== viewId && hasView(project, request.view)) openView?.(request.view);
+      if (
+        request.view !== viewId &&
+        hasView(project, request.view) &&
+        forThisTab(request, viewId)
+      ) {
+        openView?.(request.view);
+      }
     }
   }, [marks, panTo, viewId, openView, project]);
 
-  // A move waits until its view is open and drawn, then happens once.
+  // A move waits until its view is open and drawn, then happens once; a tab that does not open its
+  // view passes it over.
   const moved = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (panTo === undefined || moved.current === panTo.request || scene === undefined) return;
+    if (!forThisTab(panTo, viewId)) {
+      moved.current = panTo.request;
+      return;
+    }
     if (panTo.view !== undefined && panTo.view !== viewId && hasView(project, panTo.view)) return;
     if (project === undefined) return;
     moved.current = panTo.request;

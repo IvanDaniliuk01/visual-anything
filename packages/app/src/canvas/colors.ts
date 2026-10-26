@@ -6,6 +6,7 @@
  */
 import { contrastRatio as ratioOf } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
+import type { ElementShape } from './scene';
 import { THEMES } from '../theme/themes';
 
 const LIGHT = THEMES.light.canvas;
@@ -79,4 +80,30 @@ function textColorsOn(fill: Color): TextColors {
 /** The WCAG contrast ratio between two `#rrggbb` colors, from 1 to 21; anything else counts as white. */
 export function contrastRatio(a: Color, b: Color): number {
   return ratioOf(a, b);
+}
+
+/** The contrast a shape's outline needs against its fill to mark its boundary, from WCAG 1.4.11. */
+const MARK_CONTRAST = 3;
+
+const outlineColors = new Map<string, Color>();
+
+/**
+ * The color a shape's outline is drawn in: its stroke, or, for a shape inside a container whose
+ * stroke is under 3:1 against its own fill, the color that reads on that fill, so that a shape in a
+ * container of nearly its own fill is always told apart from it by its outline (ADR 0033).
+ */
+export function outlineColorOf(
+  shape: Pick<ElementShape, 'fill' | 'stroke' | 'containerShape'>,
+): Color {
+  if (shape.containerShape === undefined) return shape.stroke;
+  const key = `${shape.fill} ${shape.stroke}`;
+  let color = outlineColors.get(key);
+  if (color === undefined) {
+    color =
+      contrastRatio(shape.stroke, shape.fill) < MARK_CONTRAST
+        ? readableTextColors(shape.fill).detail
+        : shape.stroke;
+    outlineColors.set(key, color);
+  }
+  return color;
 }

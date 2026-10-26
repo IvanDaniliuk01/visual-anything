@@ -197,8 +197,9 @@ describe('writeSvg', () => {
     const scheduling = document.querySelector('g[data-element="scheduling"]');
     // Its sheet and its body.
     expect(scheduling?.querySelectorAll(':scope > rect:not([data-part])').length).toBe(2);
-    // "System · 3 inside", cut to its header as the canvas cuts it.
-    expect(scheduling?.textContent).toMatch(/System · 3/);
+    // "3 inside" on a line of its own, or first on the detail's, as the canvas writes it, so that
+    // cutting the header's text to its width never cuts the count.
+    expect(scheduling?.textContent).toMatch(/3 inside/);
     const aggregated = scene.relations.filter((line) => line.aggregate);
     expect(aggregated.length).toBeGreaterThan(0);
     expect(document.querySelectorAll('g[data-relations]').length).toBe(aggregated.length * 2);

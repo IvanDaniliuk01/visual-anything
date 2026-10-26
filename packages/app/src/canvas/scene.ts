@@ -739,6 +739,22 @@ function lineIndexesOf(lines: readonly RelationLine[]): Map<Id, number> {
 }
 
 /**
+ * The scene with these relations' lines in place of its own and the bounds that hold them, as the
+ * canvas draws automatic routes around the shapes in their way (`routing/avoided.ts`): what the
+ * scene knows of elements hidden in collapsed containers stays with it.
+ */
+export function withRelations(
+  scene: Scene,
+  relations: RelationLine[],
+  bounds: Rect | undefined,
+): Scene {
+  const derived: Scene = { ...scene, relations, bounds };
+  const hiding = hidings.get(scene);
+  if (hiding !== undefined) hidings.set(derived, hiding);
+  return derived;
+}
+
+/**
  * The shape that shows an element in a scene: its first shape, in containment order; or, when only
  * collapsed containers hold it, the shape of the outermost collapsed container that holds its first
  * copy. None for an element the view does not draw.

@@ -294,23 +294,23 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [x] PNG export of the open view or the whole view, at 1× or 2×, in the current theme
 - [x] A history panel: each action's label, author (you or Claude) and time, and Undo to here
 - [x] Recipes for Claude to build models, views and scenarios from what exists (Mermaid, PlantUML, draw.io, Structurizr, SQL, OpenAPI, Terraform, Kubernetes, docker-compose, a repository, logs and traces) with its tools, as MCP prompts (`build_from_…`)
-- [ ] Fix what dogfooding surfaces. Modeling Visual Anything with itself (W46) found:
+- [x] Fix what dogfooding surfaces. Modeling Visual Anything with itself (W46) found:
   - [x] Ids made from names split a word at an apostrophe (`claude-s-messages`, `a-command-s-path.vaview`); they keep it whole now (ADR 0019)
   - [x] `set_scope` did not say how to show only elements picked by hand: `added` alone shows the whole model; it now says to exclude Essence and add them (ADR 0040)
   - [x] The log a sample's scenario comes from is kept beside it in `logs/`, which `.gitignore`'s `*.log` left out (ADR 0019)
   - [x] Placing new shapes inside a container never moves the shapes beside it, so a container that grows with what Claude adds covers its neighbours until the whole view is laid out (ADR 0015 moves only new shapes); the placement moves the unpinned ones aside now, right or down, past the pinned ones (ADR 0015's clarification of W48)
   - [x] Placing what Claude adds is recorded as the person's action (`Lay out 22 new shapes`, by you), also after `change_container` without places: one change of Claude's takes two undos, and the history shows layouts nobody asked for; the placement joins the action that added the shapes now (ADR 0065)
-  - [ ] The canvas's routes do not go around the shapes between their ends, so in nested views lines cross other shapes and their names
+  - [x] The canvas's routes do not go around the shapes between their ends, so in nested views lines cross other shapes and their names; an automatic orthogonal route now goes around the shapes and name plates in its way inside the container that holds both its ends, routed in a worker and again only where a change touches it, and the SVG and PDF route at once (ADR 0039)
   - [x] A view cannot leave out relation types: a Structure view of a code base draws every call and connection between its parts, which only filters, never kept with the view, hide; a view's `relationTypesLeftOut` leaves them out now, set beside the scope and by Claude's `leave_out_relation_types` (ADR 0064)
-  - [ ] Below about 60%, straight edges thinner than a pixel vanish and only rounded corners draw, so a shape inside a container of the same fill disappears
-  - [ ] Fit can choose a zoom at which no names draw (17% for 84 shapes), and `lay_out_view` leaves the camera where it was, so the person may see blank boxes or empty canvas
-  - [ ] Playback and `go_to_step` never bring the step played into view, so a step off screen plays unseen
-  - [ ] Guidance that names a view switches every open tab to it, and a tab switched so keeps the camera of the view it showed
-  - [ ] The canvas's keys, such as Alt+− to collapse, do nothing while focus is in the outline, and the outline offers no collapse
+  - [x] Below about 60%, straight edges thinner than a pixel vanish and only rounded corners draw, so a shape inside a container of the same fill disappears; every outline is now at least a device pixel wide at any zoom, and a shape in a container is outlined in a color that reads on its fill when its stroke does not (ADR 0014, ADR 0033)
+  - [x] Fit can choose a zoom at which no names draw (17% for 84 shapes), and `lay_out_view` leaves the camera where it was, so the person may see blank boxes or empty canvas; Fit keeps to the zoom names draw from and shows the view from its top left when the whole would draw none (ADR 0055), and the app fits what `lay_out_view` laid out (ADR 0029)
+  - [x] Playback and `go_to_step` never bring the step played into view, so a step off screen plays unseen; a step's relations now come into view with a tour's capped, eased move, unless the person moved the camera during playback (ADR 0031)
+  - [x] Guidance that names a view switches every open tab to it, and a tab switched so keeps the camera of the view it showed; it shows another view only in the tab the person used last, or the tab Claude opened, and a tab switched to a view takes the camera it last showed it at, or fits it (ADR 0029)
+  - [x] The canvas's keys, such as Alt+− to collapse, do nothing while focus is in the outline, and the outline offers no collapse; Alt+− and Alt++ on a row, and the row's menu, collapse and expand its container or the selection's (ADR 0024)
   - [x] The program writes nothing per action, so the log of a command's path had to come from the browser's WebSocket frames; a `--log` option writing one line per action would make one to paste; `--log <file>` does now (ADR 0016's clarification)
   - [x] `define_component` and `update_component` warn about no color, as `set_appearance` does about a fill that fades into the light canvas; they give its warnings now, and so do `define_relation_type` and `update_relation_type` (ADR 0029's clarification of W48)
-  - [ ] A collapsed container's count is cut off at its component's size (`Code package…`)
-  - [ ] The header wraps to two rows when the view's name and the Undo label are long, which moves the canvas down while you work (A4)
+  - [x] A collapsed container's count is cut off at its component's size (`Code package…`); it has a line of its own under the detail when the header has room, and comes first on the detail's line when not, on the canvas and in the SVG
+  - [x] The header wraps to two rows when the view's name and the Undo label are long, which moves the canvas down while you work (A4); it keeps one row now, the view's and the project's names and the action Undo and Redo name cut with "…", whole in their tooltips and to screen readers
 - [x] README with setup for Claude Desktop and Claude Code
 - [ ] Tag v0.1 in the private repository
 

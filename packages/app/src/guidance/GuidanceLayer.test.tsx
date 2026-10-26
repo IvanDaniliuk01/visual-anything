@@ -1,7 +1,7 @@
 import { definitionsOf, type ProjectSnapshot } from '@visual-anything/core';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildScene } from '../canvas/scene';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
@@ -11,6 +11,16 @@ import { fakeLive } from '../test/fakeLive';
 import { loadSample } from '../test/sample';
 import { GuidanceLayer } from './GuidanceLayer';
 import type { GuidanceState } from './state';
+import { setTabUseForTests, trackTabUse, type TabUse } from './tabs';
+
+/** Another tab of the browser was used after this one. */
+const usedElsewhere: TabUse = {
+  used: () => undefined,
+  isLastUsed: () => false,
+  dispose: () => undefined,
+};
+
+afterEach(() => setTabUseForTests(trackTabUse({ channel: undefined, shown: true })));
 
 const sample = loadSample();
 
@@ -133,6 +143,35 @@ describe('GuidanceLayer', () => {
     act(() => rerender({ panTo: { target: 'whatsapp', view: 'second', request: 1 } }, second));
     expect(editor.reveal).toHaveBeenCalledOnce();
     expect(editor.openView).toHaveBeenCalledOnce();
+  });
+
+  it('leaves a tab the person did not use last on its view, and moves it nowhere', () => {
+    setTabUseForTests(usedElsewhere);
+    const { editor, rerender } = renderWith({
+      panTo: { target: 'whatsapp', view: 'second', request: 1 },
+      marks: { kind: 'highlight', targets: ['patient'], view: 'second', request: 1 },
+    });
+    expect(editor.openView).not.toHaveBeenCalled();
+    // Opened by hand later, the view takes no move asked for before.
+    const second = editorFor('second', { reveal: editor.reveal, openView: editor.openView });
+    act(() =>
+      rerender(
+        {
+          panTo: { target: 'whatsapp', view: 'second', request: 1 },
+          marks: { kind: 'highlight', targets: ['patient'], view: 'second', request: 1 },
+        },
+        second,
+      ),
+    );
+    expect(editor.reveal).not.toHaveBeenCalled();
+  });
+
+  it('moves a tab the person did not use last when the move is for the view it shows', () => {
+    setTabUseForTests(usedElsewhere);
+    const { editor } = renderWith({
+      panTo: { target: 'whatsapp', view: 'system-overview', request: 1 },
+    });
+    expect(editor.reveal).toHaveBeenCalledWith(keyOf('whatsapp'));
   });
 
   it('shows marks made for another view only in that view', () => {
