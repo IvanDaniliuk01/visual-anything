@@ -26,6 +26,7 @@
  * | grid                    | cuadrícula                       |
  * | ruler                   | regla                            |
  * | snapping, snap          | ajuste, ajustar a la cuadrícula  |
+ * | alignment guide         | línea de alineación              |
  * | shape                   | forma                            |
  * | anchored shape          | forma anclada                    |
  * | free shape              | forma libre                      |
@@ -959,6 +960,63 @@ export const ui: Catalog = {
   'The grid is hidden.': 'Se ocultó la cuadrícula.',
   'The rulers show.': 'Se muestran las reglas.',
   'The rulers are hidden.': 'Se ocultaron las reglas.',
+  // W51: resizing, aligning and distributing shapes on the canvas (ADR 0074). An alignment guide is
+  // "línea de alineación", since "guía" is Claude's guidance.
+  Align: 'Alinear',
+  'Align, distribute or size alike the selected shapes':
+    'Alinear, distribuir o igualar el tamaño de las formas seleccionadas',
+  'Align left': 'Alinear a la izquierda',
+  'Align centers': 'Alinear los centros',
+  'Align right': 'Alinear a la derecha',
+  'Align top': 'Alinear arriba',
+  'Align middles': 'Alinear al medio',
+  'Align bottom': 'Alinear abajo',
+  'Distribute horizontally': 'Distribuir horizontalmente',
+  'Distribute vertically': 'Distribuir verticalmente',
+  'Same width': 'Mismo ancho',
+  'Same height': 'Mismo alto',
+  'Lines up the left edges of the selected shapes on the leftmost one’s. Alt+Shift+←':
+    'Alinea los bordes izquierdos de las formas seleccionadas con el de la que está más a la izquierda. Alt+Mayús+←',
+  'Lines up the selected shapes’ centers, on a line down the middle of their bounds.':
+    'Alinea los centros de las formas seleccionadas sobre una línea vertical, en el medio del espacio que ocupan.',
+  'Lines up the right edges of the selected shapes on the rightmost one’s. Alt+Shift+→':
+    'Alinea los bordes derechos de las formas seleccionadas con el de la que está más a la derecha. Alt+Mayús+→',
+  'Lines up the top edges of the selected shapes on the highest one’s. Alt+Shift+↑':
+    'Alinea los bordes superiores de las formas seleccionadas con el de la que está más arriba. Alt+Mayús+↑',
+  'Lines up the selected shapes’ middles, on a line across the middle of their bounds.':
+    'Alinea los medios de las formas seleccionadas sobre una línea horizontal, en el medio del espacio que ocupan.',
+  'Lines up the bottom edges of the selected shapes on the lowest one’s. Alt+Shift+↓':
+    'Alinea los bordes inferiores de las formas seleccionadas con el de la que está más abajo. Alt+Mayús+↓',
+  'Spaces the selected shapes with equal gaps from left to right; the first and the last stay.':
+    'Distribuye las formas seleccionadas con espacios iguales de izquierda a derecha; la primera y la última no se mueven.',
+  'Spaces the selected shapes with equal gaps from top to bottom; the first and the last stay.':
+    'Distribuye las formas seleccionadas con espacios iguales de arriba abajo; la primera y la última no se mueven.',
+  'Gives the selected shapes the width of the widest of them.':
+    'Da a las formas seleccionadas el ancho de la más ancha.',
+  'Gives the selected shapes the height of the tallest of them.':
+    'Da a las formas seleccionadas el alto de la más alta.',
+  'Select two or more shapes to align them.': 'Seleccionar dos formas o más para alinearlas.',
+  'Select three or more shapes to distribute them.':
+    'Seleccionar tres formas o más para distribuirlas.',
+  'Select two or more shapes whose size can change.':
+    'Seleccionar dos formas o más cuyo tamaño pueda cambiar.',
+  'They are aligned already.': 'Ya están alineadas.',
+  'They are distributed already.': 'Ya están distribuidas.',
+  'They have that size already.': 'Ya tienen ese tamaño.',
+  'Alt+Shift+arrow keys (⌥⇧ on macOS)': 'Alt+Mayús+flechas (⌥⇧ en macOS)',
+  'Align the selected shapes to that side: left, right, top or bottom':
+    'Alinear las formas seleccionadas de ese lado: a la izquierda, a la derecha, arriba o abajo',
+  'Shift while resizing': 'Mayús mientras se cambia el tamaño',
+  'Keep the shape’s proportions; a shape whose outline keeps them changes them':
+    'Mantener las proporciones de la forma; una forma cuyo contorno las mantiene las cambia',
+  'Alt while resizing (⌥ on macOS)': 'Alt mientras se cambia el tamaño (⌥ en macOS)',
+  'Resize the shape from its middle': 'Cambiar el tamaño de la forma desde su centro',
+  'Ctrl while dragging or resizing (⌘ on macOS)':
+    'Ctrl mientras se arrastra o se cambia el tamaño (⌘ en macOS)',
+  'Turn the alignment guides off, as Alt does while dragging':
+    'Desactivar las líneas de alineación, como hace Alt mientras se arrastra',
+  'Escape while dragging or resizing': 'Esc mientras se arrastra o se cambia el tamaño',
+  'Stop, and leave the shapes as they were': 'Detener, y dejar las formas como estaban',
   // A table's columns, and any shape's rows, in the inspector.
   Columns: 'Columnas',
   Rows: 'Filas',
@@ -2513,6 +2571,19 @@ export const messages: Catalog = {
   '{base}, and move {n} other shapes': '{base} y mover {n} formas más',
   'Move {moved} to the end': 'Mover {moved} al final',
   'Move {moved} before "{name}"': 'Mover {moved} antes de "{name}"',
+  // W51: resizing, aligning and distributing shapes on the canvas (ADR 0074), as the history names it.
+  'Resize "{name}"': 'Cambiar el tamaño de "{name}"',
+  'Resize a note': 'Cambiar el tamaño de una nota',
+  'Align {n} shapes to the left': 'Alinear {n} formas a la izquierda',
+  'Align the centers of {n} shapes': 'Alinear los centros de {n} formas',
+  'Align {n} shapes to the right': 'Alinear {n} formas a la derecha',
+  'Align {n} shapes to the top': 'Alinear {n} formas arriba',
+  'Align the middles of {n} shapes': 'Alinear al medio {n} formas',
+  'Align {n} shapes to the bottom': 'Alinear {n} formas abajo',
+  'Distribute {n} shapes horizontally': 'Distribuir {n} formas horizontalmente',
+  'Distribute {n} shapes vertically': 'Distribuir {n} formas verticalmente',
+  'Give {n} shapes the same width': 'Dar el mismo ancho a {n} formas',
+  'Give {n} shapes the same height': 'Dar el mismo alto a {n} formas',
   'Create the package "{name}"': 'Crear el paquete "{name}"',
   'Rename the package "{old}" to "{new}"': 'Cambiar el nombre del paquete "{old}" a "{new}"',
   'Edit the package "{name}"': 'Editar el paquete "{name}"',

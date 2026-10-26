@@ -31,6 +31,7 @@ import {
   relationColorWarnings,
   strokeWarnings,
 } from './appearance-tools';
+import { ALIGN_TOOLS } from './align-tools';
 import { ProgramUnavailableError, type Program } from './bridge';
 import { cascadeOf, cascadeRefusal, takesMore } from './cascade';
 import { EXPLORE_TOOLS } from './explore-tools';
@@ -1408,6 +1409,8 @@ export const TOOLS: readonly Tool[] = [
   deleteView,
   setPositions,
   forgetPositions,
+  // Aligning, distributing and sizing alike, as the canvas's Align does (ADR 0074).
+  ...ALIGN_TOOLS,
   restack,
   setCollapsed,
   setRoute,
