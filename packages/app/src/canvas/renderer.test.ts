@@ -749,6 +749,45 @@ describe('Fit', () => {
     expect((500 + 150) * scale + y).toBeCloseTo(400);
   });
 
+  it('keeps to the lowest scale the shapes write names from, by the levels they declare', async () => {
+    const renderer = await started();
+    const levelled = (from: number) => {
+      const indexed = spread();
+      const levels = [
+        { from: 0, shows: ['silhouette' as const] },
+        { from, shows: ['name' as const] },
+      ];
+      return indexScene({
+        ...indexed.scene,
+        shapes: indexed.scene.shapes.map((shape) => ({ ...shape, levels })),
+      });
+    };
+    renderer.show(levelled(0.3));
+    FakeResizeObserver.resizeAll();
+    renderer.fitWhole();
+    const whole = renderer.camera.scale;
+    expect(whole).toBeLessThan(0.3);
+    // Names from 30%: Fit keeps to it, below the canvas's own step.
+    renderer.fit();
+    expect(renderer.camera.scale).toBeCloseTo(0.3);
+    // Names from below the whole view's scale: Fit shows the whole view.
+    renderer.show(levelled(whole / 2));
+    renderer.fit();
+    expect(renderer.camera.scale).toBeCloseTo(whole);
+    // A shape that declares no levels writes names from the canvas's own step, which is higher.
+    const one = levelled(0.6);
+    renderer.show(
+      indexScene({
+        ...one.scene,
+        shapes: one.scene.shapes.map((shape, at) =>
+          at === 0 ? { ...shape, levels: undefined } : shape,
+        ),
+      }),
+    );
+    renderer.fit();
+    expect(renderer.camera.scale).toBe(NAMES_FROM);
+  });
+
   it('fits a view whose names draw whole', async () => {
     const renderer = await started();
     const indexed = indexScene(buildScene(sample, 'system-overview'));

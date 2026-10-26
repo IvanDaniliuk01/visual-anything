@@ -39,9 +39,18 @@ export const GUIDE: ToolHints = {
 /** An id, as the read tools give them. */
 export const id = () => z.string().min(1).max(128);
 
+/**
+ * Which tab guidance shows another view in (ADR 0029's clarification of 2026-10-26), for the tools
+ * whose guidance names a view.
+ */
+export const ONE_TAB =
+  'Another view opens only in the tab the person used last, or the one you opened; their other tabs stay as they are.';
+
 /** The view guidance opens first; left out, the one the person has open. */
 export const guidedView = () =>
-  id().optional().describe('The view to open first; left out, the view the person has open.');
+  id()
+    .optional()
+    .describe(`The view to open first; left out, the view the person has open. ${ONE_TAB}`);
 
 export function ok(value: unknown): ToolOutcome {
   return { ok: true, value };

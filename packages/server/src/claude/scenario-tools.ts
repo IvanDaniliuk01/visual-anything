@@ -26,6 +26,7 @@ import type { Program } from './bridge';
 import {
   DELETE,
   GUIDE,
+  ONE_TAB,
   WRITE,
   act,
   counted,
@@ -230,7 +231,7 @@ Example: { "scenario": "draft-scenario" }`,
 const openScenario = tool({
   name: 'open_scenario',
   title: 'Open a scenario in the app',
-  description: `Opens a scenario in the scenario panel of the app the person has open, and its view, at its first step, paused. It changes nothing in the project, and the person can close it.
+  description: `Opens a scenario in the scenario panel of the app the person has open, and its view, at its first step, paused. It changes nothing in the project, and the person can close it. ${ONE_TAB}
 
 Example: { "scenario": "patient-books-appointment" }`,
   input: { scenario: playedScenario() },
@@ -241,7 +242,7 @@ Example: { "scenario": "patient-books-appointment" }`,
 const playScenario = tool({
   name: 'play_scenario',
   title: 'Play a scenario in the app',
-  description: `Plays a scenario in the app the person has open, from the step it is on, or from the first once it has played to the end: it opens the scenario and its view first when needed, highlights each step's relations with a marker travelling along them, and goes on step after step. Steps inside a container the view shows collapsed play as one aggregated step. Playing changes nothing in the project, and the person can pause it at any time. To start elsewhere, call go_to_step first.
+  description: `Plays a scenario in the app the person has open, from the step it is on, or from the first once it has played to the end: it opens the scenario and its view first when needed, highlights each step's relations with a marker travelling along them, and goes on step after step. Steps inside a container the view shows collapsed play as one aggregated step. Playing changes nothing in the project, and the person can pause it at any time. To start elsewhere, call go_to_step first. ${ONE_TAB}
 
 Example: { "scenario": "patient-books-appointment" }`,
   input: { scenario: playedScenario() },
@@ -263,7 +264,7 @@ Example: { "scenario": "patient-books-appointment" }`,
 const goToStep = tool({
   name: 'go_to_step',
   title: 'Go to a step of a scenario',
-  description: `Shows one step of a scenario in the app the person has open: it opens the scenario and its view first when needed, then plays that step's travel once and holds there, or goes on from it when the scenario is playing. Name the step by its number from 1 or by its id, from read_scenario. Use it with show_caption to walk the person through the steps one at a time.
+  description: `Shows one step of a scenario in the app the person has open: it opens the scenario and its view first when needed, then plays that step's travel once and holds there, or goes on from it when the scenario is playing. Name the step by its number from 1 or by its id, from read_scenario. Use it with show_caption to walk the person through the steps one at a time. ${ONE_TAB}
 
 Example: { "scenario": "patient-books-appointment", "step": 3 }
 Example: { "scenario": "patient-books-appointment", "step": "hold-slot" }`,

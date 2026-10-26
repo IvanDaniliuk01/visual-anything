@@ -100,6 +100,25 @@ describe('the MCP server', () => {
     });
   });
 
+  it('says, wherever guidance names a view, which tab it shows in', async () => {
+    const { tools } = await client.listTools();
+    const rule = 'the tab the person used last, or the one you opened';
+    for (const name of [
+      'filter_view',
+      'open_scenario',
+      'play_scenario',
+      'go_to_step',
+      'play_tour',
+    ]) {
+      expect(tools.find((each) => each.name === name)?.description).toContain(rule);
+    }
+    for (const name of ['highlight', 'focus', 'pan_to', 'filter_view', 'focus_view']) {
+      const view = tools.find((each) => each.name === name)?.inputSchema.properties?.view as
+        { description?: string } | undefined;
+      expect(view?.description).toContain(rule);
+    }
+  });
+
   it('reads the project through the running program', async () => {
     const result = await client.callTool({ name: 'get_project', arguments: {} });
     expect(result.isError).toBeFalsy();

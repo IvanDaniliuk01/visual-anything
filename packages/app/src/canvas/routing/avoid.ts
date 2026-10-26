@@ -9,8 +9,16 @@
  *
  * It works on numbers alone, so that it runs in a worker as it runs in the page or in Node: the
  * shapes as rectangles with the index of the shape each sits in, and the lines as their ends' indexes
- * and stand-in routes. A line with more shapes around it than `MAX_OBSTACLES` keeps its stand-in
- * route, which keeps the cost of each line bounded however large the view.
+ * and stand-in routes.
+ *
+ * Its work is bounded whatever a project file holds, as a file may give shapes sizes up to 100,000 a
+ * side: the index of the shapes keeps to `MAX_GRID_CELLS` cells, as large as the scene's extent and
+ * the count of its shapes need, files a shape in at most `MAX_SHAPE_CELLS` of them and keeps a larger
+ * one on a list every query looks through, and holds at most `MAX_ENTRIES` entries and
+ * `MAX_OVERSIZED` shapes so kept; past either, nothing is routed around and every line keeps its
+ * stand-in route. A query looks through at most `MAX_QUERY_CELLS` cells and `MAX_QUERY_VISITS`
+ * entries, and a line keeps its stand-in route when its region needs more, when it has more shapes
+ * around it than `MAX_OBSTACLES`, or when an end is nested deeper than `MAX_DEPTH`.
  */
 import type { Point, Rect } from '../geometry';
 
@@ -43,8 +51,9 @@ export interface Avoided {
   /** The region it looked in for what is in the route's way. */
   region: Rect;
   /**
-   * Present when it gave up, with more shapes around the line than it goes around: the line keeps
-   * its stand-in route, and a change near it would not change that.
+   * Present when it gave up: with more shapes around the line than it goes around, a region too large
+   * or crowded to look through, an end nested too deep, or more shapes than the index holds. The line
+   * keeps its stand-in route, and a change near it would not change that.
    */
   gaveUp?: true;
 }
@@ -61,63 +70,276 @@ const TURN = 48;
 const REACH = 3 * CLEARANCE;
 /** How much of a shape a segment must cross to count, so that lines along a border do not. */
 const EPSILON = 0.5;
-/** The side of a cell of the shapes' index, in canvas units. */
+/** The least side of a cell of the shapes' index, in canvas units. */
 const CELL = 256;
+/** The most cells the shapes' index has, whatever the scene's extent: its cells grow to keep to it. */
+export const MAX_GRID_CELLS = 65_536;
+/** The most cells the index files one shape in; a larger shape is kept on a list every query reads. */
+export const MAX_SHAPE_CELLS = 256;
+/** The most shapes kept on that list; with more, nothing is routed around. */
+export const MAX_OVERSIZED = 512;
+/** The most entries the index holds, all told; with more, nothing is routed around. */
+export const MAX_ENTRIES = 400_000;
+/** The most cells one query looks through; a larger region is not routed in. */
+export const MAX_QUERY_CELLS = 4_096;
+/** The most entries one query reads; a more crowded region is not routed in. */
+export const MAX_QUERY_VISITS = 16_384;
+/** How deeply an end may be nested for its line to be routed around shapes. */
+export const MAX_DEPTH = 64;
+/** The depth of a shape whose containers never reach World, which only a broken scene has. */
+const NOWHERE = 0x3fffffff;
 
-/** An index of the shapes by the cells of a grid they cover, made once for a batch of lines. */
+/**
+ * An index of the shapes by the cells of a grid they cover, made once for a batch of lines, with its
+ * work bounded however large or many the shapes (see the file's comment).
+ */
 class ShapeGrid {
-  private readonly cells = new Map<number, number[]>();
+  /** Whether the shapes would take the index past its limits: then nothing is routed around. */
+  readonly overloaded: boolean;
+  private readonly left: number;
+  private readonly top: number;
+  private readonly side: number;
+  private readonly columns: number;
+  private readonly rows: number;
+  /** Where each cell's entries start in `entries`, and where the last one's end. */
+  private readonly starts: Int32Array;
+  private readonly entries: Int32Array;
+  /** The shapes that cover more cells than one is filed in. */
+  private readonly oversized: number[] = [];
   private readonly seen: Uint32Array;
   private stamp = 0;
 
-  constructor(private readonly shapes: AvoidShapes) {
+  constructor(shapes: AvoidShapes) {
     const count = shapes.parents.length;
     this.seen = new Uint32Array(count);
+    const { rects } = shapes;
+    let left = Infinity;
+    let top = Infinity;
+    let right = -Infinity;
+    let bottom = -Infinity;
     for (let at = 0; at < count; at++) {
-      const { x0, y0, x1, y1 } = this.cellsOf(rectAt(shapes, at));
-      for (let cy = y0; cy <= y1; cy++) {
-        for (let cx = x0; cx <= x1; cx++) {
-          const key = cellKey(cx, cy);
-          const list = this.cells.get(key);
-          if (list) list.push(at);
-          else this.cells.set(key, [at]);
+      if (!finiteAt(shapes, at)) continue;
+      const base = at * 4;
+      const x = rects[base] as number;
+      const y = rects[base + 1] as number;
+      left = Math.min(left, x);
+      top = Math.min(top, y);
+      right = Math.max(right, x + (rects[base + 2] as number));
+      bottom = Math.max(bottom, y + (rects[base + 3] as number));
+    }
+    if (!(right >= left && bottom >= top)) {
+      left = 0;
+      top = 0;
+      right = 0;
+      bottom = 0;
+    }
+    // Cells as large as the extent and the count of shapes need, so that there are never too many.
+    const width = Math.max(1, right - left);
+    const height = Math.max(1, bottom - top);
+    const wanted = Math.min(MAX_GRID_CELLS, Math.max(64, 4 * count));
+    let side = Math.max(CELL, Math.sqrt((width * height) / wanted));
+    const along = (size: number) => Math.floor(size / side) + 1;
+    while (along(width) * along(height) > MAX_GRID_CELLS) side *= 2;
+    this.left = left;
+    this.top = top;
+    this.side = side;
+    this.columns = along(width);
+    this.rows = along(height);
+
+    // How many cells each shape is filed in, before filing any.
+    const spans = new Int32Array(count * 4).fill(-1);
+    let entries = 0;
+    for (let at = 0; at < count; at++) {
+      if (!finiteAt(shapes, at)) continue;
+      const base = at * 4;
+      const x0 = this.column(rects[base] as number);
+      const y0 = this.row(rects[base + 1] as number);
+      const x1 = this.column((rects[base] as number) + (rects[base + 2] as number));
+      const y1 = this.row((rects[base + 1] as number) + (rects[base + 3] as number));
+      const cells = (x1 - x0 + 1) * (y1 - y0 + 1);
+      if (cells > MAX_SHAPE_CELLS) {
+        this.oversized.push(at);
+        continue;
+      }
+      spans[base] = x0;
+      spans[base + 1] = y0;
+      spans[base + 2] = x1;
+      spans[base + 3] = y1;
+      entries += cells;
+    }
+    this.overloaded = entries > MAX_ENTRIES || this.oversized.length > MAX_OVERSIZED;
+    if (this.overloaded) {
+      this.starts = new Int32Array(1);
+      this.entries = new Int32Array(0);
+      return;
+    }
+    // Filed by cell, each cell's entries one after another.
+    const cellCount = this.columns * this.rows;
+    const starts = new Int32Array(cellCount + 1);
+    const eachCell = (visit: (cell: number, at: number) => void) => {
+      for (let at = 0; at < count; at++) {
+        const base = at * 4;
+        const x0 = spans[base] as number;
+        if (x0 < 0) continue;
+        const y0 = spans[base + 1] as number;
+        const x1 = spans[base + 2] as number;
+        const y1 = spans[base + 3] as number;
+        for (let cy = y0; cy <= y1; cy++) {
+          for (let cx = x0; cx <= x1; cx++) visit(cy * this.columns + cx, at);
         }
       }
+    };
+    eachCell((cell) => {
+      starts[cell + 1] = (starts[cell + 1] as number) + 1;
+    });
+    for (let cell = 0; cell < cellCount; cell++) {
+      starts[cell + 1] = (starts[cell + 1] as number) + (starts[cell] as number);
     }
+    const filed = new Int32Array(entries);
+    const next = starts.slice(0, cellCount);
+    eachCell((cell, at) => {
+      const place = next[cell] as number;
+      filed[place] = at;
+      next[cell] = place + 1;
+    });
+    this.starts = starts;
+    this.entries = filed;
   }
 
-  /** Calls `visit` once for each shape whose cells meet `rect`; it stops when `visit` says true. */
-  query(rect: Rect, visit: (at: number) => boolean | void): void {
+  /**
+   * Calls `visit` once for each shape filed in a cell `rect` meets, and each kept apart; it stops when
+   * `visit` says true. Says whether it could look: not for a region of more than `MAX_QUERY_CELLS`
+   * cells or `MAX_QUERY_VISITS` entries, nor in an index past its limits.
+   */
+  query(rect: Rect, visit: (at: number) => boolean | void): boolean {
+    if (this.overloaded) return false;
+    if (![rect.x, rect.y, rect.width, rect.height].every(Number.isFinite)) return false;
     this.stamp += 1;
     if (this.stamp === 0xffffffff) {
       this.seen.fill(0);
       this.stamp = 1;
     }
-    const { x0, y0, x1, y1 } = this.cellsOf(rect);
+    const x0 = this.column(rect.x);
+    const y0 = this.row(rect.y);
+    const x1 = this.column(rect.x + rect.width);
+    const y1 = this.row(rect.y + rect.height);
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > MAX_QUERY_CELLS) return false;
+    const { starts, entries, seen, stamp } = this;
+    let visits = 0;
     for (let cy = y0; cy <= y1; cy++) {
       for (let cx = x0; cx <= x1; cx++) {
-        for (const at of this.cells.get(cellKey(cx, cy)) ?? []) {
-          if (this.seen[at] === this.stamp) continue;
-          this.seen[at] = this.stamp;
-          if (visit(at) === true) return;
+        const cell = cy * this.columns + cx;
+        const end = starts[cell + 1] as number;
+        for (let entry = starts[cell] as number; entry < end; entry++) {
+          visits += 1;
+          if (visits > MAX_QUERY_VISITS) return false;
+          const at = entries[entry] as number;
+          if (seen[at] === stamp) continue;
+          seen[at] = stamp;
+          if (visit(at) === true) return true;
+        }
+      }
+    }
+    for (const at of this.oversized) {
+      if (seen[at] === stamp) continue;
+      seen[at] = stamp;
+      if (visit(at) === true) return true;
+    }
+    return true;
+  }
+
+  /** The column of the grid a canvas x falls in, the first or the last for one beyond them. */
+  private column(x: number): number {
+    return Math.min(this.columns - 1, Math.max(0, Math.floor((x - this.left) / this.side)));
+  }
+
+  private row(y: number): number {
+    return Math.min(this.rows - 1, Math.max(0, Math.floor((y - this.top) / this.side)));
+  }
+}
+
+/** Whether the shape at `at` has a rectangle of finite numbers, which the index files. */
+function finiteAt(shapes: AvoidShapes, at: number): boolean {
+  const base = at * 4;
+  for (let each = 0; each < 4; each++) {
+    if (!Number.isFinite(shapes.rects[base + each])) return false;
+  }
+  return true;
+}
+
+/**
+ * How the shapes nest, read once for a batch of lines: each one's depth, and where it starts and ends
+ * in a walk of the containers from World, so that whether one holds another takes no walk.
+ */
+class Nesting {
+  /** Each shape's depth, 0 for one directly in World; `NOWHERE` for one in a loop of containers. */
+  readonly depths: Int32Array;
+  private readonly enter: Int32Array;
+  private readonly exit: Int32Array;
+
+  constructor(parents: Int32Array) {
+    const count = parents.length;
+    const parentOf = (at: number) => {
+      const parent = parents[at] as number;
+      return parent >= 0 && parent < count && parent !== at ? parent : -1;
+    };
+    // Each shape's children, one after another.
+    const starts = new Int32Array(count + 1);
+    for (let at = 0; at < count; at++) {
+      const parent = parentOf(at);
+      if (parent !== -1) starts[parent + 1] = (starts[parent + 1] as number) + 1;
+    }
+    for (let at = 0; at < count; at++) {
+      starts[at + 1] = (starts[at + 1] as number) + (starts[at] as number);
+    }
+    const children = new Int32Array(starts[count] as number);
+    const next = starts.slice(0, count);
+    for (let at = 0; at < count; at++) {
+      const parent = parentOf(at);
+      if (parent === -1) continue;
+      children[next[parent] as number] = at;
+      next[parent] = (next[parent] as number) + 1;
+    }
+    this.depths = new Int32Array(count).fill(NOWHERE);
+    this.enter = new Int32Array(count).fill(-1);
+    this.exit = new Int32Array(count).fill(-1);
+    // From each shape in World, down: a walk without recursion, however deep the nesting.
+    const stack = new Int32Array(count);
+    const cursor = new Int32Array(count);
+    let clock = 0;
+    for (let root = 0; root < count; root++) {
+      if ((parents[root] as number) !== -1) continue;
+      let height = 0;
+      stack[height++] = root;
+      this.depths[root] = 0;
+      this.enter[root] = clock++;
+      cursor[root] = starts[root] as number;
+      while (height > 0) {
+        const node = stack[height - 1] as number;
+        const at = cursor[node] as number;
+        if (at < (starts[node + 1] as number)) {
+          cursor[node] = at + 1;
+          const child = children[at] as number;
+          if ((this.enter[child] as number) !== -1) continue;
+          this.depths[child] = (this.depths[node] as number) + 1;
+          this.enter[child] = clock++;
+          cursor[child] = starts[child] as number;
+          stack[height++] = child;
+        } else {
+          this.exit[node] = clock++;
+          height -= 1;
         }
       }
     }
   }
 
-  private cellsOf(rect: Rect): { x0: number; y0: number; x1: number; y1: number } {
-    return {
-      x0: Math.floor(rect.x / CELL),
-      y0: Math.floor(rect.y / CELL),
-      x1: Math.floor((rect.x + rect.width) / CELL),
-      y1: Math.floor((rect.y + rect.height) / CELL),
-    };
+  /** Whether the shape at `outer` holds the one at `inner`, at any depth. */
+  holds(outer: number, inner: number): boolean {
+    const from = this.enter[outer] as number;
+    const at = this.enter[inner] as number;
+    if (from < 0 || at < 0 || outer === inner) return false;
+    return from < at && (this.exit[inner] as number) < (this.exit[outer] as number);
   }
-}
-
-function cellKey(cx: number, cy: number): number {
-  // Cells far apart enough for any canvas: 2^21 each way.
-  return (cy + 1_048_576) * 2_097_152 + (cx + 1_048_576);
 }
 
 function rectAt(shapes: AvoidShapes, at: number): Rect {
@@ -146,18 +368,38 @@ function plateAt(shapes: AvoidShapes, at: number): Rect | undefined {
 /** Routes the lines of one scene around the shapes in their way. */
 export class Avoider {
   private readonly grid: ShapeGrid;
+  private readonly nesting: Nesting;
 
   constructor(private readonly shapes: AvoidShapes) {
     this.grid = new ShapeGrid(shapes);
+    this.nesting = new Nesting(shapes.parents);
+  }
+
+  /** Whether the shapes are more than the index holds: then every line keeps its stand-in route. */
+  get overloaded(): boolean {
+    return this.grid.overloaded;
   }
 
   /** Routes one line: a route around what its stand-in route crosses, or nothing when it crosses none. */
   avoid(line: AvoidLine): Avoided {
-    const { shapes } = this;
+    const { shapes, nesting } = this;
     const stand = pointsOf(line.route);
     const spanned = boundsOf(stand);
     const nowhere: Avoided = { region: grow(spanned, CLEARANCE) };
     if (line.from === line.to || stand.length < 2) return nowhere;
+    const count = shapes.parents.length;
+    const known = (at: number) => Number.isInteger(at) && at >= 0 && at < count;
+    if (!known(line.from) || !known(line.to)) return nowhere;
+    // Past the index's limits, an end nested too deep, or an end of no finite size: as built.
+    if (
+      this.grid.overloaded ||
+      (nesting.depths[line.from] as number) > MAX_DEPTH ||
+      (nesting.depths[line.to] as number) > MAX_DEPTH ||
+      !finiteAt(shapes, line.from) ||
+      !finiteAt(shapes, line.to)
+    ) {
+      return { ...nowhere, gaveUp: true };
+    }
     const a = rectAt(shapes, line.from);
     const b = rectAt(shapes, line.to);
     const aboveA = ancestorsOf(shapes, line.from);
@@ -169,15 +411,17 @@ export class Avoider {
       at === line.to ||
       aboveA.has(at) ||
       aboveB.has(at) ||
-      holds(shapes, line.from, at) ||
-      holds(shapes, line.to, at);
+      nesting.holds(line.from, at) ||
+      nesting.holds(line.to, at);
     // The name plates of the containers the line runs in, which it may not cross either.
     const plates: Rect[] = [];
     for (const at of new Set([...aboveA, ...aboveB])) {
       const plate = plateAt(shapes, at);
       if (plate) plates.push(plate);
     }
-    if (!this.crosses(stand, excluded, plates)) return nowhere;
+    const crossing = this.crosses(stand, excluded, plates);
+    if (crossing === undefined) return { ...nowhere, gaveUp: true };
+    if (!crossing) return nowhere;
 
     // Where to look: around both ends, and around the shapes in the way, inside the container that
     // holds both ends.
@@ -198,20 +442,28 @@ export class Avoider {
     return { route: flatten(route), region };
   }
 
-  /** Whether a route crosses a shape that is not excluded, or one of `plates`. */
-  private crosses(route: Point[], excluded: (at: number) => boolean, plates: Rect[]): boolean {
+  /**
+   * Whether a route crosses a shape that is not excluded, or one of `plates`; undefined when it runs
+   * where there is too much to look through.
+   */
+  private crosses(
+    route: Point[],
+    excluded: (at: number) => boolean,
+    plates: Rect[],
+  ): boolean | undefined {
     for (let each = 1; each < route.length; each++) {
       const p = route[each - 1] as Point;
       const q = route[each] as Point;
       const segment = boundsOf([p, q]);
       let hit = plates.some((plate) => segmentCrosses(p, q, plate));
       if (hit) return true;
-      this.grid.query(segment, (at) => {
+      const looked = this.grid.query(segment, (at) => {
         if (excluded(at)) return false;
         hit = segmentCrosses(p, q, rectAt(this.shapes, at));
         return hit;
       });
       if (hit) return true;
+      if (!looked) return undefined;
     }
     return false;
   }
@@ -223,17 +475,18 @@ export class Avoider {
   private obstaclesIn(region: Rect, excluded: (at: number) => boolean): number[] | undefined {
     const found = new Set<number>();
     let crowded = false;
-    this.grid.query(region, (at) => {
+    const looked = this.grid.query(region, (at) => {
       if (!excluded(at) && meets(rectAt(this.shapes, at), region)) found.add(at);
       crowded = found.size > MAX_OBSTACLES * 4;
       return crowded;
     });
-    if (crowded) return undefined;
+    if (crowded || !looked) return undefined;
     const outermost: number[] = [];
     for (const at of found) {
+      // Up to `MAX_DEPTH` containers up, however deep the nesting.
       let parent = this.shapes.parents[at] as number;
       let covered = false;
-      while (parent !== -1) {
+      for (let up = 0; up < MAX_DEPTH && parent >= 0 && parent !== at; up++) {
         if (found.has(parent)) {
           covered = true;
           break;
@@ -252,24 +505,15 @@ export function avoidRoutes(shapes: AvoidShapes, lines: readonly AvoidLine[]): A
   return lines.map((line) => avoider.avoid(line));
 }
 
+/** The containers of a shape nested no deeper than `MAX_DEPTH`, as `Avoider.avoid` asks. */
 function ancestorsOf(shapes: AvoidShapes, at: number): Set<number> {
   const above = new Set<number>();
   let parent = shapes.parents[at] as number;
-  while (parent !== -1 && !above.has(parent)) {
+  while (parent >= 0 && !above.has(parent) && above.size <= MAX_DEPTH) {
     above.add(parent);
     parent = shapes.parents[parent] as number;
   }
   return above;
-}
-
-/** Whether the shape at `outer` holds the one at `inner`, at any depth. */
-function holds(shapes: AvoidShapes, outer: number, inner: number): boolean {
-  let parent = shapes.parents[inner] as number;
-  while (parent !== -1) {
-    if (parent === outer) return true;
-    parent = shapes.parents[parent] as number;
-  }
-  return false;
 }
 
 /** The innermost shape that holds both ends, or -1 for World. */
@@ -281,7 +525,7 @@ function lowestCommon(
 ): number {
   if (aboveFrom.has(to)) return to;
   let parent = shapes.parents[to] as number;
-  while (parent !== -1) {
+  for (let up = 0; up <= MAX_DEPTH && parent >= 0; up++) {
     if (parent === from || aboveFrom.has(parent)) return parent;
     parent = shapes.parents[parent] as number;
   }

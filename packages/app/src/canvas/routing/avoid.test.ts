@@ -1,9 +1,12 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import type { Point, Rect } from '../geometry';
+import { cpuNow } from '../../test/cpu';
 import { routeBetween } from '../route';
 import {
+  Avoider,
   CLEARANCE,
+  MAX_DEPTH,
   MAX_OBSTACLES,
   PLATE_HEIGHT,
   avoidRoutes,
@@ -11,6 +14,7 @@ import {
   segmentCrosses,
   type AvoidLine,
   type AvoidShapes,
+  type Avoided,
 } from './avoid';
 
 /** Shapes as the avoider reads them: rectangles, the index of each one's container, name plates. */
@@ -213,6 +217,132 @@ describe('avoidRoutes', () => {
       }),
       { numRuns: 300 },
     );
+  });
+});
+
+describe('Avoider, with what a hostile project file may hold', () => {
+  /** How long indexing the shapes and routing every line may take, in CPU time. */
+  const BUDGET = 2_000;
+
+  /** Numbers from a seed, the same every run. */
+  function numbers(seed: number): () => number {
+    let state = seed;
+    return () => {
+      state = (state * 1_103_515_245 + 12_345) % 2_147_483_648;
+      return state / 2_147_483_648;
+    };
+  }
+
+  /** Indexes the shapes and routes every line, timed in CPU time. */
+  function routed(
+    shapes: AvoidShapes,
+    lines: AvoidLine[],
+  ): { avoider: Avoider; results: Avoided[]; elapsed: number } {
+    const began = cpuNow();
+    const avoider = new Avoider(shapes);
+    const results = lines.map((line) => avoider.avoid(line));
+    return { avoider, results, elapsed: cpuNow() - began };
+  }
+
+  /** Lines between shapes picked from a seed, never a shape and itself. */
+  function linesAmong(shapes: AvoidShapes, count: number, seed: number): AvoidLine[] {
+    const next = numbers(seed);
+    const shapeCount = shapes.parents.length;
+    return Array.from({ length: count }, () => {
+      const from = Math.floor(next() * shapeCount);
+      const to = (from + 1 + Math.floor(next() * (shapeCount - 1))) % shapeCount;
+      return lineOf(shapes, from, to);
+    });
+  }
+
+  it('indexes shapes 100,000 a side, and routes among them, within its budget', () => {
+    const next = numbers(1);
+    const huge = Array.from({ length: 300 }, () => ({
+      rect: {
+        x: Math.round(next() * 100_000),
+        y: Math.round(next() * 100_000),
+        width: 100_000,
+        height: 100_000,
+      },
+    }));
+    const small = Array.from({ length: 2_000 }, () => ({
+      rect: {
+        x: Math.round(next() * 200_000),
+        y: Math.round(next() * 200_000),
+        width: 160,
+        height: 60,
+      },
+    }));
+    const shapes = shapesOf([...huge, ...small]);
+    const { results, elapsed } = routed(shapes, linesAmong(shapes, 2_000, 2));
+    expect(results).toHaveLength(2_000);
+    expect(elapsed).toBeLessThan(BUDGET);
+  });
+
+  it('indexes 10,000 shapes of large sizes, and routes among them, within its budget', () => {
+    const next = numbers(3);
+    const list = Array.from({ length: 10_000 }, () => ({
+      rect: {
+        x: Math.round(next() * 500_000),
+        y: Math.round(next() * 500_000),
+        width: 2_000 + Math.round(next() * 98_000),
+        height: 2_000 + Math.round(next() * 98_000),
+      },
+    }));
+    const shapes = shapesOf(list);
+    const { avoider, results, elapsed } = routed(shapes, linesAmong(shapes, 10_000, 4));
+    expect(elapsed).toBeLessThan(BUDGET);
+    // More than the index holds: every line keeps its stand-in route, the plain automatic one.
+    expect(avoider.overloaded).toBe(true);
+    expect(results.every((result) => result.route === undefined)).toBe(true);
+    expect(results.filter((result) => result.gaveUp).length).toBeGreaterThan(9_000);
+  });
+
+  it('indexes 10,000 shapes nested one in another, and routes among them, within its budget', () => {
+    const list = Array.from({ length: 10_000 }, (_, at) => ({
+      rect: { x: at * 4, y: at * 4, width: 100_000 - at * 8, height: 100_000 - at * 8 },
+      parent: at - 1,
+      plate: 120,
+    }));
+    const beside = Array.from({ length: 200 }, (_, at) => ({
+      rect: { x: -400, y: at * 400, width: 160, height: 60 },
+    }));
+    const shapes = shapesOf([...list, ...beside]);
+    const { results, elapsed } = routed(shapes, linesAmong(shapes, 5_000, 5));
+    expect(results).toHaveLength(5_000);
+    expect(elapsed).toBeLessThan(BUDGET);
+    // An end nested deeper than the router goes keeps its stand-in route.
+    const deep = shapesOf([...list.slice(0, MAX_DEPTH + 3), ...beside.slice(0, 1)]);
+    const [kept] = avoidRoutes(deep, [lineOf(deep, MAX_DEPTH + 2, MAX_DEPTH + 3)]);
+    expect(kept?.gaveUp).toBe(true);
+  });
+
+  it('still goes around a shape in its way in a scene a million units wide', () => {
+    const a = { x: 0, y: 0, width: 120, height: 60 };
+    const middle = { x: 260, y: -20, width: 120, height: 100 };
+    const b = { x: 520, y: 0, width: 120, height: 60 };
+    const far = { x: 1_000_000, y: 1_000_000, width: 100_000, height: 100_000 };
+    const shapes = shapesOf([{ rect: a }, { rect: middle }, { rect: b }, { rect: far }]);
+    const [result] = avoidRoutes(shapes, [lineOf(shapes, 0, 2)]);
+    const route = pointsOf(result?.route);
+    expect(route.length).toBeGreaterThan(2);
+    expect(crossesAny(route, [middle])).toBe(false);
+  });
+
+  it('keeps the stand-in route of a line between shapes of no finite size', () => {
+    const shapes = shapesOf([
+      { rect: { x: 0, y: 0, width: 120, height: 60 } },
+      { rect: { x: 260, y: -20, width: Infinity, height: 100 } },
+      { rect: { x: 520, y: 0, width: 120, height: 60 } },
+    ]);
+    const line: AvoidLine = {
+      from: 0,
+      to: 1,
+      offset: 0,
+      route: Float64Array.from([120, 30, 260, 30]),
+    };
+    const [result] = avoidRoutes(shapes, [line]);
+    expect(result?.route).toBeUndefined();
   });
 });
 

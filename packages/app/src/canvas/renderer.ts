@@ -26,7 +26,7 @@ import {
 } from 'pixi.js';
 import type { Legend, ThemeName } from '@visual-anything/core';
 import type { Id, LevelOfDetail } from '@visual-anything/schema';
-import { levelDetail, type TileDetail } from './levels';
+import { levelDetail, namesFromOf, type TileDetail } from './levels';
 import type { Emphasis } from '../editor/emphasis';
 import { ImageError, drawInChunks, planImage, toPng, type ImageRequest } from '../export/image';
 import { withLegendBand } from '../export/legendBand';
@@ -942,7 +942,8 @@ export class CanvasRenderer {
   /**
    * Fit: zooms and pans so that the whole scene shows, or `bounds` of it, at a scale where names
    * draw; when the whole would draw none, at the scale they start to, from its top left corner
-   * (`readableFitCamera`).
+   * (`readableFitCamera`). Names start where the shapes' levels write them, or the canvas's own step
+   * for shapes that declare none (`namesFromOf`).
    */
   fit(bounds?: Rect): void {
     const { width, height } = this.viewport;
@@ -953,7 +954,7 @@ export class CanvasRenderer {
         bounds ?? this.indexed.scene.bounds,
         { width, height },
         FIT_MARGIN,
-        NAMES_FROM,
+        namesFromOf(this.indexed.scene.shapes, NAMES_FROM),
         this.rulersInset,
       ),
     );

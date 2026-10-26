@@ -329,7 +329,7 @@ Example: { "tour": "how-booking-works" }`,
 const playTour = tool({
   name: 'play_tour',
   title: 'Play a tour in the app',
-  description: `Plays a tour full screen in the app the person has open, from its first step or from the step you name, as the tours panel's Play does: the panels hide, each step's caption shows in a card, its marks highlight and its scenario plays. From then on the tour is the person's: they move through it with the arrow keys and end it with Escape, and the tab goes back to where it was; you cannot move it on or end it. Playing it changes nothing in the project, and nothing is recorded. It answers how many open apps it reached; with none, nothing plays, and open_app opens one. Use it when the person asks to see a tour, rather than walking them through the same steps with guidance.
+  description: `Plays a tour full screen in the app the person has open, from its first step or from the step you name, as the tours panel's Play does: the panels hide, each step's caption shows in a card, its marks highlight and its scenario plays. From then on the tour is the person's: they move through it with the arrow keys and end it with Escape, and the tab goes back to where it was; you cannot move it on or end it. Playing it changes nothing in the project, and nothing is recorded. It answers how many open apps it reached; with none, nothing plays, and open_app opens one. Use it when the person asks to see a tour, rather than walking them through the same steps with guidance. It plays only in the tab the person used last, or the one you opened; their other tabs stay as they are.
 
 Example: { "tour": "how-booking-works" }
 Example: { "tour": "how-booking-works", "step": 3 }`,

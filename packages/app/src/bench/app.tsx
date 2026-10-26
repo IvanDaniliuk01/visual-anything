@@ -65,6 +65,7 @@ import {
 } from './report';
 import { importPhases } from './imports';
 import { OVERLAPS, seeded, syntheticProject, type Overlap } from './synthetic';
+import { namesFromOf } from '../canvas/levels';
 import { withCommentThreads } from './comments';
 import '../styles.css';
 
@@ -683,7 +684,7 @@ class Driver {
       this.indexed.scene.bounds,
       this.viewport(),
       FIT_MARGIN,
-      NAMES_FROM,
+      namesFromOf(this.indexed.scene.shapes, NAMES_FROM),
     );
     this.zoomTo(CLICK_SCALE);
     await this.frames(2);

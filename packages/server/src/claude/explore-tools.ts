@@ -13,7 +13,7 @@ import {
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { z } from 'zod';
-import { GUIDE, counted, fail, guideApps, guidedView, id, tool } from './kit';
+import { GUIDE, ONE_TAB, counted, fail, guideApps, guidedView, id, tool } from './kit';
 import { idKind } from './queries';
 import type { Tool } from './tools';
 
@@ -38,7 +38,7 @@ const filterView = tool({
   title: 'Filter the open view',
   description: `Sets the filters of the view the person has open in the app, replacing the ones it has, as if the person had set them: it hides the elements created from some components, the relations of some relation types, and what fails conditions on attributes. Nothing moves; a relation shows only while both its ends show, and a container that holds something still shown stays, drawn faintly. ${NOTHING_WRITTEN} Use it to cut a large view down to what you are explaining; end it with clear_explore.
 
-components hides exactly the component each element is created from; onlyComponents keeps the elements created from the components named or ones deriving from them, and hides every other. relationTypes and onlyRelationTypes do the same for relations. A condition tests an attribute of elements or of relations: is, is-not, contains, below, above (numbers as numbers, text without minding case), set or unset; an element or relation stays only if it meets every condition, and a component's default counts as its value.
+components hides exactly the component each element is created from; onlyComponents keeps the elements created from the components named or ones deriving from them, and hides every other. relationTypes and onlyRelationTypes do the same for relations. A condition tests an attribute of elements or of relations: is, is-not, contains, below, above (numbers as numbers, text without minding case), set or unset; an element or relation stays only if it meets every condition, and a component's default counts as its value. ${ONE_TAB}
 
 Example: { "onlyComponents": ["systems.service", "systems.database"] }
 Example: { "relationTypes": ["systems.is-part-of"], "conditions": [{ "of": "elements", "attribute": "owner", "test": "is", "value": "Scheduling team" }], "view": "system-overview" }`,
