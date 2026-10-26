@@ -13,7 +13,6 @@ import {
   definitionsIn,
   drawnColorsOf,
   editableAppearanceOf,
-  geometryFindings,
   isColor,
   modelIndexOf,
   type ProjectSnapshot,
@@ -228,23 +227,19 @@ Example: { "component": "systems.service", "appearance": null }`,
       ...(appearanceTraits === undefined ? {} : { appearanceTraits: appearanceTraits as never }),
     };
     const set = colorsSet(appearance, appearanceTraits);
-    const setsGeometry = [appearance, appearanceTraits].some(
-      (each) => typeof each?.geometry === 'object' && each.geometry !== null,
-    );
-    /** The answer of a change that was done: where the appearance is kept, and every warning. */
+    /**
+     * The answer of a change that was done: where the appearance is kept, and the warnings on its
+     * colors; the core's answer carries the rest, `large-geometry` among them.
+     */
     const answered = (
-      state: ProjectSnapshot,
       kept: { keptIn: string; appearance: object } | undefined,
       warnings: readonly string[],
-    ) => {
-      const all = [...warnings, ...(setsGeometry ? largeGeometryWarnings(state) : [])];
-      return {
-        ...(kept === undefined
-          ? {}
-          : { keptIn: kept.keptIn, appearance: appearanceRead(kept.appearance) }),
-        ...(all.length > 0 ? { warnings: all } : {}),
-      };
-    };
+    ) => ({
+      ...(kept === undefined
+        ? {}
+        : { keptIn: kept.keptIn, appearance: appearanceRead(kept.appearance) }),
+      ...(warnings.length > 0 ? { warnings } : {}),
+    });
 
     if (element !== undefined || relation !== undefined) {
       const target = (element ?? relation) as Id;
@@ -259,7 +254,6 @@ Example: { "component": "systems.service", "appearance": null }`,
           const own = (element !== undefined ? index.element(target) : index.relation(target))
             ?.appearance;
           return answered(
-            state,
             {
               keptIn: `the ${element !== undefined ? 'element' : 'relation'} itself, as a particularity of its own`,
               appearance: own ?? {},
@@ -284,7 +278,6 @@ Example: { "component": "systems.service", "appearance": null }`,
         const state = await program.project();
         const kept = editableAppearanceOf(state, kind, target);
         return answered(
-          state,
           kept === undefined
             ? undefined
             : {
@@ -321,17 +314,6 @@ function withRefusalHints(outcome: ToolOutcome): ToolOutcome {
   const codes = /\(([^()]*)\)$/.exec(outcome.message)?.[1]?.split(', ') ?? [];
   const hints = codes.flatMap((code) => REFUSAL_HINTS[code] ?? []);
   return hints.length === 0 ? outcome : fail(`${outcome.message} ${hints.join(' ')}`);
-}
-
-/**
- * The `large-geometry` warnings a project has, which opening gives and the core's answers do not:
- * said after a change that sets free geometry, while a file holds past the geometry that slows
- * saving it (ADR 0066).
- */
-function largeGeometryWarnings(state: ProjectSnapshot): string[] {
-  return geometryFindings(state)
-    .warnings.filter((each) => each.code === 'large-geometry')
-    .map((each) => each.message);
 }
 
 /** Claude's tools for the look of definitions, in the order Claude reads them. */
