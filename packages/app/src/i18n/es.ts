@@ -2292,6 +2292,10 @@ export const ui: Catalog = {
   // W43, from the review of L1: the name a picture takes when its file gives none, written in the
   // language read in as every name the app gives (ADR 0038).
   Picture: 'Imagen',
+  // P1 W62: the start screen's words for the Machine learning sample (ADR 0079).
+  'Machine learning: churn classifier': 'Aprendizaje automático: clasificador de bajas',
+  'A Transformer that reads each customer’s last 90 events to tell who will cancel, beside the pipeline that feeds it, with a scenario of its forward pass.':
+    'Un Transformer que lee los últimos 90 eventos de cada cliente para saber quién va a cancelar, junto a la canalización que lo alimenta, con un escenario de su paso hacia adelante.',
 };
 
 /**
@@ -4893,5 +4897,175 @@ export const builtins: Readonly<
   'data-science.trains': {
     name: 'entrena',
     description: 'Le da a un modelo los datos con los que aprende.',
+  },
+  // P1 W62: the built-in Machine learning package (ADR 0079). Its layers are layers of a neural
+  // network, which the glossary's avoided "capa" does not mean.
+  'machine-learning': {
+    name: 'Aprendizaje automático',
+    description:
+      'Conjuntos de datos, tensores, capas de red neuronal, bloques y modelos, y las funciones de pérdida, los optimizadores, las métricas y las corridas de entrenamiento que los entrenan: cómo se construye un modelo y cómo fluyen los datos por él.',
+  },
+  'machine-learning.dataset': {
+    name: 'Conjunto de datos',
+    description:
+      'Los registros con los que un modelo aprende, se ajusta o se evalúa: una porción de los datos.',
+    attributes: {
+      split:
+        'Qué porción de los datos: "train" para aprender, "validation" para ajustar, "test" para evaluar.',
+      rows: 'Cuántos registros tiene.',
+      format: 'Cómo se guarda, como "Parquet", "TFRecord" o "CSV".',
+    },
+  },
+  'machine-learning.tensor': {
+    name: 'Tensor',
+    description:
+      'Números dispuestos a lo largo de varios ejes, como un lote de entradas o lo que una capa de una red neuronal le pasa a la siguiente.',
+    attributes: {
+      shape: 'Su tamaño en cada eje, como "[batch, 512]".',
+      dtype: 'El tipo de sus números, como "float32", "bfloat16" o "int64".',
+    },
+  },
+  'machine-learning.layer': {
+    name: 'Capa',
+    description:
+      'Un paso de una red neuronal, que convierte el tensor que recibe en otro. Cada tipo de capa deriva de ella.',
+    attributes: {
+      kind: 'Cómo la llama su framework, como "Linear", "Conv2d" o "MultiheadAttention".',
+      parameters: 'Cuántos números aprende: sus pesos y sesgos.',
+      activation: 'La función que se aplica a lo que da, como "ReLU", "GELU" o "none".',
+    },
+  },
+  'machine-learning.dense-layer': {
+    name: 'Capa densa',
+    description:
+      'Una capa de una red neuronal en la que cada salida es una suma ponderada de todas las entradas; también se la llama totalmente conectada o lineal.',
+    attributes: { units: 'Cuántas salidas da.' },
+  },
+  'machine-learning.convolution-layer': {
+    name: 'Capa de convolución',
+    description:
+      'Una capa de una red neuronal que desliza pequeños núcleos aprendidos sobre su entrada, como sobre los píxeles de una imagen o los pasos de una señal.',
+    attributes: {
+      filters: 'Cuántos núcleos aprende.',
+      kernel: 'El tamaño de cada núcleo, como "3×3".',
+    },
+  },
+  'machine-learning.attention-layer': {
+    name: 'Capa de atención',
+    description:
+      'Una capa de una red neuronal en la que cada posición de su entrada pondera a todas las demás, como en un Transformer.',
+    attributes: { heads: 'Cuántas cabezas atienden en paralelo.' },
+  },
+  'machine-learning.embedding-layer': {
+    name: 'Capa de incrustación',
+    description:
+      'Una capa de una red neuronal que convierte cada token, palabra o categoría en un vector de números que aprende.',
+    attributes: { dimensions: 'Cuántos números tiene cada vector.' },
+  },
+  'machine-learning.normalization-layer': {
+    name: 'Capa de normalización',
+    description:
+      'Una capa de una red neuronal que lleva los valores que recibe a una misma escala, lo que mantiene estable el entrenamiento.',
+    attributes: { method: 'Qué normalización, como "layer", "batch" o "RMS".' },
+  },
+  'machine-learning.recurrent-layer': {
+    name: 'Capa recurrente',
+    description:
+      'Una capa de una red neuronal que lee una secuencia paso a paso y lleva un estado de cada paso al siguiente.',
+    attributes: { cell: 'Su celda, como "LSTM" o "GRU".' },
+  },
+  'machine-learning.pooling-layer': {
+    name: 'Capa de agrupación',
+    description:
+      'Una capa de una red neuronal que reduce cada región de su entrada a un solo valor, como el mayor o el promedio.',
+    attributes: { operation: 'Cómo se reduce cada región, como "max" o "average".' },
+  },
+  'machine-learning.block': {
+    name: 'Bloque',
+    description:
+      'Capas de una red neuronal que funcionan como una sola y a menudo se repiten, como un bloque residual o un bloque Transformer.',
+    attributes: { repeats: 'Cuántas veces lo repite el modelo, una copia tras otra.' },
+  },
+  'machine-learning.transformer-block': {
+    name: 'Bloque Transformer',
+    description:
+      'Un bloque de atención de múltiples cabezas y una red feed-forward, cada una sumada a su entrada y normalizada, dibujado con sus partes: las capas de red neuronal que contiene se dibujan como ellas.',
+  },
+  'machine-learning.model': {
+    name: 'Modelo',
+    description:
+      'Un modelo tal como se construye: los bloques y las capas de red neuronal que lo forman, y cuántos números aprende.',
+    attributes: { parameters: 'Cuántos números aprende: sus pesos y sesgos.' },
+  },
+  'machine-learning.convolutional-network': {
+    name: 'Red convolucional',
+    description:
+      'Una pequeña red neuronal convolucional para imágenes, dibujada con sus partes: dos convoluciones con una agrupación entre ellas, y luego flatten, dense y softmax. Las capas que contiene se dibujan como ellas.',
+  },
+  'machine-learning.loss': {
+    name: 'Función de pérdida',
+    description:
+      'Cuánto se alejan las salidas de un modelo de lo que deberían ser, lo que el entrenamiento reduce, como la entropía cruzada.',
+  },
+  'machine-learning.optimizer': {
+    name: 'Optimizador',
+    description:
+      'Cómo se cambian los parámetros de un modelo en cada paso del entrenamiento, como SGD o AdamW.',
+    attributes: { learningRate: 'Qué tan grandes son sus pasos, como 0.001.' },
+  },
+  'machine-learning.metric': {
+    name: 'Métrica',
+    description: 'Un número que dice qué tan bien funciona un modelo, como la exactitud o el AUC.',
+    attributes: {
+      value: 'Su valor, según la última medición.',
+      higherIsBetter:
+        'Si un valor más alto es mejor, como en la exactitud, o uno más bajo, como en el error.',
+    },
+  },
+  'machine-learning.training-run': {
+    name: 'Corrida de entrenamiento',
+    description: 'Una corrida del entrenamiento de un modelo, de su primera época a la última.',
+    attributes: {
+      epochs: 'Cuántas veces recorre los datos.',
+      seed: 'La semilla de sus números aleatorios, que permite volver a correrla igual.',
+      hardware: 'En qué corre, como "8 × A100" o "la CPU de una portátil".',
+    },
+  },
+  'machine-learning.flows-into': {
+    name: 'fluye hacia',
+    description: 'Pasa un tensor, o un lote de datos, al paso siguiente del cómputo de un modelo.',
+    attributes: { shape: 'La forma de lo que pasa, como "[batch, 90, 128]".' },
+  },
+  'machine-learning.adds-to': {
+    name: 'se suma a',
+    description:
+      'Suma su entrada a lo que da un paso posterior, salteando los pasos intermedios: una conexión residual.',
+  },
+  'machine-learning.is-part-of': {
+    name: 'es parte de',
+    description:
+      'Ubica una capa de red neuronal o un tensor en su bloque o su modelo, o un bloque en su modelo.',
+  },
+  'machine-learning.trains-on': {
+    name: 'se entrena con',
+    description:
+      'Aprende de un conjunto de datos, o se ajusta o se evalúa con él, según su porción.',
+    attributes: {
+      split:
+        'Qué porción de los datos: "train" para aprender, "validation" para ajustar, "test" para evaluar.',
+    },
+  },
+  'machine-learning.is-measured-by': {
+    name: 'se mide con',
+    description: 'Se evalúa con una métrica.',
+  },
+  'machine-learning.minimizes': {
+    name: 'minimiza',
+    description: 'Reduce una función de pérdida mientras entrena.',
+  },
+  'machine-learning.updates': {
+    name: 'actualiza',
+    description:
+      'Cambia los parámetros de un modelo, un bloque o una capa de red neuronal: un optimizador en cada paso, una corrida de entrenamiento en su conjunto.',
   },
 };

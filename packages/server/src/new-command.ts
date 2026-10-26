@@ -66,10 +66,8 @@ export function parseNewCommandLine(argv: readonly string[]): ParsedNewCommandLi
     };
   }
   if (values.from !== undefined && !(SAMPLE_IDS as readonly string[]).includes(values.from)) {
-    return {
-      ok: false,
-      message: `There is no sample "${values.from}"; the samples are ${SAMPLE_IDS.join(' and ')}.`,
-    };
+    const known = `${SAMPLE_IDS.slice(0, -1).join(', ')} and ${SAMPLE_IDS.at(-1)}`;
+    return { ok: false, message: `There is no sample "${values.from}"; the samples are ${known}.` };
   }
   const folder = positionals[0] as string;
   const open = [

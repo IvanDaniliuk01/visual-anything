@@ -1,0 +1,619 @@
+{
+  "world": {
+    "id": "world",
+    "component": "essence",
+    "name": "World"
+  },
+  "elements": [
+    {
+      "id": "product-events",
+      "component": "data-science.source",
+      "name": "Product events",
+      "description": "Clicks, sessions and purchases, as they happen.",
+      "attributes": {
+        "system": "Kafka"
+      }
+    },
+    {
+      "id": "crm",
+      "component": "data-science.source",
+      "name": "CRM database",
+      "description": "Customers, their plans and when they cancelled.",
+      "attributes": {
+        "system": "PostgreSQL"
+      }
+    },
+    {
+      "id": "build-sequences",
+      "component": "data-science.transform",
+      "name": "Build event sequences",
+      "description": "Each customer’s last 90 events in order, with whether they cancelled in the 30 days after.",
+      "attributes": {
+        "engine": "Spark",
+        "schedule": "daily"
+      }
+    },
+    {
+      "id": "customer-sequences",
+      "component": "data-science.feature-store",
+      "name": "Customer sequences",
+      "description": "The same sequences for training and for scoring.",
+      "attributes": {
+        "engine": "Feast"
+      }
+    },
+    {
+      "id": "model-monitoring",
+      "component": "data-science.dashboard",
+      "name": "Model monitoring",
+      "description": "How well the classifier predicts, run after run.",
+      "attributes": {
+        "tool": "Grafana"
+      }
+    },
+    {
+      "id": "training-split",
+      "component": "machine-learning.dataset",
+      "name": "Training split",
+      "description": "Eight customers in ten, to learn from.",
+      "attributes": {
+        "format": "Parquet",
+        "rows": 480000,
+        "split": "train"
+      }
+    },
+    {
+      "id": "validation-split",
+      "component": "machine-learning.dataset",
+      "name": "Validation split",
+      "description": "One customer in ten, to choose when to stop.",
+      "attributes": {
+        "format": "Parquet",
+        "rows": 60000,
+        "split": "validation"
+      }
+    },
+    {
+      "id": "test-split",
+      "component": "machine-learning.dataset",
+      "name": "Test split",
+      "description": "One customer in ten, never seen in training, to judge the model on.",
+      "attributes": {
+        "format": "Parquet",
+        "rows": 60000,
+        "split": "test"
+      }
+    },
+    {
+      "id": "churn-classifier",
+      "component": "machine-learning.model",
+      "name": "Churn classifier",
+      "description": "Tells, from a customer’s last 90 events, how likely they are to cancel within 30 days.",
+      "attributes": {
+        "framework": "PyTorch",
+        "metric": "AUC 0.90",
+        "parameters": 460545
+      }
+    },
+    {
+      "id": "event-sequence",
+      "component": "machine-learning.tensor",
+      "name": "Event sequence",
+      "description": "The kinds of a batch of customers’ last 90 events, one number for each kind.",
+      "attributes": {
+        "dtype": "int64",
+        "shape": "[batch, 90]"
+      }
+    },
+    {
+      "id": "sequence-encoder",
+      "component": "machine-learning.transformer-block",
+      "name": "Sequence encoder",
+      "description": "Reads each event in the light of every other."
+    },
+    {
+      "id": "event-embedding",
+      "component": "machine-learning.embedding-layer",
+      "name": "Event embedding",
+      "description": "One vector of 128 numbers for each of 2,048 kinds of event.",
+      "attributes": {
+        "dimensions": 128,
+        "kind": "Embedding",
+        "parameters": 262144
+      },
+      "appearance": {
+        "part": {
+          "part": "input-embedding"
+        }
+      }
+    },
+    {
+      "id": "positional-encoding",
+      "component": "machine-learning.layer",
+      "name": "Positional encoding",
+      "description": "Adds where each event sits in the sequence, as sine waves.",
+      "attributes": {
+        "kind": "Sinusoidal",
+        "parameters": 0
+      },
+      "appearance": {
+        "part": {
+          "part": "positional-encoding"
+        }
+      }
+    },
+    {
+      "id": "self-attention",
+      "component": "machine-learning.attention-layer",
+      "name": "Self-attention",
+      "description": "Weighs every event of a sequence against every other.",
+      "attributes": {
+        "heads": 8,
+        "kind": "MultiheadAttention",
+        "parameters": 66048
+      },
+      "appearance": {
+        "part": {
+          "part": "multi-head-attention"
+        }
+      }
+    },
+    {
+      "id": "add-norm-1",
+      "component": "machine-learning.normalization-layer",
+      "name": "Add & norm 1",
+      "description": "Adds attention’s output to its input, then normalizes.",
+      "attributes": {
+        "kind": "LayerNorm",
+        "method": "layer",
+        "parameters": 256
+      },
+      "appearance": {
+        "part": {
+          "part": "add-norm-1"
+        }
+      }
+    },
+    {
+      "id": "feed-forward",
+      "component": "machine-learning.dense-layer",
+      "name": "Feed-forward",
+      "description": "Works on each event on its own: 128 numbers to 512 and back.",
+      "attributes": {
+        "activation": "GELU",
+        "kind": "Linear",
+        "parameters": 131712,
+        "units": 512
+      },
+      "appearance": {
+        "part": {
+          "part": "feed-forward"
+        }
+      }
+    },
+    {
+      "id": "add-norm-2",
+      "component": "machine-learning.normalization-layer",
+      "name": "Add & norm 2",
+      "description": "Adds the feed-forward network’s output to its input, then normalizes.",
+      "attributes": {
+        "kind": "LayerNorm",
+        "method": "layer",
+        "parameters": 256
+      },
+      "appearance": {
+        "part": {
+          "part": "add-norm-2"
+        }
+      }
+    },
+    {
+      "id": "encoded-events",
+      "component": "machine-learning.tensor",
+      "name": "Encoded events",
+      "description": "One vector for each event, which knows the rest of the sequence.",
+      "attributes": {
+        "dtype": "float32",
+        "shape": "[batch, 90, 128]"
+      },
+      "appearance": {
+        "part": {
+          "part": "output"
+        }
+      }
+    },
+    {
+      "id": "mean-pooling",
+      "component": "machine-learning.pooling-layer",
+      "name": "Mean pooling",
+      "description": "Averages the encoded events into one vector for each customer.",
+      "attributes": {
+        "kind": "mean",
+        "operation": "average",
+        "parameters": 0
+      }
+    },
+    {
+      "id": "classifier-head",
+      "component": "machine-learning.dense-layer",
+      "name": "Classifier head",
+      "description": "Turns each customer’s vector into one probability.",
+      "attributes": {
+        "activation": "sigmoid",
+        "kind": "Linear",
+        "parameters": 129,
+        "units": 1
+      }
+    },
+    {
+      "id": "churn-probability",
+      "component": "machine-learning.tensor",
+      "name": "Churn probability",
+      "description": "For each customer, how likely they are to cancel within 30 days.",
+      "attributes": {
+        "dtype": "float32",
+        "shape": "[batch, 1]"
+      }
+    },
+    {
+      "id": "binary-cross-entropy",
+      "component": "machine-learning.loss",
+      "name": "Binary cross-entropy",
+      "description": "How far each probability is from whether the customer cancelled."
+    },
+    {
+      "id": "adamw",
+      "component": "machine-learning.optimizer",
+      "name": "AdamW",
+      "description": "Adam, with weight decay kept apart from its steps.",
+      "attributes": {
+        "learningRate": 0.0003
+      }
+    },
+    {
+      "id": "validation-auc",
+      "component": "machine-learning.metric",
+      "name": "Validation AUC",
+      "description": "Measured after each epoch; training stops when it stops rising.",
+      "attributes": {
+        "higherIsBetter": true,
+        "value": 0.91
+      }
+    },
+    {
+      "id": "test-auc",
+      "component": "machine-learning.metric",
+      "name": "Test AUC",
+      "description": "Measured once, on the test split, after training.",
+      "attributes": {
+        "higherIsBetter": true,
+        "value": 0.9
+      }
+    },
+    {
+      "id": "weekly-training",
+      "component": "machine-learning.training-run",
+      "name": "Weekly training run",
+      "description": "Trains the classifier again every Monday on the last year of customers.",
+      "attributes": {
+        "epochs": 12,
+        "hardware": "1 × NVIDIA A10G",
+        "seed": 42
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "events-to-sequences",
+      "relationType": "data-science.feeds",
+      "from": "product-events",
+      "to": "build-sequences",
+      "name": "Events",
+      "attributes": {
+        "format": "Avro"
+      }
+    },
+    {
+      "id": "crm-to-sequences",
+      "relationType": "data-science.feeds",
+      "from": "crm",
+      "to": "build-sequences",
+      "name": "Cancellations"
+    },
+    {
+      "id": "sequences-to-store",
+      "relationType": "data-science.feeds",
+      "from": "build-sequences",
+      "to": "customer-sequences",
+      "name": "Sequences",
+      "attributes": {
+        "format": "Parquet"
+      }
+    },
+    {
+      "id": "store-to-training",
+      "relationType": "data-science.feeds",
+      "from": "customer-sequences",
+      "to": "training-split",
+      "name": "80% of customers"
+    },
+    {
+      "id": "store-to-validation",
+      "relationType": "data-science.feeds",
+      "from": "customer-sequences",
+      "to": "validation-split",
+      "name": "10% of customers"
+    },
+    {
+      "id": "store-to-test",
+      "relationType": "data-science.feeds",
+      "from": "customer-sequences",
+      "to": "test-split",
+      "name": "10% of customers"
+    },
+    {
+      "id": "run-trains-on-training",
+      "relationType": "machine-learning.trains-on",
+      "from": "weekly-training",
+      "to": "training-split",
+      "attributes": {
+        "split": "train"
+      }
+    },
+    {
+      "id": "run-trains-on-validation",
+      "relationType": "machine-learning.trains-on",
+      "from": "weekly-training",
+      "to": "validation-split",
+      "attributes": {
+        "split": "validation"
+      }
+    },
+    {
+      "id": "classifier-judged-on-test",
+      "relationType": "machine-learning.trains-on",
+      "from": "churn-classifier",
+      "to": "test-split",
+      "attributes": {
+        "split": "test"
+      }
+    },
+    {
+      "id": "run-updates-classifier",
+      "relationType": "machine-learning.updates",
+      "from": "weekly-training",
+      "to": "churn-classifier"
+    },
+    {
+      "id": "adamw-updates-classifier",
+      "relationType": "machine-learning.updates",
+      "from": "adamw",
+      "to": "churn-classifier",
+      "name": "Every batch"
+    },
+    {
+      "id": "classifier-minimizes-loss",
+      "relationType": "machine-learning.minimizes",
+      "from": "churn-classifier",
+      "to": "binary-cross-entropy"
+    },
+    {
+      "id": "run-measured-by-validation-auc",
+      "relationType": "machine-learning.is-measured-by",
+      "from": "weekly-training",
+      "to": "validation-auc"
+    },
+    {
+      "id": "classifier-measured-by-test-auc",
+      "relationType": "machine-learning.is-measured-by",
+      "from": "churn-classifier",
+      "to": "test-auc"
+    },
+    {
+      "id": "run-to-monitoring",
+      "relationType": "data-science.feeds",
+      "from": "weekly-training",
+      "to": "model-monitoring",
+      "name": "Metrics of each epoch"
+    },
+    {
+      "id": "event-sequence-in-classifier",
+      "relationType": "machine-learning.is-part-of",
+      "from": "event-sequence",
+      "to": "churn-classifier"
+    },
+    {
+      "id": "sequence-encoder-in-classifier",
+      "relationType": "machine-learning.is-part-of",
+      "from": "sequence-encoder",
+      "to": "churn-classifier"
+    },
+    {
+      "id": "mean-pooling-in-classifier",
+      "relationType": "machine-learning.is-part-of",
+      "from": "mean-pooling",
+      "to": "churn-classifier"
+    },
+    {
+      "id": "classifier-head-in-classifier",
+      "relationType": "machine-learning.is-part-of",
+      "from": "classifier-head",
+      "to": "churn-classifier"
+    },
+    {
+      "id": "churn-probability-in-classifier",
+      "relationType": "machine-learning.is-part-of",
+      "from": "churn-probability",
+      "to": "churn-classifier"
+    },
+    {
+      "id": "event-embedding-in-encoder",
+      "relationType": "machine-learning.is-part-of",
+      "from": "event-embedding",
+      "to": "sequence-encoder"
+    },
+    {
+      "id": "positional-encoding-in-encoder",
+      "relationType": "machine-learning.is-part-of",
+      "from": "positional-encoding",
+      "to": "sequence-encoder"
+    },
+    {
+      "id": "self-attention-in-encoder",
+      "relationType": "machine-learning.is-part-of",
+      "from": "self-attention",
+      "to": "sequence-encoder"
+    },
+    {
+      "id": "add-norm-1-in-encoder",
+      "relationType": "machine-learning.is-part-of",
+      "from": "add-norm-1",
+      "to": "sequence-encoder"
+    },
+    {
+      "id": "feed-forward-in-encoder",
+      "relationType": "machine-learning.is-part-of",
+      "from": "feed-forward",
+      "to": "sequence-encoder"
+    },
+    {
+      "id": "add-norm-2-in-encoder",
+      "relationType": "machine-learning.is-part-of",
+      "from": "add-norm-2",
+      "to": "sequence-encoder"
+    },
+    {
+      "id": "encoded-events-in-encoder",
+      "relationType": "machine-learning.is-part-of",
+      "from": "encoded-events",
+      "to": "sequence-encoder"
+    },
+    {
+      "id": "batch-to-sequence",
+      "relationType": "machine-learning.flows-into",
+      "from": "training-split",
+      "to": "event-sequence",
+      "name": "A batch",
+      "attributes": {
+        "shape": "[32, 90]"
+      }
+    },
+    {
+      "id": "sequence-to-embedding",
+      "relationType": "machine-learning.flows-into",
+      "from": "event-sequence",
+      "to": "event-embedding",
+      "attributes": {
+        "shape": "[32, 90]"
+      }
+    },
+    {
+      "id": "embedding-to-position",
+      "relationType": "machine-learning.flows-into",
+      "from": "event-embedding",
+      "to": "positional-encoding",
+      "attributes": {
+        "shape": "[32, 90, 128]"
+      }
+    },
+    {
+      "id": "position-to-attention",
+      "relationType": "machine-learning.flows-into",
+      "from": "positional-encoding",
+      "to": "self-attention",
+      "attributes": {
+        "shape": "[32, 90, 128]"
+      }
+    },
+    {
+      "id": "attention-to-norm-1",
+      "relationType": "machine-learning.flows-into",
+      "from": "self-attention",
+      "to": "add-norm-1",
+      "attributes": {
+        "shape": "[32, 90, 128]"
+      }
+    },
+    {
+      "id": "position-adds-to-norm-1",
+      "relationType": "machine-learning.adds-to",
+      "from": "positional-encoding",
+      "to": "add-norm-1",
+      "attributes": {
+        "shape": "[32, 90, 128]"
+      }
+    },
+    {
+      "id": "norm-1-to-feed-forward",
+      "relationType": "machine-learning.flows-into",
+      "from": "add-norm-1",
+      "to": "feed-forward",
+      "attributes": {
+        "shape": "[32, 90, 128]"
+      }
+    },
+    {
+      "id": "feed-forward-to-norm-2",
+      "relationType": "machine-learning.flows-into",
+      "from": "feed-forward",
+      "to": "add-norm-2",
+      "attributes": {
+        "shape": "[32, 90, 128]"
+      }
+    },
+    {
+      "id": "norm-1-adds-to-norm-2",
+      "relationType": "machine-learning.adds-to",
+      "from": "add-norm-1",
+      "to": "add-norm-2",
+      "attributes": {
+        "shape": "[32, 90, 128]"
+      }
+    },
+    {
+      "id": "norm-2-to-encoded",
+      "relationType": "machine-learning.flows-into",
+      "from": "add-norm-2",
+      "to": "encoded-events",
+      "attributes": {
+        "shape": "[32, 90, 128]"
+      }
+    },
+    {
+      "id": "encoded-to-pooling",
+      "relationType": "machine-learning.flows-into",
+      "from": "encoded-events",
+      "to": "mean-pooling",
+      "attributes": {
+        "shape": "[32, 90, 128]"
+      }
+    },
+    {
+      "id": "pooling-to-head",
+      "relationType": "machine-learning.flows-into",
+      "from": "mean-pooling",
+      "to": "classifier-head",
+      "attributes": {
+        "shape": "[32, 128]"
+      }
+    },
+    {
+      "id": "head-to-probability",
+      "relationType": "machine-learning.flows-into",
+      "from": "classifier-head",
+      "to": "churn-probability",
+      "attributes": {
+        "shape": "[32, 1]"
+      }
+    },
+    {
+      "id": "probability-to-loss",
+      "relationType": "machine-learning.flows-into",
+      "from": "churn-probability",
+      "to": "binary-cross-entropy",
+      "attributes": {
+        "shape": "[32, 1]"
+      }
+    }
+  ]
+}
