@@ -5,7 +5,8 @@
  * elements inside the container under the pointer, or takes them out of theirs, and moves the rest.
  *
  * Shapes that hold contents take a drop at once, anywhere in their rectangle, since their contents are
- * laid out there. Shapes that hold nothing take one only after the pointer rests on them for a while,
+ * laid out there, or anywhere in their own outline when they have one (ADR 0066). Shapes that hold
+ * nothing take one only after the pointer rests on them for a while,
  * so that dragging across them does not put shapes inside them by accident. A shape dragged within its
  * container stays in it, which grows, until it no longer overlaps it.
  *
@@ -29,7 +30,7 @@ import { fill } from '../i18n/translate';
 import { IS_APPLE } from '../live/platform';
 import { centerOf, holdsPoint, type Point, type Rect } from './geometry';
 import { carriedKeys, moveParts, movingShapes } from './gestures';
-import type { IndexedScene } from './hit';
+import { holdsAsDrawn, type IndexedScene } from './hit';
 import type { Overlay } from './renderer';
 import {
   rowDropCommand,
@@ -207,9 +208,7 @@ export function dropAimAt(
   const under = indexed.shapes.at(point);
   for (let each = under.length - 1; each >= 0 && found === undefined; each--) {
     const shape = indexed.scene.shapes[under[each] as number] as ElementShape;
-    // A shape that holds contents counts by its rectangle, where its contents are laid out.
-    if (!shape.holdsContents && exact(shape) && !holdsPoint(shape.kind, shape.rect, point))
-      continue;
+    if (!takesDropAt(shape, point, exact(shape))) continue;
     if (plan.carried.has(shape.key)) continue;
     // A shape that draws rows takes a drop at once, and a row stands for it (ADR 0023).
     const rows = rowsTargetOf(indexed, shape);
@@ -237,6 +236,17 @@ export function dropAimAt(
     return { kind: 'pending', leaf: pending, fallback: found };
   }
   return found;
+}
+
+/**
+ * Whether a shape under the pointer, its rectangle there, takes a drop at that point as the canvas
+ * draws it: a shape with its own outline by that outline, a container's too (ADR 0066), so that a
+ * point in a hole or beside the outline goes to what lies behind; any other shape that holds
+ * contents by its rectangle, where its contents are laid out; any other leaf by its kind's outline.
+ */
+export function takesDropAt(shape: ElementShape, point: Point, exact: boolean): boolean {
+  if (shape.outline) return holdsAsDrawn(shape, point, exact);
+  return shape.holdsContents || !exact || holdsPoint(shape.kind, shape.rect, point);
 }
 
 /**

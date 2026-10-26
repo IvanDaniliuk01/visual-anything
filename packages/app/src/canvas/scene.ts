@@ -2070,6 +2070,7 @@ function shapeFor(
       rows: appearance.contentsAsRows,
       ...(rowish.row === undefined ? {} : { row: true }),
       ...(picture ? { picture: picture.rect } : {}),
+      ...(outline ? { outline } : {}),
     },
     detail !== '',
   );
