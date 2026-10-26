@@ -4150,6 +4150,9 @@ export const messages: Catalog = {
     'El código del paquete "{name}" falló en {hook} sobre "{element}": lanzó algo que no dice por qué',
   'The code of the package "{name}" failed in {hook} on "{element}": it gave no reason':
     'El código del paquete "{name}" falló en {hook} sobre "{element}": no dio ningún motivo',
+  // W43: what a spreadsheet import does not read of a column of identifiers (ADR 0056).
+  'This column repeats the scheme "{scheme}", so it is not read.':
+    'Esta columna repite el catálogo "{scheme}", así que no se lee.',
   // W43: why the PDF writer could not write its file, as the Export dialog says it.
   'The fonts the PDF embeds could not be read.':
     'No se pudieron leer las fuentes que incorpora el PDF.',

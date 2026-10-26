@@ -8,6 +8,7 @@ import {
   executeCommand,
   matchByExternalIds,
   readDestination,
+  readImport,
   type Command,
   type ImportPlan,
   type ProjectSnapshot,
@@ -175,6 +176,13 @@ function messages(): string[] {
       ],
     }).unmatched.map((each) => each.why),
   );
+  // A table whose columns name one scheme of identifiers twice.
+  const table = readImport(
+    { name: 'organs.csv', text: 'name,id:uberon,id:uberon\nHeart,UBERON:1,UBERON:2' },
+    { project: state },
+  );
+  if (!table.ok) throw new Error(table.problems.join(' '));
+  said.push(...table.plan.unmatched.map((each) => each.why));
   return said;
 }
 
