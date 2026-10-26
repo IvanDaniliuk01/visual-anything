@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 600">
+  <!--
+    A human heart seen from the front, drawn for Visual Anything and dedicated to the public domain
+    (CC0-1.0). The person's right is on the left of the picture. Every chamber, the septum, every
+    valve and the main vessels are named parts: shapes with an id, which the sample's elements are
+    anchored to. The muscle around them has no id, so it is drawn but is no part.
+
+    The package stores this picture as the core's cleaner writes it; the sample's test checks that
+    the stored text is exactly what cleaning gives for this file.
+  -->
+
+  <!-- The heart's muscle, behind everything else. -->
+  <path fill="#E8A79C" stroke="#9A4038" stroke-width="3" stroke-linejoin="round"
+    d="M56 232 C56 212 70 198 92 198 C200 190 330 190 436 198 C460 198 476 214 476 240 C476 330 452 420 404 492 C378 530 350 562 330 578 C318 588 302 588 292 580 C210 520 120 460 80 390 C62 350 56 290 56 232 Z"/>
+
+  <!-- The main vessels. -->
+  <path id="superior-vena-cava" fill="#5577C4" stroke="#26457F" stroke-width="2" stroke-linejoin="round"
+    d="M96 214 L96 34 C96 28 100 24 106 24 L130 24 C136 24 140 28 140 34 L140 214 Z"/>
+  <path id="inferior-vena-cava" fill="#5577C4" stroke="#26457F" stroke-width="2" stroke-linejoin="round"
+    d="M96 392 L140 418 L140 586 C140 592 136 596 130 596 L106 596 C100 596 96 592 96 586 Z"/>
+  <g id="pulmonary-artery" fill="#5577C4" stroke="#26457F" stroke-width="2" stroke-linejoin="round">
+    <path d="M194 310 L194 196 C194 190 190 186 184 186 L152 186 L152 150 L262 150 L262 186 L248 186 C242 186 238 190 238 196 L238 310 Z"/>
+    <!-- Its left branch, which passes behind the aorta toward the left lung. -->
+    <path d="M306 150 L392 150 L392 186 L306 186 Z"/>
+  </g>
+  <g id="aorta" fill="#CC3B32" stroke="#7D1A14" stroke-width="2" stroke-linejoin="round">
+    <path d="M296 52 L296 16 C296 12 298 10 302 10 L306 10 C310 10 312 12 312 16 L312 52 Z"/>
+    <path d="M346 44 L346 12 C346 8 348 6 352 6 L354 6 C358 6 360 8 360 12 L360 44 Z"/>
+    <path d="M392 52 L392 16 C392 12 394 10 398 10 L400 10 C404 10 406 12 406 16 L406 52 Z"/>
+    <path d="M262 306 L262 110 C262 62 300 36 355 36 C410 36 448 62 448 110 L448 200 L404 200 L404 112 C404 90 384 80 355 80 C326 80 306 90 306 112 L306 306 Z"/>
+  </g>
+  <path id="pulmonary-veins" fill="#CC3B32" stroke="#7D1A14" stroke-width="2" stroke-linejoin="round"
+    d="M456 230 L506 230 C511 230 514 233 514 238 L514 242 C514 247 511 250 506 250 L456 250 Z M456 276 L506 276 C511 276 514 279 514 284 L514 288 C514 293 511 296 506 296 L456 296 Z"/>
+
+  <!-- The chambers: oxygen-poor blood on the right side of the heart, oxygen-rich on the left. -->
+  <path id="right-atrium" fill="#7E9CDA" stroke="#2D4E95" stroke-width="2" stroke-linejoin="round"
+    d="M84 212 L168 212 C174 212 178 216 178 222 L178 420 C178 428 172 432 164 430 C132 424 104 410 90 384 C76 352 70 300 70 252 C70 226 74 212 84 212 Z"/>
+  <path id="right-ventricle" fill="#6386CF" stroke="#2D4E95" stroke-width="2" stroke-linejoin="round"
+    d="M196 322 L234 322 C240 322 243 326 244 332 L287 540 C289 552 281 560 269 554 C235 534 205 512 192 490 C188 482 186 470 186 460 L186 332 C186 326 190 322 196 322 Z"/>
+  <path id="left-atrium" fill="#E4776C" stroke="#8A1F18" stroke-width="2" stroke-linejoin="round"
+    d="M344 210 L440 210 C452 210 460 220 460 232 L460 300 C460 310 452 316 442 316 L344 316 C336 316 330 310 330 302 L330 224 C330 216 336 210 344 210 Z"/>
+  <path id="left-ventricle" fill="#D9483E" stroke="#8A1F18" stroke-width="2" stroke-linejoin="round"
+    d="M266 318 L306 318 C312 318 316 322 318 328 L320 334 C322 340 326 342 332 342 L428 342 C440 342 446 350 446 362 C444 404 424 446 396 482 C376 510 352 536 334 552 C326 558 320 556 318 548 Z"/>
+
+  <!-- The wall between the ventricles. -->
+  <path id="septum" fill="#B2524A" stroke="#6E231E" stroke-width="2" stroke-linejoin="round"
+    d="M248 318 L262 318 L312 556 C306 566 298 566 294 556 Z"/>
+
+  <!-- The valves, in front of the chambers they open between. -->
+  <path id="tricuspid-valve" fill="#F4E4B8" stroke="#8C6C2A" stroke-width="2" stroke-linejoin="round"
+    d="M172 352 L186 352 L204 366 L190 380 L204 394 L190 408 L204 422 L186 434 L172 434 Z"/>
+  <path id="pulmonary-valve" fill="#F4E4B8" stroke="#8C6C2A" stroke-width="2" stroke-linejoin="round"
+    d="M188 324 L188 308 Q197 320 205 308 Q213 320 222 308 Q231 320 240 308 L240 324 Z"/>
+  <path id="mitral-valve" fill="#F4E4B8" stroke="#8C6C2A" stroke-width="2" stroke-linejoin="round"
+    d="M352 314 L436 314 L436 324 C426 326 412 332 404 346 L394 336 L384 346 C376 332 362 326 352 324 Z"/>
+  <path id="aortic-valve" fill="#F4E4B8" stroke="#8C6C2A" stroke-width="2" stroke-linejoin="round"
+    d="M256 320 L256 304 Q265 316 273 304 Q281 316 290 304 Q299 316 308 304 L308 320 Z"/>
+</svg>
