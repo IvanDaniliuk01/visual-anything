@@ -29,6 +29,7 @@ import {
 import { avoidedScene } from './avoided';
 import { STUB } from './hand';
 import { nearestOnOutline } from './outline-ends';
+import { rerouted } from './scene-routes';
 
 const VIEW = 'anatomy';
 const NS = 'xmlns="http://www.w3.org/2000/svg"';
@@ -322,6 +323,25 @@ describe('automatic straight and curved lines on outlines', () => {
     );
     expect(toAbove?.style).toBe('straight');
     expect(lineOf(straight, 's1').style).toBe('curved');
+  });
+});
+
+describe('lines on outlines while a shape is dragged', () => {
+  it('are routed again on the outline where the drag has taken it', () => {
+    for (const style of [null, 'curved'] as const) {
+      const scene = buildScene(styled(project(), style), VIEW);
+      const line = lineOf(scene, 't1');
+      const tri = shapeOf(scene, 'tri');
+      const box = shapeOf(scene, 'box');
+      const moved = { ...tri.rect, x: tri.rect.x + 40, y: tri.rect.y - 30 };
+      const routed = rerouted(line, { rect: moved }, { rect: box.rect }, tri, box);
+      if (!routed) throw new Error('Not routed on the outline.');
+      const start = routed.route[0] as Point;
+      const placed = outlineAt({ rect: moved, outline: tri.outline });
+      if (!placed) throw new Error('No outline');
+      expect(nearestOnOutline(placed, start).distance, String(style)).toBeLessThan(1e-6);
+      expect(routed.curve !== undefined, String(style)).toBe(style === 'curved');
+    }
   });
 });
 
