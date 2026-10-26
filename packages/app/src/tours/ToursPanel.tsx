@@ -19,9 +19,11 @@ import {
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { Id, TourFile, TourStep } from '@visual-anything/schema';
-import { useCallback, useId, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useId, useState, type ReactNode } from 'react';
 import { useEditor } from '../editor/EditorContext';
 import { useT, type Translator } from '../i18n';
+import { LIVE_MESSAGE_LIMIT } from '../import/importing';
+import { LiveContext } from '../live/context';
 import { PlayIcon } from '../shell/icons';
 import {
   addStep,
@@ -34,11 +36,14 @@ import {
   newTourName,
   renameTourCommand,
   stepOf,
+  tooLargeToSend,
 } from './commands';
 import { useToursHost } from './context';
 import './tours.css';
 
 const NOT_CONNECTED = 'Visual Anything is not connected, so nothing was changed.';
+const TOO_LARGE =
+  'This change to the tour was not made: with its steps, the tour takes more than the {limit} MiB one change from the app carries. Delete some of its steps, or put them in another tour.';
 
 export function ToursPanel({ active }: { active: boolean }) {
   const t = useT();
@@ -50,10 +55,18 @@ export function ToursPanel({ active }: { active: boolean }) {
     (text: string) => setSaid((last) => ({ text, count: last.count + 1 })),
     [],
   );
+  const live = useContext(LiveContext);
   const send = useCallback(
     async (command: Command, done?: string): Promise<Id | undefined | false> => {
       if (!editor.send) {
         announce(t(NOT_CONNECTED));
+        return false;
+      }
+      // Refused here, clearly, rather than closing the connection on the way.
+      if (tooLargeToSend(command)) {
+        const refused = t(TOO_LARGE, { limit: LIVE_MESSAGE_LIMIT / 1024 / 1024 });
+        announce(refused);
+        live?.notify('warning', refused);
         return false;
       }
       const result = await editor.send(command);
@@ -61,7 +74,7 @@ export function ToursPanel({ active }: { active: boolean }) {
       if (done !== undefined) announce(done);
       return result.created?.[0];
     },
-    [editor, announce, t],
+    [editor, announce, t, live],
   );
   // A tour deleted while open, here or elsewhere, leaves the list showing.
   const tour = project.tours.find((each) => each.id === openId);

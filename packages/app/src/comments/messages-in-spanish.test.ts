@@ -298,6 +298,28 @@ function allMessages(): Said[] {
   if (!outcome.ok)
     for (const problem of outcome.problems)
       said.push({ command: 'full', message: problem.message });
+  // A thread whose comments hold as many characters as one holds, answered and edited past it.
+  const long = {
+    ...thread,
+    comments: Array.from({ length: 11 }, (_, at) => ({
+      ...comment,
+      id: `l${at}`,
+      author: ANA,
+      text: 'x'.repeat(at === 0 ? 10 : at === 10 ? 19_990 : 20_000),
+    })),
+  };
+  for (const command of [
+    { type: 'add-comment', thread: thread.id, comment: { text: 'x', author: ANA } },
+    { type: 'edit-comment', thread: thread.id, comment: 'l0', text: 'x'.repeat(11), author: ANA },
+  ] as Command[]) {
+    const refused = executeCommand({ ...sample, comments: [long] }, command, {
+      author: 'user',
+      now: () => Date.UTC(2026, 9, 25, 12),
+    });
+    if (!refused.ok)
+      for (const problem of refused.problems)
+        said.push({ command: 'long', message: problem.message });
+  }
   const twice = { ...sample, comments: [thread, { ...thread, comments: [comment, comment] }] };
   for (const problem of checkProject(twice).errors)
     said.push({ command: 'check', message: problem.message });

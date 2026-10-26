@@ -11,12 +11,14 @@ export {
   MAX_TOUR_MARKS,
   MAX_TOUR_NAME,
   MAX_TOUR_STEPS,
+  MAX_TOUR_TEXT,
   checkSavedViewState,
   idsNamedByTours,
   isBrokenTourStep,
   playableStep,
   savedViewStateOf,
   tourStepProblems,
+  tourTextLength,
   viewStateOfStep,
 } from './steps';
 export type { ScreenSize, TourMove } from './camera';

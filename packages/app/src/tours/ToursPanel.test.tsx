@@ -168,6 +168,39 @@ describe('full-screen playback', () => {
     expect(sent).toEqual([]);
   });
 
+  it('refuses, in words, a change the connection could not carry, and sends nothing', async () => {
+    // Text past what the core lets a tour hold, as a file written by hand can.
+    const heavy: TourFile = {
+      ...tour,
+      steps: tour.steps.map((step, at) =>
+        at === 0 ? { ...step, notes: '語'.repeat(1_500_000) } : step,
+      ),
+    };
+    const project = { ...sample, tours: [heavy] };
+    const live = fakeLive({ project });
+    const onCommand = vi.fn<SendCommand>(() =>
+      Promise.resolve({ ok: true, created: [], warnings: [] }),
+    );
+    render(
+      <LiveContext value={live}>
+        <Shell project={project} onCommand={onCommand} />
+      </LiveContext>,
+    );
+    const panel = screen.getByRole('complementary', { name: 'Outline and model' });
+    fireEvent.click(within(panel).getByRole('tab', { name: 'Tours' }));
+    const tab = within(panel).getByRole('tabpanel', { name: 'Tours' });
+    fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));
+    const second = within(tab).getByRole('group', { name: 'Step 2' });
+    fireEvent.click(within(second).getByRole('button', { name: 'Move up' }));
+    await vi.waitFor(() =>
+      expect(live.notify).toHaveBeenCalledWith(
+        'warning',
+        'This change to the tour was not made: with its steps, the tour takes more than the 4 MiB one change from the app carries. Delete some of its steps, or put them in another tour.',
+      ),
+    );
+    expect(onCommand).not.toHaveBeenCalled();
+  });
+
   it('goes back to where the tab was once the tour ends', async () => {
     const { tab } = openTours();
     const scenarios = screen.getByRole('complementary', { name: 'Scenarios' });

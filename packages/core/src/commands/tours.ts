@@ -14,8 +14,10 @@ import {
   MAX_TOUR_MARKS,
   MAX_TOUR_NAME,
   MAX_TOUR_STEPS,
+  MAX_TOUR_TEXT,
   checkSavedViewState,
   tourStepProblems,
+  tourTextLength,
 } from '../tours/steps';
 import {
   Rejection,
@@ -41,6 +43,7 @@ export function createTour(draft: Draft, command: CreateTourCommand): string {
     description: checkedDescription(tour.description),
     steps: checkedSteps(draft, requireList(tour.steps, 'steps'), []),
   });
+  checkTextLength(created, undefined);
   draft.apply({
     op: 'insert',
     collection: { name: 'tours' },
@@ -69,6 +72,7 @@ export function updateTour(draft: Draft, command: UpdateTourCommand): string {
     next.steps = checkedSteps(draft, requireList(changes.steps, 'steps'), current.steps);
   }
   if (sameJson(next, current)) return `Edit the tour "${current.name}"`;
+  checkTextLength(next, current);
   draft.apply({ op: 'replace', collection: { name: 'tours' }, item: next });
   return labelOf(current, next);
 }
@@ -77,6 +81,20 @@ export function deleteTour(draft: Draft, command: DeleteTourCommand): string {
   const tour = draft.tour(command.id);
   draft.apply({ op: 'remove', collection: { name: 'tours' }, key: tour.id });
   return `Delete the tour "${tour.name}"`;
+}
+
+/**
+ * Refuses a tour whose text would pass {@link MAX_TOUR_TEXT}. A tour kept longer than the commands
+ * make one can still be changed, so long as it grows no longer.
+ */
+function checkTextLength(next: TourFile, before: TourFile | undefined): void {
+  const length = tourTextLength(next);
+  if (length <= MAX_TOUR_TEXT) return;
+  if (before !== undefined && length <= tourTextLength(before)) return;
+  reject(
+    'invalid-command',
+    `The tour would hold more than ${MAX_TOUR_TEXT.toLocaleString('en-US')} characters of text, in its name, description, captions and speaker notes: put the rest of its steps in another tour.`,
+  );
 }
 
 /** How the history names a change to a tour: by what happened to its steps, when only that did. */

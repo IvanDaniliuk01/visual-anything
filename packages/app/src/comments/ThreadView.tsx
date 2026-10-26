@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { useEditor } from '../editor/EditorContext';
 import { actionTime, useToday } from '../history/time';
 import { useT } from '../i18n';
-import { aboutText } from './about';
+import { aboutText, authorText } from './about';
 import { CommentText } from './CommentText';
 import { Composer } from './Composer';
 import { deleteThreadCommand, editCommand, replyCommand, resolveCommand } from './commands';
@@ -174,7 +174,7 @@ function CommentHeader({ comment }: { comment: ThreadComment }) {
           comment.author.kind === 'claude' ? 'comment-author comment-claude' : 'comment-author'
         }
       >
-        {comment.author.kind === 'claude' ? 'Claude' : comment.author.name}
+        {authorText(t, comment.author)}
       </span>{' '}
       <time dateTime={comment.time}>{actionTime(time, today, t.language)}</time>
       {edited !== undefined && (

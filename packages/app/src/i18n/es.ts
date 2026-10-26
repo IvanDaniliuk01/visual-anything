@@ -93,11 +93,6 @@
  * | capability              | capacidad                        |
  * | approve, approval       | aprobar, aprobación              |
  * | computed (value)        | calculado                        |
- * | tour                    | recorrido                        |
- * | full-screen playback    | reproducción a pantalla completa |
- * | speaker notes           | notas del orador                 |
- * | thread                  | hilo                             |
- * | comment                 | comentario                       |
  * | overlay                 | superposición                    |
  * | legend                  | leyenda                          |
  * | level of detail         | nivel de detalle                 |
@@ -504,8 +499,12 @@ export const ui: Catalog = {
   'This view, where the canvas looks, the selection, the filters and focus':
     'Esta vista, adónde mira el lienzo, la selección, los filtros y el foco',
   'Writing the page…': 'Escribiendo la página…',
-  'It holds the whole project, every view and scenario, whatever this view shows: share it only with those who may read all of it. It connects nowhere, and the browser saves it.':
-    'Contiene todo el proyecto, cada vista y cada escenario, muestre lo que muestre esta vista: compartirla solo con quien pueda leerlo todo. No se conecta a ningún lado, y la guarda el navegador.',
+  'It holds the whole project, every view, scenario and tour, whatever this view shows: share it only with those who may read all of it. It connects nowhere, and the browser saves it.':
+    'Contiene todo el proyecto, cada vista, cada escenario y cada recorrido, muestre lo que muestre esta vista: compartirla solo con quien pueda leerlo todo. No se conecta a ningún lado, y la guarda el navegador.',
+  'Threads of comments, which name the people who wrote them.':
+    'Los hilos de comentarios, que nombran a quienes los escribieron.',
+  'Speaker notes: its tours play with their captions and marks, and the notes stay with whoever presents.':
+    'Las notas del orador: sus recorridos se reproducen con sus rótulos y sus marcas, y las notas quedan con quien presenta.',
   'Editing, the history and Claude’s guidance: the page only reads.':
     'La edición, el historial y la guía de Claude: la página solo lee.',
   'Layout, which does not run in the page: shapes a view keeps no position for are drawn in a row, as before a layout.':
@@ -2215,6 +2214,9 @@ export const ui: Catalog = {
   'Change the name': 'Cambiar el nombre',
   'Give your name above to comment.': 'Indicar el nombre arriba para comentar.',
   'Thread: {about}': 'Hilo: {about}',
+  'Claude (AI)': 'Claude (IA)',
+  'This change to the tour was not made: with its steps, the tour takes more than the {limit} MiB one change from the app carries. Delete some of its steps, or put them in another tour.':
+    'Este cambio al recorrido no se hizo: con sus pasos, el recorrido ocupa más de los {limit} MiB que lleva un cambio desde la app. Eliminar algunos de sus pasos, o ponerlos en otro recorrido.',
   '← All threads': '← Todos los hilos',
   'Select what the thread is about': 'Seleccionar aquello sobre lo que trata el hilo',
   Resolved: 'Resuelto',
@@ -2987,6 +2989,8 @@ export const messages: Catalog = {
   'Speaker notes are text.': 'Las notas del orador son texto.',
   'Speaker notes hold at most {limit} characters.':
     'Las notas del orador tienen como máximo {limit} caracteres.',
+  'The tour would hold more than 1,000,000 characters of text, in its name, description, captions and speaker notes: put the rest of its steps in another tour.':
+    'El recorrido tendría más de 1.000.000 de caracteres de texto, entre su nombre, su descripción, sus rótulos y sus notas del orador: poner el resto de sus pasos en otro recorrido.',
   'Step {n} of the tour marks a list of ids.': 'El paso {n} del recorrido marca una lista de ids.',
   'A step marks at most {limit} elements and relations.':
     'Un paso marca como máximo {limit} elementos y relaciones.',
@@ -3029,6 +3033,12 @@ export const messages: Catalog = {
     'El id "{id}" está en uso: {holder} contiene un paquete con ese id, que el proyecto no usa.',
   'The change would make {path} invalid: {errors}.':
     'El cambio haría que {path} no sea válido: {errors}.',
+  '{path} would hold more than {size}, the most a thread may hold in its file, so this change was not made: start another thread.':
+    '{path} ocuparía más de {size}, lo máximo que un hilo puede ocupar en su archivo, así que este cambio no se hizo: empezar otro hilo.',
+  '{path} would hold more than {size}, the most a tour may hold in its file, so this change was not made: put the rest of its steps in another tour.':
+    '{path} ocuparía más de {size}, lo máximo que un recorrido puede ocupar en su archivo, así que este cambio no se hizo: poner el resto de sus pasos en otro recorrido.',
+  '{path} would hold more than {size}, the most a file of its kind may hold, so this change was not made.':
+    '{path} ocuparía más de {size}, lo máximo que puede ocupar un archivo de su tipo, así que este cambio no se hizo.',
   'Could not save {path} ({reason}); nothing was changed.':
     'No se pudo guardar {path} ({reason}); no se cambió nada.',
   'Could not save {path} ({reason}), nor put back the files saved before it; the project is reloaded from the files.':
@@ -4235,6 +4245,10 @@ export const messages: Catalog = {
     'Un hilo nuevo necesita decir de qué trata y tener su primer comentario.',
   'The thread holds {n} comments, as many as one holds: start another.':
     'El hilo tiene {n} comentarios, todos los que puede tener: empezar otro.',
+  'The thread would hold more than 200,000 characters of comments, as many as one holds: start another thread.':
+    'El hilo tendría más de 200.000 caracteres de comentarios, todos los que puede tener: empezar otro hilo.',
+  'The thread would hold more than 200,000 characters of comments, as many as one holds: write a shorter comment, or put the rest in another thread.':
+    'El hilo tendría más de 200.000 caracteres de comentarios, todos los que puede tener: escribir un comentario más corto, o poner el resto en otro hilo.',
   'The thread "{thread}" has no comment "{comment}".':
     'El hilo "{thread}" no tiene ningún comentario "{comment}".',
   'Claude edits only its own comments.': 'Claude edita solo sus propios comentarios.',

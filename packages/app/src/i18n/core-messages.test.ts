@@ -716,6 +716,16 @@ function tourCommands(): [string, Command][] {
       'tour too long',
       { type: 'create-tour', tour: { name: 'T', steps: Array.from({ length: 1001 }, () => step) } },
     ],
+    [
+      'tour of too much text',
+      {
+        type: 'create-tour',
+        tour: {
+          name: 'T',
+          steps: Array.from({ length: 51 }, () => ({ ...step, notes: 'n'.repeat(20_000) })),
+        },
+      },
+    ],
     created('step over no view', { ...step, viewState: { view: 'gone' } }),
     created('step selecting nothing there', {
       ...step,

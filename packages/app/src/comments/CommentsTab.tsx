@@ -4,7 +4,7 @@
  * or the project's, open or resolved, anyone's or one author's), the latest written in first, with
  * the detached ones apart. Choosing a thread selects what it is about and shows it whole.
  */
-import { isResolved, modelIndexOf, type ProjectSnapshot } from '@visual-anything/core';
+import { authorKeyOf, isResolved, modelIndexOf, type ProjectSnapshot } from '@visual-anything/core';
 import type { CommentAnchor, Id } from '@visual-anything/schema';
 import { useId, useMemo, useState } from 'react';
 import { useEditor } from '../editor/EditorContext';
@@ -12,7 +12,7 @@ import type { Selection } from '../editor/selection';
 import { actionTime, useToday } from '../history/time';
 import { useT, type Translator } from '../i18n';
 import { usePreferences } from '../theme/usePreferences';
-import { aboutText } from './about';
+import { aboutText, authorText } from './about';
 import { AuthorForm } from './AuthorForm';
 import { Composer } from './Composer';
 import { createThreadCommand, personOf } from './commands';
@@ -21,6 +21,9 @@ import { useComments, type CommentFilters, type ThreadsShown } from './store';
 import { ThreadView } from './ThreadView';
 import { threadRows, type ThreadRow } from './threads';
 import './comments.css';
+
+/** The author filter's key for Claude's comments. */
+const CLAUDE_KEY = authorKeyOf({ kind: 'claude' });
 
 interface CommentsTabProps {
   /** Whether the tab shows; while it does not, it works nothing out. */
@@ -195,7 +198,7 @@ function ThreadList(props: ThreadListProps) {
           <option value="">{t('Everyone')}</option>
           {rows.authors.map((author) => (
             <option key={author.key} value={author.key}>
-              {author.name}
+              {author.key === CLAUDE_KEY ? authorText(t, { kind: 'claude' }) : author.name}
             </option>
           ))}
         </select>
@@ -249,7 +252,7 @@ function ThreadRows({
         const { thread } = row;
         const first = thread.comments[0];
         const last = thread.comments.at(-1);
-        const by = last?.author.kind === 'claude' ? 'Claude' : last?.author.name;
+        const by = last === undefined ? undefined : authorText(t, last.author);
         return (
           <li key={thread.id}>
             <button type="button" className="comment-row" onClick={() => onChoose(row)}>

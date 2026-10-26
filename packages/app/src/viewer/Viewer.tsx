@@ -371,7 +371,8 @@ export function Viewer({ project: opened, made, preferences }: ViewerProps) {
                   onClose={() => setPanel(undefined)}
                 />
               )}
-              <TourPlaybackLayer project={project} tours={tours} />
+              {/* The page holds no speaker notes (ADR 0058), so it offers no window for them. */}
+              <TourPlaybackLayer project={project} tours={tours} notes={false} />
               <div className="viewer-bottom">
                 <Details />
                 {scenario && timeline && (

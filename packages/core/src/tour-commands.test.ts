@@ -9,7 +9,7 @@ import { applyOperations } from './operations';
 import { previewDelete } from './rules';
 import type { ProjectSnapshot } from './snapshot';
 import { testProject } from './test/fixtures';
-import { isBrokenTourStep } from './tours';
+import { MAX_SPEAKER_NOTES, MAX_TOUR_TEXT, isBrokenTourStep } from './tours';
 
 function ids() {
   let n = 0;
@@ -329,6 +329,91 @@ describe('update-tour', () => {
   });
 });
 
+describe('the text a tour holds', () => {
+  /** Steps of the longest speaker notes, each with a caption of ten characters. */
+  function noted(count: number): NewTourStep[] {
+    return Array.from({ length: count }, () => ({
+      ...START,
+      caption: { title: 'The system' },
+      notes: 'n'.repeat(MAX_SPEAKER_NOTES),
+    }));
+  }
+  const TOO_LONG = {
+    code: 'invalid-command',
+    message:
+      'The tour would hold more than 1,000,000 characters of text, in its name, description, captions and speaker notes: put the rest of its steps in another tour.',
+  };
+
+  it('is at most 1,000,000 characters, counted over its name, description, captions and notes', () => {
+    expect(MAX_TOUR_TEXT).toBe(1_000_000);
+    // A name of 4, 50 captions of 10, 49 notes of 20,000, and the last notes that fill it.
+    const rest = MAX_TOUR_TEXT - 4 - 50 * 10 - 49 * MAX_SPEAKER_NOTES;
+    const full = [
+      ...noted(49),
+      { ...START, caption: { title: 'The system' }, notes: 'n'.repeat(rest) },
+    ];
+    const made = done(testProject(), {
+      type: 'create-tour',
+      tour: { id: 'long', name: 'Long', steps: full },
+    });
+    expect(made.state.tours[0]?.steps).toHaveLength(50);
+    expect(
+      refusal(testProject(), { type: 'create-tour', tour: { name: 'Long', steps: noted(50) } }),
+    ).toEqual(TOO_LONG);
+    const steps = made.state.tours[0]?.steps ?? [];
+    expect(
+      refusal(made.state, {
+        type: 'update-tour',
+        id: 'long',
+        changes: { steps: [...steps, { ...START, caption: { title: 'One more' } }] },
+      }),
+    ).toEqual(TOO_LONG);
+    expect(
+      refusal(made.state, { type: 'update-tour', id: 'long', changes: { description: 'd' } }),
+    ).toEqual(TOO_LONG);
+    expect(
+      refusal(made.state, { type: 'update-tour', id: 'long', changes: { name: 'Longer' } }),
+    ).toEqual(TOO_LONG);
+    expect(done(made.state, { type: 'update-tour', id: 'long', changes: { name: 'Lon' } }).ok).toBe(
+      true,
+    );
+    // Text of more bytes than one counts as one character, as everywhere else.
+    expect(
+      done(testProject(), {
+        type: 'create-tour',
+        tour: {
+          name: 'Long',
+          steps: noted(49).map((step) => ({ ...step, notes: '語'.repeat(MAX_SPEAKER_NOTES) })),
+        },
+      }).ok,
+    ).toBe(true);
+  });
+
+  it('lets a tour kept past it be changed, as long as it grows no longer', () => {
+    const { state, tour } = withTour();
+    // A tour written by hand, longer than the commands make one.
+    const steps = Array.from({ length: 60 }, (_, at) => ({
+      id: `s${at}`,
+      ...START,
+      notes: 'n'.repeat(MAX_SPEAKER_NOTES),
+    }));
+    const kept: ProjectSnapshot = { ...state, tours: [{ ...tour, steps }] };
+    expect(done(kept, { type: 'update-tour', id: 'walk', changes: { name: 'Walk' } }).ok).toBe(
+      true,
+    );
+    expect(
+      done(kept, { type: 'update-tour', id: 'walk', changes: { steps: steps.slice(1) } }).label,
+    ).toBe('Delete a step of the tour "A walk"');
+    expect(
+      refusal(kept, {
+        type: 'update-tour',
+        id: 'walk',
+        changes: { name: 'A longer walk' },
+      }),
+    ).toEqual(TOO_LONG);
+  });
+});
+
 describe('delete-tour', () => {
   it('deletes a tour as one action that undoes exactly', () => {
     const { state } = withTour();
@@ -370,6 +455,49 @@ describe('tours and the rest of the project', () => {
         expect(applyOperations(outcome.state, outcome.inverse).state).toEqual(state);
       }),
     );
+  });
+
+  it('flags, and previews as flagged, a step that selects a free shape deleted from its view', () => {
+    const { state, tour } = withTour();
+    const second = done(state, {
+      type: 'create-view',
+      view: { id: 'second', name: 'Second', perspective: { name: 'Ownership' } },
+    }).state;
+    const toured = done(second, {
+      type: 'update-tour',
+      id: 'walk',
+      changes: {
+        steps: [
+          ...tour.steps,
+          { ...START, viewState: { view: 'overview', select: ['note', 'api'] } },
+          { ...START, viewState: { view: 'second' } },
+        ],
+      },
+    }).state;
+    const steps = toured.tours[0]?.steps ?? [];
+    const selecting = steps[2] as TourStep;
+
+    const preview = previewDelete(toured, { freeShapes: ['note'] }, 'overview');
+    expect(preview.problems).toEqual([]);
+    expect(preview.brokenTourSteps).toEqual([{ tour: 'walk', step: selecting.id }]);
+    // A free shape belongs to one view: the same id in another view breaks nothing here.
+    expect(previewDelete(toured, { freeShapes: ['note'] }, 'second').brokenTourSteps).toEqual([]);
+    // With elements too, each step once.
+    expect(
+      previewDelete(toured, { elements: ['api'], freeShapes: ['note'] }, 'overview')
+        .brokenTourSteps,
+    ).toEqual([
+      { tour: 'walk', step: steps[1]?.id },
+      { tour: 'walk', step: selecting.id },
+    ]);
+
+    const deleted = done(toured, { type: 'delete-free-shapes', view: 'overview', ids: ['note'] });
+    const flagged = deleted.state.tours.flatMap((each) =>
+      each.steps
+        .filter((step) => isBrokenTourStep(deleted.state, step))
+        .map((step) => ({ tour: each.id, step: step.id })),
+    );
+    expect(flagged).toEqual(preview.brokenTourSteps);
   });
 
   it('keeps a tour whose view is deleted, its steps flagged', () => {

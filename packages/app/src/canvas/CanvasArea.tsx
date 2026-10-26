@@ -1178,7 +1178,8 @@ function deletionOf(project: ProjectSnapshot, view: ViewFile, targets: Deleting)
   const relations = targets.relations.filter((id) => index.relation(id) !== undefined);
   const freeShapes = targets.freeShapes.filter((id) => inView.has(id));
   if (elements.length === 0 && relations.length === 0 && freeShapes.length === 0) return undefined;
-  const asked = previewDelete(project, { elements, relations }, view.id);
+  // Free shapes only flag the tour steps that select them (ADR 0058).
+  const asked = previewDelete(project, { elements, relations, freeShapes }, view.id);
   if (asked.problems.length > 0) return undefined;
   // What the deleted elements hold goes only when chosen: the rows at first, the rest when asked.
   const rows = targets.rows ?? true;
@@ -1189,7 +1190,11 @@ function deletionOf(project: ProjectSnapshot, view: ViewFile, targets: Deleting)
   const preview =
     taken.length === 0
       ? asked
-      : previewDelete(project, { elements: [...elements, ...taken], relations }, view.id);
+      : previewDelete(
+          project,
+          { elements: [...elements, ...taken], relations, freeShapes },
+          view.id,
+        );
   return { preview, freeShapes, held: { contents: asked.contents, rows, others } };
 }
 

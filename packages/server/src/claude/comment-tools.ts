@@ -289,7 +289,7 @@ Example: { "thread": "reminder-timing", "resolved": false }`,
 const deleteThread = tool({
   name: 'delete_thread',
   title: 'Delete a thread',
-  description: `Deletes a thread with every comment in it, as one undoable action of yours. Only when the person asked for it, after you told them what the thread holds: the app asks the person before deleting one, and so do you. To end a discussion, resolve the thread instead.
+  description: `Deletes a thread with every comment in it, as one undoable action of yours. Only when the person asked for it, after you told them what the thread holds: the app asks the person before deleting one, and so do you. To settle a thread, resolve it.
 
 Example: { "thread": "reminder-timing" }`,
   input: { thread: id() },

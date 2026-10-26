@@ -52,10 +52,21 @@ export function TourStage({ project, tour, step, onAction, notes = true }: TourS
   });
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      // A dialog that shows over the tour, such as a request to approve package code, takes its
+      // own keys; only the shortcuts below are kept from the app.
+      if (inDialog(event.target)) {
+        if (event.ctrlKey || event.metaKey || event.altKey) event.stopPropagation();
+        return;
+      }
+      // Playing changes nothing (ADR 0058): no key reaches the app's own shortcuts while the tour
+      // plays, such as undo and redo, the stacking keys, deleting, copying and pasting. What the
+      // browser does with a key, such as Ctrl+R or Ctrl+L, it still does: nothing prevents it.
+      event.stopPropagation();
+      // Space and Enter on a control of the stage press it, as on any button.
+      if (pressesControl(event)) return;
       const action = tourKeyAction(event);
       if (action === undefined) return;
       event.preventDefault();
-      event.stopPropagation();
       act.current(action);
     };
     window.addEventListener('keydown', onKey, { capture: true });
@@ -172,5 +183,21 @@ export function TourStage({ project, tour, step, onAction, notes = true }: TourS
         </TourNotesWindow>
       )}
     </section>
+  );
+}
+
+/** Whether a key presses the control that has the focus: Space or Enter on a button. */
+function pressesControl(event: KeyboardEvent): boolean {
+  if (event.key !== ' ' && event.key !== 'Spacebar' && event.key !== 'Enter') return false;
+  return (
+    event.target instanceof Element && event.target.closest('button, [role="button"]') !== null
+  );
+}
+
+/** Whether a key is pressed in a dialog. */
+function inDialog(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest('[role="dialog"], [role="alertdialog"], dialog') !== null
   );
 }

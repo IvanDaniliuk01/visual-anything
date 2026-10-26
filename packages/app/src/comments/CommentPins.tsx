@@ -3,7 +3,8 @@
  * about, resolved ones only while the panel shows resolved threads, and nothing the filters hide.
  * Pins follow the camera without drawing the canvas again; one pin holds every thread about one
  * thing. Choosing a pin shows its thread, or its threads, in the comments tab and selects what it is
- * on. While a thread is being placed on a point, a layer over the canvas takes the click.
+ * on. While a thread is being placed on a point, a layer over the canvas takes the click. While a tour
+ * plays full screen, neither shows: the canvas is the tour's (ADR 0058).
  */
 import { authorKeyOf, isResolved } from '@visual-anything/core';
 import type { CommentFile } from '@visual-anything/schema';
@@ -13,6 +14,7 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
+  useSyncExternalStore,
   type KeyboardEvent,
   type MouseEvent,
 } from 'react';
@@ -21,6 +23,8 @@ import { EditorContext } from '../editor/EditorContext';
 import { useEmphasis } from '../editor/emphasis';
 import { selectionOf } from '../editor/selection';
 import { useT } from '../i18n';
+import { useToursHost } from '../tours/context';
+import type { TourPlayback } from '../tours/player';
 import type { CanvasCamera } from '../view-state/canvas';
 import { aboutText } from './about';
 import { pinsOf, type Pin } from './pins';
@@ -29,6 +33,10 @@ import './comments.css';
 
 /** How large a pin is on screen, in CSS pixels: the --control-sm token at the root size. */
 const PIN_SIZE = 28;
+
+/** Outside the shell's tours host, as in some tests, no tour plays. */
+const NO_TOUR = (): TourPlayback | undefined => undefined;
+const UNSUBSCRIBED = () => () => undefined;
 
 interface CommentPinsProps {
   /** The tab's comments, which the shell keeps; absent, those of the context around. */
@@ -56,6 +64,11 @@ function Pins({ canvas }: { canvas: CanvasCamera | undefined }) {
   const scene = editor?.scene;
   const viewId = editor?.viewId;
   const { filters, placing, composing, point } = state;
+  const tours = useToursHost();
+  const playback = useSyncExternalStore(
+    tours?.player.subscribe ?? UNSUBSCRIBED,
+    tours?.player.getState ?? NO_TOUR,
+  );
 
   const threads = useMemo(
     () => (project ? project.comments.filter((thread) => pinned(thread, filters)) : []),
@@ -75,6 +88,8 @@ function Pins({ canvas }: { canvas: CanvasCamera | undefined }) {
     }
     return shown;
   }, [scene, viewId, threads, emphasis.hidden, composing]);
+  // Each frame finds each button's pin by its key, so that a frame takes as long as there are pins.
+  const byKey = useMemo(() => new Map(pins.map((pin) => [pin.key, pin])), [pins]);
 
   // Pins follow the camera: their places are written straight onto them, frame by frame.
   const layer = useRef<HTMLDivElement>(null);
@@ -82,7 +97,7 @@ function Pins({ canvas }: { canvas: CanvasCamera | undefined }) {
   useLayoutEffect(() => {
     place.current = () => {
       const element = layer.current;
-      if (element) placePins(element, pins, canvas);
+      if (element) placePins(element, byKey, canvas);
     };
     place.current();
   });
@@ -104,6 +119,8 @@ function Pins({ canvas }: { canvas: CanvasCamera | undefined }) {
   }, [point, canvas, viewId, scene]);
 
   if (!project || !scene || viewId === undefined) return null;
+  // Full-screen playback shows only the tour: no pin, and no place for a new thread.
+  if (playback?.tour !== undefined) return null;
 
   const choose = (pin: Pin) => {
     const [first] = pin.threads;
@@ -218,13 +235,13 @@ function Pins({ canvas }: { canvas: CanvasCamera | undefined }) {
 /** Writes where each pin is on screen straight onto it, and hides those off the canvas. */
 function placePins(
   layer: HTMLElement,
-  pins: readonly Pin[],
+  byKey: ReadonlyMap<string, Pin>,
   canvas: CanvasCamera | undefined,
 ): void {
   const camera = canvas?.camera();
   const viewport = canvas?.viewport();
   for (const button of layer.querySelectorAll<HTMLElement>('[data-pin]')) {
-    const pin = pins.find((each) => each.key === button.dataset.pin);
+    const pin = button.dataset.pin === undefined ? undefined : byKey.get(button.dataset.pin);
     if (!camera || !pin || !viewport) {
       button.hidden = true;
       continue;

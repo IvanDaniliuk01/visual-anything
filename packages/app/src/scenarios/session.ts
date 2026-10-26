@@ -205,6 +205,15 @@ export class ScenarioSession {
     if (entry !== undefined) this.goTo(entry);
   }
 
+  /**
+   * The index of the timeline entry that plays a step, by the step's index: under a collapsed
+   * container, one entry plays several steps. None while the scenario's view is not open.
+   */
+  entryOf(step: number): number | undefined {
+    const timeline = this.context?.timeline;
+    return timeline ? entryOfStep(timeline, step) : undefined;
+  }
+
   /** Opens a scenario, at its first step, paused. */
   open(id: Id): void {
     this.reset(id);

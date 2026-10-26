@@ -31,6 +31,22 @@ export const MAX_TOUR_DESCRIPTION = 4000;
 export const MAX_CAPTION_TEXT = 4000;
 /** The longest speaker notes of a step. */
 export const MAX_SPEAKER_NOTES = 20000;
+/**
+ * The most characters a tour's text holds together, its name, description, captions and speaker
+ * notes, so that a tour stays well within the 8 MiB a `.vatour` is read within and the 4 MiB one change
+ * from the app carries, whatever characters it is written in.
+ */
+export const MAX_TOUR_TEXT = 1_000_000;
+
+/** How many characters a tour's text holds: its name, description, captions and speaker notes. */
+export function tourTextLength(tour: TourFile): number {
+  let length = tour.name.length + (tour.description?.length ?? 0);
+  for (const step of tour.steps) {
+    length += step.caption.title.length + (step.caption.text?.length ?? 0);
+    length += step.notes?.length ?? 0;
+  }
+  return length;
+}
 
 // ——— The view state a step keeps ———
 

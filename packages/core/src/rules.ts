@@ -114,6 +114,11 @@ export function endName(id: Id, index: ModelIndex): string {
 export interface DeleteTargets {
   elements?: readonly Id[];
   relations?: readonly Id[];
+  /**
+   * Free shapes deleted with them from the view the deletion is asked from, which only flag the tour
+   * steps that select them there; without that view, they flag none.
+   */
+  freeShapes?: readonly Id[];
 }
 
 /** A view position that a deletion removes. */
@@ -153,7 +158,8 @@ export interface DeletePreview {
   brokenSteps: { scenario: Id; step: Id }[];
   /**
    * The tour steps that would name what is deleted, as what they select, mark or focus from (ADR
-   * 0058). They are kept, flagged, and play without it.
+   * 0058), and those that select a free shape deleted from their view. They are kept, flagged, and
+   * play without it.
    */
   brokenTourSteps: { tour: Id; step: Id }[];
   /** The deleted elements that views show collapsed, which leave those views' lists. */
@@ -242,7 +248,11 @@ export function previewDelete(
     positions: removedPositions(state.views, askedElements),
     stacking: removedStacking(state.views, askedElements),
     brokenSteps: brokenSteps(state.scenarios, relations),
-    brokenTourSteps: brokenTourSteps(state.tours, new Set([...askedElements, ...relations])),
+    brokenTourSteps: brokenTourSteps(
+      state.tours,
+      new Set([...askedElements, ...relations]),
+      view === undefined ? undefined : { view, ids: new Set(targets.freeShapes) },
+    ),
     collapsed: state.views.flatMap((each) =>
       (each.collapsed ?? [])
         .filter((id) => askedElements.has(id))
@@ -416,20 +426,31 @@ function brokenSteps(
   return broken;
 }
 
-/** The tour steps that select, mark or focus from any of the deleted ids. */
+/**
+ * The tour steps that select, mark or focus from any of the deleted ids, and those that select one of
+ * the free shapes deleted from their view.
+ */
 function brokenTourSteps(
   tours: readonly TourFile[],
   deleted: ReadonlySet<Id>,
+  freeShapes: { view: Id; ids: ReadonlySet<Id> } | undefined,
 ): { tour: Id; step: Id }[] {
   const broken: { tour: Id; step: Id }[] = [];
   for (const tour of tours) {
     for (const step of tour.steps) {
+      const { viewState } = step;
       const named = [
-        ...(step.viewState.select ?? []),
+        ...(viewState.select ?? []),
         ...(step.marks ?? []),
-        ...(step.viewState.focus?.from ?? []),
+        ...(viewState.focus?.from ?? []),
       ];
-      if (named.some((id) => deleted.has(id))) broken.push({ tour: tour.id, step: step.id });
+      const shapes = viewState.view === freeShapes?.view ? freeShapes.ids : undefined;
+      if (
+        named.some((id) => deleted.has(id)) ||
+        (shapes !== undefined && (viewState.select ?? []).some((id) => shapes.has(id)))
+      ) {
+        broken.push({ tour: tour.id, step: step.id });
+      }
     }
   }
   return broken;

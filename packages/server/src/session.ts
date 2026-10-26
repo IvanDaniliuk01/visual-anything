@@ -75,7 +75,7 @@ import {
   type ProjectFileProblem,
   type ProjectFiles,
 } from './project';
-import { capOf, readRegularFile } from './regular-files';
+import { capOf, describeCap, readRegularFile } from './regular-files';
 import { watchProject, type ProjectWatcher, type WatchMode } from './watcher';
 import { removeFile, writeFileAtomic, type WriteOptions } from './writer';
 
@@ -1076,6 +1076,12 @@ export class Session implements LiveSession {
       const bytes = how.formatted ? Buffer.from(text, 'utf8') : this.#bytesFor(path, text);
       const current = this.#known.get(path);
       if (!how.always && current?.equals(bytes)) continue;
+      // A file is read only within its cap, so one written past it would keep the project from
+      // opening, and every later change to it would be refused as changed on disk.
+      if (bytes.length > capOf(content.kind)) {
+        problems.push(refusal('invalid-file', tooLargeMessage(path, content.kind)));
+        continue;
+      }
       changes.push({ path, kind: content.kind, next: bytes, isNew: current === undefined });
     }
     return problems.length > 0 ? { ok: false, problems } : { ok: true, changes, assigned };
@@ -1312,6 +1318,19 @@ function describeErrors(errors: readonly ValidationError[]): string {
   return errors
     .map((error) => `${error.path === '' ? 'the file' : error.path} ${error.message}`)
     .join('; ');
+}
+
+/** Why a change that would write a file past its kind's cap was not made, and what to do instead. */
+function tooLargeMessage(path: string, kind: FileKind): string {
+  const size = describeCap(capOf(kind));
+  switch (kind) {
+    case 'comment':
+      return `${path} would hold more than ${size}, the most a thread may hold in its file, so this change was not made: start another thread.`;
+    case 'tour':
+      return `${path} would hold more than ${size}, the most a tour may hold in its file, so this change was not made: put the rest of its steps in another tour.`;
+    default:
+      return `${path} would hold more than ${size}, the most a file of its kind may hold, so this change was not made.`;
+  }
 }
 
 /** The request id of a message that could not be read, when it has a valid one. */
