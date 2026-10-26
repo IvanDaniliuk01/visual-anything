@@ -7,7 +7,7 @@ import { CODE_LIMITS, hookInputOf, modelReaderOf, type HookInput } from '@visual
 import type { QuickJSWASMModule } from 'quickjs-emscripten-core';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadNodeEngine } from './engine-node';
-import { CodeSandbox, type CallOutcome } from './sandbox';
+import { CodeSandbox, SANDBOX_REASONS, type CallOutcome } from './sandbox';
 import { codeProject } from './test/project';
 
 let engine: QuickJSWASMModule;
@@ -107,11 +107,11 @@ describe('the sandbox', () => {
     });
     expect(sandboxWith('import x from "./other.js";\nexport const a = x;').loaded).toMatchObject({
       ok: false,
-      failure: { kind: 'threw' },
+      failure: { kind: 'threw', message: SANDBOX_REASONS.imports },
     });
     expect(sandboxWith('await 1;\nexport const a = 1;').loaded).toEqual({
       ok: false,
-      failure: { kind: 'threw', message: 'Package code may not wait at the top of its module.' },
+      failure: { kind: 'threw', message: SANDBOX_REASONS.waits },
     });
   });
 });

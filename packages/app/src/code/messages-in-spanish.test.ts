@@ -13,12 +13,17 @@ import {
   offProblem,
   stalledProblem,
   tooLargeProblem,
+  hookInputOf,
   type CodeFailure,
+  type HookInput,
   type HookName,
 } from '@visual-anything/core';
-import { describe, expect, it } from 'vitest';
+import type { QuickJSWASMModule } from 'quickjs-emscripten-core';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { translateMessage, untranslatedParts } from '../i18n/translate';
+import { loadNodeEngine } from './engine-node';
 import { NOT_AN_ERROR } from './prelude';
+import { CodeSandbox, SANDBOX_REASONS, interpreterFailed } from './sandbox';
 import { codeProject, gaugesPackage } from './test/project';
 
 const pkg = { id: 'gauges', name: 'Gauges' };
@@ -139,6 +144,82 @@ describe('what package code says, in Spanish', () => {
       ),
     ).toBe(
       'Se descartó la respuesta de draw del paquete "Gauges" sobre "Oven": la parte 3 tiene un número fuera de rango.',
+    );
+  });
+});
+
+describe('why the sandbox itself could not run package code, in Spanish', () => {
+  let engine: QuickJSWASMModule;
+  beforeAll(async () => {
+    engine = await loadNodeEngine();
+  });
+
+  /** How a module fails to load, or how its hook fails when it is called, in the real sandbox. */
+  function failureOf(code: string, hook: HookName = 'attributes'): CodeFailure | undefined {
+    const sandbox = new CodeSandbox(engine, { callMs: 250 });
+    const loaded = sandbox.load({ package: 'gauges', code, granted: [] });
+    if (!loaded.ok) return loaded.failure;
+    const called = sandbox.call('gauges', hook, hookInputOf(codeProject(), 'oven') as HookInput);
+    sandbox.dispose();
+    return called.ok ? undefined : called.failure;
+  }
+
+  function ownReasons(): string[] {
+    const loading = [
+      'import x from "./other.js";\nexport const a = x;',
+      'await 1;\nexport const a = 1;',
+      'throw "";',
+    ].map((code) => failureOf(code));
+    const calling = [
+      failureOf('export function attributes() { return import("./x.js"); }'),
+      failureOf('export function check() { return []; }', 'draw'),
+      failureOf('export function attributes() { throw ""; }'),
+    ];
+    // What is said once the interpreter itself failed, which keeps only the engine's words as they
+    // are, and of an error that says nothing.
+    const crashed: CodeFailure[] = [
+      SANDBOX_REASONS.stopped,
+      interpreterFailed('memory access out of bounds'),
+      '',
+    ].map((message) => ({ kind: 'threw', message }));
+    return [
+      ...[...loading, ...crashed].map(
+        (failure) => loadProblem(pkg, failure as CodeFailure).message,
+      ),
+      ...[...calling, ...crashed].map(
+        (failure) => callProblem(pkg, 'attributes', oven, failure as CodeFailure).message,
+      ),
+    ];
+  }
+
+  it('says each reason in its own words, not as an error the code threw', () => {
+    const said = ownReasons();
+    expect(said).toHaveLength(12);
+    expect(
+      said.filter((message) => /Package code|The interpreter|The package exports/.test(message)),
+    ).toEqual([]);
+  });
+
+  it('has a Spanish template for every reason, keeping only the engine’s words as they are', () => {
+    expect(ownReasons().flatMap((message) => untranslatedParts('es', message))).toEqual([]);
+    expect(
+      translateMessage(
+        'es',
+        loadProblem(pkg, { kind: 'threw', message: SANDBOX_REASONS.waits }).message,
+      ),
+    ).toBe(
+      'El código del paquete "Gauges" no se cargó: espera en el nivel superior de su módulo, y el código de un paquete no puede hacerlo',
+    );
+    expect(
+      translateMessage(
+        'es',
+        callProblem(pkg, 'check', oven, {
+          kind: 'threw',
+          message: interpreterFailed('memory access out of bounds'),
+        }).message,
+      ),
+    ).toBe(
+      'El código del paquete "Gauges" falló en check sobre "Oven": falló el intérprete: memory access out of bounds',
     );
   });
 });

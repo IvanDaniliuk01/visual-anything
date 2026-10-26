@@ -4116,6 +4116,32 @@ export const messages: Catalog = {
     'el orden de apilado de "{container}" en la vista "{view}"',
   'A view cannot change its id ("{id}").': 'Una vista no puede cambiar su id ("{id}").',
   'A package cannot change its id ("{id}").': 'Un paquete no puede cambiar su id ("{id}").',
+  // W43: why the sandbox itself could not run package code, in its own words (code/sandbox.ts);
+  // only what the engine says after "the interpreter failed:" stays as it is.
+  'The code of the package "{name}" did not load: it imports another module, and package code is one module on its own':
+    'El código del paquete "{name}" no se cargó: importa otro módulo, y el código de un paquete es un único módulo',
+  'The code of the package "{name}" did not load: it waits at the top of its module, which package code may not do':
+    'El código del paquete "{name}" no se cargó: espera en el nivel superior de su módulo, y el código de un paquete no puede hacerlo',
+  'The code of the package "{name}" did not load: the interpreter stopped working':
+    'El código del paquete "{name}" no se cargó: el intérprete dejó de funcionar',
+  'The code of the package "{name}" did not load: the interpreter failed: {error}':
+    'El código del paquete "{name}" no se cargó: falló el intérprete: {error}',
+  'The code of the package "{name}" did not load: it threw nothing that says why':
+    'El código del paquete "{name}" no se cargó: lanzó algo que no dice por qué',
+  'The code of the package "{name}" did not load: it gave no reason':
+    'El código del paquete "{name}" no se cargó: no dio ningún motivo',
+  'The code of the package "{name}" failed in {hook} on "{element}": it imports another module, and package code is one module on its own':
+    'El código del paquete "{name}" falló en {hook} sobre "{element}": importa otro módulo, y el código de un paquete es un único módulo',
+  'The code of the package "{name}" failed in {hook} on "{element}": the package exports no {exported}':
+    'El código del paquete "{name}" falló en {hook} sobre "{element}": el paquete no exporta {exported}',
+  'The code of the package "{name}" failed in {hook} on "{element}": the interpreter stopped working':
+    'El código del paquete "{name}" falló en {hook} sobre "{element}": el intérprete dejó de funcionar',
+  'The code of the package "{name}" failed in {hook} on "{element}": the interpreter failed: {error}':
+    'El código del paquete "{name}" falló en {hook} sobre "{element}": falló el intérprete: {error}',
+  'The code of the package "{name}" failed in {hook} on "{element}": it threw nothing that says why':
+    'El código del paquete "{name}" falló en {hook} sobre "{element}": lanzó algo que no dice por qué',
+  'The code of the package "{name}" failed in {hook} on "{element}": it gave no reason':
+    'El código del paquete "{name}" falló en {hook} sobre "{element}": no dio ningún motivo',
   // W43: why the local program refuses preferences an app sends.
   'Preferences to change must be an object, such as {"theme": "dark"}.':
     'Las preferencias que cambiar deben ser un objeto JSON, como {"theme": "dark"}.',

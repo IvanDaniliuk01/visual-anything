@@ -242,7 +242,7 @@ const OUT_OF_STEP: readonly [string, Operation][] = [
   ],
   [
     'a package of another id',
-    { op: 'set-package', package: 'clinic', properties: { id: 'other', name: 'Other' } as never },
+    { op: 'set-package', package: 'clinic', properties: { id: 'other', name: 'Other' } },
   ],
 ];
 
