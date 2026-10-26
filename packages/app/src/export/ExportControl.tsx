@@ -533,7 +533,7 @@ function ExportDialog({
             )}
             {fileMade?.state === 'failed' && (
               <p className="export-problem" role="alert">
-                {t('The file could not be written: {why}', { why: fileMade.why })}
+                {t('The file could not be written: {why}', { why: t.message(fileMade.why) })}
               </p>
             )}
           </>

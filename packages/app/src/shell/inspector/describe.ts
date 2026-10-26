@@ -42,11 +42,6 @@ export function relationSentence(
   return `${endName(index, relation.from)} ${relationType} ${endName(index, relation.to)}`;
 }
 
-/** Counts things in words: "1 element", "3 relations". */
-export function count(amount: number, singular: string, plural = `${singular}s`): string {
-  return `${amount} ${amount === 1 ? singular : plural}`;
-}
-
 /** What is selected, in words: "2 elements, 1 relation and 1 free shape". */
 export function countsOf(selection: Selection): string {
   const parts = [

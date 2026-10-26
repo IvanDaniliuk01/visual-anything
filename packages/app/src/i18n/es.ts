@@ -2067,6 +2067,10 @@ export const ui: Catalog = {
     one: '{count} no tiene {attribute} y sigue a la vista.',
     other: '{count} no tienen {attribute} y siguen a la vista.',
   },
+
+  // W43, from the review of L1: the name a picture takes when its file gives none, written in the
+  // language read in as every name the app gives (ADR 0038).
+  Picture: 'Imagen',
 };
 
 /**
@@ -4146,6 +4150,9 @@ export const messages: Catalog = {
     'El código del paquete "{name}" falló en {hook} sobre "{element}": lanzó algo que no dice por qué',
   'The code of the package "{name}" failed in {hook} on "{element}": it gave no reason':
     'El código del paquete "{name}" falló en {hook} sobre "{element}": no dio ningún motivo',
+  // W43: why the PDF writer could not write its file, as the Export dialog says it.
+  'The fonts the PDF embeds could not be read.':
+    'No se pudieron leer las fuentes que incorpora el PDF.',
   // W43: why the local program refuses preferences an app sends.
   'Preferences to change must be an object, such as {"theme": "dark"}.':
     'Las preferencias que cambiar deben ser un objeto JSON, como {"theme": "dark"}.',

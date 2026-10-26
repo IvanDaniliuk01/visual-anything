@@ -181,6 +181,17 @@ describe('preparing a bitmap file', () => {
     expect(nameOfFile(`${'x'.repeat(300)}.png`)).toHaveLength(200);
   });
 
+  it('names a picture whose file gives no name in the language read in (ADR 0038)', async () => {
+    expect(nameOfFile('.svg', 'Imagen')).toBe('Imagen');
+    expect(nameOfFile('Logo.svg', 'Imagen')).toBe('Logo');
+    const prepared = await prepareImageFile(
+      file([`<svg viewBox="0 0 1 1" ${NS}><path d="M0 0h1v1z"/></svg>`], '.svg', 'image/svg+xml'),
+      codec().codec,
+      'Imagen',
+    );
+    expect(prepared.ok && prepared.name).toBe('Imagen');
+  });
+
   it('keeps the bytes it read, as base64 of the cleaned file', () => {
     expect(base64Of(Uint8Array.from([1, 2, 3]))).toBe('AQID');
   });
