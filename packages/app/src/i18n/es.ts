@@ -48,6 +48,7 @@
  * | component palette       | paleta de componentes            |
  * | appearance              | apariencia                       |
  * | fill, stroke            | relleno, trazo                   |
+ * | contour (free geometry) | curva cerrada                    |
  * | dash                    | patrón de línea                  |
  * | connection point        | punto de conexión                |
  * | attach (a relation end) | conectar                         |
@@ -1527,8 +1528,8 @@ export const ui: Catalog = {
 
   // The component editor: what it shows of every component, relation type and package.
   'Back to the selection': 'Volver a la selección',
-  'It is built into Visual Anything, so only its colors can be changed here, for this project. Derive a {noun} from it to have one of the project’s own that you can change.':
-    'Está incorporado en Visual Anything, así que aquí solo se pueden cambiar sus colores, para este proyecto. Derivar un {noun} de él para tener uno propio del proyecto que se pueda cambiar.',
+  'It is built into Visual Anything, so only its appearance can be changed here, for this project. Derive a {noun} from it to have one of the project’s own that you can change in full.':
+    'Está incorporado en Visual Anything, así que aquí solo se puede cambiar su apariencia, para este proyecto. Derivar un {noun} de él para tener uno propio del proyecto que se pueda cambiar por completo.',
   'No package in use defines {what} any more.': 'Ningún paquete en uso define ya {what}.',
   'Remove the {noun}': 'Quitar el {noun}',
   'the component “{id}”': 'el componente “{id}”',
@@ -2428,8 +2429,8 @@ export const ui: Catalog = {
     'Ninguna: sus formas se dibujan según su tipo, herede lo que herede.',
   'None: its shapes are drawn as their kind.': 'Ninguna: sus formas se dibujan según su tipo.',
   '{count} contours in a box of {width} by {height}': {
-    one: '{count} trazo en una caja de {width} por {height}',
-    other: '{count} trazos en una caja de {width} por {height}',
+    one: '{count} curva cerrada en una caja de {width} por {height}',
+    other: '{count} curvas cerradas en una caja de {width} por {height}',
   },
   'At {width} by {height}, its name does not fit inside its outline: the hover and selection marks write it beside the shape.':
     'A {width} por {height}, su nombre no cabe dentro de su contorno: las marcas al pasar el puntero y al seleccionar lo escriben junto a la forma.',
@@ -4834,21 +4835,21 @@ export const messages: Catalog = {
   'The height of free geometry is at most 100,000.':
     'El alto de una geometría libre es como máximo 100.000.',
   'The outline of free geometry holds 1 to 64 contours.':
-    'El contorno de una geometría libre tiene de 1 a 64 trazos.',
+    'El contorno de una geometría libre tiene de 1 a 64 curvas cerradas.',
   'The outline of free geometry holds at most 64 contours, not {n}.':
-    'El contorno de una geometría libre tiene como máximo 64 trazos, no {n}.',
+    'El contorno de una geometría libre tiene como máximo 64 curvas cerradas, no {n}.',
   'Keep proportions is true or false.': 'Mantener proporciones es true o false.',
   'Free geometry holds at most 32,768 characters of path data and points, not {n}.':
     'Una geometría libre tiene como máximo 32.768 caracteres de datos de trazado y puntos, no {n}.',
   'Free geometry holds at most 2,000 segments, path commands and points.':
     'Una geometría libre tiene como máximo 2.000 segmentos, entre comandos de trazado y puntos.',
   'Contour {n} of free geometry is a path, a polygon or an ellipse.':
-    'El trazo {n} de una geometría libre es un trazado, un polígono o una elipse.',
-  'Contour {n} has no path data, d.': 'El trazo {n} no tiene datos de trazado, d.',
-  'Contour {n} has no points.': 'El trazo {n} no tiene puntos.',
-  'Contour {n}: {why}': 'Trazo {n}: {why}',
+    'La curva cerrada {n} de una geometría libre es un trazado, un polígono o una elipse.',
+  'Contour {n} has no path data, d.': 'La curva cerrada {n} no tiene datos de trazado, d.',
+  'Contour {n} has no points.': 'La curva cerrada {n} no tiene puntos.',
+  'Contour {n}: {why}': 'Curva cerrada {n}: {why}',
   'Contour {n} of free geometry draws nothing.':
-    'El trazo {n} de una geometría libre no dibuja nada.',
+    'La curva cerrada {n} de una geometría libre no dibuja nada.',
   'a polygon has three points or more.': 'un polígono tiene tres puntos o más.',
   'an ellipse has a finite cx, cy, rx and ry.': 'una elipse tiene cx, cy, rx y ry finitos.',
   "an ellipse's rx and ry are above 0.": 'los rx y ry de una elipse son mayores que 0.',
@@ -4907,7 +4908,7 @@ export const messages: Catalog = {
   'It has {count} named parts; only its first 1,024, in document order, can be drawn as parts.':
     'Tiene {count} partes con nombre; solo las primeras 1.024, en el orden del documento, pueden dibujarse como partes.',
   "Its parts' outlines leave out {count} contours of shapes with more than 256.":
-    'Los contornos de sus partes dejan afuera {count} trazos de formas que tienen más de 256.',
+    'Los contornos de sus partes dejan afuera {count} curvas cerradas de formas que tienen más de 256.',
   "Its parts' outlines leave out what its shapes draw past 100,000 segments.":
     'Los contornos de sus partes dejan afuera lo que sus formas dibujan más allá de los 100.000 segmentos.',
   // M8b W55: the editors. Why a file or a part gives no outline, and the history's labels of the
