@@ -126,7 +126,7 @@ _Avoid_: subset, query, filter (a filter hides shapes of what the scope shows)
 Said of a scenario step whose relations are all out of the scope of the view it plays over, or of relation types that view leaves out. It still plays, saying so, and is not a broken step, whose relation was deleted.
 
 **View state**:
-Where someone is in a project and how they read it there: the open view, where the canvas looks, what is selected, the filters, focus mode, and the scenario and step played, each named by id. A view address carries one; tour steps and the read-only page reuse it.
+Where someone is in a project and how they read it there: the open view, where the canvas looks, what is selected, the filters, focus mode, the scenario and step played, and, while it is open, what the physical-space panel shows and where it looks, each named by id. A view address carries one; tour steps and the read-only page reuse it.
 _Avoid_: snapshot, bookmark
 
 **Component palette**:
@@ -140,7 +140,7 @@ The reusable definition of a kind of element: how it looks, which attributes it 
 _Avoid_: plugin, widget, template, class
 
 **Appearance**:
-How the shapes of a component's elements, or of one element, look: their shape (rectangle, rounded rectangle, ellipse, cylinder or person, or free geometry of their own) or the named part they are drawn as, their fill, stroke and size, the image and detail they show, where relations attach and whether they draw their contents as rows; for a relation type's relations, or one relation, their stroke, width and dash and the style of their automatic routes. Whatever an appearance leaves out is inherited. An element or a relation can have an appearance of its own, which is a particularity, and a project can give one to a definition it cannot change, which is a project appearance. Colors are written #RRGGBB.
+How the shapes of a component's elements, or of one element, look: their shape (rectangle, rounded rectangle, ellipse, cylinder or person, or free geometry of their own) or the named part they are drawn as, their fill, stroke and size, the image or solid and the detail they show, where relations attach and whether they draw their contents as rows; for a relation type's relations, or one relation, their stroke, width and dash and the style of their automatic routes. Whatever an appearance leaves out is inherited. An element or a relation can have an appearance of its own, which is a particularity, and a project can give one to a definition it cannot change, which is a project appearance. Colors are written #RRGGBB.
 _Avoid_: look and style (for this data), skin
 
 **Project appearance**:
@@ -181,16 +181,20 @@ _Avoid_: default package, standard library
 A picture a package defines, in SVG or as a small PNG, JPEG or WebP bitmap, that an appearance shows on shapes: as an icon beside the name, as the shape's whole drawing, or with its named parts, which the shape's contents are drawn as; an icon or a whole drawing can be a silhouette of one color. It is data only: the core cleans it of anything that runs or refers to anything outside it before it is stored, and every reader sees only that cleaned picture.
 
 **Named part**:
-A piece of an SVG image with an id of its own, such as the left ventricle in a picture of a heart, read only from the image's cleaned view; its id is its name. It is what an anchored part is drawn as (ADR 0067), and a part for short where no nesting is meant, since "is part of" names nesting.
-_Avoid_: layer, region, hotspot, sub-image
+A piece of an SVG image with an id of its own, such as the left ventricle in a picture of a heart, read only from the image's cleaned view; or a piece of a solid with a name of its own in its file, such as an arm's elbow, read only from its cleaned file. Its id or name is its name. It is what an anchored part is drawn as (ADR 0067, ADR 0075), and a part for short where no nesting is meant, since "is part of" names nesting.
+_Avoid_: layer, region, hotspot, sub-image, mesh
 
 **Drawing with parts**:
-A shape that shows an image with its named parts: the picture fills its body under its name, and those of its contents anchored to the picture's named parts are drawn as those parts, in place, as a page of an anatomical atlas names the organs it shows. Its other contents sit below the picture. Layout takes it as one block.
+A shape that shows an image or a solid with its named parts: the picture fills its body under its name, and those of its contents anchored to its named parts are drawn as those parts, in place, as a page of an anatomical atlas names the organs it shows. Its other contents sit below the picture. Layout takes it as one block.
 _Avoid_: plate, atlas, map, background
 
 **Anchored part**:
-An element's shape drawn as a named part, because its appearance names that part: inside a drawing with parts, in the part's place and at its size, with no position of its own in the view, as a row has none; elsewhere on its own, with the part's outline as its free geometry and the part's picture inside it. It is selected, related, focused, filtered and colored as any shape of its element.
+An element's shape drawn as a named part, because its appearance names that part: inside a drawing with parts, in the part's place and at its size, with no position of its own in the view, as a row has none; elsewhere on its own, with the part's outline as its free geometry and the part's picture inside it. A part of a solid is drawn in the solid's picture, where relations end at its point, and in the physical-space panel in its place in the solid. It is selected, related, focused, filtered and colored as any shape of its element.
 _Avoid_: hotspot, mapped area, region, overlay (an overlay is a rule of a view)
+
+**Solid**:
+The form of something in three dimensions, as a package defines it: a glTF file the local program cleaned of anything that runs or names anything outside it, kept in the project's `solids/` folder under its hash, with its description, its named parts and the camera its pictures are drawn from. An appearance shows it as an icon, as the shape's drawing or with its named parts. The canvas draws it as a picture, and live only while it is turned (ADR 0075).
+_Avoid_: 3D model, model (the model is the project's), mesh, asset, object
 
 ### Dimensions
 
@@ -214,8 +218,16 @@ The attributes of many elements treated as coordinates, to project, filter or co
 _Avoid_: high dimensionality (as a product term)
 
 **Physical space**:
-The real three-dimensional arrangement of something: a robotic arm, a brain region. It is shown inside the components that need it, not on the canvas.
+The real three-dimensional arrangement of something: a robotic arm, a brain region. It is drawn by solids inside the shapes of the components that need it, and in the physical-space panel beside the canvas; a view never switches into it (ADR 0076).
 _Avoid_: 3D (as a generic synonym)
+
+**Pose**:
+Where an element really is in physical space and which way it faces: a point in meters and a rotation, measured from one of its containers or from World. It is part of the model, one per element whatever its containers; an element anchored to a solid's named part is where its part is instead (ADR 0076).
+_Avoid_: position (a shape's, in a view), placement (how a shape shows an image or a solid), transform, location
+
+**Physical-space panel**:
+A panel beside the canvas that shows the elements of the open view that are in physical space, where they really are: their solids, posed or as the named parts of their containers' solids, under World or one element. It shares the selection, focus, filters, overlays, scenario playback and guidance with the canvas, edits only poses, and view states carry where it looks (ADR 0076).
+_Avoid_: 3D view, 3D mode, 3D panel, viewport, scene
 
 ### Interactions
 
@@ -223,7 +235,7 @@ _Avoid_: 3D (as a generic synonym)
 A way of acting on the model or a view. There are four: explore, play, simulate and edit.
 
 **Explore**:
-To move through a model without changing it: expand, collapse, filter, focus, follow a relation.
+To move through a model without changing it: expand, collapse, filter, focus, follow a relation, turn a solid, look around the physical-space panel.
 
 **Filter**:
 A choice, kept by the open app for one view, of components, relation types, conditions on attributes and a time range whose shapes the view hides; nothing moves. A relation shows only while both its ends do, and a container that holds a shape still shown stays, drawn faintly.
@@ -236,6 +248,10 @@ _Avoid_: highlight, spotlight, neighborhood, ego network
 **Isolate**:
 Focus that hides what the selection does not reach, instead of drawing it faintly; the containers of what it reaches stay, drawn faintly.
 _Avoid_: solo, hide others
+
+**Turning**:
+Drawing the selected shape's solid live in its shape, so that the person can turn it, zoom into it and point at its parts, until they end it and its picture comes back. It changes nothing stored, unless Use this view keeps where it is seen from (ADR 0075).
+_Avoid_: focus (focus reads a view from the selection), 3D mode, live view, orbit (alone)
 
 **Play**:
 To step through an already defined sequence over the model: a scenario or a tour.
