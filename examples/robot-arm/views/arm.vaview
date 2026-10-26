@@ -1,0 +1,73 @@
+{
+  "id": "arm",
+  "name": "Arm",
+  "description": "The arm drawn with its parts, the motor and the encoder at its shoulder, its camera, and the policy and the controller that move it.",
+  "perspective": {
+    "name": "Control"
+  },
+  "nestingRelationTypes": [
+    "physical-ai.is-part-of"
+  ],
+  "positions": [
+    {
+      "element": "shoulder-motor",
+      "container": "arm",
+      "x": 24,
+      "y": 440
+    },
+    {
+      "element": "shoulder-encoder",
+      "container": "arm",
+      "x": 240,
+      "y": 440
+    },
+    {
+      "element": "wrist-camera",
+      "container": "arm",
+      "x": 456,
+      "y": 440
+    },
+    {
+      "element": "arm",
+      "x": 256,
+      "y": 0
+    },
+    {
+      "element": "grasp-policy",
+      "x": 0,
+      "y": 64
+    },
+    {
+      "element": "joint-controller",
+      "x": 0,
+      "y": 440
+    },
+    {
+      "element": "workpiece",
+      "x": 952,
+      "y": 160
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "exclude": [
+      {
+        "kind": "component",
+        "component": "physical-ai.node"
+      },
+      {
+        "kind": "component",
+        "component": "physical-ai.topic"
+      },
+      {
+        "kind": "component",
+        "component": "physical-ai.compute-unit"
+      }
+    ]
+  },
+  "relationTypesLeftOut": [
+    {
+      "relationType": "physical-ai.is-attached-to"
+    }
+  ]
+}

@@ -54,3 +54,28 @@ The user asked for more visual packages, beyond Systems, C4, Data modeling and D
 - `THIRD-PARTY-NOTICES.md` and its test, and the per-image credits in exports, come with the first package that uses an outside set under MIT, ISC, Apache-2.0 or CC-BY-4.0.
 - The spec plans Track P, the visual packages, in the order above.
 - ADR 0047 and ADR 0051 each gain a note pointing here.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (P1, W63): **the Physical AI and robotics package** (`physical-ai`, `core/src/builtin/physical-ai.ts`).
+  - **Its pictures are all drawn for Visual Anything, under CC0-1.0**: an icon for every component but Link, and the two drawings with parts. It uses no outside set, so it adds nothing to `THIRD-PARTY-NOTICES.md`, which still waits for the first package that does.
+  - **What nests.** "is part of" places anything in a robot, its `to` limited to Robot. "runs on" places a node on a compute unit and nests too, as C4's "runs in" does. "is attached to", the kinematic chain, does not.
+  - **Limits, which only warn.**
+    - "is attached to" limits only its `to`, to links and joints, so that a sensor or a gripper mounts on a link.
+    - "commands" runs from a controller to an actuator or to another controller, since a policy gives a joint controller its targets.
+    - "senses" limits only its `from`, to sensors, since what it measures can be anything around the robot.
+    - "drives" runs from an actuator to a joint; "publishes to" and "subscribes to" from a node to a topic; "runs on" from a node to a compute unit.
+  - **Attributes.** Those the spec names, and two more: Compute unit's `hardware` and Node's `middleware`, the one place "ROS 2" appears, as an example value. A joint's `lowerLimit` and `upperLimit` are in degrees for a joint that turns and in metres for one that slides, so they have no unit of their own. Rates are in Hz, mass in kg, length in m and torque in N·m.
+  - **Colors.** The kinds of sensor and actuator set only their icon and take their parent's colors. Policy sets its own, so that the learned side reads apart from the controllers.
+  - **The drawings.**
+    - The six-axis arm is seen from the side. Its parts are in the order of the chain (`base`, `joint-1`, `link-1`, … `joint-6`, `link-6`, `gripper`), so that the keyboard and the outline follow the chain. A joint that turns about an axis across the page shows its axis as a hole; the roll joints are collars.
+    - The mobile robot is seen from above, its front to the right and its left wheel at the top, its sensors set in wells cut into the chassis.
+    - In both, parts lie 6 units apart, so that the background shows between them in both themes. Each is filled in one mid tone that reads at 3:1 or more on a robot's fill in both themes: links in the links' blue, joints in the joints' amber.
+  - **No component shows a drawing.** A robot element shows one from its own appearance, placed with `parts`. Its links, joints and sensors name their part without `image`, so that the part is found in the drawing they sit in.
+  - **Names.** "Link" names a component, as C4's "Deployment node" does: the glossary's words to avoid are about the model's own terms. In Spanish, Node is "Nodo de software", as C4's is "Nodo de despliegue", and the catalog's test allows both.
+  - **The sample** is `examples/robot-arm`, "Pick-and-place arm": an arm drawn with its parts, its kinematic chain and its software, in three views, with the scenario "Reach and grasp" in the arm's view.
+    - The arm's view leaves "is attached to" out (ADR 0064), since the chain's lines would cover the drawing; the "Kinematic chain" view shows it.
+    - Layout on this branch lays a drawing's anchored parts out as boxes, so the arm's view is placed by hand: its other contents in a row below its picture, and no position for its anchored parts. The other two views are as layout lays them out.
+  - **The command line** lists three samples or more as English does: "a, b and c".

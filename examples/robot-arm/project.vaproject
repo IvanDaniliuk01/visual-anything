@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "name": "Pick-and-place arm",
+  "description": "A sample of the Physical AI and robotics package: a six-axis arm drawn with its parts, the learned policy and the controller that move it, and the software they run in.",
+  "packages": [
+    "physical-ai"
+  ]
+}

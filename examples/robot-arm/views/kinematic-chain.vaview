@@ -1,0 +1,95 @@
+{
+  "id": "kinematic-chain",
+  "name": "Kinematic chain",
+  "description": "Each link on the joint it moves on, from the base to the gripper and the camera.",
+  "perspective": {
+    "name": "Kinematics"
+  },
+  "nestingRelationTypes": [],
+  "positions": [
+    {
+      "element": "base",
+      "x": 256,
+      "y": 520
+    },
+    {
+      "element": "joint-1",
+      "x": 16,
+      "y": 520
+    },
+    {
+      "element": "link-1",
+      "x": 736,
+      "y": 392
+    },
+    {
+      "element": "joint-2",
+      "x": 512,
+      "y": 384
+    },
+    {
+      "element": "link-2",
+      "x": 256,
+      "y": 392
+    },
+    {
+      "element": "joint-3",
+      "x": 16,
+      "y": 384
+    },
+    {
+      "element": "link-3",
+      "x": 736,
+      "y": 256
+    },
+    {
+      "element": "joint-4",
+      "x": 512,
+      "y": 256
+    },
+    {
+      "element": "link-4",
+      "x": 256,
+      "y": 256
+    },
+    {
+      "element": "joint-5",
+      "x": 16,
+      "y": 256
+    },
+    {
+      "element": "link-5",
+      "x": 736,
+      "y": 16
+    },
+    {
+      "element": "joint-6",
+      "x": 512,
+      "y": 16
+    },
+    {
+      "element": "link-6",
+      "x": 256,
+      "y": 16
+    },
+    {
+      "element": "gripper",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "wrist-camera",
+      "x": 0,
+      "y": 112
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "include": [
+      {
+        "kind": "relation-type",
+        "relationType": "physical-ai.is-attached-to"
+      }
+    ]
+  }
+}

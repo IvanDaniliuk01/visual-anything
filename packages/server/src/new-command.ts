@@ -10,13 +10,20 @@ import { runCommand } from './command';
 import { toForwardSlashes } from './paths';
 import { SAMPLE_IDS, emptyProjectFiles, sampleOf, writeNewProject } from './samples';
 
+/** Items as English lists them: "a", "a and b", "a, b and c". */
+function listOf(items: readonly string[], last: 'and' | 'or'): string {
+  return items.length < 2
+    ? items.join('')
+    : `${items.slice(0, -1).join(', ')} ${last} ${items.at(-1) ?? ''}`;
+}
+
 export const NEW_USAGE = `Usage: visual-anything new <folder> [--from <sample>] [--port <n>] [--no-open] [--dev]
 
 Starts a new project in folder, which must not exist yet or hold nothing, then opens it as
 visual-anything <folder> does. Without --from, the project is empty and uses the built-in Systems
 package.
 
-  --from <sample>  Start from a sample project: ${SAMPLE_IDS.join(' or ')}.
+  --from <sample>  Start from a sample project: ${listOf(SAMPLE_IDS, 'or')}.
   --port <n>       Listen on port n, from 0 to 65535 (default 0: any free port).
   --no-open        Print an address that works once, instead of opening the browser.
   --dev            Serve the app from its sources through Vite, with hot reload.
@@ -68,7 +75,7 @@ export function parseNewCommandLine(argv: readonly string[]): ParsedNewCommandLi
   if (values.from !== undefined && !(SAMPLE_IDS as readonly string[]).includes(values.from)) {
     return {
       ok: false,
-      message: `There is no sample "${values.from}"; the samples are ${SAMPLE_IDS.join(' and ')}.`,
+      message: `There is no sample "${values.from}"; the samples are ${listOf(SAMPLE_IDS, 'and')}.`,
     };
   }
   const folder = positionals[0] as string;

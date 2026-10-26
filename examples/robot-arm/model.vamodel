@@ -1,0 +1,672 @@
+{
+  "world": {
+    "id": "world",
+    "component": "essence",
+    "name": "World"
+  },
+  "elements": [
+    {
+      "id": "arm",
+      "component": "physical-ai.robot",
+      "name": "Six-axis arm",
+      "description": "Picks parts from a tray and places them on a conveyor.",
+      "attributes": {
+        "degreesOfFreedom": 6,
+        "model": "six-axis arm"
+      },
+      "appearance": {
+        "image": {
+          "image": "physical-ai.six-axis-arm",
+          "placement": "parts"
+        }
+      }
+    },
+    {
+      "id": "base",
+      "component": "physical-ai.link",
+      "name": "Base",
+      "description": "Bolted to the table.",
+      "attributes": {
+        "mass": 12
+      },
+      "appearance": {
+        "part": {
+          "part": "base"
+        }
+      }
+    },
+    {
+      "id": "joint-1",
+      "component": "physical-ai.joint",
+      "name": "Joint 1",
+      "description": "Turns the whole arm about its base.",
+      "attributes": {
+        "axis": "0 0 1",
+        "kind": "revolute",
+        "lowerLimit": -170,
+        "upperLimit": 170
+      },
+      "appearance": {
+        "part": {
+          "part": "joint-1"
+        }
+      }
+    },
+    {
+      "id": "link-1",
+      "component": "physical-ai.link",
+      "name": "Link 1",
+      "description": "The column the shoulder sits on.",
+      "attributes": {
+        "length": 0.16,
+        "mass": 4.2
+      },
+      "appearance": {
+        "part": {
+          "part": "link-1"
+        }
+      }
+    },
+    {
+      "id": "joint-2",
+      "component": "physical-ai.joint",
+      "name": "Joint 2",
+      "description": "The shoulder: lifts the upper arm.",
+      "attributes": {
+        "axis": "0 1 0",
+        "kind": "revolute",
+        "lowerLimit": -120,
+        "upperLimit": 120
+      },
+      "appearance": {
+        "part": {
+          "part": "joint-2"
+        }
+      }
+    },
+    {
+      "id": "link-2",
+      "component": "physical-ai.link",
+      "name": "Link 2",
+      "description": "The upper arm.",
+      "attributes": {
+        "length": 0.43,
+        "mass": 3.1
+      },
+      "appearance": {
+        "part": {
+          "part": "link-2"
+        }
+      }
+    },
+    {
+      "id": "joint-3",
+      "component": "physical-ai.joint",
+      "name": "Joint 3",
+      "description": "The elbow: bends the forearm.",
+      "attributes": {
+        "axis": "0 1 0",
+        "kind": "revolute",
+        "lowerLimit": -150,
+        "upperLimit": 150
+      },
+      "appearance": {
+        "part": {
+          "part": "joint-3"
+        }
+      }
+    },
+    {
+      "id": "link-3",
+      "component": "physical-ai.link",
+      "name": "Link 3",
+      "description": "The forearm.",
+      "attributes": {
+        "length": 0.39,
+        "mass": 1.8
+      },
+      "appearance": {
+        "part": {
+          "part": "link-3"
+        }
+      }
+    },
+    {
+      "id": "joint-4",
+      "component": "physical-ai.joint",
+      "name": "Joint 4",
+      "description": "Rolls the forearm.",
+      "attributes": {
+        "axis": "1 0 0",
+        "kind": "revolute",
+        "lowerLimit": -180,
+        "upperLimit": 180
+      },
+      "appearance": {
+        "part": {
+          "part": "joint-4"
+        }
+      }
+    },
+    {
+      "id": "link-4",
+      "component": "physical-ai.link",
+      "name": "Link 4",
+      "description": "Between the forearm’s roll and the wrist.",
+      "attributes": {
+        "length": 0.1,
+        "mass": 0.9
+      },
+      "appearance": {
+        "part": {
+          "part": "link-4"
+        }
+      }
+    },
+    {
+      "id": "joint-5",
+      "component": "physical-ai.joint",
+      "name": "Joint 5",
+      "description": "Bends the wrist.",
+      "attributes": {
+        "axis": "0 1 0",
+        "kind": "revolute",
+        "lowerLimit": -120,
+        "upperLimit": 120
+      },
+      "appearance": {
+        "part": {
+          "part": "joint-5"
+        }
+      }
+    },
+    {
+      "id": "link-5",
+      "component": "physical-ai.link",
+      "name": "Link 5",
+      "description": "The wrist.",
+      "attributes": {
+        "length": 0.08,
+        "mass": 0.6
+      },
+      "appearance": {
+        "part": {
+          "part": "link-5"
+        }
+      }
+    },
+    {
+      "id": "joint-6",
+      "component": "physical-ai.joint",
+      "name": "Joint 6",
+      "description": "Turns the tool without end.",
+      "attributes": {
+        "axis": "1 0 0",
+        "kind": "continuous"
+      },
+      "appearance": {
+        "part": {
+          "part": "joint-6"
+        }
+      }
+    },
+    {
+      "id": "link-6",
+      "component": "physical-ai.link",
+      "name": "Link 6",
+      "description": "The tool flange the gripper and the camera are mounted on.",
+      "attributes": {
+        "length": 0.03,
+        "mass": 0.2
+      },
+      "appearance": {
+        "part": {
+          "part": "link-6"
+        }
+      }
+    },
+    {
+      "id": "gripper",
+      "component": "physical-ai.gripper",
+      "name": "Gripper",
+      "description": "Two parallel jaws that close on the part.",
+      "appearance": {
+        "part": {
+          "part": "gripper"
+        }
+      }
+    },
+    {
+      "id": "shoulder-motor",
+      "component": "physical-ai.motor",
+      "name": "Shoulder motor",
+      "description": "Turns joint 2 through its gearbox.",
+      "attributes": {
+        "torque": 150
+      }
+    },
+    {
+      "id": "shoulder-encoder",
+      "component": "physical-ai.encoder",
+      "name": "Shoulder encoder",
+      "description": "Reads the angle of joint 2.",
+      "attributes": {
+        "frame": "joint_2",
+        "rate": 1000
+      }
+    },
+    {
+      "id": "wrist-camera",
+      "component": "physical-ai.camera",
+      "name": "Wrist camera",
+      "description": "Looks past the gripper at what it is about to pick.",
+      "attributes": {
+        "frame": "camera_link",
+        "rate": 30
+      }
+    },
+    {
+      "id": "grasp-policy",
+      "component": "physical-ai.policy",
+      "name": "Grasp policy",
+      "description": "Learned from demonstrations; picks the next joint targets from the camera’s images.",
+      "attributes": {
+        "kind": "policy",
+        "model": "a diffusion policy",
+        "rate": 10
+      }
+    },
+    {
+      "id": "joint-controller",
+      "component": "physical-ai.controller",
+      "name": "Joint controller",
+      "description": "Holds each joint at its target.",
+      "attributes": {
+        "kind": "PID",
+        "rate": 1000
+      }
+    },
+    {
+      "id": "workpiece",
+      "component": "essence",
+      "name": "Workpiece",
+      "description": "The part to pick, on its tray."
+    },
+    {
+      "id": "robot-computer",
+      "component": "physical-ai.compute-unit",
+      "name": "Robot computer",
+      "description": "Sits in the arm’s cabinet.",
+      "attributes": {
+        "hardware": "an embedded GPU board"
+      }
+    },
+    {
+      "id": "camera-driver",
+      "component": "physical-ai.node",
+      "name": "camera_driver",
+      "description": "Reads the wrist camera.",
+      "attributes": {
+        "middleware": "ROS 2"
+      }
+    },
+    {
+      "id": "policy-node",
+      "component": "physical-ai.node",
+      "name": "grasp_policy",
+      "description": "Runs the grasp policy.",
+      "attributes": {
+        "middleware": "ROS 2"
+      }
+    },
+    {
+      "id": "controller-node",
+      "component": "physical-ai.node",
+      "name": "arm_controller",
+      "description": "Runs the joint controller and reads the encoders.",
+      "attributes": {
+        "middleware": "ROS 2"
+      }
+    },
+    {
+      "id": "camera-image",
+      "component": "physical-ai.topic",
+      "name": "camera/image",
+      "attributes": {
+        "messageType": "Image",
+        "rate": 30
+      }
+    },
+    {
+      "id": "joint-targets",
+      "component": "physical-ai.topic",
+      "name": "arm/joint_targets",
+      "attributes": {
+        "messageType": "JointTrajectory",
+        "rate": 10
+      }
+    },
+    {
+      "id": "joint-states",
+      "component": "physical-ai.topic",
+      "name": "arm/joint_states",
+      "attributes": {
+        "messageType": "JointState",
+        "rate": 1000
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "base-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "base",
+      "to": "arm"
+    },
+    {
+      "id": "joint-1-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "joint-1",
+      "to": "arm"
+    },
+    {
+      "id": "link-1-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "link-1",
+      "to": "arm"
+    },
+    {
+      "id": "joint-2-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "joint-2",
+      "to": "arm"
+    },
+    {
+      "id": "link-2-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "link-2",
+      "to": "arm"
+    },
+    {
+      "id": "joint-3-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "joint-3",
+      "to": "arm"
+    },
+    {
+      "id": "link-3-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "link-3",
+      "to": "arm"
+    },
+    {
+      "id": "joint-4-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "joint-4",
+      "to": "arm"
+    },
+    {
+      "id": "link-4-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "link-4",
+      "to": "arm"
+    },
+    {
+      "id": "joint-5-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "joint-5",
+      "to": "arm"
+    },
+    {
+      "id": "link-5-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "link-5",
+      "to": "arm"
+    },
+    {
+      "id": "joint-6-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "joint-6",
+      "to": "arm"
+    },
+    {
+      "id": "link-6-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "link-6",
+      "to": "arm"
+    },
+    {
+      "id": "gripper-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "gripper",
+      "to": "arm"
+    },
+    {
+      "id": "shoulder-motor-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "shoulder-motor",
+      "to": "arm"
+    },
+    {
+      "id": "shoulder-encoder-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "shoulder-encoder",
+      "to": "arm"
+    },
+    {
+      "id": "wrist-camera-in-arm",
+      "relationType": "physical-ai.is-part-of",
+      "from": "wrist-camera",
+      "to": "arm"
+    },
+    {
+      "id": "joint-1-on-base",
+      "relationType": "physical-ai.is-attached-to",
+      "from": "joint-1",
+      "to": "base",
+      "attributes": {
+        "origin": "xyz 0 0 0.1"
+      }
+    },
+    {
+      "id": "link-1-on-joint-1",
+      "relationType": "physical-ai.is-attached-to",
+      "from": "link-1",
+      "to": "joint-1"
+    },
+    {
+      "id": "joint-2-on-link-1",
+      "relationType": "physical-ai.is-attached-to",
+      "from": "joint-2",
+      "to": "link-1",
+      "attributes": {
+        "origin": "xyz 0 0 0.16"
+      }
+    },
+    {
+      "id": "link-2-on-joint-2",
+      "relationType": "physical-ai.is-attached-to",
+      "from": "link-2",
+      "to": "joint-2"
+    },
+    {
+      "id": "joint-3-on-link-2",
+      "relationType": "physical-ai.is-attached-to",
+      "from": "joint-3",
+      "to": "link-2",
+      "attributes": {
+        "origin": "xyz 0 0 0.43"
+      }
+    },
+    {
+      "id": "link-3-on-joint-3",
+      "relationType": "physical-ai.is-attached-to",
+      "from": "link-3",
+      "to": "joint-3"
+    },
+    {
+      "id": "joint-4-on-link-3",
+      "relationType": "physical-ai.is-attached-to",
+      "from": "joint-4",
+      "to": "link-3",
+      "attributes": {
+        "origin": "xyz 0.2 0 0"
+      }
+    },
+    {
+      "id": "link-4-on-joint-4",
+      "relationType": "physical-ai.is-attached-to",
+      "from": "link-4",
+      "to": "joint-4"
+    },
+    {
+      "id": "joint-5-on-link-4",
+      "relationType": "physical-ai.is-attached-to",
+      "from": "joint-5",
+      "to": "link-4",
+      "attributes": {
+        "origin": "xyz 0.19 0 0"
+      }
+    },
+    {
+      "id": "link-5-on-joint-5",
+      "relationType": "physical-ai.is-attached-to",
+      "from": "link-5",
+      "to": "joint-5"
+    },
+    {
+      "id": "joint-6-on-link-5",
+      "relationType": "physical-ai.is-attached-to",
+      "from": "joint-6",
+      "to": "link-5",
+      "attributes": {
+        "origin": "xyz 0.08 0 0"
+      }
+    },
+    {
+      "id": "link-6-on-joint-6",
+      "relationType": "physical-ai.is-attached-to",
+      "from": "link-6",
+      "to": "joint-6"
+    },
+    {
+      "id": "gripper-on-link-6",
+      "relationType": "physical-ai.is-attached-to",
+      "from": "gripper",
+      "to": "link-6",
+      "attributes": {
+        "origin": "xyz 0.03 0 0"
+      }
+    },
+    {
+      "id": "camera-on-link-6",
+      "relationType": "physical-ai.is-attached-to",
+      "from": "wrist-camera",
+      "to": "link-6",
+      "attributes": {
+        "origin": "xyz 0 0.05 0.02, rpy 0 0 0"
+      }
+    },
+    {
+      "id": "camera-sees-workpiece",
+      "relationType": "physical-ai.senses",
+      "from": "wrist-camera",
+      "to": "workpiece",
+      "name": "Images",
+      "attributes": {
+        "quantity": "image"
+      }
+    },
+    {
+      "id": "policy-commands-controller",
+      "relationType": "physical-ai.commands",
+      "from": "grasp-policy",
+      "to": "joint-controller",
+      "name": "Joint targets"
+    },
+    {
+      "id": "controller-commands-motor",
+      "relationType": "physical-ai.commands",
+      "from": "joint-controller",
+      "to": "shoulder-motor",
+      "name": "Torque"
+    },
+    {
+      "id": "motor-drives-joint-2",
+      "relationType": "physical-ai.drives",
+      "from": "shoulder-motor",
+      "to": "joint-2"
+    },
+    {
+      "id": "encoder-senses-joint-2",
+      "relationType": "physical-ai.senses",
+      "from": "shoulder-encoder",
+      "to": "joint-2",
+      "name": "Angle",
+      "attributes": {
+        "quantity": "angle"
+      }
+    },
+    {
+      "id": "policy-commands-gripper",
+      "relationType": "physical-ai.commands",
+      "from": "grasp-policy",
+      "to": "gripper",
+      "name": "Open or close"
+    },
+    {
+      "id": "camera-driver-publishes-to-camera-image",
+      "relationType": "physical-ai.publishes-to",
+      "from": "camera-driver",
+      "to": "camera-image"
+    },
+    {
+      "id": "policy-node-subscribes-to-camera-image",
+      "relationType": "physical-ai.subscribes-to",
+      "from": "policy-node",
+      "to": "camera-image"
+    },
+    {
+      "id": "policy-node-publishes-to-joint-targets",
+      "relationType": "physical-ai.publishes-to",
+      "from": "policy-node",
+      "to": "joint-targets"
+    },
+    {
+      "id": "controller-node-subscribes-to-joint-targets",
+      "relationType": "physical-ai.subscribes-to",
+      "from": "controller-node",
+      "to": "joint-targets"
+    },
+    {
+      "id": "controller-node-publishes-to-joint-states",
+      "relationType": "physical-ai.publishes-to",
+      "from": "controller-node",
+      "to": "joint-states"
+    },
+    {
+      "id": "policy-node-subscribes-to-joint-states",
+      "relationType": "physical-ai.subscribes-to",
+      "from": "policy-node",
+      "to": "joint-states"
+    },
+    {
+      "id": "camera-driver-on-computer",
+      "relationType": "physical-ai.runs-on",
+      "from": "camera-driver",
+      "to": "robot-computer"
+    },
+    {
+      "id": "policy-node-on-computer",
+      "relationType": "physical-ai.runs-on",
+      "from": "policy-node",
+      "to": "robot-computer"
+    },
+    {
+      "id": "controller-node-on-computer",
+      "relationType": "physical-ai.runs-on",
+      "from": "controller-node",
+      "to": "robot-computer"
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+{
+  "id": "software",
+  "name": "Software",
+  "description": "The nodes on the robot computer and the topics they talk through.",
+  "perspective": {
+    "name": "Software"
+  },
+  "nestingRelationTypes": [
+    "physical-ai.runs-on"
+  ],
+  "positions": [
+    {
+      "element": "camera-driver",
+      "container": "robot-computer",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "policy-node",
+      "container": "robot-computer",
+      "x": 24,
+      "y": 152
+    },
+    {
+      "element": "controller-node",
+      "container": "robot-computer",
+      "x": 24,
+      "y": 256
+    },
+    {
+      "element": "robot-computer",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "camera-image",
+      "x": 304,
+      "y": 56
+    },
+    {
+      "element": "joint-targets",
+      "x": 304,
+      "y": 152
+    },
+    {
+      "element": "joint-states",
+      "x": 304,
+      "y": 248
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "include": [
+      {
+        "kind": "component",
+        "component": "physical-ai.node"
+      },
+      {
+        "kind": "component",
+        "component": "physical-ai.topic"
+      },
+      {
+        "kind": "component",
+        "component": "physical-ai.compute-unit"
+      }
+    ]
+  }
+}
