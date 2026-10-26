@@ -105,7 +105,10 @@ const setScope = tool({
 
 ${RULES_HELP}
 
+To show only elements you pick, as a view of one request's path does, exclude Essence, from which every component derives, and add them: added alone adds to what the rules show, and with no include rule every element meets them, so the view would show the whole model. Add the containers they sit in too, or they sit in their nearest container that shows.
+
 Example: { "view": "payments", "scope": { "include": [{ "kind": "contents", "container": "payments-system" }], "exclude": [{ "kind": "component", "component": "systems.person" }] } }
+Example: { "view": "checkout-path", "scope": { "exclude": [{ "kind": "component", "component": "essence" }], "added": ["customer", "checkout-api", "orders-db"] } }
 Example: { "view": "payments", "scope": null }`,
   input: {
     view: id(),

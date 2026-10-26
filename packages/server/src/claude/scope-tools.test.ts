@@ -3,6 +3,7 @@
  * or leaving them out, each write one undoable action of Claude's that changes only the view's file.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { SCOPE_TOOLS } from './scope-tools';
 import { startToolHarness, type ToolHarness } from './tool-harness';
 
 let tools: ToolHarness;
@@ -53,6 +54,21 @@ describe('get_scope', () => {
 });
 
 describe('set_scope', () => {
+  it('says how to show only elements picked by hand, and such a scope shows exactly them', async () => {
+    // Found while modeling Visual Anything with itself (M6): `added` alone shows the whole model,
+    // since with no include rule every element meets the rules (ADR 0040's clarification).
+    const description = SCOPE_TOOLS.find((each) => each.name === 'set_scope')?.description;
+    expect(description).toContain(
+      '"exclude": [{ "kind": "component", "component": "essence" }], "added": [',
+    );
+    expect(description).toMatch(/added alone/);
+    const result = await tools.value('set_scope', {
+      view: 'overview',
+      scope: { exclude: [{ kind: 'component', component: 'essence' }], added: ['api', 'db'] },
+    });
+    expect(result).toMatchObject({ shows: { whole: false, elements: 2, ofElements: 5 } });
+  });
+
   it('sets a scope as one action of Claude’s, and takes it away with null', async () => {
     const result = await tools.value('set_scope', {
       view: 'overview',
