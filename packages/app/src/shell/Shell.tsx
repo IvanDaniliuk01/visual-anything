@@ -194,6 +194,12 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                           viewId={view?.id}
                           send={live?.status === 'open' ? live.send : undefined}
                           openView={setOpenViewId}
+                          {...(live?.status === 'open' && live.makeDrawing !== undefined
+                            ? { makeDrawing: live.makeDrawing }
+                            : {})}
+                          {...(selection.elements.size === 1
+                            ? { selectedElement: [...selection.elements][0] as string }
+                            : {})}
                         />
                         {exportTool}
                         <ElementListToggle store={elementList} />

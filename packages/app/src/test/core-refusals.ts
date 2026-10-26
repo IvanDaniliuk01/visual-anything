@@ -11,6 +11,7 @@ import {
   cleanSvg,
   executeCommand,
   planAnchoring,
+  prepareDrawingImport,
   readBitmap,
   type AnchorRequest,
   type Command,
@@ -1924,6 +1925,32 @@ function decisionsOnOpening(sample: ProjectSnapshot): [string, ProjectSnapshot][
   ];
 }
 
+// M8b W56: HTML imported as a drawing (ADR 0068) ------------------------------------------------------
+
+/** What preparing a drawing's one action says, and the action's label as it runs. */
+function drawings(sample: ProjectSnapshot): Said[] {
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400"><path d="M0 0h800v400H0z"/></svg>';
+  const said: Said[] = [];
+  for (const [name, target] of [
+    ['a drawing on an element the project lacks', { element: 'gone' }],
+    ['a drawing of a component no package defines', { component: 'nothing.box' }],
+    ['a drawing in a view the project lacks', { view: 'gone' }],
+  ] as const) {
+    const prepared = prepareDrawingImport(sample, { name: 'card.html', svg, target });
+    if (!prepared.ok) {
+      for (const message of prepared.problems) said.push({ command: name, message });
+    }
+  }
+  const prepared = prepareDrawingImport(sample, {
+    name: 'card.html',
+    svg,
+    target: { view: VIEW },
+  });
+  if (prepared.ok) said.push(...runInOrder(sample, 'a drawing imported', [prepared.command]));
+  return said;
+}
+
 /** Everything these fixtures make the core say. */
 export function coreRefusals(): Said[] {
   const sample = loadSample();
@@ -1942,5 +1969,6 @@ export function coreRefusals(): Said[] {
   for (const [name, command] of DECISIONS) said.push(...runInOrder(sample, name, [command]));
   for (const [name, state] of decisionsOnOpening(sample)) said.push(...checked(name, state));
   said.push(...cleaningRefusals());
+  said.push(...drawings(sample));
   return said;
 }
