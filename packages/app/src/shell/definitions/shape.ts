@@ -24,7 +24,7 @@ import {
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { FreeGeometry, GeometryContour, Id, PartReference } from '@visual-anything/schema';
-import { writesNameInside } from '../../canvas/outlined';
+import { LEAST_LABEL_HEIGHT, labelAreaOn } from '../../canvas/outlined';
 import { geometrySource, outlineIn } from '../../canvas/outlines';
 
 /** Free geometry read from what the person gave, or why it cannot be used, in the core's words. */
@@ -185,15 +185,16 @@ export function labelAreaOf(outline: Outline): Box {
 }
 
 /**
- * Whether a shape of this size, one that shows no contents, writes its name inside its outline, as
- * the canvas decides it (`writesNameInside`, ADR 0066).
+ * Whether a shape of this size, one that shows no contents, has room inside its outline for a name:
+ * a label area at least a line tall. A name that does not fit there whole is written under the
+ * shape, as the canvas decides it (`writesNameBelow`, ADR 0066).
  */
-export function nameFitsInside(outline: Outline, width: number, height: number): boolean {
-  return writesNameInside({
+export function roomForNameInside(outline: Outline, width: number, height: number): boolean {
+  const area = labelAreaOn({
     rect: { x: 0, y: 0, width, height },
     outline: outlineIn(geometrySource(outline), width, height),
-    holdsContents: false,
   });
+  return area.height >= LEAST_LABEL_HEIGHT;
 }
 
 /** The command that sets a component's free geometry at the level the project can change. */

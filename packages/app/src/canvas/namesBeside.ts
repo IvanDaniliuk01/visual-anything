@@ -1,5 +1,7 @@
 /**
- * Names written beside shapes whose own outline leaves no room for them inside (ADR 0066, ADR 0067):
+ * Names written beside shapes whose own outline leaves no room for them inside and that write them
+ * nowhere else, an anchored part in its drawing or a container whose header has no room (ADR 0066,
+ * ADR 0067); a shape drawn on its own writes such a name under itself (`writesNameBelow`):
  * the hover mark, and the selection's marks while the selection holds at most 64 shapes, write each
  * such shape's name under it, centred below its outline, at one size on screen whatever the zoom, in
  * the theme's text over a halo of its canvas, as relations' names are written. The hovered shape's
@@ -8,7 +10,7 @@
 import type { Color } from '@visual-anything/schema';
 import { Container, Text } from 'pixi.js';
 import { FONT_FAMILY } from './draw';
-import { outlineBoundsOn, writesNameInside } from './outlined';
+import { outlineBoundsOn, writesNameBelow, writesNameInside } from './outlined';
 import type { ElementShape } from './scene';
 
 /** The most names written beside their shapes at once. */
@@ -17,9 +19,9 @@ export const MOST_NAMES_BESIDE = 64;
 const GAP = 4;
 const SIZE = 12;
 
-/** Whether the marks write a shape's name beside it: a shape with its own outline that writes none inside. */
+/** Whether the marks write a shape's name beside it: a shape with its own outline that writes it neither inside nor under itself. */
 export function namedBeside(shape: ElementShape): boolean {
-  return shape.outline !== undefined && !writesNameInside(shape);
+  return shape.outline !== undefined && !writesNameInside(shape) && !writesNameBelow(shape);
 }
 
 /** The names written beside shapes, which the marks show and keep up to date. */

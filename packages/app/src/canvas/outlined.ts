@@ -40,9 +40,10 @@ const PART_NAME_INSET = 2;
 export const PART_NAME_LINE = 17.5;
 
 /**
- * The lines an anchored part's name is written on in its label area (ADR 0067): its words, each
+ * The lines a shape's name is written on in its label area (ADR 0066, ADR 0067): its words, each
  * whole, as many on a line as fit its width, the lines within its height. None when a word is wider
- * than the area, or the lines taller: the name is then written beside the part, never cut inside it.
+ * than the area, or the lines taller: the name is then written under the shape, or beside an
+ * anchored part, never cut inside it.
  */
 export function partNameLines(
   name: string,
@@ -66,6 +67,29 @@ export function partNameLines(
   return lines.length * PART_NAME_LINE <= Math.max(area.height, PART_NAME_LINE) ? lines : undefined;
 }
 
+/** How far under its outline a shape writes a name that does not fit inside it, in canvas units. */
+export const NAME_BELOW_GAP = 4;
+/** The least width a name written under its shape wraps at, in canvas units. */
+export const NAME_BELOW_WIDTH = 160;
+/** How tall the detail written under a name below its shape may be. */
+export const DETAIL_BELOW_LINE = 15;
+
+/** The lines of a name written under its shape: its words whole, as many on a line as fit `width`. */
+export function nameBelowLines(name: string, width: number): string[] {
+  const lines: string[] = [];
+  let line = '';
+  for (const word of name.split(/\s+/).filter((each) => each !== '')) {
+    const longer = line === '' ? word : `${line} ${word}`;
+    if (line === '' || estimateWidth(longer, PART_NAME_SIZE, true) <= width) line = longer;
+    else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  if (line !== '') lines.push(line);
+  return lines;
+}
+
 /** The least width of the stretch of an expanded container's header that its name is written in. */
 export const LEAST_HEADER_WIDTH = 40;
 /** Where an expanded container's header line lies below its top: its icon's and its name's. */
@@ -80,6 +104,19 @@ const HEADER_SAMPLES = 96;
 export interface Outlined {
   rect: Rect;
   outline: ShapeOutline;
+}
+
+/** An icon a shape shows in its label area, which its name is written right of. */
+interface WithIcon {
+  image?: { placement: string; box: Rect };
+}
+
+/** The part of a label area left for text beside an icon: right of it. */
+export function besideIcon(shape: WithIcon, area: Rect): Rect {
+  const image = shape.image;
+  if (image?.placement !== 'icon') return area;
+  const by = image.box.x + image.box.width - area.x;
+  return { ...area, x: area.x + by, width: Math.max(1, area.width - by) };
 }
 
 /** What tells a container that shows its contents from other shapes. */
@@ -168,30 +205,96 @@ function heldStretch(outline: ShapeOutline, left: number, right: number): Stretc
   return best && best.width > 0 ? best : undefined;
 }
 
-/**
- * Whether a shape writes its name inside itself: always, without its own outline; with one, an
- * expanded container when its header has a stretch at least 40 units wide inside the outline, and
- * any other shape when its label area is at least 14 units tall. An anchored part writes its name
- * only when it fits whole in its label area, its words never cut (partNameLines, ADR 0067). A shape
- * that does not is named beside itself by the hover and selection marks (ADR 0066).
- */
-export function writesNameInside(
-  shape: Holding & {
+/** A shape as where it writes its name reads it. */
+type Named = Holding &
+  WithIcon & {
     rect: Rect;
     outline?: ShapeOutline;
     name?: string;
     part?: { inDrawing: boolean };
-  },
-): boolean {
+  };
+
+/**
+ * The lines a shape with its own outline that shows no contents writes its name on inside itself:
+ * its words whole, in its label area right of its icon (`partNameLines`); none when the name does
+ * not fit there whole.
+ */
+export function nameLinesInside(
+  shape: Outlined & WithIcon & { name?: string },
+): string[] | undefined {
+  return partNameLines(shape.name ?? '', besideIcon(shape, labelAreaOn(shape)));
+}
+
+/**
+ * Whether a shape writes its name inside itself: always, without its own outline, and when it has
+ * no name; with one, an expanded container when its header has a stretch at least 40 units wide
+ * inside the outline, and any other shape when its name fits whole in its label area, its words
+ * never cut (`nameLinesInside`). One that does not writes its name under itself
+ * (`writesNameBelow`), and an anchored part in its drawing is named beside itself by the hover and
+ * selection marks (ADR 0066, ADR 0067).
+ */
+export function writesNameInside(shape: Named): boolean {
   const { outline } = shape;
   if (!outline || shape.rowCount !== undefined || shape.row !== undefined) return true;
+  if ((shape.name ?? '').trim() === '') return true;
   const outlined = { ...shape, outline };
-  if (shape.part?.inDrawing === true)
-    return partNameLines(shape.name ?? '', labelAreaOn(outlined)) !== undefined;
   if (showsContents(shape)) {
     return (headerStretch(outlined)?.width ?? 0) >= LEAST_HEADER_WIDTH;
   }
-  return labelAreaOn(outlined).height >= LEAST_LABEL_HEIGHT;
+  return nameLinesInside(outlined) !== undefined;
+}
+
+/**
+ * Whether a shape writes its name under its outline (ADR 0066's clarification): one with its own
+ * outline, drawn on its own and showing no contents, whose name does not fit whole inside it. It is
+ * written whole, on what the shape sits on, rather than cut inside the shape.
+ */
+export function writesNameBelow(shape: Named): boolean {
+  return (
+    shape.outline !== undefined &&
+    shape.part?.inDrawing !== true &&
+    !showsContents(shape) &&
+    !writesNameInside(shape)
+  );
+}
+
+/** Where a shape writes its name under its outline: the lines, their top middle and the width they wrap at. */
+export interface NameBelow {
+  lines: string[];
+  x: number;
+  y: number;
+  width: number;
+}
+
+/** Where a shape that writes its name under its outline writes it (`writesNameBelow`). */
+export function nameBelowOf(shape: Outlined & { name: string }): NameBelow {
+  const bounds = outlineBoundsOn(shape);
+  const width = Math.max(bounds.width, NAME_BELOW_WIDTH);
+  return {
+    lines: nameBelowLines(shape.name, width),
+    x: bounds.x + bounds.width / 2,
+    y: bounds.y + bounds.height + NAME_BELOW_GAP,
+    width,
+  };
+}
+
+/**
+ * What a shape covers on the canvas with what it draws: its rectangle and, for one that writes its
+ * name under its outline, that name and a line of detail under it.
+ */
+export function drawnBoundsOf(shape: Named & { name: string }): Rect {
+  const { rect } = shape;
+  if (!shape.outline || !writesNameBelow(shape)) return rect;
+  const below = nameBelowOf({ ...shape, outline: shape.outline });
+  const left = Math.min(rect.x, below.x - below.width / 2);
+  const right = Math.max(rect.x + rect.width, below.x + below.width / 2);
+  const bottom = below.y + below.lines.length * PART_NAME_LINE + DETAIL_BELOW_LINE;
+  return {
+    x: left,
+    y: rect.y,
+    width: right - left,
+    height: Math.max(rect.height, bottom - rect.y),
+  };
 }
 
 /** Where a shape's outline lies on the canvas: its fitted bounds, placed where the shape is. */

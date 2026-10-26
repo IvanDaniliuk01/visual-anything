@@ -9,12 +9,18 @@ import { TRIANGLE, beyondBoxes } from '../test/beyond';
 import { APEX_DOWN, APEX_UP, OVAL, outlinedShape } from '../test/outlined';
 import {
   LEAST_LABEL_HEIGHT,
+  NAME_BELOW_GAP,
+  NAME_BELOW_WIDTH,
+  PART_NAME_LINE,
+  drawnBoundsOf,
   headerStretch,
   labelAreaOn,
   markContours,
+  nameBelowOf,
   outlineBoundsOn,
   outlineSignature,
   simplifiedHolds,
+  writesNameBelow,
   writesNameInside,
 } from './outlined';
 import type { ShapeOutline } from './outlines';
@@ -73,20 +79,45 @@ describe('labelAreaOn', () => {
 });
 
 describe('writesNameInside', () => {
-  it('writes a name inside a shape whose label area is 14 units tall or more, and beside it otherwise', () => {
-    expect(writesNameInside(framed)).toBe(true);
-    expect(
-      writesNameInside(outlinedShape('large', TRIANGLE, { x: 0, y: 0, width: 200, height: 160 })),
-    ).toBe(true);
+  it('writes a name inside a shape where it fits whole, and under the shape otherwise', () => {
+    const large = outlinedShape('large', TRIANGLE, { x: 0, y: 0, width: 200, height: 160 });
+    expect(writesNameInside(large)).toBe(true);
+    expect(writesNameBelow(large)).toBe(false);
+    // A name too long for the label area is never cut there: it goes under the shape.
+    const long = { ...large, name: 'Pulmonary artery and its branches to both lungs' };
+    expect(writesNameInside(long)).toBe(false);
+    expect(writesNameBelow(long)).toBe(true);
     const small = outlinedShape('small', TRIANGLE, { x: 0, y: 0, width: 30, height: 24 });
     expect(labelAreaOn(small as ElementShape & { outline: ShapeOutline }).height).toBeLessThan(
       LEAST_LABEL_HEIGHT,
     );
     expect(writesNameInside(small)).toBe(false);
+    expect(writesNameBelow(small)).toBe(true);
     // Shapes without an outline of their own always write their names inside.
     const boxed: ElementShape = { ...small };
     delete boxed.outline;
     expect(writesNameInside(boxed)).toBe(true);
+    expect(writesNameBelow(boxed)).toBe(false);
+  });
+
+  it('writes a name under its shape centred below the outline, on whole words, and covers it', () => {
+    const small = outlinedShape('small', TRIANGLE, { x: 100, y: 50, width: 30, height: 24 });
+    const long = { ...small, name: 'Pulmonary artery and its branches to both lungs' };
+    const bounds = outlineBoundsOn(long as ElementShape & { outline: ShapeOutline });
+    const below = nameBelowOf(long as ElementShape & { outline: ShapeOutline });
+    expect(below.x).toBeCloseTo(bounds.x + bounds.width / 2);
+    expect(below.y).toBeCloseTo(bounds.y + bounds.height + NAME_BELOW_GAP);
+    expect(below.width).toBe(NAME_BELOW_WIDTH);
+    expect(below.lines.length).toBeGreaterThan(1);
+    expect(below.lines.join(' ')).toBe(long.name);
+    const covered = drawnBoundsOf(long);
+    expect(covered.y + covered.height).toBeGreaterThanOrEqual(
+      below.y + below.lines.length * PART_NAME_LINE,
+    );
+    expect(covered.x).toBeLessThanOrEqual(below.x - NAME_BELOW_WIDTH / 2);
+    // A shape that writes its name inside covers its rectangle.
+    const large = outlinedShape('large', TRIANGLE, { x: 0, y: 0, width: 200, height: 160 });
+    expect(drawnBoundsOf(large)).toBe(large.rect);
   });
 
   it('writes an expanded container’s name in its header only where its outline holds a stretch of it', () => {

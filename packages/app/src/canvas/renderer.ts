@@ -71,6 +71,7 @@ import { rerouted } from './routing/scene-routes';
 import { routeWithSides } from './rowRoutes';
 import { dragEnds } from './rowShapes';
 import { holdsRows, levelWithRows } from './rowsDraw';
+import { drawnBoundsOf } from './outlined';
 import { nameBandOf } from './shape-images';
 import {
   relationLinesOf,
@@ -2271,7 +2272,7 @@ export class CanvasRenderer {
       rank: planned.rank,
       shapes: planned.shapes,
       coarse,
-      bounds: boundsOf(planned.shapes.map((shape) => shape.rect)),
+      bounds: boundsOf(planned.shapes.map(drawnBoundsOf)),
       ...(planned.levels === undefined ? {} : { levels: planned.levels }),
     });
   }

@@ -45,6 +45,7 @@ import {
 import { COUNT_LINE_TOP, headerLines } from './collapse';
 import { drawLeavingMark, writeLeavingMark } from './leavingMark';
 import {
+  DETAIL_BELOW_LINE,
   LEAST_HEADER_WIDTH,
   LEAST_LABEL_HEIGHT,
   PART_NAME_LINE,
@@ -52,10 +53,13 @@ import {
   headerStretch,
   labelAreaOn,
   markContours,
+  nameBelowOf,
+  nameLinesInside,
   partNameLines,
   placedPoints,
   showsContents,
   simplifiedLinesOf,
+  writesNameBelow,
   type Outlined,
 } from './outlined';
 import { outlineAt, type PlacedOutline, type ShapeOutline } from './outlines';
@@ -829,7 +833,7 @@ function writeShapeText(
 ): void {
   if (writeRowsText(shape, write)) return;
   if (shape.outline) {
-    writeOutlinedText(shape, shape.outline, write);
+    writeOutlinedText(shape, shape.outline, write, backdrop);
     return;
   }
   const colors = readableTextColors(shape.fill);
@@ -929,17 +933,19 @@ const NAME_LINE = 20;
  *
  * - an expanded container in its header, as any container, along the stretch of the header line
  *   its outline holds, right of its icon there;
- * - any other shape centred in its label area, right of its icon there: the name above the middle
- *   and the detail below it when the area is two lines tall, else the name alone in its middle. A
+ * - any other shape centred in its label area, right of its icon there, its name whole, its words
+ *   never cut (`nameLinesInside`), with its detail under it when the area has a line left for it. A
  *   collapsed container's detail starts with its count, so that cutting it never cuts the count.
  *
- * Where the outline leaves no such room, the shape writes nothing inside itself, and the hover and
- * selection marks write its name beside it (`writesNameInside`).
+ * A name that does not fit there whole is written under the shape, whole, on what the shape sits on
+ * (`writesNameBelow`, ADR 0066's clarification). A container whose header has no room writes
+ * nothing, and the hover and selection marks write its name beside it.
  */
 function writeOutlinedText(
   shape: ElementShape,
   outline: ShapeOutline,
   write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
+  backdrop: (shape: ElementShape) => Color,
 ): void {
   const colors = readableTextColors(fillOf(shape));
   if (shape.part?.inDrawing === true) {
@@ -980,38 +986,94 @@ function writeOutlinedText(
     }
     return;
   }
-  if (rooms.name <= 0) return;
-  const area = labelAreaOn({ rect: shape.rect, outline });
-  const text = besideImage(shape, area);
+  if (writesNameBelow(shape)) {
+    writeNameBelow(shape, outline, readableTextColors(backdrop(shape)), write);
+    return;
+  }
+  const lines = nameLinesInside({ ...shape, outline });
+  if (!lines) return;
+  const text = besideImage(shape, labelAreaOn({ rect: shape.rect, outline }));
   const centerX = text.x + text.width / 2;
-  const centerY = area.y + area.height / 2;
   const wrap = Math.max(1, text.width);
   const detail = outlinedDetailOf(shape);
-  const twoLines = rooms.detail > 0;
+  const nameHeight = lines.length * PART_NAME_LINE;
+  const withDetail = detail !== '' && text.height >= nameHeight + DETAIL_LINE;
+  const top = text.y + (text.height - nameHeight - (withDetail ? DETAIL_LINE : 0)) / 2;
   write(
     {
-      text: shape.name,
-      anchor: { x: 0.5, y: twoLines ? 1 : 0.5 },
+      text: lines.join('\n'),
+      anchor: { x: 0.5, y: 0 },
       x: centerX,
-      y: twoLines ? centerY + 2 : centerY,
-      style: textStyle(NAME_SIZE, colors.name, wrap, 'center', '600'),
+      y: top,
+      style: wholeLines(colors.name, wrap),
     },
     false,
-    rooms.name,
+    Math.max(text.height, nameHeight) + PART_NAME_LINE / 2,
   );
-  if (twoLines && detail !== '') {
+  if (withDetail) {
     write(
       {
         text: detail,
         anchor: { x: 0.5, y: 0 },
         x: centerX,
-        y: centerY + 4,
+        y: top + nameHeight + 1,
         style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'center'),
       },
       true,
-      rooms.detail,
+      DETAIL_LINE,
     );
   }
+}
+
+/** How tall the detail under a name written whole inside a shape with its own outline is. */
+const DETAIL_LINE = 15;
+
+/** The style of a name written on lines already broken, each whole: bold, at the name's size. */
+function wholeLines(fill: Color, width: number): TextStyleOptions {
+  return {
+    ...textStyle(NAME_SIZE, fill, width, 'center', '600'),
+    wordWrap: false,
+    lineHeight: PART_NAME_LINE,
+  };
+}
+
+/**
+ * Writes the name of a shape with its own outline that does not fit inside it under its outline,
+ * whole, centred below it, in colours that read on what the shape sits on, and its detail under the
+ * name (ADR 0066's clarification).
+ */
+function writeNameBelow(
+  shape: ElementShape,
+  outline: ShapeOutline,
+  colors: { name: Color; detail: Color },
+  write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
+): void {
+  const below = nameBelowOf({ rect: shape.rect, outline, name: shape.name });
+  const height = below.lines.length * PART_NAME_LINE;
+  write(
+    {
+      text: below.lines.join('\n'),
+      anchor: { x: 0.5, y: 0 },
+      x: below.x,
+      y: below.y,
+      style: wholeLines(colors.name, below.width),
+    },
+    false,
+    height + PART_NAME_LINE / 2,
+  );
+  const detail = outlinedDetailOf(shape);
+  if (detail === '') return;
+  write(
+    {
+      text: detail,
+      anchor: { x: 0.5, y: 0 },
+      x: below.x,
+      y: below.y + height + 1,
+      style: textStyle(DETAIL_SIZE, colors.detail, below.width, 'center'),
+    },
+    true,
+    DETAIL_BELOW_LINE,
+  );
 }
 
 /**
