@@ -44,15 +44,27 @@ import {
 } from './commands';
 import { highlightOf } from './emphasis';
 import { PlaybackEmphasis } from './PlaybackEmphasis';
+import { PlaybackFollow } from './PlaybackFollow';
 import './scenarios.css';
 import type { ScenarioSession, ScenarioState } from './session';
 import { StepDetails } from './StepDetails';
+import type { CanvasCamera } from '../view-state/canvas';
 
 const NOT_CONNECTED = 'Visual Anything is not connected, so nothing was changed.';
 
 const STEPS_OVER = { one: '{count} step over {view}', other: '{count} steps over {view}' };
 
-export function ScenarioPanel({ session }: { session: ScenarioSession }) {
+export function ScenarioPanel({
+  session,
+  canvas,
+  held = false,
+}: {
+  session: ScenarioSession;
+  /** The canvas's camera, which playback moves to bring the step it plays into view. */
+  canvas?: CanvasCamera | undefined;
+  /** While a tour plays, which moves the camera itself, playback leaves the camera alone. */
+  held?: boolean;
+}) {
   const t = useT();
   const editor = useEditor();
   const { project, viewId, send } = editor;
@@ -129,6 +141,15 @@ export function ScenarioPanel({ session }: { session: ScenarioSession }) {
         view={view}
         scene={active ? editor.scene : undefined}
         timeline={playing}
+      />
+      <PlaybackFollow
+        session={session}
+        project={project}
+        view={view}
+        scene={active ? editor.scene : undefined}
+        timeline={playing}
+        canvas={canvas}
+        held={held}
       />
     </aside>
   );

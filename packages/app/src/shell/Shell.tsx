@@ -246,7 +246,11 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                     <TourPlaybackLayer project={project} tours={tours} />
                   </main>
                   <Inspector view={view} scene={scene} definitions={definitions} />
-                  <ScenarioPanel session={scenarios} />
+                  <ScenarioPanel
+                    session={scenarios}
+                    canvas={canvas}
+                    held={tours.playback.tour !== undefined}
+                  />
                   <CodeApproval />
                   <ElementListPanel store={elementList} />
                   {asking && (

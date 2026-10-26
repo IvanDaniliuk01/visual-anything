@@ -402,6 +402,40 @@ describe('ScenarioSession guided by Claude', () => {
     return created.state;
   }
 
+  it('counts the steps the person or Claude ask for, which playback brings into view', () => {
+    const setup = setUp();
+    open(setup);
+    const { session } = setup;
+    const asks = () => session.getState().asks;
+    const opened = asks();
+    session.next();
+    session.goTo(2);
+    session.previous();
+    session.play();
+    expect(asks()).toBe(opened + 4);
+    session.pause();
+    expect(asks()).toBe(opened + 4);
+    session.guide({ scenario: SCENARIO, action: 'go-to-step', step: 3 });
+    expect(asks()).toBe(opened + 5);
+  });
+
+  it('counts nothing an address asks for, which places the camera itself', () => {
+    const setup = setUp();
+    const { session } = setup;
+    session.guide({ scenario: SCENARIO, action: 'go-to-step', step: 3 }, { quiet: true });
+    setup.sync();
+    expect(session.getState()).toMatchObject({ scenario: SCENARIO, step: 3, asks: 0 });
+    session.guide({ scenario: SCENARIO, action: 'open' }, { quiet: true });
+    expect(session.getState().asks).toBe(0);
+    // Claude going to a step counts, and so does opening a scenario.
+    session.guide({ scenario: SCENARIO, action: 'go-to-step', step: 2 });
+    setup.sync();
+    expect(session.getState()).toMatchObject({ step: 2, asks: 1 });
+    session.close();
+    session.guide({ scenario: SCENARIO, action: 'open' });
+    expect(session.getState()).toMatchObject({ scenario: SCENARIO, asks: 2 });
+  });
+
   it('opens a scenario at its first step, paused, even the one open', () => {
     const setup = setUp();
     open(setup);

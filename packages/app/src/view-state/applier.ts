@@ -252,10 +252,12 @@ function playScenario(
   }
   const step =
     state.step === undefined ? -1 : scenario.steps.findIndex((each) => each.id === state.step);
+  // Quietly: the address places the camera itself, so playback does not bring the step into view.
   scenarios.guide(
     step > 0
       ? { scenario: scenario.id, action: 'go-to-step', step }
       : { scenario: scenario.id, action: 'open' },
+    { quiet: true },
   );
 }
 

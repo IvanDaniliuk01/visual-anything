@@ -57,6 +57,12 @@ export interface ScenarioState {
   step: number;
   mode: PlaybackMode;
   speed: Speed;
+  /**
+   * How many times the person or Claude asked playback for a step: by playing, stepping, going to a
+   * step or opening a scenario, from the panel or by guidance. Playback brings the step into view
+   * then (`follow.ts`); what an address or a tour plays is quiet, since it places the camera itself.
+   */
+  asks: number;
 }
 
 /** What the session needs to know of the tab, as the panel sees it. */
@@ -116,6 +122,7 @@ const INITIAL: ScenarioState = {
   step: 0,
   mode: 'paused',
   speed: 1,
+  asks: 0,
 };
 
 export class ScenarioSession {
@@ -136,6 +143,11 @@ export class ScenarioSession {
   private seen = false;
   /** What Claude asked of playback, waiting for the scenario's timeline until the next sync. */
   private guided: PlaybackGuidance | undefined;
+  /** Whether what is guided is quiet: an address's, which places the camera itself. */
+  private guidedQuietly = false;
+  /** While true, what playback is asked does not count as asked for (`ScenarioState.asks`). */
+  private quiet = false;
+  private asks = 0;
 
   constructor(private readonly clock: Clock = FRAME_CLOCK) {}
 
@@ -191,10 +203,13 @@ export class ScenarioSession {
    * once the tab has opened the scenario and its view; when the timeline has not come by then, it is
    * forgotten. The person can pause, step or close the scenario at any time, as ever.
    */
-  guide(request: PlaybackGuidance): void {
+  guide(request: PlaybackGuidance, { quiet = false }: { quiet?: boolean } = {}): void {
     const opening = request.action === 'open' || this.state.scenario !== request.scenario;
-    if (opening) this.open(request.scenario);
+    this.quietly(quiet, () => {
+      if (opening) this.open(request.scenario);
+    });
     this.guided = request.action === 'open' ? undefined : request;
+    this.guidedQuietly = quiet;
     if (!opening && this.context?.timeline) this.applyGuided();
   }
 
@@ -207,6 +222,7 @@ export class ScenarioSession {
 
   /** Opens a scenario, at its first step, paused. */
   open(id: Id): void {
+    this.asked();
     this.reset(id);
   }
 
@@ -218,6 +234,7 @@ export class ScenarioSession {
     const timeline = this.context?.timeline;
     if (!timeline) return;
     this.recordingOff();
+    this.asked();
     this.move(play(this.playback, timeline));
   }
 
@@ -233,18 +250,24 @@ export class ScenarioSession {
 
   next(): void {
     const timeline = this.context?.timeline;
-    if (timeline) this.move(next(this.playback, timeline));
+    if (!timeline) return;
+    this.asked();
+    this.move(next(this.playback, timeline));
   }
 
   previous(): void {
     const timeline = this.context?.timeline;
-    if (timeline) this.move(previous(this.playback, timeline));
+    if (!timeline) return;
+    this.asked();
+    this.move(previous(this.playback, timeline));
   }
 
   /** Goes to an entry of the timeline. */
   goTo(entry: number): void {
     const timeline = this.context?.timeline;
-    if (timeline) this.move(goTo(this.playback, timeline, entry));
+    if (!timeline) return;
+    this.asked();
+    this.move(goTo(this.playback, timeline, entry));
   }
 
   setSpeed(speed: Speed): void {
@@ -312,6 +335,11 @@ export class ScenarioSession {
     const scenario = this.openScenario();
     const timeline = this.context?.timeline;
     if (scenario?.id !== guided.scenario || !timeline || !isTimelineOf(timeline, scenario)) return;
+    this.quietly(this.guidedQuietly, () => this.applyAction(guided));
+  }
+
+  /** Does what guidance asks of the open scenario. */
+  private applyAction(guided: PlaybackGuidance): void {
     switch (guided.action) {
       case 'open':
         return;
@@ -424,6 +452,22 @@ export class ScenarioSession {
   }
 
   /** Moves playback, and keeps the clock going while it plays. */
+  /** Counts a step asked for, unless quiet, which `publish` says. */
+  private asked(): void {
+    if (!this.quiet) this.asks += 1;
+  }
+
+  /** Runs `act`, quietly when `quiet` is true. */
+  private quietly(quiet: boolean, act: () => void): void {
+    const was = this.quiet;
+    this.quiet = was || quiet;
+    try {
+      act();
+    } finally {
+      this.quiet = was;
+    }
+  }
+
   private move(playback: Playback): void {
     this.playback = playback;
     this.publish();
@@ -441,9 +485,15 @@ export class ScenarioSession {
       context?.send !== undefined &&
       context.viewId === scenario.view;
     const { step, mode } = this.playback;
+    const { asks } = this;
     const shown = this.state;
-    if (shown.canRecord !== canRecord || shown.step !== step || shown.mode !== mode) {
-      this.state = { ...shown, canRecord, step, mode };
+    if (
+      shown.canRecord !== canRecord ||
+      shown.step !== step ||
+      shown.mode !== mode ||
+      shown.asks !== asks
+    ) {
+      this.state = { ...shown, canRecord, step, mode, asks };
     }
     if (this.state === this.emitted) return;
     this.emitted = this.state;
