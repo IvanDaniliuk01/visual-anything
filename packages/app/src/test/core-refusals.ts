@@ -13,7 +13,13 @@ import {
   type Command,
   type ProjectSnapshot,
 } from '@visual-anything/core';
-import type { Element, PackageFile, Relation, ViewFile } from '@visual-anything/schema';
+import type {
+  Element,
+  PackageFile,
+  Relation,
+  ScenarioFile,
+  ViewFile,
+} from '@visual-anything/schema';
 import { loadSample } from './sample';
 
 /** One thing the core said, and the fixture that made it say so. */
@@ -1729,6 +1735,122 @@ function partsOnOpening(sample: ProjectSnapshot): [string, ProjectSnapshot][] {
   ];
 }
 
+// M11c seam 2: decisions in scenarios (ADR 0078) ---------------------------------------------------
+
+const SCENARIO = 'patient-books-appointment';
+const decided = (name: string, blocks: unknown): [string, unknown] => [
+  name,
+  { type: 'update-scenario', id: SCENARIO, changes: { blocks } },
+];
+const slots = (alternatives: unknown[], more: object = {}) => ({
+  id: 'slots',
+  kind: 'decision',
+  question: 'Are there free slots?',
+  alternatives,
+  ...more,
+});
+const nested = (depth: number): unknown =>
+  slots(
+    [
+      {
+        id: `yes-${depth}`,
+        label: 'Yes',
+        steps: ['ask', 'hand-over', 'find-slots', 'read-calendar', 'book'],
+      },
+      { id: `no-${depth}`, label: 'No', steps: [] },
+    ],
+    { id: `slots-${depth}` },
+  );
+
+const DECISIONS: readonly [string, unknown][] = [
+  decided('decision malformed', [{ id: 'slots', kind: 'gateway' }]),
+  decided('decision naming no step', [
+    slots([
+      { id: 'yes', label: 'Yes', steps: ['nope'] },
+      { id: 'no', label: 'No', steps: [] },
+    ]),
+  ]),
+  decided('decision with steps apart', [
+    slots([
+      { id: 'yes', label: 'Yes', steps: ['ask', 'book'] },
+      { id: 'no', label: 'No', steps: [] },
+    ]),
+  ]),
+  decided('decision with alternatives apart', [
+    slots([
+      { id: 'yes', label: 'Yes', steps: ['book'] },
+      { id: 'no', label: 'No', steps: ['ask'] },
+    ]),
+  ]),
+  decided('decision without steps', [
+    slots([
+      { id: 'yes', label: 'Yes', steps: [] },
+      { id: 'no', label: 'No', steps: [] },
+    ]),
+  ]),
+  decided('decision with an unknown default', [
+    slots(
+      [
+        { id: 'yes', label: 'Yes', steps: ['book'] },
+        { id: 'no', label: 'No', steps: [] },
+      ],
+      { default: 'maybe' },
+    ),
+  ]),
+  decided('decision with an id twice', [
+    slots([
+      { id: 'book', label: 'Yes', steps: ['book'] },
+      { id: 'no', label: 'No', steps: [] },
+    ]),
+  ]),
+  decided('decisions that cross', [
+    slots([
+      { id: 'yes', label: 'Yes', steps: ['find-slots'] },
+      { id: 'no', label: 'No', steps: ['read-calendar'] },
+    ]),
+    {
+      id: 'agent',
+      kind: 'decision',
+      question: 'Does the agent answer?',
+      alternatives: [
+        { id: 'answers', label: 'Yes', steps: ['read-calendar'] },
+        { id: 'waits', label: 'No', steps: ['book'] },
+      ],
+    },
+  ]),
+  decided('decisions too deep', [nested(1), nested(2), nested(3), nested(4)]),
+  decided(
+    'too many decisions',
+    many(65, (at) =>
+      slots(
+        [
+          { id: `yes-${at}`, label: 'Yes', steps: [] },
+          { id: `no-${at}`, label: 'No', steps: [] },
+        ],
+        { id: `slots-${at}` },
+      ),
+    ),
+  ),
+];
+
+/** A project whose scenario's decisions do not hold together, as a file may hold them. */
+function decisionsOnOpening(sample: ProjectSnapshot): [string, ProjectSnapshot][] {
+  const withBlocks = (blocks: unknown): ProjectSnapshot => ({
+    ...sample,
+    scenarios: sample.scenarios.map((scenario) =>
+      scenario.id === SCENARIO
+        ? { ...scenario, blocks: blocks as ScenarioFile['blocks'] }
+        : scenario,
+    ),
+  });
+  return [
+    [
+      'decision of one alternative on opening',
+      withBlocks([slots([{ id: 'yes', label: 'Yes', steps: ['book'] }])]),
+    ],
+  ];
+}
+
 /** Everything these fixtures make the core say. */
 export function coreRefusals(): Said[] {
   const sample = loadSample();
@@ -1743,6 +1865,8 @@ export function coreRefusals(): Said[] {
   for (const [name, state] of geometryOnOpening(sample)) said.push(...checked(name, state));
   for (const [name, command] of PARTS) said.push(...runInOrder(sample, name, [command]));
   for (const [name, state] of partsOnOpening(sample)) said.push(...checked(name, state));
+  for (const [name, command] of DECISIONS) said.push(...runInOrder(sample, name, [command]));
+  for (const [name, state] of decisionsOnOpening(sample)) said.push(...checked(name, state));
   said.push(...cleaningRefusals());
   return said;
 }

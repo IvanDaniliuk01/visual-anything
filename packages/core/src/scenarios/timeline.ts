@@ -5,9 +5,12 @@
  * A step whose relations are all out of the scope of its view is outside the view (ADR-0040), as is one
  * whose relations are all of relation types the view leaves out (ADR 0064): it plays on its own too,
  * saying so, and is not a broken step.
+ * A scenario's decisions (ADR 0078) play the alternative the tab chose at each, or else its default:
+ * the timeline holds only the steps that play.
  * The timeline is worked out from the files and never stored: playing changes nothing.
  */
-import type { Id, ScenarioFile, Step, ViewFile } from '@visual-anything/schema';
+import type { DecisionChoices, Id, ScenarioFile, Step, ViewFile } from '@visual-anything/schema';
+import { alternativeOf, playedSteps } from './blocks';
 import { showsPart, shownByScope, type ShownByScope } from '../scope';
 import type { ProjectSnapshot } from '../snapshot';
 import { modelIndexOf } from '../state';
@@ -52,9 +55,12 @@ export type TimelineEntry = TimelineStep | TimelineAggregate;
 
 /** A scenario as it plays over its view now. */
 export interface Timeline {
-  /** What plays, in order: each step of the scenario is in exactly one entry. */
+  /** What plays, in order: each step that plays is in exactly one entry. */
   entries: TimelineEntry[];
-  /** For each step of the scenario, by its index, the index of the entry that plays it. */
+  /**
+   * For each step of the scenario, by its index, the index of the entry that plays it; for a step an
+   * alternative not chosen holds, the entry that plays next, or else the last.
+   */
   entryOf: number[];
   /** How many steps the scenario has. */
   steps: number;
@@ -75,21 +81,25 @@ export function isOutside(entry: TimelineEntry): boolean {
  * aggregated step when every relation of each is in the model and every element those relations end
  * on, directly or through a relation they end on, sits inside the same collapsed container, at any
  * depth. The container is the outermost such one, which the view draws; when an element's several
- * containers leave a choice, the first in model order.
+ * containers leave a choice, the first in model order. Steps run together only while they follow one
+ * another in the scenario, never across an alternative that does not play.
  */
 export function scenarioTimeline(
   project: ProjectSnapshot,
   scenario: ScenarioFile,
   view: ViewFile | undefined = project.views.find((each) => each.id === scenario.view),
+  choices?: DecisionChoices,
 ): Timeline {
   const index = modelIndexOf(project);
   // A view with a scope, or one that leaves out relation types, may not draw a step (ADR-0040, ADR 0064).
   const shown = view === undefined || !showsPart(view) ? undefined : shownByScope(project, view);
   const insideOf = view ? containerFinder(project, view, shown) : () => undefined;
   const entries: TimelineEntry[] = [];
-  const entryOf: number[] = [];
+  const entryOf: number[] = new Array<number>(scenario.steps.length).fill(-1);
+  let previous = -2;
 
-  scenario.steps.forEach((step, at) => {
+  for (const at of playedSteps(scenario, choices)) {
+    const step = scenario.steps[at] as Step;
     const relations = step.relations.filter((id) => index.relation(id) !== undefined);
     const missing = step.relations.filter((id) => index.relation(id) === undefined);
     // Only a step whose every relation the view shows can happen inside a container it draws.
@@ -98,7 +108,14 @@ export function scenarioTimeline(
     const container =
       missing.length === 0 && showing.length === relations.length ? insideOf(step) : undefined;
     const last = entries.at(-1);
-    if (container !== undefined && last?.kind === 'aggregated' && last.container === container) {
+    const follows = at === previous + 1;
+    previous = at;
+    if (
+      container !== undefined &&
+      follows &&
+      last?.kind === 'aggregated' &&
+      last.container === container
+    ) {
       last.count += 1;
       last.steps.push(step.id);
       for (const relation of relations) {
@@ -124,8 +141,14 @@ export function scenarioTimeline(
         ...(outside ? { outside: true as const } : {}),
       });
     }
-    entryOf.push(entries.length - 1);
-  });
+    entryOf[at] = entries.length - 1;
+  }
+  // A step that does not play stands for the entry that plays next, or else the last one.
+  let next = entries.length - 1;
+  for (let at = entryOf.length - 1; at >= 0; at--) {
+    if (entryOf[at] === -1) entryOf[at] = next;
+    else next = entryOf[at] as number;
+  }
 
   return { entries, entryOf, steps: scenario.steps.length };
 }
@@ -137,22 +160,30 @@ export function scenarioTimeline(
 export function entryOfStep(timeline: Timeline, step: number): number | undefined {
   if (timeline.steps === 0) return undefined;
   const at = Math.min(Math.max(Math.trunc(step) || 0, 0), timeline.steps - 1);
-  return timeline.entryOf[at];
+  const entry = timeline.entryOf[at];
+  // Nothing plays when every step is in an alternative not chosen.
+  return entry === undefined || entry < 0 ? undefined : entry;
 }
 
-/** A broken step of a scenario: its id, where it is, and the relations it uses that no longer exist. */
+/**
+ * A broken step of a scenario: its id, where it is, the relations it uses that no longer exist, and
+ * the innermost decision and alternative it sits in, if any (ADR 0078).
+ */
 export interface BrokenStep {
   step: Id;
   index: number;
   missing: Id[];
+  within?: { decision: Id; alternative: Id };
 }
 
-/** The broken steps of a scenario, in order. */
+/** The broken steps of a scenario, in order, whichever alternative they sit in. */
 export function brokenStepsOf(project: ProjectSnapshot, scenario: ScenarioFile): BrokenStep[] {
   const index = modelIndexOf(project);
   return scenario.steps.flatMap((step, at) => {
     const missing = step.relations.filter((id) => index.relation(id) === undefined);
-    return missing.length > 0 ? [{ step: step.id, index: at, missing }] : [];
+    if (missing.length === 0) return [];
+    const within = scenario.blocks === undefined ? undefined : alternativeOf(scenario, step.id);
+    return [{ step: step.id, index: at, missing, ...(within ? { within } : {}) }];
   });
 }
 

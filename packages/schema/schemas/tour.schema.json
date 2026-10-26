@@ -66,6 +66,24 @@
           "$ref": "#/definitions/TourPlayback",
           "description": "A scenario played while the step shows, over the step's view."
         },
+        "reveal": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TourReveal"
+          },
+          "description": "Marks brought in one press forward at a time, after the step's own marks (ADR 0077).",
+          "minItems": 1,
+          "maxItems": 50
+        },
+        "dimRest": {
+          "type": "boolean",
+          "const": true,
+          "description": "Dims everything the step does not mark, but the ends of the relations it marks."
+        },
+        "advance": {
+          "$ref": "#/definitions/TourAdvance",
+          "description": "Moves on by itself; left out, the step waits for the person."
+        },
         "notes": {
           "type": "string",
           "description": "What the person presenting reads while the step shows, in the speaker notes window only: plain text, as a caption's.",
@@ -117,6 +135,10 @@
         "step": {
           "$ref": "#/definitions/Id",
           "description": "The step of that scenario playback is on, by its id; it needs `scenario`."
+        },
+        "choices": {
+          "$ref": "#/definitions/DecisionChoices",
+          "description": "The alternatives chosen at that scenario's decisions (ADR 0078); it needs `scenario`."
         }
       },
       "required": [
@@ -334,6 +356,19 @@
       "minimum": 1,
       "maximum": 5
     },
+    "DecisionChoices": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/Id"
+      },
+      "propertyNames": {
+        "description": "An identifier, generated once and never reused. Files refer to each other only by id. Element and relation ids share one namespace, because a relation can end on either. Component and relation type ids start with their package's id, as in `systems.service`.",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+      },
+      "description": "The alternative chosen at each decision of a scenario, by the decision's id (ADR 0078). Choices belong to the tab that plays; a file keeps them only to play a given alternative from a tour's step or a view state.",
+      "minProperties": 1,
+      "maxProperties": 64
+    },
     "TourCaption": {
       "type": "object",
       "properties": {
@@ -346,6 +381,16 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 4000
+        },
+        "place": {
+          "type": "string",
+          "enum": [
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right"
+          ],
+          "description": "The corner the card sits in; left out, the side of the screen farthest from the step's marks."
         }
       },
       "required": [
@@ -367,6 +412,10 @@
         "to": {
           "$ref": "#/definitions/Id",
           "description": "The step it stops on; its last step when left out."
+        },
+        "choices": {
+          "$ref": "#/definitions/DecisionChoices",
+          "description": "The alternatives it plays at the scenario's decisions; their defaults when left out."
         }
       },
       "required": [
@@ -374,6 +423,49 @@
       ],
       "additionalProperties": false,
       "description": "A scenario a step plays, from one of its steps to another."
+    },
+    "TourReveal": {
+      "type": "object",
+      "properties": {
+        "marks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "minItems": 1,
+          "maxItems": 500,
+          "uniqueItems": true
+        },
+        "text": {
+          "type": "string",
+          "description": "Added to the caption as a paragraph when it comes in: plain text, as a caption's.",
+          "minLength": 1,
+          "maxLength": 4000
+        }
+      },
+      "required": [
+        "marks"
+      ],
+      "additionalProperties": false,
+      "description": "A part of a step's marks that comes in on its own press forward, with a sentence for the caption."
+    },
+    "TourAdvance": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/AdvanceAfter"
+        },
+        {
+          "type": "string",
+          "const": "after-scenario"
+        }
+      ],
+      "description": "When a step moves on by itself: after a number of milliseconds, never fewer than its caption takes to read, or `after-scenario`, once the scenario it plays ends."
+    },
+    "AdvanceAfter": {
+      "type": "number",
+      "description": "Milliseconds a step shows before it moves on by itself.",
+      "minimum": 500,
+      "maximum": 600000
     }
   }
 }

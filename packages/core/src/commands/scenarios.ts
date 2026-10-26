@@ -1,6 +1,7 @@
-/** Commands on scenarios. */
-import type { Id, ScenarioFile, Step } from '@visual-anything/schema';
-import { slug } from '../ids';
+/** Commands on scenarios, their steps and their decisions (ADR 0078). */
+import type { Alternative, DecisionBlock, Id, ScenarioFile, Step } from '@visual-anything/schema';
+import { isId, slug } from '../ids';
+import { readBlocks } from '../scenarios/blocks';
 import { compact, reject, requireList, requireName, type Draft } from './draft';
 import type {
   CreateScenarioCommand,
@@ -14,12 +15,14 @@ export function createScenario(draft: Draft, command: CreateScenarioCommand): st
   const name = requireName(scenario.name, 'A scenario');
   const view = draft.view(scenario.view);
   const id = draft.idFor(scenario.id, slug(name, 'scenario'));
+  const steps = checkedSteps(draft, requireList(scenario.steps, 'steps'), []);
   const created: ScenarioFile = compact({
     id,
     name,
     description: scenario.description,
     view: view.id,
-    steps: checkedSteps(draft, requireList(scenario.steps, 'steps'), []),
+    steps,
+    blocks: checkedBlocks(scenario.blocks, steps, id),
   });
   draft.apply({
     op: 'insert',
@@ -42,6 +45,17 @@ export function updateScenario(draft: Draft, command: UpdateScenarioCommand): st
   if (changes.steps !== undefined) {
     next.steps = checkedSteps(draft, requireList(changes.steps, 'steps'), current.steps);
   }
+  // Decisions given replace them all; otherwise a change of steps keeps them, without the steps gone.
+  const blocks =
+    changes.blocks === null
+      ? undefined
+      : changes.blocks !== undefined
+        ? checkedBlocks(changes.blocks, next.steps, current.id)
+        : changes.steps !== undefined
+          ? keptBlocks(current.blocks, next.steps, current.id)
+          : current.blocks;
+  if (blocks === undefined) delete next.blocks;
+  else next.blocks = blocks;
   draft.apply({ op: 'replace', collection: { name: 'scenarios' }, item: next });
   return `Edit the scenario "${next.name}"`;
 }
@@ -50,6 +64,103 @@ export function deleteScenario(draft: Draft, command: DeleteScenarioCommand): st
   const scenario = draft.scenario(command.id);
   draft.apply({ op: 'remove', collection: { name: 'scenarios' }, key: scenario.id });
   return `Delete the scenario "${scenario.name}"`;
+}
+
+const MALFORMED =
+  'A decision has an id, the kind "decision", a question, its alternatives and maybe a default; an alternative has an id, a label, its steps and maybe ends.';
+
+/**
+ * Checks a scenario's decisions given whole: their shape, and that they hold together over its steps
+ * (ADR 0078). None given, or an empty list, is none.
+ */
+function checkedBlocks(
+  blocks: readonly DecisionBlock[] | undefined,
+  steps: readonly Step[],
+  scenario: Id,
+): DecisionBlock[] | undefined {
+  if (blocks === undefined) return undefined;
+  const list = requireList(blocks, 'The decisions of a scenario');
+  if (list.length === 0) return undefined;
+  const checked = list.map((block) => wellFormed(block));
+  return holding(checked, steps, scenario);
+}
+
+/** A scenario's decisions after its steps changed: without the steps gone, and without a decision left with none. */
+function keptBlocks(
+  blocks: readonly DecisionBlock[] | undefined,
+  steps: readonly Step[],
+  scenario: Id,
+): DecisionBlock[] | undefined {
+  if (blocks === undefined) return undefined;
+  const ids = new Set(steps.map((step) => step.id));
+  const kept = blocks
+    .map((block) => ({
+      ...block,
+      alternatives: block.alternatives.map((alternative) => ({
+        ...alternative,
+        steps: alternative.steps.filter((step) => ids.has(step)),
+      })),
+    }))
+    .filter((block) => block.alternatives.some((alternative) => alternative.steps.length > 0));
+  if (kept.length === 0) return undefined;
+  return holding(kept, steps, scenario);
+}
+
+/** Decisions that hold together over the steps, or the refusal that says why not. */
+function holding(blocks: DecisionBlock[], steps: readonly Step[], scenario: Id): DecisionBlock[] {
+  const read = readBlocks({ steps: [...steps], blocks });
+  if (!read.ok) reject('invalid-decision', read.message, [scenario]);
+  return blocks;
+}
+
+/** A decision as a command gives it, checked for its shape and copied with only its own keys. */
+function wellFormed(block: unknown): DecisionBlock {
+  const malformed = (): never => reject('invalid-command', MALFORMED);
+  if (typeof block !== 'object' || block === null || Array.isArray(block)) malformed();
+  const {
+    id,
+    kind,
+    question,
+    alternatives,
+    default: chosen,
+    ...rest
+  } = block as Record<string, unknown>;
+  if (Object.keys(rest).length > 0 || kind !== 'decision' || !isId(id)) malformed();
+  if (typeof question !== 'string' || question.trim() === '' || question.length > 200) malformed();
+  if (!Array.isArray(alternatives) || alternatives.length < 2 || alternatives.length > 8) {
+    malformed();
+  }
+  if (chosen !== undefined && !isId(chosen)) malformed();
+  return compact({
+    id: id as Id,
+    kind: 'decision' as const,
+    question: question as string,
+    alternatives: (alternatives as unknown[]).map((alternative) =>
+      wellFormedAlternative(alternative),
+    ),
+    default: chosen as Id | undefined,
+  });
+}
+
+function wellFormedAlternative(alternative: unknown): Alternative {
+  const malformed = (): never => reject('invalid-command', MALFORMED);
+  if (typeof alternative !== 'object' || alternative === null || Array.isArray(alternative)) {
+    malformed();
+  }
+  const { id, label, steps, ends, ...rest } = alternative as Record<string, unknown>;
+  if (Object.keys(rest).length > 0 || !isId(id)) malformed();
+  if (typeof label !== 'string' || label.trim() === '' || label.length > 200) malformed();
+  if (!Array.isArray(steps) || steps.length > 10000 || !steps.every((step) => isId(step))) {
+    malformed();
+  }
+  if (new Set(steps as Id[]).size !== (steps as Id[]).length) malformed();
+  if (ends !== undefined && ends !== true) malformed();
+  return compact({
+    id: id as Id,
+    label: label as string,
+    steps: [...(steps as Id[])],
+    ends: ends as true | undefined,
+  });
 }
 
 /**
