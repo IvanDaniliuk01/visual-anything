@@ -10,12 +10,12 @@ v0.1 is a local-first tool where you model one of your own systems, explore it a
 
 v0.1 is done when you can model one of your own systems end to end, read it at two abstraction levels, and play a real request through it with Claude's help.
 
-- [ ] One system you run is modeled with containers nested at least two levels deep, in two views with different perspectives.
-- [ ] Collapsing a container shows aggregated relations, and focus mode isolates the relations of the selected element.
+- [x] One system you run is modeled with containers nested at least two levels deep, in two views with different perspectives.
+- [x] Collapsing a container shows aggregated relations, and focus mode isolates the relations of the selected element.
 - [ ] A view with 10,000 elements pans, zooms and selects smoothly (target: 60 frames per second) on your laptop.
-- [ ] Claude, through MCP, builds and edits the model and its views, turns a pasted log into a scenario, and guides you live.
-- [ ] Every edit, yours or Claude's, undoes one action at a time, with Claude's actions labelled as such.
-- [ ] Project files are plain JSON that diff cleanly in git and are validated when opened.
+- [x] Claude, through MCP, builds and edits the model and its views, turns a pasted log into a scenario, and guides you live.
+- [x] Every edit, yours or Claude's, undoes one action at a time, with Claude's actions labelled as such.
+- [x] Project files are plain JSON that diff cleanly in git and are validated when opened.
 
 ## Scope
 
@@ -281,14 +281,30 @@ Eight milestones in build order, each ending in something you can use, and Track
 
 **M6 · Dogfooding and v0.1.** Done when your own system is modeled end to end, with two views and one real scenario, and every success criterion above holds.
 
-- [ ] Model your system (case 1) together with Claude
+- [x] Model your system (case 1) together with Claude: `examples/visual-anything` models Visual Anything itself, built only through Claude's MCP tools and the app, with two views, Structure and A command's path, the scenario "A shape moves" from `logs/a-shape-moves.log`, and a tour
 - [x] Search and jump: a find field (Ctrl+F) over names, ids, components and attribute values, results grouped by view, Enter selects and shows
 - [x] View addresses built on one view state (view, camera, selection, filters, focus, scenario step), kept in the address's fragment, with Copy address
 - [x] A view address opens in a new tab of the browser that has the project open, which joins its session (ADR 0043); `visual-anything open --view` and Claude's `open_app` open a tab at a view state in the program that runs, and `get_view_address` answers the full address (ADR 0044); the canvas toolbar keeps one row, with what does not fit under More
 - [x] PNG export of the open view or the whole view, at 1× or 2×, in the current theme
 - [x] A history panel: each action's label, author (you or Claude) and time, and Undo to here
 - [x] Recipes for Claude to build models, views and scenarios from what exists (Mermaid, PlantUML, draw.io, Structurizr, SQL, OpenAPI, Terraform, Kubernetes, docker-compose, a repository, logs and traces) with its tools, as MCP prompts (`build_from_…`)
-- [ ] Fix what dogfooding surfaces
+- [ ] Fix what dogfooding surfaces. Modeling Visual Anything with itself (W46) found:
+  - [x] Ids made from names split a word at an apostrophe (`claude-s-messages`, `a-command-s-path.vaview`); they keep it whole now (ADR 0019)
+  - [x] `set_scope` did not say how to show only elements picked by hand: `added` alone shows the whole model; it now says to exclude Essence and add them (ADR 0040)
+  - [x] The log a sample's scenario comes from is kept beside it in `logs/`, which `.gitignore`'s `*.log` left out (ADR 0019)
+  - [ ] Placing new shapes inside a container never moves the shapes beside it, so a container that grows with what Claude adds covers its neighbours until the whole view is laid out (ADR 0015 moves only new shapes)
+  - [ ] Placing what Claude adds is recorded as the person's action (`Lay out 22 new shapes`, by you), also after `change_container` without places: one change of Claude's takes two undos, and the history shows layouts nobody asked for
+  - [ ] The canvas's routes do not go around the shapes between their ends, so in nested views lines cross other shapes and their names
+  - [ ] A view cannot leave out relation types: a Structure view of a code base draws every call and connection between its parts, which only filters, never kept with the view, hide (needs an ADR beside ADR 0025 and ADR 0040)
+  - [ ] Below about 60%, straight edges thinner than a pixel vanish and only rounded corners draw, so a shape inside a container of the same fill disappears
+  - [ ] Fit can choose a zoom at which no names draw (17% for 84 shapes), and `lay_out_view` leaves the camera where it was, so the person may see blank boxes or empty canvas
+  - [ ] Playback and `go_to_step` never bring the step played into view, so a step off screen plays unseen
+  - [ ] Guidance that names a view switches every open tab to it, and a tab switched so keeps the camera of the view it showed
+  - [ ] The canvas's keys, such as Alt+− to collapse, do nothing while focus is in the outline, and the outline offers no collapse
+  - [ ] The program writes nothing per action, so the log of a command's path had to come from the browser's WebSocket frames; a `--log` option writing one line per action would make one to paste
+  - [ ] `define_component` and `update_component` warn about no color, as `set_appearance` does about a fill that fades into the light canvas
+  - [ ] A collapsed container's count is cut off at its component's size (`Code package…`)
+  - [ ] The header wraps to two rows when the view's name and the Undo label are long, which moves the canvas down while you work (A4)
 - [x] README with setup for Claude Desktop and Claude Code
 - [ ] Tag v0.1 in the private repository
 
