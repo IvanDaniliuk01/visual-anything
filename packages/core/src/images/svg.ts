@@ -4,7 +4,7 @@
  * loads: shapes, paths, groups, gradients, clipping and masks, with references only to the picture's own
  * parts, and a rendering cost within caps. Pure TypeScript, with no DOM and no dependency.
  */
-import { Removals, cleaning, invalid, tooLarge, type Cleaned } from './result';
+import { Refusal, Removals, cleaning, invalid, tooLarge, type Cleaned } from './result';
 
 /** What cleaning keeps of an SVG picture: its text, and the width and height of its view box. */
 export interface CleanedSvg {
@@ -168,6 +168,42 @@ export function cleanSvg(text: string): Cleaned<CleanedSvg> {
     }
     return { svg: written, width: box.width, height: box.height };
   });
+}
+
+/** An element of a cleaned picture: its name, its attributes by name, and its children in order. */
+export interface SvgNode {
+  readonly name: string;
+  readonly attributes: ReadonlyMap<string, string>;
+  readonly children: readonly SvgNode[];
+}
+
+/**
+ * Reads cleaned SVG text back into its elements, with the cleaner's own strict reader, so that
+ * nothing else in the core reads XML: named parts (ADR 0067) are read this way, from the cleaned view
+ * only. `undefined` when the reader refuses the text, which cleaned text never is.
+ */
+export function readCleanedSvg(svg: string): SvgNode | undefined {
+  let root: RawElement;
+  try {
+    root = parse(svg, new Removals());
+  } catch (error) {
+    if (error instanceof Refusal) return undefined;
+    throw error;
+  }
+  const node = (element: RawElement): SvgNode => ({
+    name: element.local,
+    attributes: element.attributes,
+    children: element.children.map(node),
+  });
+  return node(root);
+}
+
+/**
+ * Writes elements as the cleaner writes its output: on one line, attributes sorted by name, empty
+ * elements closed by themselves. What it writes is to be cleaned again before anyone draws it.
+ */
+export function writeSvg(root: SvgNode): string {
+  return write(root);
 }
 
 // --- Reading -------------------------------------------------------------------------------------
@@ -1018,9 +1054,9 @@ function numbersIn(text: string): number {
 // --- Writing -------------------------------------------------------------------------------------
 
 /** Writes the cleaned picture on one line: attributes sorted by name, empty elements self-closed. */
-function write(root: Clean): string {
+function write(root: SvgNode): string {
   const parts: string[] = [];
-  const visit = (element: Clean) => {
+  const visit = (element: SvgNode) => {
     parts.push('<', element.name);
     const names = [...element.attributes.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
     for (const name of names)
@@ -1050,3 +1086,13 @@ export const SVG_ALLOWED = {
   elements: KEPT,
   attributes: new Set(['id', 'href', 'xmlns', ...GEOMETRY, ...PAINT]),
 } as const;
+
+/** How the cleaner sorts what it keeps, for readers of cleaned pictures such as named parts. */
+export const SVG_KINDS: {
+  /** Elements that draw. */
+  readonly shapes: ReadonlySet<string>;
+  /** Elements whose contents are never drawn where they stand. */
+  readonly notDrawnInside: ReadonlySet<string>;
+  /** Attributes of paint, inherited or not, clipping and masking among them. */
+  readonly paint: ReadonlySet<string>;
+} = { shapes: SHAPES, notDrawnInside: NOT_DRAWN_INSIDE, paint: PAINT };

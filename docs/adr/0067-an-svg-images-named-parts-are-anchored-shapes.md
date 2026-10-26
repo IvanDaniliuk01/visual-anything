@@ -133,3 +133,44 @@ Anatomical atlases, maps, plans and machine drawings already exist as SVG whose 
 - The inspector gains the parts of a drawing and Anchor parts…, and Claude gains `list_image_parts` and `anchor_parts`.
 - The SVG writer draws a drawing with parts as its picture, with what changes how its parts look drawn over it. The read-only page draws them as the canvas does.
 - CONTEXT.md gains **Named part**, **Anchored part** and **Drawing with parts**, and **Image** says that a picture can show its parts.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (M8b, Seam 2): **how the core reads a named part.**
+  - **A named part draws something.** An element with an id that fills and strokes nothing is not listed: empty, `display="none"`, hidden by `visibility`, of no size, painted `none`, flattened to nothing by a transform, or left out by a cap. An appearance that names it warns `unknown-part`.
+  - **Its outline is in the image's own units, measured from the top left of its view box**, in a box the size of the view box that keeps its proportions. Fitted to the rectangle the picture is drawn in, it lies over the picture. Its bounds include its strokes' bands.
+  - **The outline is what the shapes fill and stroke, and nothing cuts it.** Clip paths, masks and nested viewports do not cut it, and opacity does not thin it. A fill painted `transparent` still counts, as it does for pointing in SVG. The outermost element's transform applies in its user space.
+  - **Strokes are bands with round ends and joins**, whatever their caps and joins.
+  - **Its main color** is the fill of its largest filled shape, by area, among the fills that show.
+    - A gradient's middle stop is the one at index ⌊(n − 1) / 2⌋ of its stops, its own or those of the gradient it refers to.
+    - A fill whose color has no alpha left, such as `transparent`, and a stop of no opacity show nothing.
+    - A part whose fills show nothing takes the stroke of its largest stroked shape, and black when nothing shows at all.
+- 2026-10-26 (M8b, Seam 2): **the caps on parts.**
+  - **Points** are counted with the outline flattened to a quarter unit of the picture drawn 1,600 units on its longer side. Past 4,096, the part's contours are flattened and simplified together into straight pieces, by Visvalingam and Whyatt's method, with one threshold for all of them.
+  - **A cap is added on the work of reading**: at most 100,000 segments of shapes are read in all, each `use` reading its own copy. A picture's own 64 KiB of text holds about 20,000, so only a `use` drawn over and over reaches it. Past it, the shapes that follow in document order are left out of every outline.
+  - **A shape whose coordinates, transformed, reach past 10⁹ units** is left out of every outline too.
+  - **At most 256 closed contours of one shape are classed** as fills and holes, since classing costs the square of their number. They are counted before any is classed; past 256, the largest by their bounds are kept and the rest left out of every outline. A shape is classed once, in its own coordinates, for each viewport size and fill rule, however many times a `use` draws it, since an affine map keeps what holds what. A `use` then costs only the contours kept.
+  - **What the caps left out is reported.** `partsLeftOut` gives the contours left out and whether the cap on segments was passed. `too-many-parts` warns on open for a picture past any cap on parts, not only the one on their number. Whether a picture can reach a cap at all is told first from one pass over its text: its ids, a `use`, or path data with more than 256 subpaths.
+- 2026-10-26 (M8b, Seam 2, after a security review): **the caps on writing a part as free geometry**, whose union of fills and bands is bounded whatever the picture (`UNION_CAPS` in `core/src/geometry/union.ts`).
+  - **Edges.** At most 16,384 edges are joined, counted before anything is built, a stroke's band counting 12 edges for each point of its line. Past that, the flattened contours and lines are simplified together to fit.
+  - **The grid.** Each edge is kept only in the cells it crosses, walked from cell to cell as a digital differential analyser does, never in every cell of its bounds.
+  - **Crossings and work.** At most 16,384 crossings are found, each once, in the cell that holds it, and at most 4,000,000 steps are spent in all: cells an edge is kept in, pairs of edges compared, cells and edges a ray meets, and pieces joined into loops.
+  - **Past a cap,** the union is given up, and the part is written as it is, its contours flattened and each band as one ring around its line. That is linear work, though shapes that overlap then read as their difference where they overlap.
+- 2026-10-26 (M8b, Seam 2): **a part's own picture.**
+  - It is a cleaned image of its own. Its id is `<image id>#<part id>`, its name the part's id, and it keeps the image's source and license.
+  - The outermost element's paint goes on the new `svg`, and its transform before the first copy's own.
+  - The copy of a nested `svg` ancestor keeps where its viewport is, which is its transform.
+  - A part that reaches past the picture's edge, or that measures lengths on a viewport (percentages, a nested `svg`, a `symbol` or a `use`), sits in a nested `svg` that is the original's viewport, which also cuts it where the picture does. When that would nest it deeper than cleaning allows, the nested `svg` is left out.
+- 2026-10-26 (M8b, Seam 2): **a part's outline as free geometry**, as `geometryOf` writes it.
+  - Its box is the part's bounds in the image's units, scaled only when they are past free geometry's 100,000 or below 1. It keeps proportions.
+  - Free geometry reads all its contours by the even-odd rule, so the part is written as the boundary of what it covers:
+    - its contours as they are, curves and all, when no two of them cross, leaving out those that bound nothing (a shape wholly under another) and writing once those that lie on one another;
+    - otherwise, and for strokes, whose bands become polygons, the loops around what its fills and bands cover together, flattened to 1/2,000 of the part's size.
+  - At most its 64 largest contours are written, simplified together to 2,000 segments and 32 KiB, with numbers rounded to about 1/20,000 of its box.
+- 2026-10-26 (M8b, Seam 2): **lost parts, checks and caching.**
+  - The anchored parts a replacement loses are those that the picture before lists and the one after does not.
+  - `too-many-parts` is warned on open for every SVG image drawn that is past a cap on parts: more than 1,024 named parts, or contours or shapes left out of its outlines.
+  - The functions the appearance checks call take a `part` as `{ part, image? }`: `findPart`; `unknownPartProblem`, which gives no warning when no image is named or the image is not drawn, since other warnings cover those; and `partImageId`, which `in-use` adds to the images an appearance names.
+  - A reading is kept for each cleaned view's text, so that equal content is read once, and pruned with the cleaned images. Each part's picture is kept for each cleaned image.

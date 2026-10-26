@@ -138,3 +138,17 @@ ELK sees a shape with free geometry by its rectangle, and its connection points 
 - The SVG and PDF exports write the outline as a `path` with `fill-rule="evenodd"`, and the read-only page draws it as the canvas does.
 - The benchmark gains a `?geometry` variant.
 - CONTEXT.md gains **Free geometry**, and **Appearance** and **Connection point** say how free geometry changes them.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (M8b, Seam 2): **the outline type holds stroked lines, several fills and the nonzero rule**, for named parts (ADR 0067), and stays one type. Free geometry sets none of what follows, so its reading is unchanged: even-odd over all its contours, whether they cross or not.
+  - **A line has a `width`**, its stroke's width. It holds a band of half that width on each side of it, with round ends, and `distanceToEdges` measures from that band. Fitting an outline to a rectangle scales a line's width by the root of the area it is stretched by.
+  - **A closed contour has a `group`**: the fill it belongs to, one for each shape a part fills. The contours of one fill hold by its rule among themselves, and the outline holds what any of its fills holds. A shape drawn over another, wholly or partly, is therefore never a hole in it, as even-odd over all the contours would make it.
+  - **A fill read by the nonzero rule is marked `nonzero`, and read by winding numbers per contour**, rather than by contours merged. Holding a point adds up the winding numbers of the fill's contours, which is exact whether they cross or not; merging would need a union of every part's shapes at every reading. Its contours are classed by winding: a fill where the side a contour holds is filled, a hole otherwise. Drawing fills and cutting holes then paints what the rule fills wherever no two of its contours cross.
+  - **What draws an outline draws it fill by fill.** The canvas fills each fill and cuts its holes. The SVG writer writes one `path` for each fill: `fill-rule="nonzero"` for a nonzero one, whose contours keep the way they run, and `evenodd` otherwise. It draws lines as strokes of their width.
+  - **Contours are merged in one place only**: writing a part's outline as free geometry (`geometryOf`, ADR 0067).
+  - **Classing contours is bounded.** Each contour is tried against the others of its fill only when their bounds hold the point tried, and each of those is read at most 128 points, every so many kept. The work still grows with the square of the contours, so every caller caps them before classing: free geometry by its 2,000 segments, and a named part shape by shape (ADR 0067).
+  - **`outlineHolds` with a margin** holds only what lies within that margin of the outline. It held every point before, since its search for the nearest edge stopped at the margin itself.
+- 2026-10-26 (M8b, Seam 2): **a picture's path data is read up to its first error.** Free geometry's reader stays strict and refuses anything outside the grammar. Reading a picture's shapes for its named parts, the same reader keeps what comes before the first error, as SVG draws it.

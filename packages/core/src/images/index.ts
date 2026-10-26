@@ -23,3 +23,18 @@ export {
   resolveImage,
 } from './catalog';
 export { checkImages } from './check';
+export type { FoundPart, NamedPart, PartsLeftOut } from './parts';
+export {
+  PART_CAPS,
+  findPart,
+  geometryOf,
+  lostParts,
+  namedPart,
+  namedPartCount,
+  partImageId,
+  partPicture,
+  partsLeftOut,
+  partsOf,
+  tooManyPartsProblem,
+  unknownPartProblem,
+} from './parts';

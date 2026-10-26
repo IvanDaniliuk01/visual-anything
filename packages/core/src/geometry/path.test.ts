@@ -118,6 +118,21 @@ describe('readPathData', () => {
     expect(readPathData('M0 0 1 1 2 2 3 3', 3)).toEqual({ ok: false, reason: 'too many commands' });
     expect(readPathData('M0 0 1 1 2 2', 3).ok).toBe(true);
   });
+
+  it('reads up to the first error when asked, as SVG draws a path, but never past the cap', () => {
+    const upTo = (d: string, cap = Number.POSITIVE_INFINITY) =>
+      readPathData(d, cap, { upToError: true });
+    const read = upTo('M0 0 L10 0 L10 10 Z M20 20 L30 x');
+    expect(read.ok).toBe(true);
+    expect(read.ok && read.subpaths.map((subpath) => subpath.segments.length)).toEqual([2, 0]);
+    // A command that ends past every finite number is dropped whole, and reading stops there.
+    const huge = upTo('M0 0 L10 0 L1e308 0 l1e308 0 L5 5');
+    expect(huge.ok && huge.subpaths[0]?.segments.map((segment) => segment.to.x)).toEqual([
+      10, 1e308,
+    ]);
+    expect(upTo('').ok && upTo('')).toEqual({ ok: true, subpaths: [], commands: 0 });
+    expect(upTo('M0 0 1 1 2 2 3 3', 3)).toEqual({ ok: false, reason: 'too many commands' });
+  });
 });
 
 describe('readPolygonPoints', () => {
@@ -135,5 +150,19 @@ describe('readPolygonPoints', () => {
   it('refuses an odd number, and stops at its cap', () => {
     expect(readPolygonPoints('0,0 10').ok).toBe(false);
     expect(readPolygonPoints('0,0 1,1 2,2', 2)).toEqual({ ok: false, reason: 'too many points' });
+  });
+
+  it('reads the pairs before the first error when asked, as SVG draws a polygon', () => {
+    expect(readPolygonPoints('0,0 10,0 10', Number.POSITIVE_INFINITY, true)).toEqual({
+      ok: true,
+      points: [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+      ],
+    });
+    expect(readPolygonPoints('0,0 1,1 2,2', 2, true)).toEqual({
+      ok: false,
+      reason: 'too many points',
+    });
   });
 });

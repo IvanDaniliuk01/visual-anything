@@ -60,6 +60,10 @@ export type ProblemCode =
   | 'image-too-large'
   | 'image-cleaned'
   | 'large-images'
+  // Named parts of SVG images (ADR 0067), only as warnings: a part that an appearance names and its
+  // picture lacks, and a picture with more named parts than it lists.
+  | 'unknown-part'
+  | 'too-many-parts'
   // Package code (ADR 0054): code a command refuses or a project holds that cannot run, and what
   // its hooks do that only warns.
   | 'invalid-code'

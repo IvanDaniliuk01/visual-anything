@@ -10,6 +10,7 @@ import { decodeBase64 } from './base64';
 import { readBitmap } from './bitmap';
 import { IMAGE_CAPS, elementsOf, imageIdOf, imagesIn } from './catalog';
 import { cleanedImage, imageText, isClean } from './cleaned';
+import { tooManyPartsProblem } from './parts';
 import type { Cleaned } from './result';
 import { cleanSvg } from './svg';
 
@@ -46,6 +47,10 @@ export function checkImages(state: ProjectSnapshot): { errors: Problem[]; warnin
         ),
       );
     }
+    // A picture with more named parts than it lists draws the rest as no parts (ADR 0067).
+    const shown = catalog.shown(image.id);
+    const tooMany = shown && tooManyPartsProblem(image, shown, packageId);
+    if (tooMany) warnings.push(tooMany);
   }
 
   for (const file of state.packages) {
