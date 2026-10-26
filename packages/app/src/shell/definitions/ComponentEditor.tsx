@@ -27,6 +27,7 @@ import { componentImageAction } from './imageCommands';
 import { ImageControl } from './ImageControl';
 import { LevelsSection } from './LevelsSection';
 import { BuiltInNote, Gone, RemoveDefinition } from './parts';
+import { ShapeSection } from './ShapeSection';
 import { TraitRow } from './TraitRow';
 import { sizeProblem, sourceText } from './traits';
 import { UsedBySection } from './UsedBySection';
@@ -102,6 +103,8 @@ export function ComponentEditor({ id, titleRef }: ComponentEditorProps) {
         change={(changes) => perform(send, update({ ids: changes }))}
       />
       <AppearanceTraits id={id} readOnly={readOnly} update={appearance} />
+      {/* Free geometry and parts change at the level the project can change, as colors do. */}
+      <ShapeSection id={id} />
       <DetailSection id={id} readOnly={readOnly} update={appearance} />
       <ConnectionPointsSection id={id} readOnly={readOnly} update={appearance} />
       {/* Levels change at the level the project can change, so a built-in component's too. */}
@@ -147,7 +150,9 @@ function AppearanceTraits({ id, readOnly, update }: AppearanceTraitsProps) {
       ? t('None')
       : image.placement === 'drawing'
         ? t('{name}, as its drawing', { name: pictureName ?? '' })
-        : t('{name}, as an icon', { name: pictureName ?? '' });
+        : image.placement === 'parts'
+          ? t('{name}, with its parts', { name: pictureName ?? '' })
+          : t('{name}, as an icon', { name: pictureName ?? '' });
 
   return (
     <section className="inspector-section" aria-labelledby={headingId}>
@@ -160,7 +165,9 @@ function AppearanceTraits({ id, readOnly, update }: AppearanceTraitsProps) {
           note={
             rows
               ? t('While it draws rows, its shapes are a rectangle or a rounded rectangle.')
-              : undefined
+              : shown.geometry !== undefined || shown.part !== undefined
+                ? t('Its free geometry or the part it is drawn as takes the place of this kind.')
+                : undefined
           }
         >
           {({ id: controlId, describedBy, send }) => (

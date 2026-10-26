@@ -1,0 +1,165 @@
+{
+  "id": "circulation",
+  "name": "Circulation",
+  "description": "The two circuits of the blood, each part of the heart drawn on its own with its outline and its picture.",
+  "perspective": {
+    "name": "Blood flow"
+  },
+  "nestingRelationTypes": [],
+  "positions": [
+    {
+      "element": "lungs",
+      "x": 368,
+      "y": 0,
+      "width": 208,
+      "height": 176
+    },
+    {
+      "element": "pulmonary-artery",
+      "x": 176,
+      "y": 224,
+      "width": 192,
+      "height": 128
+    },
+    {
+      "element": "pulmonary-veins",
+      "x": 648,
+      "y": 224,
+      "width": 48,
+      "height": 56
+    },
+    {
+      "element": "left-atrium",
+      "x": 616,
+      "y": 344,
+      "width": 112,
+      "height": 96
+    },
+    {
+      "element": "pulmonary-valve",
+      "x": 240,
+      "y": 416,
+      "width": 64,
+      "height": 24
+    },
+    {
+      "element": "mitral-valve",
+      "x": 624,
+      "y": 504,
+      "width": 96,
+      "height": 40
+    },
+    {
+      "element": "right-ventricle",
+      "x": 232,
+      "y": 504,
+      "width": 80,
+      "height": 176
+    },
+    {
+      "element": "left-ventricle",
+      "x": 600,
+      "y": 608,
+      "width": 144,
+      "height": 192
+    },
+    {
+      "element": "tricuspid-valve",
+      "x": 256,
+      "y": 744,
+      "width": 32,
+      "height": 80
+    },
+    {
+      "element": "aortic-valve",
+      "x": 640,
+      "y": 864,
+      "width": 64,
+      "height": 24
+    },
+    {
+      "element": "right-atrium",
+      "x": 224,
+      "y": 888,
+      "width": 96,
+      "height": 192
+    },
+    {
+      "element": "sinoatrial-node",
+      "x": 16,
+      "y": 952
+    },
+    {
+      "element": "aorta",
+      "x": 600,
+      "y": 952,
+      "width": 144,
+      "height": 232
+    },
+    {
+      "element": "superior-vena-cava",
+      "x": 224,
+      "y": 1144,
+      "width": 32,
+      "height": 128
+    },
+    {
+      "element": "inferior-vena-cava",
+      "x": 288,
+      "y": 1144,
+      "width": 32,
+      "height": 144
+    },
+    {
+      "element": "body",
+      "x": 208,
+      "y": 1416,
+      "width": 128,
+      "height": 160
+    }
+  ],
+  "freeShapes": [
+    {
+      "kind": "note",
+      "id": "two-circuits",
+      "x": 360,
+      "y": 560,
+      "width": 224,
+      "height": 136,
+      "text": "The right side of the heart, on the left, pumps oxygen-poor blood up to the lungs. The left side, on the right, pumps oxygen-rich blood down to the body."
+    }
+  ],
+  "scope": {
+    "include": [
+      {
+        "kind": "component",
+        "component": "heart.body"
+      },
+      {
+        "kind": "component",
+        "component": "heart.chamber"
+      },
+      {
+        "kind": "component",
+        "component": "heart.lungs"
+      },
+      {
+        "kind": "component",
+        "component": "heart.pacemaker"
+      },
+      {
+        "kind": "component",
+        "component": "heart.valve"
+      },
+      {
+        "kind": "component",
+        "component": "heart.vessel"
+      }
+    ]
+  },
+  "relationTypesLeftOut": [
+    {
+      "relationType": "heart.is-part-of"
+    }
+  ]
+}

@@ -117,6 +117,14 @@ export function nearestInDirection(
   const bounds = indexed.scene.bounds;
   if (!bounds) return undefined;
   const shape = start.shape;
+  // Anchored parts lie over one another as their picture draws them: the keys step through a
+  // drawing's parts in its picture's order, and on past the last or the first (ADR 0067).
+  if (shape?.part?.inDrawing === true && shape.containerShape !== undefined) {
+    const parts = partsInOrder(indexed, shape.containerShape);
+    const next =
+      parts[parts.indexOf(shape) + (direction === 'right' || direction === 'down' ? 1 : -1)];
+    if (next) return { kind: 'shape', shape: next };
+  }
   const allowed = (candidate: ElementShape) =>
     !shape ||
     (candidate.element !== shape.element &&
@@ -207,6 +215,9 @@ export function firstInside(
   container: ElementShape,
 ): ElementShape | undefined {
   if (!container.holdsContents) return undefined;
+  // A drawing with parts starts with its first anchored part, in its picture's order (ADR 0067).
+  const [firstPart] = container.picture ? partsInOrder(indexed, container.key) : [];
+  if (firstPart) return firstPart;
   const corner = { x: container.rect.x, y: container.rect.y };
   const found = search(
     container.extent,
@@ -226,6 +237,17 @@ export function firstInside(
     },
   );
   return found?.reachable.kind === 'shape' ? found.reachable.shape : undefined;
+}
+
+/**
+ * The anchored parts of a drawing with parts that the canvas shows, in its picture's order, which the
+ * scene draws them in.
+ */
+export function partsInOrder(indexed: IndexedScene, drawing: string): ElementShape[] {
+  const rank = (shape: ElementShape) => indexed.rankOf[indexed.indexOfKey.get(shape.key) ?? 0] ?? 0;
+  return (indexed.contentsOf.get(drawing) ?? [])
+    .filter((each) => each.part?.inDrawing === true && !isHidden(indexed.scene, each.key))
+    .sort((a, b) => rank(a) - rank(b));
 }
 
 /** A relation ] and [ step through from an element, and the end it is reached through. */

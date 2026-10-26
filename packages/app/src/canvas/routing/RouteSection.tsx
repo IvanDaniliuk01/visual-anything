@@ -6,16 +6,25 @@ import { useT, type Translator } from '../../i18n';
 import { relationLinesOf } from '../scene';
 import {
   attachAutomaticallyCommand,
+  automaticStyleOf,
+  chosenStyleOf,
   resetCommand,
   routedByHand,
   styleCommand,
   viewIn,
+  type StyleChoice,
 } from './commands';
+import { ROUTE_STYLE_WORDS } from '../../shell/inspector/routeStyles';
 import type { RouteStyle } from './hand';
 import { requestRouteEditing } from './requests';
 
 const STYLES: readonly RouteStyle[] = ['orthogonal', 'straight', 'curved'];
 const AUTOMATIC: ResolvedAttachment = { kind: 'automatic' };
+
+/** Whether a value of the Style control is one of its choices: Automatic or a style. */
+function isStyleChoice(value: string): value is StyleChoice {
+  return value === 'automatic' || (STYLES as readonly string[]).includes(value);
+}
 
 /**
  * The inspector's Route section for a relation (ADR 0039): where each end of its line attaches in the
@@ -37,9 +46,9 @@ export function RouteSection({ relation }: { relation: Id }) {
   };
   const route = line?.hand?.route;
   const byHand = routedByHand(view, relation);
-  const style: RouteStyle = byHand
-    ? (view.routes?.[relation]?.style ?? 'orthogonal')
-    : 'orthogonal';
+  // A route without a style of its own takes the style of the automatic route (ADR 0069).
+  const style = chosenStyleOf(view, relation);
+  const automatic = automaticStyleOf(project, view, relation);
   const drawnAlone = line !== undefined && !line.aggregate;
   const styleNames: Record<RouteStyle, string> = {
     orthogonal: t('Orthogonal'),
@@ -74,10 +83,16 @@ export function RouteSection({ relation }: { relation: Id }) {
               id={styleId}
               value={style}
               disabled={disabled}
-              onChange={(event) =>
-                perform(styleCommand(project, viewId, [relation], event.target.value as RouteStyle))
-              }
+              onChange={(event) => {
+                const chosen = event.target.value;
+                if (isStyleChoice(chosen)) {
+                  perform(styleCommand(project, viewId, [relation], chosen));
+                }
+              }}
             >
+              <option value="automatic">
+                {t('Automatic: {style}', { style: t(ROUTE_STYLE_WORDS[automatic]) })}
+              </option>
               {STYLES.map((each) => (
                 <option key={each} value={each}>
                   {styleNames[each]}
@@ -136,6 +151,8 @@ function attachedAt(t: Translator, attachment: ResolvedAttachment): string {
       return t('Automatic');
     case 'connection-point':
       return t('At "{name}"', { name: attachment.name });
+    case 'inside':
+      return t('At a place inside it');
     case 'border':
       switch (attachment.side) {
         case 'top':

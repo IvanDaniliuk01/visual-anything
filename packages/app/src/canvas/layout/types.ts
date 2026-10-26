@@ -51,6 +51,17 @@ export interface LayoutShape {
   rowAt?: number;
   /** On a shape that draws its contents as rows: the middle of its header, where its own relations attach. */
   headerAt?: number;
+  /**
+   * On an anchored part (ADR 0067): its inner point, from the top left of its drawing with parts,
+   * where the relations that end on it attach on the drawing's side nearest it. Its place is its
+   * part's, so it never moves.
+   */
+  partAt?: { x: number; y: number };
+  /**
+   * On a drawing with parts (ADR 0067): where its picture ends, from its top. Its contents that are
+   * not anchored parts are arranged below it.
+   */
+  pictureBottom?: number;
 }
 
 /** Where a relation's end is fixed on its shape's border, chosen by hand in the view (ADR 0039). */

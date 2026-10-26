@@ -42,7 +42,9 @@ export type ResolvedAttachment =
   /** At a connection point of the end's appearance, which sits at this side and place. */
   | { kind: 'connection-point'; name: string; side: Side; at: number }
   /** At a fixed place on the end's border. */
-  | { kind: 'border'; side: Side; at: number };
+  | { kind: 'border'; side: Side; at: number }
+  /** At a fixed place inside the end's shape, across and down its box, each from 0 to 1. */
+  | { kind: 'inside'; x: number; y: number };
 
 /** How a view routes a relation, worked out for the scene. */
 export interface ResolvedRoute {
@@ -281,6 +283,7 @@ export function resolveAttachment(
       if (attachment.kind === 'border') {
         return { kind: 'border', side: attachment.side, at: attachment.at };
       }
+      if (attachment.kind === 'inside') return { kind: 'inside', x: attachment.x, y: attachment.y };
       const point = shape.points.find((each) => each.name === attachment.name);
       return point === undefined
         ? AUTOMATIC
