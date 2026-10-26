@@ -37,13 +37,13 @@ v0.1 covers the model, views, layout, tables, the component editor, images, them
 | Scenarios | Record, play, data per step, simultaneous relations, aggregated steps | Import real traces through a package |
 | Tours | — | Recorded guidance played full screen, with comments (M11, after v0.1) |
 | Claude through MCP | Model, views, declarative components with their images, rows and connection points, appearances, scenarios, live guidance | Writing programmable code, with approval |
-| Time (model versions) | — | After v0.1 |
+| Time (model versions) | — | Comparing versions between git commits, in the app and for pull requests (M11b) |
 | Attribute space | — | Case 3 (transformer) |
 | Physical space (3D) | — | Case 5 (robotic arm, human body): 3D models inside components first, then a 3D panel linked to the 2D views (after v0.1) |
 | Live data from your systems | Claude refreshes the model through its other MCPs | Packages that request network permission |
 | Export (image, PDF, shareable page) | PNG of the open view | SVG, PDF, text, and a read-only page to share, embed and read on a phone (M6b) |
 | HTML | — | Static HTML imported as a cleaned drawing (M8b, ADR 0068); HTML that runs only with a new ADR |
-| Collaboration | Git on the project files | No real-time editing |
+| Collaboration | Git on the project files | A merge driver that merges project files by id, and proposals to review Claude's changes (M11b); no real-time editing |
 | Platforms | Windows, macOS and Linux: the local program as one executable for each (ADR 0037), or from npm, with the app in any desktop browser | Mobile reading through the read-only page (M6b); installers and updates (Track D) |
 | Embedded chat | — | Optional package |
 | Import | Claude builds models from Mermaid, draw.io, SQL, OpenAPI, Terraform, logs and more with its tools | Importers in the app for Mermaid, spreadsheets and JSON, Structurizr and LikeC4, and draw.io; starter packages per domain (M6c) |
@@ -146,6 +146,7 @@ my-systems/
 - No file contains code that runs. Programmable code, after v0.1, lives in packages and runs sandboxed.
 - Writes are atomic (a temporary file, then a rename), so a crash never leaves a half-written file. Changes made outside the app, such as a git pull, are reloaded with a notice.
 - Each kind of file is read within a size cap, such as 1 MiB for a thread of comments, and a change that would write a file past its cap is refused before anything is written, so that whatever is written opens again.
+- A file that the merge driver merged may hold what clashed as conflicts, kept as data, and it still validates (M11b, ADR 0072).
 
 ## Canvas, views and layout
 
@@ -518,6 +519,156 @@ Eight milestones in build order, each ending in something you can use, and Track
   - a run with the image store cleared;
   - a theme switch.
 
+**M11b · Versions.** Planned for the third wave, beside M8b. The core's comparison, merge and proposals go first, in the main session, since everything else builds on them. Then two rounds of tasks run in parallel. Done when:
+
+- two versions of a project compare in the core by id, element by element and view by view, into what was added, removed, changed and moved, each with what differs; and the property tests pass (ADR 0070):
+  - a version compared with itself shows no change;
+  - compared the other way round, added and removed swap;
+  - a comparison followed through any action equals comparing afresh;
+- the local program reads the project as a commit of its repository holds it, through git's plumbing, and writes nothing to the repository (ADR 0071):
+  - git runs by its absolute path, with arguments and never a shell;
+  - the hostile-repository tests pass: configuration that starts programs, names that look like options, links, submodules, files past their caps and objects that a partial clone lacks start no program, reach no network and read nothing outside the repository;
+- Compare with… in the app takes the project as opened, the last commit, a branch, a tag or a recent commit. It draws the open view before, after and as a comparison, with a legend that does not rest on color alone, the Changes list, and `]` and `[` to step through the changes. At 10,000 elements:
+  - comparing takes at most 100 ms;
+  - following an action takes at most 5 ms;
+  - the drawing stays within the frame budget;
+- the comparison leaves the app and goes to pull requests:
+  - the Export dialog writes a comparison's drawings as SVG and PDF, and its summary in Markdown;
+  - `visual-anything compare <folder> --base <ref> --out <folder>`, with no program running, writes the summary and, for each view that changed, SVGs before, after and of the comparison;
+  - a CI job keeps them for each pull request that changes `examples/`;
+- with Review Claude's changes on, Claude's changes gather into one proposal (ADR 0073):
+  - every open app shows it as a comparison, and the person accepts it change by change, or refuses it;
+  - what is accepted is one undoable action of Claude's, which keeps what the person did meanwhile;
+  - nothing of a proposal reaches a file, the history or git before it is accepted;
+- `visual-anything merge-driver` merges two edits of each of the seven kinds of project file by id (ADR 0072):
+  - it is named in `.gitattributes`, and defined in the person's git configuration only by `visual-anything merge-driver --install`;
+  - independent changes join, and conflicts stay as data in a file that still validates;
+  - the app lists the conflicts and resolves them one by one, as undoable actions;
+  - a real `git merge` of two branches of a sample joins their independent changes, and keeps what clashes as conflicts;
+  - a 10,000-element model file merges in at most 500 ms;
+- the merge driver's hostile-input tests pass: it runs no program, loads nothing from the repository, and writes nothing but the file git gives it.
+
+The first three tasks are the seams, built in the main session in this order. The next four run in parallel once they are merged, and the last six once those are.
+
+- [ ] **The comparison in the core** (main session, test-first; `core/src/versions/`: `items.ts`, `compare.ts`, `operations-between.ts`; ADR 0070):
+  - `ItemRef`, the items of ADR 0070, with `itemKey(ref)`, such as `element:<id>` or `position:<view>:<element> in <container>`, and `fileItemKey(ref)`, the key a conflict keeps in its file (ADR 0072);
+  - `compareProjects(older, newer): Comparison`:
+    - `changes`, grouped as ADR 0070 groups them, each with its `status`, its main `ref`, the `items` it covers and its `differences`;
+    - `counts`;
+    - `names`: every id it mentions, with its name in either version;
+  - `compareView(comparison, older, newer, view): ViewComparison`: the state in that view of each element, relation and free shape it draws in either version, and the view's own changes;
+  - `recompare(comparison, older, newer, operations)`;
+  - `operationsBetween(from, to)`: the operations that turn one project into the other;
+  - property tests:
+    - a version compared with itself has no changes;
+    - the other way round, added and removed swap, and the rest stays;
+    - after random commands, `recompare` equals `compareProjects`;
+    - `applyOperations(a, operationsBetween(a, b))` gives `b`, and its inverse gives `a` back.
+- [ ] **The merge and conflicts in the core** (main session, test-first; `schema/src/files.ts`, `core/src/versions/merge.ts`, `core/src/commands/conflicts.ts`; ADR 0072):
+  - `conflicts` (`FileConflict`) in the seven file kinds, and the JSON Schema regenerated;
+  - `mergeItem`, the three-way merge of one item, with a policy for whose value stays in place, which proposals share;
+  - `mergeFile(kind, base, ours, theirs, { sides })`, which returns `{ file, conflicts }` and is built on `mergeItem`;
+  - the operation `set-conflicts`, the command `resolve-conflicts` (`{ file, resolutions: { conflict, take: 'kept' | 'other' }[] }`), and the warning `merge-conflict`;
+  - property tests:
+    - a file merged with an unchanged side gives the other side;
+    - changes to different items, or to different keys of one item, always join, whichever side each is on;
+    - every merged file validates against its schema and keeps the rules one file can tell;
+    - resolving every conflict leaves a file without `conflicts`.
+- [ ] **Proposals in the core, and protocol 7** (main session, test-first; `core/src/versions/proposals.ts`, `core/src/protocol.ts`, `core/src/preferences.ts`, `server/src/claude/messages.ts`; ADR 0073):
+  - `propose(proposal | undefined, project, command, context)`;
+  - `rebaseProposal(proposal, project, operations?)`;
+  - `proposalChanges(proposal)`, with what each change needs, and whether the person changed it too;
+  - `acceptProposal(proposal, project, changes, context)`, which returns what `executeCommand` returns;
+  - the preference `reviewClaude`;
+  - protocol 7's messages, with their decoders: `versions/list`, `versions/listed`, `version/compare`, `version/compared`, `version/refused`, `proposal/shown`, `proposal/accept`, `proposal/refuse` and `proposal/closed`, and the guidance `comparison`. It is 7, or the next free version if another milestone takes 7 first;
+  - the Claude endpoint's messages: `command`'s `propose`, `proposal/made`, `proposal/withdraw`, `versions/list` and `version/compare`;
+  - property tests:
+    - accepting every change gives the proposed project, and accepting none changes nothing;
+    - any choice closed under what its changes need keeps every rule;
+    - undoing the accepted action gives back the project before it;
+    - a rebase after any action of the person's keeps every change of Claude's that the action does not touch.
+- [ ] **Versions in the program** (`server/src/versions/`, `server/src/project.ts`, hooks in `session.ts` and `server/src/claude/endpoint.ts`; ADR 0071):
+  - the git runner:
+    - git found once, by its absolute path;
+    - `spawn` with arguments, the allowed subcommands, the options and the cleaned environment;
+    - the limits and timeouts;
+  - the listing, and reading a commit's project files by tree and blob ids within the caps;
+  - `loadProjectFrom(files)`: the loader's checks from bytes, which `loadProject` now reads through;
+  - the session keeps the version as opened, and answers `versions/list` and `version/compare` from the app and from Claude's endpoint, with the comparison worked out;
+  - the hostile-repository tests.
+- [ ] **The comparison on the canvas and in exports** (`app/src/canvas/comparison/`, `app/src/versions/changes/`, the renderer, `app/src/export/`, the theme tokens; ADR 0070). Compare with…, proposals and conflicts all open what it builds.
+  - `comparisonScene(older, newer, view, viewComparison, drawing)` for `before`, `after` and `comparison`:
+    - the scene, with each shape's state;
+    - removed shapes at their older places, and moved shapes' older places;
+    - the count on a collapsed container that hides changes;
+  - the renderer draws the marks, glyphs and patterns, and the legend, within the frame budget;
+  - the four tokens of each theme, with their contrast tests;
+  - the canvas's comparison mode, `showComparison({ older, newer, comparison, title, onEnd })`:
+    - before, after and comparison, read-only, and Escape to end it;
+    - `]` and `[`, with the camera and announcements;
+    - the comparison followed through every action with `recompare`;
+  - `ChangesList`, given a comparison:
+    - counts, and the changes by kind with what differs;
+    - filters, and the open view only;
+    - choosing a change shows it;
+    - ticks, where a proposal asks for them;
+  - the model panel's Changes tab, which holds the `ChangesList` of what is open, whether a comparison, a proposal or the project's conflicts;
+  - `svgOfComparison(…)`: the SVG writer draws the same scene and legend, and PDF takes it as it is;
+  - `writeComparisonSummary(older, newer, comparison, options)`: the Markdown summary, with every text of the project escaped;
+  - its text in English and Spanish.
+- [ ] **The merge driver** (`server/src/merge-driver.ts`, `main.ts`, `.gitattributes`, the README; ADR 0072):
+  - `visual-anything merge-driver <ancestor> <ours> <theirs> <path> [<ours' name> <theirs' name>]`:
+    - its inputs are read as regular files within their cap;
+    - `%A` is written atomically;
+    - it exits 0 or 1, and keeps ours when an input does not read;
+  - `--install [--global] [--no-attributes]` and `--uninstall`, through `git config` with arguments, the command naming this program by its absolute path, quoted for git's shell;
+  - the seven lines in this repository's `.gitattributes`, and the README's section on installing it;
+  - the hostile-input tests;
+  - a test that runs a real `git merge` in a temporary repository, with the driver given through `-c`, never through the person's configuration.
+- [ ] **Proposals in the program** (`server/src/proposals.ts`, hooks in `session.ts` and `server/src/claude/endpoint.ts`, `server/src/claude/bridge.ts`, `server/src/claude/tools.ts`; ADR 0073):
+  - the session's one proposal, kept on top of the project;
+  - Claude's commands proposed while `reviewClaude` is on, or with `propose`;
+  - `proposal/shown` to every app and to Claude after each change;
+  - Accept and Refuse from an app, an accepted proposal made into one action of Claude's;
+  - `--stop-when-idle` waiting for a proposal, for at most an hour;
+  - the bridge's proposed copy for Claude's reads;
+  - every write tool's answer saying when it was proposed, `run_commands`' `propose`, `read_proposal` and `withdraw_proposal`.
+- [ ] **Compare with… in the app** (`app/src/versions/`, the header, the Export dialog):
+  - the dialog: the version as opened, `HEAD`, branches, tags and recent commits, as the program lists them, with why when git cannot list any;
+  - asking the program for the version chosen, then opening the comparison mode and the Changes tab on it;
+  - the Export dialog's comparison: SVG and PDF of each drawing, and the summary;
+  - the guidance `comparison`, applied as if the person had chosen it;
+  - English and Spanish.
+- [ ] **`visual-anything compare`** (`server/src/compare-command.ts`, `main.ts`, CI):
+  - `<folder> --base <ref> [--head <ref>] [--view <id>]… --out <folder> [--theme light|dark] [--image-url <prefix>]`, the head being the files on disk unless given;
+  - it writes `summary.md` and, for each view that changed, `<view>.before.svg`, `<view>.after.svg` and `<view>.comparison.svg`:
+    - atomically, and never over a project file;
+    - with no program running, and nothing written to the repository;
+  - a test on a temporary repository with two commits of a sample;
+  - a CI job that compares a pull request's `examples/` with its base branch, and keeps the folder as an artifact.
+- [ ] **Reviewing proposals in the app** (`app/src/proposals/`, the history panel):
+  - the toggle of Review Claude's changes;
+  - the notice that Claude proposes changes, and the review drawn as a comparison;
+  - the changes with their ticks, what each needs, and those the person changed too;
+  - Accept, Accept the ticked changes and Refuse, and what the other tabs see;
+  - English and Spanish.
+- [ ] **Conflicts in the app, and for Claude** (`app/src/versions/conflicts/`, `server/src/claude/conflict-tools.ts`):
+  - the conflicts of every file in the Changes tab whenever the project holds any, each drawn as a comparison between what is kept and the other choice;
+  - Keep and Take the other, one at a time or for a whole file;
+  - the note that the file can now be added with git;
+  - Claude's `list_conflicts` and `resolve_conflicts`.
+- [ ] **Claude and versions** (`server/src/claude/version-tools.ts`):
+  - `list_versions`;
+  - `compare_versions`, with counts and changes, at most 200 per call with an offset, for one view if asked;
+  - `show_comparison`, which sends the guidance;
+  - tool descriptions with examples.
+- [ ] **Benchmarks** (the core's benchmarks, `app/src/bench`):
+  - comparing, and following a comparison, at 10,000 elements and at the reading benchmark's size;
+  - the comparison drawn at 10,000 elements;
+  - an action while a proposal is open at 10,000 elements, which its rebase slows by at most 20 ms;
+  - merging a 10,000-element model file;
+  - reading the benchmark project's version from git.
+
 **Track A · Look and feel**, beside the milestones: A1 right after M2 and before M3's app tasks; A2's core before M3's commands for collapse, expand and filters, and A2 tagged before M4's write tools are fixed; A3 after M3's canvas tasks; A4 before M4's UI tasks. Its commits start with `A<n>:`, and each stage is tagged `a<n>` when its Done when holds.
 
 **A1 · Themes.** Done when the app and the canvas follow the system's light or dark setting, and the Theme control in the header (also shown while connecting and on failure screens) switches between Match the system, Light and Dark; an explicit choice survives restarting Visual Anything and is in place on the first frame; the contrast tests pass for every pair in both themes; and on the benchmark a theme switch keeps every frame within 33 ms and 95% within 16.7 ms, shows on the canvas and the panels together in one frame, never shows a tile drawn in the other theme, and every M2 phase meets the 60 frames per second target in both themes.
@@ -580,7 +731,7 @@ The order below follows the two benchmarks of what Visual Anything needs to repr
 | 2 | **M8 · Detail and data**, planned above. Semantic zoom declared as data; overlays that color shapes by an attribute, with a legend; external identifiers and crosswalks; destinations, attributes that open a view, a project or a web address; live values from running systems; an element list edited in bulk; time ranges with playback; a reading benchmark at 100,000 elements. |
 | 2 | **M11 · Tours and comments**, planned above. Tours made from recorded guidance and played full screen, built on view states; comments kept in the project. |
 | 3 | **M8b · Beyond boxes**, planned above. Free 2D geometry for a component's shape, with exact hit testing and connection points; SVG with named parts, each part an anchored shape of its element; static HTML imported as a cleaned drawing; curved routes drawn by layout. |
-| 3 | **M11b · Versions.** Comparing versions between git commits, in the app and for pull requests; proposals to review Claude's changes before they apply; a git merge driver for project files. |
+| 3 | **M11b · Versions**, planned above. Comparing versions between git commits, in the app and for pull requests; proposals to review Claude's changes before they apply; a git merge driver for project files. |
 | 4 | **M9 · Physical space inside components.** A component can draw its element's 3D model (glTF, cleaned by the local program and never carrying behavior) inside its shape: a cached picture while you pan, live when you focus it, with three.js loaded only when a view needs it. |
 | 4 | **M10 · A linked physical-space panel.** A 3D panel beside the canvas, showing the same elements where they really are, with selection, focus and scenarios linked to the 2D views. A new ADR that supersedes ADR 0003 comes first. |
 | 4 | **M12 · Simulate (case 4).** A programmable component simulates a behavior from parameters you change, within its limits, and stops cleanly when it exceeds them. |
