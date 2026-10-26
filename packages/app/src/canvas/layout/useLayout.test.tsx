@@ -9,6 +9,7 @@ import { loadSample } from '../../test/sample';
 import { buildScene } from '../scene';
 import { LayoutStopped, type LayoutRunner } from './client';
 import { layOut } from './engine';
+import type { LayoutScope } from './input';
 import type { LayoutProgress } from './types';
 import { AUTO_DELAY, LayoutRunnerContext, useLayout, type LayoutOptions } from './useLayout';
 
@@ -77,6 +78,7 @@ function canvas(
   let guided: GuidedLayoutRequest | undefined;
   const sent: Command[] = [];
   const said: string[] = [];
+  const done: (readonly LayoutScope[])[] = [];
   const send = vi.fn((command: Command) => {
     sent.push(command);
     const outcome = executeCommand(project, command);
@@ -96,6 +98,7 @@ function canvas(
       send: editable ? send : undefined,
       announce: (text) => said.push(text),
       ...(guided === undefined ? {} : { guided }),
+      onGuidedDone: (scopes) => done.push(scopes),
     };
   };
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -109,6 +112,8 @@ function canvas(
     hook,
     sent,
     said,
+    /** What each of Claude's layouts said it laid out once it was done. */
+    done,
     get project() {
       return project;
     },
@@ -209,10 +214,13 @@ describe('a layout Claude asks for (ADR 0029)', () => {
     expect(view.sent).toEqual([
       expect.objectContaining({ type: 'batch', label: 'Lay out "System overview"' }),
     ]);
+    // Once it is done, the canvas is told what it laid out, which it fits.
+    await waitFor(() => expect(view.done).toEqual([[{ kind: 'view' }]]));
     // The same request seen again, as the tab's guidance keeps it, runs nothing more.
     act(() => view.show(view.project));
     await quietly();
     expect(runner.runs).toBe(1);
+    expect(view.done).toHaveLength(1);
   });
 
   it('lays out the contents of each container it names', async () => {
@@ -224,6 +232,9 @@ describe('a layout Claude asks for (ADR 0029)', () => {
     expect(view.sent.map((each) => (each.type === 'batch' ? each.label : each.type))).toEqual([
       'Lay out the contents of "Scheduling"',
     ]);
+    await waitFor(() =>
+      expect(view.done).toEqual([[{ kind: 'contents', container: 'scheduling' }]]),
+    );
   });
 
   it('waits for the view it names', async () => {

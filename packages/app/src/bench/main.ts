@@ -145,7 +145,7 @@ const controller = new CanvasController(
     },
     themeShown: (theme) => document.documentElement.setAttribute('data-theme', theme),
   },
-  { theme: THEMES[startTheme].canvas },
+  { theme: THEMES[startTheme].canvas, firstFit: 'whole' },
 );
 controller.update(project, VIEW, indexed, false);
 if (gridOn) controller.setGrid({ grid: true, snapToGrid: true, rulers: true });
@@ -164,7 +164,7 @@ async function run(): Promise<void> {
   const { width, height } = controller.renderer.viewport;
   const middle = { x: width / 2, y: height / 2 };
 
-  controller.fit();
+  controller.fitWhole();
   await settle(300);
   const pan = (frame: number) => move(panBy(controller.camera, frame < 90 ? 6 : -6, 0));
   const zoom = (frame: number) =>
@@ -282,7 +282,7 @@ async function run(): Promise<void> {
     await settle(300);
   }
 
-  controller.fit();
+  controller.fitWhole();
   await settle(300);
   const latency: number[] = [];
   phases.push(
@@ -335,7 +335,7 @@ async function run(): Promise<void> {
     });
     themeNotes.push(`${name}: ${restyleNote(counts)}`);
   };
-  await switchPhase('Switch theme, whole view', () => controller.fit());
+  await switchPhase('Switch theme, whole view', () => controller.fitWhole());
   await switchPhase('Switch theme, shapes in full', () => move(cameraAt(COARSE_BELOW * 1.04)));
   await switchPhase('Switch theme, names shown', () => move(cameraAt(NAMES_FROM * 1.3)));
 
@@ -350,7 +350,7 @@ async function run(): Promise<void> {
     ),
   );
   themeNotes.push(`Pan after a switch: ${restyleNote(counts)}`);
-  controller.fit();
+  controller.fitWhole();
   await settle(300);
   counts = restyleCounts();
   switchAndShow();
@@ -367,7 +367,7 @@ async function run(): Promise<void> {
 
   // Selecting everything in the dark theme.
   if (controller.renderer.theme !== 'dark') switchAndShow();
-  controller.fit();
+  controller.fitWhole();
   await settle(1000);
   phases.push(
     await measure(
@@ -919,7 +919,7 @@ async function measureExports(): Promise<Timed[]> {
   await exported('Export the whole view at 1×', { area: 'view', scale: 1 });
   move(cameraAt(NAMES_FROM * 1.3));
   await exported('Export what is visible at 2×, names shown', { area: 'visible', scale: 2 });
-  controller.fit();
+  controller.fitWhole();
   await exported('Export what is visible at 2×, whole view', { area: 'visible', scale: 2 });
   move(cameraAt(NAMES_FROM * 1.3));
   await settle(300);
@@ -944,7 +944,7 @@ async function measureRoutes(phases: Phase[], timed: Timed[]): Promise<void> {
   const middle = { x: width / 2, y: height / 2 };
   const label = `${lines.length.toLocaleString()} routed lines`;
 
-  controller.fit();
+  controller.fitWhole();
   await settle(300);
   phases.push(
     await measure(`Pan, whole view, ${label}`, 180, (frame) =>

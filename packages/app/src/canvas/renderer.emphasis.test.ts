@@ -66,7 +66,7 @@ async function started(): Promise<CanvasRenderer> {
         throw error;
       },
     },
-    { text: counting },
+    { text: counting, firstFit: 'whole' },
   );
   (FakeApplication.created.at(-1) as FakeApplication).finishInit();
   await Promise.resolve();

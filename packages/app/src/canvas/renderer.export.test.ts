@@ -78,7 +78,7 @@ async function started(): Promise<{ renderer: CanvasRenderer; app: FakeApplicati
         throw error;
       },
     },
-    { text },
+    { text, firstFit: 'whole' },
   );
   const app = FakeApplication.created.at(-1) as FakeApplication;
   app.finishInit();

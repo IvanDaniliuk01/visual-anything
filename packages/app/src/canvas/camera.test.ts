@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MIN_SCALE, fitCamera, revealCamera, visibleRect } from './camera';
+import { MIN_SCALE, fitCamera, readableFitCamera, revealCamera, visibleRect } from './camera';
 
 describe('revealCamera', () => {
   const viewport = { width: 800, height: 600 };
@@ -68,5 +68,42 @@ describe('fitCamera', () => {
     const shown = visibleRect(camera, viewport);
     expect(shown.x + shown.width / 2).toBeCloseTo(100_000);
     expect(shown.y + shown.height / 2).toBeCloseTo(50_000);
+  });
+});
+
+describe('readableFitCamera', () => {
+  const viewport = { width: 1000, height: 600 };
+  const NAMES = 0.45;
+
+  it('shows the whole scene when names draw at the scale that fits it', () => {
+    const bounds = { x: 100, y: 50, width: 1500, height: 600 };
+    expect(readableFitCamera(bounds, viewport, 32, NAMES)).toEqual(fitCamera(bounds, viewport, 32));
+  });
+
+  it('keeps to the scale names draw from, from the scene’s top left, when the whole would draw none', () => {
+    // 84 shapes in nested containers, 6,000 units wide: the whole view fits at about 15%.
+    const bounds = { x: -40, y: 20, width: 6000, height: 2400 };
+    expect(fitCamera(bounds, viewport, 32).scale).toBeLessThan(NAMES);
+    const camera = readableFitCamera(bounds, viewport, 32, NAMES);
+    expect(camera.scale).toBe(NAMES);
+    // Its top level from where it starts, the margin left of and above it.
+    expect(bounds.x * camera.scale + camera.x).toBeCloseTo(32);
+    expect(bounds.y * camera.scale + camera.y).toBeCloseTo(32);
+  });
+
+  it('centers along a side that fits whole at that scale', () => {
+    const wide = { x: 0, y: 0, width: 6000, height: 400 };
+    const camera = readableFitCamera(wide, viewport, 32, NAMES);
+    expect(camera.scale).toBe(NAMES);
+    expect(camera.x).toBeCloseTo(32);
+    const shown = visibleRect(camera, viewport);
+    expect(shown.y + shown.height / 2).toBeCloseTo(200);
+  });
+
+  it('starts right of and below the rulers', () => {
+    const bounds = { x: 0, y: 0, width: 6000, height: 2400 };
+    const camera = readableFitCamera(bounds, viewport, 32, NAMES, { left: 20, top: 20 });
+    expect(camera.x).toBeCloseTo(52);
+    expect(camera.y).toBeCloseTo(52);
   });
 });

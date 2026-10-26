@@ -9,7 +9,7 @@ import { loadSample } from '../test/sample';
 import type { TextFactory } from './draw';
 import type { Rect } from './geometry';
 import { indexScene, type IndexedScene } from './hit';
-import { CanvasRenderer, COARSE_BELOW, NAMES_FROM } from './renderer';
+import { CanvasRenderer, COARSE_BELOW, FIT_MARGIN, NAMES_FROM } from './renderer';
 import { buildScene, type ElementShape, type RelationLine, type Scene } from './scene';
 import { MAX_BANDS } from './tiles';
 
@@ -702,5 +702,61 @@ describe('CanvasRenderer drags', () => {
     expect(() => renderer.startDrag(new Set(['patient']), new Set())).not.toThrow();
     expect(removed).not.toHaveBeenCalled();
     expect(rebuilds).not.toHaveBeenCalled();
+  });
+});
+
+describe('Fit', () => {
+  /** Sixty shapes spread over a view far wider than the canvas, as in a large nested view. */
+  const spread = () => {
+    const shapes = Array.from({ length: 60 }, (_, at) =>
+      shapeAt(`s${at}`, {
+        x: (at % 10) * 800 - 40,
+        y: Math.floor(at / 10) * 600 + 20,
+        width: 176,
+        height: 56,
+      }),
+    );
+    return indexScene({
+      ...sceneOf(shapes),
+      bounds: { x: -40, y: 20, width: 9 * 800 + 176, height: 5 * 600 + 56 },
+    });
+  };
+
+  it('keeps to the scale names draw from when the whole view would draw none, from its top left', async () => {
+    const renderer = await started();
+    const indexed = spread();
+    renderer.show(indexed);
+    FakeResizeObserver.resizeAll();
+    const bounds = indexed.scene.bounds as Rect;
+    // The view as it opens is fitted as Fit fits it.
+    expect(renderer.camera.scale).toBe(NAMES_FROM);
+    expect(bounds.x * renderer.camera.scale + renderer.camera.x).toBeCloseTo(FIT_MARGIN);
+    expect(bounds.y * renderer.camera.scale + renderer.camera.y).toBeCloseTo(FIT_MARGIN);
+    renderer.fitWhole();
+    expect(renderer.camera.scale).toBeLessThan(NAMES_FROM);
+    renderer.fit();
+    expect(renderer.camera.scale).toBe(NAMES_FROM);
+  });
+
+  it('fits a part of the view, as after a layout of a container’s contents', async () => {
+    const renderer = await started();
+    renderer.show(spread());
+    FakeResizeObserver.resizeAll();
+    renderer.fit({ x: 1000, y: 500, width: 600, height: 300 });
+    const { scale, x, y } = renderer.camera;
+    expect(scale).toBeGreaterThanOrEqual(NAMES_FROM);
+    expect((1000 + 300) * scale + x).toBeCloseTo(600);
+    expect((500 + 150) * scale + y).toBeCloseTo(400);
+  });
+
+  it('fits a view whose names draw whole', async () => {
+    const renderer = await started();
+    const indexed = indexScene(buildScene(sample, 'system-overview'));
+    renderer.show(indexed);
+    FakeResizeObserver.resizeAll();
+    expect(renderer.camera.scale).toBeGreaterThanOrEqual(NAMES_FROM);
+    const before = renderer.camera;
+    renderer.fitWhole();
+    expect(renderer.camera).toEqual(before);
   });
 });

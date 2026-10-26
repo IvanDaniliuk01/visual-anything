@@ -71,7 +71,7 @@ async function started(size = { width: 1200, height: 800 }): Promise<CanvasRende
         throw error;
       },
     },
-    { text },
+    { text, firstFit: 'whole' },
   );
   (FakeApplication.created.at(-1) as FakeApplication).finishInit();
   await Promise.resolve();

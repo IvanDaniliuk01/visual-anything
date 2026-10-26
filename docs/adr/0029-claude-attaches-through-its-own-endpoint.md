@@ -52,3 +52,7 @@ We chose this because a process Claude starts must reach a program the person ma
 <!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
 
 - 2026-10-25 (W45): **the endpoint reads live values back, and guidance plays a tour.** The endpoint also takes `live/list`, answered with `live/listed`, so that Claude's read tools show the live values the program keeps (ADR 0063's and ADR 0057's clarifications of this date); its refusal still names "live values" among what it takes. Guidance gains `{ kind: "tour", tour, step? }`, which plays a tour full screen in the open apps as the person would (ADR 0058's clarification of this date), carried by protocol 6 as `layout` is.
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (W49): **after `lay_out_view`, the app fits what it laid out.** Dogfooding found the camera left where it was, so the person might see nothing of what moved. Once every layout a `layout` guidance asked for is done, or given up, the tab that ran them fits what they laid out, as Fit does (ADR 0055's clarification of this date): the whole view, or the containers whose contents it arranged, as the scene draws them after the change; the shapes then move in inside that frame. A layout the person asks for from the toolbar leaves the camera to the person, as before.

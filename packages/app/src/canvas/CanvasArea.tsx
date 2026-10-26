@@ -81,6 +81,8 @@ import { indexScene, withoutShapes, type IndexedScene } from './hit';
 import { InlineEditor } from './InlineEditor';
 import { KeyboardHelp } from './KeyboardHelp';
 import { CANVAS_KEYS_HINT } from './keys';
+import type { LayoutScope } from './layout/input';
+import { laidOutBounds } from './layout/laidOut';
 import { useLayout } from './layout/useLayout';
 import { RelationMenu } from './RelationMenu';
 import { onRouteEditingRequest } from './routing/requests';
@@ -251,6 +253,8 @@ export function CanvasArea({
   // Claude's guidance, lays out on demand; what the canvas draws is a frame of a layout moving in, or
   // else the scene.
   const guidedLayout = useContext(LiveContext)?.guidance?.layout;
+  // Once Claude's layout is done, the canvas fits what it laid out (ADR-0029, 2026-10-26).
+  const [guidedLaidOut, setGuidedLaidOut] = useState<{ scopes: readonly LayoutScope[] }>();
   const layout = useLayout({
     project,
     view,
@@ -259,7 +263,14 @@ export function CanvasArea({
     send: onCommand,
     announce: (text) => setAnnouncement((last) => ({ text, count: last.count + 1 })),
     ...(guidedLayout === undefined ? {} : { guided: guidedLayout }),
+    onGuidedDone: (scopes) => setGuidedLaidOut({ scopes }),
   });
+  const fitLaidOut = useEffectEvent((scopes: readonly LayoutScope[]) =>
+    controllerRef.current?.fit(laidOutBounds(scene, scopes)),
+  );
+  useEffect(() => {
+    if (guidedLaidOut) fitLaidOut(guidedLaidOut.scopes);
+  }, [guidedLaidOut]);
   // A scene that cannot be indexed cannot be drawn either: the canvas area says so, and the rest of
   // the app keeps working.
   const drawn = layout.scene;

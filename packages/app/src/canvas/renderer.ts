@@ -33,7 +33,7 @@ import { withLegendBand } from '../export/legendBand';
 import { t } from '../i18n';
 import type { Selection } from '../editor/selection';
 import { EMPTY_SELECTION } from '../editor/selection';
-import { visibleRect, type Camera, type Inset, fitCamera } from './camera';
+import { visibleRect, type Camera, type Inset, fitCamera, readableFitCamera } from './camera';
 import {
   NOTHING_EMPHASIZED,
   NOTHING_HIDDEN,
@@ -387,6 +387,11 @@ export interface RendererOptions {
   images?: ImagePlatform<Texture, unknown>;
   /** The theme to draw in from the start; the light theme by default. */
   theme?: CanvasTheme;
+  /**
+   * How the first scene shown is fitted while nothing has set the camera: as Fit fits, at a scale
+   * where names draw, by default; or whole, whatever the scale, as the benchmark measures it.
+   */
+  firstFit?: 'readable' | 'whole';
 }
 
 type Status = 'starting' | 'ready' | 'failed' | 'destroyed';
@@ -533,6 +538,7 @@ export class CanvasRenderer {
    */
   private activeTimer: ReturnType<typeof setTimeout> | undefined;
   private fitted = false;
+  private readonly firstFit: 'readable' | 'whole';
   private resolution = 1;
   camera: Camera = { x: 0, y: 0, scale: 1 };
   /** The grid over the canvas and on one container, and the rulers and the readout (A3). */
@@ -552,6 +558,7 @@ export class CanvasRenderer {
     options: RendererOptions = {},
   ) {
     this.text = options.text ?? bitmapText;
+    this.firstFit = options.firstFit ?? 'readable';
     this.pictures = new TileImages(options.images ?? browserImagePlatform(), () =>
       this.requestRender(),
     );
@@ -604,7 +611,7 @@ export class CanvasRenderer {
       this.updateEmphasized();
       this.followCodeDrawings();
       // Fitted first, so that the first plan knows what is near the screen.
-      if (!this.fitted) this.fit();
+      if (!this.fitted) this.fitFirst();
       this.rebuild();
       this.drawSelection();
       this.drawHover();
@@ -932,8 +939,34 @@ export class CanvasRenderer {
     this.codeDrawings.setCamera(this.camera, this.viewport, NAMES_FROM);
   }
 
-  /** Zooms and pans so that the whole scene shows. */
-  fit(): void {
+  /**
+   * Fit: zooms and pans so that the whole scene shows, or `bounds` of it, at a scale where names
+   * draw; when the whole would draw none, at the scale they start to, from its top left corner
+   * (`readableFitCamera`).
+   */
+  fit(bounds?: Rect): void {
+    const { width, height } = this.viewport;
+    if (width === 0 || height === 0 || !this.indexed) return;
+    this.fitted = true;
+    this.setCamera(
+      readableFitCamera(
+        bounds ?? this.indexed.scene.bounds,
+        { width, height },
+        FIT_MARGIN,
+        NAMES_FROM,
+        this.rulersInset,
+      ),
+    );
+  }
+
+  /** Fits the first scene shown, as the options say. */
+  private fitFirst(): void {
+    if (this.firstFit === 'whole') this.fitWhole();
+    else this.fit();
+  }
+
+  /** Zooms and pans so that the whole scene shows, whatever the scale, as the benchmark measures it. */
+  fitWhole(): void {
     const { width, height } = this.viewport;
     if (width === 0 || height === 0 || !this.indexed) return;
     this.fitted = true;
@@ -1415,7 +1448,7 @@ export class CanvasRenderer {
       renderer.resize(width, height);
     }
     this.followGrid();
-    if (!this.fitted) this.fit();
+    if (!this.fitted) this.fitFirst();
     this.requestRender();
   }
 
