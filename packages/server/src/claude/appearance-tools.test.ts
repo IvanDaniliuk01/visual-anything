@@ -278,3 +278,77 @@ describe('update_component', () => {
     expect(described).not.toContain('change its elements instead');
   });
 });
+
+// Found while modeling Visual Anything with itself (M6): defining and changing a component of the
+// project's own said nothing about colors hard to see, where set_appearance warns.
+describe('the colors of the project’s own definitions', () => {
+  const BLENDS =
+    'The component "Shelf" blends into the light canvas: its fill #FFFFFF and its stroke #FFFFFF are 1.0:1 and 1.0:1 against it, under 3:1.';
+  const STROKE =
+    'The stroke #FFFFFF of the component "Shelf" is 1.0:1 against the light canvas, under 3:1.';
+
+  it('define_component and update_component warn as set_appearance does, and change it all the same', async () => {
+    const defined = await tools.value('define_component', {
+      package: 'shop',
+      component: {
+        id: 'shop.shelf',
+        name: 'Shelf',
+        derivesFrom: 'systems.box',
+        appearance: { fill: '#FFFFFF', stroke: '#FFFFFF' },
+      },
+    });
+    expect(defined.warnings).toEqual([STROKE, BLENDS]);
+    await tools.value('update_component', {
+      id: 'shop.shelf',
+      appearance: { fill: '#2F855A', stroke: '#1C4532' },
+    });
+    const updated = await tools.value('update_component', {
+      id: 'shop.shelf',
+      appearance: { fill: '#FFFFFF', stroke: '#FFFFFF' },
+    });
+    expect(updated.warnings).toEqual([STROKE, BLENDS]);
+    // Through set_appearance, the same words.
+    const set = await tools.value('set_appearance', {
+      component: 'shop.shelf',
+      appearanceTraits: { fill: '#FFFFFF', stroke: '#FFFFFF' },
+    });
+    expect(set.warnings).toEqual([STROKE, BLENDS]);
+  });
+
+  it('say nothing of colors that read, or of a change that sets none', async () => {
+    const defined = await tools.value('define_component', {
+      package: 'shop',
+      component: {
+        id: 'shop.shelf',
+        name: 'Shelf',
+        derivesFrom: 'systems.box',
+        appearance: { fill: '#E3F2E9', stroke: '#2F855A' },
+      },
+    });
+    expect(defined).not.toHaveProperty('warnings');
+    const renamed = await tools.value('update_component', { id: 'shop.shelf', name: 'Rack' });
+    expect(renamed).not.toHaveProperty('warnings');
+  });
+
+  it('define_relation_type and update_relation_type warn about a stroke hard to see', async () => {
+    const defined = await tools.value('define_relation_type', {
+      package: 'shop',
+      relationType: {
+        id: 'shop.stocks',
+        name: 'stocks',
+        derivesFrom: 'relates-to',
+        appearance: { stroke: '#FFFFFF' },
+      },
+    });
+    expect(defined.warnings).toEqual([
+      'The stroke #FFFFFF of the relation type "stocks" is 1.0:1 against the light canvas, under 3:1.',
+    ]);
+    const updated = await tools.value('update_relation_type', {
+      id: 'shop.stocks',
+      appearance: { stroke: '#16191E' },
+    });
+    expect(updated.warnings).toEqual([
+      'The stroke #16191E of the relation type "stocks" is 1.0:1 against the dark canvas, under 3:1.',
+    ]);
+  });
+});

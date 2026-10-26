@@ -302,7 +302,7 @@ Eight milestones in build order, each ending in something you can use, and Track
   - [ ] Guidance that names a view switches every open tab to it, and a tab switched so keeps the camera of the view it showed
   - [ ] The canvas's keys, such as Alt+− to collapse, do nothing while focus is in the outline, and the outline offers no collapse
   - [x] The program writes nothing per action, so the log of a command's path had to come from the browser's WebSocket frames; a `--log` option writing one line per action would make one to paste; `--log <file>` does now (ADR 0016's clarification)
-  - [ ] `define_component` and `update_component` warn about no color, as `set_appearance` does about a fill that fades into the light canvas
+  - [x] `define_component` and `update_component` warn about no color, as `set_appearance` does about a fill that fades into the light canvas; they give its warnings now, and so do `define_relation_type` and `update_relation_type` (ADR 0029's clarification of W48)
   - [ ] A collapsed container's count is cut off at its component's size (`Code package…`)
   - [ ] The header wraps to two rows when the view's name and the Undo label are long, which moves the canvas down while you work (A4)
 - [x] README with setup for Claude Desktop and Claude Code

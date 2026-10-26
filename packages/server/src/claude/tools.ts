@@ -24,6 +24,7 @@ import {
   APPEARANCE_TOOLS,
   blendWarnings,
   colorsSet,
+  definitionColorWarnings,
   elementColorWarnings,
   relationAppearance,
   relationAppearanceTraits,
@@ -612,7 +613,7 @@ Example: { "id": "clinic", "name": "Clinic", "description": "What a clinic needs
 const defineComponent = tool({
   name: 'define_component',
   title: 'Define a component',
-  description: `Defines a component in one of the project's own packages, as one undoable action, written as the package file's JSON writes it. It derives from exactly one component and inherits everything it does not redefine. Leave the id out to have the program make one from the name. To create, pass createOnly: then an id the package already has is refused rather than redefined. To change some traits of a component, use update_component instead. Read list_definitions first.
+  description: `Defines a component in one of the project's own packages, as one undoable action, written as the package file's JSON writes it. It derives from exactly one component and inherits everything it does not redefine. Leave the id out to have the program make one from the name. To create, pass createOnly: then an id the package already has is refused rather than redefined. To change some traits of a component, use update_component instead. Read list_definitions first. Colors are #RRGGBB: the answer warns about a stroke under 3:1 against either canvas and a shape that blends into one, as set_appearance does, and never refuses one.
 
 Example: { "package": "clinic", "createOnly": true, "component": { "name": "Calendar", "derivesFrom": "systems.database", "attributes": [{ "name": "slotMinutes", "type": "number", "default": 15 }], "appearance": { "fill": "#E3F2E9" } } }`,
   input: {
@@ -635,7 +636,17 @@ Example: { "package": "clinic", "createOnly": true, "component": { "name": "Cale
         component: args.component,
         ...(args.createOnly ? { createOnly: true } : {}),
       } as unknown as Command,
-      (answer) => ({ created: answer.created }),
+      // Colors hard to see are pointed out, as set_appearance points them out.
+      async (answer) =>
+        withColorWarnings(
+          { created: answer.created },
+          definitionColorWarnings(
+            await program.project(),
+            'component',
+            answer.created[0] ?? args.component.id ?? '',
+            colorsSet(args.component.appearance),
+          ),
+        ),
     ),
 });
 
@@ -665,7 +676,16 @@ Example: { "package": "clinic", "createOnly": true, "relationType": { "name": "b
         relationType: args.relationType,
         ...(args.createOnly ? { createOnly: true } : {}),
       } as unknown as Command,
-      (answer) => ({ created: answer.created }),
+      async (answer) =>
+        withColorWarnings(
+          { created: answer.created },
+          definitionColorWarnings(
+            await program.project(),
+            'relation-type',
+            answer.created[0] ?? args.relationType.id ?? '',
+            colorsSet(args.relationType.appearance),
+          ),
+        ),
     ),
 });
 
@@ -704,7 +724,7 @@ const attributeChanges = () =>
 const updateComponent = tool({
   name: 'update_component',
   title: 'Change a component, trait by trait',
-  description: `Changes a component of one of the project's own packages, trait by trait, as one undoable action; what you leave out stays. In appearance, a value sets a trait and null makes it inherited again. A built-in component cannot change; to change its look in this project, and the look of everything derived from it that does not set the trait itself, use set_appearance, which keeps it in the project file.
+  description: `Changes a component of one of the project's own packages, trait by trait, as one undoable action; what you leave out stays. In appearance, a value sets a trait and null makes it inherited again. A built-in component cannot change; to change its look in this project, and the look of everything derived from it that does not set the trait itself, use set_appearance, which keeps it in the project file. The answer warns about colors hard to see, as set_appearance does.
 
 Example: { "id": "clinic.calendar", "name": "Calendar", "appearance": { "fill": "#E3F2E9", "stroke": null }, "attributes": { "rename": [{ "from": "slotMinutes", "to": "slotLength" }] } }`,
   input: {
@@ -718,11 +738,20 @@ Example: { "id": "clinic.calendar", "name": "Calendar", "appearance": { "fill": 
   },
   hints: WRITE,
   run: async ({ id: target, ...changes }, program) =>
-    act(program, {
-      type: 'update-component',
-      id: target,
-      changes: withoutUndefined(changes) as never,
-    }),
+    act(
+      program,
+      { type: 'update-component', id: target, changes: withoutUndefined(changes) as never },
+      async () =>
+        withColorWarnings(
+          {},
+          definitionColorWarnings(
+            await program.project(),
+            'component',
+            target,
+            colorsSet(changes.appearance),
+          ),
+        ),
+    ),
 });
 
 const updateRelationType = tool({
@@ -756,11 +785,20 @@ Example: { "id": "clinic.books", "direction": "directed", "limits": { "to": ["cl
   },
   hints: WRITE,
   run: async ({ id: target, ...changes }, program) =>
-    act(program, {
-      type: 'update-relation-type',
-      id: target,
-      changes: withoutUndefined(changes) as never,
-    }),
+    act(
+      program,
+      { type: 'update-relation-type', id: target, changes: withoutUndefined(changes) as never },
+      async () =>
+        withColorWarnings(
+          {},
+          definitionColorWarnings(
+            await program.project(),
+            'relation-type',
+            target,
+            colorsSet(changes.appearance),
+          ),
+        ),
+    ),
 });
 
 const updatePackage = tool({
@@ -1046,6 +1084,14 @@ const freeShape = () =>
       })
       .catchall(z.unknown()),
   ]);
+
+/** An answer with the warnings about colors hard to see, when there are any. */
+function withColorWarnings<T extends Record<string, unknown>>(
+  answer: T,
+  warnings: readonly string[],
+): T & { warnings?: readonly string[] } {
+  return warnings.length > 0 ? { ...answer, warnings } : answer;
+}
 
 /** What to say about the colors a note or an arrow is given: a stroke, or a note, hard to see. */
 function freeShapeColorWarnings(
