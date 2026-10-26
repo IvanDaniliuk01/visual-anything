@@ -198,6 +198,27 @@ describe('the routes of a view, as operations', () => {
 });
 
 describe('set-route', () => {
+  it('attaches an end at a place inside its shape, and resolves it there', () => {
+    const inside = { kind: 'inside', x: 0.25, y: 0.75 } as const;
+    const outcome = expectUndoneExactly(routingProject(), {
+      type: 'set-route',
+      view: 'overview',
+      relation: 'client-calls-api',
+      to: inside,
+    });
+    if (!outcome.ok) return;
+    expect(routesOf(outcome.state)).toEqual({ 'client-calls-api': { to: inside } });
+    expect(routeOf(outcome.state, 'overview', 'client-calls-api')?.to).toEqual(inside);
+    expect(
+      refusal(routingProject(), {
+        type: 'set-route',
+        view: 'overview',
+        relation: 'client-calls-api',
+        to: { kind: 'inside', x: 1.5, y: 0.5 },
+      }),
+    ).toEqual(['invalid-command']);
+  });
+
   it('stores only what it names, and says what it did', () => {
     const outcome = expectUndoneExactly(routingProject(), {
       type: 'set-route',

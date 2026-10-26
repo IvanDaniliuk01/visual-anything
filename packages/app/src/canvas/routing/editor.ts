@@ -632,6 +632,7 @@ export class RouteEditor {
     } else {
       overlay.points = aim.points;
       if (aim.tick) overlay.tick = aim.tick;
+      if (aim.spot) overlay.spot = aim.spot;
       if (aim.outline) overlay.outline = aim.outline;
     }
     overlay.handles = [];
@@ -1003,6 +1004,8 @@ function segmentEnds(
     const shape = drawn?.kind === 'shape' ? indexed.byKey.get(drawn.key) : undefined;
     if (!shape) return { kind: 'fixed' };
     const attachment = line.hand?.route[which];
+    // An end attached at a place inside its shape is a point of its own, which does not slide.
+    if (attachment?.kind === 'inside') return { kind: 'fixed' };
     // On an outline, the side the route crosses the box by, which the end lies inside of.
     const crossed =
       next && endOutline(shape, shape.rect) ? placeOfEnd(shape.rect, point, next)?.side : undefined;
@@ -1044,7 +1047,9 @@ function stubSides(line: RelationLine): { from?: Side; to?: Side } {
   const sides: { from?: Side; to?: Side } = {};
   for (const end of ['from', 'to'] as const) {
     const attachment = line.hand?.route[end];
-    if (attachment && attachment.kind !== 'automatic') sides[end] = attachment.side;
+    if (attachment && attachment.kind !== 'automatic' && attachment.kind !== 'inside') {
+      sides[end] = attachment.side;
+    }
   }
   return sides;
 }
@@ -1085,6 +1090,7 @@ export function previewOf(
     if (wanted === undefined) return line.hand?.route[which] ?? AUTOMATIC;
     if (wanted === null || !shape) return AUTOMATIC;
     if (wanted.kind === 'border') return { kind: 'border', side: wanted.side, at: wanted.at };
+    if (wanted.kind === 'inside') return { kind: 'inside', x: wanted.x, y: wanted.y };
     const point = shape.points?.find((each) => each.name === wanted.name);
     return point
       ? { kind: 'connection-point', name: point.name, side: point.side, at: point.at }
@@ -1248,6 +1254,7 @@ export function attachText(attachment: EndAttachment | null, outlined = false): 
   if (attachment === null) return t('Attach automatically');
   if (attachment.kind === 'connection-point')
     return t('Attach at "{name}"', { name: attachment.name });
+  if (attachment.kind === 'inside') return t('Attach at this point inside it');
   if (outlined) return t('Attach at this point of its edge');
   switch (attachment.side) {
     case 'top':
@@ -1268,6 +1275,8 @@ export function whereAttached(attachment: ResolvedAttachment): string {
       return t('attached automatically');
     case 'connection-point':
       return t('at "{name}"', { name: attachment.name });
+    case 'inside':
+      return t('at a place inside it');
     case 'border':
       switch (attachment.side) {
         case 'top':

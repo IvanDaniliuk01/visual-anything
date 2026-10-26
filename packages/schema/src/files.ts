@@ -788,11 +788,11 @@ export interface RelationRoute {
 
 /**
  * Where a line attaches to one of its ends, chosen by hand: one of the end's connection points, by
- * name, or a fixed place on its border.
+ * name, a fixed place on its border, or a fixed place inside it.
  *
  * @discriminator kind
  */
-export type EndAttachment = ConnectionPointAttachment | BorderAttachment;
+export type EndAttachment = ConnectionPointAttachment | BorderAttachment | InsideAttachment;
 
 /** The line attaches at one of the end's connection points, wherever the end's appearance puts it. */
 export interface ConnectionPointAttachment {
@@ -817,6 +817,25 @@ export interface BorderAttachment {
    * @maximum 1
    */
   at: number;
+}
+
+/**
+ * The line attaches at a fixed place inside the end's shape, anywhere on it, which follows the shape
+ * as it moves and resizes: across and down its box, each from 0 at its left or top to 1 at its right
+ * or bottom.
+ */
+export interface InsideAttachment {
+  kind: 'inside';
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  x: number;
+  /**
+   * @minimum 0
+   * @maximum 1
+   */
+  y: number;
 }
 
 /**

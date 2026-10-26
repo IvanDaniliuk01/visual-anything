@@ -1238,6 +1238,9 @@ export const ui: Catalog = {
   'Cancel, and leave the route as it was': 'Cancelar y dejar la ruta como estaba',
   // M8b W53: an end dragged onto a shape with free geometry or onto an anchored part.
   'Attach at this point of its edge': 'Conectar en este punto de su borde',
+  'Attach at this point inside it': 'Conectar en este punto, dentro de la forma',
+  'at a place inside it': 'en un lugar dentro de la forma',
+  'At a place inside it': 'En un lugar dentro de la forma',
   // The image picker.
   Image: 'Imagen',
   'Choose an image…': 'Elegir una imagen…',
@@ -3547,8 +3550,10 @@ export const messages: Catalog = {
     'Una ruta es ortogonal, recta o curva, no {style}.',
   'No relations were given to route again.': 'No se indicó ninguna relación para volver a trazar.',
   'A relation is given by its id.': 'Una relación se da por su id.',
-  'An attachment is a connection point or a place on the border.':
-    'Una conexión es un punto de conexión o un lugar del borde.',
+  'An attachment is a connection point, a place on the border or a place inside the shape.':
+    'Una conexión es un punto de conexión, un lugar del borde o un lugar dentro de la forma.',
+  'Where an end attaches inside its shape goes from 0 to 1 across and down, not {x} and {y}.':
+    'El lugar donde un extremo se conecta dentro de su forma va de 0 a 1 a lo ancho y a lo alto, no {x} y {y}.',
   'A side is top, right, bottom or left, not {side}.':
     'Un lado es top, right, bottom o left, no {side}.',
   'Where an end attaches along its side goes from 0 to 1, not {at}.':

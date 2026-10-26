@@ -18,7 +18,7 @@ import {
   type ResolvedRoute,
 } from '@visual-anything/core';
 import type { ConnectionPoint, Id, RelationRoute, ViewFile } from '@visual-anything/schema';
-import type { Point } from '../geometry';
+import type { Point, Rect } from '../geometry';
 import type { ShapeOutline } from '../outlines';
 import { isSideEnd, type AnyEnd } from '../rowRoutes';
 import type { ElementShape, RelationLine } from '../scene';
@@ -211,11 +211,15 @@ export function routeLine(ends: LineEnds, hand: HandOfLine | undefined): RoutedL
   const style = resolved?.style ?? ends.automatic ?? 'orthogonal';
   const fromAttach = attachOf(resolved?.from);
   const toAttach = attachOf(resolved?.to);
+  const fromInside = insideOf(resolved?.from);
+  const toInside = insideOf(resolved?.to);
   const bendPoints = hand?.bendPoints ?? [];
   // An automatic style is not chosen by hand: its lines still run beside each other.
   const byHand =
     fromAttach !== undefined ||
     toAttach !== undefined ||
+    fromInside !== undefined ||
+    toInside !== undefined ||
     bendPoints.length > 0 ||
     (resolved !== undefined && style !== 'orthogonal');
   const extras = {
@@ -225,8 +229,8 @@ export function routeLine(ends: LineEnds, hand: HandOfLine | undefined): RoutedL
   // Siblings run beside each other only while nothing about them is chosen by hand.
   const routed = byHand
     ? routeByHand(
-        handEnd(ends.from, ends.fromShape, fromAttach),
-        handEnd(ends.to, ends.toShape, toAttach),
+        handEnd(ends.from, ends.fromShape, fromAttach, fromInside),
+        handEnd(ends.to, ends.toShape, toAttach, toInside),
         bendPoints,
         style,
         0,
@@ -244,9 +248,12 @@ function handEnd(
   end: AnyEnd,
   shape: ElementShape | undefined,
   attach: Attach | undefined,
+  inside?: { x: number; y: number },
 ): HandEnd {
   if (isSideEnd(end)) return end;
   if ('point' in end) return { kind: 'point', point: end.point };
+  // An end attached inside its shape is the point it names there, wherever the shape is drawn.
+  if (inside) return { kind: 'point', point: insidePoint(end.rect, inside) };
   const outline = endOutline(shape, end.rect);
   return {
     kind: 'shape',
@@ -287,11 +294,26 @@ function outlineKey(shape: ElementShape | undefined): string {
   return `o${serial}`;
 }
 
-/** Where a resolved attachment puts the line on its end's border; undefined while automatic. */
+/**
+ * Where a resolved attachment puts the line on its end's border; undefined while automatic, and for a
+ * place inside the shape, which `insideOf` gives.
+ */
 export function attachOf(attachment: ResolvedAttachment | undefined): Attach | undefined {
-  return attachment === undefined || attachment.kind === 'automatic'
+  return attachment === undefined || attachment.kind === 'automatic' || attachment.kind === 'inside'
     ? undefined
     : { side: attachment.side, at: attachment.at };
+}
+
+/** The place inside its shape a resolved attachment puts the line at, if it is one. */
+export function insideOf(
+  attachment: ResolvedAttachment | undefined,
+): { x: number; y: number } | undefined {
+  return attachment?.kind === 'inside' ? { x: attachment.x, y: attachment.y } : undefined;
+}
+
+/** The point a place inside a shape names, in its rectangle. */
+export function insidePoint(rect: Rect, inside: { x: number; y: number }): Point {
+  return { x: rect.x + inside.x * rect.width, y: rect.y + inside.y * rect.height };
 }
 
 /** What `routeOf` is given: the holders of each element's first shape, from the shapes' keys. */
@@ -359,6 +381,8 @@ function attachmentKey(attachment: ResolvedAttachment): string {
       return `b ${attachment.side} ${attachment.at}`;
     case 'connection-point':
       return `c ${attachment.side} ${attachment.at} ${attachment.name}`;
+    case 'inside':
+      return `i ${attachment.x} ${attachment.y}`;
   }
 }
 

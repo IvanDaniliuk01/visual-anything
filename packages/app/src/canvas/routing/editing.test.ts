@@ -66,14 +66,33 @@ describe('snapEnd', () => {
     expect(snap.tick).toEqual({ at: { x: 50, y: 0 }, side: 'top' });
   });
 
-  it('attaches automatically deep inside, and outlines the shape', () => {
+  it('attaches automatically at the middle, and outlines the shape', () => {
     const snap = snapEnd(box, { x: 100, y: 50 }, 1, false, false);
     expect(snap.attachment).toBeNull();
     expect(snap.outline).toEqual(box.rect);
+    expect(snapEnd(box, { x: 106, y: 56 }, 1, false, false).attachment).toBeNull();
+  });
+
+  it('attaches at the place it is let go deep inside, away from the middle, and marks it', () => {
+    const snap = snapEnd(box, { x: 50, y: 70 }, 1, false, false);
+    expect(snap.attachment).toEqual({ kind: 'inside', x: 0.25, y: 0.7 });
+    expect(snap.spot).toEqual({ x: 50, y: 70 });
+    // With Alt, never inside: the border point nearest the pointer.
+    expect(snapEnd(box, { x: 50, y: 70 }, 1, true, false).attachment).toEqual({
+      kind: 'border',
+      side: 'bottom',
+      at: 0.25,
+    });
+    // On a row, never inside either.
+    expect(snapEnd(box, { x: 50, y: 70 }, 1, false, true).attachment).toBeNull();
   });
 
   it('keeps the sizes on screen: what is deep at one scale is near the border at another', () => {
-    expect(snapEnd(box, { x: 100, y: 20 }, 1, false, false).attachment).toBeNull();
+    expect(snapEnd(box, { x: 100, y: 20 }, 1, false, false).attachment).toEqual({
+      kind: 'inside',
+      x: 0.5,
+      y: 0.2,
+    });
     expect(snapEnd(box, { x: 100, y: 20 }, 0.5, false, false).attachment).toEqual({
       kind: 'border',
       side: 'top',

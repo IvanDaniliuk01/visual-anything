@@ -621,6 +621,7 @@ const ALONE: readonly [string, unknown][] = [
   ),
   route('connection point unnamed', { from: { kind: 'connection-point', name: '' } }),
   route('connection point no shape has', { from: { kind: 'connection-point', name: 'north' } }),
+  route('inside past the shape', { to: { kind: 'inside', x: 1.5, y: 0.5 } }),
   ['route a relation not given by its id', { type: 'reset-route', view: VIEW, relations: [5] }],
   // The model's order, its ends and what a project uses.
   ['collapse nothing', { type: 'set-collapsed', view: VIEW, elements: [], collapsed: true }],
