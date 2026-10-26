@@ -45,12 +45,17 @@ export function Header({ projectName, viewName, actions }: HeaderProps) {
         <dl className="shell-context">
           <div>
             <dt>{t('Project')}</dt>
-            <dd>{projectName}</dd>
+            {/* Cut to the row with "…", whole in its tooltip and to screen readers (A4). */}
+            <dd className="shell-context-value" title={projectName}>
+              {projectName}
+            </dd>
           </div>
           {viewName !== undefined && (
             <div>
               <dt>{t('View')}</dt>
-              <dd>{viewName}</dd>
+              <dd className="shell-context-value" title={viewName}>
+                {viewName}
+              </dd>
             </div>
           )}
         </dl>

@@ -304,7 +304,7 @@ Eight milestones in build order, each ending in something you can use, and Track
   - [ ] The program writes nothing per action, so the log of a command's path had to come from the browser's WebSocket frames; a `--log` option writing one line per action would make one to paste
   - [ ] `define_component` and `update_component` warn about no color, as `set_appearance` does about a fill that fades into the light canvas
   - [x] A collapsed container's count is cut off at its component's size (`Code package…`); it has a line of its own under the detail when the header has room, and comes first on the detail's line when not, on the canvas and in the SVG
-  - [ ] The header wraps to two rows when the view's name and the Undo label are long, which moves the canvas down while you work (A4)
+  - [x] The header wraps to two rows when the view's name and the Undo label are long, which moves the canvas down while you work (A4); it keeps one row now, the view's and the project's names and the action Undo and Redo name cut with "…", whole in their tooltips and to screen readers
 - [x] README with setup for Claude Desktop and Claude Code
 - [ ] Tag v0.1 in the private repository
 

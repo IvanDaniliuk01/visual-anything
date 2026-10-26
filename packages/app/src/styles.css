@@ -85,7 +85,8 @@ dd {
 .shell-header {
   grid-area: header;
   display: flex;
-  flex-wrap: wrap;
+  /* One row at every width (A4), as shell/header.css says. */
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-1) var(--space-6);
   padding: 0.45rem var(--space-4);
@@ -109,7 +110,7 @@ dd {
 
 .shell-context {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: var(--space-1) var(--space-5);
 }
 
@@ -133,7 +134,7 @@ dd {
 /* Undo and redo, then the Theme control, at the header's end. */
 .shell-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: var(--space-2) var(--space-4);
   min-width: 0;
