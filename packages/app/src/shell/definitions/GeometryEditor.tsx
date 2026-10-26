@@ -19,7 +19,7 @@ import {
   geometryFromPathData,
   geometryFromSvg,
   labelAreaOf,
-  nameFitsInside,
+  roomForNameInside,
   namedPartsOf,
   pathDataOf,
   svgPicturesIn,
@@ -138,10 +138,10 @@ export function GeometryEditor({
       {previewed && (
         <>
           <GeometryPreview outline={previewed} width={width} height={height} colors={colors} />
-          {!nameFitsInside(previewed, width, height) && (
+          {!roomForNameInside(previewed, width, height) && (
             <p className="inspector-notes">
               {t(
-                'At {width} by {height}, its name does not fit inside its outline: the hover and selection marks write it beside the shape.',
+                'At {width} by {height}, its outline leaves no room for a name inside: names are written under the shape.',
                 { width, height },
               )}
             </p>

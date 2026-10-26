@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { THEMES } from '../theme/themes';
 import { FRAME, TRIANGLE, beyondBoxes } from '../test/beyond';
 import { APEX_DOWN, OVAL, outlinedShape } from '../test/outlined';
-import { readableTextColors } from './colors';
+import { CANVAS_BACKGROUND, readableTextColors } from './colors';
 import {
   drawShapeBlocks,
   drawShapeOutlines,
@@ -21,7 +21,7 @@ import {
   type TextFactory,
 } from './draw';
 import { SHEET, type Rect } from './geometry';
-import { labelAreaOn } from './outlined';
+import { PART_NAME_LINE, labelAreaOn, nameBelowOf } from './outlined';
 import { geometrySource, outlineIn, type ShapeOutline } from './outlines';
 import { buildScene, type ElementShape } from './scene';
 import { painterOf } from './theme/painter';
@@ -212,7 +212,9 @@ describe('names in the label area', () => {
     expect(name?.label).toBe('name:Heart');
     expect(detail?.label).toBe('detail:Organ');
     expect(name?.x).toBeCloseTo(area.x + area.width / 2);
-    expect(name?.y).toBeCloseTo(area.y + area.height / 2 + 2);
+    // The name's line and the detail's, centred together in the area.
+    expect(name?.y).toBeCloseTo(area.y + (area.height - PART_NAME_LINE - 15) / 2);
+    expect(detail?.y).toBeCloseTo((name?.y ?? 0) + PART_NAME_LINE + 1);
     expect((name as Container & { style: TextStyleOptions }).style.fill).toBe(
       readableTextColors(shape.fill).name,
     );
@@ -231,7 +233,7 @@ describe('names in the label area', () => {
     expect(area.height).toBeLessThan(40);
     const written = writeShapeLabels([shape], true, placed);
     expect(written.map((label) => label.label)).toEqual(['name:Bean']);
-    expect(written[0]?.y).toBeCloseTo(area.y + area.height / 2);
+    expect((written[0]?.y ?? 0) + PART_NAME_LINE / 2).toBeCloseTo(area.y + area.height / 2);
     // The whole area, and a line at least, so that a name of the canvas's size fits.
     expect(labelRooms(shape)).toEqual({ name: Math.max(area.height, 20), detail: 0 });
     const flat = outlinedShape('Flat', OVAL, { x: 0, y: 0, width: 120, height: 24 });
@@ -241,10 +243,30 @@ describe('names in the label area', () => {
     expect(labelRooms(flat).name).toBe(20);
   });
 
-  it('writes no name inside a shape whose label area is less than 14 units tall', () => {
+  it('writes the name of a shape whose label area is less than 14 units tall under it, on the canvas', () => {
     const shape = outlinedShape('Tiny', TRIANGLE, { x: 0, y: 0, width: 30, height: 24 });
-    expect(writeShapeLabels([shape], true, placed)).toHaveLength(0);
+    const written = writeShapeLabels([shape], true, placed);
+    expect(written.map((label) => label.label)).toEqual(['name:Tiny', 'detail:Organ']);
+    const below = nameBelowOf(shape as ElementShape & { outline: ShapeOutline });
+    expect(written[0]?.x).toBeCloseTo(below.x);
+    expect(written[0]?.y).toBeCloseTo(below.y);
+    expect(written[1]?.y).toBeCloseTo(below.y + PART_NAME_LINE + 1);
+    // In colours that read on what the shape sits on, not on its fill.
+    expect((written[0] as Container & { style: TextStyleOptions }).style.fill).toBe(
+      readableTextColors(CANVAS_BACKGROUND).name,
+    );
     expect(labelRooms(shape)).toEqual({ name: 0, detail: 0 });
+  });
+
+  it('writes a name too long for the label area whole under the shape, never cut inside it', () => {
+    const shape = outlinedShape(
+      'Pulmonary artery',
+      OVAL,
+      { x: 0, y: 0, width: 90, height: 60 },
+      { detail: 'Vessel' },
+    );
+    const written = writeShapeLabels([shape], true, placed).map((label) => label.label);
+    expect(written).toEqual(['name:Pulmonary artery', 'detail:Vessel']);
   });
 
   it('writes a collapsed container’s count first, so that cutting the detail never cuts it', () => {

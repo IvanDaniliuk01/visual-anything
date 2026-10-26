@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { selectionOf } from '../editor/selection';
 import { FakeApplication, FakeResizeObserver } from '../test/FakeApplication';
 import { FRAME, TRIANGLE } from '../test/beyond';
-import { outlinedShape } from '../test/outlined';
+import { APEX_UP, outlinedShape } from '../test/outlined';
 import type { TextFactory } from './draw';
 import { indexScene } from './hit';
 import type { NamesBeside } from './namesBeside';
@@ -86,7 +86,14 @@ function primitives(graphics: Graphics): string[] {
 
 const frame = outlinedShape('frame', FRAME, { x: 0, y: 0, width: 200, height: 100 });
 const tiny = outlinedShape('tiny', TRIANGLE, { x: 300, y: 0, width: 30, height: 24 });
-const indexed = indexScene(sceneOf([frame, tiny]));
+// An expanded container whose outline holds no stretch of its header writes its name nowhere.
+const apex = outlinedShape(
+  'apex',
+  APEX_UP,
+  { x: 400, y: 0, width: 300, height: 200 },
+  { holdsContents: true },
+);
+const indexed = indexScene(sceneOf([frame, tiny, apex]));
 
 describe('marks along the outline', () => {
   it('draws the hover mark along a shape’s outline, its hole included', async () => {
@@ -109,28 +116,37 @@ describe('marks along the outline', () => {
 });
 
 describe('names beside a shape', () => {
-  it('writes the name of a hovered shape that writes none inside beside it, and of none other', async () => {
+  it('writes the name of a hovered shape that writes it nowhere beside it, and of none other', async () => {
     const renderer = await started();
     renderer.show(indexed);
+    renderer.setSelection(selectionOf([]), 'apex');
+    expect(inside(renderer).namesBeside.written).toEqual(['apex']);
+    // One that writes its name under itself, or inside, needs none beside it.
     renderer.setSelection(selectionOf([]), 'tiny');
-    expect(inside(renderer).namesBeside.written).toEqual(['tiny']);
+    expect(inside(renderer).namesBeside.written).toEqual([]);
     renderer.setSelection(selectionOf([]), 'frame');
     expect(inside(renderer).namesBeside.written).toEqual([]);
   });
 
   it('writes the names of a few selected shapes beside them, the hovered one first', async () => {
-    const other = outlinedShape('other', TRIANGLE, { x: 400, y: 0, width: 30, height: 24 });
+    const other = outlinedShape(
+      'other',
+      APEX_UP,
+      { x: 800, y: 0, width: 300, height: 200 },
+      { holdsContents: true },
+    );
     const renderer = await started();
-    renderer.show(indexScene(sceneOf([frame, tiny, other])));
+    renderer.show(indexScene(sceneOf([frame, tiny, apex, other])));
     renderer.setSelection(
       selectionOf([
-        { kind: 'element', id: 'tiny' },
+        { kind: 'element', id: 'apex' },
         { kind: 'element', id: 'other' },
+        { kind: 'element', id: 'tiny' },
         { kind: 'element', id: 'frame' },
       ]),
       'other',
     );
-    expect(inside(renderer).namesBeside.written).toEqual(['other', 'tiny']);
+    expect(inside(renderer).namesBeside.written).toEqual(['other', 'apex']);
   });
 
   it('writes none beside the shapes of a large selection', async () => {

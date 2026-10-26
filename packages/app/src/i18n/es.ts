@@ -2449,8 +2449,8 @@ export const ui: Catalog = {
     one: '{count} curva cerrada en una caja de {width} por {height}',
     other: '{count} curvas cerradas en una caja de {width} por {height}',
   },
-  'At {width} by {height}, its name does not fit inside its outline: the hover and selection marks write it beside the shape.':
-    'A {width} por {height}, su nombre no cabe dentro de su contorno: las marcas al pasar el puntero y al seleccionar lo escriben junto a la forma.',
+  'At {width} by {height}, its outline leaves no room for a name inside: names are written under the shape.':
+    'A {width} por {height}, su contorno no deja lugar para un nombre adentro: los nombres se escriben debajo de la forma.',
   'Preview of its free geometry, {width} by {height}':
     'Vista previa de su geometría libre, {width} por {height}',
   'Path data': 'Datos de trazado',

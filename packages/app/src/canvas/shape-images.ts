@@ -44,6 +44,7 @@ import {
   LEAST_HEADER_WIDTH,
   LEAST_LABEL_HEIGHT,
   headerStretch,
+  besideIcon,
   labelAreaOn,
   showsContents,
 } from './outlined';
@@ -394,12 +395,9 @@ export function bodyRectOf(shape: { rect: Rect; image?: ShapeImage }): Rect {
     : shape.rect;
 }
 
-/** The part of a label area left for text beside an icon: right of it. */
+/** The part of a label area left for text beside an icon: right of it (`besideIcon`). */
 export function besideImage(shape: { rect: Rect; image?: ShapeImage }, area: Rect): Rect {
-  const image = shape.image;
-  if (image?.placement !== 'icon') return area;
-  const by = image.box.x + image.box.width - area.x;
-  return { ...area, x: area.x + by, width: Math.max(1, area.width - by) };
+  return besideIcon(shape, area);
 }
 
 /** How far right a container's header text moves for the icon in its header. */

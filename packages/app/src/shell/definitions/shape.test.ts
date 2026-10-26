@@ -16,7 +16,7 @@ import {
   geometryFromSvg,
   isPartId,
   labelAreaOf,
-  nameFitsInside,
+  roomForNameInside,
   namedPartsOf,
   pathDataOf,
   svgPicturesIn,
@@ -170,8 +170,8 @@ describe('what the Shape section changes of a geometry', () => {
     const area = labelAreaOf(reading.outline);
     expect(area.width).toBeGreaterThan(0);
     expect(area.x + area.width).toBeLessThanOrEqual(40);
-    expect(nameFitsInside(reading.outline, 120, 120)).toBe(true);
-    expect(nameFitsInside(reading.outline, 20, 10)).toBe(false);
+    expect(roomForNameInside(reading.outline, 120, 120)).toBe(true);
+    expect(roomForNameInside(reading.outline, 20, 10)).toBe(false);
   });
 
   it('knows a part’s id as a picture names it', () => {
