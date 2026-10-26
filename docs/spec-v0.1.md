@@ -529,7 +529,7 @@ Eight milestones in build order, each ending in something you can use, and Track
   - an orthogonal end whose segment misses the outline may reach its nearest point with one piece that is not orthogonal (W53, accepted);
   - layout's ports for anchored parts stay on the side nearest each part, whichever way the flow runs; ELK's routes are dropped as before (W53, accepted).
   - W51's choices are kept: Alt also turns the alignment guides off in a move; a container resized from its top or left keeps its contents where they are on the canvas, storing their positions; Same width and Same height take the widest or tallest; shapes an overlay sizes show no handles; notes resize and align, arrows only align;
-  - 's copy of  moves into a module without the DOM that  and the server share;
+  - `alignActions.ts`'s copy of `movingShapes` moves into a module without the DOM that `gestures.ts` and the server share;
   - Alt+Shift with an arrow is checked on Windows, where Alt+Shift can switch the keyboard layout; if it does, the keys move;
   - the benchmark gains a phase that resizes a shape and shows guides on the 10,000-element view.
 
