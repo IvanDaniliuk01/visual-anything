@@ -3986,6 +3986,141 @@ export const messages: Catalog = {
   'The picture is {width} × {height} pixels; at most {side} a side and {pixels} in all are kept.':
     'La imagen mide {width} × {height} píxeles; se admiten como máximo {side} por lado y {pixels} en total.',
   'The JPEG picture has over {n} scans.': 'La imagen JPEG tiene más de {n} barridos.',
+  // W43: why the live connection cannot read a message, as the "unreadable" screen shows it for one
+  // from the local program and a refusal for one the app sent (protocol.ts, live/messages.ts).
+  'The message is not JSON.': 'El mensaje no es JSON.',
+  'The message is not a JSON object.': 'El mensaje no es un objeto JSON.',
+  'The message is not text.': 'El mensaje no es texto.',
+  'Unknown message type: {type}.': 'Tipo de mensaje desconocido: {type}.',
+  'Protocol version {version} is not {n}.': 'La versión {version} del protocolo no es la {n}.',
+  'The message has no project.': 'El mensaje no tiene ningún proyecto.',
+  'The session token is text.': 'El token de la sesión es texto.',
+  'The message has no operations.': 'El mensaje no tiene operaciones.',
+  'The message has no preferences.': 'El mensaje no tiene preferencias.',
+  'The message names the request and the project that opened.':
+    'El mensaje nombra el pedido y el proyecto que se abrió.',
+  'The folder is named by text.': 'La carpeta se nombra con un texto.',
+  'The message has no samples.': 'El mensaje no tiene proyectos de muestra.',
+  'A sample has an id and a name.': 'Un proyecto de muestra tiene un id y un nombre.',
+  'Guidance is an object.': 'Una guía es un objeto JSON.',
+  'The view of guidance must be an id.': 'La vista de una guía debe ser un id.',
+  'Guidance needs a list of one or more targets.':
+    'Una guía necesita una lista de uno o más ids a los que apuntar.',
+  'Guidance names at most {n} targets.': 'Una guía apunta como máximo a {n} ids.',
+  'Every target of guidance must be an id.':
+    'Todo aquello a lo que apunta una guía debe ser un id.',
+  'Pan to needs a target id.': 'Llevar el lienzo hasta algo necesita su id.',
+  'A caption needs its text.': 'Un rótulo necesita su texto.',
+  'A caption holds at most {n} characters.': 'Un rótulo tiene como máximo {n} caracteres.',
+  'Unknown kind of guidance: {kind}.': 'Tipo de guía desconocido: {kind}.',
+  'Filters are an object.': 'Los filtros son un objeto JSON.',
+  'The components of filters are a list of ids.':
+    'Los componentes de los filtros son una lista de ids.',
+  'The relation types of filters are a list of ids.':
+    'Los tipos de relación de los filtros son una lista de ids.',
+  'Filters name at most {n} components.': 'Los filtros nombran como máximo {n} componentes.',
+  'Filters name at most {n} relation types.':
+    'Los filtros nombran como máximo {n} tipos de relación.',
+  'The conditions of filters are a list.': 'Las condiciones de los filtros son una lista.',
+  'A condition of filters is an object.': 'Una condición de los filtros es un objeto JSON.',
+  'A condition is on elements or on relations.':
+    'Una condición es sobre elementos o sobre relaciones.',
+  'A condition that tests with "{test}" needs a value, as text.':
+    'Una condición que prueba con "{test}" necesita un valor, como texto.',
+  'Focus reaches 1 to {n} degrees, or "all".': 'El foco alcanza de 1 a {n} grados, o "all".',
+  'Focus goes one of these ways: {ways}.': 'El foco va en una de estas direcciones: {ways}.',
+  'Whether focus isolates is a boolean.': 'Si el foco aísla es un valor booleano.',
+  'Playback names its scenario by id.': 'La reproducción nombra su escenario por su id.',
+  'Playback does one of: {actions}.': 'La reproducción hace una de estas cosas: {actions}.',
+  'Going to a step needs the index of the step, from 0.':
+    'Ir a un paso necesita el índice del paso, desde 0.',
+  'The actions of the history are a list.': 'Las acciones del historial son una lista.',
+  'An action of the history is an object.': 'Una acción del historial es un objeto JSON.',
+  'An action of the history has a whole id from 1.':
+    'Una acción del historial tiene un id entero desde 1.',
+  'Two actions of the history have the id {n}.': 'Dos acciones del historial tienen el id {n}.',
+  'An action of the history has a label.': 'Una acción del historial tiene una etiqueta.',
+  'An action of the history is the person’s or Claude’s.':
+    'Una acción del historial es de la persona o de Claude.',
+  'An action of the history has the time it was done.':
+    'Una acción del historial tiene el momento en que se hizo.',
+  'An action of the history says whether it is undone.':
+    'Una acción del historial dice si está deshecha.',
+  'The message has no valid request id.': 'El mensaje no tiene un id de pedido válido.',
+  'The answer has no valid request id.': 'La respuesta no tiene un id de pedido válido.',
+  'The message has no command.': 'El mensaje no tiene ningún comando.',
+  'The action to undo up to is named by its id.':
+    'La acción hasta la que deshacer se nombra por su id.',
+  'The action to redo up to is named by its id.':
+    'La acción hasta la que rehacer se nombra por su id.',
+  'The message has no preferences to change.': 'El mensaje no tiene preferencias que cambiar.',
+  'A sample is named by its id.': 'Un proyecto de muestra se nombra por su id.',
+  'The names of a new project are an object.':
+    'Los nombres de un proyecto nuevo son un objeto JSON.',
+  'A new project\'s names are its "project" and its first "view", each text of at most {n} characters.':
+    'Los nombres de un proyecto nuevo son su "project" y su primera "view", cada uno un texto de como máximo {n} caracteres.',
+  'The project to open is a path of 1 to {n} characters.':
+    'El proyecto que abrir es una ubicación de 1 a {n} caracteres.',
+  'The view to open there is named by its id.': 'La vista que abrir allí se nombra por su id.',
+  'Live values come as a list of values and a list removed.':
+    'Los valores en vivo llegan como una lista de valores y una lista de los quitados.',
+  'The answer to live values counts what was kept.':
+    'La respuesta a los valores en vivo cuenta lo que se guardó.',
+  'The answer to live values lists the targets it did not know.':
+    'La respuesta a los valores en vivo enumera los ids que no conocía.',
+  'The answer to live values lists what it refused.':
+    'La respuesta a los valores en vivo enumera lo que rechazó.',
+  'A value refused has its place and why.': 'Un valor rechazado tiene su lugar y el motivo.',
+  'What was fetched has an HTTP status.': 'Lo obtenido tiene un estado HTTP.',
+  'What was fetched is text of at most 256 KiB.': 'Lo obtenido es un texto de como máximo 256 KiB.',
+  'Fetching names its package by id.': 'Obtener algo nombra su paquete por su id.',
+  'Fetching needs an address of at most {n} characters.':
+    'Obtener algo necesita una dirección de como máximo {n} caracteres.',
+  'Live values from package code name the package.':
+    'Los valores en vivo del código de un paquete nombran el paquete.',
+  'Live values come as a list.': 'Los valores en vivo llegan como una lista.',
+  'Live values stay fresh for a whole number of milliseconds, from a second to a week.':
+    'Los valores en vivo quedan vigentes durante un número entero de milisegundos, de un segundo a una semana.',
+  'A live value {why}.': 'Un valor en vivo {why}.',
+  'is not an object': 'no es un objeto JSON',
+  'has no target id': 'no tiene el id del elemento o la relación al que pertenece',
+  'has no attribute name of 1 to {n} characters on one line':
+    'no tiene un nombre de atributo de 1 a {n} caracteres en una sola línea',
+  'has no value for "{attribute}"': 'no tiene ningún valor para "{attribute}"',
+  'has a value for "{attribute}" that {why}': 'tiene un valor para "{attribute}" que {why}',
+  'has a time it was measured at that is not milliseconds since 1970':
+    'tiene un momento de medición que no está en milisegundos desde 1970',
+  'A live value names its sender.': 'Un valor en vivo nombra a quien lo envía.',
+  'A live value says when it arrived.': 'Un valor en vivo dice cuándo llegó.',
+  'A live value says how long it stays fresh.':
+    'Un valor en vivo dice cuánto tiempo queda vigente.',
+  'A live value removed is named by its target and attribute.':
+    'Un valor en vivo quitado se nombra por su elemento o relación y su atributo.',
+  // W43: why a tab's copy of the project falls out of step with the program (operations.ts). The
+  // lists are phrases in lower case, which the sentences hold.
+  '{Of} already holds "{key}".': '"{key}" ya está en {Of}.',
+  '{Of} has no place {index}.': 'No hay ningún lugar {index} en {Of}.',
+  '{Of} holds no "{key}".': '"{key}" no está en {Of}.',
+  'The elements of the project': 'los elementos del proyecto',
+  'The relations of the project': 'las relaciones del proyecto',
+  'The packages of the project': 'los paquetes del proyecto',
+  'The views of the project': 'las vistas del proyecto',
+  'The scenarios of the project': 'los escenarios del proyecto',
+  'The components of package "{package}"': 'los componentes del paquete "{package}"',
+  'The relationTypes of package "{package}"': 'los tipos de relación del paquete "{package}"',
+  'The images of package "{package}"': 'las imágenes del paquete "{package}"',
+  'The positions of view "{view}"': 'las posiciones de la vista "{view}"',
+  'The freeShapes of view "{view}"': 'las formas libres de la vista "{view}"',
+  'The routes of view "{view}"': 'las rutas de la vista "{view}"',
+  'The stacking order of "{container}" in view "{view}"':
+    'el orden de apilado de "{container}" en la vista "{view}"',
+  'A view cannot change its id ("{id}").': 'Una vista no puede cambiar su id ("{id}").',
+  'A package cannot change its id ("{id}").': 'Un paquete no puede cambiar su id ("{id}").',
+  // W43: why the local program refuses preferences an app sends.
+  'Preferences to change must be an object, such as {"theme": "dark"}.':
+    'Las preferencias que cambiar deben ser un objeto JSON, como {"theme": "dark"}.',
+  'There is no preference to change.': 'No hay ninguna preferencia que cambiar.',
+  '"{name}" is not a preference.': '"{name}" no es una preferencia.',
 };
 
 /**
