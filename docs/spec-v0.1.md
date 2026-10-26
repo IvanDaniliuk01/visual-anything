@@ -521,6 +521,13 @@ Eight milestones in build order, each ending in something you can use, and Track
   - dragging a shape with free geometry and 50 relations;
   - a run with the image store cleared;
   - a theme switch.
+- [ ] **Follow-ups the tasks raised**, decided by the main session on 2026-10-26:
+  - the first simplification of an outline at the caps (about 50 ms) and of its label area (about 25 ms) stays as it is until the benchmark says otherwise (W52);
+  - the drop, pending, refused and connection-target marks follow outlines, as the hover and selection marks do, after W54 (W52, W53);
+  - a curve chosen by hand with automatic ends attaches where the orthogonal route would, as automatic curves do (ADR 0069), although routes stored before then change how they look (W53);
+  - a stub carried into a hollow clears the box, even if dragging its segment then stores one more bend point (W53);
+  - an orthogonal end whose segment misses the outline may reach its nearest point with one piece that is not orthogonal (W53, accepted);
+  - layout's ports for anchored parts stay on the side nearest each part, whichever way the flow runs; ELK's routes are dropped as before (W53, accepted).
 
 **M11b · Versions.** Planned for the third wave, beside M8b. The core's comparison, merge and proposals go first, in the main session, since everything else builds on them. Then two rounds of tasks run in parallel. Done when:
 
