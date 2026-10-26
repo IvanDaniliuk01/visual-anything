@@ -59,7 +59,7 @@
  * | package                 | paquete                          |
  * | built-in package        | paquete incorporado              |
  * | starter package         | paquete inicial                  |
- * | sample project          | proyecto de ejemplo              |
+ * | sample project          | proyecto de muestra              |
  * | start screen            | pantalla de inicio               |
  * | shared package          | paquete compartido               |
  * | license, attribution    | licencia, atribución             |
@@ -76,7 +76,7 @@
  * | travelling marker       | marcador en movimiento           |
  * | record                  | grabar                           |
  * | guidance                | guía                             |
- * | caption                 | leyenda                          |
+ * | caption                 | rótulo                           |
  * | preference              | preferencia                      |
  * | theme                   | tema                             |
  * | launch address          | dirección de inicio              |
@@ -94,7 +94,7 @@
  * | approve, approval       | aprobar, aprobación              |
  * | computed (value)        | calculado                        |
  * | overlay                 | superposición                    |
- * | legend                  | referencias                      |
+ * | legend                  | leyenda                          |
  * | level of detail         | nivel de detalle                 |
  * | silhouette              | silueta                          |
  * | opacity, fade           | opacidad, atenuar                |
@@ -114,7 +114,10 @@
  * The words CONTEXT.md avoids are not used for its terms either: no "nodo", "objeto" or "instancia"
  * for an element, "propiedad" or "campo" for an attribute, "capa" for the stacking order, "enlace" or
  * "vínculo" for a relation, nor "ajustes" for options, since "ajuste" is snapping. A JSON object is
- * "objeto JSON" and a file system link "enlace simbólico", which are neither.
+ * "objeto JSON" and a file system link "enlace simbólico", which are neither. A sample project is
+ * "proyecto de muestra", never "ejemplo"; a legend is "leyenda", never "referencias", which is close to
+ * the built-in relation type "referencia" and to what CONTEXT.md avoids for identifiers; so a caption
+ * is "rótulo". `catalog.test.ts` lists every avoided word in Spanish, with its narrow exceptions.
  *
  * Element, relation, view and scenario names are what people wrote and are never translated; they
  * keep their quotes as the English has them.
@@ -126,7 +129,7 @@ export const ui: Catalog = {
   // The start screen of a folder that holds no project yet (ADR 0051).
   'Start a project in “{folder}”': 'Empezar un proyecto en “{folder}”',
   'This folder holds no project yet. Start one from a sample, or empty; everything can be changed afterwards.':
-    'Esta carpeta todavía no tiene ningún proyecto. Empezar uno a partir de un ejemplo, o vacío; después se puede cambiar todo.',
+    'Esta carpeta todavía no tiene ningún proyecto. Empezar uno a partir de un proyecto de muestra, o vacío; después se puede cambiar todo.',
   'Ways to start': 'Formas de empezar',
   'C4 architecture: internet banking': 'Arquitectura C4: banca por internet',
   'A bank’s internet banking system, from the people who use it down to its components and the servers it runs on, with a scenario of a customer signing in.':
@@ -135,8 +138,8 @@ export const ui: Catalog = {
     'Canalización de ciencia de datos: predicción de bajas',
   'The data a subscription business turns into a churn model, and the dashboards it feeds, with a scenario of the nightly run.':
     'Los datos que un negocio de suscripciones convierte en un modelo de bajas, y los paneles de indicadores que alimenta, con un escenario de la ejecución nocturna.',
-  'Start from the sample “{name}”': 'Empezar a partir del ejemplo “{name}”',
-  'Start from this sample': 'Empezar a partir de este ejemplo',
+  'Start from the sample “{name}”': 'Empezar a partir del proyecto de muestra “{name}”',
+  'Start from this sample': 'Empezar a partir de este proyecto de muestra',
   'Starting…': 'Empezando…',
   'An empty project': 'Un proyecto vacío',
   'It uses the built-in Systems package and has one view; the Components tab adds more packages.':
@@ -498,7 +501,7 @@ export const ui: Catalog = {
   'This page is {size}, past {limit}: it may open slowly, and some hosts and mail refuse files this large.':
     'Esta página pesa {size}, más de {limit}: puede abrirse con lentitud, y algunos servidores y correos rechazan archivos tan grandes.',
   'This copy of Visual Anything has no viewer for read-only pages, as when it runs from its sources. Run pnpm build, then start it again.':
-    'Esta copia de Visual Anything no tiene el visor de páginas de solo lectura, como cuando se ejecuta desde sus fuentes. Ejecutar pnpm build y volver a iniciarla.',
+    'Esta copia de Visual Anything no puede armar páginas de solo lectura, como cuando se ejecuta desde sus fuentes. Ejecutar pnpm build y volver a iniciarla.',
   'The page could not be written: {why}': 'No se pudo escribir la página: {why}',
   'Save the page': 'Guardar la página',
   'Save the page anyway': 'Guardar la página de todos modos',
@@ -712,7 +715,7 @@ export const ui: Catalog = {
   'Step {n} is deleted.': 'Se eliminó el paso {n}.',
   'Delete step': 'Eliminar paso',
   'Enter saves a field; Shift+Enter starts a new line. Leave data blank for none.':
-    'Enter guarda un campo; Mayús+Enter empieza una línea nueva. Dejar los datos en blanco para no tener ninguno.',
+    'Enter guarda lo escrito; Mayús+Enter empieza una línea nueva. Dejar los datos en blanco para no tener ninguno.',
 
   // Claude's guidance.
   'Claude’s guidance': 'Guía de Claude',
@@ -1391,7 +1394,7 @@ export const ui: Catalog = {
   'Recent and project colors for {label}': 'Colores recientes y del proyecto para {label}',
   'Use {color}': 'Usar {color}',
   'Write a color as #RRGGBB, #RGB or rgb(r, g, b), such as #F3F5F8.':
-    'Escribir un color como #RRGGBB, #RGB o rgb(r, g, b), por ejemplo #F3F5F8.',
+    'Escribir un color en la forma #RRGGBB, #RGB o rgb(r, g, b), como #F3F5F8.',
   'Appearance of {count} shapes': {
     one: 'Apariencia de {count} forma',
     other: 'Apariencia de {count} formas',
@@ -1883,7 +1886,7 @@ export const ui: Catalog = {
   'The package “{name}” holds code that is not approved, so it does not run. Review it from one of its elements in the inspector, or from the package in the Components tab.':
     'El paquete “{name}” tiene código que no está aprobado, así que no se ejecuta. Revisarlo desde uno de sus elementos en el inspector, o desde el paquete en la pestaña Componentes.',
   // The legend of a view's overlays, on the canvas and below an image (ADR 0055).
-  Legend: 'Referencias',
+  Legend: 'Leyenda',
   'Fill by {attribute}': 'Relleno según {attribute}',
   'Stroke by {attribute}': 'Trazo según {attribute}',
   'Size by {attribute}': 'Tamaño según {attribute}',
@@ -1907,7 +1910,7 @@ export const ui: Catalog = {
   'Add the overlay': 'Agregar la superposición',
   'Save the overlay': 'Guardar la superposición',
   Edit: 'Editar',
-  'Name in the legend': 'Nombre en las referencias',
+  'Name in the legend': 'Nombre en la leyenda',
   'Reads the attributes of': 'Lee los atributos de',
   Changes: 'Cambia',
   Maps: 'Asigna',
@@ -1922,7 +1925,7 @@ export const ui: Catalog = {
   Opacity: 'Opacidad',
   Label: 'Etiqueta',
   'Line color': 'Color de línea',
-  'Label in the legend': 'Etiqueta en las referencias',
+  'Label in the legend': 'Etiqueta en la leyenda',
   'Add a value': 'Agregar un valor',
   'Add a stop': 'Agregar una parada',
   'Add each value it has': 'Agregar cada valor que tiene',
@@ -2155,14 +2158,14 @@ export const messages: Catalog = {
   'Leave "{name}" out of "{view}"': 'Dejar "{name}" fuera de "{view}"',
   'Leave {n} elements out of "{view}"': 'Dejar {n} elementos fuera de "{view}"',
   'A scope is an object, or null to show the whole model.':
-    'Un alcance es un objeto, o null para mostrar todo el modelo.',
+    'Un alcance es un objeto JSON, o null para mostrar todo el modelo.',
   'A scope holds include, exclude, added and leftOut, not "{key}".':
     'Un alcance tiene include, exclude, added y leftOut, no "{key}".',
   "A scope's {part} holds at most {n} rules.":
     'El {part} de un alcance tiene como máximo {n} reglas.',
   "A scope's {part} must be a list.": 'El {part} de un alcance debe ser una lista.',
   'A rule of a scope is an object with a kind.':
-    'Una regla de un alcance es un objeto con un kind.',
+    'Una regla de un alcance es un objeto JSON con un kind.',
   'Whether a rule takes exactly its own kind is true or false.':
     'Si una regla toma exactamente su propio tipo es verdadero o falso.',
   'How deep a rule reaches is a whole number from 1 to {n}.':
@@ -2419,7 +2422,7 @@ export const messages: Catalog = {
     'El tipo de relación que anida "{name}" se indica dos veces.',
   'The view "{name}" cannot be deleted: {scenarios} play over it.':
     'La vista "{name}" no se puede eliminar: {scenarios} se reproducen sobre ella.',
-  'A package is listed twice.': 'Un paquete figura dos veces.',
+  'A package is listed twice.': 'Un paquete aparece dos veces.',
   'The project cannot stop using the package "{id}": {n} of its elements, relations or definitions come from it.':
     'El proyecto no puede dejar de usar el paquete "{id}": {n} de sus elementos, relaciones o definiciones vienen de él.',
   'There is no built-in package "{id}" to use.':
@@ -2477,7 +2480,7 @@ export const messages: Catalog = {
   'A package’s images are a list.': 'Las imágenes de un paquete son una lista.',
   'Each definition and image of a package is an object.':
     'Cada definición e imagen de un paquete es un objeto JSON.',
-  'An image is of the kind "svg" or "bitmap".': 'Una imagen es de la clase "svg" o "bitmap".',
+  'An image is of the kind "svg" or "bitmap".': 'Una imagen es del tipo "svg" o "bitmap".',
   'An image has no "{key}".': 'Una imagen no tiene "{key}".',
   'A package has no "{key}".': 'Un paquete no tiene "{key}".',
   'A package’s version is a semantic version, such as 1.2.0.':
@@ -2741,7 +2744,8 @@ export const messages: Catalog = {
   'No project is open here yet: choose how to start one first.':
     'Todavía no hay ningún proyecto abierto aquí: primero elegir cómo empezar uno.',
   'The project here is being started already.': 'El proyecto de aquí ya se está empezando.',
-  'There is no sample "{id}" to start from.': 'No hay ningún ejemplo "{id}" del que partir.',
+  'There is no sample "{id}" to start from.':
+    'No hay ningún proyecto de muestra "{id}" del que partir.',
   '{folder} already holds files, or is no folder; a new project starts in an empty folder.':
     '{folder} ya tiene archivos, o no es una carpeta; un proyecto nuevo empieza en una carpeta vacía.',
   'The new project could not be written in {folder}: {reason}':
@@ -3001,9 +3005,9 @@ export const messages: Catalog = {
   '{file} takes the id "{id}", which Visual Anything keeps for a built-in package to come. Rename it before that package ships: {how}':
     '{file} usa el id "{id}", que Visual Anything reserva para un paquete incorporado que vendrá. Cambiarlo antes de que ese paquete salga: {how}',
   'change "id" in this file, the start of every component and relation type id in it, and every reference to them, and rename the file to match.':
-    'cambiar "id" en este archivo, el comienzo de cada id de componente y de tipo de relación que tiene, y cada referencia a ellos, y cambiar el nombre del archivo para que coincida.',
+    'cambiar "id" en este archivo, el comienzo de cada id de componente y de tipo de relación que tiene, y cada lugar que los nombra, y cambiar el nombre del archivo para que coincida.',
   'The package "{id}" is listed, but neither packages/ nor the built-in packages hold it.':
-    'El paquete "{id}" figura en la lista, pero no está ni en packages/ ni entre los paquetes incorporados.',
+    'El paquete "{id}" aparece en la lista, pero no está ni en packages/ ni entre los paquetes incorporados.',
 
   // More phrases the core builds, which its messages hold as parts.
   'the relation "{name}"': 'la relación "{name}"',
@@ -3399,7 +3403,7 @@ export const messages: Catalog = {
   '{count} more things matched nothing; the list stops here.':
     '{count} cosas más no coincidieron con nada; la lista se detiene aquí.',
   'A link that is not a web address is left out.':
-    'Se deja fuera una referencia que no es una dirección web.',
+    'Se deja fuera lo que lleva a algo que no es una dirección web.',
   'Its {n} bend points are left out: a route bends at most 64 times.':
     'Se dejan fuera sus {n} puntos de quiebre: una ruta se quiebra como máximo 64 veces.',
   'The view is left out: an import brings at most 500 views.':
@@ -3524,7 +3528,7 @@ export const messages: Catalog = {
   'The view "{view}" shows "{id}", which the model does not hold.':
     'La vista "{view}" muestra "{id}", que el modelo no tiene.',
   'Groups are left out; what they hold sits in the view without them.':
-    'Se dejan fuera los grupos; lo que contienen queda en la vista sin ellos.',
+    'Se dejan fuera las agrupaciones; lo que contienen queda en la vista sin ellas.',
   'A step that no relation of the model stands for is left out.':
     'Se deja fuera un paso que no representa ninguna relación del modelo.',
   'It is drawn between containers of its ends; it shows in views that show its ends.':
@@ -3712,7 +3716,7 @@ export const messages: Catalog = {
   'The overlay "{name}" writes badges of 1 to 12 characters.':
     'La superposición "{name}" escribe insignias de 1 a 12 caracteres.',
   'What the legend of "{name}" says for a value has 1 to 64 characters.':
-    'Lo que dicen las referencias de "{name}" para un valor tiene de 1 a 64 caracteres.',
+    'Lo que dice la leyenda de "{name}" para un valor tiene de 1 a 64 caracteres.',
   'No element has "{attribute}", which the overlay "{name}" reads: it changes nothing yet.':
     'Ningún elemento tiene "{attribute}", que lee la superposición "{name}": todavía no cambia nada.',
   'No relation has "{attribute}", which the overlay "{name}" reads: it changes nothing yet.':
@@ -4304,7 +4308,7 @@ export const builtins: Readonly<
   'c4.component': {
     name: 'Componente',
     description:
-      'Un grupo de funciones relacionadas detrás de una interfaz, dentro de un contenedor.',
+      'Un conjunto de funciones relacionadas detrás de una interfaz, dentro de un contenedor.',
     attributes: { technology: 'Con qué está hecho, como "Java y Spring Boot" o "PostgreSQL".' },
   },
   'c4.deployment-node': {
