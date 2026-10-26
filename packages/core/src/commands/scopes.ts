@@ -3,18 +3,133 @@
  * element from the canvas, the outline and the inspector. Each is one action that changes only the
  * view's file; none of them deletes anything from the model.
  */
-import type { Id, Scope, ScopeRule, ViewFile } from '@visual-anything/schema';
+import type { Id, RelationTypeLeftOut, Scope, ScopeRule, ViewFile } from '@visual-anything/schema';
+import { nestingTypesInView } from '../containers';
 import { isId } from '../ids';
 import { FILTER_TESTS } from '../protocol';
 import { shownByScope } from '../scope';
 import { count, nameOf, reject, requireList, type Draft } from './draft';
-import type { AddToViewCommand, LeaveOutOfViewCommand, SetScopeCommand } from './types';
+import type {
+  AddToViewCommand,
+  LeaveOutOfViewCommand,
+  SetRelationTypesLeftOutCommand,
+  SetScopeCommand,
+} from './types';
 import { viewProperties } from './views';
 
 /** The most rules a scope keeps in each of its lists, as the file format says. */
 export const MAX_SCOPE_RULES = 64;
 /** The deepest a contents rule reaches, as the file format says. */
 export const MAX_SCOPE_DEPTH = 1000;
+/** The most relation types a view leaves out (ADR 0064), as the file format says. */
+export const MAX_RELATION_TYPES_LEFT_OUT = 256;
+
+/**
+ * Sets the relation types a view leaves out (ADR 0064), whole: each a relation type a package in use
+ * defines, once, and none the view nests by, whose relations draw containment rather than lines.
+ */
+export function setRelationTypesLeftOut(
+  draft: Draft,
+  command: SetRelationTypesLeftOutCommand,
+): string {
+  const view = draft.view(command.view);
+  const given = requireList(command.relationTypes, 'The relation types a view leaves out');
+  if (given.length > MAX_RELATION_TYPES_LEFT_OUT) {
+    reject(
+      'invalid-command',
+      `A view leaves out at most ${MAX_RELATION_TYPES_LEFT_OUT} relation types.`,
+    );
+  }
+  const nesting = new Set(nestingTypesInView(draft.state, view));
+  const seen = new Set<Id>();
+  const list = given.map((entry): RelationTypeLeftOut => {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+      reject('invalid-command', 'A relation type a view leaves out is an object.');
+    }
+    for (const key of Object.keys(entry)) {
+      if (key !== 'relationType' && key !== 'exactly') {
+        reject(
+          'invalid-command',
+          `A relation type a view leaves out holds relationType and exactly, not "${key}".`,
+        );
+      }
+    }
+    const { exactly } = entry;
+    if (exactly !== undefined && typeof exactly !== 'boolean') {
+      reject(
+        'invalid-command',
+        'Whether it leaves out exactly that relation type is true or false.',
+      );
+    }
+    const type = draft.relationType(entry.relationType);
+    if (nesting.has(type.id)) {
+      reject(
+        'not-drawn-as-line',
+        `The view "${view.name}" nests by "${type.name}", whose relations draw containment rather than lines, so it cannot leave them out.`,
+        [type.id],
+      );
+    }
+    if (seen.has(type.id)) {
+      reject('invalid-command', `The relation type "${type.name}" is given twice.`, [type.id]);
+    }
+    seen.add(type.id);
+    return { relationType: type.id, ...(exactly === true ? { exactly: true } : {}) };
+  });
+  const before = view.relationTypesLeftOut ?? [];
+  putRelationTypesLeftOut(draft, view, list);
+  return leftOutLabel(draft, view.name, before, list);
+}
+
+/** How the history names a change of the relation types a view leaves out. */
+function leftOutLabel(
+  draft: Draft,
+  viewName: string,
+  before: readonly RelationTypeLeftOut[],
+  after: readonly RelationTypeLeftOut[],
+): string {
+  if (after.length === 0) return `Draw every relation type in "${viewName}"`;
+  const named = (list: readonly RelationTypeLeftOut[]) =>
+    new Map(list.map((each) => [each.relationType, each.exactly === true]));
+  const was = named(before);
+  const now = named(after);
+  const added = [...now.keys()].filter((id) => !was.has(id));
+  const dropped = [...was.keys()].filter((id) => !now.has(id));
+  const changed = [...now.keys()].some((id) => was.has(id) && was.get(id) !== now.get(id));
+  const name = (id: Id) => draft.definitions.relationType(id)?.name ?? id;
+  if (!changed && dropped.length === 0 && added.length === 1) {
+    return `Leave the relations of "${name(added[0] as Id)}" out of "${viewName}"`;
+  }
+  if (!changed && added.length === 0 && dropped.length === 1) {
+    return `Draw the relations of "${name(dropped[0] as Id)}" in "${viewName}" again`;
+  }
+  if (before.length === 0) {
+    return `Leave the relations of ${count(after.length, 'relation type')} out of "${viewName}"`;
+  }
+  return `Change which relation types "${viewName}" leaves out`;
+}
+
+/**
+ * Stores the relation types a view leaves out as the file format keeps them: sorted by relation type,
+ * `exactly` only when true, and no list at all when it is empty.
+ */
+export function putRelationTypesLeftOut(
+  draft: Draft,
+  view: ViewFile,
+  list: readonly RelationTypeLeftOut[],
+): void {
+  const next = [...list]
+    .map((each) => ({
+      relationType: each.relationType,
+      ...(each.exactly === true ? { exactly: true } : {}),
+    }))
+    .sort((a, b) => byCodeUnits(a.relationType, b.relationType));
+  const stored = next.length === 0 ? undefined : next;
+  if (JSON.stringify(stored) === JSON.stringify(view.relationTypesLeftOut)) return;
+  const properties = viewProperties(view);
+  if (stored === undefined) delete properties.relationTypesLeftOut;
+  else properties.relationTypesLeftOut = stored;
+  draft.apply({ op: 'set-view', view: view.id, properties });
+}
 
 const SCOPE_KEYS = new Set(['include', 'exclude', 'added', 'leftOut']);
 

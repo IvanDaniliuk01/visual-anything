@@ -17,7 +17,7 @@ import {
 import { reorderElements } from './order';
 import { addPackage, replacePackage } from './packages';
 import { setCollapsed } from './collapse';
-import { addToView, leaveOutOfView, setScope } from './scopes';
+import { addToView, leaveOutOfView, setRelationTypesLeftOut, setScope } from './scopes';
 import { Draft, Rejection, reject, requireList, requireName } from './draft';
 import { checkImageReferences, defineImage, removeImage } from './images';
 import {
@@ -214,6 +214,8 @@ function dispatch(draft: Draft, command: Command): string {
       return addToView(draft, command);
     case 'leave-out-of-view':
       return leaveOutOfView(draft, command);
+    case 'set-relation-types-left-out':
+      return setRelationTypesLeftOut(draft, command);
     case 'define-image':
       return defineImage(draft, command);
     case 'remove-image':

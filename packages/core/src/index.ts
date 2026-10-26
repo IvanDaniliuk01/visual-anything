@@ -102,8 +102,15 @@ export { indexModel } from './model-index';
 export { definitionsIn, modelIndexOf } from './state';
 // What a view shows through its scope, and the scope's limits (ADR 0040).
 export { shownByScope, type ShownByScope } from './scope';
+// The relation types a view leaves out (ADR 0064).
+export {
+  leavesOutRelationTypes,
+  relationTypesLeftOutBy,
+  showsPart,
+  type LeftOutTypes,
+} from './scope';
 export { shapesInView, type ShapesInView } from './scope-placement';
-export { MAX_SCOPE_DEPTH, MAX_SCOPE_RULES } from './commands/scopes';
+export { MAX_RELATION_TYPES_LEFT_OUT, MAX_SCOPE_DEPTH, MAX_SCOPE_RULES } from './commands/scopes';
 // How filters and scopes test an attribute (ADR 0025, ADR 0040).
 export { meetsCondition, type AttributeTest } from './conditions';
 // A relation in words, as the history names it.

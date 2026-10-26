@@ -2,12 +2,13 @@
  * What a scenario plays, step by step, over its view as the view is now. Consecutive steps that happen
  * entirely inside a collapsed container play as one aggregated step; expanding the container plays
  * them one by one again. A broken step always plays on its own, so that it shows and can be fixed.
- * A step whose relations are all out of the scope of its view is outside the view (ADR-0040): it
- * plays on its own too, saying so, and is not a broken step.
+ * A step whose relations are all out of the scope of its view is outside the view (ADR-0040), as is one
+ * whose relations are all of relation types the view leaves out (ADR 0064): it plays on its own too,
+ * saying so, and is not a broken step.
  * The timeline is worked out from the files and never stored: playing changes nothing.
  */
 import type { Id, ScenarioFile, Step, ViewFile } from '@visual-anything/schema';
-import { shownByScope, type ShownByScope } from '../scope';
+import { showsPart, shownByScope, type ShownByScope } from '../scope';
 import type { ProjectSnapshot } from '../snapshot';
 import { modelIndexOf } from '../state';
 import { collapsedIn, containmentInView, endsOf } from './containment';
@@ -25,8 +26,9 @@ export interface TimelineStep {
   /** The relations it activates that are not: a step with any of them is a broken step. */
   missing: Id[];
   /**
-   * Present on a step outside the view: every relation it activates is in the model, and the scope
-   * of the view it plays over shows none of them (ADR-0040).
+   * Present on a step outside the view: every relation it activates is in the model, and the view it
+   * plays over shows none of them, through its scope or the relation types it leaves out (ADR-0040,
+   * ADR 0064).
    */
   outside?: true;
 }
@@ -81,7 +83,8 @@ export function scenarioTimeline(
   view: ViewFile | undefined = project.views.find((each) => each.id === scenario.view),
 ): Timeline {
   const index = modelIndexOf(project);
-  const shown = view?.scope === undefined ? undefined : shownByScope(project, view);
+  // A view with a scope, or one that leaves out relation types, may not draw a step (ADR-0040, ADR 0064).
+  const shown = view === undefined || !showsPart(view) ? undefined : shownByScope(project, view);
   const insideOf = view ? containerFinder(project, view, shown) : () => undefined;
   const entries: TimelineEntry[] = [];
   const entryOf: number[] = [];

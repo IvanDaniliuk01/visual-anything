@@ -55,6 +55,10 @@
       "$ref": "#/definitions/Scope",
       "description": "The part of the model this view shows (ADR 0040). Without it, the view shows the whole model."
     },
+    "relationTypesLeftOut": {
+      "$ref": "#/definitions/RelationTypesLeftOut",
+      "description": "The relation types whose relations this view does not draw (ADR 0064): not as lines, not in a collapsed container's aggregated relations, and in no count of relations that leave the view. Such a relation stays in the model. A relation type the view nests by draws containment, so it is never left out. Left out when it has none."
+    },
     "overlays": {
       "$ref": "#/definitions/Overlays",
       "description": "How this view colors, sizes, marks or fades its shapes by their attributes, in order (ADR 0055): each channel of a shape is set by the first overlay that sets it. Left out when it has none."
@@ -704,6 +708,31 @@
       "minItems": 1,
       "maxItems": 100000,
       "uniqueItems": true
+    },
+    "RelationTypesLeftOut": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/RelationTypeLeftOut"
+      },
+      "description": "The relation types a view leaves out (ADR 0064), sorted by relation type, each once.",
+      "minItems": 1,
+      "maxItems": 256
+    },
+    "RelationTypeLeftOut": {
+      "type": "object",
+      "properties": {
+        "relationType": {
+          "$ref": "#/definitions/Id"
+        },
+        "exactly": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "relationType"
+      ],
+      "additionalProperties": false,
+      "description": "A relation type a view leaves out, with every relation type derived from it unless `exactly`."
     },
     "Overlays": {
       "type": "array",

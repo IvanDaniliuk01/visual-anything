@@ -73,6 +73,16 @@ export function updateView(draft: Draft, command: UpdateViewCommand): string {
   if (changes.perspective !== undefined) next.perspective = perspectiveOf(changes.perspective);
   if (changes.nestingRelationTypes !== undefined) {
     checkNestingTypes(draft, changes.nestingRelationTypes);
+    // A relation type the view leaves out draws no lines there; nesting by it would draw it (ADR 0064).
+    const leftOut = new Set((current.relationTypesLeftOut ?? []).map((each) => each.relationType));
+    for (const id of changes.nestingRelationTypes) {
+      if (!leftOut.has(id)) continue;
+      reject(
+        'in-use',
+        `The view "${current.name}" leaves out "${draft.relationType(id).name}", so it cannot nest by it: draw its relations in the view again first.`,
+        [id],
+      );
+    }
     next.nestingRelationTypes = [...changes.nestingRelationTypes];
   }
   draft.apply({ op: 'set-view', view: current.id, properties: next });
