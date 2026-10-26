@@ -9,9 +9,11 @@ import { Container, Graphics, Texture } from 'pixi.js';
 import { describe, expect, it } from 'vitest';
 import { beyondBoxes } from '../test/beyond';
 import { DIMMED_ALPHA } from './colors';
-import { drawShapeBlocks, drawShapeOutlines } from './draw';
+import { drawShapeBlocks, drawShapeOutlines, writeShapeLabels } from './draw';
 import { ImageStore, type ImagePlatform } from './images';
 import { pictureOf, type ImageView } from './images-draw';
+import { namedBeside } from './namesBeside';
+import { writesNameInside } from './outlined';
 import { overlayLookOfPart } from './overlays/decorate';
 import {
   PARTS_PICTURES,
@@ -20,6 +22,7 @@ import {
   drawPartMarks,
   partMarksOf,
   pictureShows,
+  writePartBadges,
   type DrawingMarks,
 } from './partsDraw';
 import { buildScene, type ElementShape, type Scene } from './scene';
@@ -57,7 +60,7 @@ function fills(graphics: Graphics): { color: number; alpha: number }[] {
 const hex = (color: string) => Number.parseInt(color.slice(1), 16);
 
 describe('anchored parts in the tiles', () => {
-  it('draw nothing of their own, in full or as plain blocks: their drawing’s picture shows', () => {
+  it('draw nothing of their own in full, their drawing’s picture showing, and far out their main color', () => {
     const scene = buildScene(beyondBoxes(), VIEW);
     const left = shapeOf(scene, 'body/left');
     const full = new Graphics();
@@ -65,10 +68,41 @@ describe('anchored parts in the tiles', () => {
     expect(drawnCount(full)).toBe(0);
     const blocks = new Graphics();
     drawShapeBlocks(blocks, [left]);
-    expect(drawnCount(blocks)).toBe(0);
+    expect(fills(blocks)[0]?.color).toBe(hex('#C0392B'));
     // A content below the picture is drawn as any shape.
     drawShapeOutlines(full, [shapeOf(scene, 'body/extra')]);
     expect(drawnCount(full)).toBeGreaterThan(0);
+  });
+
+  it('write their name only when it fits whole in their label area, and never their component’s', () => {
+    const named = (name: string) => {
+      const start = beyondBoxes();
+      const state: ProjectSnapshot = {
+        ...start,
+        model: {
+          ...start.model,
+          elements: start.model.elements.map((each) =>
+            each.id === 'left' ? { ...each, name } : each,
+          ),
+        },
+      };
+      return shapeOf(buildScene(state, VIEW), 'body/left');
+    };
+    const written = (shape: ElementShape) =>
+      writeShapeLabels([shape], true, (options) => {
+        const label = new Container();
+        label.label = String(options.text);
+        return label;
+      }).map((each) => each.label);
+    const short = named('LV');
+    expect(writesNameInside(short)).toBe(true);
+    expect(namedBeside(short)).toBe(false);
+    expect(written(short)).toEqual(['LV']);
+    // A name too long for the part is written beside it by the marks, never cut inside it.
+    const long = named('Ventriculussinistercordis');
+    expect(writesNameInside(long)).toBe(false);
+    expect(namedBeside(long)).toBe(true);
+    expect(written(long)).toEqual([]);
   });
 });
 
@@ -102,10 +136,10 @@ describe('what is drawn over anchored parts', () => {
     const graphics = new Graphics();
     drawPartMarks(graphics, marks, 'light');
     expect(fills(graphics)).toEqual([{ color: hex(marks.drawing.fill), alpha: 1 }]);
-    // Far out it is not drawn at all.
-    const far = new Graphics();
-    drawPartBlocks(far, marks);
-    expect(fills(far)).toEqual([{ color: hex('#2980B9'), alpha: 1 }]);
+    // At the middle levels it is not drawn at all.
+    const middle = new Graphics();
+    drawPartBlocks(middle, marks);
+    expect(fills(middle)).toEqual([{ color: hex('#2980B9'), alpha: 1 }]);
   });
 
   it('veils a faint part in a drawing at full strength, and draws a part at full strength in a faint drawing with its own picture', () => {
@@ -131,7 +165,7 @@ describe('what is drawn over anchored parts', () => {
     expect(fills(drawn)).toEqual([]);
   });
 
-  it('draws an overlay’s fill, opacity and stroke over a part, and its fill far out', () => {
+  it('draws an overlay’s fill, opacity and stroke over a part, and its fill at the middle levels', () => {
     const [marks] = partMarksOf(scene, NONE, NONE, (shape) =>
       shape.key === 'body/left' ? { fill: '#FFAA00', stroke: '#112233', opacity: 0.5 } : undefined,
     );
@@ -146,9 +180,26 @@ describe('what is drawn over anchored parts', () => {
     expect(
       graphics.context.instructions.filter((each) => each.action === 'stroke').length,
     ).toBeGreaterThan(0);
-    const far = new Graphics();
-    drawPartBlocks(far, marks as DrawingMarks);
-    expect(fills(far)[0]).toEqual({ color: hex('#FFAA00'), alpha: 1 });
+    const middle = new Graphics();
+    drawPartBlocks(middle, marks as DrawingMarks);
+    expect(fills(middle)[0]).toEqual({ color: hex('#FFAA00'), alpha: 1 });
+  });
+
+  it('writes an overlay’s badge at its part’s label point', () => {
+    const [marks] = partMarksOf(scene, NONE, new Set(['body/right']), (shape) =>
+      shape.key === 'body/left' || shape.key === 'body/right' ? { badge: 'Warm' } : undefined,
+    );
+    const texts = writePartBadges(marks as DrawingMarks, (options) => {
+      const label = new Container();
+      label.label = String(options.text);
+      label.position.set(options.x ?? 0, options.y ?? 0);
+      return label;
+    });
+    expect(texts.map((each) => each.label)).toEqual(['Warm', 'Warm']);
+    const left = shapeOf(scene, 'body/left');
+    expect(texts[0]?.x).toBeCloseTo(left.rect.x + left.rect.width / 2, 0);
+    // A faint part's badge is faint too.
+    expect(texts.map((each) => each.alpha)).toEqual([1, DIMMED_ALPHA]);
   });
 
   it('reads an overlay’s look from the decorated scene', () => {
@@ -189,9 +240,9 @@ describe('where a drawing’s picture shows', () => {
   const scene = buildScene(beyondBoxes(), VIEW);
   const body = shapeOf(scene, 'body');
 
-  it('from the scale pictures show at, and its parts are blocks below it', () => {
-    expect(pictureShows(body, 0.2).shows).toBe(false);
-    expect(pictureShows(body, 0.3).shows).toBe(true);
+  it('from the scale pictures show at, below which the drawing is a plain block', () => {
+    expect(pictureShows(body, 0.2)).toEqual({ shows: false, coarse: true });
+    expect(pictureShows(body, 0.3)).toEqual({ shows: true, coarse: false });
   });
 
   it('as its levels of detail say, which its anchored parts take', () => {
@@ -207,9 +258,19 @@ describe('where a drawing’s picture shows', () => {
     });
     const levelled = buildScene(state, VIEW);
     const drawing = shapeOf(levelled, 'body');
-    expect(pictureShows(drawing, 0.5).shows).toBe(false);
-    expect(pictureShows(drawing, 1.5).shows).toBe(true);
+    // A middle level: the drawing in full, without its picture.
+    expect(pictureShows(drawing, 0.5)).toMatchObject({ shows: false, coarse: false });
+    expect(pictureShows(drawing, 1.5)).toMatchObject({ shows: true, coarse: false });
     expect(shapeOf(levelled, 'body/left').levels).toBe(drawing.levels);
+    // The part layer draws its parts in their main colors there.
+    const layer = new PartLayer(new ImageStore(new FakePlatform()));
+    layer.setScene(levelled, NONE, NONE);
+    layer.setScale(0.5);
+    const [near, middle] = layer.container.children;
+    expect([near?.visible, middle?.visible]).toEqual([false, true]);
+    layer.setScale(1.5);
+    expect([near?.visible, middle?.visible]).toEqual([true, false]);
+    layer.destroy();
   });
 });
 
@@ -279,14 +340,14 @@ describe('the part layer', () => {
     layer.destroy();
   });
 
-  it('shows blocks far out and marks close in, drawing by drawing', () => {
+  it('draws nothing far out, where the tiles draw the parts, and its marks close in', () => {
     const layer = new PartLayer(new ImageStore(new FakePlatform()));
     layer.setScene(buildScene(beyondBoxes(), VIEW), NONE, NONE);
     layer.setScale(0.1);
-    const [near, far] = layer.container.children;
-    expect([near?.visible, far?.visible]).toEqual([false, true]);
+    const [near, middle, badges] = layer.container.children;
+    expect([near?.visible, middle?.visible, badges?.visible]).toEqual([false, false, false]);
     layer.setScale(1);
-    expect([near?.visible, far?.visible]).toEqual([true, false]);
+    expect([near?.visible, middle?.visible, badges?.visible]).toEqual([true, false, true]);
     layer.destroy();
   });
 });

@@ -17,6 +17,7 @@ import {
   simplifyOutline,
   type FittedOutline,
 } from '@visual-anything/core';
+import { estimateWidth } from './fit';
 import { toggleRect, type Point, type Rect } from './geometry';
 import type { ShapeOutline } from './outlines';
 
@@ -31,6 +32,40 @@ export const LEAST_LABEL_HEIGHT = 14;
  * with (`draw.ts`), so that pointing at the drawn edge finds the shape.
  */
 export const OUTLINE_REACH = 0.75;
+/** The size an anchored part's name is written at, bold, as a shape's name is. */
+export const PART_NAME_SIZE = 14;
+/** What an anchored part's name leaves free on each side of its label area, in canvas units. */
+const PART_NAME_INSET = 2;
+/** The height of a line of an anchored part's name. */
+export const PART_NAME_LINE = 17.5;
+
+/**
+ * The lines an anchored part's name is written on in its label area (ADR 0067): its words, each
+ * whole, as many on a line as fit its width, the lines within its height. None when a word is wider
+ * than the area, or the lines taller: the name is then written beside the part, never cut inside it.
+ */
+export function partNameLines(
+  name: string,
+  area: { width: number; height: number },
+): string[] | undefined {
+  const width = area.width - 2 * PART_NAME_INSET;
+  const words = name.split(/\s+/).filter((word) => word !== '');
+  if (words.length === 0 || area.height < LEAST_LABEL_HEIGHT) return undefined;
+  const lines: string[] = [];
+  let line = '';
+  for (const word of words) {
+    if (estimateWidth(word, PART_NAME_SIZE, true) > width) return undefined;
+    const longer = line === '' ? word : `${line} ${word}`;
+    if (estimateWidth(longer, PART_NAME_SIZE, true) <= width) line = longer;
+    else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  lines.push(line);
+  return lines.length * PART_NAME_LINE <= Math.max(area.height, PART_NAME_LINE) ? lines : undefined;
+}
+
 /** The least width of the stretch of an expanded container's header that its name is written in. */
 export const LEAST_HEADER_WIDTH = 40;
 /** Where an expanded container's header line lies below its top: its icon's and its name's. */
@@ -136,13 +171,23 @@ function heldStretch(outline: ShapeOutline, left: number, right: number): Stretc
 /**
  * Whether a shape writes its name inside itself: always, without its own outline; with one, an
  * expanded container when its header has a stretch at least 40 units wide inside the outline, and
- * any other shape when its label area is at least 14 units tall. A shape that does not is named
- * beside itself by the hover and selection marks (ADR 0066).
+ * any other shape when its label area is at least 14 units tall. An anchored part writes its name
+ * only when it fits whole in its label area, its words never cut (partNameLines, ADR 0067). A shape
+ * that does not is named beside itself by the hover and selection marks (ADR 0066).
  */
-export function writesNameInside(shape: Holding & { rect: Rect; outline?: ShapeOutline }): boolean {
+export function writesNameInside(
+  shape: Holding & {
+    rect: Rect;
+    outline?: ShapeOutline;
+    name?: string;
+    part?: { inDrawing: boolean };
+  },
+): boolean {
   const { outline } = shape;
   if (!outline || shape.rowCount !== undefined || shape.row !== undefined) return true;
   const outlined = { ...shape, outline };
+  if (shape.part?.inDrawing === true)
+    return partNameLines(shape.name ?? '', labelAreaOn(outlined)) !== undefined;
   if (showsContents(shape)) {
     return (headerStretch(outlined)?.width ?? 0) >= LEAST_HEADER_WIDTH;
   }

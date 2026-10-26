@@ -574,7 +574,7 @@ export class CanvasRenderer {
     this.painter = painterOf(options.theme ?? THEMES.light.canvas);
     this.codeDrawings = new CodeDrawingLayer(this.text, () => this.requestRender());
     this.codeDrawings.setDark(this.painter.theme.name === 'dark');
-    this.partLayer = new PartLayer(this.pictures.store, () => this.requestRender());
+    this.partLayer = new PartLayer(this.pictures.store, () => this.requestRender(), this.text);
     this.partLayer.setTheme(this.painter.name);
     this.pictures.keep(PARTS_PICTURES);
     this.tintMarks();
@@ -1388,6 +1388,8 @@ export class CanvasRenderer {
       settled: this.settled,
       theme: this.painter.name,
       spent,
+      // A switch or a recolor under way keeps its frames' budget from large pictures (ADR 0067).
+      busy: this.pending !== undefined || this.restyling,
     };
   }
 

@@ -63,6 +63,11 @@ export interface ImageView {
   theme: ThemeName;
   /** How long the frame has taken so far, in milliseconds. */
   spent: number;
+  /**
+   * Whether a theme switch or a recolor is being drawn, whose frames keep their budget: no large
+   * picture is rasterized past it meanwhile.
+   */
+  busy?: boolean;
 }
 
 /** The image drawing of one tile. */
@@ -202,7 +207,13 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
     // Zoomed out too far for any picture to show, nothing is decoded or uploaded meanwhile.
     const shows = scale >= IMAGE_SCALES.drawingsFrom;
     // Pictures that just became ready first: their tiles show stand-ins or placeholders meanwhile.
-    for (const id of shows ? this.store.frame({ spent: spent(), moving: !view.settled }) : []) {
+    for (const id of shows
+      ? this.store.frame({
+          spent: spent(),
+          moving: !view.settled,
+          ...(view.busy === true ? { busy: true } : {}),
+        })
+      : []) {
       const known = byId.get(id);
       if (!known || known.drawing.drawnFor === undefined) continue;
       this.#draw(known.tile, known.drawing, view, iconsShown, middle);
@@ -385,6 +396,8 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
           rect.y + rect.height / 2 - middle.y,
         ),
         tile,
+        // The picture of a drawing with parts, and a part's own, may be made large (ADR 0067).
+        ...(image.placement === 'parts' ? { large: true } : {}),
       };
       const made = this.store.texture(request);
       if (!made?.exact) this.#asked = true;
@@ -409,7 +422,8 @@ export class TileImages<T extends Texture = Texture, P = CanvasImageSource> {
 /** The bucket a picture is drawn from at this view, as the store chooses it. */
 function bucketOf(image: ShapeImage, view: ImageView): number {
   const pixels = Math.max(image.rect.width, image.rect.height) * view.scale * view.resolution;
-  return view.settled ? sharpBucketFor(pixels) : bucketFor(pixels);
+  const large = image.placement === 'parts';
+  return view.settled ? sharpBucketFor(pixels, large) : bucketFor(pixels, large);
 }
 
 const WHITE: Color = '#FFFFFF';

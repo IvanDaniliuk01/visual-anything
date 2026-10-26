@@ -47,9 +47,12 @@ import { drawLeavingMark, writeLeavingMark } from './leavingMark';
 import {
   LEAST_HEADER_WIDTH,
   LEAST_LABEL_HEIGHT,
+  PART_NAME_LINE,
+  PART_NAME_SIZE,
   headerStretch,
   labelAreaOn,
   markContours,
+  partNameLines,
   placedPoints,
   showsContents,
   simplifiedLinesOf,
@@ -939,6 +942,10 @@ function writeOutlinedText(
   write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
 ): void {
   const colors = readableTextColors(fillOf(shape));
+  if (shape.part?.inDrawing === true) {
+    writePartName(shape, outline, colors.name, write);
+    return;
+  }
   const rooms = outlinedRooms(shape, outline);
   if (showsContents(shape)) {
     const stretch = headerStretch({ ...shape, outline });
@@ -1005,6 +1012,37 @@ function writeOutlinedText(
       rooms.detail,
     );
   }
+}
+
+/**
+ * Writes an anchored part's name, alone and whole, its words never cut, centred in its label area,
+ * where it fits there (`partNameLines`); never its component's name or its detail. One that does not fit is written beside the
+ * part by the hover and selection marks (namesBeside.ts, ADR 0067).
+ */
+function writePartName(
+  shape: ElementShape,
+  outline: ShapeOutline,
+  color: Color,
+  write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
+): void {
+  const area = labelAreaOn({ rect: shape.rect, outline });
+  const lines = partNameLines(shape.name, area);
+  if (!lines) return;
+  write(
+    {
+      text: lines.join('\n'),
+      anchor: 0.5,
+      x: area.x + area.width / 2,
+      y: area.y + area.height / 2,
+      style: {
+        ...textStyle(PART_NAME_SIZE, color, area.width, 'center', '600'),
+        wordWrap: false,
+        lineHeight: PART_NAME_LINE,
+      },
+    },
+    false,
+    Math.max(area.height, NAME_LINE),
+  );
 }
 
 /** A collapsed container's detail with its count first; any other shape's detail. */
