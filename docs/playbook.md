@@ -32,6 +32,7 @@ Every milestone runs the same five steps:
 | M5 · Scenarios | M3 and M4 | Scenario files, aggregated steps, broken steps | Recording and playback in the app; the scenario MCP tools |
 | M6 · Dogfooding and v0.1 | M5 | Everything, together with the user | — |
 | Track A · Look and feel | M2 for A1; `a1` for A2; M3's canvas tasks for A3; M4 for A4 | Core foundations: colors, preferences, protocol, dark shades; project appearances and their commands; sizes on the 8-unit step | Server preferences; app preferences and the header; shell polish; canvas theme; canvas colors; inspector color editing; grid; snapping; rulers |
+| M8b · Beyond boxes | M8 | The three seams, in order: free geometry and route styles in the schema and core; named parts in the core; the scene's seam | Once the seams are merged: free geometry on the canvas; routes on outlines and automatic curves; anchored parts on the canvas; the editors; HTML as a drawing; Claude's tools; exports; the sample; the benchmark, measured after the rest is merged |
 
 M4's tools depend only on M1, so they can be built in a second Claude Code session in its own worktree while M2 is under way: `claude --worktree mcp-tools`. Do it only when you can review two streams of work at once; otherwise follow the spec's order. Once M3 is tagged, M3b can run the same way beside M4.
 

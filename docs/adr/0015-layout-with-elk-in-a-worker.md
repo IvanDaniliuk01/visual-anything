@@ -37,3 +37,14 @@ ELK is a large dependency and layout results arrive asynchronously, so the canva
   - While a layout runs, automatic or asked for, Layout shows how far it has come (`Stop layout (40%)`), and pressing it stops the layout, which then moves nothing. Stopping a layout stops the layout worker, since ELK cannot be interrupted; the next layout starts a new one.
   - Measured on the shared, loaded laptop, with ELK in one thread: the synthetic view of 2,000 elements took 9 to 15 s (86 s before the work budget), and of 10,000 elements 30 to 37 s, nearly all of it for its 400 containers, which the app shares among its ELK workers. In the app, with two ELK workers, laying out the 2,000 elements when the view opened took from 5 s to 14 s.
 - 2026-10-24: a layout's result moves in over 320 ms, its relations routed again on every frame, unless the system asks for reduced motion or the view holds more than 1,500 shapes, where it shows at once.
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (M8b): **shapes beyond boxes.**
+  - **Free geometry** (ADR 0066). ELK takes a shape with free geometry by its rectangle, and its connection points as ports on their sides of that rectangle, at their places along them, as for any shape. Its outline never reaches ELK, and spacing is measured between rectangles.
+  - **Drawings with parts** (ADR 0067). A drawing with parts is one block, as a shape that draws rows is.
+    - Its size comes from its header, its picture and its other contents.
+    - It has a port for each related anchored part, on the block's side nearest that part's inner point, at the place along that side nearest it.
+    - Anchored parts are not given to ELK. Their relations are lifted to the drawing, as relations to rows are lifted to their table.
+    - Its contents that are not anchored parts are arranged below its picture.
+  - **Route styles** (ADR 0069). A relation's automatic style changes nothing that layout does. ELK's routes stay dropped, and the canvas draws every route in its style after the layout moves in.
