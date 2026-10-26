@@ -503,7 +503,7 @@ Eight milestones in build order, each ending in something you can use, and Track
   - `visual-anything import` with `.html`;
   - the hostile-input tests, and the bundle tests for both pages;
   - the single executables with satori's WebAssembly, a notice of the code they bundle, and a smoke test that makes a drawing.
-- [ ] **Claude's tools:**
+- [x] **Claude's tools:**
   - `set_appearance` with `geometry`, `part` and `route`; `update_view` with `routeStyle`; `set_route` with `orthogonal` and the automatic style;
   - `list_image_parts`, `anchor_parts` and `import_drawing`, and the lost parts in `replace_image`'s answer;
   - descriptions with examples of path data and of anchoring an atlas's parts.

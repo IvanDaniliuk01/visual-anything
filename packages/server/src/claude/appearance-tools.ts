@@ -1,8 +1,9 @@
 /**
- * Claude's tool for how a component or a relation type looks, built-in ones included (ADR-0034), the
- * inputs for a relation's own appearance (ADR-0035), and what Claude's tools say about the colors
- * they store (ADR-0033): a color is #RRGGBB, which the core checks, and one that is hard to see on
- * the canvas of either theme is pointed out in the answer, never refused.
+ * Claude's tool for how a component or a relation type looks, built-in ones included (ADR-0034), or
+ * one element or relation (ADR-0035), free geometry, named parts and route styles included (ADR 0066,
+ * ADR 0067, ADR 0069); the inputs for a relation's own appearance; and what Claude's tools say about
+ * the colors they store (ADR-0033): a color is #RRGGBB, which the core checks, and one that is hard
+ * to see on the canvas of either theme is pointed out in the answer, never refused.
  */
 import {
   CANVAS_BACKGROUNDS,
@@ -12,6 +13,7 @@ import {
   definitionsIn,
   drawnColorsOf,
   editableAppearanceOf,
+  geometryFindings,
   isColor,
   modelIndexOf,
   type ProjectSnapshot,
@@ -20,10 +22,17 @@ import {
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { z } from 'zod';
+import { appearanceRead } from './geometry-brief';
 import { WRITE, act, fail, id, tool } from './kit';
-import type { Tool } from './tools';
+import type { Tool, ToolOutcome } from './tools';
 
 const color = () => z.string().describe('A color written as #RRGGBB, such as "#2F855A".');
+
+/** The style of a relation's automatic routes (ADR 0069). */
+const routeStyle = () =>
+  z
+    .enum(['orthogonal', 'straight', 'curved'])
+    .describe('The style of its automatic routes, before the view’s routeStyle.');
 
 /** A relation's own appearance, or a relation type's, whole. */
 export const relationAppearance = () =>
@@ -32,10 +41,13 @@ export const relationAppearance = () =>
       stroke: color().optional(),
       width: z.number().positive().optional().describe('The line width, in canvas units.'),
       dash: z.enum(['solid', 'dashed', 'dotted']).optional(),
+      route: routeStyle().optional(),
     })
     // Anything else goes to the core, which refuses it and says why.
     .catchall(z.unknown())
-    .describe('How the line looks: stroke, width and dash. What it leaves out is inherited.');
+    .describe(
+      'How the line looks: stroke, width, dash and route. What it leaves out is inherited.',
+    );
 
 /** Changes to a relation's own appearance, trait by trait: a value sets one, null inherits it again. */
 export const relationAppearanceTraits = () =>
@@ -44,9 +56,10 @@ export const relationAppearanceTraits = () =>
       stroke: color().nullable().optional(),
       width: z.number().positive().nullable().optional(),
       dash: z.enum(['solid', 'dashed', 'dotted']).nullable().optional(),
+      route: routeStyle().nullable().optional(),
     })
     .catchall(z.unknown())
-    .describe('Traits to set, or null to inherit again: stroke, width, dash.');
+    .describe('Traits to set, or null to inherit again: stroke, width, dash, route.');
 
 /** The fill and the stroke a change of appearance stores, as colors; what it does not set is absent. */
 export function colorsSet(...changes: readonly unknown[]): { fill?: string; stroke?: string } {
@@ -160,23 +173,37 @@ function capitalized(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+/** The SVG path data of the heart in `set_appearance`'s examples, as ADR 0066 writes it. */
+const HEART_PATH =
+  'M60 104 C20 76 0 52 0 30 C0 12 14 0 30 0 C44 0 54 8 60 20 C66 8 76 0 90 0 C106 0 120 12 120 30 C120 52 100 76 60 104 Z';
+
 const setAppearance = tool({
   name: 'set_appearance',
-  title: 'Set how a component or a relation type looks',
-  description: `Changes how every element of a component, or every relation of a relation type, is drawn, as one undoable action, built-in ones included. For a component or relation type of a built-in package, Essence or "relates-to", the project keeps an appearance of its own for it in its project file, which reaches everything derived from it that does not set the trait itself; for one of the project's own packages, its definition changes in its package. Elements and relations with an appearance of their own keep it: update_element and update_relation change those.
+  title: 'Set how something looks',
+  description: `Changes how something is drawn, as one undoable action: every element of a component or every relation of a relation type, built-in ones included, or one element or one relation, whose own appearance is a particularity (as update_element and update_relation set it). For a definition of a built-in package, Essence or "relates-to", the project keeps an appearance of its own for it in its project file, which reaches everything derived from it that does not set the trait itself; for one of the project's own packages, its definition changes in its package.
 
-Give appearanceTraits to change some traits and keep the others: a value sets a trait, null makes it inherited again. Or give appearance to replace the appearance at that level whole; null removes it, so that the look it inherits comes back.
+Give appearanceTraits to change some traits and keep the others: a value sets a trait, null makes it inherited again. Or give appearance to replace the appearance at that level whole; null removes it.
 
-A component's traits: shape (rectangle, rounded-rectangle, ellipse, cylinder or person), fill and stroke, width and height (canvas units), detail, contentsAsRows, connectionPoints, image (from list_images), levels and expandFrom (set_levels explains those). A relation type's traits: stroke, width and dash (solid, dashed or dotted).
+Shapes' traits: shape (rectangle, rounded-rectangle, ellipse, cylinder or person), fill, stroke, width and height (canvas units), detail, contentsAsRows, connectionPoints, image (from list_images), geometry, part, levels and expandFrom (set_levels explains those). Lines' traits: stroke, width, dash (solid, dashed or dotted) and route.
 
-Colors are #RRGGBB and are drawn as stored in the light and the dark theme alike; a built-in color follows the theme until something sets it. A line needs 3:1 against both canvases: the answer warns about a color under it, and about shapes that blend into a canvas, and never refuses one.
+- geometry: the shapes' own outline, drawn in place of their kind: { width, height, outline, keepProportions?, label? }. width and height are the box its coordinates are written in, from its top left; outline holds 1 to 64 contours, { "kind": "path", "d" } in SVG path data (M L H V C S Q T A Z), { "kind": "polygon", "points": "x,y x,y …" } or { "kind": "ellipse", cx, cy, rx, ry }. A contour inside another is a hole. label is where the name goes, in the box. At most 2,000 segments and 32 KiB of path data. "none" takes an inherited one away.
+- part: { part, image }, a named part of an SVG image the shapes are drawn as; image may be left out for an element inside a shape that shows its image with its parts. "none" takes it away. A part the picture lacks is warned about (unknown-part).
+- route: the style of automatic routes, orthogonal, straight or curved. It comes before a view's routeStyle (update_view).
+
+Colors are #RRGGBB, drawn as stored in both themes. A line needs 3:1 against both canvases: the answer warns about a color under it, and about shapes that blend into a canvas, and never refuses one.
 
 Example: { "component": "systems.service", "appearanceTraits": { "fill": "#E3F2E9", "stroke": "#2F855A" } }
-Example: { "relationType": "systems.writes-to", "appearanceTraits": { "stroke": "#C05621", "dash": "dashed" } }
+Example, a heart: { "component": "anatomy.heart", "appearanceTraits": { "geometry": { "width": 120, "height": 110, "keepProportions": true, "outline": [{ "kind": "path", "d": "${HEART_PATH}" }], "label": { "x": 24, "y": 30, "width": 72, "height": 36 } } } }
+Example, a triangle: { "element": "warning", "appearanceTraits": { "geometry": { "width": 100, "height": 90, "outline": [{ "kind": "polygon", "points": "50,0 100,90 0,90" }] } } }
+Example, a ring with a hole: { "component": "physics.ring", "appearanceTraits": { "geometry": { "width": 100, "height": 100, "outline": [{ "kind": "path", "d": "M50 0 A50 50 0 1 1 50 100 A50 50 0 1 1 50 0 Z M50 20 A30 30 0 1 1 50 80 A30 30 0 1 1 50 20 Z" }] } } }
+Example, a part of an atlas: { "element": "left-lung", "appearanceTraits": { "part": { "part": "lung-left", "image": "anatomy.body-atlas" } } }
+Example: { "relationType": "neuro.nerve", "appearanceTraits": { "route": "curved", "dash": "dashed" } }
 Example: { "component": "systems.service", "appearance": null }`,
   input: {
     component: id().optional().describe('The component, as list_definitions gives it.'),
     relationType: id().optional().describe('Or the relation type.'),
+    element: id().optional().describe('Or one element, World included: its own appearance.'),
+    relation: id().optional().describe('Or one relation: its own appearance.'),
     appearance: z
       .record(z.string(), z.unknown())
       .nullable()
@@ -189,18 +216,66 @@ Example: { "component": "systems.service", "appearance": null }`,
   },
   hints: WRITE,
   run: async (args, program) => {
-    const { component, relationType, appearance, appearanceTraits } = args;
-    if ((component === undefined) === (relationType === undefined)) {
-      return fail('Give either a component or a relation type.');
+    const { component, relationType, element, relation, appearance, appearanceTraits } = args;
+    const targets = [component, relationType, element, relation].filter(
+      (each) => each !== undefined,
+    );
+    if (targets.length !== 1) {
+      return fail('Give one of component, relationType, element or relation.');
     }
     const changes = {
       ...(appearance === undefined ? {} : { appearance: appearance as never }),
       ...(appearanceTraits === undefined ? {} : { appearanceTraits: appearanceTraits as never }),
     };
+    const set = colorsSet(appearance, appearanceTraits);
+    const setsGeometry = [appearance, appearanceTraits].some(
+      (each) => typeof each?.geometry === 'object' && each.geometry !== null,
+    );
+    /** The answer of a change that was done: where the appearance is kept, and every warning. */
+    const answered = (
+      state: ProjectSnapshot,
+      kept: { keptIn: string; appearance: object } | undefined,
+      warnings: readonly string[],
+    ) => {
+      const all = [...warnings, ...(setsGeometry ? largeGeometryWarnings(state) : [])];
+      return {
+        ...(kept === undefined
+          ? {}
+          : { keptIn: kept.keptIn, appearance: appearanceRead(kept.appearance) }),
+        ...(all.length > 0 ? { warnings: all } : {}),
+      };
+    };
+
+    if (element !== undefined || relation !== undefined) {
+      const target = (element ?? relation) as Id;
+      const outcome = await act(
+        program,
+        element !== undefined
+          ? { type: 'update-element', id: target, changes }
+          : { type: 'update-relation', id: target, changes },
+        async () => {
+          const state = await program.project();
+          const index = modelIndexOf(state);
+          const own = (element !== undefined ? index.element(target) : index.relation(target))
+            ?.appearance;
+          return answered(
+            state,
+            {
+              keptIn: `the ${element !== undefined ? 'element' : 'relation'} itself, as a particularity of its own`,
+              appearance: own ?? {},
+            },
+            element !== undefined
+              ? elementColorWarnings(state, target, set)
+              : relationColorWarnings(state, target, set.stroke),
+          );
+        },
+      );
+      return withRefusalHints(outcome);
+    }
+
     const kind = component === undefined ? 'relation-type' : 'component';
     const target = (component ?? relationType) as Id;
-    const set = colorsSet(appearance, appearanceTraits);
-    return act(
+    const outcome = await act(
       program,
       component === undefined
         ? { type: 'set-relation-type-appearance', relationType: target, ...changes }
@@ -208,23 +283,55 @@ Example: { "component": "systems.service", "appearance": null }`,
       async () => {
         const state = await program.project();
         const kept = editableAppearanceOf(state, kind, target);
-        const warnings = definitionColorWarnings(state, kind, target, set);
-        return {
-          ...(kept === undefined
-            ? {}
+        return answered(
+          state,
+          kept === undefined
+            ? undefined
             : {
                 keptIn:
                   kept.level === 'project'
                     ? 'the project file, as an appearance of the project’s own for a definition it cannot change'
                     : `the package "${kept.package}", in the definition itself`,
                 appearance: kept.appearance ?? {},
-              }),
-          ...(warnings.length > 0 ? { warnings } : {}),
-        };
+              },
+          definitionColorWarnings(state, kind, target, set),
+        );
       },
     );
+    return withRefusalHints(outcome);
   },
 });
+
+/**
+ * What to do about the core's refusals of free geometry and parts, after its own words, so that
+ * Claude can give something it takes.
+ */
+const REFUSAL_HINTS: Readonly<Record<string, string>> = {
+  'invalid-geometry':
+    'Free geometry is { width, height, outline }, its outline 1 to 64 contours of SVG path data (M L H V C S Q T A Z), polygon points or ellipses that stay inside the box.',
+  'geometry-too-large':
+    'Free geometry holds at most 64 contours, 2,000 segments and 32 KiB of path data and points: simplify the outline.',
+  'unknown-image': 'list_images lists the images a part can name, by id.',
+};
+
+/** A refusal with what to do about the codes it names, from {@link REFUSAL_HINTS}. */
+function withRefusalHints(outcome: ToolOutcome): ToolOutcome {
+  if (outcome.ok) return outcome;
+  const codes = /\(([^()]*)\)$/.exec(outcome.message)?.[1]?.split(', ') ?? [];
+  const hints = codes.flatMap((code) => REFUSAL_HINTS[code] ?? []);
+  return hints.length === 0 ? outcome : fail(`${outcome.message} ${hints.join(' ')}`);
+}
+
+/**
+ * The `large-geometry` warnings a project has, which opening gives and the core's answers do not:
+ * said after a change that sets free geometry, while a file holds past the geometry that slows
+ * saving it (ADR 0066).
+ */
+function largeGeometryWarnings(state: ProjectSnapshot): string[] {
+  return geometryFindings(state)
+    .warnings.filter((each) => each.code === 'large-geometry')
+    .map((each) => each.message);
+}
 
 /** Claude's tools for the look of definitions, in the order Claude reads them. */
 export const APPEARANCE_TOOLS: readonly Tool[] = [setAppearance];
