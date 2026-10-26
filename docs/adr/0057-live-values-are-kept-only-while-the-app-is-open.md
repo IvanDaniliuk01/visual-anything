@@ -44,3 +44,16 @@ Those numbers change every second, and saving them would fill the files and the 
 - The app's attribute lookup takes live values over stored ones where they exist, with their mark.
 - Claude gets `set_live_values` and `clear_live_values`.
 - CONTEXT.md gains **Live value**.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
+
+- **2026-10-25, where package code's fetches may go (W37, after a security review).** Checking the origin is not enough: a granted name could resolve, or rebind between the check and the connection, to this computer, the person's network or a cloud's metadata address. So the local program, which fetches for package code (ADR 0063), follows these rules:
+  - **A name is resolved by the program,** and every address it resolves to must be public. A name never leads to `0.0.0.0/8`, `127.0.0.0/8`, `::1` or `::`; to `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `100.64.0.0/10` or `fc00::/7`; to `169.254.0.0/16`, the metadata address `169.254.169.254` among them, or `fe80::/10`; nor to multicast, broadcast or reserved addresses. IPv6 forms that carry an IPv4 address (mapped, compatible, NAT64 and 6to4) are read as that IPv4 address.
+  - **The connection is pinned** to the address checked: the request is sent with a lookup that answers only that address, on a connection of its own, so that the name cannot lead elsewhere between the check and the connection. It uses Node's own `http` and `https` with that lookup rather than an undici `Agent`, which would be a new dependency; TLS still checks the certificate against the name.
+  - **An address written in the grant is reached as written,** when it is an address of this computer or of the person's network, such as `network:http://192.168.1.20:8080`, which the person granted on purpose. A name that resolves to such an address never is. Link-local, unspecified, multicast and broadcast addresses are never reached, even written in a grant.
+  - **Only `https:`,** but for an address of this computer or of the person's network written in the grant, which may use `http:`.
+  - **Never the local program itself:** its own port on this computer is refused whatever is granted.
+  - **The rest stays:** a plain GET with no body, cookie or credential; no redirect followed; ten seconds, the name's resolution included; 256 KiB at most; four fetches of one package under way at once.
+- **2026-10-25, what the build settled (W37).** ADR-0063 records the messages of protocol 6, each sender's limits, how package code fetches through the program, and how live values read and are marked. The values of a target that leaves the model are forgotten with it, and an undo that brings it back does not bring them back. On the canvas, a stale value's fade is the mark `○` and its age, written in the detail.

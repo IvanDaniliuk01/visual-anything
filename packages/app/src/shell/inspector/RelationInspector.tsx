@@ -17,6 +17,7 @@ import { useOpenDefinition } from '../definitions/opened';
 import { RouteSection } from '../../canvas/routing/RouteSection';
 import { AttributesSection } from './AttributesSection';
 import { DestinationsSection } from '../../destinations/DestinationsSection';
+import { LiveValuesSection } from '../../live-values/LiveValuesSection';
 import { byPackage, relationLabel } from './describe';
 import { SelectControl, TextControl } from './controls';
 import { Detail, End, Lineage, Title } from './parts';
@@ -115,6 +116,7 @@ export function RelationInspector({
         disabled={disabled}
         change={update}
       />
+      <LiveValuesSection item={{ kind: 'relation', relation }} />
       <RelationAppearanceSection
         relation={relation}
         definitions={definitions}

@@ -342,6 +342,18 @@ const hidings = new WeakMap<Scene, ReadonlyMap<Id, number>>();
 const firstShapeMaps = new WeakMap<readonly ElementShape[], Map<Id, ElementShape>>();
 
 /**
+ * The scene with these shapes in place of its own, each in the same place and with the same key, as
+ * the canvas draws live values in details (ADR 0057): what the scene knows of elements hidden in
+ * collapsed containers stays with it.
+ */
+export function withSameShapes(scene: Scene, shapes: ElementShape[]): Scene {
+  const derived: Scene = { ...scene, shapes };
+  const hiding = hidings.get(scene);
+  if (hiding !== undefined) hidings.set(derived, hiding);
+  return derived;
+}
+
+/**
  * The shape that shows an element in a scene: its first shape, in containment order; or, when only
  * collapsed containers hold it, the shape of the outermost collapsed container that holds its first
  * copy. None for an element the view does not draw.

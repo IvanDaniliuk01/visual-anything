@@ -37,12 +37,14 @@ import {
   type ProgramRecord,
   type RuntimeContext,
 } from './discovery';
+import type { LiveKept } from '../live';
 import {
   CLAUDE_PATH,
   decodeProgramMessage,
   encodeClaudeMessage,
   importMessageRequest,
   type ClaudeMessage,
+  type LiveSenderKind,
   type ProgramMessage,
 } from './messages';
 
@@ -81,6 +83,29 @@ export interface Program {
    * cannot ask, and then no code runs for Claude.
    */
   codeApprovals?(): Promise<CodeApproval[]>;
+  /**
+   * Sends live values (ADR 0057), as Claude's or the command line's: the program keeps them while the
+   * project is open, never in a file or the history. Absent where it cannot.
+   */
+  setLive?(values: readonly unknown[], options?: LiveSetOptions): Promise<LiveKept>;
+  /** Clears live values that match; resolves with how many went. Absent where it cannot. */
+  clearLive?(filter: LiveClearFilter): Promise<number>;
+}
+
+/** How live values are sent: how long they stay fresh, and who sends them. */
+export interface LiveSetOptions {
+  /** In milliseconds; a minute when left out. */
+  freshFor?: number;
+  /** Claude, unless said otherwise. */
+  from?: LiveSenderKind;
+}
+
+/** Which live values to clear: those of a sender, or everyone's, of some targets or attributes. */
+export interface LiveClearFilter {
+  targets?: Id[];
+  attributes?: string[];
+  /** Claude's own, unless said otherwise. */
+  from?: LiveSenderKind | 'everyone';
 }
 
 /** Raised when the program cannot be reached; its message is written for Claude to pass on. */
@@ -220,6 +245,39 @@ export class ProgramBridge implements Program {
   async codeApprovals(): Promise<CodeApproval[]> {
     const answer = await this.#request((requestId) => ({ type: 'code-approvals', requestId }));
     if (answer.type === 'code/approvals') return answer.approvals;
+    if (answer.type === 'command/rejected') {
+      throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
+    }
+    throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  async setLive(values: readonly unknown[], options: LiveSetOptions = {}): Promise<LiveKept> {
+    const answer = await this.#request((requestId) => ({
+      type: 'live/set',
+      requestId,
+      values: [...values],
+      ...(options.freshFor === undefined ? {} : { freshFor: options.freshFor }),
+      from: options.from ?? 'claude',
+    }));
+    if (answer.type === 'live/kept') {
+      const { kept, waiting, dropped, unknown, refused } = answer;
+      return { kept, waiting, dropped, unknown, refused };
+    }
+    if (answer.type === 'command/rejected') {
+      throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
+    }
+    throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  async clearLive(filter: LiveClearFilter): Promise<number> {
+    const answer = await this.#request((requestId) => ({
+      type: 'live/clear',
+      requestId,
+      ...(filter.targets === undefined ? {} : { targets: filter.targets }),
+      ...(filter.attributes === undefined ? {} : { attributes: filter.attributes }),
+      from: filter.from ?? 'claude',
+    }));
+    if (answer.type === 'live/cleared') return answer.cleared;
     if (answer.type === 'command/rejected') {
       throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
     }

@@ -69,3 +69,10 @@ M7's build (W34) settled these. ADR-0060 records how the code is kept, what the 
 - **`network:<origin>`.** It can be declared and granted, off until the person turns it on in the dialog, but no hook fetches anything yet: fetching through the local program comes with live values (ADR-0057).
 - **Computed values** show in the inspector with a "computed" mark naming their package, and never in a file or the history. The canvas's detail, overlays and filters do not read them yet.
 - **Claude's tools.** `read_package_code`, `write_package_code` (one undoable action of Claude's, TypeScript stripped of its types when asked) and `run_package_code`. Running asks the program, through the Claude endpoint, which of the project's current code the person approved, and runs it in Claude's own process, in the app's sandbox, never in the program, which keeps answering apps and Claude.
+
+<!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
+
+M8's live values (W37) settled these; ADR-0063 holds the rest.
+
+- **`network:<origin>` fetches now,** through the local program and never from the page or the worker: `attributes` reads `context.fetched(url, { every })`, what the program last fetched from an address on an origin granted, or `undefined` until it has. What such a call answers is live values of the package, not computed values (ADR-0063). Where the program may connect is ADR-0057's clarification on addresses. `check`, `draw` and Claude's `run_package_code` have no `context.fetched`.
+- **Computed values are read like stored ones** by the canvas's detail, with the mark `ƒ`, and by filters and time ranges, through the app's attribute lookup, under live values and over stored ones. Overlays read through the same lookup once they are in.

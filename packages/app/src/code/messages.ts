@@ -35,7 +35,24 @@ export type CodeRequest =
   /** The packages to run: every other one is unloaded. */
   | { kind: 'packages'; packages: RunPackage[] }
   /** The view drawn, the scale it is drawn at and the elements it shows, for `draw`. */
-  | { kind: 'view'; view: Id | undefined; scale: number; shown: Id[] };
+  | { kind: 'view'; view: Id | undefined; scale: number; shown: Id[] }
+  /**
+   * What the local program fetched for a package granted an origin (ADR 0063): the origin's answer,
+   * or, when there is none, why.
+   */
+  | { kind: 'fetched'; package: Id; url: string; response?: FetchedResponse; problem?: Problem };
+
+/** What an origin answered a fetch with, as `context.fetched` gives it to package code. */
+export interface FetchedResponse {
+  status: number;
+  text: string;
+}
+
+/** An address a package's code wants fetched, and how often, in milliseconds. */
+export interface WantedAddress {
+  url: string;
+  every: number;
+}
 
 /** A computed attribute, with the package whose code computed it. */
 export interface ComputedValue extends ComputedAttribute {
@@ -51,6 +68,11 @@ export interface ElementAnswers {
   problems: Problem[];
   /** What to draw inside its shapes, from the nearest package that draws. */
   drawing?: Drawing;
+  /**
+   * Values `attributes` made of what it fetched through the local program (ADR 0063): live values,
+   * which the app sends to the program rather than show as computed, with how long they stay fresh.
+   */
+  live?: { values: ComputedValue[]; freshFor: number };
 }
 
 /** Where a package's code stands in the worker. */
@@ -79,4 +101,6 @@ export type CodeReply =
       packages: PackageRun[];
     }
   /** Everything asked for is done. */
-  | { kind: 'idle' };
+  | { kind: 'idle' }
+  /** Every address a package's code wants fetched now, and how often: the others are no longer. */
+  | { kind: 'network'; package: Id; wanted: WantedAddress[] };

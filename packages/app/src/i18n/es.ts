@@ -107,6 +107,9 @@
  * | host (of an address)    | sitio                            |
  * | path (to a project)     | ubicación                        |
  * | element list            | lista de elementos               |
+ * | live value              | valor en vivo                    |
+ * | fresh, stale (a value)  | vigente, vencido                 |
+ * | time range              | rango de tiempo                  |
  *
  * The words CONTEXT.md avoids are not used for its terms either: no "nodo", "objeto" or "instancia"
  * for an element, "propiedad" or "campo" for an attribute, "capa" for the stacking order, "enlace" or
@@ -2019,6 +2022,48 @@ export const ui: Catalog = {
   'A paste sets at most {n} cells at once.': 'Un pegado cambia como máximo {n} celdas a la vez.',
   'Nothing here could be pasted.': 'Aquí no se pudo pegar nada.',
   'Pasted {count} cells.': { one: 'Se pegó {count} celda.', other: 'Se pegaron {count} celdas.' },
+  // Live values (ADR 0057): the inspector's section, and how the canvas says a value's age.
+  'Live values': 'Valores en vivo',
+  'They come from outside while the project is open, and are never saved.':
+    'Llegan desde afuera mientras el proyecto está abierto, y nunca se guardan.',
+  'A live value from {sender}, never saved.': 'Un valor en vivo de {sender}, nunca guardado.',
+  live: 'en vivo',
+  'live, stale': 'en vivo, vencido',
+  'From {sender}, {age}.': 'De {sender}, {age}.',
+  'From {sender}, {age}: older than it stays fresh.':
+    'De {sender}, {age}: pasó el tiempo durante el que se mantiene vigente.',
+  'Stored: {value}': 'Guardado: {value}',
+  'The stored value is this one already.': 'El valor guardado ya es este.',
+  'Keep as attribute': 'Conservar como atributo',
+  Claude: 'Claude',
+  'the command line': 'la línea de comandos',
+  'the code of “{name}”': 'el código de “{name}”',
+  'just now': 'recién',
+  '{count} seconds ago': { one: 'hace {count} segundo', other: 'hace {count} segundos' },
+  '{count} minutes ago': { one: 'hace {count} minuto', other: 'hace {count} minutos' },
+  '{count} hours ago': { one: 'hace {count} hora', other: 'hace {count} horas' },
+  '{count} days ago': { one: 'hace {count} día', other: 'hace {count} días' },
+  '{count} s': '{count} s',
+  '{count} min': '{count} min',
+  '{count} h': '{count} h',
+  '{count} d': '{count} d',
+  // Time ranges (R43): the filter panel's choice and the strip's sliders and playback.
+  'Time range': 'Rango de tiempo',
+  'No attribute here holds dates, times or numbers to show a range of.':
+    'Ningún atributo de aquí tiene fechas, horas o números de los que mostrar un rango.',
+  'Show only what a date, time or number attribute puts in a range, and play it.':
+    'Mostrar solo lo que un atributo de fecha, hora o número pone dentro de un rango, y reproducirlo.',
+  'Range on': 'Rango sobre',
+  'No time range': 'Sin rango de tiempo',
+  Until: 'Hasta',
+  'No end: one point each': 'Sin fin: un punto cada uno',
+  '{attribute} from {from} to {to}': '{attribute} desde {from} hasta {to}',
+  'Range from': 'Rango desde',
+  'Range to': 'Rango hasta',
+  '{count} have no {attribute} and stay shown.': {
+    one: '{count} no tiene {attribute} y sigue a la vista.',
+    other: '{count} no tienen {attribute} y siguen a la vista.',
+  },
 };
 
 /**
@@ -3828,6 +3873,66 @@ export const messages: Catalog = {
     'debe tener identificadores como claves, y "{key}" no lo es',
   'Paste 1 cell into the element list': 'Pegar 1 celda en la lista de elementos',
   'Paste {n} cells into the element list': 'Pegar {n} celdas en la lista de elementos',
+  // Live values (ADR 0057, ADR 0063): keeping one as an attribute, and what the local program says
+  // of live values and of what it fetches for package code.
+  'Keep the live value of “{attribute}” as an attribute':
+    'Conservar el valor en vivo de “{attribute}” como atributo',
+  'Live values from Claude come faster than Visual Anything takes them: it takes twenty messages a second and a thousand values a message, and drops the oldest past that.':
+    'Los valores en vivo de Claude llegan más rápido de lo que Visual Anything los toma: toma veinte mensajes por segundo y mil valores por mensaje, y descarta los más viejos a partir de ahí.',
+  'Live values from the command line come faster than Visual Anything takes them: it takes twenty messages a second and a thousand values a message, and drops the oldest past that.':
+    'Los valores en vivo de la línea de comandos llegan más rápido de lo que Visual Anything los toma: toma veinte mensajes por segundo y mil valores por mensaje, y descarta los más viejos a partir de ahí.',
+  'Live values from the code of “{name}” come faster than Visual Anything takes them: it takes twenty messages a second and a thousand values a message, and drops the oldest past that.':
+    'Los valores en vivo del código de “{name}” llegan más rápido de lo que Visual Anything los toma: toma veinte mensajes por segundo y mil valores por mensaje, y descarta los más viejos a partir de ahí.',
+  'Visual Anything keeps at most 100,000 live values, so it drops the oldest to make room for newer ones.':
+    'Visual Anything guarda como mucho 100.000 valores en vivo, así que descarta los más viejos para dejar lugar a los más nuevos.',
+  'The package "{id}" holds no code.': 'El paquete "{id}" no tiene código.',
+  'The code of “{name}” is not approved as it is now, so it reaches nothing.':
+    'El código de “{name}” no está aprobado tal como está ahora, así que no llega a nada.',
+  'The code of “{name}” is granted no origin, so it fetches nothing and sends no live values.':
+    'Al código de “{name}” no se le concede ningún origen, así que no obtiene nada ni envía valores en vivo.',
+  'The code of “{name}” may not fetch {url}: it {why}.':
+    'El código de “{name}” no puede obtener {url}: {why}.',
+  'The code of “{name}” has {n} fetches under way already, so {url} waits for its next turn.':
+    'El código de “{name}” ya tiene {n} pedidos en curso, así que {url} espera su próximo turno.',
+  'Fetching {url} for “{name}” failed: {why}.': 'No se pudo obtener {url} para “{name}”: {why}.',
+  'is not on an origin granted: {origin}': 'no está en un origen concedido: {origin}',
+  'is not a web address': 'no es una dirección web',
+  'is not an http or https address': 'no es una dirección http ni https',
+  'holds a user name or a password': 'tiene un nombre de usuario o una contraseña',
+  'is longer than {n} characters': 'tiene más de {n} caracteres',
+  'is not https, which an address on the internet must be':
+    'no es https, que es lo que tiene que ser una dirección de internet',
+  'is not https, which an address by name must be: only an address of this computer or of your network, granted as it is written, may use http':
+    'no es https, que es lo que tiene que ser una dirección por nombre: solo una dirección de esta computadora o de la red, concedida tal como está escrita, puede usar http',
+  'leads to Visual Anything itself, which package code never reaches':
+    'lleva al propio Visual Anything, al que el código de un paquete nunca llega',
+  'leads to {address}, an address of no one, which nothing fetches from':
+    'lleva a {address}, una dirección de nadie, de la que no se obtiene nada',
+  'leads to {address}, a link-local address, such as the cloud metadata one, which nothing fetches from':
+    'lleva a {address}, una dirección de autoconfiguración local, como la de los metadatos de la nube, de la que no se obtiene nada',
+  'leads to {address}, a multicast address, which nothing fetches from':
+    'lleva a {address}, una dirección de multidifusión, de la que no se obtiene nada',
+  'leads to {address}, an address the internet does not route, which nothing fetches from':
+    'lleva a {address}, una dirección que internet no enruta, de la que no se obtiene nada',
+  'leads, by its name {host}, to {address}, an address of this computer, which a name never reaches; grant that address itself if that is where it should go':
+    'lleva, por su nombre {host}, a {address}, una dirección de esta computadora, a la que un nombre nunca llega; conceder esa misma dirección si es ahí adonde tiene que ir',
+  'leads, by its name {host}, to {address}, an address of your network, which a name never reaches; grant that address itself if that is where it should go':
+    'lleva, por su nombre {host}, a {address}, una dirección de la red, a la que un nombre nunca llega; conceder esa misma dirección si es ahí adonde tiene que ir',
+  'leads, by its name {host}, to {address}, an address of no one, which a name never reaches; grant that address itself if that is where it should go':
+    'lleva, por su nombre {host}, a {address}, una dirección de nadie, a la que un nombre nunca llega; conceder esa misma dirección si es ahí adonde tiene que ir',
+  'leads, by its name {host}, to {address}, a link-local address, such as the cloud metadata one, which a name never reaches; grant that address itself if that is where it should go':
+    'lleva, por su nombre {host}, a {address}, una dirección de autoconfiguración local, como la de los metadatos de la nube, a la que un nombre nunca llega; conceder esa misma dirección si es ahí adonde tiene que ir',
+  'leads, by its name {host}, to {address}, a multicast address, which a name never reaches; grant that address itself if that is where it should go':
+    'lleva, por su nombre {host}, a {address}, una dirección de multidifusión, a la que un nombre nunca llega; conceder esa misma dirección si es ahí adonde tiene que ir',
+  'leads, by its name {host}, to {address}, an address the internet does not route, which a name never reaches; grant that address itself if that is where it should go':
+    'lleva, por su nombre {host}, a {address}, una dirección que internet no enruta, a la que un nombre nunca llega; conceder esa misma dirección si es ahí adonde tiene que ir',
+  'it did not answer within {n} seconds': 'no respondió en {n} segundos',
+  'it did not answer within {n} second': 'no respondió en {n} segundo',
+  'it could not be reached': 'no se pudo llegar a él',
+  'it answered with no HTTP status': 'respondió sin un estado HTTP',
+  'it answered with more than {n} KiB': 'respondió con más de {n} KiB',
+  'its answer broke off': 'su respuesta se cortó',
+  'its name, {host}, does not resolve': 'su nombre, {host}, no se resuelve',
 };
 
 /**
