@@ -62,9 +62,14 @@ describe('routes in a view file', () => {
       [{ path: '/routes', message: 'must have ids as its keys, and "two words" is not one' }],
     ],
     [
-      'orthogonal written out, which is what no style means',
-      routing({ style: 'orthogonal' }),
-      [{ path: '/routes/calls/style', message: 'must be one of "straight", "curved"' }],
+      'a style that is none of the three',
+      routing({ style: 'zigzag' }),
+      [
+        {
+          path: '/routes/calls/style',
+          message: 'must be one of "orthogonal", "straight", "curved"',
+        },
+      ],
     ],
     [
       'an attachment of an unknown kind',

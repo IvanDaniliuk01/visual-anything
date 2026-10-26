@@ -42,8 +42,10 @@ import { checkTimeRange, type ViewTimeRange } from './time-range';
  *    and live values (ADR 0057, ADR 0063): the program sends the live values it keeps, and an app
  *    fetches for approved package code granted an origin, and sends the live values it made. Guidance
  *    that lays out a view, or plays a tour full screen, came in 6 too, since no build shipped.
+ * 7: free geometry, named parts and automatic route styles in the project's files (M8b, ADR 0066,
+ *    ADR 0067, ADR 0069), which an app of version 6 would draw without.
  */
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 /** The path of the live connection. */
 export const LIVE_PATH = '/live';

@@ -16,6 +16,7 @@ import type { ModelIndex } from '../model-index';
 import { BULK, type Collection, type Operation, type RouteEntry } from '../operations';
 import {
   MAX_BEND_POINTS,
+  automaticRouteStyleOf,
   endWord,
   isBeside,
   routeContext,
@@ -94,7 +95,8 @@ export function setRoute(draft: Draft, command: SetRouteCommand): string {
         `A route is orthogonal, straight or curved, not ${JSON.stringify(style)}.`,
       );
     }
-    if (style === 'orthogonal') delete next.style;
+    // Only a style that differs from the automatic one is kept (ADR 0069).
+    if (style === automaticRouteStyleOf(draft.state, view, relation)) delete next.style;
     else next.style = style;
   }
 

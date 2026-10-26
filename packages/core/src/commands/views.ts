@@ -85,6 +85,16 @@ export function updateView(draft: Draft, command: UpdateViewCommand): string {
     }
     next.nestingRelationTypes = [...changes.nestingRelationTypes];
   }
+  if (changes.routeStyle === null) delete next.routeStyle;
+  else if (changes.routeStyle !== undefined) {
+    if (changes.routeStyle !== 'straight' && changes.routeStyle !== 'curved') {
+      reject(
+        'invalid-command',
+        `A view draws its automatic routes straight or curved, or orthogonal with null, not ${JSON.stringify(changes.routeStyle)}.`,
+      );
+    }
+    next.routeStyle = changes.routeStyle;
+  }
   draft.apply({ op: 'set-view', view: current.id, properties: next });
   return `Edit the view "${next.name}"`;
 }

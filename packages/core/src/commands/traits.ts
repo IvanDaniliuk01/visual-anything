@@ -8,6 +8,7 @@ import type {
   Appearance,
   AttributeDefinition,
   Attributes,
+  FreeGeometry,
   Badge,
   Color,
   ConnectionPoint,
@@ -24,6 +25,7 @@ import { valueFitsType } from '../appearance';
 import { isColor, storedColor } from '../colors';
 import type { Definitions } from '../definitions';
 import { isId } from '../ids';
+import { readGeometry } from '../geometry';
 import { LEVEL_PARTS, MAX_LEVELS, MAX_LEVEL_SCALE } from '../levels';
 import { reject } from './draft';
 
@@ -209,8 +211,13 @@ function checkedImage(
     invalid(`The image of ${of} holds only its image, its placement and its tint.`);
   }
   if (!isId(image)) invalid(`The image of ${of} must name an image by its id.`);
-  if (placement !== undefined && placement !== 'icon' && placement !== 'drawing') {
-    invalid(`The image of ${of} is placed as an icon or as a drawing.`);
+  if (
+    placement !== undefined &&
+    placement !== 'icon' &&
+    placement !== 'drawing' &&
+    placement !== 'parts'
+  ) {
+    invalid(`The image of ${of} is placed as an icon, as a drawing, or with its parts.`);
   }
   return {
     image,
@@ -308,9 +315,81 @@ const TRAIT_CHECKS: {
   contentsAsRows: (value, of) => checkedBoolean(value, 'draws its contents as rows', of),
   connectionPoints: checkedConnectionPoints,
   image: checkedImage,
+  geometry: checkedGeometry,
+  part: checkedPart,
   levels: checkedLevels,
   expandFrom: checkedExpandFrom,
 };
+
+/** Free geometry, read by the core's strict reader within its caps (ADR 0066), or `none`. */
+function checkedGeometry(value: unknown, of: string): NonNullable<Appearance['geometry']> {
+  if (value === 'none') return 'none';
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    reject('invalid-geometry', `The free geometry of ${of} must be "none" or an outline in a box.`);
+  }
+  const { width, height, outline, keepProportions, label, ...rest } = value as Record<
+    string,
+    unknown
+  >;
+  if (Object.keys(rest).length > 0) {
+    reject(
+      'invalid-geometry',
+      `The free geometry of ${of} holds only a width, a height, an outline, keep proportions and a label.`,
+    );
+  }
+  const geometry = {
+    width,
+    height,
+    outline,
+    ...(keepProportions === undefined ? {} : { keepProportions }),
+    ...(label === undefined ? {} : { label }),
+  } as FreeGeometry;
+  const read = readGeometry(geometry);
+  if (!read.ok) reject(read.code, `The free geometry of ${of}: ${read.message}`);
+  // Kept as written, so that its path data diffs line by line; only checked.
+  return {
+    width: geometry.width,
+    height: geometry.height,
+    outline: geometry.outline.map((contour) =>
+      contour.kind === 'path'
+        ? { kind: 'path', d: contour.d }
+        : contour.kind === 'polygon'
+          ? { kind: 'polygon', points: contour.points }
+          : { kind: 'ellipse', cx: contour.cx, cy: contour.cy, rx: contour.rx, ry: contour.ry },
+    ),
+    ...(geometry.keepProportions === true ? { keepProportions: true } : {}),
+    ...(geometry.label === undefined
+      ? {}
+      : {
+          label: {
+            x: geometry.label.x,
+            y: geometry.label.y,
+            width: geometry.label.width,
+            height: geometry.label.height,
+          },
+        }),
+  };
+}
+
+const PART_ID = /^[A-Za-z_][\w.-]{0,63}$/;
+
+/** A named part of an SVG image (ADR 0067), by its id and the image's, or `none`. */
+function checkedPart(value: unknown, of: string): NonNullable<Appearance['part']> {
+  if (value === 'none') return 'none';
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    invalid(`The part ${of} is drawn as must be "none" or a part named by its id.`);
+  }
+  const { part, image, ...rest } = value as Record<string, unknown>;
+  if (Object.keys(rest).length > 0) {
+    invalid(`The part ${of} is drawn as holds only its id and its image.`);
+  }
+  if (typeof part !== 'string' || !PART_ID.test(part)) {
+    invalid(`The part ${of} is drawn as must be named by the id it has in its picture.`);
+  }
+  if (image !== undefined && !isId(image))
+    invalid(`The part ${of} is drawn as must name its image by its id.`);
+  return { part, ...(image === undefined ? {} : { image }) };
+}
 
 /** Refuses an appearance that draws rows on a shape that cannot, both set in it. */
 function checkRowsShape(appearance: Appearance, of: string): void {
@@ -432,6 +511,12 @@ const RELATION_TRAIT_CHECKS: {
   width: (value, of) => {
     if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
       invalid(`The line width of ${of} must be a number above 0.`);
+    }
+    return value;
+  },
+  route: (value, of) => {
+    if (value !== 'orthogonal' && value !== 'straight' && value !== 'curved') {
+      invalid(`The route of ${of} is orthogonal, straight or curved.`);
     }
     return value;
   },

@@ -40,8 +40,12 @@ import { problem, type Problem } from './problems';
 
 export type { ResolvedAppearance } from './appearance';
 
-/** How a relation is drawn, with nothing left out. */
-export type ResolvedRelationAppearance = Required<RelationAppearance>;
+/**
+ * How a relation is drawn, with nothing left out but its route's style, which "relates to" leaves to
+ * the view (ADR 0069).
+ */
+export type ResolvedRelationAppearance = Required<Omit<RelationAppearance, 'route'>> &
+  Pick<RelationAppearance, 'route'>;
 
 /** A trait of how a relation is drawn. */
 export type RelationAppearanceTrait = keyof RelationAppearance;
@@ -51,6 +55,7 @@ export const RELATION_APPEARANCE_TRAITS: readonly RelationAppearanceTrait[] = [
   'stroke',
   'width',
   'dash',
+  'route',
 ] satisfies (keyof Required<RelationAppearance>)[];
 
 /** The fill and stroke an element's shapes are drawn in. */
@@ -242,10 +247,12 @@ export function relationAppearanceOf(
   const inherited = relationTypeOrRelatesTo(definitions, relation.relationType).appearance;
   const own = relation.appearance;
   if (own === undefined) return inherited;
+  const route = own.route ?? inherited.route;
   return {
     stroke: own.stroke ?? inherited.stroke,
     width: own.width ?? inherited.width,
     dash: own.dash ?? inherited.dash,
+    ...(route === undefined ? {} : { route }),
   };
 }
 
@@ -261,6 +268,7 @@ export function relationAppearanceOriginsOf(
     stroke: own.stroke === undefined ? inherited.stroke : { kind: 'own' },
     width: own.width === undefined ? inherited.width : { kind: 'own' },
     dash: own.dash === undefined ? inherited.dash : { kind: 'own' },
+    route: own.route === undefined ? inherited.route : { kind: 'own' },
   };
 }
 
@@ -540,16 +548,20 @@ function resolveRelationAppearance(
   const stroke = first('stroke');
   const width = first('width');
   const dash = first('dash');
+  const route = first('route');
+  const style = route?.appearance?.route;
   return {
     appearance: {
       stroke: stroke?.appearance?.stroke ?? RELATES_TO.appearance.stroke,
       width: width?.appearance?.width ?? RELATES_TO.appearance.width,
       dash: dash?.appearance?.dash ?? RELATES_TO.appearance.dash,
+      ...(style === undefined ? {} : { route: style }),
     },
     origins: {
       stroke: stroke?.origin ?? base,
       width: width?.origin ?? base,
       dash: dash?.origin ?? base,
+      route: route?.origin ?? base,
     },
   };
 }

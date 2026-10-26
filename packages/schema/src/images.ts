@@ -106,10 +106,11 @@ export interface AppearanceImage {
   image: Id;
   /**
    * `icon`, the default: small, beside the name, inside the shape. `drawing`: on a plate in place of
-   * the shape, with the name under it. Shapes that hold other shapes or draw rows always show it as an
-   * icon in their header, and rows as a small icon before their name.
+   * the shape, with the name under it. `parts`: the picture under the shape's header, its contents
+   * anchored to its named parts drawn in their places (ADR 0067). Shapes that draw rows always show it
+   * as an icon in their header, and rows as a small icon before their name.
    */
-  placement?: 'icon' | 'drawing';
+  placement?: 'icon' | 'drawing' | 'parts';
   /** When set, the picture is drawn as a silhouette of this colour: its shape kept, its colours replaced. */
   tint?: Color;
 }

@@ -19,7 +19,12 @@ import type { RouteStyle } from './commands/types';
 import { relationLabel } from './commands/model';
 import { containmentTree, type Placement } from './containment';
 import { nestingTypesInView } from './containers';
-import { appearanceOf, type Definitions } from './definitions';
+import {
+  appearanceOf,
+  relationAppearanceOf,
+  type Definitions,
+  type DrawnRelation,
+} from './definitions';
 import type { ModelIndex } from './model-index';
 import { problem, type Problem } from './problems';
 import type { ProjectSnapshot } from './snapshot';
@@ -120,12 +125,27 @@ export function routeOf(
     relation,
     from: resolveAttachment(context.endShape(routed.from), stored?.from),
     to: resolveAttachment(context.endShape(routed.to), stored?.to),
-    style: stored?.style ?? 'orthogonal',
+    style: stored?.style ?? automaticRouteStyleOf(state, found, routed),
     bendPoints,
     ...(bendPoints.length > 0 && container !== undefined ? { bendPointsIn: container } : {}),
     ...(frame === undefined ? {} : { frame }),
     byHand: stored !== undefined,
   };
+}
+
+/**
+ * The style of a relation's automatic route in a view (ADR 0069): its appearance's `route`, its own
+ * and then its relation type's chain, project appearances included; otherwise the view's
+ * `routeStyle`; otherwise orthogonal. A route chosen by hand without a style takes it too.
+ */
+export function automaticRouteStyleOf(
+  state: ProjectSnapshot,
+  view: ViewFile,
+  relation: DrawnRelation,
+): RouteStyle {
+  return (
+    relationAppearanceOf(relation, definitionsIn(state)).route ?? view.routeStyle ?? 'orthogonal'
+  );
 }
 
 /** The route a view keeps for a relation, if any. Any string can be an id, so only own keys count. */

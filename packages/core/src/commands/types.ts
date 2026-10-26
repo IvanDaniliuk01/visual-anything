@@ -18,6 +18,7 @@ import type {
   EndAttachment,
   ExternalId,
   ExternalIds,
+  FreeGeometry,
   FreeShape,
   Id,
   LevelOfDetail,
@@ -25,6 +26,7 @@ import type {
   Note,
   Overlay,
   PackageFile,
+  PartReference,
   Perspective,
   Point,
   RelationAppearance,
@@ -179,6 +181,10 @@ export interface AppearanceChanges {
   connectionPoints?: ConnectionPoint[] | null;
   /** The image its shapes show; `none` shows none, whatever is inherited (ADR 0027). */
   image?: AppearanceImage | 'none' | null;
+  /** Its shapes' own outline (ADR 0066); `none` takes an inherited one away. */
+  geometry?: FreeGeometry | 'none' | null;
+  /** The named part its shapes are drawn as (ADR 0067); `none` takes an inherited one away. */
+  part?: PartReference | 'none' | null;
   /**
    * What its shapes show from each scale up (ADR 0055), stored in increasing order of the scales; an
    * empty list follows the canvas's own steps, whatever is inherited.
@@ -193,6 +199,8 @@ export interface RelationAppearanceChanges {
   stroke?: Color | null;
   width?: number | null;
   dash?: NonNullable<RelationAppearance['dash']> | null;
+  /** The style of its relations' automatic routes (ADR 0069); `orthogonal` undoes an inherited one. */
+  route?: RouteStyle | null;
 }
 
 /**
@@ -516,6 +524,11 @@ export interface UpdateViewCommand {
     description?: string | null;
     perspective?: Perspective;
     nestingRelationTypes?: Id[];
+    /**
+     * How the view draws the automatic routes of relations whose appearances set none (ADR 0069);
+     * `null` draws them orthogonal again.
+     */
+    routeStyle?: 'straight' | 'curved' | null;
   };
 }
 
@@ -705,8 +718,9 @@ export interface RemoveImageCommand {
   id: Id;
 }
 
-/** How a relation's line runs through its bend points: orthogonal, the default, straight or curved. */
-export type RouteStyle = 'orthogonal' | 'straight' | 'curved';
+/** How a relation's line runs through its bend points: orthogonal, straight or curved (ADR 0069). */
+export type { RouteStyle } from '@visual-anything/schema';
+import type { RouteStyle } from '@visual-anything/schema';
 
 /**
  * Routes a relation by hand in a view, as one action (ADR 0039). It changes only what it names, and
@@ -734,7 +748,7 @@ export interface SetRouteCommand {
    * which `routeOf` gives as `frame`. Only with bend points.
    */
   container?: Id;
-  /** `orthogonal` is the default, and stores nothing. */
+  /** Stored only when it differs from the relation's automatic style (ADR 0069). */
   style?: RouteStyle;
 }
 

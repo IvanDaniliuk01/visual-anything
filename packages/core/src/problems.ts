@@ -32,6 +32,11 @@ export type ProblemCode =
   | 'in-use'
   // A value a command sets that is outside what its trait or attribute allows.
   | 'invalid-appearance'
+  // Free geometry (ADR 0066): an outline that is not one, one past a cap, and, only a warning, a file
+  // that holds more geometry text than it should.
+  | 'invalid-geometry'
+  | 'geometry-too-large'
+  | 'large-geometry'
   | 'invalid-attribute'
   | 'unknown-attribute'
   | 'name-taken'

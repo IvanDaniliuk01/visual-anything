@@ -12,9 +12,11 @@ import type {
   Color,
   ConnectionPoint,
   DetailRules,
+  FreeGeometry,
   Id,
   JsonValue,
   LevelOfDetail,
+  PartReference,
   Relation,
 } from '@visual-anything/schema';
 import { ESSENCE_ID } from '@visual-anything/schema';
@@ -40,6 +42,10 @@ export interface ResolvedAppearance {
   contentsAsRows: boolean;
   /** Empty when relations attach anywhere on the border. */
   connectionPoints: readonly ConnectionPoint[];
+  /** Its shapes' own outline (ADR 0066), drawn in place of their kind; absent when their kind is drawn. */
+  geometry?: FreeGeometry;
+  /** The named part its shapes are drawn as (ADR 0067), if any. */
+  part?: PartReference;
   /**
    * What its shapes show from each scale up (ADR 0055), as the nearest appearance that sets levels
    * gives them; absent when the canvas's own steps apply.
@@ -71,6 +77,8 @@ export const APPEARANCE_TRAITS = listingEvery<keyof Appearance>()([
   'contentsAsRows',
   'connectionPoints',
   'image',
+  'geometry',
+  'part',
   'levels',
   'expandFrom',
 ]);
@@ -98,6 +106,8 @@ export const TRAIT_PATHS: readonly TraitPath[] = [
   'contentsAsRows',
   'connectionPoints',
   'image',
+  'geometry',
+  'part',
   'levels',
   'expandFrom',
 ];
@@ -127,6 +137,9 @@ export function resolveAppearance(
   // An empty list of levels is set: it follows the canvas's own steps, whatever is inherited.
   const levels = nearest(chain, 'levels') ?? base.levels;
   const expandFrom = nearest(chain, 'expandFrom') ?? base.expandFrom;
+  // `none` takes an inherited outline or part away, so that the kind is drawn again.
+  const geometry = nearest(chain, 'geometry') ?? base.geometry;
+  const part = nearest(chain, 'part') ?? base.part;
   return {
     shape: nearest(chain, 'shape') ?? base.shape,
     fill: nearest(chain, 'fill') ?? base.fill,
@@ -142,6 +155,8 @@ export function resolveAppearance(
     connectionPoints: nearest(chain, 'connectionPoints') ?? base.connectionPoints,
     ...(levels === undefined || levels.length === 0 ? {} : { levels }),
     ...(expandFrom === undefined ? {} : { expandFrom }),
+    ...(geometry === undefined || geometry === 'none' ? {} : { geometry }),
+    ...(part === undefined || part === 'none' ? {} : { part }),
   };
 }
 

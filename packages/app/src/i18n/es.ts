@@ -2830,8 +2830,6 @@ export const messages: Catalog = {
     'La imagen de {of} debe ser "none" o una imagen nombrada por su id.',
   'The image of {of} must name an image by its id.':
     'La imagen de {of} debe nombrar una imagen por su id.',
-  'The image of {of} is placed as an icon or as a drawing.':
-    'La imagen de {of} se ubica como ícono o como dibujo.',
   '{Of} cannot draw its contents as rows as a {shape}: only a rectangle or a rounded rectangle draws rows.':
     '{Of} no puede dibujar su contenido como filas con la forma {shape}: solo un rectángulo o un rectángulo redondeado dibuja filas.',
   'An appearance has no trait "{trait}".': 'Una apariencia no tiene el rasgo "{trait}".',
@@ -2911,8 +2909,8 @@ export const messages: Catalog = {
     '{owner} no puede mostrar la imagen "{id}": ningún paquete en uso la define.',
   'The image "{id}" cannot go: {users} still show it.':
     'La imagen "{id}" no se puede quitar: {users} todavía la muestran.',
-  '{owner} can show an image by its id, as an icon or a drawing, with a #rrggbb tint, or show "none".':
-    '{owner} puede mostrar una imagen por su id, como ícono o como dibujo, con un tinte #rrggbb, o mostrar "none".',
+  '{owner} can show an image by its id, as an icon, a drawing or with its parts, with a #rrggbb tint, or show "none".':
+    '{owner} puede mostrar una imagen por su id, como ícono, como dibujo o con sus partes, con un tinte #rrggbb, o mostrar "none".',
   'The image "{id}" is defined by package "{earlier}" and again by "{package}".':
     'La imagen "{id}" la define el paquete "{earlier}" y otra vez "{package}".',
   'The image "{id}" of package "{package}" should start with "{prefix}.".':
@@ -4565,6 +4563,86 @@ export const messages: Catalog = {
     'Los atributos de un rango de tiempo son texto sin caracteres rotos.',
   'A time range reads its values as one of: {kinds}.':
     'Un rango de tiempo lee sus valores como uno de: {kinds}.',
+  // M8b seam 1: free geometry, named parts and automatic route styles (ADR 0066, 0067, 0069).
+  'the element "{name}"': 'el elemento "{name}"',
+  'The package "{name}"': 'El paquete "{name}"',
+  'The model': 'El modelo',
+  'The free geometry of {of} must be "none" or an outline in a box.':
+    'La geometría libre de {of} debe ser "none" o un contorno en una caja.',
+  'The free geometry of {of} holds only a width, a height, an outline, keep proportions and a label.':
+    'La geometría libre de {of} tiene solo un ancho, un alto, un contorno, mantener proporciones y una etiqueta.',
+  'The free geometry of {of}: {why} Its shapes are drawn as their kind.':
+    'La geometría libre de {of}: {why} Sus formas se dibujan según su tipo.',
+  'The free geometry of {of}: {why}': 'La geometría libre de {of}: {why}',
+  'Free geometry is an object with a width, a height and an outline.':
+    'La geometría libre es un objeto JSON con un ancho, un alto y un contorno.',
+  'The width of free geometry is a number above 0.':
+    'El ancho de una geometría libre es un número mayor que 0.',
+  'The height of free geometry is a number above 0.':
+    'El alto de una geometría libre es un número mayor que 0.',
+  'The width of free geometry is at most 100,000.':
+    'El ancho de una geometría libre es como máximo 100.000.',
+  'The height of free geometry is at most 100,000.':
+    'El alto de una geometría libre es como máximo 100.000.',
+  'The outline of free geometry holds 1 to 64 contours.':
+    'El contorno de una geometría libre tiene de 1 a 64 trazos.',
+  'The outline of free geometry holds at most 64 contours, not {n}.':
+    'El contorno de una geometría libre tiene como máximo 64 trazos, no {n}.',
+  'Keep proportions is true or false.': 'Mantener proporciones es true o false.',
+  'Free geometry holds at most 32,768 characters of path data and points, not {n}.':
+    'Una geometría libre tiene como máximo 32.768 caracteres de datos de trazado y puntos, no {n}.',
+  'Free geometry holds at most 2,000 segments, path commands and points.':
+    'Una geometría libre tiene como máximo 2.000 segmentos, entre comandos de trazado y puntos.',
+  'Contour {n} of free geometry is a path, a polygon or an ellipse.':
+    'El trazo {n} de una geometría libre es un trazado, un polígono o una elipse.',
+  'Contour {n} has no path data, d.': 'El trazo {n} no tiene datos de trazado, d.',
+  'Contour {n} has no points.': 'El trazo {n} no tiene puntos.',
+  'Contour {n}: {why}': 'Trazo {n}: {why}',
+  'Contour {n} of free geometry draws nothing.':
+    'El trazo {n} de una geometría libre no dibuja nada.',
+  'a polygon has three points or more.': 'un polígono tiene tres puntos o más.',
+  'an ellipse has a finite cx, cy, rx and ry.': 'una elipse tiene cx, cy, rx y ry finitos.',
+  "an ellipse's rx and ry are above 0.": 'los rx y ry de una elipse son mayores que 0.',
+  'The outline of free geometry leaves its box of {width} by {height}.':
+    'El contorno de una geometría libre se sale de su caja de {width} por {height}.',
+  'The label area of free geometry is a rectangle with a width and a height above 0.':
+    'La zona de la etiqueta de una geometría libre es un rectángulo con un ancho y un alto mayores que 0.',
+  'The label area of free geometry leaves its box.':
+    'La zona de la etiqueta de una geometría libre se sale de su caja.',
+  'The path data is empty.': 'Los datos de trazado están vacíos.',
+  'Path data must start with a move, M or m.':
+    'Los datos de trazado deben empezar con un movimiento, M o m.',
+  'At character {n}: a close, Z, takes no numbers.':
+    'En el carácter {n}: un cierre, Z, no lleva números.',
+  'At character {n}: the command {command} needs {number} numbers.':
+    'En el carácter {n}: el comando {command} necesita {number} números.',
+  'At character {n}: the command {command} needs {number} numbers, its flags each 0 or 1.':
+    'En el carácter {n}: el comando {command} necesita {number} números, con sus indicadores en 0 o 1.',
+  'At character {n}: a number is not finite.': 'En el carácter {n}: un número no es finito.',
+  'At character {n}: a comma is followed by no number.':
+    'En el carácter {n}: después de una coma no hay ningún número.',
+  "At character {n}: a polygon's points are x,y pairs of numbers.":
+    'En el carácter {n}: los puntos de un polígono son pares x,y de números.',
+  '{Of} holds {size} of free geometry, which slows saving it; it may hold at most {cap}.':
+    '{Of} tiene {size} de geometría libre, lo que hace más lento guardarlo; puede tener como máximo {cap}.',
+  "{Of} holds {size} of free geometry, past the {cap} it may hold: the last geometry is drawn as its shapes' kind.":
+    '{Of} tiene {size} de geometría libre, más de los {cap} que puede tener: la última geometría se dibuja según el tipo de sus formas.',
+  "{Of} holds {size} of free geometry, past the {cap} it may hold: the last {n} geometries are drawn as their shapes' kind.":
+    '{Of} tiene {size} de geometría libre, más de los {cap} que puede tener: las últimas {n} geometrías se dibujan según el tipo de sus formas.',
+  'The part {of} is drawn as must be "none" or a part named by its id.':
+    'La parte como la que se dibuja {of} debe ser "none" o una parte nombrada por su id.',
+  'The part {of} is drawn as holds only its id and its image.':
+    'La parte como la que se dibuja {of} tiene solo su id y su imagen.',
+  'The part {of} is drawn as must be named by the id it has in its picture.':
+    'La parte como la que se dibuja {of} debe nombrarse por el id que tiene en su imagen.',
+  'The part {of} is drawn as must name its image by its id.':
+    'La parte como la que se dibuja {of} debe nombrar su imagen por su id.',
+  'The route of {of} is orthogonal, straight or curved.':
+    'La ruta de {of} es ortogonal, recta o curva.',
+  'A view draws its automatic routes straight or curved, or orthogonal with null, not {value}.':
+    'Una vista dibuja sus rutas automáticas rectas o curvas, u ortogonales con null, no {value}.',
+  'The image of {of} is placed as an icon, as a drawing, or with its parts.':
+    'La imagen de {of} se ubica como ícono, como dibujo o con sus partes.',
 };
 
 /**

@@ -1563,6 +1563,115 @@ function cleaningRefusals(): Said[] {
   return said;
 }
 
+// M8b seam 1: free geometry, named parts and automatic route styles (ADR 0066, 0067, 0069) ---------
+
+const BOX = { width: 100, height: 100 };
+const shaped = (outline: unknown, more: object = {}) => ({
+  geometry: { ...BOX, outline, ...more },
+});
+const ring = (count: number, digits: number) =>
+  many(count, (at) => {
+    const angle = (2 * Math.PI * at) / count;
+    return `${(50 + 40 * Math.cos(angle)).toFixed(digits)},${(50 + 40 * Math.sin(angle)).toFixed(digits)}`;
+  }).join(' ');
+
+const GEOMETRY: readonly [string, unknown][] = [
+  traits('geometry not an outline', { geometry: 5 }),
+  traits('geometry with more', { geometry: { ...BOX, outline: [], colour: 'red' } }),
+  traits('geometry not an object at all', { geometry: { outline: [] } }),
+  traits('geometry of no width', { geometry: { width: 0, height: 10, outline: [] } }),
+  traits('geometry of no height', { geometry: { width: 10, height: -1, outline: [] } }),
+  traits('geometry too wide', { geometry: { width: 200000, height: 10, outline: [] } }),
+  traits('geometry too high', { geometry: { width: 10, height: 200000, outline: [] } }),
+  traits('geometry of no contours', shaped([])),
+  traits(
+    'geometry of too many contours',
+    shaped(many(65, () => ({ kind: 'ellipse', cx: 50, cy: 50, rx: 5, ry: 5 }))),
+  ),
+  traits(
+    'geometry keeping proportions badly',
+    shaped([{ kind: 'ellipse', cx: 50, cy: 50, rx: 5, ry: 5 }], { keepProportions: 'yes' }),
+  ),
+  traits(
+    'geometry of too much text',
+    shaped([{ kind: 'path', d: `M0 0 L10 0 L10 10 Z${' '.repeat(33000)}` }]),
+  ),
+  traits('geometry of too many segments', shaped([{ kind: 'polygon', points: ring(2001, 2) }])),
+  traits('geometry contour not a contour', shaped([5])),
+  traits('geometry path without data', shaped([{ kind: 'path' }])),
+  traits('geometry polygon without points', shaped([{ kind: 'polygon' }])),
+  traits('geometry path empty', shaped([{ kind: 'path', d: '' }])),
+  traits('geometry path without a move', shaped([{ kind: 'path', d: 'L0 0' }])),
+  traits('geometry close with numbers', shaped([{ kind: 'path', d: 'M0 0 Z 1 1' }])),
+  traits('geometry line short of a number', shaped([{ kind: 'path', d: 'M0 0 L1' }])),
+  traits('geometry arc with a bad flag', shaped([{ kind: 'path', d: 'M0 0 A1 1 0 2 0 1 1' }])),
+  traits('geometry past finite', shaped([{ kind: 'path', d: 'm1e308 0 l1e308 0 l0 1 z' }])),
+  traits('geometry comma before a command', shaped([{ kind: 'path', d: 'M0,0,L1,1' }])),
+  traits('geometry polygon of odd numbers', shaped([{ kind: 'polygon', points: '0,0 1' }])),
+  traits('geometry polygon of two points', shaped([{ kind: 'polygon', points: '0,0 10,10' }])),
+  traits(
+    'geometry ellipse not finite',
+    shaped([{ kind: 'ellipse', cx: 'x', cy: 0, rx: 1, ry: 1 }]),
+  ),
+  traits(
+    'geometry ellipse of no radius',
+    shaped([{ kind: 'ellipse', cx: 5, cy: 5, rx: 0, ry: 1 }]),
+  ),
+  traits('geometry drawing nothing', shaped([{ kind: 'path', d: 'M0 0 L10 0' }])),
+  traits('geometry leaving its box', shaped([{ kind: 'polygon', points: '0,0 200,0 0,10' }])),
+  traits(
+    'geometry label of no size',
+    shaped([{ kind: 'ellipse', cx: 50, cy: 50, rx: 5, ry: 5 }], {
+      label: { x: 0, y: 0, width: 0, height: 1 },
+    }),
+  ),
+  traits(
+    'geometry label outside',
+    shaped([{ kind: 'ellipse', cx: 50, cy: 50, rx: 5, ry: 5 }], {
+      label: { x: 90, y: 90, width: 50, height: 5 },
+    }),
+  ),
+  traits('part not a part', { part: 5 }),
+  traits('part with more', { part: { part: 'lv', colour: 'red' } }),
+  traits('part of a bad id', { part: { part: '1 bad' } }),
+  traits('part of a bad image', { part: { part: 'lv', image: '1 bad' } }),
+  relationTraits('route zigzag', { appearanceTraits: { route: 'zigzag' } }),
+  ['view routes zigzag', { type: 'update-view', id: VIEW, changes: { routeStyle: 'zigzag' } }],
+];
+
+/** Projects whose free geometry opening warns about: not geometry, and past a file's caps. */
+function geometryOnOpening(sample: ProjectSnapshot): [string, ProjectSnapshot][] {
+  const withElements = (elements: Element[]): ProjectSnapshot => ({
+    ...sample,
+    model: { ...sample.model, elements: [...sample.model.elements, ...elements] },
+  });
+  const shapes = (count: number, points: string) =>
+    many(count, (at) => ({
+      id: `shape-${at}`,
+      component: 'systems.service',
+      name: `Shape ${at}`,
+      appearance: { geometry: { ...BOX, outline: [{ kind: 'polygon' as const, points }] } },
+    }));
+  // About 31 KiB a geometry: 40 of them pass the model's warning, 68 its cap by one, 70 by more.
+  const points = ring(1200, 9);
+  return [
+    [
+      'geometry broken on opening',
+      withElements([
+        {
+          id: 'odd',
+          component: 'systems.service',
+          name: 'Odd',
+          appearance: { geometry: { ...BOX, outline: [{ kind: 'polygon', points: '0,0 1,1' }] } },
+        },
+      ]),
+    ],
+    ['geometry heavy on opening', withElements(shapes(40, points))],
+    ['geometry past its cap by one on opening', withElements(shapes(68, points))],
+    ['geometry past its cap on opening', withElements(shapes(70, points))],
+  ];
+}
+
 /** Everything these fixtures make the core say. */
 export function coreRefusals(): Said[] {
   const sample = loadSample();
@@ -1573,6 +1682,8 @@ export function coreRefusals(): Said[] {
     said.push(...runInOrder(state, name, commands));
   }
   for (const [name, state] of broken(sample)) said.push(...checked(name, state));
+  for (const [name, command] of GEOMETRY) said.push(...runInOrder(sample, name, [command]));
+  for (const [name, state] of geometryOnOpening(sample)) said.push(...checked(name, state));
   said.push(...cleaningRefusals());
   return said;
 }

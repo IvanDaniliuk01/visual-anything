@@ -228,11 +228,13 @@ describe('where each trait comes from', () => {
       stroke: builtIn('systems.communicates-with'),
       width: builtIn('systems.communicates-with', 'project'),
       dash: { kind: 'own' },
+      route: builtIn('relates-to'),
     });
     expect(relationAppearanceOriginsOf({ relationType: 'clinic.escalates' }, definitions)).toEqual({
       stroke: ours('clinic.escalates'),
       width: ours('clinic.escalates'),
       dash: builtIn('relates-to'),
+      route: builtIn('relates-to'),
     });
   });
 });

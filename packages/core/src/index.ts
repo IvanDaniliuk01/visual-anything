@@ -342,3 +342,5 @@ export {
 } from './time-range';
 // Threads of comments kept in the project (ADR 0059).
 export * from './comments';
+// Free geometry: its outline, read once, and everything asked of it fitted to a shape (ADR 0066).
+export * from './geometry';

@@ -375,11 +375,18 @@ function checkWellFormed(image: unknown, owner: string): void {
   const malformed = () =>
     reject(
       'invalid-command',
-      `${owner} can show an image by its id, as an icon or a drawing, with a #rrggbb tint, or show "none".`,
+      `${owner} can show an image by its id, as an icon, a drawing or with its parts, with a #rrggbb tint, or show "none".`,
     );
   if (typeof image !== 'object' || image === null || Array.isArray(image)) malformed();
   const { image: id, placement, tint, ...rest } = image as Record<string, unknown>;
   if (Object.keys(rest).length > 0 || !isId(id)) malformed();
-  if (placement !== undefined && placement !== 'icon' && placement !== 'drawing') malformed();
+  if (
+    placement !== undefined &&
+    placement !== 'icon' &&
+    placement !== 'drawing' &&
+    placement !== 'parts'
+  ) {
+    malformed();
+  }
   if (tint !== undefined && (typeof tint !== 'string' || !COLOR.test(tint))) malformed();
 }

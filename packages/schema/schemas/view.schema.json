@@ -59,6 +59,14 @@
       "$ref": "#/definitions/RelationTypesLeftOut",
       "description": "The relation types whose relations this view does not draw (ADR 0064): not as lines, not in a collapsed container's aggregated relations, and in no count of relations that leave the view. Such a relation stays in the model. A relation type the view nests by draws containment, so it is never left out. Left out when it has none."
     },
+    "routeStyle": {
+      "type": "string",
+      "enum": [
+        "straight",
+        "curved"
+      ],
+      "description": "How this view draws the automatic routes of the relations whose appearances set no route (ADR 0069). Left out, they are orthogonal."
+    },
     "overlays": {
       "$ref": "#/definitions/Overlays",
       "description": "How this view colors, sizes, marks or fades its shapes by their attributes, in order (ADR 0055): each channel of a shape is set by the first overlay that sets it. Left out when it has none."
@@ -357,12 +365,8 @@
           "description": "Where the line attaches to the relation's `to` end."
         },
         "style": {
-          "type": "string",
-          "enum": [
-            "straight",
-            "curved"
-          ],
-          "description": "`straight` runs straight from point to point and `curved` runs a smooth curve through them; left out, the route is orthogonal."
+          "$ref": "#/definitions/RouteStyle",
+          "description": "`orthogonal` runs with square corners, `straight` straight from point to point and `curved` a smooth curve through them; left out, the route takes its automatic style (ADR 0069)."
         },
         "container": {
           "$ref": "#/definitions/Id",
@@ -482,6 +486,15 @@
       ],
       "additionalProperties": false,
       "description": "The line attaches at a fixed place on the end's border, which follows the shape as it moves and resizes."
+    },
+    "RouteStyle": {
+      "type": "string",
+      "enum": [
+        "orthogonal",
+        "straight",
+        "curved"
+      ],
+      "description": "How a line runs between its ends: square corners, straight, or a smooth curve."
     },
     "Scope": {
       "type": "object",

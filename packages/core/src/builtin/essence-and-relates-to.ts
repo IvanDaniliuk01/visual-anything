@@ -34,5 +34,8 @@ export const RELATES_TO = {
   description: 'The relation type every other relation type ultimately derives from.',
   direction: 'undirected' satisfies NonNullable<RelationType['direction']>,
   nests: false,
-  appearance: { stroke: '#52606D', width: 2, dash: 'solid' } satisfies Required<RelationAppearance>,
+  // It sets no route's style, which its relations then take from the view (ADR 0069).
+  appearance: { stroke: '#52606D', width: 2, dash: 'solid' } satisfies Required<
+    Omit<RelationAppearance, 'route'>
+  >,
 } as const;

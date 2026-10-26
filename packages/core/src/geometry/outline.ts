@@ -124,25 +124,21 @@ function readUncached(geometry: GeometryInput): GeometryRead {
     return invalid('Free geometry is an object with a width, a height and an outline.');
   }
   const { width, height, outline, keepProportions, label } = geometry;
-  for (const [name, value] of [
-    ['width', width],
-    ['height', height],
-  ] as const) {
-    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
-      return invalid(`The ${name} of free geometry is a number above 0.`);
-    }
-    if (value > GEOMETRY_CAPS.box) {
-      return tooLarge(
-        `The ${name} of free geometry is at most ${GEOMETRY_CAPS.box.toLocaleString('en')}.`,
-      );
-    }
+  if (!isFiniteNumber(width) || width <= 0) {
+    return invalid('The width of free geometry is a number above 0.');
   }
+  if (!isFiniteNumber(height) || height <= 0) {
+    return invalid('The height of free geometry is a number above 0.');
+  }
+  if (width > GEOMETRY_CAPS.box) return tooLarge('The width of free geometry is at most 100,000.');
+  if (height > GEOMETRY_CAPS.box)
+    return tooLarge('The height of free geometry is at most 100,000.');
   if (!Array.isArray(outline) || outline.length === 0) {
     return invalid('The outline of free geometry holds 1 to 64 contours.');
   }
   if (outline.length > GEOMETRY_CAPS.contours) {
     return tooLarge(
-      `The outline of free geometry holds at most ${GEOMETRY_CAPS.contours} contours, not ${outline.length}.`,
+      `The outline of free geometry holds at most 64 contours, not ${outline.length}.`,
     );
   }
   if (keepProportions !== undefined && typeof keepProportions !== 'boolean') {
@@ -151,7 +147,7 @@ function readUncached(geometry: GeometryInput): GeometryRead {
   const text = geometryText(geometry);
   if (text > GEOMETRY_CAPS.text) {
     return tooLarge(
-      `Free geometry holds at most ${GEOMETRY_CAPS.text.toLocaleString('en')} characters of path data and points, not ${text.toLocaleString('en')}.`,
+      `Free geometry holds at most 32,768 characters of path data and points, not ${text}.`,
     );
   }
   const contours: { start: Point; segments: Segment[]; role: 'fill' | 'line' }[] = [];
@@ -265,9 +261,7 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 function tooManySegments(): GeometryRead {
-  return tooLarge(
-    `Free geometry holds at most ${GEOMETRY_CAPS.segments.toLocaleString('en')} segments, path commands and points.`,
-  );
+  return tooLarge('Free geometry holds at most 2,000 segments, path commands and points.');
 }
 
 function number(value: number): string {

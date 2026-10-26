@@ -19,6 +19,8 @@ export {
   geometryText,
   readGeometry,
 } from './outline';
+export type { GeometryFindings } from './files';
+export { geometryFindings } from './files';
 export type { BoxSide, FittedOutline, FlatContour } from './fit';
 export {
   FLATTENING_TOLERANCE,

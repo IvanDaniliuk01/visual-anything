@@ -189,6 +189,30 @@
           ],
           "description": "The image its shapes show; `none` shows none, whatever is inherited."
         },
+        "geometry": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/FreeGeometry"
+            },
+            {
+              "type": "string",
+              "const": "none"
+            }
+          ],
+          "description": "Its shapes' own outline, drawn in place of their kind (ADR 0066); `none` takes an inherited one away, so that the kind is drawn again."
+        },
+        "part": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PartReference"
+            },
+            {
+              "type": "string",
+              "const": "none"
+            }
+          ],
+          "description": "The named part of an SVG image its shapes are drawn as (ADR 0067); `none` takes an inherited one away."
+        },
         "levels": {
           "type": "array",
           "items": {
@@ -382,9 +406,10 @@
           "type": "string",
           "enum": [
             "icon",
-            "drawing"
+            "drawing",
+            "parts"
           ],
-          "description": "`icon`, the default: small, beside the name, inside the shape. `drawing`: on a plate in place of the shape, with the name under it. Shapes that hold other shapes or draw rows always show it as an icon in their header, and rows as a small icon before their name."
+          "description": "`icon`, the default: small, beside the name, inside the shape. `drawing`: on a plate in place of the shape, with the name under it. `parts`: the picture under the shape's header, its contents anchored to its named parts drawn in their places (ADR 0067). Shapes that draw rows always show it as an icon in their header, and rows as a small icon before their name."
         },
         "tint": {
           "$ref": "#/definitions/Color",
@@ -396,6 +421,233 @@
       ],
       "additionalProperties": false,
       "description": "A picture an appearance shows."
+    },
+    "FreeGeometry": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "number",
+          "description": "The width of the box its coordinates are written in, like an SVG view box from its top left.",
+          "exclusiveMinimum": 0,
+          "maximum": 100000
+        },
+        "height": {
+          "type": "number",
+          "description": "The height of that box.",
+          "exclusiveMinimum": 0,
+          "maximum": 100000
+        },
+        "outline": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/GeometryContour"
+          },
+          "description": "Its contours.",
+          "minItems": 1,
+          "maxItems": 64
+        },
+        "keepProportions": {
+          "type": "boolean",
+          "description": "Whether its box keeps its proportions, centred in the shape; otherwise it is stretched to it."
+        },
+        "label": {
+          "$ref": "#/definitions/GeometryLabel",
+          "description": "Where its shapes write the name and the detail, in the box's coordinates."
+        }
+      },
+      "required": [
+        "width",
+        "height",
+        "outline"
+      ],
+      "additionalProperties": false,
+      "description": "A shape's own outline (ADR 0066): closed contours written in a box of their own, drawn filled and stroked in the shape's colors, a contour inside an odd number of others cut out as a hole."
+    },
+    "GeometryContour": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "path",
+            "polygon",
+            "ellipse"
+          ]
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "path"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/PathContour"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "polygon"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/PolygonContour"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ellipse"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/EllipseContour"
+          }
+        }
+      ],
+      "description": "One contour of free geometry."
+    },
+    "PathContour": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "path"
+        },
+        "d": {
+          "type": "string",
+          "description": "SVG path data, with M, L, H, V, C, S, Q, T, A and Z, absolute or relative.",
+          "minLength": 1,
+          "maxLength": 32768
+        }
+      },
+      "required": [
+        "kind",
+        "d"
+      ],
+      "additionalProperties": false,
+      "description": "Contours as SVG path data: each subpath one contour, closed whether or not it ends with Z."
+    },
+    "PolygonContour": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "polygon"
+        },
+        "points": {
+          "type": "string",
+          "description": "Three points or more, as x,y pairs.",
+          "minLength": 1,
+          "maxLength": 32768
+        }
+      },
+      "required": [
+        "kind",
+        "points"
+      ],
+      "additionalProperties": false,
+      "description": "A polygon, its points written as SVG writes them."
+    },
+    "EllipseContour": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "ellipse"
+        },
+        "cx": {
+          "type": "number"
+        },
+        "cy": {
+          "type": "number"
+        },
+        "rx": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "ry": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "kind",
+        "cx",
+        "cy",
+        "rx",
+        "ry"
+      ],
+      "additionalProperties": false,
+      "description": "An ellipse."
+    },
+    "GeometryLabel": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "additionalProperties": false,
+      "description": "A rectangle of free geometry's box."
+    },
+    "PartReference": {
+      "type": "object",
+      "properties": {
+        "part": {
+          "type": "string",
+          "description": "The part's id in the image.",
+          "pattern": "^[A-Za-z_][\\w.-]{0,63}$"
+        },
+        "image": {
+          "$ref": "#/definitions/Id",
+          "description": "The image that names it; left out, the image the element's container shows with its parts."
+        }
+      },
+      "required": [
+        "part"
+      ],
+      "additionalProperties": false,
+      "description": "A named part of an SVG image, as an appearance draws its shapes as one (ADR 0067)."
     },
     "LevelOfDetail": {
       "type": "object",
@@ -494,10 +746,23 @@
             "dashed",
             "dotted"
           ]
+        },
+        "route": {
+          "$ref": "#/definitions/RouteStyle",
+          "description": "The style of its relations' automatic routes (ADR 0069), over the view's; `orthogonal` undoes an inherited one."
         }
       },
       "additionalProperties": false,
       "description": "How a relation is drawn."
+    },
+    "RouteStyle": {
+      "type": "string",
+      "enum": [
+        "orthogonal",
+        "straight",
+        "curved"
+      ],
+      "description": "How a line runs between its ends: square corners, straight, or a smooth curve."
     }
   }
 }

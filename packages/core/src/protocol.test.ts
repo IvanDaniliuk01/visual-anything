@@ -31,8 +31,8 @@ const project: ProjectSnapshot = {
 };
 
 describe('PROTOCOL_VERSION', () => {
-  it('is 6, since a destination can open another project through its own program, and live values travel on it', () => {
-    expect(PROTOCOL_VERSION).toBe(6);
+  it('is 7, since project files can hold free geometry, named parts and automatic route styles', () => {
+    expect(PROTOCOL_VERSION).toBe(7);
   });
 
   it('names the launch code and the token in the address and on the live connection', () => {

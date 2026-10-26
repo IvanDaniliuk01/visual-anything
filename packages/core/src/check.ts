@@ -19,6 +19,7 @@ import { routeWarnings } from './routes';
 import { cappedWarnings, choiceWarnings, containmentCycles, limitWarnings } from './rules';
 import type { ProjectSnapshot } from './snapshot';
 import { definitionsIn, modelIndexOf } from './state';
+import { geometryFindings } from './geometry';
 
 /** What is wrong with a project. */
 export interface ProjectCheck {
@@ -44,6 +45,8 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
     );
   }
   warnings.push(...appearanceWarnings(state, definitions));
+  // Free geometry that is not geometry, or past a file's cap, is drawn as its kind (ADR 0066).
+  warnings.push(...geometryFindings(state).warnings);
   // Package code that cannot run (ADR 0054).
   warnings.push(...codeWarnings(state));
   for (const file of state.packages) {

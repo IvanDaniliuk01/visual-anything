@@ -115,6 +115,8 @@ describe('resolveAppearance', () => {
       'contentsAsRows',
       'connectionPoints',
       'image',
+      'geometry',
+      'part',
       'levels',
       'expandFrom',
     ]);
@@ -197,6 +199,9 @@ describe('traitSources', () => {
       connectionPoints: 'layered.service',
       // Nothing in the chain shows an image, so it comes from Essence, which shows none.
       image: 'essence',
+      // Nor gives an outline of its own or a part to draw as (ADR 0066, ADR 0067).
+      geometry: 'essence',
+      part: 'essence',
       // Nor declares levels of detail or a scale to expand from (ADR 0055).
       levels: 'essence',
       expandFrom: 'essence',

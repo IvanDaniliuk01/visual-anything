@@ -369,6 +369,16 @@ export interface Appearance {
   /** The image its shapes show; `none` shows none, whatever is inherited. */
   image?: AppearanceImage | 'none';
   /**
+   * Its shapes' own outline, drawn in place of their kind (ADR 0066); `none` takes an inherited one
+   * away, so that the kind is drawn again.
+   */
+  geometry?: FreeGeometry | 'none';
+  /**
+   * The named part of an SVG image its shapes are drawn as (ADR 0067); `none` takes an inherited one
+   * away.
+   */
+  part?: PartReference | 'none';
+  /**
    * What its shapes show as the canvas zooms (ADR 0055): levels by the scale each starts at, the
    * highest reached winning, and below the first a silhouette. An empty list follows the canvas's own
    * steps, whatever is inherited; left out, they are inherited.
@@ -384,6 +394,104 @@ export interface Appearance {
    * @maximum 8
    */
   expandFrom?: number;
+}
+
+/**
+ * A shape's own outline (ADR 0066): closed contours written in a box of their own, drawn filled and
+ * stroked in the shape's colors, a contour inside an odd number of others cut out as a hole.
+ */
+export interface FreeGeometry {
+  /**
+   * The width of the box its coordinates are written in, like an SVG view box from its top left.
+   *
+   * @exclusiveMinimum 0
+   * @maximum 100000
+   */
+  width: number;
+  /**
+   * The height of that box.
+   *
+   * @exclusiveMinimum 0
+   * @maximum 100000
+   */
+  height: number;
+  /**
+   * Its contours.
+   *
+   * @minItems 1
+   * @maxItems 64
+   */
+  outline: GeometryContour[];
+  /** Whether its box keeps its proportions, centred in the shape; otherwise it is stretched to it. */
+  keepProportions?: boolean;
+  /** Where its shapes write the name and the detail, in the box's coordinates. */
+  label?: GeometryLabel;
+}
+
+/**
+ * One contour of free geometry.
+ *
+ * @discriminator kind
+ */
+export type GeometryContour = PathContour | PolygonContour | EllipseContour;
+
+/** Contours as SVG path data: each subpath one contour, closed whether or not it ends with Z. */
+export interface PathContour {
+  kind: 'path';
+  /**
+   * SVG path data, with M, L, H, V, C, S, Q, T, A and Z, absolute or relative.
+   *
+   * @minLength 1
+   * @maxLength 32768
+   */
+  d: string;
+}
+
+/** A polygon, its points written as SVG writes them. */
+export interface PolygonContour {
+  kind: 'polygon';
+  /**
+   * Three points or more, as x,y pairs.
+   *
+   * @minLength 1
+   * @maxLength 32768
+   */
+  points: string;
+}
+
+/** An ellipse. */
+export interface EllipseContour {
+  kind: 'ellipse';
+  cx: number;
+  cy: number;
+  /** @exclusiveMinimum 0 */
+  rx: number;
+  /** @exclusiveMinimum 0 */
+  ry: number;
+}
+
+/** A rectangle of free geometry's box. */
+export interface GeometryLabel {
+  x: number;
+  y: number;
+  /** @exclusiveMinimum 0 */
+  width: number;
+  /** @exclusiveMinimum 0 */
+  height: number;
+}
+
+/** A named part of an SVG image, as an appearance draws its shapes as one (ADR 0067). */
+export interface PartReference {
+  /**
+   * The part's id in the image.
+   *
+   * @pattern ^[A-Za-z_][\w.-]{0,63}$
+   */
+  part: string;
+  /**
+   * The image that names it; left out, the image the element's container shows with its parts.
+   */
+  image?: Id;
 }
 
 /** What a shape writes under its element's name, on one line. */
@@ -465,7 +573,15 @@ export interface RelationAppearance {
    */
   width?: number;
   dash?: 'solid' | 'dashed' | 'dotted';
+  /**
+   * The style of its relations' automatic routes (ADR 0069), over the view's; `orthogonal` undoes an
+   * inherited one.
+   */
+  route?: RouteStyle;
 }
+
+/** How a line runs between its ends: square corners, straight, or a smooth curve. */
+export type RouteStyle = 'orthogonal' | 'straight' | 'curved';
 
 /**
  * The contents of a `.vaview` file: a projection of the model onto the canvas, with its own positions.
@@ -522,6 +638,11 @@ export interface ViewFile {
    * never left out. Left out when it has none.
    */
   relationTypesLeftOut?: RelationTypesLeftOut;
+  /**
+   * How this view draws the automatic routes of the relations whose appearances set no route (ADR
+   * 0069). Left out, they are orthogonal.
+   */
+  routeStyle?: 'straight' | 'curved';
   /**
    * How this view colors, sizes, marks or fades its shapes by their attributes, in order (ADR 0055):
    * each channel of a shape is set by the first overlay that sets it. Left out when it has none.
@@ -645,10 +766,10 @@ export interface RelationRoute {
   /** Where the line attaches to the relation's `to` end. */
   to?: EndAttachment;
   /**
-   * `straight` runs straight from point to point and `curved` runs a smooth curve through them; left
-   * out, the route is orthogonal.
+   * `orthogonal` runs with square corners, `straight` straight from point to point and `curved` a
+   * smooth curve through them; left out, the route takes its automatic style (ADR 0069).
    */
-  style?: 'straight' | 'curved';
+  style?: RouteStyle;
   /**
    * The container whose shape the bend points are relative to: one that holds the shapes of both
    * ends, the nearest when they were set. Left out, they are relative to the canvas. While its shape

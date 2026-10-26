@@ -132,7 +132,8 @@ export function imageLookOf(
     id: shown.image,
     image,
     serial: imageSerial(image),
-    placement: shown.placement ?? 'icon',
+    // A drawing with parts (ADR 0067) is drawn as a drawing until M8b's canvas task draws its parts.
+    placement: shown.placement === 'parts' ? 'drawing' : (shown.placement ?? 'icon'),
     ...(shown.tint === undefined ? {} : { tint: shown.tint }),
   };
 }
