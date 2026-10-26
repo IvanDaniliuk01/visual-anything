@@ -187,7 +187,7 @@ Give appearanceTraits to change some traits and keep the others: a value sets a 
 Shapes' traits: shape (rectangle, rounded-rectangle, ellipse, cylinder or person), fill, stroke, width and height (canvas units), detail, contentsAsRows, connectionPoints, image (from list_images), geometry, part, levels and expandFrom (set_levels explains those). Lines' traits: stroke, width, dash (solid, dashed or dotted) and route.
 
 - geometry: the shapes' own outline, drawn in place of their kind: { width, height, outline, keepProportions?, label? }. width and height are the box its coordinates are written in, from its top left; outline holds 1 to 64 contours, { "kind": "path", "d" } in SVG path data (M L H V C S Q T A Z), { "kind": "polygon", "points": "x,y x,y …" } or { "kind": "ellipse", cx, cy, rx, ry }. A contour inside another is a hole. label is where the name goes, in the box. At most 2,000 segments and 32 KiB of path data. "none" takes an inherited one away.
-- part: { part, image }, a named part of an SVG image the shapes are drawn as; image may be left out for an element inside a shape that shows its image with its parts. "none" takes it away. A part the picture lacks is warned about (unknown-part).
+- part: { part, image }, a named part of an SVG image the shapes are drawn as; image may be left out for an element inside a shape that shows its image with its parts. "none" takes it away. A part the picture lacks is warned about (unknown-part). list_image_parts lists a picture's parts, and anchor_parts anchors a whole drawing's contents at once.
 - route: the style of automatic routes, orthogonal, straight or curved. It comes before a view's routeStyle (update_view).
 
 Colors are #RRGGBB, drawn as stored in both themes. A line needs 3:1 against both canvases: the answer warns about a color under it, and about shapes that blend into a canvas, and never refuses one.
@@ -311,7 +311,8 @@ const REFUSAL_HINTS: Readonly<Record<string, string>> = {
     'Free geometry is { width, height, outline }, its outline 1 to 64 contours of SVG path data (M L H V C S Q T A Z), polygon points or ellipses that stay inside the box.',
   'geometry-too-large':
     'Free geometry holds at most 64 contours, 2,000 segments and 32 KiB of path data and points: simplify the outline.',
-  'unknown-image': 'list_images lists the images a part can name, by id.',
+  'unknown-image':
+    'list_images lists the images a part can name, by id, and list_image_parts their parts.',
 };
 
 /** A refusal with what to do about the codes it names, from {@link REFUSAL_HINTS}. */

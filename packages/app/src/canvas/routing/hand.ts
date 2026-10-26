@@ -7,6 +7,8 @@
  */
 import type { RouteStyle, Side } from '@visual-anything/core';
 import type { Point, Rect } from '../geometry';
+import type { PlacedOutline } from '../outlines';
+import { carriedIn, innerPointOf, lastExit, nearestOnOutline, onlyStrokes } from './outline-ends';
 
 export type { RouteStyle, Side } from '@visual-anything/core';
 
@@ -37,9 +39,18 @@ export interface Attach {
 export type HandEnd =
   /**
    * A shape, by its rectangle: attached where `attach` says, or automatically without it, at the
-   * connection point of `points` that faces its neighbour when it has any.
+   * connection point of `points` that faces its neighbour when it has any. With `outline`, its own
+   * outline placed on the canvas (ADR 0066, ADR 0067), it is attached on that outline: a place on a
+   * side is carried in to it, an orthogonal end carried on to it, and a straight or curved one
+   * attached where the line from its inner point last leaves it.
    */
-  | { kind: 'shape'; rect: Rect; attach?: Attach; points?: readonly Attach[] }
+  | {
+      kind: 'shape';
+      rect: Rect;
+      attach?: Attach;
+      points?: readonly Attach[];
+      outline?: PlacedOutline;
+    }
   /** A row, or the header of a shape that draws rows: beside its container, on one side, at `y`. */
   | { kind: 'side'; container: Rect; y: number; lane: number; side: 'left' | 'right' }
   /** The middle of another relation's line. */
@@ -204,6 +215,11 @@ export function anchorOf(end: HandEnd): Point {
     case 'side':
       return { x: sideX(end), y: end.y };
     case 'shape':
+      if (end.outline) {
+        return end.attach
+          ? carriedIn(end.outline, end.rect, end.attach.side, end.attach.at).point
+          : innerPointOf(end.outline);
+      }
       return end.attach
         ? attachPoint(end.rect, end.attach)
         : { x: end.rect.x + end.rect.width / 2, y: end.rect.y + end.rect.height / 2 };
@@ -239,17 +255,59 @@ function startOf(end: HandEnd, toward: Point, style: RouteStyle, sibling: number
       };
     }
     case 'shape': {
-      const { rect } = end;
+      const { rect, outline } = end;
       const attach = end.attach ?? facingPoint(rect, end.points ?? [], toward, sibling);
-      if (attach) return { point: attachPoint(rect, attach), side: attach.side, rect, stub: STUB };
+      if (attach) {
+        const point = outline
+          ? carriedIn(outline, rect, attach.side, attach.at).point
+          : attachPoint(rect, attach);
+        return { point, side: attach.side, rect, stub: STUB };
+      }
+      // A part of lines alone, such as a nerve, at its lines' point nearest the neighbour.
+      if (outline && onlyStrokes(outline)) {
+        return { point: nearestOnOutline(outline, toward).point, stub: 0 };
+      }
       if (style === 'orthogonal') {
         const side = sideFacing(rect, toward);
-        return { point: automaticOnSide(rect, side, toward), side, rect, stub: 0 };
+        const point = automaticOnSide(rect, side, toward);
+        if (!outline) return { point, side, rect, stub: 0 };
+        // Carried on from the side to the outline, so that the route stays orthogonal.
+        const at = placeAlong(rect, side, point);
+        return { point: carriedIn(outline, rect, side, at).point, side, rect, stub: 0 };
+      }
+      if (outline) {
+        const inner = innerPointOf(outline);
+        const point = lastExit(outline, inner, toward) ?? nearestOnOutline(outline, toward).point;
+        return { point, side: sideLeftBy(rect, inner, toward), rect, stub: 0 };
       }
       const crossing = borderCrossing(rect, toward);
       return { ...crossing, rect, stub: 0 };
     }
   }
+}
+
+/** Where a point on a side of a rectangle sits along it, from 0 at its left or top end to 1. */
+function placeAlong(rect: Rect, side: Side, point: Point): number {
+  const horizontal = side === 'top' || side === 'bottom';
+  const length = horizontal ? rect.width : rect.height;
+  if (!(length > 0)) return 0.5;
+  return clamp((horizontal ? point.x - rect.x : point.y - rect.y) / length, 0, 1);
+}
+
+/**
+ * The side of a rectangle a ray from `from`, a point inside it, toward `toward` leaves it by: the
+ * side whose direction a curve leaves an outline inside the rectangle along.
+ */
+export function sideLeftBy(rect: Rect, from: Point, toward: Point): Side {
+  const dx = toward.x - from.x;
+  const dy = toward.y - from.y;
+  if (dx === 0 && dy === 0) return sideFacing(rect, toward);
+  const alongX =
+    dx > 0 ? (rect.x + rect.width - from.x) / dx : dx < 0 ? (rect.x - from.x) / dx : Infinity;
+  const alongY =
+    dy > 0 ? (rect.y + rect.height - from.y) / dy : dy < 0 ? (rect.y - from.y) / dy : Infinity;
+  if (alongX <= alongY) return dx >= 0 ? 'right' : 'left';
+  return dy >= 0 ? 'bottom' : 'top';
 }
 
 function sideX(end: Extract<HandEnd, { kind: 'side' }>): number {

@@ -119,7 +119,10 @@ export function movingShapes(indexed: IndexedScene, selection: Selection): Eleme
 /** The shape a move takes for a shape: its container's, for a row, however deep; itself otherwise. */
 function containerOfRow(indexed: IndexedScene, shape: ElementShape): ElementShape {
   let moved = shape;
-  while (moved.row !== undefined && moved.containerShape !== undefined) {
+  while (
+    (moved.row !== undefined || moved.part?.inDrawing === true) &&
+    moved.containerShape !== undefined
+  ) {
     const container = indexed.byKey.get(moved.containerShape);
     if (!container) break;
     moved = container;

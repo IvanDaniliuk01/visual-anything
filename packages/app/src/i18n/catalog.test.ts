@@ -388,6 +388,27 @@ const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
   { word: /\batributos? derivados?\b/i },
   { word: /\bconfianza\b/i },
   { word: /\blistas? blancas?\b/i },
+  // M8b W55: free geometry, named parts, drawings with parts, anchored parts and imported drawings
+  // (ADR 0066, 0067, 0068). "Contour" alone is "contorno", which is also what an outline is called,
+  // and "free shape" is "forma libre", the term for notes and arrows, so neither can be forbidden.
+  // "Overlay" is "superposición", a term of its own. A bitmap is "mapa de bits", a shape sent to the
+  // back sits "al fondo", and the read-only page is a file "para compartir, incrustar y leer".
+  { word: /\bformas? personalizadas?\b/i },
+  { word: /\best[eé]nciles?\b|\bestarcidos?\b/i },
+  { word: /\bformas? vectoriales?\b/i },
+  { word: /\bregi[oó]n(es)?\b/i },
+  { word: /\bzonas? activas?\b|\bpuntos? calientes?\b/i },
+  { word: /\bsubim[aá]gen(es)?\b/i },
+  { word: /\bl[aá]minas?\b|\bplacas?\b/i },
+  { word: /\batlas\b/i },
+  { word: /\bmapas?\b/i, unless: /\bmapas? de bits\b/i },
+  { word: /\bfondos?\b/i, unless: /\b(al|del|desde el) fondo\b/i },
+  { word: /\b[aá]reas? mapeadas?\b|\bzonas? mapeadas?\b/i },
+  { word: /\bvistas? web\b/i },
+  { word: /\bincrust/i, unless: /\bcompartir, incrustar y leer\b/i },
+  { word: /\bcomponentes? HTML\b/i },
+  { word: /\biframes?\b/i },
+  { word: /\bcapturas? de pantalla\b/i },
 ];
 
 /** Texts given to t() that Spanish writes the same: values and punctuation only. */

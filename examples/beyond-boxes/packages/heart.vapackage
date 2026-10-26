@@ -1,0 +1,229 @@
+{
+  "id": "heart",
+  "name": "Heart",
+  "description": "The heart and the blood it pumps: its chambers, septum, valves and main vessels, drawn as the named parts of one picture, with the lungs and the body the blood flows through.",
+  "version": "1.0.0",
+  "license": "CC0-1.0",
+  "attribution": "Visual Anything contributors",
+  "components": [
+    {
+      "id": "heart.organ",
+      "name": "Organ",
+      "derivesFrom": "essence",
+      "description": "An organ the blood flows through.",
+      "appearance": {
+        "shape": "rounded-rectangle",
+        "fill": "#F6E3E0",
+        "stroke": "#9A4038"
+      }
+    },
+    {
+      "id": "heart.heart",
+      "name": "Heart",
+      "derivesFrom": "heart.organ",
+      "description": "The heart, drawn with its parts: what sits inside it and names one of the picture’s parts is drawn as that part.",
+      "appearance": {
+        "image": {
+          "image": "heart.heart-picture",
+          "placement": "parts"
+        }
+      }
+    },
+    {
+      "id": "heart.lungs",
+      "name": "Lungs",
+      "derivesFrom": "heart.organ",
+      "description": "Where the blood gives off carbon dioxide and takes up oxygen.",
+      "appearance": {
+        "fill": "#F2B8B0",
+        "width": 200,
+        "height": 170,
+        "geometry": {
+          "width": 200,
+          "height": 170,
+          "outline": [
+            {
+              "kind": "path",
+              "d": "M62 24 C40 26 20 52 12 84 C4 116 4 146 10 162 C30 154 56 150 90 160 C94 130 94 96 90 62 C88 40 80 24 62 24 Z"
+            },
+            {
+              "kind": "path",
+              "d": "M138 24 C160 26 180 52 188 84 C196 116 196 146 190 162 C170 154 150 150 120 160 C124 148 132 138 130 128 C128 118 112 116 110 104 C108 90 110 74 112 62 C114 40 120 24 138 24 Z"
+            },
+            {
+              "kind": "path",
+              "d": "M95 0 L105 0 L105 36 L110 46 L106 50 L100 42 L94 50 L90 46 L95 36 Z"
+            }
+          ],
+          "keepProportions": true,
+          "label": {
+            "x": 14,
+            "y": 86,
+            "width": 74,
+            "height": 32
+          }
+        }
+      }
+    },
+    {
+      "id": "heart.body",
+      "name": "Body",
+      "derivesFrom": "essence",
+      "description": "The tissues the blood brings oxygen to and takes carbon dioxide from.",
+      "appearance": {
+        "shape": "person",
+        "fill": "#F3E6D8",
+        "stroke": "#7A5B3A",
+        "width": 120,
+        "height": 160
+      }
+    },
+    {
+      "id": "heart.chamber",
+      "name": "Chamber",
+      "derivesFrom": "essence",
+      "description": "A chamber of the heart: an atrium that receives blood, or a ventricle that pumps it out.",
+      "attributes": [
+        {
+          "name": "blood",
+          "type": "string",
+          "description": "The blood it holds.",
+          "choices": [
+            "oxygen-poor",
+            "oxygen-rich"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "heart.valve",
+      "name": "Valve",
+      "derivesFrom": "essence",
+      "description": "A valve that lets blood through one way only.",
+      "attributes": [
+        {
+          "name": "cusps",
+          "type": "number",
+          "description": "How many flaps it closes with."
+        }
+      ]
+    },
+    {
+      "id": "heart.vessel",
+      "name": "Vessel",
+      "derivesFrom": "essence",
+      "description": "A blood vessel that brings blood to the heart or takes it away.",
+      "attributes": [
+        {
+          "name": "blood",
+          "type": "string",
+          "description": "The blood it carries.",
+          "choices": [
+            "oxygen-poor",
+            "oxygen-rich"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "heart.wall",
+      "name": "Wall",
+      "derivesFrom": "essence",
+      "description": "A wall of the heart’s muscle."
+    },
+    {
+      "id": "heart.pacemaker",
+      "name": "Pacemaker",
+      "derivesFrom": "essence",
+      "description": "Tissue that starts each heartbeat with an electrical signal.",
+      "appearance": {
+        "shape": "rounded-rectangle",
+        "fill": "#FBEFC9",
+        "stroke": "#B7791F",
+        "width": 160,
+        "height": 56
+      }
+    },
+    {
+      "id": "heart.card",
+      "name": "Card",
+      "derivesFrom": "essence",
+      "description": "A card of facts, shown as a drawing imported from HTML.",
+      "appearance": {
+        "shape": "rectangle",
+        "fill": "#FFFFFF",
+        "stroke": "#9A4038"
+      }
+    }
+  ],
+  "relationTypes": [
+    {
+      "id": "heart.is-part-of",
+      "name": "is part of",
+      "derivesFrom": "relates-to",
+      "description": "Places a part inside the organ it belongs to.",
+      "direction": "directed",
+      "nests": true
+    },
+    {
+      "id": "heart.flows-to",
+      "name": "flows to",
+      "derivesFrom": "relates-to",
+      "description": "Blood flows from one end to the other.",
+      "direction": "directed",
+      "appearance": {
+        "width": 2
+      }
+    },
+    {
+      "id": "heart.sends-oxygen-poor-blood-to",
+      "name": "sends oxygen-poor blood to",
+      "derivesFrom": "heart.flows-to",
+      "description": "Blood that has given its oxygen to the body flows on, toward the lungs.",
+      "appearance": {
+        "stroke": "#2F5FA7"
+      }
+    },
+    {
+      "id": "heart.sends-oxygen-rich-blood-to",
+      "name": "sends oxygen-rich blood to",
+      "derivesFrom": "heart.flows-to",
+      "description": "Blood that has taken up oxygen in the lungs flows on, toward the body.",
+      "appearance": {
+        "stroke": "#B3261E"
+      }
+    },
+    {
+      "id": "heart.paces",
+      "name": "paces",
+      "derivesFrom": "relates-to",
+      "description": "Sets the rhythm of a chamber with an electrical signal. Its lines are drawn straight in every view.",
+      "direction": "directed",
+      "appearance": {
+        "stroke": "#B7791F",
+        "dash": "dashed",
+        "route": "straight"
+      },
+      "limits": {
+        "from": [
+          "heart.pacemaker"
+        ],
+        "to": [
+          "heart.chamber"
+        ]
+      }
+    }
+  ],
+  "images": [
+    {
+      "kind": "svg",
+      "id": "heart.heart-picture",
+      "name": "Heart",
+      "source": "Drawn for Visual Anything",
+      "license": "CC0-1.0",
+      "width": 520,
+      "height": 600,
+      "svg": "<svg viewBox=\"0 0 520 600\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M56 232 C56 212 70 198 92 198 C200 190 330 190 436 198 C460 198 476 214 476 240 C476 330 452 420 404 492 C378 530 350 562 330 578 C318 588 302 588 292 580 C210 520 120 460 80 390 C62 350 56 290 56 232 Z\" fill=\"#E8A79C\" stroke=\"#9A4038\" stroke-linejoin=\"round\" stroke-width=\"3\"/><path d=\"M96 214 L96 34 C96 28 100 24 106 24 L130 24 C136 24 140 28 140 34 L140 214 Z\" fill=\"#5577C4\" id=\"superior-vena-cava\" stroke=\"#26457F\" stroke-linejoin=\"round\" stroke-width=\"2\"/><path d=\"M96 392 L140 418 L140 586 C140 592 136 596 130 596 L106 596 C100 596 96 592 96 586 Z\" fill=\"#5577C4\" id=\"inferior-vena-cava\" stroke=\"#26457F\" stroke-linejoin=\"round\" stroke-width=\"2\"/><g fill=\"#5577C4\" id=\"pulmonary-artery\" stroke=\"#26457F\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M194 310 L194 196 C194 190 190 186 184 186 L152 186 L152 150 L262 150 L262 186 L248 186 C242 186 238 190 238 196 L238 310 Z\"/><path d=\"M306 150 L392 150 L392 186 L306 186 Z\"/></g><g fill=\"#CC3B32\" id=\"aorta\" stroke=\"#7D1A14\" stroke-linejoin=\"round\" stroke-width=\"2\"><path d=\"M296 52 L296 16 C296 12 298 10 302 10 L306 10 C310 10 312 12 312 16 L312 52 Z\"/><path d=\"M346 44 L346 12 C346 8 348 6 352 6 L354 6 C358 6 360 8 360 12 L360 44 Z\"/><path d=\"M392 52 L392 16 C392 12 394 10 398 10 L400 10 C404 10 406 12 406 16 L406 52 Z\"/><path d=\"M262 306 L262 110 C262 62 300 36 355 36 C410 36 448 62 448 110 L448 200 L404 200 L404 112 C404 90 384 80 355 80 C326 80 306 90 306 112 L306 306 Z\"/></g><path d=\"M456 230 L506 230 C511 230 514 233 514 238 L514 242 C514 247 511 250 506 250 L456 250 Z M456 276 L506 276 C511 276 514 279 514 284 L514 288 C514 293 511 296 506 296 L456 296 Z\" fill=\"#CC3B32\" id=\"pulmonary-veins\" stroke=\"#7D1A14\" stroke-linejoin=\"round\" stroke-width=\"2\"/><path d=\"M84 212 L168 212 C174 212 178 216 178 222 L178 420 C178 428 172 432 164 430 C132 424 104 410 90 384 C76 352 70 300 70 252 C70 226 74 212 84 212 Z\" fill=\"#7E9CDA\" id=\"right-atrium\" stroke=\"#2D4E95\" stroke-linejoin=\"round\" stroke-width=\"2\"/><path d=\"M196 322 L234 322 C240 322 243 326 244 332 L287 540 C289 552 281 560 269 554 C235 534 205 512 192 490 C188 482 186 470 186 460 L186 332 C186 326 190 322 196 322 Z\" fill=\"#6386CF\" id=\"right-ventricle\" stroke=\"#2D4E95\" stroke-linejoin=\"round\" stroke-width=\"2\"/><path d=\"M344 210 L440 210 C452 210 460 220 460 232 L460 300 C460 310 452 316 442 316 L344 316 C336 316 330 310 330 302 L330 224 C330 216 336 210 344 210 Z\" fill=\"#E4776C\" id=\"left-atrium\" stroke=\"#8A1F18\" stroke-linejoin=\"round\" stroke-width=\"2\"/><path d=\"M266 318 L306 318 C312 318 316 322 318 328 L320 334 C322 340 326 342 332 342 L428 342 C440 342 446 350 446 362 C444 404 424 446 396 482 C376 510 352 536 334 552 C326 558 320 556 318 548 Z\" fill=\"#D9483E\" id=\"left-ventricle\" stroke=\"#8A1F18\" stroke-linejoin=\"round\" stroke-width=\"2\"/><path d=\"M248 318 L262 318 L312 556 C306 566 298 566 294 556 Z\" fill=\"#B2524A\" id=\"septum\" stroke=\"#6E231E\" stroke-linejoin=\"round\" stroke-width=\"2\"/><path d=\"M172 352 L186 352 L204 366 L190 380 L204 394 L190 408 L204 422 L186 434 L172 434 Z\" fill=\"#F4E4B8\" id=\"tricuspid-valve\" stroke=\"#8C6C2A\" stroke-linejoin=\"round\" stroke-width=\"2\"/><path d=\"M188 324 L188 308 Q197 320 205 308 Q213 320 222 308 Q231 320 240 308 L240 324 Z\" fill=\"#F4E4B8\" id=\"pulmonary-valve\" stroke=\"#8C6C2A\" stroke-linejoin=\"round\" stroke-width=\"2\"/><path d=\"M352 314 L436 314 L436 324 C426 326 412 332 404 346 L394 336 L384 346 C376 332 362 326 352 324 Z\" fill=\"#F4E4B8\" id=\"mitral-valve\" stroke=\"#8C6C2A\" stroke-linejoin=\"round\" stroke-width=\"2\"/><path d=\"M256 320 L256 304 Q265 316 273 304 Q281 316 290 304 Q299 316 308 304 L308 320 Z\" fill=\"#F4E4B8\" id=\"aortic-valve\" stroke=\"#8C6C2A\" stroke-linejoin=\"round\" stroke-width=\"2\"/></svg>"
+    }
+  ]
+}

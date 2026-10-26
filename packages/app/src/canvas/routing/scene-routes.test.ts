@@ -61,6 +61,19 @@ describe('lines routed by hand in the scene', () => {
     expect(line.style).toBeUndefined();
   });
 
+  it('end at a place inside a shape, anywhere on it, as the view says', () => {
+    const project = run(sample, {
+      type: 'set-route',
+      view: VIEW,
+      relation: 'agent-to-api',
+      to: { kind: 'inside', x: 0.25, y: 0.75 },
+    });
+    const line = lineOf(project, 'agent-to-api');
+    const rect = shapeRect(project, 'appointments-api');
+    expect(line.to).toEqual({ x: rect.x + 0.25 * rect.width, y: rect.y + 0.75 * rect.height });
+    expect(line.hand?.route.to).toEqual({ kind: 'inside', x: 0.25, y: 0.75 });
+  });
+
   it('pass through their bend points, relative to the container that holds both ends', () => {
     const project = run(sample, {
       type: 'set-route',

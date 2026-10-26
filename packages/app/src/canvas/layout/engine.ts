@@ -109,6 +109,12 @@ export interface Lifted {
    */
   uAt?: number;
   vAt?: number;
+  /**
+   * For an end on an anchored part of the content, a drawing with parts: the part's inner point,
+   * from the content's top left (ADR 0067). The content then gets a port on its side nearest it.
+   */
+  uPart?: Point;
+  vPart?: Point;
 }
 
 /**
@@ -314,7 +320,12 @@ export async function layOut(
       .filter((child) => !input.shapes[child]?.free)
       .map((child) => tree.rectOf(child));
     if (level === WORLD) kept.push(...input.obstacles);
-    const flow = tree.flowAt(level);
+    // In a drawing with parts, below its picture, whatever its parts relate to (ADR 0067).
+    const pictureBottom = tree.pictureBottomOf(level);
+    if (pictureBottom !== undefined) {
+      kept.push({ x: 0, y: 0, width: 1, height: pictureBottom });
+    }
+    const flow = pictureBottom === undefined ? tree.flowAt(level) : { into: 0, out: 0 };
     const origin = placeBlock(
       bounds,
       level === WORLD
@@ -421,8 +432,28 @@ export function blockGraph(
     toward: 'east' | 'west',
     fixed?: LayoutPort,
     beside?: number,
+    part?: Point,
   ): string => {
     const size = sizes.get(node);
+    // An end on an anchored part is a port on the side of its drawing nearest the part.
+    if (part && size) {
+      const port = partPort(part, size);
+      const key = `^${port.side} ${port.along}`;
+      const portId = `s${node}${key}`;
+      const own = ports.get(node) ?? new Map<number | string, ElkPort>();
+      ports.set(node, own);
+      if (!own.has(key)) {
+        own.set(key, {
+          id: portId,
+          x: port.x,
+          y: port.y,
+          width: 0,
+          height: 0,
+          layoutOptions: { 'elk.port.side': ELK_SIDES[port.side] },
+        });
+      }
+      return portId;
+    }
     // An end on a row, or on the header of a content that draws rows, is a port beside it.
     if (beside !== undefined && size) {
       const portId = `s${node}:${toward}:${beside}`;
@@ -481,8 +512,22 @@ export function blockGraph(
   lifted.forEach((each, at) => {
     if (each.u === each.v) return;
     const reversed = back.has(at);
-    const source = endOf(each.u, each.uDirect, reversed ? 'west' : 'east', each.uPort, each.uAt);
-    const target = endOf(each.v, each.vDirect, reversed ? 'east' : 'west', each.vPort, each.vAt);
+    const source = endOf(
+      each.u,
+      each.uDirect,
+      reversed ? 'west' : 'east',
+      each.uPort,
+      each.uAt,
+      each.uPart,
+    );
+    const target = endOf(
+      each.v,
+      each.vDirect,
+      reversed ? 'east' : 'west',
+      each.vPort,
+      each.vAt,
+      each.vPart,
+    );
     const key = `${source}\u0000${target}`;
     if (seen.has(key)) return;
     seen.add(key);
@@ -515,6 +560,42 @@ export function blockGraph(
     }),
     edges,
   };
+}
+
+/**
+ * Where a drawing with parts takes the relations of one of its parts (ADR 0015's clarification): on
+ * its side nearest the part's inner point, at the place along that side nearest it, rounded to a
+ * unit so that parts close together share a port.
+ */
+export function partPort(
+  part: Point,
+  size: Size,
+): { side: LayoutConnectionPoint['side']; along: number; x: number; y: number } {
+  const x = Math.min(size.width, Math.max(0, part.x));
+  const y = Math.min(size.height, Math.max(0, part.y));
+  const away: [LayoutConnectionPoint['side'], number][] = [
+    ['left', x],
+    ['right', size.width - x],
+    ['top', y],
+    ['bottom', size.height - y],
+  ];
+  let [side, nearest] = away[0] as [LayoutConnectionPoint['side'], number];
+  for (const [each, distance] of away) {
+    if (distance < nearest) {
+      side = each;
+      nearest = distance;
+    }
+  }
+  switch (side) {
+    case 'left':
+      return { side, along: Math.round(y), x: 0, y: Math.round(y) };
+    case 'right':
+      return { side, along: Math.round(y), x: size.width, y: Math.round(y) };
+    case 'top':
+      return { side, along: Math.round(x), x: Math.round(x), y: 0 };
+    case 'bottom':
+      return { side, along: Math.round(x), x: Math.round(x), y: size.height };
+  }
 }
 
 /**
@@ -841,6 +922,8 @@ class Tree {
       const vDirect = belowB === to;
       const uAt = this.besideAt(from, belowA);
       const vAt = this.besideAt(to, belowB);
+      const uPart = this.partOf(from, belowA);
+      const vPart = this.partOf(to, belowB);
       list.push({
         u,
         v,
@@ -850,6 +933,8 @@ class Tree {
         ...(vDirect && ends?.toPort ? { vPort: ends.toPort } : {}),
         ...(uAt === undefined ? {} : { uAt }),
         ...(vAt === undefined ? {} : { vAt }),
+        ...(uPart === undefined ? {} : { uPart }),
+        ...(vPart === undefined ? {} : { vPart }),
       });
       this.lifted.set(level, list);
     } else if (uFree !== vFree) {
@@ -870,6 +955,24 @@ class Tree {
     if (!shape) return undefined;
     if (end === below) return shape.headerAt;
     return shape.rowAt !== undefined && this.parentOf(end) === below ? shape.rowAt : undefined;
+  }
+
+  /**
+   * Where a relation that ends on `end` attaches on `below`, the content of the level that holds
+   * it, when `end` is an anchored part of that content, a drawing with parts (ADR 0067): the part's
+   * inner point, from the drawing's top left.
+   */
+  private partOf(end: number, below: number): Point | undefined {
+    const shape = this.input.shapes[end];
+    if (end === below || shape?.partAt === undefined || this.parentOf(end) !== below) {
+      return undefined;
+    }
+    return shape.partAt;
+  }
+
+  /** Where a level's free contents go below its picture, for a drawing with parts; else none. */
+  pictureBottomOf(level: number): number | undefined {
+    return level === WORLD ? undefined : this.input.shapes[level]?.pictureBottom;
   }
 
   private readonly contents = new Map<number, Map<string, number>>();

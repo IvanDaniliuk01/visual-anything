@@ -5,15 +5,25 @@ import {
   type Command,
   type Definitions,
 } from '@visual-anything/core';
-import { RELATES_TO_ID, type Id, type Relation } from '@visual-anything/schema';
+import { RELATES_TO_ID, type Id, type Relation, type RouteStyle } from '@visual-anything/schema';
 import { useId, useState } from 'react';
 import { useEditor } from '../../editor/EditorContext';
 import { useT } from '../../i18n';
 import { TraitRow } from '../definitions/TraitRow';
 import { ColorHints, ScopeChoice } from './colorParts';
 import { idsOf, lineHints, originText, savedIn, wayBack } from './colors';
-import { ColorControl } from './controls';
+import { ColorControl, SelectControl } from './controls';
 import { definitionColorCommand, relationColorCommand, storedAtLevel } from './recolor';
+import {
+  ROUTE_STYLES,
+  ROUTE_STYLE_NAMES,
+  ROUTE_STYLE_WORDS,
+  inheritedRelationTypeRoute,
+  isRouteStyle,
+  relationRouteCommand,
+  relationTypeRouteCommand,
+  storedRelationTypeRoute,
+} from './routeStyles';
 import { useShownTheme } from './useShownTheme';
 
 interface RelationAppearanceSectionProps {
@@ -120,8 +130,100 @@ export function RelationAppearanceSection({
             />
           )}
         </TraitRow>
+        <RouteStyleRow
+          // A new row for each scope, so that a choice on its way is not shown in the other.
+          key={`route-${scope}`}
+          relation={relation}
+          definitions={definitions}
+          ofType={ofType}
+          disabled={disabled}
+        />
       </ul>
       <ColorHints id={hintId} hints={hints} />
     </section>
+  );
+}
+
+interface RouteStyleRowProps {
+  relation: Relation;
+  definitions: Definitions;
+  /** Whether the row changes every relation of the relation type, or only this one. */
+  ofType: boolean;
+  disabled: boolean;
+}
+
+/**
+ * The style of the relation's automatic route (ADR 0069): its own, as a particularity, or its
+ * relation type's at the level the project can change it, which every view draws it in. Inherited
+ * leaves it to the relation type, or to each view's Lines. A choice for the relation type also takes
+ * back a style of the relation's own, in the same action, so that it follows.
+ */
+function RouteStyleRow({ relation, definitions, ofType, disabled }: RouteStyleRowProps) {
+  const t = useT();
+  const { project } = useEditor();
+  const id = relation.relationType;
+  const relationType = relationTypeOrRelatesTo(definitions, id);
+  const nameOf = (each: Id) => t.definition(each, relationTypeOrRelatesTo(definitions, each).name);
+  const ownRoute = relation.appearance?.route;
+  const typeRoute = storedRelationTypeRoute(project, id);
+  const value = (ofType ? typeRoute : ownRoute) ?? 'inherit';
+  const inherited = ofType
+    ? inheritedRelationTypeRoute(project, id)
+    : relationType.appearance.route;
+  const origin = ofType
+    ? relationType.origins.route
+    : relationAppearanceOriginsOf(relation, definitions).route;
+  const commandFor = (route: RouteStyle | null): Command => {
+    if (!ofType) return relationRouteCommand(relation.id, route);
+    const command = relationTypeRouteCommand(id, route);
+    if (ownRoute === undefined) return command;
+    return {
+      type: 'batch',
+      label: `Change the appearance of the relation type "${relationType.name}"`,
+      commands: [command, relationRouteCommand(relation.id, null)],
+    };
+  };
+
+  return (
+    <TraitRow
+      label={t('Automatic route')}
+      source={originText(origin, nameOf, ofType ? id : undefined)}
+      own={ofType ? typeRoute !== undefined : ownRoute !== undefined}
+      readOnly={disabled}
+      note={
+        ofType && ownRoute !== undefined
+          ? t(
+              'This relation has an automatic route of its own: a change here takes it back, so that it follows.',
+            )
+          : t('Routes chosen by hand in a view keep their own style.')
+      }
+    >
+      {({ id: controlId, describedBy, send }) => (
+        <SelectControl
+          id={controlId}
+          value={value}
+          disabled={disabled}
+          describedBy={describedBy}
+          onCommit={async (next) => {
+            if (next === 'inherit') {
+              if (value !== 'inherit') await send(commandFor(null));
+            } else if (isRouteStyle(next)) {
+              await send(commandFor(next));
+            }
+          }}
+        >
+          <option value="inherit">
+            {inherited === undefined
+              ? t('Inherited: as each view draws its lines')
+              : t('Inherited ({value})', { value: t(ROUTE_STYLE_WORDS[inherited]) })}
+          </option>
+          {ROUTE_STYLES.map((style) => (
+            <option key={style} value={style}>
+              {t(ROUTE_STYLE_NAMES[style])}
+            </option>
+          ))}
+        </SelectControl>
+      )}
+    </TraitRow>
   );
 }
