@@ -36,3 +36,10 @@ This is the first file the program writes outside the project folder; tests alwa
 <!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
 
 - 2026-10-25 (A3): the grid, snapping and the rulers are turned on and off from the canvas toolbar, and the grid and the rulers with Shift+G and Shift+R on the canvas. Snapping applies only while the grid shows, so its toggle stays off until then, and the defaults (no grid, snapping on) keep M2's moves. A change of them while the tab is not connected says that the grid and the rulers apply to this tab only, as a change of the theme or the language says it of them.
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (M11b's plan): **`reviewClaude`**, a boolean, false by default: whether Claude's changes wait as a proposal for the person's review (ADR 0073).
+  - It is set from the history panel.
+  - Like every preference, it travels only over the live connection.
+  - Claude's tools neither read nor change it. Claude learns only that a change of its own was proposed.

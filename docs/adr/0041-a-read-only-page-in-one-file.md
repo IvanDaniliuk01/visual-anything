@@ -114,3 +114,10 @@ Reading a project needs the local program today, so a project cannot be shared, 
 <!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
 
 - 2026-10-26 (W47): **tours travel in a page without their speaker notes** (ADR 0058's clarification of that date), as threads of comments do not travel at all (ADR 0059). The Export dialog says both.
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (M11b's plan): **a page leaves conflicts out** (ADR 0072).
+  - The page's data holds each file as its kind, without its `conflicts` list. So a page made from a project in the middle of a merge shows what its files keep, and carries neither side's other values.
+  - The Export dialog says so when the project holds conflicts.
+  - A page shows no comparison and no proposal.

@@ -52,3 +52,16 @@ We chose this because a process Claude starts must reach a program the person ma
 <!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
 
 - 2026-10-25 (W45): **the endpoint reads live values back, and guidance plays a tour.** The endpoint also takes `live/list`, answered with `live/listed`, so that Claude's read tools show the live values the program keeps (ADR 0063's and ADR 0057's clarifications of this date); its refusal still names "live values" among what it takes. Guidance gains `{ kind: "tour", tour, step? }`, which plays a tour full screen in the open apps as the person would (ADR 0058's clarification of this date), carried by protocol 6 as `layout` is.
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (M11b's plan): **versions and proposals at the endpoint** (ADR 0071, ADR 0073).
+  - **`command` takes an optional `propose: true`.** While the person's preference `reviewClaude` is on, or with `propose`, the program answers the command with `proposal/made` instead of `project/changed`. The answer gives the proposal's id, the change's label, the ids it would create, its warnings and how many apps show it. Nothing is saved or recorded.
+  - **What the endpoint sends Claude about a proposal:**
+    - `proposal/shown`: the proposal's changes, and the operations that turn the project now into the proposed project. The entry point keeps a proposed copy from them, for Claude's reads;
+    - `proposal/closed`: how the proposal ended, and which changes were accepted.
+  - **What it accepts and refuses about a proposal.** It accepts `proposal/withdraw`, which closes Claude's own proposal. It refuses `proposal/accept` and `proposal/refuse`, as it refuses undo: only the person decides.
+  - **Versions, which only read.** It accepts `versions/list` and `version/compare`, answered with `versions/listed` and `version/compared`. They list the versions, and compare one of them with the project now, named only by ids the program listed. The comparison comes without the older project. So `list_versions` and `compare_versions` can read a pull request's changes.
+  - **Guidance gains `{ kind: 'comparison', version, view? }`.** It opens a comparison in the open apps as the person would, and the person ends it.
+  - **Conflicts need no message of their own.** `resolve_conflicts` sends the command `resolve-conflicts`, as Claude's action (ADR 0072).
+  - **The refusal names everything the endpoint takes:** "only commands, guidance, opening the app, asking which package code is approved, live values, versions, withdrawing a proposal and imports from the command line". `claude/messages.ts` keeps this list.

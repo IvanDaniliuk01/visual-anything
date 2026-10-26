@@ -262,7 +262,7 @@ A point a relation's route passes through, set by hand in a view, relative to th
 _Avoid_: waypoint, control point, vertex, elbow
 
 **Guidance**:
-The marks and moves Claude makes live on the open view while it explains: highlighting shapes, focusing on some and dimming the rest, moving the canvas to one, showing a caption, filtering or focusing the view as a person would, opening, playing and stepping through a scenario, asking for a layout, and playing a tour full screen, which is the person's to watch and end from then on. Guidance itself never changes the model, a view file or the history, shows only while the app is open, and the person can end it; a layout it asks for is run by the app and recorded as the app records any layout, as the person's action (ADR 0029). What a collapsed container hides is marked through the container or the aggregated relation that shows it.
+The marks and moves Claude makes live on the open view while it explains: highlighting shapes, focusing on some and dimming the rest, moving the canvas to one, showing a caption, filtering or focusing the view as a person would, opening, playing and stepping through a scenario, asking for a layout, playing a tour full screen, which is the person's to watch and end from then on, and showing a comparison, which the person ends too. Guidance itself never changes the model, a view file or the history, shows only while the app is open, and the person can end it; a layout it asks for is run by the app and recorded as the app records any layout, as the person's action (ADR 0029). What a collapsed container hides is marked through the container or the aggregated relation that shows it.
 _Avoid_: spotlight
 
 **Caption**:
@@ -286,7 +286,7 @@ _Avoid_: log, timeline, version history
 ### Preferences
 
 **Preference**:
-A choice a person makes for themselves on this computer: the theme, the language, whether the grid, snapping and the rulers are on, the colors they picked lately, the package code they approved, and the name and email their comments are signed with. The local program keeps preferences outside every project; they are never in project files or the undo history, though each comment keeps the name and email it was signed with. Claude's tools neither read nor change them, but for one answer: `read_package_code` says whether the person approved a package's code as it is now, and which capabilities they granted it, so that Claude knows whether it runs (ADR 0060). Only the person approves code.
+A choice a person makes for themselves on this computer: the theme, the language, whether the grid, snapping and the rulers are on, the colors they picked lately, the package code they approved, the name and email their comments are signed with, and whether Claude's changes wait as a proposal for their review. The local program keeps preferences outside every project; they are never in project files or the undo history, though each comment keeps the name and email it was signed with. Claude's tools neither read nor change them, but for one answer: `read_package_code` says whether the person approved a package's code as it is now, and which capabilities they granted it, so that Claude knows whether it runs (ADR 0060). Only the person approves code.
 _Avoid_: settings, profile
 
 **Language**:
@@ -332,6 +332,32 @@ _Avoid_: welcome screen, wizard
 **Shared package**:
 A package of a project's own copied from another project, with its images and its ids, and updated from there after a preview of what changed; the two copies live apart (ADR 0051).
 _Avoid_: linked package, imported package, dependency
+
+### Versions
+
+**Version**:
+The project as one commit of its repository holds it, or as the local program opened it or last read it from disk. A version is read and compared, never edited, and never written anywhere (ADR 0071).
+_Avoid_: revision, snapshot, history (the history is the actions since the project opened)
+
+**Comparison**:
+What changed between two versions of a project, worked out by id as a list of changes. It shows as a view drawn before, after, or with its changes marked, in the Changes list, and in exports. It is worked out, never stored (ADR 0070).
+_Avoid_: diff (in the app's text), delta
+
+**Change**:
+One thing a comparison or a proposal holds, added, removed, changed or moved: an element, a relation, a definition, a view itself, a shape's place, a free shape, a scenario, a tour, a thread or the project itself. An element added or removed takes with it its shapes and the nesting relations that place it. A shape is moved when its place in a view differs.
+_Avoid_: delta, hunk, patch, edit (an edit is what a person does)
+
+**Proposal**:
+Changes Claude asks to make, held by the local program while the person reviews them as a comparison. The person accepts them, all or change by change, or refuses them. What is accepted becomes one action of Claude's; nothing of a proposal reaches a file or the history before then (ADR 0073).
+_Avoid_: suggestion, draft, pending change
+
+**Merge driver**:
+The program git runs, once the person's own git configuration names it, to merge two edits of one project file by id. Whatever clashes stays in that file as conflicts (ADR 0072).
+_Avoid_: merge tool (git's word for another program), merge plugin
+
+**Conflict**:
+A place where two edits merged into one project file disagree, kept in that file as data: the value the file keeps, and the other side's. It stays until the person chooses one in the app, and the file still opens meanwhile.
+_Avoid_: merge marker, clash
 
 ### Reading large models
 

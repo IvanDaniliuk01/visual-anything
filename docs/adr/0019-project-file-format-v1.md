@@ -34,3 +34,12 @@ We chose each of these as the simplest representation that keeps the rules in `C
 - 2026-10-26: an id's readable base drops an apostrophe inside a word, straight or curly, so that "Claude's messages" makes `claudes-messages-…` and the view "A command's path" the file `a-commands-path-….vaview`, not `claude-s-messages` and `a-command-s-path`. Only ids made from then on change: every id is made once, with a random suffix, and nothing finds an element by its base.
 <!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
 - 2026-10-26: a project folder may hold files of other kinds, which the program neither reads nor writes, such as the log a scenario was built from. A sample project in the repository keeps such logs in its `logs/` folder, which `.gitignore` keeps beside it (`examples/*/logs/*.log`) despite ignoring other logs, so that the scenario can be checked against the log it came from. Personal data and secrets are cut out of a log before it is kept, as the recipes keep them out of the project.
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+- 2026-10-26 (M11b's plan): **a file may hold the conflicts of a merge.** Each of the seven kinds of file may hold `conflicts`, a list that the merge driver writes (ADR 0072). Each conflict names:
+  - an item of its file, by a key local to that file, such as `element:<id>`, `position:<element> in <container>` or `step:<id>`;
+  - where the value lies inside it;
+  - why it conflicts;
+  - whose value the file keeps;
+  - the other side's value, and the common ancestor's.
+
+  It is data. The file in place is valid as its kind, the project opens with a warning, and the other values are checked only when someone chooses them. Writing keeps the list in the schema's order, as any key. Comparisons and merges name things by id and never by file path (ADR 0070), so a renamed file holds the same view, package, scenario, tour or thread.

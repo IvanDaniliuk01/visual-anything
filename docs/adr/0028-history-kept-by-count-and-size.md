@@ -45,3 +45,12 @@ An undo history can hold fewer than 500 actions when they carry images; the olde
 <!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
 
 - 2026-10-25 (W42): the addendum said Claude "reads the history through its tools as before". No tool of Claude's reads the history, and none did: Claude knows the actions it made from its own answers, and the person reads and undoes the history in the app (ADR-0029). The line now says so.
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (M11b's plan): **proposals stay out of the history until they are accepted** (ADR 0073).
+  - While the person reviews Claude's changes, Claude's commands run on the program's proposed copy of the project. Nothing of them is recorded or saved.
+  - Accepting makes one action of Claude's, whatever was accepted, labelled with Claude's own labels. It is recorded, saved and announced like any other action.
+  - An undo takes it back whole, and does not bring the proposal back.
+  - A reload from disk still clears the history. It keeps the proposal, rebased on what was read.
+  - Comparing versions (ADR 0070) records nothing either.
