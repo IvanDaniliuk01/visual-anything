@@ -67,6 +67,7 @@ import { FOLDERS, newFilePath, type FolderKind } from './layout';
 import { projectDestinationWarnings, type OpenOtherProject } from './other-project';
 import { LiveValues, type LiveKept, type LiveListing } from './live';
 import { PackageFetcher, networkGrantOf, type FetcherOptions } from './live-fetch';
+import type { LogEvent, ProgramEvent } from './program-log';
 import type { PreferencesStore } from './preferences';
 import { toForwardSlashes } from './paths';
 import {
@@ -201,6 +202,11 @@ export interface SessionOptions {
    * how long and how much a fetch may take; the system's resolver, ten seconds and 256 KiB by default.
    */
   fetcher?: FetcherOptions;
+  /**
+   * Where the program's log goes, with `--log` (ADR-0016's clarification of W46): actions, refusals,
+   * apps and Claude attaching and going, and files changed on disk. Absent, nothing is logged.
+   */
+  log?: LogEvent;
 }
 
 /** The outcome of opening a session: the session, or every problem that keeps the project closed. */
@@ -422,8 +428,9 @@ export class Session implements LiveSession {
       this.#send(client, { type: 'preferences/changed', preferences: preferences.current() });
     }
     for (const message of this.#live.greeting()) this.#send(client, message);
+    this.#logAttached('attached', 'app');
     return () => {
-      this.#clients.delete(client);
+      if (this.#clients.delete(client)) this.#logAttached('gone', 'app');
       this.#live.forget(client);
     };
   }
@@ -436,8 +443,9 @@ export class Session implements LiveSession {
       project: this.#state,
       history: this.history,
     });
+    this.#logAttached('attached', 'claude');
     return () => {
-      this.#claudes.delete(client);
+      if (this.#claudes.delete(client)) this.#logAttached('gone', 'claude');
       this.#live.forget(client);
     };
   }
@@ -516,6 +524,12 @@ export class Session implements LiveSession {
           problems: [refusal('invalid-command', reasonOf(error))],
         });
       }
+      this.#log({
+        event: 'refused',
+        request: 'message',
+        author: 'user',
+        codes: ['invalid-command'],
+      });
       return;
     }
     const origin = { client, requestId: message.requestId };
@@ -705,10 +719,10 @@ export class Session implements LiveSession {
     origin: Origin | undefined,
     joins?: number,
   ): Promise<SessionOutcome> {
-    if (this.#closed) return Promise.resolve(this.#refuse(origin, [CLOSED]));
-    return this.#enqueue(() =>
-      this.#guarded(origin, () => this.#run(command, author, origin, joins)),
-    );
+    const outcome = this.#closed
+      ? Promise.resolve(this.#refuse(origin, [CLOSED]))
+      : this.#enqueue(() => this.#guarded(origin, () => this.#run(command, author, origin, joins)));
+    return this.#logRefusal(outcome, 'command', author, () => command);
   }
 
   /**
@@ -718,14 +732,18 @@ export class Session implements LiveSession {
    * cannot be made is refused with its problems, and changes nothing.
    */
   executePlanned(plan: CommandPlan, author: Author, origin?: Origin): Promise<SessionOutcome> {
-    if (this.#closed) return Promise.resolve(this.#refuse(origin, [CLOSED]));
-    return this.#enqueue(() =>
-      this.#guarded(origin, () => {
-        const planned = plan(this.#state);
-        if (!planned.ok) return Promise.resolve(this.#refuse(origin, planned.problems));
-        return this.#run(planned.command, author, origin);
-      }),
-    );
+    let command: Command | undefined;
+    const outcome = this.#closed
+      ? Promise.resolve(this.#refuse(origin, [CLOSED]))
+      : this.#enqueue(() =>
+          this.#guarded(origin, () => {
+            const planned = plan(this.#state);
+            if (!planned.ok) return Promise.resolve(this.#refuse(origin, planned.problems));
+            command = planned.command;
+            return this.#run(planned.command, author, origin);
+          }),
+        );
+    return this.#logRefusal(outcome, 'command', author, () => command);
   }
 
   /**
@@ -767,6 +785,15 @@ export class Session implements LiveSession {
       { kind: 'do', ...action, operations, warnings, created },
       origin,
     );
+    this.#log({
+      event: 'action',
+      kind: action.joins === undefined ? 'done' : 'joined',
+      id: action.joins ?? this.#lastAction,
+      author: action.author,
+      label: action.label,
+      operations: operations.length,
+      created,
+    });
     this.#listHistory();
     return announced;
   }
@@ -850,7 +877,18 @@ export class Session implements LiveSession {
    * stops there, and the request is refused; the steps before it stay done.
    */
   #step(kind: 'undo' | 'redo', origin: Origin | undefined, to?: number): Promise<SessionOutcome> {
-    if (this.#closed) return Promise.resolve(this.#refuse(origin, [CLOSED]));
+    const outcome = this.#closed
+      ? Promise.resolve(this.#refuse(origin, [CLOSED]))
+      : this.#stepped(kind, origin, to);
+    return this.#logRefusal(outcome, kind, 'user', () => undefined);
+  }
+
+  /** Undoes or redoes as `#step` says, in one turn of the queue. */
+  #stepped(
+    kind: 'undo' | 'redo',
+    origin: Origin | undefined,
+    to?: number,
+  ): Promise<SessionOutcome> {
     return this.#enqueue(() =>
       this.#guarded(origin, async () => {
         const steps = to === undefined ? 1 : this.#stepsTo(kind, to);
@@ -878,6 +916,15 @@ export class Session implements LiveSession {
               { kind, label, author, operations, warnings: [], created: [] },
               last ? origin : undefined,
             );
+            this.#log({
+              event: 'action',
+              kind: kind === 'undo' ? 'undone' : 'redone',
+              id: this.#stampOf(step.entry).id,
+              author,
+              label,
+              operations: operations.length,
+              created: [],
+            });
             if (last) return announced;
           }
         } finally {
@@ -943,6 +990,44 @@ export class Session implements LiveSession {
 
   #now(): number {
     return (this.#options.now ?? Date.now)();
+  }
+
+  /** Writes an event to the program's log, when there is one; a log that fails never stops work. */
+  #log(event: ProgramEvent): void {
+    try {
+      this.#options.log?.(event);
+    } catch (error) {
+      this.#err(`Could not write to the log: ${reasonOf(error)}`);
+    }
+  }
+
+  /** Logs how many apps and Claudes are attached, as one attaches or goes. */
+  #logAttached(event: 'attached' | 'gone', who: 'app' | 'claude'): void {
+    this.#log({ event, who, apps: this.#clients.size, claudes: this.#claudes.size });
+  }
+
+  /**
+   * Logs what was asked, once refused, with its problems' codes and the kind of command it was,
+   * never their words; gives the outcome back as it came.
+   */
+  async #logRefusal(
+    outcome: Promise<SessionOutcome>,
+    request: 'command' | 'undo' | 'redo',
+    author: Author,
+    asked: () => unknown,
+  ): Promise<SessionOutcome> {
+    const result = await outcome;
+    if (!result.ok) {
+      const type = commandTypeOf(asked());
+      this.#log({
+        event: 'refused',
+        request,
+        author,
+        ...(type === undefined ? {} : { command: type }),
+        codes: result.problems.map((each) => each.code),
+      });
+    }
+    return result;
   }
 
   /** Tells every open app the history as it is now; Claude does not hear of it. */
@@ -1278,12 +1363,14 @@ export class Session implements LiveSession {
       const message = `${listOf([...changed.keys()])} changed on disk, but the project is not valid now, so the open project is kept:\n${loaded.errors.map(formatProjectProblem).join('\n')}`;
       this.#err(message);
       this.#broadcast({ type: 'notice', level: 'error', message });
+      this.#log({ event: 'files-changed', files: sortedPaths(changed), reloaded: false });
       return;
     }
     this.#rejected = undefined;
     const reloaded = differences(this.#known, loaded.contents);
     if (reloaded.size === 0) return;
     this.#adopt(loaded);
+    this.#log({ event: 'files-changed', files: sortedPaths(reloaded), reloaded: true });
     const reason = `${listOf([...reloaded.keys()])} changed on disk.`;
     this.#out(`Reloaded the project: ${reason}`);
     const announcement: ServerMessage = {
@@ -1377,6 +1464,13 @@ function describeErrors(errors: readonly ValidationError[]): string {
     .join('; ');
 }
 
+/** A command's kind, as its `type` names it, for the log; nothing else of it, and nothing odd. */
+function commandTypeOf(command: unknown): string | undefined {
+  if (typeof command !== 'object' || command === null) return undefined;
+  const { type } = command as { type?: unknown };
+  return typeof type === 'string' && /^[a-z][a-z-]{0,47}$/.test(type) ? type : undefined;
+}
+
 /** The request id of a message that could not be read, when it has a valid one. */
 function requestIdIn(text: string): string | undefined {
   let message: unknown;
@@ -1464,6 +1558,11 @@ function sameDifferences(
     }
   }
   return true;
+}
+
+/** The paths that changed, sorted, as the log writes them: paths only, never what the files hold. */
+function sortedPaths(changed: ReadonlyMap<string, unknown>): string[] {
+  return [...changed.keys()].sort(compareText);
 }
 
 /** Paths in words: "a", "a and b", "a, b and c". */

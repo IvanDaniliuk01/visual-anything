@@ -38,11 +38,12 @@ import { openPreferences, themeHintOf, type PreferencesLocation } from './prefer
 import { formatProjectProblem } from './project';
 import { startServer, type AppSource, type RunningServer } from './server';
 import { openSession, type Session } from './session';
+import { ProgramLog } from './program-log';
 import { StartingSession, startingOn } from './start';
 import { AppNotBuiltError } from './static';
 
 export const USAGE = `Usage: visual-anything [open] [folder] [--view <id> [--select <id>]...] [--port <n>] [--no-open]
-                      [--dev] [--stop-when-idle]
+                      [--dev] [--stop-when-idle] [--log <file>]
        visual-anything mcp [folder] [--dev]
        visual-anything new <folder> [--from <sample>]
        visual-anything export <folder> --view <id> --format <format> [--theme light|dark] [--out <file>]
@@ -70,6 +71,10 @@ which starts a project there. A folder named open, new, mcp, export, import or l
                     repository, not from the executable.
   --stop-when-idle  Stop once no app and no Claude has been connected for a minute, as when
                     Claude started the program.
+  --log <file>      Append one JSON line to file for each action done, undone or redone, each
+                    command refused, each app or Claude attached or gone, and each file of the
+                    project changed on disk. It never holds a token, a launch code, a credential,
+                    a preference or what a file holds.
   -h, --help        Show this help.`;
 
 /** What the command line asks for. */
@@ -82,6 +87,8 @@ export interface CommandLine {
   dev: boolean;
   /** Whether to stop once nothing has been connected for a while. */
   stopWhenIdle: boolean;
+  /** The file to append the program's log to, as written; relative to the working folder. */
+  log?: string;
   help: boolean;
   /** The view state every launch address carries, from `--view` and `--select`; absent without. */
   state?: ViewState;
@@ -143,7 +150,10 @@ export const IDLE_STOP_DELAY = 60_000;
 const KEY_HELP =
   'Press o to open Visual Anything in a new tab, or a to print an address that works once.';
 
-/** Reads the command line: `[folder] [--port <n>] [--no-open] [--dev] [--stop-when-idle] [--help]`. */
+/**
+ * Reads the command line:
+ * `[folder] [--port <n>] [--no-open] [--dev] [--stop-when-idle] [--log <file>] [--help]`.
+ */
 export function parseCommandLine(argv: readonly string[]): ParsedCommandLine {
   let parsed;
   try {
@@ -156,6 +166,7 @@ export function parseCommandLine(argv: readonly string[]): ParsedCommandLine {
         'no-open': { type: 'boolean' },
         dev: { type: 'boolean' },
         'stop-when-idle': { type: 'boolean' },
+        log: { type: 'string' },
         view: { type: 'string' },
         select: { type: 'string', multiple: true },
         help: { type: 'boolean', short: 'h' },
@@ -180,6 +191,9 @@ export function parseCommandLine(argv: readonly string[]): ParsedCommandLine {
   }
   const state = stateOf(values.view, values.select ?? []);
   if (!state.ok) return state;
+  if (values.log !== undefined && values.log.trim() === '') {
+    return { ok: false, message: '--log takes the file to append the log to.' };
+  }
   return {
     ok: true,
     value: {
@@ -189,6 +203,7 @@ export function parseCommandLine(argv: readonly string[]): ParsedCommandLine {
       dev: values.dev === true,
       stopWhenIdle: values['stop-when-idle'] === true,
       help: values.help === true,
+      ...(values.log === undefined ? {} : { log: values.log }),
       ...(state.value === undefined ? {} : { state: state.value }),
     },
   };
@@ -235,6 +250,33 @@ export async function runCommand(
   const joined = await openInRunningProgram(environment, options);
   if (joined !== undefined) return joined;
 
+  // The program's log, with --log: one JSON line per event (ADR-0016's clarification of W46).
+  let programLog: ProgramLog | undefined;
+  if (options.log !== undefined) {
+    const path = resolve(environment.cwd, options.log);
+    try {
+      programLog = await ProgramLog.open(path, { err: (line) => environment.err(line) });
+    } catch (error) {
+      environment.err(
+        `Could not open the log ${toForwardSlashes(path)} to write to it (${errorReason(error)}).`,
+      );
+      return 1;
+    }
+  }
+  try {
+    return await runWithLog(environment, options, programLog);
+  } finally {
+    programLog?.write({ event: 'stopped' });
+    await programLog?.close();
+  }
+}
+
+/** Runs the program once it is known that it starts, with its log when it has one. */
+async function runWithLog(
+  environment: CommandEnvironment,
+  options: CommandLine,
+  programLog: ProgramLog | undefined,
+): Promise<number> {
   const location = environment.preferences ?? { folder: null };
   if (location.warning !== undefined) environment.err(`Warning: ${location.warning}`);
   const { store: preferences, warning } = await openPreferences(location.folder);
@@ -251,6 +293,7 @@ export async function runCommand(
       dev: options.dev,
       ...(environment.startProgram === undefined ? {} : { start: environment.startProgram }),
     }),
+    ...(programLog === undefined ? {} : { log: programLog.write }),
   };
   const { state } = options;
   // A folder that holds nothing yet gets the start screen, from which the person starts a project
@@ -357,6 +400,7 @@ export async function runCommand(
     }
   }
   environment.out(`Visual Anything is running at ${server.address}`);
+  programLog?.write({ event: 'started', folder: toForwardSlashes(folder), port: server.port });
   if (options.dev) {
     environment.out('Dev mode: Vite serves the app from its sources, with hot reload.');
   }
@@ -441,6 +485,7 @@ async function openInRunningProgram(
     // What only a program that starts would use: said, so that nobody wonders why it did nothing.
     const unused = [
       ...(options.dev ? ['--dev'] : []),
+      ...(options.log !== undefined ? ['--log'] : []),
       ...(options.port !== 0 && address !== `http://127.0.0.1:${options.port}/` ? ['--port'] : []),
     ];
     if (unused.length > 0) {
