@@ -507,11 +507,11 @@ Eight milestones in build order, each ending in something you can use, and Track
   - `set_appearance` with `geometry`, `part` and `route`; `update_view` with `routeStyle`; `set_route` with `orthogonal` and the automatic style;
   - `list_image_parts`, `anchor_parts` and `import_drawing`, and the lost parts in `replace_image`'s answer;
   - descriptions with examples of path data and of anchoring an atlas's parts.
-- [ ] **Exports:**
+- [x] **Exports:**
   - the SVG writer draws outlines as `path`s with `fill-rule="evenodd"`, drawings with parts as their picture with what changes their parts drawn over it, and automatic curves;
   - the PDF from it, and the read-only page as the canvas draws;
   - the SVG test's bounds for free geometry, a drawing with parts and automatic curves;
-  - Mermaid and Structurizr say that they lost the outlines.
+  - Mermaid and Structurizr say that they lost the outlines, the parts and the curves.
 - [ ] **A sample,** `examples/beyond-boxes`: a heart drawn for Visual Anything (CC0-1.0), whose chambers and vessels are anchored to its named parts; a component with free geometry; one view drawn curved; a card imported from HTML; and a scenario of blood flowing through the heart.
 - [ ] **The benchmark:** `?geometry` and `?curves`, in work and frames modes, with the phases of the "Done when" above:
   - pan, zoom and select, at the whole view and with names shown;

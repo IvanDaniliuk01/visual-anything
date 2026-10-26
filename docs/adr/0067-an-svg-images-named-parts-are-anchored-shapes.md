@@ -187,3 +187,15 @@ Anatomical atlases, maps, plans and machine drawings already exist as SVG whose 
   - Its contents keep the model's order in the scene's shapes, as every container's do. The drawing order puts its anchored parts first, in its picture's order, then its other contents in the stacking order.
   - An anchored part carries `part` with `inDrawing`, its outline, and `undrawn` for what it holds. A position the view stores for it is kept and not used, and an overlay's size does not apply to it.
   - A part drawn on its own carries `part` without `inDrawing`, and its outline is fitted so that the part's bounds fill its shape, its proportions kept.
+- 2026-10-26 (M8b, W58): **drawings with parts in the exports.**
+  - **The SVG writer draws a drawing with parts** as its kind, its name in its header whether or not it holds contents, and its picture once, as a symbol, where the scene places it.
+  - **An anchored part draws nothing over the picture while nothing changes it**, which shows the part as it is. It writes its name in its label area when that area is 14 units tall or more, in a color that reads on the part's main color, or on what is drawn over it. It writes no detail, not its component's name either: the picture shows what it is.
+  - **What changes it is read from the view's overlays, as stored**, as the view's own scene reads them, and drawn over its place along its outline, its lines included:
+    - a fill fills the outline in the shape's fill as the overlays leave it, faded by their opacity;
+    - without a fill, an opacity below 1 lays a veil of the drawing's fill, in the theme drawn, at one minus that opacity;
+    - a stroke strokes the outline at a shape's stroke width, in the shape's stroke as the overlays leave it;
+    - a badge is written under its name, in its label area.
+  - **What only the open app shows is left out**, as the SVG leaves out filters and focus: the veils of faint parts and the parts' own pictures in faint drawings.
+  - **A part on its own draws its part's own picture** (`partPicture`) where the part's bounds lie in its outline, with no fill or stroke of its own, and what changes it over it, as for an anchored part, its veil in what it sits on. Without a picture it fills its outline in the part's main color. The package whose picture it draws is among the drawing's attribution.
+  - **The PDF** draws that SVG, and the read-only page builds the same scene from its data as the app does, so its renderer draws the same.
+  - **Mermaid and Structurizr** draw a shape drawn as a named part as its kind, without its picture, and say how many they drew so. The outline in Markdown says of each content an anchored part holds that it is "held by its anchored part and not drawn".

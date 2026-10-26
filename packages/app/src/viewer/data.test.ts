@@ -6,7 +6,12 @@ import {
 import type { PackageFile, SvgImage, TourStep } from '@visual-anything/schema';
 import { validateFile } from '@visual-anything/schema/validate';
 import { describe, expect, it } from 'vitest';
+import { outlineAt } from '../canvas/outlines';
+import { pageScene } from '../canvas/routing/avoided';
+import { buildScene, type Scene } from '../canvas/scene';
+import { writeSvg } from '../export/svg';
 import { translateMessage, untranslatedParts } from '../i18n/translate';
+import { beyondBoxes } from '../test/beyond';
 import { loadSample } from '../test/sample';
 import { PAGE_FORMAT, pageDataOf, readPageData, type PageData } from './data';
 
@@ -277,5 +282,49 @@ describe('What keeps a page from opening, in Spanish', () => {
     const data = pageDataOf(sample);
     const [problem = ''] = problemsOf({ ...data, model: { ...data.model, elements: 'none' } });
     expect(translateMessage('es', problem)).toMatch(/^El modelo, \/elements: /);
+  });
+});
+
+describe('A page of a view beyond boxes (M8b)', () => {
+  /** What the canvas draws of a scene beyond boxes: each shape's outline, part and picture, and each line's style. */
+  function drawnAs(scene: Scene) {
+    return {
+      shapes: scene.shapes.map((shape) => ({
+        key: shape.key,
+        rect: shape.rect,
+        outline: outlineAt(shape)?.fitted.bounds,
+        part: shape.part,
+        picture: shape.picture,
+        undrawn: shape.undrawn,
+      })),
+      drawing: scene.drawing,
+      lines: scene.relations.map((line) => ({
+        style: line.style,
+        curve: line.curve,
+        route: line.route,
+      })),
+    };
+  }
+
+  it('carries free geometry, named parts and automatic curves, and draws them as the app does', () => {
+    const base = beyondBoxes('anatomy');
+    const project: ProjectSnapshot = {
+      ...base,
+      views: base.views.map((view) => ({ ...view, routeStyle: 'curved' })),
+    };
+    const result = read(pageDataOf(project));
+    if (!result.ok) throw new Error(result.problems.join('\n'));
+    const app = pageScene(buildScene(project, 'anatomy'));
+    const page = pageScene(buildScene(result.project, 'anatomy'));
+    const drawn = drawnAs(page);
+    expect(drawn).toEqual(drawnAs(app));
+    // Free geometry, anchored parts, a part on its own, and curves, all of them in the page.
+    expect(drawn.shapes.filter((shape) => shape.outline && !shape.part)).toHaveLength(1);
+    expect(drawn.shapes.filter((shape) => shape.part?.inDrawing)).toHaveLength(2);
+    expect(drawn.shapes.filter((shape) => shape.part && !shape.part.inDrawing)).toHaveLength(1);
+    expect(drawn.shapes.filter((shape) => shape.picture)).toHaveLength(1);
+    expect(drawn.lines.every((line) => line.style === 'curved' && line.curve)).toBe(true);
+    // Its drawing is the one the exports write of the app's.
+    expect(writeSvg(result.project, 'anatomy').text).toBe(writeSvg(project, 'anatomy').text);
   });
 });
