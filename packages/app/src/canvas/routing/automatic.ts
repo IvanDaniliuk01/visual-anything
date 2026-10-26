@@ -15,7 +15,10 @@
  *   between the same two ends attach 24 units apart, so their curves fan apart.
  *
  * A part of lines alone, such as a nerve, attaches at its lines' point nearest the other end, as an
- * end on a point does. Pure, so that the scene, the renderer while shapes are dragged and the route
+ * end on a point does. Between two shapes drawn by their outlines that touch, as the chambers and
+ * valves of a heart do, a line from outline to outline would have no length to read: whatever its
+ * style, it runs from inner point to inner point, over both, so that it reads as a flow from one into
+ * the other (ADR 0067's clarification). Pure, so that the scene, the renderer while shapes are dragged and the route
  * editor route a line alike.
  */
 import { centerOf, type Point, type Rect } from '../geometry';
@@ -38,6 +41,9 @@ import {
 /** How far apart the scene draws lines between the same two ends, as it offsets them. */
 export const PARALLEL_GAP = 24;
 
+/** The shortest line between two outlines that is drawn from one to the other; shorter, it runs over them. */
+export const SHORTEST_BETWEEN_OUTLINES = 24;
+
 /** One end of an automatic route, as the scene knows it. */
 export interface AutomaticEnd {
   end: AnyEnd;
@@ -59,6 +65,8 @@ export function automaticRoute(
 ): HandRoute {
   const a = byStroke(from, to);
   const b = byStroke(to, from);
+  const flow = flowRoute(a, b, offset);
+  if (flow) return flow;
   const sibling = offset / PARALLEL_GAP;
   const pointed = a.points !== undefined || b.points !== undefined;
   switch (style) {
@@ -76,6 +84,33 @@ export function automaticRoute(
     case 'curved':
       return curvedRoute(a, b, offset, sibling);
   }
+}
+
+/**
+ * The line between two shapes drawn by outlines that touch: from inner point to inner point, moved
+ * across by `offset` as lines between the same ends are; none for any other two ends.
+ */
+function flowRoute(a: AutomaticEnd, b: AutomaticEnd, offset: number): HandRoute | undefined {
+  if (!a.outline || !b.outline || a.points || b.points) return undefined;
+  if (!('rect' in a.end) || !('rect' in b.end)) return undefined;
+  const aimA = innerPointOf(a.outline);
+  const aimB = innerPointOf(b.outline);
+  const leaves = lastExit(a.outline, aimA, aimB);
+  const enters = lastExit(b.outline, aimB, aimA);
+  if (
+    leaves &&
+    enters &&
+    Math.hypot(enters.x - leaves.x, enters.y - leaves.y) >= SHORTEST_BETWEEN_OUTLINES
+  ) {
+    return undefined;
+  }
+  const shift = across(aimA, aimB, offset);
+  return {
+    route: [
+      { x: aimA.x + shift.x, y: aimA.y + shift.y },
+      { x: aimB.x + shift.x, y: aimB.y + shift.y },
+    ],
+  };
 }
 
 /** An end on a part of lines alone, as a point: its lines' point nearest the other end. */
