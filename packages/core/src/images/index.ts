@@ -23,6 +23,13 @@ export {
   resolveImage,
 } from './catalog';
 export { checkImages } from './check';
+export type { AnchoredElement, LostPart } from './anchored';
+export {
+  anchoredElements,
+  newUnknownParts,
+  partsLostByReplacing,
+  unknownPartWarnings,
+} from './anchored';
 export type { FoundPart, NamedPart, PartsLeftOut } from './parts';
 export {
   PART_CAPS,

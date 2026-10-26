@@ -141,11 +141,20 @@ describe('free geometry in an appearance (ADR 0066)', () => {
 
 describe('named parts in an appearance (ADR 0067)', () => {
   it('names a part by its id, with or without its image, and shows an image with its parts', () => {
-    const shaped = ok(calendar({ part: { part: 'left-ventricle', image: 'heart' } }));
-    expect(appearanceOf(element(shaped, 'calendar'), definitionsIn(shaped)).part).toEqual({
+    const images = imageProject();
+    const shaped = ok(
+      {
+        type: 'update-element',
+        id: 'booking',
+        changes: { appearance: { part: { part: 'left-ventricle', image: LOGO.id } } },
+      },
+      images,
+    );
+    expect(appearanceOf(element(shaped, 'booking'), definitionsIn(shaped)).part).toEqual({
       part: 'left-ventricle',
-      image: 'heart',
+      image: LOGO.id,
     });
+    expect(refused(calendar({ part: { part: 'lv', image: 'heart' } }))).toEqual(['unknown-image']);
     ok(calendar({ part: { part: 'lv' } }));
     ok(calendar({ image: { image: LOGO.id, placement: 'parts' } }), imageProject());
     expect(refused(calendar({ part: { part: '1 bad' } }))).toEqual(['invalid-appearance']);

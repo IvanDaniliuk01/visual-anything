@@ -174,3 +174,10 @@ Anatomical atlases, maps, plans and machine drawings already exist as SVG whose 
   - `too-many-parts` is warned on open for every SVG image drawn that is past a cap on parts: more than 1,024 named parts, or contours or shapes left out of its outlines.
   - The functions the appearance checks call take a `part` as `{ part, image? }`: `findPart`; `unknownPartProblem`, which gives no warning when no image is named or the image is not drawn, since other warnings cover those; and `partImageId`, which `in-use` adds to the images an appearance names.
   - A reading is kept for each cleaned view's text, so that equal content is read once, and pruned with the cleaned images. Each part's picture is kept for each cleaned image.
+- 2026-10-26 (M8b, Seam 2): **which images an element names its part in, and when the checks speak.**
+  - A `part` without `image` is looked for in the images that the element's containers show with their parts, under every nesting relation type, as the model holds them; a view shows the anchor only in the drawings it nests the element in.
+  - A part an element sets itself, or finds in a container's image, warns `unknown-part` for that element. A part a component names together with its image warns once, for the component, however many elements it has.
+  - A `part` whose `image` no package in use defines is refused by every command, with `unknown-image`, as a shown image is. Opening warns of one with `unknown-image`, and the shape is drawn as an ordinary one.
+  - An action's answer carries only the `unknown-part` warnings it brings, not those the project already had, so that undoing and bringing a part back say nothing. `define-image`'s answer carries `too-many-parts` for the picture it stores.
+  - `too-many-parts` says one sentence for each cap the picture passes, so that each can be translated (ADR 0038).
+  - `partsLostByReplacing(project, image, next)` lists what a replacement would lose, part by part with the elements drawn as each. The replace dialog shows it before the replacement applies, and `replace_image`'s answer carries it.

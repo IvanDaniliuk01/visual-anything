@@ -459,10 +459,10 @@ Eight milestones in build order, each ending in something you can use, and Track
     - a point is held exactly when a much finer reference flattening holds it, to within 0.25 units;
     - a last exit lies on the outline, and no later point of its ray is inside;
     - reading normalized path data again gives the same outline.
-- [ ] **Seam 2, in the main session: named parts in the core** (ADR 0067).
+- [x] **Seam 2, in the main session: named parts in the core** (ADR 0067).
   - `core/src/images/parts.ts`, with `partsOf`, `partPicture`, `geometryOf` and `PART_CAPS`, read from the cleaned view and cached by it.
   - `unknown-part` and `too-many-parts` after every action and on open, and `in-use` for an image that a `part` names.
-  - The anchored parts a replacement would lose, in its preview.
+  - The anchored parts a replacement would lose, in its preview: `partsLostByReplacing`, which the replace dialog and `replace_image` call.
   - Property tests:
     - every part's picture is exactly what `cleanSvg` gives for it;
     - parts come in document order, with their transforms applied;

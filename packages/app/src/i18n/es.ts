@@ -4643,6 +4643,24 @@ export const messages: Catalog = {
     'Una vista dibuja sus rutas automáticas rectas o curvas, u ortogonales con null, no {value}.',
   'The image of {of} is placed as an icon, as a drawing, or with its parts.':
     'La imagen de {of} se ubica como ícono, como dibujo o con sus partes.',
+  // M8b seam 2: named parts (ADR 0067).
+  '{owner} cannot be drawn as a part of the image "{id}": no package in use defines it.':
+    '{owner} no puede dibujarse como una parte de la imagen "{id}": ningún paquete en uso la define.',
+  '{owner} is drawn as a part of the image "{id}", which no package in use defines; it is drawn as an ordinary shape.':
+    '{owner} se dibuja como una parte de la imagen "{id}", que ningún paquete en uso define; se dibuja como una forma común.',
+  '{owner} is drawn as the part "{part}" of the image "{name}" ({id}), {why}; it is drawn as an ordinary shape until the picture has that part again.':
+    '{owner} se dibuja como la parte "{part}" de la imagen "{name}" ({id}), {why}; se dibuja como una forma común hasta que la imagen vuelva a tener esa parte.',
+  'which it does not have': 'que la imagen no tiene',
+  'past the first 1,024 parts it lists':
+    'más allá de las primeras 1.024 partes que la imagen lista',
+  'The image "{name}" ({id}) is past the caps on parts.':
+    'La imagen "{name}" ({id}) supera los límites de las partes.',
+  'It has {count} named parts; only its first 1,024, in document order, can be drawn as parts.':
+    'Tiene {count} partes con nombre; solo las primeras 1.024, en el orden del documento, pueden dibujarse como partes.',
+  "Its parts' outlines leave out {count} contours of shapes with more than 256.":
+    'Los contornos de sus partes dejan afuera {count} trazos de formas que tienen más de 256.',
+  "Its parts' outlines leave out what its shapes draw past 100,000 segments.":
+    'Los contornos de sus partes dejan afuera lo que sus formas dibujan más allá de los 100.000 segmentos.',
 };
 
 /**

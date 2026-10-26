@@ -15,6 +15,7 @@ import type { Defined, Definitions } from '../definitions';
 import { problem, type Problem } from '../problems';
 import type { ProjectSnapshot } from '../snapshot';
 import { cleanedImage, imageText, pruneCleanedImages, type CleanedImage } from './cleaned';
+import { partImageId } from './parts';
 
 /** The caps on a package's images, besides each image's own. */
 export const IMAGE_CAPS = {
@@ -167,21 +168,24 @@ export function imageIdOf(appearance: Appearance | undefined): Id | undefined {
 }
 
 /**
- * What names an image in its appearance: components of any package, the components the project gives
- * an appearance of its own (ADR 0034), and elements, World included. Each once.
+ * What names an image in its appearance, as the image it shows or as the image of the part it is drawn
+ * as (ADR 0067): components of any package, the components the project gives an appearance of its
+ * own (ADR 0034), and elements, World included. Each once.
  */
 export function imageUsers(state: ProjectSnapshot, imageId: Id): Id[] {
   const users = new Set<Id>();
+  const names = (appearance: Appearance | undefined) =>
+    imageIdOf(appearance) === imageId || partImageId(appearance?.part) === imageId;
   for (const file of state.packages) {
     for (const component of file.components) {
-      if (imageIdOf(component.appearance) === imageId) users.add(component.id);
+      if (names(component.appearance)) users.add(component.id);
     }
   }
   for (const [id, appearance] of Object.entries(state.project.appearances?.components ?? {})) {
-    if (imageIdOf(appearance) === imageId) users.add(id);
+    if (names(appearance)) users.add(id);
   }
   for (const element of elementsOf(state)) {
-    if (imageIdOf(element.appearance) === imageId) users.add(element.id);
+    if (names(element.appearance)) users.add(element.id);
   }
   return [...users];
 }

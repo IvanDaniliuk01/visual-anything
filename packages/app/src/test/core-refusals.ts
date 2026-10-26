@@ -1672,6 +1672,63 @@ function geometryOnOpening(sample: ProjectSnapshot): [string, ProjectSnapshot][]
   ];
 }
 
+// M8b seam 2: named parts (ADR 0067) -------------------------------------------------------------
+
+const PARTS: readonly [string, unknown][] = [
+  traits('part of an image no package defines', { part: { part: 'lv', image: 'clinic.nothing' } }),
+];
+
+/** Projects whose named parts opening warns about: missing images and parts, and pictures past the caps. */
+function partsOnOpening(sample: ProjectSnapshot): [string, ProjectSnapshot][] {
+  const picture = (id: string, content: string, viewBox = '0 0 100 100') => ({
+    kind: 'svg' as const,
+    id,
+    name: id.slice('clinic.'.length),
+    width: 10,
+    height: 10,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">${content}</svg>`,
+  });
+  const organs = picture('clinic.organs', '<path id="lung" d="M0 0h10v10h-10z"/>');
+  const atlas = picture(
+    'clinic.atlas',
+    many(1030, (at) => `<path id="p${at}" d="M${at} 0h1v1z"/>`).join(''),
+    '0 0 1100 1',
+  );
+  const rings = picture(
+    'clinic.rings',
+    `<path id="rings" d="${many(300, (at) => `M${at} ${at}h${600 - 2 * at}v${600 - 2 * at}h-${600 - 2 * at}z`).join('')}"/>`,
+    '0 0 600 600',
+  );
+  const zig = many(1800, (at) => `L${at % 2 ? 9 : 1} ${(at / 180).toFixed(1)}`).join('');
+  const uses = picture(
+    'clinic.uses',
+    `<defs><path id="zig" d="M0 0${zig}Z"/></defs>${many(60, (at) => `<use id="u${at}" href="#zig" x="${at * 10}"/>`).join('')}`,
+    '0 0 700 20',
+  );
+  const drawnAs = (
+    part: NonNullable<Element['appearance']>['part'],
+    images: PackageFile['images'],
+  ): ProjectSnapshot => ({
+    ...sample,
+    packages: sample.packages.map((file) => (file.id === 'clinic' ? { ...file, images } : file)),
+    model: {
+      ...sample.model,
+      elements: sample.model.elements.map((each) =>
+        each.id === 'patient' ? { ...each, appearance: { ...each.appearance, part } } : each,
+      ),
+    },
+  });
+  return [
+    [
+      'part of an image no package defines on opening',
+      drawnAs({ part: 'lv', image: 'clinic.nothing' }, [organs]),
+    ],
+    ['part its image lacks on opening', drawnAs({ part: 'heart', image: organs.id }, [organs])],
+    ['part past the first parts on opening', drawnAs({ part: 'p1029', image: atlas.id }, [atlas])],
+    ['shapes past the caps on parts on opening', drawnAs('none', [rings, uses])],
+  ];
+}
+
 /** Everything these fixtures make the core say. */
 export function coreRefusals(): Said[] {
   const sample = loadSample();
@@ -1684,6 +1741,8 @@ export function coreRefusals(): Said[] {
   for (const [name, state] of broken(sample)) said.push(...checked(name, state));
   for (const [name, command] of GEOMETRY) said.push(...runInOrder(sample, name, [command]));
   for (const [name, state] of geometryOnOpening(sample)) said.push(...checked(name, state));
+  for (const [name, command] of PARTS) said.push(...runInOrder(sample, name, [command]));
+  for (const [name, state] of partsOnOpening(sample)) said.push(...checked(name, state));
   said.push(...cleaningRefusals());
   return said;
 }

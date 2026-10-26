@@ -10,6 +10,7 @@ import { decodeBase64, encodeBase64 } from '../images/base64';
 import { readBitmap } from '../images/bitmap';
 import { IMAGE_CAPS, imageUsers, imagesIn } from '../images/catalog';
 import { imageText } from '../images/cleaned';
+import { partImageId, tooManyPartsProblem } from '../images/parts';
 import { cleanSvg } from '../images/svg';
 import type { Operation } from '../operations';
 import { problem, type Problem } from '../problems';
@@ -85,6 +86,10 @@ export function defineImage(draft: Draft, command: DefineImageCommand): string {
       : { op: 'insert', collection, index: images.length, item: image },
   );
   if (!existing) draft.created.push(id);
+  // A picture past the caps on parts says so as it is defined, as opening does (ADR 0067).
+  const shown = imagesIn(draft.state).shown(id);
+  const tooMany = shown && tooManyPartsProblem(image, shown, file.id);
+  if (tooMany) draft.warnings.push(tooMany);
   if (removed.length > 0) {
     draft.warnings.push(
       problem('image-cleaned', `Cleaning the image "${name}" removed: ${removed.join(', ')}.`, [
@@ -313,6 +318,15 @@ export function checkImageReferences(
     owner: string,
     subject: Id,
   ) => {
+    // A part's image must be one a package in use defines, as a shown image must (ADR 0067).
+    const part = partImageId(appearance?.part);
+    if (part !== undefined && part !== partImageId(was?.part) && !catalog.image(part)) {
+      reject(
+        'unknown-image',
+        `${owner} cannot be drawn as a part of the image "${part}": no package in use defines it.`,
+        [subject],
+      );
+    }
     const image: unknown = appearance?.image;
     if (image === undefined || image === 'none') return;
     if (JSON.stringify(image) === JSON.stringify(was?.image)) return;

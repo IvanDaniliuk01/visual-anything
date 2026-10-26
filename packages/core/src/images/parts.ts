@@ -222,7 +222,7 @@ export function unknownPartProblem(
   if (!image || namedPart(image, reference.part)) return undefined;
   const name = catalog.image(imageId)?.definition.name ?? imageId;
   const why = readingOf(image).drawn.has(reference.part)
-    ? `past the first ${PART_CAPS.parts.toLocaleString('en')} parts it lists`
+    ? 'past the first 1,024 parts it lists'
     : 'which it does not have';
   return problem(
     'unknown-part',
@@ -251,26 +251,25 @@ export function tooManyPartsProblem(
   if (cleaned.kind !== 'svg' || !mayPassCaps(cleaned.svg)) return undefined;
   const count = namedPartCount(cleaned);
   const { contours, segments } = partsLeftOut(cleaned);
+  // One sentence for each cap passed, each a template the Spanish catalog can hold (ADR 0038).
   const said: string[] = [];
   if (count > PART_CAPS.parts) {
     said.push(
-      `it has ${count.toLocaleString('en')} named parts, and only its first ${PART_CAPS.parts.toLocaleString('en')}, in document order, can be drawn as parts`,
+      `It has ${count.toLocaleString('en')} named parts; only its first 1,024, in document order, can be drawn as parts.`,
     );
   }
   if (contours > 0) {
     said.push(
-      `${contours.toLocaleString('en')} contours of shapes with more than ${PART_CAPS.contours} are left out of its parts' outlines`,
+      `Its parts' outlines leave out ${contours.toLocaleString('en')} contours of shapes with more than 256.`,
     );
   }
   if (segments) {
-    said.push(
-      `past ${PART_CAPS.segments.toLocaleString('en')} segments, what its shapes draw is left out of its parts' outlines`,
-    );
+    said.push("Its parts' outlines leave out what its shapes draw past 100,000 segments.");
   }
   if (said.length === 0) return undefined;
   return problem(
     'too-many-parts',
-    `The image "${image.name}" (${image.id}) is past the caps on parts: ${said.join('; ')}.`,
+    `The image "${image.name}" (${image.id}) is past the caps on parts. ${said.join(' ')}`,
     [image.id, packageId],
   );
 }

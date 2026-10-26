@@ -3,14 +3,15 @@
  * cleaning would change only warns, and readers see its cleaned view; one that cleaning refuses warns
  * and is absent everywhere.
  */
-import type { ImageDefinition } from '@visual-anything/schema';
+import type { Appearance, ImageDefinition } from '@visual-anything/schema';
 import { problem, type Problem } from '../problems';
 import type { ProjectSnapshot } from '../snapshot';
 import { decodeBase64 } from './base64';
 import { readBitmap } from './bitmap';
 import { IMAGE_CAPS, elementsOf, imageIdOf, imagesIn } from './catalog';
 import { cleanedImage, imageText, isClean } from './cleaned';
-import { tooManyPartsProblem } from './parts';
+import { unknownPartWarnings } from './anchored';
+import { partImageId, tooManyPartsProblem } from './parts';
 import type { Cleaned } from './result';
 import { cleanSvg } from './svg';
 
@@ -75,26 +76,31 @@ export function checkImages(state: ProjectSnapshot): { errors: Problem[]; warnin
       `${what} shows the image "${id}", which no package in use defines; it shows none.`,
       [owner],
     );
+  const unknownPart = (id: string, owner: string, what: string) =>
+    problem(
+      'unknown-image',
+      `${what} is drawn as a part of the image "${id}", which no package in use defines; it is drawn as an ordinary shape.`,
+      [owner],
+    );
+  const checkNamed = (appearance: Appearance | undefined, owner: string, what: string) => {
+    const id = imageIdOf(appearance);
+    if (id !== undefined && !catalog.image(id)) warnings.push(unknown(id, owner, what));
+    const part = partImageId(appearance?.part);
+    if (part !== undefined && !catalog.image(part)) warnings.push(unknownPart(part, owner, what));
+  };
   for (const file of state.packages) {
     for (const component of file.components) {
-      const id = imageIdOf(component.appearance);
-      if (id !== undefined && !catalog.image(id)) {
-        warnings.push(unknown(id, component.id, `The component "${component.name}"`));
-      }
+      checkNamed(component.appearance, component.id, `The component "${component.name}"`);
     }
   }
   for (const [owner, appearance] of Object.entries(state.project.appearances?.components ?? {})) {
-    const id = imageIdOf(appearance);
-    if (id !== undefined && !catalog.image(id)) {
-      warnings.push(unknown(id, owner, `The project appearance of "${owner}"`));
-    }
+    checkNamed(appearance, owner, `The project appearance of "${owner}"`);
   }
   for (const element of elementsOf(state)) {
-    const id = imageIdOf(element.appearance);
-    if (id !== undefined && !catalog.image(id)) {
-      warnings.push(unknown(id, element.id, `The element "${element.name}"`));
-    }
+    checkNamed(element.appearance, element.id, `The element "${element.name}"`);
   }
+  // An element drawn as a part its picture does not list is drawn as an ordinary shape (ADR 0067).
+  warnings.push(...unknownPartWarnings(state));
   return { errors, warnings };
 }
 
