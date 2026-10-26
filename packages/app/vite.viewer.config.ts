@@ -23,6 +23,9 @@ const VALIDATED = {
   package: 'packageFile',
   view: 'viewFile',
   scenario: 'scenarioFile',
+  // Tours play in a page (ADR 0058); comments are checked too, though no page holds them yet.
+  tour: 'tourFile',
+  comment: 'commentFile',
 } as const;
 
 /**
@@ -59,7 +62,7 @@ export default defineConfig({
 });
 
 /**
- * The validators of the five kinds of project file, generated from the published schemas by Ajv's
+ * The validators of the seven kinds of project file, generated from the published schemas by Ajv's
  * standalone code: the checks opening a project makes, as plain functions. The page's benchmark
  * (`vite.bench.config.ts`) builds with them too.
  */

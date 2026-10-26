@@ -205,6 +205,29 @@ describe('A view with a scope, in the read-only page', () => {
     expect(screen.queryByRole('option', { name: /^Add to this view/ })).not.toBeInTheDocument();
   });
 
+  // Tours (ADR 0058).
+  it('plays a tour full screen, step by step by keys, and hides its own header meanwhile', async () => {
+    const { container } = await open();
+    fireEvent.click(screen.getByRole('button', { name: 'Tours' }));
+    const chooser = screen.getByRole('dialog', { name: 'Tours' });
+    fireEvent.click(
+      within(chooser).getByRole('button', { name: 'Play “How booking works” full screen' }),
+    );
+    const page = container.querySelector('.viewer');
+    expect(page).toHaveClass('tour-playing');
+    expect(screen.getByRole('article')).toHaveTextContent('Clinic booking');
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+    expect(screen.getByRole('article')).toHaveTextContent('The booking agent');
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(screen.queryByRole('article')).toBeNull();
+    expect(page).not.toHaveClass('tour-playing');
+  });
+
+  it('offers no tours when the project has none', async () => {
+    await open(read({ ...sample, tours: [] }));
+    expect(screen.queryByRole('button', { name: 'Tours' })).not.toBeInTheDocument();
+  });
+
   it('shows the outline without a menu to leave anything out', async () => {
     await open(read(scoped), '#view=system-overview&select=appointments-api');
     fireEvent.click(screen.getByRole('button', { name: 'Outline' }));

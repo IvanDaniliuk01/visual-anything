@@ -37,6 +37,7 @@ import { setPackageCode } from './code';
 import { createScenario, deleteScenario, updateScenario } from './scenarios';
 import { addComment, createThread, deleteThread, editComment, resolveThread } from './comments';
 import type { Author } from '../history';
+import { createTour, deleteTour, updateTour } from './tours';
 import type { Command } from './types';
 import {
   createFreeShape,
@@ -223,6 +224,12 @@ function dispatch(draft: Draft, command: Command): string {
       return resetRoute(draft, command);
     case 'set-package-code':
       return setPackageCode(draft, command);
+    case 'create-tour':
+      return createTour(draft, command);
+    case 'update-tour':
+      return updateTour(draft, command);
+    case 'delete-tour':
+      return deleteTour(draft, command);
     case 'set-overlays':
       return setOverlays(draft, command);
     case 'add-overlay':

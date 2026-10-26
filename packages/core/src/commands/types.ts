@@ -32,6 +32,7 @@ import type {
   Scope,
   ShapePosition,
   Step,
+  TourStep,
 } from '@visual-anything/schema';
 
 /** Changes to external identifiers by scheme: a text sets one, `null` takes it out (ADR 0056). */
@@ -80,6 +81,10 @@ export type Command =
   | SetRouteCommand
   | ResetRouteCommand
   | SetPackageCodeCommand
+  // Tours (ADR 0058).
+  | CreateTourCommand
+  | UpdateTourCommand
+  | DeleteTourCommand
   | SetOverlaysCommand
   | AddOverlayCommand
   | UpdateOverlayCommand
@@ -564,6 +569,35 @@ export interface UpdateScenarioCommand {
 /** Deletes a scenario. */
 export interface DeleteScenarioCommand {
   type: 'delete-scenario';
+  id: Id;
+}
+
+/**
+ * A step of a tour being created or changed (ADR 0058). Its id is kept when it names a step of the
+ * tour, and generated otherwise. A step kept exactly as it was may still name what the project no
+ * longer holds: it stays, flagged, until it is fixed.
+ */
+export type NewTourStep = Omit<TourStep, 'id'> & { id?: Id };
+
+/** Creates a tour, with its steps or none yet. */
+export interface CreateTourCommand {
+  type: 'create-tour';
+  tour: { id?: Id; name: string; description?: string; steps?: NewTourStep[] };
+}
+
+/**
+ * Changes a tour. `steps` replaces all of them, so that adding, editing, duplicating, reordering and
+ * deleting steps are each one action.
+ */
+export interface UpdateTourCommand {
+  type: 'update-tour';
+  id: Id;
+  changes: { name?: string; description?: string | null; steps?: NewTourStep[] };
+}
+
+/** Deletes a tour. */
+export interface DeleteTourCommand {
+  type: 'delete-tour';
   id: Id;
 }
 

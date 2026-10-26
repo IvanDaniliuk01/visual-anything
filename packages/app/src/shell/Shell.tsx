@@ -39,6 +39,9 @@ import { ModelPanel } from './ModelPanel';
 import { CodeStore } from '../code/context';
 import { usePackageCode } from '../code/usePackageCode';
 import { CodeApproval } from '../code/ApprovalDialog';
+import { ToursContext } from '../tours/context';
+import { TourPlaybackLayer } from '../tours/TourPlaybackLayer';
+import { useTourPlayback } from '../tours/useTourPlayback';
 import { AttributeLookupContext } from '../live-values/context';
 import { useLiveScene, useLookup } from '../live-values/useLiveValues';
 import { CommentPins } from '../comments/CommentPins';
@@ -150,6 +153,8 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
     notify: live?.notify,
   });
   usePackageCode({ store: code, project, viewId: view?.id, scene, canvas });
+  // Tours (ADR 0058): the one the tab plays full screen, which hides the panels while it plays.
+  const tours = useTourPlayback({ project, scene, viewState, scenarios, emphasis });
   // Export also writes the read-only page, which opens at the view state shown now (M6b).
   const exportTool = (
     <ExportControl
@@ -175,82 +180,85 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
       <AttributeLookupContext value={lookup}>
         <DefinitionProvider>
           <EmphasisContext.Provider value={emphasis}>
-            <ZoomExpansionContext value={zoom}>
-              <div className="shell">
-                <Header
-                  projectName={project.project.name}
-                  viewName={view?.name}
-                  actions={
-                    <>
-                      {view && <CopyAddress link={viewState} />}
-                      <ImportControl
-                        project={project}
-                        viewId={view?.id}
-                        send={live?.status === 'open' ? live.send : undefined}
-                        openView={setOpenViewId}
-                      />
-                      {exportTool}
-                      <ElementListToggle store={elementList} />
-                    </>
-                  }
-                />
-                {notice !== undefined && (
-                  <p className="shell-notice" role="alert">
-                    {notice}
-                  </p>
-                )}
-                <ModelPanel
-                  project={project}
-                  definitions={definitions}
-                  openViewId={view?.id}
-                  comments={comments}
-                />
-                <main className="canvas-area" aria-labelledby={canvasHeading}>
-                  <h2 id={canvasHeading} className="visually-hidden">
-                    {view ? view.name : t('Canvas')}
-                  </h2>
-                  {view && scene ? (
-                    <ImageSourceContext value={images}>
-                      <CanvasArea
-                        project={project}
-                        view={view}
-                        scene={canvasScene ?? scene}
-                        label={describeDrawing(t, view, scene)}
-                        selection={selection}
-                        onSelect={setSelection}
-                        {...(onCommand ? { onCommand } : {})}
-                        {...(revealed ? { revealed } : {})}
-                        scenarios={scenarios}
-                        theme={theme}
-                        onThemeShown={onThemeShown}
-                        onCanvas={setCanvas}
-                      />
-                    </ImageSourceContext>
-                  ) : (
-                    <p className="canvas-message">{t('There is no view to draw.')}</p>
+            <ToursContext.Provider value={tours.host}>
+              <ZoomExpansionContext value={zoom}>
+                <div className={tours.playback.tour === undefined ? 'shell' : 'shell tour-playing'}>
+                  <Header
+                    projectName={project.project.name}
+                    viewName={view?.name}
+                    actions={
+                      <>
+                        {view && <CopyAddress link={viewState} />}
+                        <ImportControl
+                          project={project}
+                          viewId={view?.id}
+                          send={live?.status === 'open' ? live.send : undefined}
+                          openView={setOpenViewId}
+                        />
+                        {exportTool}
+                        <ElementListToggle store={elementList} />
+                      </>
+                    }
+                  />
+                  {notice !== undefined && (
+                    <p className="shell-notice" role="alert">
+                      {notice}
+                    </p>
                   )}
-                  <CommentPins store={comments} canvas={canvas} />
-                  <GuidanceLayer scenarios={scenarios} />
-                  <FindBar
+                  <ModelPanel
                     project={project}
                     definitions={definitions}
-                    viewId={view?.id}
-                    goTo={viewState.goTo}
+                    openViewId={view?.id}
+                    comments={comments}
                   />
-                </main>
-                <Inspector view={view} scene={scene} definitions={definitions} />
-                <ScenarioPanel session={scenarios} />
-                <CodeApproval />
-                <ElementListPanel store={elementList} />
-                {asking && (
-                  <FollowDialog
-                    plan={asking.plan}
-                    onConfirm={asking.confirm}
-                    onCancel={asking.cancel}
-                  />
-                )}
-              </div>
-            </ZoomExpansionContext>
+                  <main className="canvas-area" aria-labelledby={canvasHeading}>
+                    <h2 id={canvasHeading} className="visually-hidden">
+                      {view ? view.name : t('Canvas')}
+                    </h2>
+                    {view && scene ? (
+                      <ImageSourceContext value={images}>
+                        <CanvasArea
+                          project={project}
+                          view={view}
+                          scene={canvasScene ?? scene}
+                          label={describeDrawing(t, view, scene)}
+                          selection={selection}
+                          onSelect={setSelection}
+                          {...(onCommand ? { onCommand } : {})}
+                          {...(revealed ? { revealed } : {})}
+                          scenarios={scenarios}
+                          theme={theme}
+                          onThemeShown={onThemeShown}
+                          onCanvas={setCanvas}
+                        />
+                      </ImageSourceContext>
+                    ) : (
+                      <p className="canvas-message">{t('There is no view to draw.')}</p>
+                    )}
+                    <CommentPins store={comments} canvas={canvas} />
+                    <GuidanceLayer scenarios={scenarios} />
+                    <FindBar
+                      project={project}
+                      definitions={definitions}
+                      viewId={view?.id}
+                      goTo={viewState.goTo}
+                    />
+                    <TourPlaybackLayer project={project} tours={tours} />
+                  </main>
+                  <Inspector view={view} scene={scene} definitions={definitions} />
+                  <ScenarioPanel session={scenarios} />
+                  <CodeApproval />
+                  <ElementListPanel store={elementList} />
+                  {asking && (
+                    <FollowDialog
+                      plan={asking.plan}
+                      onConfirm={asking.confirm}
+                      onCancel={asking.cancel}
+                    />
+                  )}
+                </div>
+              </ZoomExpansionContext>
+            </ToursContext.Provider>
           </EmphasisContext.Provider>
         </DefinitionProvider>
       </AttributeLookupContext>

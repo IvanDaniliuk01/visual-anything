@@ -10,12 +10,14 @@ import type {
   PackageFile,
   Relation,
   ScenarioFile,
+  TourFile,
   ViewFile,
 } from '@visual-anything/schema';
 import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
 import { builtinPackage } from '../builtin';
 import { anchorTargetOf } from '../comments/anchors';
 import type { Author } from '../history';
+import { idsNamedByTours } from '../tours/steps';
 import type { Definitions, ResolvedComponent, ResolvedRelationType } from '../definitions';
 import { definitionIdFor, freshId, isId, type IdGenerator } from '../ids';
 import { imagesIn } from '../images/catalog';
@@ -206,6 +208,8 @@ export class Draft {
           scenario.id === id || scenario.steps.some((step) => step.relations.includes(id)),
       ) ||
       state.packages.some((file) => file.id === id) ||
+      // A tour's id, and what its steps name, so that a step never comes to mean something new.
+      idsNamedByTours(state.tours).has(id) ||
       this.definitions.components.has(id) ||
       this.definitions.relationTypes.has(id) ||
       imagesIn(state).images.has(id) ||
@@ -277,6 +281,12 @@ export class Draft {
     const scenario = this.state.scenarios.find((each) => each.id === id);
     if (!scenario) reject('unknown-scenario', `There is no scenario "${String(id)}".`, [id]);
     return scenario;
+  }
+
+  tour(id: Id): TourFile {
+    const tour = this.state.tours.find((each) => each.id === id);
+    if (!tour) reject('unknown-tour', `There is no tour "${String(id)}".`, [id]);
+    return tour;
   }
 
   /** One of the project's own packages, which commands may change; built-in packages may not. */

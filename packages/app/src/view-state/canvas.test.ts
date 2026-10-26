@@ -102,6 +102,55 @@ describe('canvasCamera', () => {
   });
 });
 
+// How a tour's steps move the camera (ADR 0058).
+describe('canvasCamera for tours', () => {
+  const WHOLE: Camera = { x: 100, y: 50, scale: 0.5 };
+
+  function withFit(start: Camera) {
+    const controller = fakeController(start, TO);
+    return Object.assign(controller, {
+      renderer: Object.assign(controller.renderer, {
+        fit: vi.fn(() => {
+          controller.renderer.camera = WHOLE;
+        }),
+      }),
+    });
+  }
+
+  it('works out where a reveal or the whole view would take the camera, and stays where it is', () => {
+    const controller = withFit(FROM);
+    const camera = canvasCamera(controller as never, cameras, manualFrames().frames);
+    expect(camera.targetOf({ key: 'a' })).toBe(TO);
+    expect(controller.renderer.camera).toBe(FROM);
+    expect(camera.targetOf({ whole: true })).toBe(WHOLE);
+    expect(controller.renderer.camera).toBe(FROM);
+  });
+
+  it('glides to a camera over the time it is given, gently at both ends', () => {
+    const controller = withFit(FROM);
+    const clock = manualFrames();
+    const camera = canvasCamera(controller as never, cameras, clock.frames);
+    camera.glideTo(TO, 600);
+    expect(controller.renderer.camera).toEqual(FROM);
+    clock.advance(60);
+    // A tenth of the way in time is far less than a tenth of the way in zoom, as it eases in.
+    const early = controller.renderer.camera.scale;
+    expect(early).toBeGreaterThan(1);
+    expect(early).toBeLessThan(2 ** 0.1);
+    clock.advance(540);
+    expect(controller.renderer.camera).toBe(TO);
+    expect(clock.pending).toBe(false);
+  });
+
+  it('cuts when the time is 0', () => {
+    const controller = withFit(FROM);
+    const clock = manualFrames();
+    canvasCamera(controller as never, cameras, clock.frames).glideTo(TO, 0);
+    expect(controller.renderer.camera).toBe(TO);
+    expect(clock.pending).toBe(false);
+  });
+});
+
 describe('between', () => {
   it('starts and ends at its two cameras, and zooms evenly in between', () => {
     expect(between(FROM, TO, VIEWPORT, 0)).toEqual(FROM);

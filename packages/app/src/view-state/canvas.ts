@@ -3,6 +3,7 @@
  * the shell once its canvas is made. Bringing a shape into sight moves the camera there in a short,
  * eased glide, or at once when the system asks for reduced motion or the move is too small to see.
  */
+import { easeInOut } from '@visual-anything/core';
 import type { Camera } from '../canvas/camera';
 import type { CanvasController } from '../canvas/controller';
 import type { Size } from '../canvas/geometry';
@@ -23,6 +24,16 @@ export interface CanvasCamera {
    * With `glide`, the camera moves there over a moment instead of at once.
    */
   reveal(key: string, glide: boolean): void;
+  /**
+   * Where the camera would go to bring a shape into sight, as `reveal` brings it, or to show the whole
+   * view, without moving it: a tour works out its move from it (ADR 0058).
+   */
+  targetOf(goal: { key: string } | { whole: true }): Camera;
+  /**
+   * Moves the camera to `camera` over `duration` milliseconds, starting and ending gently, as a tour's
+   * steps move it; at once when the duration is 0. Panning or zooming meanwhile stops it there.
+   */
+  glideTo(camera: Camera, duration: number): void;
 }
 
 /** Where the camera is, as the canvas area keeps it for what follows it. */
@@ -59,6 +70,27 @@ export function canvasCamera(
     glide = undefined;
   };
   const set = (camera: Camera) => controller.renderer.setCamera(camera);
+  /** Glides from where the camera is to `to`, over `time` milliseconds, with an ease. */
+  const glideFrom = (from: Camera, to: Camera, time: number, curve: (part: number) => number) => {
+    const start = frames.now();
+    const step = (now: number) => {
+      // Panning or zooming during the glide is the person's: the glide stops there.
+      if (!glide || !sameCamera(controller.camera, glide.last)) {
+        glide = undefined;
+        return;
+      }
+      const done = Math.min(1, (now - start) / time);
+      const next = done >= 1 ? to : between(from, to, controller.renderer.viewport, curve(done));
+      set(next);
+      if (done >= 1) {
+        glide = undefined;
+        controller.zoomBy(1);
+        return;
+      }
+      glide = { frame: frames.request(step), last: next };
+    };
+    glide = { frame: frames.request(step), last: from };
+  };
   return {
     camera: () => cameras.current(),
     viewport: () => controller.renderer.viewport,
@@ -77,24 +109,26 @@ export function canvasCamera(
       const to = controller.camera;
       if (!smooth || sameCamera(from, to)) return;
       set(from);
-      const start = frames.now();
-      const step = (time: number) => {
-        // Panning or zooming during the glide is the person's: the glide stops there.
-        if (!glide || !sameCamera(controller.camera, glide.last)) {
-          glide = undefined;
-          return;
-        }
-        const done = Math.min(1, (time - start) / GLIDE_TIME);
-        const next = done >= 1 ? to : between(from, to, controller.renderer.viewport, ease(done));
-        set(next);
-        if (done >= 1) {
-          glide = undefined;
-          controller.zoomBy(1);
-          return;
-        }
-        glide = { frame: frames.request(step), last: next };
-      };
-      glide = { frame: frames.request(step), last: from };
+      glideFrom(from, to, GLIDE_TIME, ease);
+    },
+    targetOf: (goal) => {
+      stop();
+      const from = controller.camera;
+      if ('key' in goal) controller.reveal(goal.key);
+      else controller.renderer.fit();
+      const to = controller.camera;
+      set(from);
+      return to;
+    },
+    glideTo: (to, duration) => {
+      stop();
+      const from = controller.camera;
+      if (duration <= 0 || sameCamera(from, to)) {
+        set(to);
+        controller.zoomBy(1);
+        return;
+      }
+      glideFrom(from, to, duration, easeInOut);
     },
   };
 }

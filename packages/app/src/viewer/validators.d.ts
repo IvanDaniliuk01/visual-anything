@@ -6,4 +6,6 @@ declare module 'virtual:visual-anything/validators' {
   export const packageFile: StandaloneValidator;
   export const viewFile: StandaloneValidator;
   export const scenarioFile: StandaloneValidator;
+  export const tourFile: StandaloneValidator;
+  export const commentFile: StandaloneValidator;
 }

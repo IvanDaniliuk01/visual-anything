@@ -82,6 +82,11 @@ const BROKEN_STEPS: PluralText = {
   other:
     'These {count} scenario steps use a relation that goes. They become broken steps and are kept, so you can fix them:',
 };
+/** Tour steps that name what goes (ADR 0058). */
+const BROKEN_TOUR_STEPS: PluralText = {
+  one: 'This tour step names what goes. It is kept, flagged, and plays without it:',
+  other: 'These {count} tour steps name what goes. They are kept, flagged, and play without it:',
+};
 const POSITIONS: PluralText = {
   one: '{count} stored position in views goes with the shapes.',
   other: '{count} stored positions in views go with the shapes.',
@@ -187,6 +192,12 @@ export function DeleteDialog({
           <section>
             <p>{t(BROKEN_STEPS, { count: stepCount })}</p>
             <List items={shown.steps} total={stepCount} />
+          </section>
+        )}
+        {preview.brokenTourSteps.length > 0 && (
+          <section>
+            <p>{t(BROKEN_TOUR_STEPS, { count: preview.brokenTourSteps.length })}</p>
+            <List items={tourStepsOf(project, preview)} total={preview.brokenTourSteps.length} />
           </section>
         )}
         {!action && preview.positions.length > 0 && (
@@ -336,6 +347,15 @@ function HeldContents({
       )}
     </>
   );
+}
+
+/** The tour steps a deletion flags, each as its tour's name and its caption's title (ADR 0058). */
+function tourStepsOf(project: ProjectSnapshot, preview: DeletePreview): string[] {
+  return preview.brokenTourSteps.slice(0, LISTED).map(({ tour, step }) => {
+    const found = project.tours.find((each) => each.id === tour);
+    const title = found?.steps.find((each) => each.id === step)?.caption.title;
+    return `${found?.name ?? tour}: ${title ?? step}`;
+  });
 }
 
 /** The first items of a list, and how many more there are. */

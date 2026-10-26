@@ -4,6 +4,7 @@ import { useCallback, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { CommentsTab } from '../comments/CommentsTab';
 import { CommentsContext, useWhenCommentsShown, type CommentsStore } from '../comments/store';
 import { HistoryPanel } from '../history/HistoryPanel';
+import { ToursPanel } from '../tours/ToursPanel';
 import { useT } from '../i18n';
 import { ComponentsTab } from './ComponentsTab';
 import { ModelTab } from './ModelTab';
@@ -19,7 +20,7 @@ interface ModelPanelProps {
   comments?: CommentsStore | undefined;
 }
 
-type Tab = 'outline' | 'model' | 'components' | 'history' | 'comments';
+type Tab = 'outline' | 'model' | 'components' | 'history' | 'comments' | 'tours';
 
 const TABS: readonly { tab: Tab; name: string }[] = [
   { tab: 'outline', name: 'Outline' },
@@ -28,6 +29,8 @@ const TABS: readonly { tab: Tab; name: string }[] = [
   { tab: 'history', name: 'History' },
   // Threads of comments (ADR 0059).
   { tab: 'comments', name: 'Comments' },
+  // Tours (ADR 0058).
+  { tab: 'tours', name: 'Tours' },
 ];
 
 /**
@@ -47,6 +50,7 @@ export function ModelPanel({ project, definitions, openViewId, comments }: Model
     components: useId(),
     history: useId(),
     comments: useId(),
+    tours: useId(),
   };
   const buttons = useRef(new Map<Tab, HTMLButtonElement>());
   // A pin chosen on the canvas brings the comments tab forward.
@@ -149,6 +153,15 @@ export function ModelPanel({ project, definitions, openViewId, comments }: Model
         <CommentsContext value={comments}>
           <CommentsTab active={tab === 'comments'} />
         </CommentsContext>
+      </div>
+      <div
+        role="tabpanel"
+        id={`${ids.tours}-panel`}
+        aria-labelledby={`${ids.tours}-tab`}
+        hidden={tab !== 'tours'}
+        className="panel-tab-content"
+      >
+        <ToursPanel active={tab === 'tours'} />
       </div>
     </aside>
   );

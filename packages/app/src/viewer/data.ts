@@ -27,6 +27,7 @@ import type {
   PackageFile,
   ProjectFile,
   ScenarioFile,
+  TourFile,
   ViewFile,
 } from '@visual-anything/schema';
 import type { ValidationResult } from '@visual-anything/schema/validate';
@@ -54,6 +55,11 @@ export interface PageData {
   packages: PackageFile[];
   views: ViewFile[];
   scenarios: ScenarioFile[];
+  /**
+   * Its tours, which the page plays full screen (ADR 0058); left out when it has none. Threads of
+   * comments never travel in a page: they are often working notes (ADR 0059).
+   */
+  tours?: TourFile[];
 }
 
 /** What else a page's data says, besides the project. */
@@ -75,6 +81,7 @@ export function pageDataOf(project: ProjectSnapshot, options: PageDataOptions = 
       .map((pkg) => withCleanedImages(withoutCode(pkg))),
     views: project.views,
     scenarios: project.scenarios,
+    ...(project.tours.length === 0 ? {} : { tours: project.tours }),
   };
 }
 
@@ -145,6 +152,7 @@ export function readPageData(text: string, validate: ValidateFile): PageRead {
     !Array.isArray(data.packages) ||
     !Array.isArray(data.views) ||
     !Array.isArray(data.scenarios) ||
+    (data.tours !== undefined && !Array.isArray(data.tours)) ||
     (start !== undefined && (typeof start !== 'string' || start.length > MAX_VIEW_STATE_ADDRESS)) ||
     (made !== undefined && typeof made !== 'string')
   ) {
@@ -174,22 +182,27 @@ export function readPageData(text: string, validate: ValidateFile): PageRead {
     const read = check('scenario', scenario, `Scenario ${at + 1}`);
     return read ? [read] : [];
   });
+  const tours = ((data.tours ?? []) as unknown[]).flatMap((tour, at) => {
+    const read = check('tour', tour, `Tour ${at + 1}`);
+    return read ? [read] : [];
+  });
   if (!project || !model || problems.length > 0) return { ok: false, problems };
 
   onceEach(packages, 'package', problems);
   onceEach(views, 'view', problems);
   onceEach(scenarios, 'scenario', problems);
+  onceEach(tours, 'tour', problems);
   const listed = listedPackages(project, packages, problems);
   if (problems.length > 0) return { ok: false, problems };
 
-  // The page carries no comments, which name people (ADR 0059), and no tours yet.
+  // The page carries no comments, which name people (ADR 0059).
   const snapshot: ProjectSnapshot = {
     project,
     model,
     packages: listed,
     views,
     scenarios,
-    tours: [],
+    tours,
     comments: [],
   };
   const checked = checkProject(snapshot);
@@ -216,7 +229,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /** Says so of every id an earlier file of the same kind already has. */
 function onceEach(
   files: readonly { id: string }[],
-  kind: 'package' | 'view' | 'scenario',
+  kind: 'package' | 'view' | 'scenario' | 'tour',
   problems: string[],
 ): void {
   const seen = new Set<string>();

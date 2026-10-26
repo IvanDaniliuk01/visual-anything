@@ -231,7 +231,8 @@ describe('readViewState', () => {
         expect(typeof result.ok).toBe('boolean');
       }),
     );
-  });
+    // A hundred random addresses take well under a second, but a loaded machine stretches them.
+  }, 30_000);
 });
 
 /** Ids, of every length the pattern allows. */

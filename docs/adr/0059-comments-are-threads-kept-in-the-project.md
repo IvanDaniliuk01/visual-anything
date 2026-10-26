@@ -63,3 +63,11 @@ M11's build of comments (W39) settled these.
 - **A thread on a point** is placed by clicking the canvas after *Comment on a point…*, or with Enter at the middle of the canvas; the point is rounded to whole canvas units.
 - **Claude's tools** are `list_threads`, `read_thread`, `create_thread`, `reply_to_thread`, `edit_comment`, `resolve_thread` and `delete_thread`, and the MCP prompt `work_through_comments` works through the open threads, each answer and each change its own action. Claude reads authors by name, never by email; it resolves or deletes a thread only when the person asks.
 - **Leaving the project.** The exports draw from the scene and the model, so comments stay out of them. The read-only page (ADR-0041) must leave `comments` out of what it embeds unless asked, since they hold people's names and emails.
+- 2026-10-25, the file (W38's plumbing, which the comments task builds on). A `.vacomment` holds one thread, read within 1 MiB:
+  - `id`;
+  - `anchor`, by its `kind`: `element` with its `element`, `relation` with its `relation`, `view` with its `view`, or `point` with its `view`, `x` and `y` in canvas units, at most ten million from 0 either way;
+  - `resolved`, left out while the thread is open;
+  - `comments`, 1 to 1,000, oldest first, each with an `id`, an `author`, a `time`, maybe an `edited` time, and a `text` of 1 to 20,000 characters.
+
+  An author is `{ "kind": "person", "name", "email"? }`, from the person's preferences, or `{ "kind": "claude" }`, so that a person named Claude is never taken for Claude. Times are in UTC as `Date.prototype.toISOString` writes them, such as `2026-10-25T14:03:00.000Z`. A comment's text is plain text as a tour's captions are (ADR 0058's clarifications).
+- 2026-10-25, the project. `ProjectSnapshot.comments` holds the threads, and the local program reads, watches and writes `comments/` as it does `views/`; a thread is saved to `comments/<id>.vacomment`.

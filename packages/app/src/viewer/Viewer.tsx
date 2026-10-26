@@ -31,9 +31,20 @@ import type { Language } from '../i18n/translate';
 import { PlaybackEmphasis } from '../scenarios/PlaybackEmphasis';
 import { FindBar } from '../search/FindBar';
 import { OutlineTree } from '../shell/OutlineTree';
-import { DismissIcon, FilterIcon, InfoIcon, ListIcon, PlayIcon, SearchIcon } from '../shell/icons';
+import {
+  DismissIcon,
+  FilterIcon,
+  InfoIcon,
+  ListIcon,
+  PlayIcon,
+  SearchIcon,
+  TourIcon,
+} from '../shell/icons';
+import { TourPlaybackLayer } from '../tours/TourPlaybackLayer';
+import { useTourPlayback } from '../tours/useTourPlayback';
 import type { CanvasCamera } from '../view-state/canvas';
 import { useViewState } from '../view-state/useViewState';
+import { TourChooser } from './TourChooser';
 import { About } from './About';
 import { LanguageChoiceControl, ThemeChoiceControl } from './Choices';
 import type { PageRead } from './data';
@@ -120,7 +131,7 @@ function Unreadable({
 }
 
 /** What can be open beside the canvas. */
-type Panel = 'explore' | 'outline' | 'scenarios' | 'about';
+type Panel = 'explore' | 'outline' | 'scenarios' | 'tours' | 'about';
 
 interface ViewerProps {
   project: ProjectSnapshot;
@@ -174,6 +185,9 @@ export function Viewer({ project: opened, made, preferences }: ViewerProps) {
     canvas,
     notify: (_level, message) => setNotice(message),
   });
+  // Tours, played full screen as in the app (ADR 0058): the page's header and panels hide meanwhile.
+  const tours = useTourPlayback({ project, scene, viewState, scenarios: playback, emphasis });
+  const touring = tours.playback.tour !== undefined;
   const editor = useMemo<Editor>(
     () => ({
       project,
@@ -233,7 +247,7 @@ export function Viewer({ project: opened, made, preferences }: ViewerProps) {
   return (
     <EditorContext.Provider value={editor}>
       <EmphasisContext.Provider value={emphasis}>
-        <div className="viewer">
+        <div className={touring ? 'viewer tour-playing' : 'viewer'}>
           <header className="viewer-header">
             <ProductName />
             <h1 className="viewer-project">{project.project.name}</h1>
@@ -271,6 +285,15 @@ export function Viewer({ project: opened, made, preferences }: ViewerProps) {
                     onPress={() => togglePanel('scenarios')}
                   >
                     <PlayIcon />
+                  </ToolButton>
+                )}
+                {project.tours.length > 0 && (
+                  <ToolButton
+                    label={t('Tours')}
+                    pressed={panel === 'tours'}
+                    onPress={() => togglePanel('tours')}
+                  >
+                    <TourIcon />
                   </ToolButton>
                 )}
                 <ToolButton
@@ -338,6 +361,17 @@ export function Viewer({ project: opened, made, preferences }: ViewerProps) {
                   onClose={() => setPanel(undefined)}
                 />
               )}
+              {panel === 'tours' && (
+                <TourChooser
+                  project={project}
+                  onPlay={(tour) => {
+                    setPanel(undefined);
+                    tours.host.play(tour);
+                  }}
+                  onClose={() => setPanel(undefined)}
+                />
+              )}
+              <TourPlaybackLayer project={project} tours={tours} />
               <div className="viewer-bottom">
                 <Details />
                 {scenario && timeline && (

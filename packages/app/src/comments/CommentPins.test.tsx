@@ -32,6 +32,8 @@ function fakeCanvas(start: Camera = { x: 10, y: 20, scale: 2 }) {
       return () => listeners.delete(listener);
     },
     reveal: () => undefined,
+    targetOf: () => camera,
+    glideTo: (next) => setCamera(next),
   };
   const move = (next: Camera) => {
     camera = next;

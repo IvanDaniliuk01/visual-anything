@@ -267,6 +267,10 @@ export {
 export { MAX_FILTER_CONDITIONS, MAX_FILTER_TEXT } from './protocol';
 // Package code (ADR 0054): the hooks' types, the checks of their answers, the hash and the approvals.
 export * from './code';
+// Tours (ADR 0058), and the plain text with paragraphs and lists their captions hold.
+export * from './tours';
+export type { TextBlock } from './plain-text';
+export { textBlocks } from './plain-text';
 // Overlays, their legend, and levels of detail (ADR 0055).
 export * from './overlays';
 export { MAX_OVERLAY_CASES, MAX_OVERLAY_STOPS } from './commands/overlays';

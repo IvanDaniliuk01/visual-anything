@@ -60,6 +60,32 @@ describe('The data a read-only page holds', () => {
     expect(data.packages.map((pkg) => pkg.id)).toEqual(['clinic']);
   });
 
+  // Tours (ADR 0058) and comments (ADR 0059).
+  it('holds the tours, which play in the page, and never the threads of comments', () => {
+    const data = pageDataOf(sample);
+    expect(sample.tours.length).toBeGreaterThan(0);
+    expect(sample.comments.length).toBeGreaterThan(0);
+    expect(data.tours).toEqual(sample.tours);
+    expect(data).not.toHaveProperty('comments');
+    expect(asText(data)).not.toContain(sample.comments[0]?.comments[0]?.text);
+    const back = read(data);
+    expect(back.ok && back.project.tours).toEqual(sample.tours);
+    expect(back.ok && back.project.comments).toEqual([]);
+    expect(pageDataOf({ ...sample, tours: [] })).not.toHaveProperty('tours');
+  });
+
+  it('refuses a tour that is no tour, and two tours with one id', () => {
+    const data = pageDataOf(sample);
+    const [tour] = data.tours ?? [];
+    expect(problemsOf({ ...data, tours: [{ ...tour, steps: 'none' }] })).toEqual([
+      'Tour 1, /steps: must be an array',
+    ]);
+    expect(problemsOf({ ...data, tours: [tour, tour] })).toEqual([
+      `The tour id "${tour?.id}" is used twice.`,
+    ]);
+    expect(problemsOf({ ...data, tours: 'none' })).toEqual(['This page’s data is not a project.']);
+  });
+
   it('says where the page opens and when it was made, when asked', () => {
     const data = pageDataOf(sample, {
       start: 'view=system-overview',

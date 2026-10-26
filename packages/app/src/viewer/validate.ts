@@ -19,6 +19,8 @@ export interface StandaloneValidators {
   packageFile: StandaloneValidator;
   viewFile: StandaloneValidator;
   scenarioFile: StandaloneValidator;
+  tourFile: StandaloneValidator;
+  commentFile: StandaloneValidator;
 }
 
 /**
@@ -31,6 +33,8 @@ const NAMES: Readonly<Partial<Record<FileKind, keyof StandaloneValidators>>> = {
   package: 'packageFile',
   view: 'viewFile',
   scenario: 'scenarioFile',
+  tour: 'tourFile',
+  comment: 'commentFile',
 };
 
 /** Checks files with the generated validators. */

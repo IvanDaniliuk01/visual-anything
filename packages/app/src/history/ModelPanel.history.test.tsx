@@ -10,7 +10,7 @@ vi.mock('../canvas/CanvasArea', () => import('../test/FakeCanvasArea'));
 const sample = loadSample();
 
 describe('the model panel’s History tab', () => {
-  it('shows the history panel, after the components and before the comments', () => {
+  it('shows the history panel, after the components and before the comments and the tours', () => {
     const live = fakeLive({
       actions: [
         {
@@ -33,7 +33,7 @@ describe('the model panel’s History tab', () => {
       within(panel)
         .getAllByRole('tab')
         .map((tab) => tab.textContent),
-    ).toEqual(['Outline', 'Model', 'Components', 'History', 'Comments']);
+    ).toEqual(['Outline', 'Model', 'Components', 'History', 'Comments', 'Tours']);
     fireEvent.click(within(panel).getByRole('tab', { name: 'History' }));
     const history = within(panel).getByRole('tabpanel', { name: 'History' });
     expect(within(history).getByRole('listitem')).toHaveTextContent('Create "Booking agent"');
