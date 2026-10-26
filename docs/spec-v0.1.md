@@ -481,7 +481,7 @@ Eight milestones in build order, each ending in something you can use, and Track
   - silhouettes and plain blocks drawn as simplified outlines, and collapsed containers' sheets;
   - names in the label area, or beside the shape in the hover and selection marks, and icons;
   - hit testing, box selection and drop targets by the outline, and hover and selection marks along it.
-- [ ] **Routes on outlines, and automatic curves** (ADR 0066, ADR 0069):
+- [x] **Routes on outlines, and automatic curves** (ADR 0066, ADR 0069):
   - automatic ends at the last exit, orthogonal ends carried on to the outline, and connection points and border attachments carried in;
   - automatic straight and curved routes, fanned apart as parallel lines are;
   - route handles and dragged ends on outlines (ADR 0039's clarification);

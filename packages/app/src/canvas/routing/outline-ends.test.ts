@@ -202,10 +202,14 @@ describe('the side and place an end let go on an outline is stored as', () => {
   it('comes as near as any side can for a point that no side reaches first', () => {
     const outline = placed(outlineOf(FRAME), { x: 0, y: 0, width: 100, height: 100 });
     // A point on the hole's edge: every side meets the frame's outer edge first.
-    const place = placeCarriedTo(outline, { x: 0, y: 0, width: 100, height: 100 }, {
-      x: 25,
-      y: 50,
-    });
+    const place = placeCarriedTo(
+      outline,
+      { x: 0, y: 0, width: 100, height: 100 },
+      {
+        x: 25,
+        y: 50,
+      },
+    );
     expect(place).toEqual({ side: 'left', at: 0.5 });
   });
 });

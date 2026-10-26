@@ -65,7 +65,11 @@ export function automaticRoute(
     case 'orthogonal':
       if (pointed) return routeByHand(handOf(a), handOf(b), [], 'orthogonal', sibling);
       return {
-        route: carriedOrthogonal(routeWithSides(a.end, b.end, offset), outlinedOf(a), outlinedOf(b)),
+        route: carriedOrthogonal(
+          routeWithSides(a.end, b.end, offset),
+          outlinedOf(a),
+          outlinedOf(b),
+        ),
       };
     case 'straight':
       return straightRoute(a, b, offset, sibling);
@@ -110,17 +114,17 @@ function outlinedOf(end: AutomaticEnd): OutlinedEnd | undefined {
 }
 
 /** A curve between the places the orthogonal route attaches at, along their sides' directions. */
-function curvedRoute(
-  a: AutomaticEnd,
-  b: AutomaticEnd,
-  offset: number,
-  sibling: number,
-): HandRoute {
+function curvedRoute(a: AutomaticEnd, b: AutomaticEnd, offset: number, sibling: number): HandRoute {
   const pointed = a.points !== undefined || b.points !== undefined;
   // Where the orthogonal route attaches on the boxes, before it is carried on to any outline.
   const box = pointed
-    ? routeByHand(handOf(a, undefined, false), handOf(b, undefined, false), [], 'orthogonal', sibling)
-        .route
+    ? routeByHand(
+        handOf(a, undefined, false),
+        handOf(b, undefined, false),
+        [],
+        'orthogonal',
+        sibling,
+      ).route
     : routeWithSides(a.end, b.end, offset);
   const start = curveEnd(a, box[0] as Point, box[1] as Point);
   const end = curveEnd(b, box.at(-1) as Point, box.at(-2) as Point);

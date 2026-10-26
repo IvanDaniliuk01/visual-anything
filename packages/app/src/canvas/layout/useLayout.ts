@@ -293,8 +293,10 @@ export function useLayout({
     const keys = new Set<string>();
     for (const shape of scene.shapes) {
       keys.add(shape.key);
-      // A row is placed by its container's rows, never by layout (ADR 0023).
-      const waits = shape.positioned === 'placed' && shape.row === undefined;
+      // A row is placed by its container's rows, never by layout (ADR 0023), and an anchored part
+      // by its part, in its drawing (ADR 0067).
+      const waits =
+        shape.positioned === 'placed' && shape.row === undefined && shape.part?.inDrawing !== true;
       if (waits && (opened || !last.keys.has(shape.key))) {
         waiting.current.add(shape.key);
       }

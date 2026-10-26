@@ -370,7 +370,9 @@ function alongWithBounds(
 ): { line: RelationLine; bounds: Rect } {
   const kept = rerouted.get(line);
   if (kept && kept.route === flat) return kept;
-  const route = carried ? carriedOrthogonal(routeOf(flat), carried.from, carried.to) : routeOf(flat);
+  const route = carried
+    ? carriedOrthogonal(routeOf(flat), carried.from, carried.to)
+    : routeOf(flat);
   const start = route[0] as Point;
   const end = route.at(-1) as Point;
   const beforeEnd = route.at(-2) as Point;

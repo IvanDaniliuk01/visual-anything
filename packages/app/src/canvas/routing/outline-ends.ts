@@ -209,7 +209,8 @@ export function nearestOnOutline(
       const dx = (points[2 * j] as number) - ax;
       const dy = (points[2 * j + 1] as number) - ay;
       const length = dx * dx + dy * dy;
-      const t = length === 0 ? 0 : clamp(((local.x - ax) * dx + (local.y - ay) * dy) / length, 0, 1);
+      const t =
+        length === 0 ? 0 : clamp(((local.x - ax) * dx + (local.y - ay) * dy) / length, 0, 1);
       consider(ax + t * dx, ay + t * dy);
     }
   }
@@ -362,7 +363,10 @@ export function placeOfEnd(rect: Rect, first: Point, next: Point): SidePlace | u
 /** Whether a route leaves a box from inside: its next point lies within the box, as to a shape it holds. */
 export function leavesFromInside(rect: Rect, next: Point): boolean {
   return (
-    next.x > rect.x && next.x < rect.x + rect.width && next.y > rect.y && next.y < rect.y + rect.height
+    next.x > rect.x &&
+    next.x < rect.x + rect.width &&
+    next.y > rect.y &&
+    next.y < rect.y + rect.height
   );
 }
 

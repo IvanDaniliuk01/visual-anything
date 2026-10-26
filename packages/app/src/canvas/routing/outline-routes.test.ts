@@ -215,14 +215,18 @@ describe('automatic orthogonal lines on outlines', () => {
   });
 
   it('go around what is in their way by their boxes, and meet the outlines still', () => {
-    const walled = run(project(), {
-      type: 'create-element',
-      element: { id: 'wall', component: 'anatomy.chamber', name: 'Wall' },
-    }, {
-      type: 'set-positions',
-      view: VIEW,
-      positions: [{ element: 'wall', x: 260, y: 540, width: 60, height: 240 }],
-    });
+    const walled = run(
+      project(),
+      {
+        type: 'create-element',
+        element: { id: 'wall', component: 'anatomy.chamber', name: 'Wall' },
+      },
+      {
+        type: 'set-positions',
+        view: VIEW,
+        positions: [{ element: 'wall', x: 260, y: 540, width: 60, height: 240 }],
+      },
+    );
     const scene = buildScene(walled, VIEW);
     const avoided = avoidedScene(scene);
     const before = lineOf(scene, 't1');
@@ -378,7 +382,8 @@ describe('the incremental scene, on outlines', () => {
     expect(worst).toBeLessThan(50);
     const scene = buildScene(current, VIEW);
     for (const line of scene.relations) {
-      const end = line.ends?.from.kind === 'shape' && line.ends.from.key === 'hub' ? line.from : line.to;
+      const end =
+        line.ends?.from.kind === 'shape' && line.ends.from.key === 'hub' ? line.from : line.to;
       expect(offOutline(scene, 'hub', end)).toBeLessThan(1e-6);
     }
   });
@@ -411,7 +416,11 @@ function hub(count: number): ProjectSnapshot {
   const relations: Relation[] = Array.from({ length: count }, (_, at) => {
     const style = styles[at % 3];
     return {
-      ...flows(`spoke-to-hub-${at}`, at % 2 === 0 ? `spoke-${at}` : 'hub', at % 2 === 0 ? 'hub' : `spoke-${at}`),
+      ...flows(
+        `spoke-to-hub-${at}`,
+        at % 2 === 0 ? `spoke-${at}` : 'hub',
+        at % 2 === 0 ? 'hub' : `spoke-${at}`,
+      ),
       ...(style ? { appearance: { route: style } } : {}),
     };
   });
