@@ -386,9 +386,9 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [x] The tours panel: Add step from the view state, captions and marks edited in place, steps reordered
 - [x] Full-screen playback: the caption card, the progress line, keys, the camera's capped and eased moves, speaker notes in a second window, and tours in the read-only page
 - [x] Claude's tools for tours
-- [ ] Comment files in the schema and the loader; comment commands in the core, test-first, threads whose anchor is deleted kept as detached (the file kind, the loader, the watcher and the writer are in)
-- [ ] Pins on the canvas and the comments panel, with filters; authors from your preferences
-- [ ] Claude's tools for comments, and working through the open ones
+- [x] Comment files in the schema and the loader; comment commands in the core, test-first, threads whose anchor is deleted kept as detached (the file kind, the loader, the watcher and the writer are in)
+- [x] Pins on the canvas and the comments panel, with filters; authors from your preferences
+- [x] Claude's tools for comments, and working through the open ones
 
 **Track A · Look and feel**, beside the milestones: A1 right after M2 and before M3's app tasks; A2's core before M3's commands for collapse, expand and filters, and A2 tagged before M4's write tools are fixed; A3 after M3's canvas tasks; A4 before M4's UI tasks. Its commits start with `A<n>:`, and each stage is tagged `a<n>` when its Done when holds.
 
