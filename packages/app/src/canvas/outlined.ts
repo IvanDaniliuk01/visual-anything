@@ -212,6 +212,8 @@ type Named = Holding &
     outline?: ShapeOutline;
     name?: string;
     part?: { inDrawing: boolean };
+    /** Present on a drawing with parts (ADR 0067). */
+    picture?: unknown;
   };
 
 /**
@@ -245,11 +247,16 @@ export function writesNameInside(shape: Named): boolean {
 }
 
 /**
- * Whether a shape writes its name under its outline (ADR 0066's clarification): one with its own
- * outline, drawn on its own and showing no contents, whose name does not fit whole inside it. It is
- * written whole, on what the shape sits on, rather than cut inside the shape.
+ * Whether a shape writes its name under itself, whole, on what it sits on, as a shape drawn by its
+ * picture writes it in its band:
+ *
+ * - a drawing with parts that is no container, under its picture, never over it (ADR 0067's
+ *   clarification); a container writes its name in its header;
+ * - a shape with its own outline, drawn on its own and showing no contents, whose name does not fit
+ *   whole inside it, under its outline, rather than cut inside it (ADR 0066's clarification).
  */
 export function writesNameBelow(shape: Named): boolean {
+  if (shape.picture !== undefined) return !shape.holdsContents && shape.collapsed === undefined;
   return (
     shape.outline !== undefined &&
     shape.part?.inDrawing !== true &&
@@ -266,9 +273,21 @@ export interface NameBelow {
   width: number;
 }
 
-/** Where a shape that writes its name under its outline writes it (`writesNameBelow`). */
-export function nameBelowOf(shape: Outlined & { name: string }): NameBelow {
-  const bounds = outlineBoundsOn(shape);
+/**
+ * Where a shape that writes its name under itself writes it (`writesNameBelow`): under its outline,
+ * or under the rectangle of a drawing with parts or of a shape with none.
+ */
+export function nameBelowOf(shape: {
+  rect: Rect;
+  outline?: ShapeOutline;
+  name: string;
+  picture?: unknown;
+}): NameBelow {
+  const { outline } = shape;
+  const bounds =
+    outline && shape.picture === undefined
+      ? outlineBoundsOn({ rect: shape.rect, outline })
+      : shape.rect;
   const width = Math.max(bounds.width, NAME_BELOW_WIDTH);
   return {
     lines: nameBelowLines(shape.name, width),
@@ -280,12 +299,12 @@ export function nameBelowOf(shape: Outlined & { name: string }): NameBelow {
 
 /**
  * What a shape covers on the canvas with what it draws: its rectangle and, for one that writes its
- * name under its outline, that name and a line of detail under it.
+ * name under itself, that name and a line of detail under it.
  */
 export function drawnBoundsOf(shape: Named & { name: string }): Rect {
   const { rect } = shape;
-  if (!shape.outline || !writesNameBelow(shape)) return rect;
-  const below = nameBelowOf({ ...shape, outline: shape.outline });
+  if (!writesNameBelow(shape)) return rect;
+  const below = nameBelowOf(shape);
   const left = Math.min(rect.x, below.x - below.width / 2);
   const right = Math.max(rect.x + rect.width, below.x + below.width / 2);
   const bottom = below.y + below.lines.length * PART_NAME_LINE + DETAIL_BELOW_LINE;

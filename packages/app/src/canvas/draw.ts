@@ -832,8 +832,12 @@ function writeShapeText(
   backdrop: (shape: ElementShape) => Color = () => CANVAS_BACKGROUND,
 ): void {
   if (writeRowsText(shape, write)) return;
+  if (writesNameBelow(shape)) {
+    writeNameBelow(shape, readableTextColors(backdrop(shape)), write);
+    return;
+  }
   if (shape.outline) {
-    writeOutlinedText(shape, shape.outline, write, backdrop);
+    writeOutlinedText(shape, shape.outline, write);
     return;
   }
   const colors = readableTextColors(shape.fill);
@@ -945,7 +949,6 @@ function writeOutlinedText(
   shape: ElementShape,
   outline: ShapeOutline,
   write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
-  backdrop: (shape: ElementShape) => Color,
 ): void {
   const colors = readableTextColors(fillOf(shape));
   if (shape.part?.inDrawing === true) {
@@ -984,10 +987,6 @@ function writeOutlinedText(
         rooms.detail,
       );
     }
-    return;
-  }
-  if (writesNameBelow(shape)) {
-    writeNameBelow(shape, outline, readableTextColors(backdrop(shape)), write);
     return;
   }
   const lines = nameLinesInside({ ...shape, outline });
@@ -1038,17 +1037,16 @@ function wholeLines(fill: Color, width: number): TextStyleOptions {
 }
 
 /**
- * Writes the name of a shape with its own outline that does not fit inside it under its outline,
- * whole, centred below it, in colours that read on what the shape sits on, and its detail under the
- * name (ADR 0066's clarification).
+ * Writes the name of a shape that writes it under itself (`writesNameBelow`) whole, centred below
+ * its outline or its drawing, in colours that read on what the shape sits on, and its detail under
+ * the name (ADR 0066's and ADR 0067's clarifications).
  */
 function writeNameBelow(
   shape: ElementShape,
-  outline: ShapeOutline,
   colors: { name: Color; detail: Color },
   write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
 ): void {
-  const below = nameBelowOf({ rect: shape.rect, outline, name: shape.name });
+  const below = nameBelowOf(shape);
   const height = below.lines.length * PART_NAME_LINE;
   write(
     {
@@ -1078,8 +1076,8 @@ function writeNameBelow(
 
 /**
  * Writes an anchored part's name, alone and whole, its words never cut, centred in its label area,
- * where it fits there (`partNameLines`); never its component's name or its detail. One that does not fit is written beside the
- * part by the hover and selection marks (namesBeside.ts, ADR 0067).
+ * where it fits there (`partNameLines`); never its component's name or its detail. One that does not
+ * fit is written beside the part by the hover and selection marks (namesBeside.ts, ADR 0067).
  */
 function writePartName(
   shape: ElementShape,
@@ -1087,11 +1085,25 @@ function writePartName(
   color: Color,
   write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
 ): void {
+  const text = partNameText(shape, outline, color);
+  if (text) write(text.options, false, text.room);
+}
+
+/**
+ * The text of an anchored part's name, alone and whole, centred in its label area, in `color`, and the
+ * room it takes; none when it does not fit there whole (`partNameLines`). The tiles write it, and the
+ * part layer writes it again over what hides it there (`writePartNames`).
+ */
+export function partNameText(
+  shape: ElementShape,
+  outline: ShapeOutline,
+  color: Color,
+): { options: CanvasTextOptions; room: number } | undefined {
   const area = labelAreaOn({ rect: shape.rect, outline });
   const lines = partNameLines(shape.name, area);
-  if (!lines) return;
-  write(
-    {
+  if (!lines) return undefined;
+  return {
+    options: {
       text: lines.join('\n'),
       anchor: 0.5,
       x: area.x + area.width / 2,
@@ -1102,9 +1114,8 @@ function writePartName(
         lineHeight: PART_NAME_LINE,
       },
     },
-    false,
-    Math.max(area.height, NAME_LINE),
-  );
+    room: Math.max(area.height, NAME_LINE),
+  };
 }
 
 /** A collapsed container's detail with its count first; any other shape's detail. */

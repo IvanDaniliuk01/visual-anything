@@ -104,7 +104,7 @@ describe('writesNameInside', () => {
     const small = outlinedShape('small', TRIANGLE, { x: 100, y: 50, width: 30, height: 24 });
     const long = { ...small, name: 'Pulmonary artery and its branches to both lungs' };
     const bounds = outlineBoundsOn(long as ElementShape & { outline: ShapeOutline });
-    const below = nameBelowOf(long as ElementShape & { outline: ShapeOutline });
+    const below = nameBelowOf(long);
     expect(below.x).toBeCloseTo(bounds.x + bounds.width / 2);
     expect(below.y).toBeCloseTo(bounds.y + bounds.height + NAME_BELOW_GAP);
     expect(below.width).toBe(NAME_BELOW_WIDTH);
@@ -115,6 +115,14 @@ describe('writesNameInside', () => {
       below.y + below.lines.length * PART_NAME_LINE,
     );
     expect(covered.x).toBeLessThanOrEqual(below.x - NAME_BELOW_WIDTH / 2);
+    // A drawing with parts that is no container writes its name under its picture, never over it.
+    const body = scene.shapes.find((shape) => shape.key === 'body') as ElementShape;
+    expect(body.picture).toBeDefined();
+    const drawing: ElementShape = { ...body, holdsContents: false };
+    delete drawing.collapsed;
+    expect(writesNameBelow(drawing)).toBe(true);
+    expect(nameBelowOf(drawing).y).toBeCloseTo(body.rect.y + body.rect.height + NAME_BELOW_GAP);
+    expect(writesNameBelow({ ...drawing, holdsContents: true })).toBe(false);
     // A shape that writes its name inside covers its rectangle.
     const large = outlinedShape('large', TRIANGLE, { x: 0, y: 0, width: 200, height: 160 });
     expect(drawnBoundsOf(large)).toBe(large.rect);

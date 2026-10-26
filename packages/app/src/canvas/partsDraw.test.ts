@@ -263,13 +263,19 @@ describe('where a drawing’s picture shows', () => {
     expect(pictureShows(drawing, 1.5)).toMatchObject({ shows: true, coarse: false });
     expect(shapeOf(levelled, 'body/left').levels).toBe(drawing.levels);
     // The part layer draws its parts in their main colors there.
-    const layer = new PartLayer(new ImageStore(new FakePlatform()));
+    const named = (options: { text?: unknown }) =>
+      Object.assign(new Container(), { label: String(options.text) });
+    const layer = new PartLayer(new ImageStore(new FakePlatform()), () => {}, named);
     layer.setScene(levelled, NONE, NONE);
     layer.setScale(0.5);
-    const [near, middle] = layer.container.children;
+    const [near, names, middle, middleNames] = layer.container.children;
     expect([near?.visible, middle?.visible]).toEqual([false, true]);
+    // Its parts' names over the blocks there, which would hide those the tiles write.
+    expect([names?.visible, middleNames?.visible]).toEqual([false, true]);
+    expect(middleNames?.children.length).toBeGreaterThan(0);
     layer.setScale(1.5);
     expect([near?.visible, middle?.visible]).toEqual([true, false]);
+    expect([names?.visible, middleNames?.visible]).toEqual([true, false]);
     layer.destroy();
   });
 });
@@ -344,10 +350,12 @@ describe('the part layer', () => {
     const layer = new PartLayer(new ImageStore(new FakePlatform()));
     layer.setScene(buildScene(beyondBoxes(), VIEW), NONE, NONE);
     layer.setScale(0.1);
-    const [near, middle, badges] = layer.container.children;
+    const [near, names, middle, , badges] = layer.container.children;
     expect([near?.visible, middle?.visible, badges?.visible]).toEqual([false, false, false]);
+    expect(names?.visible).toBe(false);
     layer.setScale(1);
     expect([near?.visible, middle?.visible, badges?.visible]).toEqual([true, false, true]);
+    expect(names?.visible).toBe(true);
     layer.destroy();
   });
 });

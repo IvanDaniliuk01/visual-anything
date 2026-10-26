@@ -11,10 +11,14 @@
  *   - an overlay's fill fills the outline, its opacity lays a veil of the drawing's fill over it, and
  *     its stroke strokes the outline;
  *   - an overlay's badge is written at the part's label point, under its name when the part writes
- *     its name there, from the scale names are written at.
+ *     its name there, from the scale names are written at;
+ *   - the name of a part an overlay fills or drawn with its own picture is written again over them,
+ *     where the tiles write it under them, so that what changes how a part looks never hides its
+ *     name.
  * - **At the middle levels**, where the drawing is drawn in full but its picture does not show (a
  *   level of detail without images, or names written below the scale pictures show from), each part
- *   is its outline filled in its main color, or in its overlay's fill, faint as it is.
+ *   is its outline filled in its main color, or in its overlay's fill, faint as it is, with its name
+ *   written over it.
  * - **Far out**, where the drawing is a plain block, the tiles draw each part as its simplified outline
  *   in its main color (`draw.ts`), and this layer draws nothing.
  *
@@ -34,7 +38,7 @@ import {
 import type { Color } from '@visual-anything/schema';
 import { Container, Graphics, type Texture } from 'pixi.js';
 import { DIMMED_ALPHA, readableTextColors } from './colors';
-import { FONT_FAMILY, type TextFactory } from './draw';
+import { FONT_FAMILY, partNameText, type TextFactory } from './draw';
 import type { Rect } from './geometry';
 import type { ImageRequest, ImageStore } from './images';
 import type { ImageView } from './images-draw';
@@ -183,6 +187,33 @@ export function writePartBadges(marks: DrawingMarks, make: TextFactory): Contain
   return texts;
 }
 
+/**
+ * Writes the names of a drawing's parts over what the layer draws over them, which would hide the
+ * names the tiles write under it: where its picture shows, of the parts an overlay fills or drawn
+ * with their own picture; with `all`, at the middle levels, of every part a filter does not hide. Each
+ * is written as the tiles write it (`partNameText`), in the text that reads on its overlay's fill or
+ * its main color, faint as the part is.
+ */
+export function writePartNames(marks: DrawingMarks, make: TextFactory, all: boolean): Container[] {
+  const texts: Container[] = [];
+  for (const mark of marks.parts) {
+    const { shape } = mark;
+    if (mark.covered || !shape.outline) continue;
+    if (!all && mark.fill === undefined && !mark.ownPicture) continue;
+    const name = partNameText(
+      shape,
+      shape.outline,
+      readableTextColors(mark.fill ?? mark.color).name,
+    );
+    if (!name) continue;
+    const text = make(name.options, 'name', name.room);
+    if (!text) continue;
+    if (mark.faint) text.alpha = DIMMED_ALPHA;
+    texts.push(text);
+  }
+  return texts;
+}
+
 /** Fills an outline where it is placed, its holes cut, and its lines as bands of their width. */
 export function fillOutline(
   graphics: Graphics,
@@ -242,6 +273,9 @@ interface Drawn {
   middle: Graphics;
   /** The badges overlays write at its parts' label points. */
   badges: Container;
+  /** The names written over what hides them: where its picture shows, and at the middle levels. */
+  names: Container;
+  middleNames: Container;
   /** The level of detail it showed last, which the next one goes on from. */
   levelAt?: number;
   /** Whether a part's own picture waits for a texture, and the keys of those it drew with. */
@@ -339,6 +373,8 @@ export class PartLayer<T extends Texture = Texture> {
       each.near.destroy({ children: true });
       each.middle.destroy();
       each.badges.destroy({ children: true });
+      each.names.destroy({ children: true });
+      each.middleNames.destroy({ children: true });
     }
     this.container.removeChildren();
     this.drawn = all.map((marks) => {
@@ -349,9 +385,15 @@ export class PartLayer<T extends Texture = Texture> {
       const middle = new Graphics();
       drawPartBlocks(middle, marks);
       const badges = new Container();
+      const names = new Container();
+      const middleNames = new Container();
       if (this.make) {
         const texts = writePartBadges(marks, this.make);
         if (texts.length > 0) badges.addChild(...texts);
+        const over = writePartNames(marks, this.make, false);
+        if (over.length > 0) names.addChild(...over);
+        const all = writePartNames(marks, this.make, true);
+        if (all.length > 0) middleNames.addChild(...all);
       }
       const drawn: Drawn = {
         marks,
@@ -360,13 +402,15 @@ export class PartLayer<T extends Texture = Texture> {
         over,
         middle,
         badges,
+        names,
+        middleNames,
         waiting: false,
         keys: [],
         asked: false,
       };
       drawPartMarks(over, marks, this.theme, () => false, pictures);
       drawn.waiting = marks.parts.some((mark) => mark.ownPicture);
-      this.container.addChild(near, middle, badges);
+      this.container.addChild(near, names, middle, middleNames, badges);
       this.place(drawn);
       return drawn;
     });
@@ -375,7 +419,8 @@ export class PartLayer<T extends Texture = Texture> {
 
   /**
    * Shows a drawing's marks where its picture shows at the scale, its parts in their main colors at
-   * the middle levels, nothing far out, and its badges from the scale names are written at.
+   * the middle levels, nothing far out, and its badges and the names over its marks from the scale
+   * names are written at.
    */
   private place(drawn: Drawn): void {
     const { shows, coarse, at } = pictureShows(drawn.marks.drawing, this.scale, drawn.levelAt);
@@ -383,9 +428,13 @@ export class PartLayer<T extends Texture = Texture> {
     else drawn.levelAt = at;
     const middle = !shows && !coarse;
     const badges = !coarse && this.scale >= BADGES_FROM;
+    const named = shows && badges;
+    const middleNamed = middle && badges;
     if (drawn.near.visible !== shows) drawn.near.visible = shows;
     if (drawn.middle.visible !== middle) drawn.middle.visible = middle;
     if (drawn.badges.visible !== badges) drawn.badges.visible = badges;
+    if (drawn.names.visible !== named) drawn.names.visible = named;
+    if (drawn.middleNames.visible !== middleNamed) drawn.middleNames.visible = middleNamed;
   }
 
   /** Draws the own pictures of a drawing's parts with the textures the store has, the rest in their main color. */

@@ -1065,6 +1065,8 @@ function detailOf(shape: ElementShape): string {
 
 /** A shape's name and detail, where and as the canvas writes them. */
 function shapeText(writer: Writer, shape: ElementShape, fill: Color): string {
+  // A drawing with parts that is no container writes under its picture, never over it.
+  if (writesNameBelow(shape)) return nameBelowText(writer, shape);
   const colors = readableTextColors(fill);
   const detail = detailOf(shape);
   const band = nameBandOf(shape);
@@ -1347,28 +1349,7 @@ function outlinedText(
     );
   }
   const detail = outlinedDetailOf(shape);
-  if (writesNameBelow(shape)) {
-    // Whole, under the outline, on what the shape sits on, as a shape drawn by its picture writes it.
-    const under = readableTextColors(writer.backdropOf(shape));
-    const below = nameBelowOf({ rect: shape.rect, outline, name: shape.name });
-    const height = below.lines.length * PART_NAME_LINE;
-    return (
-      wholeLines(writer, below.lines, below.x, below.y, under.name) +
-      (detail === ''
-        ? ''
-        : writer.text({
-            text: detail,
-            size: DETAIL_SIZE,
-            fill: under.detail,
-            x: below.x,
-            align: 'middle',
-            y: below.y + height + 1,
-            anchor: 'top',
-            wrap: below.width,
-            room: DETAIL_BELOW_LINE,
-          }))
-    );
-  }
+  if (writesNameBelow(shape)) return nameBelowText(writer, shape);
   const lines = nameLinesInside(outlined);
   if (!lines) return '';
   const text = besideIcon(shape, labelAreaOn(outlined));
@@ -1396,6 +1377,33 @@ function outlinedText(
 
 /** How tall the detail under a name written whole inside a shape with its own outline is. */
 const DETAIL_INSIDE_LINE = 15;
+
+/**
+ * The name and detail of a shape that writes them under itself (`writesNameBelow`): whole, under its
+ * outline or its drawing, on what the shape sits on, as a shape drawn by its picture writes them.
+ */
+function nameBelowText(writer: Writer, shape: ElementShape): string {
+  const under = readableTextColors(writer.backdropOf(shape));
+  const below = nameBelowOf(shape);
+  const height = below.lines.length * PART_NAME_LINE;
+  const detail = outlinedDetailOf(shape);
+  return (
+    wholeLines(writer, below.lines, below.x, below.y, under.name) +
+    (detail === ''
+      ? ''
+      : writer.text({
+          text: detail,
+          size: DETAIL_SIZE,
+          fill: under.detail,
+          x: below.x,
+          align: 'middle',
+          y: below.y + height + 1,
+          anchor: 'top',
+          wrap: below.width,
+          room: DETAIL_BELOW_LINE,
+        }))
+  );
+}
 
 /**
  * A name on lines already broken, each whole, bold at a name's size, centred at `x`, the first at
@@ -1466,6 +1474,21 @@ function partMarksParts(writer: Writer, marks: DrawingMarks): string[] {
         round: true,
         lines: { color: mark.stroke, widths: { width: OVERLAY_STROKE } },
       });
+    }
+    // The name its fill would hide, written again over it, as the canvas's part layer does.
+    if (mark.fill !== undefined && shape.outline) {
+      const area = labelAreaOn({ rect: shape.rect, outline: shape.outline });
+      const lines = partNameLines(shape.name, area);
+      if (lines) {
+        const top = area.y + area.height / 2 - (lines.length * PART_NAME_LINE) / 2;
+        parts += wholeLines(
+          writer,
+          lines,
+          area.x + area.width / 2,
+          top,
+          readableTextColors(mark.fill).name,
+        );
+      }
     }
     if (mark.badge !== undefined && shape.outline) {
       const area = labelAreaOn({ rect: shape.rect, outline: shape.outline });

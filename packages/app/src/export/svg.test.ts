@@ -608,7 +608,7 @@ describe('writeSvg beyond boxes', () => {
       expect(writesNameBelow(framed)).toBe(true);
       const below = nameBelowOf({
         rect: framed.rect,
-        outline: framed.outline as ShapeOutline,
+        outline: framed.outline,
         name: framed.name,
       });
       expect(texts[0]?.textContent).toBe('framed');
@@ -868,15 +868,19 @@ describe('writeSvg beyond boxes', () => {
       ['none', '#000000', '2'],
     ]);
     expectSameRect(usedOutlineBounds(document, hot), outlineBounds(left), 0.6);
-    // Its badge at its label point, under its name, over a halo of its fill.
+    // Its name again over its fill, which would hide it, then its badge at its label point,
+    // under its name, over a halo of its fill.
     const badge = [...hot.querySelectorAll(':scope > text')];
     expect(badge.map((text) => [text.textContent, text.getAttribute('stroke')])).toEqual([
+      ['left', null],
       ['HOT', '#FF0000'],
       ['HOT', null],
     ]);
+    expect(badge[0]?.getAttribute('fill')).toBe(readableTextColors('#FF0000').name);
     const name = groupOf(document, 'left').querySelector(':scope > text');
     expect(name?.textContent).toBe('left');
-    expect(Number(badge[1]?.getAttribute('y'))).toBeGreaterThan(Number(name?.getAttribute('y')));
+    expect(badge[0]?.getAttribute('y')).toBe(name?.getAttribute('y'));
+    expect(Number(badge[2]?.getAttribute('y'))).toBeGreaterThan(Number(name?.getAttribute('y')));
 
     const cold = marksOf('right');
     const veiled = outlineUses(document, cold);

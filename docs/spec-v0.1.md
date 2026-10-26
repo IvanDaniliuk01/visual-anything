@@ -532,6 +532,7 @@ Eight milestones in build order, each ending in something you can use, and Track
   - `alignActions.ts`'s copy of `movingShapes` moves into a module without the DOM that `gestures.ts` and the server share;
   - Alt+Shift with an arrow is checked on Windows, where Alt+Shift can switch the keyboard layout; if it does, the keys move;
   - the benchmark gains a phase that resizes a shape and shows guides on the 10,000-element view.
+  - Mermaid and Structurizr carry the styles of routes where they can, rather than reporting them lost (W58): Structurizr with a `routing` style on the relationships tagged by their style, Orthogonal for the rest, and Mermaid with `linkStyle … interpolate` (`basis` curved, `linear` straight, `step` orthogonal); their outputs change for every view, so their tests change with them;
   - `scene.incremental.test.ts` once found an incremental scene in the view beyond boxes that differed from one built from nothing, in about one run in 400, and lost the counterexample; it is hunted with more runs and its seed kept (2026-10-26).
 
 **M11b · Versions.** Planned for the third wave, beside M8b. The core's comparison, merge and proposals go first, in the main session, since everything else builds on them. Then two rounds of tasks run in parallel. Done when:
