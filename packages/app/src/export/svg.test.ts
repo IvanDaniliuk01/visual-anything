@@ -10,12 +10,14 @@ import type { Element as ModelElement, Overlay, ViewFile } from '@visual-anythin
 import { describe, expect, it } from 'vitest';
 import { textWidth } from './measure';
 import type { Rect } from '../canvas/geometry';
-import { outlineAt } from '../canvas/outlines';
+import { drawnBoundsOf, nameBelowOf, nameLinesInside, writesNameBelow } from '../canvas/outlined';
+import { readableTextColors } from '../canvas/colors';
+import { outlineAt, type ShapeOutline } from '../canvas/outlines';
 import { drawnCurve } from '../canvas/routing/curves';
 import { buildScene, buildSceneAfresh, standsFor, type ElementShape } from '../canvas/scene';
 import { shapeColors } from '../canvas/theme/paint';
 import { setCurrentLanguage } from '../i18n/language';
-import { FRAME, ORGANS_ID, beyondBoxes } from '../test/beyond';
+import { FRAME, ORGANS_ID, TRIANGLE, beyondBoxes } from '../test/beyond';
 import { SAMPLE_VIEW, collapsedSample, drawnBounds, pathPoints, richSample } from '../test/exports';
 import { loadSample } from '../test/sample';
 import { usersAndOrders, VIEW as TABLES_VIEW } from '../test/tables';
@@ -64,6 +66,16 @@ function expectSameRect(actual: Rect | undefined, expected: Rect | undefined, wi
   expect(Math.abs(a.y + a.height - (b.y + b.height))).toBeLessThanOrEqual(within);
 }
 
+/** A scene's bounds with what its shapes cover, the names written under outlines included. */
+function coveredRect(bounds: Rect, shapes: readonly ElementShape[]): Rect {
+  const all = [bounds, ...shapes.map(drawnBoundsOf)];
+  const x1 = Math.min(...all.map((rect) => rect.x));
+  const y1 = Math.min(...all.map((rect) => rect.y));
+  const x2 = Math.max(...all.map((rect) => rect.x + rect.width));
+  const y2 = Math.max(...all.map((rect) => rect.y + rect.height));
+  return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+}
+
 /** The view box an SVG says it shows. */
 function viewBoxOf(document: Document): Rect {
   const [x = 0, y = 0, width = 0, height = 0] = (
@@ -101,11 +113,13 @@ describe('writeSvg', () => {
       // Rounded to hundredths as written; flattened curves may fall a little inside.
       expectSameRect(drawnBounds(document), scene.bounds, 0.6);
       expectSameRect(drawing.bounds, scene.bounds);
+      // The scene's bounds, and the names written under outlines (ADR 0066), with a margin around.
+      const covered = coveredRect(scene.bounds as Rect, scene.shapes);
       const margin = {
-        x: (scene.bounds?.x ?? 0) - SVG_MARGIN,
-        y: (scene.bounds?.y ?? 0) - SVG_MARGIN,
-        width: (scene.bounds?.width ?? 0) + 2 * SVG_MARGIN,
-        height: (scene.bounds?.height ?? 0) + 2 * SVG_MARGIN,
+        x: covered.x - SVG_MARGIN,
+        y: covered.y - SVG_MARGIN,
+        width: covered.width + 2 * SVG_MARGIN,
+        height: covered.height + 2 * SVG_MARGIN,
       };
       expectSameRect(viewBoxOf(document), margin);
       expectSameRect(drawing.viewBox, margin);
@@ -584,21 +598,67 @@ describe('writeSvg beyond boxes', () => {
     expect(use.getAttribute('stroke')).toMatch(/^#[0-9A-F]{6}$/i);
     expect(Number(use.getAttribute('stroke-width'))).toBe(1.5);
     expectSameRect(usedOutlineBounds(document, group), outlineBounds(framed), 0.6);
-    // Its name and detail in its outline's label area, a side of the frame, cut to its width.
-    const placed = outlineAt(framed);
-    const area = placed && outlineLabelArea(placed.fitted);
-    expect(area?.height).toBeGreaterThanOrEqual(40);
+    // Its name whole: in its label area, a side of the frame, where its words fit; under it otherwise.
     const texts = [...group.querySelectorAll(':scope > text')];
-    expect(texts).toHaveLength(2);
-    expect(texts[0]?.textContent).toMatch(/^fra/);
-    expect(texts[1]?.textContent).toMatch(/^Cha/);
-    for (const text of texts) {
-      const x = Number(text.getAttribute('x'));
-      const y = Number(text.getAttribute('y'));
-      expect(x).toBeCloseTo((placed?.x ?? 0) + (area?.x ?? 0) + (area?.width ?? 0) / 2);
-      expect(y).toBeGreaterThan((placed?.y ?? 0) + (area?.y ?? 0));
-      expect(y).toBeLessThan((placed?.y ?? 0) + (area?.y ?? 0) + (area?.height ?? 0));
+    expect(texts.map((text) => text.textContent).join(' ')).not.toContain('…');
+    const inside = nameLinesInside({ ...framed, outline: framed.outline as ShapeOutline });
+    if (inside) {
+      expect(texts[0]?.textContent).toBe(inside[0]);
+    } else {
+      expect(writesNameBelow(framed)).toBe(true);
+      const below = nameBelowOf({
+        rect: framed.rect,
+        outline: framed.outline as ShapeOutline,
+        name: framed.name,
+      });
+      expect(texts[0]?.textContent).toBe('framed');
+      expect(Number(texts[0]?.getAttribute('x'))).toBeCloseTo(below.x);
+      expect(Number(texts[0]?.getAttribute('y'))).toBeGreaterThan(below.y);
     }
+  });
+
+  it('never cuts a name: writes it whole inside its outline where it fits, else under it on what it sits on', () => {
+    const name = 'The left ventricle of the heart';
+    const project = beyond({}, { framed: { name } });
+    const framed = shapeIn(project, 'framed');
+    const outline = framed.outline as ShapeOutline;
+    expect(writesNameBelow(framed)).toBe(true);
+    const below = nameBelowOf({ rect: framed.rect, outline, name });
+    const drawing = writeSvg(project, BEYOND_VIEW);
+    const document = readSvg(drawing.text);
+    const texts = [...groupOf(document, 'framed').querySelectorAll(':scope > text')];
+    // Its words whole, on the lines the canvas breaks them on, centred under its outline.
+    expect(texts.slice(0, below.lines.length).map((text) => text.textContent)).toEqual(below.lines);
+    const bottom = outlineBounds(framed).y + outlineBounds(framed).height;
+    for (const text of texts) {
+      expect(Number(text.getAttribute('x'))).toBeCloseTo(below.x);
+      expect(Number(text.getAttribute('y'))).toBeGreaterThan(bottom);
+    }
+    // In the text that reads on the canvas, which it is written on, not on the shape's fill.
+    expect(texts[0]?.getAttribute('fill')).toBe(
+      readableTextColors(THEMES.light.canvas.background).name,
+    );
+    // The drawing holds it whole, as the canvas's tile does.
+    const covered = drawnBoundsOf(framed);
+    expect(drawing.viewBox.y + drawing.viewBox.height).toBeGreaterThanOrEqual(
+      covered.y + covered.height,
+    );
+    // A short name fits inside.
+    const fits = beyond(
+      {},
+      { framed: { name: 'Box', appearance: { geometry: TRIANGLE, width: 200, height: 160 } } },
+    );
+    const triangle = shapeIn(fits, 'framed');
+    expect(writesNameBelow(triangle)).toBe(false);
+    const written = [
+      ...groupOf(readSvg(writeSvg(fits, BEYOND_VIEW).text), 'framed').querySelectorAll(
+        ':scope > text',
+      ),
+    ];
+    expect(written[0]?.textContent).toBe('Box');
+    expect(Number(written[0]?.getAttribute('y'))).toBeLessThan(
+      triangle.rect.y + triangle.rect.height,
+    );
   });
 
   it('draws a container with free geometry by its outline, and a collapsed one on its sheet', () => {

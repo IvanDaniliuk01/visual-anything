@@ -49,14 +49,19 @@ import { t } from '../i18n';
 import { outlineColorOf, readableTextColors } from '../canvas/colors';
 import { imageSerial } from '../canvas/image-serials';
 import {
+  DETAIL_BELOW_LINE,
   LEAST_HEADER_WIDTH,
-  LEAST_LABEL_HEIGHT,
   PART_NAME_LINE,
   PART_NAME_SIZE,
+  besideIcon,
+  drawnBoundsOf,
   headerStretch,
   labelAreaOn,
+  nameBelowOf,
+  nameLinesInside,
   partNameLines,
   showsContents,
+  writesNameBelow,
 } from '../canvas/outlined';
 import { outlineAt, type PlacedOutline, type ShapeOutline } from '../canvas/outlines';
 import {
@@ -541,6 +546,32 @@ class Writer {
   }
 }
 
+/**
+ * What a scene covers with what it draws: its bounds and, for each shape that writes its name under
+ * its own outline, that name and its detail (`drawnBoundsOf`, ADR 0066).
+ */
+function coveredBy(bounds: Rect, shapes: readonly ElementShape[]): Rect {
+  let x1 = bounds.x;
+  let y1 = bounds.y;
+  let x2 = bounds.x + bounds.width;
+  let y2 = bounds.y + bounds.height;
+  for (const shape of shapes) {
+    if (!shape.outline) continue;
+    const rect = drawnBoundsOf(shape);
+    if (rect === shape.rect) continue;
+    x1 = Math.min(x1, rect.x);
+    y1 = Math.min(y1, rect.y);
+    x2 = Math.max(x2, rect.x + rect.width);
+    y2 = Math.max(y2, rect.y + rect.height);
+  }
+  return x1 === bounds.x &&
+    y1 === bounds.y &&
+    x2 === bounds.x + bounds.width &&
+    y2 === bounds.y + bounds.height
+    ? bounds
+    : { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+}
+
 /** Contours as path data, as the core writes an outline, with numbers as the files write them. */
 function pathDataOf(contours: readonly OutlineContour[]): string {
   return outlinePathData(contours).replace(/-?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?/gi, (number) =>
@@ -561,8 +592,10 @@ export function svgOfScene(
   const writer = new Writer(scene, options, { shown: (image) => catalog.shown(image) });
   const { theme } = writer;
   const bounds = scene.bounds;
-  const drawn = bounds
-    ? grow(bounds, SVG_MARGIN)
+  // The names written under outlines lie in the drawing too, as the canvas's tiles cover them.
+  const covered = bounds && coveredBy(bounds, scene.shapes);
+  const drawn = covered
+    ? grow(covered, SVG_MARGIN)
     : { x: 0, y: 0, width: 2 * SVG_MARGIN, height: 2 * SVG_MARGIN };
   if (!bounds) writer.lost.add(t('The view draws nothing.'));
 
@@ -1247,17 +1280,18 @@ function ownPartPicture(
 
 /**
  * The name and detail of a shape with its own outline, as the canvas writes them
- * (`writeOutlinedText`), in colors that read on its fill or its part's main color:
+ * (`writeOutlinedText`), its name always whole, its words never cut:
  *
- * - an anchored part its name alone, whole, centred in its label area, when it fits there
- *   (`partNameLines`), and never its component's name or its detail;
+ * - an anchored part its name alone, centred in its label area, when it fits there
+ *   (`partNameLines`), and never its component's name or its detail; one that does not fit is named
+ *   only by the canvas's hover and selection marks, which no export draws;
  * - an expanded container in its header, along the stretch of the header line its outline holds;
- * - any other shape centred in its label area: its name above the middle and its detail below when
- *   the area is two lines tall, else its name alone in the middle. A collapsed container's detail
- *   starts with its count.
- *
- * Where the outline leaves no room, it writes nothing, as the canvas then names it beside itself only
- * in the marks of hovering and selecting, which no export draws.
+ *   one whose header has no room writes nothing, as the canvas;
+ * - any other shape inside its label area, right of its icon there, when its words fit there whole
+ *   (`nameLinesInside`), in colors that read on its fill or its part's main color, with its detail
+ *   under it when a line is left; otherwise under its outline, centred, whole, on what the shape sits
+ *   on, its detail under it (`writesNameBelow`, `nameBelowOf`). A collapsed container's detail starts
+ *   with its count.
  */
 function outlinedText(
   writer: Writer,
@@ -1266,28 +1300,16 @@ function outlinedText(
   fill: Color,
 ): string {
   const colors = readableTextColors(fill);
-  const area = labelAreaOn({ rect: shape.rect, outline });
+  const outlined = { ...shape, outline };
   if (shape.part?.inDrawing === true) {
+    const area = labelAreaOn(outlined);
     const lines = partNameLines(shape.name, area);
     if (!lines) return '';
     const top = area.y + area.height / 2 - (lines.length * PART_NAME_LINE) / 2;
-    return lines
-      .map((line, at) =>
-        writer.text({
-          text: line,
-          size: PART_NAME_SIZE,
-          bold: true,
-          fill: colors.name,
-          x: area.x + area.width / 2,
-          align: 'middle',
-          y: top + (at + 0.5) * PART_NAME_LINE,
-          anchor: 'middle',
-        }),
-      )
-      .join('');
+    return wholeLines(writer, lines, area.x + area.width / 2, top, colors.name);
   }
   if (showsContents(shape)) {
-    const stretch = headerStretch({ ...shape, outline });
+    const stretch = headerStretch(outlined);
     if (!stretch || stretch.width < LEAST_HEADER_WIDTH) return '';
     const { y, height } = shape.rect;
     const rooms = { name: Math.min(NAME_LINE, height - 12), detail: Math.min(16, height - 32) };
@@ -1324,43 +1346,82 @@ function outlinedText(
         : '')
     );
   }
-  if (area.height < LEAST_LABEL_HEIGHT) return '';
-  const twoLines = area.height >= 2 * NAME_LINE;
-  const rooms = twoLines
-    ? { name: area.height / 2, detail: area.height / 2 - 6 }
-    : { name: Math.max(area.height, NAME_LINE), detail: 0 };
-  const text = besideImage(shape, area);
-  const centerX = text.x + text.width / 2;
-  const centerY = area.y + area.height / 2;
-  const wrap = Math.max(1, text.width);
   const detail = outlinedDetailOf(shape);
+  if (writesNameBelow(shape)) {
+    // Whole, under the outline, on what the shape sits on, as a shape drawn by its picture writes it.
+    const under = readableTextColors(writer.backdropOf(shape));
+    const below = nameBelowOf({ rect: shape.rect, outline, name: shape.name });
+    const height = below.lines.length * PART_NAME_LINE;
+    return (
+      wholeLines(writer, below.lines, below.x, below.y, under.name) +
+      (detail === ''
+        ? ''
+        : writer.text({
+            text: detail,
+            size: DETAIL_SIZE,
+            fill: under.detail,
+            x: below.x,
+            align: 'middle',
+            y: below.y + height + 1,
+            anchor: 'top',
+            wrap: below.width,
+            room: DETAIL_BELOW_LINE,
+          }))
+    );
+  }
+  const lines = nameLinesInside(outlined);
+  if (!lines) return '';
+  const text = besideIcon(shape, labelAreaOn(outlined));
+  const centerX = text.x + text.width / 2;
+  const nameHeight = lines.length * PART_NAME_LINE;
+  const withDetail = detail !== '' && text.height >= nameHeight + DETAIL_INSIDE_LINE;
+  const top = text.y + (text.height - nameHeight - (withDetail ? DETAIL_INSIDE_LINE : 0)) / 2;
   return (
-    writer.text({
-      text: shape.name,
-      size: NAME_SIZE,
-      bold: true,
-      fill: colors.name,
-      x: centerX,
-      align: 'middle',
-      y: twoLines ? centerY + 2 : centerY,
-      anchor: twoLines ? 'bottom' : 'middle',
-      wrap,
-      room: rooms.name,
-    }) +
-    (twoLines && detail !== ''
+    wholeLines(writer, lines, centerX, top, colors.name) +
+    (withDetail
       ? writer.text({
           text: detail,
           size: DETAIL_SIZE,
           fill: colors.detail,
           x: centerX,
           align: 'middle',
-          y: centerY + 4,
+          y: top + nameHeight + 1,
           anchor: 'top',
-          wrap,
-          room: rooms.detail,
+          wrap: Math.max(1, text.width),
+          room: DETAIL_INSIDE_LINE,
         })
       : '')
   );
+}
+
+/** How tall the detail under a name written whole inside a shape with its own outline is. */
+const DETAIL_INSIDE_LINE = 15;
+
+/**
+ * A name on lines already broken, each whole, bold at a name's size, centred at `x`, the first at
+ * `top`, 17.5 units apart, as the canvas writes a name it never cuts.
+ */
+function wholeLines(
+  writer: Writer,
+  lines: readonly string[],
+  x: number,
+  top: number,
+  fill: Color,
+): string {
+  return lines
+    .map((line, at) =>
+      writer.text({
+        text: line,
+        size: PART_NAME_SIZE,
+        bold: true,
+        fill,
+        x,
+        align: 'middle',
+        y: top + (at + 0.5) * PART_NAME_LINE,
+        anchor: 'middle',
+      }),
+    )
+    .join('');
 }
 
 /** A collapsed container's detail with its count first, as the canvas writes it; any other's detail. */
