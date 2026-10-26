@@ -153,6 +153,12 @@ export type CommandResult =
     }
   | { ok: false; problems: RequestProblem[] };
 
+/** How a command is sent: a layout of what the newest action added asks to join it (ADR 0065). */
+export interface SendOptions {
+  /** The id of the newest action, as the history lists it. */
+  joins?: number;
+}
+
 /** How the local program answered a change of preferences. */
 export type PreferencesResult =
   { ok: true; preferences: Preferences } | { ok: false; problems: RequestProblem[] };
@@ -341,9 +347,17 @@ export class LiveConnection {
     return new URLSearchParams(query).has(LAUNCH_PARAM);
   }
 
-  /** Sends a command; resolves once the local program has answered it. */
-  readonly send = (command: Command): Promise<CommandResult> =>
-    this.request('command', (requestId) => ({ type: 'command', requestId, command }));
+  /**
+   * Sends a command; resolves once the local program has answered it. With `joins`, it asks to join
+   * the newest action, which the program does only under ADR 0065's conditions.
+   */
+  readonly send = (command: Command, options: SendOptions = {}): Promise<CommandResult> =>
+    this.request('command', (requestId) => ({
+      type: 'command',
+      requestId,
+      command,
+      ...(options.joins === undefined ? {} : { joins: options.joins }),
+    }));
 
   /** Undoes the newest action, whoever did it. A refusal is also shown as a notice. */
   readonly undo = (): Promise<CommandResult> =>

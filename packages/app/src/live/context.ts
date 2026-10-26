@@ -9,6 +9,7 @@ import type {
   LiveState,
   NoticeLevel,
   OtherProjectResult,
+  SendOptions,
   StartChoice,
 } from './connection';
 
@@ -22,9 +23,10 @@ export interface Live extends LiveState {
   /**
    * Sends a command to the local program, which owns the model. Resolves once it has answered: with
    * what the action created and the rules it broke that only warn, or with the problems that stopped
-   * it. The project already shows the change when the promise resolves.
+   * it. The project already shows the change when the promise resolves. With `joins`, the id of the
+   * newest action, a layout of the shapes that action added asks to join it (ADR 0065).
    */
-  send: (command: Command) => Promise<CommandResult>;
+  send: (command: Command, options?: SendOptions) => Promise<CommandResult>;
   /** Undoes the newest action, whoever did it. A refusal is also shown as a notice. */
   undo: () => Promise<CommandResult>;
   /** Redoes the newest undone action. A refusal is also shown as a notice. */

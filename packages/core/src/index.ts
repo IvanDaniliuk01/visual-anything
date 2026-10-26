@@ -110,6 +110,8 @@ export {
   type LeftOutTypes,
 } from './scope';
 export { shapesInView, type ShapesInView } from './scope-placement';
+// Whether the app's placement of what an action added joins that action (ADR 0065).
+export { placementJoins, type PlacementJoin } from './placement-joins';
 export { MAX_RELATION_TYPES_LEFT_OUT, MAX_SCOPE_DEPTH, MAX_SCOPE_RULES } from './commands/scopes';
 // How filters and scopes test an attribute (ADR 0025, ADR 0040).
 export { meetsCondition, type AttributeTest } from './conditions';
@@ -175,6 +177,7 @@ export {
   HISTORY_LIMIT,
   HISTORY_WEIGHT_LIMIT,
   actionWeight,
+  extendNewest,
   record,
   redo,
   summarize,

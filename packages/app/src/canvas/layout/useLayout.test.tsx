@@ -1,4 +1,9 @@
-import { executeCommand, type Command, type ProjectSnapshot } from '@visual-anything/core';
+import {
+  executeCommand,
+  type Command,
+  type ListedAction,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import type { ReactNode } from 'react';
@@ -66,11 +71,14 @@ function canvas(
     runner = inThread(),
     editable = true,
     selection = EMPTY_SELECTION,
+    actions,
   }: {
     /** null: the runner every canvas shares, which needs web workers. */
     runner?: LayoutRunner | null;
     editable?: boolean;
     selection?: Selection;
+    /** The history, as the local program lists it. */
+    actions?: readonly ListedAction[];
   } = {},
 ) {
   let project = start;
@@ -78,9 +86,12 @@ function canvas(
   // What the canvas makes of the view's scene, as live values do (ADR 0057); nothing at first.
   let dress = (scene: Scene): Scene => scene;
   const sent: Command[] = [];
+  /** The action each command sent asked to join, if any (ADR 0065). */
+  const joins: (number | undefined)[] = [];
   const said: string[] = [];
-  const send = vi.fn((command: Command) => {
+  const send = vi.fn((command: Command, options?: { joins?: number }) => {
     sent.push(command);
+    joins.push(options?.joins);
     const outcome = executeCommand(project, command);
     if (!outcome.ok) return Promise.resolve({ ok: false });
     project = outcome.state;
@@ -98,6 +109,7 @@ function canvas(
       send: editable ? send : undefined,
       announce: (text) => said.push(text),
       ...(guided === undefined ? {} : { guided }),
+      ...(actions === undefined ? {} : { actions }),
     };
   };
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -110,6 +122,7 @@ function canvas(
   return {
     hook,
     sent,
+    joins,
     said,
     get project() {
       return project;
@@ -152,6 +165,25 @@ describe('automatic layout', () => {
     });
     const stored = view.project.views[0]?.positions.find((each) => each.element === 'billing');
     expect(stored?.pinned).toBeUndefined();
+  });
+
+  it('asks to join the newest action done, which may have added the shape, but not when pressed', async () => {
+    const action = (id: number, undone: boolean): ListedAction => ({
+      id,
+      label: `Action ${id}`,
+      author: 'claude',
+      time: id,
+      undone,
+    });
+    const view = canvas(loadSample(), {
+      actions: [action(3, false), action(4, false), action(5, true)],
+    });
+    act(() => view.hook.result.current.control.run());
+    await waitFor(() => expect(view.sent).toHaveLength(1), ELK_WAIT);
+    expect(view.joins).toEqual([undefined]);
+    act(() => view.show(withBilling(view.project)));
+    await waitFor(() => expect(view.sent).toHaveLength(2), ELK_WAIT);
+    expect(view.joins).toEqual([undefined, 4]);
   });
 
   it('lays out a shape that appears later, such as one Claude adds, and only that one', async () => {

@@ -138,6 +138,12 @@ export interface ProjectChangedMessage {
   warnings: Problem[];
   /** The ids of what the action created. */
   created: Id[];
+  /**
+   * Present when the change joined the newest action, the one the history lists with this id, as the
+   * placement of what it added (ADR 0065), instead of being an action of its own: `label` and
+   * `author` are that action's.
+   */
+  joins?: number;
 }
 
 /** Sent to the app whose command or undo was refused, and why. Nothing changed. */
@@ -522,10 +528,13 @@ function isActionId(value: unknown): value is number {
 
 /**
  * A message the app sends to the local program. An undo or a redo with `to` goes on until the action
- * with that id is undone, or redone: the history panel's "Undo to here" and "Redo to here".
+ * with that id is undone, or redone: the history panel's "Undo to here" and "Redo to here". A
+ * command with `joins`, the id of the newest action as the history lists it, is the app's placement
+ * of the shapes that action added, which the program joins to it when ADR 0065's conditions hold,
+ * and records as an action of its own otherwise.
  */
 export type AppMessage =
-  | { type: 'command'; requestId: string; command: Command }
+  | { type: 'command'; requestId: string; command: Command; joins?: number }
   | { type: 'undo'; requestId: string; to?: number }
   | { type: 'redo'; requestId: string; to?: number }
   | PreferencesSetMessage
@@ -689,6 +698,9 @@ export function decodeAppMessage(text: string): AppMessage {
     case 'command':
       if (!isRecord(message.command) || typeof message.command.type !== 'string') {
         throw new ProtocolError('The message has no command.');
+      }
+      if (message.joins !== undefined && !isActionId(message.joins)) {
+        throw new ProtocolError('The action a command joins is named by its id.');
       }
       return message as unknown as AppMessage;
     case 'undo':

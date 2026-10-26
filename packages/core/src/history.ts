@@ -49,7 +49,33 @@ export const HISTORY_WEIGHT_LIMIT = 64 * 1024 * 1024;
  * {@link HISTORY_WEIGHT_LIMIT}; the newest is always kept.
  */
 export function record(history: History, entry: HistoryEntry): History {
-  const done = [...history.done, entry].slice(-HISTORY_LIMIT);
+  return { done: trimmed([...history.done, entry].slice(-HISTORY_LIMIT)), undone: [] };
+}
+
+/**
+ * Extends the newest action with what was done right after it, as one action under its label and
+ * author (ADR 0065): its operations come after the action's, and their inverse comes before the
+ * action's, so that one undo takes back both and one redo brings back both. Undefined when there is
+ * no action done, or the newest one is undone. The program decides whether what was done may join.
+ */
+export function extendNewest(
+  history: History,
+  operations: readonly Operation[],
+  inverse: readonly Operation[],
+): History | undefined {
+  const newest = history.done.at(-1);
+  if (newest === undefined || history.undone.length > 0) return undefined;
+  const extended: HistoryEntry = {
+    label: newest.label,
+    author: newest.author,
+    operations: [...newest.operations, ...operations],
+    inverse: [...inverse, ...newest.inverse],
+  };
+  return { done: trimmed([...history.done.slice(0, -1), extended]), undone: [] };
+}
+
+/** The actions kept of these: the oldest go while they weigh too much; the newest is always kept. */
+function trimmed(done: readonly HistoryEntry[]): readonly HistoryEntry[] {
   let total = 0;
   for (const each of done) total += actionWeight(each);
   let oldest = 0;
@@ -57,7 +83,7 @@ export function record(history: History, entry: HistoryEntry): History {
     total -= actionWeight(done[oldest] as HistoryEntry);
     oldest += 1;
   }
-  return { done: oldest === 0 ? done : done.slice(oldest), undone: [] };
+  return oldest === 0 ? done : done.slice(oldest);
 }
 
 const weights = new WeakMap<HistoryEntry, number>();

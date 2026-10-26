@@ -14,12 +14,15 @@ import { isDeepStrictEqual } from 'node:util';
 import {
   EMPTY_HISTORY,
   PROTOCOL_VERSION,
+  applyOperations,
   checkPreferenceChanges,
   checkProject,
   codePackagesOn,
   decodeAppMessage,
   executeCommand,
+  extendNewest,
   modelIndexOf,
+  placementJoins,
   record,
   redo as redoAction,
   summarize,
@@ -518,7 +521,8 @@ export class Session implements LiveSession {
     const origin = { client, requestId: message.requestId };
     switch (message.type) {
       case 'command':
-        await this.execute(message.command, 'user', origin);
+        // The app's placement of what the newest action added may join it (ADR 0065).
+        await this.#execute(message.command, 'user', origin, message.joins);
         return;
       case 'undo':
         await this.undo(origin, message.to);
@@ -691,8 +695,20 @@ export class Session implements LiveSession {
    * is told, the one that asked with its request id.
    */
   execute(command: Command, author: Author, origin?: Origin): Promise<SessionOutcome> {
+    return this.#execute(command, author, origin);
+  }
+
+  /** Runs a command as `execute` does; an app's may join the newest action (ADR 0065). */
+  #execute(
+    command: Command,
+    author: Author,
+    origin: Origin | undefined,
+    joins?: number,
+  ): Promise<SessionOutcome> {
     if (this.#closed) return Promise.resolve(this.#refuse(origin, [CLOSED]));
-    return this.#enqueue(() => this.#guarded(origin, () => this.#run(command, author, origin)));
+    return this.#enqueue(() =>
+      this.#guarded(origin, () => this.#run(command, author, origin, joins)),
+    );
   }
 
   /**
@@ -712,12 +728,18 @@ export class Session implements LiveSession {
     );
   }
 
-  /** Runs a command through the core and records it; only from inside a turn of the queue. */
+  /**
+   * Runs a command through the core and records it; only from inside a turn of the queue. With
+   * `joins`, the id of the newest action, a placement that meets ADR 0065's conditions extends that
+   * action instead of being recorded as one of its own.
+   */
   async #run(
     command: Command,
     author: Author,
     origin: Origin | undefined,
+    joins?: number,
   ): Promise<SessionOutcome> {
+    const joined = joins === undefined ? undefined : this.#joinable(joins, command);
     let outcome: CommandOutcome;
     try {
       outcome = executeCommand(this.#state, command, {
@@ -740,15 +762,36 @@ export class Session implements LiveSession {
     const saved = await this.#save(state, operations);
     if (!saved.ok) return this.#refuse(origin, saved.problems);
     this.#state = state;
-    const entry: HistoryEntry = { label, author, operations, inverse };
-    this.#history = record(this.#history, entry);
-    this.#stamps.set(entry, { id: (this.#lastAction += 1), time: this.#now() });
+    const action = this.#recordAction({ label, author, operations, inverse }, joined);
     const announced = this.#announce(
-      { kind: 'do', label, author, operations, warnings, created },
+      { kind: 'do', ...action, operations, warnings, created },
       origin,
     );
     this.#listHistory();
     return announced;
+  }
+
+  /**
+   * Records an action, or extends the newest one with it when it joins that one (ADR 0065), which
+   * keeps its id, time, label and author; says how to announce it.
+   */
+  #recordAction(
+    entry: HistoryEntry,
+    joined: { stamp: { id: number; time: number } } | undefined,
+  ): { label: string; author: Author; joins?: number } {
+    const extended =
+      joined === undefined
+        ? undefined
+        : extendNewest(this.#history, entry.operations, entry.inverse);
+    const newest = extended?.done.at(-1);
+    if (joined !== undefined && extended !== undefined && newest !== undefined) {
+      this.#history = extended;
+      this.#stamps.set(newest, joined.stamp);
+      return { label: newest.label, author: newest.author, joins: joined.stamp.id };
+    }
+    this.#history = record(this.#history, entry);
+    this.#stamps.set(entry, { id: (this.#lastAction += 1), time: this.#now() });
+    return { label: entry.label, author: entry.author };
   }
 
   /**
@@ -868,6 +911,26 @@ export class Session implements LiveSession {
     );
   }
 
+  /**
+   * Whether a placement may join the action with this id (ADR 0065): that action is the newest and
+   * not undone, and the placement only sets unpinned positions of what it added, or of what it moved
+   * aside to make room for it (`placementJoins`). Undefined when it may not.
+   */
+  #joinable(joins: number, command: Command): { stamp: { id: number; time: number } } | undefined {
+    const { done, undone } = this.#history;
+    const newest = done.at(-1);
+    if (newest === undefined || undone.length > 0) return undefined;
+    const stamp = this.#stamps.get(newest);
+    if (stamp === undefined || stamp.id !== joins) return undefined;
+    let previous: ProjectSnapshot;
+    try {
+      previous = applyOperations(this.#state, newest.inverse).state;
+    } catch {
+      return undefined;
+    }
+    return placementJoins(previous, this.#state, command).ok ? { stamp } : undefined;
+  }
+
   /** The id and time of an action of the history, given now if it has none yet. */
   #stampOf(entry: HistoryEntry): { id: number; time: number } {
     let stamp = this.#stamps.get(entry);
@@ -918,7 +981,7 @@ export class Session implements LiveSession {
   #announce(
     change: Pick<
       ProjectChangedMessage,
-      'kind' | 'label' | 'author' | 'operations' | 'warnings' | 'created'
+      'kind' | 'label' | 'author' | 'operations' | 'warnings' | 'created' | 'joins'
     >,
     origin: Origin | undefined,
   ): SessionOutcome {
