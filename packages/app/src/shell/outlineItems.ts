@@ -25,6 +25,7 @@ import type { Id, ModelFile, PackageFile } from '@visual-anything/schema';
 import { nameOfEnd } from '../canvas/announce';
 import { NOTHING_HIDDEN, emphasize, type Hidden } from '../canvas/emphasize';
 import { drawnRelations, farEnd, hiddenIn } from '../canvas/navigation';
+import { partOrderOf } from '../canvas/partShapes';
 import {
   standsFor,
   type ArrowShape,
@@ -255,6 +256,11 @@ function buildOutline(
     const list = held.get(container);
     if (list) list.push(item);
     else held.set(container, [item]);
+  }
+  // A drawing with parts lists its anchored parts first, in its picture's order (ADR 0067).
+  for (const [key, list] of held) {
+    const holder = byKey.get(key);
+    if (holder?.picture && holder.image) held.set(key, inPictureOrder(list, holder.image.image));
   }
   const notes = new Set<Id>();
   const arrows = new Set<Id>();
@@ -631,6 +637,22 @@ function relationRowId(outer: string, relation: Id): string {
  * The id of the row of an element a row holds: the path to it, as a shape's key would be, which no
  * shape has, since a row draws none of what it holds.
  */
+/** A drawing's rows with its anchored parts first, in its picture's order, then the rest as they come. */
+function inPictureOrder(
+  list: ShapeItem[],
+  picture: Parameters<typeof partOrderOf>[0],
+): ShapeItem[] {
+  if (!list.some((item) => item.shape.part?.inDrawing === true)) return list;
+  const order = partOrderOf(picture);
+  const placeOf = (item: ShapeItem) => order.get(item.shape.part?.part ?? '') ?? 0;
+  return [
+    ...list
+      .filter((item) => item.shape.part?.inDrawing === true)
+      .sort((a, b) => placeOf(a) - placeOf(b)),
+    ...list.filter((item) => item.shape.part?.inDrawing !== true),
+  ];
+}
+
 function undrawnRowId(row: string, element: Id): string {
   return `${row}/${element}`;
 }

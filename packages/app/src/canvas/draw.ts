@@ -162,6 +162,8 @@ export function drawShapeBlocks(
   // An outline of plain blocks is a few canvas units wide, far less than a pixel far out.
   const hairlines = new Hairlines();
   for (const shape of shapes) {
+    // An anchored part is drawn by the part layer, over its drawing's picture (partsDraw.ts).
+    if (shape.part?.inDrawing === true) continue;
     // A table is its body and its header, and its rows draw nothing (ADR 0023).
     const rows = rowsBlocks(shape, BLOCK_OUTLINE, rowColors);
     if (rows) {
@@ -232,6 +234,8 @@ export function drawShapeOutlines(
 ): void {
   const hairlines = new Hairlines();
   for (const shape of shapes) {
+    // An anchored part is its picture's, with what changes it drawn by the part layer (partsDraw.ts).
+    if (shape.part?.inDrawing === true) continue;
     if (drawRowsShape(graphics, shape, rowColors)) {
       drawToggle(graphics, shape);
       drawLeavingMark(graphics, shape);

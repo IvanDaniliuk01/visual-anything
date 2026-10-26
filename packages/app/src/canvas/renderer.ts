@@ -101,6 +101,7 @@ import {
   type RelationTile,
   type RoutePiece,
 } from './tiles';
+import { PARTS_PICTURES, PartLayer } from './partsDraw';
 import { ARROW_PAINT, LINE_PAINT, NOTE_PAINT, SHAPE_PAINT, sameListButPaint } from './theme/paint';
 import {
   buildGeometry,
@@ -551,6 +552,8 @@ export class CanvasRenderer {
   private stopFollowingResolution: (() => void) | undefined;
   /** What package code draws inside shapes (ADR 0054), above the shapes and under the relations. */
   private readonly codeDrawings: CodeDrawingLayer;
+  /** What is drawn over anchored parts (ADR 0067), above the shapes and under package code's drawings. */
+  private readonly partLayer: PartLayer;
 
   constructor(
     private readonly host: HTMLElement,
@@ -565,6 +568,9 @@ export class CanvasRenderer {
     this.painter = painterOf(options.theme ?? THEMES.light.canvas);
     this.codeDrawings = new CodeDrawingLayer(this.text, () => this.requestRender());
     this.codeDrawings.setDark(this.painter.theme.name === 'dark');
+    this.partLayer = new PartLayer(this.pictures.store, () => this.requestRender());
+    this.partLayer.setTheme(this.painter.name);
+    this.pictures.keep(PARTS_PICTURES);
     this.tintMarks();
     this.elementShapes.addChild(this.overflowBand);
     this.rerouted.addChild(this.reroutedLines);
@@ -580,6 +586,7 @@ export class CanvasRenderer {
     );
     this.world.addChild(
       this.elementShapes,
+      this.partLayer.container,
       this.codeDrawings.container,
       this.relations.container,
       this.freeShapes,
@@ -918,6 +925,7 @@ export class CanvasRenderer {
     }, SETTLE_AFTER);
     this.followGrid();
     this.codeDrawings.setCamera(camera, this.viewport, NAMES_FROM);
+    this.partLayer.setScale(camera.scale);
     this.callbacks.onCamera?.(camera);
     this.requestRender();
   }
@@ -1344,6 +1352,7 @@ export class CanvasRenderer {
       for (const context of this.retired.splice(0)) context.destroy();
       this.app.destroy(true, { children: true, context: true });
     }
+    this.partLayer.destroy();
     this.pictures.destroy();
     this.status = 'destroyed';
   }
@@ -1354,6 +1363,7 @@ export class CanvasRenderer {
    */
   resetImages(): void {
     this.pictures.reset();
+    this.partLayer.reset();
     this.requestRender();
   }
 
@@ -1482,6 +1492,17 @@ export class CanvasRenderer {
     this.rebuildShapes(indexed, ready ?? this.drag?.ready ?? ended, budget);
     this.rebuildRelations(indexed.scene.relations, budget);
     this.rebuildFree(indexed.scene.notes, indexed.scene.arrows);
+    this.followParts();
+  }
+
+  /** Keeps what is drawn over anchored parts on the scene shown, as the emphasis and a drag leave it. */
+  private followParts(): void {
+    this.partLayer.setScene(
+      this.indexed?.scene,
+      this.hiddenNow().shapes,
+      this.emphasized.dimmed.shapes,
+    );
+    this.partLayer.setScale(this.camera.scale);
   }
 
   private rebuildShapes(
@@ -3168,6 +3189,8 @@ export class CanvasRenderer {
       if (this.pictures.frame(this.tiles.values(), this.imageView(performance.now() - began))) {
         this.requestRender();
       }
+      // The parts' own pictures, with the textures the store made this frame (ADR 0067).
+      if (this.partLayer.frame(this.imageView(performance.now() - began))) this.requestRender();
       // What the camera's rest leaves to do, in what the frame has left of its time.
       this.idle(began);
       const drag = this.drag;
@@ -3244,6 +3267,7 @@ export class CanvasRenderer {
     this.codeDrawings.setDark(theme.name === 'dark');
     if (this.status !== 'ready') {
       this.painter = painterOf(theme);
+      this.partLayer.setTheme(theme.name);
       this.pending = undefined;
       this.tintMarks();
       return;
@@ -3557,6 +3581,7 @@ export class CanvasRenderer {
     }
     const before = this.painter;
     this.painter = painter;
+    this.partLayer.setTheme(painter.name);
     this.pending = undefined;
     this.stats.swapAfter.push(this.restyleFrames - pending.opened);
     if (before === painter) return;
