@@ -2289,6 +2289,64 @@ export const ui: Catalog = {
   '{count} threads: {about}': { one: '{count} hilo: {about}', other: '{count} hilos: {about}' },
   'Place the comment: click where it goes, or press Enter for the middle of the canvas. Escape gives up.':
     'Ubicar el comentario: hacer clic donde va, o pulsar Enter para ubicarlo en el centro del lienzo. Escape cancela.',
+  // M8b W54: the parts of a drawing with parts, Anchor parts… and Replace the picture… (ADR 0067).
+  Parts: 'Partes',
+  parts: 'partes',
+  'Its picture, “{image}”, has {count} named parts.': {
+    one: 'Su imagen, “{image}”, tiene {count} parte con nombre.',
+    other: 'Su imagen, “{image}”, tiene {count} partes con nombre.',
+  },
+  '{count} of them are drawn as contents.': {
+    one: '{count} de ellas se dibuja como un contenido.',
+    other: '{count} de ellas se dibujan como contenidos.',
+  },
+  'drawn as it': 'se dibuja como ella',
+  'Nothing is drawn as it.': 'Nada se dibuja como ella.',
+  '“{name}” names the part “{part}”, which “{other}” is drawn as already, so it sits below the picture.':
+    '“{name}” nombra la parte “{part}”, como la que ya se dibuja “{other}”, así que se ubica debajo de la imagen.',
+  'Anchor parts…': 'Anclar partes…',
+  'Anchor the parts of “{name}”': 'Anclar las partes de “{name}”',
+  'Match each part': 'Hacer coincidir cada parte',
+  'By name, to a content named alike': 'Por nombre, con un contenido de nombre parecido',
+  'By id, to the element with that id': 'Por id, con el elemento que tiene ese id',
+  'By an external identifier, read in a scheme':
+    'Por un identificador externo, leído en un catálogo',
+  'A part’s id is read as an identifier as it is, or with its first “_” as “:”; the crosswalks of the project’s packages translate it when contents use another scheme.':
+    'El id de una parte se lee como identificador tal cual, o con su primer “_” como “:”; las tablas de correspondencias de los paquetes del proyecto lo traducen cuando los contenidos usan otro catálogo.',
+  'Create an element for each part that matches nothing, named after the part':
+    'Crear un elemento por cada parte que no coincide con nada, con el nombre de la parte',
+  '{count} parts are matched to contents:': {
+    one: '{count} parte coincide con un contenido:',
+    other: '{count} partes coinciden con contenidos:',
+  },
+  '{count} parts get an element of their own:': {
+    one: '{count} parte recibe un elemento propio:',
+    other: '{count} partes reciben un elemento propio:',
+  },
+  '{count} parts match nothing.': {
+    one: '{count} parte no coincide con nada.',
+    other: '{count} partes no coinciden con nada.',
+  },
+  '{count} parts are drawn as contents already, and keep them.': {
+    one: '{count} parte ya se dibuja como un contenido, y lo conserva.',
+    other: '{count} partes ya se dibujan como contenidos, y los conservan.',
+  },
+  'Anchor {count} parts': { one: 'Anclar {count} parte', other: 'Anclar {count} partes' },
+  '…and {count} more.': { one: '…y {count} más.', other: '…y {count} más.' },
+  '“{part}” → “{name}”': '“{part}” → “{name}”',
+  '“{part}” → a new “{name}”': '“{part}” → un nuevo “{name}”',
+  'Nothing would be anchored.': 'No se anclaría nada.',
+  'Replace the picture…': 'Reemplazar la imagen…',
+  'Replace the picture of “{name}”': 'Reemplazar la imagen de “{name}”',
+  'Replace the picture of “{name}”?': '¿Reemplazar la imagen de “{name}”?',
+  'The new picture lacks {count} parts that elements are drawn as. Until a picture has them again, their elements are drawn as ordinary shapes; undoing brings them back:':
+    {
+      one: 'A la nueva imagen le falta {count} parte como la que se dibuja un elemento. Hasta que una imagen vuelva a tenerla, su elemento se dibuja como una forma común; deshacer la recupera:',
+      other:
+        'A la nueva imagen le faltan {count} partes como las que se dibujan elementos. Hasta que una imagen vuelva a tenerlas, sus elementos se dibujan como formas comunes; deshacer las recupera:',
+    },
+  '“{part}”, drawn as {elements}': '“{part}”, como la que se dibuja {elements}',
+  Replace: 'Reemplazar',
   // W43, from the review of L1: the name a picture takes when its file gives none, written in the
   // language read in as every name the app gives (ADR 0038).
   Picture: 'Imagen',
@@ -4563,6 +4621,17 @@ export const messages: Catalog = {
     'Los atributos de un rango de tiempo son texto sin caracteres rotos.',
   'A time range reads its values as one of: {kinds}.':
     'Un rango de tiempo lee sus valores como uno de: {kinds}.',
+  // M8b W54: Anchor parts… (ADR 0067).
+  'Anchor 1 part of "{name}"': 'Anclar 1 parte de "{name}"',
+  'Anchor {count} parts of "{name}"': 'Anclar {count} partes de "{name}"',
+  'The element "{name}" is no drawing with parts: it does not show an SVG image with its parts.':
+    'El elemento "{name}" no es un dibujo con partes: no muestra una imagen SVG con sus partes.',
+  'Parts are matched by an external identifier in a scheme, a short lowercase name such as "uberon"; "{scheme}" is not one.':
+    'Las partes coinciden por un identificador externo en un catálogo, un nombre corto en minúsculas como "uberon"; "{scheme}" no lo es.',
+  'The picture of "{name}" has no part "{part}".':
+    'La imagen de "{name}" no tiene ninguna parte "{part}".',
+  'No nesting relation type can hold a new element of "{component}" inside "{name}".':
+    'Ningún tipo de relación que anida puede contener un nuevo elemento de "{component}" dentro de "{name}".',
   // M8b seam 1: free geometry, named parts and automatic route styles (ADR 0066, 0067, 0069).
   'the element "{name}"': 'el elemento "{name}"',
   'The package "{name}"': 'El paquete "{name}"',
