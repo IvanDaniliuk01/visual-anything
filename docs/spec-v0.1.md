@@ -4,11 +4,11 @@ Last updated 2026-10-24 · Ivan
 
 > Exported from the Claude doc "Visual Anything v0.1 — Specification". Once this repository exists, this file is the source of truth: change it here, through pull requests.
 
-v0.1 is a local-first workspace where you model one of your own systems, explore it across abstraction levels and perspectives, replay real scenarios over it step by step, and let Claude build and explain it through MCP. It validates case 1 (the architecture of a system you run), is built solo in TypeScript, and uses the terms in `CONTEXT.md` and the decisions in `docs/adr/`.
+v0.1 is a local-first tool where you model one of your own systems, explore it across abstraction levels and perspectives, play real scenarios over it step by step, and let Claude build and explain it through MCP. It validates case 1 (the architecture of a system you run), is built solo in TypeScript, and uses the terms in `CONTEXT.md` and the decisions in `docs/adr/`.
 
 ## Goals and success criteria
 
-v0.1 is done when you can model one of your own systems end to end, read it at two abstraction levels, and replay a real request through it with Claude's help.
+v0.1 is done when you can model one of your own systems end to end, read it at two abstraction levels, and play a real request through it with Claude's help.
 
 - [ ] One system you run is modeled with containers nested at least two levels deep, in two views with different perspectives.
 - [ ] Collapsing a container shows aggregated relations, and focus mode isolates the relations of the selected element.
@@ -50,7 +50,7 @@ v0.1 covers the model, views, layout, tables, the component editor, images, them
 
 ## Domain model
 
-Everything in the model is typed: elements come from components and relations from relation types, both shared in packages; views and scenarios show and replay the model without changing it.
+Everything in the model is typed: elements come from components and relations from relation types, both shared in packages; views and scenarios show and play the model without changing it.
 
 ```mermaid
 flowchart TB
@@ -158,7 +158,7 @@ The canvas draws one view at a time with WebGL, and every layout decision is kep
 
 ## Scenarios
 
-A scenario replays a concrete example over one view, step by step, showing what moves where and what each step takes in and produces.
+A scenario plays a concrete example over one view, step by step, showing what moves where and what each step takes in and produces.
 
 1. **Record**: start recording and click relations in order; shift-click adds another relation to the same step. Each step gets a short description and its data in and out (JSON) in the side panel.
 2. **Or ask Claude**: describe the example or paste a real log. Claude maps it to elements and relations through MCP, builds the steps and asks when a line matches nothing in the model.
@@ -180,10 +180,10 @@ Through MCP, Claude can do everything you can do in v0.1, and each of its write 
 | Scenarios | Create a scenario from steps, from a description or from a log; play it |
 
 - Claude's changes appear live in the open view.
-- Guidance never changes the model; it only moves and marks the open view.
+- Guidance never changes the model; it only moves and marks the open view. Run layout is asked of the open app, which lays the view out in its worker and records the layout as it records any layout (ADR 0029).
 - Writing programmable code waits until after v0.1, and will need your approval before it runs.
 - Tool descriptions include examples, because they are how Claude learns to use the tools well.
-- Preferences, such as the theme, are each person's own: Claude's tools neither read nor change them; "everything you can do" means everything you can do to the project.
+- Preferences, such as the theme, are each person's own: Claude's tools neither read nor change them, except that `read_package_code` says whether the person approved a package's code and which capabilities they granted it (ADR 0060); "everything you can do" means everything you can do to the project.
 
 ## Quality bar
 
@@ -284,7 +284,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [ ] Model your system (case 1) together with Claude
 - [x] Search and jump: a find field (Ctrl+F) over names, ids, components and attribute values, results grouped by view, Enter selects and shows
 - [x] View addresses built on one view state (view, camera, selection, filters, focus, scenario step), kept in the address's fragment, with Copy address
-- [x] A view address opens in a new tab of the browser that has the project open, which joins its session (ADR 0043); `visual-anything open --view` and Claude's `open_app` open a tab at a view state in the program that runs, and `link_to` answers the full address (ADR 0044); the canvas toolbar keeps one row, with what does not fit under More
+- [x] A view address opens in a new tab of the browser that has the project open, which joins its session (ADR 0043); `visual-anything open --view` and Claude's `open_app` open a tab at a view state in the program that runs, and `get_view_address` answers the full address (ADR 0044); the canvas toolbar keeps one row, with what does not fit under More
 - [x] PNG export of the open view or the whole view, at 1× or 2×, in the current theme
 - [x] A history panel: each action's label, author (you or Claude) and time, and Undo to here
 - [x] Recipes for Claude to build models, views and scenarios from what exists (Mermaid, PlantUML, draw.io, Structurizr, SQL, OpenAPI, Terraform, Kubernetes, docker-compose, a repository, logs and traces) with its tools, as MCP prompts (`build_from_…`)

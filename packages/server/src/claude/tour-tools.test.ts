@@ -33,7 +33,7 @@ async function walk(): Promise<string> {
 }
 
 describe('create_tour', () => {
-  it('creates a tour from its steps as one action of Claude’s, view states as link_to takes them', async () => {
+  it('creates a tour from its steps as one action of Claude’s, view states as get_view_address takes them', async () => {
     const created = await tools.value('create_tour', {
       name: 'Checkout',
       description: 'From the customer to the database.',

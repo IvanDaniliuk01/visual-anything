@@ -99,6 +99,13 @@ describe('Claude’s filters and focus', () => {
   });
 });
 
+describe('Claude’s layout', () => {
+  it('opens the view it names first, where the canvas runs it', () => {
+    renderShell({ layout: { view: 'ownership', request: 1 } });
+    expect(openViewName()).toHaveTextContent('Ownership');
+  });
+});
+
 describe('Claude’s playback', () => {
   const panel = () => screen.getByRole('complementary', { name: 'Scenarios' });
 

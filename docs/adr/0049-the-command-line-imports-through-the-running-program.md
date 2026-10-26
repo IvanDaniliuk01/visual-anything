@@ -38,4 +38,8 @@ This supersedes one line of ADR-0029: the Claude endpoint accepted exactly three
   - A file no reader reads, or a mapping that cannot be applied, is refused with the problems the program finds, and nothing changes.
   - The command line still prepares the import against the project the program sends it, to say what it will do and for `--dry-run`; what the program does is what it answers with.
   - The 8 MiB limit is now on the message with the file. Base64 makes it a third larger, so a file past about 6 MiB goes through the command line opening the project itself, as before.
+
+<!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
+
+- 2026-10-25 (W42): **"as it is when the message comes" means when its turn comes.** The program read and mapped the file as soon as the message came, while commands sent before it could still be waiting in the session's queue, and then queued the batch that made, which landed on a project those commands had changed. It now reads, maps and runs the import in one turn of the queue (`Session.executePlanned`), against the project the work asked for before it leaves, so that nothing comes between the plan and the change. The endpoint's refusal now names every message it accepts (ADR-0029's clarification of this date): "only commands, guidance, opening the app, asking which package code is approved, live values and imports from the command line".
   - This narrows what a process holding the endpoint's credential can do in the person's name, without changing who can hold that credential (ADR-0030).

@@ -34,7 +34,7 @@ Every tab keeps its address in step with where you are: the open view, where the
 - **Copy address**, in the header, copies it; a selection of more than 500 things is left out, and Copy address says so.
 - **Open it** in the browser where the project is open: pasted into that tab's address bar, or in a new tab of the same browser, which joins the session of the tab that has the project open (ADR 0043). With no tab of the project open, it opens nothing; open the project as below.
 - **From the command line**, `visual-anything open <folder> --view <id> --select <id>` (or `pnpm exec tsx packages/server/src/cli.ts <folder> --view …` from the repository) opens the browser at that view and selection. When Visual Anything already runs on that folder, it starts no second one: it asks the running one to open a new tab there. With `--no-open`, it prints the running one's view address instead.
-- **Claude** gives view addresses with `link_to`, the full address while Visual Anything runs, and opens a tab at one with `open_app`. Neither ever gives Claude an address that works once, nor the session token.
+- **Claude** gives view addresses with `get_view_address`, the full address while Visual Anything runs, and opens a tab at one with `open_app`. Neither ever gives Claude an address that works once, nor the session token.
 
 The port changes from one run to the next unless `--port` fixes it, so what lasts of a view address is the part from `#` on.
 
@@ -170,13 +170,16 @@ Restart Claude Desktop afterwards.
 
 Then ask Claude, for example: "Build a view of my booking system from this description", "Walk me through the System overview", or "Which services write to the Appointments DB?".
 
-How it stays safe: the server reaches Visual Anything only on 127.0.0.1, through an endpoint and a credential of its own that accept only what Claude may send (commands, guidance and opening the app; never undo, redo or your preferences). The credential sits in a record only your account can read, in `%LOCALAPPDATA%\Visual Anything\run` on Windows, `~/Library/Application Support/Visual Anything/run` on macOS, and `$XDG_RUNTIME_DIR/visual-anything` or `~/.local/state/visual-anything/run` elsewhere. Text in a project is passed to Claude as data, never as instructions.
+How it stays safe: the server reaches Visual Anything only on 127.0.0.1, through an endpoint and a credential of its own that accept only what Claude may send: commands, guidance, opening the app, asking which package code you approved (only you approve it, in the app), live values, which are never saved, and the imports you run with `visual-anything import`; never undo, redo or your preferences. The credential sits in a record only your account can read, in `%LOCALAPPDATA%\Visual Anything\run` on Windows, `~/Library/Application Support/Visual Anything/run` on macOS, and `$XDG_RUNTIME_DIR/visual-anything` or `~/.local/state/visual-anything/run` elsewhere. Text in a project is passed to Claude as data, never as instructions.
 
 Scenarios, images and exploring work through Claude too:
 
 - **Scenarios.** Describe an example or paste a log, and Claude maps each line to the relations of your model, asks about the lines that match nothing, and creates the scenario as one action you can undo; it edits steps, repairs broken ones, and plays a scenario in the open app, going from step to step while it explains. Playing changes nothing, and you can pause or close it in the scenario panel at any time.
 - **Images.** Claude adds SVG or small PNG, JPEG and WebP pictures to your project's own packages by passing their content itself: Visual Anything never fetches a URL. Every picture is cleaned before it is stored, and Claude tells you what cleaning removed. It shows a picture on a component or an element through its appearance, like any other trait.
 - **Filters and focus.** Claude can filter the open view or turn focus mode on, as if you had: you see them in the toolbar's strip and end them there with Show everything or End focus. Nothing is written to the view file.
+- **Colors.** Claude recolors every element of a component, or every relation of a relation type, built-in ones included, which the project keeps in its own file (`set_appearance`), and gives one element, one relation, a note or an arrow colors of its own. Colors are #RRGGBB; Claude tells you when one is hard to see on the light or the dark canvas, and never refuses it.
+- **Layout.** Claude can ask the open app to lay out a view, or the contents of some containers, as the toolbar's Layout does (`lay_out_view`); the app records the layout as yours, as it records any layout, and you undo it like one.
+- **Deletes.** A delete, or a move out of a container, that would take more than Claude named, such as the relations that end on it, or break a scenario step, waits until Claude has told you what would go.
 
 Try, for example: "Turn this log into a scenario and play it", "Give the Calendar component this SVG icon", or "Show me only the services and what they write to".
 

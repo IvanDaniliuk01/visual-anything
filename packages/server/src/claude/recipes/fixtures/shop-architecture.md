@@ -14,7 +14,7 @@ flowchart LR
   api -->|writes| db
   api -->|charges cards| payments
   click payments "https://payments.example.com/docs"
-  classDef external fill:#eee,stroke:#999
+  classDef external fill:#eee,stroke:#666
   class payments external
 ```
 

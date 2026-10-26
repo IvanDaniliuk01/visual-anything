@@ -37,6 +37,7 @@ import {
   type NewProjectResult,
 } from './samples';
 import type {
+  CommandPlan,
   ConnectOptions,
   LiveSession,
   OpenSessionResult,
@@ -172,6 +173,11 @@ export class StartingSession implements LiveSession {
 
   execute(command: Command, author: Author, origin?: Origin): Promise<SessionOutcome> {
     if (this.#session !== undefined) return this.#session.execute(command, author, origin);
+    return Promise.resolve({ ok: false, problems: [refusal('not-saved', NOT_STARTED)] });
+  }
+
+  executePlanned(plan: CommandPlan, author: Author, origin?: Origin): Promise<SessionOutcome> {
+    if (this.#session !== undefined) return this.#session.executePlanned(plan, author, origin);
     return Promise.resolve({ ok: false, problems: [refusal('not-saved', NOT_STARTED)] });
   }
 

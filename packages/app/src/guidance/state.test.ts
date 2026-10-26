@@ -109,4 +109,17 @@ describe('applyGuidance for exploring and playback', () => {
       marks: { kind: 'highlight', targets: ['a'], request: 4 },
     });
   });
+
+  it('keeps the last request of a layout, for the view and containers it names', () => {
+    let state = applyGuidance(NO_GUIDANCE, { kind: 'layout' }, 1);
+    expect(state).toEqual({ layout: { request: 1 } });
+    state = applyGuidance(state, { kind: 'layout', view: 'v', containers: ['a'] }, 2);
+    state = applyGuidance(state, { kind: 'caption', text: 'Laid out.' }, 3);
+    expect(state).toEqual({
+      layout: { view: 'v', containers: ['a'], request: 2 },
+      caption: 'Laid out.',
+    });
+    // Clearing the guidance takes back what shows, never a layout already run.
+    expect(applyGuidance(state, { kind: 'clear' }, 4)).toEqual({});
+  });
 });

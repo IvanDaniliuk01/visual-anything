@@ -14,10 +14,13 @@ afterEach(async () => {
   await tools.close();
 });
 
-describe('link_to', () => {
+describe('get_view_address', () => {
   it('answers the full view address of a view state, as the app writes it, changing nothing', async () => {
     const before = tools.session.snapshot;
-    const result = await tools.value('link_to', { view: 'overview', select: ['api', 'note'] });
+    const result = await tools.value('get_view_address', {
+      view: 'overview',
+      select: ['api', 'note'],
+    });
     expect(result).toMatchObject({
       address: `${tools.address}#view=overview&select=api,note`,
       fragment: '#view=overview&select=api,note',
@@ -30,7 +33,7 @@ describe('link_to', () => {
   });
 
   it('holds the camera, the filters, focus and the step, which the app reads back', async () => {
-    const result = await tools.value('link_to', {
+    const result = await tools.value('get_view_address', {
       view: 'overview',
       camera: { x: 120, y: -40.5, zoom: 1.5 },
       filters: {
@@ -74,25 +77,25 @@ describe('link_to', () => {
       guide: unreachable,
       openApp: unreachable,
     };
-    const linkTo = TOOLS.find((each) => each.name === 'link_to');
-    if (linkTo === undefined) throw new Error('There is no link_to.');
-    expect(await runTool(linkTo, { view: 'overview' }, program)).toMatchObject({
+    const getViewAddress = TOOLS.find((each) => each.name === 'get_view_address');
+    if (getViewAddress === undefined) throw new Error('There is no get_view_address.');
+    expect(await runTool(getViewAddress, { view: 'overview' }, program)).toMatchObject({
       ok: true,
       value: { address: '#view=overview', fragment: '#view=overview' },
     });
   });
 
   it('refuses what the project does not hold, saying what', async () => {
-    expect(await tools.failure('link_to', { view: 'nowhere' })).toMatch(
+    expect(await tools.failure('get_view_address', { view: 'nowhere' })).toMatch(
       /^The project has no view "nowhere"\./,
     );
-    expect(await tools.failure('link_to', { view: 'overview', select: ['ghost'] })).toMatch(
-      /Nothing in the view "Overview" has the id "ghost"\./,
-    );
-    expect(await tools.failure('link_to', { view: 'overview', scenario: 'request', step: 9 })).toBe(
-      'The scenario "A request" has no step 9: it has 2.',
-    );
-    expect(await tools.failure('link_to', { view: 'overview', step: 'read' })).toBe(
+    expect(
+      await tools.failure('get_view_address', { view: 'overview', select: ['ghost'] }),
+    ).toMatch(/Nothing in the view "Overview" has the id "ghost"\./);
+    expect(
+      await tools.failure('get_view_address', { view: 'overview', scenario: 'request', step: 9 }),
+    ).toBe('The scenario "A request" has no step 9: it has 2.');
+    expect(await tools.failure('get_view_address', { view: 'overview', step: 'read' })).toBe(
       'A step needs its scenario: give scenario too.',
     );
   });

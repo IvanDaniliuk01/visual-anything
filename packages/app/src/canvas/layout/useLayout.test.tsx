@@ -4,6 +4,7 @@ import ELK from 'elkjs/lib/elk.bundled.js';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { EMPTY_SELECTION, selectionOf, type Selection } from '../../editor/selection';
+import type { GuidedLayoutRequest } from '../../guidance/state';
 import { loadSample } from '../../test/sample';
 import { buildScene } from '../scene';
 import { LayoutStopped, type LayoutRunner } from './client';
@@ -73,6 +74,7 @@ function canvas(
   } = {},
 ) {
   let project = start;
+  let guided: GuidedLayoutRequest | undefined;
   const sent: Command[] = [];
   const said: string[] = [];
   const send = vi.fn((command: Command) => {
@@ -93,6 +95,7 @@ function canvas(
       selection,
       send: editable ? send : undefined,
       announce: (text) => said.push(text),
+      ...(guided === undefined ? {} : { guided }),
     };
   };
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -113,6 +116,11 @@ function canvas(
     show(next: ProjectSnapshot, options: { editable?: boolean } = {}) {
       project = next;
       if (options.editable !== undefined) editable = options.editable;
+      hook.rerender(props());
+    },
+    /** Gives the canvas Claude's request for a layout, as the tab's guidance holds it. */
+    guide(request: GuidedLayoutRequest) {
+      guided = request;
       hook.rerender(props());
     },
   };
@@ -188,6 +196,42 @@ describe('automatic layout', () => {
       enabled: false,
       title: 'Layout needs web workers, which this browser does not offer.',
     });
+  });
+});
+
+describe('a layout Claude asks for (ADR 0029)', () => {
+  it('lays out the view as Layout does, once for each request', async () => {
+    const runner = inThread();
+    const view = canvas(loadSample(), { runner });
+    await quietly();
+    act(() => view.guide({ request: 1 }));
+    await waitFor(() => expect(view.sent).toHaveLength(1), ELK_WAIT);
+    expect(view.sent).toEqual([
+      expect.objectContaining({ type: 'batch', label: 'Lay out "System overview"' }),
+    ]);
+    // The same request seen again, as the tab's guidance keeps it, runs nothing more.
+    act(() => view.show(view.project));
+    await quietly();
+    expect(runner.runs).toBe(1);
+  });
+
+  it('lays out the contents of each container it names', async () => {
+    const view = canvas(loadSample());
+    await quietly();
+    act(() => view.guide({ request: 1, containers: ['scheduling', 'appointments-api'] }));
+    await waitFor(() => expect(view.said.at(-1)).toMatch(/^Lay out the contents/), ELK_WAIT);
+    // What holds nothing on the canvas is passed over.
+    expect(view.sent.map((each) => (each.type === 'batch' ? each.label : each.type))).toEqual([
+      'Lay out the contents of "Scheduling"',
+    ]);
+  });
+
+  it('waits for the view it names', async () => {
+    const runner = inThread();
+    const view = canvas(loadSample(), { runner });
+    act(() => view.guide({ request: 1, view: 'another-view' }));
+    await quietly();
+    expect(runner.runs).toBe(0);
   });
 });
 

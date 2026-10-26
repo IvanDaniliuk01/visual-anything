@@ -2,7 +2,7 @@
  * Claude's tour tools (ADR 0058): reading a tour with what its steps name that the project no longer
  * holds; creating one, so that "walk me through checkout" can be saved as a tour and not only shown
  * once as guidance; adding, changing, moving and removing its steps; renaming and deleting it. Each
- * call is one undoable action of Claude's. A step is a view state, as link_to takes one, with a
+ * call is one undoable action of Claude's. A step is a view state, as get_view_address takes one, with a
  * caption, the elements and relations it marks, a scenario it plays, and speaker notes.
  */
 import {
@@ -32,7 +32,7 @@ const stepRef = () =>
 
 const scenarioStepRef = () => z.union([id(), z.number().int().min(1)]);
 
-/** A view state as the tour tools take it: a view, and the rest as link_to takes them. */
+/** A view state as the tour tools take it: a view, and the rest as get_view_address takes them. */
 const viewState = () =>
   z
     .object({ view: id().describe('The view the step shows.'), ...STATE_PARTS })
@@ -93,7 +93,7 @@ const newStep = () =>
 
 type NewStepArgs = z.infer<ReturnType<typeof newStep>>;
 
-const STEP_HELP = `A step's viewState is a view state as link_to takes it: ${STATE_HELP} Its caption has a title and a text; marks highlight elements and relations; play plays a scenario over the step's view from one of its steps to another; notes are the speaker's.`;
+const STEP_HELP = `A step's viewState is a view state as get_view_address takes it: ${STATE_HELP} Its caption has a title and a text; marks highlight elements and relations; play plays a scenario over the step's view from one of its steps to another; notes are the speaker's.`;
 
 // ——— Read ———
 
@@ -313,7 +313,7 @@ Example: { "tour": "how-booking-works" }`,
 
 // ——— Helpers ———
 
-/** A step the arguments ask for, its view state checked as link_to checks one. */
+/** A step the arguments ask for, its view state checked as get_view_address checks one. */
 function stepFrom(
   state: ProjectSnapshot,
   given: NewStepArgs,

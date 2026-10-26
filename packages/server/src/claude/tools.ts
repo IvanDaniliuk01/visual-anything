@@ -16,12 +16,22 @@ import {
   slug,
   type Command,
   type Guidance,
-  type Problem,
   type ProjectSnapshot,
 } from '@visual-anything/core';
-import type { Attributes, Id } from '@visual-anything/schema';
+import type { Attributes, FreeShape, Id } from '@visual-anything/schema';
 import { z } from 'zod';
-import { ProgramUnavailableError, type CommandAnswer, type Program } from './bridge';
+import {
+  APPEARANCE_TOOLS,
+  blendWarnings,
+  colorsSet,
+  elementColorWarnings,
+  relationAppearance,
+  relationAppearanceTraits,
+  relationColorWarnings,
+  strokeWarnings,
+} from './appearance-tools';
+import { ProgramUnavailableError, type Program } from './bridge';
+import { cascadeOf, cascadeRefusal, takesMore } from './cascade';
 import { EXPLORE_TOOLS } from './explore-tools';
 import { CODE_TOOLS } from './code-tools';
 import { COMMENT_TOOLS } from './comment-tools';
@@ -29,6 +39,21 @@ import { EXPORT_TOOLS } from './export-tools';
 import { IMAGE_TOOLS } from './image-tools';
 import { OVERLAY_TOOLS } from './overlay-tools';
 import { IMPORT_TOOLS } from './import-tools';
+import {
+  DELETE,
+  GUIDE,
+  READ,
+  WRITE,
+  act,
+  fail,
+  guideApps,
+  guidedView,
+  id,
+  ok,
+  sentences,
+  tool,
+  withoutUndefined,
+} from './kit';
 import { LIVE_TOOLS } from './live-tools';
 import { RECIPES_IN_BRIEF } from './recipes';
 import { SCENARIO_TOOLS } from './scenario-tools';
@@ -68,21 +93,6 @@ export interface Tool<Shape extends z.ZodRawShape = z.ZodRawShape> {
   run(args: z.infer<z.ZodObject<Shape>>, program: Program): Promise<ToolOutcome>;
 }
 
-function tool<Shape extends z.ZodRawShape>(definition: Tool<Shape>): Tool<Shape> {
-  return definition;
-}
-
-const READ: ToolHints = { readOnlyHint: true, idempotentHint: true, openWorldHint: false };
-const WRITE: ToolHints = { readOnlyHint: false, destructiveHint: false, openWorldHint: false };
-const DELETE: ToolHints = { readOnlyHint: false, destructiveHint: true, openWorldHint: false };
-const GUIDE: ToolHints = {
-  readOnlyHint: false,
-  destructiveHint: false,
-  idempotentHint: true,
-  openWorldHint: false,
-};
-
-const id = () => z.string().min(1).max(128);
 const attributes = () =>
   z
     .record(z.string(), z.unknown())
@@ -113,7 +123,11 @@ const appearance = () =>
       width: z.number().optional(),
       height: z.number().optional(),
     })
-    .describe('How the shapes look; what is left out comes from the component.');
+    // The other traits, such as detail or image, go to the core, which checks them.
+    .catchall(z.unknown())
+    .describe(
+      'How the shapes look: shape, fill, stroke, width, height, and the other traits update_element lists; what is left out comes from the component.',
+    );
 const place = () => ({
   x: z
     .number()
@@ -340,6 +354,11 @@ Example: {
           name: z.string().optional(),
           description: z.string().optional(),
           attributes: attributes().optional(),
+          appearance: relationAppearance()
+            .optional()
+            .describe(
+              'An appearance of its own: stroke (#RRGGBB), width and dash; what it leaves out comes from its relation type.',
+            ),
         }),
       )
       .optional(),
@@ -359,10 +378,20 @@ Example: {
   run: async (args, program) => {
     const built = buildAdditions(await program.project(), args);
     if (!built.ok) return built;
-    return act(program, built.command, (answer) => ({
-      ids: Object.fromEntries(built.refs),
-      created: answer.created,
-    }));
+    return act(program, built.command, async (answer) => {
+      // What each new shape and line is drawn in, as the project has it now.
+      const state = await program.project();
+      const warnings = built.colored.flatMap(({ id: made, kind, appearance: given }) =>
+        kind === 'element'
+          ? elementColorWarnings(state, made, colorsSet(given))
+          : relationColorWarnings(state, made, colorsSet(given).stroke),
+      );
+      return {
+        ids: Object.fromEntries(built.refs),
+        created: answer.created,
+        ...(warnings.length > 0 ? { warnings } : {}),
+      };
+    });
   },
 });
 
@@ -371,7 +400,7 @@ const updateElement = tool({
   title: 'Change an element',
   description: `Changes an element, World included, as one undoable action: its name, description, component, attribute values, attributes to remove, its external identifiers, or its own appearance (replaced whole; null makes it look like its component again). A description of null removes it.
 
-To change some traits of its own appearance and keep the others, give appearanceTraits instead: a value sets a trait, null makes it inherited again.
+To change some traits of its own appearance and keep the others, give appearanceTraits instead: a value sets a trait, null makes it inherited again. Colors are #RRGGBB, drawn as stored in both themes; the answer warns about a stroke under 3:1 against the light or the dark canvas, and about a shape that blends into one, and never refuses a color. To recolor every element of a component, built-in ones included, use set_appearance.
 
 An attribute whose type is destination opens something when the person follows the mark on its shape: a view of this project, focused on some elements; a view of another project, by a path relative to this project's folder that stays inside the folder holding it, opened by that project's own program after the person agrees; or an https: web address, opened only after the person confirms. Any other scheme is refused.
 
@@ -397,19 +426,30 @@ Example: { "id": "billing-api", "attributes": { "details": { "project": "../bill
   },
   hints: WRITE,
   run: async ({ id: target, ...changes }, program) =>
-    act(program, {
-      type: 'update-element',
-      id: target,
-      changes: withoutUndefined(changes) as never,
-    }),
+    act(
+      program,
+      { type: 'update-element', id: target, changes: withoutUndefined(changes) as never },
+      async () => {
+        const warnings = elementColorWarnings(
+          await program.project(),
+          target,
+          colorsSet(changes.appearance, changes.appearanceTraits),
+        );
+        return warnings.length > 0 ? { warnings } : {};
+      },
+    ),
 });
 
 const updateRelation = tool({
   name: 'update_relation',
   title: 'Change a relation',
-  description: `Changes a relation as one undoable action: its relation type, its ends, name, description or attributes. A name or description of null removes it.
+  description: `Changes a relation as one undoable action: its relation type, its ends, name, description, attributes, or its own appearance (stroke, width and dash), which is a particularity of this relation: replaced whole with appearance, where null makes it look like its relation type again, or trait by trait with appearanceTraits, where a value sets a trait and null makes it inherited again. A name or description of null removes it.
 
-Example: { "id": "patient-to-whatsapp", "name": "Books by message", "attributes": { "protocol": "HTTPS" } }`,
+Colors are #RRGGBB, drawn as stored in both themes; a line needs 3:1 against the light and the dark canvas, and the answer warns about a stroke under it, never refusing one. To recolor every relation of a relation type, built-in ones included, use set_appearance.
+
+Example: { "id": "patient-to-whatsapp", "name": "Books by message", "attributes": { "protocol": "HTTPS" } }
+Example: { "id": "api-reads-db", "appearanceTraits": { "stroke": "#C05621", "dash": "dashed" } }
+Example: { "id": "api-reads-db", "appearance": null }`,
   input: {
     id: id(),
     relationType: id().optional(),
@@ -419,14 +459,23 @@ Example: { "id": "patient-to-whatsapp", "name": "Books by message", "attributes"
     description: z.string().nullable().optional(),
     attributes: attributes().optional(),
     removeAttributes: z.array(z.string()).optional(),
+    appearance: relationAppearance().nullable().optional(),
+    appearanceTraits: relationAppearanceTraits().optional(),
   },
   hints: WRITE,
   run: async ({ id: target, ...changes }, program) =>
-    act(program, {
-      type: 'update-relation',
-      id: target,
-      changes: withoutUndefined(changes) as never,
-    }),
+    act(
+      program,
+      { type: 'update-relation', id: target, changes: withoutUndefined(changes) as never },
+      async () => {
+        const warnings = relationColorWarnings(
+          await program.project(),
+          target,
+          colorsSet(changes.appearance, changes.appearanceTraits).stroke,
+        );
+        return warnings.length > 0 ? { warnings } : {};
+      },
+    ),
 });
 
 const deleteFromModel = tool({
@@ -449,14 +498,15 @@ Example: { "relations": ["api-reads-db"], "cascade": true }`,
   hints: DELETE,
   run: async (args, program) => {
     const targets = withoutUndefined({ elements: args.elements, relations: args.relations });
-    const preview = previewDelete(await program.project(), targets);
+    const state = await program.project();
+    const preview = previewDelete(state, targets);
     if (preview.problems.length > 0) return fail(sentences(preview.problems));
-    if (!args.cascade && (preview.cascaded.length > 0 || preview.brokenSteps.length > 0)) {
-      return fail(
-        `Not deleted: this would also delete ${preview.cascaded.length} relation(s) that end on what you named (${preview.cascaded.join(', ') || 'none'}) and mark ${preview.brokenSteps.length} scenario step(s) broken. Tell the person, then call again with cascade: true.`,
-      );
+    const command: Command = { type: 'delete', ...targets };
+    const cascade = cascadeOf(state, command);
+    if (!args.cascade && takesMore(cascade)) {
+      return fail(cascadeRefusal(cascade, 'Not deleted', 'what you named'));
     }
-    return act(program, { type: 'delete', ...targets }, () => ({
+    return act(program, command, () => ({
       deleted: { elements: preview.elements, relations: preview.relations },
       brokenSteps: preview.brokenSteps,
     }));
@@ -468,7 +518,10 @@ const changeContainer = tool({
   title: 'Put elements inside a container, or take them out',
   description: `Puts elements inside a container in a view, or takes them out to World when into is left out, as one undoable action, as the person does by dropping shapes. Each element leaves the container its shape sits in (from: left out for World), losing the nesting relation that placed it there, and gains one relation to the new container, of the same type when it can. Its shape comes to the front there. Containment is part of the model, so every view that nests by that relation type shows the change.
 
-Example: { "view": "system-overview", "into": "scheduling", "shapes": [{ "element": "reminder-service", "from": "clinic-booking" }] }`,
+When a nesting relation it takes away has relations ending on it, is used by a scenario step, or has a name, a description or attributes of its own, the change is refused and says what would go, as the app asks the person first: tell the person, then call again with cascade true. A place you give with at is left for layout to change unless pinned.
+
+Example: { "view": "system-overview", "into": "scheduling", "shapes": [{ "element": "reminder-service", "from": "clinic-booking" }] }
+Example: { "view": "system-overview", "shapes": [{ "element": "reminder-service", "from": "scheduling", "at": { "x": 40, "y": 600 } }], "cascade": true }`,
   input: {
     view: id(),
     into: id().optional(),
@@ -486,20 +539,37 @@ Example: { "view": "system-overview", "into": "scheduling", "shapes": [{ "elemen
               height: z.number().optional(),
             })
             .optional(),
-          pinned: z.boolean().optional(),
+          pinned: z
+            .boolean()
+            .optional()
+            .describe(
+              'Whether layout must keep the place at gives. Default false: layout may still move it. Set true only when the person asked for this exact place.',
+            ),
         }),
       )
       .min(1),
+    cascade: z
+      .boolean()
+      .optional()
+      .describe(
+        'Allow taking away nesting relations that others end on, that steps use or that hold data of their own.',
+      ),
   },
   hints: WRITE,
-  run: async (args, program) =>
-    act(program, {
+  run: async (args, program) => {
+    const command: Command = {
       type: 'change-container',
       view: args.view,
       ...(args.into === undefined ? {} : { to: args.into }),
       ...(args.relationType === undefined ? {} : { relationType: args.relationType }),
-      shapes: args.shapes.map((shape) => withoutUndefined(shape)),
-    }),
+      shapes: args.shapes.map((shape) => ({ pinned: false, ...withoutUndefined(shape) })),
+    };
+    const cascade = cascadeOf(await program.project(), command);
+    if (!args.cascade && takesMore(cascade)) {
+      return fail(cascadeRefusal(cascade, 'Not moved', 'the nesting relations it takes away'));
+    }
+    return act(program, command);
+  },
 });
 
 // ——— Components, relation types and packages ———
@@ -620,7 +690,7 @@ const attributeChanges = () =>
 const updateComponent = tool({
   name: 'update_component',
   title: 'Change a component, trait by trait',
-  description: `Changes a component of one of the project's own packages, trait by trait, as one undoable action; what you leave out stays. In appearance, a value sets a trait and null makes it inherited again. To change a built-in component's look in this project, change its elements instead.
+  description: `Changes a component of one of the project's own packages, trait by trait, as one undoable action; what you leave out stays. In appearance, a value sets a trait and null makes it inherited again. A built-in component cannot change; to change its look in this project, and the look of everything derived from it that does not set the trait itself, use set_appearance, which keeps it in the project file.
 
 Example: { "id": "clinic.calendar", "name": "Calendar", "appearance": { "fill": "#E3F2E9", "stroke": null }, "attributes": { "rename": [{ "from": "slotMinutes", "to": "slotLength" }] } }`,
   input: {
@@ -634,11 +704,11 @@ Example: { "id": "clinic.calendar", "name": "Calendar", "appearance": { "fill": 
   },
   hints: WRITE,
   run: async ({ id: target, ...changes }, program) =>
-    actOnNewer(
-      program,
-      { type: 'update-component', id: target, changes: withoutUndefined(changes) },
-      'Changing a component trait by trait is',
-    ),
+    act(program, {
+      type: 'update-component',
+      id: target,
+      changes: withoutUndefined(changes) as never,
+    }),
 });
 
 const updateRelationType = tool({
@@ -672,11 +742,11 @@ Example: { "id": "clinic.books", "direction": "directed", "limits": { "to": ["cl
   },
   hints: WRITE,
   run: async ({ id: target, ...changes }, program) =>
-    actOnNewer(
-      program,
-      { type: 'update-relation-type', id: target, changes: withoutUndefined(changes) },
-      'Changing a relation type trait by trait is',
-    ),
+    act(program, {
+      type: 'update-relation-type',
+      id: target,
+      changes: withoutUndefined(changes) as never,
+    }),
 });
 
 const updatePackage = tool({
@@ -695,11 +765,7 @@ Example: { "id": "clinic", "name": "Clinic", "description": "What a clinic needs
   },
   hints: WRITE,
   run: async ({ id: target, ...changes }, program) =>
-    actOnNewer(
-      program,
-      { type: 'update-package', id: target, changes: withoutUndefined(changes) },
-      'Changing a package is',
-    ),
+    act(program, { type: 'update-package', id: target, changes: withoutUndefined(changes) }),
 });
 
 const reorderElements = tool({
@@ -711,11 +777,7 @@ Example: { "elements": ["patients-id"], "before": "patients-name" }`,
   input: { elements: z.array(id()).min(1), before: id().optional() },
   hints: WRITE,
   run: async (args, program) =>
-    actOnNewer(
-      program,
-      { type: 'reorder-elements', ...withoutUndefined(args) },
-      'Reordering elements is',
-    ),
+    act(program, { type: 'reorder-elements', ...withoutUndefined(args) }),
 });
 
 // ——— Views ———
@@ -863,9 +925,7 @@ const setCollapsed = tool({
 Example: { "view": "system-overview", "elements": ["scheduling"], "collapsed": true }`,
   input: { view: id(), elements: z.array(id()).min(1), collapsed: z.boolean() },
   hints: WRITE,
-  run: async (args, program) =>
-    // The command of interface I1.
-    actOnNewer(program, { type: 'set-collapsed', ...args }, 'Collapsing and expanding are'),
+  run: async (args, program) => act(program, { type: 'set-collapsed', ...args }),
 });
 
 /** Where a line attaches to one of its ends, or `null` for automatically. */
@@ -942,50 +1002,140 @@ Example: { "view": "system-overview", "relations": ["booking-agent-calls-api-k3f
   run: async (args, program) => act(program, { type: 'reset-route', ...args }),
 });
 
+const point = () => z.object({ x: z.number(), y: z.number() });
+const noteFill = () =>
+  z.string().describe('A color as #RRGGBB; without one, the note takes the theme’s colors.');
+const freeStroke = () =>
+  z.string().describe('A color as #RRGGBB; without one, it takes the theme’s color.');
+
+// What else a free shape holds goes to the core, which refuses it and says why, as an arrow's fill.
 const freeShape = () =>
   z.discriminatedUnion('kind', [
-    z.object({
-      kind: z.literal('note'),
-      x: z.number(),
-      y: z.number(),
-      width: z.number().positive(),
-      height: z.number().positive(),
-      text: z.string(),
-    }),
-    z.object({
-      kind: z.literal('arrow'),
-      from: z.object({ x: z.number(), y: z.number() }),
-      to: z.object({ x: z.number(), y: z.number() }),
-    }),
+    z
+      .object({
+        kind: z.literal('note'),
+        x: z.number(),
+        y: z.number(),
+        width: z.number().positive(),
+        height: z.number().positive(),
+        text: z.string(),
+        fill: noteFill().optional(),
+        stroke: freeStroke().optional(),
+      })
+      .catchall(z.unknown()),
+    z
+      .object({
+        kind: z.literal('arrow'),
+        from: point(),
+        to: point(),
+        stroke: freeStroke().optional(),
+      })
+      .catchall(z.unknown()),
   ]);
+
+/** What to say about the colors a note or an arrow is given: a stroke, or a note, hard to see. */
+function freeShapeColorWarnings(
+  shape: { kind: string; fill?: unknown; stroke?: unknown },
+  viewName: string,
+  set: { fill?: string; stroke?: string },
+): string[] {
+  const subject = shape.kind === 'note' ? `a note in "${viewName}"` : `an arrow in "${viewName}"`;
+  const { fill, stroke } = colorsSet(shape);
+  // A note without a color of its own there takes the theme's, which reads on its canvas.
+  const blends =
+    shape.kind === 'note' &&
+    (set.fill !== undefined || set.stroke !== undefined) &&
+    fill !== undefined &&
+    stroke !== undefined
+      ? blendWarnings(subject, () => ({ fill, stroke }))
+      : [];
+  return [...strokeWarnings(subject, set.stroke), ...blends];
+}
 
 const addFreeShape = tool({
   name: 'add_free_shape',
   title: 'Add a note or an arrow',
   description: `Adds a free shape to a view, as one undoable action: a note holding text, or an arrow pointing from one place on the canvas to another. Free shapes are drawing only; they are not part of the model.
 
-Example: { "view": "system-overview", "shape": { "kind": "note", "x": 40, "y": 560, "width": 240, "height": 80, "text": "Reminders go out the day before." } }`,
+A note can have a fill and a stroke, and an arrow a stroke, as #RRGGBB, drawn as stored in both themes; without them they take the theme's colors, and an arrow has no fill. The answer warns about a stroke under 3:1 against the light or the dark canvas, and never refuses a color.
+
+Example: { "view": "system-overview", "shape": { "kind": "note", "x": 40, "y": 560, "width": 240, "height": 80, "text": "Reminders go out the day before." } }
+Example: { "view": "system-overview", "shape": { "kind": "arrow", "from": { "x": 300, "y": 600 }, "to": { "x": 420, "y": 480 }, "stroke": "#C53030" } }`,
   input: { view: id(), shape: freeShape() },
   hints: WRITE,
-  run: async (args, program) =>
-    act(program, { type: 'create-free-shape', view: args.view, shape: args.shape }, (answer) => ({
-      shape: answer.created[0],
-    })),
+  run: async (args, program) => {
+    const viewName = (await program.project()).views.find((each) => each.id === args.view)?.name;
+    return act(
+      program,
+      { type: 'create-free-shape', view: args.view, shape: args.shape },
+      (answer) => {
+        const warnings = freeShapeColorWarnings(
+          args.shape,
+          viewName ?? args.view,
+          colorsSet(args.shape),
+        );
+        return { shape: answer.created[0], ...(warnings.length > 0 ? { warnings } : {}) };
+      },
+    );
+  },
 });
 
 const updateFreeShape = tool({
   name: 'update_free_shape',
   title: 'Change a note or an arrow',
-  description: `Replaces a free shape of a view, as one undoable action; read_view gives its id.
+  description: `Changes a free shape of a view, as one undoable action; read_view gives its id. Give its id and what changes: what you leave out stays as it is, its colors included. fill (for a note) and stroke take a color as #RRGGBB, and null to take the shape's own color out, so that it takes the theme's again. Giving another kind replaces the shape whole: then give all of it.
 
-Example: { "view": "system-overview", "shape": { "id": "note-k3f9q2", "kind": "note", "x": 40, "y": 560, "width": 240, "height": 80, "text": "Reminders go out at 9:00." } }`,
+Example: { "view": "system-overview", "shape": { "id": "note-k3f9q2", "text": "Reminders go out at 9:00." } }
+Example: { "view": "system-overview", "shape": { "id": "note-k3f9q2", "fill": "#FEF3C7", "stroke": null } }`,
   input: {
     view: id(),
-    shape: z.intersection(z.object({ id: id() }), freeShape()),
+    shape: z.object({
+      id: id(),
+      kind: z.enum(['note', 'arrow']).optional(),
+      x: z.number().optional(),
+      y: z.number().optional(),
+      width: z.number().positive().optional(),
+      height: z.number().positive().optional(),
+      text: z.string().optional(),
+      from: point().optional(),
+      to: point().optional(),
+      fill: noteFill().nullable().optional(),
+      stroke: freeStroke().nullable().optional(),
+    }),
   },
   hints: WRITE,
-  run: async (args, program) =>
-    act(program, { type: 'update-free-shape', view: args.view, shape: args.shape as never }),
+  run: async (args, program) => {
+    const view = (await program.project()).views.find((each) => each.id === args.view);
+    if (view === undefined) return fail(`There is no view "${args.view}".`);
+    const stored = view.freeShapes.find((each) => each.id === args.shape.id);
+    if (stored === undefined) {
+      return fail(
+        `The view "${view.name}" has no free shape "${args.shape.id}". read_view lists them.`,
+      );
+    }
+    const { fill, stroke, kind, ...given } = args.shape;
+    // The same kind keeps what is not given, its colors included; another kind is the shape given.
+    const kept: Record<string, unknown> =
+      kind === undefined || kind === stored.kind
+        ? { ...stored, ...withoutUndefined(given) }
+        : { ...withoutUndefined(given), kind };
+    for (const [trait, value] of [
+      ['fill', fill],
+      ['stroke', stroke],
+    ] as const) {
+      if (value === null) delete kept[trait];
+      else if (value !== undefined) kept[trait] = value;
+    }
+    const shape = kept as unknown as FreeShape;
+    return act(program, { type: 'update-free-shape', view: args.view, shape }, () => {
+      const warnings = freeShapeColorWarnings(
+        shape,
+        view.name,
+        colorsSet({ fill: fill ?? undefined, stroke: stroke ?? undefined }),
+      );
+      return warnings.length > 0 ? { warnings } : {};
+    });
+  },
 });
 
 const deleteFreeShapes = tool({
@@ -1021,7 +1171,9 @@ Example: { "packages": ["systems", "data-modeling"] }`,
 const runCommands = tool({
   name: 'run_commands',
   title: 'Run commands as one action',
-  description: `Runs several of Visual Anything's commands as one undoable action, for changes no other tool makes at once. Each command is an object with a type, as the program's core takes it, such as "create-element", "update-element", "delete", "create-relation", "update-relation", "create-package", "define-component", "remove-component", "define-relation-type", "remove-relation-type", "create-view", "update-view", "delete-view", "set-positions", "remove-positions", "create-free-shape", "update-free-shape", "delete-free-shapes", "update-project", "restack", "change-container", "set-route" and "reset-route". Either all of them are done, or none is and the answer says which one was refused and why. Prefer the other tools when one fits.
+  description: `Runs several of Visual Anything's commands as one undoable action, for changes no other tool makes at once. Each command is an object with a type, as the program's core takes it, such as "create-element", "update-element", "delete", "create-relation", "update-relation", "create-package", "define-component", "remove-component", "define-relation-type", "remove-relation-type", "create-view", "update-view", "delete-view", "set-positions", "remove-positions", "create-free-shape", "update-free-shape", "delete-free-shapes", "update-project", "restack", "change-container", "set-route", "reset-route", "set-component-appearance" and "set-relation-type-appearance". Either all of them are done, or none is and the answer says which one was refused and why. Prefer the other tools when one fits.
+
+A delete, or a change-container, that would take more than it names (relations ending on what it deletes, or on the nesting relations it takes away; a nesting relation with data of its own) or break a scenario step is refused, as delete_from_model and change_container refuse it, each previewed over the project as the commands before it leave it: tell the person what would go, then call again with cascade true.
 
 When you import material again, change the elements and relations already there with one run_commands call, one update-element or update-relation each, so that the whole update is one action; and define what an import needs (create-package, then define-component and define-relation-type) as one action, once the person agrees.
 
@@ -1029,10 +1181,26 @@ Example: { "label": "Move the reminders into Scheduling", "commands": [{ "type":
   input: {
     label: z.string().min(1).max(200),
     commands: z.array(z.object({ type: z.string().min(1) }).catchall(z.unknown())).min(1),
+    cascade: z
+      .boolean()
+      .optional()
+      .describe(
+        'Allow the deletes and changes of container to take more than they name, and to break scenario steps.',
+      ),
   },
   hints: WRITE,
-  run: async (args, program) =>
-    act(program, { type: 'batch', label: args.label, commands: args.commands as never }),
+  run: async (args, program) => {
+    const command: Command = {
+      type: 'batch',
+      label: args.label,
+      commands: args.commands as never,
+    };
+    const cascade = cascadeOf(await program.project(), command);
+    if (!args.cascade && takesMore(cascade)) {
+      return fail(cascadeRefusal(cascade, 'Nothing was done', 'what the commands delete'));
+    }
+    return act(program, command);
+  },
 });
 
 // ——— Guidance ———
@@ -1045,8 +1213,6 @@ const targets = () =>
     .describe(
       'Ids of elements, relations or free shapes; an element is marked in every shape it has.',
     );
-const guidedView = () =>
-  id().optional().describe('The view to open first; left out, the view the person has open.');
 
 const highlight = tool({
   name: 'highlight',
@@ -1103,6 +1269,54 @@ Example: {}`,
   run: async (_args, program) => guide(program, { kind: 'clear' }),
 });
 
+const layOutView = tool({
+  name: 'lay_out_view',
+  title: 'Lay out the open view',
+  description: `Asks the app the person has open to lay out the view, as its toolbar's Layout does: every shape that is not pinned, or, with containers, every shape inside each of them that is not pinned, at any depth; pinned shapes never move. The layout runs in the app, which records its result as it records any layout: one undoable action per layout, named "Lay out …", in the person's history; read_view shows the positions once it is done. With no app open, nothing is laid out: open_app opens one. Leave positions out of what you create when layout should place it, and use this once the view's shapes are all there.
+
+Example: { "view": "system-overview" }
+Example: { "view": "system-overview", "containers": ["scheduling"] }`,
+  input: {
+    view: guidedView(),
+    containers: z
+      .array(id())
+      .min(1)
+      .max(MAX_GUIDANCE_TARGETS)
+      .optional()
+      .describe(
+        'Containers whose contents to lay out, each in its own action; left out, the whole view.',
+      ),
+  },
+  hints: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+  run: async (args, program) => {
+    const state = await program.project();
+    if (args.view !== undefined && !state.views.some((view) => view.id === args.view)) {
+      return fail(`There is no view "${args.view}".`);
+    }
+    const index = modelIndexOf(state);
+    const empty = (args.containers ?? []).filter(
+      (container) =>
+        index.element(container) === undefined || index.contentsOf(container).length === 0,
+    );
+    if (empty.length > 0) {
+      return fail(
+        `These hold nothing to lay out: ${empty.join(', ')}. Name containers, as find_elements finds them, or leave containers out to lay out the whole view.`,
+      );
+    }
+    const guidance: Guidance = { kind: 'layout', ...withoutUndefined(args) };
+    const apps = await program.guide(guidance);
+    return apps === 0
+      ? ok({
+          apps: 0,
+          note: 'No app has the project open, so nothing was laid out: layout runs in the app. Call open_app to open it, or ask the person to, then call lay_out_view again.',
+        })
+      : ok({
+          apps,
+          note: `The layout runs in ${apps === 1 ? 'the open app' : `each of the ${apps} open apps`}, which records it as the person's action "Lay out …" once it is done; read_view shows where the shapes went.`,
+        });
+  },
+});
+
 /** Every tool, in the order Claude reads them. */
 export const TOOLS: readonly Tool[] = [
   getProject,
@@ -1124,6 +1338,8 @@ export const TOOLS: readonly Tool[] = [
   removeDefinition,
   updateComponent,
   updateRelationType,
+  // How a component or a relation type looks, built-in ones included (ADR-0034).
+  ...APPEARANCE_TOOLS,
   updatePackage,
   reorderElements,
   createView,
@@ -1145,6 +1361,7 @@ export const TOOLS: readonly Tool[] = [
   panTo,
   showCaption,
   clearGuidance,
+  layOutView,
   openApp,
   ...SCENARIO_TOOLS,
   // Tours (ADR 0058).
@@ -1180,57 +1397,6 @@ export async function runTool(
 
 // ——— Helpers ———
 
-function ok(value: unknown): ToolOutcome {
-  return { ok: true, value };
-}
-
-function fail(message: string): ToolOutcome {
-  return { ok: false, message };
-}
-
-function sentences(problems: readonly Problem[]): string {
-  return problems.map((each) => each.message).join(' ');
-}
-
-/** Sends a command as Claude's action, and says what was done or why not. */
-async function act(
-  program: Program,
-  command: Command,
-  more: (answer: Extract<CommandAnswer, { ok: true }>) => Record<string, unknown> = (answer) =>
-    answer.created.length > 0 ? { created: answer.created } : {},
-): Promise<ToolOutcome> {
-  const answer = await program.execute(command);
-  if (!answer.ok) {
-    return fail(
-      `Refused, so nothing changed: ${sentences(answer.problems)} (${[...new Set(answer.problems.map((each) => each.code))].join(', ')})`,
-    );
-  }
-  return ok({
-    done: answer.changed ? answer.label : 'Nothing changed, so nothing was recorded.',
-    ...(answer.changed ? { undo: 'The person can undo it in the app.' } : {}),
-    ...more(answer),
-    ...(answer.warnings.length > 0
-      ? { warnings: answer.warnings.map((each) => each.message) }
-      : {}),
-  });
-}
-
-/**
- * Sends a command that only newer builds of the core know, and says so plainly when this one does
- * not: `what` is how the answer names what is missing, such as "Collapsing is".
- */
-async function actOnNewer(
-  program: Program,
-  command: { type: string } & Record<string, unknown>,
-  what: string,
-): Promise<ToolOutcome> {
-  const outcome = await act(program, command as unknown as Command);
-  if (!outcome.ok && outcome.message.includes(`"${command.type}" is not a command`)) {
-    return fail(`${what} not in this build of Visual Anything yet.`);
-  }
-  return outcome;
-}
-
 /** Checks the targets and view of guidance, sends it, and says whether anyone saw it. */
 async function guide(program: Program, guidance: Guidance): Promise<ToolOutcome> {
   const state = await program.project();
@@ -1247,21 +1413,23 @@ async function guide(program: Program, guidance: Guidance): Promise<ToolOutcome>
       `Nothing has these ids: ${unknown.join(', ')}. Use find_elements or read_view to find the right ones.`,
     );
   }
-  const apps = await program.guide(guidance);
-  if (apps === 0) {
-    return ok({
-      shown: 0,
-      note: 'No app has the project open, so nobody sees this. Call open_app to open it in the browser, or ask the person to open it.',
-    });
-  }
-  return ok({ shown: apps });
+  return guideApps(program, guidance);
+}
+
+/** A new element or relation that `add_to_model` gives an appearance, to say what its colors read as. */
+interface Colored {
+  id: Id;
+  kind: 'element' | 'relation';
+  appearance: unknown;
 }
 
 /** The additions of `add_to_model` as one command, with the id made for each ref. */
 function buildAdditions(
   state: ProjectSnapshot,
   args: z.infer<z.ZodObject<(typeof addToModel)['input']>>,
-): { ok: true; command: Command; refs: Map<string, Id> } | { ok: false; message: string } {
+):
+  | { ok: true; command: Command; refs: Map<string, Id>; colored: Colored[] }
+  | { ok: false; message: string } {
   const elements = args.elements ?? [];
   const relations = args.relations ?? [];
   if (elements.length === 0 && relations.length === 0) {
@@ -1388,9 +1556,22 @@ function buildAdditions(
         name: relation.name,
         description: relation.description,
         attributes: relation.attributes as Attributes | undefined,
+        appearance: relation.appearance as never,
       }),
     });
   }
+  const colored: Colored[] = [
+    ...elements.flatMap((each) =>
+      each.appearance === undefined
+        ? []
+        : [{ id: idOf.get(each) as Id, kind: 'element' as const, appearance: each.appearance }],
+    ),
+    ...relations.flatMap((each) =>
+      each.appearance === undefined
+        ? []
+        : [{ id: idOf.get(each) as Id, kind: 'relation' as const, appearance: each.appearance }],
+    ),
+  ];
   const only = commands[0];
   const command: Command =
     commands.length === 1 && only !== undefined && args.label === undefined
@@ -1400,7 +1581,7 @@ function buildAdditions(
           label: args.label ?? additionsLabel(elements.length, relations.length),
           commands,
         };
-  return { ok: true, command, refs };
+  return { ok: true, command, refs, colored };
 }
 
 /**
@@ -1430,13 +1611,4 @@ function additionsLabel(elements: number, relations: number): string {
   if (relations === 0) return `Create ${count(elements, 'element')}`;
   if (elements === 0) return `Create ${count(relations, 'relation')}`;
   return `Create ${count(elements, 'element')} and ${count(relations, 'relation')}`;
-}
-
-/** The object without the keys whose value is undefined. */
-function withoutUndefined<T extends object>(
-  value: T,
-): { [K in keyof T]: Exclude<T[K], undefined> } {
-  return Object.fromEntries(
-    Object.entries(value).filter(([, each]) => each !== undefined),
-  ) as never;
 }

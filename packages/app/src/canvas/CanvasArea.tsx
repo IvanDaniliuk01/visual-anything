@@ -45,6 +45,7 @@ import { useFollow } from '../destinations/follower';
 import { useLendRenderer } from '../export/source';
 import { t as translateNow, useT, type Translator } from '../i18n';
 import { EMPTY_SELECTION, selectionOf, sizeOf, type Selection } from '../editor/selection';
+import { LiveContext } from '../live/context';
 import { isTextEntry } from '../live/shortcuts';
 import { usePreferences } from '../theme/usePreferences';
 import { RecordingCue } from '../scenarios/RecordingCue';
@@ -246,8 +247,10 @@ export function CanvasArea({
   /** A coordinate of something created by hand: whole, and on the grid while it snaps. */
   const placed = (value: number) =>
     grid.grid && grid.snapToGrid ? snap(value) : Math.round(value);
-  // Layout: shapes without a position are laid out as they appear, and the toolbar's Layout lays out
-  // on demand; what the canvas draws is a frame of a layout moving in, or else the scene.
+  // Layout: shapes without a position are laid out as they appear, and the toolbar's Layout, or
+  // Claude's guidance, lays out on demand; what the canvas draws is a frame of a layout moving in, or
+  // else the scene.
+  const guidedLayout = useContext(LiveContext)?.guidance?.layout;
   const layout = useLayout({
     project,
     view,
@@ -255,6 +258,7 @@ export function CanvasArea({
     selection,
     send: onCommand,
     announce: (text) => setAnnouncement((last) => ({ text, count: last.count + 1 })),
+    ...(guidedLayout === undefined ? {} : { guided: guidedLayout }),
   });
   // A scene that cannot be indexed cannot be drawn either: the canvas area says so, and the rest of
   // the app keeps working.

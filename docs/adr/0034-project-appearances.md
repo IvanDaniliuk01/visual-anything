@@ -24,3 +24,9 @@ We chose this because most of a project's elements come from built-in components
 ## Consequences
 
 Older Visual Anything programs refuse a project file with `appearances`, because the schema accepts no unknown keys; format version 1 stays additive in one direction only. Empty maps are refused on open, as empty stacking orders are, and commands never write them. "Improving a built-in package improves every project" (ADR-0018) now holds for every trait a project does not set. Elements and relations with their own trait, and built-in definitions that set the trait themselves, such as AI agent's fill under Service, do not follow; the inspector says so. Everything that draws, checks or changes a project works its definitions out with `definitionsIn(project)`, which applies the project appearances; `definitionsOf(packages)` alone means the packages as they define themselves, for reset values.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
+
+- 2026-10-25 (W42): Claude reaches both commands through one tool, `set_appearance`, which names either a component or a relation type and takes `appearance` or `appearanceTraits` as the commands do. Its answer says where the appearance is kept, by the core's `editableAppearanceOf`: the project file for a definition the project cannot change, or the definition's own package, with the appearance kept there after the change. `update_component` no longer tells Claude to recolor a built-in component's elements one by one.

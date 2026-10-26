@@ -1,13 +1,17 @@
 /**
  * The Claude endpoint: the WebSocket through which the MCP entry point, started by Claude Code or
  * Claude Desktop, attaches to the running local program. It has a path and a credential of its own,
- * and it accepts only the messages Claude may send: commands, which always run with Claude as their
- * author, guidance for the open apps, and a request to open the app in the browser. Undo, redo and
+ * and it accepts only these messages: commands, which always run with Claude as their author;
+ * guidance for the open apps; a request to open the app in the browser; a question about which
+ * package code the person approved, which Claude can never approve itself (ADR 0054); live values,
+ * set and cleared, which are never saved (ADR 0057); and an import the person ran on the command
+ * line, which carries a file, never a command, and runs as the person's (ADR-0049). Undo, redo and
  * preferences are the person's, and are refused.
  *
  * The program answers with the live protocol's own messages (`project/opened`, `project/changed`,
- * `command/rejected`, `project/reloaded`), so the MCP entry point keeps its copy of the project in
- * step exactly as an app does, plus two answers of its own.
+ * `command/rejected`, `project/reloaded`, `live/kept`), so the MCP entry point keeps its copy of the
+ * project in step exactly as an app does, plus answers of its own: `guidance/shown`, `app/opened`,
+ * `code/approvals` and `live/cleared`.
  */
 import {
   FRESHNESS,
@@ -177,7 +181,7 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
       return readLiveClear(message, requestId);
     default:
       throw new ProtocolError(
-        `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance, live values, opening the app and imports from the command line. Undo and redo are the person's, in the app.`,
+        `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance, opening the app, asking which package code is approved, live values and imports from the command line. Undo, redo and preferences are the person's, in the app.`,
       );
   }
 }

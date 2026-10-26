@@ -1,9 +1,9 @@
 /**
- * Claude's tools for view states (ADR-0030's addendum of 2026-10-25, ADR-0044): `link_to` answers the
- * view address of a view state: a view, with where the canvas looks, what is selected, the filters,
- * focus mode and the scenario step played, written as the app writes its own address, on the address
- * the program serves the app at. It changes nothing, and the address holds no secret: never the
- * session token, nor a launch code. `open_app` opens the app in the person's browser, at a view state
+ * Claude's tools for view states (ADR-0030's addendum of 2026-10-25, ADR-0044): `get_view_address`
+ * answers the view address of a view state: a view, with where the canvas looks, what is selected,
+ * the filters, focus mode and the scenario step played, written as the app writes its own address,
+ * on the address the program serves the app at. It changes nothing, and the address holds no secret:
+ * never the session token, nor a launch code. `open_app` opens the app in the person's browser, at a view state
  * when it is given one, through an address that works once and that Claude never sees.
  */
 import {
@@ -32,7 +32,7 @@ const DIRECTIONS = [
   'incoming',
 ] as const satisfies readonly ViewFocus['direction'][];
 
-/** The parts of a view state beside its view, as `link_to` and `open_app` take them. */
+/** The parts of a view state beside its view, as `get_view_address` and `open_app` take them. */
 export const STATE_PARTS = {
   camera: z
     .object({
@@ -76,11 +76,11 @@ export const STATE_PARTS = {
 /** A view state's parts, as the tools take them. */
 export type StateArgs = z.infer<z.ZodObject<typeof STATE_PARTS>> & { view: string };
 
-/** What `link_to` and `open_app` say a view state holds, after the view. */
+/** What `get_view_address` and `open_app` say a view state holds, after the view. */
 export const STATE_HELP = `camera is the point of the view at the middle of the canvas, in canvas units, and the zoom (1 is 100%). select names elements, relations and free shapes of the view. focus starts from the selection unless from names where it starts. step names a step of the scenario by its id or its number from 1; the scenario must play over the view.`;
 
-const linkTo = tool({
-  name: 'link_to',
+const getViewAddress = tool({
+  name: 'get_view_address',
   title: 'Give the address of a view state',
   description: `Answers the view address of a view state: a view of the project, and, if you give them, where the canvas looks, what is selected, the filters, focus mode, and the scenario and step played. It is the same address the app keeps in its address bar and copies with Copy address, on the address this run of Visual Anything serves the app at (http://127.0.0.1:<port>/#view=…). It holds ids, so it survives renames, and no secret. It changes nothing and needs no app open.
 
@@ -103,7 +103,7 @@ Example: { "view": "system-overview", "filters": { "components": ["systems.perso
 export const openApp = tool({
   name: 'open_app',
   title: 'Open the app',
-  description: `Opens Visual Anything on the project in a new tab of the person's browser, on the computer it runs on, at an address that works once, which you are never told. Give a view, and if you like where the canvas looks, a selection, filters, focus and a scenario step, as link_to takes them, and the tab opens the project there. Guidance shows only while the app is open. Use it when a guidance tool says no app is open, when the person asks to see the project, or to show them a view state in a tab of its own.
+  description: `Opens Visual Anything on the project in a new tab of the person's browser, on the computer it runs on, at an address that works once, which you are never told. Give a view, and if you like where the canvas looks, a selection, filters, focus and a scenario step, as get_view_address takes them, and the tab opens the project there. Guidance shows only while the app is open. Use it when a guidance tool says no app is open, when the person asks to see the project, or to show them a view state in a tab of its own.
 
 ${STATE_HELP}
 
@@ -217,4 +217,4 @@ function answerFor(state: ViewState, served: string | undefined): Record<string,
 }
 
 /** The view address tools, in the order Claude reads them. */
-export const VIEW_STATE_TOOLS: readonly Tool[] = [linkTo];
+export const VIEW_STATE_TOOLS: readonly Tool[] = [getViewAddress];
