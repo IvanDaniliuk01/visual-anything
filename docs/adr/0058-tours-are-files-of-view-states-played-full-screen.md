@@ -52,6 +52,10 @@ A tour walks someone through a concept (CONTEXT.md, *Tour*). Benchmark R45 build
 - The app gains the tours panel and full-screen playback.
 - CONTEXT.md gains **Full-screen playback**.
 
+## Superseded in part, 2026-10-26
+
+ADR 0077 supersedes two parts of this decision. **The camera:** a step's move follows a bounded smooth zoom-and-pan path, at most 2.5 times zoomed out and 800 ms long, rather than gliding up to three screen widths; past those bounds, into another view, from no camera or under reduced motion it cuts, and every cut cross-fades. **The keys:** every key that goes forward or back goes one reveal at a time, and I, P, R and B open the steps' index, pause a step's scenario, play its range again and go back to the step's camera. Everything else here stands: tours are files of view states, played full screen, and playing changes nothing.
+
 ## Clarifications
 
 <!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->

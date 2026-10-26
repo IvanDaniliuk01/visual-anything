@@ -968,9 +968,76 @@ export interface ScenarioFile {
   description?: string;
   /** The view the scenario plays over. */
   view: Id;
-  /** The steps in order. There are no branches: an alternative path is another scenario. */
+  /**
+   * The steps in reading order: every step of every alternative of its decisions (ADR 0078). A
+   * scenario without decisions plays them all, in order.
+   */
   steps: Step[];
+  /**
+   * Its decisions, each over a stretch of its steps (ADR 0078); left out when it has none.
+   *
+   * @minItems 1
+   * @maxItems 64
+   */
+  blocks?: ScenarioBlock[];
 }
+
+/** A structure over a stretch of a scenario's steps. Decisions only, for now (ADR 0078). */
+export type ScenarioBlock = DecisionBlock;
+
+/**
+ * A point where a scenario goes one of several labelled ways (ADR 0078). Its alternatives' steps are
+ * stretches of the scenario's steps that follow one another; a decision may sit inside an alternative
+ * of another, at most three deep.
+ */
+export interface DecisionBlock {
+  id: Id;
+  kind: 'decision';
+  /**
+   * What it decides, as a question: "Are there free slots?".
+   *
+   * @minLength 1
+   * @maxLength 200
+   */
+  question: string;
+  /**
+   * @minItems 2
+   * @maxItems 8
+   */
+  alternatives: Alternative[];
+  /** The alternative that plays when nothing chooses; the first when left out. */
+  default?: Id;
+}
+
+/** One of the ways a decision can go: the steps that play when it is chosen. */
+export interface Alternative {
+  id: Id;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  label: string;
+  /**
+   * Its steps by id, a stretch of the scenario's steps in their order; none for the way where
+   * nothing happens.
+   *
+   * @maxItems 10000
+   * @uniqueItems true
+   */
+  steps: Id[];
+  /** The scenario ends after this alternative, as an error path does. */
+  ends?: true;
+}
+
+/**
+ * The alternative chosen at each decision of a scenario, by the decision's id (ADR 0078). Choices
+ * belong to the tab that plays; a file keeps them only to play a given alternative from a tour's step
+ * or a view state.
+ *
+ * @minProperties 1
+ * @maxProperties 64
+ */
+export type DecisionChoices = Record<Id, Id>;
 
 /** One step of a scenario. */
 export interface Step {
@@ -1434,6 +1501,17 @@ export interface TourStep {
   /** A scenario played while the step shows, over the step's view. */
   play?: TourPlayback;
   /**
+   * Marks brought in one press forward at a time, after the step's own marks (ADR 0077).
+   *
+   * @minItems 1
+   * @maxItems 50
+   */
+  reveal?: TourReveal[];
+  /** Dims everything the step does not mark, but the ends of the relations it marks. */
+  dimRest?: true;
+  /** Moves on by itself; left out, the step waits for the person. */
+  advance?: TourAdvance;
+  /**
    * What the person presenting reads while the step shows, in the speaker notes window only: plain
    * text, as a caption's.
    *
@@ -1458,6 +1536,8 @@ export interface TourCaption {
    * @maxLength 4000
    */
   text?: string;
+  /** The corner the card sits in; left out, the side of the screen farthest from the step's marks. */
+  place?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 }
 
 /** A scenario a step plays, from one of its steps to another. */
@@ -1467,7 +1547,40 @@ export interface TourPlayback {
   from?: Id;
   /** The step it stops on; its last step when left out. */
   to?: Id;
+  /** The alternatives it plays at the scenario's decisions; their defaults when left out. */
+  choices?: DecisionChoices;
 }
+
+/** A part of a step's marks that comes in on its own press forward, with a sentence for the caption. */
+export interface TourReveal {
+  /**
+   * @minItems 1
+   * @maxItems 500
+   * @uniqueItems true
+   */
+  marks: Id[];
+  /**
+   * Added to the caption as a paragraph when it comes in: plain text, as a caption's.
+   *
+   * @minLength 1
+   * @maxLength 4000
+   */
+  text?: string;
+}
+
+/**
+ * When a step moves on by itself: after a number of milliseconds, never fewer than its caption takes
+ * to read, or `after-scenario`, once the scenario it plays ends.
+ */
+export type TourAdvance = AdvanceAfter | 'after-scenario';
+
+/**
+ * Milliseconds a step shows before it moves on by itself.
+ *
+ * @minimum 500
+ * @maximum 600000
+ */
+export type AdvanceAfter = number;
 
 /**
  * A view state as a project file keeps it (ADR 0030's addendum): the view and, each optional, where
@@ -1495,6 +1608,8 @@ export interface SavedViewState {
   scenario?: Id;
   /** The step of that scenario playback is on, by its id; it needs `scenario`. */
   step?: Id;
+  /** The alternatives chosen at that scenario's decisions (ADR 0078); it needs `scenario`. */
+  choices?: DecisionChoices;
 }
 
 /** Where the canvas looks: the point of the view at its middle, in canvas units, and the zoom. */

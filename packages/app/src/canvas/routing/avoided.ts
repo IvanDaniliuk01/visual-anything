@@ -5,6 +5,11 @@
  * a route set by hand, a curved or straight one, one to a connection point, beside a row, or to
  * another relation's line keeps the route the scene gives it. A line that other lines end on is routed
  * so when each of those runs from a plain shape and nothing ends on it: they follow its middle.
+ *
+ * A shape with an outline of its own (ADR 0066, ADR 0067) is routed around by its box: the avoider is
+ * given the line's stand-in route between the boxes, and the route it gives back is carried on from
+ * the boxes to the outlines, as the scene carries the stand-in on. A part of lines alone, which a line
+ * leaves from a point of its lines, is not a plain end.
  */
 import { estimateWidth } from '../fit';
 import { arrowheadAt, type Point, type Rect } from '../geometry';
@@ -12,6 +17,7 @@ import { midpointOf, routeBetweenEnds } from '../route';
 import { withRelations, type ElementShape, type RelationLine, type Scene } from '../scene';
 import { headerShift } from '../shape-images';
 import { PLATE_HEIGHT, avoidRoutes, type AvoidLine, type AvoidShapes } from './avoid';
+import { carriedOrthogonal, endOutline, onlyStrokes, type OutlinedEnd } from './outline-ends';
 
 /** What the avoider is given for a scene: its shapes, and the lines it may route with their lines. */
 export interface AvoidBatch {
@@ -32,8 +38,35 @@ function plainEnd(shape: ElementShape | undefined): shape is ElementShape {
     shape !== undefined &&
     shape.points === undefined &&
     shape.row === undefined &&
-    shape.rowCount === undefined
+    shape.rowCount === undefined &&
+    !(shape.outline !== undefined && onlyStrokes(shape.outline))
   );
+}
+
+/** Where a line's end on a shape with an outline of its own lies: its box, and its outline there. */
+function outlinedEnd(shape: ElementShape | undefined): OutlinedEnd | undefined {
+  if (!shape) return undefined;
+  const rect = shape.plate ?? shape.rect;
+  const outline = endOutline(shape, rect);
+  return outline && { rect, outline };
+}
+
+/** A line's ends on shapes with outlines of their own, which its route is carried on to. */
+interface Carried {
+  from: OutlinedEnd | undefined;
+  to: OutlinedEnd | undefined;
+}
+
+/** The ends of a line that lie on outlines; undefined when neither does. */
+function carriedEndsOf(
+  line: RelationLine,
+  shapeOf: (key: string) => ElementShape | undefined,
+): Carried | undefined {
+  const ends = line.ends;
+  if (!ends) return undefined;
+  const from = ends.from.kind === 'shape' ? outlinedEnd(shapeOf(ends.from.key)) : undefined;
+  const to = ends.to.kind === 'shape' ? outlinedEnd(shapeOf(ends.to.key)) : undefined;
+  return from || to ? { from, to } : undefined;
 }
 
 /**
@@ -288,12 +321,16 @@ export function avoidBatchOf(scene: Scene, only?: ReadonlySet<RelationLine>): Av
     if (only && !only.has(line)) continue;
     const ends = shapeEndsOf(line, batch);
     if (!ends) continue;
-    lines.push({
-      from: ends.from,
-      to: ends.to,
-      offset: line.ends?.offset ?? 0,
-      route: flatRoute(line.route),
-    });
+    const offset = line.ends?.offset ?? 0;
+    const from = scene.shapes[ends.from];
+    const to = scene.shapes[ends.to];
+    // A line on an outline is routed around by its stand-in route between the boxes.
+    const onOutline = outlinedEnd(from) !== undefined || outlinedEnd(to) !== undefined;
+    const route =
+      onOutline && from && to
+        ? routeBetweenEnds({ rect: from.plate ?? from.rect }, { rect: to.plate ?? to.rect }, offset)
+        : line.route;
+    lines.push({ from: ends.from, to: ends.to, offset, route: flatRoute(route) });
     drawn.push(line);
   }
   return { shapes: batch.shapes, lines, drawn };
@@ -322,14 +359,20 @@ const rerouted = new WeakMap<
   { route: Float64Array; line: RelationLine; bounds: Rect }
 >();
 
-/** The line along a route around what was in its way, with its bounds: the same for the same line and route. */
+/**
+ * The line along a route around what was in its way, its ends carried on to the outlines it ends
+ * on, with its bounds: the same for the same line and route, whose ends' outlines are the same.
+ */
 function alongWithBounds(
   line: RelationLine,
   flat: Float64Array,
+  carried?: Carried,
 ): { line: RelationLine; bounds: Rect } {
   const kept = rerouted.get(line);
   if (kept && kept.route === flat) return kept;
-  const route = routeOf(flat);
+  const route = carried
+    ? carriedOrthogonal(routeOf(flat), carried.from, carried.to)
+    : routeOf(flat);
   const start = route[0] as Point;
   const end = route.at(-1) as Point;
   const beforeEnd = route.at(-2) as Point;
@@ -340,9 +383,25 @@ function alongWithBounds(
   return made;
 }
 
-/** The line along a route around what was in its way: the same object for the same line and route. */
-export function lineAlong(line: RelationLine, flat: Float64Array): RelationLine {
-  return alongWithBounds(line, flat).line;
+/**
+ * The line along a route around what was in its way, carried on to the outlines of `shapes` it ends
+ * on: the same object for the same line and route.
+ */
+export function lineAlong(
+  line: RelationLine,
+  flat: Float64Array,
+  shapes?: readonly ElementShape[],
+): RelationLine {
+  return alongWithBounds(line, flat, shapes && carriedEndsOf(line, shapeFinder(shapes))).line;
+}
+
+/** Finds a list's shapes by key, through the avoider's index of them. */
+function shapeFinder(shapes: readonly ElementShape[]): (key: string) => ElementShape | undefined {
+  const { indexes } = avoidShapesOf(shapes);
+  return (key) => {
+    const at = indexes.get(key);
+    return at === undefined ? undefined : shapes[at];
+  };
 }
 
 const endings = new WeakMap<readonly RelationLine[], Map<string, RelationLine[]>>();
@@ -385,7 +444,9 @@ function lineFollowing(
     const shape = shapeOf(end.key) as ElementShape;
     return { rect: shape.plate ?? shape.rect };
   };
-  const route = routeBetweenEnds(endOf(ends.from), endOf(ends.to), ends.offset);
+  const between = routeBetweenEnds(endOf(ends.from), endOf(ends.to), ends.offset);
+  const carried = carriedEndsOf(line, shapeOf);
+  const route = carried ? carriedOrthogonal(between, carried.from, carried.to) : between;
   const end = route.at(-1) as Point;
   const beforeEnd = route.at(-2) as Point;
   const moved: RelationLine = {
@@ -431,6 +492,7 @@ export function withAvoidedRoutes(
     endingOn.size === 0;
   // The lines others end on that moved, which those others follow.
   let targets: Map<string, RelationLine> | undefined;
+  let shapeOf: ((key: string) => ElementShape | undefined) | undefined;
   for (let at = 0; at < relations.length; at++) {
     const line = relations[at] as RelationLine;
     if (reuse && previous.base.relations[at] === line && !previous.changed.has(line)) {
@@ -444,7 +506,8 @@ export function withAvoidedRoutes(
     }
     const route = routeOfLine(line);
     if (!route) continue;
-    const along = alongWithBounds(line, route);
+    shapeOf ??= shapeFinder(scene.shapes);
+    const along = alongWithBounds(line, route, carriedEndsOf(line, shapeOf));
     relations[at] = along.line;
     bounds = union(bounds, along.bounds);
     any = true;
@@ -452,15 +515,11 @@ export function withAvoidedRoutes(
   }
   if (!any) return scene;
   if (targets) {
-    const { indexes } = avoidShapesOf(scene.shapes);
-    const shapeOf = (key: string) => {
-      const at = indexes.get(key);
-      return at === undefined ? undefined : scene.shapes[at];
-    };
+    const find = shapeOf ?? shapeFinder(scene.shapes);
     const followers = new Map<RelationLine, RelationLine>();
     for (const [key, target] of targets) {
       for (const line of endingOn.get(key) ?? []) {
-        followers.set(line, lineFollowing(line, target, shapeOf));
+        followers.set(line, lineFollowing(line, target, find));
       }
     }
     for (let at = 0; at < relations.length; at++) {

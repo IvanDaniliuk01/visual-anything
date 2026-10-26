@@ -174,10 +174,22 @@ export function ownPartOf(
   const image = shown(reference.image);
   const part = image && namedPart(image, reference.part);
   if (!part) return undefined;
+  partImages.set(reference.image, image);
   return {
     source: partSource(part),
     part: { image: reference.image, part: reference.part, color: part.color, inDrawing: false },
   };
+}
+
+/**
+ * The cleaned view each image a part drawn on its own names was last drawn from, by the image's id,
+ * for that part's own picture (ADR 0067), which the canvas draws inside its outline.
+ */
+const partImages = new Map<Id, CleanedImage>();
+
+/** The cleaned view the image of a part drawn on its own was last drawn from. */
+export function partImageOf(image: Id): CleanedImage | undefined {
+  return partImages.get(image);
 }
 
 /** The shape fields of an anchored part. */

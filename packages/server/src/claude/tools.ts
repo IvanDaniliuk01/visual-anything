@@ -39,6 +39,7 @@ import { CODE_TOOLS } from './code-tools';
 import { COMMENT_TOOLS } from './comment-tools';
 import { EXPORT_TOOLS } from './export-tools';
 import { IMAGE_TOOLS } from './image-tools';
+import { PART_TOOLS } from './part-tools';
 import { OVERLAY_TOOLS } from './overlay-tools';
 import { IMPORT_TOOLS } from './import-tools';
 import {
@@ -1430,6 +1431,8 @@ export const TOOLS: readonly Tool[] = [
   // Tours (ADR 0058).
   ...TOUR_TOOLS,
   ...IMAGE_TOOLS,
+  // Named parts of SVG images (ADR 0067).
+  ...PART_TOOLS,
   ...CODE_TOOLS,
   // Threads of comments (ADR 0059).
   ...COMMENT_TOOLS,

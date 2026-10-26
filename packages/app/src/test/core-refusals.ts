@@ -6,14 +6,23 @@
  * core adds needs a fixture here or in that run.
  */
 import {
+  anchoringCommand,
   checkProject,
   cleanSvg,
   executeCommand,
+  planAnchoring,
   readBitmap,
+  type AnchorRequest,
   type Command,
   type ProjectSnapshot,
 } from '@visual-anything/core';
-import type { Element, PackageFile, Relation, ViewFile } from '@visual-anything/schema';
+import type {
+  Element,
+  PackageFile,
+  Relation,
+  ScenarioFile,
+  ViewFile,
+} from '@visual-anything/schema';
 import { loadSample } from './sample';
 
 /** One thing the core said, and the fixture that made it say so. */
@@ -1729,6 +1738,191 @@ function partsOnOpening(sample: ProjectSnapshot): [string, ProjectSnapshot][] {
   ];
 }
 
+// M8b W54: Anchor parts… (ADR 0067) ------------------------------------------------------------------
+
+/**
+ * What Anchor parts… says: the labels of its action for one part and for several, and why a plan is
+ * refused, on the patient drawn with the parts of a picture of organs, holding a lung and a liver.
+ */
+function anchoring(sample: ProjectSnapshot): Said[] {
+  const organs = {
+    kind: 'svg' as const,
+    id: 'clinic.organs',
+    name: 'Organs',
+    width: 20,
+    height: 10,
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><path id="lung" d="M0 0h10v10h-10z"/><path id="liver" d="M10 0h10v10h-10z"/></svg>',
+  };
+  const inPatient = (id: string): Relation => ({
+    id: `${id}-in-patient`,
+    relationType: 'systems.is-part-of',
+    from: id,
+    to: 'patient',
+  });
+  const drawing = (contents: readonly string[]): ProjectSnapshot => ({
+    ...sample,
+    packages: sample.packages.map((file) =>
+      file.id === 'clinic' ? { ...file, images: [...(file.images ?? []), organs] } : file,
+    ),
+    model: {
+      ...sample.model,
+      elements: [
+        ...sample.model.elements.map((each) =>
+          each.id === 'patient'
+            ? { ...each, appearance: { image: { image: organs.id, placement: 'parts' as const } } }
+            : each,
+        ),
+        ...contents.map((id) => ({ id, component: 'systems.service', name: id })),
+      ],
+      relations: [...sample.model.relations, ...contents.map(inPatient)],
+    },
+  });
+  const state = drawing(['lung', 'liver']);
+  const said: Said[] = [];
+  const plan = (name: string, on: ProjectSnapshot, request: Partial<AnchorRequest>) => {
+    const planning = planAnchoring(on, {
+      drawing: 'patient',
+      matching: { by: 'name' },
+      ...request,
+    });
+    if (!planning.ok) {
+      said.push({ command: name, message: planning.problem.message });
+      return;
+    }
+    const command = anchoringCommand(planning.plan);
+    if (command) said.push(...runInOrder(on, name, [command]));
+  };
+  plan('anchor one part', state, { parts: ['lung'] });
+  plan('anchor two parts', state, {});
+  plan('anchor what is no drawing', state, { drawing: 'lung' });
+  plan('anchor by a scheme that is none', state, {
+    matching: { by: 'external', scheme: 'Not one' },
+  });
+  plan('anchor a part the picture lacks', state, { parts: ['heart'] });
+  plan(
+    'anchor by creating where nothing nests',
+    { ...drawing([]), views: [] },
+    { create: { component: 'systems.service' } },
+  );
+  return said;
+}
+
+// M11c seam 2: decisions in scenarios (ADR 0078) ---------------------------------------------------
+
+const SCENARIO = 'patient-books-appointment';
+const decided = (name: string, blocks: unknown): [string, unknown] => [
+  name,
+  { type: 'update-scenario', id: SCENARIO, changes: { blocks } },
+];
+const slots = (alternatives: unknown[], more: object = {}) => ({
+  id: 'slots',
+  kind: 'decision',
+  question: 'Are there free slots?',
+  alternatives,
+  ...more,
+});
+const nested = (depth: number): unknown =>
+  slots(
+    [
+      {
+        id: `yes-${depth}`,
+        label: 'Yes',
+        steps: ['ask', 'hand-over', 'find-slots', 'read-calendar', 'book'],
+      },
+      { id: `no-${depth}`, label: 'No', steps: [] },
+    ],
+    { id: `slots-${depth}` },
+  );
+
+const DECISIONS: readonly [string, unknown][] = [
+  decided('decision malformed', [{ id: 'slots', kind: 'gateway' }]),
+  decided('decision naming no step', [
+    slots([
+      { id: 'yes', label: 'Yes', steps: ['nope'] },
+      { id: 'no', label: 'No', steps: [] },
+    ]),
+  ]),
+  decided('decision with steps apart', [
+    slots([
+      { id: 'yes', label: 'Yes', steps: ['ask', 'book'] },
+      { id: 'no', label: 'No', steps: [] },
+    ]),
+  ]),
+  decided('decision with alternatives apart', [
+    slots([
+      { id: 'yes', label: 'Yes', steps: ['book'] },
+      { id: 'no', label: 'No', steps: ['ask'] },
+    ]),
+  ]),
+  decided('decision without steps', [
+    slots([
+      { id: 'yes', label: 'Yes', steps: [] },
+      { id: 'no', label: 'No', steps: [] },
+    ]),
+  ]),
+  decided('decision with an unknown default', [
+    slots(
+      [
+        { id: 'yes', label: 'Yes', steps: ['book'] },
+        { id: 'no', label: 'No', steps: [] },
+      ],
+      { default: 'maybe' },
+    ),
+  ]),
+  decided('decision with an id twice', [
+    slots([
+      { id: 'book', label: 'Yes', steps: ['book'] },
+      { id: 'no', label: 'No', steps: [] },
+    ]),
+  ]),
+  decided('decisions that cross', [
+    slots([
+      { id: 'yes', label: 'Yes', steps: ['find-slots'] },
+      { id: 'no', label: 'No', steps: ['read-calendar'] },
+    ]),
+    {
+      id: 'agent',
+      kind: 'decision',
+      question: 'Does the agent answer?',
+      alternatives: [
+        { id: 'answers', label: 'Yes', steps: ['read-calendar'] },
+        { id: 'waits', label: 'No', steps: ['book'] },
+      ],
+    },
+  ]),
+  decided('decisions too deep', [nested(1), nested(2), nested(3), nested(4)]),
+  decided(
+    'too many decisions',
+    many(65, (at) =>
+      slots(
+        [
+          { id: `yes-${at}`, label: 'Yes', steps: [] },
+          { id: `no-${at}`, label: 'No', steps: [] },
+        ],
+        { id: `slots-${at}` },
+      ),
+    ),
+  ),
+];
+
+/** A project whose scenario's decisions do not hold together, as a file may hold them. */
+function decisionsOnOpening(sample: ProjectSnapshot): [string, ProjectSnapshot][] {
+  const withBlocks = (blocks: unknown): ProjectSnapshot => ({
+    ...sample,
+    scenarios: sample.scenarios.map((scenario) =>
+      scenario.id === SCENARIO
+        ? { ...scenario, blocks: blocks as ScenarioFile['blocks'] }
+        : scenario,
+    ),
+  });
+  return [
+    [
+      'decision of one alternative on opening',
+      withBlocks([slots([{ id: 'yes', label: 'Yes', steps: ['book'] }])]),
+    ],
+  ];
+}
+
 /** Everything these fixtures make the core say. */
 export function coreRefusals(): Said[] {
   const sample = loadSample();
@@ -1743,6 +1937,9 @@ export function coreRefusals(): Said[] {
   for (const [name, state] of geometryOnOpening(sample)) said.push(...checked(name, state));
   for (const [name, command] of PARTS) said.push(...runInOrder(sample, name, [command]));
   for (const [name, state] of partsOnOpening(sample)) said.push(...checked(name, state));
+  said.push(...anchoring(sample));
+  for (const [name, command] of DECISIONS) said.push(...runInOrder(sample, name, [command]));
+  for (const [name, state] of decisionsOnOpening(sample)) said.push(...checked(name, state));
   said.push(...cleaningRefusals());
   return said;
 }

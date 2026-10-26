@@ -24,7 +24,16 @@
       "items": {
         "$ref": "#/definitions/Step"
       },
-      "description": "The steps in order. There are no branches: an alternative path is another scenario."
+      "description": "The steps in reading order: every step of every alternative of its decisions (ADR 0078). A scenario without decisions plays them all, in order."
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ScenarioBlock"
+      },
+      "description": "Its decisions, each over a stretch of its steps (ADR 0078); left out when it has none.",
+      "minItems": 1,
+      "maxItems": 64
     }
   },
   "required": [
@@ -103,6 +112,82 @@
         }
       ],
       "description": "Any JSON value."
+    },
+    "ScenarioBlock": {
+      "$ref": "#/definitions/DecisionBlock",
+      "description": "A structure over a stretch of a scenario's steps. Decisions only, for now (ADR 0078)."
+    },
+    "DecisionBlock": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "kind": {
+          "type": "string",
+          "const": "decision"
+        },
+        "question": {
+          "type": "string",
+          "description": "What it decides, as a question: \"Are there free slots?\".",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "alternatives": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Alternative"
+          },
+          "minItems": 2,
+          "maxItems": 8
+        },
+        "default": {
+          "$ref": "#/definitions/Id",
+          "description": "The alternative that plays when nothing chooses; the first when left out."
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "question",
+        "alternatives"
+      ],
+      "additionalProperties": false,
+      "description": "A point where a scenario goes one of several labelled ways (ADR 0078). Its alternatives' steps are stretches of the scenario's steps that follow one another; a decision may sit inside an alternative of another, at most three deep."
+    },
+    "Alternative": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Id"
+          },
+          "description": "Its steps by id, a stretch of the scenario's steps in their order; none for the way where nothing happens.",
+          "maxItems": 10000,
+          "uniqueItems": true
+        },
+        "ends": {
+          "type": "boolean",
+          "const": true,
+          "description": "The scenario ends after this alternative, as an error path does."
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "steps"
+      ],
+      "additionalProperties": false,
+      "description": "One of the ways a decision can go: the steps that play when it is chosen."
     }
   }
 }

@@ -47,7 +47,7 @@ M6c ships the first starter packages (R38), the sample projects a new project st
 
 ## Considered options
 
-- **Drawing icons from an outside set, such as Lucide (ISC):** rejected for now. Our own CC0 icons ask nothing of the people who export views, and keep the license test simple. An allowed set can come later, with its attribution travelling as ADR 0047 says.
+- **Drawing icons from an outside set, such as Lucide (ISC):** rejected for now; superseded by ADR 0079, which lets built-in packages draw on allowed sets. Our own CC0 icons ask nothing of the people who export views, and keep the license test simple. An allowed set can come later, with its attribution travelling as ADR 0047 says.
 - **MIT or CC-BY for Visual Anything's own content:** rejected. Either would ask every export made with a built-in package to carry a notice.
 - **Samples as TypeScript in the core, written out to `examples/`:** rejected. A sample is best edited by opening it in the app, as any project is; the embedded copy follows the folders, not the other way round.
 - **Reading the other project through the local program, by a path typed or browsed:** rejected. It would give the live connection a way to read folders outside the project. The browser's picker reads only what the person chooses.
@@ -60,3 +60,10 @@ M6c ships the first starter packages (R38), the sample projects a new project st
 - The live protocol gains `start/offered` and `start/create`; `PROTOCOL_VERSION` stays, since the app and the program always ship together.
 - `pnpm --filter @visual-anything/server samples` regenerates the embedded samples after a sample changes, and the change is committed with it.
 - Claude's MCP entry point cannot attach to a program on an empty folder until a project is started there.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (M8b, W59): **samples of a milestone's features are not sample projects.** `examples/beyond-boxes` (M8b), like `examples/gauges` (M7), lives in `examples/` beside the sample projects, but the program does not hold it and the start screen does not offer it: it shows features rather than a starter package, and brings a package of its own, which a new project's first files never hold. It is opened as any project folder, and a test of its own opens it through the program's loader.
+- 2026-10-26 (M8b, W59): **a sample's `sources/` folder** holds what its files are made from and that is not a project file: a picture before cleaning, with its comments, and HTML to import as a drawing (ADR 0068). The loader reads no such folder, and the embedded samples take none of it. A test holds what the project stores to what its source gives, as the heart's picture is held to what cleaning `sources/heart.svg` gives.

@@ -19,6 +19,8 @@ export type ProblemCode =
   | 'unknown-free-shape'
   | 'unknown-position'
   | 'unknown-step-relation'
+  // A scenario's decisions that do not hold together (ADR 0078).
+  | 'invalid-decision'
   | 'world-not-allowed'
   | 'containment-cycle'
   | 'nesting-end-not-element'

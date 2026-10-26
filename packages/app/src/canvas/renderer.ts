@@ -41,7 +41,8 @@ import {
   type Emphasized,
   type Hidden,
 } from './emphasize';
-import type { TextFactory } from './draw';
+import { traceMark, type MarkTarget, type TextFactory } from './draw';
+import { MOST_NAMES_BESIDE, NamesBeside, namedBeside } from './namesBeside';
 import {
   arrowheadAt,
   boundsOf,
@@ -102,6 +103,7 @@ import {
   type RelationTile,
   type RoutePiece,
 } from './tiles';
+import { PARTS_PICTURES, PartLayer } from './partsDraw';
 import { ARROW_PAINT, LINE_PAINT, NOTE_PAINT, SHAPE_PAINT, sameListButPaint } from './theme/paint';
 import {
   buildGeometry,
@@ -421,16 +423,21 @@ export class CanvasRenderer {
   private readonly lineMarks = new Graphics();
   private readonly selectionChunks: Graphics[] = [];
   /**
-   * The shapes to draw boxes around, how many are drawn, the boxes' width and their gap to the
-   * shapes, and the chunks used.
+   * The shapes to draw boxes around, or marks along their own outlines, how many are drawn, the
+   * marks' width and their gap to the shapes, and the chunks used.
    */
-  private markRects: Rect[] = [];
+  private markRects: MarkTarget[] = [];
   private marksDrawn = 0;
   private markWidth = 1;
   private markGap = 0;
   private chunksUsed = 0;
   /** The marks of what is dragged, which move with it. */
   private readonly movingMarks = new Graphics();
+  /** The names the hover and selection marks write beside shapes that write none inside (ADR 0066). */
+  private readonly namesBeside = new NamesBeside();
+  /** The shapes whose names the hover mark and the selection's marks write beside them. */
+  private besideHovered: ElementShape[] = [];
+  private besideSelected: ElementShape[] = [];
   private readonly gestureMarks = new Graphics();
   /** What editing a route draws: its handles and its line as it now runs, above everything. */
   private readonly routeMarks = new Graphics();
@@ -555,6 +562,8 @@ export class CanvasRenderer {
   private stopFollowingResolution: (() => void) | undefined;
   /** What package code draws inside shapes (ADR 0054), above the shapes and under the relations. */
   private readonly codeDrawings: CodeDrawingLayer;
+  /** What is drawn over anchored parts (ADR 0067), above the shapes and under package code's drawings. */
+  private readonly partLayer: PartLayer;
 
   constructor(
     private readonly host: HTMLElement,
@@ -569,6 +578,9 @@ export class CanvasRenderer {
     this.painter = painterOf(options.theme ?? THEMES.light.canvas);
     this.codeDrawings = new CodeDrawingLayer(this.text, () => this.requestRender());
     this.codeDrawings.setDark(this.painter.theme.name === 'dark');
+    this.partLayer = new PartLayer(this.pictures.store, () => this.requestRender(), this.text);
+    this.partLayer.setTheme(this.painter.name);
+    this.pictures.keep(PARTS_PICTURES);
     this.tintMarks();
     this.elementShapes.addChild(this.overflowBand);
     this.rerouted.addChild(this.reroutedLines);
@@ -578,6 +590,7 @@ export class CanvasRenderer {
       this.hoverMark,
       this.selectionMarks,
       this.movingMarks,
+      this.namesBeside.container,
       this.markerMarks,
       this.gestureMarks,
       this.routeMarks,
@@ -585,6 +598,7 @@ export class CanvasRenderer {
     );
     this.world.addChild(
       this.elementShapes,
+      this.partLayer.container,
       this.codeDrawings.container,
       this.relations.container,
       this.freeShapes,
@@ -936,6 +950,7 @@ export class CanvasRenderer {
     }, SETTLE_AFTER);
     this.followGrid();
     this.codeDrawings.setCamera(camera, this.viewport, NAMES_FROM);
+    this.partLayer.setScale(camera.scale);
     this.callbacks.onCamera?.(camera);
     this.requestRender();
   }
@@ -1362,6 +1377,7 @@ export class CanvasRenderer {
       for (const context of this.retired.splice(0)) context.destroy();
       this.app.destroy(true, { children: true, context: true });
     }
+    this.partLayer.destroy();
     this.pictures.destroy();
     this.status = 'destroyed';
   }
@@ -1372,6 +1388,7 @@ export class CanvasRenderer {
    */
   resetImages(): void {
     this.pictures.reset();
+    this.partLayer.reset();
     this.requestRender();
   }
 
@@ -1389,6 +1406,8 @@ export class CanvasRenderer {
       settled: this.settled,
       theme: this.painter.name,
       spent,
+      // A switch or a recolor under way keeps its frames' budget from large pictures (ADR 0067).
+      busy: this.pending !== undefined || this.restyling,
     };
   }
 
@@ -1500,6 +1519,17 @@ export class CanvasRenderer {
     this.rebuildShapes(indexed, ready ?? this.drag?.ready ?? ended, budget);
     this.rebuildRelations(indexed.scene.relations, budget);
     this.rebuildFree(indexed.scene.notes, indexed.scene.arrows);
+    this.followParts();
+  }
+
+  /** Keeps what is drawn over anchored parts on the scene shown, as the emphasis and a drag leave it. */
+  private followParts(): void {
+    this.partLayer.setScene(
+      this.indexed?.scene,
+      this.hiddenNow().shapes,
+      this.emphasized.dimmed.shapes,
+    );
+    this.partLayer.setScale(this.camera.scale);
   }
 
   private rebuildShapes(
@@ -2875,6 +2905,7 @@ export class CanvasRenderer {
     this.markRects = [];
     this.marksDrawn = 0;
     this.chunksUsed = 0;
+    this.besideSelected = [];
     const indexed = this.indexed;
     if (!indexed) return;
     const { scene } = indexed;
@@ -2887,22 +2918,30 @@ export class CanvasRenderer {
     // What the emphasis hides shows no mark.
     const unseen = this.emphasized.hidden;
     let carriedBoxes = 0;
-    const box = (rect: Rect, carried: boolean) => {
+    // A shape's mark goes around its plate, or along its own outline (ADR 0066).
+    const box = (target: MarkTarget, carried: boolean) => {
       if (carried) {
-        const around = grow(rect, gap);
-        moving.rect(around.x, around.y, around.width, around.height);
+        traceMark(moving, target, gap);
         carriedBoxes += 1;
       } else {
-        this.markRects.push(rect);
+        this.markRects.push(target);
       }
     };
+    // Names are written beside the shapes of a selection of a few shapes, which they help tell apart.
+    let shapesMarked = 0;
+    const still: ElementShape[] = [];
     for (const id of this.selection.elements) {
       for (const shape of indexed.byElement.get(id) ?? []) {
         if (!unseen.shapes.has(shape.key)) {
-          box(shape.plate ?? shape.rect, hidden.shapes.has(shape.key));
+          const carried = hidden.shapes.has(shape.key);
+          box(shape, carried);
+          shapesMarked += 1;
+          if (!carried && shapesMarked <= MOST_NAMES_BESIDE) still.push(shape);
         }
       }
     }
+    this.besideSelected = shapesMarked <= MOST_NAMES_BESIDE ? still.filter(namedBeside) : [];
+    this.showNamesBeside();
     const free = freeShapesById(scene.notes, scene.arrows);
     const arrows: ArrowShape[] = [];
     for (const id of this.selection.freeShapes) {
@@ -2988,8 +3027,7 @@ export class CanvasRenderer {
       const until = Math.min(rects.length, this.marksDrawn + MARKS_PER_CHUNK);
       const gap = this.markGap;
       for (let at = this.marksDrawn; at < until; at++) {
-        const { x, y, width, height } = rects[at] as Rect;
-        chunk.rect(x - gap, y - gap, width + 2 * gap, height + 2 * gap);
+        traceMark(chunk, rects[at] as MarkTarget, gap);
       }
       chunk.stroke({ color: MARK, width: this.markWidth });
       this.marksDrawn = until;
@@ -3018,15 +3056,16 @@ export class CanvasRenderer {
     const { highlight } = this.painter.theme;
     const halo = { color: highlight, alpha: 0.28, join: 'round', cap: 'round' } as const;
     const rects = [...shapes.map((shape) => shape.rect), ...notes.map((note) => note.rect)];
-    for (const rect of rects) {
-      const around = grow(rect, 5 / scale);
-      marks.rect(around.x, around.y, around.width, around.height);
-    }
+    // The halo and the ring go along a shape's own outline (ADR 0066), the corners around its box.
+    const ringed: MarkTarget[] = [
+      ...shapes.map((shape) =>
+        shape.outline ? { rect: shape.rect, outline: shape.outline } : shape.rect,
+      ),
+      ...notes.map((note) => note.rect),
+    ];
+    for (const target of ringed) traceMark(marks, target, 5 / scale);
     if (rects.length > 0) marks.stroke({ ...halo, width: 10 / scale });
-    for (const rect of rects) {
-      const around = grow(rect, 5 / scale);
-      marks.rect(around.x, around.y, around.width, around.height);
-    }
+    for (const target of ringed) traceMark(marks, target, 5 / scale);
     if (rects.length > 0) marks.stroke({ color: highlight, width: 2.5 / scale });
     for (const rect of rects) traceCorners(marks, grow(rect, 11 / scale), 14 / scale);
     if (rects.length > 0) marks.stroke({ color: highlight, width: 3 / scale, cap: 'square' });
@@ -3064,16 +3103,28 @@ export class CanvasRenderer {
     marks.fill(highlight).stroke({ color: background, width: 2.5 / scale });
   }
 
-  /** Marks the shape under the pointer, under the selection's marks. */
+  /**
+   * Marks the shape under the pointer, under the selection's marks: around its plate or its box, or
+   * along its own outline, with its name written beside it when it writes none inside (ADR 0066).
+   */
   private drawHover(): void {
     const mark = this.hoverMark;
     mark.clear();
     const shape = this.hovered === undefined ? undefined : this.indexed?.byKey.get(this.hovered);
+    this.besideHovered = shape && namedBeside(shape) ? [shape] : [];
+    this.showNamesBeside();
     if (!shape) return;
-    const rect = grow(shape.plate ?? shape.rect, 3 / this.camera.scale);
-    mark
-      .rect(rect.x, rect.y, rect.width, rect.height)
-      .stroke({ color: this.painter.theme.selected, width: 1 / this.camera.scale });
+    traceMark(mark, shape, 3 / this.camera.scale);
+    mark.stroke({ color: this.painter.theme.selected, width: 1 / this.camera.scale });
+  }
+
+  /** Writes the names the hover and selection marks write beside their shapes, the hovered first. */
+  private showNamesBeside(): void {
+    const { relationLabelText: text, relationLabelBack: back } = this.painter.theme;
+    this.namesBeside.show([...this.besideHovered, ...this.besideSelected], this.camera.scale, {
+      text,
+      back,
+    });
   }
 
   private drawGesture(): void {
@@ -3186,6 +3237,8 @@ export class CanvasRenderer {
       if (this.pictures.frame(this.tiles.values(), this.imageView(performance.now() - began))) {
         this.requestRender();
       }
+      // The parts' own pictures, with the textures the store made this frame (ADR 0067).
+      if (this.partLayer.frame(this.imageView(performance.now() - began))) this.requestRender();
       // What the camera's rest leaves to do, in what the frame has left of its time.
       this.idle(began);
       const drag = this.drag;
@@ -3262,6 +3315,7 @@ export class CanvasRenderer {
     this.codeDrawings.setDark(theme.name === 'dark');
     if (this.status !== 'ready') {
       this.painter = painterOf(theme);
+      this.partLayer.setTheme(theme.name);
       this.pending = undefined;
       this.tintMarks();
       return;
@@ -3575,6 +3629,7 @@ export class CanvasRenderer {
     }
     const before = this.painter;
     this.painter = painter;
+    this.partLayer.setTheme(painter.name);
     this.pending = undefined;
     this.stats.swapAfter.push(this.restyleFrames - pending.opened);
     if (before === painter) return;
@@ -3770,6 +3825,7 @@ export class CanvasRenderer {
     this.selectionMarks.tint = this.painter.theme.selected;
     this.movingMarks.tint = this.painter.theme.selected;
     this.themeGrid(this.painter.theme);
+    this.showNamesBeside();
   }
 
   /** The casings under a tile's relations: white, tinted to the canvas, the same in every theme. */
