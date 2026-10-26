@@ -4,6 +4,7 @@
  * local program sends them to every open app, which applies them to its own copy.
  */
 import type {
+  CommentFile,
   Component,
   Element,
   FreeShape,
@@ -17,6 +18,7 @@ import type {
   Routes,
   ScenarioFile,
   ShapePosition,
+  TourFile,
   ViewFile,
 } from '@visual-anything/schema';
 import type { ProjectSnapshot } from './snapshot';
@@ -37,7 +39,11 @@ export type Collection =
   /** One stacking list of a view: the order of the shapes directly in a container, or in World. */
   | { name: 'stackingOrder'; view: Id; container: Id }
   /** The routes a view keeps for the relations it routes by hand, in the order of its map. */
-  | { name: 'routes'; view: Id };
+  | { name: 'routes'; view: Id }
+  /** The project's tours (ADR 0058). */
+  | { name: 'tours' }
+  /** The project's threads of comments (ADR 0059). */
+  | { name: 'comments' };
 
 /** What each list holds. */
 export interface CollectionItems {
@@ -54,6 +60,8 @@ export interface CollectionItems {
   /** An element id: a stacking list holds bare ids. */
   stackingOrder: Id;
   routes: RouteEntry;
+  tours: TourFile;
+  comments: CommentFile;
 }
 
 /** A route a view keeps, with the relation it routes: how operations carry one. */
@@ -274,6 +282,10 @@ export function itemsOf(state: ProjectSnapshot, collection: Collection): readonl
     }
     case 'routes':
       return routeEntries(findView(state, collection.view).routes);
+    case 'tours':
+      return state.tours;
+    case 'comments':
+      return state.comments;
   }
 }
 
@@ -328,6 +340,10 @@ function withItems(
       );
     case 'routes':
       return updateView(state, collection.view, (view) => withRoutes(view, items as RouteEntry[]));
+    case 'tours':
+      return { ...state, tours: items as TourFile[] };
+    case 'comments':
+      return { ...state, comments: items as CommentFile[] };
   }
 }
 

@@ -10,6 +10,7 @@ import { appearanceOf, isBuiltInDefinition, type Definitions } from './definitio
 import { codeWarnings } from './code/check';
 import { destinationWarnings } from './destination-checks';
 import { duplicateExternalIdWarnings } from './external-ids';
+import { threadErrors } from './comments/check';
 import { checkImages } from './images/check';
 import { overlayProblems } from './overlays/check';
 import { positionKey } from './operations';
@@ -329,6 +330,8 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
   warnings.push(...overlays.warnings);
   // Nor do external identifiers shared by several elements, or destinations that open nothing (ADR 0056).
   warnings.push(...duplicateExternalIdWarnings(state), ...destinationWarnings(state, definitions));
+  // Threads of comments (ADR 0059): detached ones are kept, ids are not repeated.
+  errors.push(...threadErrors(state));
   return { errors, warnings };
 }
 

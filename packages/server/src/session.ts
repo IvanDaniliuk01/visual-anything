@@ -60,7 +60,7 @@ import {
   type FileContent,
   type FileKey,
 } from './file-plan';
-import { FOLDERS, newFilePath } from './layout';
+import { FOLDERS, newFilePath, type FolderKind } from './layout';
 import { projectDestinationWarnings, type OpenOtherProject } from './other-project';
 import { LiveValues, type LiveKept } from './live';
 import { PackageFetcher, networkGrantOf, type FetcherOptions } from './live-fetch';
@@ -336,7 +336,7 @@ export class Session implements LiveSession {
       if (path === undefined) throw new Error(`The project has no file for ${key}.`);
       return path;
     };
-    const byId = (kind: 'package' | 'view' | 'scenario', ids: readonly Id[]) =>
+    const byId = (kind: FolderKind, ids: readonly Id[]) =>
       new Map(
         ids.flatMap((id) => {
           const path = this.#paths.get(`${kind}:${id}`);
@@ -357,6 +357,14 @@ export class Session implements LiveSession {
       scenarios: byId(
         'scenario',
         this.#state.scenarios.map((scenario) => scenario.id),
+      ),
+      tours: byId(
+        'tour',
+        this.#state.tours.map((tour) => tour.id),
+      ),
+      comments: byId(
+        'comment',
+        this.#state.comments.map((thread) => thread.id),
       ),
       unlistedPackages: new Map(this.#unlisted),
     };
@@ -669,11 +677,13 @@ export class Session implements LiveSession {
       this.#guarded(origin, async () => {
         let outcome: CommandOutcome;
         try {
-          outcome = executeCommand(
-            this.#state,
-            command,
-            this.#options.newId === undefined ? {} : { newId: this.#options.newId },
-          );
+          outcome = executeCommand(this.#state, command, {
+            ...(this.#options.newId === undefined ? {} : { newId: this.#options.newId }),
+            // Who sent it signs what it writes, such as a comment (ADR 0059): the core refuses a
+            // comment whose sender is not said, so that Claude's words are never the person's.
+            author,
+            now: () => this.#now(),
+          });
         } catch (error) {
           return this.#refuse(origin, [
             refusal('program-failed', `The command could not be run: ${reasonOf(error)}`),
@@ -1198,6 +1208,8 @@ export class Session implements LiveSession {
     for (const [id, path] of files.packages) this.#paths.set(`package:${id}`, path);
     for (const [id, path] of files.views) this.#paths.set(`view:${id}`, path);
     for (const [id, path] of files.scenarios) this.#paths.set(`scenario:${id}`, path);
+    for (const [id, path] of files.tours) this.#paths.set(`tour:${id}`, path);
+    for (const [id, path] of files.comments) this.#paths.set(`comment:${id}`, path);
     this.#unlisted = new Map(files.unlistedPackages);
     this.#known = new Map(contents);
     this.#originals = new Map();
@@ -1307,6 +1319,9 @@ const WRITE_RANK: Record<FileKind, number> = {
   model: 2,
   view: 3,
   scenario: 4,
+  // Tours name views and scenarios, and threads name what they are about (ADR 0058, ADR 0059).
+  tour: 5,
+  comment: 6,
 };
 
 /** New files first, then the files that change, then the deletions, each by {@link WRITE_RANK}. */

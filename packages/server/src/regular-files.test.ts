@@ -224,6 +224,8 @@ describe('the size caps', () => {
       package: 8 * 1024 * 1024,
       view: 64 * 1024 * 1024,
       scenario: 64 * 1024 * 1024,
+      tour: 8 * 1024 * 1024,
+      comment: 1024 * 1024,
     });
     expect(capOf('package')).toBe(8 * 1024 * 1024);
   });

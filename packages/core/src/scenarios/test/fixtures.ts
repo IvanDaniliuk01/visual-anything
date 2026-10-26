@@ -68,6 +68,8 @@ export function scenarioProject(collapsed?: Id[]): ProjectSnapshot {
         step('answer', 'client-calls-api'),
       ]),
     ],
+    tours: [],
+    comments: [],
   };
 }
 

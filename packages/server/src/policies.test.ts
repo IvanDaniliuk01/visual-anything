@@ -34,6 +34,8 @@ const PROJECT: ProjectSnapshot = {
   packages: [],
   views: [],
   scenarios: [],
+  tours: [],
+  comments: [],
 };
 
 const THEME_SCRIPT = "document.documentElement.dataset.theme = 'dark';";

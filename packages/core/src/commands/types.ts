@@ -11,6 +11,8 @@ import type {
   Attributes,
   Badge,
   Color,
+  CommentAnchor,
+  CommentAuthor,
   Component,
   ConnectionPoint,
   EndAttachment,
@@ -83,6 +85,11 @@ export type Command =
   | UpdateOverlayCommand
   | RemoveOverlaysCommand
   | MoveOverlayCommand
+  | CreateThreadCommand
+  | AddCommentCommand
+  | EditCommentCommand
+  | ResolveThreadCommand
+  | DeleteThreadCommand
   | BatchCommand;
 
 /** The kinds of command. */
@@ -778,4 +785,54 @@ export interface MoveOverlayCommand {
   overlay: Id;
   /** The overlay it goes before; absent, it goes last. */
   before?: Id;
+}
+
+// ——— Comments (ADR 0059) ———
+
+/**
+ * A comment being written: the first of a new thread, or a reply. Its id is generated unless given.
+ * The person's comments carry their author, as their preferences name them; Claude's are signed as
+ * Claude and may leave it out. The time is the program's.
+ */
+export interface NewComment {
+  id?: Id;
+  /** Plain text: a blank line starts a paragraph, "- " or "1. " a list item, `@[id]` a mention. */
+  text: string;
+  author?: CommentAuthor;
+}
+
+/** Starts a thread about an element, a relation, a view or a point of a view, with its first comment. */
+export interface CreateThreadCommand {
+  type: 'create-thread';
+  thread: { id?: Id; anchor: CommentAnchor; comment: NewComment };
+}
+
+/** Adds a comment to a thread; a resolved thread opens again. */
+export interface AddCommentCommand {
+  type: 'add-comment';
+  thread: Id;
+  comment: NewComment;
+}
+
+/** Changes the text of one's own comment: the person's, or Claude's. */
+export interface EditCommentCommand {
+  type: 'edit-comment';
+  thread: Id;
+  comment: Id;
+  text: string;
+  /** Who edits it, as for a new comment. */
+  author?: CommentAuthor;
+}
+
+/** Resolves a thread, or opens it again. */
+export interface ResolveThreadCommand {
+  type: 'resolve-thread';
+  thread: Id;
+  resolved: boolean;
+}
+
+/** Deletes a thread with all its comments; the app asks first. */
+export interface DeleteThreadCommand {
+  type: 'delete-thread';
+  thread: Id;
 }

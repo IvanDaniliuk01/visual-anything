@@ -204,6 +204,7 @@ export {
 } from './protocol';
 
 export type {
+  AuthorPreference,
   PreferenceChanges,
   PreferenceName,
   Preferences,
@@ -322,3 +323,5 @@ export {
   rangeKindOf,
   rangePointOf,
 } from './time-range';
+// Threads of comments kept in the project (ADR 0059).
+export * from './comments';

@@ -108,6 +108,8 @@ export function tablesProject(fixture: TablesFixture): ProjectSnapshot {
     packages: [SYSTEMS, DATA_MODELING, ...own],
     views: [view],
     scenarios: [],
+    tours: [],
+    comments: [],
   };
 }
 

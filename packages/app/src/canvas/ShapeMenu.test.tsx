@@ -261,6 +261,8 @@ describe('ShapeMenu', () => {
         },
       ],
       scenarios: [],
+      tours: [],
+      comments: [],
     };
     const indexed = indexScene(buildScene(stack, 'stack'));
     const under = shapesAt(indexed, { x: 50, y: 50 });

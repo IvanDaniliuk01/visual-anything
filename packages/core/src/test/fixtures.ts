@@ -121,6 +121,8 @@ export function testProject(): ProjectSnapshot {
         ],
       },
     ],
+    tours: [],
+    comments: [],
   };
 }
 
@@ -203,6 +205,8 @@ export function colorProject(): ProjectSnapshot {
       },
     ],
     scenarios: [],
+    tours: [],
+    comments: [],
   };
 }
 

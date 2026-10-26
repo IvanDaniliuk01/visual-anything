@@ -110,6 +110,13 @@
  * | live value              | valor en vivo                    |
  * | fresh, stale (a value)  | vigente, vencido                 |
  * | time range              | rango de tiempo                  |
+ * | tour                    | recorrido                        |
+ * | full-screen playback    | reproducción a pantalla completa |
+ * | speaker notes           | notas del orador                 |
+ * | thread                  | hilo                             |
+ * | comment                 | comentario                       |
+ * | detached (thread)       | desvinculado                     |
+ * | resolve, reopen         | resolver, reabrir                |
  *
  * The words CONTEXT.md avoids are not used for its terms either: no "nodo", "objeto" or "instancia"
  * for an element, "propiedad" or "campo" for an attribute, "capa" for the stacking order, "enlace" or
@@ -272,6 +279,8 @@ export const ui: Catalog = {
     'El tema se aplica solo a esta pestaña: Visual Anything no está conectado.',
   'Your approval of package code applies to this tab only: Visual Anything is not connected.':
     'La aprobación del código del paquete se aplica solo a esta pestaña: Visual Anything no está conectado.',
+  'Your name for comments applies to this tab only: Visual Anything is not connected.':
+    'El nombre para los comentarios se aplica solo a esta pestaña: Visual Anything no está conectado.',
 
   // Search and jump: the find field over the canvas.
   'Find in the project': 'Buscar en el proyecto',
@@ -2064,6 +2073,91 @@ export const ui: Catalog = {
     one: '{count} no tiene {attribute} y sigue a la vista.',
     other: '{count} no tienen {attribute} y siguen a la vista.',
   },
+
+  // Threads of comments (ADR 0059): the comments tab, a thread whole, and the pins on the canvas.
+  Comments: 'Comentarios',
+  '“{id}”, deleted': '“{id}”, eliminado',
+  'The view “{id}”, deleted': 'La vista “{id}”, eliminada',
+  'The view “{name}”': 'La vista “{name}”',
+  'A point of the view “{id}”, deleted': 'Un punto de la vista “{id}”, eliminada',
+  'A point of “{name}”': 'Un punto de “{name}”',
+  'Select “{name}”': 'Seleccionar “{name}”',
+  'Plain text: a blank line starts a paragraph, “- ” a list. Ctrl+Enter sends it.':
+    'Texto simple: una línea en blanco empieza un párrafo, “- ” una lista. Ctrl+Enter lo envía.',
+  'Mention the selection': 'Mencionar la selección',
+  'Give your name.': 'Indicar el nombre.',
+  'A name holds at most 200 characters.': 'Un nombre tiene como máximo 200 caracteres.',
+  'That is not an email address.': 'Esa no es una dirección de correo electrónico.',
+  'Your comments are signed with your name, kept on this computer for every project.':
+    'Los comentarios se firman con el nombre, que se guarda en esta computadora para todos los proyectos.',
+  'Your name': 'Nombre',
+  'Email (optional)': 'Correo electrónico (opcional)',
+  'Sign my comments': 'Firmar los comentarios',
+  'Signed as {name}': 'Comentarios firmados como {name}',
+  'Change the name': 'Cambiar el nombre',
+  'Give your name above to comment.': 'Indicar el nombre arriba para comentar.',
+  'Thread: {about}': 'Hilo: {about}',
+  '← All threads': '← Todos los hilos',
+  'Select what the thread is about': 'Seleccionar aquello sobre lo que trata el hilo',
+  Resolved: 'Resuelto',
+  'What this thread is about was deleted. The thread is kept: undoing the deletion brings it back.':
+    'Aquello sobre lo que trata este hilo se eliminó. El hilo se conserva: deshacer la eliminación lo recupera.',
+  'Edit your comment': 'Editar el comentario',
+  Save: 'Guardar',
+  Reply: 'Responder',
+  'Reply and reopen': 'Responder y reabrir',
+  Resolve: 'Resolver',
+  Reopen: 'Reabrir',
+  'Delete thread…': 'Eliminar el hilo…',
+  'Delete the thread?': '¿Eliminar el hilo?',
+  'Delete this thread and its {count} comments? You can undo it.': {
+    one: '¿Eliminar este hilo y su {count} comentario? Se puede deshacer.',
+    other: '¿Eliminar este hilo y sus {count} comentarios? Se puede deshacer.',
+  },
+  'Delete thread': 'Eliminar el hilo',
+  '(edited {time})': '(editado {time})',
+  'New thread': 'Hilo nuevo',
+  'Select one element or one relation first.': 'Seleccionar primero un elemento o una relación.',
+  'Comment on the selection': 'Comentar la selección',
+  'Comment on this view': 'Comentar esta vista',
+  'Comment on a point…': 'Comentar un punto…',
+  'Click on the canvas where the comment goes, or press Enter for its middle. Escape gives up.':
+    'Hacer clic en el lienzo donde va el comentario, o pulsar Enter para ubicarlo en el centro. Escape cancela.',
+  'New thread: {about}': 'Hilo nuevo: {about}',
+  'Your comment': 'Comentario',
+  Comment: 'Comentar',
+  'Which threads show': 'Qué hilos se muestran',
+  Where: 'Dónde',
+  'This view': 'Esta vista',
+  'All views': 'Todas las vistas',
+  State: 'Estado',
+  'Open threads': 'Hilos abiertos',
+  'Resolved threads': 'Hilos resueltos',
+  'Open and resolved': 'Abiertos y resueltos',
+  Author: 'Autor',
+  Everyone: 'Todos',
+  'Only the threads on: {about}': 'Solo los hilos sobre: {about}',
+  'Show every thread': 'Mostrar todos los hilos',
+  'Detached threads': 'Hilos desvinculados',
+  Detached: 'Desvinculados',
+  'What these threads are about was deleted. They are kept: resolve or delete them, or undo the deletion.':
+    'Aquello sobre lo que tratan estos hilos se eliminó. Se conservan: resolverlos o eliminarlos, o deshacer la eliminación.',
+  '{count} comments': { one: '{count} comentario', other: '{count} comentarios' },
+  'last by {name}, {time}': 'el último de {name}, {time}',
+  'No comments yet. Select an element or a relation and comment on it, or comment on this view.':
+    'Todavía no hay comentarios. Seleccionar un elemento o una relación y comentarlo, o comentar esta vista.',
+  'No comments yet.': 'Todavía no hay comentarios.',
+  'No open threads here. Show resolved ones, or every view’s.':
+    'No hay hilos abiertos aquí. Mostrar los resueltos, o los de todas las vistas.',
+  'No threads match. Show every view’s, or everyone’s.':
+    'Ningún hilo coincide. Mostrar los de todas las vistas, o los de todos.',
+  '{count} resolved threads: {about}': {
+    one: '{count} hilo resuelto: {about}',
+    other: '{count} hilos resueltos: {about}',
+  },
+  '{count} threads: {about}': { one: '{count} hilo: {about}', other: '{count} hilos: {about}' },
+  'Place the comment: click where it goes, or press Enter for the middle of the canvas. Escape gives up.':
+    'Ubicar el comentario: hacer clic donde va, o pulsar Enter para ubicarlo en el centro del lienzo. Escape cancela.',
 };
 
 /**
@@ -2928,6 +3022,11 @@ export const messages: Catalog = {
   'must be a semantic version, such as 1.2.0': 'debe ser una versión semántica, como 1.2.0',
   'must be an SPDX license identifier, such as CC0-1.0 or MIT':
     'debe ser un identificador de licencia SPDX, como CC0-1.0 o MIT',
+  // What the schema says of a comment's time and author (ADR 0059).
+  'must be a time in UTC as ISO 8601 writes it, such as 2026-10-25T14:03:00.000Z':
+    'debe ser una hora en UTC tal como la escribe ISO 8601, como 2026-10-25T14:03:00.000Z',
+  'must be an email address, such as ana@example.com':
+    'debe ser una dirección de correo electrónico, como ana@example.com',
   'must not be empty': 'no debe estar vacío',
   'must have at least {n} characters': 'debe tener al menos {n} caracteres',
   'must have at least 1 item': 'debe tener al menos 1 entrada',
@@ -2996,6 +3095,9 @@ export const messages: Catalog = {
     'La página tiene un paquete con el id "{id}", que Visual Anything reserva para su paquete incorporado {name}.',
   'The package "{id}" is listed, but neither this page nor the built-in packages hold it.':
     'El paquete "{id}" está en la lista, pero ni esta página ni los paquetes incorporados lo tienen.',
+  // Tours and threads of comments in their folders (ADR 0058, ADR 0059).
+  'The tour id "{id}" is already used by {file}.': 'El id de recorrido "{id}" ya lo usa {file}.',
+  'The thread id "{id}" is already used by {file}.': 'El id de hilo "{id}" ya lo usa {file}.',
   '{file} takes the id "{id}", which Visual Anything keeps for its built-in {name} package. Give it another id: {how}':
     '{file} usa el id "{id}", que Visual Anything reserva para su paquete incorporado {name}. Darle otro id: {how}',
   '{file} takes the id "{id}", which Visual Anything keeps for a built-in package to come. Rename it before that package ships: {how}':
@@ -3238,6 +3340,16 @@ export const messages: Catalog = {
   '"recentColors" holds {n} colors, more than {limit}.':
     '"recentColors" tiene {n} colores, más de {limit}.',
   '"{name}" must be true or false, not {value}.': '"{name}" debe ser true o false, no {value}.',
+  // Who the person's comments are signed as (ADR 0059).
+  '"author" must be null, or a name and an email.':
+    '"author" debe ser null, o un nombre y un correo electrónico.',
+  '"author" has a name and an email, and nothing else.':
+    '"author" tiene un nombre y un correo electrónico, y nada más.',
+  '"author" needs a name.': '"author" necesita un nombre.',
+  '"author" has a name of at most 200 characters.':
+    '"author" tiene un nombre de como máximo 200 caracteres.',
+  '"author" has an email that is not one: {value}.':
+    '"author" tiene un correo electrónico que no lo es: {value}.',
 
   // Imports (ADR 0042): the action, what the plan cannot be, and why a reader left something out.
   'Import "{name}"': 'Importar "{name}"',
@@ -3933,6 +4045,64 @@ export const messages: Catalog = {
   'it answered with more than {n} KiB': 'respondió con más de {n} KiB',
   'its answer broke off': 'su respuesta se cortó',
   'its name, {host}, does not resolve': 'su nombre, {host}, no se resuelve',
+
+  // Threads of comments (ADR 0059): what a thread is about, the history's labels, and why the core
+  // refuses a comment.
+  'the view "{name}"': 'la vista "{name}"',
+  'a point of the view "{name}"': 'un punto de la vista "{name}"',
+  'Comment on {of}': 'Comentar {of}',
+  'Reply to the thread on {of}': 'Responder al hilo sobre {of}',
+  'Edit a comment on {of}': 'Editar un comentario sobre {of}',
+  'Resolve the thread on {of}': 'Resolver el hilo sobre {of}',
+  'Reopen the thread on {of}': 'Reabrir el hilo sobre {of}',
+  'Delete the thread on {of}': 'Eliminar el hilo sobre {of}',
+  'A new thread needs its anchor and its first comment.':
+    'Un hilo nuevo necesita decir de qué trata y tener su primer comentario.',
+  'The thread holds {n} comments, as many as one holds: start another.':
+    'El hilo tiene {n} comentarios, todos los que puede tener: empezar otro.',
+  'The thread "{thread}" has no comment "{comment}".':
+    'El hilo "{thread}" no tiene ningún comentario "{comment}".',
+  'Claude edits only its own comments.': 'Claude edita solo sus propios comentarios.',
+  'Only the person who wrote a comment edits it.':
+    'Solo quien escribió un comentario puede editarlo.',
+  'Say whether the thread is resolved: true or false.':
+    'Indicar si el hilo está resuelto: true o false.',
+  'There is no thread "{id}".': 'No hay ningún hilo "{id}".',
+  'A thread needs an anchor: an element, a relation, a view or a point.':
+    'Un hilo necesita tratar sobre algo: un elemento, una relación, una vista o un punto.',
+  'A thread cannot be about World: comment on a view instead.':
+    'Un hilo no puede tratar sobre Mundo: comentar una vista en su lugar.',
+  'The x of a point must be a number.': 'La x de un punto debe ser un número.',
+  'The y of a point must be a number.': 'La y de un punto debe ser un número.',
+  'The x of a point must be from -10,000,000 to 10,000,000.':
+    'La x de un punto debe estar entre -10.000.000 y 10.000.000.',
+  'The y of a point must be from -10,000,000 to 10,000,000.':
+    'La y de un punto debe estar entre -10.000.000 y 10.000.000.',
+  '"{kind}" is not an anchor: a thread is about an element, a relation, a view or a point.':
+    '"{kind}" no es algo sobre lo que pueda tratar un hilo: un hilo trata sobre un elemento, una relación, una vista o un punto.',
+  'A comment is signed by whoever sends it, and the program did not say who sends this one.':
+    'Un comentario lo firma quien lo envía, y el programa no dijo quién envía este.',
+  'Claude’s comments are signed as Claude: they never name a person.':
+    'Los comentarios de Claude se firman como Claude: nunca nombran a una persona.',
+  'The clock gives a time a comment cannot keep.':
+    'El reloj da una hora que un comentario no puede guardar.',
+  'The comment mentions "{id}", which is no element or relation of the model.':
+    'El comentario menciona "{id}", que no es ningún elemento ni relación del modelo.',
+  'A comment needs some text.': 'Un comentario necesita algo de texto.',
+  'A comment holds at most 20,000 characters.':
+    'Un comentario tiene como máximo 20.000 caracteres.',
+  'A comment is plain text: it holds no control characters.':
+    'Un comentario es texto simple: no tiene caracteres de control.',
+  'A comment needs the name of who writes it: set it in your preferences.':
+    'Un comentario necesita el nombre de quien lo escribe: indicarlo en las preferencias.',
+  'Only Claude signs as Claude.': 'Solo Claude firma como Claude.',
+  'An author’s name holds at most 200 characters.':
+    'El nombre de un autor tiene como máximo 200 caracteres.',
+  'An author’s email must be text.': 'El correo electrónico de un autor debe ser texto.',
+  '"{address}" is not an email address.': '"{address}" no es una dirección de correo electrónico.',
+  'More than one thread has the id "{id}".': 'Más de un hilo tiene el id "{id}".',
+  'More than one comment in the thread "{thread}" has the id "{id}".':
+    'Más de un comentario del hilo "{thread}" tiene el id "{id}".',
 };
 
 /**

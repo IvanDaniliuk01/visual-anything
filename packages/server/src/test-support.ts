@@ -107,6 +107,8 @@ export function testProject(): ProjectSnapshot {
         ],
       },
     ],
+    tours: [],
+    comments: [],
   };
 }
 
@@ -115,8 +117,9 @@ export type Formatter = <K extends FileKind>(kind: K, value: FileContentByKind[K
 
 /**
  * Writes a project into a folder, each file where a new one goes: `project.vaproject`,
- * `model.vamodel`, and `packages/`, `views/` and `scenarios/` files named after their ids. Built-in
- * packages get no file. Files are in {@link formatFile} form unless another formatter is given.
+ * `model.vamodel`, and `packages/`, `views/`, `scenarios/`, `tours/` and `comments/` files named
+ * after their ids. Built-in packages get no file. Files are in {@link formatFile} form unless another
+ * formatter is given.
  */
 export async function writeProjectFolder(
   folder: string,
@@ -136,6 +139,14 @@ export async function writeProjectFolder(
     ...snapshot.scenarios.map((scenario): [string, string] => [
       `scenarios/${scenario.id}.vascenario`,
       format('scenario', scenario),
+    ]),
+    ...snapshot.tours.map((tour): [string, string] => [
+      `tours/${tour.id}.vatour`,
+      format('tour', tour),
+    ]),
+    ...snapshot.comments.map((thread): [string, string] => [
+      `comments/${thread.id}.vacomment`,
+      format('comment', thread),
     ]),
   ];
   for (const [path, text] of files) await writeText(folder, path, text);

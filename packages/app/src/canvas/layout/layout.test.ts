@@ -242,6 +242,8 @@ const projects = fc
       packages: [SYSTEMS],
       views: [view],
       scenarios: [],
+      tours: [],
+      comments: [],
     };
     const positions = new Map<string, ShapePosition>();
     for (const shape of buildScene(bare, 'v').shapes) {

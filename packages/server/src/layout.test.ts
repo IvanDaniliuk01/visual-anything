@@ -6,6 +6,8 @@ describe('folderKindOf', () => {
     expect(folderKindOf('packages')).toBe('package');
     expect(folderKindOf('VIEWS')).toBe('view');
     expect(folderKindOf('scenarios')).toBe('scenario');
+    expect(folderKindOf('Tours')).toBe('tour');
+    expect(folderKindOf('comments')).toBe('comment');
     expect(folderKindOf('docs')).toBeUndefined();
   });
 });
@@ -17,6 +19,8 @@ describe('newFilePath', () => {
     expect(newFilePath('view', 'overview', free)).toBe('views/overview.vaview');
     expect(newFilePath('scenario', 'request', free)).toBe('scenarios/request.vascenario');
     expect(newFilePath('package', 'shop', free)).toBe('packages/shop.vapackage');
+    expect(newFilePath('tour', 'walk', free)).toBe('tours/walk.vatour');
+    expect(newFilePath('comment', 'why-k3f9q2', free)).toBe('comments/why-k3f9q2.vacomment');
   });
 
   it('adds the smallest free numeric suffix when the name is taken', () => {

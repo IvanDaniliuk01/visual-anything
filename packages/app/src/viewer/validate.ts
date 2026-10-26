@@ -21,7 +21,11 @@ export interface StandaloneValidators {
   scenarioFile: StandaloneValidator;
 }
 
-const NAMES: Record<FileKind, keyof StandaloneValidators> = {
+/**
+ * The kinds of file a page holds. It carries no comments, which name people (ADR 0059), and no tours
+ * yet, so it has no validator for either.
+ */
+const NAMES: Readonly<Partial<Record<FileKind, keyof StandaloneValidators>>> = {
   project: 'projectFile',
   model: 'modelFile',
   package: 'packageFile',
@@ -44,7 +48,11 @@ export function standaloneValidate(validators: StandaloneValidators): ValidateFi
         ],
       };
     }
-    const validator = validators[NAMES[kind]];
+    const name = NAMES[kind];
+    if (name === undefined) {
+      return { ok: false, errors: [{ path: '', message: `A page holds no ${kind} files.` }] };
+    }
+    const validator = validators[name];
     if (validator(data)) return { ok: true, value: data };
     const seen = new Set<string>();
     const errors = (validator.errors ?? []).flatMap(({ instancePath, message }) => {

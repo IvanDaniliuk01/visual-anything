@@ -8,10 +8,12 @@
  * such as attributes and the data in and out of a step, are all sorted, at any depth. Arrays keep their
  * order, and the text is laid out as `JSON.stringify(value, null, 2)` lays it out, with a final newline.
  */
+import commentSchema from '../schemas/comment.schema.json' with { type: 'json' };
 import modelSchema from '../schemas/model.schema.json' with { type: 'json' };
 import packageSchema from '../schemas/package.schema.json' with { type: 'json' };
 import projectSchema from '../schemas/project.schema.json' with { type: 'json' };
 import scenarioSchema from '../schemas/scenario.schema.json' with { type: 'json' };
+import tourSchema from '../schemas/tour.schema.json' with { type: 'json' };
 import viewSchema from '../schemas/view.schema.json' with { type: 'json' };
 import type { FileContentByKind, FileKind } from './kinds';
 
@@ -56,6 +58,8 @@ const SCHEMAS: Record<FileKind, Schema> = {
   package: packageSchema,
   view: viewSchema,
   scenario: scenarioSchema,
+  tour: tourSchema,
+  comment: commentSchema,
 };
 
 /** Whether JSON leaves a value out, as JSON.stringify leaves out undefined, functions and symbols. */

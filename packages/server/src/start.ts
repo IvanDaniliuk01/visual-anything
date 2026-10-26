@@ -67,6 +67,8 @@ const NO_PROJECT: ProjectSnapshot = {
   packages: [],
   views: [],
   scenarios: [],
+  tours: [],
+  comments: [],
 };
 
 const NOT_STARTED = 'No project is open here yet: choose how to start one first.';

@@ -33,6 +33,8 @@ const project: ProjectSnapshot = {
   packages: [builtinPackage(SYSTEMS.id) ?? SYSTEMS],
   views: [],
   scenarios: [],
+  tours: [],
+  comments: [],
 };
 const api = project.model.elements[0]!;
 

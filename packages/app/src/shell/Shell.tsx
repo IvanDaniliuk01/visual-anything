@@ -41,6 +41,8 @@ import { usePackageCode } from '../code/usePackageCode';
 import { CodeApproval } from '../code/ApprovalDialog';
 import { AttributeLookupContext } from '../live-values/context';
 import { useLiveScene, useLookup } from '../live-values/useLiveValues';
+import { CommentPins } from '../comments/CommentPins';
+import { useCommentsStore } from '../comments/store';
 
 interface ShellProps {
   project: ProjectSnapshot;
@@ -165,6 +167,8 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   });
   // The element list, below the canvas, and its toggle in the header (R42).
   const [elementList] = useState(() => new ElementListStore());
+  // Threads of comments (ADR 0059): what the tab does with them, lent the view state's goTo.
+  const comments = useCommentsStore(viewState.goTo);
 
   return (
     <EditorContext.Provider value={editor}>
@@ -195,7 +199,12 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                     {notice}
                   </p>
                 )}
-                <ModelPanel project={project} definitions={definitions} openViewId={view?.id} />
+                <ModelPanel
+                  project={project}
+                  definitions={definitions}
+                  openViewId={view?.id}
+                  comments={comments}
+                />
                 <main className="canvas-area" aria-labelledby={canvasHeading}>
                   <h2 id={canvasHeading} className="visually-hidden">
                     {view ? view.name : t('Canvas')}
@@ -220,6 +229,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                   ) : (
                     <p className="canvas-message">{t('There is no view to draw.')}</p>
                   )}
+                  <CommentPins store={comments} canvas={canvas} />
                   <GuidanceLayer scenarios={scenarios} />
                   <FindBar
                     project={project}

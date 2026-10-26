@@ -60,6 +60,46 @@ describe('applyOperation', () => {
     expect(applyOperations(after, inverse).state).toEqual(state);
   });
 
+  // Tours and threads of comments (ADR 0058, ADR 0059).
+  it('inserts, replaces and removes tours and threads by id, and undoes them exactly', () => {
+    const state = testProject();
+    const tour = {
+      id: 'walk',
+      name: 'A walk',
+      steps: [{ id: 'start', viewState: { view: 'overview' }, caption: { title: 'Start' } }],
+    };
+    const thread = {
+      id: 'why',
+      anchor: { kind: 'element' as const, element: 'api' },
+      comments: [
+        {
+          id: 'c',
+          author: { kind: 'claude' as const },
+          time: '2026-10-25T09:30:00Z',
+          text: 'Why?',
+        },
+      ],
+    };
+    const operations: Operation[] = [
+      { op: 'insert', collection: { name: 'tours' }, index: 0, item: tour },
+      { op: 'insert', collection: { name: 'comments' }, index: 0, item: thread },
+      { op: 'replace', collection: { name: 'tours' }, item: { ...tour, name: 'Renamed' } },
+      { op: 'replace', collection: { name: 'comments' }, item: { ...thread, resolved: true } },
+    ];
+    const { state: after, inverse } = applyOperations(state, operations);
+    expect(after.tours).toEqual([{ ...tour, name: 'Renamed' }]);
+    expect(after.comments).toEqual([{ ...thread, resolved: true }]);
+    expect(keyOf({ name: 'comments' }, thread)).toBe('why');
+    expect(applyOperations(after, inverse).state).toEqual(state);
+
+    const removed = applyOperations(after, [
+      { op: 'remove', collection: { name: 'tours' }, key: 'walk' },
+      { op: 'remove', collection: { name: 'comments' }, key: 'why' },
+    ]);
+    expect(removed.state).toEqual(state);
+    expect(applyOperations(removed.state, removed.inverse).state).toEqual(after);
+  });
+
   it('leaves the project it is given unchanged', () => {
     const state = testProject();
     const copy = JSON.parse(JSON.stringify(state)) as typeof state;

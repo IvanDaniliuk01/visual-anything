@@ -1,0 +1,57 @@
+{
+  "id": "how-booking-works",
+  "name": "How booking works",
+  "description": "From a patient's message on WhatsApp to a booked slot and its reminder.",
+  "steps": [
+    {
+      "id": "the-clinic",
+      "viewState": {
+        "view": "system-overview"
+      },
+      "caption": {
+        "title": "Clinic booking",
+        "text": "Patients book appointments by writing to the clinic on WhatsApp. Three parts do the work:\n\n- the booking agent, which talks with the patient;\n- the Appointments API and its database;\n- the reminder service."
+      },
+      "notes": "Start from the whole picture before following one request."
+    },
+    {
+      "id": "the-agent",
+      "viewState": {
+        "view": "system-overview",
+        "select": [
+          "booking-agent"
+        ],
+        "focus": {
+          "degrees": 1,
+          "direction": "both"
+        }
+      },
+      "caption": {
+        "title": "The booking agent",
+        "text": "The agent reads the patient's message and asks the Appointments API for free slots."
+      },
+      "marks": [
+        "booking-agent",
+        "whatsapp-to-agent",
+        "agent-to-api"
+      ]
+    },
+    {
+      "id": "a-request",
+      "viewState": {
+        "view": "system-overview",
+        "scenario": "patient-books-appointment",
+        "step": "ask"
+      },
+      "caption": {
+        "title": "One request, step by step",
+        "text": "Follow one patient's request:\n\n1. the patient writes;\n2. the agent finds free slots;\n3. the API books one and schedules its reminder."
+      },
+      "play": {
+        "scenario": "patient-books-appointment",
+        "from": "ask",
+        "to": "book"
+      }
+    }
+  ]
+}

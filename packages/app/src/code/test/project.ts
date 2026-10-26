@@ -88,5 +88,7 @@ export function codeProject(pkg: PackageFile = gaugesPackage()): ProjectSnapshot
       },
     ],
     scenarios: [],
+    tours: [],
+    comments: [],
   };
 }

@@ -63,6 +63,8 @@ function project(): ProjectSnapshot {
       },
     ],
     scenarios: [],
+    tours: [],
+    comments: [],
   };
 }
 

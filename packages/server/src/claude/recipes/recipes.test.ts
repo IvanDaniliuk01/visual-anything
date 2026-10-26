@@ -27,6 +27,8 @@ function emptyProject(): ProjectSnapshot {
     packages: [SYSTEMS],
     views: [],
     scenarios: [],
+    tours: [],
+    comments: [],
   };
 }
 

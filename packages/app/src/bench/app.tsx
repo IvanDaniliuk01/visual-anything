@@ -65,6 +65,7 @@ import {
 } from './report';
 import { importPhases } from './imports';
 import { OVERLAPS, seeded, syntheticProject, type Overlap } from './synthetic';
+import { withCommentThreads } from './comments';
 import '../styles.css';
 
 /** How many of each interaction the benchmark makes, and how long it lets the app rest. */
@@ -234,7 +235,8 @@ export function AppBench({ project, plan, profile = false, onStatus, onFinish }:
   const onCommand = useCallback<SendCommand>(
     (command) => {
       const began = performance.now();
-      const outcome = executeCommand(current.current, command);
+      // As the local program does, it says who sends the command: the person (ADR 0059).
+      const outcome = executeCommand(current.current, command, { author: 'user' });
       if (!outcome.ok) {
         trace.refuse(outcome.problems.map((problem) => problem.message).join(' '));
         return Promise.resolve({ ok: false });
@@ -1235,14 +1237,18 @@ function startPage(mount: HTMLElement): void {
   const strict = search.has('strict');
   const profile = search.has('profile');
   const status = document.getElementById('status') as HTMLElement;
-  const began = performance.now();
-  const project = syntheticProject({ elements: size, overlap });
-  const prepared = performance.now() - began;
   // Each count can be changed, as `?clicks=10`, to look into one phase quickly.
   const count = (name: string, fallback: number) => {
     const asked = Number(search.get(name) ?? fallback);
     return Number.isInteger(asked) && asked > 0 ? asked : fallback;
   };
+  const began = performance.now();
+  // `?pins=200` measures every phase with that many threads of comments pinned (ADR 0059).
+  const project = withCommentThreads(
+    syntheticProject({ elements: size, overlap }),
+    count('pins', 0),
+  );
+  const prepared = performance.now() - began;
   const plan: BenchPlan = {
     clicks: count('clicks', 40),
     selectAlls: count('selectAlls', 10),

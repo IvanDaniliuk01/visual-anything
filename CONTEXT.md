@@ -282,7 +282,7 @@ _Avoid_: log, timeline, version history
 ### Preferences
 
 **Preference**:
-A choice a person makes for themselves on this computer: the theme, the language, whether the grid, snapping and the rulers are on, the colors they picked lately, and the package code they approved. The local program keeps preferences outside every project; they are never in project files, the undo history or Claude's tools.
+A choice a person makes for themselves on this computer: the theme, the language, whether the grid, snapping and the rulers are on, the colors they picked lately, the package code they approved, and the name and email their comments are signed with. The local program keeps preferences outside every project; they are never in project files, the undo history or Claude's tools, though each comment keeps the name and email it was signed with.
 _Avoid_: settings, profile
 
 **Language**:
@@ -373,8 +373,8 @@ Playing a tour with the panels hidden, a caption card, a progress line and keys 
 _Avoid_: presentation mode, slideshow
 
 **Thread**:
-Comments about one thing, an element, a relation, a view or a point of a view, kept in one file of the project until resolved (ADR 0059).
-_Avoid_: conversation, discussion
+Comments about one thing, an element, a relation, a view or a point of a view, kept in one file of the project until resolved (ADR 0059). Open threads show as pins on what they are about. A thread whose element, relation or view is deleted is kept as a detached thread, listed apart, and is about it again when the deletion is undone.
+_Avoid_: conversation, discussion, orphan thread
 
 **Comment**:
 A remark in a thread, with its author and time. It is not a note, which is a free shape drawn on a view.

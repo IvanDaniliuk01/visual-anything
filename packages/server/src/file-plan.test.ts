@@ -176,6 +176,8 @@ describe('affectedFiles', () => {
       packages: [],
       views: [],
       scenarios: [],
+      tours: [],
+      comments: [],
     };
     const { files, outcome } = affected(
       { type: 'update-project', changes: { packages: ['systems'] } },
@@ -194,7 +196,65 @@ describe('affectedFiles', () => {
     ];
     expect(affectedFiles(operations, before, after)).toEqual(['view:overview', 'view:second']);
   });
+
+  // Each tour and each thread of comments lives in a file of its own (ADR 0058, ADR 0059).
+  it('saves the file of each tour and each thread its operations touch, and only those', () => {
+    const before = withTourAndThread();
+    const [tour] = before.tours;
+    const [thread] = before.comments;
+    if (tour === undefined || thread === undefined) throw new Error('The fixture has no tour.');
+    const renamed = { ...tour, name: 'Renamed' };
+    const after: ProjectSnapshot = { ...before, tours: [renamed], comments: [] };
+    const operations: Operation[] = [
+      { op: 'replace', collection: { name: 'tours' }, item: renamed },
+      { op: 'remove', collection: { name: 'comments' }, key: thread.id },
+    ];
+    expect(affectedFiles(operations, before, after)).toEqual(['tour:walk', 'comment:why']);
+  });
+
+  it('saves a new tour or thread to its own file, after every other kind', () => {
+    const before = testProject();
+    const { tours, comments } = withTourAndThread();
+    const [tour] = tours;
+    const [thread] = comments;
+    if (tour === undefined || thread === undefined) throw new Error('The fixture has no tour.');
+    const after: ProjectSnapshot = { ...before, tours, comments };
+    const operations: Operation[] = [
+      { op: 'insert', collection: { name: 'comments' }, index: 0, item: thread },
+      { op: 'insert', collection: { name: 'tours' }, index: 0, item: tour },
+      { op: 'set-world', world: { ...before.model.world, name: 'All' } },
+    ];
+    expect(affectedFiles(operations, before, after)).toEqual(['model', 'tour:walk', 'comment:why']);
+  });
 });
+
+/** The test project with a tour of its view and a thread about its API. */
+function withTourAndThread(): ProjectSnapshot {
+  return {
+    ...testProject(),
+    tours: [
+      {
+        id: 'walk',
+        name: 'A walk',
+        steps: [{ id: 'start', viewState: { view: 'overview' }, caption: { title: 'Start' } }],
+      },
+    ],
+    comments: [
+      {
+        id: 'why',
+        anchor: { kind: 'element', element: 'api' },
+        comments: [
+          {
+            id: 'first',
+            author: { kind: 'claude' },
+            time: '2026-10-25T09:30:00.000Z',
+            text: 'Why here?',
+          },
+        ],
+      },
+    ],
+  };
+}
 
 describe('contentOf', () => {
   it('gives the kind of each file and the value it holds', () => {
@@ -207,12 +267,17 @@ describe('contentOf', () => {
       kind: 'scenario',
       value: state.scenarios[0],
     });
+    const more = withTourAndThread();
+    expect(contentOf('tour:walk', more)).toEqual({ kind: 'tour', value: more.tours[0] });
+    expect(contentOf('comment:why', more)).toEqual({ kind: 'comment', value: more.comments[0] });
   });
 
   it('gives nothing for what the project does not hold, or holds without a file', () => {
     const state = testProject();
     expect(contentOf('view:gone', state)).toBeUndefined();
     expect(contentOf('scenario:gone', state)).toBeUndefined();
+    expect(contentOf('tour:gone', state)).toBeUndefined();
+    expect(contentOf('comment:gone', state)).toBeUndefined();
     expect(contentOf('package:gone', state)).toBeUndefined();
     expect(contentOf('package:systems', state)).toBeUndefined();
   });
@@ -227,5 +292,6 @@ describe('liveFiles', () => {
       'view:overview',
       'scenario:request',
     ]);
+    expect(liveFiles(withTourAndThread()).slice(-2)).toEqual(['tour:walk', 'comment:why']);
   });
 });

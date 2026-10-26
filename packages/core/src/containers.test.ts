@@ -140,6 +140,8 @@ function tables(nesting: string[]): ProjectSnapshot {
       },
     ],
     scenarios: [],
+    tours: [],
+    comments: [],
   };
 }
 

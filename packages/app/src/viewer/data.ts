@@ -182,7 +182,16 @@ export function readPageData(text: string, validate: ValidateFile): PageRead {
   const listed = listedPackages(project, packages, problems);
   if (problems.length > 0) return { ok: false, problems };
 
-  const snapshot: ProjectSnapshot = { project, model, packages: listed, views, scenarios };
+  // The page carries no comments, which name people (ADR 0059), and no tours yet.
+  const snapshot: ProjectSnapshot = {
+    project,
+    model,
+    packages: listed,
+    views,
+    scenarios,
+    tours: [],
+    comments: [],
+  };
   const checked = checkProject(snapshot);
   if (checked.errors.length > 0) {
     return { ok: false, problems: checked.errors.map((error) => error.message) };

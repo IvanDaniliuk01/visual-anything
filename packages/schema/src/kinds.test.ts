@@ -8,6 +8,8 @@ describe('fileKindOf', () => {
     expect(fileKindOf('packages/systems.vapackage')).toBe('package');
     expect(fileKindOf('views/system-overview.vaview')).toBe('view');
     expect(fileKindOf('scenarios/patient-books-appointment.vascenario')).toBe('scenario');
+    expect(fileKindOf('tours/how-booking-works.vatour')).toBe('tour');
+    expect(fileKindOf('comments/booking-api-k3f9q2.vacomment')).toBe('comment');
   });
 
   it('returns undefined for any other file', () => {

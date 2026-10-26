@@ -10,7 +10,7 @@ import {
   type ProjectSnapshot,
   type ServerMessage,
 } from '@visual-anything/core';
-import type { ViewFile } from '@visual-anything/schema';
+import type { CommentFile, TourFile, ViewFile } from '@visual-anything/schema';
 import { formatFile } from '@visual-anything/schema/format';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openSession, type Session, type SessionOptions } from './session';
@@ -58,6 +58,22 @@ const SECOND_VIEW: ViewFile = {
   nestingRelationTypes: [],
   positions: [],
   freeShapes: [],
+};
+
+/** A tour of the test project's view. */
+const WALK: TourFile = {
+  id: 'walk',
+  name: 'A walk',
+  steps: [{ id: 'start', viewState: { view: 'overview' }, caption: { title: 'Start' } }],
+};
+
+/** A thread about the test project's API. */
+const WHY: CommentFile = {
+  id: 'why',
+  anchor: { kind: 'element', element: 'api' },
+  comments: [
+    { id: 'first', author: { kind: 'claude' }, time: '2026-10-25T09:30:00.000Z', text: 'Why?' },
+  ],
 };
 
 let folder: string;
@@ -141,6 +157,8 @@ describe('openSession', () => {
       packages: new Map([['shop', 'packages/shop.vapackage']]),
       views: new Map([['overview', 'views/overview.vaview']]),
       scenarios: new Map([['request', 'scenarios/request.vascenario']]),
+      tours: new Map(),
+      comments: new Map(),
       unlistedPackages: new Map(),
     });
     expect(session.warnings()).toEqual([]);
@@ -573,6 +591,8 @@ describe('the files of views, scenarios and packages', () => {
       packages: [],
       views: [],
       scenarios: [],
+      tours: [],
+      comments: [],
     });
     const { fs, written } = recordingFs(folder);
     const session = await open({ writer: { fs } });
@@ -597,9 +617,15 @@ describe('saveAll', () => {
     expect(await filesIn(folder)).toEqual(before);
   });
 
-  it('leaves every byte of the sample project unchanged', async () => {
+  it('leaves every byte of the sample project unchanged, its tour and its thread too', async () => {
     await cp(SAMPLE, folder, { recursive: true });
     const before = await filesIn(folder);
+    expect([...before.keys()]).toEqual(
+      expect.arrayContaining([
+        'tours/how-booking-works.vatour',
+        'comments/reminder-timing.vacomment',
+      ]),
+    );
     const { fs, written } = recordingFs(folder);
     const session = await open({ writer: { fs } });
 
@@ -936,6 +962,29 @@ describe.each(MODES)('changes made outside the app, watching in %s mode', (mode)
     const [, removed] = await received(client, 'project/reloaded', 2);
     expect(removed?.reason).toBe('views/second.vaview changed on disk.');
     expect(session.snapshot.views.map((view) => view.id)).toEqual(['overview']);
+  });
+
+  // Tours and threads of comments in folders of their own (ADR 0058, ADR 0059).
+  it('reload the project when a tour or a thread is added or removed outside', async () => {
+    const session = await open({ watch });
+    const client = new FakeClient();
+    session.connect(client);
+
+    await writeText(folder, 'tours/walk.vatour', formatFile('tour', WALK));
+    const [added] = await received(client, 'project/reloaded');
+    expect(added?.reason).toBe('tours/walk.vatour changed on disk.');
+    expect(session.snapshot.tours).toEqual([WALK]);
+    expect(session.files.tours.get('walk')).toBe('tours/walk.vatour');
+
+    await writeText(folder, 'comments/why.vacomment', formatFile('comment', WHY));
+    const [, thread] = await received(client, 'project/reloaded', 2);
+    expect(thread?.reason).toBe('comments/why.vacomment changed on disk.');
+    expect(session.snapshot.comments).toEqual([WHY]);
+
+    await rm(join(folder, 'tours'), { recursive: true });
+    const [, , removed] = await received(client, 'project/reloaded', 3);
+    expect(removed?.reason).toBe('tours/walk.vatour changed on disk.');
+    expect(session.snapshot.tours).toEqual([]);
   });
 
   it('keep the project while the files on disk are not valid, tell every app, and reload once they are', async () => {

@@ -29,5 +29,7 @@ export function systemsProject(withDataModeling = false): ProjectSnapshot {
       },
     ],
     scenarios: [],
+    tours: [],
+    comments: [],
   };
 }

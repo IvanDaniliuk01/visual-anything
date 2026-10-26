@@ -286,6 +286,8 @@ describe('levels of detail on the scene', () => {
         },
       ],
       scenarios: [],
+      tours: [],
+      comments: [],
     };
     const scene = buildSceneAfresh(project, VIEW);
     expect(shapeOf(scene, 'users/users-id').levels).toBe(shapeOf(scene, 'users').levels);
