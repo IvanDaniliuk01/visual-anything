@@ -231,12 +231,13 @@ export function decorateShape(
   const look = overlaid && element ? lookOfElement(element, inputs) : undefined;
   // What reads as stored is drawn as the view's own scene draws it, the same object.
   const stored = madeShapes.get(shape);
-  if (stored && madeFrom(stored, inputs, element, look, holder)) return stored.shape;
+  if (stored && madeFrom(stored, inputs, element, look, holder)) return looked(stored.shape, look);
   const cache = inputs.values === undefined ? madeShapes : liveShapes;
   const known = cache === madeShapes ? stored : cache.get(shape);
-  if (known && madeFrom(known, inputs, element, look, holder)) return known.shape;
+  if (known && madeFrom(known, inputs, element, look, holder)) return looked(known.shape, look);
+  // A row, and an anchored part, takes the levels of what holds it (ADR 0055, ADR 0067).
   const levels =
-    shape.row !== undefined
+    shape.row !== undefined || shape.part?.inDrawing === true
       ? holder?.levels
       : element
         ? levelsOf(element, inputs.definitions)
@@ -259,7 +260,27 @@ export function decorateShape(
     holderLevels: holder?.levels,
     shape: decorated,
   });
-  return decorated;
+  return looked(decorated, look);
+}
+
+/** The look overlays gave each anchored part, as decorated, which the part layer draws over its place. */
+const partLooks = new WeakMap<ElementShape, OverlayLook>();
+
+/** Notes the look an anchored part was decorated with, for {@link overlayLookOfPart}. */
+function looked(shape: ElementShape, look: OverlayLook | undefined): ElementShape {
+  if (shape.part?.inDrawing === true) {
+    if (look) partLooks.set(shape, look);
+    else partLooks.delete(shape);
+  }
+  return shape;
+}
+
+/**
+ * The look the view's overlays give an anchored part (ADR 0067): its fill, stroke, opacity and badge,
+ * which the part layer draws over the part's place, since the part itself is its drawing's picture.
+ */
+export function overlayLookOfPart(shape: ElementShape): OverlayLook | undefined {
+  return partLooks.get(shape);
 }
 
 /** Whether two looks set the same channels to the same values. */

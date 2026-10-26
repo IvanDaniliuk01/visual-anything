@@ -486,7 +486,7 @@ Eight milestones in build order, each ending in something you can use, and Track
   - automatic straight and curved routes, fanned apart as parallel lines are;
   - route handles and dragged ends on outlines (ADR 0039's clarification);
   - layout's ports for free geometry, and each drawing with parts as one block with a port for each related part (ADR 0015's clarification).
-- [ ] **Anchored parts on the canvas** (ADR 0067):
+- [x] **Anchored parts on the canvas** (ADR 0067):
   - drawings with parts drawn as their picture under their header;
   - what is drawn over parts: veils, and overlays' fills, strokes and badges;
   - parts' own pictures, through the image store, for parts drawn at full strength in a faint drawing; parts far out;

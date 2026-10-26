@@ -6,6 +6,7 @@ import { ColorControl } from '../inspector/controls';
 import type { PictureChoice, ShowOptions } from './imageCommands';
 import { IMAGE_FILE_TYPES, prepareImageFile, type PictureCodec } from './imageFiles';
 import { ImagePreview } from './ImagePreview';
+import { ReplacePicture } from './ReplacePicture';
 import './images.css';
 
 interface ImageControlProps {
@@ -172,6 +173,15 @@ export function ImageControl({
           >
             {t('Use a picture already in the project')}
           </button>
+        )}
+        {current && (
+          <ReplacePicture
+            project={project}
+            image={current.id}
+            disabled={off}
+            send={run}
+            codec={codec}
+          />
         )}
       </div>
       {picking && images.length > 0 && (

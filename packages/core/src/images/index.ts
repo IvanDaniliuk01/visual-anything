@@ -30,6 +30,26 @@ export {
   partsLostByReplacing,
   unknownPartWarnings,
 } from './anchored';
+// Anchor parts…, from the inspector and by Claude (ADR 0067, M8b W54).
+export type {
+  AnchorContent,
+  AnchorMatching,
+  AnchorPlan,
+  AnchorPlanning,
+  AnchorRequest,
+  DrawingParts,
+  PartAnchor,
+  PlannedPart,
+} from './anchoring';
+export {
+  anchoringCommand,
+  anchoringLabel,
+  drawingPartsOf,
+  identifiersOf,
+  nameKey,
+  partName,
+  planAnchoring,
+} from './anchoring';
 export type { FoundPart, NamedPart, PartsLeftOut } from './parts';
 export {
   PART_CAPS,

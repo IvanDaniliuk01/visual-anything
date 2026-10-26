@@ -6,10 +6,13 @@
  * core adds needs a fixture here or in that run.
  */
 import {
+  anchoringCommand,
   checkProject,
   cleanSvg,
   executeCommand,
+  planAnchoring,
   readBitmap,
+  type AnchorRequest,
   type Command,
   type ProjectSnapshot,
 } from '@visual-anything/core';
@@ -1735,6 +1738,75 @@ function partsOnOpening(sample: ProjectSnapshot): [string, ProjectSnapshot][] {
   ];
 }
 
+// M8b W54: Anchor parts… (ADR 0067) ------------------------------------------------------------------
+
+/**
+ * What Anchor parts… says: the labels of its action for one part and for several, and why a plan is
+ * refused, on the patient drawn with the parts of a picture of organs, holding a lung and a liver.
+ */
+function anchoring(sample: ProjectSnapshot): Said[] {
+  const organs = {
+    kind: 'svg' as const,
+    id: 'clinic.organs',
+    name: 'Organs',
+    width: 20,
+    height: 10,
+    svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><path id="lung" d="M0 0h10v10h-10z"/><path id="liver" d="M10 0h10v10h-10z"/></svg>',
+  };
+  const inPatient = (id: string): Relation => ({
+    id: `${id}-in-patient`,
+    relationType: 'systems.is-part-of',
+    from: id,
+    to: 'patient',
+  });
+  const drawing = (contents: readonly string[]): ProjectSnapshot => ({
+    ...sample,
+    packages: sample.packages.map((file) =>
+      file.id === 'clinic' ? { ...file, images: [...(file.images ?? []), organs] } : file,
+    ),
+    model: {
+      ...sample.model,
+      elements: [
+        ...sample.model.elements.map((each) =>
+          each.id === 'patient'
+            ? { ...each, appearance: { image: { image: organs.id, placement: 'parts' as const } } }
+            : each,
+        ),
+        ...contents.map((id) => ({ id, component: 'systems.service', name: id })),
+      ],
+      relations: [...sample.model.relations, ...contents.map(inPatient)],
+    },
+  });
+  const state = drawing(['lung', 'liver']);
+  const said: Said[] = [];
+  const plan = (name: string, on: ProjectSnapshot, request: Partial<AnchorRequest>) => {
+    const planning = planAnchoring(on, {
+      drawing: 'patient',
+      matching: { by: 'name' },
+      ...request,
+    });
+    if (!planning.ok) {
+      said.push({ command: name, message: planning.problem.message });
+      return;
+    }
+    const command = anchoringCommand(planning.plan);
+    if (command) said.push(...runInOrder(on, name, [command]));
+  };
+  plan('anchor one part', state, { parts: ['lung'] });
+  plan('anchor two parts', state, {});
+  plan('anchor what is no drawing', state, { drawing: 'lung' });
+  plan('anchor by a scheme that is none', state, {
+    matching: { by: 'external', scheme: 'Not one' },
+  });
+  plan('anchor a part the picture lacks', state, { parts: ['heart'] });
+  plan(
+    'anchor by creating where nothing nests',
+    { ...drawing([]), views: [] },
+    { create: { component: 'systems.service' } },
+  );
+  return said;
+}
+
 // M11c seam 2: decisions in scenarios (ADR 0078) ---------------------------------------------------
 
 const SCENARIO = 'patient-books-appointment';
@@ -1865,6 +1937,7 @@ export function coreRefusals(): Said[] {
   for (const [name, state] of geometryOnOpening(sample)) said.push(...checked(name, state));
   for (const [name, command] of PARTS) said.push(...runInOrder(sample, name, [command]));
   for (const [name, state] of partsOnOpening(sample)) said.push(...checked(name, state));
+  said.push(...anchoring(sample));
   for (const [name, command] of DECISIONS) said.push(...runInOrder(sample, name, [command]));
   for (const [name, state] of decisionsOnOpening(sample)) said.push(...checked(name, state));
   said.push(...cleaningRefusals());
