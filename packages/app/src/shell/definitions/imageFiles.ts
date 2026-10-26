@@ -65,22 +65,30 @@ export type PreparedImage =
     }
   | { ok: false; message: string };
 
-/** The name a picture takes from its file: the file's name without its extension, at most 200 characters. */
-export function nameOfFile(fileName: string): string {
+/**
+ * The name a picture takes from its file: the file's name without its extension, at most 200
+ * characters; `unnamed` when that leaves nothing, which the picker gives in the language read in, as
+ * every name the app gives something new is (ADR 0038).
+ */
+export function nameOfFile(fileName: string, unnamed = 'Picture'): string {
   const dot = fileName.lastIndexOf('.');
   const name = (dot > 0 ? fileName.slice(0, dot) : dot === 0 ? '' : fileName).trim();
-  return name === '' ? 'Picture' : name.slice(0, 200);
+  return name === '' ? unnamed : name.slice(0, 200);
 }
 
-/** Prepares a file the person chose or dropped, refusing what cannot be stored, with the reason. */
+/**
+ * Prepares a file the person chose or dropped, refusing what cannot be stored, with the reason. A
+ * file whose name gives none is named `unnamed`.
+ */
 export async function prepareImageFile(
   file: File,
   codec: PictureCodec = browserCodec,
+  unnamed?: string,
 ): Promise<PreparedImage> {
   if (file.size > FILE_LIMITS.bytes) {
     return { ok: false, message: 'The file is too large to be a picture the project can hold.' };
   }
-  const name = nameOfFile(file.name);
+  const name = nameOfFile(file.name, unnamed);
   if (isSvgFile(file)) {
     if (file.size > SVG_CAPS.input) {
       return { ok: false, message: 'An SVG picture holds at most 512 KiB of text.' };

@@ -2,7 +2,7 @@
  * The canvas's own colors in each theme, prepared for the renderer (wave 2): what reads on the canvas
  * at 4.5:1 for text and 3:1 for marks, and the grid, which only decorates.
  */
-import { THEME_NAMES, type ThemeName } from '@visual-anything/core';
+import { CANVAS_BACKGROUNDS, THEME_NAMES, type ThemeName } from '@visual-anything/core';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { contrastRatio, readableTextColors } from '../canvas/colors';
@@ -25,6 +25,11 @@ describe.each(THEME_NAMES)('the %s canvas', (name: ThemeName) => {
     expect(canvas.name).toBe(name);
     expect(canvas.background).toBe(shell.canvas);
     expect(canvas.relationLabelBack).toBe(canvas.background);
+  });
+
+  it('draws on the canvas the core measures stored colors against (ADR 0033)', () => {
+    // The core keeps its own copy, for the contrast hints and Claude's tool results; the two never part.
+    expect(CANVAS_BACKGROUNDS[name]).toBe(canvas.background);
   });
 
   it.each([

@@ -59,7 +59,7 @@
  * | package                 | paquete                          |
  * | built-in package        | paquete incorporado              |
  * | starter package         | paquete inicial                  |
- * | sample project          | proyecto de ejemplo              |
+ * | sample project          | proyecto de muestra              |
  * | start screen            | pantalla de inicio               |
  * | shared package          | paquete compartido               |
  * | license, attribution    | licencia, atribución             |
@@ -76,7 +76,7 @@
  * | travelling marker       | marcador en movimiento           |
  * | record                  | grabar                           |
  * | guidance                | guía                             |
- * | caption                 | leyenda                          |
+ * | caption                 | rótulo                           |
  * | preference              | preferencia                      |
  * | theme                   | tema                             |
  * | launch address          | dirección de inicio              |
@@ -99,7 +99,7 @@
  * | thread                  | hilo                             |
  * | comment                 | comentario                       |
  * | overlay                 | superposición                    |
- * | legend                  | referencias                      |
+ * | legend                  | leyenda                          |
  * | level of detail         | nivel de detalle                 |
  * | silhouette              | silueta                          |
  * | opacity, fade           | opacidad, atenuar                |
@@ -126,7 +126,10 @@
  * The words CONTEXT.md avoids are not used for its terms either: no "nodo", "objeto" or "instancia"
  * for an element, "propiedad" or "campo" for an attribute, "capa" for the stacking order, "enlace" or
  * "vínculo" for a relation, nor "ajustes" for options, since "ajuste" is snapping. A JSON object is
- * "objeto JSON" and a file system link "enlace simbólico", which are neither.
+ * "objeto JSON" and a file system link "enlace simbólico", which are neither. A sample project is
+ * "proyecto de muestra", never "ejemplo"; a legend is "leyenda", never "referencias", which is close to
+ * the built-in relation type "referencia" and to what CONTEXT.md avoids for identifiers; so a caption
+ * is "rótulo". `catalog.test.ts` lists every avoided word in Spanish, with its narrow exceptions.
  *
  * Element, relation, view and scenario names are what people wrote and are never translated; they
  * keep their quotes as the English has them.
@@ -138,7 +141,7 @@ export const ui: Catalog = {
   // The start screen of a folder that holds no project yet (ADR 0051).
   'Start a project in “{folder}”': 'Empezar un proyecto en “{folder}”',
   'This folder holds no project yet. Start one from a sample, or empty; everything can be changed afterwards.':
-    'Esta carpeta todavía no tiene ningún proyecto. Empezar uno a partir de un ejemplo, o vacío; después se puede cambiar todo.',
+    'Esta carpeta todavía no tiene ningún proyecto. Empezar uno a partir de un proyecto de muestra, o vacío; después se puede cambiar todo.',
   'Ways to start': 'Formas de empezar',
   'C4 architecture: internet banking': 'Arquitectura C4: banca por internet',
   'A bank’s internet banking system, from the people who use it down to its components and the servers it runs on, with a scenario of a customer signing in.':
@@ -147,8 +150,8 @@ export const ui: Catalog = {
     'Canalización de ciencia de datos: predicción de bajas',
   'The data a subscription business turns into a churn model, and the dashboards it feeds, with a scenario of the nightly run.':
     'Los datos que un negocio de suscripciones convierte en un modelo de bajas, y los paneles de indicadores que alimenta, con un escenario de la ejecución nocturna.',
-  'Start from the sample “{name}”': 'Empezar a partir del ejemplo “{name}”',
-  'Start from this sample': 'Empezar a partir de este ejemplo',
+  'Start from the sample “{name}”': 'Empezar a partir del proyecto de muestra “{name}”',
+  'Start from this sample': 'Empezar a partir de este proyecto de muestra',
   'Starting…': 'Empezando…',
   'An empty project': 'Un proyecto vacío',
   'It uses the built-in Systems package and has one view; the Components tab adds more packages.':
@@ -512,7 +515,7 @@ export const ui: Catalog = {
   'This page is {size}, past {limit}: it may open slowly, and some hosts and mail refuse files this large.':
     'Esta página pesa {size}, más de {limit}: puede abrirse con lentitud, y algunos servidores y correos rechazan archivos tan grandes.',
   'This copy of Visual Anything has no viewer for read-only pages, as when it runs from its sources. Run pnpm build, then start it again.':
-    'Esta copia de Visual Anything no tiene el visor de páginas de solo lectura, como cuando se ejecuta desde sus fuentes. Ejecutar pnpm build y volver a iniciarla.',
+    'Esta copia de Visual Anything no puede armar páginas de solo lectura, como cuando se ejecuta desde sus fuentes. Ejecutar pnpm build y volver a iniciarla.',
   'The page could not be written: {why}': 'No se pudo escribir la página: {why}',
   'Save the page': 'Guardar la página',
   'Save the page anyway': 'Guardar la página de todos modos',
@@ -726,7 +729,7 @@ export const ui: Catalog = {
   'Step {n} is deleted.': 'Se eliminó el paso {n}.',
   'Delete step': 'Eliminar paso',
   'Enter saves a field; Shift+Enter starts a new line. Leave data blank for none.':
-    'Enter guarda un campo; Mayús+Enter empieza una línea nueva. Dejar los datos en blanco para no tener ninguno.',
+    'Enter guarda lo escrito; Mayús+Enter empieza una línea nueva. Dejar los datos en blanco para no tener ninguno.',
 
   // Claude's guidance.
   'Claude’s guidance': 'Guía de Claude',
@@ -1409,7 +1412,7 @@ export const ui: Catalog = {
   'Recent and project colors for {label}': 'Colores recientes y del proyecto para {label}',
   'Use {color}': 'Usar {color}',
   'Write a color as #RRGGBB, #RGB or rgb(r, g, b), such as #F3F5F8.':
-    'Escribir un color como #RRGGBB, #RGB o rgb(r, g, b), por ejemplo #F3F5F8.',
+    'Escribir un color en la forma #RRGGBB, #RGB o rgb(r, g, b), como #F3F5F8.',
   'Appearance of {count} shapes': {
     one: 'Apariencia de {count} forma',
     other: 'Apariencia de {count} formas',
@@ -1945,11 +1948,11 @@ export const ui: Catalog = {
   'This step’s view no longer exists, so the canvas stays where it is.':
     'La vista de este paso ya no existe, así que el lienzo se queda donde está.',
   Title: 'Título',
-  Caption: 'Leyenda',
+  Caption: 'Rótulo',
   'Plain text: a blank line starts a paragraph, and lines starting with “- ” make a list.':
     'Texto simple: una línea en blanco empieza un párrafo, y las líneas que empiezan con “- ” forman una lista.',
   'Changed the title of step {n}.': 'Se cambió el título del paso {n}.',
-  'Changed the caption of step {n}.': 'Se cambió la leyenda del paso {n}.',
+  'Changed the caption of step {n}.': 'Se cambió el rótulo del paso {n}.',
   'Speaker notes': 'Notas del orador',
   'Changed the speaker notes of step {n}.': 'Se cambiaron las notas del orador del paso {n}.',
   'Mark the selection': 'Marcar la selección',
@@ -1984,7 +1987,7 @@ export const ui: Catalog = {
   'The browser did not open the speaker notes window. Allow pop-up windows for this page, then try again.':
     'El navegador no abrió la ventana de las notas del orador. Permitir ventanas emergentes para esta página y volver a intentarlo.',
   // The legend of a view's overlays, on the canvas and below an image (ADR 0055).
-  Legend: 'Referencias',
+  Legend: 'Leyenda',
   'Fill by {attribute}': 'Relleno según {attribute}',
   'Stroke by {attribute}': 'Trazo según {attribute}',
   'Size by {attribute}': 'Tamaño según {attribute}',
@@ -2008,7 +2011,7 @@ export const ui: Catalog = {
   'Add the overlay': 'Agregar la superposición',
   'Save the overlay': 'Guardar la superposición',
   Edit: 'Editar',
-  'Name in the legend': 'Nombre en las referencias',
+  'Name in the legend': 'Nombre en la leyenda',
   'Reads the attributes of': 'Lee los atributos de',
   Changes: 'Cambia',
   Maps: 'Asigna',
@@ -2023,13 +2026,13 @@ export const ui: Catalog = {
   Opacity: 'Opacidad',
   Label: 'Etiqueta',
   'Line color': 'Color de línea',
-  'Label in the legend': 'Etiqueta en las referencias',
+  'Label in the legend': 'Etiqueta en la leyenda',
   'Add a value': 'Agregar un valor',
   'Add a stop': 'Agregar una parada',
   'Add each value it has': 'Agregar cada valor que tiene',
   // What Mermaid and Structurizr lose of a view with overlays: they draw no legend (ADR 0055).
   'The legend of the view’s overlays, whose colors it draws: the outline in Markdown, the SVG and the PDF carry it.':
-    'Las referencias de las superposiciones de la vista, cuyos colores dibuja: el esquema en Markdown, el SVG y el PDF las incluyen.',
+    'La leyenda de las superposiciones de la vista, cuyos colores dibuja: el esquema en Markdown, el SVG y el PDF la incluyen.',
   // A component's levels of detail in the component editor (ADR 0055).
   'Levels of detail': 'Niveles de detalle',
   'From each level’s zoom up, its shapes show what the level lists; below the first, a silhouette. A level is left only 10% below its zoom, so nothing flickers.':
@@ -2273,6 +2276,9 @@ export const ui: Catalog = {
   '{count} threads: {about}': { one: '{count} hilo: {about}', other: '{count} hilos: {about}' },
   'Place the comment: click where it goes, or press Enter for the middle of the canvas. Escape gives up.':
     'Ubicar el comentario: hacer clic donde va, o pulsar Enter para ubicarlo en el centro del lienzo. Escape cancela.',
+  // W43, from the review of L1: the name a picture takes when its file gives none, written in the
+  // language read in as every name the app gives (ADR 0038).
+  Picture: 'Imagen',
 };
 
 /**
@@ -2364,14 +2370,14 @@ export const messages: Catalog = {
   'Leave "{name}" out of "{view}"': 'Dejar "{name}" fuera de "{view}"',
   'Leave {n} elements out of "{view}"': 'Dejar {n} elementos fuera de "{view}"',
   'A scope is an object, or null to show the whole model.':
-    'Un alcance es un objeto, o null para mostrar todo el modelo.',
+    'Un alcance es un objeto JSON, o null para mostrar todo el modelo.',
   'A scope holds include, exclude, added and leftOut, not "{key}".':
     'Un alcance tiene include, exclude, added y leftOut, no "{key}".',
   "A scope's {part} holds at most {n} rules.":
     'El {part} de un alcance tiene como máximo {n} reglas.',
   "A scope's {part} must be a list.": 'El {part} de un alcance debe ser una lista.',
   'A rule of a scope is an object with a kind.':
-    'Una regla de un alcance es un objeto con un kind.',
+    'Una regla de un alcance es un objeto JSON con un kind.',
   'Whether a rule takes exactly its own kind is true or false.':
     'Si una regla toma exactamente su propio tipo es verdadero o falso.',
   'How deep a rule reaches is a whole number from 1 to {n}.':
@@ -2628,7 +2634,7 @@ export const messages: Catalog = {
     'El tipo de relación que anida "{name}" se indica dos veces.',
   'The view "{name}" cannot be deleted: {scenarios} play over it.':
     'La vista "{name}" no se puede eliminar: {scenarios} se reproducen sobre ella.',
-  'A package is listed twice.': 'Un paquete figura dos veces.',
+  'A package is listed twice.': 'Un paquete aparece dos veces.',
   'The project cannot stop using the package "{id}": {n} of its elements, relations or definitions come from it.':
     'El proyecto no puede dejar de usar el paquete "{id}": {n} de sus elementos, relaciones o definiciones vienen de él.',
   'There is no built-in package "{id}" to use.':
@@ -2686,7 +2692,7 @@ export const messages: Catalog = {
   'A package’s images are a list.': 'Las imágenes de un paquete son una lista.',
   'Each definition and image of a package is an object.':
     'Cada definición e imagen de un paquete es un objeto JSON.',
-  'An image is of the kind "svg" or "bitmap".': 'Una imagen es de la clase "svg" o "bitmap".',
+  'An image is of the kind "svg" or "bitmap".': 'Una imagen es del tipo "svg" o "bitmap".',
   'An image has no "{key}".': 'Una imagen no tiene "{key}".',
   'A package has no "{key}".': 'Un paquete no tiene "{key}".',
   'A package’s version is a semantic version, such as 1.2.0.':
@@ -2734,10 +2740,10 @@ export const messages: Catalog = {
     'El componente "{id}" es incorporado; el paquete "{package}" no puede definirlo.',
   'The relation type "{id}" is built in; package "{package}" cannot define it.':
     'El tipo de relación "{id}" es incorporado; el paquete "{package}" no puede definirlo.',
-  'The component "{id}" is defined by package "{first}" and again by "{package}".':
-    'El componente "{id}" lo define el paquete "{first}" y otra vez "{package}".',
-  'The relation type "{id}" is defined by package "{first}" and again by "{package}".':
-    'El tipo de relación "{id}" lo define el paquete "{first}" y otra vez "{package}".',
+  'The component "{id}" is defined by package "{earlier}" and again by "{package}".':
+    'El componente "{id}" lo define el paquete "{earlier}" y otra vez "{package}".',
+  'The relation type "{id}" is defined by package "{earlier}" and again by "{package}".':
+    'El tipo de relación "{id}" lo define el paquete "{earlier}" y otra vez "{package}".',
   'The component "{id}" of package "{package}" should start with "{prefix}.".':
     'El componente "{id}" del paquete "{package}" debería empezar con "{prefix}.".',
   'The relation type "{id}" of package "{package}" should start with "{prefix}.".':
@@ -2869,8 +2875,8 @@ export const messages: Catalog = {
     'La imagen "{id}" no se puede quitar: {users} todavía la muestran.',
   '{owner} can show an image by its id, as an icon or a drawing, with a #rrggbb tint, or show "none".':
     '{owner} puede mostrar una imagen por su id, como ícono o como dibujo, con un tinte #rrggbb, o mostrar "none".',
-  'The image "{id}" is defined by package "{first}" and again by "{package}".':
-    'La imagen "{id}" la define el paquete "{first}" y otra vez "{package}".',
+  'The image "{id}" is defined by package "{earlier}" and again by "{package}".':
+    'La imagen "{id}" la define el paquete "{earlier}" y otra vez "{package}".',
   'The image "{id}" of package "{package}" should start with "{prefix}.".':
     'La imagen "{id}" del paquete "{package}" debería empezar con "{prefix}.".',
   'The image "{name}" ({id}) is not drawn: cleaning refuses it.':
@@ -2970,14 +2976,14 @@ export const messages: Catalog = {
   'Step {n} of the tour: {why}': 'Paso {n} del recorrido: {why}',
   'A view state is an object.': 'Un estado de vista es un objeto JSON.',
   'Step {n} of the tour needs a caption with a title.':
-    'El paso {n} del recorrido necesita una leyenda con un título.',
+    'El paso {n} del recorrido necesita un rótulo con un título.',
   'A caption holds a title and a text, nothing else.':
-    'Una leyenda tiene un título y un texto, nada más.',
+    'Un rótulo tiene un título y un texto, nada más.',
   "A caption's title holds at most {limit} characters.":
-    'El título de una leyenda tiene como máximo {limit} caracteres.',
-  "A caption's text is text.": 'El texto de una leyenda es texto.',
+    'El título de un rótulo tiene como máximo {limit} caracteres.',
+  "A caption's text is text.": 'El texto de un rótulo es texto.',
   "A caption's text holds at most {limit} characters.":
-    'El texto de una leyenda tiene como máximo {limit} caracteres.',
+    'El texto de un rótulo tiene como máximo {limit} caracteres.',
   'Speaker notes are text.': 'Las notas del orador son texto.',
   'Speaker notes hold at most {limit} characters.':
     'Las notas del orador tienen como máximo {limit} caracteres.',
@@ -3001,7 +3007,8 @@ export const messages: Catalog = {
   'No project is open here yet: choose how to start one first.':
     'Todavía no hay ningún proyecto abierto aquí: primero elegir cómo empezar uno.',
   'The project here is being started already.': 'El proyecto de aquí ya se está empezando.',
-  'There is no sample "{id}" to start from.': 'No hay ningún ejemplo "{id}" del que partir.',
+  'There is no sample "{id}" to start from.':
+    'No hay ningún proyecto de muestra "{id}" del que partir.',
   '{folder} already holds files, or is no folder; a new project starts in an empty folder.':
     '{folder} ya tiene archivos, o no es una carpeta; un proyecto nuevo empieza en una carpeta vacía.',
   'The new project could not be written in {folder}: {reason}':
@@ -3271,9 +3278,9 @@ export const messages: Catalog = {
   '{file} takes the id "{id}", which Visual Anything keeps for a built-in package to come. Rename it before that package ships: {how}':
     '{file} usa el id "{id}", que Visual Anything reserva para un paquete incorporado que vendrá. Cambiarlo antes de que ese paquete salga: {how}',
   'change "id" in this file, the start of every component and relation type id in it, and every reference to them, and rename the file to match.':
-    'cambiar "id" en este archivo, el comienzo de cada id de componente y de tipo de relación que tiene, y cada referencia a ellos, y cambiar el nombre del archivo para que coincida.',
+    'cambiar "id" en este archivo, el comienzo de cada id de componente y de tipo de relación que tiene, y cada lugar que los nombra, y cambiar el nombre del archivo para que coincida.',
   'The package "{id}" is listed, but neither packages/ nor the built-in packages hold it.':
-    'El paquete "{id}" figura en la lista, pero no está ni en packages/ ni entre los paquetes incorporados.',
+    'El paquete "{id}" aparece en la lista, pero no está ni en packages/ ni entre los paquetes incorporados.',
 
   // More phrases the core builds, which its messages hold as parts.
   'the relation "{name}"': 'la relación "{name}"',
@@ -3412,10 +3419,10 @@ export const messages: Catalog = {
     'La vista "{view}" conecta a mano el inicio de "{name}", pero ese extremo es una relación, cuya línea encuentra en el medio; se conecta automáticamente.',
   'The view "{view}" attaches the end of "{name}" by hand, but that end is a relation, whose line it meets in the middle; it attaches automatically.':
     'La vista "{view}" conecta a mano el final de "{name}", pero ese extremo es una relación, cuya línea encuentra en el medio; se conecta automáticamente.',
-  'The view "{view}" attaches the start of "{name}" at the connection point "{point}", which "{owner}" does not have; it attaches automatically.':
-    'La vista "{view}" conecta el inicio de "{name}" en el punto de conexión "{point}", que "{owner}" no tiene; se conecta automáticamente.',
-  'The view "{view}" attaches the end of "{name}" at the connection point "{point}", which "{owner}" does not have; it attaches automatically.':
-    'La vista "{view}" conecta el final de "{name}" en el punto de conexión "{point}", que "{owner}" no tiene; se conecta automáticamente.',
+  'The view "{view}" attaches the start of "{name}" at the connection point "{point}", which "{holder}" does not have; it attaches automatically.':
+    'La vista "{view}" conecta el inicio de "{name}" en el punto de conexión "{point}", que "{holder}" no tiene; se conecta automáticamente.',
+  'The view "{view}" attaches the end of "{name}" at the connection point "{point}", which "{holder}" does not have; it attaches automatically.':
+    'La vista "{view}" conecta el final de "{name}" en el punto de conexión "{point}", que "{holder}" no tiene; se conecta automáticamente.',
   'The view "{view}" keeps the bend points of "{name}" relative to "{container}", which is no element of the model; they are ignored.':
     'La vista "{view}" guarda los puntos de quiebre de "{name}" relativos a "{container}", que no es ningún elemento del modelo; se ignoran.',
 
@@ -3679,7 +3686,7 @@ export const messages: Catalog = {
   '{count} more things matched nothing; the list stops here.':
     '{count} cosas más no coincidieron con nada; la lista se detiene aquí.',
   'A link that is not a web address is left out.':
-    'Se deja fuera una referencia que no es una dirección web.',
+    'Se deja fuera lo que lleva a algo que no es una dirección web.',
   'Its {n} bend points are left out: a route bends at most 64 times.':
     'Se dejan fuera sus {n} puntos de quiebre: una ruta se quiebra como máximo 64 veces.',
   'The view is left out: an import brings at most 500 views.':
@@ -3804,7 +3811,7 @@ export const messages: Catalog = {
   'The view "{view}" shows "{id}", which the model does not hold.':
     'La vista "{view}" muestra "{id}", que el modelo no tiene.',
   'Groups are left out; what they hold sits in the view without them.':
-    'Se dejan fuera los grupos; lo que contienen queda en la vista sin ellos.',
+    'Se dejan fuera las agrupaciones; lo que contienen queda en la vista sin ellas.',
   'A step that no relation of the model stands for is left out.':
     'Se deja fuera un paso que no representa ninguna relación del modelo.',
   'It is drawn between containers of its ends; it shows in views that show its ends.':
@@ -3992,7 +3999,7 @@ export const messages: Catalog = {
   'The overlay "{name}" writes badges of 1 to 12 characters.':
     'La superposición "{name}" escribe insignias de 1 a 12 caracteres.',
   'What the legend of "{name}" says for a value has 1 to 64 characters.':
-    'Lo que dicen las referencias de "{name}" para un valor tiene de 1 a 64 caracteres.',
+    'Lo que dice la leyenda de "{name}" para un valor tiene de 1 a 64 caracteres.',
   'No element has "{attribute}", which the overlay "{name}" reads: it changes nothing yet.':
     'Ningún elemento tiene "{attribute}", que lee la superposición "{name}": todavía no cambia nada.',
   'No relation has "{attribute}", which the overlay "{name}" reads: it changes nothing yet.':
@@ -4271,6 +4278,225 @@ export const messages: Catalog = {
   'More than one thread has the id "{id}".': 'Más de un hilo tiene el id "{id}".',
   'More than one comment in the thread "{thread}" has the id "{id}".':
     'Más de un comentario del hilo "{thread}" tiene el id "{id}".',
+  // W43, from the review of L1, A1 and A2. The labels of colors changed and taken back, and the
+  // project appearances that have no effect (ADR 0034, ADR 0035).
+  'Change the colors of a note in "{view}"': 'Cambiar los colores de una nota en "{view}"',
+  'Reset the colors of a note in "{view}"': 'Restablecer los colores de una nota en "{view}"',
+  'Change the color of an arrow in "{view}"': 'Cambiar el color de una flecha en "{view}"',
+  'Reset the color of an arrow in "{view}"': 'Restablecer el color de una flecha en "{view}"',
+  'Reset the appearance of {of}': 'Restablecer la apariencia de {of}',
+  'Forget the appearance given to "{id}"': 'Olvidar la apariencia dada a "{id}"',
+  'The project gives "{name}" an appearance, but no package in use defines it; it is ignored.':
+    'El proyecto le da una apariencia a "{name}", pero ningún paquete en uso lo define; se ignora.',
+  'The project gives "{name}" an appearance, but it belongs to the project’s package "{package}"; set it there. This entry is ignored.':
+    'El proyecto le da una apariencia a "{name}", pero pertenece al paquete propio "{package}"; definirla allí. Esta entrada se ignora.',
+  // W43: ids a project's files hold twice, as it opens.
+  'More than one package has the id "{key}".': 'Más de un paquete tiene el id "{key}".',
+  'More than one view has the id "{key}".': 'Más de una vista tiene el id "{key}".',
+  'More than one scenario has the id "{key}".': 'Más de un escenario tiene el id "{key}".',
+  // W43: why the core's cleaner refuses a picture past what it keeps, as the image picker and the
+  // problems of a project say it.
+  'The SVG text is over {n} KiB.': 'El texto SVG pasa de {n} KiB.',
+  'The cleaned SVG text is over {n} KiB.': 'El texto SVG ya limpio pasa de {n} KiB.',
+  'The SVG text has over {n} elements.': 'El texto SVG tiene más de {n} elementos.',
+  'The SVG text has over {n} namespace declarations.':
+    'El texto SVG tiene más de {n} declaraciones de espacios de nombres.',
+  'The SVG text nests elements over {n} deep.':
+    'El texto SVG anida elementos a más de {n} niveles.',
+  'The SVG text has over {n} style rules.': 'El texto SVG tiene más de {n} reglas de estilo.',
+  'A style rule has over {n} selectors.': 'Una regla de estilo tiene más de {n} selectores.',
+  "The SVG text's style rules hold over {n} declarations, counted once per selector.":
+    'Las reglas de estilo del texto SVG tienen más de {n} declaraciones, contadas una vez por selector.',
+  'The SVG picture has over {n} elements to draw.':
+    'La imagen SVG tiene más de {n} elementos para dibujar.',
+  'The SVG picture’s style rules match too many of its elements to fold them in.':
+    'Las reglas de estilo de la imagen SVG coinciden con demasiados de sus elementos como para incorporarlas.',
+  'The SVG picture nests elements over {n} deep.':
+    'La imagen SVG anida elementos a más de {n} niveles.',
+  'A use element refers to a part that holds a use element.':
+    'Un elemento use remite a una parte que tiene otro elemento use.',
+  'A gradient has over {n} stops.': 'Un degradado tiene más de {n} paradas.',
+  'A clip path or mask holds another.': 'Un trazado de recorte o una máscara contiene otro.',
+  'A clip path or mask refers to another.': 'Un trazado de recorte o una máscara remite a otro.',
+  'The SVG picture has over {n} use elements.': 'La imagen SVG tiene más de {n} elementos use.',
+  'The SVG picture has over {n} gradients.': 'La imagen SVG tiene más de {n} degradados.',
+  'The SVG picture has over {n} clip paths and masks.':
+    'La imagen SVG tiene más de {n} trazados de recorte y máscaras.',
+  'The SVG picture has over {n} path commands.':
+    'La imagen SVG tiene más de {n} comandos de trazado.',
+  'The SVG picture would cost too much to draw: it has too many masks, clips, transparent groups or elements.':
+    'Dibujar la imagen SVG costaría demasiado: tiene demasiadas máscaras, recortes, elementos g transparentes u otros elementos.',
+  'The picture is over {n} KiB.': 'La imagen pasa de {n} KiB.',
+  'The picture is {width} × {height} pixels; at most {side} a side and {pixels} in all are kept.':
+    'La imagen mide {width} × {height} píxeles; se admiten como máximo {side} por lado y {pixels} en total.',
+  'The JPEG picture has over {n} scans.': 'La imagen JPEG tiene más de {n} barridos.',
+  // W43: why the live connection cannot read a message, as the "unreadable" screen shows it for one
+  // from the local program and a refusal for one the app sent (protocol.ts, live/messages.ts).
+  'The message is not JSON.': 'El mensaje no es JSON.',
+  'The message is not a JSON object.': 'El mensaje no es un objeto JSON.',
+  'The message is not text.': 'El mensaje no es texto.',
+  'Unknown message type: {type}.': 'Tipo de mensaje desconocido: {type}.',
+  'Protocol version {version} is not {n}.': 'La versión {version} del protocolo no es la {n}.',
+  'The message has no project.': 'El mensaje no tiene ningún proyecto.',
+  'The session token is text.': 'El token de la sesión es texto.',
+  'The message has no operations.': 'El mensaje no tiene operaciones.',
+  'The message has no preferences.': 'El mensaje no tiene preferencias.',
+  'The message names the request and the project that opened.':
+    'El mensaje nombra el pedido y el proyecto que se abrió.',
+  'The folder is named by text.': 'La carpeta se nombra con un texto.',
+  'The message has no samples.': 'El mensaje no tiene proyectos de muestra.',
+  'A sample has an id and a name.': 'Un proyecto de muestra tiene un id y un nombre.',
+  'Guidance is an object.': 'Una guía es un objeto JSON.',
+  'The view of guidance must be an id.': 'La vista de una guía debe ser un id.',
+  'Guidance needs a list of one or more targets.':
+    'Una guía necesita una lista de uno o más ids a los que apuntar.',
+  'Guidance names at most {n} targets.': 'Una guía apunta como máximo a {n} ids.',
+  'Every target of guidance must be an id.':
+    'Todo aquello a lo que apunta una guía debe ser un id.',
+  'Pan to needs a target id.': 'Llevar el lienzo hasta algo necesita su id.',
+  'A caption needs its text.': 'Un rótulo necesita su texto.',
+  'A caption holds at most {n} characters.': 'Un rótulo tiene como máximo {n} caracteres.',
+  'Unknown kind of guidance: {kind}.': 'Tipo de guía desconocido: {kind}.',
+  'Filters are an object.': 'Los filtros son un objeto JSON.',
+  'The components of filters are a list of ids.':
+    'Los componentes de los filtros son una lista de ids.',
+  'The relation types of filters are a list of ids.':
+    'Los tipos de relación de los filtros son una lista de ids.',
+  'Filters name at most {n} components.': 'Los filtros nombran como máximo {n} componentes.',
+  'Filters name at most {n} relation types.':
+    'Los filtros nombran como máximo {n} tipos de relación.',
+  'The conditions of filters are a list.': 'Las condiciones de los filtros son una lista.',
+  'A condition of filters is an object.': 'Una condición de los filtros es un objeto JSON.',
+  'A condition is on elements or on relations.':
+    'Una condición es sobre elementos o sobre relaciones.',
+  'A condition that tests with "{test}" needs a value, as text.':
+    'Una condición que prueba con "{test}" necesita un valor, como texto.',
+  'Focus reaches 1 to {n} degrees, or "all".': 'El foco alcanza de 1 a {n} grados, o "all".',
+  'Focus goes one of these ways: {ways}.': 'El foco va en una de estas direcciones: {ways}.',
+  'Whether focus isolates is a boolean.': 'Si el foco aísla es un valor booleano.',
+  'Playback names its scenario by id.': 'La reproducción nombra su escenario por su id.',
+  'Playback does one of: {actions}.': 'La reproducción hace una de estas cosas: {actions}.',
+  'Going to a step needs the index of the step, from 0.':
+    'Ir a un paso necesita el índice del paso, desde 0.',
+  'The actions of the history are a list.': 'Las acciones del historial son una lista.',
+  'An action of the history is an object.': 'Una acción del historial es un objeto JSON.',
+  'An action of the history has a whole id from 1.':
+    'Una acción del historial tiene un id entero desde 1.',
+  'Two actions of the history have the id {n}.': 'Dos acciones del historial tienen el id {n}.',
+  'An action of the history has a label.': 'Una acción del historial tiene una etiqueta.',
+  'An action of the history is the person’s or Claude’s.':
+    'Una acción del historial es de la persona o de Claude.',
+  'An action of the history has the time it was done.':
+    'Una acción del historial tiene el momento en que se hizo.',
+  'An action of the history says whether it is undone.':
+    'Una acción del historial dice si está deshecha.',
+  'The message has no valid request id.': 'El mensaje no tiene un id de pedido válido.',
+  'The answer has no valid request id.': 'La respuesta no tiene un id de pedido válido.',
+  'The message has no command.': 'El mensaje no tiene ningún comando.',
+  'The action to undo up to is named by its id.':
+    'La acción hasta la que deshacer se nombra por su id.',
+  'The action to redo up to is named by its id.':
+    'La acción hasta la que rehacer se nombra por su id.',
+  'The message has no preferences to change.': 'El mensaje no tiene preferencias que cambiar.',
+  'A sample is named by its id.': 'Un proyecto de muestra se nombra por su id.',
+  'The names of a new project are an object.':
+    'Los nombres de un proyecto nuevo son un objeto JSON.',
+  'A new project\'s names are its "project" and its first "view", each text of at most {n} characters.':
+    'Los nombres de un proyecto nuevo son su "project" y su primera "view", cada uno un texto de como máximo {n} caracteres.',
+  'The project to open is a path of 1 to {n} characters.':
+    'El proyecto que abrir es una ubicación de 1 a {n} caracteres.',
+  'The view to open there is named by its id.': 'La vista que abrir allí se nombra por su id.',
+  'Live values come as a list of values and a list removed.':
+    'Los valores en vivo llegan como una lista de valores y una lista de los quitados.',
+  'The answer to live values counts what was kept.':
+    'La respuesta a los valores en vivo cuenta lo que se guardó.',
+  'The answer to live values lists the targets it did not know.':
+    'La respuesta a los valores en vivo enumera los ids que no conocía.',
+  'The answer to live values lists what it refused.':
+    'La respuesta a los valores en vivo enumera lo que rechazó.',
+  'A value refused has its place and why.': 'Un valor rechazado tiene su lugar y el motivo.',
+  'What was fetched has an HTTP status.': 'Lo obtenido tiene un estado HTTP.',
+  'What was fetched is text of at most 256 KiB.': 'Lo obtenido es un texto de como máximo 256 KiB.',
+  'Fetching names its package by id.': 'Obtener algo nombra su paquete por su id.',
+  'Fetching needs an address of at most {n} characters.':
+    'Obtener algo necesita una dirección de como máximo {n} caracteres.',
+  'Live values from package code name the package.':
+    'Los valores en vivo del código de un paquete nombran el paquete.',
+  'Live values come as a list.': 'Los valores en vivo llegan como una lista.',
+  'Live values stay fresh for a whole number of milliseconds, from a second to a week.':
+    'Los valores en vivo quedan vigentes durante un número entero de milisegundos, de un segundo a una semana.',
+  'A live value {why}.': 'Un valor en vivo {why}.',
+  'is not an object': 'no es un objeto JSON',
+  'has no target id': 'no tiene el id del elemento o la relación al que pertenece',
+  'has no attribute name of 1 to {n} characters on one line':
+    'no tiene un nombre de atributo de 1 a {n} caracteres en una sola línea',
+  'has no value for "{attribute}"': 'no tiene ningún valor para "{attribute}"',
+  'has a value for "{attribute}" that {why}': 'tiene un valor para "{attribute}" que {why}',
+  'has a time it was measured at that is not milliseconds since 1970':
+    'tiene un momento de medición que no está en milisegundos desde 1970',
+  'A live value names its sender.': 'Un valor en vivo nombra a quien lo envía.',
+  'A live value says when it arrived.': 'Un valor en vivo dice cuándo llegó.',
+  'A live value says how long it stays fresh.':
+    'Un valor en vivo dice cuánto tiempo queda vigente.',
+  'A live value removed is named by its target and attribute.':
+    'Un valor en vivo quitado se nombra por su elemento o relación y su atributo.',
+  // W43: why a tab's copy of the project falls out of step with the program (operations.ts). The
+  // lists are phrases in lower case, which the sentences hold.
+  '{Of} already holds "{key}".': '"{key}" ya está en {Of}.',
+  '{Of} has no place {index}.': 'No hay ningún lugar {index} en {Of}.',
+  '{Of} holds no "{key}".': '"{key}" no está en {Of}.',
+  'The elements of the project': 'los elementos del proyecto',
+  'The relations of the project': 'las relaciones del proyecto',
+  'The packages of the project': 'los paquetes del proyecto',
+  'The views of the project': 'las vistas del proyecto',
+  'The scenarios of the project': 'los escenarios del proyecto',
+  'The components of package "{package}"': 'los componentes del paquete "{package}"',
+  'The relationTypes of package "{package}"': 'los tipos de relación del paquete "{package}"',
+  'The images of package "{package}"': 'las imágenes del paquete "{package}"',
+  'The positions of view "{view}"': 'las posiciones de la vista "{view}"',
+  'The freeShapes of view "{view}"': 'las formas libres de la vista "{view}"',
+  'The routes of view "{view}"': 'las rutas de la vista "{view}"',
+  'The stacking order of "{container}" in view "{view}"':
+    'el orden de apilado de "{container}" en la vista "{view}"',
+  'A view cannot change its id ("{id}").': 'Una vista no puede cambiar su id ("{id}").',
+  'A package cannot change its id ("{id}").': 'Un paquete no puede cambiar su id ("{id}").',
+  // W43: why the sandbox itself could not run package code, in its own words (code/sandbox.ts);
+  // only what the engine says after "the interpreter failed:" stays as it is.
+  'The code of the package "{name}" did not load: it imports another module, and package code is one module on its own':
+    'El código del paquete "{name}" no se cargó: importa otro módulo, y el código de un paquete es un único módulo',
+  'The code of the package "{name}" did not load: it waits at the top of its module, which package code may not do':
+    'El código del paquete "{name}" no se cargó: espera en el nivel superior de su módulo, y el código de un paquete no puede hacerlo',
+  'The code of the package "{name}" did not load: the interpreter stopped working':
+    'El código del paquete "{name}" no se cargó: el intérprete dejó de funcionar',
+  'The code of the package "{name}" did not load: the interpreter failed: {error}':
+    'El código del paquete "{name}" no se cargó: falló el intérprete: {error}',
+  'The code of the package "{name}" did not load: it threw nothing that says why':
+    'El código del paquete "{name}" no se cargó: lanzó algo que no dice por qué',
+  'The code of the package "{name}" did not load: it gave no reason':
+    'El código del paquete "{name}" no se cargó: no dio ningún motivo',
+  'The code of the package "{name}" failed in {hook} on "{element}": it imports another module, and package code is one module on its own':
+    'El código del paquete "{name}" falló en {hook} sobre "{element}": importa otro módulo, y el código de un paquete es un único módulo',
+  'The code of the package "{name}" failed in {hook} on "{element}": the package exports no {exported}':
+    'El código del paquete "{name}" falló en {hook} sobre "{element}": el paquete no exporta {exported}',
+  'The code of the package "{name}" failed in {hook} on "{element}": the interpreter stopped working':
+    'El código del paquete "{name}" falló en {hook} sobre "{element}": el intérprete dejó de funcionar',
+  'The code of the package "{name}" failed in {hook} on "{element}": the interpreter failed: {error}':
+    'El código del paquete "{name}" falló en {hook} sobre "{element}": falló el intérprete: {error}',
+  'The code of the package "{name}" failed in {hook} on "{element}": it threw nothing that says why':
+    'El código del paquete "{name}" falló en {hook} sobre "{element}": lanzó algo que no dice por qué',
+  'The code of the package "{name}" failed in {hook} on "{element}": it gave no reason':
+    'El código del paquete "{name}" falló en {hook} sobre "{element}": no dio ningún motivo',
+  // W43: what a spreadsheet import does not read of a column of identifiers (ADR 0056).
+  'This column repeats the scheme "{scheme}", so it is not read.':
+    'Esta columna repite el catálogo "{scheme}", así que no se lee.',
+  // W43: why the PDF writer could not write its file, as the Export dialog says it.
+  'The fonts the PDF embeds could not be read.':
+    'No se pudieron leer las fuentes que incorpora el PDF.',
+  // W43: why the local program refuses preferences an app sends.
+  'Preferences to change must be an object, such as {"theme": "dark"}.':
+    'Las preferencias que cambiar deben ser un objeto JSON, como {"theme": "dark"}.',
+  'There is no preference to change.': 'No hay ninguna preferencia que cambiar.',
+  '"{name}" is not a preference.': '"{name}" no es una preferencia.',
 };
 
 /**
@@ -4428,7 +4654,7 @@ export const builtins: Readonly<
   'c4.component': {
     name: 'Componente',
     description:
-      'Un grupo de funciones relacionadas detrás de una interfaz, dentro de un contenedor.',
+      'Un conjunto de funciones relacionadas detrás de una interfaz, dentro de un contenedor.',
     attributes: { technology: 'Con qué está hecho, como "Java y Spring Boot" o "PostgreSQL".' },
   },
   'c4.deployment-node': {

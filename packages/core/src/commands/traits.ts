@@ -192,9 +192,14 @@ function checkedConnectionPoints(value: unknown, of: string): ConnectionPoint[] 
 
 /**
  * The image an appearance shows: `none`, or an image by its id with its placement and tint. Whether a
- * package in use defines that image is checked after every command (`images/check.ts`).
+ * package in use defines that image is checked after every command (`images/check.ts`). The tint
+ * keeps the spelling of the tint stored in that place when it is the same color, as every color does.
  */
-function checkedImage(value: unknown, of: string): NonNullable<Appearance['image']> {
+function checkedImage(
+  value: unknown,
+  of: string,
+  stored?: Appearance['image'],
+): NonNullable<Appearance['image']> {
   if (value === 'none') return 'none';
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     invalid(`The image of ${of} must be "none" or an image named by its id.`);
@@ -210,7 +215,16 @@ function checkedImage(value: unknown, of: string): NonNullable<Appearance['image
   return {
     image,
     ...(placement === undefined ? {} : { placement }),
-    ...(tint === undefined ? {} : { tint: checkedColor(tint, 'tint', of) }),
+    ...(tint === undefined
+      ? {}
+      : {
+          tint: checkedColor(
+            tint,
+            'tint',
+            of,
+            typeof stored === 'object' ? stored.tint : undefined,
+          ),
+        }),
   };
 }
 

@@ -78,7 +78,10 @@ export function ImageControl({
     setReport(undefined);
     setProblem(undefined);
     setBusy(true);
-    const prepared = await prepareImageFile(file, codec).finally(() => setBusy(false));
+    // A file whose name gives none is named in the language read in (ADR 0038).
+    const prepared = await prepareImageFile(file, codec, t('Picture')).finally(() =>
+      setBusy(false),
+    );
     if (!prepared.ok) {
       setProblem(t.message(prepared.message));
       return;

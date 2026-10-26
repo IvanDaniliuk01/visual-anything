@@ -642,6 +642,32 @@ describe('the colors of notes and free arrows', () => {
     expect(shapes(theme.state)[0]).toEqual({ ...note, x: 40 });
   });
 
+  it('are reset when no color is left, and named so (ADR 0035)', () => {
+    const [note, arrow] = shapes(colorProject());
+    if (note?.kind !== 'note' || arrow?.kind !== 'arrow') throw new Error('No note or arrow.');
+    const colored = ok({
+      type: 'update-free-shape',
+      view: 'overview',
+      shape: { ...note, fill: '#FFF4E5', stroke: '#B4531A' },
+    });
+    // Taking one color out leaves the other: the colors change.
+    const unfilled = ok(
+      { type: 'update-free-shape', view: 'overview', shape: { ...note, stroke: '#B4531A' } },
+      colored.state,
+    );
+    expect(unfilled.label).toBe('Change the colors of a note in "Overview"');
+    const reset = ok({ type: 'update-free-shape', view: 'overview', shape: note }, unfilled.state);
+    expect(reset.label).toBe('Reset the colors of a note in "Overview"');
+    expect(shapes(reset.state)[0]).toEqual(note);
+    const stroked = ok({
+      type: 'update-free-shape',
+      view: 'overview',
+      shape: { ...arrow, stroke: '#B42318' },
+    });
+    const plain = ok({ type: 'update-free-shape', view: 'overview', shape: arrow }, stroked.state);
+    expect(plain.label).toBe('Reset the color of an arrow in "Overview"');
+  });
+
   it('are refused when they are not colors, and an arrow has no fill', () => {
     const [note, arrow] = shapes(colorProject());
     if (note?.kind !== 'note' || arrow?.kind !== 'arrow') throw new Error('No note or arrow.');

@@ -228,9 +228,13 @@ export function updateFreeShape(draft: Draft, command: UpdateFreeShapeCommand): 
     !sameJson(current, shape) &&
     sameJson(withoutColors(current), withoutColors(shape));
   if (colorsOnly) {
+    // "Reset …" when the change leaves the shape no color of its own (ADR 0035).
+    const colored =
+      shape.stroke !== undefined || (shape.kind === 'note' && shape.fill !== undefined);
+    const verb = colored ? 'Change' : 'Reset';
     return shape.kind === 'note'
-      ? `Change the colors of a note in "${view.name}"`
-      : `Change the color of an arrow in "${view.name}"`;
+      ? `${verb} the colors of a note in "${view.name}"`
+      : `${verb} the color of an arrow in "${view.name}"`;
   }
   return `Edit ${shape.kind === 'note' ? 'a note' : 'an arrow'} in "${view.name}"`;
 }

@@ -304,6 +304,90 @@ const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
   { word: /\bra[ií]z\b/i },
   { word: /\binstant[áa]neas?\b/i },
   { word: /\bsobrescrit/i },
+  // The rest of CONTEXT.md's avoid lists, in the Spanish each would be written in.
+  // Model, World, element and particularity.
+  { word: /\bgrafos?\b/i },
+  { word: /\buniversos?\b/i },
+  { word: /\becosistemas?\b/i },
+  // A JSON object is "objeto JSON"; "Object storage" is a built-in component's name.
+  { word: /\bobjetos?\b/i, unless: /\bobjetos? JSON\b|\balmacenamiento de objetos\b/i },
+  // An entity of XML, "&amp;", is what the SVG and XML readers name.
+  { word: /\bentidad(es)?\b/i, unless: /\bentidad "&/i },
+  { word: /\bexcepci[oó]n(es)?\b/i },
+  // Relations, nesting and containers.
+  { word: /\bjerarqu[ií]as?\b/i },
+  { word: /\bpadres?\b/i },
+  { word: /\bgrupos?\b/i },
+  { word: /\bcampos?\b/i },
+  // The canvas, shapes and their parts. A spreadsheet is "hoja de cálculo", which imports read.
+  { word: /\bhojas?\b/i, unless: /\bhojas? de cálculo\b/i },
+  { word: /\bfiguras?\b/i },
+  { word: /\bbloquead[oa]s?\b/i },
+  { word: /\bmallas?\b/i },
+  { word: /\bim[aá]n(es)?\b/i },
+  { word: /\bsubt[ií]tulos?\b/i },
+  { word: /\bp[ií]ldoras?\b/i },
+  { word: /\b[aá]rbol(es)?\b/i },
+  { word: /\bhaz\b/i },
+  { word: /\bsubconjuntos?\b/i },
+  // The palette of components; a stylesheet's class, which an SVG's style rule selects by.
+  { word: /\bpaletas?\b/i, unless: /\bpaletas? de componentes\b/i },
+  { word: /\bclases?\b/i, unless: /\buna clase o un nombre de elemento\b/i },
+  { word: /\bcomplementos?\b/i },
+  { word: /\bdiseñador(es)?\b/i },
+  { word: /\bpaquetes? predeterminados?\b/i },
+  { word: /\bfacetas?\b/i },
+  { word: /\blentes?\b/i },
+  { word: /\bpunto de anclaje\b/i },
+  // Exploring and playing.
+  { word: /\bvecindarios?\b/i },
+  { word: /\bejemplos?\b/i },
+  { word: /\bsimulaci[oó]n(es)?\b/i },
+  { word: /\betapas?\b/i },
+  { word: /\bhu[eé]rfan[oa]s?\b/i },
+  { word: /\bpulsos?\b/i },
+  { word: /\bpresentaci[oó]n(es)?\b/i },
+  { word: /\bdiapositivas?\b/i },
+  { word: /\bconector(es)?\b/i },
+  { word: /\bv[eé]rtices?\b/i },
+  { word: /\bcodos?\b/i },
+  { word: /\bpuntos? de control\b/i },
+  { word: /\btransacci[oó]n(es)?\b/i },
+  { word: /\bconjuntos? de cambios\b/i },
+  { word: /\bl[ií]neas? de tiempo\b/i },
+  // Preferences, addresses, what leaves and enters a project.
+  { word: /\bperfil(es)?\b/i, unless: /\bperfil de color\b/i },
+  { word: /\bconfiguraci[oó]n regional\b/i },
+  { word: /\bsitios? est[aá]ticos?\b/i },
+  { word: /\bvisor(es)?\b/i },
+  { word: /\bsincroniz/i },
+  { word: /\bconversi[oó]n(es)?\b/i },
+  { word: /\bdemos?\b/i },
+  { word: /\bbienvenida\b/i },
+  { word: /\basistentes?\b/i },
+  { word: /\bdependencias?\b/i },
+  // Overlays, identifiers, destinations and live values. "references" is a built-in relation type
+  // of Data modeling, an SVG's outside references are what cleaning removes, and "&" starts an XML
+  // reference.
+  {
+    word: /\breferencias?\b/i,
+    unless:
+      /^referencia$|\breferencias entre columnas\b|\breferencias? externas?\b|\bninguna referencia\./i,
+  },
+  { word: /\bhiperv[ií]nculos?\b/i },
+  { word: /\btelemetr[ií]as?\b/i },
+  { word: /\bdatos en vivo\b/i },
+  { word: /\bniveles? de zoom\b/i },
+  // Explaining, and package code.
+  { word: /\bconversaci[oó]n(es)?\b/i },
+  { word: /\bdiscusi[oó]n(es)?\b/i },
+  { word: /\banotaci[oó]n(es)?\b/i },
+  { word: /\bmacros?\b/i },
+  { word: /\bmanejador(es)?\b/i },
+  { word: /\bf[oó]rmulas?\b/i },
+  { word: /\batributos? derivados?\b/i },
+  { word: /\bconfianza\b/i },
+  { word: /\blistas? blancas?\b/i },
 ];
 
 /** Texts given to t() that Spanish writes the same: values and punctuation only. */

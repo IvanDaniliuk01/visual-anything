@@ -27,6 +27,42 @@ import { NOT_AN_ERROR, PRELUDE, REFUSED } from './prelude';
 export const STACK_BYTES = 48 * 1024;
 
 /**
+ * Why the sandbox itself could not run a package's code, in its own words: messages of their own,
+ * which the app's catalog reads in the person's language, as it reads {@link NOT_AN_ERROR}. Only what
+ * the package's code threw, and what the engine says after `interpreterFailed`, stays as written
+ * (ADR-0038).
+ */
+export const SANDBOX_REASONS = Object.freeze({
+  imports: 'it imports another module, and package code is one module on its own',
+  waits: 'it waits at the top of its module, which package code may not do',
+  stopped: 'the interpreter stopped working',
+  silent: 'it threw nothing that says why',
+});
+
+/** Why a hook could not be called: its package exports no such hook. */
+export function exportsNo(hook: HookName): string {
+  return `the package exports no ${hook}`;
+}
+
+/** Why nothing more can run here: the interpreter itself failed, in the engine's own words. */
+export function interpreterFailed(why: string): string {
+  return `the interpreter failed: ${why}`;
+}
+
+/**
+ * The error the module loader hands the interpreter when the code imports, and which comes back as
+ * what the code threw; it is read back as {@link SANDBOX_REASONS.imports}.
+ */
+const IMPORTS_NOTHING = 'Package code imports nothing: it is one module on its own.';
+
+/** A failure as the sandbox says it: an import the loader refused reads as the sandbox's own reason. */
+function inOwnWords(failure: CodeFailure): CodeFailure {
+  return failure.kind === 'threw' && failure.message === `Error: ${IMPORTS_NOTHING}`
+    ? { kind: 'threw', message: SANDBOX_REASONS.imports }
+    : failure;
+}
+
+/**
  * Runs code of its own once in a new module, so that the browser or Node has compiled the
  * interpreter's WebAssembly before any package's call is timed: a cold interpreter can take longer
  * than a call may on its first runs. Gives back the module.
@@ -143,7 +179,7 @@ export class CodeSandbox {
   /** Loads a package's module in a runtime of its own, in place of any loaded before for it. */
   load(request: LoadRequest): LoadOutcome {
     this.unload(request.package);
-    if (this.spent) return crashedLoad('The interpreter stopped working.');
+    if (this.spent) return crashedLoad(SANDBOX_REASONS.stopped);
     let runtime: QuickJSRuntime | undefined;
     try {
       runtime = this.module.newRuntime();
@@ -151,7 +187,7 @@ export class CodeSandbox {
       runtime.setMaxStackSize(STACK_BYTES);
       runtime.setInterruptHandler(() => this.now() > this.deadline);
       runtime.setModuleLoader(() => ({
-        error: new Error('Package code imports nothing: it is one module on its own.'),
+        error: new Error(IMPORTS_NOTHING),
       }));
       const context = runtime.newContext();
       const { run, describe } = this.prelude(context, request.granted.includes('time'));
@@ -161,7 +197,7 @@ export class CodeSandbox {
         strict: true,
       });
       if (evaluated.error) {
-        const failure = this.thrownFailure(context, describe, evaluated.error);
+        const failure = inOwnWords(this.thrownFailure(context, describe, evaluated.error));
         this.deadline = Infinity;
         evaluated.error.dispose();
         run.dispose();
@@ -185,7 +221,7 @@ export class CodeSandbox {
           ok: false,
           failure: {
             kind: 'threw',
-            message: 'Package code may not wait at the top of its module.',
+            message: SANDBOX_REASONS.waits,
           },
         };
       }
@@ -223,7 +259,7 @@ export class CodeSandbox {
       } catch {
         // The interpreter is spent: what it held goes with it.
       }
-      return crashedLoad(messageOf(error));
+      return crashedLoad(interpreterFailed(messageOf(error)));
     }
   }
 
@@ -269,11 +305,11 @@ export class CodeSandbox {
     if (!loaded || !handle) {
       return {
         ok: false,
-        failure: { kind: 'threw', message: `The package exports no ${hook}.` },
+        failure: { kind: 'threw', message: exportsNo(hook) },
         ms: 0,
       };
     }
-    if (this.spent) return crashedCall('The interpreter stopped working.', 0);
+    if (this.spent) return crashedCall(SANDBOX_REASONS.stopped, 0);
     const { context } = loaded;
     const handles: QuickJSHandle[] = [];
     try {
@@ -333,7 +369,8 @@ export class CodeSandbox {
         };
       }
       const text = context.getString(value);
-      if (text.startsWith('E')) return { ok: false, failure: describedFailure(text.slice(1)), ms };
+      if (text.startsWith('E'))
+        return { ok: false, failure: inOwnWords(describedFailure(text.slice(1))), ms };
       if (!text.startsWith('A') || text.length - 1 > CODE_LIMITS.answerText) {
         return {
           ok: false,
@@ -345,7 +382,7 @@ export class CodeSandbox {
     } catch (error) {
       this.deadline = Infinity;
       this.spent = true;
-      return crashedCall(messageOf(error), this.now() - started);
+      return crashedCall(interpreterFailed(messageOf(error)), this.now() - started);
     } finally {
       this.deadline = Infinity;
       loaded.reader = undefined;
@@ -507,25 +544,25 @@ function describedFailure(described: string): CodeFailure {
   if (name === 'InternalError' && message === 'interrupted') return { kind: 'time' };
   if (name === 'InternalError' && message === 'out of memory') return { kind: 'memory' };
   const text = name === '' ? message : message === '' ? name : `${name}: ${message}`;
-  return { kind: 'threw', message: text === '' ? 'it threw nothing that says why' : text };
+  return { kind: 'threw', message: text === '' ? SANDBOX_REASONS.silent : text };
 }
 
 function notAnError(): CodeFailure {
   return { kind: 'threw', message: NOT_AN_ERROR };
 }
 
-function crashedLoad(why: string): LoadOutcome {
+function crashedLoad(message: string): LoadOutcome {
   return {
     ok: false,
-    failure: { kind: 'threw', message: `The interpreter failed: ${why}` },
+    failure: { kind: 'threw', message },
     crashed: true,
   };
 }
 
-function crashedCall(why: string, ms: number): CallOutcome {
+function crashedCall(message: string, ms: number): CallOutcome {
   return {
     ok: false,
-    failure: { kind: 'threw', message: `The interpreter failed: ${why}` },
+    failure: { kind: 'threw', message },
     ms,
     crashed: true,
   };

@@ -423,6 +423,62 @@ describe('every command that sets an image', () => {
     expect(run(state, set('none')).operations).toHaveLength(1);
   });
 
+  it('keeps the stored spelling of a tint picked again in another case (ADR 0033)', () => {
+    const before = imageProject();
+    const stored: ProjectSnapshot = {
+      ...before,
+      model: {
+        ...before.model,
+        elements: before.model.elements.map((element) =>
+          element.id === 'plain'
+            ? { ...element, appearance: { image: { image: LOGO.id, tint: '#aabbcc' } } }
+            : element,
+        ),
+      },
+    };
+    const image = { image: LOGO.id, tint: '#AABBCC' };
+    const traits = run(stored, {
+      type: 'update-element',
+      id: 'plain',
+      changes: { appearanceTraits: { image } },
+    });
+    // The project is unchanged, so the local program records no action for it.
+    expect(traits.state).toStrictEqual(stored);
+    const whole = run(stored, {
+      type: 'update-element',
+      id: 'plain',
+      changes: { appearance: { image } },
+    });
+    expect(whole.state).toStrictEqual(stored);
+    // A component of the project's own records nothing at all.
+    const tinted: ProjectSnapshot = {
+      ...stored,
+      packages: stored.packages.map((file) => ({
+        ...file,
+        components: file.components.map((each) =>
+          each.id === 'clinic.calendar'
+            ? { ...each, appearance: { image: { image: LOGO.id, tint: '#aabbcc' } } }
+            : each,
+        ),
+      })),
+    };
+    const component = run(tinted, {
+      type: 'set-component-appearance',
+      component: 'clinic.calendar',
+      appearance: { image },
+    });
+    expect(component.operations).toEqual([]);
+    // Another color is written in capitals, as every new color is.
+    const other = run(stored, {
+      type: 'update-element',
+      id: 'plain',
+      changes: { appearanceTraits: { image: { image: LOGO.id, tint: '#ddeeff' } } },
+    });
+    expect(other.state.model.elements.find((each) => each.id === 'plain')?.appearance).toEqual({
+      image: { image: LOGO.id, tint: '#DDEEFF' },
+    });
+  });
+
   it('accepts an image defined in the same batch, as giving a component a picture does', () => {
     const state = imageProject();
     const outcome = run(state, {
