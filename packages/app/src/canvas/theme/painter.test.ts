@@ -74,7 +74,12 @@ describe('Painter', () => {
   it('draws shapes and lines in the theme’s shades', () => {
     const graphics = new Graphics();
     dark.shapeOutlines(graphics, [system]);
-    expect(strokesOf(graphics.context).map((each) => each.color)).toEqual(['#1C2027', '#8F9AA6']);
+    // The body's outline is drawn again a pixel wide, in the same shade, after the rest.
+    expect(strokesOf(graphics.context).map((each) => each.color)).toEqual([
+      '#1C2027',
+      '#8F9AA6',
+      '#8F9AA6',
+    ]);
     const lines = new Graphics();
     dark.routePieces(lines, routePieces(line), [line]);
     expect(new Set(strokesOf(lines.context).map((each) => each.color))).toEqual(

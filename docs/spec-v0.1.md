@@ -296,7 +296,7 @@ Eight milestones in build order, each ending in something you can use, and Track
   - [ ] Placing what Claude adds is recorded as the person's action (`Lay out 22 new shapes`, by you), also after `change_container` without places: one change of Claude's takes two undos, and the history shows layouts nobody asked for
   - [ ] The canvas's routes do not go around the shapes between their ends, so in nested views lines cross other shapes and their names
   - [ ] A view cannot leave out relation types: a Structure view of a code base draws every call and connection between its parts, which only filters, never kept with the view, hide (needs an ADR beside ADR 0025 and ADR 0040)
-  - [ ] Below about 60%, straight edges thinner than a pixel vanish and only rounded corners draw, so a shape inside a container of the same fill disappears
+  - [x] Below about 60%, straight edges thinner than a pixel vanish and only rounded corners draw, so a shape inside a container of the same fill disappears; every outline is now at least a device pixel wide at any zoom, and a shape in a container is outlined in a color that reads on its fill when its stroke does not (ADR 0014, ADR 0033)
   - [ ] Fit can choose a zoom at which no names draw (17% for 84 shapes), and `lay_out_view` leaves the camera where it was, so the person may see blank boxes or empty canvas
   - [ ] Playback and `go_to_step` never bring the step played into view, so a step off screen plays unseen
   - [ ] Guidance that names a view switches every open tab to it, and a tab switched so keeps the camera of the view it showed

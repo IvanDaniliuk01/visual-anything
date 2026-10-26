@@ -14,6 +14,7 @@ import {
   writeShapeLabels,
   type TextFactory,
 } from './draw';
+import { outlineColorOf, readableTextColors } from './colors';
 import { arrowheadAt, toggleRect, type Point, type Rect } from './geometry';
 import { midpointOf } from './route';
 import { buildScene, type ElementShape, type RelationLine } from './scene';
@@ -219,12 +220,16 @@ describe('fitText', () => {
 });
 
 describe('drawShapeBlocks', () => {
-  /** The rectangles filled with each colour, with no strokes at all. */
+  /** The rectangles filled with each colour; the only strokes are outlines a pixel wide. */
   function blocks(shapes: ElementShape[]): Map<string, Rect[]> {
     const graphics = new Graphics();
     drawShapeBlocks(graphics, shapes);
     const byColor = new Map<string, Rect[]>();
     for (const each of graphics.context.instructions) {
+      if (each.action === 'stroke') {
+        expect(each.data.style.pixelLine).toBe(true);
+        continue;
+      }
       expect(each.action).toBe('fill');
       if (each.action !== 'fill') continue;
       const color = `#${each.data.style.color.toString(16).padStart(6, '0').toUpperCase()}`;
@@ -299,10 +304,13 @@ describe('containers, collapsed or not', () => {
   });
 
   it('draws the toggle on every container, with + on a collapsed one, and a sheet behind it', () => {
+    // The strokes in canvas units; each body's outline a pixel wide comes after them all.
     const strokes = (shape: ElementShape) => {
       const graphics = new Graphics();
       drawShapeOutlines(graphics, [shape]);
-      return graphics.context.instructions.filter((each) => each.action === 'stroke').length;
+      return graphics.context.instructions.filter(
+        (each) => each.action === 'stroke' && each.data.style.pixelLine !== true,
+      ).length;
     };
     const leaf = scene.shapes.find(
       (shape) => !shape.holdsContents && shape.kind === 'rounded-rectangle',
@@ -321,5 +329,63 @@ describe('containers, collapsed or not', () => {
     const graphics = new Graphics();
     drawShapeBlocks(graphics, [{ ...collapsed, fill: '#1D4F91' }]);
     expect(graphics.context.instructions.filter((each) => each.action === 'fill')).toHaveLength(2);
+  });
+});
+
+describe('outlines one device pixel wide at any zoom', () => {
+  /** The pixel lines a drawing strokes: each one's color, and the shapes in its path. */
+  function pixelLines(graphics: Graphics): { color: string; shapes: Rect[] }[] {
+    return graphics.context.instructions.flatMap((each) => {
+      if (each.action !== 'stroke' || each.data.style.pixelLine !== true) return [];
+      return [
+        {
+          color: `#${each.data.style.color.toString(16).padStart(6, '0').toUpperCase()}`,
+          shapes: each.data.path.shapePath.shapePrimitives.map(
+            ({ shape }) => shape as unknown as Rect,
+          ),
+        },
+      ];
+    });
+  }
+
+  it('strokes every body again as a pixel line, after every drawing, in one path per color', () => {
+    const graphics = new Graphics();
+    drawShapeOutlines(graphics, scene.shapes);
+    const lines = pixelLines(graphics);
+    const drawn = scene.shapes.filter((shape) => shape.rowCount === undefined && !shape.row);
+    // Every body once, the shapes of a color together: as many paths as colors.
+    expect(lines.flatMap((line) => line.shapes).length).toBeGreaterThanOrEqual(drawn.length);
+    expect(new Set(lines.map((line) => line.color)).size).toBe(lines.length);
+    // After everything else, so that they cost one more batch rather than one per shape.
+    const { instructions } = graphics.context;
+    const first = instructions.findIndex(
+      (each) => each.action === 'stroke' && each.data.style.pixelLine === true,
+    );
+    expect(instructions.slice(first).every((each) => each.action === 'stroke')).toBe(true);
+  });
+
+  it('strokes the outline of plain blocks again as a pixel line, which far out is thinner', () => {
+    const graphics = new Graphics();
+    const container = scene.shapes.find((shape) => shape.holdsContents) as ElementShape;
+    drawShapeBlocks(graphics, [container]);
+    expect(pixelLines(graphics)).toMatchObject([
+      { color: container.stroke, shapes: [container.rect] },
+    ]);
+  });
+
+  it('outlines a shape inside a container in a color that reads on its fill when its stroke does not', () => {
+    const inside = scene.shapes.find((shape) => shape.containerShape !== undefined) as ElementShape;
+    // A stroke of nearly the fill: in a container of the same fill it would not show.
+    const faint: ElementShape = { ...inside, fill: '#E4EAF2', stroke: '#DDE3EB' };
+    expect(outlineColorOf(faint)).toBe(readableTextColors('#E4EAF2').detail);
+    expect(outlineColorOf({ ...faint, stroke: '#52606D' })).toBe('#52606D');
+    // On the canvas, a shape's stroke is drawn as stored.
+    const { containerShape: _, ...onCanvas } = faint;
+    expect(outlineColorOf(onCanvas)).toBe('#DDE3EB');
+    const graphics = new Graphics();
+    drawShapeOutlines(graphics, [faint]);
+    expect(pixelLines(graphics).map((line) => line.color)).toEqual([
+      readableTextColors('#E4EAF2').detail,
+    ]);
   });
 });

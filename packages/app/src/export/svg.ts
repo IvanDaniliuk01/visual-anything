@@ -30,7 +30,7 @@ import {
 } from '@visual-anything/core';
 import type { Color, Id, ViewFile } from '@visual-anything/schema';
 import { t } from '../i18n';
-import { readableTextColors } from '../canvas/colors';
+import { outlineColorOf, readableTextColors } from '../canvas/colors';
 import {
   HEADER_DETAIL_INSET,
   HEADER_DETAIL_SIZE,
@@ -572,7 +572,16 @@ function isContainer(shape: ElementShape): boolean {
 
 /** Everything one shape draws: its body, toggle and picture, then its texts. */
 function shapeParts(writer: Writer, shape: ElementShape): string {
-  const colors = shapeColors(shape, writer.theme.name);
+  const painted = shapeColors(shape, writer.theme.name);
+  // A shape in a container of nearly its own fill keeps an outline that tells it apart, as on the canvas.
+  const colors = {
+    fill: painted.fill,
+    stroke: outlineColorOf(
+      shape.containerShape === undefined
+        ? painted
+        : { ...painted, containerShape: shape.containerShape },
+    ),
+  };
   if (isRow(shape)) return rowParts(writer, shape, colors.fill);
   if (drawsRows(shape)) {
     return (
