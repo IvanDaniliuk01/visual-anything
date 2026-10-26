@@ -241,6 +241,10 @@ _Avoid_: grouped step, collapsed step
 A scenario step that uses a relation that no longer exists; it is kept and flagged so it can be fixed.
 _Avoid_: orphan step, dead step
 
+**Timeline**:
+What a scenario plays, in order, over one view: its steps as that view draws them, consecutive steps inside a collapsed container played as one aggregated step, and broken steps kept in their places. It is worked out from the scenario and the view, never stored (ADR 0031). The word names this alone, which is why History and Time range avoid it.
+_Avoid_: playlist, sequence
+
 **Travelling marker**:
 The mark that moves along each relation of the step being played, from its from end to its to end; when the system asks for reduced motion it stands still at the end it travels to.
 _Avoid_: dot, token, pulse

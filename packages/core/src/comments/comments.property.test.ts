@@ -350,19 +350,52 @@ describe('threads of comments, under random commands', () => {
           detached += detachedTargets(state).size;
         }
       }),
-      { numRuns: 150 },
+      // Enough runs that every command, and a detached thread, is reached in all but a vanishing
+      // share of them: at 150, about one in ten missed one.
+      { numRuns: 600 },
     );
     // The random runs reach every comment command, and detached threads.
     expect(
-      [
-        'create-thread',
-        'add-comment',
-        'edit-comment',
-        'resolve-thread',
-        'delete-thread',
-        'batch',
-      ].filter((type) => !applied.has(type)),
+      ['create-thread', 'add-comment', 'edit-comment', 'resolve-thread', 'delete-thread'].filter(
+        (type) => !applied.has(type),
+      ),
     ).toEqual([]);
     expect(detached).toBeGreaterThan(0);
+  }, 60_000);
+
+  // Random runs reach a batch of comment commands only when an earlier intent left a thread and the
+  // text is not blank, which some runs never do; so the batch has a case of its own.
+  it('answers and resolves a thread in one batch, undone exactly', () => {
+    const start: ProjectSnapshot = { ...testProject(), scenarios: [] };
+    const made = executeCommand(
+      start,
+      {
+        type: 'create-thread',
+        thread: {
+          id: 'why',
+          anchor: { kind: 'element', element: 'api' },
+          comment: { text: 'Why?' },
+        },
+      },
+      { author: 'claude', now: () => Date.UTC(2026, 9, 25) },
+    );
+    if (!made.ok) throw new Error(made.problems.map((each) => each.message).join(' '));
+    const batch = executeCommand(
+      made.state,
+      {
+        type: 'batch',
+        label: 'Answer and resolve',
+        commands: [
+          { type: 'add-comment', thread: 'why', comment: { text: 'Because.' } },
+          { type: 'resolve-thread', thread: 'why', resolved: true },
+        ],
+      },
+      { author: 'claude', now: () => Date.UTC(2026, 9, 25, 1) },
+    );
+    if (!batch.ok) throw new Error(batch.problems.map((each) => each.message).join(' '));
+    const thread = batch.state.comments.find((each) => each.id === 'why');
+    expect(thread?.resolved).toBe(true);
+    expect(thread?.comments.map((each) => each.text)).toEqual(['Why?', 'Because.']);
+    expect(applyOperations(batch.state, batch.inverse).state).toEqual(made.state);
   });
 });
