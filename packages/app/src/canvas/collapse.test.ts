@@ -6,6 +6,7 @@ import {
   collapseActions,
   collapseDone,
   collapsedIn,
+  headerLines,
   insideCount,
   setCollapsedCommand,
 } from './collapse';
@@ -165,6 +166,16 @@ describe('a collapsed container', () => {
     expect(system.holdsContents).toBe(false);
     expect(system.collapsed).toEqual({ contents: 2 });
     expect(insideCount(system)).toBe('2 inside');
+  });
+
+  it('writes its count on a line of its own when its header has room, or else before its detail', () => {
+    const system = shapeOf(buildScene(systems(['system']), 'v'), 'system');
+    expect(headerLines(system, 64)).toEqual({ detail: 'Group', count: '2 inside', countRoom: 16 });
+    expect(headerLines(system, 59)).toEqual({ detail: 'Group', count: '2 inside', countRoom: 15 });
+    expect(headerLines(system, 52)).toEqual({ detail: '2 inside · Group' });
+    expect(headerLines({ ...system, detail: '' }, 52)).toEqual({ detail: '2 inside' });
+    const open = shapeOf(buildScene(systems(), 'v'), 'system');
+    expect(headerLines(open, 400)).toEqual({ detail: 'Group' });
   });
 
   it('draws the relations of its contents as aggregated relations, one per relation type and far end', () => {

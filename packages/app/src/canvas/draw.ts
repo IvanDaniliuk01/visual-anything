@@ -35,6 +35,7 @@ import {
   contrastRatio,
   readableTextColors,
 } from './colors';
+import { COUNT_LINE_TOP, headerLines } from './collapse';
 import { drawLeavingMark, writeLeavingMark } from './leavingMark';
 import { drawDestinationMark } from './destinationMark';
 import { patternMatrix, patternTexture } from './patterns';
@@ -522,7 +523,7 @@ function writeShapeText(
   const colors = readableTextColors(shape.fill);
   const rooms = labelRooms(shape);
   if (isContainer(shape)) {
-    const { x, y, width } = bodyOf(shape);
+    const { x, y, width, height } = bodyOf(shape);
     const toggle = toggleRect(shape);
     const beside = toggle ? toggle.width + 4 : 0;
     // Right of the icon its header may show.
@@ -540,7 +541,8 @@ function writeShapeText(
         rooms.name,
       );
     }
-    const detail = detailOf(shape);
+    // A collapsed container's count, on a line of its own or first on the detail's.
+    const { detail, count, countRoom } = headerLines(shape, height);
     if (rooms.detail > 0 && detail !== '') {
       write(
         {
@@ -551,6 +553,18 @@ function writeShapeText(
         },
         true,
         rooms.detail,
+      );
+    }
+    if (count !== undefined && countRoom !== undefined) {
+      write(
+        {
+          text: count,
+          x: x + TEXT_INSET + shift,
+          y: y + COUNT_LINE_TOP,
+          style: textStyle(DETAIL_SIZE, colors.detail, Math.max(1, width - 2 * TEXT_INSET), 'left'),
+        },
+        true,
+        countRoom,
       );
     }
     return;

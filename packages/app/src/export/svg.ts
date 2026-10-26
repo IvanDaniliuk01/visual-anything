@@ -54,6 +54,7 @@ import {
   type Point,
   type Rect,
 } from '../canvas/geometry';
+import { COUNT_LINE_TOP, headerLines } from '../canvas/collapse';
 import { drawnCurve } from '../canvas/routing/curves';
 import { ROWS_HEADER } from '../canvas/rows';
 import { drawsRows, isRow, rowColorsOf } from '../canvas/rowsDraw';
@@ -800,6 +801,8 @@ function shapeText(writer: Writer, shape: ElementShape, fill: Color): string {
     const shift = headerShift(shape);
     const wrap = Math.max(1, width - 2 * TEXT_INSET - beside - shift);
     const rooms = { name: Math.min(20, height - 12), detail: Math.min(16, height - 32) };
+    // A collapsed container's count, on a line of its own or first on the detail's, as on the canvas.
+    const header = headerLines(shape, height);
     return (
       (rooms.name > 0
         ? writer.text({
@@ -815,9 +818,9 @@ function shapeText(writer: Writer, shape: ElementShape, fill: Color): string {
             room: rooms.name,
           })
         : '') +
-      (rooms.detail > 0 && detail !== ''
+      (rooms.detail > 0 && header.detail !== ''
         ? writer.text({
-            text: detail,
+            text: header.detail,
             size: DETAIL_SIZE,
             fill: colors.detail,
             x: x + TEXT_INSET + shift,
@@ -826,6 +829,19 @@ function shapeText(writer: Writer, shape: ElementShape, fill: Color): string {
             anchor: 'top',
             wrap,
             room: rooms.detail,
+          })
+        : '') +
+      (header.count !== undefined && header.countRoom !== undefined
+        ? writer.text({
+            text: header.count,
+            size: DETAIL_SIZE,
+            fill: colors.detail,
+            x: x + TEXT_INSET + shift,
+            align: 'start',
+            y: y + COUNT_LINE_TOP,
+            anchor: 'top',
+            wrap: Math.max(1, width - 2 * TEXT_INSET),
+            room: header.countRoom,
           })
         : '')
     );

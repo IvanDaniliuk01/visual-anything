@@ -269,19 +269,33 @@ describe('containers, collapsed or not', () => {
     collapsed: { contents: 3 },
   };
 
-  it('writes how many shapes a collapsed container holds in its detail, at its top', () => {
-    expect(detailOf(collapsed)).toBe('System · 3 inside');
-    expect(detailOf(container)).toBe('System');
-    const written = writeShapeLabels([collapsed], true, (options) => {
+  const labelsOf = (shape: ElementShape) =>
+    writeShapeLabels([shape], true, (options) => {
       const label = new Container();
       label.label = String(options.text);
       label.position.set(options.x ?? 0, options.y ?? 0);
       return label;
     });
-    expect(written.map((label) => label.label)).toEqual(['Clinic booking', 'System · 3 inside']);
-    // At the top left of its body, as a container's name is, not in its middle.
+
+  it('writes how many shapes a collapsed container holds on a line of its own, at its top', () => {
+    expect(detailOf(collapsed)).toBe('System · 3 inside');
+    expect(detailOf(container)).toBe('System');
+    const written = labelsOf(collapsed);
+    expect(written.map((label) => label.label)).toEqual(['Clinic booking', 'System', '3 inside']);
+    // At the top left of its body, as a container's name is, not in its middle, the count under
+    // the detail, so that cutting the detail to its width never cuts the count.
     expect(written[0]?.y).toBe(collapsed.rect.y + 8);
+    expect(written[2]?.y).toBeGreaterThan(written[1]?.y ?? Infinity);
+    expect(written[2]?.y).toBeLessThan(collapsed.rect.y + collapsed.rect.height);
     expect(labelRooms(collapsed)).toEqual({ name: 20, detail: 16 });
+  });
+
+  it('writes the count first when the header has no room for a line of its own', () => {
+    const low: ElementShape = { ...collapsed, rect: { ...collapsed.rect, height: 52 } };
+    expect(labelsOf(low).map((label) => label.label)).toEqual([
+      'Clinic booking',
+      '3 inside · System',
+    ]);
   });
 
   it('draws the toggle on every container, with + on a collapsed one, and a sheet behind it', () => {

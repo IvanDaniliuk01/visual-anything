@@ -110,3 +110,28 @@ export function insideCount(shape: ElementShape): string | undefined {
     ? undefined
     : t('{count} inside', { count: shape.collapsed.contents });
 }
+
+/** Where a container's header writes its third line, below its top: under its name and detail. */
+export const COUNT_LINE_TOP = 44;
+/** How tall the third line of a container's header is at most, and how tall it must be to show. */
+const COUNT_ROOM = 16;
+const COUNT_LEAST = 14;
+
+/**
+ * What a container's header writes under its name, in a body `bodyHeight` tall: its detail, and on a
+ * collapsed container how many shapes it holds, on a line of its own when the body has room for it,
+ * or else first on the detail's line. Cutting a line to the shape's width then cuts the detail, never
+ * the count, which a collapsed container drawn at its component's size would otherwise lose.
+ */
+export function headerLines(
+  shape: Pick<ElementShape, 'detail' | 'componentName' | 'collapsed'>,
+  bodyHeight: number,
+): { detail: string; count?: string; countRoom?: number } {
+  const detail = shape.detail ?? shape.componentName;
+  if (shape.collapsed === undefined) return { detail };
+  const count = t('{count} inside', { count: shape.collapsed.contents });
+  if (detail === '') return { detail: count };
+  const room = Math.min(COUNT_ROOM, bodyHeight - COUNT_LINE_TOP);
+  if (room >= COUNT_LEAST) return { detail, count, countRoom: room };
+  return { detail: `${count} · ${detail}` };
+}
