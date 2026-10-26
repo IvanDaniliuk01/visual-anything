@@ -124,6 +124,37 @@ describe('an import through the Claude endpoint', () => {
     expect(session.actions).toEqual([]);
   });
 
+  it('plans the import against the project the commands queued before it leave', async () => {
+    const { claude, answers } = attach();
+    // Claude creates the element, and the import, sent before that command has run, updates it.
+    const created = claude.receive(
+      JSON.stringify({
+        type: 'command',
+        requestId: 'r1',
+        command: {
+          type: 'create-element',
+          element: { id: 'cache', component: 'systems.service', name: 'Cache' },
+        },
+      }),
+    );
+    const request = importMessageRequest({
+      name: 'caches.csv',
+      text: 'id,name\ncache,Cache v2\n',
+      key: 'id',
+    });
+    const imported = claude.receive(JSON.stringify({ type: 'import', requestId: 'r2', request }));
+    await Promise.all([created, imported]);
+    expect(answers.filter((each) => each.type === 'command/rejected')).toEqual([]);
+    const caches = session.snapshot.model.elements.filter((each) => each.id.startsWith('cache'));
+    expect(caches.map(({ id, name }) => ({ id, name }))).toEqual([
+      { id: 'cache', name: 'Cache v2' },
+    ]);
+    expect(session.actions.map(({ label, author }) => ({ label, author }))).toEqual([
+      { label: 'Create "Cache"', author: 'claude' },
+      { label: 'Import "caches.csv"', author: 'user' },
+    ]);
+  });
+
   it('refuses a file it cannot read, changing nothing', async () => {
     const { claude, answers } = attach();
     const before = session.snapshot;

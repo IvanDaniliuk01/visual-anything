@@ -34,7 +34,7 @@ We chose this because an address that names where someone is in a project is onl
 
 ## Consequences
 
-- A view address, from Copy address, from Claude's `link_to` or from `visual-anything open --view … --no-open` (ADR-0044), opens in any new tab of the browser where the project is open, as long as the program runs on the same port.
+- A view address, from Copy address, from Claude's `get_view_address` or from `visual-anything open --view … --no-open` (ADR-0044), opens in any new tab of the browser where the project is open, as long as the program runs on the same port.
 - A joined tab paints its first frame in the system's theme and the browser's language, as a tab without a hint does, until the program sends the person's preferences with the project (ADR-0032, ADR-0038).
 - Every tab of every Visual Anything in one browser hears its own origin's asks only; an ask costs a message per open tab of that origin.
 

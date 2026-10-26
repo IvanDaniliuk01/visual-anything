@@ -211,7 +211,14 @@ export type Guidance =
    * as the person would; playing changes nothing. `step`, for `go-to-step` only, is the index of a
    * step among the scenario's steps, from 0.
    */
-  | { kind: 'playback'; scenario: Id; action: PlaybackAction; step?: number };
+  | { kind: 'playback'; scenario: Id; action: PlaybackAction; step?: number }
+  /**
+   * Lays out the open view as the toolbar's Layout does, in the app's layout worker: every shape that
+   * is not pinned, or, with `containers`, every shape inside each of them that is not pinned. The
+   * guidance itself changes nothing: the app records the layout it runs as it records any layout
+   * (ADR-0015, ADR-0029).
+   */
+  | { kind: 'layout'; view?: Id; containers?: Id[] };
 
 /** What filters hide in a view, as the app's explorer holds them (ADR-0025), in lists. */
 export interface GuidedFilters {
@@ -324,6 +331,21 @@ export function readGuidance(value: unknown): Guidance {
       return { kind: 'clear-explore', ...view() };
     case 'playback':
       return readPlayback(value);
+    case 'layout': {
+      if (value.containers === undefined) return { kind: 'layout', ...view() };
+      const containers = value.containers;
+      if (
+        !Array.isArray(containers) ||
+        containers.length === 0 ||
+        containers.length > MAX_GUIDANCE_TARGETS ||
+        !containers.every(isId)
+      ) {
+        throw new ProtocolError(
+          `A layout names one to ${MAX_GUIDANCE_TARGETS} containers, by id, or none for the whole view.`,
+        );
+      }
+      return { kind: 'layout', ...view(), containers: [...containers] };
+    }
     default:
       throw new ProtocolError(`Unknown kind of guidance: ${JSON.stringify(value.kind)}.`);
   }

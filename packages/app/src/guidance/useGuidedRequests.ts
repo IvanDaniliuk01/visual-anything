@@ -3,7 +3,8 @@
  * open view's explorer as if the person had set them (ADR-0025), so the explore strip shows them and
  * the person ends them there; playback goes to the scenario session, as the scenario panel's buttons
  * do, so the person pauses or closes it there. A request that names a view, or plays a scenario over
- * one, opens that view first. Nothing here changes the project.
+ * one, opens that view first; a layout then runs on the canvas, which records it as any layout.
+ * Nothing here changes the project.
  */
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
@@ -11,7 +12,12 @@ import { useEffect, useRef } from 'react';
 import type { Editor } from '../editor/EditorContext';
 import type { PlaybackGuidance, ScenarioSession } from '../scenarios/session';
 import { filtersOf, focusSettingsOf, focusTargetsOf } from './explore';
-import type { GuidanceState, GuidedFilterRequest, GuidedFocusRequest } from './state';
+import type {
+  GuidanceState,
+  GuidedFilterRequest,
+  GuidedFocusRequest,
+  GuidedLayoutRequest,
+} from './state';
 
 /** Applies Claude's filters, focus and playback; mount it once, inside the shell's editor. */
 export function useGuidedRequests(
@@ -19,7 +25,7 @@ export function useGuidedRequests(
   editor: Editor | undefined,
   scenarios: ScenarioSession | undefined,
 ): void {
-  const { filter, focusView, playback } = guidance;
+  const { filter, focusView, playback, layout } = guidance;
 
   // The last request each one applied, and the requests that opened their view already.
   const applied = useRef<{ filter?: number; focus?: number; playback?: number }>({});
@@ -29,7 +35,9 @@ export function useGuidedRequests(
     const explore = editor?.explore;
     if (!editor || !explore) return;
     // Whether a request can apply now; it opens its view first, once, and waits for it.
-    const ready = (request: GuidedFilterRequest | GuidedFocusRequest): boolean => {
+    const ready = (
+      request: GuidedFilterRequest | GuidedFocusRequest | GuidedLayoutRequest,
+    ): boolean => {
       if (request.view === undefined || request.view === editor.viewId) return true;
       if (!hasView(editor.project, request.view)) return true;
       if (!opened.current.has(request.request)) {
@@ -54,7 +62,9 @@ export function useGuidedRequests(
         else explore.focusOn(focusTargetsOf(focus.targets, editor.project), focusSettingsOf(focus));
       }
     }
-  }, [filter, focusView, editor]);
+    // A layout runs on the canvas once its view is open (ADR-0029): here it only opens that view.
+    if (layout) ready(layout);
+  }, [filter, focusView, layout, editor]);
 
   useEffect(() => {
     if (!playback || !editor || !scenarios || applied.current.playback === playback.request) {

@@ -720,6 +720,10 @@ export const ui: Catalog = {
   '{first} and {count} more': '{first} y {count} más',
   'Claude highlights {list}.': 'Claude resalta {list}.',
   'Claude focuses on {list}.': 'Claude se enfoca en {list}.',
+  'Claude highlights nothing this view shows.':
+    'Claude no resalta nada de lo que muestra esta vista.',
+  'Claude focuses on nothing this view shows.':
+    'Claude no se enfoca en nada de lo que muestra esta vista.',
   '{from} to {to}': '{from} a {to}',
 
   // Exploring: the perspective switcher, the filters and focus.

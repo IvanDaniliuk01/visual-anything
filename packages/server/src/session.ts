@@ -114,6 +114,8 @@ export interface LiveSession {
   attachClaude(client: SessionClient): () => void;
   /** Runs a command, as {@link Session.execute} does. */
   execute(command: Command, author: Author, origin?: Origin): Promise<SessionOutcome>;
+  /** Plans a command and runs it in one turn of the queue, as {@link Session.executePlanned} does. */
+  executePlanned(plan: CommandPlan, author: Author, origin?: Origin): Promise<SessionOutcome>;
   /**
    * Shows Claude's guidance in every open app, after the work already asked for; resolves with how
    * many apps it reached. Guidance changes nothing: no file, no history.
@@ -132,6 +134,14 @@ export interface LiveSession {
    */
   servesAt?(port: number): void;
 }
+
+/**
+ * Makes a command from the project as it is when its turn comes: the command, or the problems that
+ * keep it from being made.
+ */
+export type CommandPlan = (
+  state: ProjectSnapshot,
+) => { ok: true; command: Command } | { ok: false; problems: Problem[] };
 
 /** Who asked for a change: the app it is answered to, and the id of its request. */
 export interface Origin {
@@ -665,39 +675,61 @@ export class Session implements LiveSession {
    */
   execute(command: Command, author: Author, origin?: Origin): Promise<SessionOutcome> {
     if (this.#closed) return Promise.resolve(this.#refuse(origin, [CLOSED]));
+    return this.#enqueue(() => this.#guarded(origin, () => this.#run(command, author, origin)));
+  }
+
+  /**
+   * Plans a command against the project as the work already asked for leaves it, then runs it as
+   * {@link execute} does, in the same turn of the queue, so that nothing comes between the plan and
+   * the change: an import from the command line is read and mapped this way (ADR-0049). A plan that
+   * cannot be made is refused with its problems, and changes nothing.
+   */
+  executePlanned(plan: CommandPlan, author: Author, origin?: Origin): Promise<SessionOutcome> {
+    if (this.#closed) return Promise.resolve(this.#refuse(origin, [CLOSED]));
     return this.#enqueue(() =>
-      this.#guarded(origin, async () => {
-        let outcome: CommandOutcome;
-        try {
-          outcome = executeCommand(
-            this.#state,
-            command,
-            this.#options.newId === undefined ? {} : { newId: this.#options.newId },
-          );
-        } catch (error) {
-          return this.#refuse(origin, [
-            refusal('program-failed', `The command could not be run: ${reasonOf(error)}`),
-          ]);
-        }
-        if (!outcome.ok) return this.#refuse(origin, outcome.problems);
-        const { state, operations, inverse, label, warnings, created } = outcome;
-        if (operations.length === 0 || isDeepStrictEqual(state, this.#state)) {
-          return this.#answerUnchanged(origin, label, author, warnings);
-        }
-        const saved = await this.#save(state, operations);
-        if (!saved.ok) return this.#refuse(origin, saved.problems);
-        this.#state = state;
-        const entry: HistoryEntry = { label, author, operations, inverse };
-        this.#history = record(this.#history, entry);
-        this.#stamps.set(entry, { id: (this.#lastAction += 1), time: this.#now() });
-        const announced = this.#announce(
-          { kind: 'do', label, author, operations, warnings, created },
-          origin,
-        );
-        this.#listHistory();
-        return announced;
+      this.#guarded(origin, () => {
+        const planned = plan(this.#state);
+        if (!planned.ok) return Promise.resolve(this.#refuse(origin, planned.problems));
+        return this.#run(planned.command, author, origin);
       }),
     );
+  }
+
+  /** Runs a command through the core and records it; only from inside a turn of the queue. */
+  async #run(
+    command: Command,
+    author: Author,
+    origin: Origin | undefined,
+  ): Promise<SessionOutcome> {
+    let outcome: CommandOutcome;
+    try {
+      outcome = executeCommand(
+        this.#state,
+        command,
+        this.#options.newId === undefined ? {} : { newId: this.#options.newId },
+      );
+    } catch (error) {
+      return this.#refuse(origin, [
+        refusal('program-failed', `The command could not be run: ${reasonOf(error)}`),
+      ]);
+    }
+    if (!outcome.ok) return this.#refuse(origin, outcome.problems);
+    const { state, operations, inverse, label, warnings, created } = outcome;
+    if (operations.length === 0 || isDeepStrictEqual(state, this.#state)) {
+      return this.#answerUnchanged(origin, label, author, warnings);
+    }
+    const saved = await this.#save(state, operations);
+    if (!saved.ok) return this.#refuse(origin, saved.problems);
+    this.#state = state;
+    const entry: HistoryEntry = { label, author, operations, inverse };
+    this.#history = record(this.#history, entry);
+    this.#stamps.set(entry, { id: (this.#lastAction += 1), time: this.#now() });
+    const announced = this.#announce(
+      { kind: 'do', label, author, operations, warnings, created },
+      origin,
+    );
+    this.#listHistory();
+    return announced;
   }
 
   /**

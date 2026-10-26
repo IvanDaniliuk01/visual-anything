@@ -1,6 +1,7 @@
 /**
  * Layout on the canvas: shapes that appear without a position are laid out automatically, and the
- * toolbar's Layout lays out the view, or the selected container's contents, on demand. Every layout
+ * toolbar's Layout lays out the view, or the selected container's contents, on demand, as Claude's
+ * guidance can ask it to (ADR-0029). Every layout
  * runs in the layout worker; its result is stored as one undoable action, unpinned, and moves in on
  * the canvas unless the system asks for reduced motion (ADR-0009, ADR-0015).
  *
@@ -21,6 +22,7 @@ import {
   useState,
 } from 'react';
 import { sizeOf, type Selection } from '../../editor/selection';
+import type { GuidedLayoutRequest } from '../../guidance/state';
 import { t } from '../../i18n';
 import type { Scene } from '../scene';
 import { LayoutStopped, sharedRunner, type LayoutRunner } from './client';
@@ -74,6 +76,11 @@ export interface LayoutOptions {
   send: ((command: Command) => Promise<{ ok: boolean }>) | undefined;
   /** Says something to screen readers. */
   announce: (text: string) => void;
+  /**
+   * Claude's latest request for a layout, as the tab's guidance holds it (ADR-0029): run once, as
+   * Layout runs, when the view it names is the one open.
+   */
+  guided?: GuidedLayoutRequest;
 }
 
 /** A layout's change on its way: the scene it was made from, to move in from once it is drawn. */
@@ -88,7 +95,15 @@ interface Armed {
  * Layout for one canvas: the scene to draw, which is a frame of a layout moving in or else `scene`,
  * and the toolbar's control.
  */
-export function useLayout({ project, view, scene, selection, send, announce }: LayoutOptions): {
+export function useLayout({
+  project,
+  view,
+  scene,
+  selection,
+  send,
+  announce,
+  guided,
+}: LayoutOptions): {
   scene: Scene;
   control: LayoutControl;
 } {
@@ -248,6 +263,25 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
   }, [scene, view.id, editable, runner]);
   useEffect(() => () => clearTimeout(timer.current), []);
 
+  // Claude's request runs once, as Layout does, once its view is open and the project can change: the
+  // whole view, or the contents of each container it names that the canvas draws holding contents.
+  const ran = useRef<number | undefined>(undefined);
+  const layOutAsked = useEffectEvent((request: GuidedLayoutRequest) => {
+    ran.current = request.request;
+    const scopes: LayoutScope[] =
+      request.containers === undefined
+        ? [{ kind: 'view' }]
+        : request.containers
+            .filter((container) => holdsShapes(latest.current.scene, container))
+            .map((container) => ({ kind: 'contents', container }));
+    for (const scope of scopes) void enqueue(scope, false);
+  });
+  useEffect(() => {
+    if (!guided || ran.current === guided.request || !editable || !runner) return;
+    if (guided.view !== undefined && guided.view !== view.id) return;
+    layOutAsked(guided);
+  }, [guided, editable, runner, view.id]);
+
   const target = useMemo(() => targetOf(scene, selection), [scene, selection]);
   const nameOf = (id: Id) => modelIndexOf(project).element(id)?.name ?? id;
   let control: LayoutControl;
@@ -316,11 +350,17 @@ export function useLayout({ project, view, scene, selection, send, announce }: L
 function targetOf(scene: Scene, selection: Selection): LayoutScope {
   const [only] = selection.elements;
   if (sizeOf(selection) !== 1 || only === undefined) return { kind: 'view' };
-  // A shape that draws rows has nothing inside it to lay out: its rows are placed in order.
-  const holds = scene.shapes.some(
-    (shape) => shape.element === only && shape.holdsContents && shape.rowCount === undefined,
+  return holdsShapes(scene, only) ? { kind: 'contents', container: only } : { kind: 'view' };
+}
+
+/**
+ * Whether the canvas draws a container holding shapes to lay out. A shape that draws rows has nothing
+ * inside it to lay out: its rows are placed in order.
+ */
+function holdsShapes(scene: Scene, container: Id): boolean {
+  return scene.shapes.some(
+    (shape) => shape.element === container && shape.holdsContents && shape.rowCount === undefined,
   );
-  return holds ? { kind: 'contents', container: only } : { kind: 'view' };
 }
 
 function labelOf(command: Command): string {

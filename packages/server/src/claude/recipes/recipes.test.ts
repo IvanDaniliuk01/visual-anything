@@ -187,7 +187,7 @@ describe('the Mermaid recipe', () => {
     });
     expect(
       snapshot.model.elements.find((each) => each.name === 'Payments provider')?.appearance,
-    ).toEqual({ fill: '#EEEEEE', stroke: '#999999' });
+    ).toEqual({ fill: '#EEEEEE', stroke: '#666666' });
     expect(snapshot.views.map((view) => [view.name, view.nestingRelationTypes])).toEqual([
       ['Shop architecture', ['systems.is-part-of']],
     ]);

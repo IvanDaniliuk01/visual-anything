@@ -54,5 +54,5 @@ export const WHEN_DONE = [
   'Say what you created, with counts: elements, relations, views and scenarios.',
   'Give the list of what matched nothing, and ask what each should become.',
   'Offer to open the app (open_app) and walk the person through what you built, highlighting a few shapes at a time with a caption.',
-  'Give the address of each view you created or changed (link_to), selecting what you built, so that the person can come back to it.',
+  'Give the address of each view you created or changed (get_view_address), selecting what you built, so that the person can come back to it.',
 ];

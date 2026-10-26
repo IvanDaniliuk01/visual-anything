@@ -60,13 +60,17 @@ export function GuidanceLayer({ scenarios }: GuidanceLayerProps) {
   useEffect(() => {
     if (panTo === undefined || moved.current === panTo.request || scene === undefined) return;
     if (panTo.view !== undefined && panTo.view !== viewId && hasView(project, panTo.view)) return;
+    if (project === undefined) return;
     moved.current = panTo.request;
-    const key = revealKeyFor(panTo.target, scene);
+    const key = revealKeyFor(panTo.target, scene, project);
     if (key !== undefined) reveal?.(key);
   }, [panTo, scene, viewId, reveal, project]);
 
-  // A caption is Claude's own text, shown as Claude wrote it.
-  const said = caption ?? (marks && project ? describeMarks(marks, project, t) : undefined);
+  // A caption is Claude's own text, shown as Claude wrote it. Marks are said by what the open view
+  // shows of them, once their view is the one open.
+  const said =
+    caption ??
+    (marks && project ? describeMarks(marks, project, t, shown ? scene : undefined) : undefined);
   return (
     <>
       <p className="visually-hidden" aria-live="polite">

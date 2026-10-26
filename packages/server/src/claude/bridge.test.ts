@@ -14,6 +14,12 @@ import {
 } from './bridge';
 import { currentContext, writeProgramRecord, type RuntimeContext } from './discovery';
 
+/**
+ * How long a poll waits for what the program sends: `expect.poll` gives up after 1 s by default,
+ * which a loaded machine can take to carry one message.
+ */
+const POLL = { timeout: 10_000 };
+
 let profile: string;
 let runtime: string;
 let context: RuntimeContext;
@@ -133,7 +139,10 @@ describe('ProgramBridge', () => {
         command: { type: 'update-element', id: 'db', changes: { name: 'Orders DB' } },
       });
       await expect
-        .poll(async () => (await program.project()).model.elements.find((e) => e.id === 'db')?.name)
+        .poll(
+          async () => (await program.project()).model.elements.find((e) => e.id === 'db')?.name,
+          POLL,
+        )
         .toBe('Orders DB');
     } finally {
       await app.close();
@@ -148,7 +157,7 @@ describe('ProgramBridge', () => {
     try {
       expect(await program.guide({ kind: 'highlight', targets: ['api'] })).toBe(1);
       await expect
-        .poll(() => app.messages.at(-1))
+        .poll(() => app.messages.at(-1), POLL)
         .toEqual({
           type: 'guidance',
           guidance: { kind: 'highlight', targets: ['api'] },
@@ -285,16 +294,13 @@ describe('ProgramBridge', () => {
     await first.session.close();
     running.splice(0, 1);
     await expect
-      .poll(
-        async () => {
-          try {
-            return (await program.project()).project.name;
-          } catch (error) {
-            return error instanceof ProgramUnavailableError ? 'unavailable' : 'error';
-          }
-        },
-        { timeout: 10_000 },
-      )
+      .poll(async () => {
+        try {
+          return (await program.project()).project.name;
+        } catch (error) {
+          return error instanceof ProgramUnavailableError ? 'unavailable' : 'error';
+        }
+      }, POLL)
       .toBe('Shop');
   });
 });

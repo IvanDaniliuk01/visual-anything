@@ -319,6 +319,33 @@ describe('readGuidance for playing a scenario', () => {
   });
 });
 
+describe('readGuidance for laying out the open view', () => {
+  it('reads a layout of the whole view, or of the contents of some containers, and nothing else', () => {
+    expect(readGuidance({ kind: 'layout', targets: ['a'] })).toEqual({ kind: 'layout' });
+    expect(readGuidance({ kind: 'layout', view: 'v', containers: ['a', 'b'], extra: 1 })).toEqual({
+      kind: 'layout',
+      view: 'v',
+      containers: ['a', 'b'],
+    });
+  });
+
+  it.each([
+    ['containers that are not a list', { kind: 'layout', containers: 'a' }],
+    ['an empty list of containers', { kind: 'layout', containers: [] }],
+    ['a container that is not an id', { kind: 'layout', containers: [''] }],
+    [
+      'more containers than guidance names',
+      {
+        kind: 'layout',
+        containers: Array.from({ length: MAX_GUIDANCE_TARGETS + 1 }, (_, n) => `c${n}`),
+      },
+    ],
+    ['a view that is not an id', { kind: 'layout', view: 3 }],
+  ])('refuses %s', (_case, value) => {
+    expect(() => readGuidance(value)).toThrow(ProtocolError);
+  });
+});
+
 describe('decodeAppMessage', () => {
   it.each<AppMessage>([
     { type: 'command', requestId: 'r1', command: { type: 'delete', elements: ['api'] } },

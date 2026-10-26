@@ -1,8 +1,9 @@
 /**
  * What Claude's live guidance shows in this tab: marks on some shapes, a move of the canvas, and a
- * caption; and what it asks of the tab's explorer and scenario session, to apply once each: filters,
- * focus mode and playback. Guidance never changes the project; each message replaces what it
- * concerns, and the person can dismiss all of it.
+ * caption; and what it asks of the tab's explorer, scenario session and layout, to apply once each:
+ * filters, focus mode, playback and a layout. Guidance never changes the project itself: a layout it
+ * asks for is run and recorded by the tab as any layout is. Each message replaces what it concerns,
+ * and the person can dismiss all of it.
  */
 import type { Guidance } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
@@ -54,6 +55,18 @@ export interface GuidedFocusRequest {
 /** A request to open, play, pause or step a scenario in this tab's scenario session. */
 export type GuidedPlaybackRequest = GuidedPlayback & { request: number };
 
+/**
+ * A request to lay out a view as the toolbar's Layout does, once: every shape that is not pinned, or
+ * the contents of the containers it names. The layout is recorded as any layout is (ADR-0015).
+ */
+export interface GuidedLayoutRequest {
+  /** The view to open and lay out; absent, the view open when the request comes. */
+  view?: Id;
+  /** The containers whose contents to lay out, each on its own; absent, the whole view. */
+  containers?: readonly Id[];
+  request: number;
+}
+
 /** Everything Claude's guidance shows now, and what it asks of the tab. */
 export interface GuidanceState {
   marks?: GuidanceMarks;
@@ -63,6 +76,7 @@ export interface GuidanceState {
   filter?: GuidedFilterRequest;
   focusView?: GuidedFocusRequest;
   playback?: GuidedPlaybackRequest;
+  layout?: GuidedLayoutRequest;
 }
 
 /** No guidance at all. */
@@ -123,6 +137,14 @@ export function applyGuidance(
         request,
       };
       return { ...state, playback };
+    }
+    case 'layout': {
+      const layout: GuidedLayoutRequest = {
+        ...viewOf(guidance),
+        ...(guidance.containers === undefined ? {} : { containers: guidance.containers }),
+        request,
+      };
+      return { ...state, layout };
     }
   }
 }

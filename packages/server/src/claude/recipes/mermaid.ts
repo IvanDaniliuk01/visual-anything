@@ -17,7 +17,7 @@ flowchart LR
   api -->|writes| db
   api -->|charges cards| payments
   click payments "https://payments.example.com/docs"
-  classDef external fill:#eee,stroke:#999
+  classDef external fill:#eee,stroke:#666
   class payments external
 \`\`\`
 
@@ -138,7 +138,7 @@ export const MERMAID: Recipe = {
               ref: 'payments',
               component: 'systems.system',
               name: 'Payments provider',
-              appearance: { fill: '#EEEEEE', stroke: '#999999' },
+              appearance: { fill: '#EEEEEE', stroke: '#666666' },
             },
           ],
           relations: [

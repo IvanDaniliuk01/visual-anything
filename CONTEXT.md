@@ -258,7 +258,7 @@ A point a relation's route passes through, set by hand in a view, relative to th
 _Avoid_: waypoint, control point, vertex, elbow
 
 **Guidance**:
-The marks and moves Claude makes live on the open view while it explains: highlighting shapes, focusing on some and dimming the rest, moving the canvas to one, showing a caption, filtering or focusing the view as a person would, and opening, playing and stepping through a scenario. Guidance never changes the model, a view file or the history, shows only while the app is open, and the person can end it.
+The marks and moves Claude makes live on the open view while it explains: highlighting shapes, focusing on some and dimming the rest, moving the canvas to one, showing a caption, filtering or focusing the view as a person would, opening, playing and stepping through a scenario, and asking for a layout. Guidance itself never changes the model, a view file or the history, shows only while the app is open, and the person can end it; a layout it asks for is run by the app and recorded as the app records any layout, as the person's action (ADR 0029). What a collapsed container hides is marked through the container or the aggregated relation that shows it.
 _Avoid_: spotlight
 
 **Caption**:
@@ -282,7 +282,7 @@ _Avoid_: log, timeline, version history
 ### Preferences
 
 **Preference**:
-A choice a person makes for themselves on this computer: the theme, the language, whether the grid, snapping and the rulers are on, the colors they picked lately, and the package code they approved. The local program keeps preferences outside every project; they are never in project files, the undo history or Claude's tools.
+A choice a person makes for themselves on this computer: the theme, the language, whether the grid, snapping and the rulers are on, the colors they picked lately, and the package code they approved. The local program keeps preferences outside every project; they are never in project files or the undo history, and Claude's tools neither read nor change them, but for one answer: `read_package_code` says whether the person approved a package's code as it is now, and which capabilities they granted it, so that Claude knows whether it runs (ADR 0060). Only the person approves code.
 _Avoid_: settings, profile
 
 **Language**:

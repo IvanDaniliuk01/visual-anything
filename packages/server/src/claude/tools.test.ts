@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { executeCommand, type Command } from '@visual-anything/core';
+import type { Command } from '@visual-anything/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openSession, type Session } from '../session';
 import { FakeClient, testProject, writeProjectFolder } from '../test-support';
@@ -50,15 +50,6 @@ afterEach(async () => {
   await rm(folder, { recursive: true, force: true, maxRetries: 10 });
 });
 
-/**
- * Whether the core of this build knows a kind of command: one it does not know is refused as not a
- * command, whatever it holds.
- */
-function coreKnows(type: string): boolean {
-  const outcome = executeCommand(testProject(), { type } as unknown as Command);
-  return outcome.ok || !outcome.problems.some((each) => each.message.includes('is not a command'));
-}
-
 /** Calls a tool by name with its arguments. */
 async function call(name: string, args: unknown = {}): Promise<ToolOutcome> {
   const definition = TOOLS.find((each) => each.name === name);
@@ -93,16 +84,20 @@ describe('the tools', () => {
     }
   });
 
-  it('say which only read: those that get, list, find, read, preview, link to or export', () => {
+  it('say which only read: those that get, list, find, read, preview or export', () => {
     const readOnly = TOOLS.filter((each) => each.hints.readOnlyHint).map((each) => each.name);
     expect(readOnly).toEqual(
       TOOLS.map((each) => each.name).filter((name) =>
-        /^(get|list|find|read|preview|link|export)_/.test(name),
+        /^(get|list|find|read|preview|export)_/.test(name),
       ),
     );
     expect(readOnly).toEqual(
-      expect.arrayContaining(['get_project', 'read_scenario', 'list_images']),
+      expect.arrayContaining(['get_project', 'read_scenario', 'list_images', 'get_view_address']),
     );
+  });
+
+  it('use none of the words CONTEXT.md keeps out of names', () => {
+    for (const each of TOOLS) expect(each.name).not.toMatch(/link|replay|edge|node/);
   });
 });
 
@@ -281,6 +276,109 @@ describe('other write tools', () => {
     expect(element('cart')).toBeUndefined();
   });
 
+  it('run no delete that cascades until told it may, in words of delete_from_model', async () => {
+    const commands = [{ type: 'delete', elements: ['api'] }];
+    const message = await failure('run_commands', { label: 'Remove the API', commands });
+    expect(message).toBe(
+      'Nothing was done: this would also delete 3 relation(s) that end on what the commands delete (api-in-system, customer-calls-api, api-reads-db) and mark 2 scenario step(s) broken. Tell the person, then call again with cascade: true.',
+    );
+    expect(element('api')).toBeDefined();
+    expect(session.history).toEqual({});
+
+    await value('run_commands', { label: 'Remove the API', commands, cascade: true });
+    expect(element('api')).toBeUndefined();
+    expect(session.history.undo).toEqual({ label: 'Remove the API', author: 'claude' });
+  });
+
+  it('preview each delete in a batch over the project the commands before it leave', async () => {
+    // The cart takes nothing with it now, but the batch first relates something to it.
+    const commands = [
+      {
+        type: 'create-relation',
+        relation: {
+          id: 'customer-buys',
+          relationType: 'systems.communicates-with',
+          from: 'customer',
+          to: 'cart',
+        },
+      },
+      { type: 'batch', label: 'Inner', commands: [{ type: 'delete', elements: ['cart'] }] },
+    ];
+    expect(await failure('run_commands', { label: 'Relate, then delete', commands })).toContain(
+      'would also delete 1 relation(s) that end on what the commands delete (customer-buys)',
+    );
+    expect(session.history).toEqual({});
+    await value('run_commands', {
+      label: 'Delete the cart',
+      commands: [{ type: 'delete', elements: ['cart'] }],
+    });
+    expect(element('cart')).toBeUndefined();
+  });
+
+  it('run no change of container that takes data or relations away until told it may', async () => {
+    await value('update_relation', { id: 'api-in-system', name: 'runs in' });
+    const args = { view: 'overview', shapes: [{ element: 'api', from: 'system' }] };
+    const message = await failure('change_container', args);
+    expect(message).toMatch(/^Not moved: this would also delete 0 relation\(s\)/);
+    expect(message).toContain(
+      'It would also take away 1 nesting relation(s) with a name, a description or attributes of their own (api-in-system).',
+    );
+    const inside = { type: 'change-container', ...args };
+    expect(await failure('run_commands', { label: 'Take it out', commands: [inside] })).toContain(
+      '(api-in-system)',
+    );
+    expect(session.history.undo?.label).toBe('Edit the relation "runs in"');
+
+    await value('change_container', { ...args, cascade: true });
+    expect(session.snapshot.model.relations.some((each) => each.id === 'api-in-system')).toBe(
+      false,
+    );
+  });
+
+  it('refuse a change of container that deletes relations ending on its nesting relation', async () => {
+    await value('add_to_model', {
+      relations: [
+        {
+          ref: 'about',
+          relationType: 'systems.communicates-with',
+          from: 'customer',
+          to: 'db-in-system',
+        },
+      ],
+    });
+    expect(
+      await failure('change_container', {
+        view: 'overview',
+        shapes: [{ element: 'db', from: 'system' }],
+      }),
+    ).toContain('would also delete 1 relation(s) that end on the nesting relations it takes away');
+  });
+
+  it('take an element out of its container at once when that takes nothing else', async () => {
+    await value('change_container', {
+      view: 'overview',
+      shapes: [{ element: 'api', from: 'system', at: { x: 480, y: 40 } }],
+    });
+    expect(session.snapshot.model.relations.some((each) => each.id === 'api-in-system')).toBe(
+      false,
+    );
+    // Claude's place is left for layout to change.
+    expect(session.snapshot.views[0]?.positions).toContainEqual({ element: 'api', x: 480, y: 40 });
+  });
+
+  it('pin a place it gives a shape only when told to', async () => {
+    await value('change_container', {
+      view: 'overview',
+      shapes: [{ element: 'api', from: 'system', at: { x: 480, y: 40 }, pinned: true }],
+    });
+    expect(session.snapshot.views[0]?.positions).toContainEqual({
+      element: 'api',
+      x: 480,
+      y: 40,
+      pinned: true,
+    });
+  });
+
   it('place shapes unpinned unless told otherwise', async () => {
     await value('set_positions', {
       view: 'overview',
@@ -325,28 +423,14 @@ describe('other write tools', () => {
     expect([element('api')?.name, element('db')?.name]).toEqual(['Gateway', 'Orders']);
   });
 
-  it('collapse a container, or say collapsing is not there yet while the core lacks it', async () => {
-    const args = { view: 'overview', elements: ['system'], collapsed: true };
-    if (!coreKnows('set-collapsed')) {
-      expect(await failure('set_collapsed', args)).toBe(
-        'Collapsing and expanding are not in this build of Visual Anything yet.',
-      );
-      return;
-    }
-    await value('set_collapsed', args);
-    expect((session.snapshot.views[0] as { collapsed?: string[] }).collapsed).toEqual(['system']);
+  it('collapse a container', async () => {
+    await value('set_collapsed', { view: 'overview', elements: ['system'], collapsed: true });
+    expect(session.snapshot.views[0]?.collapsed).toEqual(['system']);
     expect(session.history.undo?.author).toBe('claude');
   });
 
-  it('rename a package, or say it is not there yet', async () => {
-    const args = { id: 'shop', name: 'Shop things' };
-    if (!coreKnows('update-package')) {
-      expect(await failure('update_package', args)).toBe(
-        'Changing a package is not in this build of Visual Anything yet.',
-      );
-      return;
-    }
-    await value('update_package', args);
+  it('rename a package', async () => {
+    await value('update_package', { id: 'shop', name: 'Shop things' });
     expect(session.snapshot.packages.find((each) => each.id === 'shop')?.name).toBe('Shop things');
   });
 
@@ -371,65 +455,51 @@ describe('other write tools', () => {
     );
   });
 
-  it('change a component trait by trait, or say it is not there yet', async () => {
-    const args = { id: 'shop.cart', name: 'Basket', appearance: { fill: '#E3F2E9' } };
-    if (!coreKnows('update-component')) {
-      expect(await failure('update_component', args)).toBe(
-        'Changing a component trait by trait is not in this build of Visual Anything yet.',
-      );
-      return;
-    }
-    await value('update_component', args);
+  it('change a component trait by trait', async () => {
+    await value('update_component', {
+      id: 'shop.cart',
+      name: 'Basket',
+      appearance: { fill: '#E3F2E9' },
+    });
     const cart = session.snapshot.packages
       .find((each) => each.id === 'shop')
       ?.components.find((each) => each.id === 'shop.cart');
     expect(cart?.name).toBe('Basket');
+    expect(cart?.appearance?.fill).toBe('#E3F2E9');
     expect(cart?.attributes).toEqual([{ name: 'items', type: 'number', default: 0 }]);
   });
 
-  it('change a relation type trait by trait, or say it is not there yet', async () => {
-    const args = { id: 'shop.holds', name: 'contains' };
-    if (!coreKnows('update-relation-type')) {
-      expect(await failure('update_relation_type', args)).toBe(
-        'Changing a relation type trait by trait is not in this build of Visual Anything yet.',
-      );
-      return;
-    }
-    await value('update_relation_type', args);
+  it('change a relation type trait by trait', async () => {
+    await value('update_relation_type', { id: 'shop.holds', name: 'contains' });
     const holds = session.snapshot.packages
       .find((each) => each.id === 'shop')
       ?.relationTypes.find((each) => each.id === 'shop.holds');
     expect(holds?.name).toBe('contains');
   });
 
-  it('reorder elements, or say it is not there yet', async () => {
-    const args = { elements: ['cart'], before: 'system' };
-    if (!coreKnows('reorder-elements')) {
-      expect(await failure('reorder_elements', args)).toBe(
-        'Reordering elements is not in this build of Visual Anything yet.',
-      );
-      return;
-    }
-    await value('reorder_elements', args);
+  it('reorder elements', async () => {
+    await value('reorder_elements', { elements: ['cart'], before: 'system' });
     expect(session.snapshot.model.elements[0]?.id).toBe('cart');
   });
 
   it('define a component with an id it makes, created only once', async () => {
     const component = { name: 'Queue', derivesFrom: 'systems.service' };
-    const outcome = await call('define_component', {
+    const result = await value('define_component', {
       package: 'shop',
       createOnly: true,
       component,
     });
-    // Builds whose core makes definition ids create it; older ones need an id.
-    if (!outcome.ok) {
-      expect(outcome.message).toMatch(/^Refused, so nothing changed/);
-      return;
-    }
-    const created = (outcome.value as { created: string[] }).created;
+    const created = result.created as string[];
     expect(created[0]).toMatch(/^shop\./);
     const defined = session.snapshot.packages.find((each) => each.id === 'shop')?.components;
     expect(defined?.map((each) => each.name)).toContain('Queue');
+    expect(
+      await failure('define_component', {
+        package: 'shop',
+        createOnly: true,
+        component: { ...component, id: created[0] },
+      }),
+    ).toMatch(/^Refused, so nothing changed/);
   });
 
   it('add a note to a view', async () => {
@@ -473,6 +543,33 @@ describe('guidance tools', () => {
     );
     expect(await failure('pan_to', { target: 'api', view: 'nowhere' })).toBe(
       'There is no view "nowhere".',
+    );
+  });
+
+  it('ask the open apps to lay out a view, or some containers’ contents, changing nothing', async () => {
+    expect(await value('lay_out_view', { view: 'overview' })).toEqual({
+      apps: 0,
+      note: expect.stringContaining('nothing was laid out') as string,
+    });
+    const app = new FakeClient();
+    session.connect(app);
+    expect(await value('lay_out_view', { view: 'overview', containers: ['system'] })).toEqual({
+      apps: 1,
+      note: expect.stringContaining('Lay out') as string,
+    });
+    expect(await value('lay_out_view')).toMatchObject({ apps: 1 });
+    expect(app.ofType('guidance').map((message) => message.guidance)).toEqual([
+      { kind: 'layout', view: 'overview', containers: ['system'] },
+      { kind: 'layout' },
+    ]);
+    // The layout is the app's to run and record; the guidance itself records nothing.
+    expect(session.history).toEqual({});
+  });
+
+  it('refuse to lay out a view that is not there, or what holds nothing', async () => {
+    expect(await failure('lay_out_view', { view: 'nowhere' })).toBe('There is no view "nowhere".');
+    expect(await failure('lay_out_view', { containers: ['api', 'ghost', 'system'] })).toBe(
+      'These hold nothing to lay out: api, ghost. Name containers, as find_elements finds them, or leave containers out to lay out the whole view.',
     );
   });
 

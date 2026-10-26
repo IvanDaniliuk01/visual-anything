@@ -58,14 +58,18 @@ export function sentences(problems: readonly Problem[]): string {
 /** A command the program answered as done. */
 export type Done = Extract<CommandAnswer, { ok: true }>;
 
+/** What `more` adds to the answer of a command that was done; its `warnings` join the core's. */
+export type More = Record<string, unknown> & { warnings?: readonly string[] };
+
 /**
  * Sends a command as Claude's action, and says what was done or why not; `more` adds to the answer
- * of a command that was done, and the warnings it says itself are left out of the rest.
+ * of a command that was done, its warnings after the core's, and the warnings of the core it says
+ * itself are left out of the rest.
  */
 export async function act(
   program: Program,
   command: Command,
-  more: (answer: Done) => Record<string, unknown> | Promise<Record<string, unknown>> = (answer) =>
+  more: (answer: Done) => More | Promise<More> = (answer) =>
     answer.created.length > 0 ? { created: answer.created } : {},
   saidByMore: readonly Problem['code'][] = [],
 ): Promise<ToolOutcome> {
@@ -75,12 +79,18 @@ export async function act(
       `Refused, so nothing changed: ${sentences(answer.problems)} (${[...new Set(answer.problems.map((each) => each.code))].join(', ')})`,
     );
   }
-  const warnings = answer.warnings.filter((each) => !saidByMore.includes(each.code));
+  const { warnings: added = [], ...extra } = await more(answer);
+  const warnings = [
+    ...answer.warnings
+      .filter((each) => !saidByMore.includes(each.code))
+      .map((each) => each.message),
+    ...added,
+  ];
   return ok({
     done: answer.changed ? answer.label : 'Nothing changed, so nothing was recorded.',
     ...(answer.changed ? { undo: 'The person can undo it in the app.' } : {}),
-    ...(await more(answer)),
-    ...(warnings.length > 0 ? { warnings: warnings.map((each) => each.message) } : {}),
+    ...extra,
+    ...(warnings.length > 0 ? { warnings } : {}),
   });
 }
 
