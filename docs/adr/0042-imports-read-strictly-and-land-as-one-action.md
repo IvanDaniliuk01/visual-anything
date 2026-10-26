@@ -161,3 +161,10 @@ The files come from anywhere, so each is untrusted input.
     - A link is kept as text when it is a web address, and reported otherwise.
   - **Caps besides `IMPORT_LIMITS`.** A reader refuses past the elements and relations an import brings before it reads any view. It brings at most 500 views (draw.io pages past them are neither inflated nor read) and 200,000 shown shapes across them. It cuts names at 1,000 characters. A LikeC4 name over 256 characters or 32 levels deep is refused. The XML reader reads at most 500,000 elements, 256 deep, with 1,024 attributes a tag. What matched nothing lists 500 things, then how many more.
   - **Structurizr DSL** stays unread. The import dialog's help (`app/src/import/diagram-formats.ts`) says to export it with `structurizr-cli export -workspace workspace.dsl -format json`.
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (M8b): **HTML is imported as a drawing**, not mapped into the model (ADR 0068).
+  - Import… takes `.html` and `.htm` files beside the formats above, and opens the drawing's preview and report instead of the mapping dialog.
+  - The principles here hold for it: nothing in the file runs, nothing it names is fetched, its text is read strictly within caps, and it lands as one undoable action with a report of what it dropped.
+  - Unlike the readers above, which are pure TypeScript in the core, it is made by the local program, since its layout step is too large for the core and the page.

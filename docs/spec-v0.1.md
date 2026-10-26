@@ -26,14 +26,14 @@ v0.1 covers the model, views, layout, tables, the component editor, images, them
 | Model | Elements, relations, attributes, particularities, World | — |
 | Components and relation types | Built-in "Systems" and "Data modeling" packages; your own, derived and changed in the component editor or written in JSON, by hand or by Claude | Programmable ones (case 4) |
 | Tables | A component that draws what its elements hold as rows, as a table draws its columns; columns added on the canvas, typed or pasted | Importing many tables at once |
-| Images | SVG pictures and small PNG, JPEG or WebP bitmaps kept in packages, shown on components and single elements as an icon or as the whole shape | Large photos kept as files; images as free shapes; SVG with named parts as shapes (after v0.1) |
+| Images | SVG pictures and small PNG, JPEG or WebP bitmaps kept in packages, shown on components and single elements as an icon or as the whole shape | Large photos kept as files; images as free shapes; SVG with named parts as shapes (M8b) |
 | Languages | English and Spanish for everything the app shows, following the browser unless you choose (ADR 0038) | More languages |
 | Themes | Light and dark for the app and the canvas, following the system unless you choose; kept by the local program for each person | More themes, such as high contrast |
 | Appearance editing | Any #RRGGBB fill and stroke for elements, components and relation types (built-in ones through project appearances), one relation, notes and free arrows; from the inspector or by Claude | Transparency, gradients; colors that depend on an attribute's value |
 | Grid and rulers | A grid that follows the zoom, rulers in canvas units, and snapping of hand moves to 8 canvas units | Custom spacing, guides dragged from rulers, alignment guides |
 | Views | One perspective each, nesting chosen per view, stacking order, collapse and expand, filters, focus mode | Semantic zoom declared as data (after v0.1) |
-| Layout | ELK automatic layout, pinned shapes, orthogonal routing; routes chosen by hand, straight, orthogonal or curved | Curved routes drawn by layout (after v0.1) |
-| Free shapes | Note and arrow | Free 2D geometry for shapes, and more free shapes (after v0.1) |
+| Layout | ELK automatic layout, pinned shapes, orthogonal routing; routes chosen by hand, straight, orthogonal or curved | Curved routes drawn by layout (M8b) |
+| Free shapes | Note and arrow | Free 2D geometry for shapes (M8b), and more free shapes |
 | Scenarios | Record, play, data per step, simultaneous relations, aggregated steps | Import real traces through a package |
 | Tours | — | Recorded guidance played full screen, with comments (M11, after v0.1) |
 | Claude through MCP | Model, views, declarative components with their images, rows and connection points, appearances, scenarios, live guidance | Writing programmable code, with approval |
@@ -42,7 +42,7 @@ v0.1 covers the model, views, layout, tables, the component editor, images, them
 | Physical space (3D) | — | Case 5 (robotic arm, human body): 3D models inside components first, then a 3D panel linked to the 2D views (after v0.1) |
 | Live data from your systems | Claude refreshes the model through its other MCPs | Packages that request network permission |
 | Export (image, PDF, shareable page) | PNG of the open view | SVG, PDF, text, and a read-only page to share, embed and read on a phone (M6b) |
-| HTML | — | Static HTML imported as a cleaned drawing (after v0.1); HTML that runs only with a new ADR |
+| HTML | — | Static HTML imported as a cleaned drawing (M8b, ADR 0068); HTML that runs only with a new ADR |
 | Collaboration | Git on the project files | No real-time editing |
 | Platforms | Windows, macOS and Linux: the local program as one executable for each (ADR 0037), or from npm, with the app in any desktop browser | Mobile reading through the read-only page (M6b); installers and updates (Track D) |
 | Embedded chat | — | Optional package |
@@ -413,6 +413,111 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [x] Pins on the canvas and the comments panel, with filters; authors from your preferences
 - [x] Claude's tools for comments, and working through the open ones
 
+**M8b · Beyond boxes.** Planned in the third wave, beside M11b. Its three seams, in the schema, the core and the scene, go first and in order, since every other task draws, points at, routes, lays out or exports what they define; the next eight tasks then run in parallel, and the benchmark is measured once they are merged. Done when:
+
+- a component's appearance, or one element's own, gives its shapes free geometry (ADR 0066):
+  - SVG path data with lines, Bézier curves and arcs, polygons and ellipses, holes included;
+  - set from the component editor, from path data, an SVG file or a named part, and by Claude, each change one undoable action;
+  - drawn by the canvas at every zoom, far out as its simplified outline and never as its box;
+- pointing, hovering, selecting and dropping go by the outline: a point in a hole, or beside the outline inside its box, finds what lies behind, which the hit tests check against the outline to within a quarter of a canvas unit;
+- relations attach on the outline, at a connection point carried in from its side or where the line toward the other end last leaves the outline; orthogonal routes stay orthogonal as they meet it, and ELK lays such shapes out by their boxes and ports;
+- an SVG image's named parts are listed with previews, and Anchor parts… anchors the contents of a drawing with parts to them, in one action, from the app and by Claude (ADR 0067):
+  - by name, by id, or by an external identifier through a crosswalk;
+  - creating an element for each part that matches nothing, when asked;
+- each anchored part is drawn in its place over its picture, and is selected, hovered, focused, filtered, colored by overlays, related, played through and listed in the outline as its element's shape; drawn outside a drawing with parts, it keeps its part's outline and picture;
+- replacing the picture keeps the anchors of the parts it still has; before it applies, it says which anchored parts it loses, which then warn `unknown-part`, and an undo brings them back;
+- a static HTML file becomes an imported drawing shown by an element, in one undoable action with a report of what it dropped (ADR 0068):
+  - from Import…, from `visual-anything import` and from Claude's `import_drawing`;
+  - the hostile-input tests show that scripts, handlers, frames, forms, styles that load and addresses are dropped, that nothing runs and that nothing is fetched;
+  - the bundle tests show that neither the app's page nor the read-only page holds the converter;
+- a relation type, a relation and a view can draw their automatic routes straight or curved, as every layout and every later move then draw them, while routes chosen by hand keep their ends, bend points and style (ADR 0069);
+- the SVG and PDF exports and the read-only page draw free geometry, drawings with parts and automatic curves as the canvas does, and the SVG test compares their bounds with the scene's;
+- the performance budget holds: the beyond-boxes benchmark (`?geometry`, alone and with `?curves`) meets these marks on the reference laptop:
+  - pan, zoom and select at the 60 frames per second target, on 10,000 elements of which:
+    - 2,000 have free geometry, in 20 distinct geometries, 4 of them at the caps;
+    - 1,000 are anchored parts in 20 drawings with parts, 2 of whose pictures are at the cap on parts;
+    - 2,000 relations attach on outlines, 1,000 of them curved automatically;
+  - a pointer moving over outlines finds what is under it within 1 ms at the 95th percentile;
+  - moving a shape with free geometry and 50 relations is applied within the 50 ms an edit may take;
+  - its theme switch keeps A1's rule (every frame within 33 ms and 95% within 16.7 ms), and its runs with the image store cleared hold the 60 frames per second target, as M3b's images benchmark does.
+
+- [ ] **Seam 1, in the main session: free geometry and route styles in the schema and the core**, test-first with property tests (ADR 0066, ADR 0069).
+  - **Schema:**
+    - `Appearance.geometry` (`FreeGeometry`: `width`, `height`, `outline` of `path`, `polygon` and `ellipse` contours, `keepProportions` and `label`) and `Appearance.part` (`PartReference`: `part` and an optional `image`), each also `none`;
+    - `AppearanceImage.placement` gains `parts`, `RelationAppearance` gains `route`, `ViewFile` gains `routeStyle`, and `RelationRoute.style` gains `orthogonal`;
+    - the schemas regenerated, and `PROTOCOL_VERSION` 7.
+  - **Resolution and commands:**
+    - resolution and inheritance, project appearances included;
+    - `automaticRouteStyleOf(project, view, relation)`, which `set-route` compares with to keep only what differs;
+    - `update-view` and the appearance commands carry the new keys.
+  - **The outline maths,** `core/src/geometry/`:
+    - the strict path reader, `GEOMETRY_CAPS`, and `readGeometry` into the normalized `Outline`: fills, holes and stroked lines, made of moves, lines and cubics;
+    - `fitOutline` to a rectangle, and on a fitted outline `outlineHolds`, `outlineExit`, `outlinePlace` (a side and a place carried in), `outlineInnerPoint`, `outlineLabelArea`, `flattenOutline`, `simplifyOutline` and `outlinePathData`, cached by outline and size.
+  - **Checks:** the codes `invalid-geometry`, `geometry-too-large` and `large-geometry`, refused by commands and warned on open.
+  - **Property tests:**
+    - a point is held exactly when a much finer reference flattening holds it, to within 0.25 units;
+    - a last exit lies on the outline, and no later point of its ray is inside;
+    - reading normalized path data again gives the same outline.
+- [ ] **Seam 2, in the main session: named parts in the core** (ADR 0067).
+  - `core/src/images/parts.ts`, with `partsOf`, `partPicture`, `geometryOf` and `PART_CAPS`, read from the cleaned view and cached by it.
+  - `unknown-part` and `too-many-parts` after every action and on open, and `in-use` for an image that a `part` names.
+  - The anchored parts a replacement would lose, in its preview.
+  - Property tests:
+    - every part's picture is exactly what `cleanSvg` gives for it;
+    - parts come in document order, with their transforms applied;
+    - ADR 0027's attack corpus goes through parts too.
+- [ ] **Seam 3, in the main session: the scene's seam**, which the parallel tasks use as it is.
+  - `ElementShape.outline`: the fitted outline of its free geometry or of its part.
+  - `ElementShape.part`: `{ image, part, color, inDrawing }`.
+  - `ElementShape.picture`: where a drawing with parts draws its picture.
+  - Anchored parts placed in their drawings, without positions of their own, and a drawing's other contents below its picture.
+  - `RelationLine.style` on every line, automatic ones included.
+  - `geometry.ts`'s `shapeHolds(shape, point)` and `shapeBorderPoint(shape, inside, toward)`, and `draw.ts`'s `drawOutline(graphics, outline, colors)`, over the core's outline maths.
+  - The incremental scene keeps outlines and parts across moves and recolors, which its property test checks against a full build.
+- [ ] **Free geometry on the canvas** (ADR 0066):
+  - tiles' plain and full drawings of outlines, holes cut;
+  - silhouettes and plain blocks drawn as simplified outlines, and collapsed containers' sheets;
+  - names in the label area, or beside the shape in the hover and selection marks, and icons;
+  - hit testing, box selection and drop targets by the outline, and hover and selection marks along it.
+- [ ] **Routes on outlines, and automatic curves** (ADR 0066, ADR 0069):
+  - automatic ends at the last exit, orthogonal ends carried on to the outline, and connection points and border attachments carried in;
+  - automatic straight and curved routes, fanned apart as parallel lines are;
+  - route handles and dragged ends on outlines (ADR 0039's clarification);
+  - layout's ports for free geometry, and each drawing with parts as one block with a port for each related part (ADR 0015's clarification).
+- [ ] **Anchored parts on the canvas** (ADR 0067):
+  - drawings with parts drawn as their picture under their header;
+  - what is drawn over parts: veils, and overlays' fills, strokes and badges;
+  - parts' own pictures, through the image store, for parts drawn at full strength in a faint drawing; parts far out;
+  - pressing and dragging; keyboard navigation and the outline in the picture's order;
+  - the inspector's parts of a drawing, and Anchor parts…, matching by name, id or an external identifier through a crosswalk, and creating what matches nothing.
+- [ ] **The editors:**
+  - the component editor's Shape section: free geometry from path data, an SVG file or a named part, with Keep proportions and the label area, and a preview;
+  - the part a component or an element is drawn as, and the placement With its parts;
+  - a relation type's and a relation's Route, a view's Lines, and the Style control's Automatic (ADR 0039's clarification);
+  - every text in English and Spanish, and the catalog test's avoided words extended with the new terms' avoid lists.
+- [ ] **HTML as a drawing** (ADR 0068):
+  - `server/src/drawings/`: parse5, the allow-list and its caps, the conversion into satori's input, satori in a worker thread limited to 256 MiB and 10 s, Roboto, `cleanSvg`, and the report;
+  - the live request and its answer, and Import…'s preview, report and single action;
+  - `visual-anything import` with `.html`;
+  - the hostile-input tests, and the bundle tests for both pages;
+  - the single executables with satori's WebAssembly, a notice of the code they bundle, and a smoke test that makes a drawing.
+- [ ] **Claude's tools:**
+  - `set_appearance` with `geometry`, `part` and `route`; `update_view` with `routeStyle`; `set_route` with `orthogonal` and the automatic style;
+  - `list_image_parts`, `anchor_parts` and `import_drawing`, and the lost parts in `replace_image`'s answer;
+  - descriptions with examples of path data and of anchoring an atlas's parts.
+- [ ] **Exports:**
+  - the SVG writer draws outlines as `path`s with `fill-rule="evenodd"`, drawings with parts as their picture with what changes their parts drawn over it, and automatic curves;
+  - the PDF from it, and the read-only page as the canvas draws;
+  - the SVG test's bounds for free geometry, a drawing with parts and automatic curves;
+  - Mermaid and Structurizr say that they lost the outlines.
+- [ ] **A sample,** `examples/beyond-boxes`: a heart drawn for Visual Anything (CC0-1.0), whose chambers and vessels are anchored to its named parts; a component with free geometry; one view drawn curved; a card imported from HTML; and a scenario of blood flowing through the heart.
+- [ ] **The benchmark:** `?geometry` and `?curves`, in work and frames modes, with the phases of the "Done when" above:
+  - pan, zoom and select, at the whole view and with names shown;
+  - pointing along outlines;
+  - dragging a shape with free geometry and 50 relations;
+  - a run with the image store cleared;
+  - a theme switch.
+
 **Track A · Look and feel**, beside the milestones: A1 right after M2 and before M3's app tasks; A2's core before M3's commands for collapse, expand and filters, and A2 tagged before M4's write tools are fixed; A3 after M3's canvas tasks; A4 before M4's UI tasks. Its commits start with `A<n>:`, and each stage is tagged `a<n>` when its Done when holds.
 
 **A1 · Themes.** Done when the app and the canvas follow the system's light or dark setting, and the Theme control in the header (also shown while connecting and on failure screens) switches between Match the system, Light and Dark; an explicit choice survives restarting Visual Anything and is in place on the first frame; the contrast tests pass for every pair in both themes; and on the benchmark a theme switch keeps every frame within 33 ms and 95% within 16.7 ms, shows on the canvas and the panels together in one frame, never shows a tile drawn in the other theme, and every M2 phase meets the 60 frames per second target in both themes.
@@ -474,7 +579,7 @@ The order below follows the two benchmarks of what Visual Anything needs to repr
 | 2 | **M7 · Package code**, planned above. Code kept in packages computes attributes, checks elements and draws shapes; it runs sandboxed (ADR 0012), only after you approve it, and changing it asks again; Claude can read, write and check it. |
 | 2 | **M8 · Detail and data**, planned above. Semantic zoom declared as data; overlays that color shapes by an attribute, with a legend; external identifiers and crosswalks; destinations, attributes that open a view, a project or a web address; live values from running systems; an element list edited in bulk; time ranges with playback; a reading benchmark at 100,000 elements. |
 | 2 | **M11 · Tours and comments**, planned above. Tours made from recorded guidance and played full screen, built on view states; comments kept in the project. |
-| 3 | **M8b · Beyond boxes.** Free 2D geometry for a component's shape, with exact hit testing and connection points; SVG with named parts, each part an anchored shape of its element; static HTML imported as a cleaned drawing; curved routes drawn by layout. |
+| 3 | **M8b · Beyond boxes**, planned above. Free 2D geometry for a component's shape, with exact hit testing and connection points; SVG with named parts, each part an anchored shape of its element; static HTML imported as a cleaned drawing; curved routes drawn by layout. |
 | 3 | **M11b · Versions.** Comparing versions between git commits, in the app and for pull requests; proposals to review Claude's changes before they apply; a git merge driver for project files. |
 | 4 | **M9 · Physical space inside components.** A component can draw its element's 3D model (glTF, cleaned by the local program and never carrying behavior) inside its shape: a cached picture while you pan, live when you focus it, with three.js loaded only when a view needs it. |
 | 4 | **M10 · A linked physical-space panel.** A 3D panel beside the canvas, showing the same elements where they really are, with selection, focus and scenarios linked to the 2D views. A new ADR that supersedes ADR 0003 comes first. |

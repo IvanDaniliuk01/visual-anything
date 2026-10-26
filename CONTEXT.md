@@ -140,7 +140,7 @@ The reusable definition of a kind of element: how it looks, which attributes it 
 _Avoid_: plugin, widget, template, class
 
 **Appearance**:
-How the shapes of a component's elements, or of one element, look: their shape (rectangle, rounded rectangle, ellipse, cylinder or person), fill, stroke and size, the image and detail they show, where relations attach and whether they draw their contents as rows; for a relation type's relations, or one relation, their stroke, width and dash. Whatever an appearance leaves out is inherited. An element or a relation can have an appearance of its own, which is a particularity, and a project can give one to a definition it cannot change, which is a project appearance. Colors are written #RRGGBB.
+How the shapes of a component's elements, or of one element, look: their shape (rectangle, rounded rectangle, ellipse, cylinder or person, or free geometry of their own) or the named part they are drawn as, their fill, stroke and size, the image and detail they show, where relations attach and whether they draw their contents as rows; for a relation type's relations, or one relation, their stroke, width and dash and the style of their automatic routes. Whatever an appearance leaves out is inherited. An element or a relation can have an appearance of its own, which is a particularity, and a project can give one to a definition it cannot change, which is a project appearance. Colors are written #RRGGBB.
 _Avoid_: look and style (for this data), skin
 
 **Project appearance**:
@@ -148,8 +148,12 @@ The appearance a project gives to a component or relation type it uses but canno
 _Avoid_: override, theme
 
 **Connection point**:
-A named place on the border of a component's shapes, set by its appearance, where relations attach: a relation attaches to the connection point that faces its other end, or anywhere on the border when the shape has none. A row has one on each side.
+A named place on the border of a component's shapes, set by its appearance, where relations attach: a relation attaches to the connection point that faces its other end, or anywhere on the border when the shape has none. It is set on one side of the shape's box, at a place along that side; on free geometry or an anchored part, it sits where that place, carried straight in from the side, meets the outline. A row has one on each side.
 _Avoid_: attachment point
+
+**Free geometry**:
+A shape's own outline, set by an appearance in place of its kind: closed contours written as SVG path data, polygons or ellipses in a box of their own, a contour inside another making a hole. The canvas draws it, points at it and attaches relations on it by that outline, and draws it simplified far out; layout sees only its box (ADR 0066).
+_Avoid_: custom shape, stencil, contour (alone), vector shape, free shape (a free shape is a drawing outside the model)
 
 **Component editor**:
 The part of the inspector that shows a component or a relation type with what it inherits, and where the project's own are derived, defined, changed and removed, trait by trait.
@@ -174,7 +178,19 @@ A package that comes with Visual Anything, such as "Systems". A project uses it 
 _Avoid_: default package, standard library
 
 **Image**:
-A picture a package defines, in SVG or as a small PNG, JPEG or WebP bitmap, that an appearance shows on shapes: as an icon beside the name, or as the shape's whole drawing, optionally as a silhouette of one color. It is data only: the core cleans it of anything that runs or refers to anything outside it before it is stored, and every reader sees only that cleaned picture.
+A picture a package defines, in SVG or as a small PNG, JPEG or WebP bitmap, that an appearance shows on shapes: as an icon beside the name, as the shape's whole drawing, or with its named parts, which the shape's contents are drawn as; an icon or a whole drawing can be a silhouette of one color. It is data only: the core cleans it of anything that runs or refers to anything outside it before it is stored, and every reader sees only that cleaned picture.
+
+**Named part**:
+A piece of an SVG image with an id of its own, such as the left ventricle in a picture of a heart, read only from the image's cleaned view; its id is its name. It is what an anchored part is drawn as (ADR 0067), and a part for short where no nesting is meant, since "is part of" names nesting.
+_Avoid_: layer, region, hotspot, sub-image
+
+**Drawing with parts**:
+A shape that shows an image with its named parts: the picture fills its body under its name, and those of its contents anchored to the picture's named parts are drawn as those parts, in place, as a page of an anatomical atlas names the organs it shows. Its other contents sit below the picture. Layout takes it as one block.
+_Avoid_: plate, atlas, map, background
+
+**Anchored part**:
+An element's shape drawn as a named part, because its appearance names that part: inside a drawing with parts, in the part's place and at its size, with no position of its own in the view, as a row has none; elsewhere on its own, with the part's outline as its free geometry and the part's picture inside it. It is selected, related, focused, filtered and colored as any shape of its element.
+_Avoid_: hotspot, mapped area, region, overlay (an overlay is a rule of a view)
 
 ### Dimensions
 
@@ -254,7 +270,7 @@ A saved sequence of steps, each a view state with an explanation, that is played
 _Avoid_: walkthrough, presentation, story
 
 **Route**:
-The path a relation's line takes in a view: where it attaches to each end, the points it bends at, and its style (orthogonal, straight or curved). Automatic unless chosen by hand; a view keeps only what was chosen by hand, and Reset route goes back to the automatic route.
+The path a relation's line takes in a view: where it attaches to each end, the points it bends at, and its style (orthogonal, straight or curved). Automatic unless chosen by hand: an automatic route takes the style its relation's appearance gives, else its view's, else orthogonal, and is drawn again after every layout and move (ADR 0069). A view keeps only what was chosen by hand, and Reset route goes back to the automatic route.
 _Avoid_: path, connector, edge route, waypoints
 
 **Bend point**:
@@ -314,8 +330,12 @@ One HTML file made from a project that shows its views and plays its scenarios a
 _Avoid_: static site, viewer, export (alone)
 
 **Import**:
-Bringing a file made elsewhere (Mermaid, a spreadsheet, JSON, Structurizr, LikeC4, draw.io) into the project as one undoable action, after its kinds are mapped to components and relation types. What matches nothing is reported, and nothing in the file runs (ADR 0042).
+Bringing a file made elsewhere (Mermaid, a spreadsheet, JSON, Structurizr, LikeC4, draw.io) into the project as one undoable action, after its kinds are mapped to components and relation types. What matches nothing is reported, and nothing in the file runs (ADR 0042). An HTML file is imported as an imported drawing instead.
 _Avoid_: sync, conversion
+
+**Imported drawing**:
+An SVG image that the local program makes from a static HTML page or fragment: its tags and styles read from an allow-list, laid out with its text turned into outlines, and cleaned as every SVG image is; an element shows it as its drawing. Nothing in it runs, and nothing it names is fetched (ADR 0068).
+_Avoid_: web view, embed, HTML component, iframe, screenshot
 
 **Starter package**:
 A built-in package for one domain, with its icons, a sample project and a scenario, which a new project can start from. What it ships carries a license that lets it ship (ADR 0047).

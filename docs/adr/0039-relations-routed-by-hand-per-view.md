@@ -43,3 +43,14 @@ A view can route any relation it draws as a line by hand, and keeps only what di
 - 2026-10-24: the canvas never drew ELK's routes: layout gives back only places. So ELK's own route is dropped for every relation, and the layout input gives each end chosen by hand as a fixed port (`LayoutRelation.fromPort` and `toPort`).
 - 2026-10-24: bend points snap to the grid once the grid exists (Track A3); until then they snap only to their neighbours' x and y.
 - 2026-10-25 (W24): how bend points snap to the grid. While the grid shows and snapping is on, a dragged bend point, one added from the middle of a segment included, lands on a multiple of 8 canvas units from the corner of the shape its route's bend points are kept relative to, or from the canvas's origin when that is World, so that what is stored is a multiple of 8; a neighbour's x or y within reach still comes first, so that runs stay straight, and is kept as it is. A dragged segment of an orthogonal route runs along a grid line of the same frame. While the keys edit a route, Shift with an arrow key takes a bend point or a segment to the next grid line in that direction, and an arrow key alone still moves it by 1. Alt places freely, as it does for moves; ends keep attaching as before.
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (M8b): **a route's style can be left to the automatic route** (ADR 0069).
+  - A route without `style` now takes the style of the relation's automatic route: its appearance's `route`, then its view's `routeStyle`, then orthogonal. Until now, a route without `style` was orthogonal. Routes stored before this change stay orthogonal while no appearance and no view chooses otherwise, so no file changes.
+  - `style` may now be `orthogonal`. Like ends and bend points, it is stored only when the style chosen differs from the automatic one. Writing `"orthogonal"` out stays rejected as a second spelling of the automatic route; it is now the one spelling of an orthogonal route chosen against a straight or curved automatic one.
+  - The Style control offers Automatic beside Orthogonal, Straight and Curved. Choosing it is labelled `Draw "Client → API" in its automatic style in "Overview"`.
+- 2026-10-26 (M8b): **ends on free geometry** (ADR 0066, ADR 0067).
+  - A border attachment, `{ side, at }`, on a shape with free geometry or on an anchored part is carried in from that place on the side of the box as drawn until it meets the outline, as connection points are.
+  - A dragged end let go on such a shape attaches at the outline's point nearest the pointer. It is stored as the side and place that carry in to that point.
+  - With Alt, it also attaches at the outline's point nearest the pointer, never inside the shape.
