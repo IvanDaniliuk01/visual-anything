@@ -30,7 +30,7 @@ v0.1 covers the model, views, layout, tables, the component editor, images, them
 | Languages | English and Spanish for everything the app shows, following the browser unless you choose (ADR 0038) | More languages |
 | Themes | Light and dark for the app and the canvas, following the system unless you choose; kept by the local program for each person | More themes, such as high contrast |
 | Appearance editing | Any #RRGGBB fill and stroke for elements, components and relation types (built-in ones through project appearances), one relation, notes and free arrows; from the inspector or by Claude | Transparency, gradients; colors that depend on an attribute's value |
-| Grid and rulers | A grid that follows the zoom, rulers in canvas units, and snapping of hand moves to 8 canvas units | Custom spacing, guides dragged from rulers, alignment guides |
+| Grid and rulers | A grid that follows the zoom, rulers in canvas units, and snapping of hand moves to 8 canvas units; alignment guides, resize handles, and aligning, distributing and sizing alike the selection (ADR 0074) | Custom spacing, guides dragged from rulers |
 | Views | One perspective each, nesting chosen per view, stacking order, collapse and expand, filters, focus mode | Semantic zoom declared as data (after v0.1) |
 | Layout | ELK automatic layout, pinned shapes, orthogonal routing; routes chosen by hand, straight, orthogonal or curved | Curved routes drawn by layout (M8b) |
 | Free shapes | Note and arrow | Free 2D geometry for shapes (M8b), and more free shapes |
@@ -694,6 +694,7 @@ The first three tasks are the seams, built in the main session in this order. Th
 - [x] The grid, following the zoom, also on the container under the pointer
 - [x] Snapping of drags, nudges and new shapes, with the container's grid and position while dragging
 - [x] Rulers with the selection's extent
+- [x] W51, asked for by the user beside M8b (ADR 0074): resize handles on a shape selected alone (Shift keeps proportions, Alt from the middle, Escape cancels, one action `Resize "X"`); alignment guides while dragging and resizing, within 6 pixels, before the grid, off with Ctrl (⌘); Align left, centers, right, top, middles and bottom, Distribute horizontally and vertically, and Same width and height, from the shape menu, the toolbar's Align and Alt+Shift with an arrow key; and Claude's `align_shapes`
 
 **A4 · Polish.** Done when no color, size, spacing, radius, shadow or z-index is written out in any stylesheet outside the generated tokens, every control has hover, pressed, disabled and focus-visible states, every icon comes from one icon set kept in the app, and every empty state says what to do next.
 

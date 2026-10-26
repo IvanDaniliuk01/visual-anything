@@ -1,3 +1,5 @@
+import { SHAPE_KEYS } from './shapeKeys';
+
 /**
  * The keys of a selected relation's route (ADR 0039): its menu, removing a bend point, Alt, and the
  * keys of route editing, after Edit the route… in the relation's menu or the inspector. Listed after
@@ -95,6 +97,7 @@ export const CANVAS_KEYS: readonly { keys: string; does: string }[] = [
     does: 'Find names, ids, components and attribute values in the project, and go to what was found',
   },
   { keys: 'Tab', does: 'Leave the canvas' },
+  ...SHAPE_KEYS,
   ...ROUTE_KEYS,
 ];
 

@@ -65,6 +65,7 @@ import { THEMES, type CanvasTheme } from '../theme/themes';
 import { DIMMED_ALPHA } from './colors';
 import { midpointOf, pointAlong, type RouteEnd } from './route';
 import { drawRouteOverlay, type RouteOverlay } from './routing/overlay';
+import { drawShapeEditOverlay, type ShapeEditOverlay } from './shapeEditMarks';
 import { rerouted } from './routing/scene-routes';
 import { routeWithSides } from './rowRoutes';
 import { dragEnds } from './rowShapes';
@@ -434,6 +435,9 @@ export class CanvasRenderer {
   /** What editing a route draws: its handles and its line as it now runs, above everything. */
   private readonly routeMarks = new Graphics();
   private routeOverlay: RouteOverlay | undefined;
+  /** What resizing and the alignment guides draw: handles, a ghost and guides (ADR 0074). */
+  private readonly shapeEditMarks = new Graphics();
+  private shapeEdit: ShapeEditOverlay | undefined;
   /** What the route edit takes out of the tiles: the line it draws itself. */
   private routeHiding: Hidden | undefined;
   /** The regions of each band in use, in increasing order, under the shapes beyond the bands. */
@@ -577,6 +581,7 @@ export class CanvasRenderer {
       this.markerMarks,
       this.gestureMarks,
       this.routeMarks,
+      this.shapeEditMarks,
     );
     this.world.addChild(
       this.elementShapes,
@@ -762,6 +767,18 @@ export class CanvasRenderer {
     drawRouteOverlay(this.routeMarks, this.routeOverlay, this.camera.scale, this.painter);
   }
 
+  /** Draws the handles of the shape that can be resized, a resize's ghost and the guides (ADR 0074). */
+  setShapeEditOverlay(overlay: ShapeEditOverlay | undefined): void {
+    this.noteActivity();
+    this.shapeEdit = overlay;
+    this.drawShapeEditMarks();
+    this.requestRender();
+  }
+
+  private drawShapeEditMarks(): void {
+    drawShapeEditOverlay(this.shapeEditMarks, this.shapeEdit, this.camera.scale, this.painter);
+  }
+
   /**
    * Starts drawing shapes that are being dragged: they, the relations on them and the selected free
    * shapes leave their tiles and are drawn on their own, following the pointer. Relations between a
@@ -906,6 +923,7 @@ export class CanvasRenderer {
       this.drawGesture();
       this.drawEmphasis();
       this.drawRouteMarks();
+      this.drawShapeEditMarks();
     }
     this.settled = false;
     clearTimeout(this.settleTimer);
@@ -3575,6 +3593,7 @@ export class CanvasRenderer {
     this.drawGesture();
     this.drawEmphasis();
     this.drawRouteMarks();
+    this.drawShapeEditMarks();
     this.redrawDrag();
     if (before.name !== painter.name) this.callbacks.onThemeShown?.(painter.name);
   }
