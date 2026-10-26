@@ -4,6 +4,8 @@ dist-bench/
 dist-exe/
 coverage/
 *.log
+# Logs a sample project's scenarios were built from are kept beside it.
+!examples/*/logs/*.log
 .env
 .env.*
 .claude/worktrees/

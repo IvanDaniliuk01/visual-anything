@@ -1,0 +1,88 @@
+{
+  "id": "how-visual-anything-works-abpwgu",
+  "name": "How Visual Anything works",
+  "description": "Its four packages, then one shape's move from the canvas to the files and back to every app.",
+  "steps": [
+    {
+      "id": "step-9hgo12",
+      "viewState": {
+        "view": "overview",
+        "filters": {
+          "relationTypes": [
+            "code.calls",
+            "code.connects-to",
+            "code.pushes-to",
+            "code.guards",
+            "systems.communicates-with",
+            "systems.writes-to",
+            "systems.reads-from"
+          ]
+        }
+      },
+      "caption": {
+        "title": "Four packages",
+        "text": "Visual Anything is one local program and a browser app, in four packages:\n\n- core: the model, commands and the undo history, with no I/O\n- schema: the project files' types and their JSON Schema\n- server: the local program, which owns the model\n- app: the React UI, drawn with PixiJS"
+      },
+      "marks": [
+        "core-hnt4ih",
+        "schema-nd8g5w",
+        "server-w4u6le",
+        "app-kk6aff"
+      ]
+    },
+    {
+      "id": "step-1ou439",
+      "viewState": {
+        "view": "overview",
+        "select": [
+          "session-839z14"
+        ],
+        "focus": {
+          "degrees": 1,
+          "direction": "both"
+        }
+      },
+      "caption": {
+        "title": "The session owns the model",
+        "text": "Every edit, the person's or Claude's, reaches the session as a command. It runs the command through core, saves the files it changes and records one action in the history."
+      },
+      "marks": [
+        "session-839z14"
+      ]
+    },
+    {
+      "id": "step-x13zan",
+      "viewState": {
+        "view": "a-command-s-path-5np65s"
+      },
+      "caption": {
+        "title": "A shape moves",
+        "text": "One drag on the canvas, recorded from a real session: from the gesture to the view file, and back to every open tab."
+      },
+      "play": {
+        "scenario": "a-shape-moves-g3vvy3",
+        "from": "step-pidkqx",
+        "to": "step-1bxhr0"
+      },
+      "notes": "The log is examples/visual-anything/logs/a-shape-moves.log."
+    },
+    {
+      "id": "step-aqw8en",
+      "viewState": {
+        "view": "a-command-s-path-5np65s",
+        "select": [
+          "checks-ykh1p6"
+        ]
+      },
+      "caption": {
+        "title": "Only 127.0.0.1",
+        "text": "The program listens on 127.0.0.1 only. Its checks guard every connection: the Host and Origin of each request, the per-session token on /live, and Claude's own credential on /claude."
+      },
+      "marks": [
+        "checks-ykh1p6",
+        "sends-commands-4zu6v6",
+        "sends-claude-s-commands-oc4d53"
+      ]
+    }
+  ]
+}

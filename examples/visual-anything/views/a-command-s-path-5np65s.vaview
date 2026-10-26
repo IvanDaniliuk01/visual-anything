@@ -1,0 +1,220 @@
+{
+  "id": "a-command-s-path-5np65s",
+  "name": "A command's path",
+  "description": "How one gesture on the canvas becomes a command, goes to the local program, changes the project's files, and comes back to every app.",
+  "perspective": {
+    "name": "Data flow",
+    "description": "What a command passes through, from a gesture to the files and back."
+  },
+  "nestingRelationTypes": [
+    "systems.is-part-of"
+  ],
+  "positions": [
+    {
+      "element": "project-folder-ptj3sb",
+      "container": "file-system-6yurvg",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "dispatch-g01mws",
+      "container": "commands-1x11jh",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "operations-4npywn",
+      "container": "operations-and-history-dymdww",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "history-9uwkuo",
+      "container": "operations-and-history-dymdww",
+      "x": 24,
+      "y": 144
+    },
+    {
+      "element": "validator-bus0vj",
+      "container": "schema-nd8g5w",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "formatter-k3u4yu",
+      "container": "schema-nd8g5w",
+      "x": 24,
+      "y": 144
+    },
+    {
+      "element": "writer-aimmvw",
+      "container": "project-files-1j6g7d",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "checks-ykh1p6",
+      "container": "http-server-e6wcc0",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "live-websocket-x6ym5f",
+      "container": "http-server-e6wcc0",
+      "x": 24,
+      "y": 144
+    },
+    {
+      "element": "tiles-h57j40",
+      "container": "renderer-e9aatb",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "commands-1x11jh",
+      "container": "core-hnt4ih",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "operations-and-history-dymdww",
+      "container": "core-hnt4ih",
+      "x": 24,
+      "y": 216
+    },
+    {
+      "element": "session-839z14",
+      "container": "server-w4u6le",
+      "x": 24,
+      "y": 96
+    },
+    {
+      "element": "project-files-1j6g7d",
+      "container": "server-w4u6le",
+      "x": 280,
+      "y": 48
+    },
+    {
+      "element": "http-server-e6wcc0",
+      "container": "server-w4u6le",
+      "x": 280,
+      "y": 216
+    },
+    {
+      "element": "controller-n8tse7",
+      "container": "canvas-lbfjd4",
+      "x": 24,
+      "y": 184
+    },
+    {
+      "element": "scene-wm5jec",
+      "container": "canvas-lbfjd4",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "renderer-e9aatb",
+      "container": "canvas-lbfjd4",
+      "x": 280,
+      "y": 144
+    },
+    {
+      "element": "shell-3fx6vk",
+      "container": "app-kk6aff",
+      "x": 24,
+      "y": 160
+    },
+    {
+      "element": "canvas-lbfjd4",
+      "container": "app-kk6aff",
+      "x": 280,
+      "y": 48
+    },
+    {
+      "element": "live-connection-lh20ap",
+      "container": "app-kk6aff",
+      "x": 888,
+      "y": 160
+    },
+    {
+      "element": "core-hnt4ih",
+      "container": "visual-anything-ksmhdr",
+      "x": 1800,
+      "y": 48
+    },
+    {
+      "element": "schema-nd8g5w",
+      "container": "visual-anything-ksmhdr",
+      "x": 2152,
+      "y": 168
+    },
+    {
+      "element": "server-w4u6le",
+      "container": "visual-anything-ksmhdr",
+      "x": 1192,
+      "y": 224
+    },
+    {
+      "element": "app-kk6aff",
+      "container": "visual-anything-ksmhdr",
+      "x": 24,
+      "y": 160
+    },
+    {
+      "element": "person-q8wuyh",
+      "x": 0,
+      "y": 380,
+      "pinned": true
+    },
+    {
+      "element": "file-system-6yurvg",
+      "x": 1416,
+      "y": 760,
+      "pinned": true
+    },
+    {
+      "element": "visual-anything-ksmhdr",
+      "x": 224,
+      "y": 0
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "exclude": [
+      {
+        "kind": "component",
+        "component": "essence"
+      }
+    ],
+    "added": [
+      "app-kk6aff",
+      "canvas-lbfjd4",
+      "checks-ykh1p6",
+      "commands-1x11jh",
+      "controller-n8tse7",
+      "core-hnt4ih",
+      "dispatch-g01mws",
+      "file-system-6yurvg",
+      "formatter-k3u4yu",
+      "history-9uwkuo",
+      "http-server-e6wcc0",
+      "live-connection-lh20ap",
+      "live-websocket-x6ym5f",
+      "operations-4npywn",
+      "operations-and-history-dymdww",
+      "person-q8wuyh",
+      "project-files-1j6g7d",
+      "project-folder-ptj3sb",
+      "renderer-e9aatb",
+      "scene-wm5jec",
+      "schema-nd8g5w",
+      "server-w4u6le",
+      "session-839z14",
+      "shell-3fx6vk",
+      "tiles-h57j40",
+      "validator-bus0vj",
+      "visual-anything-ksmhdr",
+      "writer-aimmvw"
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "name": "Visual Anything",
+  "description": "Visual Anything modeled with itself: its packages and their parts, how a command travels from a gesture to the files and back, and a scenario from a real log.",
+  "packages": [
+    "systems",
+    "code"
+  ]
+}
