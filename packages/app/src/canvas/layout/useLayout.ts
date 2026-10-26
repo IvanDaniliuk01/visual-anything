@@ -34,7 +34,7 @@ import { t } from '../../i18n';
 import type { Scene } from '../scene';
 import { LayoutStopped, sharedRunner, type LayoutRunner } from './client';
 import { layoutCommand } from './command';
-import { layoutInput, type LayoutScope } from './input';
+import { layoutInput, waitsForLayout, type LayoutScope } from './input';
 import {
   frameAt,
   prefersReducedMotion,
@@ -293,11 +293,7 @@ export function useLayout({
     const keys = new Set<string>();
     for (const shape of scene.shapes) {
       keys.add(shape.key);
-      // A row is placed by its container's rows, never by layout (ADR 0023), and an anchored part
-      // by its part, in its drawing (ADR 0067).
-      const waits =
-        shape.positioned === 'placed' && shape.row === undefined && shape.part?.inDrawing !== true;
-      if (waits && (opened || !last.keys.has(shape.key))) {
+      if (waitsForLayout(shape) && (opened || !last.keys.has(shape.key))) {
         waiting.current.add(shape.key);
       }
     }

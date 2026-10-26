@@ -37,6 +37,15 @@ export type LayoutScope =
 
 const IN_WORLD = '';
 
+/**
+ * Whether a shape waits for the automatic layout of new shapes: one the view stores no position for,
+ * unless its place is not layout's to give, as a row's is its container's rows' (ADR 0023) and an
+ * anchored part's is its part's, in its drawing (ADR 0067).
+ */
+export function waitsForLayout(shape: ElementShape): boolean {
+  return shape.positioned === 'placed' && shape.row === undefined && shape.part?.inDrawing !== true;
+}
+
 /** What a layout of `scope` works from; undefined when it would move nothing. */
 export function layoutInput(
   scene: Scene,

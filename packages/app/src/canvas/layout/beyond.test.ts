@@ -10,10 +10,11 @@ import ELK from 'elkjs/lib/elk.bundled.js';
 import type { ElkNode } from 'elkjs/lib/elk-api';
 import { describe, expect, it } from 'vitest';
 import { beyondBoxes } from '../../test/beyond';
+import { loadSample } from '../../test/sample';
 import { buildScene, type ElementShape, type Scene } from '../scene';
 import { layoutCommand } from './command';
 import { blockGraph, layOut, type ElkEngine } from './engine';
-import { layoutInput } from './input';
+import { layoutInput, waitsForLayout } from './input';
 import type { LayoutInput } from './types';
 
 const VIEW = 'anatomy';
@@ -133,6 +134,43 @@ describe('blockGraph and anchored parts', () => {
       ['s0^right 98', 's1'],
       ['s1', 's0^top 74'],
     ]);
+  });
+});
+
+describe('the beyond-boxes sample’s heart', () => {
+  const sample = loadSample('beyond-boxes');
+
+  it('waits for no layout of its anchored parts, which have no positions of their own', () => {
+    const scene = buildScene(sample, 'heart');
+    const anchored = scene.shapes.filter((shape) => shape.part?.inDrawing === true);
+    expect(anchored.length).toBeGreaterThan(10);
+    expect(anchored.every((shape) => !waitsForLayout(shape))).toBe(true);
+    const waiting = scene.shapes.filter(waitsForLayout).map((shape) => shape.key);
+    expect(waiting).toEqual([]);
+    // Placing new shapes, given every anchored part as new, has nothing to place.
+    const keys = new Set(anchored.map((shape) => shape.key));
+    expect(layoutInput(scene, sample, { kind: 'new', keys })).toBeUndefined();
+  });
+
+  it('lays the view out without giving an anchored part a position', async () => {
+    const scene = buildScene(sample, 'heart');
+    const input = layoutInput(scene, sample, { kind: 'view' });
+    if (!input) throw new Error('Nothing to lay out.');
+    const result = await layOut(input, elk);
+    const anchored = new Set(
+      scene.shapes.filter((shape) => shape.part?.inDrawing === true).map((shape) => shape.key),
+    );
+    expect(result.shapes.filter((shape) => anchored.has(shape.key))).toEqual([]);
+    const action = layoutCommand(sample, 'heart', scene, { kind: 'view' }, result.shapes);
+    const command = action?.command;
+    const positions =
+      command?.type === 'batch' && command.commands[0]?.type === 'set-positions'
+        ? command.commands[0].positions
+        : [];
+    const anchoredElements = new Set(
+      scene.shapes.filter((shape) => shape.part?.inDrawing === true).map((shape) => shape.element),
+    );
+    expect(positions.filter((position) => anchoredElements.has(position.element))).toEqual([]);
   });
 });
 
