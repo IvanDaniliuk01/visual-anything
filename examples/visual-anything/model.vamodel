@@ -490,7 +490,7 @@
       "id": "writer-aimmvw",
       "component": "code.module",
       "name": "Writer",
-      "description": "Writes a file atomically: a temporary .va-tmp file, flushed, then renamed over the old one.",
+      "description": "Writes a file atomically: the new text in a temporary .va-tmp file, flushed, a hard link of the old file kept as a backup, then a rename over the old one; the backup goes once the name leads to the new file inside the project folder.",
       "attributes": {
         "source": "writer.ts"
       }
