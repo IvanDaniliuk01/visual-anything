@@ -2525,10 +2525,10 @@ export const messages: Catalog = {
     'El componente "{id}" es incorporado; el paquete "{package}" no puede definirlo.',
   'The relation type "{id}" is built in; package "{package}" cannot define it.':
     'El tipo de relación "{id}" es incorporado; el paquete "{package}" no puede definirlo.',
-  'The component "{id}" is defined by package "{first}" and again by "{package}".':
-    'El componente "{id}" lo define el paquete "{first}" y otra vez "{package}".',
-  'The relation type "{id}" is defined by package "{first}" and again by "{package}".':
-    'El tipo de relación "{id}" lo define el paquete "{first}" y otra vez "{package}".',
+  'The component "{id}" is defined by package "{earlier}" and again by "{package}".':
+    'El componente "{id}" lo define el paquete "{earlier}" y otra vez "{package}".',
+  'The relation type "{id}" is defined by package "{earlier}" and again by "{package}".':
+    'El tipo de relación "{id}" lo define el paquete "{earlier}" y otra vez "{package}".',
   'The component "{id}" of package "{package}" should start with "{prefix}.".':
     'El componente "{id}" del paquete "{package}" debería empezar con "{prefix}.".',
   'The relation type "{id}" of package "{package}" should start with "{prefix}.".':
@@ -2660,8 +2660,8 @@ export const messages: Catalog = {
     'La imagen "{id}" no se puede quitar: {users} todavía la muestran.',
   '{owner} can show an image by its id, as an icon or a drawing, with a #rrggbb tint, or show "none".':
     '{owner} puede mostrar una imagen por su id, como ícono o como dibujo, con un tinte #rrggbb, o mostrar "none".',
-  'The image "{id}" is defined by package "{first}" and again by "{package}".':
-    'La imagen "{id}" la define el paquete "{first}" y otra vez "{package}".',
+  'The image "{id}" is defined by package "{earlier}" and again by "{package}".':
+    'La imagen "{id}" la define el paquete "{earlier}" y otra vez "{package}".',
   'The image "{id}" of package "{package}" should start with "{prefix}.".':
     'La imagen "{id}" del paquete "{package}" debería empezar con "{prefix}.".',
   'The image "{name}" ({id}) is not drawn: cleaning refuses it.':
@@ -3142,10 +3142,10 @@ export const messages: Catalog = {
     'La vista "{view}" conecta a mano el inicio de "{name}", pero ese extremo es una relación, cuya línea encuentra en el medio; se conecta automáticamente.',
   'The view "{view}" attaches the end of "{name}" by hand, but that end is a relation, whose line it meets in the middle; it attaches automatically.':
     'La vista "{view}" conecta a mano el final de "{name}", pero ese extremo es una relación, cuya línea encuentra en el medio; se conecta automáticamente.',
-  'The view "{view}" attaches the start of "{name}" at the connection point "{point}", which "{owner}" does not have; it attaches automatically.':
-    'La vista "{view}" conecta el inicio de "{name}" en el punto de conexión "{point}", que "{owner}" no tiene; se conecta automáticamente.',
-  'The view "{view}" attaches the end of "{name}" at the connection point "{point}", which "{owner}" does not have; it attaches automatically.':
-    'La vista "{view}" conecta el final de "{name}" en el punto de conexión "{point}", que "{owner}" no tiene; se conecta automáticamente.',
+  'The view "{view}" attaches the start of "{name}" at the connection point "{point}", which "{holder}" does not have; it attaches automatically.':
+    'La vista "{view}" conecta el inicio de "{name}" en el punto de conexión "{point}", que "{holder}" no tiene; se conecta automáticamente.',
+  'The view "{view}" attaches the end of "{name}" at the connection point "{point}", which "{holder}" does not have; it attaches automatically.':
+    'La vista "{view}" conecta el final de "{name}" en el punto de conexión "{point}", que "{holder}" no tiene; se conecta automáticamente.',
   'The view "{view}" keeps the bend points of "{name}" relative to "{container}", which is no element of the model; they are ignored.':
     'La vista "{view}" guarda los puntos de quiebre de "{name}" relativos a "{container}", que no es ningún elemento del modelo; se ignoran.',
 
@@ -3946,6 +3946,46 @@ export const messages: Catalog = {
     'El proyecto le da una apariencia a "{name}", pero ningún paquete en uso lo define; se ignora.',
   'The project gives "{name}" an appearance, but it belongs to the project’s package "{package}"; set it there. This entry is ignored.':
     'El proyecto le da una apariencia a "{name}", pero pertenece al paquete propio "{package}"; definirla allí. Esta entrada se ignora.',
+  // W43: ids a project's files hold twice, as it opens.
+  'More than one package has the id "{key}".': 'Más de un paquete tiene el id "{key}".',
+  'More than one view has the id "{key}".': 'Más de una vista tiene el id "{key}".',
+  'More than one scenario has the id "{key}".': 'Más de un escenario tiene el id "{key}".',
+  // W43: why the core's cleaner refuses a picture past what it keeps, as the image picker and the
+  // problems of a project say it.
+  'The SVG text is over {n} KiB.': 'El texto SVG pasa de {n} KiB.',
+  'The cleaned SVG text is over {n} KiB.': 'El texto SVG ya limpio pasa de {n} KiB.',
+  'The SVG text has over {n} elements.': 'El texto SVG tiene más de {n} elementos.',
+  'The SVG text has over {n} namespace declarations.':
+    'El texto SVG tiene más de {n} declaraciones de espacios de nombres.',
+  'The SVG text nests elements over {n} deep.':
+    'El texto SVG anida elementos a más de {n} niveles.',
+  'The SVG text has over {n} style rules.': 'El texto SVG tiene más de {n} reglas de estilo.',
+  'A style rule has over {n} selectors.': 'Una regla de estilo tiene más de {n} selectores.',
+  "The SVG text's style rules hold over {n} declarations, counted once per selector.":
+    'Las reglas de estilo del texto SVG tienen más de {n} declaraciones, contadas una vez por selector.',
+  'The SVG picture has over {n} elements to draw.':
+    'La imagen SVG tiene más de {n} elementos para dibujar.',
+  'The SVG picture’s style rules match too many of its elements to fold them in.':
+    'Las reglas de estilo de la imagen SVG coinciden con demasiados de sus elementos como para incorporarlas.',
+  'The SVG picture nests elements over {n} deep.':
+    'La imagen SVG anida elementos a más de {n} niveles.',
+  'A use element refers to a part that holds a use element.':
+    'Un elemento use remite a una parte que tiene otro elemento use.',
+  'A gradient has over {n} stops.': 'Un degradado tiene más de {n} paradas.',
+  'A clip path or mask holds another.': 'Un trazado de recorte o una máscara contiene otro.',
+  'A clip path or mask refers to another.': 'Un trazado de recorte o una máscara remite a otro.',
+  'The SVG picture has over {n} use elements.': 'La imagen SVG tiene más de {n} elementos use.',
+  'The SVG picture has over {n} gradients.': 'La imagen SVG tiene más de {n} degradados.',
+  'The SVG picture has over {n} clip paths and masks.':
+    'La imagen SVG tiene más de {n} trazados de recorte y máscaras.',
+  'The SVG picture has over {n} path commands.':
+    'La imagen SVG tiene más de {n} comandos de trazado.',
+  'The SVG picture would cost too much to draw: it has too many masks, clips, transparent groups or elements.':
+    'Dibujar la imagen SVG costaría demasiado: tiene demasiadas máscaras, recortes, elementos g transparentes u otros elementos.',
+  'The picture is over {n} KiB.': 'La imagen pasa de {n} KiB.',
+  'The picture is {width} × {height} pixels; at most {side} a side and {pixels} in all are kept.':
+    'La imagen mide {width} × {height} píxeles; se admiten como máximo {side} por lado y {pixels} en total.',
+  'The JPEG picture has over {n} scans.': 'La imagen JPEG tiene más de {n} barridos.',
 };
 
 /**

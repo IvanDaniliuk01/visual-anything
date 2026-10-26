@@ -15,6 +15,7 @@ import {
 } from '@visual-anything/core';
 import type { Component, Element, Overlay, PackageFile, ViewFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
+import { coreRefusals } from '../test/core-refusals';
 import { importMessages } from '../test/importMessages';
 import { readerMessages } from '../test/reader-messages';
 import { loadSample } from '../test/sample';
@@ -711,8 +712,8 @@ function colorCommands(): [string, Command][] {
   ): [string, Command] => [
     name,
     kind === 'component'
-      ? ({ type: 'set-component-appearance', component: id, ...changes } as Command)
-      : ({ type: 'set-relation-type-appearance', relationType: id, ...changes } as Command),
+      ? { type: 'set-component-appearance', component: id, ...changes }
+      : { type: 'set-relation-type-appearance', relationType: id, ...changes },
   ];
   return [
     shape('color a note', { ...note, fill: '#FFF4E5', stroke: '#B4531A' }),
@@ -1121,6 +1122,8 @@ function allMessages(): Outcome[] {
     said.push({ command: 'check appearances', message: warning.message });
   }
   said.push(...run(stale, FORGET_COMMANDS));
+  // What the run above does not reach: refusals on the sample alone, short runs, broken projects.
+  said.push(...coreRefusals());
   return said;
 }
 
@@ -1129,6 +1132,8 @@ describe('the core’s messages in Spanish', () => {
 
   it('runs the commands it means to', () => {
     expect(said.length).toBeGreaterThan(COMMANDS.length);
+    // The fixtures past the run: every refusal, label and warning the run does not reach.
+    expect(coreRefusals().length).toBeGreaterThan(500);
   });
 
   it('lists only what it has to as staying English', () => {
