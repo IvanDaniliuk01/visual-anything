@@ -1,6 +1,8 @@
 import fc from 'fast-check';
 import type { ProjectSnapshot } from '@visual-anything/core';
+import type { Element as ModelElement } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
+import { FRAME, ORGANS_ID, beyondBoxes } from '../test/beyond';
 import { SAMPLE_VIEW, collapsedSample } from '../test/exports';
 import { loadSample } from '../test/sample';
 import { usersAndOrders, VIEW as TABLES_VIEW } from '../test/tables';
@@ -272,5 +274,54 @@ describe('Structurizr DSL of a view with overlays', () => {
     expect(text).toContain(NO_LEGEND);
     expect(writeStructurizr(withOverlay(true), SAMPLE_VIEW).lost).not.toContain(NO_LEGEND);
     expect(writeStructurizr(loadSample(), SAMPLE_VIEW).lost).not.toContain(NO_LEGEND);
+  });
+});
+
+describe('A Structurizr workspace of a view beyond boxes', () => {
+  /**
+   * The sample with a Systems element drawn by free geometry, another as a named part on its own,
+   * and its view drawn curved.
+   */
+  function beyondSample(): ProjectSnapshot {
+    const project = loadSample();
+    const anatomy = beyondBoxes().packages[0];
+    if (!anatomy) throw new Error('The project beyond boxes has no package.');
+    const appearances: Record<string, ModelElement['appearance']> = {
+      'appointments-api': { geometry: FRAME },
+      patient: { part: { part: 'ring', image: ORGANS_ID } },
+    };
+    return {
+      ...project,
+      project: { ...project.project, packages: [...project.project.packages, anatomy.id] },
+      packages: [...project.packages, anatomy],
+      model: {
+        ...project.model,
+        elements: project.model.elements.map((element) => {
+          const appearance = appearances[element.id];
+          return appearance ? { ...element, appearance } : element;
+        }),
+      },
+      views: project.views.map((view) =>
+        view.id === SAMPLE_VIEW ? { ...view, routeStyle: 'curved' } : view,
+      ),
+    };
+  }
+
+  it('says that it draws free geometry and named parts as their kinds, and curves in its own style', () => {
+    const project = beyondSample();
+    const { text, lost } = writeStructurizr(project, SAMPLE_VIEW);
+    const { relationships } = readWorkspace(text);
+    expect(relationships.length).toBeGreaterThan(1);
+    expect(lost).toEqual(
+      expect.arrayContaining([
+        'One shape drawn by its free geometry is drawn as its kind.',
+        'One shape drawn as a named part is drawn as its kind, without its picture.',
+        `${relationships.length} relations drawn curved or straight are drawn in Structurizr’s own style.`,
+      ]),
+    );
+    for (const each of lost) expect(text).toContain(`// Lost: ${each}`);
+    expect(writeStructurizr(loadSample(), SAMPLE_VIEW).lost.join(' ')).not.toMatch(
+      /free geometry|named part|curved or straight/,
+    );
   });
 });

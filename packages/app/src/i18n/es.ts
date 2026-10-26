@@ -1926,6 +1926,23 @@ export const ui: Catalog = {
     'La vista no muestra ningún elemento del paquete Sistemas.',
   'Pictures are left out.': 'Se omiten las imágenes.',
   'Scenarios are left out.': 'Se omiten los escenarios.',
+  // M8b W58: what the text exports lose beyond boxes, and the outline's contents of anchored parts.
+  '{count} shapes drawn by their free geometry are drawn as their kinds.': {
+    one: 'Una forma dibujada por su geometría libre se dibuja según su tipo.',
+    other: '{count} formas dibujadas por su geometría libre se dibujan según su tipo.',
+  },
+  '{count} shapes drawn as named parts are drawn as their kinds, without their pictures.': {
+    one: 'Una forma dibujada como parte con nombre se dibuja según su tipo, sin su imagen.',
+    other:
+      '{count} formas dibujadas como partes con nombre se dibujan según su tipo, sin sus imágenes.',
+  },
+  '{count} relations drawn curved or straight are drawn in {tool}’s own style.': {
+    one: 'Una relación dibujada curva o recta se dibuja con el estilo propio de {tool}.',
+    other:
+      '{count} relaciones dibujadas curvas o rectas se dibujan con el estilo propio de {tool}.',
+  },
+  '{name}, held by its anchored part and not drawn':
+    '{name}, que contiene su parte anclada y no se dibuja',
   'The whole view as the canvas draws it, without the selection, filters, focus or guidance.':
     'Toda la vista como la dibuja el lienzo, sin la selección, los filtros, el foco ni la guía.',
   'The whole view on one page, without the selection, filters, focus or guidance; WebP pictures and the colors of bitmap silhouettes are left out.':
