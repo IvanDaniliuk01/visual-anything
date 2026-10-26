@@ -242,12 +242,20 @@ To step through an already defined sequence over the model: a scenario or a tour
 _Avoid_: animate, replay
 
 **Scenario**:
-A concrete example played step by step over a view, showing what moves where and what each step takes in and produces: a patient's request crossing services, a sentence going through a transformer's layers. A step can involve several relations at once; there are no branches, so an alternative path is a separate scenario. It is recorded by following relations in order or built by Claude from a description or a log.
+A concrete example played step by step over a view, showing what moves where and what each step takes in and produces: a patient's request crossing services, a sentence going through a transformer's layers. A step can involve several relations at once. It can hold decisions, where it goes one of several labelled ways (ADR 0078). It is recorded by following relations in order or built by Claude from a description or a log.
 _Avoid_: trace, run, flow, example (as a product term), simulation
 
 **Step**:
 One moment of a scenario: the relations it activates at once, a short description, and what it takes in and produces as data. Recorded by clicking a relation; Shift+click adds another relation to the same step.
 _Avoid_: stage, hop
+
+**Decision**:
+A point of a scenario where it can go one of several labelled ways, its alternatives, such as "Are there free slots?". The viewer, Claude, a tour or an address chooses which plays; without a choice its default does. It never decides by itself from code (ADR 0078).
+_Avoid_: branch, gateway, fork, switch, condition (for the decision itself)
+
+**Alternative**:
+One of the labelled ways a decision can go: the steps that play when it is chosen, none at all for the way where nothing happens, or the end of the scenario after them.
+_Avoid_: branch, path, option, case
 
 **Aggregated step**:
 A single step played in place of consecutive scenario steps that happen entirely inside a collapsed container, labeled with how many it stands for.
@@ -258,7 +266,7 @@ A scenario step that uses a relation that no longer exists; it is kept and flagg
 _Avoid_: orphan step, dead step
 
 **Timeline**:
-What a scenario plays, in order, over one view: its steps as that view draws them, consecutive steps inside a collapsed container played as one aggregated step, and broken steps kept in their places. It is worked out from the scenario and the view, never stored (ADR 0031). The word names this alone, which is why History and Time range avoid it.
+What a scenario plays, in order, over one view: its steps as that view draws them, consecutive steps inside a collapsed container played as one aggregated step, and broken steps kept in their places. It is worked out from the scenario, the view and the tab's choices at its decisions, never stored (ADR 0031, ADR 0078). The word names this alone, which is why History and Time range avoid it.
 _Avoid_: playlist, sequence
 
 **Travelling marker**:
@@ -268,6 +276,10 @@ _Avoid_: dot, token, pulse
 **Tour**:
 A saved sequence of steps, each a view state with an explanation, that is played to walk someone through a concept. A step can play a scenario. Created by a person or by Claude.
 _Avoid_: walkthrough, presentation, story
+
+**Reveal**:
+A part of a tour step's marks that shows on its own press forward, with an optional sentence added to the caption, so that a step brings in what it explains one piece at a time (ADR 0077).
+_Avoid_: build, fragment, animation
 
 **Route**:
 The path a relation's line takes in a view: where it attaches to each end, the points it bends at, and its style (orthogonal, straight or curved). Automatic unless chosen by hand: an automatic route takes the style its relation's appearance gives, else its view's, else orthogonal, and is drawn again after every layout and move (ADR 0069). A view keeps only what was chosen by hand, and Reset route goes back to the automatic route. An automatic orthogonal route goes around the shapes in its way, and the name plates of the containers it runs in, inside the container that holds both its ends (ADR 0039).

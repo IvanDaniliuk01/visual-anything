@@ -82,7 +82,7 @@ Rules the core enforces:
 - An element can have several containers, and containment can never form a cycle.
 - Limits on what a relation type may connect only produce warnings.
 - A view has exactly one perspective, chooses which nesting relation types arrange it and keeps its own positions; pinned shapes keep theirs through layout.
-- A scenario plays over one view; each step activates one or more relations, and there are no branches.
+- A scenario plays over one view; each step activates one or more relations. In v0.1 there are no branches; decisions between labelled alternatives come with M11c (ADR 0078).
 
 ## Architecture
 
@@ -670,6 +670,26 @@ The first three tasks are the seams, built in the main session in this order. Th
   - merging a 10,000-element model file;
   - reading the benchmark project's version from git.
 
+**M11c · Tours that move, and scenarios that decide.** Planned beside the third wave's benchmarks, from the research on tours and on conditional processes. Its two seams, in the schema and the core, go first in the main session; then its tasks run in parallel. Done when:
+
+- a tour step's camera follows the bounded smooth path (at most 2.5 times zoomed out and 800 ms), and a step past it, into another view or under reduced motion cuts with a 200 ms cross-fade (ADR 0077);
+- every step's transition comes in its three stages within 1.1 s, a press during one finishes it at once, and the Motion and Fades preferences hold;
+- a step that plays a scenario says which step it is on, pauses and resumes with P, plays its range again with R, and brings the scenario's steps into view;
+- reveals and `dimRest` play one press at a time, from every forward key, a wireless presenter's included; I opens the steps' index, B goes back to the step's camera, the caption keeps clear of the marks, a step can advance by itself with a pause control, and the card says what each step and reveal marks;
+- `check_tour` and the Tours panel say where a tour cuts, what its marks miss and which steps could be reveals;
+- a scenario holds a decision between labelled alternatives (ADR 0078): the person chooses in the panel and with the keyboard, Claude chooses by guidance, a tour plays a given alternative, and an address opens a step in it;
+- a scenario without decisions is written byte for byte as before; deleting a relation that an alternative not chosen uses leaves a broken step there, marked in the list and in the delete preview;
+- the 10,000-element view keeps its budget through a tour step that filters, dims, moves the camera and reveals, and while a decision plays.
+
+- [ ] **Seam 1, in the main session: tours in the schema and the core** (ADR 0077): `TourStep.reveal`, `dimRest`, `advance` and `TourCaption.place`; `tourTransition` and the bounded camera path in `core/src/tours/camera.ts`, with property tests; reveals counted in a step's problems; the checks behind `check_tour`.
+- [ ] **Seam 2, in the main session: decisions in the schema and the core** (ADR 0078): `ScenarioFile.blocks` with `DecisionBlock` and `Alternative`; their checks; `scenarioTimeline` with choices, `choicesToReach`, `alternativeOf` and broken steps with their alternative; `update-scenario` with blocks and the editing helpers; property tests (no blocks gives today's timeline; every step reachable; a broken step never deleted).
+- [ ] **Tours on the canvas:** the capture and cross-fade, fades of tiles' dimming and of the emphasis marks, the three stages in `useTourPlayback`, and the travelling marker's trail.
+- [ ] **The stage:** the scenario's card with pause and its range, the keys, the steps' index, Back to the step, the caption's placement, advancing by itself, the announcements, and the Motion and Fades preferences.
+- [ ] **Decisions in the app:** choices in the scenario session, the decision card with its keys and announcements, the grouped steps' list, the alternatives not chosen dimmed and dashed with their preview, recording's Add an alternative here, Rejoin here and End the alternative, and the read-only page.
+- [ ] **Claude:** the tour tools' new keys and `check_tour`; `read_scenario`, `create_scenario_from_steps` with decisions, `update_scenario`'s operations, the `choose` guidance and `choices` in the playback tools; the Mermaid and PlantUML recipes.
+- [ ] **View states, addresses and tours' `play` with choices**, and a decision in the sample's `patient-books-appointment`.
+- [ ] **The benchmark:** a tour phase and a decision phase on the 10,000-element view.
+
 **Track A · Look and feel**, beside the milestones: A1 right after M2 and before M3's app tasks; A2's core before M3's commands for collapse, expand and filters, and A2 tagged before M4's write tools are fixed; A3 after M3's canvas tasks; A4 before M4's UI tasks. Its commits start with `A<n>:`, and each stage is tagged `a<n>` when its Done when holds.
 
 **A1 · Themes.** Done when the app and the canvas follow the system's light or dark setting, and the Theme control in the header (also shown while connecting and on failure screens) switches between Match the system, Light and Dark; an explicit choice survives restarting Visual Anything and is in place on the first frame; the contrast tests pass for every pair in both themes; and on the benchmark a theme switch keeps every frame within 33 ms and 95% within 16.7 ms, shows on the canvas and the panels together in one frame, never shows a tile drawn in the other theme, and every M2 phase meets the 60 frames per second target in both themes.
@@ -733,6 +753,7 @@ The order below follows the two benchmarks of what Visual Anything needs to repr
 | 2 | **M11 · Tours and comments**, planned above. Tours made from recorded guidance and played full screen, built on view states; comments kept in the project. |
 | 3 | **M8b · Beyond boxes**, planned above. Free 2D geometry for a component's shape, with exact hit testing and connection points; SVG with named parts, each part an anchored shape of its element; static HTML imported as a cleaned drawing; curved routes drawn by layout. |
 | 3 | **M11b · Versions**, planned above. Comparing versions between git commits, in the app and for pull requests; proposals to review Claude's changes before they apply; a git merge driver for project files. |
+| 3 | **M11c · Tours that move, and scenarios that decide**, planned above. Tour steps move in stages, cross-fade where they cut and reveal what they mark (ADR 0077); scenarios hold decisions between labelled alternatives that the viewer, Claude or a tour chooses (ADR 0078). |
 | 4 | **M9 · Physical space inside components.** A component can draw its element's 3D model (glTF, cleaned by the local program and never carrying behavior) inside its shape: a cached picture while you pan, live when you focus it, with three.js loaded only when a view needs it. |
 | 4 | **M10 · A linked physical-space panel.** A 3D panel beside the canvas, showing the same elements where they really are, with selection, focus and scenarios linked to the 2D views. A new ADR that supersedes ADR 0003 comes first. |
 | 4 | **M12 · Simulate (case 4).** A programmable component simulates a behavior from parameters you change, within its limits, and stops cleanly when it exceeds them. |
