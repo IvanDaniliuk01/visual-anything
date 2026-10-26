@@ -834,6 +834,15 @@
       "attributes": {
         "source": "viewer/"
       }
+    },
+    {
+      "id": "start-screen-session-xgj4n5",
+      "component": "code.module",
+      "name": "Start screen session",
+      "description": "The program on a folder that holds no project yet (ADR 0051): it greets each app with the samples a project can start from, writes the one chosen, and from then on is that project's session.",
+      "attributes": {
+        "source": "start.ts, samples.ts"
+      }
     }
   ],
   "relations": [
@@ -2027,6 +2036,32 @@
       "relationType": "systems.is-part-of",
       "from": "claude-endpoint-vxxqxs",
       "to": "http-server-e6wcc0"
+    },
+    {
+      "id": "is-part-of-2p7ffo",
+      "relationType": "systems.is-part-of",
+      "from": "start-screen-session-xgj4n5",
+      "to": "server-w4u6le"
+    },
+    {
+      "id": "opens-on-an-empty-folder-55mg6l",
+      "relationType": "code.calls",
+      "from": "open-9kxzjx",
+      "to": "start-screen-session-xgj4n5",
+      "name": "opens on an empty folder",
+      "attributes": {
+        "function": "startingOn"
+      }
+    },
+    {
+      "id": "becomes-once-a-project-is-written-6fcbqs",
+      "relationType": "code.calls",
+      "from": "start-screen-session-xgj4n5",
+      "to": "session-839z14",
+      "name": "becomes, once a project is written",
+      "attributes": {
+        "function": "openSession"
+      }
     }
   ]
 }

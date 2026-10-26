@@ -31,11 +31,7 @@
           "type": "string",
           "description": "What it reaches outside itself: files, the network, processes; none for pure code."
         }
-      ],
-      "appearance": {
-        "fill": "#EEF2F7",
-        "stroke": "#334E68"
-      }
+      ]
     },
     {
       "id": "code.module",
@@ -55,6 +51,8 @@
         }
       ],
       "appearance": {
+        "fill": "#E4EAF2",
+        "stroke": "#52606D",
         "width": 176,
         "height": 56
       }
