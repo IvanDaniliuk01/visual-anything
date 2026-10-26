@@ -21,8 +21,10 @@
  * the view's long description. The packages' attribution goes in its metadata (ADR-0047).
  */
 import {
-  modelIndexOf,
   definitionsIn,
+  legendOf,
+  legendShows,
+  modelIndexOf,
   type ProjectSnapshot,
   type ThemeName,
 } from '@visual-anything/core';
@@ -82,7 +84,8 @@ import {
   tintFilterId,
   type BitmapFormat,
 } from './image-symbols';
-import { element, empty, num, textElement } from './markup';
+import { layOutBand, type BandItem, type BandLayout } from './legendLayout';
+import { element, empty, num, textElement, type AttributeValue } from './markup';
 import { textWidth } from './measure';
 import { layOutText, type TextSpec } from './text-layout';
 
@@ -110,10 +113,15 @@ export interface SvgOptions {
 /** A drawing written as SVG. */
 export interface SvgDrawing {
   text: string;
-  /** What the drawing shows, in canvas units: the scene's bounds with a margin. */
+  /**
+   * What the drawing shows, in canvas units: the scene's bounds with a margin, and below them the
+   * legend of the view's overlays when it shows one, as wide as the legend needs.
+   */
   viewBox: Rect;
   /** The scene's bounds; none for a view that draws nothing. */
   bounds: Rect | undefined;
+  /** Where the legend of the view's overlays lies, below the drawing; none while no overlay is on. */
+  legend?: Rect;
   /** What the drawing could not show, in the language the app reads in. */
   lost: string[];
   /** Every text it writes, in order, for a reader that has to check its font holds them. */
@@ -123,6 +131,25 @@ export interface SvgDrawing {
    * each, as its metadata holds them.
    */
   attribution: string[];
+  /** The drawing as its layers hold it, for a reader that draws it piece by piece (`svgPieces`). */
+  layers: SvgLayers;
+}
+
+/** A layer of a drawing: a group, and what it holds, part by part, in the order they are drawn. */
+export interface SvgLayer {
+  values: Readonly<Record<string, AttributeValue>>;
+  parts: readonly string[];
+}
+
+/** What a drawing draws, in layers, with what its parts refer to. */
+export interface SvgLayers {
+  /** The attributes of its root element. */
+  root: Readonly<Record<string, AttributeValue>>;
+  /** Its pictures' symbols and filters, by their ids. */
+  defs: ReadonlyMap<string, string>;
+  /** The canvas's color under everything. */
+  background: string;
+  layers: readonly SvgLayer[];
 }
 
 /** The view with this id, or undefined. */
@@ -167,7 +194,8 @@ class Writer {
   readonly lost = new Set<string>();
   readonly texts: string[] = [];
   readonly #symbols = new Map<string, string | null>();
-  readonly #defs: string[] = [];
+  /** The pictures' symbols and filters, by their ids, in the order they were first needed. */
+  readonly defsById = new Map<string, string>();
   readonly #filters = new Set<Color>();
   readonly #byKey: ReadonlyMap<string, ElementShape>;
   readonly #bitmaps: ReadonlySet<BitmapFormat>;
@@ -181,7 +209,7 @@ class Writer {
   }
 
   get defs(): string {
-    return this.#defs.join('');
+    return [...this.defsById.values()].join('');
   }
 
   /** The fill a shape sits on in this theme: its container's, or the canvas's. */
@@ -241,7 +269,7 @@ class Writer {
         );
       }
       id = symbol === undefined ? null : made;
-      if (symbol !== undefined) this.#defs.push(symbol);
+      if (symbol !== undefined) this.defsById.set(made, symbol);
       this.#symbols.set(key, id);
     }
     if (id === null) return '';
@@ -250,7 +278,7 @@ class Writer {
       if (this.#filtersDrawn) {
         if (!this.#filters.has(tint)) {
           this.#filters.add(tint);
-          this.#defs.push(tintFilter(tint));
+          this.defsById.set(tintFilterId(tint), tintFilter(tint));
         }
         filter = `url(#${tintFilterId(tint)})`;
       } else {
@@ -279,7 +307,7 @@ export function svgOfScene(
   const { theme } = writer;
   const index = modelIndexOf(project);
   const bounds = scene.bounds;
-  const viewBox = bounds
+  const drawn = bounds
     ? grow(bounds, SVG_MARGIN)
     : { x: 0, y: 0, width: 2 * SVG_MARGIN, height: 2 * SVG_MARGIN };
   if (!bounds) writer.lost.add(t('The view draws nothing.'));
@@ -298,67 +326,240 @@ export function svgOfScene(
         },
         shapeParts(writer, shape),
       ),
-    )
-    .join('');
+    );
 
   const lines = scene.relations.map((line) => ({ line, stroke: lineStroke(line, theme.name) }));
-  const casings = lines.map(({ line }) => casingOf(line, theme.background)).join('');
-  const routes = lines
-    .map(({ line, stroke }) => element('g', partOf(line), routeOf(line, stroke)))
-    .join('');
-  const labels = lines
-    .map(({ line }) => {
-      const label = relationLabel(writer, line);
-      return label === '' ? '' : element('g', partOf(line), label);
-    })
-    .join('');
+  const casings = lines.map(({ line }) => casingOf(line, theme.background));
+  const routes = lines.map(({ line, stroke }) => element('g', partOf(line), routeOf(line, stroke)));
+  const labels = lines.map(({ line }) => {
+    const label = relationLabel(writer, line);
+    return label === '' ? '' : element('g', partOf(line), label);
+  });
 
-  const free =
-    scene.notes.map((note) => noteParts(writer, note)).join('') +
-    scene.arrows.map((arrow) => arrowParts(arrow, arrowStroke(arrow, theme), theme)).join('');
+  const free = [
+    ...scene.notes.map((note) => noteParts(writer, note)),
+    ...scene.arrows.map((arrow) => arrowParts(arrow, arrowStroke(arrow, theme), theme)),
+  ];
+
+  // The legend of the view's overlays goes below the drawing, so that it never covers it (ADR 0055).
+  const legend = legendOf(view, definitionsIn(project), theme.name);
+  const band = legendShows(legend)
+    ? layOutBand(legend, t, textWidth, drawn.width, 1, theme.name)
+    : undefined;
+  const legendRect =
+    band === undefined
+      ? undefined
+      : { x: drawn.x, y: drawn.y + drawn.height, width: band.width, height: band.height };
+  const viewBox = legendRect
+    ? {
+        ...drawn,
+        width: Math.max(drawn.width, legendRect.width),
+        height: drawn.height + legendRect.height,
+      }
+    : drawn;
+
+  const layers: SvgLayer[] = [
+    { values: { 'data-part': 'shapes' }, parts: shapes },
+    { values: { 'data-part': 'casings', fill: 'none', 'stroke-linecap': 'butt' }, parts: casings },
+    { values: { 'data-part': 'relations', 'stroke-linecap': 'butt' }, parts: routes },
+    { values: { 'data-part': 'relation-names' }, parts: labels },
+    { values: { 'data-part': 'free-shapes' }, parts: free },
+  ];
+  if (band && legendRect) {
+    layers.push({
+      values: { 'data-part': 'legend' },
+      parts: legendParts(writer, band, legendRect, viewBox.width),
+    });
+  }
 
   const description = descriptionOf(view, options.outlineFile);
   const attribution = attributionLines(attributionOf(project, scene, index));
+  const background = empty('rect', {
+    'data-part': 'background',
+    x: viewBox.x,
+    y: viewBox.y,
+    width: viewBox.width,
+    height: viewBox.height,
+    fill: theme.background,
+  });
+  const root = {
+    xmlns: 'http://www.w3.org/2000/svg',
+    version: '1.1',
+    viewBox: [viewBox.x, viewBox.y, viewBox.width, viewBox.height].map(num).join(' '),
+    width: viewBox.width,
+    height: viewBox.height,
+    role: 'img',
+    'aria-labelledby': 'va-title',
+    'aria-describedby': 'va-desc',
+    'font-family': SVG_FONT_FAMILY,
+    'data-view': view.id,
+    'data-theme': theme.name,
+  };
   const content =
     textElement('title', { id: 'va-title' }, view.name) +
     textElement('desc', { id: 'va-desc' }, description) +
     metadataOf(project, view, attribution) +
     (writer.defs === '' ? '' : element('defs', {}, writer.defs)) +
-    empty('rect', {
-      'data-part': 'background',
-      x: viewBox.x,
-      y: viewBox.y,
-      width: viewBox.width,
-      height: viewBox.height,
-      fill: theme.background,
-    }) +
-    element('g', { 'data-part': 'shapes' }, shapes) +
-    element('g', { 'data-part': 'casings', fill: 'none', 'stroke-linecap': 'butt' }, casings) +
-    element('g', { 'data-part': 'relations', 'stroke-linecap': 'butt' }, routes) +
-    element('g', { 'data-part': 'relation-names' }, labels) +
-    element('g', { 'data-part': 'free-shapes' }, free);
+    background +
+    layers.map((layer) => element('g', layer.values, layer.parts.join(''))).join('');
 
-  const text =
-    `<?xml version="1.0" encoding="UTF-8"?>\n` +
-    element(
-      'svg',
-      {
-        xmlns: 'http://www.w3.org/2000/svg',
-        version: '1.1',
-        viewBox: [viewBox.x, viewBox.y, viewBox.width, viewBox.height].map(num).join(' '),
-        width: viewBox.width,
-        height: viewBox.height,
-        role: 'img',
-        'aria-labelledby': 'va-title',
-        'aria-describedby': 'va-desc',
-        'font-family': SVG_FONT_FAMILY,
-        'data-view': view.id,
-        'data-theme': theme.name,
-      },
-      content,
-    ) +
-    '\n';
-  return { text, viewBox, bounds, lost: [...writer.lost], texts: writer.texts, attribution };
+  const text = `<?xml version="1.0" encoding="UTF-8"?>\n${element('svg', root, content)}\n`;
+  return {
+    text,
+    viewBox,
+    bounds,
+    ...(legendRect ? { legend: legendRect } : {}),
+    lost: [...writer.lost],
+    texts: writer.texts,
+    attribution,
+    layers: { root, defs: new Map(writer.defsById), background, layers },
+  };
+}
+
+/**
+ * The drawing as several SVG documents, each drawing some of its parts over the same view box, which
+ * drawn one over the other in order draw the drawing: the canvas's color first, then each layer's
+ * parts, as many in each document as fit in `most` characters, at least one. Each holds only the
+ * symbols and filters its parts use. A writer that draws them one by one can stop between them.
+ */
+export function svgPieces(layers: SvgLayers, most: number): string[] {
+  const open = (body: string) => element('svg', layers.root, body);
+  const pieces = [open(layers.background)];
+  const used = (markup: string): string => {
+    let defs = '';
+    for (const [, id] of markup.matchAll(/(?:href="#|url\(#)([^")]+)/g)) {
+      const def = id === undefined ? undefined : layers.defs.get(id);
+      if (def !== undefined && !defs.includes(def)) defs += def;
+    }
+    return defs === '' ? '' : element('defs', {}, defs);
+  };
+  for (const layer of layers.layers) {
+    let chunk = '';
+    const flush = () => {
+      if (chunk === '') return;
+      pieces.push(open(used(chunk) + element('g', layer.values, chunk)));
+      chunk = '';
+    };
+    for (const part of layer.parts) {
+      if (part === '') continue;
+      if (chunk !== '' && chunk.length + part.length > most) flush();
+      chunk += part;
+    }
+    flush();
+  }
+  return pieces;
+}
+
+// --- The legend ----------------------------------------------------------------------------------
+
+/**
+ * The legend laid out below the drawing, as SVG: a rule between them, then each overlay's texts and
+ * swatches in a group of its own, as a PNG's band draws them.
+ */
+function legendParts(writer: Writer, band: BandLayout, at: Rect, width: number): string[] {
+  const { colors } = THEMES[writer.theme.name].shell;
+  const rule = empty('rect', {
+    'data-part': 'legend-rule',
+    x: at.x,
+    y: at.y,
+    width,
+    height: 1,
+    fill: colors.border,
+  });
+  return [
+    rule,
+    ...band.parts.map((part) =>
+      element(
+        'g',
+        { 'data-overlay': part.id },
+        band.items
+          .slice(part.from, part.to)
+          .map((item) =>
+            item.kind === 'text'
+              ? writer.text({
+                  text: item.text,
+                  size: item.size,
+                  bold: item.bold,
+                  fill: item.color,
+                  x: at.x + item.x,
+                  align: 'start',
+                  y: at.y + item.y,
+                  anchor: 'top',
+                })
+              : swatchOf(writer, item, at),
+          )
+          .join(''),
+      ),
+    ),
+  ];
+}
+
+/** An entry's swatch in its room: a color, a size, a fade or a badge, as the PNG's band draws it. */
+function swatchOf(writer: Writer, item: Extract<BandItem, { kind: 'swatch' }>, at: Rect): string {
+  const { colors } = THEMES[writer.theme.name].shell;
+  const { entry, part, room } = item;
+  const x = at.x + item.x;
+  const y = at.y + item.y;
+  const middle = { x: x + room / 2, y: y + room / 2 };
+  const side = 14;
+  const box = { x: middle.x - side / 2, y: middle.y - side / 2, width: side, height: side };
+  if (entry.badge !== undefined) {
+    return (
+      empty('rect', {
+        x,
+        y: y + 3,
+        width: room,
+        height: room - 6,
+        fill: 'none',
+        stroke: colors.controlBorder,
+        'stroke-width': 1,
+      }) +
+      writer.text({
+        text: entry.badge,
+        size: 12,
+        fill: colors.text,
+        x: x + 5,
+        align: 'start',
+        y: middle.y,
+        anchor: 'middle',
+      })
+    );
+  }
+  if (part.of === 'relations') {
+    return empty('path', {
+      d: `M${num(x + 2)} ${num(middle.y)}H${num(x + room - 2)}`,
+      fill: 'none',
+      stroke: entry.color ?? colors.text,
+      'stroke-width': entry.size === undefined ? 2 : 2 * entry.size,
+      opacity: entry.opacity,
+    });
+  }
+  if (entry.color !== undefined) {
+    return part.channel === 'stroke'
+      ? empty('rect', { ...box, fill: 'none', stroke: entry.color, 'stroke-width': 3 })
+      : empty('rect', {
+          ...box,
+          fill: entry.color,
+          stroke: colors.controlBorder,
+          'stroke-width': 1,
+        });
+  }
+  if (entry.size !== undefined) {
+    const sized = 12 * entry.size;
+    return empty('rect', {
+      x: middle.x - sized / 2,
+      y: middle.y - sized / 2,
+      width: sized,
+      height: sized,
+      fill: 'none',
+      stroke: colors.controlBorder,
+      'stroke-width': 1,
+    });
+  }
+  if (entry.opacity !== undefined) {
+    return empty('rect', { ...box, fill: colors.text, opacity: entry.opacity });
+  }
+  return '';
 }
 
 // --- Shapes --------------------------------------------------------------------------------------

@@ -8,7 +8,7 @@ import { buildScene } from '../canvas/scene';
 import { SAMPLE_VIEW, richSample } from '../test/exports';
 import { loadSample } from '../test/sample';
 import { LARGEST_PAGE_SIDE, writePdf } from './pdf';
-import { SVG_MARGIN } from './svg';
+import { SVG_MARGIN, writeSvg } from './svg';
 
 const DATE = new Date(Date.UTC(2026, 9, 25, 12, 0, 0));
 
@@ -123,6 +123,48 @@ describe('writePdf', () => {
     expect(text).toMatch(/\/Subtype \/Image/);
     expect(pdf.lost).toContain('Bitmaps shown as silhouettes are drawn in their own colors.');
     expect(pdf.lost).toContain('The embedded font has no 中 文 →, which show as empty boxes.');
+  }, 60_000);
+
+  it('draws the legend of the view’s overlays below the drawing, as text in the embedded fonts', async () => {
+    const project = loadSample();
+    const overlaid: ProjectSnapshot = {
+      ...project,
+      views: project.views.map((view) =>
+        view.id === SAMPLE_VIEW
+          ? {
+              ...view,
+              overlays: [
+                {
+                  id: 'team',
+                  name: 'Team',
+                  of: 'elements',
+                  attribute: 'owner',
+                  channel: 'fill',
+                  mapping: {
+                    kind: 'discrete',
+                    cases: [{ value: 'Scheduling team', color: '#FFFF00' }],
+                    otherwise: '#123456',
+                  },
+                },
+              ],
+            }
+          : view,
+      ),
+    };
+    const plain = await writePdf(project, SAMPLE_VIEW, { date: DATE });
+    const pdf = await writePdf(overlaid, SAMPLE_VIEW, { date: DATE });
+    const drawing = writeSvg(overlaid, SAMPLE_VIEW, { bitmaps: ['png', 'jpeg'], filters: false });
+    const legend = drawing.legend as NonNullable<typeof drawing.legend>;
+    // The page holds the drawing as before, and the legend below it.
+    expect(pdf.page.width).toBeCloseTo(plain.page.width);
+    expect(pdf.page.height).toBeCloseTo(plain.page.height + legend.height * 0.75);
+    const count = (text: string, pattern: RegExp) => text.match(pattern)?.length ?? 0;
+    const content = pageContent(pdf.bytes);
+    const before = pageContent(plain.bytes);
+    // The legend's title, subtitle and two entries, each set as text; its title at 13.
+    expect(count(content, /\bBT\n/g)).toBeGreaterThanOrEqual(count(before, /\bBT\n/g) + 4);
+    expect(count(content, /BT\n\/F\d+ 13 Tf/g)).toBe(count(before, /BT\n\/F\d+ 13 Tf/g) + 1);
+    expect(pdf.lost).toEqual([]);
   }, 60_000);
 
   it('scales a view too large for a page down to the largest page readers open', async () => {

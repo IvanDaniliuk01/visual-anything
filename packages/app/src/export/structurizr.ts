@@ -18,6 +18,8 @@
  */
 import {
   definitionsIn,
+  legendOf,
+  legendShows,
   modelIndexOf,
   relationTypeOrRelatesTo,
   type Definitions,
@@ -349,6 +351,14 @@ export function writeStructurizr(
     ...(free > 0 ? [t(FREE, { count: free })] : []),
     ...(pictures > 0 ? [t('Pictures are left out.')] : []),
     ...(scenarios > 0 ? [t('Scenarios are left out.')] : []),
+    // Structurizr draws no legend, though its styles take the overlays' colors (ADR 0055).
+    ...(legendShows(legendOf(view, definitions, theme))
+      ? [
+          t(
+            'The legend of the view’s overlays, whose colors it draws: the outline in Markdown, the SVG and the PDF carry it.',
+          ),
+        ]
+      : []),
   ];
 
   const comment = (text: string) => `// ${text.replace(/\s*[\r\n]+\s*/g, ' ')}`;

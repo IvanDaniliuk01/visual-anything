@@ -12,15 +12,20 @@
  * - **Pictures.** SVG pictures are drawn as vectors, PNG and JPEG bitmaps as images; WebP, which PDF
  *   cannot hold, and the silhouettes of bitmaps, which need filters, are said to be lost.
  * - **The page** is the size of the view, a canvas unit to a CSS pixel, three quarters of a point, and
- *   is scaled down to stay within 200 inches a side, the most PDF readers open.
+ *   is scaled down to stay within 200 inches a side, the most PDF readers open. The legend of the
+ *   view's overlays is below the drawing, as the SVG writes it (ADR 0055).
  * - **Metadata:** the view's name as the title, its description as the subject, the packages'
  *   attribution (ADR-0047) and, attached, the view's outline in Markdown, its long description.
+ * - **Piece by piece.** The SVG is drawn in pieces of a few of its shapes each (`svgPieces`), and the
+ *   writer lets the page do what waits between two pieces, so that a large view never holds the tab
+ *   for long, and stopping it (`signal`) stops it there: it rejects with the signal's reason, an
+ *   `AbortError`, and draws nothing more.
  */
 import type { ProjectSnapshot, ThemeName } from '@visual-anything/core';
 import { decodeBase64, encodeBase64 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { t, type PluralText } from '../i18n';
-import { writeSvg } from './svg';
+import { svgPieces, writeSvg } from './svg';
 
 /** Points to a canvas unit: a CSS pixel is three quarters of a point. */
 const POINTS_PER_UNIT = 0.75;
@@ -28,6 +33,8 @@ const POINTS_PER_UNIT = 0.75;
 export const LARGEST_PAGE_SIDE = 14_400;
 /** How many characters the font lacks a PDF names, at most. */
 const MOST_MISSING = 20;
+/** How much of the SVG one piece draws at most, in characters, unless one of its parts is longer. */
+const PIECE = 64_000;
 
 const PARTS_NOT_DRAWN: PluralText = {
   one: 'One part of the drawing could not be drawn in the PDF.',
@@ -46,6 +53,11 @@ export interface PdfOptions {
   language?: string;
   /** Whether its streams are compressed; true by default, false to read them in a test. */
   compress?: boolean;
+  /**
+   * Stops making it, between two pieces of the drawing: it then rejects with the signal's reason, an
+   * `AbortError` unless the signal was given another, and does no further work.
+   */
+  signal?: AbortSignal;
 }
 
 /** A PDF made from a view. */
@@ -112,12 +124,47 @@ async function libraries(): Promise<{
   };
 }
 
-/** Makes a PDF of the view with this id. Throws when the project has no such view. */
+/**
+ * A message channel, as far as `pause` uses one: the browser's and Node's alike, typed here since the
+ * command line's build knows no DOM.
+ */
+interface Channel {
+  port1: { onmessage: (() => void) | null; close(): void };
+  port2: { postMessage(message: unknown): void };
+}
+
+/**
+ * Lets the page, or Node, do what waits, such as a click on Stop, and resolves right after: a message
+ * through a channel of its own, which no browser delays as it delays timers.
+ */
+function pause(): Promise<void> {
+  // The DOM's and Node's types of a channel differ, though both have what `Channel` names.
+  const Made = (globalThis as unknown as { MessageChannel?: new () => Channel }).MessageChannel;
+  return new Promise((resolve) => {
+    if (Made === undefined) {
+      setTimeout(resolve, 0);
+      return;
+    }
+    const channel = new Made();
+    channel.port1.onmessage = () => {
+      channel.port1.close();
+      resolve();
+    };
+    channel.port2.postMessage(undefined);
+  });
+}
+
+/**
+ * Makes a PDF of the view with this id. Throws when the project has no such view, and rejects with
+ * the signal's reason once `options.signal` stops it.
+ */
 export async function writePdf(
   project: ProjectSnapshot,
   viewId: Id,
   options: PdfOptions = {},
 ): Promise<PdfFile> {
+  const { signal } = options;
+  signal?.throwIfAborted();
   const drawing = writeSvg(project, viewId, {
     ...(options.theme === undefined ? {} : { theme: options.theme }),
     ...(options.outline === undefined ? {} : { outlineFile: options.outline.file }),
@@ -126,6 +173,7 @@ export async function writePdf(
   });
   const view = project.views.find((each) => each.id === viewId);
   const { PDFDocument, svgToPdf, regular, bold } = await libraries();
+  signal?.throwIfAborted();
 
   const natural = {
     width: drawing.viewBox.width * POINTS_PER_UNIT,
@@ -182,13 +230,19 @@ export async function writePdf(
 
   const warnings: string[] = [];
   document.save().scale(fit);
-  svgToPdf(document, drawing.text, 0, 0, {
-    width: natural.width,
-    height: natural.height,
-    assumePt: false,
-    fontCallback: (_family, isBold) => (isBold ? 'va-bold' : 'va-regular'),
-    warningCallback: (warning) => warnings.push(warning),
-  });
+  // Each piece draws over the same view box, in the drawing's order; between two, Stop can stop it.
+  // There is one page, so the pieces are the only place to stop between.
+  for (const piece of svgPieces(drawing.layers, PIECE)) {
+    svgToPdf(document, piece, 0, 0, {
+      width: natural.width,
+      height: natural.height,
+      assumePt: false,
+      fontCallback: (_family, isBold) => (isBold ? 'va-bold' : 'va-regular'),
+      warningCallback: (warning) => warnings.push(warning),
+    });
+    await pause();
+    signal?.throwIfAborted();
+  }
   document.restore();
   if (warnings.length > 0) {
     lost.push(t(PARTS_NOT_DRAWN, { count: warnings.length }));
@@ -206,8 +260,11 @@ export async function writePdf(
         : { creationDate: options.date, modifiedDate: options.date }),
     });
   }
+  signal?.throwIfAborted();
   document.end();
   await done;
+  // Stopped while it was being written out: what it made goes unused.
+  signal?.throwIfAborted();
   return { bytes: joined(chunks), page, lost };
 }
 

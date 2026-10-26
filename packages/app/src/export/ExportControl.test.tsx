@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Rect } from '../canvas/geometry';
 import { LanguageProvider } from '../i18n/LanguageProvider';
@@ -55,17 +55,12 @@ function dialog(): HTMLElement {
   return screen.getByRole('dialog');
 }
 
-/**
- * Lets the dialog's drawing run: a moment, then, when `until` is given, more moments until it holds,
- * for a machine too busy to draw within the first.
- */
-async function settle(until?: () => boolean): Promise<void> {
-  for (let waited = 0; waited < 5000; waited += 60) {
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 60));
-    });
-    if (!until || until()) return;
-  }
+/** How long a wait for the dialog's drawing may take, for a machine too busy to draw at once. */
+const PATIENCE = { timeout: 10_000 };
+
+/** Waits until something holds, as the dialog's drawing makes it hold. */
+async function until(holds: () => boolean): Promise<void> {
+  await waitFor(() => expect(holds()).toBe(true), PATIENCE);
 }
 
 describe('ExportControl', () => {
@@ -100,7 +95,7 @@ describe('ExportControl', () => {
     fireEvent.click(within(dialog()).getByRole('radio', { name: /^1×/ }));
 
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Save PNG' }));
-    await settle(() => save.mock.calls.length > 0);
+    await until(() => save.mock.calls.length > 0);
 
     expect(exportImage).toHaveBeenCalledWith({ area: 'visible', scale: 1 });
     expect(save).toHaveBeenCalledWith(PNG, 'My systems - System overview.png');
@@ -110,25 +105,26 @@ describe('ExportControl', () => {
 
   it('says while it draws, and draws once at a time', async () => {
     let finish: (blob: Blob) => void = () => {};
-    const { exportImage } = renderControl({
+    const { exportImage, save } = renderControl({
       drawn: makerWith(() => new Promise<Blob>((resolve) => (finish = resolve))),
     });
     fireEvent.click(screen.getByRole('button', { name: 'Export…' }));
     const saveButton = within(dialog()).getByRole('button', { name: 'Save PNG' });
 
     fireEvent.click(saveButton);
-    await settle(() => exportImage.mock.calls.length > 0);
+    await until(() => exportImage.mock.calls.length > 0);
+    // While it draws, Save does nothing: the dialog turns it down before it waits for anything.
     fireEvent.click(saveButton);
-    await settle();
 
     expect(within(dialog()).getByRole('status')).toHaveTextContent('Drawing the image…');
     expect(saveButton).toHaveAttribute('aria-disabled', 'true');
     expect(exportImage).toHaveBeenCalledTimes(1);
     finish(PNG);
-    await settle();
+    await until(() => save.mock.calls.length > 0);
+    expect(exportImage).toHaveBeenCalledTimes(1);
   });
 
-  it('says an image is too large, and offers no save for it', async () => {
+  it('says an image is too large, and offers no save for it', () => {
     const huge = { x: 0, y: 0, width: 12_000, height: 6_000 };
     const { exportImage } = renderControl({ bounds: huge });
     fireEvent.click(screen.getByRole('button', { name: 'Export…' }));
@@ -142,8 +138,9 @@ describe('ExportControl', () => {
     ).toBeInTheDocument();
     const saveButton = within(dialog()).getByRole('button', { name: 'Save PNG' });
     expect(saveButton).toHaveAttribute('aria-disabled', 'true');
+    // Save turns a size too large down before it waits for anything.
     fireEvent.click(saveButton);
-    await settle();
+    expect(within(dialog()).getByRole('status')).toHaveTextContent('');
     expect(exportImage).not.toHaveBeenCalled();
   });
 
@@ -154,7 +151,7 @@ describe('ExportControl', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Export…' }));
 
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Save PNG' }));
-    await settle(() => screen.queryByRole('alert') !== null);
+    await within(dialog()).findByRole('alert', {}, PATIENCE);
 
     expect(within(dialog()).getByRole('alert')).toHaveTextContent(
       'The canvas is not ready yet. Try again in a moment.',

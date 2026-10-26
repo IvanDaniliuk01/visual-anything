@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ProjectSnapshot } from '@visual-anything/core';
 import { describe, expect, it, vi } from 'vitest';
 import type { Rect } from '../canvas/geometry';
@@ -8,7 +8,7 @@ import { loadSample } from '../test/sample';
 import { PAGE_DATA_ID } from '../viewer/data';
 import { LARGE_PAGE, type ViewerAssets } from '../viewer/page';
 import { ExportControl } from './ExportControl';
-import { FILE_EXPORTS, type FileExport } from './formats';
+import { FILE_EXPORTS, type FileExport, type MadeFile } from './formats';
 import {
   ViewerMissing,
   fetchViewerAssets,
@@ -73,17 +73,12 @@ function dialog(): HTMLElement {
   return screen.getByRole('dialog');
 }
 
-/**
- * Lets the dialog's work run: a moment, then, when `until` is given, more moments until it holds,
- * for a machine too busy to finish within the first.
- */
-async function settle(until?: () => boolean): Promise<void> {
-  for (let waited = 0; waited < 10_000; waited += 60) {
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 60));
-    });
-    if (!until || until()) return;
-  }
+/** How long a wait for the dialog's work may take, for a machine too busy to finish at once. */
+const PATIENCE = { timeout: 10_000 };
+
+/** Waits until something holds, as the dialog's work makes it hold. */
+async function until(holds: () => boolean): Promise<void> {
+  await waitFor(() => expect(holds()).toBe(true), PATIENCE);
 }
 
 /** Whether the dialog has written its page, or said why it could not. */
@@ -97,7 +92,7 @@ function pageWritten(): boolean {
 
 async function choosePage(): Promise<void> {
   fireEvent.click(within(dialog()).getByRole('radio', { name: /^Read-only page/ }));
-  await settle(pageWritten);
+  await until(pageWritten);
 }
 
 describe('Export, with the read-only page', () => {
@@ -169,7 +164,7 @@ describe('Export, with the read-only page', () => {
     fireEvent.click(
       within(dialog()).getByRole('checkbox', { name: /^Open at what the canvas shows now/ }),
     );
-    await settle(pageWritten);
+    await until(pageWritten);
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Save the page' }));
     const html = await save.mock.calls[0]![0].text();
     expect(html).not.toContain('"start"');
@@ -210,7 +205,7 @@ describe('Export, with the read-only page', () => {
     renderControl({ language: 'es' });
     expect(dialog()).toHaveAccessibleName('Exportar “System overview”');
     fireEvent.click(within(dialog()).getByRole('radio', { name: /^Página de solo lectura/ }));
-    await settle(pageWritten);
+    await until(pageWritten);
     expect(within(dialog()).getByRole('button', { name: 'Guardar la página' })).toBeInTheDocument();
   });
 });
@@ -232,9 +227,14 @@ describe('Export, with the files of a writer', () => {
       }),
   };
 
-  /** A slow writer, as the PDF's is, whose file comes when the test says. */
+  /**
+   * A slow writer, as the PDF's is, whose file comes when the test says, and which stops, as the
+   * PDF's writer does, once its signal is aborted.
+   */
   function slowWriter() {
     let finish: () => void = () => {};
+    let making: Promise<MadeFile> | undefined;
+    let given: AbortSignal | undefined;
     const made = vi.fn();
     const pdf: FileExport = {
       ...svg,
@@ -243,15 +243,33 @@ describe('Export, with the files of a writer', () => {
       hint: () => 'Made when saved',
       extension: 'pdf',
       slow: true,
-      make: () => {
+      make: (_context, signal) => {
         made();
-        return new Promise((resolve) => {
+        given = signal;
+        making = new Promise((resolve, reject) => {
           finish = () =>
             resolve({ blob: new Blob(['%PDF']), fileName: 'My systems.pdf', lost: [] });
+          signal?.addEventListener('abort', () => reject(signal.reason as Error));
+        });
+        return making;
+      },
+    };
+    return {
+      pdf,
+      made,
+      finish: () => finish(),
+      /** The signal the dialog gave the writer. */
+      signal: () => given,
+      /** Waits until the dialog has taken in how the writer's file ended, made or stopped. */
+      settled: async () => {
+        await act(async () => {
+          await making?.then(
+            () => undefined,
+            () => undefined,
+          );
         });
       },
     };
-    return { pdf, made, finish: () => finish() };
   }
 
   it('offers each writer’s file, makes it to say its size, and saves it under its name', async () => {
@@ -260,8 +278,12 @@ describe('Export, with the files of a writer', () => {
     fireEvent.click(
       within(formats).getByRole('radio', { name: 'SVG drawing A drawing that scales' }),
     );
-    await settle(() => screen.queryByRole('radio', { name: 'SVG drawing 6 byte' }) !== null);
-    expect(within(formats).getByRole('radio', { name: 'SVG drawing 6 byte' })).toBeChecked();
+    const sized = await within(formats).findByRole(
+      'radio',
+      { name: 'SVG drawing 6 byte' },
+      PATIENCE,
+    );
+    expect(sized).toBeChecked();
     expect(within(dialog()).getByText('Nothing it draws')).toBeInTheDocument();
     expect(within(dialog()).getByText('A picture that could not be read')).toBeInTheDocument();
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Save SVG' }));
@@ -269,35 +291,83 @@ describe('Export, with the files of a writer', () => {
   });
 
   it('makes a slow file only when it is saved, says so, and saves it once it is made', async () => {
-    const { pdf, made, finish } = slowWriter();
+    const { pdf, made, finish, settled } = slowWriter();
     const { save } = renderControl({ files: [pdf] });
+    // Choosing it makes nothing: the dialog decides so as it is chosen.
     fireEvent.click(within(dialog()).getByRole('radio', { name: /^PDF document/ }));
-    await settle();
     expect(made).not.toHaveBeenCalled();
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Save PDF' }));
-    await settle();
     expect(made).toHaveBeenCalledTimes(1);
     expect(within(dialog()).getByRole('status')).toHaveTextContent(/^Making the file/);
     finish();
-    await settle(() => save.mock.calls.length > 0);
+    await settled();
     expect(save).toHaveBeenCalledWith(expect.any(Blob), 'My systems.pdf');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('stops waiting for a slow file, and saves nothing of it', async () => {
-    const { pdf, finish } = slowWriter();
+  it('stops a slow file’s writer, saves nothing of it, and takes it as stopped, not as a failure', async () => {
+    const { pdf, signal, settled } = slowWriter();
     const { save } = renderControl({ files: [pdf] });
     fireEvent.click(within(dialog()).getByRole('radio', { name: /^PDF document/ }));
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Save PDF' }));
-    await settle();
+    expect(signal()?.aborted).toBe(false);
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Stop making it' }));
-    finish();
-    await settle();
+    expect(signal()?.aborted).toBe(true);
+    await settled();
     expect(save).not.toHaveBeenCalled();
+    expect(within(dialog()).queryByRole('alert')).not.toBeInTheDocument();
     expect(within(dialog()).getByRole('status')).toHaveTextContent('');
     expect(within(dialog()).getByRole('button', { name: 'Save PDF' })).not.toHaveAttribute(
       'aria-disabled',
     );
+  });
+
+  it('takes a writer that stopped of itself as stopped too', async () => {
+    const stopping: FileExport = {
+      ...svg,
+      id: 'pdf',
+      name: () => 'PDF document',
+      extension: 'pdf',
+      slow: true,
+      make: () => Promise.reject(new DOMException('The operation was aborted.', 'AbortError')),
+    };
+    renderControl({ files: [stopping] });
+    fireEvent.click(within(dialog()).getByRole('radio', { name: /^PDF document/ }));
+    await act(async () => {
+      fireEvent.click(within(dialog()).getByRole('button', { name: 'Save PDF' }));
+      await Promise.resolve();
+    });
+    expect(within(dialog()).queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(dialog()).getByRole('button', { name: 'Save PDF' })).not.toHaveAttribute(
+      'aria-disabled',
+    );
+  });
+
+  it('says why a writer failed', async () => {
+    const failing: FileExport = {
+      ...svg,
+      id: 'pdf',
+      name: () => 'PDF document',
+      extension: 'pdf',
+      slow: true,
+      make: () => Promise.reject(new Error('The fonts the PDF embeds could not be read.')),
+    };
+    renderControl({ files: [failing] });
+    fireEvent.click(within(dialog()).getByRole('radio', { name: /^PDF document/ }));
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Save PDF' }));
+    expect(await within(dialog()).findByRole('alert', {}, PATIENCE)).toHaveTextContent(
+      'The file could not be written: The fonts the PDF embeds could not be read.',
+    );
+  });
+
+  it('stops a slow file’s writer when the dialog closes', () => {
+    const { pdf, signal } = slowWriter();
+    renderControl({ files: [pdf] });
+    fireEvent.click(within(dialog()).getByRole('radio', { name: /^PDF document/ }));
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Save PDF' }));
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(signal()?.aborted).toBe(true);
   });
 
   it('says why a view cannot give a format, and does not offer it', () => {
@@ -335,7 +405,7 @@ describe('Export, with the files of a writer', () => {
   it('writes the SVG of the view with W32’s writer', async () => {
     const { save } = renderControl({ files: FILE_EXPORTS });
     fireEvent.click(within(dialog()).getByRole('radio', { name: /^SVG drawing/ }));
-    await settle(() =>
+    await until(() =>
       /\d\s?(byte|kB|MB)$/.test(
         screen.getByRole('radio', { name: /^SVG drawing/ }).closest('label')?.textContent ?? '',
       ),

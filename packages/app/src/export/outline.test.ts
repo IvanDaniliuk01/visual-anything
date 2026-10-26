@@ -1,5 +1,6 @@
 import fc from 'fast-check';
 import type { ProjectSnapshot } from '@visual-anything/core';
+import type { Overlay } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { setCurrentLanguage } from '../i18n/language';
 import { SAMPLE_VIEW, collapsedSample } from '../test/exports';
@@ -112,5 +113,134 @@ describe('writeOutline', () => {
     const { text } = writeOutline(loadSample(), SAMPLE_VIEW);
     expect(text).not.toContain('What this outline leaves out');
     expect(text).not.toContain('Shapes and relations');
+  });
+});
+
+describe('the legend of an outline', () => {
+  const team: Overlay = {
+    id: 'team',
+    name: 'Team',
+    of: 'elements',
+    attribute: 'owner',
+    channel: 'fill',
+    mapping: {
+      kind: 'discrete',
+      cases: [
+        { value: 'Scheduling team', color: '#FFFF00' },
+        { value: 'Patient experience', color: '#FFFF33', label: 'Patients' },
+      ],
+      otherwise: '#6B7280',
+    },
+  };
+  const latency: Overlay = {
+    id: 'latency',
+    of: 'relations',
+    attribute: 'rate',
+    channel: 'opacity',
+    mapping: {
+      kind: 'continuous',
+      stops: [
+        { at: 0, opacity: 0.4 },
+        { at: 100, opacity: 1, label: 'Busy' },
+      ],
+    },
+  };
+  const tier: Overlay = {
+    id: 'tier',
+    name: 'Tier',
+    of: 'elements',
+    attribute: 'tier',
+    channel: 'badge',
+    mapping: { kind: 'passthrough' },
+  };
+  const marked: Overlay = {
+    id: 'marked',
+    of: 'elements',
+    attribute: 'critical',
+    channel: 'badge',
+    mapping: { kind: 'discrete', cases: [{ value: 'true', text: 'Critical' }] },
+  };
+
+  function withOverlays(overlays: Overlay[]): ProjectSnapshot {
+    const project = loadSample();
+    return {
+      ...project,
+      views: project.views.map((view) => (view.id === SAMPLE_VIEW ? { ...view, overlays } : view)),
+    };
+  }
+
+  it('lists each overlay that is on, with what it changes and each case and stop in words', () => {
+    const { text } = writeOutline(withOverlays([team, latency, tier, marked]), SAMPLE_VIEW);
+    expect(text).toContain(
+      [
+        '## Legend',
+        '',
+        '### Team',
+        '',
+        'Fill by owner.',
+        '',
+        '- Scheduling team: `#FFFF00`',
+        '- Patients: `#FFFF33`',
+        '- Any other value: `#6B7280`',
+        '',
+        '### rate',
+        '',
+        'Line opacity by rate.',
+        '',
+        '- 0: 40%',
+        '- Busy: 100%',
+        '',
+        '### Tier',
+        '',
+        'Badge by tier.',
+        '',
+        '- The value itself',
+        '',
+        '### critical',
+        '',
+        'Badge by critical.',
+        '',
+        '- true: “Critical”',
+        '',
+        '## Scenarios',
+      ].join('\n'),
+    );
+  });
+
+  it('says nothing of its colors’ contrast, which only a drawing shows', () => {
+    const { text } = writeOutline(withOverlays([team]), SAMPLE_VIEW);
+    expect(text).not.toContain('under 3:1');
+  });
+
+  it('has no legend while no overlay is on', () => {
+    expect(writeOutline(loadSample(), SAMPLE_VIEW).text).not.toContain('## Legend');
+    const off = writeOutline(withOverlays([{ ...team, off: true }]), SAMPLE_VIEW);
+    expect(off.text).not.toContain('## Legend');
+  });
+
+  it('writes what people wrote in it as text, never as markup', () => {
+    const hostile: Overlay = {
+      ...team,
+      name: '# <b>Team</b>',
+      attribute: 'own*er',
+      mapping: {
+        kind: 'discrete',
+        cases: [{ value: 'x', color: '#FFFF00', label: '[link](http://x)' }],
+      },
+    };
+    const { text } = writeOutline(withOverlays([hostile]), SAMPLE_VIEW);
+    expect(text).toContain('### \\# \\<b\\>Team\\</b\\>');
+    expect(text).toContain('Fill by own\\*er.');
+    expect(text).toContain('- \\[link\\]\\(http://x\\): `#FFFF00`');
+  });
+
+  it('writes its words in the language the app reads in', () => {
+    setCurrentLanguage('es');
+    const { text } = writeOutline(withOverlays([team, latency]), SAMPLE_VIEW);
+    expect(text).toContain('## Referencias');
+    expect(text).toContain('Relleno según owner.');
+    expect(text).toContain('- Cualquier otro valor: `#6B7280`');
+    // Spanish writes a no-break space before the percent sign.
+    expect(text).toContain('- 0: 40 %');
   });
 });

@@ -10,6 +10,8 @@
  */
 import {
   definitionsIn,
+  legendOf,
+  legendShows,
   modelIndexOf,
   relationTypeOrRelatesTo,
   type ProjectSnapshot,
@@ -228,6 +230,14 @@ export function writeMermaid(
     ...(people > 0 ? [t(PEOPLE, { count: people })] : []),
     ...(pictures > 0 ? [t(PICTURES, { count: pictures })] : []),
     ...(free > 0 ? [t(FREE, { count: free })] : []),
+    // Mermaid draws no legend, though its colors are the overlays' (ADR 0055).
+    ...(legendShows(legendOf(view, definitions, theme))
+      ? [
+          t(
+            'The legend of the view’s overlays, whose colors it draws: the outline in Markdown, the SVG and the PDF carry it.',
+          ),
+        ]
+      : []),
   ];
 
   const bounds = scene.bounds;

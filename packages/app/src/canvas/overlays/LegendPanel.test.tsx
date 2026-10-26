@@ -7,9 +7,11 @@ import { definitionsIn, legendOf, type Legend } from '@visual-anything/core';
 import type { Overlay, ViewFile } from '@visual-anything/schema';
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { layOutBand, withLegendBand } from '../../export/legendBand';
-import { t } from '../../i18n';
+import { withLegendBand } from '../../export/legendBand';
+import { layOutBand } from '../../export/legendLayout';
+import { t, translatorFor } from '../../i18n';
 import { loadSample } from '../../test/sample';
+import { THEMES } from '../../theme/themes';
 import { LegendPanel } from './LegendPanel';
 
 const sample = loadSample();
@@ -82,7 +84,9 @@ describe('the legend below an image', () => {
 
   it('lays each overlay out below the next, its entries wrapping before the edge', () => {
     const band = layOutBand(legendWith([owner, rate]), t, measure, 360, 1, 'light');
-    const texts = band.items.flatMap((item) => (item.kind === 'text' ? [item.text] : []));
+    const texts = band.items.flatMap((item) =>
+      item.kind === 'text' && item.warning === undefined ? [item.text] : [],
+    );
     expect(texts).toEqual([
       'Team',
       'Fill by owner',
@@ -97,6 +101,7 @@ describe('the legend below an image', () => {
     const swatches = band.items.filter((item) => item.kind === 'swatch');
     expect(swatches).toHaveLength(5);
     // Every item lies within the image's width, and the band holds them all.
+    expect(band.width).toBe(360);
     for (const item of band.items) {
       expect(item.x).toBeLessThan(360);
       expect(item.y).toBeLessThan(band.height);
@@ -104,6 +109,40 @@ describe('the legend below an image', () => {
     // The third entry wraps onto a line of its own.
     const rows = new Set(swatches.slice(0, 3).map((item) => item.y));
     expect(rows.size).toBe(2);
+    // Each overlay's items, in order.
+    expect(band.parts.map((part) => part.id)).toEqual(['owner', 'rate']);
+    expect(band.parts[0]?.to).toBe(band.parts[1]?.from);
+    expect(band.parts[1]?.to).toBe(band.items.length);
+  });
+
+  it('writes what the legend warns about its colors below the entries, wrapped to the band', () => {
+    const band = layOutBand(legendWith([owner]), t, measure, 360, 1, 'light');
+    const warnings = band.items.filter((item) => item.kind === 'text' && item.warning);
+    const lastSwatch = band.items.filter((item) => item.kind === 'swatch').at(-1);
+    expect(warnings.length).toBeGreaterThan(0);
+    for (const warning of warnings) {
+      if (warning.kind !== 'text') continue;
+      expect(warning.y).toBeGreaterThan(lastSwatch?.y ?? 0);
+      expect(warning.x + measure(warning.text)).toBeLessThanOrEqual(360 - 16);
+      expect(warning.color).toBe(THEMES.light.shell.colors.warning);
+    }
+    const said = warnings.map((item) => (item.kind === 'text' ? item.text : '')).join(' ');
+    expect(said).toContain(
+      '"Scheduling team" and "Patients" of "Team" are 1.0:1 apart, under 3:1.',
+    );
+  });
+
+  it('writes its warnings in the language read in', () => {
+    const band = layOutBand(legendWith([owner]), translatorFor('es'), measure, 360, 1, 'light');
+    const said = band.items
+      .flatMap((item) => (item.kind === 'text' && item.warning ? [item.text] : []))
+      .join(' ');
+    expect(said).toContain('"Scheduling team" y "Patients" de "Team" están a 1.0:1, menos de 3:1.');
+  });
+
+  it('is at least 320 pixels wide, so that a narrow drawing is widened to hold it', () => {
+    expect(layOutBand(legendWith([owner]), t, measure, 120, 1, 'light').width).toBe(320);
+    expect(layOutBand(legendWith([owner]), t, measure, 120, 2, 'light').width).toBe(640);
   });
 
   it('draws the image and its band on one canvas taller by the band', () => {
@@ -134,7 +173,8 @@ describe('the legend below an image', () => {
     expect(result).not.toBe(image);
     expect(result.width).toBe(800);
     expect(result.height).toBeGreaterThan(600);
-    expect(drawn[0]).toBe('image');
+    // The canvas's color, then the image, then the band on it.
+    expect(drawn.slice(0, 2)).toEqual(['rect', 'image']);
     expect(drawn).toContain('text Team');
     expect(drawn).toContain('text Fill by owner');
     // Without overlays, the image is the image.

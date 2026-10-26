@@ -115,3 +115,43 @@ describe('writeMermaid', () => {
     expect(text.split('\n').filter((line) => line.includes('click'))).toHaveLength(4);
   });
 });
+
+describe('A Mermaid flowchart of a view with overlays', () => {
+  const NO_LEGEND =
+    'The legend of the view’s overlays, whose colors it draws: the outline in Markdown, the SVG and the PDF carry it.';
+
+  function withOverlay(off: boolean): ProjectSnapshot {
+    const project = loadSample();
+    return {
+      ...project,
+      views: project.views.map((view) =>
+        view.id === SAMPLE_VIEW
+          ? {
+              ...view,
+              overlays: [
+                {
+                  id: 'team',
+                  of: 'elements',
+                  attribute: 'owner',
+                  channel: 'fill',
+                  mapping: {
+                    kind: 'discrete',
+                    cases: [{ value: 'Scheduling team', color: '#FFFF00' }],
+                  },
+                  ...(off ? { off: true } : {}),
+                },
+              ],
+            }
+          : view,
+      ),
+    };
+  }
+
+  it('says it carries no legend while an overlay is on', () => {
+    const { text, lost } = writeMermaid(withOverlay(false), SAMPLE_VIEW);
+    expect(lost).toContain(NO_LEGEND);
+    expect(text).toContain(NO_LEGEND);
+    expect(writeMermaid(withOverlay(true), SAMPLE_VIEW).lost).not.toContain(NO_LEGEND);
+    expect(writeMermaid(loadSample(), SAMPLE_VIEW).lost).not.toContain(NO_LEGEND);
+  });
+});

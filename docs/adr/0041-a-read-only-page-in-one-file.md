@@ -103,3 +103,10 @@ Reading a project needs the local program today, so a project cannot be shared, 
   - the page's data leaves out each package's `code` and `capabilities`, so a package's code never travels in a page, though nothing in a page could run it;
   - the page shows the attributes the model stores, and no value or drawing package code computes; the Export dialog says so when a package of the project holds code;
   - the bundle test adds the code worker, its interpreter and the core's code commands to the modules the page must not hold, and `WebAssembly.` to what its script must not say.
+
+<!-- Decided by Claude on 2026-10-25 under the user's standing delegation of design decisions. -->
+
+- 2026-10-25: **Stopping a PDF stops its writer** (W41; this replaces "the writer itself runs on, its result unused" above).
+  - `exportView` and the PDF writer take an `AbortSignal`. The PDF has one page, so the writer stops between pieces of its drawing: it draws the SVG in pieces of at most 64,000 characters each, the canvas's color first, then each layer's parts in order, each piece holding only the pictures it uses, and lets the page do what waits between two. Once the signal is aborted it draws no further piece and rejects with the signal's reason, an `AbortError`. The text exports, written at once, check it before and after.
+  - Stop making it, and closing the dialog, abort the writer's signal. The dialog takes a writer that ends so, or that throws an `AbortError`, as stopped: it shows no failure, and the file can be made again.
+  - Drawing piece by piece also keeps the tab answering while a large view's PDF is made, so that Stop can be pressed at all. PDFKit keeps one copy of each picture, by its address, however many pieces use it.
