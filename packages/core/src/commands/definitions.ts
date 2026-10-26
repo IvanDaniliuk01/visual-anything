@@ -33,6 +33,7 @@ import {
 import type { ProjectSnapshot } from '../snapshot';
 import { definitionsIn } from '../state';
 import { compact, count, reject, requireName, sameJson, type Draft } from './draft';
+import { putRelationTypesLeftOut } from './scopes';
 import {
   checkedAttribution,
   checkedLicense,
@@ -369,6 +370,16 @@ export function removeRelationType(draft: Draft, command: RemoveRelationTypeComm
       'in-use',
       `The relation type "${defined.definition.name}" cannot be removed: ${describeUsers(users)} use it.`,
       ids,
+    );
+  }
+  // It leaves every list of relation types a view leaves out, in the same action (ADR 0064).
+  for (const view of draft.state.views) {
+    const list = view.relationTypesLeftOut ?? [];
+    if (!list.some((each) => each.relationType === command.id)) continue;
+    putRelationTypesLeftOut(
+      draft,
+      view,
+      list.filter((each) => each.relationType !== command.id),
     );
   }
   draft.apply({

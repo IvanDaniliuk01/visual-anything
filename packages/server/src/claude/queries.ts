@@ -17,6 +17,7 @@ import {
   modelIndexOf,
   nestingTypesInView,
   scenarioTimeline,
+  showsPart,
   shownByScope,
   stackingOrderOf,
   type ProjectSnapshot,
@@ -378,7 +379,7 @@ export function readView(state: ProjectSnapshot, viewId: Id) {
       }))
       .filter((each) => each.backToFront.length > 0),
   ];
-  const { collapsed, routes, scope } = view;
+  const { collapsed, routes, scope, relationTypesLeftOut } = view;
   return {
     id: view.id,
     name: view.name,
@@ -389,6 +390,8 @@ export function readView(state: ProjectSnapshot, viewId: Id) {
     // How much of the model it shows, through its scope when it has one (ADR-0040).
     shows: shownCounts(state, view),
     ...(scope === undefined ? {} : { scope }),
+    // The relation types whose relations it does not draw (ADR 0064).
+    ...(relationTypesLeftOut === undefined ? {} : { relationTypesLeftOut }),
     positions: view.positions,
     freeShapes: view.freeShapes,
     stacking,
@@ -400,11 +403,12 @@ export function readView(state: ProjectSnapshot, viewId: Id) {
 
 /**
  * How much of the model a view shows: its elements and relations out of the model's, World left out,
- * and whether that is the whole model or what its scope gives (ADR-0040).
+ * and whether that is the whole model or what its scope gives (ADR-0040), less the relations of the
+ * relation types it leaves out (ADR 0064).
  */
 export function shownCounts(state: ProjectSnapshot, view: ProjectSnapshot['views'][number]) {
   const { elements, relations } = state.model;
-  if (view.scope === undefined) {
+  if (!showsPart(view)) {
     return {
       whole: true,
       elements: elements.length,

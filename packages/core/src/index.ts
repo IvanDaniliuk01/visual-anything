@@ -102,8 +102,17 @@ export { indexModel } from './model-index';
 export { definitionsIn, modelIndexOf } from './state';
 // What a view shows through its scope, and the scope's limits (ADR 0040).
 export { shownByScope, type ShownByScope } from './scope';
+// The relation types a view leaves out (ADR 0064).
+export {
+  leavesOutRelationTypes,
+  relationTypesLeftOutBy,
+  showsPart,
+  type LeftOutTypes,
+} from './scope';
 export { shapesInView, type ShapesInView } from './scope-placement';
-export { MAX_SCOPE_DEPTH, MAX_SCOPE_RULES } from './commands/scopes';
+// Whether the app's placement of what an action added joins that action (ADR 0065).
+export { placementJoins, type PlacementJoin } from './placement-joins';
+export { MAX_RELATION_TYPES_LEFT_OUT, MAX_SCOPE_DEPTH, MAX_SCOPE_RULES } from './commands/scopes';
 // How filters and scopes test an attribute (ADR 0025, ADR 0040).
 export { meetsCondition, type AttributeTest } from './conditions';
 // A relation in words, as the history names it.
@@ -168,6 +177,7 @@ export {
   HISTORY_LIMIT,
   HISTORY_WEIGHT_LIMIT,
   actionWeight,
+  extendNewest,
   record,
   redo,
   summarize,
@@ -323,6 +333,8 @@ export * from './live';
 export type { RangeKind } from './time-range';
 export {
   RANGE_KINDS,
+  // Checked alike in view states and in guidance that filters (ADR 0057).
+  checkTimeRange,
   periodMeetsRange,
   pointInRange,
   rangeKindOf,

@@ -298,17 +298,17 @@ Eight milestones in build order, each ending in something you can use, and Track
   - [x] Ids made from names split a word at an apostrophe (`claude-s-messages`, `a-command-s-path.vaview`); they keep it whole now (ADR 0019)
   - [x] `set_scope` did not say how to show only elements picked by hand: `added` alone shows the whole model; it now says to exclude Essence and add them (ADR 0040)
   - [x] The log a sample's scenario comes from is kept beside it in `logs/`, which `.gitignore`'s `*.log` left out (ADR 0019)
-  - [ ] Placing new shapes inside a container never moves the shapes beside it, so a container that grows with what Claude adds covers its neighbours until the whole view is laid out (ADR 0015 moves only new shapes)
-  - [ ] Placing what Claude adds is recorded as the person's action (`Lay out 22 new shapes`, by you), also after `change_container` without places: one change of Claude's takes two undos, and the history shows layouts nobody asked for
+  - [x] Placing new shapes inside a container never moves the shapes beside it, so a container that grows with what Claude adds covers its neighbours until the whole view is laid out (ADR 0015 moves only new shapes); the placement moves the unpinned ones aside now, right or down, past the pinned ones (ADR 0015's clarification of W48)
+  - [x] Placing what Claude adds is recorded as the person's action (`Lay out 22 new shapes`, by you), also after `change_container` without places: one change of Claude's takes two undos, and the history shows layouts nobody asked for; the placement joins the action that added the shapes now (ADR 0065)
   - [ ] The canvas's routes do not go around the shapes between their ends, so in nested views lines cross other shapes and their names
-  - [ ] A view cannot leave out relation types: a Structure view of a code base draws every call and connection between its parts, which only filters, never kept with the view, hide (needs an ADR beside ADR 0025 and ADR 0040)
+  - [x] A view cannot leave out relation types: a Structure view of a code base draws every call and connection between its parts, which only filters, never kept with the view, hide; a view's `relationTypesLeftOut` leaves them out now, set beside the scope and by Claude's `leave_out_relation_types` (ADR 0064)
   - [ ] Below about 60%, straight edges thinner than a pixel vanish and only rounded corners draw, so a shape inside a container of the same fill disappears
   - [ ] Fit can choose a zoom at which no names draw (17% for 84 shapes), and `lay_out_view` leaves the camera where it was, so the person may see blank boxes or empty canvas
   - [ ] Playback and `go_to_step` never bring the step played into view, so a step off screen plays unseen
   - [ ] Guidance that names a view switches every open tab to it, and a tab switched so keeps the camera of the view it showed
   - [ ] The canvas's keys, such as Alt+− to collapse, do nothing while focus is in the outline, and the outline offers no collapse
-  - [ ] The program writes nothing per action, so the log of a command's path had to come from the browser's WebSocket frames; a `--log` option writing one line per action would make one to paste
-  - [ ] `define_component` and `update_component` warn about no color, as `set_appearance` does about a fill that fades into the light canvas
+  - [x] The program writes nothing per action, so the log of a command's path had to come from the browser's WebSocket frames; a `--log` option writing one line per action would make one to paste; `--log <file>` does now (ADR 0016's clarification)
+  - [x] `define_component` and `update_component` warn about no color, as `set_appearance` does about a fill that fades into the light canvas; they give its warnings now, and so do `define_relation_type` and `update_relation_type` (ADR 0029's clarification of W48)
   - [ ] A collapsed container's count is cut off at its component's size (`Code package…`)
   - [ ] The header wraps to two rows when the view's name and the Undo label are long, which moves the canvas down while you work (A4)
 - [x] README with setup for Claude Desktop and Claude Code
@@ -397,7 +397,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [x] Time ranges: a range filter on a date, time or number attribute, with a slider and playback, kept by the app as filters are (ADR 0025)
 - [x] Overlays and the element list read through the attribute lookup, live and computed values over stored ones; the view state carries the time range, in view addresses, `open_app` and tour steps; a live update keeps a running layout animation (ADR 0057, ADR 0044, ADR 0058)
 - [ ] A live update of 1,000 values on a 10,000-element view within a frame, judged by the benchmark's `?live` phase in the browser (ADR 0057)
-- [ ] Claude reads live values with their sender and age, and `filter_view` sets a time range (ADR 0057)
+- [x] Claude reads live values with their sender and age (W45), and `filter_view` sets a time range (W48) (ADR 0057)
 - [ ] The reading benchmark: 100,000 elements and 200,000 relations opened with containers collapsed; 60 fps while fewer than 10,000 shapes show; expanding a container of 1,000 under 100 ms; a search under 50 ms; drawing many instances at once when zoomed out, and layout only for what is open
 
 **M11 · Tours and comments.** Planned beside M7 and M8, moved ahead of M9. Done when:

@@ -141,4 +141,23 @@ describe('undo and redo up to an action', () => {
       `Could not undo: ${refused.message}`,
     ]);
   });
+
+  it('asks for a placement to join the action it names, and sends a command alone without (ADR 0065)', () => {
+    const { connection, socket } = openConnection();
+    const command = {
+      type: 'set-positions' as const,
+      view: 'system-overview',
+      positions: [{ element: 'patient', x: 0, y: 0 }],
+    };
+
+    void connection.send(command, { joins: CREATE.id });
+    expect(socket.lastSent()).toEqual({
+      type: 'command',
+      requestId: expect.any(String) as string,
+      command,
+      joins: CREATE.id,
+    });
+    void connection.send(command);
+    expect(socket.lastSent()).not.toHaveProperty('joins');
+  });
 });

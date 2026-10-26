@@ -24,6 +24,12 @@ export interface LayoutShape {
   parent: number;
   /** Whether layout may move it: otherwise layout keeps it where it is, as it keeps pinned shapes. */
   free: boolean;
+  /**
+   * On a shape layout keeps that has a stored position and is not pinned: layout may move it aside,
+   * right or down, so that a container beside it that grows with what layout placed in it covers
+   * nothing. A pinned shape never moves.
+   */
+  aside?: true;
   /** Where it sits now, relative to its container's shape, or to the canvas when directly in World. */
   x: number;
   y: number;
@@ -82,6 +88,8 @@ export interface LaidOutShape {
   /** Relative to its container's shape, or to the canvas; multiples of `LAYOUT_STEP`. */
   x: number;
   y: number;
+  /** Present on a shape layout kept but moved aside, to make room for a container that grew. */
+  aside?: true;
 }
 
 /** What one layout gives back. */

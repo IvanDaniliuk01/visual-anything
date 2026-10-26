@@ -30,3 +30,15 @@ A view file gains an optional `relationTypesLeftOut`: relation types whose relat
 - The schema's `ViewFile` gains `relationTypesLeftOut`, checked like the scope's lists, and the core's commands set it and keep it in step with deletions.
 - The scene, aggregation, search's view grouping, playback and the read-only page follow it.
 - CONTEXT.md gains the term in the View entry.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (W48): **what the build settled.**
+  - **A command of its own.** The core's `set-relation-types-left-out` sets the view's list whole, as one action that changes only the view's file; an empty list draws every relation type again. It reads better than a part of `update-view`, whose label could not say what changed, or of `set-scope`, whose scope this ADR keeps apart. The history names it by what changed: `Leave the relations of "calls" out of "Structure"`, `Draw the relations of "calls" in "Structure" again`, `Draw every relation type in "Structure"`, or `Change which relation types "Structure" leaves out`. The file keeps the list sorted by relation type, each once, `exactly` only when true.
+  - **What it refuses.** A relation type the view nests by, named in the list, is refused with `not-drawn-as-line`. An entry that covers one by derivation, such as "relates to" with what derives from it, is taken, and the relation types the view nests by stay out of it: so "relates to" leaves out every line and keeps the containment. `update-view` refuses to nest by a relation type the list names (`in-use`), until the view draws it again.
+  - **The core's reading.** `shownByScope(…).relation` answers whether the view draws a relation, through its scope and the relation types it leaves out, and `relationByScope` whether the scope alone shows it, which tells a relation that leaves the view from one left out by its type; `relationTypesLeftOutBy` answers which relation types a view leaves out. The scene, aggregation, the count of relations that leave the view, search's grouping by view, the timeline, playback's markers, Claude's counts and the read-only page all read them.
+  - **Steps.** A step whose relations are all left out by their types plays outside the view, with its mark, and the step panel says that the view leaves out their relation types, with nothing to add.
+  - **Claude** reads the list with `get_scope` and `read_view`, and sets it with a tool of its own, `leave_out_relation_types`, whole each time, as one action.
+  - **Opening** warns about an entry that names a relation type no package in use defines; it still leaves out the relations of exactly that id.

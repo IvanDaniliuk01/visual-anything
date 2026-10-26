@@ -54,3 +54,37 @@ describe('a step outside the view', () => {
     expect(markersOf(whole, wholeView, entry, 0.5).length).toBeGreaterThan(0);
   });
 });
+
+describe('a step on a relation of a type the view leaves out (ADR 0064)', () => {
+  const sample = loadSample();
+  const project: ProjectSnapshot = {
+    ...sample,
+    views: sample.views.map((view) =>
+      view.id === VIEW
+        ? { ...view, relationTypesLeftOut: [{ relationType: 'systems.communicates-with' }] }
+        : view,
+    ),
+  };
+  const scenario = project.scenarios.find((each) => each.view === VIEW)!;
+  const timeline = scenarioTimeline(project, scenario);
+  const outside = timeline.entries.findIndex((entry) => entry.kind === 'step' && entry.outside);
+
+  it('plays as outside the view, with no marker, and says why without ends to add', () => {
+    expect(outside).toBeGreaterThanOrEqual(0);
+    const view = project.views.find((each) => each.id === VIEW)!;
+    expect(markersOf(project, view, timeline.entries[outside]!, 0.5)).toEqual([]);
+    const step = scenario.steps[timeline.entries[outside]!.first]!;
+    render(
+      <OutsideNote
+        project={project}
+        scenario={scenario}
+        step={step}
+        editable
+        send={() => Promise.resolve(true)}
+      />,
+    );
+    expect(screen.getByText('Outside the view')).toBeTruthy();
+    expect(screen.getByText(/leaves out the relation types of this step’s relations/)).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+});

@@ -516,6 +516,13 @@ export interface ViewFile {
    */
   scope?: Scope;
   /**
+   * The relation types whose relations this view does not draw (ADR 0064): not as lines, not in a
+   * collapsed container's aggregated relations, and in no count of relations that leave the view.
+   * Such a relation stays in the model. A relation type the view nests by draws containment, so it is
+   * never left out. Left out when it has none.
+   */
+  relationTypesLeftOut?: RelationTypesLeftOut;
+  /**
    * How this view colors, sizes, marks or fades its shapes by their attributes, in order (ADR 0055):
    * each channel of a shape is set by the first overlay that sets it. Left out when it has none.
    */
@@ -554,6 +561,20 @@ export interface Scope {
  * @uniqueItems true
  */
 export type ScopeList = Id[];
+
+/**
+ * The relation types a view leaves out (ADR 0064), sorted by relation type, each once.
+ *
+ * @minItems 1
+ * @maxItems 256
+ */
+export type RelationTypesLeftOut = RelationTypeLeftOut[];
+
+/** A relation type a view leaves out, with every relation type derived from it unless `exactly`. */
+export interface RelationTypeLeftOut {
+  relationType: Id;
+  exactly?: boolean;
+}
 
 /**
  * A rule of a scope: which elements it takes.

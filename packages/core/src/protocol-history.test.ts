@@ -78,3 +78,45 @@ describe('undo and redo up to an action (protocol 5)', () => {
     expect(() => decodeAppMessage(JSON.stringify(message))).toThrow(ProtocolError);
   });
 });
+
+describe('a command that joins an action (ADR 0065)', () => {
+  const placement = {
+    type: 'set-positions' as const,
+    view: 'overview',
+    positions: [{ element: 'cache', x: 0, y: 0 }],
+  };
+
+  it('reads back the action it joins, and a command without one as before', () => {
+    const joining: AppMessage = { type: 'command', requestId: 'c1', command: placement, joins: 7 };
+    expect(decodeAppMessage(encodeMessage(joining))).toEqual(joining);
+    const alone: AppMessage = { type: 'command', requestId: 'c2', command: placement };
+    expect(decodeAppMessage(encodeMessage(alone))).toEqual(alone);
+  });
+
+  it.each([
+    ['an action that is not a whole number', 1.5],
+    ['an action below one', 0],
+    ['an action named by text', '7'],
+  ])('refuses %s', (_case, joins) => {
+    expect(() =>
+      decodeAppMessage(
+        JSON.stringify({ type: 'command', requestId: 'c', command: placement, joins }),
+      ),
+    ).toThrow(ProtocolError);
+  });
+
+  it('says in the change which action a placement joined', () => {
+    const message = {
+      type: 'project/changed' as const,
+      operations: [],
+      kind: 'do' as const,
+      label: 'Create "Cache"',
+      author: 'claude' as const,
+      history: { undo: { label: 'Create "Cache"', author: 'claude' as const } },
+      warnings: [],
+      created: [],
+      joins: 7,
+    };
+    expect(decodeServerMessage(encodeServerMessage(message))).toEqual(message);
+  });
+});

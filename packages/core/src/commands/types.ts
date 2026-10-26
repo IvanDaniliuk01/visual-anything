@@ -29,6 +29,7 @@ import type {
   Point,
   RelationAppearance,
   RelationType,
+  RelationTypeLeftOut,
   Scope,
   ShapePosition,
   Step,
@@ -76,6 +77,7 @@ export type Command =
   | SetScopeCommand
   | AddToViewCommand
   | LeaveOutOfViewCommand
+  | SetRelationTypesLeftOutCommand
   | DefineImageCommand
   | RemoveImageCommand
   | SetRouteCommand
@@ -377,6 +379,17 @@ export interface LeaveOutOfViewCommand {
   type: 'leave-out-of-view';
   view: Id;
   elements: Id[];
+}
+
+/**
+ * Sets the relation types a view leaves out (ADR 0064), replacing its list: their relations it does
+ * not draw, each with the relation types derived from it unless `exactly`. An empty list draws them
+ * all again. It refuses a relation type the view nests by, and changes only the view's file.
+ */
+export interface SetRelationTypesLeftOutCommand {
+  type: 'set-relation-types-left-out';
+  view: Id;
+  relationTypes: RelationTypeLeftOut[];
 }
 
 /** Deletes elements and relations, and every relation that ends on anything deleted. */

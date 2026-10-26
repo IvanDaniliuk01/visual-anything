@@ -1693,6 +1693,15 @@ export const ui: Catalog = {
   'Left out by hand': 'Dejados fuera a mano',
   'Add back': 'Volver a agregar',
   'Add “{name}” back to this view': 'Volver a agregar “{name}” a esta vista',
+  // The relation types a view leaves out (ADR 0064).
+  'Relation types it leaves out': 'Tipos de relación que deja fuera',
+  'It draws the relations of every relation type.':
+    'Dibuja las relaciones de todos los tipos de relación.',
+  'Draw again': 'Volver a dibujar',
+  'Draw the relations of “{name}” again': 'Volver a dibujar las relaciones de “{name}”',
+  'Leave out a relation type…': 'Dejar fuera un tipo de relación…',
+  'Leave out a relation type': 'Dejar fuera un tipo de relación',
+  'Leave out': 'Dejar fuera',
   'Shows the elements that meet one of these rules':
     'Muestra los elementos que cumplen una de estas reglas',
   'Leaves out the elements that meet any of these rules':
@@ -1727,6 +1736,8 @@ export const ui: Catalog = {
   'Outside the view': 'Fuera de la vista',
   'The scope of “{view}” shows none of this step’s relations, so nothing is marked for it there. It plays all the same.':
     'El alcance de “{view}” no muestra ninguna de las relaciones de este paso, así que allí no se marca nada para él. Se reproduce igual.',
+  '“{view}” leaves out the relation types of this step’s relations, so it draws no line for them. It plays all the same.':
+    '“{view}” deja fuera los tipos de relación de las relaciones de este paso, así que no dibuja ninguna línea para ellas. Se reproduce igual.',
   'Add its {count} ends to this view': {
     one: 'Agregar su extremo a esta vista',
     other: 'Agregar sus {count} extremos a esta vista',
@@ -2371,6 +2382,31 @@ export const messages: Catalog = {
   'Add {n} elements to "{view}"': 'Agregar {n} elementos a "{view}"',
   'Leave "{name}" out of "{view}"': 'Dejar "{name}" fuera de "{view}"',
   'Leave {n} elements out of "{view}"': 'Dejar {n} elementos fuera de "{view}"',
+  // The relation types a view leaves out (ADR 0064).
+  'Leave the relations of "{name}" out of "{view}"':
+    'Dejar las relaciones de "{name}" fuera de "{view}"',
+  'Draw the relations of "{name}" in "{view}" again':
+    'Volver a dibujar las relaciones de "{name}" en "{view}"',
+  'Leave the relations of {n} relation types out of "{view}"':
+    'Dejar las relaciones de {n} tipos de relación fuera de "{view}"',
+  'Change which relation types "{view}" leaves out':
+    'Cambiar qué tipos de relación deja fuera "{view}"',
+  'Draw every relation type in "{view}"': 'Dibujar todos los tipos de relación en "{view}"',
+  'The relation types a view leaves out must be a list.':
+    'Los tipos de relación que una vista deja fuera deben ser una lista.',
+  'A view leaves out at most {n} relation types.':
+    'Una vista deja fuera como máximo {n} tipos de relación.',
+  'A relation type a view leaves out is an object.':
+    'Un tipo de relación que una vista deja fuera es un objeto JSON.',
+  'A relation type a view leaves out holds relationType and exactly, not "{key}".':
+    'Un tipo de relación que una vista deja fuera tiene relationType y exactly, no "{key}".',
+  'Whether it leaves out exactly that relation type is true or false.':
+    'Si deja fuera exactamente ese tipo de relación es true o false.',
+  'The view "{view}" nests by "{type}", whose relations draw containment rather than lines, so it cannot leave them out.':
+    'La vista "{view}" anida por "{type}", cuyas relaciones dibujan contención y no líneas, así que no puede dejarlas fuera.',
+  'The relation type "{name}" is given twice.': 'El tipo de relación "{name}" se indica dos veces.',
+  'The view "{view}" leaves out "{type}", so it cannot nest by it: draw its relations in the view again first.':
+    'La vista "{view}" deja fuera "{type}", así que no puede anidar por él: primero vuelve a dibujar sus relaciones en la vista.',
   'A scope is an object, or null to show the whole model.':
     'Un alcance es un objeto JSON, o null para mostrar todo el modelo.',
   'A scope holds include, exclude, added and leftOut, not "{key}".':
@@ -2925,6 +2961,8 @@ export const messages: Catalog = {
     'Una regla del alcance de la vista "{view}" nombra el tipo de relación "{id}", que ningún paquete en uso define; no toma nada.',
   'A rule of the scope of the view "{view}" names the container "{id}", which is no element of the model; it takes nothing.':
     'Una regla del alcance de la vista "{view}" nombra el contenedor "{id}", que no es ningún elemento del modelo; no toma nada.',
+  'The view "{view}" leaves out the relation type "{id}", which no package in use defines.':
+    'La vista "{view}" deja fuera el tipo de relación "{id}", que ningún paquete en uso define.',
   'The view "{view}" keeps a stacking order for "{container}", which is no element of the model; it is ignored.':
     'La vista "{view}" guarda un orden de apilado para "{container}", que no es ningún elemento del modelo; se ignora.',
   'The stacking order of "{holder}" in the view "{view}" names "{id}" more than once.':

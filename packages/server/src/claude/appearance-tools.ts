@@ -131,6 +131,31 @@ export function relationColorWarnings(
   return strokeWarnings(subject, stroke);
 }
 
+/**
+ * What to say about the colors a change gave a component or a relation type, as the project draws
+ * it now: a stroke under 3:1 on a canvas, and, for a component, shapes that blend into one. The same
+ * for `set_appearance`, `define_component`, `update_component` and the relation types' tools.
+ */
+export function definitionColorWarnings(
+  state: ProjectSnapshot,
+  kind: 'component' | 'relation-type',
+  target: Id,
+  set: { fill?: string; stroke?: string },
+): string[] {
+  if (set.fill === undefined && set.stroke === undefined) return [];
+  const definitions = definitionsIn(state);
+  const named =
+    kind === 'component'
+      ? `the component "${definitions.component(target)?.name ?? target}"`
+      : `the relation type "${definitions.relationType(target)?.name ?? target}"`;
+  return [
+    ...strokeWarnings(named, set.stroke),
+    ...(kind === 'component'
+      ? blendWarnings(named, (theme) => drawnColorsOf({ component: target }, definitions, theme))
+      : []),
+  ];
+}
+
 function capitalized(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
@@ -183,19 +208,7 @@ Example: { "component": "systems.service", "appearance": null }`,
       async () => {
         const state = await program.project();
         const kept = editableAppearanceOf(state, kind, target);
-        const definitions = definitionsIn(state);
-        const named =
-          kind === 'component'
-            ? `the component "${definitions.component(target)?.name ?? target}"`
-            : `the relation type "${definitions.relationType(target)?.name ?? target}"`;
-        const warnings = [
-          ...strokeWarnings(named, set.stroke),
-          ...(kind === 'component' && (set.fill !== undefined || set.stroke !== undefined)
-            ? blendWarnings(named, (theme) =>
-                drawnColorsOf({ component: target }, definitions, theme),
-              )
-            : []),
-        ];
+        const warnings = definitionColorWarnings(state, kind, target, set);
         return {
           ...(kept === undefined
             ? {}

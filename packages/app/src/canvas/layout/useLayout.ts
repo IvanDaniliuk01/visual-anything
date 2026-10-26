@@ -7,9 +7,16 @@
  *
  * Automatic layout places the shapes that the view shows without a position when it opens, and each
  * new one after that, such as the elements Claude adds. A shape whose position an undo took away is
- * not new, so it stays where the canvas puts it, and undo can go on past the layout.
+ * not new, so it stays where the canvas puts it, and undo can go on past the layout. It asks to join the
+ * newest action, so that the placement of what an action added is part of it (ADR 0065); the local
+ * program decides whether it does.
  */
-import { modelIndexOf, type Command, type ProjectSnapshot } from '@visual-anything/core';
+import {
+  modelIndexOf,
+  type Command,
+  type ListedAction,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
 import {
   createContext,
@@ -74,8 +81,11 @@ export interface LayoutOptions {
   /** The scene of the view as the project has it now. */
   scene: Scene;
   selection: Selection;
-  /** Sends a command; absent while the project cannot be changed. */
-  send: ((command: Command) => Promise<{ ok: boolean }>) | undefined;
+  /**
+   * Sends a command; absent while the project cannot be changed. An automatic layout asks to join the
+   * newest action with `joins` (ADR 0065).
+   */
+  send: ((command: Command, options?: { joins?: number }) => Promise<{ ok: boolean }>) | undefined;
   /** Says something to screen readers. */
   announce: (text: string) => void;
   /**
@@ -83,6 +93,8 @@ export interface LayoutOptions {
    * Layout runs, when the view it names is the one open.
    */
   guided?: GuidedLayoutRequest;
+  /** The actions of the history, as the local program last listed them, oldest first. */
+  actions?: readonly ListedAction[];
 }
 
 /** A layout's change on its way: the scene it was made from, to move in from once it is drawn. */
@@ -115,6 +127,7 @@ export function useLayout({
   send,
   announce,
   guided,
+  actions,
 }: LayoutOptions): {
   scene: Scene;
   control: LayoutControl;
@@ -124,9 +137,9 @@ export function useLayout({
   const runner = given === null ? shared : given;
   const editable = send !== undefined;
 
-  const latest = useRef({ project, view, scene, send, announce });
+  const latest = useRef({ project, view, scene, send, announce, actions });
   useLayoutEffect(() => {
-    latest.current = { project, view, scene, send, announce };
+    latest.current = { project, view, scene, send, announce, actions };
   });
 
   const [running, setRunning] = useState<Running>();
@@ -231,7 +244,9 @@ export function useLayout({
         view: now.view.id,
         animate: typeof requestAnimationFrame === 'function' && !prefersReducedMotion(),
       });
-      const sent = await now.send(action.command);
+      // Placing new shapes asks to join the newest action, which may be what added them (ADR 0065).
+      const joins = automatic ? newestDone(now.actions) : undefined;
+      const sent = await now.send(action.command, joins === undefined ? undefined : { joins });
       if (!sent.ok) {
         setArmed(undefined);
         return;
@@ -380,6 +395,11 @@ function holdsShapes(scene: Scene, container: Id): boolean {
   return scene.shapes.some(
     (shape) => shape.element === container && shape.holdsContents && shape.rowCount === undefined,
   );
+}
+
+/** The id of the newest action the history lists as done, which an undo would take back. */
+function newestDone(actions: readonly ListedAction[] | undefined): number | undefined {
+  return actions?.findLast((action) => !action.undone)?.id;
 }
 
 function labelOf(command: Command): string {

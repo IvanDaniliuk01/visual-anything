@@ -1,13 +1,18 @@
 /**
  * Claude's tools for a view's scope (ADR-0040): `get_scope` reads what a view shows and why;
  * `set_scope` gives it a scope, or takes it away; `add_to_view` and `leave_out_of_view` add elements to
- * a view or leave them out of it, whatever its rules say. Each write is one undoable action, labelled
- * Claude, that changes only the view's file: none of them ever deletes anything from the model.
+ * a view or leave them out of it, whatever its rules say; and `leave_out_relation_types` sets the
+ * relation types whose relations the view does not draw (ADR 0064). Each write is one undoable action,
+ * labelled Claude, that changes only the view's file: none of them ever deletes anything from the
+ * model.
  */
 import {
+  MAX_RELATION_TYPES_LEFT_OUT,
   MAX_SCOPE_DEPTH,
   MAX_SCOPE_RULES,
+  definitionsIn,
   modelIndexOf,
+  relationTypeOrRelatesTo,
   shownByScope,
   type ProjectSnapshot,
 } from '@visual-anything/core';
@@ -85,7 +90,7 @@ const RULES_HELP = `A rule is one of: { "kind": "component", "component": "<id>"
 const getScope = tool({
   name: 'get_scope',
   title: 'Read what a view shows',
-  description: `Reads a view's scope, the part of the model it shows (ADR 0040): its include and exclude rules, the elements added and left out by hand, how many elements and relations it shows out of the model's, and the elements it shows (World left out, at most ${LISTED}, in model order). A view without a scope shows the whole model. A relation shows while both its ends do; a shape whose container is left out sits in its nearest container that shows, or in World.
+  description: `Reads a view's scope, the part of the model it shows (ADR 0040): its include and exclude rules, the elements added and left out by hand, the relation types whose relations it does not draw (relationTypesLeftOut, ADR 0064), how many elements and relations it shows out of the model's, and the elements it shows (World left out, at most ${LISTED}, in model order). A view without a scope shows the whole model. A relation shows while both its ends do and its relation type is not left out; a shape whose container is left out sits in its nearest container that shows, or in World.
 
 Example: { "view": "system-overview" }`,
   input: { view: id() },
@@ -192,8 +197,9 @@ function scopeAnswer(project: ProjectSnapshot, view: ViewFile): Record<string, u
     return {
       view: view.id,
       scope: null,
+      ...leftOutTypesOf(project, view),
       shows: counts,
-      note: 'This view has no scope: it shows the whole model. set_scope gives it one; leave_out_of_view leaves elements out of it.',
+      note: 'This view has no scope: it shows every element of the model. set_scope gives it one; leave_out_of_view leaves elements out of it; leave_out_relation_types leaves out the relations of some relation types.',
     };
   }
   const worldId = project.model.world.id;
@@ -203,6 +209,7 @@ function scopeAnswer(project: ProjectSnapshot, view: ViewFile): Record<string, u
     scope: view.scope,
     added: named(view.scope.added),
     leftOut: named(view.scope.leftOut),
+    ...leftOutTypesOf(project, view),
     shows: counts,
     elements: elements.slice(0, LISTED).map((each) => ({
       id: each,
@@ -214,5 +221,65 @@ function scopeAnswer(project: ProjectSnapshot, view: ViewFile): Record<string, u
   };
 }
 
+const leaveOutRelationTypes = tool({
+  name: 'leave_out_relation_types',
+  title: 'Set the relation types a view does not draw',
+  description: `Sets the relation types whose relations a view does not draw (ADR 0064), replacing its list, as one undoable action that changes only the view's file; an empty list draws them all again. Each relation type goes with every relation type derived from it, unless "exactly": true. Their relations are not drawn as lines, not aggregated into a collapsed container's relations, and not counted as leaving the view, and a scenario step on one plays as outside the view; they stay in the model, and the view still shows every element its scope shows. A relation type the view nests by draws containment rather than lines, so it is refused, and "relates-to" with what derives from it leaves out every line but the containment. get_scope reads the list; give the whole list each time.
+
+Use it for a view about how parts nest, which has no use for the calls and connections between them, rather than filter_view, whose filters belong to the open tab and are never kept with the view.
+
+Example: { "view": "structure", "relationTypes": [{ "relationType": "relates-to" }] }
+Example: { "view": "structure", "relationTypes": [{ "relationType": "systems.communicates-with" }, { "relationType": "systems.reads-from", "exactly": true }] }
+Example: { "view": "structure", "relationTypes": [] }`,
+  input: {
+    view: id(),
+    relationTypes: z
+      .array(
+        z.object({
+          relationType: id().describe('A relation type id, as list_definitions gives it.'),
+          exactly: z
+            .boolean()
+            .optional()
+            .describe('true: only this relation type, not the ones derived from it.'),
+        }),
+      )
+      .max(MAX_RELATION_TYPES_LEFT_OUT)
+      .describe('The relation types to leave out, all of them; [] draws them all again.'),
+  },
+  hints: WRITE,
+  run: async (args, program) =>
+    act(
+      program,
+      {
+        type: 'set-relation-types-left-out',
+        view: args.view,
+        relationTypes: args.relationTypes.map(({ relationType, exactly }) => ({
+          relationType,
+          ...(exactly === true ? { exactly: true } : {}),
+        })),
+      },
+      async () => countsOf(program, args.view),
+    ),
+});
+
+/** The relation types a view leaves out, each with its name, as get_scope answers them. */
+function leftOutTypesOf(project: ProjectSnapshot, view: ViewFile): Record<string, unknown> {
+  const listed = view.relationTypesLeftOut ?? [];
+  if (listed.length === 0) return {};
+  const definitions = definitionsIn(project);
+  return {
+    relationTypesLeftOut: listed.map((entry) => ({
+      ...entry,
+      name: relationTypeOrRelatesTo(definitions, entry.relationType).name,
+    })),
+  };
+}
+
 /** The scope tools, in the order Claude reads them. */
-export const SCOPE_TOOLS: readonly Tool[] = [getScope, setScope, addToView, leaveOutOfView];
+export const SCOPE_TOOLS: readonly Tool[] = [
+  getScope,
+  setScope,
+  addToView,
+  leaveOutOfView,
+  leaveOutRelationTypes,
+];

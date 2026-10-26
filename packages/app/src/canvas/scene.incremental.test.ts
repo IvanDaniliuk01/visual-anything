@@ -137,6 +137,8 @@ type Edit =
   | { kind: 'leave-out'; element: number }
   | { kind: 'add-back'; element: number }
   | { kind: 'scope'; element: number; rule: number }
+  // The relation types the view leaves out (ADR 0064): one more, or none.
+  | { kind: 'leave-out-type'; type: number; exactly: boolean }
   | { kind: 'undo' };
 
 const small = fc.integer({ min: -300, max: 300 });
@@ -203,6 +205,14 @@ const edit: fc.Arbitrary<Edit> = fc.oneof(
   {
     weight: 1,
     arbitrary: fc.record({ kind: fc.constant('scope'), element: pick, rule: fc.nat({ max: 3 }) }),
+  },
+  {
+    weight: 1,
+    arbitrary: fc.record({
+      kind: fc.constant('leave-out-type'),
+      type: pick,
+      exactly: fc.boolean(),
+    }),
   },
   { weight: 2, arbitrary: fc.constant({ kind: 'undo' as const }) },
 );
@@ -410,6 +420,17 @@ function commandOf(edit: Edit, project: ProjectSnapshot, scene: Scene): Command 
       ];
       const include = rules[edit.rule % rules.length] ?? null;
       return { type: 'set-scope', view: VIEW, scope: include && { include } };
+    }
+    case 'leave-out-type': {
+      // One more relation type, or, now and then, none at all.
+      const listed = viewIn(project).relationTypesLeftOut ?? [];
+      const type = at(relationTypesOf(project), edit.type);
+      const others = listed.filter((each) => each.relationType !== type);
+      const relationTypes =
+        type === undefined || edit.type % 5 === 0
+          ? []
+          : [...others, { relationType: type, ...(edit.exactly ? { exactly: true } : {}) }];
+      return { type: 'set-relation-types-left-out', view: VIEW, relationTypes };
     }
     case 'undo':
       return undefined;

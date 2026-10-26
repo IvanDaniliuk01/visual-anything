@@ -356,6 +356,19 @@ const scope: fc.Arbitrary<Scope> = fc
     };
   });
 
+/** The relation types a view leaves out (ADR 0064): sorted by relation type, each once. */
+const relationTypesLeftOut = fc
+  .uniqueArray(fc.tuple(id, fc.boolean()), {
+    minLength: 1,
+    maxLength: 3,
+    selector: ([relationType]) => relationType,
+  })
+  .map((entries) =>
+    entries
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([relationType, exactly]) => ({ relationType, ...(exactly ? { exactly } : {}) })),
+  );
+
 /** A value an overlay compares an attribute with. */
 const caseValue = fc.oneof(text, finite.map(String), fc.boolean().map(String));
 const legendLabel = fc.string({ unit: 'binary', minLength: 1, maxLength: 64 });
@@ -443,6 +456,7 @@ const view: fc.Arbitrary<ViewFile> = fc.record(
     stackingOrder,
     collapsed: fc.uniqueArray(id, { minLength: 1, maxLength: 3 }).map((each) => each.sort()),
     scope,
+    relationTypesLeftOut,
     overlays: fc.array(overlay, { minLength: 1, maxLength: 3 }),
   },
   {

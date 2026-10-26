@@ -47,6 +47,7 @@ A view shows the whole model, or the part its scope gives (ADR 0040): rules on c
 - **Search** finds what the open view leaves out, under the views that show it, with Add to this view; the perspective switcher lists first the views with the same scope.
 - **Playback** marks a step whose relations the view's scope shows none of as outside the view, and plays on.
 - **Claude** reads a scope with `get_scope`, sets it with `set_scope`, and changes it with `add_to_view` and `leave_out_of_view`; `read_view` says how many elements a view shows out of how many.
+- **Relation types left out** (ADR 0064): a view can leave out relation types, with what derives from each, so that a view of how parts nest draws none of the calls between them. Their relations draw no line, aggregate into no collapsed container and count as leaving nothing, and a step on one plays as outside the view; the inspector sets them beside the scope, and Claude with `leave_out_relation_types`. A relation type the view nests by cannot be left out.
 
 ## Identifiers, destinations and the element list
 
@@ -71,10 +72,12 @@ Each release also holds `SHA256SUMS`. Check your file against it with `sha256sum
 Run it in a terminal, in the folder where it is or with its full path:
 
 ```sh
-visual-anything [open] [folder] [--view <id> [--select <id>]...] [--port <n>] [--no-open]
+visual-anything [open] [folder] [--view <id> [--select <id>]...] [--port <n>] [--no-open] [--log <file>]
 ```
 
 It opens the project in `folder` (the current folder when left out), serves it on 127.0.0.1 and opens your browser, as `pnpm start` does; with `--no-open` it prints an address that works once instead. `--view` opens the app at a view, and `--select` selects an element, relation or free shape there (give it again for more), as a view address does. When it already runs on that folder, it opens a new tab in the one running instead of starting another. Press Ctrl+C to stop it. `visual-anything mcp` is the MCP server Claude starts (see below); to open a folder that is named `mcp`, write `./mcp`. The executable serves the app it was built with, so `--dev` works only from the repository.
+
+With `--log <file>`, it appends one JSON line to the file for each action done, undone or redone (with its author, label, number of operations and the ids it created, and for a layout that joined an action, that action), each command refused (with its problems' codes), each app or Claude attached or gone, and each file of the project changed on disk; the time comes first on each line. It never writes a token, a launch code, a credential, a preference or what a file holds, so a log can be pasted to show the path a command took. `pnpm exec tsx packages/server/src/cli.ts <folder> --log program.log` does the same from the repository.
 
 The executables are not signed yet, so each system warns the first time:
 

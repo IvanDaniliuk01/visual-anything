@@ -45,27 +45,38 @@ export function layoutCommand(
   }
 
   const positions = new Map<string, ShapePosition>();
+  const placedNew: ShapePosition[] = [];
   const keys = new Set<string>();
   for (const each of laidOut) {
     const key = positionKey(each);
     const shape = shapes.get(key);
     if (!shape || positions.has(key) || shape.positioned === 'pinned') continue;
-    if (scope.kind === 'new' && shape.positioned !== 'placed') continue;
+    // Placing new shapes moves only them, and the stored shapes beside a container that grew.
+    const aside = each.aside === true && shape.positioned === 'stored';
+    if (scope.kind === 'new' && shape.positioned !== 'placed' && !aside) continue;
     const unchanged =
       shape.positioned === 'stored' && shape.offset.x === each.x && shape.offset.y === each.y;
     if (unchanged) continue;
-    positions.set(key, {
+    const position: ShapePosition = {
       element: each.element,
       ...(each.container === undefined ? {} : { container: each.container }),
       x: each.x,
       y: each.y,
       ...shape.storedSize,
-    });
+    };
+    positions.set(key, position);
+    if (!aside) placedNew.push(position);
     for (const copy of copies.get(key) ?? []) keys.add(copy);
   }
   if (positions.size === 0) return undefined;
 
-  const label = labelOf(project, view.name, scope, [...positions.values()]);
+  // The label names what was laid out, not what moved aside for it.
+  const label = labelOf(
+    project,
+    view.name,
+    scope,
+    placedNew.length > 0 ? placedNew : [...positions.values()],
+  );
   return {
     command: {
       type: 'batch',

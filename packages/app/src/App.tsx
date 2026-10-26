@@ -55,8 +55,8 @@ function LiveApp() {
   // The canvas learns whether a command was done, and the user reads why one was refused; the live
   // session already shows the rules a done command breaks that only warn.
   const onCommand = useCallback<SendCommand>(
-    async (command) => {
-      const result = await send(command);
+    async (command, options) => {
+      const result = await send(command, options);
       if (result.ok) return { ok: true, created: result.created };
       notify('error', result.problems.map((each) => each.message).join(' '));
       return { ok: false };

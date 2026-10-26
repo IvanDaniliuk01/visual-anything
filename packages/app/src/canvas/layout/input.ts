@@ -24,7 +24,9 @@ import type { LayoutConnectionPoint, LayoutInput, LayoutRelation, LayoutShape } 
  * - `contents`: the shapes inside a container, at every depth, that are not pinned; the container
  *   stays where it is;
  * - `new`: the shapes without a position, in each container, or World, where one of the shapes with
- *   these keys sits without a position. Every shape with a position stays where it is.
+ *   these keys sits without a position. Every shape with a position stays where it is, unless a
+ *   container beside it grows with what layout placed: then an unpinned one moves aside, right or
+ *   down, so that nothing overlaps.
  */
 export type LayoutScope =
   | { kind: 'view' }
@@ -105,6 +107,8 @@ export function layoutInput(
       width: laidOutRect(shape).width,
       height: laidOutRect(shape).height,
     };
+    // A shape kept where the view stores it, unpinned, may move aside for a container that grows.
+    if (!isFree && shape.row === undefined && shape.positioned === 'stored') laidShape.aside = true;
     const stored = shape.storedSize;
     if (stored?.width !== undefined) laidShape.storedWidth = stored.width;
     if (stored?.height !== undefined) laidShape.storedHeight = stored.height;

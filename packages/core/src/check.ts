@@ -253,6 +253,18 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
         );
       }
     }
+    // The relation types a view leaves out may be gone, as a hand-edited file may say (ADR 0064).
+    for (const entry of view.relationTypesLeftOut ?? []) {
+      if (!definitions.relationType(entry.relationType)) {
+        warnings.push(
+          problem(
+            'unknown-relation-type',
+            `The view "${view.name}" leaves out the relation type "${entry.relationType}", which no package in use defines.`,
+            [view.id],
+          ),
+        );
+      }
+    }
     // Stacking lists name the shapes of a container, or of World, by element id. The problems are
     // the view's: its file is where the list is written.
     for (const [container, list] of Object.entries(view.stackingOrder ?? {})) {

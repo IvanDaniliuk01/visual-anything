@@ -91,8 +91,14 @@ import { LegendPanel } from './overlays/LegendPanel';
 import { ZoomExpansionContext, withoutZoomExpanded } from './overlays/useZoomExpansion';
 import { restackCommand, stackingActions, stackingShortcut, type StackingMove } from './stacking';
 
-/** Sends a command to the local program; resolves with what it created, or `ok: false` when refused. */
-export type SendCommand = (command: Command) => Promise<{ ok: boolean; created?: Id[] }>;
+/**
+ * Sends a command to the local program; resolves with what it created, or `ok: false` when refused.
+ * With `joins`, a layout of what the newest action added asks to join that action (ADR 0065).
+ */
+export type SendCommand = (
+  command: Command,
+  options?: { joins?: number },
+) => Promise<{ ok: boolean; created?: Id[] }>;
 
 interface CanvasAreaProps {
   project: ProjectSnapshot;
@@ -250,7 +256,8 @@ export function CanvasArea({
   // Layout: shapes without a position are laid out as they appear, and the toolbar's Layout, or
   // Claude's guidance, lays out on demand; what the canvas draws is a frame of a layout moving in, or
   // else the scene.
-  const guidedLayout = useContext(LiveContext)?.guidance?.layout;
+  const live = useContext(LiveContext);
+  const guidedLayout = live?.guidance?.layout;
   const layout = useLayout({
     project,
     view,
@@ -259,6 +266,8 @@ export function CanvasArea({
     send: onCommand,
     announce: (text) => setAnnouncement((last) => ({ text, count: last.count + 1 })),
     ...(guidedLayout === undefined ? {} : { guided: guidedLayout }),
+    // Placing what the newest action added joins it (ADR 0065).
+    ...(live?.actions === undefined ? {} : { actions: live.actions }),
   });
   // A scene that cannot be indexed cannot be drawn either: the canvas area says so, and the rest of
   // the app keeps working.

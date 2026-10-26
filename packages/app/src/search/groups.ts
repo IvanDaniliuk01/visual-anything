@@ -2,14 +2,16 @@
  * What search shows of what it found: grouped by the views that draw it, the open view first, each
  * thing once, under the view Enter takes it to; and what each says, in the language the app reads in.
  *
- * A view draws what its scope shows (ADR-0040): every element and relation when it has none, and a
- * free shape is drawn only by its own view. What the open view's scope leaves out is listed under the
+ * A view draws what its scope shows (ADR-0040): every element and relation when it has none, less the
+ * relations of the relation types it leaves out (ADR 0064); and a free shape is drawn only by its own
+ * view. What the open view's scope leaves out is listed under the
  * first view that shows it, or under no view, so that search finds it all the same; the open view can
  * then add it (`FindBar`).
  */
 import {
   componentOrEssence,
   relationTypeOrRelatesTo,
+  showsPart,
   shownByScope,
   type Definitions,
   type ProjectSnapshot,
@@ -38,7 +40,7 @@ export function viewsDrawing(project: ProjectSnapshot, entry: Entry): ViewFile[]
 /** Whether a view's scope shows what an entry stands for; a free shape, in its own view only. */
 export function viewShows(project: ProjectSnapshot, view: ViewFile, entry: Entry): boolean {
   if (entry.kind === 'free-shape') return entry.view === view.id;
-  if (view.scope === undefined) return true;
+  if (!showsPart(view)) return true;
   const shown = shownByScope(project, view);
   return entry.kind === 'element' ? shown.element(entry.id) : shown.relation(entry.id);
 }
