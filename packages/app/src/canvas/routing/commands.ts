@@ -5,9 +5,11 @@
  * be tested without a canvas.
  */
 import {
+  automaticRouteStyleOf,
   modelIndexOf,
   relationLabel,
   routeOf,
+  storedRoute,
   type ChangeContainerCommand,
   type Command,
   type ProjectSnapshot,
@@ -100,20 +102,49 @@ export function sameAttachment(a: EndAttachment | null, b: EndAttachment | null)
 }
 
 /**
+ * How a relation's route in a view chooses its style: the style it stores, chosen by hand, or
+ * `automatic`, the style of the relation's automatic route (ADR 0069, ADR 0039's clarification).
+ */
+export type StyleChoice = RouteStyle | 'automatic';
+
+/** The style a view's route for a relation chooses: the one it stores, or `automatic`. */
+export function chosenStyleOf(view: ViewFile, relation: Id): StyleChoice {
+  return storedRoute(view, relation)?.style ?? 'automatic';
+}
+
+/** The style of a relation's automatic route in a view; orthogonal for one the model lacks. */
+export function automaticStyleOf(
+  project: ProjectSnapshot,
+  view: ViewFile,
+  relation: Id,
+): RouteStyle {
+  const found = modelIndexOf(project).relation(relation);
+  return found === undefined ? 'orthogonal' : automaticRouteStyleOf(project, view, found);
+}
+
+/** The style a view draws a relation's line in: the one its route chooses, or its automatic one. */
+export function drawnStyleOf(project: ProjectSnapshot, view: ViewFile, relation: Id): RouteStyle {
+  const chosen = chosenStyleOf(view, relation);
+  return chosen === 'automatic' ? automaticStyleOf(project, view, relation) : chosen;
+}
+
+/**
  * The style chosen for relations, as one action: one `set-route`, or a batch of them, for those not
- * drawn in it already; undefined when all are.
+ * drawn in it already; undefined when all are. Automatic gives each relation whose route chooses a
+ * style of its own back its automatic style, in a batch labelled for it.
  */
 export function styleCommand(
   project: ProjectSnapshot,
   viewId: Id,
   relations: readonly Id[],
-  style: RouteStyle,
+  style: StyleChoice,
 ): Command | undefined {
   const view = viewIn(project, viewId);
   if (!view) return undefined;
-  const styleOf = (id: Id): RouteStyle =>
-    routedByHand(view, id) ? (view.routes?.[id]?.style ?? 'orthogonal') : 'orthogonal';
-  const changing = [...new Set(relations)].filter((id) => styleOf(id) !== style);
+  if (style === 'automatic') return automaticStyleCommand(project, view, relations);
+  const changing = [...new Set(relations)].filter(
+    (id) => drawnStyleOf(project, view, id) !== style,
+  );
   const commands: SetRouteCommand[] = changing.map((relation) => ({
     type: 'set-route',
     view: viewId,
@@ -124,6 +155,37 @@ export function styleCommand(
   return {
     type: 'batch',
     label: `Draw ${commands.length} relations ${style} in "${view.name}"`,
+    commands,
+  };
+}
+
+/**
+ * Gives relations back the style of their automatic routes in a view: a `set-route` with that style
+ * for each whose route chooses another, which the core keeps only where it differs, so it goes.
+ */
+function automaticStyleCommand(
+  project: ProjectSnapshot,
+  view: ViewFile,
+  relations: readonly Id[],
+): Command | undefined {
+  const index = modelIndexOf(project);
+  const changing = [...new Set(relations)].filter(
+    (id) => index.relation(id) !== undefined && chosenStyleOf(view, id) !== 'automatic',
+  );
+  const [only] = changing;
+  if (only === undefined) return undefined;
+  const commands: SetRouteCommand[] = changing.map((relation) => ({
+    type: 'set-route',
+    view: view.id,
+    relation,
+    style: automaticStyleOf(project, view, relation),
+  }));
+  return {
+    type: 'batch',
+    label:
+      commands.length === 1
+        ? `Draw "${relationLabel(index, only)}" in its automatic style in "${view.name}"`
+        : `Draw ${commands.length} relations in their automatic styles in "${view.name}"`,
     commands,
   };
 }

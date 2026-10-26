@@ -492,7 +492,7 @@ Eight milestones in build order, each ending in something you can use, and Track
   - parts' own pictures, through the image store, for parts drawn at full strength in a faint drawing; parts far out;
   - pressing and dragging; keyboard navigation and the outline in the picture's order;
   - the inspector's parts of a drawing, and Anchor parts…, matching by name, id or an external identifier through a crosswalk, and creating what matches nothing.
-- [ ] **The editors:**
+- [x] **The editors** (W55):
   - the component editor's Shape section: free geometry from path data, an SVG file or a named part, with Keep proportions and the label area, and a preview;
   - the part a component or an element is drawn as, and the placement With its parts;
   - a relation type's and a relation's Route, a view's Lines, and the Style control's Automatic (ADR 0039's clarification);
