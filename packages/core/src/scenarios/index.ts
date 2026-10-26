@@ -14,6 +14,21 @@ export type {
 } from './timeline';
 export { brokenStepsOf, entryOfStep, isBroken, isOutside, scenarioTimeline } from './timeline';
 
+// Decisions between labelled alternatives (ADR 0078).
+export type { AlternativeSpan, BlocksRead, DecisionSpan } from './blocks';
+export {
+  DECISION_CAPS,
+  alternativeOf,
+  alternativesOf,
+  choicesToReach,
+  chosenAlternative,
+  combinationsOf,
+  playedSteps,
+  readBlocks,
+} from './blocks';
+export type { EditedDecisions, NewAlternative } from './decisions';
+export { addAlternativeAfter, rejoinAt, removeDecision, stepsRemovedWith } from './decisions';
+
 export type { Playback, PlaybackMode, Speed } from './playback';
 export {
   PLAYBACK_START,
