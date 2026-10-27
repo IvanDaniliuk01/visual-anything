@@ -82,6 +82,7 @@ describe('set_route', () => {
       undo: 'The person can undo it in the app.',
       route: { to: { kind: 'border', side: 'left', at: 0.25 }, style: 'curved' },
       bendPointsRelativeTo: 'the canvas',
+      automaticStyle: { style: 'orthogonal', from: 'nothing sets one, so it is orthogonal' },
     });
     expect(session.history.undo?.author).toBe('claude');
     expect(routes()).toEqual({

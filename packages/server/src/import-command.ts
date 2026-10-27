@@ -1,14 +1,16 @@
 /**
  * `visual-anything import <folder> <file>` (ADR-0042, ADR-0049): reads a file made elsewhere, maps its
  * kinds from the built-in suggestions and the `--map` choices, and lands it as one undoable action of
- * the person's. When a program runs on the project, the import goes through it, since one program owns
- * a project's files (ADR-0044); otherwise the command opens the project itself, applies the import and
- * saves. It reads only the file it is given.
+ * the person's. An HTML file becomes an imported drawing instead (ADR 0068), made in a worker of its
+ * own, shown by a new element or the one `--element` names. When a program runs on the project, the
+ * import goes through it, since one program owns a project's files (ADR-0044); otherwise the command
+ * opens the project itself, applies the import and saves. It reads only the file it is given.
  */
 import { readFile, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import {
+  DRAWING_LIMITS,
   MAX_IMPORT_TEXT,
   recordOf,
   type BatchCommand,
@@ -24,6 +26,8 @@ import {
 } from './claude/bridge';
 import type { RuntimeContext } from './claude/discovery';
 import { CLAUDE_MAX_PAYLOAD, encodeClaudeMessage, importMessageRequest } from './claude/messages';
+import { describeDrawing, isDrawingImport, prepareMadeDrawing } from './drawings/import';
+import { makeDrawing, type MadeDrawing } from './drawings/make';
 import { errorReason } from './errors';
 import { describePreview, previewImport, type ImportRequest } from './import';
 import { toForwardSlashes } from './paths';
@@ -32,13 +36,17 @@ import { openSession } from './session';
 
 export const IMPORT_USAGE = `Usage: visual-anything import <folder> <file> [--map <kind>=<id>]... [--nesting <id>]
                              [--key <column>] [--format <format>] [--no-view] [--dry-run]
+       visual-anything import <folder> <file.html> [--width <px>] [--component <id>]
+                             [--element <id>] [--view <id>] [--dry-run]
 
 Imports a Mermaid diagram (flowchart, C4, ER or class), a spreadsheet (CSV or TSV), JSON, a
 Structurizr workspace in JSON, a LikeC4 model or a draw.io file (.drawio, .xml, .drawio.svg or
 .drawio.png) into the project in folder, as one action you can undo in the app. Structurizr DSL is
 not read: export it to JSON first, with structurizr-cli export -workspace workspace.dsl -format json.
-When Visual Anything runs on the project, the import goes through it; otherwise the project is
-opened, the import applied and saved.
+A static HTML file or fragment (.html or .htm, at most 512 KiB) is imported as a drawing instead: a
+picture of the page, laid out without running anything in it or fetching anything it names, shown
+by a new element or by the one you name. When Visual Anything runs on the project, the import goes
+through it; otherwise the project is opened, the import applied and saved.
 
   --map <kind>=<id>  Map a kind of the file, as --dry-run lists them, to a component or relation
                      type by its id; give it again for more, and =<id> for rows that name no
@@ -46,9 +54,14 @@ opened, the import applied and saved.
   --nesting <id>     The relation type that puts what sits inside what in its container.
   --key <column>     For a spreadsheet or JSON: match rows to the project's elements by this column,
                      to import again; the id column by default.
-  --format <format>  Read the file as structurizr, likec4, drawio, json, mermaid or table, whatever
-                     its name says.
+  --format <format>  Read the file as structurizr, likec4, drawio, json, mermaid, table or html,
+                     whatever its name says.
   --no-view          Do not create the view a diagram brings.
+  --width <px>       For HTML: the width the page is laid out at, from 64 to 2000; 800 by default.
+  --component <id>   For HTML: the component of the new element that shows the drawing; Box by
+                     default.
+  --element <id>     For HTML: show the drawing on this element instead of a new one.
+  --view <id>        For HTML: the view the new element is made in.
   --dry-run          Say what the import would do, and import nothing.
   -h, --help         Show this help.`;
 
@@ -91,6 +104,10 @@ export function parseImportCommandLine(
         key: { type: 'string' },
         format: { type: 'string' },
         'no-view': { type: 'boolean' },
+        width: { type: 'string' },
+        component: { type: 'string' },
+        element: { type: 'string' },
+        view: { type: 'string' },
         'dry-run': { type: 'boolean' },
         help: { type: 'boolean', short: 'h' },
       },
@@ -114,6 +131,20 @@ export function parseImportCommandLine(
     }
     map.push([each.slice(0, at), each.slice(at + 1)]);
   }
+  let width: number | undefined;
+  if (values.width !== undefined) {
+    width = /^\d+$/.test(values.width) ? Number(values.width) : Number.NaN;
+    if (
+      !Number.isSafeInteger(width) ||
+      width < DRAWING_LIMITS.width.least ||
+      width > DRAWING_LIMITS.width.most
+    ) {
+      return {
+        ok: false,
+        message: `--width takes a whole number of pixels from ${DRAWING_LIMITS.width.least} to ${DRAWING_LIMITS.width.most}, not ${JSON.stringify(values.width)}.`,
+      };
+    }
+  }
   const [folder, file] = positionals as [string, string];
   return {
     ok: true,
@@ -127,6 +158,10 @@ export function parseImportCommandLine(
         ...(values.key === undefined ? {} : { key: values.key }),
         ...(values.format === undefined ? {} : { format: values.format }),
         ...(values['no-view'] === true ? { views: false } : {}),
+        ...(width === undefined ? {} : { width }),
+        ...(values.component === undefined ? {} : { component: values.component }),
+        ...(values.element === undefined ? {} : { element: values.element }),
+        ...(values.view === undefined ? {} : { view: values.view }),
       },
     },
   };
@@ -159,6 +194,52 @@ export async function runImport(
     return 1;
   }
   const name = path.split(/[\\/]/).pop() ?? fileWritten;
+  const drawing = isDrawingImport({
+    name,
+    ...(request.format === undefined ? {} : { format: request.format }),
+  });
+  const mixed = drawing
+    ? request.map !== undefined ||
+      request.nesting !== undefined ||
+      request.key !== undefined ||
+      request.views === false
+    : request.width !== undefined ||
+      request.component !== undefined ||
+      request.element !== undefined ||
+      request.view !== undefined;
+  if (mixed) {
+    environment.err(
+      drawing
+        ? '--map, --nesting, --key and --no-view are for diagrams and spreadsheets: an HTML file is imported as a drawing.'
+        : '--width, --component, --element and --view are for HTML files, which are imported as drawings.',
+    );
+    environment.err(IMPORT_USAGE);
+    return 2;
+  }
+  if (
+    request.element !== undefined &&
+    (request.component !== undefined || request.view !== undefined)
+  ) {
+    environment.err(
+      'Give --element to show the drawing on an element, or --component and --view for a new one, not both.',
+    );
+    return 2;
+  }
+  // A drawing is made here first, to say what it drops and for --dry-run; through a program that
+  // runs, the program makes it again of the same file, and that is what lands.
+  let made: Extract<MadeDrawing, { ok: true }> | undefined;
+  if (drawing) {
+    const outcome = await makeDrawing(
+      file.value.text,
+      request.width ?? DRAWING_LIMITS.width.initial,
+    );
+    if (!outcome.ok) {
+      environment.err(`Could not import "${name}":`);
+      for (const problem of outcome.problems) environment.err(`  ${problem.message}`);
+      return 1;
+    }
+    made = outcome;
+  }
 
   // A program that runs on the project owns its files: the import goes through it.
   const bridge =
@@ -187,7 +268,7 @@ export async function runImport(
     }
     if (running !== undefined && bridge !== undefined) {
       const full: ImportRequest = { name, ...file.value, ...request };
-      return await importInto(running, full, dryRun, environment, () => {
+      return await importInto(running, full, dryRun, environment, made, () => {
         const size = Buffer.byteLength(
           encodeClaudeMessage({
             type: 'import',
@@ -229,6 +310,7 @@ export async function runImport(
         { name, ...file.value, ...request },
         dryRun,
         environment,
+        made,
         async (command) => {
           const outcome = await session.execute(command, 'user');
           return outcome.ok
@@ -251,26 +333,53 @@ export async function runImport(
   }
 }
 
+/** What an import would do, line by line, and the one batch it sends, or why it cannot be done. */
+type Planned =
+  { ok: true; lines: string[]; command: BatchCommand } | { ok: false; problems: string[] };
+
+/** Plans an import against the project: a drawing already made, or a file read and mapped. */
+function plannedImport(
+  state: ProjectSnapshot,
+  request: ImportRequest,
+  made: Extract<MadeDrawing, { ok: true }> | undefined,
+): Planned {
+  if (made !== undefined) {
+    const prepared = prepareMadeDrawing(state, request.name, made, request);
+    return prepared.ok
+      ? {
+          ok: true,
+          lines: describeDrawing(state, request.name, made, prepared, request),
+          command: prepared.command,
+        }
+      : prepared;
+  }
+  const preview = previewImport(state, request);
+  return preview.ok
+    ? { ok: true, lines: describePreview(preview), command: preview.prepared.command }
+    : { ok: false, problems: preview.problems };
+}
+
 /** Previews an import, says what it does, and unless it is a dry run, applies it. */
 async function importInto(
   state: ProjectSnapshot,
   request: ImportRequest,
   dryRun: boolean,
   environment: ImportEnvironment,
+  made: Extract<MadeDrawing, { ok: true }> | undefined,
   apply: (command: BatchCommand) => Promise<CommandAnswer>,
 ): Promise<number> {
-  const preview = previewImport(state, request);
+  const preview = plannedImport(state, request, made);
   if (!preview.ok) {
     environment.err(`Could not import "${request.name}":`);
     for (const problem of preview.problems) environment.err(`  ${problem}`);
     return 1;
   }
-  for (const line of describePreview(preview)) environment.out(line);
+  for (const line of preview.lines) environment.out(line);
   if (dryRun) {
     environment.out('Dry run: nothing was imported.');
     return 0;
   }
-  const answer = await apply(preview.prepared.command);
+  const answer = await apply(preview.command);
   if (!answer.ok) {
     environment.err(`Could not import "${request.name}":`);
     for (const problem of answer.problems) environment.err(`  ${problem.message}`);

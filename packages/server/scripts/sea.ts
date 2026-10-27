@@ -4,11 +4,14 @@
  * the sea-config Node.js reads to prepare what it injects. `package.ts` runs them in order.
  */
 import { existsSync } from 'node:fs';
-import { lstat, readdir } from 'node:fs/promises';
-import { delimiter, join, relative, sep } from 'node:path';
+import { lstat, readdir, writeFile } from 'node:fs/promises';
+import { delimiter, dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, type Metafile } from 'esbuild';
-import { APP_ASSET_PREFIX } from '../src/executable';
+import { bundleDrawingWorker } from '../src/drawings/bundle';
+import { DRAWING_WORKER_ASSET, DRAWING_WORKER_FILE } from '../src/drawings/make';
+import { APP_ASSET_PREFIX, NOTICES_ASSET } from '../src/executable';
+import { bundledPackages, noticeText, packageFolders } from './notices';
 
 /** The repository's root folder. */
 export const REPOSITORY = fileURLToPath(new URL('../../..', import.meta.url));
@@ -42,9 +45,13 @@ const IMPORT_META_URL = '__visualAnythingImportMetaUrl';
 
 /**
  * Modules the bundle leaves out, all of them never loaded in the executable: Vite, which only dev mode
- * imports, and the optional native add-ons that `ws` tries and does without.
+ * imports, the optional native add-ons that `ws` tries and does without, and esbuild, with which the
+ * sources build the drawing's worker (ADR 0068), which the executable holds already built.
  */
-const LEFT_OUT = ['vite', 'bufferutil', 'utf-8-validate'];
+const LEFT_OUT = ['vite', 'bufferutil', 'utf-8-validate', 'esbuild'];
+
+/** The file the notice of the code an executable bundles is written to, beside it. */
+export const NOTICES_FILE = 'THIRD-PARTY-NOTICES.txt';
 
 /**
  * Bundles the server, with everything it imports from core, schema and its dependencies, into one
@@ -67,6 +74,38 @@ export async function bundleServer(outfile: string): Promise<Metafile> {
     logLevel: 'warning',
   });
   return result.metafile;
+}
+
+/**
+ * The drawing's worker (ADR 0068), bundled beside the server's bundle, where the bundle run by Node.js
+ * finds it; the executable holds it as the asset {@link DRAWING_WORKER_ASSET}.
+ */
+export async function bundleDrawingWorkerBeside(
+  serverBundle: string,
+): Promise<{ file: string; metafile: Metafile }> {
+  const file = join(dirname(serverBundle), DRAWING_WORKER_FILE);
+  const { metafile } = await bundleDrawingWorker(file);
+  return { file, metafile };
+}
+
+/**
+ * Writes the notice of the code the bundles hold, every npm package with its license and source, and
+ * Node.js's, beside them (ADR 0037's clarification of 2026-10-26).
+ */
+export async function writeNotices(
+  metafiles: readonly Metafile[],
+  outfile: string,
+  nodeVersion: string = process.versions.node,
+): Promise<string> {
+  const packages = await bundledPackages(packageFolders(metafiles, process.cwd()));
+  const text = noticeText(packages, nodeVersion);
+  await writeFile(outfile, text);
+  return text;
+}
+
+/** The executable's assets besides the app: the drawing's worker and the notice. */
+export function programAssets(worker: string, notices: string): Record<string, string> {
+  return { [DRAWING_WORKER_ASSET]: worker, [NOTICES_ASSET]: notices };
 }
 
 /**

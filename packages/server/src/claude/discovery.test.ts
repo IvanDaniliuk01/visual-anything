@@ -96,7 +96,7 @@ describe('program records', () => {
   });
 
   afterEach(async () => {
-    await rm(profile, { recursive: true, force: true });
+    await rm(profile, { recursive: true, force: true, maxRetries: 10 });
   });
 
   it('writes a record and reads it back by its folder', async () => {
@@ -201,7 +201,7 @@ describe('program records', () => {
         );
         expect(await readdir(outside)).toEqual([]);
       } finally {
-        await rm(outside, { recursive: true, force: true });
+        await rm(outside, { recursive: true, force: true, maxRetries: 10 });
       }
     });
 
@@ -221,7 +221,7 @@ describe('program records', () => {
         ).rejects.toThrow('lies outside your profile');
         expect(await readdir(join(outside, 'inner'))).toEqual([]);
       } finally {
-        await rm(outside, { recursive: true, force: true });
+        await rm(outside, { recursive: true, force: true, maxRetries: 10 });
       }
     });
 

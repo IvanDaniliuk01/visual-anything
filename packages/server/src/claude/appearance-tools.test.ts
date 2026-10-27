@@ -81,7 +81,7 @@ describe('set_appearance', () => {
         relationType: 'systems.reads-from',
         appearanceTraits: { fill: '#FFFFFF' },
       }),
-    ).toBe('Give either a component or a relation type.');
+    ).toBe('Give one of component, relationType, element or relation.');
     const refused = await tools.failure('set_appearance', {
       component: 'systems.service',
       appearanceTraits: { fill: 'red' },

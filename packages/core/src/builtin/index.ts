@@ -2,6 +2,8 @@ import type { Id, PackageFile } from '@visual-anything/schema';
 import { C4 } from './c4';
 import { DATA_MODELING } from './data-modeling';
 import { DATA_SCIENCE } from './data-science';
+import { MACHINE_LEARNING } from './machine-learning';
+import { PHYSICAL_AI } from './physical-ai';
 import { PROCESS } from './process';
 import { SYSTEMS } from './systems';
 
@@ -9,6 +11,8 @@ export { C4 } from './c4';
 export { DATA_MODELING } from './data-modeling';
 export { DATA_SCIENCE } from './data-science';
 export { ESSENCE, RELATES_TO } from './essence-and-relates-to';
+export { MACHINE_LEARNING } from './machine-learning';
+export { PHYSICAL_AI } from './physical-ai';
 export { PROCESS } from './process';
 export { SYSTEMS } from './systems';
 
@@ -21,6 +25,8 @@ export const BUILTIN_PACKAGES: readonly PackageFile[] = [
   DATA_MODELING,
   C4,
   DATA_SCIENCE,
+  MACHINE_LEARNING,
+  PHYSICAL_AI,
   PROCESS,
 ];
 

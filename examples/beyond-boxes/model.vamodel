@@ -1,0 +1,446 @@
+{
+  "world": {
+    "id": "world",
+    "component": "essence",
+    "name": "World"
+  },
+  "elements": [
+    {
+      "id": "heart",
+      "component": "heart.heart",
+      "name": "Heart",
+      "description": "A muscle the size of a fist that pumps blood through two circuits at once."
+    },
+    {
+      "id": "superior-vena-cava",
+      "component": "heart.vessel",
+      "name": "Superior vena cava",
+      "description": "Brings oxygen-poor blood back from the head, the neck and the arms.",
+      "attributes": {
+        "blood": "oxygen-poor"
+      },
+      "appearance": {
+        "part": {
+          "part": "superior-vena-cava",
+          "image": "heart.heart-picture"
+        }
+      }
+    },
+    {
+      "id": "inferior-vena-cava",
+      "component": "heart.vessel",
+      "name": "Inferior vena cava",
+      "description": "Brings oxygen-poor blood back from the trunk and the legs.",
+      "attributes": {
+        "blood": "oxygen-poor"
+      },
+      "appearance": {
+        "part": {
+          "part": "inferior-vena-cava",
+          "image": "heart.heart-picture"
+        }
+      }
+    },
+    {
+      "id": "right-atrium",
+      "component": "heart.chamber",
+      "name": "Right atrium",
+      "description": "Receives the oxygen-poor blood the body sends back.",
+      "attributes": {
+        "blood": "oxygen-poor"
+      },
+      "appearance": {
+        "part": {
+          "part": "right-atrium",
+          "image": "heart.heart-picture"
+        }
+      }
+    },
+    {
+      "id": "tricuspid-valve",
+      "component": "heart.valve",
+      "name": "Tricuspid valve",
+      "description": "Opens from the right atrium into the right ventricle, and closes so that blood does not flow back.",
+      "attributes": {
+        "cusps": 3
+      },
+      "appearance": {
+        "part": {
+          "part": "tricuspid-valve",
+          "image": "heart.heart-picture"
+        }
+      }
+    },
+    {
+      "id": "right-ventricle",
+      "component": "heart.chamber",
+      "name": "Right ventricle",
+      "description": "Pumps oxygen-poor blood to the lungs.",
+      "attributes": {
+        "blood": "oxygen-poor"
+      },
+      "appearance": {
+        "part": {
+          "part": "right-ventricle",
+          "image": "heart.heart-picture"
+        }
+      }
+    },
+    {
+      "id": "pulmonary-valve",
+      "component": "heart.valve",
+      "name": "Pulmonary valve",
+      "description": "Opens from the right ventricle into the pulmonary artery.",
+      "attributes": {
+        "cusps": 3
+      },
+      "appearance": {
+        "part": {
+          "part": "pulmonary-valve",
+          "image": "heart.heart-picture"
+        }
+      }
+    },
+    {
+      "id": "pulmonary-artery",
+      "component": "heart.vessel",
+      "name": "Pulmonary artery",
+      "description": "Takes oxygen-poor blood to both lungs; its left branch passes behind the aorta.",
+      "attributes": {
+        "blood": "oxygen-poor"
+      },
+      "appearance": {
+        "part": {
+          "part": "pulmonary-artery",
+          "image": "heart.heart-picture"
+        }
+      }
+    },
+    {
+      "id": "pulmonary-veins",
+      "component": "heart.vessel",
+      "name": "Pulmonary veins",
+      "description": "Bring oxygen-rich blood back from the lungs.",
+      "attributes": {
+        "blood": "oxygen-rich"
+      },
+      "appearance": {
+        "part": {
+          "part": "pulmonary-veins",
+          "image": "heart.heart-picture"
+        }
+      }
+    },
+    {
+      "id": "left-atrium",
+      "component": "heart.chamber",
+      "name": "Left atrium",
+      "description": "Receives the oxygen-rich blood the lungs send back.",
+      "attributes": {
+        "blood": "oxygen-rich"
+      },
+      "appearance": {
+        "part": {
+          "part": "left-atrium",
+          "image": "heart.heart-picture"
+        }
+      }
+    },
+    {
+      "id": "mitral-valve",
+      "component": "heart.valve",
+      "name": "Mitral valve",
+      "description": "Opens from the left atrium into the left ventricle.",
+      "attributes": {
+        "cusps": 2
+      },
+      "appearance": {
+        "part": {
+          "part": "mitral-valve",
+          "image": "heart.heart-picture"
+        }
+      }
+    },
+    {
+      "id": "left-ventricle",
+      "component": "heart.chamber",
+      "name": "Left ventricle",
+      "description": "Pumps oxygen-rich blood to the whole body: the strongest chamber, with the thickest wall.",
+      "attributes": {
+        "blood": "oxygen-rich"
+      },
+      "appearance": {
+        "part": {
+          "part": "left-ventricle",
+          "image": "heart.heart-picture"
+        }
+      }
+    },
+    {
+      "id": "aortic-valve",
+      "component": "heart.valve",
+      "name": "Aortic valve",
+      "description": "Opens from the left ventricle into the aorta.",
+      "attributes": {
+        "cusps": 3
+      },
+      "appearance": {
+        "part": {
+          "part": "aortic-valve",
+          "image": "heart.heart-picture"
+        }
+      }
+    },
+    {
+      "id": "aorta",
+      "component": "heart.vessel",
+      "name": "Aorta",
+      "description": "The body’s largest artery: it takes oxygen-rich blood to every organ but the lungs.",
+      "attributes": {
+        "blood": "oxygen-rich"
+      },
+      "appearance": {
+        "part": {
+          "part": "aorta",
+          "image": "heart.heart-picture"
+        }
+      }
+    },
+    {
+      "id": "septum",
+      "component": "heart.wall",
+      "name": "Septum",
+      "description": "The wall between the ventricles, which keeps oxygen-poor and oxygen-rich blood apart.",
+      "appearance": {
+        "part": {
+          "part": "septum"
+        }
+      }
+    },
+    {
+      "id": "sinoatrial-node",
+      "component": "heart.pacemaker",
+      "name": "Sinoatrial node",
+      "description": "The heart’s natural pacemaker, in the wall of the right atrium. The picture does not draw it, so it sits below it."
+    },
+    {
+      "id": "lungs",
+      "component": "heart.lungs",
+      "name": "Lungs",
+      "description": "The blood gives off carbon dioxide here and takes up oxygen."
+    },
+    {
+      "id": "body",
+      "component": "heart.body",
+      "name": "Body",
+      "description": "Every organ but the lungs: their tissues take the oxygen and send the blood back."
+    },
+    {
+      "id": "card-2914w0",
+      "component": "heart.card",
+      "name": "The heart at rest",
+      "appearance": {
+        "width": 188,
+        "height": 200,
+        "image": {
+          "image": "heart.card-rcg9ir",
+          "placement": "drawing"
+        }
+      }
+    }
+  ],
+  "relations": [
+    {
+      "id": "superior-vena-cava-in-heart",
+      "relationType": "heart.is-part-of",
+      "from": "superior-vena-cava",
+      "to": "heart"
+    },
+    {
+      "id": "inferior-vena-cava-in-heart",
+      "relationType": "heart.is-part-of",
+      "from": "inferior-vena-cava",
+      "to": "heart"
+    },
+    {
+      "id": "right-atrium-in-heart",
+      "relationType": "heart.is-part-of",
+      "from": "right-atrium",
+      "to": "heart"
+    },
+    {
+      "id": "tricuspid-valve-in-heart",
+      "relationType": "heart.is-part-of",
+      "from": "tricuspid-valve",
+      "to": "heart"
+    },
+    {
+      "id": "right-ventricle-in-heart",
+      "relationType": "heart.is-part-of",
+      "from": "right-ventricle",
+      "to": "heart"
+    },
+    {
+      "id": "pulmonary-valve-in-heart",
+      "relationType": "heart.is-part-of",
+      "from": "pulmonary-valve",
+      "to": "heart"
+    },
+    {
+      "id": "pulmonary-artery-in-heart",
+      "relationType": "heart.is-part-of",
+      "from": "pulmonary-artery",
+      "to": "heart"
+    },
+    {
+      "id": "pulmonary-veins-in-heart",
+      "relationType": "heart.is-part-of",
+      "from": "pulmonary-veins",
+      "to": "heart"
+    },
+    {
+      "id": "left-atrium-in-heart",
+      "relationType": "heart.is-part-of",
+      "from": "left-atrium",
+      "to": "heart"
+    },
+    {
+      "id": "mitral-valve-in-heart",
+      "relationType": "heart.is-part-of",
+      "from": "mitral-valve",
+      "to": "heart"
+    },
+    {
+      "id": "left-ventricle-in-heart",
+      "relationType": "heart.is-part-of",
+      "from": "left-ventricle",
+      "to": "heart"
+    },
+    {
+      "id": "aortic-valve-in-heart",
+      "relationType": "heart.is-part-of",
+      "from": "aortic-valve",
+      "to": "heart"
+    },
+    {
+      "id": "aorta-in-heart",
+      "relationType": "heart.is-part-of",
+      "from": "aorta",
+      "to": "heart"
+    },
+    {
+      "id": "septum-in-heart",
+      "relationType": "heart.is-part-of",
+      "from": "septum",
+      "to": "heart"
+    },
+    {
+      "id": "sinoatrial-node-in-heart",
+      "relationType": "heart.is-part-of",
+      "from": "sinoatrial-node",
+      "to": "heart"
+    },
+    {
+      "id": "body-to-superior-vena-cava",
+      "relationType": "heart.sends-oxygen-poor-blood-to",
+      "from": "body",
+      "to": "superior-vena-cava"
+    },
+    {
+      "id": "body-to-inferior-vena-cava",
+      "relationType": "heart.sends-oxygen-poor-blood-to",
+      "from": "body",
+      "to": "inferior-vena-cava"
+    },
+    {
+      "id": "superior-vena-cava-to-right-atrium",
+      "relationType": "heart.sends-oxygen-poor-blood-to",
+      "from": "superior-vena-cava",
+      "to": "right-atrium"
+    },
+    {
+      "id": "inferior-vena-cava-to-right-atrium",
+      "relationType": "heart.sends-oxygen-poor-blood-to",
+      "from": "inferior-vena-cava",
+      "to": "right-atrium"
+    },
+    {
+      "id": "right-atrium-to-tricuspid-valve",
+      "relationType": "heart.sends-oxygen-poor-blood-to",
+      "from": "right-atrium",
+      "to": "tricuspid-valve"
+    },
+    {
+      "id": "tricuspid-valve-to-right-ventricle",
+      "relationType": "heart.sends-oxygen-poor-blood-to",
+      "from": "tricuspid-valve",
+      "to": "right-ventricle"
+    },
+    {
+      "id": "right-ventricle-to-pulmonary-valve",
+      "relationType": "heart.sends-oxygen-poor-blood-to",
+      "from": "right-ventricle",
+      "to": "pulmonary-valve"
+    },
+    {
+      "id": "pulmonary-valve-to-pulmonary-artery",
+      "relationType": "heart.sends-oxygen-poor-blood-to",
+      "from": "pulmonary-valve",
+      "to": "pulmonary-artery"
+    },
+    {
+      "id": "pulmonary-artery-to-lungs",
+      "relationType": "heart.sends-oxygen-poor-blood-to",
+      "from": "pulmonary-artery",
+      "to": "lungs"
+    },
+    {
+      "id": "lungs-to-pulmonary-veins",
+      "relationType": "heart.sends-oxygen-rich-blood-to",
+      "from": "lungs",
+      "to": "pulmonary-veins"
+    },
+    {
+      "id": "pulmonary-veins-to-left-atrium",
+      "relationType": "heart.sends-oxygen-rich-blood-to",
+      "from": "pulmonary-veins",
+      "to": "left-atrium"
+    },
+    {
+      "id": "left-atrium-to-mitral-valve",
+      "relationType": "heart.sends-oxygen-rich-blood-to",
+      "from": "left-atrium",
+      "to": "mitral-valve"
+    },
+    {
+      "id": "mitral-valve-to-left-ventricle",
+      "relationType": "heart.sends-oxygen-rich-blood-to",
+      "from": "mitral-valve",
+      "to": "left-ventricle"
+    },
+    {
+      "id": "left-ventricle-to-aortic-valve",
+      "relationType": "heart.sends-oxygen-rich-blood-to",
+      "from": "left-ventricle",
+      "to": "aortic-valve"
+    },
+    {
+      "id": "aortic-valve-to-aorta",
+      "relationType": "heart.sends-oxygen-rich-blood-to",
+      "from": "aortic-valve",
+      "to": "aorta"
+    },
+    {
+      "id": "aorta-to-body",
+      "relationType": "heart.sends-oxygen-rich-blood-to",
+      "from": "aorta",
+      "to": "body"
+    },
+    {
+      "id": "sinoatrial-node-paces-right-atrium",
+      "relationType": "heart.paces",
+      "from": "sinoatrial-node",
+      "to": "right-atrium"
+    }
+  ]
+}

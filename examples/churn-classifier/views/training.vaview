@@ -1,0 +1,94 @@
+{
+  "id": "training",
+  "name": "Training",
+  "description": "How the classifier is trained every week, what it minimizes and how it is judged.",
+  "perspective": {
+    "name": "Training"
+  },
+  "nestingRelationTypes": [],
+  "positions": [
+    {
+      "element": "model-monitoring",
+      "x": 256,
+      "y": 352
+    },
+    {
+      "element": "training-split",
+      "x": 256,
+      "y": 0
+    },
+    {
+      "element": "validation-split",
+      "x": 256,
+      "y": 120
+    },
+    {
+      "element": "test-split",
+      "x": 512,
+      "y": 248
+    },
+    {
+      "element": "churn-classifier",
+      "x": 256,
+      "y": 464
+    },
+    {
+      "element": "binary-cross-entropy",
+      "x": 512,
+      "y": 480
+    },
+    {
+      "element": "adamw",
+      "x": 0,
+      "y": 480
+    },
+    {
+      "element": "validation-auc",
+      "x": 256,
+      "y": 240
+    },
+    {
+      "element": "test-auc",
+      "x": 512,
+      "y": 368
+    },
+    {
+      "element": "weekly-training",
+      "x": 0,
+      "y": 344
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "include": [
+      {
+        "kind": "component",
+        "component": "machine-learning.dataset"
+      },
+      {
+        "kind": "component",
+        "component": "machine-learning.model"
+      },
+      {
+        "kind": "component",
+        "component": "machine-learning.loss"
+      },
+      {
+        "kind": "component",
+        "component": "machine-learning.optimizer"
+      },
+      {
+        "kind": "component",
+        "component": "machine-learning.metric"
+      },
+      {
+        "kind": "component",
+        "component": "machine-learning.training-run"
+      },
+      {
+        "kind": "component",
+        "component": "data-science.dashboard"
+      }
+    ]
+  }
+}

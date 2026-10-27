@@ -1,0 +1,89 @@
+/*
+ * The parts of a drawing with parts in the inspector (ADR 0067), and the Anchor parts… dialog: each
+ * part's preview, its id and the content drawn as it; the choices of how parts are matched, and what
+ * the plan would do. Text meets WCAG 2.1 AA contrast (4.5:1).
+ */
+
+/* A part: its preview, its id, then what it is drawn as; in a narrow panel what it is drawn as goes below. */
+.inspector-part {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 0.4rem;
+  overflow-wrap: anywhere;
+}
+
+.inspector-part-preview {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+}
+
+.inspector-part-id {
+  flex: 1 1 6rem;
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: var(--text-xs);
+}
+
+.inspector-part-none {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.anchor-parts {
+  max-width: 34rem;
+}
+
+.anchor-parts-by {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0 0 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+}
+
+.anchor-parts-by label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.anchor-parts-scheme {
+  display: grid;
+  gap: 0.25rem;
+  margin-left: 1.4rem;
+}
+
+.anchor-parts-scheme input,
+.anchor-parts-create select {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.4rem;
+  font: inherit;
+}
+
+.anchor-parts-create {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 0.3rem 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.anchor-parts-create select {
+  grid-column: 1 / -1;
+}
+
+.anchor-parts-plan {
+  max-height: 16rem;
+  overflow: auto;
+}
+
+.anchor-parts-list {
+  margin: 0.2rem 0 0.5rem;
+  padding-left: 1.1rem;
+  overflow-wrap: anywhere;
+}

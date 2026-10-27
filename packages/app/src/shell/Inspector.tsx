@@ -10,6 +10,7 @@ import { countsOf } from './inspector/describe';
 import { ElementInspector } from './inspector/ElementInspector';
 import { FreeShapeAppearance } from './inspector/FreeShapeAppearance';
 import { inspectedKey, inspectedOf } from './inspector/inspected';
+import { LinesControl } from './inspector/LinesControl';
 import { OverlaysSection } from './inspector/OverlaysSection';
 import { Detail } from './inspector/parts';
 import { RelationInspector } from './inspector/RelationInspector';
@@ -151,6 +152,8 @@ function ViewDetails({ view, scene, definitions }: InspectorProps) {
         <Detail term={t('Relations')}>{scene.relations.length}</Detail>
         <Detail term={t('Free shapes')}>{scene.notes.length + scene.arrows.length}</Detail>
       </dl>
+      {/* How it draws the automatic routes its relations leave to it (ADR 0069). */}
+      <LinesControl view={view} />
       {/* What the view shows of the model, and its scope's editor (ADR-0040). */}
       <ScopeEditor view={view} />
     </section>

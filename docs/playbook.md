@@ -33,6 +33,12 @@ Every milestone runs the same five steps:
 | M6 · Dogfooding and v0.1 | M5 | Everything, together with the user | — |
 | Track A · Look and feel | M2 for A1; `a1` for A2; M3's canvas tasks for A3; M4 for A4 | Core foundations: colors, preferences, protocol, dark shades; project appearances and their commands; sizes on the 8-unit step | Server preferences; app preferences and the header; shell polish; canvas theme; canvas colors; inspector color editing; grid; snapping; rulers |
 | M8b · Beyond boxes | M8 | The three seams, in order: free geometry and route styles in the schema and core; named parts in the core; the scene's seam | Once the seams are merged: free geometry on the canvas; routes on outlines and automatic curves; anchored parts on the canvas; the editors; HTML as a drawing; Claude's tools; exports; the sample; the benchmark, measured after the rest is merged |
+| M11c · Tours that move, and scenarios that decide | M11, M5 | The two seams: tours' new keys, `tourTransition` and the bounded camera path; decisions in the schema and the core (ADR 0077, ADR 0078) | One task at a time (since 2026-10-26): tours on the canvas; the stage; decisions in the app; Claude; view states, addresses and the sample; the benchmark |
+| Track P · Visual packages | M6c, M8b | The licence list and reserved ids (ADR 0079) | One package at a time, in ADR 0079's order |
+| M9 · Physical space inside components | M8b | Its two seams (ADR 0075) | One task at a time |
+| M10 · A linked physical-space panel | M9 | Its two seams (ADR 0076) | One task at a time |
+
+Since 2026-10-26 the user asked for no more parallel waves: the machine runs everything locally and the usage limits are near. Once the agents running then are merged, work goes one task at a time, in the main session or with a single builder.
 
 M4's tools depend only on M1, so they can be built in a second Claude Code session in its own worktree while M2 is under way: `claude --worktree mcp-tools`. Do it only when you can review two streams of work at once; otherwise follow the spec's order. Once M3 is tagged, M3b can run the same way beside M4.
 

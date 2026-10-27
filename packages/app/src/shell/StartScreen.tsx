@@ -16,6 +16,16 @@ const SAMPLE_TEXTS: Readonly<Record<string, { title: string; description: string
     description:
       'The data a subscription business turns into a churn model, and the dashboards it feeds, with a scenario of the nightly run.',
   },
+  'churn-classifier': {
+    title: 'Machine learning: churn classifier',
+    description:
+      'A Transformer that reads each customer’s last 90 events to tell who will cancel, beside the pipeline that feeds it, with a scenario of its forward pass.',
+  },
+  'robot-arm': {
+    title: 'Physical AI: a pick-and-place arm',
+    description:
+      'A six-axis arm drawn with its parts, its kinematic chain and its software, with a scenario of a command that goes from a learned policy to a joint and is read back.',
+  },
   'order-process': {
     title: 'Processes and state machines: an online order',
     description:

@@ -99,6 +99,9 @@ import {
   type Anchor,
 } from './snapping';
 import { rectAround, rectBetween } from './spatial';
+import type { AlignHow } from './align';
+import { ALIGN_BY_KEY, alignCommand } from './alignActions';
+import { ShapeEditor, guidesOff, type MoveGuide } from './shapeEditor';
 import { t } from '../i18n';
 
 /** What the canvas asks of the rest of the app. */
@@ -185,7 +188,9 @@ type Gesture =
   | { kind: 'box'; pointer: number; start: Point; additive: boolean }
   | { kind: 'connect'; pointer: number; from: ElementShape; anchor: Point; target?: Hit }
   /** A handle or a segment of a route being dragged, which the route editor follows. */
-  | { kind: 'route'; pointer: number };
+  | { kind: 'route'; pointer: number }
+  /** A handle of the shape selected alone being dragged, which the shape editor follows (ADR 0074). */
+  | { kind: 'resize'; pointer: number };
 
 /**
  * Shapes being dragged: from where the press was, by how far, and the renderer's drawing of them; and
@@ -210,6 +215,9 @@ interface DragGesture {
   aim: DropAim;
   /** Whether Alt is held, which only moves. */
   alt: boolean;
+  /** What the alignment guides look at, and whether Ctrl (⌘) turns them off (ADR 0074). */
+  guide: MoveGuide | undefined;
+  unguided: boolean;
   /** The shape that would cover the grabbed one where it lands, as last checked. */
   cover: ElementShape | undefined;
   /** Where the pointer is, on screen relative to the canvas. */
@@ -357,6 +365,8 @@ export class CanvasController {
   private altDragged = false;
   /** Edits the route of the relation selected alone: its handles, gestures and keys (ADR 0039). */
   private readonly routes: RouteEditor;
+  /** Resizes the shape selected alone, and guides what is dragged or resized (ADR 0074). */
+  private readonly shapes: ShapeEditor;
 
   constructor(
     private readonly host: HTMLElement,
@@ -399,6 +409,29 @@ export class CanvasController {
         if (at) this.placeCaption(at);
       },
       select: (relation) => this.select(selectionOf([{ kind: 'relation', id: relation }])),
+    });
+    this.shapes = new ShapeEditor({
+      renderer: this.renderer,
+      state: () =>
+        this.indexed && this.project && this.viewId !== undefined
+          ? {
+              indexed: this.indexed,
+              project: this.project,
+              viewId: this.viewId,
+              selection: this.selection,
+              editable: this.editable,
+              current: this.current,
+              moving: this.gesture.kind === 'drag',
+            }
+          : undefined,
+      camera: () => this.camera,
+      snapping: () => this.snapping,
+      command: (command) => callbacks.command(command),
+      announce: (text) => this.announce(text),
+      caption: (caption, at) => {
+        this.showCaption(caption);
+        if (at) this.placeCaption(at);
+      },
     });
     host.addEventListener('pointerdown', this.onPointerDown);
     host.addEventListener('pointermove', this.onPointerMove);
@@ -636,6 +669,11 @@ export class CanvasController {
       this.begin(event, { kind: 'route', pointer: event.pointerId });
       return;
     }
+    // Then the handles of the shape selected alone (ADR 0074).
+    if (this.editable && this.shapes.press(world, screen, event)) {
+      this.begin(event, { kind: 'resize', pointer: event.pointerId });
+      return;
+    }
     const handleShape = this.handleShape();
     const handle = handleShape && this.handleOf(handleShape);
     if (
@@ -737,6 +775,8 @@ export class CanvasController {
           ...(plan ? { plan } : {}),
           aim: { kind: 'stay' },
           alt: event.altKey,
+          guide: this.shapes.moveGuideOf(indexed, this.selection, gesture.hit, moving, keys),
+          unguided: guidesOff(event),
           cover: undefined,
           at: screen,
           armed: undefined,
@@ -757,10 +797,14 @@ export class CanvasController {
         gesture.raw = { x: world.x - gesture.world.x, y: world.y - gesture.world.y };
         gesture.at = screen;
         gesture.alt = event.altKey;
+        gesture.unguided = guidesOff(event);
         this.placeDrag(gesture);
         this.aimDrop(gesture);
         return;
       }
+      case 'resize':
+        this.shapes.move(world, screen, event);
+        return;
       case 'box':
         this.showOverlay({ box: rectBetween(gesture.start, world) });
         return;
@@ -810,7 +854,7 @@ export class CanvasController {
           this.hovered = shape;
           this.refreshMarks();
         }
-        const routeCursor = this.routes.cursorAt(world);
+        const routeCursor = this.routes.cursorAt(world) ?? this.shapes.cursorAt(world);
         this.host.style.cursor = routeCursor
           ? routeCursor
           : onHandle
@@ -872,6 +916,10 @@ export class CanvasController {
         return;
       case 'route':
         this.routes.release();
+        return;
+      case 'resize':
+        if (event.altKey) this.altDragged = true;
+        this.shapes.release();
         return;
       case 'box': {
         const world = screenToWorld(this.camera, this.local(event));
@@ -958,6 +1006,12 @@ export class CanvasController {
     if (this.routes.keyDown(event)) return;
     const command = event.ctrlKey || event.metaKey;
     const gesture = this.gesture;
+    // Shift, Alt, Ctrl and ⌘ change a resize under way at once (ADR 0074).
+    if (gesture.kind === 'resize' && this.shapes.keyChange(event)) return;
+    if ((event.key === 'Control' || event.key === 'Meta') && gesture.kind === 'drag') {
+      this.guideAgain(gesture, event);
+      return;
+    }
     if (event.key === 'Alt' && gesture.kind === 'drag') {
       // Kept from the browser, which would show its menu bar, as Firefox on Windows does.
       event.preventDefault();
@@ -1060,6 +1114,11 @@ export class CanvasController {
   private readonly onKeyUp = (event: KeyboardEvent): void => {
     if (event.key === ' ') this.releaseSpace();
     const gesture = this.gesture;
+    if (gesture.kind === 'resize' && this.shapes.keyChange(event)) return;
+    if ((event.key === 'Control' || event.key === 'Meta') && gesture.kind === 'drag') {
+      this.guideAgain(gesture, event);
+      return;
+    }
     if (event.key === 'Alt' && gesture.kind === 'drag') {
       event.preventDefault();
       gesture.alt = false;
@@ -1237,6 +1296,7 @@ export class CanvasController {
 
   private cancel(): void {
     if (this.gesture.kind === 'route') this.routes.cancel();
+    if (this.gesture.kind === 'resize') this.shapes.cancel();
     if (this.gesture.kind === 'drag') {
       this.endDropFeedback(this.gesture);
       this.renderer.endDrag(this.gesture.drag);
@@ -1340,6 +1400,7 @@ export class CanvasController {
     if (gesture.landingFrame !== undefined) cancelFrame(gesture.landingFrame);
     gesture.landingFrame = undefined;
     this.showCaption(undefined);
+    this.shapes.endMove();
   }
 
   /** Writes the caption: its line, and the details below it; nothing hides it. */
@@ -1518,6 +1579,12 @@ export class CanvasController {
     // window; with ← and → they are left alone. So are Alt with Left and Right, which go back and
     // forward in the browser's history.
     if (event.ctrlKey || event.metaKey) return;
+    // Alt+Shift with an arrow key aligns the selection to that side (ADR 0074).
+    if (event.altKey && event.shiftKey) {
+      event.preventDefault();
+      if (this.gesture.kind === 'idle') this.alignFromKeys(ALIGN_BY_KEY[direction]);
+      return;
+    }
     if (event.altKey && (direction === 'left' || direction === 'right')) return;
     event.preventDefault();
     if (this.gesture.kind !== 'idle') return;
@@ -1780,6 +1847,36 @@ export class CanvasController {
     return handled;
   }
 
+  /**
+   * Alt+Shift with an arrow key: aligns the selected shapes to that side, as one action, and says what
+   * it did, or why it did nothing (ADR 0074).
+   */
+  private alignFromKeys(how: AlignHow): void {
+    const { indexed, project, viewId } = this;
+    if (!indexed || !project || viewId === undefined) return;
+    if (!this.editable) {
+      this.announce(t('The project cannot be changed now.'));
+      return;
+    }
+    const aligned = alignCommand(indexed, project, viewId, this.selection, how);
+    if ('reason' in aligned) {
+      this.announce(aligned.reason);
+      return;
+    }
+    void this.callbacks.command(aligned.command).then((done) => {
+      if (done) this.announce(`${t.message(aligned.label)}.`);
+    });
+  }
+
+  /** Ctrl or ⌘ pressed or let go while shapes are dragged: the guides go off or come back. */
+  private guideAgain(gesture: DragGesture, event: KeyboardEvent): void {
+    const unguided = guidesOff(event);
+    if (unguided === gesture.unguided) return;
+    gesture.unguided = unguided;
+    this.placeDrag(gesture);
+    this.aimDrop(gesture);
+  }
+
   /** Ctrl+Enter: adds a row below the current row, or at the end of the current shape's rows. */
   private addRowFromKeys(): void {
     const current = this.currentReachable();
@@ -1889,15 +1986,22 @@ export class CanvasController {
   }
 
   /**
-   * Moves the dragged shapes as far as the pointer went: while the grid snaps and Alt is not held, so
-   * that the anchor lands on the grid in the frame a release would put it in. The preview and the drop
-   * take the same distance.
+   * Moves the dragged shapes as far as the pointer went: onto an alignment guide in the frame a
+   * release would put them in, on each axis where one is within reach and neither Alt nor Ctrl is held
+   * (ADR 0074); elsewhere, while the grid snaps and Alt is not held, so that the anchor lands on the
+   * grid in that frame. The preview and the drop take the same distance.
    */
   private placeDrag(gesture: DragGesture): void {
     const { anchor } = gesture;
     const frame = aimFrame(gesture.plan ? gesture.aim : undefined, anchor?.home ?? WORLD_FRAME);
     const snapping = this.snapping && !gesture.alt && anchor !== undefined;
-    gesture.delta = snapDrag(anchor, gesture.raw, frame, snapping);
+    gesture.delta = this.shapes.guideMove(
+      gesture.guide,
+      gesture.raw,
+      snapDrag(anchor, gesture.raw, frame, snapping),
+      frame.container?.key ?? '',
+      gesture.alt || gesture.unguided,
+    );
     const shown = this.grid.grid || this.grid.rulers;
     const dragFrame: DragFrame = {
       snapping,
@@ -1975,6 +2079,7 @@ export class CanvasController {
   private refreshMarks(): void {
     this.renderer.setSelection(this.selection, this.hovered?.key);
     this.routes.refresh();
+    this.shapes.refresh();
     if (this.gesture.kind === 'idle') {
       const shape = this.handleShape();
       this.showOverlay(shape ? { handle: this.handleOf(shape) } : {});

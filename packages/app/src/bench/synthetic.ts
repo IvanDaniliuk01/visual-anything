@@ -54,7 +54,8 @@ export interface SyntheticOptions {
   images?: boolean;
 }
 
-const COMPONENTS = [
+/** The components of the contents of systems, picked at random. */
+export const CONTENT_COMPONENTS: readonly string[] = [
   'systems.service',
   'systems.database',
   'systems.ai-agent',
@@ -62,9 +63,10 @@ const COMPONENTS = [
 ];
 const RELATION_TYPES = ['systems.communicates-with', 'systems.reads-from', 'systems.writes-to'];
 /** What every third relation is called, so that relation labels are drawn too. */
-const RELATION_NAMES = ['HTTPS', 'gRPC', 'events', 'SQL', 'webhook'];
-const CELL = { width: 200, height: 112 };
-const SYSTEM_PADDING = { left: 24, top: 56, right: 24, bottom: 24 };
+export const RELATION_NAMES: readonly string[] = ['HTTPS', 'gRPC', 'events', 'SQL', 'webhook'];
+/** The cell each content of a system takes, and what a system leaves around its contents. */
+export const CELL = { width: 200, height: 112 } as const;
+export const SYSTEM_PADDING = { left: 24, top: 56, right: 24, bottom: 24 } as const;
 /** How far each shape of a staircase or of the cascade sits from the one before it. */
 const STAIR = { x: 40, y: 16 };
 const CASCADE = { x: 24, y: 12 };
@@ -116,22 +118,13 @@ export function syntheticProject(options: SyntheticOptions): ProjectSnapshot {
     }
   }
 
-  const wanted = Math.round(services.length * (options.relationsPerElement ?? 1));
-  for (let each = 0; each < wanted; each++) {
-    const index = Math.floor(random() * services.length);
-    const from = services[index] as string;
-    // Mostly to a near element, sometimes far away, as real systems are.
-    const near = random() < 0.8;
-    const to = near
-      ? (services[
-          Math.min(services.length - 1, Math.max(0, index + 1 + Math.floor(random() * 6)))
-        ] as string)
-      : (services[Math.floor(random() * services.length)] as string);
-    if (from === to) continue;
-    const relationType = RELATION_TYPES[Math.floor(random() * RELATION_TYPES.length)] as string;
-    const name = each % 3 === 0 ? RELATION_NAMES[(each / 3) % RELATION_NAMES.length] : undefined;
-    relations.push({ id: `relation-${each}`, relationType, from, to, ...(name ? { name } : {}) });
-  }
+  relations.push(
+    ...relationsBetween(
+      services,
+      Math.round(services.length * (options.relationsPerElement ?? 1)),
+      random,
+    ),
+  );
 
   const routes = handRoutes(options.routes ?? 0, relations, positions);
   const pictured = options.images
@@ -164,6 +157,33 @@ export function syntheticProject(options: SyntheticOptions): ProjectSnapshot {
     tours: [],
     comments: [],
   };
+}
+
+/**
+ * `wanted` relations between the elements given, each from one at random, mostly to one of the next
+ * few, sometimes to one far away, as real systems are; every third named.
+ */
+export function relationsBetween(
+  services: readonly string[],
+  wanted: number,
+  random: () => number,
+): Relation[] {
+  const relations: Relation[] = [];
+  for (let each = 0; each < wanted; each++) {
+    const index = Math.floor(random() * services.length);
+    const from = services[index] as string;
+    const near = random() < 0.8;
+    const to = near
+      ? (services[
+          Math.min(services.length - 1, Math.max(0, index + 1 + Math.floor(random() * 6)))
+        ] as string)
+      : (services[Math.floor(random() * services.length)] as string);
+    if (from === to) continue;
+    const relationType = RELATION_TYPES[Math.floor(random() * RELATION_TYPES.length)] as string;
+    const name = each % 3 === 0 ? RELATION_NAMES[(each / 3) % RELATION_NAMES.length] : undefined;
+    relations.push({ id: `relation-${each}`, relationType, from, to, ...(name ? { name } : {}) });
+  }
+  return relations;
 }
 
 /**
@@ -259,7 +279,9 @@ function addSystems(
     positions.push({ element: systemId, ...origin, ...systemSize });
     for (let each = 0; each < inside && elements.length - start < count; each++) {
       const id = `element-${system}-${each}`;
-      const component = COMPONENTS[Math.floor(random() * COMPONENTS.length)] as string;
+      const component = CONTENT_COMPONENTS[
+        Math.floor(random() * CONTENT_COMPONENTS.length)
+      ] as string;
       elements.push({ id, component, name: `Element ${system}.${each}` });
       services.push(id);
       const last = each === inside - 1 || elements.length - start === count;

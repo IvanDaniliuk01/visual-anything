@@ -27,6 +27,7 @@ import {
   type Rect,
 } from './geometry';
 import type { IndexedScene } from './hit';
+import { outlineSignature } from './outlined';
 import { curvePieces } from './routing/curves';
 import type { CurveSpan } from './routing/hand';
 import type { ElementShape, RelationLine } from './scene';
@@ -456,6 +457,8 @@ export function shapeSignature(shape: ElementShape): string {
       shape.leaving?.length ?? 0,
       // Whether its mark says it has destinations (ADR 0056).
       shape.destinations ?? 0,
+      // Its own outline and the part it is drawn as (ADR 0066, ADR 0067).
+      outlineSignature(shape),
     ].join(' ');
     signatures.set(shape, signature);
   }

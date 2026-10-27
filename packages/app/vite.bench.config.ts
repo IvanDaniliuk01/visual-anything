@@ -22,5 +22,15 @@ export default defineConfig({
       },
     },
   },
-  preview: { host: '127.0.0.1', port: 47707, strictPort: true },
+  preview: {
+    host: '127.0.0.1',
+    port: 47707,
+    strictPort: true,
+    // Cross-origin isolated, so that Chrome reads its clock finer than 0.1 ms: pointing is held to
+    // 1 ms (W60). The pages load nothing from another origin.
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
+  },
 });

@@ -12,9 +12,11 @@ import {
 import type { Id } from '@visual-anything/schema';
 import { ESSENCE_ID } from '@visual-anything/schema';
 import { boundsOf, type Rect } from '../geometry';
+import { outlineAt } from '../outlines';
 import { headerMiddle } from '../rows';
 import { laidOutRect } from '../overlays/decorate';
-import type { ElementShape, Scene } from '../scene';
+import { innerPointOf } from '../routing/outline-ends';
+import { CONTENTS_ORIGIN, type ElementShape, type Scene } from '../scene';
 import { connectionPointsOf, handPortsOf } from './ports';
 import type { LayoutConnectionPoint, LayoutInput, LayoutRelation, LayoutShape } from './types';
 
@@ -34,6 +36,15 @@ export type LayoutScope =
   | { kind: 'new'; keys: ReadonlySet<string> };
 
 const IN_WORLD = '';
+
+/**
+ * Whether a shape waits for the automatic layout of new shapes: one the view stores no position for,
+ * unless its place is not layout's to give, as a row's is its container's rows' (ADR 0023) and an
+ * anchored part's is its part's, in its drawing (ADR 0067).
+ */
+export function waitsForLayout(shape: ElementShape): boolean {
+  return shape.positioned === 'placed' && shape.row === undefined && shape.part?.inDrawing !== true;
+}
 
 /** What a layout of `scope` works from; undefined when it would move nothing. */
 export function layoutInput(
@@ -91,8 +102,10 @@ export function layoutInput(
   let anyFree = false;
   const laid = shapes.map((shape, at): LayoutShape => {
     indexes.set(shape.key, at);
-    // A row has no position of its own: it moves with the shape that draws it (ADR 0023).
-    const isFree = shape.row === undefined && free(shape);
+    // A row has no position of its own: it moves with the shape that draws it (ADR 0023); nor has
+    // an anchored part, which lies in its part's place in its drawing (ADR 0067).
+    const anchored = shape.part?.inDrawing === true;
+    const isFree = shape.row === undefined && !anchored && free(shape);
     anyFree ||= isFree;
     const parent =
       shape.containerShape === undefined ? undefined : indexes.get(shape.containerShape);
@@ -108,7 +121,9 @@ export function layoutInput(
       height: laidOutRect(shape).height,
     };
     // A shape kept where the view stores it, unpinned, may move aside for a container that grows.
-    if (!isFree && shape.row === undefined && shape.positioned === 'stored') laidShape.aside = true;
+    if (!isFree && shape.row === undefined && !anchored && shape.positioned === 'stored') {
+      laidShape.aside = true;
+    }
     const stored = shape.storedSize;
     if (stored?.width !== undefined) laidShape.storedWidth = stored.width;
     if (stored?.height !== undefined) laidShape.storedHeight = stored.height;
@@ -123,6 +138,13 @@ export function layoutInput(
     // Rows and the shapes that draw them attach relations beside them, at their middles.
     if (shape.row !== undefined) laidShape.rowAt = shape.offset.y + shape.rect.height / 2;
     if (shape.rowCount !== undefined) laidShape.headerAt = headerMiddle(shape.rect) - shape.rect.y;
+    // A drawing with parts is one block, as large as its header, its picture and its contents.
+    if (shape.picture) Object.assign(laidShape, drawingFields(shape, laidShape));
+    if (anchored) {
+      const holder = parent === undefined ? undefined : shapes[parent];
+      const partAt = holder && partPlace(shape, holder);
+      if (partAt) laidShape.partAt = partAt;
+    }
     return laidShape;
   });
   if (!anyFree) return undefined;
@@ -139,6 +161,37 @@ export function layoutInput(
 
   const obstacles: Rect[] = scope.kind === 'contents' ? [] : worldObstacles(scene);
   return { shapes: laid, relations, obstacles };
+}
+
+/**
+ * What layout takes of a drawing with parts (ADR 0067, ADR 0015's clarification): where its picture
+ * ends, below which its other contents go, and the size it takes around its header and picture
+ * before it grows to hold them, as the scene sizes it.
+ */
+function drawingFields(
+  shape: ElementShape,
+  laid: LayoutShape,
+): Pick<LayoutShape, 'pictureBottom' | 'baseWidth' | 'baseHeight'> {
+  const picture = shape.picture as NonNullable<ElementShape['picture']>;
+  const right = picture.rect.x - shape.rect.x + picture.rect.width;
+  const bottom = picture.rect.y - shape.rect.y + picture.rect.height;
+  return {
+    pictureBottom: bottom,
+    baseWidth: Math.max(laid.baseWidth ?? laid.width, right + CONTENTS_ORIGIN.x),
+    baseHeight: Math.max(laid.baseHeight ?? laid.height, bottom + CONTENTS_ORIGIN.x),
+  };
+}
+
+/**
+ * Where the relations of an anchored part attach on its drawing (ADR 0067): its outline's inner
+ * point, from the top left of the drawing; the middle of its box without an outline.
+ */
+function partPlace(shape: ElementShape, drawing: ElementShape): { x: number; y: number } {
+  const placed = outlineAt(shape);
+  const inner = placed
+    ? innerPointOf(placed)
+    : { x: shape.rect.x + shape.rect.width / 2, y: shape.rect.y + shape.rect.height / 2 };
+  return { x: inner.x - drawing.rect.x, y: inner.y - drawing.rect.y };
 }
 
 /** What layout takes of an appearance: its size, and where relations attach. */

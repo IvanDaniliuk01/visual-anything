@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { anchoredElements, findPart, imagesIn } from '@visual-anything/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadProject } from './project';
 import {
@@ -32,13 +33,21 @@ describe('the sample projects the program holds', () => {
     ).toBe(samplesText());
   });
 
-  it('are the C4, data-science and process samples, each with its starter package', () => {
+  it('are the C4, data-science, machine learning, physical-ai and process samples, each with its starter packages', () => {
     expect(samples().map(({ id, packages }) => ({ id, packages }))).toEqual([
       { id: 'c4-architecture', packages: ['c4'] },
       { id: 'data-science-pipeline', packages: ['data-science'] },
+      { id: 'churn-classifier', packages: ['data-science', 'machine-learning'] },
+      { id: 'robot-arm', packages: ['physical-ai'] },
       { id: 'order-process', packages: ['process'] },
     ]);
-    expect(SAMPLE_IDS).toEqual(['c4-architecture', 'data-science-pipeline', 'order-process']);
+    expect(SAMPLE_IDS).toEqual([
+      'c4-architecture',
+      'data-science-pipeline',
+      'churn-classifier',
+      'robot-arm',
+      'order-process',
+    ]);
     expect(sampleOf('my-systems')).toBeUndefined();
   });
 
@@ -62,6 +71,37 @@ describe('the sample projects the program holds', () => {
       expect(loaded.files.packages.size).toBe(0);
     },
   );
+
+  it('draws the Churn classifier’s layers as the parts of its Transformer block (P1 W62)', async () => {
+    const sample = sampleOf('churn-classifier');
+    if (sample === undefined) throw new Error('No sample churn-classifier.');
+    expect((await writeNewProject(join(root, 'churn'), sample.files)).ok).toBe(true);
+    const loaded = await loadProject(join(root, 'churn'));
+    if (!loaded.ok) throw new Error(JSON.stringify(loaded.errors));
+    const anchored = anchoredElements(loaded.project);
+    expect(anchored.map((each) => [each.element.id, each.part.part, each.images])).toEqual(
+      [
+        ['event-embedding', 'input-embedding'],
+        ['positional-encoding', 'positional-encoding'],
+        ['self-attention', 'multi-head-attention'],
+        ['add-norm-1', 'add-norm-1'],
+        ['feed-forward', 'feed-forward'],
+        ['add-norm-2', 'add-norm-2'],
+        ['encoded-events', 'output'],
+      ].map(([element, part]) => [element, part, ['machine-learning.transformer-block-drawing']]),
+    );
+    const catalog = imagesIn(loaded.project);
+    for (const each of anchored) {
+      expect(findPart(each.part, catalog, each.images[0]), each.element.id).toBeDefined();
+    }
+    const architecture = loaded.project.views.find((view) => view.id === 'architecture');
+    expect(architecture?.nestingRelationTypes).toEqual(['machine-learning.is-part-of']);
+    const ids = new Set(anchored.map((each) => each.element.id));
+    expect(architecture?.positions.filter((each) => ids.has(each.element))).toEqual([]);
+    expect(loaded.project.scenarios.map((each) => [each.id, each.view])).toEqual([
+      ['forward-pass', 'architecture'],
+    ]);
+  });
 });
 
 describe('a new project', () => {

@@ -73,6 +73,8 @@ jobs:
           extension="${{ matrix.file }}"
           extension="${extension#visual-anything}"
           cp "dist-exe/${{ matrix.file }}" "release/visual-anything-${{ matrix.target }}$extension"
+          # The notice of the code the executables bundle, the same for each (ADR 0068).
+          cp dist-exe/THIRD-PARTY-NOTICES.txt release/visual-anything-THIRD-PARTY-NOTICES.txt
       - uses: actions/upload-artifact@v7
         with:
           name: visual-anything-${{ matrix.target }}

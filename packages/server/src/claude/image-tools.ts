@@ -15,6 +15,7 @@ import {
   imageWithContent,
   imagesIn,
   modelIndexOf,
+  partsLostByReplacing,
   readBitmap,
   type ProjectSnapshot,
 } from '@visual-anything/core';
@@ -122,6 +123,8 @@ const replaceImage = tool({
   title: 'Replace an image',
   description: `Replaces the picture of an image of the project's own packages, or renames it, as one undoable action; every component and element that shows it shows the new picture. Pass the new content itself, as add_image takes it; it is cleaned the same way, and the answer says what cleaning removed. Left out, the picture stays and only the name or the source changes; a source of null takes it away.
 
+Elements drawn as its named parts keep their anchors: the answer lists the anchored parts the new picture lacks (partsLost), with the elements drawn as each, which are then drawn as ordinary shapes until a picture has those parts again or the person undoes it.
+
 Example: { "id": "clinic.calendar-icon", "svg": "<svg xmlns=\\"http://www.w3.org/2000/svg\\" viewBox=\\"0 0 24 24\\"><circle cx=\\"12\\" cy=\\"12\\" r=\\"9\\" fill=\\"#2F6FDE\\"/></svg>" }
 Example: { "id": "clinic.dr-ruiz", "name": "Dr. Ana Ruiz" }`,
   input: {
@@ -168,11 +171,21 @@ Example: { "id": "clinic.dr-ruiz", "name": "Dr. Ana Ruiz" }`,
         const replaced = imagesIn(now).image(definition.id);
         // A picture kept as stored is cleaned again too, which says so when it changes it.
         const cleaned = answer.warnings.some((each) => each.code === 'image-cleaned');
+        // The anchored parts the new cleaned picture lacks, from the project before (ADR 0067).
+        const lost = answer.changed
+          ? partsLostByReplacing(state, definition.id, imagesIn(now).shown(definition.id))
+          : [];
         return {
           image: definition.id,
           ...(replaced ? sizeOf(replaced.definition) : {}),
           ...(changesContent || cleaned ? { cleaned: cleanedSays(answer.warnings) } : {}),
           shownBy: usersOf(now, definition.id).map((each) => each.name),
+          ...(lost.length === 0
+            ? {}
+            : {
+                partsLost: lost,
+                partsLostSay: `The new picture lacks ${counted(lost.length, 'anchored part')}; until a picture has ${lost.length === 1 ? 'it' : 'them'} again, the elements anchored to ${lost.length === 1 ? 'it' : 'them'} are drawn as ordinary shapes. Their anchors are kept, and the person can undo the replacement.`,
+              }),
         };
       },
       ['image-cleaned'],

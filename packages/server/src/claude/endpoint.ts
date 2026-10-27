@@ -7,6 +7,7 @@
  * other message.
  */
 import {
+  DRAWING_LIMITS,
   ProtocolError,
   packagesWithCode,
   viewStateProblems,
@@ -15,7 +16,8 @@ import {
   type ServerMessage,
   type ViewState,
 } from '@visual-anything/core';
-import { previewImport } from '../import';
+import { isDrawingImport, prepareMadeDrawing } from '../drawings/import';
+import { previewImport, type ImportRequest } from '../import';
 import type { LiveSession, SessionClient } from '../session';
 import {
   MAX_LIVE_LISTED,
@@ -57,6 +59,46 @@ export function attachClaude(
   const refuse = (requestId: string, problems: Problem[]) =>
     send({ type: 'command/rejected', requestId, problems });
 
+  /**
+   * HTML the person imports on the command line, as a drawing (ADR 0068): the program makes the
+   * drawing of the file itself, then plans and runs the one action that stores and shows it, as the
+   * person's, against the project as it is when its turn comes.
+   */
+  const importDrawing = async (request: ImportRequest, requestId: string): Promise<void> => {
+    const made =
+      session.makeDrawing === undefined
+        ? {
+            ok: false as const,
+            problems: [
+              {
+                code: 'program-failed' as const,
+                message: 'This Visual Anything makes no drawings.',
+              },
+            ],
+          }
+        : await session.makeDrawing(request.text, request.width ?? DRAWING_LIMITS.width.initial);
+    if (!made.ok) {
+      refuse(requestId, made.problems);
+      return;
+    }
+    await session.executePlanned(
+      (state) => {
+        const prepared = prepareMadeDrawing(state, request.name, made, request);
+        return prepared.ok
+          ? { ok: true, command: prepared.command }
+          : {
+              ok: false,
+              problems: prepared.problems.map((each) => ({
+                code: 'invalid-command' as const,
+                message: each,
+              })),
+            };
+      },
+      'user',
+      { client, requestId },
+    );
+  };
+
   const handle = async (message: ClaudeMessage): Promise<void> => {
     switch (message.type) {
       case 'command':
@@ -72,6 +114,10 @@ export function attachClaude(
         // own reading and mapping of that file makes. It is read and mapped in the session's queue,
         // in the turn that runs it, against the project the work asked for before it leaves.
         const request = importRequestOf(message.request);
+        if (isDrawingImport(request)) {
+          await importDrawing(request, message.requestId);
+          return;
+        }
         await session.executePlanned(
           (state) => {
             const preview = previewImport(state, request);

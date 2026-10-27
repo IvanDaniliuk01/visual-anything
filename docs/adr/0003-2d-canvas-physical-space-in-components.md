@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR-0076
 ---
 
 # 2D canvas; physical space lives inside components

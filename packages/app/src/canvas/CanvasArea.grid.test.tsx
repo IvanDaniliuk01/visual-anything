@@ -158,8 +158,9 @@ describe('Snapping on the canvas', () => {
     const { host, at, camera } = await started(sample, onCommand);
     const from = at('clinic-booking/whatsapp');
     point('pointerdown', host, from);
-    point('pointermove', host, { x: from.x + 37, y: from.y + 13 });
-    point('pointerup', host, { x: from.x + 37, y: from.y + 13 });
+    // Ctrl turns the alignment guides off too (ADR 0074).
+    point('pointermove', host, { x: from.x + 37, y: from.y + 13 }, { ctrlKey: true });
+    point('pointerup', host, { x: from.x + 37, y: from.y + 13 }, { ctrlKey: true });
     await answers();
     const [moved] = positionsOf(onCommand.mock.lastCall?.[0]);
     expect(moved!.x).toBe(Math.round(40 + 37 / camera.scale));

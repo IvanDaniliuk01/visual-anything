@@ -3,6 +3,9 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [react()],
+  // The app's page alone is scanned for dependencies: the read-only page and its benchmark import
+  // the validators that only their own build makes (`vite.viewer.config.ts`).
+  optimizeDeps: { entries: ['index.html'] },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],

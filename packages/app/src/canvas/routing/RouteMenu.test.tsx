@@ -186,3 +186,85 @@ describe('the history’s labels of routes', () => {
     expect(outcome.ok && outcome.label).toBe('Draw "HTTPS" curved in "System overview"');
   });
 });
+
+// M8b W55: the Style control's Automatic (ADR 0039's clarification, ADR 0069).
+describe('the Style control’s Automatic', () => {
+  const curvedView = run(sample, {
+    type: 'update-view',
+    id: VIEW,
+    changes: { routeStyle: 'curved' },
+  });
+
+  it('is chosen for a route that chooses no style, and says the automatic style', () => {
+    menuFor(curvedView, ['api-reads-db']);
+    const automatic = screen.getByRole('menuitemradio', { name: 'Automatic: curved' });
+    expect(automatic).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('menuitemradio', { name: 'Curved' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    );
+  });
+
+  it('gives a route its automatic style back, as one action labelled for it', () => {
+    const { onSend } = menuFor(routed, ['agent-to-api']);
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Automatic: orthogonal' }));
+    const [command] = onSend.mock.calls.map(([each]) => each);
+    expect(command).toEqual({
+      type: 'batch',
+      label: 'Draw "HTTPS" in its automatic style in "System overview"',
+      commands: [{ type: 'set-route', view: VIEW, relation: 'agent-to-api', style: 'orthogonal' }],
+    });
+    // The route keeps its end chosen by hand and loses only its style.
+    const after = run(routed, command as Command);
+    expect(after.views.find((view) => view.id === VIEW)?.routes?.['agent-to-api']).toEqual({
+      to: { kind: 'border', side: 'top', at: 0.5 },
+    });
+  });
+
+  it('sends nothing for relations whose routes choose no style', () => {
+    const { onSend } = menuFor(sample, ['api-reads-db', 'api-writes-db']);
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Automatic: orthogonal' }));
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('sends nothing for a style a view’s Lines draw the line in already', () => {
+    const { onSend } = menuFor(curvedView, ['api-reads-db']);
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Curved' }));
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('is offered in the inspector’s Route section, with the automatic style', () => {
+    const send = vi.fn(() => Promise.resolve({ ok: true }));
+    const editor: Editor = {
+      project: routed,
+      definitions: definitionsIn(routed),
+      viewId: VIEW,
+      scene: buildScene(routed, VIEW),
+      selection: EMPTY_SELECTION,
+      select: () => undefined,
+      send,
+      reveal: () => undefined,
+    };
+    render(
+      <EditorContext.Provider value={editor}>
+        <RouteSection relation="agent-to-api" />
+      </EditorContext.Provider>,
+    );
+    const style = screen.getByRole('combobox', { name: 'Style' });
+    expect(screen.getByRole('option', { name: 'Automatic: orthogonal' })).toBeInTheDocument();
+    fireEvent.change(style, { target: { value: 'automatic' } });
+    expect(send).toHaveBeenCalledWith({
+      type: 'batch',
+      label: 'Draw "HTTPS" in its automatic style in "System overview"',
+      commands: [{ type: 'set-route', view: VIEW, relation: 'agent-to-api', style: 'orthogonal' }],
+    });
+  });
+
+  it('labels its actions in Spanish too', () => {
+    const labels = [
+      'Draw "HTTPS" in its automatic style in "System overview"',
+      'Draw 2 relations in their automatic styles in "System overview"',
+    ];
+    for (const label of labels) expect(untranslatedParts('es', label)).toEqual([]);
+  });
+});

@@ -15,7 +15,13 @@ import embedded from './samples/samples.json' with { type: 'json' };
 import { removeFile, writeFileAtomic } from './writer';
 
 /** The sample projects a new project can start from, by id, in the order they are offered. */
-export const SAMPLE_IDS = ['c4-architecture', 'data-science-pipeline', 'order-process'] as const;
+export const SAMPLE_IDS = [
+  'c4-architecture',
+  'data-science-pipeline',
+  'churn-classifier',
+  'robot-arm',
+  'order-process',
+] as const;
 
 /** A sample project the local program holds. */
 export interface Sample {

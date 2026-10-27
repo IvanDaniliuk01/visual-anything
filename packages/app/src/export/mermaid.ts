@@ -3,7 +3,8 @@
  * the view shows as a node of its shape, each container a subgraph, through each element's first
  * container, and each relation drawn as an edge labelled with its name or its relation type, in the
  * colors of the theme chosen. Mermaid lays the chart out itself, so positions and routes are lost; the
- * file says what else it lost, in comments at its top, and the export lists it.
+ * file says what else it lost, in comments at its top, and the export lists it: among it, free
+ * geometry and named parts, drawn as their shapes' kinds, and routes' curved and straight styles.
  *
  * Every label is written in quotes with Mermaid's entity codes for quotes, markup and `#`, so that a
  * name can never close a label, start a directive or reach the page as HTML.
@@ -22,6 +23,7 @@ import { readableTextColors } from '../canvas/colors';
 import { buildScene, type ElementShape, type RelationLine } from '../canvas/scene';
 import { lineStroke, shapeColors } from '../canvas/theme/paint';
 import { t, type PluralText } from '../i18n';
+import { lostBeyondBoxes } from './beyond-lost';
 import type { TextExport } from './outline';
 
 const COPIES: PluralText = {
@@ -177,6 +179,7 @@ export function writeMermaid(
 
   // Edges, in the model's order, with their styles by their index.
   const edges: string[] = [];
+  const drawnLines: RelationLine[] = [];
   const styles = new Map<string, number[]>();
   let onRelations = 0;
   const endOf = (line: RelationLine, end: 'from' | 'to'): ElementShape | undefined => {
@@ -219,6 +222,7 @@ export function writeMermaid(
     if (list) list.push(edges.length);
     else styles.set(style, [edges.length]);
     edges.push(`  ${idOf(from.element)} ${arrow}|${mermaidLabel(label)}| ${idOf(to.element)}`);
+    drawnLines.push(line);
   }
 
   const free = scene.notes.length + scene.arrows.length;
@@ -229,6 +233,8 @@ export function writeMermaid(
     ...(onRelations > 0 ? [t(ON_RELATIONS, { count: onRelations })] : []),
     ...(people > 0 ? [t(PEOPLE, { count: people })] : []),
     ...(pictures > 0 ? [t(PICTURES, { count: pictures })] : []),
+    // Free geometry, named parts and the styles of routes (M8b).
+    ...lostBeyondBoxes(first.values(), drawnLines, 'Mermaid'),
     ...(free > 0 ? [t(FREE, { count: free })] : []),
     // Mermaid draws no legend, though its colors are the overlays' (ADR 0055).
     ...(legendShows(legendOf(view, definitions, theme))

@@ -172,6 +172,11 @@ const UNREADABLE: readonly [string, () => unknown][] = [
     'start with a name too long',
     app({ type: 'start/create', names: { project: 'x'.repeat(201) } }),
   ],
+  // Making a drawing of HTML (ADR 0068), and the answer to it.
+  ['a drawing of no name', app({ type: 'drawing/make', name: '', html: '<p>x</p>', width: 800 })],
+  ['a drawing of no HTML', app({ type: 'drawing/make', name: 'a.html', html: 1, width: 800 })],
+  ['a drawing too narrow', app({ type: 'drawing/make', name: 'a.html', html: 'x', width: 10 })],
+  ['a drawing that is not one', server({ type: 'drawing/made', requestId: 'r1', svg: '<p/>' })],
   ['open no project', app({ type: 'project/open-other', project: '' })],
   ['open no view there', app({ type: 'project/open-other', project: '/p', view: 1 })],
   ['fetch for no package', app({ type: 'live/fetch', url: 'https://a.com' })],
