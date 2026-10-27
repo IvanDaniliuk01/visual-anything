@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "name": "Online order",
+  "description": "A sample of the processes and state machines package: an online shop’s order, from the customer’s order through a stock check to shipping, and the states the order goes through.",
+  "packages": [
+    "process"
+  ]
+}

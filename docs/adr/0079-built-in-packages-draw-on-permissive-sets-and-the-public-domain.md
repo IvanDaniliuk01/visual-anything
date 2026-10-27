@@ -54,3 +54,15 @@ The user asked for more visual packages, beyond Systems, C4, Data modeling and D
 - `THIRD-PARTY-NOTICES.md` and its test, and the per-image credits in exports, come with the first package that uses an outside set under MIT, ISC, Apache-2.0 or CC-BY-4.0.
 - The spec plans Track P, the visual packages, in the order above.
 - ADR 0047 and ADR 0051 each gain a note pointing here.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (P1, W64): **Processes and state machines** (`process`).
+  - **A nesting relation type of its own**, "is part of" (`process.is-part-of`), since pools, lanes, subprocesses and states hold contents and the package needs no other one. Its limits name only the containers.
+  - **Triggers and kinds are data without defaults.** An event's `trigger` takes `none`, `message`, `timer` or `signal`, and a task's `kind` `user`, `service` or `manual`, each offered as choices and written in the shape's detail. No appearance chooses its image by an attribute's value, so the package ships icons for message, timer and signal, and an element shows its trigger's icon through an appearance of its own, as the sample's events do. An image that follows an attribute's value would need a new ADR.
+  - **Symbols write their names beside them.** Events, gateways, data objects and stores, and the initial and final states and choices keep their proportions, in a box 96 tall that holds the symbol and a label area 48 tall: under the symbol, or over it for gateways and choices, whose paths leave from below. Their connection points sit on the symbol's middle line, left and right, and on the side the name leaves free, so that no line crosses a name. Tasks and states write their names inside them. Pools, lanes and subprocesses stretch to their contents, as containers do, and write their names in their headers; so does a state that holds states.
+  - **One stroke, so thick lines are contours set close.** Free geometry has the canvas's stroke only, 1.5 canvas units. An end event's thick ring, an initial state's dot and a final state's dot are circles at most 1 apart, and an intermediate event's inner ring, a gateway's mark and a data store's bands are holes narrower than that stroke: the stroke covers them at a shape's own size, and they show as fine stripes only on a shape stretched to well over it.
+  - **Colors** follow the other starter packages: events green, red and amber, work blue, gateways yellow, data violet and states teal, each stroke at 4.5:1 or more on its fill and on the light canvas, and the trigger icons in one grey that reads at 3:1 on every event's fill and on both canvases.
+  - **The sample**, `examples/order-process`, plays an order that ships through its exclusive gateway, as a scenario without decisions. When ADR 0078's decisions land, the gateway becomes a decision whose alternatives are the paths "yes" and "no", which the model already holds.

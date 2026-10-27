@@ -1,0 +1,92 @@
+{
+  "id": "an-order-ships",
+  "name": "An order that ships",
+  "description": "An order whose items are all in stock goes through the exclusive gateway to the warehouse, and out to the carrier.",
+  "view": "order-process",
+  "steps": [
+    {
+      "id": "order",
+      "description": "The customer places an order on the website.",
+      "relations": [
+        "places-order"
+      ],
+      "dataOut": {
+        "items": 3,
+        "order": "A-1042"
+      }
+    },
+    {
+      "id": "check",
+      "description": "The order starts the process, and the shop checks its stock.",
+      "relations": [
+        "received-to-check",
+        "order-with-check"
+      ],
+      "dataIn": {
+        "order": "A-1042"
+      }
+    },
+    {
+      "id": "decide",
+      "description": "The inventory has every item, and the check reaches the exclusive gateway.",
+      "relations": [
+        "inventory-with-check",
+        "check-to-gateway"
+      ],
+      "dataOut": {
+        "inStock": true
+      }
+    },
+    {
+      "id": "yes",
+      "description": "Every item is in stock, so the gateway sends the order to the warehouse.",
+      "relations": [
+        "in-stock-yes"
+      ]
+    },
+    {
+      "id": "pack",
+      "description": "The items are picked from their shelves and packed.",
+      "relations": [
+        "pick-to-pack"
+      ],
+      "dataOut": {
+        "parcel": "1 box, 2.4 kg"
+      }
+    },
+    {
+      "id": "wait",
+      "description": "The parcel waits for the carrier, who comes at 17:00.",
+      "relations": [
+        "parcel-to-pickup"
+      ]
+    },
+    {
+      "id": "hand-over",
+      "description": "At 17:00 the parcel is scanned and handed over.",
+      "relations": [
+        "pickup-to-hand-over"
+      ]
+    },
+    {
+      "id": "shipped",
+      "description": "The order is shipped.",
+      "relations": [
+        "hand-over-to-shipped"
+      ],
+      "dataOut": {
+        "tracking": "TRK-58213"
+      }
+    },
+    {
+      "id": "tell",
+      "description": "The customer gets the tracking number.",
+      "relations": [
+        "sends-tracking"
+      ],
+      "dataOut": {
+        "tracking": "TRK-58213"
+      }
+    }
+  ]
+}

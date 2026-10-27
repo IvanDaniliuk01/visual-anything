@@ -83,7 +83,7 @@ describe('parseNewCommandLine', () => {
     expect(parseNewCommandLine(['a', '--from', 'my-systems'])).toEqual({
       ok: false,
       message:
-        'There is no sample "my-systems"; the samples are c4-architecture and data-science-pipeline.',
+        'There is no sample "my-systems"; the samples are c4-architecture, data-science-pipeline and order-process.',
     });
     expect(parseNewCommandLine(['a', '--view', 'x']).ok).toBe(false);
   });

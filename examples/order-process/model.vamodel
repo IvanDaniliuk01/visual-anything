@@ -1,0 +1,511 @@
+{
+  "world": {
+    "id": "world",
+    "component": "essence",
+    "name": "World"
+  },
+  "elements": [
+    {
+      "id": "customer",
+      "component": "process.pool",
+      "name": "Customer",
+      "description": "Who orders; drawn with no lanes, since how they work is not modeled."
+    },
+    {
+      "id": "shop",
+      "component": "process.pool",
+      "name": "Online shop",
+      "description": "The shop that sells the items and ships them."
+    },
+    {
+      "id": "sales",
+      "component": "process.lane",
+      "name": "Sales",
+      "description": "Takes orders and keeps customers informed."
+    },
+    {
+      "id": "warehouse",
+      "component": "process.lane",
+      "name": "Warehouse",
+      "description": "Keeps the stock and ships parcels."
+    },
+    {
+      "id": "order-received",
+      "component": "process.start-event",
+      "name": "Order received",
+      "description": "A customer’s order arrives from the website.",
+      "attributes": {
+        "trigger": "message"
+      },
+      "appearance": {
+        "image": {
+          "image": "process.message-icon"
+        }
+      }
+    },
+    {
+      "id": "check-stock",
+      "component": "process.task",
+      "name": "Check stock",
+      "description": "Looks up every item of the order in the inventory.",
+      "attributes": {
+        "kind": "service"
+      }
+    },
+    {
+      "id": "in-stock",
+      "component": "process.exclusive-gateway",
+      "name": "In stock?",
+      "description": "Whether every item of the order is on the shelves."
+    },
+    {
+      "id": "cancel-order",
+      "component": "process.task",
+      "name": "Cancel and refund",
+      "description": "Cancels the order and refunds the payment.",
+      "attributes": {
+        "kind": "user"
+      }
+    },
+    {
+      "id": "order-cancelled",
+      "component": "process.end-event",
+      "name": "Order cancelled",
+      "description": "The customer is told, and the process ends.",
+      "attributes": {
+        "trigger": "message"
+      },
+      "appearance": {
+        "image": {
+          "image": "process.message-icon"
+        }
+      }
+    },
+    {
+      "id": "order",
+      "component": "process.data-object",
+      "name": "Order",
+      "description": "The items, the address and the payment."
+    },
+    {
+      "id": "prepare-parcel",
+      "component": "process.subprocess",
+      "name": "Prepare the parcel",
+      "description": "Everything the warehouse does before the carrier comes."
+    },
+    {
+      "id": "pick-items",
+      "component": "process.task",
+      "name": "Pick the items",
+      "description": "Takes each item from its shelf.",
+      "attributes": {
+        "kind": "manual"
+      }
+    },
+    {
+      "id": "pack-box",
+      "component": "process.task",
+      "name": "Pack the box",
+      "description": "Packs the items and prints the label.",
+      "attributes": {
+        "kind": "manual"
+      }
+    },
+    {
+      "id": "carrier-pickup",
+      "component": "process.intermediate-event",
+      "name": "Carrier pickup",
+      "description": "The carrier comes by every day at 17:00.",
+      "attributes": {
+        "trigger": "timer"
+      },
+      "appearance": {
+        "image": {
+          "image": "process.timer-icon"
+        }
+      }
+    },
+    {
+      "id": "hand-over",
+      "component": "process.task",
+      "name": "Hand over",
+      "description": "The parcel is scanned and given to the carrier.",
+      "attributes": {
+        "kind": "user"
+      }
+    },
+    {
+      "id": "order-shipped",
+      "component": "process.end-event",
+      "name": "Order shipped",
+      "description": "The customer gets the tracking number, and the process ends.",
+      "attributes": {
+        "trigger": "message"
+      },
+      "appearance": {
+        "image": {
+          "image": "process.message-icon"
+        }
+      }
+    },
+    {
+      "id": "inventory",
+      "component": "process.data-store",
+      "name": "Inventory",
+      "description": "Stock levels, by item and shelf."
+    },
+    {
+      "id": "created",
+      "component": "process.initial-state",
+      "name": "Created",
+      "description": "Where every order starts."
+    },
+    {
+      "id": "placed",
+      "component": "process.state",
+      "name": "Placed",
+      "description": "Paid for, and waiting for its stock to be checked."
+    },
+    {
+      "id": "stock-choice",
+      "component": "process.choice",
+      "name": "In stock?",
+      "description": "Whether it can be fulfilled."
+    },
+    {
+      "id": "fulfilling",
+      "component": "process.state",
+      "name": "Fulfilling",
+      "description": "In the warehouse, from picking to the carrier."
+    },
+    {
+      "id": "picking",
+      "component": "process.state",
+      "name": "Picking",
+      "description": "Its items are being taken from the shelves."
+    },
+    {
+      "id": "packing",
+      "component": "process.state",
+      "name": "Packing",
+      "description": "Its items are being packed."
+    },
+    {
+      "id": "awaiting-pickup",
+      "component": "process.state",
+      "name": "Awaiting pickup",
+      "description": "Packed, waiting for the carrier."
+    },
+    {
+      "id": "shipped",
+      "component": "process.state",
+      "name": "Shipped",
+      "description": "With the carrier, on its way."
+    },
+    {
+      "id": "cancelled",
+      "component": "process.state",
+      "name": "Cancelled",
+      "description": "Refunded, since an item was out of stock."
+    },
+    {
+      "id": "closed",
+      "component": "process.final-state",
+      "name": "Closed",
+      "description": "Where every order ends."
+    }
+  ],
+  "relations": [
+    {
+      "id": "sales-in-shop",
+      "relationType": "process.is-part-of",
+      "from": "sales",
+      "to": "shop"
+    },
+    {
+      "id": "warehouse-in-shop",
+      "relationType": "process.is-part-of",
+      "from": "warehouse",
+      "to": "shop"
+    },
+    {
+      "id": "order-received-in-sales",
+      "relationType": "process.is-part-of",
+      "from": "order-received",
+      "to": "sales"
+    },
+    {
+      "id": "check-stock-in-sales",
+      "relationType": "process.is-part-of",
+      "from": "check-stock",
+      "to": "sales"
+    },
+    {
+      "id": "in-stock-in-sales",
+      "relationType": "process.is-part-of",
+      "from": "in-stock",
+      "to": "sales"
+    },
+    {
+      "id": "cancel-order-in-sales",
+      "relationType": "process.is-part-of",
+      "from": "cancel-order",
+      "to": "sales"
+    },
+    {
+      "id": "order-cancelled-in-sales",
+      "relationType": "process.is-part-of",
+      "from": "order-cancelled",
+      "to": "sales"
+    },
+    {
+      "id": "order-in-sales",
+      "relationType": "process.is-part-of",
+      "from": "order",
+      "to": "sales"
+    },
+    {
+      "id": "prepare-parcel-in-warehouse",
+      "relationType": "process.is-part-of",
+      "from": "prepare-parcel",
+      "to": "warehouse"
+    },
+    {
+      "id": "carrier-pickup-in-warehouse",
+      "relationType": "process.is-part-of",
+      "from": "carrier-pickup",
+      "to": "warehouse"
+    },
+    {
+      "id": "hand-over-in-warehouse",
+      "relationType": "process.is-part-of",
+      "from": "hand-over",
+      "to": "warehouse"
+    },
+    {
+      "id": "order-shipped-in-warehouse",
+      "relationType": "process.is-part-of",
+      "from": "order-shipped",
+      "to": "warehouse"
+    },
+    {
+      "id": "inventory-in-warehouse",
+      "relationType": "process.is-part-of",
+      "from": "inventory",
+      "to": "warehouse"
+    },
+    {
+      "id": "pick-items-in-prepare-parcel",
+      "relationType": "process.is-part-of",
+      "from": "pick-items",
+      "to": "prepare-parcel"
+    },
+    {
+      "id": "pack-box-in-prepare-parcel",
+      "relationType": "process.is-part-of",
+      "from": "pack-box",
+      "to": "prepare-parcel"
+    },
+    {
+      "id": "picking-in-fulfilling",
+      "relationType": "process.is-part-of",
+      "from": "picking",
+      "to": "fulfilling"
+    },
+    {
+      "id": "packing-in-fulfilling",
+      "relationType": "process.is-part-of",
+      "from": "packing",
+      "to": "fulfilling"
+    },
+    {
+      "id": "awaiting-pickup-in-fulfilling",
+      "relationType": "process.is-part-of",
+      "from": "awaiting-pickup",
+      "to": "fulfilling"
+    },
+    {
+      "id": "places-order",
+      "relationType": "process.message-flow",
+      "from": "customer",
+      "to": "order-received",
+      "name": "order"
+    },
+    {
+      "id": "received-to-check",
+      "relationType": "process.sequence-flow",
+      "from": "order-received",
+      "to": "check-stock"
+    },
+    {
+      "id": "check-to-gateway",
+      "relationType": "process.sequence-flow",
+      "from": "check-stock",
+      "to": "in-stock"
+    },
+    {
+      "id": "in-stock-yes",
+      "relationType": "process.sequence-flow",
+      "from": "in-stock",
+      "to": "prepare-parcel",
+      "name": "yes",
+      "attributes": {
+        "condition": "every item in stock"
+      }
+    },
+    {
+      "id": "in-stock-no",
+      "relationType": "process.sequence-flow",
+      "from": "in-stock",
+      "to": "cancel-order",
+      "name": "no",
+      "attributes": {
+        "condition": "an item out of stock"
+      }
+    },
+    {
+      "id": "cancel-to-end",
+      "relationType": "process.sequence-flow",
+      "from": "cancel-order",
+      "to": "order-cancelled"
+    },
+    {
+      "id": "sends-refund",
+      "relationType": "process.message-flow",
+      "from": "order-cancelled",
+      "to": "customer",
+      "name": "refund notice"
+    },
+    {
+      "id": "pick-to-pack",
+      "relationType": "process.sequence-flow",
+      "from": "pick-items",
+      "to": "pack-box"
+    },
+    {
+      "id": "parcel-to-pickup",
+      "relationType": "process.sequence-flow",
+      "from": "prepare-parcel",
+      "to": "carrier-pickup"
+    },
+    {
+      "id": "pickup-to-hand-over",
+      "relationType": "process.sequence-flow",
+      "from": "carrier-pickup",
+      "to": "hand-over"
+    },
+    {
+      "id": "hand-over-to-shipped",
+      "relationType": "process.sequence-flow",
+      "from": "hand-over",
+      "to": "order-shipped"
+    },
+    {
+      "id": "sends-tracking",
+      "relationType": "process.message-flow",
+      "from": "order-shipped",
+      "to": "customer",
+      "name": "tracking number"
+    },
+    {
+      "id": "order-with-check",
+      "relationType": "process.association",
+      "from": "order",
+      "to": "check-stock"
+    },
+    {
+      "id": "inventory-with-check",
+      "relationType": "process.association",
+      "from": "inventory",
+      "to": "check-stock"
+    },
+    {
+      "id": "created-to-placed",
+      "relationType": "process.transition",
+      "from": "created",
+      "to": "placed",
+      "name": "order received",
+      "attributes": {
+        "trigger": "order received"
+      }
+    },
+    {
+      "id": "placed-to-choice",
+      "relationType": "process.transition",
+      "from": "placed",
+      "to": "stock-choice",
+      "name": "stock checked",
+      "attributes": {
+        "trigger": "stock checked"
+      }
+    },
+    {
+      "id": "choice-to-picking",
+      "relationType": "process.transition",
+      "from": "stock-choice",
+      "to": "picking",
+      "name": "[in stock]",
+      "attributes": {
+        "guard": "every item in stock"
+      }
+    },
+    {
+      "id": "choice-to-cancelled",
+      "relationType": "process.transition",
+      "from": "stock-choice",
+      "to": "cancelled",
+      "name": "[out of stock] / refund",
+      "attributes": {
+        "effect": "refund the payment",
+        "guard": "an item out of stock"
+      }
+    },
+    {
+      "id": "picking-to-packing",
+      "relationType": "process.transition",
+      "from": "picking",
+      "to": "packing",
+      "name": "items picked",
+      "attributes": {
+        "trigger": "items picked"
+      }
+    },
+    {
+      "id": "packing-to-awaiting",
+      "relationType": "process.transition",
+      "from": "packing",
+      "to": "awaiting-pickup",
+      "name": "box packed",
+      "attributes": {
+        "trigger": "box packed"
+      }
+    },
+    {
+      "id": "awaiting-to-shipped",
+      "relationType": "process.transition",
+      "from": "awaiting-pickup",
+      "to": "shipped",
+      "name": "17:00 / send tracking",
+      "attributes": {
+        "effect": "send the tracking number",
+        "trigger": "carrier pickup at 17:00"
+      }
+    },
+    {
+      "id": "shipped-to-closed",
+      "relationType": "process.transition",
+      "from": "shipped",
+      "to": "closed",
+      "name": "delivered",
+      "attributes": {
+        "trigger": "delivered"
+      }
+    },
+    {
+      "id": "cancelled-to-closed",
+      "relationType": "process.transition",
+      "from": "cancelled",
+      "to": "closed"
+    }
+  ]
+}

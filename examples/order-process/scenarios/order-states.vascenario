@@ -1,0 +1,57 @@
+{
+  "id": "order-states",
+  "name": "The states of an order that ships",
+  "description": "The same order, as its state changes from created to closed.",
+  "view": "order-lifecycle",
+  "steps": [
+    {
+      "id": "placed",
+      "description": "The order is received and placed.",
+      "relations": [
+        "created-to-placed"
+      ]
+    },
+    {
+      "id": "checked",
+      "description": "Its stock is checked.",
+      "relations": [
+        "placed-to-choice"
+      ]
+    },
+    {
+      "id": "picking",
+      "description": "Every item is in stock, so it goes into fulfilment, starting with picking.",
+      "relations": [
+        "choice-to-picking"
+      ]
+    },
+    {
+      "id": "packing",
+      "description": "Its items are picked, then packed.",
+      "relations": [
+        "picking-to-packing"
+      ]
+    },
+    {
+      "id": "awaiting",
+      "description": "The box is packed, and waits for the carrier.",
+      "relations": [
+        "packing-to-awaiting"
+      ]
+    },
+    {
+      "id": "shipped",
+      "description": "The carrier takes it at 17:00, and the customer gets the tracking number.",
+      "relations": [
+        "awaiting-to-shipped"
+      ]
+    },
+    {
+      "id": "closed",
+      "description": "It is delivered, and closed.",
+      "relations": [
+        "shipped-to-closed"
+      ]
+    }
+  ]
+}

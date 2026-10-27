@@ -40,6 +40,23 @@ export const DARK_SHADES: DarkShades = Object.freeze({
     'data-science.feature-store': { fill: '#241F38', stroke: '#B7A0F2' },
     'data-science.model': { fill: '#2E1C25', stroke: '#EE93B8' },
     'data-science.dashboard': { fill: '#13292A', stroke: '#5FC6B8' },
+    // P1 W64: Processes and state machines.
+    'process.pool': { fill: '#1C2128', stroke: '#A3AFBC' },
+    'process.lane': { fill: '#1B1F25', stroke: '#9AA5B1' },
+    'process.start-event': { fill: '#152A20', stroke: '#6CC795' },
+    'process.end-event': { fill: '#33191A', stroke: '#F0928A' },
+    'process.intermediate-event': { fill: '#2C2416', stroke: '#E2B45E' },
+    'process.task': { fill: '#18283B', stroke: '#8BB6EF' },
+    'process.subprocess': { fill: '#1A283A', stroke: '#97BEF1' },
+    'process.exclusive-gateway': { fill: '#2E2812', stroke: '#DDB955' },
+    'process.parallel-gateway': { fill: '#2E2812', stroke: '#DDB955' },
+    'process.inclusive-gateway': { fill: '#2E2812', stroke: '#DDB955' },
+    'process.data-object': { fill: '#241F38', stroke: '#B7A0F2' },
+    'process.data-store': { fill: '#241F38', stroke: '#B7A0F2' },
+    'process.state': { fill: '#13292A', stroke: '#5FC6B8' },
+    'process.initial-state': { fill: '#1E2329', stroke: '#D3DAE2' },
+    'process.final-state': { fill: '#1E2329', stroke: '#D3DAE2' },
+    'process.choice': { fill: '#13292A', stroke: '#5FC6B8' },
   }),
   relationTypes: Object.freeze({
     'relates-to': { stroke: '#8F9AA6' },
@@ -51,6 +68,11 @@ export const DARK_SHADES: DarkShades = Object.freeze({
     'c4.delivers-to': { stroke: '#AEB8C4' },
     'data-science.feeds': { stroke: '#AEB8C4' },
     'data-science.trains': { stroke: '#B7A0F2' },
+    // P1 W64: Processes and state machines.
+    'process.sequence-flow': { stroke: '#AEB8C4' },
+    'process.message-flow': { stroke: '#AEB8C4' },
+    'process.association': { stroke: '#9AA5B1' },
+    'process.transition': { stroke: '#AEB8C4' },
   }),
 });
 

@@ -68,7 +68,7 @@ export function parseNewCommandLine(argv: readonly string[]): ParsedNewCommandLi
   if (values.from !== undefined && !(SAMPLE_IDS as readonly string[]).includes(values.from)) {
     return {
       ok: false,
-      message: `There is no sample "${values.from}"; the samples are ${SAMPLE_IDS.join(' and ')}.`,
+      message: `There is no sample "${values.from}"; the samples are ${SAMPLE_IDS.slice(0, -1).join(', ')} and ${SAMPLE_IDS.at(-1)}.`,
     };
   }
   const folder = positionals[0] as string;

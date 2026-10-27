@@ -1,0 +1,87 @@
+{
+  "id": "order-lifecycle",
+  "name": "Order lifecycle",
+  "description": "The states an order goes through, from created to closed.",
+  "perspective": {
+    "name": "States"
+  },
+  "nestingRelationTypes": [
+    "process.is-part-of"
+  ],
+  "positions": [
+    {
+      "element": "created",
+      "x": 0,
+      "y": 88
+    },
+    {
+      "element": "placed",
+      "x": 176,
+      "y": 72
+    },
+    {
+      "element": "stock-choice",
+      "x": 384,
+      "y": 40
+    },
+    {
+      "element": "fulfilling",
+      "x": 560,
+      "y": 24
+    },
+    {
+      "element": "picking",
+      "container": "fulfilling",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "packing",
+      "container": "fulfilling",
+      "x": 232,
+      "y": 48
+    },
+    {
+      "element": "awaiting-pickup",
+      "container": "fulfilling",
+      "x": 440,
+      "y": 48
+    },
+    {
+      "element": "shipped",
+      "x": 1232,
+      "y": 72
+    },
+    {
+      "element": "cancelled",
+      "x": 368,
+      "y": 232
+    },
+    {
+      "element": "closed",
+      "x": 1440,
+      "y": 88
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "include": [
+      {
+        "kind": "component",
+        "component": "process.state"
+      },
+      {
+        "kind": "component",
+        "component": "process.initial-state"
+      },
+      {
+        "kind": "component",
+        "component": "process.final-state"
+      },
+      {
+        "kind": "component",
+        "component": "process.choice"
+      }
+    ]
+  }
+}

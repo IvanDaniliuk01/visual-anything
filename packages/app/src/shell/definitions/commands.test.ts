@@ -122,12 +122,13 @@ describe('unusedBuiltInPackages', () => {
       'data-modeling',
       'c4',
       'data-science',
+      'process',
     ]);
     expect(
       unusedBuiltInPackages(
         after(project, startUsingPackageCommand(project, 'data-modeling')!),
       ).map((file) => file.id),
-    ).toEqual(['c4', 'data-science']);
+    ).toEqual(['c4', 'data-science', 'process']);
   });
 });
 
