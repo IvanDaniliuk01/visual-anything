@@ -7,9 +7,15 @@
 import { DRAWING_LIMITS, modelIndexOf } from '@visual-anything/core';
 import { z } from 'zod';
 import { prepareMadeDrawing } from '../drawings/import';
-import { makeDrawing } from '../drawings/make';
+import { DrawingQueue } from '../drawings/queue';
 import { WRITE, act, fail, id, tool, withoutUndefined } from './kit';
 import type { Tool } from './tools';
+
+/**
+ * The drawings this entry point makes, one at a time and at most four waiting, as the program makes
+ * them: each worker may hold 256 MiB, so Claude's calls in parallel take turns (ADR 0068).
+ */
+const drawings = new DrawingQueue();
 
 const importDrawing = tool({
   name: 'import_drawing',
@@ -64,7 +70,7 @@ Example: { "name": "legend.html", "html": "<ul><li><b>Blue</b>: services</li><li
       );
     }
     const name = args.name ?? 'drawing.html';
-    const made = await makeDrawing(args.html, args.width ?? DRAWING_LIMITS.width.initial);
+    const made = await drawings.make(args.html, args.width ?? DRAWING_LIMITS.width.initial);
     if (!made.ok) {
       return fail(`Not imported: ${made.problems.map((each) => each.message).join(' ')}`);
     }

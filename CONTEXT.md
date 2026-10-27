@@ -107,7 +107,7 @@ The order, kept per view, in which the shapes that sit directly in one container
 _Avoid_: layer, z-order, z-index, depth, level
 
 **Outline**:
-The open view written out as a list, shape by shape: what sits directly in World, then what sits inside each container, in the model's order whatever the stacking order, with the relations drawn from each shape. It can be read and moved through from the keyboard, and it follows the selection.
+The open view written out as a list, shape by shape: what sits directly in World, then what sits inside each container, in the model's order whatever the stacking order, with the relations drawn from each shape. It can be read and moved through from the keyboard, and it follows the selection. Capitalized as the panel's name, it is this list; "a shape's outline", in lower case, is the line a shape is drawn by, its free geometry's or its part's.
 _Avoid_: layers panel, tree view
 
 **Collapsed container**:

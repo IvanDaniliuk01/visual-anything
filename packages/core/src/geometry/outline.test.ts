@@ -172,6 +172,22 @@ describe('readGeometry', () => {
       outline: Array.from({ length: 65 }, () => ellipse),
     });
     expect(!contours.ok && contours.code).toBe('geometry-too-large');
+    // Each subpath of one path's data counts as a contour too.
+    const squares = Array.from(
+      { length: 65 },
+      (_, at) => `M${(at % 10) * 9} ${Math.floor(at / 10) * 9}h4v4h-4Z`,
+    ).join(' ');
+    const subpaths = readGeometry({
+      width: 100,
+      height: 100,
+      outline: [{ kind: 'path', d: squares }],
+    });
+    expect(!subpaths.ok && subpaths.code).toBe('geometry-too-large');
+    expect(!subpaths.ok && subpaths.message).toContain('at most 64 contours, not 65');
+    const sixtyFour = squares.split('Z').slice(0, 64).join('Z') + 'Z';
+    expect(
+      readGeometry({ width: 100, height: 100, outline: [{ kind: 'path', d: sixtyFour }] }).ok,
+    ).toBe(true);
     const points = Array.from({ length: GEOMETRY_CAPS.segments + 1 }, (_, at) => {
       const angle = (2 * Math.PI * at) / (GEOMETRY_CAPS.segments + 1);
       return `${5 + 4 * Math.cos(angle)},${5 + 4 * Math.sin(angle)}`;

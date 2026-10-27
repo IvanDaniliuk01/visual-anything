@@ -3,7 +3,7 @@
  * warning, its heart is a picture drawn for Visual Anything whose named parts its chambers, septum,
  * valves and vessels are anchored to, its lungs are free geometry that reads, one view draws its lines
  * curved and one relation type straight, and its scenario of blood through the heart has no broken
- * step. Its card waits in `sources/card.html` to be imported as a drawing (ADR 0068).
+ * step. Its card is imported from `sources/card.html` as a drawing (ADR 0068).
  */
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
