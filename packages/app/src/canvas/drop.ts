@@ -31,6 +31,7 @@ import { IS_APPLE } from '../live/platform';
 import { centerOf, holdsPoint, type Point, type Rect } from './geometry';
 import { carriedKeys, moveParts, movingShapes } from './gestures';
 import { holdsAsDrawn, type IndexedScene } from './hit';
+import { drawnBoundsOf, nameTagOf } from './nameTags';
 import type { Overlay } from './renderer';
 import {
   rowDropCommand,
@@ -245,7 +246,8 @@ export function dropAimAt(
  * contents by its rectangle, where its contents are laid out; any other leaf by its kind's outline.
  */
 export function takesDropAt(shape: ElementShape, point: Point, exact: boolean): boolean {
-  if (shape.outline) return holdsAsDrawn(shape, point, exact);
+  // A name tag is part of its shape (ADR 0066's clarification of 2026-10-27).
+  if (shape.outline || nameTagOf(shape)) return holdsAsDrawn(shape, point, exact);
   return shape.holdsContents || !exact || holdsPoint(shape.kind, shape.rect, point);
 }
 
@@ -296,19 +298,22 @@ export function landingCover(
   return cover?.shape;
 }
 
-/** The outlines a drop draws: the container it goes into and its copies, the one it leaves, and so on. */
+/**
+ * The outlines a drop draws: the container it goes into and its copies, the one it leaves, and so on,
+ * each around its shape with its name tag (ADR 0066's clarification of 2026-10-27).
+ */
 export function dropOverlay(indexed: IndexedScene, plan: DropPlan, aim: DropAim): Overlay['drop'] {
   const from = plan.grabbedShape.fromShape;
-  const leavingRect = from === undefined ? undefined : indexed.byKey.get(from)?.rect;
-  const leaving = leavingRect ? { leaving: leavingRect } : {};
+  const leavingShape = from === undefined ? undefined : indexed.byKey.get(from);
+  const leaving = leavingShape ? { leaving: drawnBoundsOf(leavingShape) } : {};
   switch (aim.kind) {
     case 'into': {
       const copies = (indexed.byElement.get(aim.target.element) ?? [])
         .filter((copy) => copy.key !== aim.target.key)
-        .map((copy) => copy.rect);
+        .map(drawnBoundsOf);
       const slot = aim.rows && slotBar(aim.target, aim.rows);
       return {
-        into: aim.target.rect,
+        into: drawnBoundsOf(aim.target),
         ...(copies.length > 0 ? { copies } : {}),
         ...leaving,
         ...(slot ? { slot } : {}),
@@ -317,9 +322,9 @@ export function dropOverlay(indexed: IndexedScene, plan: DropPlan, aim: DropAim)
     case 'out':
       return leaving;
     case 'pending':
-      return { pending: aim.leaf.rect, ...leaving };
+      return { pending: drawnBoundsOf(aim.leaf), ...leaving };
     case 'refused':
-      return { refused: aim.target.rect };
+      return { refused: drawnBoundsOf(aim.target) };
     default:
       return undefined;
   }

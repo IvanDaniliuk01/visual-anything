@@ -11,6 +11,7 @@ import { FRAME, TRIANGLE } from '../test/beyond';
 import { APEX_UP, outlinedShape } from '../test/outlined';
 import type { TextFactory } from './draw';
 import { indexScene } from './hit';
+import { nameTagOf, nameTagOn } from './nameTags';
 import type { NamesBeside } from './namesBeside';
 import { CanvasRenderer } from './renderer';
 import type { ElementShape, Scene } from './scene';
@@ -75,13 +76,20 @@ function sceneOf(shapes: ElementShape[]): Scene {
   };
 }
 
-/** The kinds of the shapes in the paths a drawing strokes or fills. */
-function primitives(graphics: Graphics): string[] {
+/** The shapes in the paths a drawing strokes or fills. */
+function shapesIn(graphics: Graphics): { type: string; [field: string]: unknown }[] {
   return graphics.context.instructions.flatMap((each) =>
     (
-      each.data as { path: { shapePath: { shapePrimitives: { shape: { type: string } }[] } } }
-    ).path.shapePath.shapePrimitives.map(({ shape }) => shape.type),
+      each.data as {
+        path: { shapePath: { shapePrimitives: { shape: { type: string } }[] } };
+      }
+    ).path.shapePath.shapePrimitives.map(({ shape }) => shape),
   );
+}
+
+/** The kinds of the shapes in the paths a drawing strokes or fills. */
+function primitives(graphics: Graphics): string[] {
+  return shapesIn(graphics).map((shape) => shape.type);
 }
 
 const frame = outlinedShape('frame', FRAME, { x: 0, y: 0, width: 200, height: 100 });
@@ -101,14 +109,22 @@ describe('marks along the outline', () => {
     renderer.show(indexed);
     renderer.setSelection(selectionOf([]), 'frame');
     const kinds = primitives(inside(renderer).hoverMark);
-    expect(kinds).toEqual(['polygon', 'polygon']);
+    // Around the outline and its name tag as one, in two pieces that meet, and around the hole.
+    expect(nameTagOf(frame)).toBeDefined();
+    expect(kinds).toEqual(['polygon', 'polygon', 'polygon']);
+    // Without a tag, around the outline and the hole.
+    const bare = { ...frame, name: '' };
+    renderer.show(indexScene(sceneOf([bare, tiny, apex])));
+    renderer.setSelection(selectionOf([]), 'frame');
+    expect(primitives(inside(renderer).hoverMark)).toEqual(['polygon', 'polygon']);
   });
 
-  it('draws the selection’s marks along the outline', async () => {
+  it('draws the selection’s marks along the outline and its name tag', async () => {
     const renderer = await started();
     renderer.show(indexed);
     renderer.setSelection(selectionOf([{ kind: 'element', id: 'frame' }]), undefined);
     expect(primitives(inside(renderer).selectionChunks[0] as Graphics)).toEqual([
+      'polygon',
       'polygon',
       'polygon',
     ]);
@@ -177,8 +193,23 @@ describe('tiles of outlines', () => {
     const tile = [...inside(renderer).tiles.values()].find((each) =>
       each.shapes.some((shape) => shape.key === 'frame'),
     );
-    expect(tile?.coarse && primitives(tile.coarse)).not.toContain('rectangle');
+    // Rectangles are only name tags: blocks far out, and rounded close in.
+    const box = (shape: { type: string; [field: string]: unknown }) =>
+      shape.type === 'rectangle' &&
+      shape.x === frame.rect.x &&
+      shape.y === frame.rect.y &&
+      shape.width === frame.rect.width &&
+      shape.height === frame.rect.height;
+    const tag = nameTagOn(frame);
+    expect(tile?.coarse && shapesIn(tile.coarse).some(box)).toBe(false);
+    expect(
+      tile?.coarse &&
+        shapesIn(tile.coarse).some(
+          (shape) => shape.type === 'rectangle' && shape.y === tag?.y && shape.x === tag?.x,
+        ),
+    ).toBe(true);
     expect(tile?.full && primitives(tile.full)).not.toContain('rectangle');
+    expect(tile?.full && primitives(tile.full)).toContain('roundedRectangle');
     expect(tile?.full && primitives(tile.full)).toContain('polygon');
   });
 });

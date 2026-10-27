@@ -86,6 +86,7 @@ import {
   type Point,
   type Rect,
 } from './geometry';
+import { drawnBoundsOf, nameTagOf } from './nameTags';
 import { geometryOutline, geometrySource, outlineIn, partSource, sameOutline } from './outlines';
 import type { OutlineSource, ShapeOutline } from './outlines';
 import {
@@ -2832,7 +2833,11 @@ function sceneBounds(
     if (x + width > x2) x2 = x + width;
     if (y + height > y2) y2 = y + height;
   };
-  for (const shape of shapes) take(shape.rect.x, shape.rect.y, shape.rect.width, shape.rect.height);
+  // A shape covers its name tag too (ADR 0066's clarification of 2026-10-27).
+  for (const shape of shapes) {
+    const { x, y, width, height } = drawnBoundsOf(shape);
+    take(x, y, width, height);
+  }
   for (const note of notes) take(note.rect.x, note.rect.y, note.rect.width, note.rect.height);
   for (const line of relations) {
     const rect = boundsOfLine(line);
@@ -2864,13 +2869,14 @@ const relationLines = new WeakMap<readonly RelationLine[], Map<Id, RelationLine>
 
 /**
  * Whether lines attach to a shape elsewhere than before: its rectangle, the plate of a shape drawn by
- * its picture, or its own outline changed, so that the lines on it are routed again.
+ * its picture, its own outline or its name tag changed, so that the lines on it are routed again.
  */
 function attachesElsewhere(before: ElementShape, after: ElementShape): boolean {
   return (
     !sameRect(before.rect, after.rect) ||
     !sameRect(before.plate, after.plate) ||
-    before.outline !== after.outline
+    before.outline !== after.outline ||
+    nameTagOf(before) !== nameTagOf(after)
   );
 }
 

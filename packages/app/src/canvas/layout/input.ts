@@ -12,13 +12,20 @@ import {
 import type { Id } from '@visual-anything/schema';
 import { ESSENCE_ID } from '@visual-anything/schema';
 import { boundsOf, type Rect } from '../geometry';
+import { nameTagOn } from '../nameTags';
 import { outlineAt } from '../outlines';
 import { headerMiddle } from '../rows';
 import { laidOutRect } from '../overlays/decorate';
 import { innerPointOf } from '../routing/outline-ends';
 import { CONTENTS_ORIGIN, type ElementShape, type Scene } from '../scene';
 import { connectionPointsOf, handPortsOf } from './ports';
-import type { LayoutConnectionPoint, LayoutInput, LayoutRelation, LayoutShape } from './types';
+import {
+  LAYOUT_STEP,
+  type LayoutConnectionPoint,
+  type LayoutInput,
+  type LayoutRelation,
+  type LayoutShape,
+} from './types';
 
 /**
  * Which shapes one layout may move; pinned shapes never move (ADR-0009):
@@ -109,17 +116,21 @@ export function layoutInput(
     anyFree ||= isFree;
     const parent =
       shape.containerShape === undefined ? undefined : indexes.get(shape.containerShape);
+    // Layout never sees an overlay's size (ADR 0055): the rectangle it gave the shape. A shape is
+    // spaced with its name tag (ADR 0066's clarification of 2026-10-27).
+    const laidOut = laidOutRect(shape);
+    const reach = tagReachOf(shape, laidOut);
     const laidShape: LayoutShape = {
       key: shape.key,
       element: shape.element,
       parent: parent ?? -1,
       free: isFree,
-      x: shape.offset.x,
+      x: shape.offset.x - reach.left,
       y: shape.offset.y,
-      // Layout never sees an overlay's size (ADR 0055): the rectangle it gave the shape.
-      width: laidOutRect(shape).width,
-      height: laidOutRect(shape).height,
+      width: laidOut.width + reach.left + reach.right,
+      height: laidOut.height + reach.bottom,
     };
+    if (reach.left > 0) laidShape.tagLeft = reach.left;
     // A shape kept where the view stores it, unpinned, may move aside for a container that grows.
     if (!isFree && shape.row === undefined && !anchored && shape.positioned === 'stored') {
       laidShape.aside = true;
@@ -161,6 +172,27 @@ export function layoutInput(
 
   const obstacles: Rect[] = scope.kind === 'contents' ? [] : worldObstacles(scene);
   return { shapes: laid, relations, obstacles };
+}
+
+const NO_REACH = { left: 0, right: 0, bottom: 0 } as const;
+
+/**
+ * How far a shape's name tag reaches left, right and below the rectangle layout gave it, each rounded
+ * up to the step, so that the box layout spaces it by holds the tag and the shape still lands on the
+ * step; nothing for a shape without one.
+ */
+export function tagReachOf(
+  shape: ElementShape,
+  laidOut: Rect = laidOutRect(shape),
+): { left: number; right: number; bottom: number } {
+  const tag = nameTagOn(shape);
+  if (!tag) return NO_REACH;
+  const up = (room: number) => (room > 0 ? Math.ceil(room / LAYOUT_STEP - 1e-9) * LAYOUT_STEP : 0);
+  return {
+    left: up(laidOut.x - tag.x),
+    right: up(tag.x + tag.width - (laidOut.x + laidOut.width)),
+    bottom: up(tag.y + tag.height - (laidOut.y + laidOut.height)),
+  };
 }
 
 /**

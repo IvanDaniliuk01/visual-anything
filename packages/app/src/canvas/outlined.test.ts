@@ -7,16 +7,12 @@ import { distanceToEdges, flattenOutline, outlineHolds } from '@visual-anything/
 import { describe, expect, it } from 'vitest';
 import { TRIANGLE, beyondBoxes } from '../test/beyond';
 import { APEX_DOWN, APEX_UP, OVAL, outlinedShape } from '../test/outlined';
+import { drawnBoundsOf, nameTagOn } from './nameTags';
 import {
   LEAST_LABEL_HEIGHT,
-  NAME_BELOW_GAP,
-  NAME_BELOW_WIDTH,
-  PART_NAME_LINE,
-  drawnBoundsOf,
   headerStretch,
   labelAreaOn,
   markContours,
-  nameBelowOf,
   outlineBoundsOn,
   outlineSignature,
   simplifiedHolds,
@@ -100,28 +96,22 @@ describe('writesNameInside', () => {
     expect(writesNameBelow(boxed)).toBe(false);
   });
 
-  it('writes a name under its shape centred below the outline, on whole words, and covers it', () => {
+  it('writes a name under its shape in a name tag that touches the outline, and covers it', () => {
     const small = outlinedShape('small', TRIANGLE, { x: 100, y: 50, width: 30, height: 24 });
     const long = { ...small, name: 'Pulmonary artery and its branches to both lungs' };
     const bounds = outlineBoundsOn(long as ElementShape & { outline: ShapeOutline });
-    const below = nameBelowOf(long);
-    expect(below.x).toBeCloseTo(bounds.x + bounds.width / 2);
-    expect(below.y).toBeCloseTo(bounds.y + bounds.height + NAME_BELOW_GAP);
-    expect(below.width).toBe(NAME_BELOW_WIDTH);
-    expect(below.lines.length).toBeGreaterThan(1);
-    expect(below.lines.join(' ')).toBe(long.name);
+    const tag = nameTagOn(long);
+    expect(tag?.y).toBeCloseTo(bounds.y + bounds.height);
+    expect((tag?.x ?? 0) + (tag?.width ?? 0) / 2).toBeCloseTo(bounds.x + bounds.width / 2);
     const covered = drawnBoundsOf(long);
-    expect(covered.y + covered.height).toBeGreaterThanOrEqual(
-      below.y + below.lines.length * PART_NAME_LINE,
-    );
-    expect(covered.x).toBeLessThanOrEqual(below.x - NAME_BELOW_WIDTH / 2);
-    // A drawing with parts that is no container writes its name under its picture, never over it.
+    expect(covered.y + covered.height).toBeCloseTo((tag?.y ?? 0) + (tag?.height ?? 0));
+    // A drawing with parts that is no container writes its name under its box, never over it.
     const body = scene.shapes.find((shape) => shape.key === 'body') as ElementShape;
     expect(body.picture).toBeDefined();
     const drawing: ElementShape = { ...body, holdsContents: false };
     delete drawing.collapsed;
     expect(writesNameBelow(drawing)).toBe(true);
-    expect(nameBelowOf(drawing).y).toBeCloseTo(body.rect.y + body.rect.height + NAME_BELOW_GAP);
+    expect(nameTagOn(drawing)?.y).toBeCloseTo(body.rect.y + body.rect.height);
     expect(writesNameBelow({ ...drawing, holdsContents: true })).toBe(false);
     // A shape that writes its name inside covers its rectangle.
     const large = outlinedShape('large', TRIANGLE, { x: 0, y: 0, width: 200, height: 160 });

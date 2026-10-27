@@ -51,6 +51,7 @@ import {
   endOutline,
   onlyStrokes,
   placeOfEnd,
+  routeBoxOf,
   type OutlinedEnd,
 } from './outline-ends';
 import { sameHandle, type RouteOverlay } from './overlay';
@@ -1006,16 +1007,18 @@ function segmentEnds(
     const attachment = line.hand?.route[which];
     // An end attached at a place inside its shape is a point of its own, which does not slide.
     if (attachment?.kind === 'inside') return { kind: 'fixed' };
+    // An automatic end reaches a shape by its box, with its name tag (ADR 0066's clarifications).
+    const box = shape.points ? shape.rect : routeBoxOf(shape, shape.rect);
     // On an outline, the side the route crosses the box by, which the end lies inside of.
     const crossed =
-      next && endOutline(shape, shape.rect) ? placeOfEnd(shape.rect, point, next)?.side : undefined;
+      next && endOutline(shape, shape.rect) ? placeOfEnd(box, point, next)?.side : undefined;
     const side =
       attachment && attachment.kind !== 'automatic'
         ? attachment.side
         : (crossed ?? sideOfPoint(shape, point));
     if (attachment && attachment.kind !== 'automatic') return { kind: 'stub', side };
     if (shape.points) return { kind: 'stub', side };
-    return { kind: 'slides', rect: shape.rect, side };
+    return { kind: 'slides', rect: box, side };
   };
   return {
     from: endOf('from', line.from, line.route[1]),
@@ -1035,7 +1038,9 @@ function carriedDraft(indexed: IndexedScene, line: RelationLine, route: Point[])
     if (!shape || shape.points || (attachment && attachment.kind !== 'automatic')) return undefined;
     const rect = shape.plate ?? shape.rect;
     const outline = endOutline(shape, rect);
-    return outline && !onlyStrokes(outline) ? { rect, outline } : undefined;
+    return outline && !onlyStrokes(outline)
+      ? { rect: routeBoxOf(shape, rect), outline }
+      : undefined;
   };
   const from = outlined('from');
   const to = outlined('to');

@@ -102,6 +102,10 @@ _Avoid_: subtitle
 A short text, such as "PK" or "FK", that a shape writes in its detail while its element meets the badge's condition: a boolean attribute is true, or the element is the `from` end of a relation of a given relation type.
 _Avoid_: chip, pill
 
+**Name tag**:
+The rounded box hung under a shape whose own outline cannot hold its name whole, and under a drawing with parts that is no container: in the shape's colors, touching it, holding its name, whole, and its detail. It is part of the shape, which is pointed at, marked, related, laid out and exported with it (ADR 0066).
+_Avoid_: label, caption (a caption is shown over the canvas), name below
+
 **Stacking order**:
 The order, kept per view, in which the shapes that sit directly in one container, or directly in World, are drawn, from back to front. Every copy of a container draws its contents in the same order. A shape is drawn together with everything inside it, so a container's contents are always in front of it, and a shape is in front of or behind a whole container, never between it and its contents. Relations, then free shapes, are drawn in front of every element's shape. A new element is drawn in front of the shapes beside it, and an element put inside a container from the canvas comes in front there.
 _Avoid_: layer, z-order, z-index, depth, level
@@ -156,7 +160,7 @@ A named place on the border of a component's shapes, set by its appearance, wher
 _Avoid_: attachment point
 
 **Free geometry**:
-A shape's own outline, set by an appearance in place of its kind: closed contours written as SVG path data, polygons or ellipses in a box of their own, a contour inside another making a hole. The canvas draws it, points at it and attaches relations on it by that outline, and draws it simplified far out; layout sees only its box (ADR 0066).
+A shape's own outline, set by an appearance in place of its kind: closed contours written as SVG path data, polygons or ellipses in a box of their own, a contour inside another making a hole. The canvas draws it, points at it and attaches relations on it by that outline, with its name tag when its name does not fit inside it, and draws it simplified far out; layout sees only its box, with its name tag (ADR 0066).
 _Avoid_: custom shape, stencil, contour (alone), vector shape, free shape (a free shape is a drawing outside the model)
 
 **Component editor**:

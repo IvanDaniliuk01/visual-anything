@@ -19,6 +19,7 @@ import {
 } from '@visual-anything/core';
 import type { FreeGeometry } from '@visual-anything/schema';
 import { borderPoint, holdsPoint, type Point, type Rect, type ShapeKind } from './geometry';
+import { boxExit, nameTagOn, tagHolds, tagOfShape, type Tagged } from './nameTags';
 
 /** What a shape's outline is made from, before it is fitted to the shape's size. */
 export interface OutlineSource {
@@ -163,10 +164,12 @@ export interface DrawnShape {
 /**
  * Whether a shape holds a point as it is drawn: by its own outline, to within `margin` of it, when it
  * has one, so that a point in a hole or beside the outline inside its box is not held; a drawing by
- * its plate and its name band; any other shape by its kind's outline.
+ * its plate and its name band; any other shape by its kind's outline. A shape that writes its name in
+ * a name tag holds what its tag holds too (ADR 0066's clarification of 2026-10-27).
  */
 export function shapeHolds(shape: DrawnShape, point: Point, margin = 0): boolean {
   const { outline, rect } = shape;
+  if (tagOfShape(shape) && tagHolds(shape as unknown as Tagged, point, margin)) return true;
   if (outline) {
     const local = { x: point.x - rect.x - outline.x, y: point.y - rect.y - outline.y };
     return outlineHolds(outline.fitted, local, margin);
@@ -183,9 +186,21 @@ export function shapeHolds(shape: DrawnShape, point: Point, margin = 0): boolean
 
 /**
  * Where a line from `inside`, a point within a shape, toward `toward` last leaves the shape: its own
- * outline when it has one (ADR 0066), or else, as `borderPoint` finds it, its kind's.
+ * outline when it has one (ADR 0066), or else, as `borderPoint` finds it, its kind's; and where it
+ * last leaves the shape and its name tag together, for a shape that writes its name in one, so that
+ * the line never crosses the name (ADR 0066's clarification of 2026-10-27).
  */
 export function shapeBorderPoint(shape: DrawnShape, inside: Point, toward: Point): Point {
+  const body = bodyBorderPoint(shape, inside, toward);
+  const tag = tagOfShape(shape) && nameTagOn(shape as unknown as Tagged);
+  const leaves = tag && boxExit(tag, inside, toward);
+  if (!leaves) return body;
+  const along = (point: Point) =>
+    (point.x - inside.x) * (toward.x - inside.x) + (point.y - inside.y) * (toward.y - inside.y);
+  return along(leaves) > along(body) ? leaves : body;
+}
+
+function bodyBorderPoint(shape: DrawnShape, inside: Point, toward: Point): Point {
   const { outline, rect } = shape;
   if (outline) {
     const x = rect.x + outline.x;

@@ -479,7 +479,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [x] **Free geometry on the canvas** (ADR 0066):
   - tiles' plain and full drawings of outlines, holes cut;
   - silhouettes and plain blocks drawn as simplified outlines, and collapsed containers' sheets;
-  - names in the label area, or beside the shape in the hover and selection marks, and icons;
+  - names in the label area, or else whole in a name tag hung under the shape and part of it (ADR 0066's clarification of 2026-10-27), or beside a shape that writes it nowhere, in the hover and selection marks, and icons;
   - hit testing, box selection and drop targets by the outline, and hover and selection marks along it.
 - [x] **Routes on outlines, and automatic curves** (ADR 0066, ADR 0069):
   - automatic ends at the last exit, orthogonal ends carried on to the outline, and connection points and border attachments carried in;

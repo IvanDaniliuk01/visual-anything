@@ -15,17 +15,29 @@
  * - A dragged end let go on an outline is stored as the side and place that carry in to the point it
  *   was let go at (`placeCarriedTo`).
  *
+ * A shape that writes its name in a name tag (ADR 0066's clarification of 2026-10-27) is attached on
+ * its outline, or its box, and its tag together (`endOutline`): the tag is one more fill of the
+ * outline lines attach to, so that every rule above treats it as part of the shape and no line
+ * crosses the name. Its inner point stays its own outline's, and a place on a side is carried in from
+ * past the tag where the tag reaches past that side, so that it meets the tag where the tag lies in
+ * the way. Automatic routes attach to the box that holds the shape and its tag (`routeBoxOf`).
+ *
  * Pure, over the core's outline maths, with no PixiJS; the layout worker never loads it.
  */
 import {
+  fitOutline,
   flattenOutline,
   outlineExit,
   outlineInnerPoint,
+  type Box,
   type FittedOutline,
   type FlatContour,
+  type Outline,
+  type OutlineContour,
   type Side,
 } from '@visual-anything/core';
 import type { Point, Rect } from '../geometry';
+import { boundsWithTag, tagOfShape, type NameTag } from '../nameTags';
 import type { PlacedOutline, ShapeOutline } from '../outlines';
 
 /** A side and a place along it, from 0 at its left or top end to 1 at the other. */
@@ -53,34 +65,139 @@ const CARRIED_TOLERANCE = 0.5;
 /**
  * The outline a line attaches to on a shape, placed for the rectangle its end is drawn at, which a
  * drag may have moved from the shape's own; none for a shape without one, or one drawn by its
- * picture's plate, which lines attach to by the plate.
+ * picture's plate, which lines attach to by the plate. A shape with a name tag is attached on its
+ * outline, or its box, and its tag together (`taggedOutline`).
  */
 export function endOutline(
   shape: { outline?: ShapeOutline; plate?: Rect } | undefined,
   rect: Rect,
 ): PlacedOutline | undefined {
-  const outline = shape?.outline;
-  if (!outline || shape.plate) return undefined;
+  if (!shape || shape.plate) return undefined;
+  const tag = tagOfShape(shape);
+  const outline = tag ? taggedOutline(shape.outline, rect, tag) : shape.outline;
+  if (!outline) return undefined;
   return { fitted: outline.fitted, x: rect.x + outline.x, y: rect.y + outline.y };
+}
+
+/**
+ * The box an automatic route attaches to on a shape drawn at `rect`: its rectangle, with its name tag
+ * when it writes its name in one, so that the route reaches the shape past its tag, never across it
+ * (ADR 0066's clarification of 2026-10-27).
+ */
+export function routeBoxOf(shape: { plate?: Rect } | undefined, rect: Rect): Rect {
+  const tag = shape?.plate ? undefined : tagOfShape(shape);
+  return tag ? boundsWithTag(rect, tag, rect) : rect;
+}
+
+/** What an outline with a name tag keeps of the shape's own: its inner point, and its tag's box. */
+interface TaggedFit {
+  /** The shape's own inner point, in the outline's coordinates. */
+  inner: Point;
+  /** Whether the shape's own outline is made of stroked lines alone. */
+  strokes: boolean;
+  /** The tag's box, in the outline's coordinates. */
+  tag: Box;
+}
+
+const taggedFits = new WeakMap<FittedOutline, TaggedFit>();
+const taggedOutlines = new WeakMap<NameTag, { fitted: FittedOutline; x: number; y: number }>();
+
+/**
+ * A shape's outline, or its box for a shape drawn as its kind, with its name tag as one more fill of
+ * it, placed from the top left of its rectangle as its outline is: made once for each tag, which is
+ * made once for each outline and texts.
+ */
+function taggedOutline(
+  outline: ShapeOutline | undefined,
+  rect: Rect,
+  tag: NameTag,
+): { fitted: FittedOutline; x: number; y: number } {
+  const known = taggedOutlines.get(tag);
+  if (known) return known;
+  const fitted = outline?.fitted;
+  const x = outline?.x ?? 0;
+  const y = outline?.y ?? 0;
+  const width = fitted?.width ?? rect.width;
+  const height = fitted?.height ?? rect.height;
+  const own: readonly OutlineContour[] = fitted
+    ? fitted.contours
+    : [rectangleContour({ x: 0, y: 0, width, height }, 0)];
+  const groups = own.reduce((most, contour) => Math.max(most, contour.group ?? 0), 0);
+  const box = { x: tag.x - x, y: tag.y - y, width: tag.width, height: tag.height };
+  const bounds = fitted?.bounds ?? { x: 0, y: 0, width, height };
+  const left = Math.min(bounds.x, box.x);
+  const top = Math.min(bounds.y, box.y);
+  const joined: Outline = {
+    width,
+    height,
+    contours: [...own, rectangleContour(box, groups + 1)],
+    bounds: {
+      x: left,
+      y: top,
+      width: Math.max(bounds.x + bounds.width, box.x + box.width) - left,
+      height: Math.max(bounds.y + bounds.height, box.y + box.height) - top,
+    },
+    keepProportions: false,
+  };
+  const made = { fitted: fitOutline(joined, width, height), x, y };
+  const inner = fitted ? outlineInnerPoint(fitted) : { x: width / 2, y: height / 2 };
+  const strokes =
+    fitted !== undefined &&
+    fitted.contours.length > 0 &&
+    fitted.contours.every((contour) => contour.role === 'line');
+  taggedFits.set(made.fitted, { inner, strokes, tag: box });
+  taggedOutlines.set(tag, made);
+  return made;
+}
+
+/** A rectangle as a closed contour of a fill of its own. */
+function rectangleContour(box: Box, group: number): OutlineContour {
+  const { x, y, width, height } = box;
+  return {
+    start: { x, y },
+    segments: [
+      { kind: 'line', to: { x: x + width, y } },
+      { kind: 'line', to: { x: x + width, y: y + height } },
+      { kind: 'line', to: { x, y: y + height } },
+      { kind: 'line', to: { x, y } },
+    ],
+    role: 'fill',
+    ...(group === 0 ? {} : { group }),
+  };
 }
 
 const strokesOnly = new WeakMap<FittedOutline, boolean>();
 
-/** Whether an outline is made of stroked lines alone, as a part that draws a nerve or a vessel. */
+/**
+ * Whether an outline is made of stroked lines alone, as a part that draws a nerve or a vessel; for an
+ * outline with a name tag, whether the shape's own outline is.
+ */
 export function onlyStrokes(outline: PlacedOutline): boolean {
   const { fitted } = outline;
   let known = strokesOnly.get(fitted);
   if (known === undefined) {
     known =
-      fitted.contours.length > 0 && fitted.contours.every((contour) => contour.role === 'line');
+      taggedFits.get(fitted)?.strokes ??
+      (fitted.contours.length > 0 && fitted.contours.every((contour) => contour.role === 'line'));
     strokesOnly.set(fitted, known);
   }
   return known;
 }
 
-/** The outline's point well inside it, on the canvas; the middle of its bounds for lines alone. */
+/** The name tag an outline lines attach to holds, placed on the canvas; none for an outline without one. */
+export function tagBoxOf(outline: PlacedOutline): Rect | undefined {
+  const box = taggedFits.get(outline.fitted)?.tag;
+  return (
+    box && { x: box.x + outline.x, y: box.y + outline.y, width: box.width, height: box.height }
+  );
+}
+
+/**
+ * The outline's point well inside it, on the canvas; the middle of its bounds for lines alone. For
+ * an outline with a name tag, the shape's own outline's, or its box's middle, never the tag's.
+ */
 export function innerPointOf(outline: PlacedOutline): Point {
-  const inner = outlineInnerPoint(outline.fitted);
+  const inner = taggedFits.get(outline.fitted)?.inner ?? outlineInnerPoint(outline.fitted);
   return { x: inner.x + outline.x, y: inner.y + outline.y };
 }
 
@@ -100,7 +217,9 @@ export function lastExit(outline: PlacedOutline, from: Point, toward: Point): Po
 /**
  * Where a place on a side of a shape's box, carried straight in from that side, first meets the
  * outline, on the canvas, and whether it met it: where it misses, the outline's point nearest the
- * place. A stroked line is met at the edge of its stroke.
+ * place. A stroked line is met at the edge of its stroke. On an outline with a name tag that reaches
+ * past that side, as a tag reaches past the bottom, the place is carried in from past the tag, so
+ * that it meets the tag's edge where the tag lies in its way.
  */
 export function carriedIn(
   outline: PlacedOutline,
@@ -110,14 +229,34 @@ export function carriedIn(
 ): { point: Point; met: boolean } {
   const place = placeOn(rect, side, at);
   const inward = INWARD[side];
-  const across = side === 'top' || side === 'bottom' ? rect.height : rect.width;
+  const beyond = pastTag(outline, place, side);
+  const from = { x: place.x - inward.x * beyond, y: place.y - inward.y * beyond };
+  const across = (side === 'top' || side === 'bottom' ? rect.height : rect.width) + beyond;
   const flat = flattenOutline(outline.fitted);
-  const local = { x: place.x - outline.x, y: place.y - outline.y };
+  const local = { x: from.x - outline.x, y: from.y - outline.y };
   const t = firstCrossing(flat, local, inward, across);
   if (t !== undefined) {
-    return { point: { x: place.x + inward.x * t, y: place.y + inward.y * t }, met: true };
+    return { point: { x: from.x + inward.x * t, y: from.y + inward.y * t }, met: true };
   }
   return { point: nearestOnOutline(outline, place).point, met: false };
+}
+
+/** How far past a place on a side of the box an outline's name tag reaches; 0 for none. */
+function pastTag(outline: PlacedOutline, place: Point, side: Side): number {
+  const box = taggedFits.get(outline.fitted)?.tag;
+  if (!box) return 0;
+  const x = box.x + outline.x;
+  const y = box.y + outline.y;
+  switch (side) {
+    case 'top':
+      return Math.max(0, place.y - y);
+    case 'right':
+      return Math.max(0, x + box.width - place.x);
+    case 'bottom':
+      return Math.max(0, y + box.height - place.y);
+    case 'left':
+      return Math.max(0, place.x - x);
+  }
 }
 
 /** The point at a side and a place along it, on a rectangle. */

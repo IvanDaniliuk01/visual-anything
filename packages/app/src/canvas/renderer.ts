@@ -78,7 +78,7 @@ import { rerouted } from './routing/scene-routes';
 import { routeWithSides } from './rowRoutes';
 import { dragEnds } from './rowShapes';
 import { holdsRows, levelWithRows } from './rowsDraw';
-import { drawnBoundsOf } from './outlined';
+import { drawnBoundsOf, nameTagOf } from './nameTags';
 import { nameBandOf } from './shape-images';
 import {
   relationLinesOf,
@@ -3136,12 +3136,19 @@ export class CanvasRenderer {
     const { scale } = this.camera;
     const { highlight } = this.painter.theme;
     const halo = { color: highlight, alpha: 0.28, join: 'round', cap: 'round' } as const;
-    const rects = [...shapes.map((shape) => shape.rect), ...notes.map((note) => note.rect)];
-    // The halo and the ring go along a shape's own outline (ADR 0066), the corners around its box.
+    // The halo and the ring go along a shape's own outline (ADR 0066), the corners around its box;
+    // a shape's name tag is part of it, inside the ring and the corners (ADR 0066's clarifications).
+    const rects = [...shapes.map(drawnBoundsOf), ...notes.map((note) => note.rect)];
     const ringed: MarkTarget[] = [
-      ...shapes.map((shape) =>
-        shape.outline ? { rect: shape.rect, outline: shape.outline } : shape.rect,
-      ),
+      ...shapes.map((shape): MarkTarget => {
+        const tag = nameTagOf(shape);
+        if (!shape.outline && !tag) return shape.rect;
+        return {
+          rect: shape.rect,
+          ...(shape.outline ? { outline: shape.outline } : {}),
+          ...(tag ? { tag } : {}),
+        };
+      }),
       ...notes.map((note) => note.rect),
     ];
     for (const target of ringed) traceMark(marks, target, 5 / scale);

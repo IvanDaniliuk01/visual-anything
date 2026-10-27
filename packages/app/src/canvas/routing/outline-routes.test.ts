@@ -28,7 +28,7 @@ import {
 } from '../scene';
 import { avoidedScene } from './avoided';
 import { STUB } from './hand';
-import { nearestOnOutline } from './outline-ends';
+import { endOutline, nearestOnOutline } from './outline-ends';
 import { rerouted } from './scene-routes';
 
 const VIEW = 'anatomy';
@@ -145,13 +145,18 @@ function lineOf(scene: Scene, relation: string): RelationLine {
   return line;
 }
 
+/**
+ * The outline lines attach to on a shape: its own, with its name tag when it writes its name in one
+ * (ADR 0066's clarification of 2026-10-27).
+ */
 function outlineOf(scene: Scene, key: string): PlacedOutline {
-  const placed = outlineAt(shapeOf(scene, key));
+  const shape = shapeOf(scene, key);
+  const placed = endOutline(shape, shape.rect) ?? outlineAt(shape);
   if (!placed) throw new Error(`No outline on ${key}`);
   return placed;
 }
 
-/** How far a point lies from a shape's outline. */
+/** How far a point lies from a shape's outline, with its name tag. */
 function offOutline(scene: Scene, key: string, point: Point): number {
   return nearestOnOutline(outlineOf(scene, key), point).distance;
 }
