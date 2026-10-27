@@ -147,6 +147,27 @@ describe('The read-only page', () => {
     expect(screen.queryByRole('region', { name: /^Scenario/ })).not.toBeInTheDocument();
   });
 
+  it('plays a decision, choosing on its card in the scenario’s bar (ADR 0078)', async () => {
+    await open(read(loadSample('order-process')));
+    fireEvent.click(screen.getByRole('button', { name: 'Scenarios' }));
+    fireEvent.click(screen.getByRole('button', { name: /^An order/ }));
+    const playback = screen.getByRole('region', { name: 'Scenario “An order”' });
+    expect(
+      within(playback).getByRole('checkbox', { name: 'Stop at each decision' }),
+    ).toBeInTheDocument();
+    for (let at = 0; at < 2; at += 1) {
+      fireEvent.click(within(playback).getByRole('button', { name: 'Next' }));
+    }
+    const card = within(playback).getByRole('group', { name: 'Is every item in stock?' });
+    fireEvent.keyDown(within(card).getByRole('button', { name: 'Yes' }), { key: '2' });
+    expect(within(card).getByRole('button', { name: 'No' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    fireEvent.click(within(playback).getByRole('button', { name: 'Next' }));
+    expect(within(playback).getByText(/^Step 10 of 12$/)).toBeInTheDocument();
+  });
+
   it('lists the packages it uses in About', async () => {
     await open();
     fireEvent.click(screen.getByRole('button', { name: 'About' }));

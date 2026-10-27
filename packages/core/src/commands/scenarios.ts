@@ -2,6 +2,7 @@
 import type { Alternative, DecisionBlock, Id, ScenarioFile, Step } from '@visual-anything/schema';
 import { isId, slug } from '../ids';
 import { readBlocks } from '../scenarios/blocks';
+import { inReadingOrder } from '../scenarios/decisions';
 import { compact, reject, requireList, requireName, type Draft } from './draft';
 import type {
   CreateScenarioCommand,
@@ -85,7 +86,10 @@ function checkedBlocks(
   return holding(checked, steps, scenario);
 }
 
-/** A scenario's decisions after its steps changed: without the steps gone, and without a decision left with none. */
+/**
+ * A scenario's decisions after its steps changed: without the steps gone, without a decision left
+ * with none, and with each alternative's steps in the order the steps now have.
+ */
 function keptBlocks(
   blocks: readonly DecisionBlock[] | undefined,
   steps: readonly Step[],
@@ -103,7 +107,7 @@ function keptBlocks(
     }))
     .filter((block) => block.alternatives.some((alternative) => alternative.steps.length > 0));
   if (kept.length === 0) return undefined;
-  return holding(kept, steps, scenario);
+  return holding(inReadingOrder(steps, kept), steps, scenario);
 }
 
 /** Decisions that hold together over the steps, or the refusal that says why not. */

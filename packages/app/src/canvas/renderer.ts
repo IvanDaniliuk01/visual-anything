@@ -42,6 +42,8 @@ import {
   NOTHING_EMPHASIZED,
   NOTHING_HIDDEN,
   emphasize,
+  linesDrawnFrom,
+  withDashes,
   type Emphasized,
   type Hidden,
   type Lit,
@@ -673,7 +675,11 @@ export class CanvasRenderer {
     this.followCodeDrawings();
     if (this.status !== 'ready') return;
     try {
-      if (after.hidden !== before.hidden || after.dimmed !== before.dimmed) {
+      if (
+        after.hidden !== before.hidden ||
+        after.dimmed !== before.dimmed ||
+        after.dashed !== before.dashed
+      ) {
         this.rebuild();
         this.drawSelection();
         this.drawHover();
@@ -1538,7 +1544,8 @@ export class CanvasRenderer {
     const ended = this.endedReady;
     this.endedReady = undefined;
     this.rebuildShapes(indexed, ready ?? this.drag?.ready ?? ended, budget);
-    this.rebuildRelations(indexed.scene.relations, budget);
+    // The lines a decision's alternatives not chosen use are drawn dashed (ADR 0078).
+    this.rebuildRelations(withDashes(indexed.scene.relations, this.emphasized.dashed), budget);
     this.rebuildFree(indexed.scene.notes, indexed.scene.arrows);
     this.followParts();
   }
@@ -2061,7 +2068,8 @@ export class CanvasRenderer {
     // and names go in them are among these.
     const index = this.indexed?.relations;
     let reaching: readonly RelationLine[] = lines;
-    if (index && this.indexed?.scene.relations === lines) {
+    // Lines drawn dashed keep their places, so the scene's index finds them too.
+    if (index && this.indexed?.scene.relations === linesDrawnFrom(lines)) {
       const found = new Set<number>();
       for (const cell of cells) for (const at of index.query(cellRect(cell))) found.add(at);
       reaching = [...found].sort((a, b) => a - b).map((at) => lines[at] as RelationLine);
@@ -4513,6 +4521,7 @@ function keptEmphasized(before: Emphasized, after: Emphasized): Emphasized {
   return {
     hidden: kept(before.hidden, after.hidden),
     dimmed: kept(before.dimmed, after.dimmed),
+    dashed: sameMembers(before.dashed, after.dashed) ? before.dashed : after.dashed,
     highlighted,
     arriving,
     arrivingFor: after.arrivingFor,

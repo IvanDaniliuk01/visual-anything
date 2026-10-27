@@ -338,6 +338,102 @@
   font-size: 0.85rem;
 }
 
+/*
+ * Decisions in the steps' list (ADR 0078): a header over its alternatives, the one chosen open and
+ * marked by its weight, the others greyed and dashed, folded until shown.
+ */
+
+.scenario-check {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.scenario-options .scenario-check input {
+  width: auto;
+}
+
+.scenario-recording-bar {
+  margin-top: 0.35rem;
+}
+
+.scenario-decision {
+  padding: 0.2rem 0 0.2rem 0.3rem;
+  border-left: 3px double var(--border);
+}
+
+.scenario-decision-question {
+  margin: 0.15rem 0 0.25rem;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.scenario-alternatives {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0 0 0 0.4rem;
+  list-style: none;
+}
+
+.scenario-alternative {
+  border-radius: 0.3rem;
+}
+
+.scenario-alternative-aside {
+  border: 1px dashed var(--control-border);
+  color: var(--text-muted);
+}
+
+.scenario-alternative-aside .scenario-step-head,
+.scenario-alternative-aside .scenario-step-number {
+  color: var(--text-muted);
+}
+
+.scenario-alternative-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: baseline;
+  padding: 0.15rem 0.35rem;
+}
+
+.scenario-alternative-choose {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.35rem;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.scenario-alternative-choose[aria-pressed='true'] {
+  border: 2px solid var(--highlight);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.scenario-alternative-choose:disabled {
+  cursor: default;
+}
+
+.scenario-alternative-detail {
+  font-size: 0.8rem;
+}
+
+.scenario-alternative .scenario-steps {
+  margin: 0.15rem 0 0.2rem;
+  padding-left: 0.4rem;
+}
+
+.scenario-step-aside {
+  border-left-style: dashed;
+}
+
 /* The cue on the canvas while clicks record steps */
 
 /* At the bottom middle, clear of the keyboard help in the corner. */

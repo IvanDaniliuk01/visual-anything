@@ -1,11 +1,13 @@
 /**
  * Playing scenarios in a read-only page: which scenario is open, the step it is on, whether it plays
- * and how fast. It is the app's scenario session without recording (ADR 0031): the same playback, from
- * the core's timeline and playback functions, and the same state, so that the view state, the
- * playback emphasis and the address read it as they read the app's. Nothing it does is stored.
+ * and how fast, and the alternative chosen at each of its decisions (ADR 0078). It is the app's
+ * scenario session without recording (ADR 0031): the same playback, from the core's timeline and
+ * playback functions, and the same state, so that the view state, the playback emphasis and the
+ * address read it as they read the app's. Nothing it does is stored.
  */
 import {
   PLAYBACK_START,
+  STEP_TIME,
   advance,
   entryOfStep,
   goTo,
@@ -19,7 +21,20 @@ import {
   type Speed,
   type Timeline,
 } from '@visual-anything/core';
-import type { Id, ScenarioFile } from '@visual-anything/schema';
+import type { DecisionChoices, Id, ScenarioFile } from '@visual-anything/schema';
+import {
+  AFTER_STEP,
+  NO_CHOICES,
+  choicesReaching,
+  decisionAhead,
+  sayChosen,
+  sayReached,
+  sayStopped,
+  stepAfterChoice,
+  withChoice,
+  wordsOf,
+  type Chosen,
+} from '../scenarios/choosing';
 import type { Clock, PlaybackGuidance, ScenarioState } from '../scenarios/session';
 
 /** What the session needs to know of the page. */
@@ -29,6 +44,12 @@ export interface PlaybackContext {
   viewId: Id | undefined;
   /** The open scenario's timeline over its view, when its view is the one open. */
   timeline: Timeline | undefined;
+  /** The choices the timeline was worked out with, the session's own; none for none. */
+  choices?: DecisionChoices;
+  /** Whether a tour plays, which plays its own range: Stop at each decision waits until it ends. */
+  touring?: boolean;
+  /** Says something to screen readers. */
+  announce?: (message: string) => void;
 }
 
 const FRAME_CLOCK: Clock = {
@@ -55,6 +76,10 @@ const INITIAL: ScenarioState = {
   speed: 1,
   // The read-only page does not bring the step it plays into view (`scenarios/follow.ts`).
   asks: 0,
+  choices: NO_CHOICES,
+  stopAtDecisions: false,
+  previewing: undefined,
+  place: AFTER_STEP,
 };
 
 export class PlaybackSession {
@@ -68,6 +93,8 @@ export class PlaybackSession {
   private lastFrame: number | undefined;
   /** What an address asked of playback, waiting for the scenario's timeline until the next sync. */
   private guided: PlaybackGuidance | undefined;
+  /** The step Stop at each decision last paused after, which playing on from there passes. */
+  private stoppedAfter: number | undefined;
 
   constructor(private readonly clock: Clock = FRAME_CLOCK) {}
 
@@ -93,7 +120,7 @@ export class PlaybackSession {
 
   /** Whether playback has played the last step to its end. */
   get finished(): boolean {
-    const timeline = this.context?.timeline;
+    const timeline = this.timeline();
     return timeline !== undefined && isFinished(this.playback, timeline);
   }
 
@@ -114,12 +141,30 @@ export class PlaybackSession {
     const opening = request.action === 'open' || this.state.scenario !== request.scenario;
     if (opening) this.open(request.scenario);
     this.guided = request.action === 'open' ? undefined : request;
-    if (!opening && this.context?.timeline) this.applyGuided();
+    if (!opening && this.timeline()) this.applyGuided();
   }
 
-  /** Goes to the entry that plays a step, by the step's index among the scenario's steps. */
+  /**
+   * Goes to the entry that plays a step, by the step's index among the scenario's steps. A step of an
+   * alternative not chosen makes the choices that reach it, and says so (ADR 0078).
+   */
   goToStep(step: number): void {
-    const timeline = this.context?.timeline;
+    const scenario = this.openScenario();
+    const at = Math.trunc(step);
+    const reaching =
+      scenario && this.timeline() ? choicesReaching(scenario, at, this.state.choices) : undefined;
+    if (scenario && reaching) {
+      this.stoppedAfter = undefined;
+      this.setChoices(reaching.choices);
+      this.context?.announce?.(sayReached(scenario, reaching.changed));
+      this.move({
+        step: at,
+        elapsed: 0,
+        mode: this.playback.mode === 'playing' ? 'playing' : 'stepping',
+      });
+      return;
+    }
+    const timeline = this.timeline();
     const entry = timeline ? entryOfStep(timeline, step) : undefined;
     if (entry !== undefined) this.goTo(entry);
   }
@@ -129,11 +174,11 @@ export class PlaybackSession {
    * container, one entry plays several steps. None while the scenario's view is not open.
    */
   entryOf(step: number): number | undefined {
-    const timeline = this.context?.timeline;
+    const timeline = this.timeline();
     return timeline ? entryOfStep(timeline, step) : undefined;
   }
 
-  /** Opens a scenario, at its first step, paused. */
+  /** Opens a scenario, at its first step, paused, each of its decisions playing its default. */
   open(id: Id): void {
     this.reset(id);
   }
@@ -143,7 +188,7 @@ export class PlaybackSession {
   }
 
   play(): void {
-    const timeline = this.context?.timeline;
+    const timeline = this.timeline();
     if (timeline) this.move(play(this.playback, timeline));
   }
 
@@ -158,19 +203,61 @@ export class PlaybackSession {
   }
 
   next(): void {
-    const timeline = this.context?.timeline;
+    const timeline = this.timeline();
+    this.stoppedAfter = undefined;
     if (timeline) this.move(next(this.playback, timeline));
   }
 
   previous(): void {
-    const timeline = this.context?.timeline;
+    const timeline = this.timeline();
+    this.stoppedAfter = undefined;
     if (timeline) this.move(previous(this.playback, timeline));
   }
 
   /** Goes to an entry of the timeline. */
   goTo(entry: number): void {
-    const timeline = this.context?.timeline;
+    const timeline = this.timeline();
+    this.stoppedAfter = undefined;
     if (timeline) this.move(goTo(this.playback, timeline, entry));
+  }
+
+  /**
+   * Chooses an alternative at a decision, and says so: playback stays on its step while the choices
+   * still play it, and otherwise goes to the first step of the alternative chosen, or past it.
+   */
+  choose(chosen: Chosen): void {
+    const scenario = this.openScenario();
+    if (!scenario || !wordsOf(scenario, chosen)) return;
+    const choices = withChoice(this.state.choices, chosen);
+    const step = stepAfterChoice(scenario, choices, this.playback.step, chosen.decision);
+    this.setChoices(choices);
+    this.context?.announce?.(sayChosen(scenario, chosen));
+    if (step === this.playback.step) {
+      this.publish();
+      return;
+    }
+    this.stoppedAfter = undefined;
+    this.move({
+      step,
+      elapsed: 0,
+      mode: this.playback.mode === 'playing' ? 'playing' : 'stepping',
+    });
+  }
+
+  /** Points at an alternative, whose relations the canvas then previews; none stops. */
+  preview(chosen: Chosen | undefined): void {
+    const was = this.state.previewing;
+    if (was?.decision === chosen?.decision && was?.alternative === chosen?.alternative) return;
+    this.state = { ...this.state, previewing: chosen };
+    this.publish();
+  }
+
+  /** Turns the page's option Stop at each decision on or off. */
+  setStopAtDecisions(on: boolean): void {
+    if (on === this.state.stopAtDecisions) return;
+    this.stoppedAfter = undefined;
+    this.state = { ...this.state, stopAtDecisions: on };
+    this.publish();
   }
 
   setSpeed(speed: Speed): void {
@@ -193,12 +280,28 @@ export class PlaybackSession {
     return this.context?.project.scenarios.find((each) => each.id === scenario);
   }
 
+  /** The open scenario's timeline, once it was worked out with the choices made last. */
+  private timeline(): Timeline | undefined {
+    const context = this.context;
+    if (!context?.timeline) return undefined;
+    const { choices } = this.state;
+    const current =
+      context.choices === undefined
+        ? Object.keys(choices).length === 0
+        : context.choices === choices;
+    return current ? context.timeline : undefined;
+  }
+
+  private setChoices(choices: DecisionChoices): void {
+    if (choices !== this.state.choices) this.state = { ...this.state, choices };
+  }
+
   private applyGuided(): void {
     const guided = this.guided;
     if (!guided) return;
     this.guided = undefined;
     const scenario = this.openScenario();
-    if (scenario?.id !== guided.scenario || !this.context?.timeline) return;
+    if (scenario?.id !== guided.scenario || !this.timeline()) return;
     switch (guided.action) {
       case 'open':
         return;
@@ -224,7 +327,8 @@ export class PlaybackSession {
     this.stop();
     this.playback = PLAYBACK_START;
     this.guided = undefined;
-    this.state = { ...this.state, scenario };
+    this.stoppedAfter = undefined;
+    this.state = { ...this.state, scenario, choices: NO_CHOICES, previewing: undefined };
     this.publish();
     this.emitFrame();
   }
@@ -250,7 +354,7 @@ export class PlaybackSession {
   }
 
   private keepMoving(): void {
-    if (this.playback.mode === 'paused' || !this.context?.timeline) {
+    if (this.playback.mode === 'paused' || !this.timeline()) {
       this.stop();
       return;
     }
@@ -265,15 +369,37 @@ export class PlaybackSession {
     // A frame that comes late, as after the tab was hidden, counts as one frame.
     const passed = Math.min(now - (this.lastFrame ?? now), MAX_FRAME_TIME);
     this.lastFrame = now;
-    const timeline = this.context?.timeline;
+    const timeline = this.timeline();
     if (!timeline) {
       this.stop();
       return;
     }
-    this.playback = advance(this.playback, timeline, passed, this.state.speed);
+    const before = this.playback;
+    const after = advance(before, timeline, passed, this.state.speed);
+    this.playback = this.stopAtDecision(before, after, timeline);
     this.publish();
     this.emitFrame();
     if (this.playback.mode === 'paused') this.lastFrame = undefined;
     else this.frame = this.clock.request(this.onFrame);
   };
+
+  /** As the app's session does: pauses before a decision with Stop at each decision on. */
+  private stopAtDecision(before: Playback, after: Playback, timeline: Timeline): Playback {
+    if (!this.state.stopAtDecisions || this.context?.touring) return after;
+    if (before.mode !== 'playing' || after.step === before.step) return after;
+    const scenario = this.openScenario();
+    const at = entryOfStep(timeline, before.step);
+    const entry = at === undefined ? undefined : timeline.entries[at];
+    if (!scenario || !entry) return after;
+    const last = entry.first + entry.count - 1;
+    if (this.stoppedAfter === last) {
+      this.stoppedAfter = undefined;
+      return after;
+    }
+    const ahead = decisionAhead(scenario, this.state.choices, last);
+    if (!ahead) return after;
+    this.stoppedAfter = last;
+    this.context?.announce?.(sayStopped(scenario, ahead));
+    return { step: before.step, elapsed: STEP_TIME, mode: 'paused' };
+  }
 }

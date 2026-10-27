@@ -70,6 +70,45 @@ describe('Playback in a read-only page', () => {
     session.close();
     expect(session.getState().scenario).toBeUndefined();
   });
+
+  it('plays the alternative chosen at a decision, stops before it when asked, and says so (ADR 0078)', () => {
+    const orders = loadSample('order-process');
+    const order = orders.scenarios.find((each) => each.id === 'an-order')!;
+    const { clock, frame } = testClock();
+    const session = new PlaybackSession(clock);
+    const said: string[] = [];
+    const sync = () => {
+      const { choices } = session.getState();
+      session.sync({
+        project: orders,
+        viewId: order.view,
+        timeline: scenarioTimeline(orders, order, undefined, choices),
+        choices,
+        announce: (text) => said.push(text),
+      });
+    };
+    session.open(order.id);
+    sync();
+    session.setStopAtDecisions(true);
+    session.play();
+    for (let at = 0; at < (STEP_TIME * 4) / 100; at += 1) frame(100);
+    expect(session.getState()).toMatchObject({ step: 2, mode: 'paused' });
+    expect(said.at(-1)).toBe(
+      'Paused before “Is every item in stock?”. Choose an alternative, then play on.',
+    );
+    session.choose({ decision: 'stock-check', alternative: 'out-of-stock' });
+    sync();
+    expect(said.at(-1)).toBe('“No” plays at “Is every item in stock?”.');
+    session.play();
+    frame(100);
+    expect(session.getState()).toMatchObject({ step: 9, mode: 'playing' });
+    // A step of the alternative not chosen chooses it.
+    session.goToStep(4);
+    sync();
+    expect(session.getState()).toMatchObject({ step: 4, choices: { 'stock-check': 'in-stock' } });
+    session.open(order.id);
+    expect(session.getState().choices).toEqual({});
+  });
 });
 
 /** A window's storage and system theme, as the page's preferences read them. */

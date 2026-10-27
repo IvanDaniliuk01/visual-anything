@@ -203,6 +203,10 @@ describe('ScenarioRange', () => {
     mode: 'paused' as const,
     speed: 1 as const,
     asks: 0,
+    choices: {},
+    stopAtDecisions: false,
+    previewing: undefined,
+    place: { kind: 'after-step' as const },
   };
 
   it('plays once the scenario is open at its first step, and pauses back on its last', () => {

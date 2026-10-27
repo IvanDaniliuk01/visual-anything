@@ -38,6 +38,8 @@ const NONE: ReadonlySet<string> = new Set();
 export interface Emphasized {
   hidden: Hidden;
   dimmed: Hidden;
+  /** The lines drawn dashed, by key (ADR 0078). */
+  dashed: ReadonlySet<Id>;
   highlighted: Lit;
   /** Of what it highlights, what fades in (ADR 0077), and over how many milliseconds: 0 for none. */
   arriving: Lit;
@@ -69,6 +71,7 @@ const NOTHING_LIT: Lit = { shapes: [], lines: [], notes: [], arrows: [] };
 export const NOTHING_EMPHASIZED: Emphasized = {
   hidden: NOTHING_HIDDEN,
   dimmed: NOTHING_HIDDEN,
+  dashed: NONE,
   highlighted: NOTHING_LIT,
   arriving: NOTHING_LIT,
   arrivingFor: 0,
@@ -85,13 +88,26 @@ export const NOTHING_EMPHASIZED: Emphasized = {
  * - An aggregated relation highlighted for a relation it stands for highlights its ends too: they
  *   show that relation's ends, which a collapsed container hides.
  * - Highlighting wins over dimming, and hiding over both.
+ * - A line is dashed when its key is, or every relation it stands for is, unless it is hidden.
  * - A marker on a relation that an aggregated relation stands for travels along that line, the way
  *   the relation runs, and so does its trail.
  * - What arrives is what it highlights that its `arriving` names, a line by any relation it stands for.
  */
 export function emphasize(scene: Scene, emphasis: Emphasis): Emphasized {
-  const { hidden = NONE, dimmed = NONE, highlighted = NONE, markers = [] } = emphasis;
-  if (hidden.size === 0 && dimmed.size === 0 && highlighted.size === 0 && markers.length === 0) {
+  const {
+    hidden = NONE,
+    dimmed = NONE,
+    dashed = NONE,
+    highlighted = NONE,
+    markers = [],
+  } = emphasis;
+  if (
+    hidden.size === 0 &&
+    dimmed.size === 0 &&
+    dashed.size === 0 &&
+    highlighted.size === 0 &&
+    markers.length === 0
+  ) {
     return NOTHING_EMPHASIZED;
   }
   const byKey = linesByKey(scene.relations);
@@ -185,6 +201,12 @@ export function emphasize(scene: Scene, emphasis: Emphasis): Emphasized {
   for (const id of [...dimmedFree]) {
     if (hiddenFree.has(id) || litFree.has(id)) dimmedFree.delete(id);
   }
+  const dashedLines = new Set<string>();
+  if (dashed.size > 0) {
+    for (const line of scene.relations) {
+      if (!hiddenLines.has(line.relation) && every(dashed, line)) dashedLines.add(line.relation);
+    }
+  }
 
   const placed: PlacedMarker[] = [];
   const clamped = (value: number) => Math.min(1, Math.max(0, value));
@@ -215,11 +237,50 @@ export function emphasize(scene: Scene, emphasis: Emphasis): Emphasized {
   return {
     hidden: { shapes: hiddenShapes, relations: hiddenLines, free: hiddenFree },
     dimmed: { shapes: dimmedShapes, relations: dimmedLines, free: dimmedFree },
+    dashed: dashedLines.size === 0 ? NONE : dashedLines,
     highlighted: lit,
     arriving,
     arrivingFor: arriving === NOTHING_LIT ? 0 : (emphasis.arriving?.duration ?? 0),
     markers: placed,
   };
+}
+
+const dashedCopies = new WeakMap<RelationLine, RelationLine>();
+const dashedLists = new WeakMap<
+  readonly RelationLine[],
+  { dashed: ReadonlySet<Id>; lines: readonly RelationLine[] }
+>();
+const dashedSources = new WeakMap<readonly RelationLine[], readonly RelationLine[]>();
+
+/**
+ * A scene's lines with those `dashed` names drawn dashed (ADR 0078), each in its place: the same list
+ * when it names none, and the same copy of a line each time, so that only the lines whose dashes
+ * change draw again.
+ */
+export function withDashes(
+  lines: readonly RelationLine[],
+  dashed: ReadonlySet<Id>,
+): readonly RelationLine[] {
+  if (dashed.size === 0) return lines;
+  const kept = dashedLists.get(lines);
+  if (kept?.dashed === dashed) return kept.lines;
+  const drawn = lines.map((line) => {
+    if (!dashed.has(line.relation) || line.dash === 'dashed') return line;
+    let copy = dashedCopies.get(line);
+    if (!copy) {
+      copy = { ...line, dash: 'dashed' };
+      dashedCopies.set(line, copy);
+    }
+    return copy;
+  });
+  dashedLists.set(lines, { dashed, lines: drawn });
+  dashedSources.set(drawn, lines);
+  return drawn;
+}
+
+/** The scene's lines a list of lines was made from by `withDashes`, or the list itself. */
+export function linesDrawnFrom(lines: readonly RelationLine[]): readonly RelationLine[] {
+  return dashedSources.get(lines) ?? lines;
 }
 
 const lineMaps = new WeakMap<readonly RelationLine[], Map<string, RelationLine>>();

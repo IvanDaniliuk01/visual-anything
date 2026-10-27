@@ -758,6 +758,61 @@ export const ui: Catalog = {
   'Move down': 'Bajar',
   'Step {n} is deleted.': 'Se eliminó el paso {n}.',
   'Delete step': 'Eliminar paso',
+
+  // M11c: decisions in the app (ADR 0078). Choosing, and what it says.
+  '“{label}” plays at “{question}”.': 'En “{question}” se reproduce “{label}”.',
+  'Paused before “{question}”. Choose an alternative, then play on.':
+    'En pausa antes de “{question}”. Elegir una alternativa y seguir reproduciendo.',
+  'Stop at each decision': 'Detenerse en cada decisión',
+  // The decision card.
+  'Decisions here': 'Decisiones aquí',
+  Decision: 'Decisión',
+  'Next, a decision': 'A continuación, una decisión',
+  'Nothing happens': 'No pasa nada',
+  'Ends the scenario': 'Termina el escenario',
+  'Press 1 to {count} to choose; the arrow keys go from one to the next.':
+    'Pulsar de 1 a {count} para elegir; las flechas van de una a la siguiente.',
+  // The steps' list.
+  '{count} broken': { one: '{count} roto', other: '{count} rotos' },
+  'Hide its steps': 'Ocultar sus pasos',
+  'Show its steps': 'Mostrar sus pasos',
+  '{step} (in “{label}” at “{question}”)': '{step} (en “{label}” de “{question}”)',
+  // Recording alternatives.
+  Recording: 'Grabación',
+  'Add an alternative here': 'Agregar una alternativa aquí',
+  'The step recording follows is in no alternative.':
+    'El paso tras el que se graba no está en ninguna alternativa.',
+  'End the alternative': 'Terminar la alternativa',
+  'Record after the step again': 'Volver a grabar después del paso',
+  'Click the relation the alternative “{label}” starts with: it comes after step {n}. Shift+click does the same.':
+    'Hacer clic en la relación con la que empieza la alternativa “{label}”: va después del paso {n}. Mayús+clic hace lo mismo.',
+  'Click relations on the canvas in the order they happen: the next click adds a step after “{question}”, whichever way it went.':
+    'Hacer clic en las relaciones del lienzo en el orden en que ocurren: el próximo clic agrega un paso después de “{question}”, haya ido por donde haya ido.',
+  'Click the first relation of “{label}” on the canvas.':
+    'Hacer clic en el lienzo en la primera relación de “{label}”.',
+  'The next click records after “{question}”.': 'El próximo clic graba después de “{question}”.',
+  'Nothing was recorded: {why}': 'No se grabó nada: {why}',
+  'Recorded step {n}, the first of “{label}”: {sentence}.':
+    'Paso {n} grabado, el primero de “{label}”: {sentence}.',
+  Yes: 'Sí',
+  No: 'No',
+  'Alternative {n}': 'Alternativa {n}',
+  'One more alternative for “{question}”, after step {n}.':
+    'Una alternativa más para “{question}”, después del paso {n}.',
+  'A new decision after step {n}: its first alternative keeps the steps that follow, and recording goes on in the second.':
+    'Una decisión nueva después del paso {n}: su primera alternativa conserva los pasos que siguen, y la grabación sigue en la segunda.',
+  '“{question}” has 8 alternatives already, as many as a decision holds.':
+    '“{question}” ya tiene 8 alternativas, todas las que admite una decisión.',
+  Question: 'Pregunta',
+  'Is every item in stock?': '¿Están todos los artículos en stock?',
+  'Label of the steps that follow': 'Rótulo de los pasos que siguen',
+  'Label of the new alternative': 'Rótulo de la alternativa nueva',
+  'Record the alternative': 'Grabar la alternativa',
+  'This step and the ones after it in its alternative follow the decision, whichever way it goes.':
+    'Este paso y los que lo siguen en su alternativa pasan a seguir a la decisión, vaya por donde vaya.',
+  'Step {n} and the steps after it in its alternative now follow the decision.':
+    'El paso {n} y los que lo siguen en su alternativa ahora siguen a la decisión.',
+  'Rejoin here': 'Reunir aquí',
   'Enter saves a field; Shift+Enter starts a new line. Leave data blank for none.':
     'Enter guarda lo escrito; Mayús+Enter empieza una línea nueva. Dejar los datos en blanco para no tener ninguno.',
 
@@ -2601,6 +2656,12 @@ export const messages: Catalog = {
   'Move {step} up': 'Subir {step}',
   'Move {step} down': 'Bajar {step}',
   'Delete {step}': 'Eliminar {step}',
+  // M11c: recording decisions (ADR 0078).
+  'Add the alternative “{label}” after {step}':
+    'Agregar la alternativa “{label}” después de {step}',
+  'Add the decision “{question}” after {step}':
+    'Agregar la decisión “{question}” después de {step}',
+  'Rejoin at {step}': 'Reunir en {step}',
 
   // What the core and the local program write. Phrases first, which the messages hold as parts.
   ' and ': ' y ',

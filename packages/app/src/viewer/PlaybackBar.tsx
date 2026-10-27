@@ -5,6 +5,7 @@
  */
 import {
   SPEEDS,
+  decisionsAt,
   entryOfStep,
   isBroken,
   type ProjectSnapshot,
@@ -13,9 +14,12 @@ import {
   type TimelineEntry,
 } from '@visual-anything/core';
 import type { Id, JsonValue, ScenarioFile } from '@visual-anything/schema';
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useEditor } from '../editor/EditorContext';
 import { useT, type Translator } from '../i18n';
+import { hasDecisions } from '../scenarios/choosing';
+import { DecisionCard } from '../scenarios/DecisionCard';
+import { lastStepOf } from '../scenarios/decision-emphasis';
 import { DismissIcon, NextIcon, PauseIcon, PlayIcon, PreviousIcon } from '../shell/icons';
 import type { PlaybackSession } from './playback';
 
@@ -115,6 +119,13 @@ export function PlaybackBar({
   const at = timeline.steps === 0 ? undefined : entryOfStep(timeline, state.step);
   const entry = at === undefined ? undefined : timeline.entries[at];
   const finished = session.finished;
+  // The decisions playback meets now, chosen here as in the app's panel (ADR 0078).
+  const decided = hasDecisions(scenario);
+  const last = active && decided ? lastStepOf(timeline, state.step) : undefined;
+  const met = useMemo(
+    () => (last === undefined ? [] : decisionsAt(scenario, last, state.choices)),
+    [scenario, last, state.choices],
+  );
   return (
     <section
       className="viewer-sheet viewer-playback"
@@ -190,7 +201,22 @@ export function PlaybackBar({
                 </option>
               ))}
             </select>
+            {decided && (
+              <label className="viewer-speed">
+                <input
+                  type="checkbox"
+                  checked={state.stopAtDecisions}
+                  onChange={(event) => session.setStopAtDecisions(event.target.checked)}
+                />{' '}
+                {t('Stop at each decision')}
+              </label>
+            )}
           </div>
+          <DecisionCard
+            decisions={met}
+            onChoose={(chosen) => session.choose(chosen)}
+            onPreview={(chosen) => session.preview(chosen)}
+          />
           {entry && (
             <StepText
               scenario={scenario}

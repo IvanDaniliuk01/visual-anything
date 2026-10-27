@@ -56,11 +56,11 @@ function testClock() {
  * A session over the sample, with a stand-in for the local program that applies each command and
  * answers when the test says, before or after the project shows the change.
  */
-function setUp(start: ProjectSnapshot = loadSample()) {
+function setUp(start: ProjectSnapshot = loadSample(), view: Id = VIEW) {
   const time = testClock();
   const session = new ScenarioSession(time.clock);
   let project = start;
-  let viewId: Id | undefined = VIEW;
+  let viewId: Id | undefined = view;
   const said: string[] = [];
   const answers: (() => void)[] = [];
   const sent: Command[] = [];
@@ -79,11 +79,15 @@ function setUp(start: ProjectSnapshot = loadSample()) {
       });
     });
   });
+  // The timeline the panel works out, with the session's choices (ADR 0078).
   const sync = () => {
+    const { choices } = session.getState();
     const scenario = project.scenarios.find((each) => each.id === session.getState().scenario);
     const timeline =
-      scenario && scenario.view === viewId ? scenarioTimeline(project, scenario) : undefined;
-    session.sync({ project, viewId, send, timeline, announce: (text) => said.push(text) });
+      scenario && scenario.view === viewId
+        ? scenarioTimeline(project, scenario, undefined, choices)
+        : undefined;
+    session.sync({ project, viewId, send, timeline, choices, announce: (text) => said.push(text) });
   };
   sync();
   return {
@@ -518,5 +522,190 @@ describe('ScenarioSession guided by Claude', () => {
     setup.session.toggle();
     expect(setup.session.getState().mode).toBe('paused');
     expect(setup.time.running).toBe(false);
+  });
+});
+
+describe('ScenarioSession, with decisions (ADR 0078)', () => {
+  const ORDER = 'an-order';
+  const STOCK = 'stock-check';
+  const NO = { decision: STOCK, alternative: 'out-of-stock' };
+
+  function setUpOrder() {
+    const setup = setUp(loadSample('order-process'), 'order-process');
+    setup.session.open(ORDER);
+    setup.sync();
+    return setup;
+  }
+
+  function order(setup: ReturnType<typeof setUp>) {
+    return setup.project.scenarios.find((each) => each.id === ORDER)!;
+  }
+
+  /** The ids of the steps the scenario plays now, as the panel's timeline has them. */
+  function played(setup: ReturnType<typeof setUp>): Id[] {
+    return scenarioTimeline(
+      setup.project,
+      order(setup),
+      undefined,
+      setup.session.getState().choices,
+    ).entries.flatMap((entry) => entry.steps);
+  }
+
+  it('opens with every decision playing its default, and chooses another, saying so', () => {
+    const setup = setUpOrder();
+    const { session } = setup;
+    expect(session.getState().choices).toEqual({});
+    session.goToStep(2);
+    session.choose(NO);
+    setup.sync();
+    expect(session.getState()).toMatchObject({ choices: { [STOCK]: 'out-of-stock' }, step: 2 });
+    expect(setup.said.at(-1)).toBe('“No” plays at “Is every item in stock?”.');
+    expect(played(setup)).toContain('to-cancel');
+    expect(played(setup)).not.toContain('pack');
+    session.next();
+    expect(session.getState().step).toBe(9);
+  });
+
+  it('goes to the first step of the alternative chosen from a step of another', () => {
+    const setup = setUpOrder();
+    setup.session.goToStep(4);
+    setup.session.choose(NO);
+    setup.sync();
+    expect(setup.session.getState()).toMatchObject({ step: 9, mode: 'stepping' });
+  });
+
+  it('chooses what reaches a step of an alternative not chosen, and says so', () => {
+    const setup = setUpOrder();
+    setup.session.goToStep(10);
+    setup.sync();
+    expect(setup.session.getState()).toMatchObject({
+      choices: { [STOCK]: 'out-of-stock' },
+      step: 10,
+    });
+    expect(setup.said.at(-1)).toBe('“No” plays at “Is every item in stock?”.');
+  });
+
+  it('forgets the choices when another scenario opens, and never sends them', () => {
+    const setup = setUpOrder();
+    setup.session.choose(NO);
+    setup.session.open('order-states');
+    expect(setup.session.getState().choices).toEqual({});
+    expect(setup.send).not.toHaveBeenCalled();
+  });
+
+  it('stops before each decision when asked, and plays on past it', () => {
+    const setup = setUpOrder();
+    const { session, time } = setup;
+    session.setStopAtDecisions(true);
+    session.play();
+    time.pass(STEP_TIME * 4);
+    expect(session.getState()).toMatchObject({ step: 2, mode: 'paused' });
+    expect(session.position.elapsed).toBe(STEP_TIME);
+    expect(setup.said.at(-1)).toBe(
+      'Paused before “Is every item in stock?”. Choose an alternative, then play on.',
+    );
+    session.choose(NO);
+    setup.sync();
+    expect(session.getState()).toMatchObject({ step: 2, mode: 'paused' });
+    session.play();
+    time.pass(100);
+    expect(session.getState()).toMatchObject({ step: 9, mode: 'playing' });
+  });
+
+  it('plays past every decision without the option', () => {
+    const setup = setUpOrder();
+    setup.session.play();
+    setup.time.pass(STEP_TIME * 3 + 100);
+    expect(setup.session.getState()).toMatchObject({ step: 3, mode: 'playing' });
+  });
+
+  it('records after a step of an alternative, in that alternative', async () => {
+    const setup = setUpOrder();
+    const { session } = setup;
+    session.setRecording(true);
+    // The last step that plays: the default alternative's.
+    expect(session.getState().step).toBe(8);
+    session.record('places-order', false);
+    expect(setup.sent[0]).toMatchObject({ label: 'Record step 10 of “An order”' });
+    await setup.answer();
+    const added = order(setup).steps[9]!;
+    expect(added.relations).toEqual(['places-order']);
+    expect(order(setup).blocks?.[0]?.alternatives[0]?.steps.at(-1)).toBe(added.id);
+    expect(session.getState()).toMatchObject({ step: 9, mode: 'stepping' });
+  });
+
+  it('adds an alternative with its first click, as one command, and records on in it', async () => {
+    const setup = setUpOrder();
+    const { session } = setup;
+    session.setRecording(true);
+    session.addAlternative({ label: 'Some of them', question: '', kept: '' }, 2);
+    expect(session.getState()).toMatchObject({ step: 2, place: { kind: 'new-alternative' } });
+    expect(setup.said.at(-1)).toBe('Click the first relation of “Some of them” on the canvas.');
+    session.record('places-order', false);
+    expect(setup.sent).toHaveLength(1);
+    expect(setup.sent[0]).toMatchObject({
+      label: 'Add the alternative “Some of them” after step 3 of “An order”',
+    });
+    await setup.answer();
+    const decision = order(setup).blocks?.[0];
+    expect(decision?.alternatives.map((each) => each.label)).toEqual(['Yes', 'No', 'Some of them']);
+    expect(session.getState()).toMatchObject({
+      step: 12,
+      choices: { [STOCK]: decision?.alternatives[2]?.id },
+      place: { kind: 'after-step' },
+    });
+    expect(setup.said.at(-1)).toMatch(/^Recorded step 13, the first of “Some of them”: /);
+    // The next click goes on in it.
+    session.record('received-to-check', false);
+    await setup.answer();
+    expect(order(setup).blocks?.[0]?.alternatives[2]?.steps).toHaveLength(2);
+  });
+
+  it('starts a new decision after a step outside any, whose first alternative keeps what followed', async () => {
+    const setup = setUpOrder();
+    const { session } = setup;
+    session.setRecording(true);
+    session.addAlternative({ question: 'Is the customer known?', kept: 'Yes', label: 'No' }, 0);
+    session.record('places-order', false);
+    expect(setup.sent[0]).toMatchObject({
+      label: 'Add the decision “Is the customer known?” after step 1 of “An order”',
+    });
+    await setup.answer();
+    const known = order(setup).blocks?.find((each) => each.question === 'Is the customer known?');
+    expect(known?.alternatives.map((each) => [each.label, each.steps.length])).toEqual([
+      ['Yes', 11],
+      ['No', 1],
+    ]);
+  });
+
+  it('records after the decision once the alternative ends', async () => {
+    const setup = setUpOrder();
+    const { session } = setup;
+    session.setRecording(true);
+    session.endAlternative();
+    expect(session.getState().place).toEqual({ kind: 'after-decision', decision: STOCK });
+    expect(setup.said.at(-1)).toBe('The next click records after “Is every item in stock?”.');
+    session.record('places-order', false);
+    await setup.answer();
+    const scenario = order(setup);
+    expect(scenario.steps).toHaveLength(13);
+    const added = scenario.steps[12]!;
+    expect(scenario.blocks?.[0]?.alternatives.flatMap((each) => each.steps)).not.toContain(
+      added.id,
+    );
+    expect(played(setup).at(-1)).toBe(added.id);
+    expect(session.getState()).toMatchObject({ step: 12, place: { kind: 'after-step' } });
+  });
+
+  it('records a scenario without decisions exactly as before, its steps only', async () => {
+    const setup = setUp();
+    open(setup);
+    setup.session.setRecording(true);
+    setup.session.record('api-reads-db', false);
+    const sent = setup.sent[0] as Extract<Command, { type: 'batch' }>;
+    const update = sent.commands[0] as Extract<Command, { type: 'update-scenario' }>;
+    expect(Object.keys(update.changes)).toEqual(['steps']);
+    await setup.answer();
+    expect(setup.project.scenarios[0]).not.toHaveProperty('blocks');
   });
 });

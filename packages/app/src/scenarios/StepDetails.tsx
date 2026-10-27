@@ -1,14 +1,18 @@
 /**
  * The step playback is on, in the step panel: what moves, its description and its data in and out,
  * each edited as one command. A broken step says which relations are gone and offers to fix it; an
- * aggregated step lists the steps it stands for and offers to expand its container.
+ * aggregated step lists the steps it stands for and offers to expand its container. A step can start
+ * an alternative after it, and one in an alternative can rejoin the steps after the decision there
+ * (ADR 0078).
  */
 import {
+  alternativesOf,
   deleteStep,
   describeStep,
   isOutside,
   modelIndexOf,
   moveStep,
+  rejoinAt,
   repairStep,
   setStepData,
   takeOutOfStep,
@@ -27,6 +31,7 @@ import { TextControl } from '../shell/inspector/controls';
 import { expandCommand, stepOf, stepsCommand } from './commands';
 import { jsonText, readJson, sameJson } from './json';
 import { OutsideNote } from './OutsideNote';
+import { decisionsCommand } from './record-decisions';
 
 interface StepDetailsProps {
   project: ProjectSnapshot;
@@ -36,9 +41,18 @@ interface StepDetailsProps {
   send: (command: Command, done?: string) => Promise<boolean>;
   /** Brings what the entry highlights into sight on the canvas. */
   onShow: (() => void) | undefined;
+  /** Asks for the words of an alternative to add after a step, by its index; none while read-only. */
+  onAddAlternative?: ((after: number) => void) | undefined;
 }
 
-export function StepDetails({ project, scenario, entry, send, onShow }: StepDetailsProps) {
+export function StepDetails({
+  project,
+  scenario,
+  entry,
+  send,
+  onShow,
+  onAddAlternative,
+}: StepDetailsProps) {
   const t = useT();
   const editor = useEditor();
   const editable = editor.send !== undefined;
@@ -102,6 +116,7 @@ export function StepDetails({ project, scenario, entry, send, onShow }: StepDeta
       editable={editable}
       send={send}
       onShow={onShow}
+      onAddAlternative={onAddAlternative}
     />
   );
   // A step outside the view says so first (ADR-0040).
@@ -129,6 +144,7 @@ function StepEditor({
   editable,
   send,
   onShow,
+  onAddAlternative,
 }: {
   project: ProjectSnapshot;
   scenario: ScenarioFile;
@@ -138,6 +154,7 @@ function StepEditor({
   editable: boolean;
   send: StepDetailsProps['send'];
   onShow: (() => void) | undefined;
+  onAddAlternative: ((after: number) => void) | undefined;
 }) {
   const t = useT();
   const editor = useEditor();
@@ -147,6 +164,17 @@ function StepEditor({
   const label = stepOf(scenario, at);
   const broken = missing.length > 0;
   const kept = step.relations.filter(exists);
+  // A step moves only among the steps of its own stretch: the alternative it is in, or none.
+  const stretch = (position: number) => {
+    const each = scenario.steps[position];
+    return each
+      ? alternativesOf(scenario, each.id)
+          .map((holding) => holding.alternative)
+          .join('/')
+      : undefined;
+  };
+  const canMove = (to: number) => stretch(to) !== undefined && stretch(to) === stretch(at);
+  const rejoined = scenario.blocks ? rejoinAt(scenario, step.id) : undefined;
 
   const change = (steps: NewStep[] | undefined, history: string, done?: string) =>
     steps ? send(stepsCommand(scenario, steps, history), done) : Promise.resolve(false);
@@ -309,10 +337,40 @@ function StepEditor({
             {t('Show on the canvas')}
           </button>
         )}
+        {onAddAlternative && (
+          <button
+            type="button"
+            className="scenario-button"
+            disabled={!editable}
+            onClick={() => onAddAlternative(at)}
+          >
+            {t('Add an alternative here')}
+          </button>
+        )}
+        {rejoined && (
+          <button
+            type="button"
+            className="scenario-button"
+            disabled={!editable}
+            title={t(
+              'This step and the ones after it in its alternative follow the decision, whichever way it goes.',
+            )}
+            onClick={() =>
+              void send(
+                decisionsCommand(scenario, rejoined, fill('Rejoin at {step}', { step: label })),
+                t('Step {n} and the steps after it in its alternative now follow the decision.', {
+                  n: at + 1,
+                }),
+              )
+            }
+          >
+            {t('Rejoin here')}
+          </button>
+        )}
         <button
           type="button"
           className="scenario-button"
-          disabled={!editable || at === 0}
+          disabled={!editable || at === 0 || !canMove(at - 1)}
           onClick={() =>
             void change(
               moveStep(scenario.steps, at, at - 1),
@@ -326,7 +384,7 @@ function StepEditor({
         <button
           type="button"
           className="scenario-button"
-          disabled={!editable || at === scenario.steps.length - 1}
+          disabled={!editable || at === scenario.steps.length - 1 || !canMove(at + 1)}
           onClick={() =>
             void change(
               moveStep(scenario.steps, at, at + 1),

@@ -13,6 +13,11 @@ export interface Emphasis {
   hidden?: ReadonlySet<string>;
   /** Drawn faintly, as outside a focus. */
   dimmed?: ReadonlySet<string>;
+  /**
+   * Relations whose lines are drawn dashed, as those only the alternatives not chosen at a decision
+   * use (ADR 0078); a line that stands for several is dashed when all of them are.
+   */
+  dashed?: ReadonlySet<string>;
   /** Drawn marked, as the relations of a scenario step and their ends. */
   highlighted?: ReadonlySet<string>;
   /** Markers travelling along relations. */
@@ -115,12 +120,14 @@ function unionOf(all: readonly Emphasis[]): Emphasis {
   };
   const hidden = sets((emphasis) => emphasis.hidden);
   const dimmed = sets((emphasis) => emphasis.dimmed);
+  const dashed = sets((emphasis) => emphasis.dashed);
   const highlighted = sets((emphasis) => emphasis.highlighted);
   const markers = all.flatMap((emphasis) => emphasis.markers ?? []);
   const arriving = arrivingOf(all);
   return {
     ...(hidden ? { hidden } : {}),
     ...(dimmed ? { dimmed } : {}),
+    ...(dashed ? { dashed } : {}),
     ...(highlighted ? { highlighted } : {}),
     ...(markers.length > 0 ? { markers } : {}),
     ...(arriving ? { arriving } : {}),
