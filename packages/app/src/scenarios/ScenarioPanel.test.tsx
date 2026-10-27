@@ -223,6 +223,35 @@ describe('ScenarioPanel', () => {
     expect(said()).toBe('Step 1 is deleted.');
   });
 
+  it('offers to remove decisions that do not hold together, as one action', async () => {
+    const [scenario, ...rest] = sample.scenarios;
+    // A decision whose alternatives name steps the scenario does not have.
+    const tangled = {
+      ...scenario!,
+      blocks: [
+        {
+          kind: 'decision' as const,
+          id: 'tangled',
+          question: 'Which way?',
+          alternatives: [
+            { id: 'a', label: 'A', steps: ['gone'] },
+            { id: 'b', label: 'B', steps: [] },
+          ],
+        },
+      ],
+    };
+    const program = localProgram({ ...sample, scenarios: [tangled, ...rest] });
+    render(<program.LiveShell />);
+    openScenario();
+    expect(within(panel()).getByText(/Its decisions do not hold together/)).toBeInTheDocument();
+    fireEvent.click(within(panel()).getByRole('button', { name: 'Remove the decisions' }));
+    await flush();
+    expect(program.last).toMatchObject({ label: `Remove the decisions of “${NAME}”` });
+    expect(program.project.scenarios[0]!.blocks).toBeUndefined();
+    expect(program.project.scenarios[0]!.steps).toEqual(scenario!.steps);
+    expect(within(panel()).queryByText(/Its decisions do not hold together/)).toBeNull();
+  });
+
   it('shows a broken step, which a relation selected on the canvas can fix', () => {
     const broken: ProjectSnapshot = {
       ...sample,

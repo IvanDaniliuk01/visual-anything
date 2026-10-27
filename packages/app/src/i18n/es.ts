@@ -683,6 +683,11 @@ export const ui: Catalog = {
     one: '¿Eliminar “{name}” y su paso? Se puede deshacer.',
     other: '¿Eliminar “{name}” y sus {count} pasos? Se puede deshacer.',
   },
+  'Remove the decisions of “{name}”': 'Quitar las decisiones de “{name}”',
+  'Removed the decisions of “{name}”.': 'Se quitaron las decisiones de “{name}”.',
+  'Its decisions do not hold together, so it plays every step in order and its steps cannot change: {why}':
+    'Sus decisiones no encajan entre sí, así que reproduce todos los pasos en orden y sus pasos no se pueden cambiar: {why}',
+  'Remove the decisions': 'Quitar las decisiones',
   'Delete scenario': 'Eliminar escenario',
   'It plays over “{view}”.': 'Se reproduce sobre “{view}”.',
   'Open “{view}”': 'Abrir “{view}”',

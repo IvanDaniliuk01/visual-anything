@@ -16,6 +16,7 @@ import {
   isBroken,
   isOutside,
   modelIndexOf,
+  readBlocks,
   scenarioTimeline,
   type Command,
   type Speed,
@@ -43,6 +44,7 @@ import { useT, type Translator } from '../i18n';
 import {
   createScenarioCommand,
   deleteScenarioCommand,
+  removeDecisionsCommand,
   newScenarioName,
   renameScenarioCommand,
 } from './commands';
@@ -337,6 +339,15 @@ function OpenScenario({
     await send(renameScenarioCommand(scenario, name), t('Renamed to “{name}”.', { name }));
   };
 
+  // Decisions that do not hold together play every step in order, and refuse every change of steps.
+  const blocks = readBlocks(scenario);
+  const removeDecisions = async () => {
+    await send(
+      removeDecisionsCommand(scenario),
+      t('Removed the decisions of “{name}”.', { name: scenario.name }),
+    );
+  };
+
   const remove = async () => {
     setDeleting(false);
     if (
@@ -441,6 +452,26 @@ function OpenScenario({
       )}
       {scenario.description !== undefined && (
         <p className="scenario-description">{scenario.description}</p>
+      )}
+      {!blocks.ok && (
+        <div className="scenario-confirm" role="note">
+          <p>
+            {t(
+              'Its decisions do not hold together, so it plays every step in order and its steps cannot change: {why}',
+              { why: blocks.message },
+            )}
+          </p>
+          <div className="scenario-actions">
+            <button
+              type="button"
+              className="scenario-button"
+              disabled={!editable}
+              onClick={() => void removeDecisions()}
+            >
+              {t('Remove the decisions')}
+            </button>
+          </div>
+        </div>
       )}
       {!active && (
         <p className="scenario-elsewhere">

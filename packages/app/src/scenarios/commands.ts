@@ -50,6 +50,18 @@ export function renameScenarioCommand(scenario: ScenarioFile, name: string): Com
   };
 }
 
+/**
+ * Takes a scenario's decisions away, keeping every step in its order, as one action: the way out
+ * for a scenario whose decisions do not hold together, which plays every step in order meanwhile.
+ */
+export function removeDecisionsCommand(scenario: ScenarioFile): Command {
+  return {
+    type: 'batch',
+    label: fill('Remove the decisions of “{name}”', { name: scenario.name }),
+    commands: [{ type: 'update-scenario', id: scenario.id, changes: { blocks: null } }],
+  };
+}
+
 /** Deletes a scenario. */
 export function deleteScenarioCommand(scenario: ScenarioFile): Command {
   return { type: 'delete-scenario', id: scenario.id };
