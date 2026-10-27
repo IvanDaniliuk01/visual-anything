@@ -123,16 +123,44 @@ describe('the keys of full-screen playback', () => {
     ['Home', {}, 'first'],
     ['End', {}, 'last'],
     ['Escape', {}, 'end'],
+    // ADR 0077: Enter goes forward too, and the letters open the index, pause, replay and go back.
+    ['Enter', {}, 'next'],
+    ['Enter', { shiftKey: true }, 'previous'],
+    ['i', {}, 'index'],
+    ['I', { shiftKey: true }, 'index'],
+    ['p', {}, 'pause'],
+    ['P', {}, 'pause'],
+    ['r', {}, 'replay'],
+    ['b', {}, 'back'],
   ])('read %j as %s', (key, modifiers, action) => {
     expect(tourKeyAction({ key, ...modifiers })).toBe(action);
   });
 
   it('leave other keys, and keys with Control, Alt or Meta, to the browser', () => {
     expect(tourKeyAction({ key: 'a' })).toBeUndefined();
-    expect(tourKeyAction({ key: 'Enter' })).toBeUndefined();
+    expect(tourKeyAction({ key: 'Tab' })).toBeUndefined();
     expect(tourKeyAction({ key: 'ArrowRight', ctrlKey: true })).toBeUndefined();
     expect(tourKeyAction({ key: 'ArrowLeft', altKey: true })).toBeUndefined();
     expect(tourKeyAction({ key: 'End', metaKey: true })).toBeUndefined();
+    expect(tourKeyAction({ key: 'r', ctrlKey: true })).toBeUndefined();
+    expect(tourKeyAction({ key: 'p', metaKey: true })).toBeUndefined();
+    expect(tourKeyAction({ key: 'Enter', altKey: true })).toBeUndefined();
+  });
+
+  it('a wireless presenter’s Page Down and Page Up go through reveals one at a time', () => {
+    const player = new TourPlayer();
+    const revealing: TourFile = {
+      ...tour,
+      steps: tour.steps.map((step, at) =>
+        at === 0 ? { ...step, reveal: [{ marks: ['booking-agent'] }] } : step,
+      ),
+    };
+    player.start(revealing);
+    for (const key of ['PageDown', 'PageDown', 'PageUp']) {
+      const action = tourKeyAction({ key });
+      if (action) applyTourKey(player, action);
+    }
+    expect(player.getState()).toMatchObject({ step: 0, reveal: 1 });
   });
 
   it('move the player', () => {
@@ -202,8 +230,87 @@ describe('ScenarioRange', () => {
     range.check();
     session.set({ mode: 'paused' });
     range.check();
+    expect(range.getState()).toBe('let-go');
     session.set({ mode: 'playing', step: 9 });
     range.check();
+    expect(session.pause).not.toHaveBeenCalled();
+  });
+
+  // ADR 0077: a pause asked for from the card keeps the range.
+  it('keeps its range through a pause from the card, and still stops at its last step', () => {
+    const session = fakeSession(PAUSED);
+    const range = new ScenarioRange(session);
+    const heard = vi.fn();
+    range.subscribe(heard);
+    range.start({ scenario: 'booking', from: 0, to: 2 });
+    expect(range.getState()).toBe('opening');
+    session.set({ scenario: 'booking', step: 0 });
+    range.check();
+    expect(range.getState()).toBe('playing');
+    session.set({ step: 1 });
+    range.pause();
+    range.check();
+    expect(range.getState()).toBe('paused');
+    expect(session.getState().mode).toBe('paused');
+    range.resume();
+    expect(range.getState()).toBe('playing');
+    expect(session.play).toHaveBeenCalledTimes(2);
+    session.set({ step: 3 });
+    range.check();
+    expect(range.getState()).toBe('ended');
+    expect(session.goToStep).toHaveBeenLastCalledWith(2);
+    expect(heard).toHaveBeenCalled();
+  });
+
+  it('plays its range again from its first step', () => {
+    const session = fakeSession(PAUSED);
+    const range = new ScenarioRange(session);
+    range.start({ scenario: 'booking', from: 1, to: 2 });
+    session.set({ scenario: 'booking', step: 1 });
+    range.check();
+    session.set({ step: 3 });
+    range.check();
+    expect(range.getState()).toBe('ended');
+    range.replay();
+    expect(session.goToStep).toHaveBeenLastCalledWith(1);
+    expect(range.getState()).toBe('playing');
+    expect(session.getState()).toMatchObject({ step: 1, mode: 'playing' });
+  });
+
+  it('ends when the scenario itself stops on the range’s last step', () => {
+    const session = fakeSession(PAUSED);
+    const range = new ScenarioRange(session);
+    range.start({ scenario: 'booking', from: 0, to: 4 });
+    session.set({ scenario: 'booking', step: 0 });
+    range.check();
+    // The scenario's last step played to its end: playback pauses there by itself.
+    session.set({ step: 4, mode: 'paused' });
+    range.check();
+    expect(range.getState()).toBe('ended');
+  });
+
+  it('waits for its scenario when paused before it opened, and plays once resumed', () => {
+    const session = fakeSession(PAUSED);
+    const range = new ScenarioRange(session);
+    range.start({ scenario: 'booking', from: 0, to: 2 });
+    range.pause();
+    session.set({ scenario: 'booking', step: 0 });
+    range.check();
+    expect(session.play).not.toHaveBeenCalled();
+    expect(range.getState()).toBe('paused');
+    range.resume();
+    expect(session.play).toHaveBeenCalledTimes(1);
+    expect(range.getState()).toBe('playing');
+  });
+
+  it('does nothing without a range', () => {
+    const session = fakeSession(PAUSED);
+    const range = new ScenarioRange(session);
+    range.pause();
+    range.resume();
+    range.replay();
+    expect(range.getState()).toBe('none');
+    expect(session.play).not.toHaveBeenCalled();
     expect(session.pause).not.toHaveBeenCalled();
   });
 

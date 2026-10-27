@@ -5,12 +5,14 @@ import {
   MAX_RECENT_COLORS,
   PREFERENCES_VERSION,
   LANGUAGE_CHOICES,
+  MOTION_CHOICES,
   PREFERENCE_NAMES,
   THEME_CHOICES,
   applyPreferenceChanges,
   checkPreferenceChanges,
   formatPreferences,
   readPreferences,
+  reducedMotionOf,
   resolveTheme,
   type PreferenceChanges,
   type Preferences,
@@ -53,6 +55,9 @@ const preferences: fc.Arbitrary<Preferences> = fc.record({
     ),
     { nil: null },
   ),
+  // How tours and scenario playback move (ADR 0077).
+  motion: fc.constantFrom(...MOTION_CHOICES),
+  fades: fc.boolean(),
 });
 
 /** Any JSON value, as it reads back from its text (so without -0). */
@@ -86,6 +91,8 @@ describe('DEFAULT_PREFERENCES', () => {
       recentColors: [],
       codeApprovals: [],
       author: null,
+      motion: 'system',
+      fades: true,
     });
     expect(PREFERENCE_NAMES).toEqual(Object.keys(DEFAULT_PREFERENCES));
   });
@@ -103,6 +110,16 @@ describe('resolveTheme', () => {
     expect(resolveTheme('dark', false)).toBe('dark');
     expect(resolveTheme('system', true)).toBe('dark');
     expect(resolveTheme('system', false)).toBe('light');
+  });
+});
+
+describe('reducedMotionOf', () => {
+  it('follows the system for "system", and the person’s choice otherwise (ADR 0077)', () => {
+    expect(reducedMotionOf('system', true)).toBe(true);
+    expect(reducedMotionOf('system', false)).toBe(false);
+    expect(reducedMotionOf('reduced', false)).toBe(true);
+    expect(reducedMotionOf('full', true)).toBe(false);
+    expect(MOTION_CHOICES).toEqual(['system', 'reduced', 'full']);
   });
 });
 
@@ -138,6 +155,8 @@ describe('readPreferences', () => {
       recentColors: ['#1D4F91', '#dceBff'],
       codeApprovals: [{ hash: 'c'.repeat(64), package: 'gauges', capabilities: ['time'] }],
       author: { name: ' Ana ', email: 'ana@example.com' },
+      motion: 'reduced',
+      fades: false,
     });
     expect(read.preferences).toEqual({
       theme: 'light',
@@ -148,6 +167,8 @@ describe('readPreferences', () => {
       recentColors: ['#1D4F91', '#DCEBFF'],
       codeApprovals: [{ hash: 'c'.repeat(64), package: 'gauges', capabilities: ['time'] }],
       author: { name: 'Ana', email: 'ana@example.com' },
+      motion: 'reduced',
+      fades: false,
     });
     expect(read.unread).toEqual([]);
   });
@@ -253,6 +274,8 @@ describe('formatPreferences', () => {
         '  ],',
         '  "codeApprovals": [],',
         '  "author": null,',
+        '  "motion": "system",',
+        '  "fades": true,',
         '  "apple": [',
         '    1,',
         '    2',
@@ -381,6 +404,16 @@ describe('checkPreferenceChanges', () => {
       'too many recent colors',
       { recentColors: Array.from({ length: 9 }, (_, n) => `#00000${n}`) },
       '"recentColors" holds 9 colors, more than 8.',
+    ],
+    [
+      'a motion this build has not',
+      { motion: 'slow' },
+      '"motion" must be "system", "reduced" or "full", not "slow".',
+    ],
+    [
+      'fades that are not true or false',
+      { fades: 'on' },
+      '"fades" must be true or false, not "on".',
     ],
     [
       'an author that is no object',

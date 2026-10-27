@@ -262,6 +262,9 @@ function said(): { name: string; message: string }[] {
     ['preferences not an object', 'dark'],
     ['no preference', {}],
     ['a preference there is not', { glow: true }],
+    // How tours and scenarios move (ADR 0077).
+    ['a motion there is not', { motion: 'slow' }],
+    ['fades that are not true or false', { fades: 'on' }],
   ] as const) {
     const checked = checkPreferenceChanges(changes);
     for (const problem of checked.ok ? [] : checked.problems) {
