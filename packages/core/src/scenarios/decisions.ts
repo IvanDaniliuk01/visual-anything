@@ -7,7 +7,7 @@
  */
 import type { Alternative, DecisionBlock, Id, ScenarioFile } from '@visual-anything/schema';
 import type { NewStep } from '../commands/types';
-import { chosenAlternative, readBlocks, type DecisionSpan } from './blocks';
+import { alternativesOf, chosenAlternative, readBlocks, type DecisionSpan } from './blocks';
 
 /** What to send with `update-scenario`: the steps, and the decisions, `null` for none. */
 export interface EditedDecisions {
@@ -32,7 +32,8 @@ export interface NewAlternative {
  * Adds an alternative after a step, as recording's "Add an alternative here" does with its first
  * click. When a decision starts right after the step, in the same stretch, the alternative joins it,
  * last. Otherwise a new decision starts after the step: its first alternative keeps the steps that
- * followed, to the end of the stretch the step is in, and its second holds the step recorded.
+ * followed, to the end of the stretch the step is in, and its second holds the step recorded. The
+ * alternatives holding the step hold the step recorded too.
  * Undefined for a step the scenario does not have, or decisions that do not hold together.
  */
 export function addAlternativeAfter(
@@ -49,11 +50,12 @@ export function addAlternativeAfter(
     (span) => span.first === at + 1 && sameWithin(span.within, stretch.within),
   );
   const steps: NewStep[] = [...scenario.steps];
+  const holding = alternativesOf(scenario, after);
   if (starting) {
     const decision = blocks.find((block) => block.id === starting.decision.id) as DecisionBlock;
     decision.alternatives.push({ ...added.alternative, steps: [added.step.id] });
     steps.splice(starting.last + 1, 0, added.step);
-    return { steps, blocks };
+    return { steps, blocks: inReadingOrder(steps, joined(blocks, holding, added.step.id)) };
   }
   const followed = scenario.steps.slice(at + 1, stretch.last + 1).map((step) => step.id);
   // The decisions among the steps that followed now sit in the alternative that keeps them.
@@ -67,7 +69,51 @@ export function addAlternativeAfter(
     ],
   });
   steps.splice(stretch.last + 1, 0, added.step);
-  return { steps, blocks };
+  return { steps, blocks: inReadingOrder(steps, joined(blocks, holding, added.step.id)) };
+}
+
+/**
+ * Where a step recorded goes among a scenario's decisions (ADR 0078): after a step, in every
+ * alternative that holds it; or after a decision, in every alternative that holds the decision, as
+ * recording does once it ends an alternative.
+ */
+export type StepPlace = { after: Id } | { afterDecision: Id };
+
+/**
+ * Puts a new step in a scenario, as a click while recording does: after a step, in the alternatives
+ * that hold it, or after a decision, in the alternatives that hold the decision. Gives the steps and
+ * decisions to send, and where the step went among the steps. Undefined for a step or decision the
+ * scenario does not have, or decisions that do not hold together.
+ */
+export function insertStep(
+  scenario: ScenarioFile,
+  step: NewStep & { id: Id },
+  place: StepPlace,
+): (EditedDecisions & { at: number }) | undefined {
+  const read = readBlocks(scenario);
+  if (!read.ok) return undefined;
+  let at: number;
+  let holding: { decision: Id; alternative: Id }[];
+  if ('after' in place) {
+    const found = scenario.steps.findIndex((each) => each.id === place.after);
+    if (found < 0) return undefined;
+    at = found + 1;
+    holding = alternativesOf(scenario, place.after);
+  } else {
+    const span = read.decisions.find((each) => each.decision.id === place.afterDecision);
+    const first = span && scenario.steps[span.first];
+    if (!span || !first) return undefined;
+    at = span.last + 1;
+    holding = alternativesOf(scenario, first.id).slice(0, span.depth - 1);
+  }
+  const steps: NewStep[] = [...scenario.steps];
+  steps.splice(at, 0, step);
+  const blocks = (scenario.blocks ?? []).map(copy);
+  return {
+    steps,
+    blocks: blocks.length > 0 ? inReadingOrder(steps, joined(blocks, holding, step.id)) : null,
+    at,
+  };
 }
 
 /**
@@ -143,12 +189,52 @@ export function stepsRemovedWith(scenario: ScenarioFile, decision: Id): Id[] {
   return scenario.steps.filter((step) => !left.has(step.id)).map((step) => step.id);
 }
 
-/** Decisions without any that are left with no steps, or `null` for none at all. */
+/**
+ * Decisions without any that are left with no steps, each alternative's steps in reading order, or
+ * `null` for none at all.
+ */
 function finished(steps: NewStep[], blocks: DecisionBlock[]): EditedDecisions {
   const left = blocks.filter((block) =>
     block.alternatives.some((alternative) => alternative.steps.length > 0),
   );
-  return { steps, blocks: left.length > 0 ? left : null };
+  return { steps, blocks: left.length > 0 ? inReadingOrder(steps, left) : null };
+}
+
+/** The decisions with a step added to each of these alternatives. */
+function joined(
+  blocks: DecisionBlock[],
+  holding: readonly { decision: Id; alternative: Id }[],
+  step: Id,
+): DecisionBlock[] {
+  for (const { decision, alternative } of holding) {
+    const found = blocks
+      .find((block) => block.id === decision)
+      ?.alternatives.find((each) => each.id === alternative);
+    if (found && !found.steps.includes(step)) found.steps.push(step);
+  }
+  return blocks;
+}
+
+/**
+ * The decisions with each alternative's steps listed in the order the scenario's steps hold them,
+ * which a change that moves steps inside an alternative, or around a decision inside one, keeps.
+ */
+export function inReadingOrder(
+  steps: readonly Pick<NewStep, 'id'>[],
+  blocks: DecisionBlock[],
+): DecisionBlock[] {
+  const order = new Map<Id, number>();
+  for (const [at, step] of steps.entries()) if (step.id !== undefined) order.set(step.id, at);
+  const place = (id: Id) => order.get(id) ?? Number.POSITIVE_INFINITY;
+  return blocks.map((block) => ({
+    ...block,
+    alternatives: block.alternatives.map((alternative) => {
+      const sorted = [...alternative.steps].sort((a, b) => place(a) - place(b));
+      return sorted.every((id, at) => id === alternative.steps[at])
+        ? alternative
+        : { ...alternative, steps: sorted };
+    }),
+  }));
 }
 
 function copy(block: DecisionBlock): DecisionBlock {

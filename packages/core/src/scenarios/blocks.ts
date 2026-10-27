@@ -190,24 +190,40 @@ export function playedSteps(
   scenario: Pick<ScenarioFile, 'steps' | 'blocks'>,
   choices?: DecisionChoices,
 ): number[] {
+  const played: number[] = [];
   const read = readBlocks(scenario);
-  const all = () => scenario.steps.map((_, at) => at);
-  if (!read.ok || read.decisions.length === 0) return all();
+  if (!read.ok || read.decisions.length === 0) return scenario.steps.map((_, at) => at);
+  walk(scenario.steps.length, read.decisions, choices, (at) => played.push(at));
+  return played;
+}
+
+/**
+ * Walks what a scenario plays with these choices, in order: `step` for each step that plays, and
+ * `decision` for each decision playback reaches, as it reaches it, before the steps of the
+ * alternative it plays.
+ */
+function walk(
+  count: number,
+  decisions: readonly DecisionSpan[],
+  choices: DecisionChoices | undefined,
+  step: (at: number) => void,
+  decision?: (span: DecisionSpan, alternative: Alternative) => void,
+): void {
   const inside = new Map<string, DecisionSpan[]>();
   const keyOf = (within: DecisionSpan['within']) =>
     within === undefined ? '' : `${within.decision}\u0000${within.alternative}`;
-  for (const span of read.decisions) {
+  for (const span of decisions) {
     const key = keyOf(span.within);
     inside.set(key, [...(inside.get(key) ?? []), span]);
   }
-  const played: number[] = [];
   // Plays from `from` to `to`, both included, with the decisions sitting directly there; true when an
   // alternative that ends the scenario played.
-  const playRange = (from: number, to: number, decisions: readonly DecisionSpan[]): boolean => {
+  const playRange = (from: number, to: number, spans: readonly DecisionSpan[]): boolean => {
     let at = from;
-    for (const span of decisions) {
-      for (; at < span.first; at++) played.push(at);
+    for (const span of spans) {
+      for (; at < span.first; at++) step(at);
       const alternative = chosenAlternative(span.decision, choices);
+      decision?.(span, alternative);
       const placed = span.alternatives.find((each) => each.alternative === alternative);
       if (placed?.first !== undefined && placed.last !== undefined) {
         const nested = inside.get(
@@ -218,11 +234,71 @@ export function playedSteps(
       if (alternative.ends) return true;
       at = span.last + 1;
     }
-    for (; at <= to; at++) played.push(at);
+    for (; at <= to; at++) step(at);
     return false;
   };
-  playRange(0, scenario.steps.length - 1, inside.get('') ?? []);
-  return played;
+  playRange(0, count - 1, inside.get('') ?? []);
+}
+
+/** A decision as playback meets it on a step (ADR 0078). */
+export interface DecisionAt {
+  readonly decision: DecisionBlock;
+  /** The alternative it plays with the choices given. */
+  readonly alternative: Alternative;
+  /**
+   * `holding`: the step is in the alternative it plays; `ahead`: playback reaches it after the step,
+   * before the next step that plays; `before`: playback reaches it before the first step that plays,
+   * which meets it.
+   */
+  readonly place: 'holding' | 'ahead' | 'before';
+}
+
+/**
+ * The decisions playback meets on a step, by the step's index, with these choices: those holding the
+ * step, outermost first, then those it reaches after the step and before the next step that plays, in
+ * the order it reaches them. The first step that plays also meets those reached before it, first.
+ * None for a step that does not play, or decisions that do not hold together.
+ */
+export function decisionsAt(
+  scenario: Pick<ScenarioFile, 'steps' | 'blocks'>,
+  step: number,
+  choices?: DecisionChoices,
+): DecisionAt[] {
+  const read = readBlocks(scenario);
+  if (!read.ok || read.decisions.length === 0) return [];
+  const before: DecisionAt[] = [];
+  const ahead: DecisionAt[] = [];
+  let first = true;
+  let reached = false;
+  let done = false;
+  walk(
+    scenario.steps.length,
+    read.decisions,
+    choices,
+    (at) => {
+      if (reached) done = true;
+      else if (at === step) reached = true;
+      else before.length = 0;
+      first = false;
+    },
+    (span, alternative) => {
+      if (done) return;
+      const met = { decision: span.decision, alternative };
+      if (reached) ahead.push({ ...met, place: 'ahead' });
+      else if (first) before.push({ ...met, place: 'before' });
+    },
+  );
+  if (!reached) return [];
+  const id = scenario.steps[step]?.id as Id;
+  const holding = alternativesOf(scenario, id).map(({ decision }): DecisionAt => {
+    const span = read.decisions.find((each) => each.decision.id === decision) as DecisionSpan;
+    return {
+      decision: span.decision,
+      alternative: chosenAlternative(span.decision, choices),
+      place: 'holding',
+    };
+  });
+  return [...before, ...holding, ...ahead];
 }
 
 /** Where a step sits among a scenario's decisions: each decision and alternative holding it, outermost first. */

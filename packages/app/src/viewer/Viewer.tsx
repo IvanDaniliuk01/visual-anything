@@ -29,6 +29,7 @@ import { useSelection } from '../editor/useSelection';
 import { setCurrentLanguage, adoptLanguage } from '../i18n/language';
 import { useT, LanguageContext, type Translator } from '../i18n';
 import type { Language } from '../i18n/translate';
+import { DecisionEmphasis } from '../scenarios/DecisionEmphasis';
 import { PlaybackEmphasis } from '../scenarios/PlaybackEmphasis';
 import { FindBar } from '../search/FindBar';
 import { OutlineTree } from '../shell/OutlineTree';
@@ -230,13 +231,22 @@ export function Viewer({ project: opened, made, preferences }: ViewerProps) {
   const playing = useSyncExternalStore(playback.subscribe, playback.getState);
   const scenario = project.scenarios.find((each) => each.id === playing.scenario);
   const active = scenario !== undefined && scenario.view === view?.id;
+  // The alternatives chosen at the scenario's decisions play, as in the app (ADR 0078).
+  const { choices } = playing;
   const timeline = useMemo(
-    () => (scenario ? scenarioTimeline(project, scenario) : undefined),
-    [project, scenario],
+    () => (scenario ? scenarioTimeline(project, scenario, undefined, choices) : undefined),
+    [project, scenario, choices],
   );
   useLayoutEffect(() => {
-    playback.sync({ project, viewId: view?.id, timeline: active ? timeline : undefined });
-  }, [playback, project, view?.id, active, timeline]);
+    playback.sync({
+      project,
+      viewId: view?.id,
+      timeline: active ? timeline : undefined,
+      choices,
+      touring,
+      announce: say,
+    });
+  }, [playback, project, view?.id, active, timeline, choices, touring, say]);
   const openScenario = (id: Id) => {
     const chosen = project.scenarios.find((each) => each.id === id);
     if (!chosen) return;
@@ -411,6 +421,12 @@ export function Viewer({ project: opened, made, preferences }: ViewerProps) {
             project={project}
             view={active ? view : undefined}
             scene={active ? scene : undefined}
+            timeline={active ? timeline : undefined}
+          />
+          <DecisionEmphasis
+            session={playback}
+            project={project}
+            scenario={active ? scenario : undefined}
             timeline={active ? timeline : undefined}
           />
           <div aria-live="polite" className="visually-hidden">

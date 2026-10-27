@@ -4,10 +4,14 @@
  * steps. The step playback is on is highlighted on the canvas, with a marker travelling along its
  * relations, and the panel shows its description and its data in and out, to edit.
  *
- * Opening a scenario opens its view. Playing never changes the project.
+ * A scenario with decisions (ADR 0078) shows the decision card while playback meets one, lists the
+ * steps of each alternative under it, and records alternatives as it records steps.
+ *
+ * Opening a scenario opens its view. Playing never changes the project, and nor does choosing.
  */
 import {
   SPEEDS,
+  decisionsAt,
   entryOfStep,
   isBroken,
   isOutside,
@@ -18,7 +22,7 @@ import {
   type Timeline,
   type TimelineEntry,
 } from '@visual-anything/core';
-import type { Id, ScenarioFile, ViewFile } from '@visual-anything/schema';
+import type { DecisionChoices, Id, ScenarioFile, ViewFile } from '@visual-anything/schema';
 import {
   useCallback,
   useContext,
@@ -42,9 +46,16 @@ import {
   newScenarioName,
   renameScenarioCommand,
 } from './commands';
+import { AlternativeForm } from './AlternativeForm';
+import { hasDecisions } from './choosing';
+import { DecisionCard } from './DecisionCard';
+import { lastStepOf } from './decision-emphasis';
+import { DecisionEmphasis } from './DecisionEmphasis';
 import { highlightOf } from './emphasis';
+import { listedSteps, type ListedAlternative, type ListedStep } from './groups';
 import { PlaybackEmphasis } from './PlaybackEmphasis';
 import { PlaybackFollow } from './PlaybackFollow';
+import { decisionHolding } from './record-decisions';
 import './scenarios.css';
 import type { ScenarioSession, ScenarioState } from './session';
 import { StepDetails } from './StepDetails';
@@ -89,15 +100,17 @@ export function ScenarioPanel({
   const zoomed = useZoomExpanded(zoom, active ? viewId : undefined);
   const stored = scenario && project.views.find((each) => each.id === scenario.view);
   const drawn = stored && active ? viewAsDrawn(stored, zoomed) : stored;
+  // The alternatives the tab chose at the scenario's decisions play (ADR 0078).
+  const { choices } = state;
   const timeline = useMemo(
-    () => (scenario ? scenarioTimeline(project, scenario, drawn) : undefined),
-    [project, scenario, drawn],
+    () => (scenario ? scenarioTimeline(project, scenario, drawn, choices) : undefined),
+    [project, scenario, drawn, choices],
   );
   const playing = active ? timeline : undefined;
 
   useLayoutEffect(() => {
-    session.sync({ project, viewId, send, timeline: playing, announce });
-  }, [session, project, viewId, send, playing, announce]);
+    session.sync({ project, viewId, send, timeline: playing, choices, touring: held, announce });
+  }, [session, project, viewId, send, playing, choices, held, announce]);
   useEffect(() => () => session.stop(), [session]);
 
   /** Sends a command, and says `done` once it is applied. */
@@ -146,6 +159,12 @@ export function ScenarioPanel({
         project={project}
         view={view}
         scene={active ? editor.scene : undefined}
+        timeline={playing}
+      />
+      <DecisionEmphasis
+        session={session}
+        project={project}
+        scenario={active ? scenario : undefined}
         timeline={playing}
       />
       <PlaybackFollow
@@ -303,6 +322,15 @@ function OpenScenario({
   const at = entryOfStep(timeline, state.step);
   const entry = at === undefined ? undefined : timeline.entries[at];
   const finished = session.finished;
+  // The decisions playback meets now, for the card (ADR 0078).
+  const decided = hasDecisions(scenario);
+  const last = active && decided ? lastStepOf(timeline, state.step) : undefined;
+  const met = useMemo(
+    () => (last === undefined ? [] : decisionsAt(scenario, last, state.choices)),
+    [scenario, last, state.choices],
+  );
+  // The step after which an alternative is being added, while its words are asked for.
+  const [adding, setAdding] = useState<number>();
 
   const rename = async (event: FormEvent) => {
     event.preventDefault();
@@ -479,22 +507,73 @@ function OpenScenario({
         >
           {state.recording ? t('Stop recording') : t('Record')}
         </button>
+        {decided && (
+          <label className="scenario-check">
+            <input
+              type="checkbox"
+              checked={state.stopAtDecisions}
+              onChange={(event) => session.setStopAtDecisions(event.target.checked)}
+            />
+            {t('Stop at each decision')}
+          </label>
+        )}
       </div>
       {state.recording && (
         <p className="scenario-hint scenario-recording-hint">
-          {!state.canRecord
-            ? t(
-                'Recording waits until the scenario’s view is open and Visual Anything is connected.',
-              )
-            : timeline.steps === 0
-              ? t(
-                  'Click relations on the canvas in the order they happen: each click adds a step after the start. Shift+click adds a relation to that step. From the keyboard, ] and [ select a relation, Enter records it and follows it, and Shift+Enter adds it to the step.',
-                )
-              : t(
-                  'Click relations on the canvas in the order they happen: each click adds a step after step {n}. Shift+click adds a relation to that step. From the keyboard, ] and [ select a relation, Enter records it and follows it, and Shift+Enter adds it to the step.',
-                  { n: state.step + 1 },
-                )}
+          {recordingHint(t, state, scenario, timeline)}
         </p>
+      )}
+      {state.recording && state.canRecord && timeline.steps > 0 && (
+        <div
+          className="scenario-actions scenario-recording-bar"
+          role="group"
+          aria-label={t('Recording')}
+        >
+          <button
+            type="button"
+            className="scenario-button"
+            aria-expanded={adding !== undefined}
+            onClick={() => setAdding(adding === undefined ? state.step : undefined)}
+          >
+            {t('Add an alternative here')}
+          </button>
+          <button
+            type="button"
+            className="scenario-button"
+            disabled={decisionHolding(scenario, state.step) === undefined}
+            title={
+              decisionHolding(scenario, state.step) === undefined
+                ? t('The step recording follows is in no alternative.')
+                : undefined
+            }
+            onClick={() => session.endAlternative()}
+          >
+            {t('End the alternative')}
+          </button>
+          {state.place.kind !== 'after-step' && (
+            <button type="button" className="scenario-button" onClick={() => session.cancelPlace()}>
+              {t('Record after the step again')}
+            </button>
+          )}
+        </div>
+      )}
+      {adding !== undefined && (
+        <AlternativeForm
+          scenario={scenario}
+          after={adding}
+          onAdd={(words) => {
+            setAdding(undefined);
+            session.addAlternative(words, adding);
+          }}
+          onCancel={() => setAdding(undefined)}
+        />
+      )}
+      {active && (
+        <DecisionCard
+          decisions={met}
+          onChoose={(chosen) => session.choose(chosen)}
+          onPreview={(chosen) => session.preview(chosen)}
+        />
       )}
 
       <StepList
@@ -506,9 +585,45 @@ function OpenScenario({
         view={view}
         active={active}
         send={send}
+        choices={state.choices}
+        onAddAlternative={editable ? setAdding : undefined}
       />
     </div>
   );
+}
+
+/** What the recording hint says: where the next click puts its step. */
+function recordingHint(
+  t: Translator,
+  state: ScenarioState,
+  scenario: ScenarioFile,
+  timeline: Timeline,
+): string {
+  if (!state.canRecord) {
+    return t('Recording waits until the scenario’s view is open and Visual Anything is connected.');
+  }
+  const { place } = state;
+  if (place.kind === 'new-alternative') {
+    return t(
+      'Click the relation the alternative “{label}” starts with: it comes after step {n}. Shift+click does the same.',
+      { label: place.words.label, n: place.after + 1 },
+    );
+  }
+  if (place.kind === 'after-decision') {
+    const question = scenario.blocks?.find((each) => each.id === place.decision)?.question ?? '';
+    return t(
+      'Click relations on the canvas in the order they happen: the next click adds a step after “{question}”, whichever way it went.',
+      { question },
+    );
+  }
+  return timeline.steps === 0
+    ? t(
+        'Click relations on the canvas in the order they happen: each click adds a step after the start. Shift+click adds a relation to that step. From the keyboard, ] and [ select a relation, Enter records it and follows it, and Shift+Enter adds it to the step.',
+      )
+    : t(
+        'Click relations on the canvas in the order they happen: each click adds a step after step {n}. Shift+click adds a relation to that step. From the keyboard, ] and [ select a relation, Enter records it and follows it, and Shift+Enter adds it to the step.',
+        { n: state.step + 1 },
+      );
 }
 
 /** "Step 2 of 5", or "Steps 4–5 of 5" for an aggregated step. */
@@ -529,6 +644,11 @@ function positionOf(t: Translator, entry: TimelineEntry | undefined, timeline: T
 /**
  * The steps as they play: each step, or each aggregated step with its count. Choosing one goes there;
  * the arrow keys go from one to the next. The one playback is on shows its details.
+ *
+ * A scenario with decisions lists each decision as a header over its alternatives, each with its
+ * steps under it (ADR 0078): the one chosen open, the others folded, greyed and dashed, their broken
+ * steps marked all the same. Pressing an alternative chooses it; a step of one not chosen goes there
+ * and chooses it.
  */
 function StepList({
   session,
@@ -539,6 +659,8 @@ function StepList({
   view,
   active,
   send,
+  choices,
+  onAddAlternative,
 }: {
   session: ScenarioSession;
   scenario: ScenarioFile;
@@ -549,6 +671,9 @@ function StepList({
   view: ViewFile | undefined;
   active: boolean;
   send: (command: Command, done?: string) => Promise<boolean>;
+  choices: DecisionChoices;
+  /** Asks for the words of an alternative to add after a step, by its index. */
+  onAddAlternative: ((after: number) => void) | undefined;
 }) {
   const t = useT();
   const editor = useEditor();
@@ -557,8 +682,16 @@ function StepList({
   const buttons = useRef(new Map<number, HTMLButtonElement>());
   const index = modelIndexOf(project);
   const nameOf = (id: Id) => index.element(id)?.name ?? id;
+  // The alternatives not chosen that the person unfolded, by decision and alternative.
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(() => new Set());
+  const listed = useMemo(() => {
+    const model = modelIndexOf(project);
+    return listedSteps(scenario, timeline, choices, (at) =>
+      (scenario.steps[at]?.relations ?? []).some((id) => model.relation(id) === undefined),
+    );
+  }, [project, scenario, timeline, choices]);
 
-  if (timeline.entries.length === 0) {
+  if (scenario.steps.length === 0 || (timeline.entries.length === 0 && !listed)) {
     return (
       <p className="panel-empty">
         {t('No steps yet. Turn on Record, then click relations on the canvas in order.')}
@@ -596,71 +729,177 @@ function StepList({
   const [first] = shown;
   const onShow = first === undefined ? undefined : () => editor.reveal(first);
 
+  const renderEntry = (each: TimelineEntry, at: number) => {
+    const isCurrent = at === current;
+    const broken = isBroken(each);
+    const description =
+      each.kind === 'aggregated'
+        ? t(
+            {
+              one: '{count} step inside “{container}”',
+              other: '{count} steps inside “{container}”',
+            },
+            { count: each.count, container: nameOf(each.container) },
+          )
+        : scenario.steps[each.first]?.description || t('No description yet');
+    return (
+      <li
+        key={each.steps[0]}
+        className={`scenario-step${isCurrent ? ' scenario-step-current' : ''}${broken ? ' scenario-step-broken' : ''}`}
+        aria-current={isCurrent ? 'step' : undefined}
+      >
+        <button
+          ref={(element) => {
+            if (element) buttons.current.set(at, element);
+            else buttons.current.delete(at);
+          }}
+          type="button"
+          className="scenario-step-head"
+          tabIndex={isCurrent || (current === undefined && at === 0) ? 0 : -1}
+          aria-disabled={!active || undefined}
+          onClick={() => choose(at)}
+          onKeyDown={(event) => onKeyDown(event, at)}
+        >
+          <span className="scenario-step-number">
+            {each.count === 1 ? each.first + 1 : `${each.first + 1}–${each.first + each.count}`}
+          </span>
+          <span className="scenario-step-text">{description}</span>
+          {broken && <span className="scenario-badge scenario-badge-broken">{t('Broken')}</span>}
+          {isOutside(each) && <span className="scenario-badge">{t('Outside the view')}</span>}
+          {each.kind === 'aggregated' && (
+            <span className="scenario-badge" aria-hidden="true">
+              ×{each.count}
+            </span>
+          )}
+        </button>
+        {isCurrent && (
+          <StepDetails
+            project={project}
+            scenario={scenario}
+            entry={each}
+            send={send}
+            onShow={onShow}
+            onAddAlternative={onAddAlternative}
+          />
+        )}
+      </li>
+    );
+  };
+
+  /** A step that does not play now, which going to chooses what reaches it. */
+  const renderAside = (at: number) => {
+    const step = scenario.steps[at];
+    if (!step) return null;
+    const broken = step.relations.some((id) => index.relation(id) === undefined);
+    return (
+      <li
+        key={step.id}
+        className={`scenario-step scenario-step-aside${broken ? ' scenario-step-broken' : ''}`}
+      >
+        <button
+          type="button"
+          className="scenario-step-head"
+          aria-disabled={!active || undefined}
+          onClick={() => {
+            if (active) session.goToStep(at);
+          }}
+        >
+          <span className="scenario-step-number">{at + 1}</span>
+          <span className="scenario-step-text">{step.description || t('No description yet')}</span>
+          {broken && <span className="scenario-badge scenario-badge-broken">{t('Broken')}</span>}
+        </button>
+      </li>
+    );
+  };
+
+  const renderItems = (items: readonly ListedStep[]) =>
+    items.map((item) => {
+      if (item.kind === 'entry') {
+        const each = timeline.entries[item.entry];
+        return each ? renderEntry(each, item.entry) : null;
+      }
+      if (item.kind === 'step') return renderAside(item.step);
+      const { decision } = item;
+      return (
+        <li key={decision.id} className="scenario-decision">
+          <p className="scenario-decision-question">
+            <span className="scenario-badge">{t('Decision')}</span> {decision.question}
+          </p>
+          <ul className="scenario-alternatives" aria-label={decision.question}>
+            {item.alternatives.map((listedAlternative) =>
+              renderAlternative(decision.id, listedAlternative),
+            )}
+          </ul>
+        </li>
+      );
+    });
+
+  const renderAlternative = (decision: Id, listed: ListedAlternative) => {
+    const { alternative, chosen, items, steps: count, broken } = listed;
+    const key = `${decision}\u0000${alternative.id}`;
+    const open = chosen || unfolded.has(key);
+    const target = { decision, alternative: alternative.id };
+    const fold = () =>
+      setUnfolded((now) => {
+        const next = new Set(now);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return next;
+      });
+    return (
+      <li
+        key={alternative.id}
+        className={`scenario-alternative${chosen ? ' scenario-alternative-chosen' : ' scenario-alternative-aside'}`}
+        onMouseEnter={chosen ? undefined : () => session.preview(target)}
+        onMouseLeave={chosen ? undefined : () => session.preview(undefined)}
+      >
+        <div className="scenario-alternative-head">
+          <button
+            type="button"
+            className="scenario-alternative-choose"
+            aria-pressed={chosen}
+            disabled={!active}
+            onClick={() => session.choose(target)}
+            onFocus={chosen ? undefined : () => session.preview(target)}
+            onBlur={chosen ? undefined : () => session.preview(undefined)}
+          >
+            {alternative.label}
+          </button>
+          <span className="scenario-alternative-detail">
+            {count === 0
+              ? t('Nothing happens')
+              : t({ one: '{count} step', other: '{count} steps' }, { count })}
+            {alternative.ends ? ` · ${t('Ends the scenario')}` : ''}
+          </span>
+          {broken > 0 && (
+            <span className="scenario-badge scenario-badge-broken">
+              {t({ one: '{count} broken', other: '{count} broken' }, { count: broken })}
+            </span>
+          )}
+          {!chosen && count > 0 && (
+            <button
+              type="button"
+              className="scenario-button scenario-button-small"
+              aria-expanded={open}
+              onClick={fold}
+            >
+              {open ? t('Hide its steps') : t('Show its steps')}
+              <span className="visually-hidden"> {alternative.label}</span>
+            </button>
+          )}
+        </div>
+        {open && items.length > 0 && <ol className="scenario-steps">{renderItems(items)}</ol>}
+      </li>
+    );
+  };
+
   return (
     <>
       <h3 id={heading} className="scenario-steps-heading">
         {t('Steps')}
       </h3>
       <ol className="scenario-steps" aria-labelledby={heading}>
-        {timeline.entries.map((each, at) => {
-          const isCurrent = at === current;
-          const broken = isBroken(each);
-          const description =
-            each.kind === 'aggregated'
-              ? t(
-                  {
-                    one: '{count} step inside “{container}”',
-                    other: '{count} steps inside “{container}”',
-                  },
-                  { count: each.count, container: nameOf(each.container) },
-                )
-              : scenario.steps[each.first]?.description || t('No description yet');
-          return (
-            <li
-              key={each.steps[0]}
-              className={`scenario-step${isCurrent ? ' scenario-step-current' : ''}${broken ? ' scenario-step-broken' : ''}`}
-              aria-current={isCurrent ? 'step' : undefined}
-            >
-              <button
-                ref={(element) => {
-                  if (element) buttons.current.set(at, element);
-                  else buttons.current.delete(at);
-                }}
-                type="button"
-                className="scenario-step-head"
-                tabIndex={isCurrent || (current === undefined && at === 0) ? 0 : -1}
-                aria-disabled={!active || undefined}
-                onClick={() => choose(at)}
-                onKeyDown={(event) => onKeyDown(event, at)}
-              >
-                <span className="scenario-step-number">
-                  {each.count === 1
-                    ? each.first + 1
-                    : `${each.first + 1}–${each.first + each.count}`}
-                </span>
-                <span className="scenario-step-text">{description}</span>
-                {broken && (
-                  <span className="scenario-badge scenario-badge-broken">{t('Broken')}</span>
-                )}
-                {isOutside(each) && <span className="scenario-badge">{t('Outside the view')}</span>}
-                {each.kind === 'aggregated' && (
-                  <span className="scenario-badge" aria-hidden="true">
-                    ×{each.count}
-                  </span>
-                )}
-              </button>
-              {isCurrent && (
-                <StepDetails
-                  project={project}
-                  scenario={scenario}
-                  entry={each}
-                  send={send}
-                  onShow={onShow}
-                />
-              )}
-            </li>
-          );
-        })}
+        {listed ? renderItems(listed) : timeline.entries.map(renderEntry)}
       </ol>
     </>
   );

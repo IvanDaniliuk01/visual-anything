@@ -16,6 +16,7 @@ import { nestingTypesInView } from './containers';
 import { appearanceOf, type Definitions } from './definitions';
 import type { ModelIndex } from './model-index';
 import { problem, type Problem } from './problems';
+import { alternativeOf } from './scenarios/blocks';
 import type { ProjectSnapshot } from './snapshot';
 import { modelIndexOf, definitionsIn } from './state';
 
@@ -154,8 +155,11 @@ export interface DeletePreview {
    * goes whole, and every deleted element in the other lists.
    */
   stacking: { view: Id; container: Id; element: Id }[];
-  /** The scenario steps that would become broken steps. They are kept so they can be fixed. */
-  brokenSteps: { scenario: Id; step: Id }[];
+  /**
+   * The scenario steps that would become broken steps. They are kept so they can be fixed. A step in
+   * an alternative of a decision says which, the innermost (ADR 0078).
+   */
+  brokenSteps: { scenario: Id; step: Id; within?: { decision: Id; alternative: Id } }[];
   /**
    * The tour steps that would name what is deleted, as what they select, mark or focus from (ADR
    * 0058), and those that select a free shape deleted from their view. They are kept, flagged, and
@@ -414,12 +418,14 @@ function removedRoutes(
 function brokenSteps(
   scenarios: readonly ScenarioFile[],
   relations: ReadonlySet<Id>,
-): { scenario: Id; step: Id }[] {
-  const broken: { scenario: Id; step: Id }[] = [];
+): DeletePreview['brokenSteps'] {
+  const broken: DeletePreview['brokenSteps'] = [];
   for (const scenario of scenarios) {
     for (const step of scenario.steps) {
       if (step.relations.some((id) => relations.has(id))) {
-        broken.push({ scenario: scenario.id, step: step.id });
+        // A step in an alternative says which, whichever plays (ADR 0078).
+        const within = scenario.blocks === undefined ? undefined : alternativeOf(scenario, step.id);
+        broken.push({ scenario: scenario.id, step: step.id, ...(within ? { within } : {}) });
       }
     }
   }

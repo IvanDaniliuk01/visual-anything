@@ -3,149 +3,25 @@
  * read and checked, the steps each set of choices plays, the choices that reach a step, and the
  * scenario commands and opening that keep them whole.
  */
-import type { DecisionBlock, DecisionChoices, ScenarioFile, Step } from '@visual-anything/schema';
+import type { DecisionBlock, ScenarioFile, Step } from '@visual-anything/schema';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { checkProject } from '../check';
 import { executeCommand, type Command } from '../commands';
+import { previewDelete } from '../rules';
 import type { ProjectSnapshot } from '../snapshot';
-import { alternativeOf, choicesToReach, combinationsOf, playedSteps, readBlocks } from './blocks';
+import {
+  alternativeOf,
+  alternativesOf,
+  choicesToReach,
+  combinationsOf,
+  decisionsAt,
+  playedSteps,
+  readBlocks,
+} from './blocks';
 import { scenarioProject } from './test/fixtures';
+import { choicesFrom, reference, tree, written } from './test/trees';
 import { brokenStepsOf, entryOfStep, scenarioTimeline } from './timeline';
-
-// A scenario's structure as a tree, from which the generator writes the flat steps and the blocks,
-// and against which a reference reading checks what plays.
-type Segment =
-  | { kind: 'steps'; count: number }
-  | {
-      kind: 'decision';
-      alternatives: { segments: Segment[]; ends: boolean }[];
-      byDefault?: number;
-    };
-
-const steps = (count: number): fc.Arbitrary<Segment> =>
-  fc.constant({ kind: 'steps' as const, count });
-
-function segmentOf(depth: number): fc.Arbitrary<Segment> {
-  const plain = fc.integer({ min: 1, max: 3 }).chain(steps);
-  if (depth >= 3) return plain;
-  const decision = fc
-    .record({
-      alternatives: fc.array(
-        fc.record({
-          segments: fc.array(segmentOf(depth + 1), { maxLength: 2 }),
-          ends: fc.boolean(),
-        }),
-        { minLength: 2, maxLength: 4 },
-      ),
-      byDefault: fc.option(fc.nat({ max: 3 }), { nil: undefined }),
-    })
-    .map(({ alternatives, byDefault }): Segment => {
-      // At least one alternative has steps, and one does not end, so that every step can be reached.
-      const fixed = alternatives.map((each, at) => ({
-        segments:
-          at === 0 && each.segments.length === 0
-            ? [{ kind: 'steps' as const, count: 1 }]
-            : each.segments,
-        ends: at === 0 ? false : each.ends,
-      }));
-      return {
-        kind: 'decision',
-        alternatives: fixed,
-        ...(byDefault === undefined ? {} : { byDefault: byDefault % fixed.length }),
-      };
-    });
-  return fc.oneof({ weight: 2, arbitrary: plain }, { weight: 1, arbitrary: decision });
-}
-
-interface Written {
-  scenario: ScenarioFile;
-  tree: Segment[];
-}
-
-/** Writes a tree as a scenario: its steps in reading order, and a block for each decision. */
-function written(tree: Segment[]): Written {
-  const all: Step[] = [];
-  const blocks: DecisionBlock[] = [];
-  let counter = 0;
-  const write = (segments: Segment[]): string[] => {
-    const ids: string[] = [];
-    for (const segment of segments) {
-      if (segment.kind === 'steps') {
-        for (let at = 0; at < segment.count; at++) {
-          const id = `s${++counter}`;
-          all.push({ id, description: id, relations: ['agent-to-api'] });
-          ids.push(id);
-        }
-        continue;
-      }
-      const decision = `d${++counter}`;
-      const block: DecisionBlock = {
-        id: decision,
-        kind: 'decision',
-        question: `Which way at ${decision}?`,
-        alternatives: [],
-      };
-      blocks.push(block);
-      segment.alternatives.forEach((alternative, at) => {
-        const inner = write(alternative.segments);
-        block.alternatives.push({
-          id: `${decision}-a${at}`,
-          label: `Way ${at}`,
-          steps: inner,
-          ...(alternative.ends ? { ends: true as const } : {}),
-        });
-        ids.push(...inner);
-      });
-      if (segment.byDefault !== undefined) {
-        block.default = block.alternatives[segment.byDefault]?.id;
-      }
-    }
-    return ids;
-  };
-  write(tree);
-  return {
-    scenario: {
-      id: 'scenario',
-      name: 'Scenario',
-      view: 'system-overview',
-      steps: all,
-      ...(blocks.length > 0 ? { blocks } : {}),
-    },
-    tree,
-  };
-}
-
-/** What a tree plays with these choices, read straight from the tree: the reference. */
-function reference(tree: Segment[], choices: DecisionChoices): string[] {
-  let counter = 0;
-  const played: string[] = [];
-  let ended = false;
-  const walk = (segments: Segment[], playing: boolean): void => {
-    for (const segment of segments) {
-      if (segment.kind === 'steps') {
-        for (let at = 0; at < segment.count; at++) {
-          const id = `s${++counter}`;
-          if (playing && !ended) played.push(id);
-        }
-        continue;
-      }
-      const decision = `d${++counter}`;
-      const asked = choices[decision];
-      const index = segment.alternatives.findIndex((_, at) => `${decision}-a${at}` === asked);
-      const chosen = index >= 0 ? index : (segment.byDefault ?? 0);
-      segment.alternatives.forEach((alternative, at) => {
-        const plays = playing && !ended && at === chosen;
-        walk(alternative.segments, plays);
-        if (plays && alternative.ends) ended = true;
-      });
-    }
-  };
-  walk(tree, true);
-  return played;
-}
-
-const tree = fc.array(segmentOf(1), { minLength: 1, maxLength: 5 });
 
 describe('decisions over a scenario’s steps', () => {
   it('play what the tree plays, for any choices, and hold together as written', () => {
@@ -153,18 +29,44 @@ describe('decisions over a scenario’s steps', () => {
       fc.property(tree, fc.array(fc.nat({ max: 3 }), { maxLength: 40 }), (segments, picks) => {
         const { scenario } = written(segments);
         expect(readBlocks(scenario).ok).toBe(true);
-        const choices: DecisionChoices = {};
-        (scenario.blocks ?? []).forEach((block, at) => {
-          const pick = picks[at];
-          if (pick !== undefined) {
-            const alternative = block.alternatives[pick % block.alternatives.length];
-            if (alternative) choices[block.id] = alternative.id;
-          }
-        });
+        const choices = choicesFrom(scenario, picks);
         const played = playedSteps(scenario, choices).map((at) => scenario.steps[at]?.id);
         expect(played).toEqual(reference(segments, choices));
       }),
       { numRuns: 400 },
+    );
+  });
+
+  it('meet each decision playback reaches on a step it plays, and those holding a step on it', () => {
+    fc.assert(
+      fc.property(tree, fc.array(fc.nat({ max: 3 }), { maxLength: 40 }), (segments, picks) => {
+        const { scenario } = written(segments);
+        const choices = choicesFrom(scenario, picks);
+        const entered: string[] = [];
+        reference(segments, choices, (decision) => entered.push(decision));
+        const played = playedSteps(scenario, choices);
+        const met: string[] = [];
+        for (const at of played) {
+          const here = decisionsAt(scenario, at, choices);
+          const step = scenario.steps[at]?.id as string;
+          // Those holding the step are the alternatives it is in, outermost first.
+          expect(
+            here
+              .filter((each) => each.place === 'holding')
+              .map((each) => ({ decision: each.decision.id, alternative: each.alternative.id })),
+          ).toEqual(alternativesOf(scenario, step));
+          // Only the first step that plays meets decisions reached before it.
+          if (at !== played[0]) expect(here.some((each) => each.place === 'before')).toBe(false);
+          met.push(...here.map((each) => each.decision.id));
+        }
+        // A decision holding several steps is met on each of them.
+        if (played.length > 0) expect([...new Set(met)].sort()).toEqual([...entered].sort());
+        // A step that does not play meets none.
+        for (const at of scenario.steps.keys()) {
+          if (!played.includes(at)) expect(decisionsAt(scenario, at, choices)).toEqual([]);
+        }
+      }),
+      { numRuns: 300 },
     );
   });
 
@@ -238,6 +140,89 @@ describe('the timeline with choices', () => {
       decision: 'slots',
       alternative: 'no',
     });
+  });
+});
+
+describe('the decisions playback meets', () => {
+  const at = (scenario: ScenarioFile, step: number, choices?: Record<string, string>) =>
+    decisionsAt(scenario, step, choices).map((each) => [
+      each.decision.id,
+      each.alternative.id,
+      each.place,
+    ]);
+
+  it('meets a decision on the step before it, then on each step of the alternative it plays', () => {
+    const { scenario } = withDecision();
+    expect(at(scenario, 1)).toEqual([]);
+    expect(at(scenario, 2)).toEqual([['slots', 'yes', 'ahead']]);
+    expect(at(scenario, 3)).toEqual([['slots', 'yes', 'holding']]);
+    expect(at(scenario, 2, { slots: 'no' })).toEqual([['slots', 'no', 'ahead']]);
+    expect(at(scenario, 4, { slots: 'no' })).toEqual([['slots', 'no', 'holding']]);
+    // A step the choices do not play meets nothing.
+    expect(at(scenario, 3, { slots: 'no' })).toEqual([]);
+    // Without decisions, nothing.
+    expect(decisionsAt(scenarioProject().scenarios[0] as ScenarioFile, 2)).toEqual([]);
+  });
+
+  it('meets a decision whose alternative is empty, nested ones, and one reached before any step', () => {
+    const base = scenarioProject().scenarios[0] as ScenarioFile;
+    const [a, b, c] = base.steps.map((step) => step.id) as [string, string, string];
+    const nested: ScenarioFile = {
+      ...base,
+      blocks: [
+        {
+          id: 'outer',
+          kind: 'decision',
+          question: 'Outer?',
+          alternatives: [
+            { id: 'x', label: 'X', steps: [b, c] },
+            { id: 'y', label: 'Y', steps: [] },
+          ],
+        },
+        {
+          id: 'inner',
+          kind: 'decision',
+          question: 'Inner?',
+          alternatives: [
+            { id: 'p', label: 'P', steps: [c] },
+            { id: 'q', label: 'Q', steps: [] },
+          ],
+        },
+      ],
+    };
+    expect(at(nested, 0)).toEqual([['outer', 'x', 'ahead']]);
+    expect(at(nested, 1)).toEqual([
+      ['outer', 'x', 'holding'],
+      ['inner', 'p', 'ahead'],
+    ]);
+    expect(at(nested, 2)).toEqual([
+      ['outer', 'x', 'holding'],
+      ['inner', 'p', 'holding'],
+    ]);
+    expect(at(nested, 1, { inner: 'q' })).toEqual([
+      ['outer', 'x', 'holding'],
+      ['inner', 'q', 'ahead'],
+    ]);
+    expect(at(nested, 0, { outer: 'y' })).toEqual([['outer', 'y', 'ahead']]);
+    expect(at(nested, 3, { outer: 'y' })).toEqual([]);
+
+    const first: ScenarioFile = {
+      ...base,
+      blocks: [
+        {
+          id: 'start',
+          kind: 'decision',
+          question: 'How does it start?',
+          default: 'quiet',
+          alternatives: [
+            { id: 'loud', label: 'Loudly', steps: [a] },
+            { id: 'quiet', label: 'Quietly', steps: [] },
+          ],
+        },
+      ],
+    };
+    expect(at(first, 1)).toEqual([['start', 'quiet', 'before']]);
+    expect(at(first, 2)).toEqual([]);
   });
 });
 
@@ -341,6 +326,36 @@ describe('scenario commands with decisions', () => {
     ]);
   });
 
+  it('keep an alternative’s steps in reading order when a change moves one inside it', () => {
+    const { project, scenario } = withDecision();
+    const [, , delegate = '', fetch = '', answer = ''] = scenario.steps.map((step) => step.id);
+    const longer: ScenarioFile = {
+      ...scenario,
+      blocks: [
+        {
+          id: 'slots',
+          kind: 'decision',
+          question: 'Are there free slots?',
+          alternatives: [
+            { id: 'yes', label: 'Yes', steps: [delegate, fetch] },
+            { id: 'no', label: 'No', steps: [answer] },
+          ],
+        },
+      ],
+    };
+    const moved = [...longer.steps];
+    [moved[2], moved[3]] = [moved[3] as Step, moved[2] as Step];
+    const outcome = run(
+      { ...project, scenarios: [longer] },
+      { type: 'update-scenario', id: longer.id, changes: { steps: moved } },
+    );
+    if (!outcome.ok) throw new Error(outcome.problems.map((each) => each.message).join(' '));
+    expect(outcome.state.scenarios[0]?.blocks?.[0]?.alternatives[0]?.steps).toEqual([
+      fetch,
+      delegate,
+    ]);
+  });
+
   it('keep a broken step in its alternative, which says where it is', () => {
     const { project, scenario } = withDecision();
     const last = scenario.steps.at(-1) as Step;
@@ -354,6 +369,11 @@ describe('scenario commands with decisions', () => {
       decision: 'slots',
       alternative: 'no',
     });
+    // The preview of the deletion says so first, and says nothing of where a step without one is.
+    expect(previewDelete(project, { relations: [...last.relations] }).brokenSteps).toEqual([
+      { scenario: scenario.id, step: scenario.steps[0]?.id },
+      { scenario: scenario.id, step: last.id, within: { decision: 'slots', alternative: 'no' } },
+    ]);
   });
 
   it('warn on opening about decisions that cross, and play every step in order', () => {

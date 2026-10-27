@@ -124,10 +124,20 @@ export function DeleteDialog({
     };
     const cascaded = new Set(preview.cascaded);
     const asked = preview.relations.filter((id) => !cascaded.has(id));
-    const steps = preview.brokenSteps.slice(0, LISTED).map(({ scenario, step }) => {
+    const steps = preview.brokenSteps.slice(0, LISTED).map(({ scenario, step, within }) => {
       const found = project.scenarios.find((each) => each.id === scenario);
       const description = found?.steps.find((each) => each.id === step)?.description;
-      return `${found?.name ?? scenario}: ${description || step}`;
+      const line = `${found?.name ?? scenario}: ${description || step}`;
+      // A step in an alternative says which, whichever plays (ADR 0078).
+      const decision = within && found?.blocks?.find((each) => each.id === within.decision);
+      const alternative = decision?.alternatives.find((each) => each.id === within?.alternative);
+      return decision && alternative
+        ? t('{step} (in “{label}” at “{question}”)', {
+            step: line,
+            label: alternative.label,
+            question: decision.question,
+          })
+        : line;
     });
     return {
       elementName,

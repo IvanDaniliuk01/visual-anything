@@ -17,7 +17,7 @@ import { hitAt, indexScene, type IndexedScene } from './hit';
 import { DIMMED_ALPHA } from './colors';
 import { CanvasRenderer, emphasize } from './renderer';
 import { pointAlong } from './route';
-import { buildScene, shapeKeyOf, shownBy, standsFor, type Scene } from './scene';
+import { buildScene, shapeKeyOf, shownBy, standsFor, type RelationLine, type Scene } from './scene';
 import { MAX_TILE_LINES, MAX_TILE_SHAPES } from './tiles';
 
 vi.mock('pixi.js', async (importOriginal) => {
@@ -220,6 +220,7 @@ describe('CanvasRenderer after an edit', () => {
         kind: fc.constant('emphasis' as const),
         hide: fc.array(fc.nat(40), { maxLength: 3 }),
         dim: fc.array(fc.nat(40), { maxLength: 6 }),
+        dash: fc.array(fc.nat(40), { maxLength: 4 }),
       }),
     );
     await fc.assert(
@@ -274,6 +275,7 @@ describe('CanvasRenderer after an edit', () => {
             emphasis = {
               hidden: new Set(each.hide.map((at) => keys[at % keys.length] as string)),
               dimmed: new Set(each.dim.map((at) => keys[at % keys.length] as string)),
+              dashed: new Set(each.dash.map((at) => keys[at % keys.length] as string)),
             };
             renderer.setEmphasis(emphasis);
           }
@@ -340,6 +342,43 @@ describe('CanvasRenderer emphasis (I2)', () => {
     renderer.setEmphasis({ dimmed: keys, highlighted: new Set(['patient']) });
     expect(inside(renderer).tileOfShape.get('patient')?.dim).toBe(false);
     expect(inside(renderer).tileOfShape.get('patient')?.container.alpha).toBe(1);
+  });
+
+  it('draws dashed the lines it dashes, planning again only their tiles (ADR 0078)', async () => {
+    const renderer = await started();
+    renderer.show(indexed);
+    const line = scene.relations.find((each) => !each.aggregate && each.dash === 'solid');
+    if (!line) throw new Error('No solid line.');
+    const dashOf = (relation: string) =>
+      [...(inside(renderer).tilesOfLine.get(relation) ?? [])].flatMap((tile) =>
+        (tile.lines as unknown as RelationLine[])
+          .filter((each) => each.relation === relation)
+          .map((each) => each.dash),
+      );
+    expect(dashOf(line.relation)).not.toContain('dashed');
+    const before = new Map([...inside(renderer).tiles].map(([key, tile]) => [key, tile.container]));
+    renderer.setEmphasis({ dashed: new Set([line.relation]), dimmed: new Set([line.relation]) });
+    expect(dashOf(line.relation).length).toBeGreaterThan(0);
+    expect(new Set(dashOf(line.relation))).toEqual(new Set(['dashed']));
+    // The tiles of shapes stay as they were.
+    for (const [key, tile] of inside(renderer).tiles) {
+      if (tile.kind === 'shapes') expect(before.get(key)).toBe(tile.container);
+    }
+    renderer.setEmphasis({});
+    expect(new Set(dashOf(line.relation))).toEqual(new Set(['solid']));
+  });
+
+  it('dashes a line when every relation it stands for is dashed, and never a hidden one', () => {
+    const line = scene.relations.find((each) => !each.aggregate);
+    if (!line) throw new Error('No line.');
+    expect(emphasize(scene, { dashed: new Set([line.relation]) }).dashed).toEqual(
+      new Set([line.relation]),
+    );
+    expect(
+      emphasize(scene, { dashed: new Set([line.relation]), hidden: new Set([line.relation]) })
+        .dashed.size,
+    ).toBe(0);
+    expect(emphasize(scene, {}).dashed.size).toBe(0);
   });
 
   it('marks what it highlights above the scene, with a cue beside the color', async () => {

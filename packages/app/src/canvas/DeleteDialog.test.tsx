@@ -93,6 +93,25 @@ describe('DeleteDialog', () => {
     expect(dialog).toHaveTextContent('How booking works: The booking agent');
   });
 
+  it('says which alternative a step that becomes broken is in (ADR 0078)', () => {
+    const orders = loadSample('order-process');
+    const preview = previewDelete(orders, { relations: ['cancel-to-end'] });
+    render(
+      <DeleteDialog
+        project={orders}
+        preview={preview}
+        freeShapes={0}
+        onConfirm={() => undefined}
+        onCancel={() => undefined}
+      />,
+    );
+    expect(
+      screen.getByText(
+        'An order: The order is cancelled and its payment refunded. (in “No” at “Is every item in stock?”)',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('asks before a change of container takes away the relation that places a shape', () => {
     const { dialog, onConfirm, onCancel } = confirmChange(
       sample,
