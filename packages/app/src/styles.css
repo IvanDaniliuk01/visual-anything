@@ -426,12 +426,19 @@ dd {
   opacity: 0.6;
 }
 
+/* As the system says, unless the person chose otherwise (data-motion, ADR 0077). */
 @media (prefers-reduced-motion: no-preference) {
-  .status-progress::before {
+  :root:not([data-motion='reduced']) .status-progress::before {
     width: 35%;
     opacity: 1;
     animation: status-progress 1.4s var(--ease-out) infinite;
   }
+}
+
+:root[data-motion='full'] .status-progress::before {
+  width: 35%;
+  opacity: 1;
+  animation: status-progress 1.4s var(--ease-out) infinite;
 }
 
 @keyframes status-progress {

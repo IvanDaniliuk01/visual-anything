@@ -429,7 +429,9 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
   const steps = tour?.steps.length ?? 0;
   const atEnd = playback.step >= steps - 1 && playback.reveal >= player.revealsOf(playback.step);
   const advances = playing && every !== undefined && !atEnd;
-  const held = stageState.paused || rangePhase === 'paused' || stageState.index;
+  // Nor while the person looks around: the step waits for them to come back or to press on.
+  const held =
+    stageState.paused || rangePhase === 'paused' || stageState.index || cameraState.looked;
   const timed = advances && settled && !held && typeof every === 'number' ? every : undefined;
   useEffect(() => {
     if (timed === undefined || target === undefined) return;

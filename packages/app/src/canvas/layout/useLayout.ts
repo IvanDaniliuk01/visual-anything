@@ -37,7 +37,6 @@ import { layoutCommand } from './command';
 import { layoutInput, waitsForLayout, type LayoutScope } from './input';
 import {
   frameAt,
-  prefersReducedMotion,
   retargeted,
   sameGeometry,
   TRANSITION_MS,
@@ -45,6 +44,7 @@ import {
   type Transition,
 } from './transition';
 import type { LayoutProgress } from './types';
+import { useReducedMotion } from '../../scenarios/motion';
 
 /**
  * What runs the canvas's layouts: by default (null) the layout worker every canvas shares; tests give
@@ -144,9 +144,11 @@ export function useLayout({
   const runner = given === null ? shared : given;
   const editable = send !== undefined;
 
-  const latest = useRef({ project, view, scene, send, announce, actions });
+  // Moving shapes into place follows the person's Motion preference (ADR 0077, ADR 0032).
+  const reducedMotion = useReducedMotion();
+  const latest = useRef({ project, view, scene, send, announce, actions, reducedMotion });
   useLayoutEffect(() => {
-    latest.current = { project, view, scene, send, announce, actions };
+    latest.current = { project, view, scene, send, announce, actions, reducedMotion };
   });
 
   const [running, setRunning] = useState<Running>();
@@ -249,7 +251,7 @@ export function useLayout({
         before: now.scene,
         project: now.project,
         view: now.view.id,
-        animate: typeof requestAnimationFrame === 'function' && !prefersReducedMotion(),
+        animate: typeof requestAnimationFrame === 'function' && !now.reducedMotion,
       });
       // Placing new shapes asks to join the newest action, which may be what added them (ADR 0065).
       const joins = automatic ? newestDone(now.actions) : undefined;

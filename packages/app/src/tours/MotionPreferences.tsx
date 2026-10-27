@@ -1,5 +1,5 @@
 /**
- * The Motion and Fades preferences (ADR 0077, ADR 0032), in the tours panel: how tours and scenario
+ * The Motion and Fades preferences (ADR 0077, ADR 0032), in the tours and scenario panels: how tours and scenario
  * playback move. Motion is as the system says, reduced, where every camera change cuts and travelling
  * markers stay still, or full; Fades turns the stages' fades and the cuts' cross-fades on or off.
  * Each change applies in the tab at once, and the local program keeps the latest as the person's.

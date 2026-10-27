@@ -478,7 +478,11 @@ describe('moving in', () => {
   });
 
   it('shows the result at once when the system asks for reduced motion', async () => {
-    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce') }));
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('reduce'),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
     const view = canvas(loadSample());
     act(() => view.hook.result.current.control.run());
     await waitFor(() => expect(view.sent).toHaveLength(1), ELK_WAIT);

@@ -465,6 +465,21 @@ describe('useTourPlayback’s stage', () => {
     expect(result.current.stage.looked).toBe(false);
   });
 
+  it('waits to advance by itself while the person looks around, and goes on once they are back', () => {
+    const { result, pass, start, moveTo } = setUp({ played: timed });
+    start();
+    pass(500);
+    act(() => moveTo({ x: -400, y: 120, scale: 1.5 }));
+    expect(result.current.stage.looked).toBe(true);
+    pass(5000);
+    expect(result.current.playback.step).toBe(0);
+    act(() => result.current.act('back'));
+    pass(499);
+    expect(result.current.playback.step).toBe(0);
+    pass(1);
+    expect(result.current.playback.step).toBe(1);
+  });
+
   it('puts the caption on the side of the screen farthest from the step’s marks', () => {
     const agent = scene.shapes.find((shape) => shape.element === 'booking-agent');
     if (!agent) throw new Error('The sample draws no booking agent.');

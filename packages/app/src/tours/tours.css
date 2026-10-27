@@ -67,8 +67,13 @@
   transition: transform var(--duration-base) ease-out;
 }
 
+/* As the system says, unless the person chose otherwise (data-motion, ADR 0077). */
+:root[data-motion='reduced'] .tour-progress-done {
+  transition: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .tour-progress-done {
+  :root:not([data-motion='full']) .tour-progress-done {
     transition: none;
   }
 }

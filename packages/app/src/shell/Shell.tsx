@@ -1,6 +1,15 @@
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
-import { useCallback, useContext, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { ExportControl } from '../export/ExportControl';
@@ -139,6 +148,15 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
     [preferences.motion, preferences.fades],
   );
   const reducedMotion = reducedMotionOf(motionChoice.motion, systemReduces);
+  // The stylesheets read the person's choice from the page; as the system says, they read the system.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (motionChoice.motion === 'system') delete root.dataset.motion;
+    else root.dataset.motion = motionChoice.motion;
+    return () => {
+      delete root.dataset.motion;
+    };
+  }, [motionChoice.motion]);
   const onThemeShown = useThemeHold(view !== undefined);
   // The header's Export, which draws with the renderer the canvas lends it (R27).
   const [images] = useState(() => new ImageSource());
