@@ -30,7 +30,14 @@ import type {
 } from '@visual-anything/schema';
 import { BENCH_GEOMETRY, benchGeometries } from './geometries';
 import { BENCH_PARTS, cellsOf, partPictureId, partPicturePackage } from './partPictures';
-import { seeded } from './synthetic';
+import {
+  CELL,
+  CONTENT_COMPONENTS,
+  RELATION_NAMES,
+  SYSTEM_PADDING,
+  relationsBetween,
+  seeded,
+} from './synthetic';
 
 export interface GeometryOptions {
   /** How many elements, World aside. */
@@ -94,17 +101,7 @@ export function withCurves(project: ProjectSnapshot): ProjectSnapshot {
   };
 }
 
-const COMPONENTS = [
-  'systems.service',
-  'systems.database',
-  'systems.ai-agent',
-  'systems.chat-channel',
-];
-const RELATION_TYPES = ['systems.communicates-with', 'systems.reads-from', 'systems.writes-to'];
-const RELATION_NAMES = ['HTTPS', 'gRPC', 'events', 'SQL', 'webhook'];
-/** As `synthetic.ts` lays systems and their contents out. */
-const CELL = { width: 200, height: 112 };
-const SYSTEM_PADDING = { left: 24, top: 56, right: 24, bottom: 24 };
+/** As `synthetic.ts` lays systems out by default: 25 elements to a system, 80 units apart. */
 const PER_SYSTEM = 25;
 const GAP = 80;
 
@@ -205,7 +202,7 @@ export function syntheticGeometry(options: GeometryOptions): ProjectSnapshot {
       const withGeometry =
         Math.floor(((content + 1) * geometryCount) / contents) >
         Math.floor((content * geometryCount) / contents);
-      const picked = COMPONENTS[Math.floor(random() * COMPONENTS.length)] as string;
+      const picked = CONTENT_COMPONENTS[Math.floor(random() * CONTENT_COMPONENTS.length)] as string;
       const component = withGeometry
         ? geometryComponent(geometry.length % BENCH_GEOMETRY.count)
         : picked;
@@ -219,7 +216,8 @@ export function syntheticGeometry(options: GeometryOptions): ProjectSnapshot {
     system += 1;
   }
 
-  relations.push(...ordinaryRelations(ordinary, random));
+  // Between the other contents, one for each, as the default project has them.
+  relations.push(...relationsBetween(ordinary, ordinary.length, random));
   relations.push(...outlineRelations(total, geometry, drawingPlaces, systemSize));
 
   return {
@@ -288,26 +286,6 @@ function drawingCellsOf(
   const after = spread[middle + 1] ?? cells;
   if (middleCell > before && middleCell < after) spread[middle] = middleCell;
   return new Set(spread);
-}
-
-/** Relations between ordinary contents, mostly to near ones, as `synthetic.ts` makes them. */
-function ordinaryRelations(services: readonly string[], random: () => number): Relation[] {
-  const relations: Relation[] = [];
-  for (let each = 0; each < services.length; each++) {
-    const index = Math.floor(random() * services.length);
-    const from = services[index] as string;
-    const near = random() < 0.8;
-    const to = near
-      ? (services[
-          Math.min(services.length - 1, Math.max(0, index + 1 + Math.floor(random() * 6)))
-        ] as string)
-      : (services[Math.floor(random() * services.length)] as string);
-    if (from === to) continue;
-    const relationType = RELATION_TYPES[Math.floor(random() * RELATION_TYPES.length)] as string;
-    const name = each % 3 === 0 ? RELATION_NAMES[(each / 3) % RELATION_NAMES.length] : undefined;
-    relations.push({ id: `relation-${each}`, relationType, from, to, ...(name ? { name } : {}) });
-  }
-  return relations;
 }
 
 /**

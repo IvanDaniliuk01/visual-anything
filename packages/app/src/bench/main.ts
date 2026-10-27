@@ -1,7 +1,8 @@
 /**
  * The canvas benchmark: draws a synthetic view of 10,000 elements and measures it while the camera
  * pans and zooms by itself, shapes are selected one at a time and all at once, and the view is edited
- * and restacked. `pnpm bench` builds this page for production and serves it on 127.0.0.1:47707, at
+ * and restacked; the shape in the middle is resized by a handle, the alignment guides showing, through
+ * the canvas's own pointer handling (`gestures.ts`, ADR 0074). `pnpm bench` builds this page for production and serves it on 127.0.0.1:47707, at
  * `/bench.html`; the official numbers come from that build, in work mode. `?elements=N` changes the
  * size, `?overlap=stairs`, `grid` or `cascade` makes shapes overlap (see `synthetic.ts`), and
  * `?theme=dark` runs it in the dark theme. It also switches the theme back and forth at three scales,
@@ -47,7 +48,7 @@ import { ImageError, type ImageRequest } from '../export/image';
 import { panBy, screenToWorld, zoomAt, type Camera } from '../canvas/camera';
 import { CanvasController } from '../canvas/controller';
 import { centerOf } from '../canvas/geometry';
-import { hitAt, indexScene, type IndexedScene } from '../canvas/hit';
+import { indexScene, type IndexedScene } from '../canvas/hit';
 import { COARSE_BELOW, DETAILS_FROM, NAMES_FROM } from '../canvas/renderer';
 import { previewOf } from '../canvas/routing/editor';
 import { handlesOf } from '../canvas/routing/handles';
@@ -74,6 +75,7 @@ import { measureAvoidance, type AvoidBench } from './avoid';
 import { measureBeyondBoxes, type BeyondBench } from './beyond';
 import { measureElementList } from './elementList';
 import { measureFrames, type FrameSteps } from './frames';
+import { measureResizes, selectAt } from './gestures';
 import { syntheticGeometry, withCurves } from './geometry';
 import {
   LARGE_TABLE,
@@ -122,6 +124,8 @@ const LAYOUT_MARK = 150;
 const SWITCHES = 6;
 /** How many times the recolor phase gives every Service other colors. */
 const RECOLORS = 4;
+/** How many times the resize phase resizes the shape in the middle, and in how many frames each. */
+const RESIZES = { gestures: 10, frames: 30, rest: 300 };
 
 const search = new URLSearchParams(location.search);
 const size = Number(search.get('elements') ?? 10_000);
@@ -358,9 +362,9 @@ async function run(): Promise<void> {
   const latency: number[] = [];
   phases.push(
     await measure('Select by clicking', 60, () => {
-      const began = performance.now();
-      selectAt({ x: Math.random() * width, y: Math.random() * height });
-      latency.push(performance.now() - began);
+      latency.push(
+        selectAt(controller, indexed, { x: Math.random() * width, y: Math.random() * height }),
+      );
     }),
   );
 
@@ -492,6 +496,15 @@ async function run(): Promise<void> {
   const timed: Timed[] = [await measureEdits(10), ...liveTimed];
   if (tables) timed.push(await measureColumnEdits(10));
   timed.push(await measureLayouts(4));
+  // Resizing the shape in the middle by a handle, the guides showing (W51, ADR 0074).
+  const resizing = await measureResizes(beyondBench(), shapeInTheMiddle()?.element, RESIZES);
+  phases.push(resizing.phase);
+  timed.push(resizing.timed);
+  themeNotes.push(resizing.note);
+  showProject(project, false);
+  controller.setSelection(EMPTY_SELECTION);
+  move(cameraAt(NAMES_FROM * 1.3));
+  await settle(300);
   // Changes of the view's scope (ADR-0040): `scope.ts` beside this file.
   if (!tables) {
     const bench = { project: () => project, show: showProject, settle, view: VIEW };
@@ -649,16 +662,6 @@ function cameraAt(scale: number): Camera {
   const { width, height } = controller.renderer.viewport;
   const middle = scene.bounds ? centerOf(scene.bounds) : { x: 0, y: 0 };
   return { scale, x: width / 2 - middle.x * scale, y: height / 2 - middle.y * scale };
-}
-
-/** Selects the shape at a point of the screen, as a click would. */
-function selectAt(point: { x: number; y: number }): void {
-  const world = screenToWorld(controller.camera, point);
-  const hit = hitAt(indexed, world, 6 / controller.camera.scale, (shape) =>
-    controller.renderer.showsOutline(shape.key),
-  );
-  const id: Id | undefined = hit?.kind === 'shape' ? hit.shape.element : undefined;
-  controller.setSelection(selectionOf(id === undefined ? [] : [{ kind: 'element', id }]));
 }
 
 /**

@@ -3,22 +3,13 @@
  * jsdom: this shows that they run and report as the benchmark's phases do, not how fast they are,
  * which the benchmark's page measures on a quiet machine.
  */
-import type { Command, ProjectSnapshot } from '@visual-anything/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { centerOf } from '../canvas/geometry';
-import { CanvasController } from '../canvas/controller';
-import { indexScene, type IndexedScene } from '../canvas/hit';
-import { buildScene } from '../canvas/scene';
+import { benchCanvas } from '../test/benchCanvas';
 import { FakeApplication, FakeResizeObserver } from '../test/FakeApplication';
-import {
-  DROP_MARK,
-  POINTING_MARK,
-  measureBeyondBoxes,
-  type BeyondBench,
-  type BeyondPlan,
-} from './beyond';
-import { measureFrames, type BenchMode } from './frames';
+import { POINTING_MARK, measureBeyondBoxes, type BeyondPlan } from './beyond';
+import type { BenchMode } from './frames';
 import { GEOMETRY_VIEW, geometryHub, syntheticGeometry, withCurves } from './geometry';
+import { LET_GO_MARK } from './gestures';
 
 vi.mock('pixi.js', async (importOriginal) => {
   const pixi = await importOriginal<typeof import('pixi.js')>();
@@ -32,89 +23,11 @@ const PLAN: BeyondPlan = {
   clicks: 2,
   points: 24,
   hover: 2,
-  drags: 2,
-  dragFrames: 3,
+  gestures: 2,
+  gestureFrames: 3,
   switches: 1,
   rest: 0,
 };
-
-const settle = (milliseconds: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
-
-/** A canvas showing the project, wired as the benchmark's page wires it. */
-async function benchOn(start: ProjectSnapshot, mode: BenchMode) {
-  const host = document.createElement('div');
-  host.tabIndex = 0;
-  document.body.append(host);
-  Object.defineProperty(host, 'clientWidth', { configurable: true, value: 1200 });
-  Object.defineProperty(host, 'clientHeight', { configurable: true, value: 800 });
-  let commandsTo: ((command: Command) => Promise<boolean>) | undefined;
-  const sent: Command[] = [];
-  const controller = new CanvasController(
-    host,
-    {
-      select: () => undefined,
-      command: (command) => {
-        sent.push(command);
-        return commandsTo?.(command) ?? Promise.resolve(false);
-      },
-      relate: () => undefined,
-      remove: () => undefined,
-      rename: () => undefined,
-      camera: () => undefined,
-      // jsdom draws no text: the labels the frames write fail, as the canvas reports.
-      failure: () => undefined,
-    },
-    { firstFit: 'whole' },
-  );
-  (FakeApplication.created.at(-1) as FakeApplication).finishInit();
-  await Promise.resolve();
-  await Promise.resolve();
-  let project = start;
-  let indexed: IndexedScene = indexScene(buildScene(project, GEOMETRY_VIEW));
-  controller.update(project, GEOMETRY_VIEW, indexed, false);
-  const { scene } = indexed;
-  const measuring = {
-    renderer: controller.renderer,
-    mode,
-    pictures: true,
-    nextTask: () => settle(0),
-  };
-  const bench: BeyondBench = {
-    controller,
-    host,
-    view: GEOMETRY_VIEW,
-    project: () => project,
-    indexed: () => indexed,
-    show: (next, editable = false) => {
-      const began = performance.now();
-      const built = buildScene(next, GEOMETRY_VIEW);
-      const builtAt = performance.now();
-      indexed = indexScene(built);
-      const indexedAt = performance.now();
-      controller.update(next, GEOMETRY_VIEW, indexed, editable);
-      controller.renderer.renderNow(true);
-      project = next;
-      return {
-        build: builtAt - began,
-        index: indexedAt - builtAt,
-        draw: performance.now() - indexedAt,
-      };
-    },
-    measure: (name, count, step, steps) => measureFrames(measuring, name, count, step, steps),
-    settle,
-    move: (camera) => controller.renderer.setCamera(camera),
-    cameraAt: (scale) => {
-      const { width, height } = controller.renderer.viewport;
-      const middle = scene.bounds ? centerOf(scene.bounds) : { x: 0, y: 0 };
-      return { scale, x: width / 2 - middle.x * scale, y: height / 2 - middle.y * scale };
-    },
-    takeCommands: (handler) => {
-      commandsTo = handler;
-    },
-  };
-  return { bench, sent };
-}
 
 const PHASES = [
   'Pan, whole view',
@@ -125,6 +38,7 @@ const PHASES = [
   'Select by clicking, names shown',
   'Point along outlines, names shown',
   'Drag a shape with free geometry and 50 relations',
+  'Resize a shape with free geometry and 50 relations, guides shown',
   'Pan, drawings with parts shown, images cold',
   'Pan, pictures far out, images cold',
   'Zoom, images cold',
@@ -152,20 +66,22 @@ describe('the beyond-boxes benchmark', () => {
     async ({ mode, curves }) => {
       const plain = syntheticGeometry({ elements: 1_000 });
       const start = curves ? withCurves(plain) : plain;
-      const { bench, sent } = await benchOn(start, mode);
+      const { bench, sent } = await benchCanvas(start, GEOMETRY_VIEW, mode);
       const hub = geometryHub(start);
+      const before = start.views[0]?.positions.find((position) => position.element === hub);
       const results = await measureBeyondBoxes(bench, PLAN);
 
       expect(results.phases.map((phase) => phase.name)).toEqual(PHASES);
-      for (const phase of results.phases)
+      for (const phase of results.phases) {
         expect(phase.frames.length, phase.name).toBeGreaterThan(0);
+      }
       expect(results.phases.filter((phase) => phase.restyling).map((phase) => phase.name)).toEqual([
         'Switch theme, whole view',
         'Switch theme, names shown',
       ]);
       expect(results.latency).toHaveLength(PLAN.clicks * 2);
 
-      const [pointing, drop] = results.timed;
+      const [pointing, drop, resize] = results.timed;
       expect(pointing).toMatchObject({
         name: 'Find what is under the pointer, along outlines',
         mark: POINTING_MARK,
@@ -173,21 +89,28 @@ describe('the beyond-boxes benchmark', () => {
       expect(pointing?.times).toHaveLength(PLAN.points);
       const found = /^([\d,]+) found a shape by its outline/.exec(pointing?.note ?? '');
       expect(Number(found?.[1]?.replace(/,/g, '') ?? 0)).toBeGreaterThan(0);
-      // Each drag dropped its shape as a move, which went through the core and was shown.
+      // Each drag and each resize let go of its shape, which went through the core and was shown.
       expect(drop).toMatchObject({
         name: 'Drop a shape with free geometry and 50 relations',
-        mark: DROP_MARK,
+        mark: LET_GO_MARK,
       });
-      expect(drop?.times).toHaveLength(PLAN.drags);
-      expect(sent).toHaveLength(PLAN.drags);
-      for (const command of sent) {
-        expect(command).toMatchObject({ type: 'set-positions', view: GEOMETRY_VIEW });
-      }
-      const moved = bench
+      expect(resize).toMatchObject({
+        name: 'Resize a shape with free geometry and 50 relations: let go',
+        mark: LET_GO_MARK,
+      });
+      expect(drop?.times).toHaveLength(PLAN.gestures);
+      expect(resize?.times).toHaveLength(PLAN.gestures);
+      expect(sent).toHaveLength(PLAN.gestures * 2);
+      const after = bench
         .project()
         .views[0]?.positions.find((position) => position.element === hub);
-      expect(moved?.pinned).toBe(true);
+      expect(after?.pinned).toBe(true);
+      expect(after?.width).toBeDefined();
+      expect(before?.width).toBeUndefined();
       expect(results.notes.some((note) => note.startsWith('Pointing along outlines'))).toBe(true);
+      // The resize showed guides, where its sides lined up with the shapes beside it.
+      const guides = results.notes.find((note) => note.startsWith('Resize'));
+      expect(guides).toMatch(/guides drawn in [1-9]\d* of/);
       // The theme the canvas started in, back.
       expect(bench.controller.renderer.theme).toBe('light');
     },

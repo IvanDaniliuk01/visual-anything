@@ -74,3 +74,12 @@ We chose this because handles, guides and aligning are what every drawing tool h
 - `CONTEXT.md` names the **alignment guide**.
 - The canvas's controller hands its pointer and key events to a shape editor after the route editor's, and the renderer draws one more set of marks.
 - A drag already under way snaps to guides now, so a shape dragged close to its neighbour's edge lands on it; holding Ctrl or Alt places it as before.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-27 under the user's standing delegation of design decisions, building W60. -->
+
+- 2026-10-27 (M8b, the benchmark): **the canvas benchmark's resize phase**, which the main session asked for after W51.
+  - **What it does.** The benchmark resizes the shape in the middle of the 10,000-element view, at the scale names show from, ten times, by its handle at the bottom right corner, or at its right side for a shape whose width alone changes. The shape is selected alone and the canvas is editable, and the gesture goes through the canvas's own pointer handling (`bench/gestures.ts`), as a person's would. Each resize moves for 30 frames, out and back, and lets go a little larger, then the next a little smaller again, so that its moving sides cross the edges of the shapes beside it and the guides show and snap.
+  - **How it is judged.** Its frames are judged by the frame budget. Letting go goes through the core and is shown once the canvas has heard it applied, timed from the operations to the frame drawn, as one edit is (components.md §3.9), against 50 ms; the release's own work and the core's command are noted apart. The note says in how many of the changes of the resize marks guides were drawn.
+  - **Beyond boxes.** The beyond-boxes benchmark (`?geometry`, ADR 0066) resizes the shape with free geometry and 50 relations the same way, after dragging it.
