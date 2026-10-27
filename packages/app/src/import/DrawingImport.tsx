@@ -72,7 +72,10 @@ export function DrawingImport({
   const t = useT();
   const [width, setWidth] = useState<number>(DRAWING_LIMITS.width.initial);
   const [widthText, setWidthText] = useState(String(DRAWING_LIMITS.width.initial));
-  const [making, setMaking] = useState<Making>({ state: 'making' });
+  // What the program answered, and the width it was asked for: another width is being made.
+  const [answered, setAnswered] = useState<{ width: number; making: Making }>();
+  const making: Making =
+    answered === undefined || answered.width !== width ? { state: 'making' } : answered.making;
   const [sending, setSending] = useState<Sending>();
   const selected =
     selectedElement === undefined ? undefined : modelIndexOf(project).element(selectedElement);
@@ -87,14 +90,14 @@ export function DrawingImport({
 
   useEffect(() => {
     let gone = false;
-    setMaking({ state: 'making' });
     void makeDrawing(input.name, input.text, width).then((answer) => {
       if (gone) return;
-      setMaking(
-        answer.ok
+      setAnswered({
+        width,
+        making: answer.ok
           ? { state: 'made', drawing: answer.answer }
           : { state: 'refused', problems: answer.problems.map((each) => each.message) },
-      );
+      });
     });
     return () => {
       gone = true;

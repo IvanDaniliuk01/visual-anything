@@ -7,7 +7,7 @@
  * Each reader keeps only what its message holds, or says why it cannot be read; the live protocol
  * turns that into its own error.
  */
-import { DRAWING_LIMITS } from './drawing';
+import { DRAWING_LIMITS } from './drawing-limits';
 
 /** Asks the local program to make a drawing of HTML, laid out at a width. */
 export interface DrawingMakeMessage {

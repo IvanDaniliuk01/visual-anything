@@ -497,13 +497,13 @@ Eight milestones in build order, each ending in something you can use, and Track
   - the part a component or an element is drawn as, and the placement With its parts;
   - a relation type's and a relation's Route, a view's Lines, and the Style control's Automatic (ADR 0039's clarification);
   - every text in English and Spanish, and the catalog test's avoided words extended with the new terms' avoid lists.
-- [ ] **HTML as a drawing** (ADR 0068):
+- [x] **HTML as a drawing** (ADR 0068):
   - `server/src/drawings/`: parse5, the allow-list and its caps, the conversion into satori's input, satori in a worker thread limited to 256 MiB and 10 s, Roboto, `cleanSvg`, and the report;
   - the live request and its answer, and Import…'s preview, report and single action;
   - `visual-anything import` with `.html`;
   - the hostile-input tests, and the bundle tests for both pages;
   - the single executables with satori's WebAssembly, a notice of the code they bundle, and a smoke test that makes a drawing.
-- [ ] **Claude's tools:**
+- [x] **Claude's tools:**
   - `set_appearance` with `geometry`, `part` and `route`; `update_view` with `routeStyle`; `set_route` with `orthogonal` and the automatic style;
   - `list_image_parts`, `anchor_parts` and `import_drawing`, and the lost parts in `replace_image`'s answer;
   - descriptions with examples of path data and of anchoring an atlas's parts.
@@ -514,7 +514,7 @@ Eight milestones in build order, each ending in something you can use, and Track
   - Mermaid and Structurizr say that they lost the outlines, the parts and the curves.
 - [ ] **A sample,** `examples/beyond-boxes`: a heart drawn for Visual Anything (CC0-1.0), whose chambers and vessels are anchored to its named parts; a component with free geometry; one view drawn curved; a card imported from HTML; and a scenario of blood flowing through the heart.
   - [x] The heart, its parts, the lungs as free geometry, the Heart view drawn curved beside the Circulation view, "paces" drawn straight, the scenario, and the test that opens it through the program's loader (W59).
-  - [ ] The card, imported from `sources/card.html` once HTML as a drawing is in.
+  - [x] The card, imported from `sources/card.html` as a drawing, credited CC0-1.0 as the heart is (W56).
 - [ ] **The benchmark:** `?geometry` and `?curves`, in work and frames modes, with the phases of the "Done when" above:
   - pan, zoom and select, at the whole view and with names shown;
   - pointing along outlines;

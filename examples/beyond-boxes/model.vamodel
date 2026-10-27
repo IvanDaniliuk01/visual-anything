@@ -234,6 +234,19 @@
       "component": "heart.body",
       "name": "Body",
       "description": "Every organ but the lungs: their tissues take the oxygen and send the blood back."
+    },
+    {
+      "id": "card-2914w0",
+      "component": "heart.card",
+      "name": "The heart at rest",
+      "appearance": {
+        "width": 188,
+        "height": 200,
+        "image": {
+          "image": "heart.card-rcg9ir",
+          "placement": "drawing"
+        }
+      }
     }
   ],
   "relations": [

@@ -19,7 +19,7 @@ It is not one of the samples a new project starts from (ADR 0051): it shows feat
 
 ## A card imported from HTML
 
-`sources/card.html` is a card of the heart's figures at rest, in static HTML with inline styles from ADR 0068's allow-list. It becomes an imported drawing once HTML as a drawing is in, shown by an element of the component Card: from Import… in the app, or from the repository with `pnpm exec tsx packages/server/src/cli.ts import examples/beyond-boxes examples/beyond-boxes/sources/card.html`.
+`sources/card.html` is a card of the heart's figures at rest, in static HTML with inline styles from ADR 0068's allow-list. It is imported as a drawing, shown in the Heart view by the element "The heart at rest", of the component Card: the package stores the drawing the local program made of it, cleaned as every picture is. To make it again after changing the card, import it again, from Import… in the app, or from the repository with `pnpm exec tsx packages/server/src/cli.ts import examples/beyond-boxes examples/beyond-boxes/sources/card.html --component heart.card --view heart --width 360`, then give its new picture the heart's credits.
 
 ## Its sources
 
