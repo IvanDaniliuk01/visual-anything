@@ -14,7 +14,8 @@
  *
  * Everything people wrote is written in quoted strings on one line, its quotes escaped, and with
  * nothing Structurizr would read as a constant or an environment variable. What the workspace
- * cannot hold is said in its comments and listed in the export.
+ * cannot hold is said in its comments and listed in the export: among it, free geometry and named
+ * parts, which its styles draw as their shapes' kinds, and routes' curved and straight styles.
  */
 import {
   definitionsIn,
@@ -31,6 +32,7 @@ import { readableTextColors } from '../canvas/colors';
 import { buildScene, type ElementShape, type RelationLine } from '../canvas/scene';
 import { shapeColors } from '../canvas/theme/paint';
 import { t, type PluralText } from '../i18n';
+import { lostBeyondBoxes } from './beyond-lost';
 import type { TextExport } from './outline';
 
 /** What a Systems component becomes in the C4 model. */
@@ -268,6 +270,7 @@ export function writeStructurizr(
     return element === undefined ? undefined : written.get(element);
   };
   const relationships: string[] = [];
+  const related: RelationLine[] = [];
   const said = new Map<string, number>();
   let leftOutRelations = 0;
   for (const line of scene.relations) {
@@ -296,6 +299,7 @@ export function writeStructurizr(
     relationships.push(
       `        ${from.identifier} -> ${to.identifier} ${dslString(description)}${technology}`,
     );
+    related.push(line);
   }
 
   // Views: the landscape, then each software system's containers and each container's components.
@@ -350,6 +354,12 @@ export function writeStructurizr(
     ...(leftOutRelations > 0 ? [t(LEFT_OUT_RELATIONS, { count: leftOutRelations })] : []),
     ...(free > 0 ? [t(FREE, { count: free })] : []),
     ...(pictures > 0 ? [t('Pictures are left out.')] : []),
+    // Free geometry, named parts and the styles of routes (M8b).
+    ...lostBeyondBoxes(
+      [...written.values()].map((entry) => entry.shape),
+      related,
+      'Structurizr',
+    ),
     ...(scenarios > 0 ? [t('Scenarios are left out.')] : []),
     // Structurizr draws no legend, though its styles take the overlays' colors (ADR 0055).
     ...(legendShows(legendOf(view, definitions, theme))

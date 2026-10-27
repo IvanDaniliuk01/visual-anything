@@ -19,6 +19,7 @@ import { addPackage, replacePackage } from './packages';
 import { setCollapsed } from './collapse';
 import { addToView, leaveOutOfView, setRelationTypesLeftOut, setScope } from './scopes';
 import { Draft, Rejection, reject, requireList, requireName } from './draft';
+import { newLargeGeometry } from '../geometry/files';
 import { newUnknownParts } from '../images/anchored';
 import { checkImageReferences, defineImage, removeImage } from './images';
 import {
@@ -103,8 +104,14 @@ export function executeCommand(
     const label = run(draft, command);
     checkImageReferences(state, draft.state, draft.operations);
     draft.seal();
-    // Elements the action leaves drawn as a part their picture lacks are drawn as ordinary shapes.
-    if (draft.operations.length > 0) draft.warnings.push(...newUnknownParts(state, draft.state));
+    // Elements the action leaves drawn as a part their picture lacks are drawn as ordinary shapes,
+    // and a file it leaves holding past the geometry that slows saving it says so.
+    if (draft.operations.length > 0) {
+      draft.warnings.push(
+        ...newUnknownParts(state, draft.state),
+        ...newLargeGeometry(state, draft.state),
+      );
+    }
     return {
       ok: true,
       state: draft.state,

@@ -2,7 +2,9 @@ import fc from 'fast-check';
 import type { ProjectSnapshot } from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
 import { buildScene } from '../canvas/scene';
+import { setCurrentLanguage } from '../i18n/language';
 import { THEMES } from '../theme/themes';
+import { beyondBoxes } from '../test/beyond';
 import { SAMPLE_VIEW, collapsedSample, richSample } from '../test/exports';
 import { loadSample } from '../test/sample';
 import { withWovenRelations } from '../test/woven';
@@ -153,5 +155,47 @@ describe('A Mermaid flowchart of a view with overlays', () => {
     expect(text).toContain(NO_LEGEND);
     expect(writeMermaid(withOverlay(true), SAMPLE_VIEW).lost).not.toContain(NO_LEGEND);
     expect(writeMermaid(loadSample(), SAMPLE_VIEW).lost).not.toContain(NO_LEGEND);
+  });
+});
+
+describe('A Mermaid flowchart of a view beyond boxes', () => {
+  /** The view beyond boxes, drawn curved. */
+  function curved(): ProjectSnapshot {
+    const project = beyondBoxes('anatomy');
+    return {
+      ...project,
+      views: project.views.map((view) => ({ ...view, routeStyle: 'curved' })),
+    };
+  }
+
+  it('says that it draws free geometry and named parts as their kinds, and curves in its own style', () => {
+    const { text, lost } = writeMermaid(curved(), 'anatomy');
+    expect(lost).toEqual(
+      expect.arrayContaining([
+        'One shape drawn by its free geometry is drawn as its kind.',
+        '3 shapes drawn as named parts are drawn as their kinds, without their pictures.',
+        '3 relations drawn curved or straight are drawn in Mermaid’s own style.',
+      ]),
+    );
+    for (const each of lost) expect(text).toContain(`%% Lost: ${each}`);
+    // Each anchored part is still a node, in its drawing's subgraph.
+    const lines = chartLines(text);
+    expect(lines).toContain('  subgraph e_body["Body"]');
+    expect(lines).toContain('    e_left["left"]');
+    expect(writeMermaid(beyondBoxes('anatomy'), 'anatomy').lost.join(' ')).not.toMatch(
+      /curved or straight/,
+    );
+  });
+
+  it('says so in the language the app reads in', () => {
+    setCurrentLanguage('es');
+    const { lost } = writeMermaid(curved(), 'anatomy');
+    expect(lost).toEqual(
+      expect.arrayContaining([
+        'Una forma dibujada por su geometría libre se dibuja según su tipo.',
+        '3 formas dibujadas como partes con nombre se dibujan según su tipo, sin sus imágenes.',
+        '3 relaciones dibujadas curvas o rectas se dibujan con el estilo propio de Mermaid.',
+      ]),
+    );
   });
 });

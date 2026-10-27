@@ -392,7 +392,8 @@
         "kind": {
           "enum": [
             "connection-point",
-            "border"
+            "border",
+            "inside"
           ]
         }
       },
@@ -431,9 +432,25 @@
           "then": {
             "$ref": "#/definitions/BorderAttachment"
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "inside"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/definitions/InsideAttachment"
+          }
         }
       ],
-      "description": "Where a line attaches to one of its ends, chosen by hand: one of the end's connection points, by name, or a fixed place on its border."
+      "description": "Where a line attaches to one of its ends, chosen by hand: one of the end's connection points, by name, a fixed place on its border, or a fixed place inside it."
     },
     "ConnectionPointAttachment": {
       "type": "object",
@@ -486,6 +503,32 @@
       ],
       "additionalProperties": false,
       "description": "The line attaches at a fixed place on the end's border, which follows the shape as it moves and resizes."
+    },
+    "InsideAttachment": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "const": "inside"
+        },
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "kind",
+        "x",
+        "y"
+      ],
+      "additionalProperties": false,
+      "description": "The line attaches at a fixed place inside the end's shape, anywhere on it, which follows the shape as it moves and resizes: across and down its box, each from 0 at its left or top to 1 at its right or bottom."
     },
     "RouteStyle": {
       "type": "string",

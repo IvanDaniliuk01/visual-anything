@@ -7,6 +7,13 @@
  */
 import type { Id } from '@visual-anything/schema';
 import type { Command } from './commands';
+import {
+  readDrawingMade,
+  readDrawingMake,
+  type DrawingMadeMessage,
+  type DrawingMakeMessage,
+  type DrawingMessageRead,
+} from './import/drawing-messages';
 import type { Author, HistorySummary } from './history';
 import { isId } from './ids';
 import {
@@ -43,7 +50,9 @@ import { checkTimeRange, type ViewTimeRange } from './time-range';
  *    fetches for approved package code granted an origin, and sends the live values it made. Guidance
  *    that lays out a view, or plays a tour full screen, came in 6 too, since no build shipped.
  * 7: free geometry, named parts and automatic route styles in the project's files (M8b, ADR 0066,
- *    ADR 0067, ADR 0069), which an app of version 6 would draw without.
+ *    ADR 0067, ADR 0069), which an app of version 6 would draw without; and making a drawing of
+ *    HTML (ADR 0068), `drawing/make` and its answer `drawing/made`, in 7 too, since no build of 7
+ *    shipped.
  */
 export const PROTOCOL_VERSION = 7;
 
@@ -85,7 +94,8 @@ export type ServerMessage =
   | OtherProjectOpenedMessage
   | LiveValuesMessage
   | LiveKeptMessage
-  | LiveFetchedMessage;
+  | LiveFetchedMessage
+  | DrawingMadeMessage;
 
 /**
  * Sent in place of `project/opened` while the local program runs on a folder that holds no project yet
@@ -556,7 +566,8 @@ export type AppMessage =
   | StartCreateMessage
   | OpenOtherProjectMessage
   | LiveFetchMessage
-  | LiveSetMessage;
+  | LiveSetMessage
+  | DrawingMakeMessage;
 
 /** The longest name the start screen may give a new project or its first view. */
 export const MAX_START_NAME = 200;
@@ -639,6 +650,7 @@ const SERVER_TYPES = new Set<string>([
   'live/values',
   'live/kept',
   'live/fetched',
+  'drawing/made',
 ]);
 
 /**
@@ -689,6 +701,13 @@ export function decodeServerMessage(text: string): ServerMessage {
     case 'live/kept':
     case 'live/fetched':
       return readLive(message, message.type);
+    case 'drawing/made': {
+      const { requestId } = message;
+      if (typeof requestId !== 'string' || requestId === '' || requestId.length > MAX_REQUEST_ID) {
+        throw new ProtocolError('The answer has no valid request id.');
+      }
+      return readDrawing(readDrawingMade(message, requestId));
+    }
   }
   return message as unknown as ServerMessage;
 }
@@ -758,6 +777,8 @@ export function decodeAppMessage(text: string): AppMessage {
       return asProtocolError(() => readLiveFetchMessage(message, message.requestId as string));
     case 'live/set':
       return asProtocolError(() => readLiveSetMessage(message, message.requestId as string));
+    case 'drawing/make':
+      return readDrawing(readDrawingMake(message, message.requestId));
     default:
       throw new ProtocolError(`Unknown message type: ${JSON.stringify(message.type)}.`);
   }
@@ -778,6 +799,12 @@ function readLive(
       ? readLiveKeptMessage(message, requestId)
       : readLiveFetchedMessage(message, requestId);
   });
+}
+
+/** A message about a drawing (ADR 0068), or the {@link ProtocolError} of why it cannot be read. */
+function readDrawing<T>(read: DrawingMessageRead<T>): T {
+  if (!read.ok) throw new ProtocolError(read.reason);
+  return read.message;
 }
 
 /** Runs a reader of live values' messages, turning what it refuses into a {@link ProtocolError}. */

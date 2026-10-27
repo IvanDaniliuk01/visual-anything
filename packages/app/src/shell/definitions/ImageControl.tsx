@@ -6,6 +6,7 @@ import { ColorControl } from '../inspector/controls';
 import type { PictureChoice, ShowOptions } from './imageCommands';
 import { IMAGE_FILE_TYPES, prepareImageFile, type PictureCodec } from './imageFiles';
 import { ImagePreview } from './ImagePreview';
+import { ReplacePicture } from './ReplacePicture';
 import './images.css';
 
 interface ImageControlProps {
@@ -21,6 +22,11 @@ interface ImageControlProps {
   describedBy?: string | undefined;
   /** Decodes and encodes pictures that must be shrunk; the browser's by default. */
   codec?: PictureCodec;
+}
+
+/** A placement the select gives, as an appearance stores it. */
+function placementOf(value: string): NonNullable<AppearanceImage['placement']> {
+  return value === 'drawing' || value === 'parts' ? value : 'icon';
 }
 
 /** The longer side of the previews, in pixels. */
@@ -173,6 +179,15 @@ export function ImageControl({
             {t('Use a picture already in the project')}
           </button>
         )}
+        {current && (
+          <ReplacePicture
+            project={project}
+            image={current.id}
+            disabled={off}
+            send={run}
+            codec={codec}
+          />
+        )}
       </div>
       {picking && images.length > 0 && (
         <ul className="image-control-grid" aria-label={t('Pictures in the project')}>
@@ -204,12 +219,16 @@ export function ImageControl({
             value={placement}
             disabled={off}
             onChange={(event) => {
-              const next = event.target.value === 'drawing' ? 'drawing' : 'icon';
+              const next = placementOf(event.target.value);
               void run(actionFor({ kind: 'same' }, options({ placement: next })));
             }}
           >
             <option value="icon">{t('Icon, beside the name')}</option>
             <option value="drawing">{t('Drawing, in place of the shape')}</option>
+            {/* Only an SVG picture has named parts (ADR 0067). */}
+            {(current?.kind === 'svg' || placement === 'parts') && (
+              <option value="parts">{t('With its parts, which its contents are drawn as')}</option>
+            )}
           </select>
           <span className="image-control-silhouette">
             <input

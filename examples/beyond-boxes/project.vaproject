@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "name": "The heart",
+  "description": "A sample beyond boxes (M8b): blood flowing through a heart drawn with its named parts, lungs drawn as free geometry, and lines drawn curved.",
+  "packages": [
+    "heart"
+  ]
+}

@@ -27,10 +27,14 @@ import {
   REPOSITORY,
   SEA_FUSE,
   SEA_RESOURCE,
+  NOTICES_FILE,
+  bundleDrawingWorkerBeside,
   bundleServer,
   collectAppAssets,
   executableName,
+  programAssets,
   seaConfig,
+  writeNotices,
 } from './sea';
 
 const { values } = parseArgs({ options: { 'no-code-cache': { type: 'boolean' } } });
@@ -52,10 +56,16 @@ const config = join(build, 'sea-config.json');
 const executable = join(OUT_DIR, executableName(process.platform));
 
 say(`Bundling the server into ${shown(main)}`);
-await bundleServer(main);
+const server = await bundleServer(main);
+const worker = await bundleDrawingWorkerBeside(main);
+say(`Bundling the drawing's worker, with satori and its WebAssembly, into ${shown(worker.file)}`);
+const notices = join(OUT_DIR, NOTICES_FILE);
+await writeNotices([server, worker.metafile], notices);
+say(`Writing the notice of the code it bundles to ${shown(notices)}`);
 
-const assets = await collectAppAssets(APP_DIST);
-say(`Embedding the ${Object.keys(assets).length} files of ${shown(APP_DIST)}`);
+const app = await collectAppAssets(APP_DIST);
+say(`Embedding the ${Object.keys(app).length} files of ${shown(APP_DIST)}`);
+const assets = { ...app, ...programAssets(worker.file, notices) };
 const codeCache = values['no-code-cache'] !== true;
 await writeFile(
   config,

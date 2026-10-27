@@ -60,3 +60,10 @@ M6c ships the first starter packages (R38), the sample projects a new project st
 - The live protocol gains `start/offered` and `start/create`; `PROTOCOL_VERSION` stays, since the app and the program always ship together.
 - `pnpm --filter @visual-anything/server samples` regenerates the embedded samples after a sample changes, and the change is committed with it.
 - Claude's MCP entry point cannot attach to a program on an empty folder until a project is started there.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions. -->
+
+- 2026-10-26 (M8b, W59): **samples of a milestone's features are not sample projects.** `examples/beyond-boxes` (M8b), like `examples/gauges` (M7), lives in `examples/` beside the sample projects, but the program does not hold it and the start screen does not offer it: it shows features rather than a starter package, and brings a package of its own, which a new project's first files never hold. It is opened as any project folder, and a test of its own opens it through the program's loader.
+- 2026-10-26 (M8b, W59): **a sample's `sources/` folder** holds what its files are made from and that is not a project file: a picture before cleaning, with its comments, and HTML to import as a drawing (ADR 0068). The loader reads no such folder, and the embedded samples take none of it. A test holds what the project stores to what its source gives, as the heart's picture is held to what cleaning `sources/heart.svg` gives.

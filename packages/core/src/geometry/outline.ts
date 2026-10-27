@@ -229,6 +229,12 @@ function readUncached(geometry: GeometryInput): GeometryRead {
     }
     if (segments > GEOMETRY_CAPS.segments) return tooManySegments();
   }
+  // Each subpath of path data is a contour of its own, held to the same cap as the entries.
+  if (contours.length > GEOMETRY_CAPS.contours) {
+    return tooLarge(
+      `The outline of free geometry holds at most 64 contours, not ${contours.length}.`,
+    );
+  }
   for (const [at, contour] of contours.entries()) {
     const box = boundsOf([contour]);
     if (contour.segments.length === 0 || box.width === 0 || box.height === 0) {
