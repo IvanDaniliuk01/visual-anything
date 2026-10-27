@@ -13,6 +13,7 @@ import { APEX_UP, OVAL, outlinedShape } from '../test/outlined';
 import { takesDropAt } from './drop';
 import type { Point, Rect } from './geometry';
 import { enclosedBy, hitAt, holdsAsDrawn, indexScene, shapesAt, type IndexedScene } from './hit';
+import { drawnBoundsOf } from './nameTags';
 import type { ShapeOutline } from './outlines';
 import { buildScene, type ElementShape, type Scene } from './scene';
 
@@ -110,8 +111,10 @@ describe('box selection by the outline’s bounds', () => {
     // Keeping its proportions, the triangle sits in the middle of its wide rectangle: 100 to 200.
     const triangle = outlinedShape('triangle', TRIANGLE, { x: 0, y: 0, width: 300, height: 80 });
     const scene = indexScene(sceneOf([triangle]));
-    expect(enclosedBy(scene, { x: 95, y: -5, width: 110, height: 90 }).shapes).toEqual([triangle]);
-    expect(enclosedBy(scene, { x: 105, y: -5, width: 110, height: 90 }).shapes).toEqual([]);
+    // Down far enough to hold the name tag the triangle hangs under itself too.
+    const height = drawnBoundsOf(triangle).height + 10;
+    expect(enclosedBy(scene, { x: 95, y: -5, width: 110, height }).shapes).toEqual([triangle]);
+    expect(enclosedBy(scene, { x: 105, y: -5, width: 110, height }).shapes).toEqual([]);
   });
 });
 

@@ -35,6 +35,7 @@ import {
   onlyStrokes,
   placeOfEnd,
   strokeEnd,
+  tagBoxOf,
   type OutlinedEnd,
 } from './outline-ends';
 
@@ -110,12 +111,51 @@ function flowRoute(a: AutomaticEnd, b: AutomaticEnd, offset: number): HandRoute 
   const dy = aimB.y - aimA.y;
   const span = Math.hypot(dx, dy);
   const trim = span === 0 ? 0 : Math.min(FLOW_CLEARANCE, span / 4) / span;
-  return {
-    route: [
-      { x: aimA.x + dx * trim + shift.x, y: aimA.y + dy * trim + shift.y },
-      { x: aimB.x - dx * trim + shift.x, y: aimB.y - dy * trim + shift.y },
-    ],
-  };
+  const start = { x: aimA.x + dx * trim + shift.x, y: aimA.y + dy * trim + shift.y };
+  const end = { x: aimB.x - dx * trim + shift.x, y: aimB.y - dy * trim + shift.y };
+  // Never across a name: the line leaves its first shape's name tag, and stops at the other's
+  // (ADR 0066's clarification of 2026-10-27).
+  const from = clipAlong(start, end, tagBoxOf(a.outline), 'after');
+  const to = clipAlong(start, end, tagBoxOf(b.outline), 'before');
+  if (!(to > from)) return undefined;
+  return { route: [pointAlong(start, end, from), pointAlong(start, end, to)] };
+}
+
+/**
+ * How far along the segment from `start` to `end`, from 0 to 1, it runs clear of a box: after where
+ * it last leaves the box, or before where it first enters it; 0 and 1 for a box it does not cross.
+ */
+function clipAlong(
+  start: Point,
+  end: Point,
+  box: Rect | undefined,
+  keep: 'after' | 'before',
+): number {
+  const all = keep === 'after' ? 0 : 1;
+  if (!box) return all;
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  let enter = 0;
+  let leave = 1;
+  for (const [d, from, low, high] of [
+    [dx, start.x, box.x, box.x + box.width],
+    [dy, start.y, box.y, box.y + box.height],
+  ] as const) {
+    if (d === 0) {
+      if (from <= low || from >= high) return all;
+      continue;
+    }
+    const a = (low - from) / d;
+    const b = (high - from) / d;
+    enter = Math.max(enter, Math.min(a, b));
+    leave = Math.min(leave, Math.max(a, b));
+  }
+  if (!(leave > enter)) return all;
+  return keep === 'after' ? leave : enter;
+}
+
+function pointAlong(start: Point, end: Point, t: number): Point {
+  return { x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t };
 }
 
 /** How far short of each inner point a line between touching outlines stops. */

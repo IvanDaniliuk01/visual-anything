@@ -14,7 +14,7 @@ import { loadSample } from '../../test/sample';
 import { buildScene, type ElementShape, type Scene } from '../scene';
 import { layoutCommand } from './command';
 import { blockGraph, layOut, type ElkEngine } from './engine';
-import { layoutInput, waitsForLayout } from './input';
+import { layoutInput, tagReachOf, waitsForLayout } from './input';
 import type { LayoutInput } from './types';
 
 const VIEW = 'anatomy';
@@ -77,8 +77,17 @@ describe('the layout input beyond boxes', () => {
   it('gives a shape with free geometry by its box, its connection points as ports', () => {
     const { scene, input } = inputOf(project());
     const framed = input.shapes.find((shape) => shape.key === 'framed');
-    const rect = shapeOf(scene, 'framed').rect;
-    expect(framed).toMatchObject({ free: true, width: rect.width, height: rect.height });
+    const shape = shapeOf(scene, 'framed');
+    const { rect } = shape;
+    // With the room its name tag takes, which its name, too long for the frame, hangs under it.
+    const reach = tagReachOf(shape);
+    expect(reach.bottom).toBeGreaterThan(0);
+    expect(framed).toMatchObject({
+      free: true,
+      x: shape.offset.x - reach.left,
+      width: rect.width + reach.left + reach.right,
+      height: rect.height + reach.bottom,
+    });
     expect(framed?.points).toEqual([{ name: 'in', side: 'left', at: 0.5 }]);
   });
 

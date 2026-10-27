@@ -66,6 +66,7 @@ import { collapseActions, type CollapseAction } from './collapse';
 import { boundsOf, centerOf, distance, toggleRect, type Point, type Rect } from './geometry';
 import { carriedKeys, moveCommand, movingShapes } from './gestures';
 import { enclosedBy, hitAt, shapesAt, withoutShapes, type Hit, type IndexedScene } from './hit';
+import { drawnBoundsOf } from './nameTags';
 import {
   containerOf,
   drawnRelations,
@@ -2231,7 +2232,8 @@ function toggleAll(selection: Selection, items: readonly Selectable[]): Selectio
 function targetRect(hit: Hit) {
   switch (hit.kind) {
     case 'shape':
-      return hit.shape.rect;
+      // With its name tag, which is part of it (ADR 0066's clarification of 2026-10-27).
+      return drawnBoundsOf(hit.shape);
     case 'relation':
       return rectAround(hit.line.route);
     case 'note':

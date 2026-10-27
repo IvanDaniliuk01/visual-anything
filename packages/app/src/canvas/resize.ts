@@ -20,7 +20,6 @@ import type { Id, Note, ShapePosition, ViewFile } from '@visual-anything/schema'
 import type { GuideEdge, GuideEdges } from './align';
 import { boundsOf, type Point, type Rect } from './geometry';
 import type { IndexedScene } from './hit';
-import { viewIn } from './routing/commands';
 import type { DrawnEnd, ElementShape } from './scene';
 
 /** The handles, by the compass: the corners and the middles of the sides. */
@@ -271,7 +270,8 @@ export function resizeCommand(
   shape: ElementShape,
   rect: Rect,
 ): Command | undefined {
-  const view = viewIn(project, viewId);
+  // Found here rather than through the route commands, which the read-only page never holds.
+  const view = project.views.find((each) => each.id === viewId);
   const taken = sizeTakenBy(shape);
   if (!view || !taken) return undefined;
   const dx = Math.round(rect.x - shape.rect.x);

@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { THEMES } from '../theme/themes';
 import { FRAME, TRIANGLE, beyondBoxes } from '../test/beyond';
 import { APEX_DOWN, OVAL, outlinedShape } from '../test/outlined';
-import { CANVAS_BACKGROUND, readableTextColors } from './colors';
+import { readableTextColors } from './colors';
 import {
   drawShapeBlocks,
   drawShapeOutlines,
@@ -21,7 +21,8 @@ import {
   type TextFactory,
 } from './draw';
 import { SHEET, type Rect } from './geometry';
-import { PART_NAME_LINE, labelAreaOn, nameBelowOf } from './outlined';
+import { TAG_PADDING, nameTagOn } from './nameTags';
+import { PART_NAME_LINE, labelAreaOn } from './outlined';
 import { geometrySource, outlineIn, type ShapeOutline } from './outlines';
 import { buildScene, type ElementShape } from './scene';
 import { painterOf } from './theme/painter';
@@ -30,7 +31,13 @@ import { readGeometry } from '@visual-anything/core';
 
 const scene = buildScene(beyondBoxes('anatomy'), 'anatomy');
 const shapeOf = (key: string) => scene.shapes.find((shape) => shape.key === key) as ElementShape;
-const framed = shapeOf('framed');
+/**
+ * A shape as these tests draw it, without its name tag: its name left out, so that what is drawn is
+ * its outline alone. The frame's and the ring's names do not fit inside them, so they hang tags,
+ * which have tests of their own (`nameTags.test.ts`).
+ */
+const untagged = (shape: ElementShape): ElementShape => ({ ...shape, name: '' });
+const framed = untagged(shapeOf('framed'));
 
 type Instruction = Graphics['context']['instructions'][number];
 
@@ -170,7 +177,7 @@ describe('full drawings', () => {
     const graphics = new Graphics();
     drawShapeOutlines(graphics, [shapeOf('body/left')]);
     expect(graphics.context.instructions).toHaveLength(0);
-    drawShapeOutlines(graphics, [shapeOf('loose')]);
+    drawShapeOutlines(graphics, [untagged(shapeOf('loose'))]);
     const fills = drawn(graphics).filter((each) => each.action === 'fill');
     expect(fills.map((each) => each.color)).toEqual(['#27AE60']);
     // The ring's hole is cut.
@@ -243,17 +250,17 @@ describe('names in the label area', () => {
     expect(labelRooms(flat).name).toBe(20);
   });
 
-  it('writes the name of a shape whose label area is less than 14 units tall under it, on the canvas', () => {
+  it('writes the name of a shape whose label area is less than 14 units tall in its name tag, under it', () => {
     const shape = outlinedShape('Tiny', TRIANGLE, { x: 0, y: 0, width: 30, height: 24 });
     const written = writeShapeLabels([shape], true, placed);
     expect(written.map((label) => label.label)).toEqual(['name:Tiny', 'detail:Organ']);
-    const below = nameBelowOf(shape);
-    expect(written[0]?.x).toBeCloseTo(below.x);
-    expect(written[0]?.y).toBeCloseTo(below.y);
-    expect(written[1]?.y).toBeCloseTo(below.y + PART_NAME_LINE + 1);
-    // In colours that read on what the shape sits on, not on its fill.
+    const tag = nameTagOn(shape) as Rect;
+    expect(written[0]?.x).toBeCloseTo(tag.x + tag.width / 2);
+    expect(written[0]?.y).toBeCloseTo(tag.y + TAG_PADDING);
+    expect(written[1]?.y).toBeCloseTo(tag.y + TAG_PADDING + PART_NAME_LINE + 1);
+    // In colours that read on the tag's fill, which is the shape's, not on the canvas.
     expect((written[0] as Container & { style: TextStyleOptions }).style.fill).toBe(
-      readableTextColors(CANVAS_BACKGROUND).name,
+      readableTextColors(shape.fill).name,
     );
     expect(labelRooms(shape)).toEqual({ name: 0, detail: 0 });
   });

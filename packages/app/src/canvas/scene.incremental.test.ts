@@ -20,6 +20,7 @@ import { withWovenRelations } from '../test/woven';
 import { collapsedIn, setCollapsedCommand } from './collapse';
 import { addToViewCommand, leaveOutCommand } from './scope';
 import { hitAt, indexScene, indexSceneAfresh, shapesAt, type IndexedScene } from './hit';
+import { drawnBoundsOf } from './nameTags';
 import { buildScene, buildSceneAfresh, type ElementShape, type Scene } from './scene';
 
 const VIEW = 'system-overview';
@@ -550,16 +551,19 @@ function sameIndex(indexed: IndexedScene, fresh: IndexedScene): void {
   }
 }
 
-/** Each shape's band, worked out from nothing as `indexScene` defines it. */
+/**
+ * Each shape's band, worked out from nothing as `indexScene` defines it: by what each shape draws,
+ * its rectangle with its name tag.
+ */
 function freshBands(scene: Scene): number[] {
   const drawing = scene.drawing ?? scene.shapes.map((_, index) => index);
   const bands = new Array<number>(scene.shapes.length).fill(0);
   const drawn: number[] = [];
   for (const index of drawing) {
-    const rect = (scene.shapes[index] as ElementShape).rect;
+    const rect = drawnBoundsOf(scene.shapes[index] as ElementShape);
     let highest = -1;
     for (const other of drawn) {
-      const them = (scene.shapes[other] as ElementShape).rect;
+      const them = drawnBoundsOf(scene.shapes[other] as ElementShape);
       const overlap =
         rect.x < them.x + them.width &&
         them.x < rect.x + rect.width &&

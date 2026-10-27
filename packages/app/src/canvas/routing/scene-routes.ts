@@ -19,12 +19,12 @@ import {
 } from '@visual-anything/core';
 import type { ConnectionPoint, Id, RelationRoute, ViewFile } from '@visual-anything/schema';
 import type { Point, Rect } from '../geometry';
-import type { ShapeOutline } from '../outlines';
+import { nameTagOf } from '../nameTags';
 import { isSideEnd, type AnyEnd } from '../rowRoutes';
 import type { ElementShape, RelationLine } from '../scene';
 import { automaticRoute, type AutomaticEnd } from './automatic';
 import { routeByHand, type Attach, type CurveSpan, type HandEnd, type RouteStyle } from './hand';
-import { endOutline } from './outline-ends';
+import { endOutline, routeBoxOf } from './outline-ends';
 
 /** What a line drawn by hand holds besides its route, as `RelationLine` carries it. */
 export interface HandOfLine {
@@ -267,31 +267,50 @@ function handEnd(
 function automaticEnd(end: AnyEnd, shape: ElementShape | undefined): AutomaticEnd {
   if (isSideEnd(end) || 'point' in end) return { end };
   const outline = endOutline(shape, end.rect);
+  // Without connection points, which are read on its rectangle, a shape with a name tag is reached
+  // by the box that holds it and its tag (ADR 0066's clarification of 2026-10-27).
+  const box = shape?.points ? end.rect : routeBoxOf(shape, end.rect);
   return {
-    end,
+    end: box === end.rect ? end : { rect: box },
     ...(shape?.points ? { points: shape.points } : {}),
     ...(outline ? { outline } : {}),
   };
 }
 
-/** Whether lines attach to a shape on its own outline (ADR 0066, ADR 0067), rather than its box. */
+/**
+ * Whether lines attach to a shape on its own outline (ADR 0066, ADR 0067), rather than its box: one
+ * with its own outline, or a name tag, which is part of it.
+ */
 function outlined(shape: ElementShape | undefined): boolean {
-  return shape?.outline !== undefined && shape.plate === undefined;
+  return (
+    shape !== undefined &&
+    shape.plate === undefined &&
+    (shape.outline !== undefined || nameTagOf(shape) !== undefined)
+  );
 }
 
-const outlineSerials = new WeakMap<ShapeOutline, number>();
+const outlineSerials = new WeakMap<object, number>();
 let nextOutlineSerial = 0;
 
-/** A number for each outline a shape carries, the same for the same object, as a route depends on it. */
-function outlineKey(shape: ElementShape | undefined): string {
-  if (!outlined(shape)) return '-';
-  const outline = shape?.outline as ShapeOutline;
-  let serial = outlineSerials.get(outline);
+/** A number for each object, the same for the same object, as a route depends on it. */
+function serialOf(item: object): number {
+  let serial = outlineSerials.get(item);
   if (serial === undefined) {
     serial = nextOutlineSerial++;
-    outlineSerials.set(outline, serial);
+    outlineSerials.set(item, serial);
   }
-  return `o${serial}`;
+  return serial;
+}
+
+/**
+ * What a route depends on of the outline a shape carries and of its name tag, the same for the same
+ * objects: a tag is made once for each outline and texts.
+ */
+function outlineKey(shape: ElementShape | undefined): string {
+  if (!shape || !outlined(shape)) return '-';
+  const tag = nameTagOf(shape);
+  const own = shape.outline ? `o${serialOf(shape.outline)}` : 'o-';
+  return tag ? `${own}t${serialOf(tag)}` : own;
 }
 
 /**

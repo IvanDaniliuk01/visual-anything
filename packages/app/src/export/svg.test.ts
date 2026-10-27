@@ -10,7 +10,8 @@ import type { Element as ModelElement, Overlay, ViewFile } from '@visual-anythin
 import { describe, expect, it } from 'vitest';
 import { textWidth } from './measure';
 import type { Rect } from '../canvas/geometry';
-import { drawnBoundsOf, nameBelowOf, nameLinesInside, writesNameBelow } from '../canvas/outlined';
+import { TAG_PADDING, drawnBoundsOf, nameTagOf, nameTagOn } from '../canvas/nameTags';
+import { nameLinesInside, writesNameBelow } from '../canvas/outlined';
 import { readableTextColors } from '../canvas/colors';
 import { outlineAt, type ShapeOutline } from '../canvas/outlines';
 import { drawnCurve } from '../canvas/routing/curves';
@@ -584,8 +585,8 @@ describe('writeSvg beyond boxes', () => {
     const framed = shapeIn(project, 'framed');
     const document = readSvg(writeSvg(project, BEYOND_VIEW).text);
     const group = groupOf(document, 'framed');
-    // Its own outline, never its kind's rectangle.
-    expect(group.querySelector(':scope > rect')).toBeNull();
+    // Its own outline, never its kind's rectangle: a rectangle is only its name tag, if it has one.
+    expect(group.querySelectorAll(':scope > rect')).toHaveLength(nameTagOf(framed) ? 1 : 0);
     const uses = outlineUses(document, group);
     expect(uses).toHaveLength(1);
     const [{ use, symbol }] = uses as [{ use: Element; symbol: Element }];
@@ -606,38 +607,51 @@ describe('writeSvg beyond boxes', () => {
       expect(texts[0]?.textContent).toBe(inside[0]);
     } else {
       expect(writesNameBelow(framed)).toBe(true);
-      const below = nameBelowOf({
-        rect: framed.rect,
-        outline: framed.outline,
-        name: framed.name,
-      });
+      const tag = nameTagOn(framed) as Rect;
       expect(texts[0]?.textContent).toBe('framed');
-      expect(Number(texts[0]?.getAttribute('x'))).toBeCloseTo(below.x);
-      expect(Number(texts[0]?.getAttribute('y'))).toBeGreaterThan(below.y);
+      expect(Number(texts[0]?.getAttribute('x'))).toBeCloseTo(tag.x + tag.width / 2);
+      expect(Number(texts[0]?.getAttribute('y'))).toBeGreaterThan(tag.y);
     }
   });
 
-  it('never cuts a name: writes it whole inside its outline where it fits, else under it on what it sits on', () => {
+  it('never cuts a name: writes it whole inside its outline where it fits, else in its name tag', () => {
     const name = 'The left ventricle of the heart';
     const project = beyond({}, { framed: { name } });
     const framed = shapeIn(project, 'framed');
-    const outline = framed.outline as ShapeOutline;
     expect(writesNameBelow(framed)).toBe(true);
-    const below = nameBelowOf({ rect: framed.rect, outline, name });
+    const tag = nameTagOf(framed);
+    const placed = nameTagOn(framed) as Rect;
+    expect(tag).toBeDefined();
     const drawing = writeSvg(project, BEYOND_VIEW);
     const document = readSvg(drawing.text);
-    const texts = [...groupOf(document, 'framed').querySelectorAll(':scope > text')];
-    // Its words whole, on the lines the canvas breaks them on, centred under its outline.
-    expect(texts.slice(0, below.lines.length).map((text) => text.textContent)).toEqual(below.lines);
-    const bottom = outlineBounds(framed).y + outlineBounds(framed).height;
+    const group = groupOf(document, 'framed');
+    const texts = [...group.querySelectorAll(':scope > text')];
+    // Its words whole, on the lines the canvas breaks them on, centred in its tag.
+    const lines = tag?.lines ?? [];
+    expect(texts.slice(0, lines.length).map((text) => text.textContent)).toEqual(lines);
     for (const text of texts) {
-      expect(Number(text.getAttribute('x'))).toBeCloseTo(below.x);
-      expect(Number(text.getAttribute('y'))).toBeGreaterThan(bottom);
+      expect(Number(text.getAttribute('x'))).toBeCloseTo(placed.x + placed.width / 2);
+      expect(Number(text.getAttribute('y'))).toBeGreaterThan(placed.y + TAG_PADDING);
+      expect(Number(text.getAttribute('y'))).toBeLessThan(placed.y + placed.height);
     }
-    // In the text that reads on the canvas, which it is written on, not on the shape's fill.
-    expect(texts[0]?.getAttribute('fill')).toBe(
-      readableTextColors(THEMES.light.canvas.background).name,
+    // The tag: a rounded rectangle in the shape's fill and stroke, under its outline.
+    const rect = group.querySelector(':scope > rect') as Element;
+    expectSameRect(
+      {
+        x: Number(rect.getAttribute('x')),
+        y: Number(rect.getAttribute('y')),
+        width: Number(rect.getAttribute('width')),
+        height: Number(rect.getAttribute('height')),
+      },
+      placed,
     );
+    expect(Number(rect.getAttribute('rx'))).toBeGreaterThan(0);
+    expect(rect.getAttribute('fill')).toBe(framed.fill);
+    expect(rect.getAttribute('stroke')).toMatch(/^#[0-9A-F]{6}$/i);
+    const bottom = outlineBounds(framed).y + outlineBounds(framed).height;
+    expect(placed.y).toBeCloseTo(bottom);
+    // In the text that reads on the tag's fill, the shape's.
+    expect(texts[0]?.getAttribute('fill')).toBe(readableTextColors(framed.fill).name);
     // The drawing holds it whole, as the canvas's tile does.
     const covered = drawnBoundsOf(framed);
     expect(drawing.viewBox.y + drawing.viewBox.height).toBeGreaterThanOrEqual(
@@ -901,7 +915,10 @@ describe('writeSvg beyond boxes', () => {
     const loose = shapeIn(project, 'loose');
     const document = readSvg(writeSvg(project, BEYOND_VIEW).text);
     const group = groupOf(document, 'loose');
-    expect(group.querySelector(':scope > rect')).toBeNull();
+    // A rectangle is only its name tag, in its part's main color, its name not fitting in the ring.
+    const rects = [...group.querySelectorAll(':scope > rect')];
+    expect(rects).toHaveLength(nameTagOf(loose) ? 1 : 0);
+    for (const rect of rects) expect(rect.getAttribute('fill')).toBe(loose.part?.color);
     const [body] = outlineUses(document, group);
     expect(body?.use.getAttribute('fill')).toBe(loose.part?.color);
     expect(body?.use.getAttribute('fill')).toBe('#27AE60');

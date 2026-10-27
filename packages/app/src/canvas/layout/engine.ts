@@ -358,7 +358,23 @@ export async function layOut(
   await arrange([WORLD]);
 
   stats.totalMs = now() - started;
-  return { shapes: placed, stats };
+  return { shapes: withoutTagRoom(input, placed), stats };
+}
+
+/**
+ * Where layout puts the shapes it moved, rather than the boxes it spaced them by: a shape with a name
+ * tag sits `tagLeft` right of its box (ADR 0066's clarification of 2026-10-27).
+ */
+function withoutTagRoom(input: LayoutInput, placed: LaidOutShape[]): LaidOutShape[] {
+  const shifts = new Map<string, number>();
+  for (const shape of input.shapes) {
+    if (shape.tagLeft !== undefined) shifts.set(shape.key, shape.tagLeft);
+  }
+  if (shifts.size === 0) return placed;
+  return placed.map((each) => {
+    const left = shifts.get(each.key);
+    return left === undefined ? each : { ...each, x: each.x + left };
+  });
 }
 
 /**

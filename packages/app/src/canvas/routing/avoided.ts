@@ -9,7 +9,9 @@
  * A shape with an outline of its own (ADR 0066, ADR 0067) is routed around by its box: the avoider is
  * given the line's stand-in route between the boxes, and the route it gives back is carried on from
  * the boxes to the outlines, as the scene carries the stand-in on. A part of lines alone, which a line
- * leaves from a point of its lines, is not a plain end.
+ * leaves from a point of its lines, is not a plain end. A shape's name tag is part of it: lines go
+ * around the box that holds the shape and its tag, and reach it there (ADR 0066's clarification of
+ * 2026-10-27).
  */
 import { estimateWidth } from '../fit';
 import { arrowheadAt, type Point, type Rect } from '../geometry';
@@ -17,7 +19,13 @@ import { midpointOf, routeBetweenEnds } from '../route';
 import { withRelations, type ElementShape, type RelationLine, type Scene } from '../scene';
 import { headerShift } from '../shape-images';
 import { PLATE_HEIGHT, avoidRoutes, type AvoidLine, type AvoidShapes } from './avoid';
-import { carriedOrthogonal, endOutline, onlyStrokes, type OutlinedEnd } from './outline-ends';
+import {
+  carriedOrthogonal,
+  endOutline,
+  onlyStrokes,
+  routeBoxOf,
+  type OutlinedEnd,
+} from './outline-ends';
 
 /** What the avoider is given for a scene: its shapes, and the lines it may route with their lines. */
 export interface AvoidBatch {
@@ -43,12 +51,20 @@ function plainEnd(shape: ElementShape | undefined): shape is ElementShape {
   );
 }
 
-/** Where a line's end on a shape with an outline of its own lies: its box, and its outline there. */
+/**
+ * Where a line's end on a shape with an outline of its own lies: its box, with its name tag, and its
+ * outline there.
+ */
 function outlinedEnd(shape: ElementShape | undefined): OutlinedEnd | undefined {
   if (!shape) return undefined;
   const rect = shape.plate ?? shape.rect;
   const outline = endOutline(shape, rect);
-  return outline && { rect, outline };
+  return outline && { rect: routeBoxOf(shape, rect), outline };
+}
+
+/** The box the avoider reads of a shape: its plate, or its rectangle with its name tag. */
+function avoidedBoxOf(shape: ElementShape): Rect {
+  return shape.plate ?? routeBoxOf(shape, shape.rect);
 }
 
 /** A line's ends on shapes with outlines of their own, which its route is carried on to. */
@@ -231,7 +247,7 @@ function write(
   at: number,
 ): void {
   plain[at] = plainEnd(shape) ? 1 : 0;
-  const rect = shape.plate ?? shape.rect;
+  const rect = avoidedBoxOf(shape);
   rects[at * 4] = rect.x;
   rects[at * 4 + 1] = rect.y;
   rects[at * 4 + 2] = rect.width;
@@ -328,7 +344,7 @@ export function avoidBatchOf(scene: Scene, only?: ReadonlySet<RelationLine>): Av
     const onOutline = outlinedEnd(from) !== undefined || outlinedEnd(to) !== undefined;
     const route =
       onOutline && from && to
-        ? routeBetweenEnds({ rect: from.plate ?? from.rect }, { rect: to.plate ?? to.rect }, offset)
+        ? routeBetweenEnds({ rect: avoidedBoxOf(from) }, { rect: avoidedBoxOf(to) }, offset)
         : line.route;
     lines.push({ from: ends.from, to: ends.to, offset, route: flatRoute(route) });
     drawn.push(line);

@@ -37,7 +37,6 @@ import {
   type NoteShape,
   type RelationLine,
 } from '../scene';
-import { writesNameBelow } from '../outlined';
 import { nameBandOf } from '../shape-images';
 import type { RoutePiece } from '../tiles';
 import {
@@ -150,8 +149,8 @@ export class Painter {
   /**
    * Each shape's name and, with `details`, its detail, tinted to read on the fill it is drawn in;
    * `records` gets each label with the shape it is on. A shape drawn by its picture writes its name
-   * under the picture, and a shape whose own outline cannot hold its name whole under the outline,
-   * on what the shape sits on, which `lookups` finds.
+   * under the picture, on what the shape sits on, which `lookups` finds; a shape whose own outline
+   * cannot hold its name whole writes it in its name tag, on its own fill.
    */
   shapeLabels(
     shapes: readonly ElementShape[],
@@ -223,8 +222,8 @@ export class Painter {
       }
       const shape = lookups.shape(record.shape);
       if (!shape) continue;
-      const under =
-        nameBandOf(shape) || writesNameBelow(shape) ? this.backdropOf(shape, lookups) : undefined;
+      // A name tag is drawn in its shape's fill, which its name reads on (ADR 0066's clarifications).
+      const under = nameBandOf(shape) ? this.backdropOf(shape, lookups) : undefined;
       // A shape drawn as a named part writes on its part's main color (ADR 0067).
       const colors = readableTextColors(
         under ?? shape.part?.color ?? shapeColors(shape, this.name).fill,

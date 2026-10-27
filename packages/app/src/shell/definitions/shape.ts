@@ -187,7 +187,7 @@ export function labelAreaOf(outline: Outline): Box {
 /**
  * Whether a shape of this size, one that shows no contents, has room inside its outline for a name:
  * a label area at least a line tall. A name that does not fit there whole is written under the
- * shape, as the canvas decides it (`writesNameBelow`, ADR 0066).
+ * shape, in its name tag, as the canvas decides it (`writesNameBelow`, ADR 0066).
  */
 export function roomForNameInside(outline: Outline, width: number, height: number): boolean {
   const area = labelAreaOn({

@@ -161,7 +161,12 @@ describe('the beyond-boxes benchmark’s project', () => {
     expect(onOutlines).toHaveLength(2_000);
     const curved = onOutlines.filter((line) => line.style === 'curved');
     expect(curved).toHaveLength(1_000);
-    expect(curved.every((line) => line.hand === undefined && line.curve !== undefined)).toBe(true);
+    // Each a curve, but between shapes that their name tags bring within 24 units of each other, a
+    // flow from one into the other, as touching parts are joined (ADR 0066's clarification of
+    // 2026-10-27): a few of the shapes stacked in a column hang their tags over the next.
+    expect(curved.every((line) => line.hand === undefined)).toBe(true);
+    expect(curved.every((line) => line.curve !== undefined || line.route.length === 2)).toBe(true);
+    expect(curved.filter((line) => line.curve !== undefined).length).toBeGreaterThan(800);
     const types = new Map(project.model.relations.map((each) => [each.id, each.relationType]));
     expect(curved.every((line) => types.get(line.relation) === CURVED_TYPE)).toBe(true);
     const hub = geometryHub(project);

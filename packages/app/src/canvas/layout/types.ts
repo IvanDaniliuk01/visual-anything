@@ -30,12 +30,21 @@ export interface LayoutShape {
    * nothing. A pinned shape never moves.
    */
   aside?: true;
-  /** Where it sits now, relative to its container's shape, or to the canvas when directly in World. */
+  /**
+   * Where it sits now, relative to its container's shape, or to the canvas when directly in World:
+   * the box layout spaces it by, `tagLeft` left of its rectangle for a shape with a name tag.
+   */
   x: number;
   y: number;
-  /** Its size now. */
+  /** Its size now, as layout spaces it: with the room its name tag takes beside and under it. */
   width: number;
   height: number;
+  /**
+   * On a shape that writes its name in a name tag (ADR 0066's clarification of 2026-10-27): how far
+   * the box layout spaces it by reaches left of its rectangle, a multiple of `LAYOUT_STEP`, which
+   * layout adds back to where it puts the box, so that the shape lands on the step.
+   */
+  tagLeft?: number;
   /** The size the view stores for it, which a shape that holds contents grows beyond to hold them. */
   storedWidth?: number;
   storedHeight?: number;
