@@ -38,3 +38,10 @@ We chose this because the person should not need Node, pnpm or the repository to
 - **Claude's entry point.** `visual-anything mcp [folder]` is the MCP server, for the repository's `cli.ts` and the executable alike; a folder named `mcp` is opened as `./mcp`. From the executable, it starts the program by starting the executable itself. It exits once Claude closes its stdin.
 - **Opening the browser on Linux.** The executable uses the system's `xdg-open`, as the `open` package does when it is bundled; it does not carry the copy that package ships.
 - **Release files.** `visual-anything-<system>-<processor>`, with `.exe` on Windows: `windows-x64`, `macos-arm64`, `macos-x64`, `linux-x64`, `linux-arm64`, and `SHA256SUMS` beside them. They are plain executables, not archives, so on macOS and Linux the person marks the downloaded file executable with `chmod +x`.
+
+<!-- Decided by Claude on 2026-10-26 under the user's standing delegation of design decisions, building W56. -->
+
+- 2026-10-26 (W56): **what else an executable holds** (ADR 0068).
+  - **The drawing's worker:** one CommonJS script of its own with parse5, satori and its WebAssembly, and Roboto, as the asset `drawings/worker.cjs`, which the executable runs as a worker's text. The server's bundle holds none of the converter, and leaves esbuild out; beside a bundle run by Node.js, the worker is `drawing-worker.cjs`.
+  - **The notice of the code it bundles:** `pnpm package` writes it from the bundles' metafiles, every npm package with its version, its license and where its source is, then Node.js and Roboto, as `dist-exe/THIRD-PARTY-NOTICES.txt` and as the asset `NOTICES.txt`. `visual-anything notices` prints it, and each release carries it as `visual-anything-THIRD-PARTY-NOTICES.txt`, in `SHA256SUMS` with the executables. MPL-2.0 asks that those who ship satori in an executable say where its source is; the notice says so for every package.
+  - **The smoke test** also imports an HTML file into a copy of the sample as a drawing, made in the executable's worker, and checks that `visual-anything notices` names satori's license and source.

@@ -17,6 +17,7 @@ import {
   type CommandRejectedMessage,
   type HistorySummary,
   type ListedAction,
+  type DrawingMadeMessage,
   type LiveFetchedMessage,
   type LiveKeptMessage,
   type OfferedSample,
@@ -183,7 +184,8 @@ type Waiting =
   | { kind: 'preferences'; resolve: (result: PreferencesResult) => void }
   | { kind: 'other-project'; resolve: (result: OtherProjectResult) => void }
   | { kind: 'live-fetch'; resolve: (result: LiveResult<LiveFetchedMessage>) => void }
-  | { kind: 'live-set'; resolve: (result: LiveResult<LiveKeptMessage>) => void };
+  | { kind: 'live-set'; resolve: (result: LiveResult<LiveKeptMessage>) => void }
+  | { kind: 'drawing'; resolve: (result: LiveResult<DrawingMadeMessage>) => void };
 
 /** Answers go back to the socket that asked, so request ids only need to be unique in the tab. */
 let requestCount = 0;
@@ -426,6 +428,28 @@ export class LiveConnection {
   };
 
   /**
+   * Asks the local program to make a drawing of HTML, laid out `width` CSS pixels wide (ADR 0068):
+   * resolves with the cleaned SVG and what making it dropped, or with why it was not made. Nothing in
+   * the project changes; the import's one action is sent afterwards, as a command.
+   */
+  readonly makeDrawing = (
+    name: string,
+    html: string,
+    width: number,
+  ): Promise<LiveResult<DrawingMadeMessage>> => {
+    const socket = this.socket;
+    if (socket === undefined || this.state.status !== 'open') {
+      return Promise.resolve(closedResult(NOT_CONNECTED));
+    }
+    const requestId = nextRequestId();
+    const text = encodeMessage({ type: 'drawing/make', requestId, name, html, width });
+    return new Promise((resolve) => {
+      this.waiting.set(requestId, { kind: 'drawing', resolve });
+      this.sendOn(socket, text, requestId, () => resolve(closedResult(NOT_CONNECTED)));
+    });
+  };
+
+  /**
    * Asks the local program to fetch an address for the code of an approved package granted its origin
    * (ADR 0063): resolves with what the origin answered, or with why the program would not.
    */
@@ -645,6 +669,11 @@ export class LiveConnection {
         if (answered?.kind === 'live-fetch') answered.resolve({ ok: true, answer: message });
         break;
       }
+      case 'drawing/made': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'drawing') answered.resolve({ ok: true, answer: message });
+        break;
+      }
       case 'live/kept': {
         const answered = this.take(message.requestId);
         if (answered?.kind === 'live-set') answered.resolve({ ok: true, answer: message });
@@ -675,7 +704,8 @@ export class LiveConnection {
       taken.kind === 'preferences' ||
       taken.kind === 'other-project' ||
       taken.kind === 'live-fetch' ||
-      taken.kind === 'live-set'
+      taken.kind === 'live-set' ||
+      taken.kind === 'drawing'
         ? undefined
         : taken;
     let next: ProjectSnapshot;

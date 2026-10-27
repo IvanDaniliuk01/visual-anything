@@ -3,11 +3,13 @@
  * what the import will create with counts, maps each kind of thing the file holds to a component or
  * relation type with the built-in suggestions chosen at first, chooses the relation type that nests,
  * lists what matched nothing, and sends the one batch the core makes of it, then reports what was done.
- * It works on any plan any of the core's readers makes.
+ * It works on any plan any of the core's readers makes. HTML goes to the drawing step instead
+ * (`DrawingImport.tsx`, ADR 0068), which the local program makes the drawing for.
  */
 import {
   IMPORT_READERS,
   builtinPackage,
+  isDrawingFile,
   mappingChoices,
   type Command,
   type ImportPlan,
@@ -21,6 +23,7 @@ import { useT, type Translator } from '../i18n';
 import type { CommandResult } from '../live/connection';
 import './import.css';
 import { diagramFormatsHelp } from './diagram-formats';
+import { DrawingImport, type MakeDrawing } from './DrawingImport';
 import {
   ACCEPTED,
   LIVE_MESSAGE_LIMIT,
@@ -42,10 +45,24 @@ interface ImportControlProps {
   send: ((command: Command) => Promise<CommandResult>) | undefined;
   /** Opens a view on the canvas, as the report's Open the view does. */
   openView?: (id: Id) => void;
+  /** Asks the local program to make a drawing of HTML (ADR 0068); absent, HTML is not imported. */
+  makeDrawing?: MakeDrawing;
+  /** The element selected on the canvas, which can show an imported drawing. */
+  selectedElement?: Id;
 }
 
+/** The format the dialog offers for HTML, imported as a drawing. */
+const DRAWING_FORMAT = 'html';
+
 /** The header's Import button, and the dialog it opens. */
-export function ImportControl({ project, viewId, send, openView }: ImportControlProps) {
+export function ImportControl({
+  project,
+  viewId,
+  send,
+  openView,
+  makeDrawing,
+  selectedElement,
+}: ImportControlProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const opener = useRef<HTMLButtonElement>(null);
@@ -74,6 +91,8 @@ export function ImportControl({ project, viewId, send, openView }: ImportControl
           viewId={viewId}
           send={send}
           {...(openView === undefined ? {} : { openView })}
+          {...(makeDrawing === undefined ? {} : { makeDrawing })}
+          {...(selectedElement === undefined ? {} : { selectedElement })}
           onClose={close}
         />
       )}
@@ -109,6 +128,8 @@ interface ImportDialogProps {
   viewId: Id | undefined;
   send: (command: Command) => Promise<CommandResult>;
   openView?: (id: Id) => void;
+  makeDrawing?: MakeDrawing;
+  selectedElement?: Id;
   onClose: () => void;
 }
 
@@ -119,7 +140,15 @@ type Outcome =
   | { state: 'done'; warnings: string[]; view: Id | undefined }
   | { state: 'refused'; problems: string[] };
 
-function ImportDialog({ project, viewId, send, openView, onClose }: ImportDialogProps) {
+function ImportDialog({
+  project,
+  viewId,
+  send,
+  openView,
+  makeDrawing,
+  selectedElement,
+  onClose,
+}: ImportDialogProps) {
   const t = useT();
   const titleId = useId();
   const dialog = useRef<HTMLDivElement>(null);
@@ -134,7 +163,8 @@ function ImportDialog({ project, viewId, send, openView, onClose }: ImportDialog
   const [problems, setProblems] = useState<string[]>([]);
   const [choices, setChoices] = useState<Choices>();
   const [outcome, setOutcome] = useState<Outcome>();
-  const step = reading === undefined ? 'choose' : 'map';
+  const [drawing, setDrawing] = useState<{ name: string; text: string }>();
+  const step = drawing !== undefined ? 'drawing' : reading === undefined ? 'choose' : 'map';
 
   useEffect(() => {
     dialog.current?.querySelector<HTMLElement>('input, textarea, select, button')?.focus();
@@ -151,6 +181,12 @@ function ImportDialog({ project, viewId, send, openView, onClose }: ImportDialog
 
   function read(keyed: string | undefined = key): void {
     if (input === undefined) return;
+    // HTML becomes a drawing, which the local program makes (ADR 0068).
+    if (format === DRAWING_FORMAT || (format === '' && isDrawingFile(input.name))) {
+      setProblems([]);
+      setDrawing({ name: input.name, text: input.text });
+      return;
+    }
     const result = readInput(project, input, {
       ...(format === '' ? {} : { format }),
       ...(keyed === undefined ? {} : { key: keyed }),
@@ -219,7 +255,19 @@ function ImportDialog({ project, viewId, send, openView, onClose }: ImportDialog
           if (event.key === 'Escape' && outcome?.state !== 'sending') onClose();
         }}
       >
-        {outcome?.state === 'done' && prepared?.ok === true ? (
+        {drawing !== undefined && makeDrawing !== undefined ? (
+          <DrawingImport
+            titleId={titleId}
+            project={project}
+            viewId={viewId}
+            selectedElement={selectedElement}
+            input={drawing}
+            makeDrawing={makeDrawing}
+            send={send}
+            onBack={() => setDrawing(undefined)}
+            onClose={onClose}
+          />
+        ) : outcome?.state === 'done' && prepared?.ok === true ? (
           <Report
             titleId={titleId}
             name={name}
@@ -243,6 +291,13 @@ function ImportDialog({ project, viewId, send, openView, onClose }: ImportDialog
                 'Mermaid diagrams (flowcharts, C4, ER and class diagrams), spreadsheets (CSV or TSV), JSON, Structurizr workspaces, LikeC4 models and draw.io files. The file is read here, in this tab, and nothing in it runs.',
               )}
             </p>
+            {makeDrawing !== undefined && (
+              <p className="dialog-note">
+                {t(
+                  'An HTML file or fragment becomes a drawing: a picture of the page that Visual Anything makes without running anything in it or fetching anything it names.',
+                )}
+              </p>
+            )}
             <details className="import-help">
               <summary>{t('Which files it reads')}</summary>
               <dl>
@@ -321,6 +376,9 @@ function ImportDialog({ project, viewId, send, openView, onClose }: ImportDialog
                     {t(reader.name)}
                   </option>
                 ))}
+                {makeDrawing !== undefined && (
+                  <option value={DRAWING_FORMAT}>{t('HTML, as a drawing')}</option>
+                )}
               </select>
             </label>
             {file?.ok === false && source === 'file' && (

@@ -247,7 +247,7 @@ describe('names in the label area', () => {
     const shape = outlinedShape('Tiny', TRIANGLE, { x: 0, y: 0, width: 30, height: 24 });
     const written = writeShapeLabels([shape], true, placed);
     expect(written.map((label) => label.label)).toEqual(['name:Tiny', 'detail:Organ']);
-    const below = nameBelowOf(shape as ElementShape & { outline: ShapeOutline });
+    const below = nameBelowOf(shape);
     expect(written[0]?.x).toBeCloseTo(below.x);
     expect(written[0]?.y).toBeCloseTo(below.y);
     expect(written[1]?.y).toBeCloseTo(below.y + PART_NAME_LINE + 1);

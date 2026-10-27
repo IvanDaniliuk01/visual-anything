@@ -29,6 +29,12 @@
       "element": "lungs",
       "x": 856,
       "y": 176
+    },
+    {
+      "element": "card-2914w0",
+      "x": -240,
+      "y": 0,
+      "pinned": true
     }
   ],
   "freeShapes": [],

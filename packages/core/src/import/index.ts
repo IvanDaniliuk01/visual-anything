@@ -50,3 +50,17 @@ export { XML_CAPS } from './xml';
 // Crosswalks, and matching by external identifier (ADR 0056).
 export type { CrosswalkTable } from './crosswalks';
 export { completedIds, crosswalksOf, matchByExternalIds } from './crosswalks';
+// HTML imported as a drawing, which the local program makes (ADR 0068).
+export type { DrawingImport, DrawingTarget, PreparedDrawing } from './drawing';
+export {
+  DRAWING_COMPONENT,
+  DRAWING_EXTENSIONS,
+  DRAWING_LIMITS,
+  drawingBaseName,
+  drawingLabel,
+  drawingShapeSize,
+  isDrawingFile,
+  prepareDrawingImport,
+} from './drawing';
+export type { DrawingMadeMessage, DrawingMakeMessage } from './drawing-messages';
+export { MAX_DRAWING_NAME, MAX_DRAWING_REPORT } from './drawing-messages';

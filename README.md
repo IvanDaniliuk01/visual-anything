@@ -69,7 +69,7 @@ Visual Anything also comes as one executable file for each system, which needs n
 | Linux x64 | `visual-anything-linux-x64` |
 | Linux on ARM (64-bit) | `visual-anything-linux-arm64` |
 
-Each release also holds `SHA256SUMS`. Check your file against it with `sha256sum -c SHA256SUMS --ignore-missing` on Linux, `shasum -a 256 -c SHA256SUMS --ignore-missing` on macOS, or `Select-String (Get-FileHash .\visual-anything-windows-x64.exe).Hash SHA256SUMS` in PowerShell, which prints the file's line when the hash matches.
+Each release also holds `visual-anything-THIRD-PARTY-NOTICES.txt`, the code the executables bundle with its licenses and where its source is, which `visual-anything notices` prints too, and `SHA256SUMS`. Check your file against it with `sha256sum -c SHA256SUMS --ignore-missing` on Linux, `shasum -a 256 -c SHA256SUMS --ignore-missing` on macOS, or `Select-String (Get-FileHash .\visual-anything-windows-x64.exe).Hash SHA256SUMS` in PowerShell, which prints the file's line when the hash matches.
 
 Run it in a terminal, in the folder where it is or with its full path:
 
@@ -195,6 +195,8 @@ A Mermaid diagram (flowchart, C4, ER or class), a spreadsheet (CSV or TSV) or JS
 - **In the app**, Import… in the header reads a file or pasted text in the tab. It shows what the file will create, maps each kind of thing in it to a component or relation type, with suggestions chosen at first, and lists what matched nothing.
 - **From the command line**, `visual-anything import <folder> <file>` imports it. Use `--map <kind>=<id>` to map a kind yourself, and `--dry-run` to see the mapping first. When Visual Anything runs on the project, the import goes through it.
 - **With Claude**, ask it to import a file: it shows you the mapping with `preview_import`, then imports with `import_file`.
+
+**HTML as a drawing.** A static HTML file or fragment, such as a card, a legend or a short table, comes in as a picture of the page instead, shown by the selected element or a new one (ADR 0068). Visual Anything lays the page out itself, from an allow-list of elements and styles, with its text in Roboto: nothing in it runs, nothing it names is fetched, and the import lists what it dropped. In the app, Import… shows the drawing before anything changes; from the command line, `visual-anything import <folder> card.html [--width <px>] [--element <id>]`; with Claude, `import_drawing`. A drawing holds about fifty words: shorten the page, or make it narrower, when it is refused as too large.
 
 A spreadsheet holds elements with `id`, `name`, `component` and `container` columns, and relations with `from`, `to` and `relation type` columns, in tables separated by a blank line. A column named `id:` and a scheme, such as `id:uberon`, holds identifiers in that scheme. Every other column is an attribute. Importing it again updates the elements it matches by `id`, or by another column you choose, and the elements that share an identifier with a row. Nothing in a file runs, and links in it are never followed.
 

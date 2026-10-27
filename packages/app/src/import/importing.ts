@@ -5,6 +5,7 @@
  * a reader added to the core's list is imported the same way.
  */
 import {
+  DRAWING_EXTENSIONS,
   IMPORT_READERS,
   MAX_IMPORT_TEXT,
   parseDelimited,
@@ -25,11 +26,17 @@ import type { Id } from '@visual-anything/schema';
 export const LIVE_MESSAGE_LIMIT = 4 * 1024 * 1024;
 
 /**
- * The file name endings the file chooser offers: every reader's, and the pictures a draw.io diagram
- * can be kept in, whose own endings, as `.drawio.png`, a file chooser does not match.
+ * The file name endings the file chooser offers: every reader's, the pictures a draw.io diagram can be
+ * kept in, whose own endings, as `.drawio.png`, a file chooser does not match, and HTML, imported as a
+ * drawing (ADR 0068).
  */
 export const ACCEPTED = [
-  ...new Set([...IMPORT_READERS.flatMap((reader) => reader.extensions), '.svg', '.png']),
+  ...new Set([
+    ...IMPORT_READERS.flatMap((reader) => reader.extensions),
+    '.svg',
+    '.png',
+    ...DRAWING_EXTENSIONS,
+  ]),
 ].join(',');
 
 /** A file read for import, or why it was not. */

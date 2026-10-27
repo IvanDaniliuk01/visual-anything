@@ -49,6 +49,7 @@
  * | appearance              | apariencia                       |
  * | fill, stroke            | relleno, trazo                   |
  * | contour (free geometry) | curva cerrada                    |
+ * | imported drawing        | dibujo importado                 |
  * | dash                    | patrón de línea                  |
  * | connection point        | punto de conexión                |
  * | attach (a relation end) | conectar                         |
@@ -404,6 +405,23 @@ export const ui: Catalog = {
   },
   'One undo takes it all back.': 'Un solo deshacer lo revierte todo.',
   'Open its view': 'Abrir su vista',
+
+  // M8b W56: Import…'s drawing step, for HTML imported as a drawing (ADR 0068).
+  'An HTML file or fragment becomes a drawing: a picture of the page that Visual Anything makes without running anything in it or fetching anything it names.':
+    'Un archivo o fragmento HTML se convierte en un dibujo: una imagen de la página que Visual Anything hace sin ejecutar nada de lo que contiene ni buscar nada de lo que nombra.',
+  'HTML, as a drawing': 'HTML, como dibujo',
+  'Import “{name}” as a drawing': 'Importar “{name}” como dibujo',
+  'Imported “{name}” as a drawing': 'Se importó “{name}” como dibujo',
+  'The drawing is stored in one of the project’s own packages, and its element shows it. One undo takes it all back.':
+    'El dibujo se guarda en uno de los paquetes propios del proyecto, y su elemento lo muestra. Un solo deshacer lo revierte todo.',
+  'Width in pixels': 'Ancho en píxeles',
+  'Shown by': 'Lo muestra',
+  'The selected element “{name}”': 'El elemento seleccionado “{name}”',
+  'A new element of': 'Un elemento nuevo de',
+  'Making the drawing…': 'Haciendo el dibujo…',
+  'What making it dropped': 'Lo que se quitó al hacerlo',
+  'Nothing: the HTML held only what a drawing keeps.':
+    'Nada: el HTML tenía solo lo que un dibujo conserva.',
 
   // Export as PNG, in the header.
   'Export…': 'Exportar…',
@@ -4941,6 +4959,85 @@ export const messages: Catalog = {
   'Draw the lines of "{view}" orthogonal': 'Dibujar ortogonales las líneas de "{view}"',
   'Draw the lines of "{view}" straight': 'Dibujar rectas las líneas de "{view}"',
   'Draw the lines of "{view}" curved': 'Dibujar curvas las líneas de "{view}"',
+
+  // M8b W56: HTML imported as a drawing (ADR 0068). What making a drawing dropped, kind by kind, as
+  // the local program counts it, then why a drawing was not made, and the history's label.
+  '1 attribute past the {limit} a tag keeps':
+    '1 atributo más allá de los {limit} que conserva una etiqueta',
+  '{n} attributes past the {limit} a tag keeps':
+    '{n} atributos más allá de los {limit} que conserva una etiqueta',
+  '1 style rule that selects by more than an element name, a class or an id':
+    '1 regla de estilo que selecciona por algo más que una clase o un nombre de elemento, o un id',
+  '{n} style rules that select by more than an element name, a class or an id':
+    '{n} reglas de estilo que seleccionan por algo más que una clase o un nombre de elemento, o un id',
+  '1 style declaration the drawing does not lay out':
+    '1 declaración de estilo que el dibujo no aplica',
+  '{n} style declarations the drawing does not lay out':
+    '{n} declaraciones de estilo que el dibujo no aplica',
+  '1 gradient background the picture cannot keep': '1 degradado que la imagen no puede conservar',
+  '{n} gradient backgrounds the picture cannot keep':
+    '{n} degradados que la imagen no puede conservar',
+  '1 box that hides its overflow inside another that does':
+    '1 caja que oculta lo que desborda dentro de otra que también lo hace',
+  '{n} boxes that hide their overflow inside another that does':
+    '{n} cajas que ocultan lo que desborda dentro de otra que también lo hace',
+  '1 table laid out as rows and columns of boxes': '1 tabla dispuesta en filas y columnas de cajas',
+  '{n} tables laid out as rows and columns of boxes':
+    '{n} tablas dispuestas en filas y columnas de cajas',
+  '1 element nested deeper than {limit} levels, with its contents':
+    '1 elemento anidado a más de {limit} niveles, con su contenido',
+  '{n} elements nested deeper than {limit} levels, with their contents':
+    '{n} elementos anidados a más de {limit} niveles, con su contenido',
+  '1 element past the {limit} a drawing keeps, with its contents':
+    '1 elemento más allá de los {limit} que conserva un dibujo, con su contenido',
+  '{n} elements past the {limit} a drawing keeps, with their contents':
+    '{n} elementos más allá de los {limit} que conserva un dibujo, con su contenido',
+  '1 character of text past the {limit} a drawing holds':
+    '1 carácter de texto más allá de los {limit} que tiene un dibujo',
+  '{n} characters of text past the {limit} a drawing holds':
+    '{n} caracteres de texto más allá de los {limit} que tiene un dibujo',
+  '1 character Roboto cannot draw, such as an emoji':
+    '1 carácter que Roboto no puede dibujar, como un emoji',
+  '{n} characters Roboto cannot draw, such as emoji':
+    '{n} caracteres que Roboto no puede dibujar, como los emoji',
+  '1 style value the layout could not read': '1 valor de estilo que el diseño no pudo leer',
+  '{n} style values the layout could not read': '{n} valores de estilo que el diseño no pudo leer',
+  'The drawing is cut at {limit} pixels high.': 'El dibujo se corta a {limit} píxeles de alto.',
+  'Cleaning the picture removed: {removed}.': 'La limpieza de la imagen quitó: {removed}.',
+  'The HTML is over {limit} KiB: shorten it, or import a part of the page.':
+    'El HTML supera los {limit} KiB: acortarlo, o importar una parte de la página.',
+  'The HTML makes over {limit} elements, texts and comments.':
+    'El HTML genera más de {limit} elementos, textos y comentarios.',
+  'The HTML nests elements over {limit} deep.': 'El HTML anida elementos a más de {limit} niveles.',
+  'The HTML has over {limit} style rules.': 'El HTML tiene más de {limit} reglas de estilo.',
+  'The HTML’s style rules match too many of its elements to fold them in.':
+    'Las reglas de estilo del HTML coinciden con demasiados de sus elementos para aplicarlas.',
+  'Making the drawing took over {n} seconds, so it was stopped. Shorten the HTML, or make it narrower.':
+    'Hacer el dibujo llevó más de {n} segundos, así que se detuvo. Acortar el HTML, o hacerlo más angosto.',
+  'Making the drawing needed over {n} MiB of memory, so it was stopped. Shorten the HTML, or make it narrower.':
+    'Hacer el dibujo necesitó más de {n} MiB de memoria, así que se detuvo. Acortar el HTML, o hacerlo más angosto.',
+  'The drawing could not be made: its worker stopped ({n}).':
+    'No se pudo hacer el dibujo: su proceso de trabajo se detuvo ({n}).',
+  'The drawing could not be made: {why}': 'No se pudo hacer el dibujo: {why}',
+  'Making the drawing tried to reach the network, which it never may, so nothing was made.':
+    'Al hacer el dibujo se intentó llegar a la red, cosa que nunca puede hacer, así que no se hizo nada.',
+  'The drawing is too large to keep as a picture: {why} Shorten the HTML, or make it narrower.':
+    'El dibujo es demasiado grande para guardarlo como imagen: {why} Acortar el HTML, o hacerlo más angosto.',
+  'The HTML draws nothing a picture can keep: {why}':
+    'El HTML no dibuja nada que una imagen pueda conservar: {why}',
+  'A drawing is laid out at a width of 64 to 2000 pixels, in whole pixels.':
+    'Un dibujo se dispone con un ancho de 64 a 2000 píxeles, en píxeles enteros.',
+  'Visual Anything is making {n} drawings already: ask again once they are made.':
+    'Visual Anything ya está haciendo {n} dibujos: volver a pedirlo cuando estén hechos.',
+  'Making a drawing names its file, in 1 to 1000 characters.':
+    'Para hacer un dibujo se nombra su archivo, con 1 a 1000 caracteres.',
+  'Making a drawing needs its HTML as text, of at most 512 KiB.':
+    'Para hacer un dibujo hace falta su HTML como texto, de 512 KiB como máximo.',
+  'The drawing Visual Anything made cannot be read.':
+    'No se puede leer el dibujo que hizo Visual Anything.',
+  'No component "{id}" is defined by the project or a built-in package.':
+    'Ni el proyecto ni un paquete incorporado definen el componente "{id}".',
+  'Import "{name}" as a drawing': 'Importar "{name}" como dibujo',
 };
 
 /**
