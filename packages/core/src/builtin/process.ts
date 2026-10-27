@@ -4,13 +4,14 @@
  * initial and final states and choices of state machines. It is named for what it describes: BPMN and
  * UML are marks of the Object Management Group, and the package only draws in their style.
  *
- * Every shape is drawn by free geometry of its own (ADR 0066), drawn for Visual Anything and CC0-1.0.
- * Symbols (events, gateways, data, the pseudostates of state machines) keep their proportions and
- * write their name beside them, under or over the symbol, in a label area of their box; relations
- * attach on the symbol's middle line and on the side the name leaves free. Containers and boxes
- * stretch to their rectangle, as the five kinds do. Free geometry has one stroke, the canvas's, so a
- * thick ring, a double ring, a dot or a mark is drawn as contours set closer than that stroke is
- * wide: the stroke covers the thin holes between them.
+ * Its symbols (events, gateways, data, and the initial and final states and choices of state
+ * machines) are drawn by free geometry of their own (ADR 0066), drawn for Visual Anything and CC0-1.0,
+ * which no kind draws. They keep their proportions and write their name beside them, under or over
+ * the symbol, in a label area of their box; relations attach on the symbol's middle line and on the
+ * side the name leaves free. Free geometry has one stroke, the canvas's, so a thick ring, a double
+ * ring, a dot or a mark is drawn as contours set closer than that stroke is wide: the stroke covers
+ * the thin holes between them. Its boxes and containers (pools, lanes, tasks, subprocesses and
+ * states) are drawn by the kinds, whose corners keep their size however far a container stretches.
  *
  * Once projects use these ids, they change only by additions: built-in packages have no versions yet
  * (ADR 0018).
@@ -71,15 +72,6 @@ function circles(cx: number, cy: number, radii: readonly number[]): EllipseConto
   return radii.map((r) => ({ kind: 'ellipse', cx, cy, rx: r, ry: r }));
 }
 
-/** A rounded rectangle from the box's top left, as SVG path data. */
-function roundedRectangle(width: number, height: number, r: number): string {
-  return [
-    `M${r} 0H${width - r}A${r} ${r} 0 0 1 ${width} ${r}V${height - r}`,
-    `A${r} ${r} 0 0 1 ${width - r} ${height}H${r}A${r} ${r} 0 0 1 0 ${height - r}`,
-    `V${r}A${r} ${r} 0 0 1 ${r} 0Z`,
-  ].join('');
-}
-
 /** The box of a symbol: 96 tall, the symbol's middle at 24 from its top or bottom. */
 const SYMBOL_HEIGHT = 96;
 
@@ -103,11 +95,6 @@ const POINTS_NAME_ABOVE: ConnectionPoint[] = [
   { name: 'right', side: 'right', at: 0.75 },
   { name: 'bottom', side: 'bottom', at: 0.5 },
 ];
-
-/** A box's label area: all of it but a margin of 4. */
-function inside(width: number, height: number): GeometryLabel {
-  return { x: 4, y: 4, width: width - 8, height: height - 8 };
-}
 
 /** The diamond of a gateway, its middle at (80, 72). */
 const GATEWAY_DIAMOND = { kind: 'polygon', points: '80,49 103,72 80,95 57,72' } as const;
@@ -157,22 +144,6 @@ function gateway(mark: readonly ({ kind: 'polygon'; points: string } | EllipseCo
   };
 }
 
-/** The appearance of a box that writes its name inside it: a rounded rectangle that stretches. */
-function box(fill: string, stroke: string, width: number, height: number, radius: number) {
-  return {
-    fill,
-    stroke,
-    width,
-    height,
-    geometry: {
-      width,
-      height,
-      outline: [{ kind: 'path', d: roundedRectangle(width, height, radius) } as const],
-      label: inside(width, height),
-    },
-  };
-}
-
 /** The events and activities that sequence flows connect. */
 const FLOW_NODES = [
   'process.task',
@@ -196,15 +167,11 @@ export const PROCESS: PackageFile = {
       description:
         'A participant in a process, such as a company, a department or a customer, holding the lanes and the work it does.',
       appearance: {
+        shape: 'rectangle',
         fill: '#F3F5F7',
         stroke: '#4A5A6A',
         width: 640,
         height: 240,
-        geometry: {
-          width: 640,
-          height: 240,
-          outline: [{ kind: 'polygon', points: '0,0 640,0 640,240 0,240' }],
-        },
       },
     },
     {
@@ -213,15 +180,11 @@ export const PROCESS: PackageFile = {
       derivesFrom: 'essence',
       description: 'A part of a pool, such as a role or a team, holding the work it does.',
       appearance: {
+        shape: 'rectangle',
         fill: '#FAFBFC',
         stroke: '#5B6878',
         width: 592,
         height: 176,
-        geometry: {
-          width: 592,
-          height: 176,
-          outline: [{ kind: 'polygon', points: '0,0 592,0 592,176 0,176' }],
-        },
       },
     },
     {
@@ -266,7 +229,11 @@ export const PROCESS: PackageFile = {
         },
       ],
       appearance: {
-        ...box('#E3EEFB', '#1C5DA6', 160, 80, 10),
+        shape: 'rounded-rectangle',
+        fill: '#E3EEFB',
+        stroke: '#1C5DA6',
+        width: 160,
+        height: 80,
         detail: { attributes: ['kind'] },
       },
     },
@@ -277,15 +244,11 @@ export const PROCESS: PackageFile = {
       description:
         'A part of a process that holds events, tasks and gateways of its own, shown inside it or collapsed.',
       appearance: {
+        shape: 'rounded-rectangle',
         fill: '#EFF5FD',
         stroke: '#2F6DB5',
         width: 320,
         height: 192,
-        geometry: {
-          width: 320,
-          height: 192,
-          outline: [{ kind: 'path', d: roundedRectangle(320, 192, 10) }],
-        },
       },
     },
     {
@@ -380,8 +343,13 @@ export const PROCESS: PackageFile = {
       derivesFrom: 'essence',
       description:
         'A condition something can be in for a while, such as "Paid" or "Shipped"; it can hold states of its own.',
-      // Its corners stretch with it when it holds states, so they stay small.
-      appearance: box('#DDF2F0', '#0D6B60', 160, 80, 12),
+      appearance: {
+        shape: 'rounded-rectangle',
+        fill: '#DDF2F0',
+        stroke: '#0D6B60',
+        width: 160,
+        height: 80,
+      },
     },
     {
       id: 'process.initial-state',

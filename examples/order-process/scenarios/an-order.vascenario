@@ -1,7 +1,7 @@
 {
-  "id": "an-order-ships",
-  "name": "An order that ships",
-  "description": "An order whose items are all in stock goes through the exclusive gateway to the warehouse, and out to the carrier.",
+  "id": "an-order",
+  "name": "An order",
+  "description": "An order goes through the exclusive gateway: when every item is in stock it ships, otherwise it is cancelled and refunded.",
   "view": "order-process",
   "steps": [
     {
@@ -28,21 +28,21 @@
     },
     {
       "id": "decide",
-      "description": "The inventory has every item, and the check reaches the exclusive gateway.",
+      "description": "The inventory is read, and the check reaches the exclusive gateway.",
       "relations": [
         "inventory-with-check",
         "check-to-gateway"
-      ],
-      "dataOut": {
-        "inStock": true
-      }
+      ]
     },
     {
-      "id": "yes",
+      "id": "to-warehouse",
       "description": "Every item is in stock, so the gateway sends the order to the warehouse.",
       "relations": [
         "in-stock-yes"
-      ]
+      ],
+      "dataIn": {
+        "inStock": true
+      }
     },
     {
       "id": "pack",
@@ -87,6 +87,63 @@
       "dataOut": {
         "tracking": "TRK-58213"
       }
+    },
+    {
+      "id": "to-cancel",
+      "description": "An item is out of stock, so the gateway sends the order to be cancelled.",
+      "relations": [
+        "in-stock-no"
+      ],
+      "dataIn": {
+        "inStock": false
+      }
+    },
+    {
+      "id": "cancel",
+      "description": "The order is cancelled and its payment refunded.",
+      "relations": [
+        "cancel-to-end"
+      ],
+      "dataOut": {
+        "refunded": true
+      }
+    },
+    {
+      "id": "refund-notice",
+      "description": "The customer is told, with the refund.",
+      "relations": [
+        "sends-refund"
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "id": "stock-check",
+      "kind": "decision",
+      "question": "Is every item in stock?",
+      "alternatives": [
+        {
+          "id": "in-stock",
+          "label": "Yes",
+          "steps": [
+            "to-warehouse",
+            "pack",
+            "wait",
+            "hand-over",
+            "shipped",
+            "tell"
+          ]
+        },
+        {
+          "id": "out-of-stock",
+          "label": "No",
+          "steps": [
+            "to-cancel",
+            "cancel",
+            "refund-notice"
+          ]
+        }
+      ]
     }
   ]
 }

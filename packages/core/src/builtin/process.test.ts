@@ -32,7 +32,14 @@ const SYMBOLS = [
   'process.final-state',
   'process.choice',
 ];
-const CONTAINERS = ['process.pool', 'process.lane', 'process.subprocess', 'process.state'];
+/** Boxes and containers, which the kinds draw with corners that keep their size as they stretch. */
+const KINDS: Readonly<Record<string, string>> = {
+  'process.pool': 'rectangle',
+  'process.lane': 'rectangle',
+  'process.task': 'rounded-rectangle',
+  'process.subprocess': 'rounded-rectangle',
+  'process.state': 'rounded-rectangle',
+};
 const EVENTS = ['process.start-event', 'process.end-event', 'process.intermediate-event'];
 
 function component(id: string): Component {
@@ -163,7 +170,19 @@ describe('the Processes and state machines package', () => {
 });
 
 describe('its free geometry', () => {
-  it.each(PROCESS.components.map((each) => [each.id] as const))(
+  it('draws each symbol by an outline of its own, and each box and container by its kind', () => {
+    expect(PROCESS.components.map((each) => each.id).sort()).toEqual(
+      [...SYMBOLS, ...Object.keys(KINDS)].sort(),
+    );
+    for (const [id, kind] of Object.entries(KINDS)) {
+      const appearance = component(id).appearance;
+      expect([appearance?.shape, appearance?.geometry], id).toEqual([kind, undefined]);
+      expect((appearance?.width ?? 0) % 8, id).toBe(0);
+      expect((appearance?.height ?? 0) % 8, id).toBe(0);
+    }
+  });
+
+  it.each(SYMBOLS.map((id) => [id] as const))(
     '%s is drawn by an outline of its own, within the caps, in a box of its default size',
     (id) => {
       const appearance = component(id).appearance;
@@ -178,30 +197,21 @@ describe('its free geometry', () => {
     },
   );
 
-  it('keeps the proportions of its symbols, and stretches its containers and boxes', () => {
-    for (const { id } of PROCESS.components) {
-      expect(outlineOf(id).keepProportions, id).toBe(SYMBOLS.includes(id));
-    }
+  it('keeps the proportions of its symbols', () => {
+    for (const id of SYMBOLS) expect(outlineOf(id).keepProportions, id).toBe(true);
   });
 
-  it('writes names where they fit: under or over each symbol, inside each box', () => {
-    for (const { id } of PROCESS.components) {
+  it('writes each symbol’s name under it or over it, clear of the symbol', () => {
+    for (const id of SYMBOLS) {
       const geometry = geometryOf(id);
       const outline = outlineOf(id);
       const label = geometry.label;
-      if (CONTAINERS.includes(id) && id !== 'process.state') {
-        // A container writes its name in its header, as every container does. A state holds states
-        // only now and then, and writes its name inside it otherwise, as a task does.
-        expect(label, id).toBeUndefined();
-        continue;
-      }
       if (label === undefined) throw new Error(`${id} has no label area`);
       // Room for a line of name and a line of detail.
       expect(label.height, id).toBeGreaterThanOrEqual(48);
       expect(label.width, id).toBeGreaterThanOrEqual(128);
       const fitted = fitOutline(outline, geometry.width, geometry.height);
       expect(outlineLabelArea(fitted), id).toEqual(label);
-      if (!SYMBOLS.includes(id)) continue;
       const { y, height } = outline.bounds;
       const clear = label.y >= y + height || label.y + label.height <= y;
       expect(clear, `${id}: its name is clear of its symbol`).toBe(true);

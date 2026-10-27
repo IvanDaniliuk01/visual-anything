@@ -1,6 +1,6 @@
 {
   "id": "order-states",
-  "name": "The states of an order that ships",
+  "name": "The states of an order",
   "description": "The same order, as its state changes from created to closed.",
   "view": "order-lifecycle",
   "steps": [
@@ -51,6 +51,48 @@
       "description": "It is delivered, and closed.",
       "relations": [
         "shipped-to-closed"
+      ]
+    },
+    {
+      "id": "cancelled",
+      "description": "An item is out of stock, so the order is cancelled and refunded.",
+      "relations": [
+        "choice-to-cancelled"
+      ]
+    },
+    {
+      "id": "closed-cancelled",
+      "description": "It is closed.",
+      "relations": [
+        "cancelled-to-closed"
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "id": "stock-choice",
+      "kind": "decision",
+      "question": "Is every item in stock?",
+      "alternatives": [
+        {
+          "id": "in-stock",
+          "label": "Yes",
+          "steps": [
+            "picking",
+            "packing",
+            "awaiting",
+            "shipped",
+            "closed"
+          ]
+        },
+        {
+          "id": "out-of-stock",
+          "label": "No",
+          "steps": [
+            "cancelled",
+            "closed-cancelled"
+          ]
+        }
       ]
     }
   ]
