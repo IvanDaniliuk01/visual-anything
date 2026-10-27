@@ -7,13 +7,17 @@ import { promisify } from 'node:util';
 import type { Metafile } from 'esbuild';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { APP_ASSET_PREFIX } from '../src/executable';
+import { testProject, writeProjectFolder } from '../src/test-support';
 import {
   SEA_FUSE,
+  bundleDrawingWorkerBeside,
   bundleServer,
   collectAppAssets,
   executableName,
+  programAssets,
   seaConfig,
   withoutNode,
+  writeNotices,
 } from './sea';
 
 const run = promisify(execFile);
@@ -136,4 +140,59 @@ describe('bundleServer', () => {
     const mcp = await run(process.execPath, [bundle, 'mcp', '--help']);
     expect(mcp.stderr).toMatch(/^Usage: visual-anything mcp \[folder\]/);
   }, 30_000);
+
+  it('holds none of the converter that makes drawings, which its worker holds (ADR 0068)', () => {
+    const inputs = Object.keys(metafile.inputs).map((input) => input.replaceAll('\\', '/'));
+    expect(
+      inputs.filter((input) => /node_modules\/(parse5|satori|harfbuzzjs)\//.test(input)),
+    ).toEqual([]);
+    expect(inputs.some((input) => input.endsWith('src/drawings/make.ts'))).toBe(true);
+  });
+
+  describe('with the drawing’s worker beside it', () => {
+    let worker: { file: string; metafile: Metafile };
+
+    beforeAll(async () => {
+      worker = await bundleDrawingWorkerBeside(bundle);
+    }, 120_000);
+
+    it('makes a drawing of an HTML file, as the executable does', async () => {
+      const project = join(folder, 'drawing-project');
+      await writeProjectFolder(project, testProject());
+      await writeFile(
+        join(folder, 'card.html'),
+        '<div style="padding: 8px; border: 1px solid #000"><b>Card</b><script>x()</script></div>',
+      );
+      const imported = await run(
+        process.execPath,
+        [bundle, 'import', project, join(folder, 'card.html')],
+        {
+          env: { ...process.env, VISUAL_ANYTHING_RUNTIME: join(folder, 'run') },
+        },
+      );
+      expect(imported.stdout).toContain('  1 script element');
+      expect(imported.stdout).toContain(
+        'Done: Import "card.html" as a drawing, as one action you can undo in the app.',
+      );
+    }, 60_000);
+
+    it('writes the notice of the code they bundle, satori’s source among it', async () => {
+      const text = await writeNotices(
+        [metafile, worker.metafile],
+        join(folder, 'NOTICES.txt'),
+        '24.0.0',
+      );
+      expect(text).toMatch(
+        /satori 0\.47\.1\n {2}License: MPL-2\.0\n {2}Source: https:\/\/github\.com\/vercel\/satori/,
+      );
+      expect(text).toMatch(/parse5 8\.0\.1\n {2}License: MIT/);
+      expect(text).toMatch(/ws \d/);
+      expect(text).toContain('Node.js 24.0.0');
+      expect(text).toContain('Roboto 2.137');
+      expect(programAssets(worker.file, 'n.txt')).toEqual({
+        'drawings/worker.cjs': worker.file,
+        'NOTICES.txt': 'n.txt',
+      });
+    });
+  });
 });

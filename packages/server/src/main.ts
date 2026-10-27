@@ -8,6 +8,7 @@
  *   visual-anything export <folder> --view <id> --format <format> [--theme <theme>] [--out <file>]
  *   visual-anything import <folder> <file> [--map <kind>=<id>]... [--dry-run]
  *   visual-anything live <folder> [--fresh-for <seconds>] < values.jsonl
+ *   visual-anything notices
  *
  * The first opens the project folder, serves the app on 127.0.0.1 and opens the browser on it, at
  * the view and selection asked for; `open` says so and changes nothing. The second is Claude's MCP
@@ -29,7 +30,7 @@ import { parseCommandLine, runCommand, type KeyInput } from './command';
 import { runImport } from './import-command';
 import { errorCode } from './errors';
 import { runNewCommand } from './new-command';
-import { DEV_IN_EXECUTABLE, isExecutable, startProgramWith } from './executable';
+import { DEV_IN_EXECUTABLE, isExecutable, noticesText, startProgramWith } from './executable';
 import { preferencesFolder } from './preferences';
 
 /** The subcommand that runs Claude's MCP entry point. */
@@ -50,9 +51,12 @@ export const IMPORT_COMMAND = 'import';
 /** The subcommand that pipes live values into the program running on a folder (ADR 0057). */
 export const LIVE_COMMAND = 'live';
 
+/** The subcommand that prints the notice of the code the executable bundles (ADR 0037, ADR 0068). */
+export const NOTICES_COMMAND = 'notices';
+
 /** Which entry point a command line runs, with the arguments that entry point reads. */
 export interface Entry {
-  kind: 'program' | 'mcp' | 'new' | 'export' | 'import' | 'live';
+  kind: 'program' | 'mcp' | 'new' | 'export' | 'import' | 'live' | 'notices';
   argv: string[];
 }
 
@@ -69,6 +73,7 @@ export function entryOf(argv: readonly string[]): Entry {
   if (argv[0] === OPEN_COMMAND) return { kind: 'program', argv: argv.slice(1) };
   if (argv[0] === NEW_COMMAND) return { kind: 'new', argv: argv.slice(1) };
   if (argv[0] === LIVE_COMMAND) return { kind: 'live', argv: argv.slice(1) };
+  if (argv[0] === NOTICES_COMMAND) return { kind: 'notices', argv: argv.slice(1) };
   return { kind: 'program', argv: [...argv] };
 }
 
@@ -91,11 +96,13 @@ export function main(argv: readonly string[]): void {
             })
           : entry.kind === 'live'
             ? runLiveCommand(entry.argv)
-            : runProgram(
-                entry.argv,
-                isExecutable(),
-                entry.kind === 'new' ? runNewCommand : runCommand,
-              );
+            : entry.kind === 'notices'
+              ? Promise.resolve(printNotices())
+              : runProgram(
+                  entry.argv,
+                  isExecutable(),
+                  entry.kind === 'new' ? runNewCommand : runCommand,
+                );
   void run.then((code) => {
     if (code !== undefined) process.exitCode = code;
   });
@@ -113,6 +120,12 @@ export async function runExportCommand(argv: readonly string[]): Promise<number>
     stdoutIsTerminal: process.stdout.isTTY === true,
     err: (line) => console.error(line),
   });
+}
+
+/** Prints the notice of the code this executable bundles, with its licenses and sources. */
+export function printNotices(executable: boolean = isExecutable()): number {
+  console.log(noticesText(executable));
+  return 0;
 }
 
 /** Runs the live command on the process's own streams, until its input ends. */
