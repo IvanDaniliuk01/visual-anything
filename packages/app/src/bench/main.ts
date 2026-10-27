@@ -498,7 +498,8 @@ async function run(): Promise<void> {
   timed.push(await measureLayouts(4));
   // Resizing the shape in the middle by a handle, the guides showing (W51, ADR 0074).
   const resizing = await measureResizes(beyondBench(), shapeInTheMiddle()?.element, RESIZES);
-  phases.push(resizing.phase);
+  // A shape that could not be resized drew no frames, which no row would show.
+  if (resizing.phase.frames.length > 0) phases.push(resizing.phase);
   timed.push(resizing.timed);
   themeNotes.push(resizing.note);
   showProject(project, false);

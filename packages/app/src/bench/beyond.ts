@@ -152,7 +152,8 @@ export async function measureBeyondBoxes(
   const hub = geometryHub(bench.project());
   const what = (relations: number) => `a shape with free geometry and ${relations} relations`;
   const took = (results: GestureResults) => {
-    phases.push(results.phase);
+    // A shape that could not be pressed drew no frames, which no row would show.
+    if (results.phase.frames.length > 0) phases.push(results.phase);
     timed.push(results.timed);
     notes.push(results.note);
   };
