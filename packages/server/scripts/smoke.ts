@@ -41,7 +41,7 @@ import { parseArgs } from 'node:util';
 import { OUT_DIR, REPOSITORY, executableName, withoutNode } from './sea';
 
 /** Ports the smoke test never takes, as other programs on the developer's computer use them. */
-const RESERVED_PORTS = new Set([47700, 47707]);
+const RESERVED_PORTS = new Set([47700, 47707, 47710]);
 const SAMPLE = join(REPOSITORY, 'examples', 'my-systems');
 const SAMPLE_NAME = 'My systems';
 

@@ -69,7 +69,7 @@ Visual Anything also comes as one executable file for each system, which needs n
 | Linux x64 | `visual-anything-linux-x64` |
 | Linux on ARM (64-bit) | `visual-anything-linux-arm64` |
 
-Each release also holds `SHA256SUMS`. Check your file against it with `sha256sum -c SHA256SUMS --ignore-missing` on Linux, `shasum -a 256 -c SHA256SUMS --ignore-missing` on macOS, or `Select-String (Get-FileHash .\visual-anything-windows-x64.exe).Hash SHA256SUMS` in PowerShell, which prints the file's line when the hash matches.
+Each release also holds `visual-anything-THIRD-PARTY-NOTICES.txt`, the code the executables bundle with its licenses and where its source is, which `visual-anything notices` prints too, and `SHA256SUMS`. Check your file against it with `sha256sum -c SHA256SUMS --ignore-missing` on Linux, `shasum -a 256 -c SHA256SUMS --ignore-missing` on macOS, or `Select-String (Get-FileHash .\visual-anything-windows-x64.exe).Hash SHA256SUMS` in PowerShell, which prints the file's line when the hash matches.
 
 Run it in a terminal, in the folder where it is or with its full path:
 

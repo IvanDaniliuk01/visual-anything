@@ -3,7 +3,9 @@
  * or a comma list of these, and `style` attributes, each declaration kept only when its property is on
  * the allow-list of what the layout step lays out and the SVG cleaner keeps, and its value is made of a
  * narrow class of characters calling only colour, gradient, size and transform functions. `url(…)` is
- * never kept, so a style can load nothing. Everything else is dropped, and reported.
+ * never kept, so a style can load nothing. Gradient backgrounds are then dropped too, since satori
+ * paints them through SVG patterns, which the SVG cleaner drops. Everything else is dropped, and
+ * reported.
  *
  * Reading costs no more than a constant times the text: every `@` rule is skipped whole, braces are
  * counted once, and the caps on rules and selectors refuse a sheet before its rules are indexed.
