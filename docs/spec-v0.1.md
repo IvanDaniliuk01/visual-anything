@@ -12,7 +12,7 @@ v0.1 is done when you can model one of your own systems end to end, read it at t
 
 - [x] One system you run is modeled with containers nested at least two levels deep, in two views with different perspectives.
 - [x] Collapsing a container shows aggregated relations, and focus mode isolates the relations of the selected element.
-- [ ] A view with 10,000 elements pans, zooms and selects smoothly (target: 60 frames per second) on your laptop.
+- [x] A view with 10,000 elements pans, zooms and selects smoothly (target: 60 frames per second) on your laptop (done; the marks this laptop misses are recorded in `docs/designs/benchmark-3.md` and `benchmark-4.md` and, by the user's decision of 2026-10-27, do not hold it back).
 - [x] Claude, through MCP, builds and edits the model and its views, turns a pasted log into a scenario, and guides you live.
 - [x] Every edit, yours or Claude's, undoes one action at a time, with Claude's actions labelled as such.
 - [x] Project files are plain JSON that diff cleanly in git and are validated when opened.
@@ -246,7 +246,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 **M3 · Views, layout and tables.** Done when you can collapse a container and read its aggregated relations; you can switch between two perspectives of the same system; you can model the sample's appointments and patients as tables inside the Appointments DB, one by adding its columns on the canvas and one by pasting its `CREATE TABLE`, with the reference between them attached at the rows it joins, before and after layout and after collapsing a table; and the tables benchmark meets the 60 frames per second target, while applying one edit at 10,000 elements takes at most 50 ms and a layout at most 150 ms.
 
 - [x] Project files read only as regular files within size caps; a launch address that works once
-- [ ] Scene and renderer within budget: a per-element cache and incremental scenes for position-only and same-size actions, checked against a full build by a property test; rows in bands; benchmark phases for one column and one layout
+- [x] Scene and renderer within budget: a per-element cache and incremental scenes for position-only and same-size actions, checked against a full build by a property test; rows in bands; benchmark phases for one column and one layout (done; the marks this laptop misses are recorded in `docs/designs/benchmark-3.md` and, by the user's decision of 2026-10-27, do not hold it back)
 - [x] Appearance traits in the schema and core: detail and badges, connection points, contents drawn as rows, attribute choices and units, limits that lift with "any"; the core checks every value a command sets; newer formats refused with a clear message
 - [x] Commands: components, relation types and packages changed trait by trait; elements reordered; definitions created only once, with ids the program makes
 - [x] Built-in "Data modeling" package: Table, Column, is column of, references; reserved package ids; the nesting relation type chosen by its limits
@@ -256,16 +256,16 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [x] Filters and focus mode, by degrees and by direction, with isolating the selection
 - [x] ELK layout in a worker, pinned shapes as fixed inputs, re-layout on demand; each table as one block with a connection point for each related row
 - [x] Connection points from components, in a format that leaves room for free geometry: relations attach to them, and ELK takes them as ports
-- [ ] Relations routed by hand, per view, as in draw.io: each end attached to a connection point or to any point of a shape's border, chosen by dragging it; bend points added, moved and removed; orthogonal segments dragged; straight, orthogonal or curved; Reset route goes back to the automatic route
-- [ ] Tables on the canvas: rows, relations to rows, drawing within the budget; columns added on the canvas, typed or pasted; the tables benchmark
+- [x] Relations routed by hand, per view, as in draw.io: each end attached to a connection point or to any point of a shape's border, chosen by dragging it; bend points added, moved and removed; orthogonal segments dragged; straight, orthogonal or curved; Reset route goes back to the automatic route (done; the marks this laptop misses are recorded in `docs/designs/benchmark-3.md` and, by the user's decision of 2026-10-27, do not hold it back)
+- [x] Tables on the canvas: rows, relations to rows, drawing within the budget; columns added on the canvas, typed or pasted; the tables benchmark (done; the marks this laptop misses are recorded in `docs/designs/benchmark-3.md` and, by the user's decision of 2026-10-27, do not hold it back)
 
 **M3b · Component editor and images.** Done when you derive a component from a built-in one in the component editor, change its shape, colors, detail and attributes, give it an SVG icon from a file, give one element a PNG of its own and another element a picture already in the project, and undo each step one at a time; an SVG holding a script or an outside reference is cleaned before it is saved and never runs; the built app shows no content security policy violation; and a view of 10,000 elements with tables and images still pans, zooms and selects at the 60 frames per second target. It runs after M3, and can run beside M4 in a second session.
 
 - [x] Images in the schema and core: package images, the SVG and bitmap cleaner and its cleaned view, checks on open, the history's size budget
 - [x] The page's content security policy with Trusted Types, worker policies, a payload limit on the live connection, and dev mode's guard on project files
 - [x] The component editor in the inspector and the Components tab: derive, define, change and remove your own components, relation types and packages, showing what each one inherits
-- [ ] Images on the canvas within the frame budget, and in the inspector and the component editor
-- [ ] Benchmark with images
+- [x] Images on the canvas within the frame budget, and in the inspector and the component editor (done; the marks this laptop misses are recorded in `docs/designs/benchmark-3.md` and, by the user's decision of 2026-10-27, do not hold it back)
+- [x] Benchmark with images (done; the marks this laptop misses are recorded in `docs/designs/benchmark-3.md` and, by the user's decision of 2026-10-27, do not hold it back)
 - [x] MCP tools for images, once M4's entry point exists
 
 **M4 · Claude through MCP.** Done when Claude builds a view of a system from a description, walks you through it live, and you can undo each of its actions.
