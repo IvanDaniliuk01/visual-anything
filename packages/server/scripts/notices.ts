@@ -59,12 +59,27 @@ export async function bundledPackages(folders: readonly string[]): Promise<Bundl
       version: manifest.version,
       license,
       source:
-        repository === undefined
-          ? tarball
-          : `${repository.replace(/^git\+/, '').replace(/\.git$/, '')}, and ${tarball}`,
+        repository === undefined ? tarball : `${repositoryAddress(repository)}, and ${tarball}`,
     });
   }
   return [...found.values()].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+}
+
+/**
+ * A repository as an address a browser opens: `git+https://host/a/b.git`, `git://host/a/b`,
+ * `git@host:a/b`, `github:a/b` and npm's shorthand `a/b` all become `https://host/a/b`, GitHub's
+ * for the last two.
+ */
+export function repositoryAddress(repository: string): string {
+  const plain = repository
+    .trim()
+    .replace(/^git\+/, '')
+    .replace(/\.git$/, '');
+  const shorthand = /^(?:github:)?([\w.-]+\/[\w.-]+)$/.exec(plain);
+  if (shorthand) return `https://github.com/${shorthand[1] ?? ''}`;
+  const ssh = /^git@([\w.-]+):(.+)$/.exec(plain);
+  if (ssh) return `https://${ssh[1] ?? ''}/${ssh[2] ?? ''}`;
+  return plain.replace(/^(git|ssh):\/\/(git@)?/, 'https://');
 }
 
 /** The notice, as text. */

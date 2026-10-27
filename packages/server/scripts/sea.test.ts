@@ -8,6 +8,7 @@ import type { Metafile } from 'esbuild';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { APP_ASSET_PREFIX } from '../src/executable';
 import { testProject, writeProjectFolder } from '../src/test-support';
+import { repositoryAddress } from './notices';
 import {
   SEA_FUSE,
   bundleDrawingWorkerBeside,
@@ -96,6 +97,20 @@ describe('seaConfig', () => {
     expect(
       seaConfig({ main: '/b/main.cjs', output: '/b/prep.blob', assets, codeCache: false }),
     ).toMatchObject({ useCodeCache: false });
+  });
+});
+
+describe('repositoryAddress', () => {
+  it('gives an address a browser opens for each way package.json writes a repository', () => {
+    expect(repositoryAddress('git+https://github.com/vercel/satori.git')).toBe(
+      'https://github.com/vercel/satori',
+    );
+    expect(repositoryAddress('git://github.com/opentypejs/opentype.js')).toBe(
+      'https://github.com/opentypejs/opentype.js',
+    );
+    expect(repositoryAddress('ajv-validator/ajv')).toBe('https://github.com/ajv-validator/ajv');
+    expect(repositoryAddress('github:inikulin/parse5')).toBe('https://github.com/inikulin/parse5');
+    expect(repositoryAddress('git@gitlab.com:a/b.git')).toBe('https://gitlab.com/a/b');
   });
 });
 
