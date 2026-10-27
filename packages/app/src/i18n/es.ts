@@ -3300,8 +3300,49 @@ export const messages: Catalog = {
   'A view state is an object.': 'Un estado de vista es un objeto JSON.',
   'Step {n} of the tour needs a caption with a title.':
     'El paso {n} del recorrido necesita un rótulo con un título.',
-  'A caption holds a title and a text, nothing else.':
-    'Un rótulo tiene un título y un texto, nada más.',
+  'A caption holds a title, a text and a place, nothing else.':
+    'Un rótulo tiene un título, un texto y un lugar, nada más.',
+  'A caption sits in a corner, top-left, top-right, bottom-left or bottom-right, or where it reads best, auto.':
+    'Un rótulo va en una esquina, top-left, top-right, bottom-left o bottom-right, o donde mejor se lee, auto.',
+  'Step {n} of the tour reveals a list of marks.':
+    'El paso {n} del recorrido revela una lista de marcas.',
+  'A step brings in at most {limit} reveals.': 'Un paso trae como máximo {limit} revelaciones.',
+  'Reveal {r} of step {n} of the tour is an object with its marks.':
+    'La revelación {r} del paso {n} del recorrido es un objeto JSON con sus marcas.',
+  'A reveal holds its marks and a text, nothing else.':
+    'Una revelación tiene sus marcas y un texto, nada más.',
+  'Reveal {r} of step {n} of the tour marks a list of ids.':
+    'La revelación {r} del paso {n} del recorrido marca una lista de ids.',
+  'Reveal {r} of step {n} of the tour marks "{id}" twice.':
+    'La revelación {r} del paso {n} del recorrido marca "{id}" dos veces.',
+  'Reveal {r} of step {n} of the tour marks nothing: a reveal marks one element or relation at least.':
+    'La revelación {r} del paso {n} del recorrido no marca nada: una revelación marca al menos un elemento o una relación.',
+  "A reveal's text is text.": 'El texto de una revelación es texto.',
+  "A reveal's text holds at most {limit} characters.":
+    'El texto de una revelación tiene como máximo {limit} caracteres.',
+  "A step marks at most {limit} elements and relations, its reveals' included.":
+    'Un paso marca como máximo {limit} elementos y relaciones, contando sus revelaciones.',
+  'Dimming the rest is true or false.': 'Atenuar el resto es true o false.',
+  'Step {n} of the tour moves on after its scenario, but plays none.':
+    'El paso {n} del recorrido avanza al terminar su escenario, pero no reproduce ninguno.',
+  'A step moves on by itself after 500 to 600,000 milliseconds, or after the scenario it plays.':
+    'Un paso avanza solo después de 500 a 600.000 milisegundos, o al terminar el escenario que reproduce.',
+  'Step {n} names what the project no longer holds, and plays without it: {why}':
+    'El paso {n} nombra lo que el proyecto ya no tiene, y se reproduce sin eso: {why}',
+  'Step {n} cuts from step {m}: its camera is too far, or too much zoomed, to glide to.':
+    'El paso {n} corta desde el paso {m}: su cámara está demasiado lejos, o con demasiado zoom, para deslizarse hasta ella.',
+  'Step {n} shows the same view state as step {m}: it could be a reveal of that step.':
+    'El paso {n} muestra el mismo estado de vista que el paso {m}: podría ser una revelación de ese paso.',
+  'Step {n} marks what its camera does not show: {names}.':
+    'El paso {n} marca lo que su cámara no muestra: {names}.',
+  'Step {n} marks what its filters hide: {names}.':
+    'El paso {n} marca lo que sus filtros ocultan: {names}.',
+  'Step {n} moves on after {after}, but its text takes {reading} to read: it waits until then.':
+    'El paso {n} avanza después de {after}, pero su texto se lee en {reading}: espera hasta entonces.',
+  'Step {n} plays {count} steps of the scenario "{name}": a range of more than {limit} is hard to follow in one step.':
+    'El paso {n} reproduce {count} pasos del escenario "{name}": un tramo de más de {limit} cuesta seguirlo en un solo paso.',
+  'Reveal {r} of the step marks elements and relations, and "{id}" is neither.':
+    'La revelación {r} del paso marca elementos y relaciones, y "{id}" no es ninguna de las dos cosas.',
   "A caption's title holds at most {limit} characters.":
     'El título de un rótulo tiene como máximo {limit} caracteres.',
   "A caption's text is text.": 'El texto de un rótulo es texto.',

@@ -112,6 +112,140 @@ describe('create-tour', () => {
     });
   });
 
+  it('keeps a step’s reveals, dimming, advance and caption place, and undoes them exactly', () => {
+    const state = testProject();
+    const outcome = done(state, {
+      type: 'create-tour',
+      tour: {
+        name: 'Staged',
+        steps: [
+          {
+            viewState: { view: 'overview' },
+            caption: { title: 'The API', place: 'top-right' },
+            marks: ['api'],
+            play: { scenario: 'request' },
+            reveal: [{ marks: ['db'], text: 'Then the data.' }, { marks: ['api-reads-db'] }],
+            dimRest: true,
+            advance: 'after-scenario',
+          },
+          {
+            viewState: { view: 'overview' },
+            // What Claude and the app may send for the defaults, which the file never holds.
+            caption: { title: 'Plain', place: 'auto' as never },
+            advance: 4000,
+            dimRest: false as never,
+          },
+        ],
+      },
+    });
+    const [staged, plain] = outcome.state.tours[0]?.steps ?? [];
+    expect(staged).toEqual({
+      id: 'step-2',
+      viewState: { view: 'overview' },
+      caption: { title: 'The API', place: 'top-right' },
+      marks: ['api'],
+      play: { scenario: 'request' },
+      reveal: [{ marks: ['db'], text: 'Then the data.' }, { marks: ['api-reads-db'] }],
+      dimRest: true,
+      advance: 'after-scenario',
+    });
+    // auto and false are what is left out, never written.
+    expect(plain).toEqual({
+      id: 'step-3',
+      viewState: { view: 'overview' },
+      caption: { title: 'Plain' },
+      advance: 4000,
+    });
+    expect(applyOperations(outcome.state, outcome.inverse).state).toEqual(state);
+  });
+
+  it.each<[string, Partial<NewTourStep>, string]>([
+    [
+      'a reveal of something gone',
+      { reveal: [{ marks: ['gone'] }] },
+      'Reveal 1 of the step marks elements and relations, and "gone" is neither.',
+    ],
+    [
+      'a reveal of nothing',
+      { reveal: [{ marks: [] }] },
+      'Reveal 1 of step 1 of the tour marks nothing',
+    ],
+    [
+      'a reveal marking twice',
+      { reveal: [{ marks: ['api', 'api'] }] },
+      'Reveal 1 of step 1 of the tour marks "api" twice.',
+    ],
+    [
+      'a reveal with more',
+      { reveal: [{ marks: ['api'], at: 2 } as never] },
+      'A reveal holds its marks and a text, nothing else.',
+    ],
+    [
+      'too many reveals',
+      { reveal: Array.from({ length: 51 }, () => ({ marks: ['api'] })) },
+      'at most 50 reveals',
+    ],
+    [
+      'too many marks with its reveals',
+      { marks: ['api'], reveal: [{ marks: Array.from({ length: 500 }, (_, at) => `e${at}`) }] },
+      "its reveals' included",
+    ],
+    [
+      'dimming the rest by a word',
+      { dimRest: 'yes' as never },
+      'Dimming the rest is true or false.',
+    ],
+    ['advancing too soon', { advance: 100 }, '500 to 600,000 milliseconds'],
+    ['advancing in part of a millisecond', { advance: 1000.5 }, '500 to 600,000 milliseconds'],
+    [
+      'advancing after no scenario',
+      { advance: 'after-scenario' },
+      'moves on after its scenario, but plays none',
+    ],
+    [
+      'a caption in no corner',
+      { caption: { title: 'T', place: 'middle' as never } },
+      'A caption sits in a corner',
+    ],
+  ])('refuses a step with %s', (_what, parts, words) => {
+    const refused = refusal(testProject(), {
+      type: 'create-tour',
+      tour: { name: 'T', steps: [{ ...START, ...parts }] },
+    });
+    expect(refused.message).toContain(words);
+  });
+
+  it('counts the texts of reveals in a tour’s text', () => {
+    const long = 'x'.repeat(4000);
+    const refused = refusal(testProject(), {
+      type: 'create-tour',
+      tour: {
+        name: 'T',
+        steps: Array.from({ length: 251 }, () => ({
+          ...START,
+          marks: ['api'],
+          reveal: [{ marks: ['db'], text: long }],
+        })),
+      },
+    });
+    expect(refused.message).toContain('more than 1,000,000 characters');
+  });
+
+  it('keeps a step whose reveal names something deleted since, flagged', () => {
+    const { state } = withTour();
+    const revealed = done(state, {
+      type: 'update-tour',
+      id: 'walk',
+      changes: {
+        steps: [...(state.tours[0]?.steps ?? []), { ...START, reveal: [{ marks: ['db'] }] }],
+      },
+    });
+    const deleted = done(revealed.state, { type: 'delete', elements: ['db'] });
+    const kept = deleted.state.tours[0]?.steps.at(-1);
+    expect(kept?.reveal).toEqual([{ marks: ['db'] }]);
+    expect(kept && isBrokenTourStep(deleted.state, kept)).toBe(true);
+  });
+
   it('keeps markup in a caption as the plain text it is', () => {
     const outcome = done(testProject(), {
       type: 'create-tour',
@@ -183,13 +317,13 @@ describe('create-tour', () => {
       'Step 1 of the tour needs a caption with a title.',
     ],
     [
-      'a caption with more than a title and a text',
+      'a caption with more than a title, a text and a place',
       {
         type: 'create-tour',
         tour: { name: 'T', steps: [{ ...START, caption: { title: 'T', html: '<b>' } as never }] },
       },
       'invalid-command',
-      'A caption holds a title and a text, nothing else.',
+      'A caption holds a title, a text and a place, nothing else.',
     ],
     [
       'a malformed view state',

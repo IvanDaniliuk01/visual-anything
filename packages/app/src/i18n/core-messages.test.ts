@@ -812,6 +812,25 @@ function tourCommands(): [string, Command][] {
     }),
     created('step with notes too long', { ...step, notes: 'x'.repeat(20001) }),
     created('step without its view state', { caption: { title: 'T' } }),
+    created('step revealing nothing there', { ...step, reveal: [{ marks: ['gone'] }] }),
+    created('step revealing too much', {
+      ...step,
+      marks: ['patient'],
+      reveal: [{ marks: Array.from({ length: 500 }, (_, at) => `e${at}`) }],
+    }),
+    created('step with too many reveals', {
+      ...step,
+      reveal: Array.from({ length: 51 }, () => ({ marks: ['patient'] })),
+    }),
+    created('reveal marking nothing', { ...step, reveal: [{ marks: [] }] }),
+    created('reveal marking twice', { ...step, reveal: [{ marks: ['patient', 'patient'] }] }),
+    created('reveal with a text too long', {
+      ...step,
+      reveal: [{ marks: ['patient'], text: 'x'.repeat(4001) }],
+    }),
+    created('step advancing too soon', { ...step, advance: 100 }),
+    created('step advancing after no scenario', { ...step, advance: 'after-scenario' }),
+    created('caption in no corner', { ...step, caption: { title: 'T', place: 'middle' } }),
     ...malformed([
       ['tour not an object', { type: 'create-tour', tour: 5 }],
       ['tour changes not an object', { type: 'update-tour', id: tour, changes: 5 }],
@@ -855,6 +874,39 @@ function tourCommands(): [string, Command][] {
       [
         'marks not a list',
         { type: 'create-tour', tour: { name: 'T', steps: [{ ...step, marks: 'patient' }] } },
+      ],
+      [
+        'reveal not a list',
+        { type: 'create-tour', tour: { name: 'T', steps: [{ ...step, reveal: 'x' }] } },
+      ],
+      [
+        'reveal not an object',
+        { type: 'create-tour', tour: { name: 'T', steps: [{ ...step, reveal: [5] }] } },
+      ],
+      [
+        'reveal with more',
+        {
+          type: 'create-tour',
+          tour: { name: 'T', steps: [{ ...step, reveal: [{ marks: ['patient'], at: 1 }] }] },
+        },
+      ],
+      [
+        'reveal marks not a list',
+        {
+          type: 'create-tour',
+          tour: { name: 'T', steps: [{ ...step, reveal: [{ marks: 'patient' }] }] },
+        },
+      ],
+      [
+        'reveal text not text',
+        {
+          type: 'create-tour',
+          tour: { name: 'T', steps: [{ ...step, reveal: [{ marks: ['patient'], text: 5 }] }] },
+        },
+      ],
+      [
+        'dim the rest not true',
+        { type: 'create-tour', tour: { name: 'T', steps: [{ ...step, dimRest: 'yes' }] } },
       ],
       [
         'play not an object',

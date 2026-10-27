@@ -98,3 +98,13 @@ The stages come from a pure function of the core, `tourTransition(from, to, trav
 - Claude's tour tools take the new keys, and `check_tour` is added.
 - The benchmark gains a tour phase on the 10,000-element view: a step that filters, dims, moves the camera and reveals.
 - ADR 0058 and ADR 0031 each gain a "Superseded in part" section, and CONTEXT.md gains **Reveal**.
+
+## Clarifications
+
+- 2026-10-27 (M11c's seam 1, in the main session):
+  - **The path's zoom-out is measured against the wider of its two views.** A path that zooms out more than 2.5 times beyond the end that shows more cuts, so that zooming in to a detail or out to an overview glides when its length allows, and a pan of about four and a half screen widths at one zoom is the longest that glides. The path's length S is `tourCameraPath`'s, d3's `interpolateZoom` with ρ = 1, and a move lasts 250 ms plus 150 ms for each unit of it.
+  - **The stages never pass 1.1 s by overlapping.** Out (150 ms), camera (up to 800 ms) and in (200 ms) would reach 1.15 s; when they would pass 1.1 s, the marks start to fade in that much before the camera stops. With Fades off, the fades take no time and a cut is plain; the camera still moves.
+  - **A step marks at most 500 elements and relations, its reveals' included**, and brings in at most 50 reveals, each marking one at least, each id once. A reveal's text is plain text of at most 4,000 characters, counted in the tour's text.
+  - **`advance`** is a whole number of milliseconds from 500 to 600,000, or `after-scenario` on a step that plays one. The stage waits at least the time its text takes to read at 200 words a minute (`advanceAfter`): a shorter advance is kept and `check_tour` says it.
+  - **What is never written:** a caption's place `auto` and `dimRest: false` are left out, as defaults are.
+  - **`checkTour` reads filters by the components and relation types they hide**; a relation is hidden with the component of either end. Their conditions and time ranges are the canvas's to judge, so it says nothing of them. It reads marks outside a camera only where the caller says where shapes are drawn, against a reference screen of 1,366 by 768 pixels unless another is given, and calls a scenario range of more than ten steps long.

@@ -1,10 +1,18 @@
 /**
- * Commands on tours (ADR 0058): create, change and delete one, each one action. Changing a tour's
+ * Commands on tours (ADR 0058, ADR 0077): create, change and delete one, each one action. Changing a tour's
  * steps replaces the whole list, so that adding, editing, duplicating, reordering and deleting steps
  * are each one action too. A new or changed step must name only what the project holds; a step kept
  * exactly as it was may still name what was deleted since, and stays, flagged, until it is fixed.
  */
-import type { Id, TourCaption, TourFile, TourPlayback, TourStep } from '@visual-anything/schema';
+import type {
+  Id,
+  TourAdvance,
+  TourCaption,
+  TourFile,
+  TourPlayback,
+  TourReveal,
+  TourStep,
+} from '@visual-anything/schema';
 import { isId, slug } from '../ids';
 import {
   MAX_CAPTION_TEXT,
@@ -13,8 +21,10 @@ import {
   MAX_TOUR_DESCRIPTION,
   MAX_TOUR_MARKS,
   MAX_TOUR_NAME,
+  MAX_TOUR_REVEALS,
   MAX_TOUR_STEPS,
   MAX_TOUR_TEXT,
+  TOUR_ADVANCE,
   checkSavedViewState,
   tourStepProblems,
   tourTextLength,
@@ -220,20 +230,32 @@ function checkedStep(given: NewTourStep, n: number): Omit<TourStep, 'id'> {
   const caption = checkedCaption(given.caption, where);
   const marks = checkedMarks(given.marks, where);
   const play = checkedPlay(given.play, where);
+  const reveal = checkedReveals(given.reveal, where, marks?.length ?? 0);
+  const dimRest = checkedDimRest(given.dimRest);
+  const advance = checkedAdvance(given.advance, where, play !== undefined);
   const notes = checkedText(given.notes, MAX_SPEAKER_NOTES, {
     notText: 'Speaker notes are text.',
     tooLong: `Speaker notes hold at most ${MAX_SPEAKER_NOTES} characters.`,
   });
-  return compact({ viewState: viewState.state, caption, marks, play, notes });
+  return compact({
+    viewState: viewState.state,
+    caption,
+    marks,
+    play,
+    reveal,
+    dimRest,
+    advance,
+    notes,
+  });
 }
 
 function checkedCaption(value: unknown, where: string): TourCaption {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     reject('invalid-command', `${where} needs a caption with a title.`);
   }
-  const { title, text, ...rest } = value as Record<string, unknown>;
+  const { title, text, place, ...rest } = value as Record<string, unknown>;
   if (Object.keys(rest).length > 0) {
-    reject('invalid-command', `A caption holds a title and a text, nothing else.`);
+    reject('invalid-command', 'A caption holds a title, a text and a place, nothing else.');
   }
   if (typeof title !== 'string' || title.trim() === '') {
     reject('empty-name', `${where} needs a caption with a title.`);
@@ -245,7 +267,100 @@ function checkedCaption(value: unknown, where: string): TourCaption {
     notText: "A caption's text is text.",
     tooLong: `A caption's text holds at most ${MAX_CAPTION_TEXT} characters.`,
   });
-  return checked === undefined ? { title } : { title, text: checked };
+  const corner = checkedPlace(place);
+  return compact({ title, text: checked, place: corner });
+}
+
+/** The corners a caption may be fixed in; `auto`, the side farthest from the marks, is never written. */
+const CAPTION_PLACES: readonly NonNullable<TourCaption['place']>[] = [
+  'top-left',
+  'top-right',
+  'bottom-left',
+  'bottom-right',
+];
+
+function checkedPlace(value: unknown): TourCaption['place'] {
+  if (value === undefined || value === 'auto') return undefined;
+  if (!CAPTION_PLACES.includes(value as NonNullable<TourCaption['place']>)) {
+    reject(
+      'invalid-command',
+      'A caption sits in a corner, top-left, top-right, bottom-left or bottom-right, or where it reads best, auto.',
+    );
+  }
+  return value as TourCaption['place'];
+}
+
+/**
+ * A step's reveals (ADR 0077): at most {@link MAX_TOUR_REVEALS}, each marking one element or
+ * relation at least, each once, with an optional text; the step's marks and its reveals' together at
+ * most {@link MAX_TOUR_MARKS}.
+ */
+function checkedReveals(value: unknown, where: string, marked: number): TourReveal[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) reject('invalid-command', `${where} reveals a list of marks.`);
+  if (value.length === 0) return undefined;
+  if (value.length > MAX_TOUR_REVEALS) {
+    reject('invalid-command', `A step brings in at most ${MAX_TOUR_REVEALS} reveals.`);
+  }
+  let total = marked;
+  const reveals = value.map((given: unknown, at: number): TourReveal => {
+    const which = `Reveal ${at + 1} of ${where.charAt(0).toLowerCase()}${where.slice(1)}`;
+    if (typeof given !== 'object' || given === null || Array.isArray(given)) {
+      reject('invalid-command', `${which} is an object with its marks.`);
+    }
+    const { marks, text, ...rest } = given as Record<string, unknown>;
+    if (Object.keys(rest).length > 0) {
+      reject('invalid-command', 'A reveal holds its marks and a text, nothing else.');
+    }
+    const checked = checkedMarks(marks, which);
+    if (checked === undefined) {
+      reject(
+        'invalid-command',
+        `${which} marks nothing: a reveal marks one element or relation at least.`,
+      );
+    }
+    total += checked.length;
+    const said = checkedText(text, MAX_CAPTION_TEXT, {
+      notText: "A reveal's text is text.",
+      tooLong: `A reveal's text holds at most ${MAX_CAPTION_TEXT} characters.`,
+    });
+    return compact({ marks: checked, text: said });
+  });
+  if (total > MAX_TOUR_MARKS) {
+    reject(
+      'invalid-command',
+      `A step marks at most ${MAX_TOUR_MARKS} elements and relations, its reveals' included.`,
+    );
+  }
+  return reveals;
+}
+
+/** Dimming the rest: `true`, or left out as `false` is. */
+function checkedDimRest(value: unknown): true | undefined {
+  if (value === undefined || value === false) return undefined;
+  if (value !== true) reject('invalid-command', 'Dimming the rest is true or false.');
+  return true;
+}
+
+/** When a step moves on by itself: a whole number of milliseconds, or once the scenario it plays ends. */
+function checkedAdvance(value: unknown, where: string, plays: boolean): TourAdvance | undefined {
+  if (value === undefined) return undefined;
+  if (value === 'after-scenario') {
+    if (!plays) reject('invalid-command', `${where} moves on after its scenario, but plays none.`);
+    return value;
+  }
+  if (
+    typeof value !== 'number' ||
+    !Number.isInteger(value) ||
+    value < TOUR_ADVANCE.least ||
+    value > TOUR_ADVANCE.most
+  ) {
+    reject(
+      'invalid-command',
+      'A step moves on by itself after 500 to 600,000 milliseconds, or after the scenario it plays.',
+    );
+  }
+  return value;
 }
 
 /** A text of at most `max` characters, left out when empty. */

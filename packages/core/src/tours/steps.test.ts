@@ -11,6 +11,7 @@ import {
   playableStep,
   savedViewStateOf,
   tourStepProblems,
+  tourTextLength,
   viewStateOfStep,
 } from './steps';
 
@@ -227,6 +228,24 @@ describe('what a step names that the project no longer holds', () => {
     );
   });
 
+  it('counts what a reveal marks as it counts the step’s marks, saying which reveal names it', () => {
+    const problems = tourStepProblems(
+      project(),
+      step({
+        marks: ['api'],
+        reveal: [{ marks: ['db'] }, { marks: ['gone-reveal', 'api-reads-db'], text: 'And then.' }],
+      }),
+    );
+    expect(problems).toEqual([
+      {
+        code: 'unknown-element',
+        message: 'Reveal 2 of the step marks elements and relations, and "gone-reveal" is neither.',
+        subject: 'gone-reveal',
+        reveal: 1,
+      },
+    ]);
+  });
+
   it('says when its view is gone, and when its scenario plays over another view', () => {
     expect(
       tourStepProblems(project(), step({ viewState: { view: 'gone' } })).map(
@@ -341,8 +360,40 @@ describe('how a step plays', () => {
     ).toEqual({ viewState: { view: 'other' }, marks: [] });
   });
 
+  it('plays its reveals one by one, each without what is gone, kept even when nothing is left', () => {
+    const played = playableStep(
+      project(),
+      step({
+        marks: ['api'],
+        reveal: [{ marks: ['db', 'gone'], text: 'The data.' }, { marks: ['gone'] }],
+        dimRest: true,
+        advance: 500,
+      }),
+    );
+    expect(played).toEqual({
+      viewState: { view: 'overview' },
+      marks: ['api'],
+      reveals: [{ marks: ['db'], text: 'The data.' }, { marks: [] }],
+      dimRest: true,
+      advance: 900,
+    });
+  });
+
   it('has nothing to show when its view is gone', () => {
     expect(playableStep(project(), step({ viewState: { view: 'gone' } }))).toBeUndefined();
+  });
+});
+
+describe('tourTextLength', () => {
+  it('counts the texts of a step’s reveals with its caption and notes', () => {
+    const tour = {
+      id: 'walk',
+      name: 'Walk',
+      steps: [
+        step({ caption: { title: 'Here' }, reveal: [{ marks: ['a'], text: 'Twelve chars' }] }),
+      ],
+    };
+    expect(tourTextLength(tour)).toBe('Walk'.length + 'Here'.length + 'Twelve chars'.length);
   });
 });
 
@@ -360,10 +411,11 @@ describe('idsNamedByTours', () => {
               focus: { degrees: 1, direction: 'both', from: ['b'] },
             },
             marks: ['c'],
+            reveal: [{ marks: ['d'] }],
           }),
         ],
       },
     ]);
-    expect([...ids].sort()).toEqual(['a', 'b', 'c', 'walk']);
+    expect([...ids].sort()).toEqual(['a', 'b', 'c', 'd', 'walk']);
   });
 });

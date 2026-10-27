@@ -18,11 +18,16 @@ import type { ProblemCode } from '../problems';
 import type { ProjectSnapshot } from '../snapshot';
 import { definitionsIn, modelIndexOf } from '../state';
 import { checkViewState, type ViewState } from '../view-state';
+import { advanceAfter } from './timing';
 
 /** The most steps a tour holds. */
 export const MAX_TOUR_STEPS = 1000;
 /** The most elements and relations a step marks. */
 export const MAX_TOUR_MARKS = 500;
+/** The most reveals a step brings in, one press at a time (ADR 0077). */
+export const MAX_TOUR_REVEALS = 50;
+/** How long a step may wait before it moves on by itself, in milliseconds, at the least and the most. */
+export const TOUR_ADVANCE = { least: 500, most: 600_000 } as const;
 /** The longest name of a tour, and title of a step's caption. */
 export const MAX_TOUR_NAME = 200;
 export const MAX_CAPTION_TITLE = 200;
@@ -38,11 +43,15 @@ export const MAX_SPEAKER_NOTES = 20000;
  */
 export const MAX_TOUR_TEXT = 1_000_000;
 
-/** How many characters a tour's text holds: its name, description, captions and speaker notes. */
+/**
+ * How many characters a tour's text holds: its name, description, captions, the texts its reveals
+ * add to them, and speaker notes.
+ */
 export function tourTextLength(tour: TourFile): number {
   let length = tour.name.length + (tour.description?.length ?? 0);
   for (const step of tour.steps) {
     length += step.caption.title.length + (step.caption.text?.length ?? 0);
+    for (const reveal of step.reveal ?? []) length += reveal.text?.length ?? 0;
     length += step.notes?.length ?? 0;
   }
   return length;
@@ -161,12 +170,14 @@ export interface TourStepProblem {
   message: string;
   /** What it names. */
   subject: Id;
+  /** The reveal that names it, counted from 0, when one does (ADR 0077). */
+  reveal?: number;
 }
 
 /**
- * What a step names that the project does not hold now: its view; what it selects, marks or focuses
- * from; the components and relation types its filters name; the scenario open, or played, and their
- * steps. Empty when the step plays as it was written. A step with problems is kept, and plays
+ * What a step names that the project does not hold now: its view; what it selects, marks, reveals or
+ * focuses from; the components and relation types its filters name; the scenario open, or played, and
+ * their steps. Empty when the step plays as it was written. A step with problems is kept, and plays
  * without what they name.
  */
 export function tourStepProblems(project: ProjectSnapshot, step: TourStep): TourStepProblem[] {
@@ -203,6 +214,18 @@ export function tourStepProblems(project: ProjectSnapshot, step: TourStep): Tour
       });
     }
   }
+  (step.reveal ?? []).forEach((reveal, at) => {
+    for (const id of reveal.marks) {
+      if (!inModel(id)) {
+        problems.push({
+          code: 'unknown-element',
+          message: `Reveal ${at + 1} of the step marks elements and relations, and "${id}" is neither.`,
+          subject: id,
+          reveal: at,
+        });
+      }
+    }
+  });
   for (const id of viewState.focus?.from ?? []) {
     if (!inModel(id)) {
       problems.push({
@@ -317,6 +340,15 @@ export interface PlayableStep {
   viewState: ViewState;
   /** What it highlights. */
   marks: Id[];
+  /**
+   * What it brings in one press forward at a time, each without what the project no longer holds; a
+   * reveal left with nothing to mark stays, so that the presses and the texts stay as written.
+   */
+  reveals?: { marks: Id[]; text?: string }[];
+  /** Whether it dims everything it does not mark. */
+  dimRest?: true;
+  /** When it moves on by itself, never before its text is read (`advanceAfter`). */
+  advance?: number | 'after-scenario';
   /** The scenario it plays, by the indices of the steps it plays from and to, both included. */
   play?: { scenario: Id; from: number; to: number };
 }
@@ -368,6 +400,15 @@ export function playableStep(project: ProjectSnapshot, step: TourStep): Playable
     delete state.step;
   }
   const playable: PlayableStep = { viewState: state, marks: kept(step.marks) };
+  if (step.reveal) {
+    playable.reveals = step.reveal.map((reveal) => ({
+      marks: kept(reveal.marks),
+      ...(reveal.text === undefined ? {} : { text: reveal.text }),
+    }));
+  }
+  if (step.dimRest) playable.dimRest = true;
+  const advance = advanceAfter(step);
+  if (advance !== undefined) playable.advance = advance;
   const played = step.play && playedOver(project, view.id, step.play.scenario);
   if (step.play && played && played.steps.length > 0) {
     const at = (id: Id | undefined, fallback: number) => {
@@ -392,7 +433,8 @@ function playedOver(project: ProjectSnapshot, view: Id, scenario: Id) {
 const named = new WeakMap<readonly TourFile[], ReadonlySet<Id>>();
 
 /**
- * The ids the steps of the tours name as what they select, mark or focus from, and the tours' own ids.
+ * The ids the steps of the tours name as what they select, mark, reveal or focus from, and the tours'
+ * own ids.
  * No new element or relation takes one of them, so that a step whose element was deleted never comes
  * to mean another.
  */
@@ -405,6 +447,7 @@ export function idsNamedByTours(tours: readonly TourFile[]): ReadonlySet<Id> {
       for (const step of tour.steps) {
         for (const id of step.viewState.select ?? []) set.add(id);
         for (const id of step.marks ?? []) set.add(id);
+        for (const reveal of step.reveal ?? []) for (const id of reveal.marks) set.add(id);
         for (const id of step.viewState.focus?.from ?? []) set.add(id);
       }
     }
