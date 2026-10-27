@@ -66,6 +66,7 @@ describe('a program on a folder that holds no project yet', () => {
             packages: ['data-science', 'machine-learning'],
           },
           { id: 'robot-arm', name: 'Pick-and-place arm', packages: ['physical-ai'] },
+          { id: 'order-process', name: 'Online order', packages: ['process'] },
         ],
         token: 'secret',
       },

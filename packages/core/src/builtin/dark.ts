@@ -67,6 +67,23 @@ export const DARK_SHADES: DarkShades = Object.freeze({
     'physical-ai.compute-unit': { fill: '#1C2129', stroke: '#A9B4C2' },
     'physical-ai.node': { fill: '#172B45', stroke: '#78A8EE' },
     'physical-ai.topic': { fill: '#1F2A12', stroke: '#A9D16A' },
+    // Processes and state machines (P1 W64).
+    'process.pool': { fill: '#1C2128', stroke: '#A3AFBC' },
+    'process.lane': { fill: '#1B1F25', stroke: '#9AA5B1' },
+    'process.start-event': { fill: '#152A20', stroke: '#6CC795' },
+    'process.end-event': { fill: '#33191A', stroke: '#F0928A' },
+    'process.intermediate-event': { fill: '#2C2416', stroke: '#E2B45E' },
+    'process.task': { fill: '#18283B', stroke: '#8BB6EF' },
+    'process.subprocess': { fill: '#1A283A', stroke: '#97BEF1' },
+    'process.exclusive-gateway': { fill: '#2E2812', stroke: '#DDB955' },
+    'process.parallel-gateway': { fill: '#2E2812', stroke: '#DDB955' },
+    'process.inclusive-gateway': { fill: '#2E2812', stroke: '#DDB955' },
+    'process.data-object': { fill: '#241F38', stroke: '#B7A0F2' },
+    'process.data-store': { fill: '#241F38', stroke: '#B7A0F2' },
+    'process.state': { fill: '#13292A', stroke: '#5FC6B8' },
+    'process.initial-state': { fill: '#1E2329', stroke: '#D3DAE2' },
+    'process.final-state': { fill: '#1E2329', stroke: '#D3DAE2' },
+    'process.choice': { fill: '#13292A', stroke: '#5FC6B8' },
   }),
   relationTypes: Object.freeze({
     'relates-to': { stroke: '#8F9AA6' },
@@ -91,6 +108,11 @@ export const DARK_SHADES: DarkShades = Object.freeze({
     'physical-ai.commands': { stroke: '#B7A0F2' },
     'physical-ai.publishes-to': { stroke: '#8DB8F2' },
     'physical-ai.subscribes-to': { stroke: '#8DB8F2' },
+    // Processes and state machines (P1 W64).
+    'process.sequence-flow': { stroke: '#AEB8C4' },
+    'process.message-flow': { stroke: '#AEB8C4' },
+    'process.association': { stroke: '#9AA5B1' },
+    'process.transition': { stroke: '#AEB8C4' },
   }),
 });
 

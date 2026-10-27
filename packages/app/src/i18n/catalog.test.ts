@@ -316,8 +316,11 @@ const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
   { word: /\bgrafos?\b/i },
   { word: /\buniversos?\b/i },
   { word: /\becosistemas?\b/i },
-  // A JSON object is "objeto JSON"; "Object storage" is a built-in component's name.
-  { word: /\bobjetos?\b/i, unless: /\bobjetos? JSON\b|\balmacenamiento de objetos\b/i },
+  // A JSON object is "objeto JSON"; "Object storage" and "Data object" are built-in components' names.
+  {
+    word: /\bobjetos?\b/i,
+    unless: /\bobjetos? JSON\b|\balmacenamiento de objetos\b|\bobjetos? de datos\b/i,
+  },
   // An entity of XML, "&amp;", is what the SVG and XML readers name.
   { word: /\bentidad(es)?\b/i, unless: /\bentidad "&/i },
   { word: /\bexcepci[oó]n(es)?\b/i },

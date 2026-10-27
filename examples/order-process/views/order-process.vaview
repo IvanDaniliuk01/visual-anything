@@ -1,0 +1,140 @@
+{
+  "id": "order-process",
+  "name": "Order process",
+  "description": "How the shop handles an order, lane by lane, and the messages it exchanges with the customer.",
+  "perspective": {
+    "name": "Process"
+  },
+  "nestingRelationTypes": [
+    "process.is-part-of"
+  ],
+  "positions": [
+    {
+      "element": "customer",
+      "x": 0,
+      "y": 0,
+      "width": 1552,
+      "height": 96
+    },
+    {
+      "element": "shop",
+      "x": 0,
+      "y": 160
+    },
+    {
+      "element": "sales",
+      "container": "shop",
+      "x": 24,
+      "y": 48,
+      "width": 1504,
+      "height": 320
+    },
+    {
+      "element": "warehouse",
+      "container": "shop",
+      "x": 24,
+      "y": 368,
+      "width": 1504,
+      "height": 264
+    },
+    {
+      "element": "order-received",
+      "container": "sales",
+      "x": 24,
+      "y": 96
+    },
+    {
+      "element": "check-stock",
+      "container": "sales",
+      "x": 232,
+      "y": 80
+    },
+    {
+      "element": "in-stock",
+      "container": "sales",
+      "x": 440,
+      "y": 48
+    },
+    {
+      "element": "cancel-order",
+      "container": "sales",
+      "x": 648,
+      "y": 80
+    },
+    {
+      "element": "order-cancelled",
+      "container": "sales",
+      "x": 856,
+      "y": 96
+    },
+    {
+      "element": "order",
+      "container": "sales",
+      "x": 24,
+      "y": 200
+    },
+    {
+      "element": "inventory",
+      "container": "warehouse",
+      "x": 232,
+      "y": 120
+    },
+    {
+      "element": "prepare-parcel",
+      "container": "warehouse",
+      "x": 440,
+      "y": 48
+    },
+    {
+      "element": "pick-items",
+      "container": "prepare-parcel",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "pack-box",
+      "container": "prepare-parcel",
+      "x": 232,
+      "y": 48
+    },
+    {
+      "element": "carrier-pickup",
+      "container": "warehouse",
+      "x": 904,
+      "y": 120
+    },
+    {
+      "element": "hand-over",
+      "container": "warehouse",
+      "x": 1112,
+      "y": 104
+    },
+    {
+      "element": "order-shipped",
+      "container": "warehouse",
+      "x": 1320,
+      "y": 120
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "exclude": [
+      {
+        "kind": "component",
+        "component": "process.state"
+      },
+      {
+        "kind": "component",
+        "component": "process.initial-state"
+      },
+      {
+        "kind": "component",
+        "component": "process.final-state"
+      },
+      {
+        "kind": "component",
+        "component": "process.choice"
+      }
+    ]
+  }
+}

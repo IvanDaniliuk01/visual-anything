@@ -20,6 +20,7 @@ export const SAMPLE_IDS = [
   'data-science-pipeline',
   'churn-classifier',
   'robot-arm',
+  'order-process',
 ] as const;
 
 /** A sample project the local program holds. */

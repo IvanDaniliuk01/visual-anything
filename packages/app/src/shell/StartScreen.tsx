@@ -26,6 +26,11 @@ const SAMPLE_TEXTS: Readonly<Record<string, { title: string; description: string
     description:
       'A six-axis arm drawn with its parts, its kinematic chain and its software, with a scenario of a command that goes from a learned policy to a joint and is read back.',
   },
+  'order-process': {
+    title: 'Processes and state machines: an online order',
+    description:
+      'An online shop’s order, from the customer’s order through a stock check to shipping, and the states it goes through, with a scenario of an order that ships.',
+  },
 };
 
 interface StartScreenProps {

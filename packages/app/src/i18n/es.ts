@@ -152,6 +152,11 @@ export const ui: Catalog = {
   'Physical AI: a pick-and-place arm': 'IA física: un brazo que toma y coloca piezas',
   'A six-axis arm drawn with its parts, its kinematic chain and its software, with a scenario of a command that goes from a learned policy to a joint and is read back.':
     'Un brazo de seis ejes dibujado con sus partes, su cadena cinemática y su software, con un escenario de un comando que va de una política aprendida a una articulación y se vuelve a leer.',
+  // P1 W64: the sample of Processes and state machines.
+  'Processes and state machines: an online order':
+    'Procesos y máquinas de estados: un pedido en línea',
+  'An online shop’s order, from the customer’s order through a stock check to shipping, and the states it goes through, with a scenario of an order that ships.':
+    'El pedido de una tienda en línea, desde que el cliente lo hace, pasando por el control de stock, hasta el envío, y los estados por los que pasa, con un escenario de un pedido que se envía.',
   'Start from the sample “{name}”': 'Empezar a partir del proyecto de muestra “{name}”',
   'Start from this sample': 'Empezar a partir de este proyecto de muestra',
   'Starting…': 'Empezando…',
@@ -5620,5 +5625,136 @@ export const builtins: Readonly<
   'physical-ai.runs-on': {
     name: 'se ejecuta en',
     description: 'Ubica un nodo de software en la unidad de cómputo en la que se ejecuta.',
+  },
+  // P1 W64: Processes and state machines (ADR 0079).
+  process: {
+    name: 'Procesos y máquinas de estados',
+    description:
+      'Piletas y carriles, eventos, tareas, subprocesos, compuertas, objetos de datos y almacenes de datos, al estilo de BPMN, y los estados, las elecciones y las transiciones de las máquinas de estados.',
+  },
+  'process.pool': {
+    name: 'Pileta',
+    description:
+      'Un participante de un proceso, como una empresa, un área o un cliente, con los carriles y el trabajo que hace.',
+  },
+  'process.lane': {
+    name: 'Carril',
+    description: 'Una parte de una pileta, como un rol o un equipo, con el trabajo que hace.',
+  },
+  'process.start-event': {
+    name: 'Evento de inicio',
+    description:
+      'Donde empieza un proceso, como un pedido que llega o un temporizador que se cumple; se dibuja como un círculo fino.',
+    attributes: {
+      trigger:
+        'Qué lo desencadena: "none", "message", "timer" o "signal". Los íconos del paquete lo muestran, puestos como la imagen propia del elemento.',
+    },
+  },
+  'process.end-event': {
+    name: 'Evento de fin',
+    description:
+      'Donde termina un camino de un proceso, quizás enviando un mensaje al hacerlo; se dibuja como un círculo grueso.',
+    attributes: {
+      trigger:
+        'Qué lo desencadena: "none", "message", "timer" o "signal". Los íconos del paquete lo muestran, puestos como la imagen propia del elemento.',
+    },
+  },
+  'process.intermediate-event': {
+    name: 'Evento intermedio',
+    description:
+      'Algo que pasa mientras un proceso avanza, que el proceso espera o envía, como un mensaje o un plazo; se dibuja como un círculo doble.',
+    attributes: {
+      trigger:
+        'Qué lo desencadena: "none", "message", "timer" o "signal". Los íconos del paquete lo muestran, puestos como la imagen propia del elemento.',
+    },
+  },
+  'process.task': {
+    name: 'Tarea',
+    description: 'Un trabajo, hecho por una persona, por software o a mano.',
+    attributes: {
+      kind: 'Quién lo hace: "user", una persona con software; "service", el software solo; "manual", una persona sin software.',
+    },
+  },
+  'process.subprocess': {
+    name: 'Subproceso',
+    description:
+      'Una parte de un proceso con sus propios eventos, tareas y compuertas, que se muestran dentro de ella o quedan contraídos.',
+  },
+  'process.exclusive-gateway': {
+    name: 'Compuerta exclusiva',
+    description:
+      'Donde un proceso toma exactamente uno de los caminos que salen de ella, según sus condiciones; se dibuja como un rombo con una X.',
+  },
+  'process.parallel-gateway': {
+    name: 'Compuerta paralela',
+    description:
+      'Donde un proceso se divide en caminos que avanzan todos, o espera a que todos se unan; se dibuja como un rombo con un signo más.',
+  },
+  'process.inclusive-gateway': {
+    name: 'Compuerta inclusiva',
+    description:
+      'Donde un proceso toma uno o más de los caminos que salen de ella, según sus condiciones; se dibuja como un rombo con un círculo.',
+  },
+  'process.data-object': {
+    name: 'Objeto de datos',
+    description:
+      'Información que un proceso lee o produce, como un pedido o una factura; se dibuja como una página con una esquina doblada.',
+  },
+  'process.data-store': {
+    name: 'Almacén de datos',
+    description:
+      'Donde un proceso guarda información que dura más que él, como una base de datos; se dibuja como un cilindro con franjas.',
+  },
+  'process.state': {
+    name: 'Estado',
+    description:
+      'Una condición en la que algo puede estar por un tiempo, como "Pagado" o "Enviado"; puede contener estados propios.',
+  },
+  'process.initial-state': {
+    name: 'Estado inicial',
+    description:
+      'Donde empieza una máquina de estados, o un estado que contiene estados; se dibuja como un punto.',
+  },
+  'process.final-state': {
+    name: 'Estado final',
+    description:
+      'Donde termina una máquina de estados; se dibuja como un punto dentro de un anillo.',
+  },
+  'process.choice': {
+    name: 'Elección',
+    description:
+      'Donde una transición sigue uno de varios caminos, según las guardas de las transiciones que salen de ella; se dibuja como un rombo.',
+  },
+  'process.sequence-flow': {
+    name: 'flujo de secuencia',
+    description: 'El orden del trabajo: lo que pasa después en un proceso.',
+    attributes: {
+      condition:
+        'Cuándo se lo toma después de una compuerta, en texto, como "hay stock de todos los artículos"; nunca se ejecuta.',
+    },
+  },
+  'process.message-flow': {
+    name: 'flujo de mensaje',
+    description: 'Un mensaje que un participante le envía a otro, de pileta a pileta.',
+  },
+  'process.association': {
+    name: 'asociación',
+    description:
+      'Une un objeto de datos o un almacén de datos con el trabajo que lo lee o lo escribe.',
+  },
+  'process.transition': {
+    name: 'transición',
+    description:
+      'Un cambio de un estado a otro, cuando ocurre su disparador y se cumple su guarda, que realiza su efecto.',
+    attributes: {
+      trigger: 'Lo que la hace ocurrir, como "pago recibido".',
+      guard: 'Lo que debe cumplirse para que ocurra, en texto, como "stock > 0"; nunca se ejecuta.',
+      effect: 'Lo que hace al ocurrir, en texto, como "enviar el recibo"; nunca se ejecuta.',
+    },
+  },
+  'process.is-part-of': {
+    name: 'es parte de',
+    description:
+      'Ubica un carril en su pileta, el trabajo en su carril o su subproceso, o un estado en el estado que lo contiene.',
   },
 };
