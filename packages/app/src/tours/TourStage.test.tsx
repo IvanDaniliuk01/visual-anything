@@ -210,6 +210,54 @@ describe('TourStage', () => {
       'This step’s view no longer exists, so the canvas stays where it is.',
     );
   });
+
+  // The caption fades out and in with the step's transition (ADR 0077).
+  it('shows the caption the transition shows, fading as it says', () => {
+    const [left, come] = tour.steps;
+    if (!left || !come) throw new Error('The sample tour has too few steps.');
+    const { rerender, onAction } = stage({
+      step: 1,
+      caption: { step: 0, phase: 'out', fade: 150 },
+    });
+    const card = screen.getByRole('article');
+    expect(within(card).getByRole('heading', { name: left.caption.title })).toBeInTheDocument();
+    expect(card).toHaveAttribute('data-phase', 'out');
+    expect(card.style.transitionDuration).toBe('150ms');
+    // Where the tour is says the step come to at once.
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '2');
+    rerender(
+      <TourStage
+        project={sample}
+        tour={tour}
+        step={1}
+        caption={{ step: 1, phase: 'in', fade: 200 }}
+        onAction={onAction}
+      />,
+    );
+    expect(within(card).getByRole('heading', { name: come.caption.title })).toBeInTheDocument();
+    expect(card).toHaveAttribute('data-phase', 'in');
+    expect(card.style.transitionDuration).toBe('200ms');
+  });
+
+  it('goes forward while a step has reveals to show, and back while one shows', () => {
+    const last = tour.steps.length - 1;
+    const revealing: TourFile = {
+      ...tour,
+      steps: tour.steps.map((step, at) =>
+        at === last || at === 0 ? { ...step, reveal: [{ marks: ['patient'] }] } : step,
+      ),
+    };
+    const { rerender, onAction } = stage({ tour: revealing, step: last, reveal: 0 });
+    expect(screen.getByRole('button', { name: 'Next step' })).toBeEnabled();
+    rerender(
+      <TourStage project={sample} tour={revealing} step={last} reveal={1} onAction={onAction} />,
+    );
+    expect(screen.getByRole('button', { name: 'Next step' })).toBeDisabled();
+    rerender(
+      <TourStage project={sample} tour={revealing} step={0} reveal={1} onAction={onAction} />,
+    );
+    expect(screen.getByRole('button', { name: 'Previous step' })).toBeEnabled();
+  });
 });
 
 describe('the speaker notes window', () => {

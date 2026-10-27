@@ -38,20 +38,40 @@ const NONE: ReadonlySet<string> = new Set();
 export interface Emphasized {
   hidden: Hidden;
   dimmed: Hidden;
-  highlighted: {
-    shapes: readonly ElementShape[];
-    lines: readonly RelationLine[];
-    notes: readonly NoteShape[];
-    arrows: readonly ArrowShape[];
-  };
-  /** Each marker on the line that draws its relation, a fraction of the way along its route. */
-  markers: readonly { line: RelationLine; along: number }[];
+  highlighted: Lit;
+  /** Of what it highlights, what fades in (ADR 0077), and over how many milliseconds: 0 for none. */
+  arriving: Lit;
+  arrivingFor: number;
+  /**
+   * Each marker on the line that draws its relation, a fraction of the way along its route, and
+   * where its trail starts, when it leaves one.
+   */
+  markers: readonly PlacedMarker[];
 }
+
+/** What is drawn marked: element shapes, relations' lines and free shapes. */
+export interface Lit {
+  shapes: readonly ElementShape[];
+  lines: readonly RelationLine[];
+  notes: readonly NoteShape[];
+  arrows: readonly ArrowShape[];
+}
+
+/** A marker on a line: `along` its route, and its trail `from` there to it, when it leaves one. */
+export interface PlacedMarker {
+  line: RelationLine;
+  along: number;
+  from?: number;
+}
+
+const NOTHING_LIT: Lit = { shapes: [], lines: [], notes: [], arrows: [] };
 
 export const NOTHING_EMPHASIZED: Emphasized = {
   hidden: NOTHING_HIDDEN,
   dimmed: NOTHING_HIDDEN,
-  highlighted: { shapes: [], lines: [], notes: [], arrows: [] },
+  highlighted: NOTHING_LIT,
+  arriving: NOTHING_LIT,
+  arrivingFor: 0,
   markers: [],
 };
 
@@ -66,7 +86,8 @@ export const NOTHING_EMPHASIZED: Emphasized = {
  *   show that relation's ends, which a collapsed container hides.
  * - Highlighting wins over dimming, and hiding over both.
  * - A marker on a relation that an aggregated relation stands for travels along that line, the way
- *   the relation runs.
+ *   the relation runs, and so does its trail.
+ * - What arrives is what it highlights that its `arriving` names, a line by any relation it stands for.
  */
 export function emphasize(scene: Scene, emphasis: Emphasis): Emphasized {
   const { hidden = NONE, dimmed = NONE, highlighted = NONE, markers = [] } = emphasis;
@@ -165,19 +186,38 @@ export function emphasize(scene: Scene, emphasis: Emphasis): Emphasized {
     if (hiddenFree.has(id) || litFree.has(id)) dimmedFree.delete(id);
   }
 
-  const placed: { line: RelationLine; along: number }[] = [];
+  const placed: PlacedMarker[] = [];
+  const clamped = (value: number) => Math.min(1, Math.max(0, value));
   for (const marker of markers) {
     const line = byRelation.get(marker.relation) ?? byKey.get(marker.relation);
     if (!line || hiddenLines.has(line.relation)) continue;
-    const progress = Math.min(1, Math.max(0, marker.progress));
+    const progress = clamped(marker.progress);
     const back = line.aggregate?.reversed?.includes(marker.relation) ?? false;
-    placed.push({ line, along: back ? 1 - progress : progress });
+    const along = back ? 1 - progress : progress;
+    if (marker.trail === undefined) placed.push({ line, along });
+    else {
+      const trail = clamped(marker.trail);
+      placed.push({ line, along, from: back ? 1 - trail : trail });
+    }
   }
+
+  const arrivingKeys = emphasis.arriving?.keys;
+  const arriving =
+    arrivingKeys === undefined || arrivingKeys.size === 0
+      ? NOTHING_LIT
+      : {
+          shapes: lit.shapes.filter((shape) => arrivingKeys.has(shape.key)),
+          lines: lit.lines.filter((line) => some(arrivingKeys, line)),
+          notes: lit.notes.filter((note) => arrivingKeys.has(note.id)),
+          arrows: lit.arrows.filter((arrow) => arrivingKeys.has(arrow.id)),
+        };
 
   return {
     hidden: { shapes: hiddenShapes, relations: hiddenLines, free: hiddenFree },
     dimmed: { shapes: dimmedShapes, relations: dimmedLines, free: dimmedFree },
     highlighted: lit,
+    arriving,
+    arrivingFor: arriving === NOTHING_LIT ? 0 : (emphasis.arriving?.duration ?? 0),
     markers: placed,
   };
 }

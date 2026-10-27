@@ -89,6 +89,14 @@
   color: var(--text);
   box-shadow: var(--shadow-3);
   line-height: var(--line-normal);
+  /* The caption fades out and in with the step's transition, its time set by the stage (ADR 0077):
+     a change of opacity is not motion, so it fades under reduced motion too. */
+  transition-property: opacity;
+  transition-timing-function: linear;
+}
+
+.tour-card:is([data-phase='out'], [data-phase='away']) {
+  opacity: 0;
 }
 
 .tour-card-title {

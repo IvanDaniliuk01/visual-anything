@@ -1,10 +1,11 @@
-import { MAX_TOUR_MOVE_TIME } from '@visual-anything/core';
+import { MAX_TOUR_MOVE_TIME, TOUR_CROSS_FADE } from '@visual-anything/core';
 import { describe, expect, it, vi } from 'vitest';
 import { visibleRect, type Camera } from '../canvas/camera';
 import type { Rect } from '../canvas/geometry';
 import { buildScene } from '../canvas/scene';
 import { loadSample } from '../test/sample';
-import type { CanvasCamera } from '../view-state/canvas';
+import type { FrameCapture } from '../canvas/capture';
+import type { CanvasCamera, GlideOptions } from '../view-state/canvas';
 import { FOLLOW_MARGIN, PlaybackFollower, followCamera, stepBounds } from './follow';
 
 const viewport = { width: 1000, height: 600 };
@@ -68,7 +69,7 @@ function fakeCanvas(start: Camera = { x: 0, y: 0, scale: 1 }) {
     camera = next;
     for (const listener of listeners) listener();
   };
-  const glides: { to: Camera; duration: number }[] = [];
+  const glides: { to: Camera; duration: number; options?: GlideOptions }[] = [];
   const canvas: CanvasCamera = {
     camera: () => camera,
     viewport: () => viewport,
@@ -79,8 +80,8 @@ function fakeCanvas(start: Camera = { x: 0, y: 0, scale: 1 }) {
     },
     reveal: vi.fn(),
     targetOf: () => camera,
-    glideTo: (to, duration) => {
-      glides.push({ to, duration });
+    glideTo: (to, duration, options) => {
+      glides.push({ to, duration, ...(options ? { options } : {}) });
       set(to);
     },
   };
@@ -169,5 +170,47 @@ describe('PlaybackFollower', () => {
     expect(listening()).toBe(1);
     follower.dispose();
     expect(listening()).toBe(0);
+  });
+});
+
+// Along the smooth path, and cross-fading where it cuts (ADR 0077).
+describe('PlaybackFollower’s moves', () => {
+  function followWith(options: { reduced?: boolean; fades?: boolean } = {}) {
+    const fake = fakeCanvas();
+    const capture = { fadeOut: vi.fn() };
+    const capturing = vi.fn(() => capture as unknown as FrameCapture);
+    fake.canvas.capture = capturing;
+    const follower = new PlaybackFollower(fake.canvas, {
+      reducedMotion: () => options.reduced ?? false,
+      ...(options.fades === undefined ? {} : { fades: () => options.fades as boolean }),
+    });
+    follower.show({ key: 's 0', bounds: NEAR, playing: false }, 0);
+    follower.show({ key: 's 1', bounds: FAR, playing: false }, 1);
+    return { ...fake, capture, capturing };
+  }
+
+  it('glides along the smooth path from where the camera was', () => {
+    const { glides, capturing } = followWith();
+    const along = glides[0]?.options?.along;
+    expect(along).toBeDefined();
+    const start = along?.(0);
+    expect(start?.x).toBeCloseTo(0);
+    expect(start?.scale).toBeCloseTo(1);
+    const end = along?.(1);
+    expect(end?.x).toBeCloseTo(glides[0]?.to.x ?? NaN);
+    expect(end?.scale).toBeCloseTo(glides[0]?.to.scale ?? NaN);
+    expect(capturing).not.toHaveBeenCalled();
+  });
+
+  it('cross-fades where it cuts, once the canvas has drawn where it went', () => {
+    const { glides, capture } = followWith({ reduced: true });
+    expect(glides[0]?.duration).toBe(0);
+    expect(capture.fadeOut).toHaveBeenCalledWith(TOUR_CROSS_FADE, { afterFrame: true });
+  });
+
+  it('cuts plainly with fades off', () => {
+    const { glides, capturing } = followWith({ reduced: true, fades: false });
+    expect(glides[0]?.duration).toBe(0);
+    expect(capturing).not.toHaveBeenCalled();
   });
 });

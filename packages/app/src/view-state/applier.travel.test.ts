@@ -58,14 +58,15 @@ describe('a tour step’s move', () => {
   it('shows the whole view when the step has neither a camera nor a selection, eased as its travel says', () => {
     const canvas = fakeCanvas();
     const context = contextOf(sample, canvas);
-    const move = vi.fn<Travel['move']>(() => 320);
+    const along = (): Camera => WHOLE;
+    const move = vi.fn<Travel['move']>(() => ({ duration: 320, along, delay: 150 }));
     const travel: Travel = { move };
     const applier = new ViewStateApplier();
     applier.goTo({ kind: 'address', state: { view: VIEW }, travel }, context);
     applier.sync(context);
     expect(canvas.targetOf).toHaveBeenCalledWith({ whole: true });
     expect(move).toHaveBeenCalledWith(HERE, WHOLE, VIEWPORT, true);
-    expect(canvas.glideTo).toHaveBeenCalledWith(WHOLE, 320);
+    expect(canvas.glideTo).toHaveBeenCalledWith(WHOLE, 320, { along, delay: 150 });
     expect(canvas.setCamera).not.toHaveBeenCalled();
   });
 
@@ -75,12 +76,12 @@ describe('a tour step’s move', () => {
     const camera = { x: 300, y: 200, zoom: 2 };
     const applier = new ViewStateApplier();
     applier.goTo(
-      { kind: 'address', state: { view: VIEW, camera }, travel: { move: () => 0 } },
+      { kind: 'address', state: { view: VIEW, camera }, travel: { move: () => ({ duration: 0 }) } },
       context,
     );
     applier.sync(context);
     expect(canvas.targetOf).not.toHaveBeenCalled();
-    expect(canvas.glideTo).toHaveBeenCalledWith(cameraFor(camera, VIEWPORT), 0);
+    expect(canvas.glideTo).toHaveBeenCalledWith(cameraFor(camera, VIEWPORT), 0, {});
   });
 
   it('brings the selection into sight when the step has no camera', () => {
@@ -91,7 +92,7 @@ describe('a tour step’s move', () => {
       {
         kind: 'address',
         state: { view: VIEW, select: ['booking-agent'] },
-        travel: { move: () => 250 },
+        travel: { move: () => ({ duration: 250 }) },
       },
       context,
     );
@@ -100,7 +101,7 @@ describe('a tour step’s move', () => {
       selection: { ...EMPTY_SELECTION, elements: new Set(['booking-agent']) },
     });
     expect(canvas.targetOf).toHaveBeenCalledWith({ key: expect.any(String) as string });
-    expect(canvas.glideTo).toHaveBeenCalledWith(WHOLE, 250);
+    expect(canvas.glideTo).toHaveBeenCalledWith(WHOLE, 250, {});
   });
 
   it('says a step in another view is not in the same view', () => {
@@ -112,7 +113,7 @@ describe('a tour step’s move', () => {
       ],
     };
     const canvas = fakeCanvas();
-    const move = vi.fn<Travel['move']>(() => 0);
+    const move = vi.fn<Travel['move']>(() => ({ duration: 0 }));
     const travel: Travel = { move };
     const applier = new ViewStateApplier();
     const before = contextOf(second, canvas, 'other');

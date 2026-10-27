@@ -1,7 +1,8 @@
 /**
- * The tour a tab plays full screen (ADR 0058), and the step it is on. It lives outside React's state,
- * like the scenario session, and is kept by the tab only: playing a tour changes nothing in the
- * project, as playing a scenario changes nothing (ADR 0031).
+ * The tour a tab plays full screen (ADR 0058), the step it is on and how many of the step's reveals
+ * show (ADR 0077). It lives outside React's state, like the scenario session, and is kept by the tab
+ * only: playing a tour changes nothing in the project, as playing a scenario changes nothing (ADR
+ * 0031).
  */
 import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Id, TourFile } from '@visual-anything/schema';
@@ -12,13 +13,17 @@ export interface TourPlayback {
   tour: Id | undefined;
   /** The index of the step shown, among the tour's steps. */
   step: number;
+  /** How many of the step's reveals show, from 0 to as many as it has. */
+  reveal: number;
 }
 
-const STOPPED: TourPlayback = { tour: undefined, step: 0 };
+const STOPPED: TourPlayback = { tour: undefined, step: 0, reveal: 0 };
 
 export class TourPlayer {
   private state: TourPlayback = STOPPED;
   private steps = 0;
+  /** How many reveals each step of the tour played brings in. */
+  private reveals: readonly number[] = [];
   private readonly listeners = new Set<() => void>();
 
   readonly subscribe = (listener: () => void): (() => void) => {
@@ -35,7 +40,7 @@ export class TourPlayer {
 
   /**
    * Takes in the project as it is now: a tour deleted while it plays ends, and one whose steps change
-   * stays on a step it still has.
+   * stays on a step it still has, and on a reveal its step still has.
    */
   sync(project: ProjectSnapshot): void {
     const { tour } = this.state;
@@ -45,23 +50,39 @@ export class TourPlayer {
       this.end();
       return;
     }
-    this.steps = found.steps.length;
-    if (this.state.step >= this.steps) this.set({ ...this.state, step: this.steps - 1 });
+    this.take(found);
+    const step = Math.min(this.state.step, this.steps - 1);
+    const reveal = Math.min(this.state.reveal, this.revealsOf(step));
+    if (step !== this.state.step || reveal !== this.state.reveal) {
+      this.set({ ...this.state, step, reveal });
+    }
   }
 
   /** Starts a tour full screen, at a step: the first unless another is given. */
   start(tour: TourFile, step = 0): void {
     if (tour.steps.length === 0) return;
-    this.steps = tour.steps.length;
-    this.set({ tour: tour.id, step: clamp(step, this.steps) });
+    this.take(tour);
+    this.set({ tour: tour.id, step: clamp(step, this.steps), reveal: 0 });
   }
 
+  /** Goes forward one press: the step's next reveal, or the next step after its last (ADR 0077). */
   next(): void {
-    if (this.playing) this.goTo(this.state.step + 1);
+    if (!this.playing) return;
+    const { step, reveal } = this.state;
+    if (reveal < this.revealsOf(step)) this.set({ ...this.state, reveal: reveal + 1 });
+    else this.goTo(step + 1);
   }
 
+  /**
+   * Goes back one press: takes the step's last reveal away, or goes to the step before, with all it
+   * reveals, as it was left.
+   */
   previous(): void {
-    if (this.playing) this.goTo(this.state.step - 1);
+    if (!this.playing) return;
+    const { step, reveal } = this.state;
+    if (reveal > 0) this.set({ ...this.state, reveal: reveal - 1 });
+    else if (step > 0)
+      this.set({ ...this.state, step: step - 1, reveal: this.revealsOf(step - 1) });
   }
 
   first(): void {
@@ -72,16 +93,31 @@ export class TourPlayer {
     if (this.playing) this.goTo(this.steps - 1);
   }
 
-  /** Goes to a step, by its index; one past either end stays at that end. */
+  /**
+   * Goes to a step, by its index, at its start, before any of its reveals; one past either end stays
+   * at that end.
+   */
   goTo(step: number): void {
     if (!this.playing) return;
     const next = clamp(step, this.steps);
-    if (next !== this.state.step) this.set({ ...this.state, step: next });
+    if (next !== this.state.step || this.state.reveal !== 0) {
+      this.set({ ...this.state, step: next, reveal: 0 });
+    }
   }
 
   /** Ends the tour, leaving full screen. */
   end(): void {
     if (this.state.tour !== undefined) this.set(STOPPED);
+  }
+
+  /** How many reveals a step brings in. */
+  revealsOf(step: number): number {
+    return this.reveals[step] ?? 0;
+  }
+
+  private take(tour: TourFile): void {
+    this.steps = tour.steps.length;
+    this.reveals = tour.steps.map((each) => each.reveal?.length ?? 0);
   }
 
   private set(state: TourPlayback): void {

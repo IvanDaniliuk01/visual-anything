@@ -424,6 +424,44 @@ describe('emphasize', () => {
     expect(moving.markers).toEqual([{ line: aggregate, along: 0.4 }]);
   });
 
+  it('tells what arrives apart from what it highlights, an aggregated line by what it stands for', () => {
+    const scene = collapsed();
+    const aggregate = scene.relations.find((line) => line.aggregate);
+    const plain = scene.relations.find((line) => !line.aggregate);
+    if (!aggregate?.aggregate || !plain) throw new Error('The scene aggregates no relation.');
+    const [one] = aggregate.aggregate.relations;
+    const lit = emphasize(scene, {
+      highlighted: new Set(['patient', plain.relation, one as string]),
+      arriving: { keys: new Set([plain.relation, one as string]), duration: 200 },
+    });
+    expect(lit.highlighted.lines).toContain(plain);
+    expect(lit.highlighted.lines).toContain(aggregate);
+    expect(lit.arriving.lines).toEqual(
+      scene.relations.filter((line) => line === plain || line === aggregate),
+    );
+    expect(lit.arriving.shapes).toEqual([]);
+    expect(lit.arrivingFor).toBe(200);
+    const settled = emphasize(scene, { highlighted: new Set(['patient']) });
+    expect(settled.arriving.lines).toEqual([]);
+    expect(settled.arrivingFor).toBe(0);
+  });
+
+  it('places a marker’s trail along its line, the way its relation runs', () => {
+    const scene = collapsed();
+    const aggregate = scene.relations.find((line) => line.aggregate);
+    if (!aggregate?.aggregate) throw new Error('The scene aggregates no relation.');
+    const [one] = aggregate.aggregate.relations;
+    const reversed = aggregate.aggregate.reversed?.includes(one as string) ?? false;
+    const moving = emphasize(scene, {
+      markers: [{ relation: one as string, progress: 0.4, trail: 0.1 }],
+    });
+    expect(moving.markers).toEqual([
+      reversed
+        ? { line: aggregate, along: 0.6, from: 0.9 }
+        : { line: aggregate, along: 0.4, from: 0.1 },
+    ]);
+  });
+
   it('leaves out keys the scene does not draw, and needs nothing when there is no emphasis', () => {
     const scene = collapsed();
     const nothing = emphasize(scene, {});

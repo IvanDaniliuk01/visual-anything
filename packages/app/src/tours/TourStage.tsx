@@ -16,6 +16,7 @@ import { tourKeyAction, type TourKeyAction } from './player';
 import { openNotesWindow, type NotesWindow } from './notes-window';
 import { TourNotesWindow } from './TourNotes';
 import { TourText } from './TourText';
+import type { CaptionPhase } from './transition';
 import './tours.css';
 
 export interface TourStageProps {
@@ -23,13 +24,29 @@ export interface TourStageProps {
   tour: TourFile;
   /** The index of the step shown. */
   step: number;
+  /** How many of the step's reveals show (ADR 0077); none by default. */
+  reveal?: number;
+  /**
+   * The caption the card shows as the step's transition goes (ADR 0077): the step whose caption it
+   * is, whether it fades out, is away, fades in or shows, and how long its fade takes. The step's own,
+   * shown, by default.
+   */
+  caption?: { step: number; phase: CaptionPhase; fade: number };
   /** Does what a control or a key asks. */
   onAction: (action: TourKeyAction) => void;
   /** Whether the speaker notes window is offered; it is by default. */
   notes?: boolean;
 }
 
-export function TourStage({ project, tour, step, onAction, notes = true }: TourStageProps) {
+export function TourStage({
+  project,
+  tour,
+  step,
+  reveal = 0,
+  caption,
+  onAction,
+  notes = true,
+}: TourStageProps) {
   const t = useT();
   const heading = useId();
   const stage = useRef<HTMLElement>(null);
@@ -40,10 +57,20 @@ export function TourStage({ project, tour, step, onAction, notes = true }: TourS
   };
   const shown = tour.steps[step];
   const total = tour.steps.length;
-  const problems = useMemo(() => (shown ? tourStepProblems(project, shown) : []), [project, shown]);
-  const viewGone = problems.some(
-    (each) => each.code === 'unknown-view' && each.subject === shown?.viewState.view,
+  // The card's caption: the step left's while it fades out, then the step come to's.
+  const captioned = (caption && tour.steps[caption.step]) ?? shown;
+  const phase = caption && tour.steps[caption.step] ? caption.phase : 'shown';
+  const fade = caption && tour.steps[caption.step] ? caption.fade : 0;
+  const problems = useMemo(
+    () => (captioned ? tourStepProblems(project, captioned) : []),
+    [project, captioned],
   );
+  const viewGone = problems.some(
+    (each) => each.code === 'unknown-view' && each.subject === captioned?.viewState.view,
+  );
+  // A step's reveals are pressed through before the next step, and back before the one before.
+  const atStart = step === 0 && reveal === 0;
+  const atEnd = step === total - 1 && reveal >= (shown?.reveal?.length ?? 0);
 
   // The keys move through the tour wherever the focus is in the tab, before the canvas takes them.
   const act = useRef(onAction);
@@ -78,7 +105,7 @@ export function TourStage({ project, tour, step, onAction, notes = true }: TourS
     stage.current?.focus({ preventScroll: true });
   }, []);
 
-  if (!shown) return null;
+  if (!shown || !captioned) return null;
   const position = t('Step {n} of {total}', { n: step + 1, total });
   return (
     <section
@@ -105,10 +132,15 @@ export function TourStage({ project, tour, step, onAction, notes = true }: TourS
           style={{ transform: `scaleX(${(step + 1) / total})` }}
         />
       </div>
-      <article className="tour-card" aria-live="polite">
-        <h3 className="tour-card-title">{shown.caption.title}</h3>
-        {shown.caption.text !== undefined && (
-          <TourText className="tour-card-text" text={shown.caption.text} />
+      <article
+        className="tour-card"
+        aria-live="polite"
+        data-phase={phase}
+        style={{ transitionDuration: `${fade}ms` }}
+      >
+        <h3 className="tour-card-title">{captioned.caption.title}</h3>
+        {captioned.caption.text !== undefined && (
+          <TourText className="tour-card-text" text={captioned.caption.text} />
         )}
         {problems.length > 0 && (
           <p className="tour-card-flag">
@@ -122,7 +154,7 @@ export function TourStage({ project, tour, step, onAction, notes = true }: TourS
         <button
           type="button"
           onClick={() => onAction('previous')}
-          disabled={step === 0}
+          disabled={atStart}
           aria-label={t('Previous step')}
           title={t('Previous step')}
         >
@@ -132,7 +164,7 @@ export function TourStage({ project, tour, step, onAction, notes = true }: TourS
         <button
           type="button"
           onClick={() => onAction('next')}
-          disabled={step === total - 1}
+          disabled={atEnd}
           aria-label={t('Next step')}
           title={t('Next step')}
         >

@@ -1,18 +1,18 @@
 /**
  * Playback brings the step it plays into view (ADR 0031's clarification of 2026-10-26): when a step's
- * relations are not wholly on screen, the camera moves to them with a tour's capped, eased move (ADR
- * 0058), panning at the zoom it has when they fit there and zooming out to them when they do not;
- * under reduced motion, or past three screen widths, it cuts. A step the person or Claude asks for,
- * by playing, stepping or going to it, always comes into view; while playback goes on by itself, it
- * stops doing so once the person moves the camera, until they play or step again.
+ * relations are not wholly on screen, the camera moves to them with a tour's bounded move (ADR 0077),
+ * along the smooth zoom-and-pan path, panning at the zoom it has when they fit there and zooming out
+ * to them when they do not; under reduced motion, or past the path's bounds, it cuts, the frame
+ * before cross-fading into the frame after unless fades are off. A step the person or Claude asks
+ * for, by playing, stepping or going to it, always comes into view; while playback goes on by itself,
+ * it stops doing so once the person moves the camera, until they play or step again.
  */
-import { tourMove } from '@visual-anything/core';
+import { TOUR_CROSS_FADE } from '@visual-anything/core';
 import { fitCamera, visibleRect, type Camera } from '../canvas/camera';
 import type { Rect, Size } from '../canvas/geometry';
 import { relationLinesOf, type Scene } from '../canvas/scene';
 import { rectAround } from '../canvas/spatial';
-import { cameraOf } from '../view-state/state';
-import type { CanvasCamera } from '../view-state/canvas';
+import { tourGlide, type CanvasCamera } from '../view-state/canvas';
 
 /** How much room is kept around a step brought into view, in pixels on screen. */
 export const FOLLOW_MARGIN = 48;
@@ -89,9 +89,17 @@ export class PlaybackFollower {
   private moving = false;
   private readonly stop: () => void;
 
+  /**
+   * `fades` says whether a cut cross-fades, as the person's Fades preference does (ADR 0077); it
+   * does unless told otherwise.
+   */
   constructor(
     private readonly canvas: CanvasCamera,
-    private readonly options: { reducedMotion: () => boolean; now?: () => number },
+    private readonly options: {
+      reducedMotion: () => boolean;
+      fades?: () => boolean;
+      now?: () => number;
+    },
   ) {
     this.stop = canvas.subscribe(() => this.cameraMoved());
   }
@@ -127,20 +135,19 @@ export class PlaybackFollower {
     const viewport = this.canvas.viewport();
     const to = followCamera(from, viewport, bounds);
     if (!to) return;
-    const start = cameraOf(from, viewport);
-    const end = cameraOf(to, viewport);
-    const move =
-      start && end
-        ? tourMove(start, end, viewport, {
-            reducedMotion: this.options.reducedMotion(),
-            sameView: true,
-          })
-        : ({ kind: 'cut' } as const);
-    const duration = move.kind === 'ease' ? move.duration : 0;
+    const { move, along } = tourGlide(from, to, viewport, {
+      reducedMotion: this.options.reducedMotion(),
+      sameView: true,
+    });
+    const duration = move !== 'stay' && move.kind === 'ease' ? move.duration : 0;
+    // A cut cross-fades from the frame before, once the canvas has drawn where it went.
+    if (move !== 'stay' && move.kind === 'cut' && (this.options.fades?.() ?? true)) {
+      this.canvas.capture?.()?.fadeOut(TOUR_CROSS_FADE, { afterFrame: true });
+    }
     this.movingUntil = this.now() + duration + 50;
     this.moving = true;
     try {
-      this.canvas.glideTo(to, duration);
+      this.canvas.glideTo(to, duration, along ? { along } : undefined);
     } finally {
       this.moving = false;
     }

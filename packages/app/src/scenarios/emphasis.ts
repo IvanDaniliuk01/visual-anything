@@ -45,14 +45,22 @@ export function highlightOf(
 }
 
 /**
+ * How long ago a travelling marker's trail starts, in milliseconds: it runs from where the marker was
+ * then to where it is, so that it shortens to nothing as the marker slows to its end (ADR 0077).
+ */
+export const MARKER_TRAIL_TIME = 150;
+
+/**
  * The markers of an entry, at a progress along their relations: one on each relation of a step that
- * the view draws as a line, none for an aggregated step, whose relations are hidden.
+ * the view draws as a line, none for an aggregated step, whose relations are hidden. With `trail`
+ * behind `progress`, each leaves a trail from there.
  */
 export function markersOf(
   project: ProjectSnapshot,
   view: ViewFile,
   entry: TimelineEntry,
   progress: number,
+  trail?: number,
 ): Marker[] {
   if (entry.kind === 'aggregated') return [];
   const index = modelIndexOf(project);
@@ -60,10 +68,13 @@ export function markersOf(
   // A relation the view's scope does not show, or whose type it leaves out, has no line to travel
   // along (ADR-0040, ADR 0064).
   const shown = showsPart(view) ? shownByScope(project, view) : undefined;
+  const trailing = trail !== undefined && trail < progress ? { trail } : {};
   return entry.relations.flatMap((id) => {
     const relation = index.relation(id);
     if (shown && !shown.relation(id)) return [];
-    return relation && !nesting.has(relation.relationType) ? [{ relation: id, progress }] : [];
+    return relation && !nesting.has(relation.relationType)
+      ? [{ relation: id, progress, ...trailing }]
+      : [];
   });
 }
 

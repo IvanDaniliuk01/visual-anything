@@ -12,6 +12,10 @@
  * only the tiles its changed shapes and lines leave and enter. The emphasis is drawn the same way:
  * what it hides leaves the tiles, what it dims goes in tiles drawn faintly, and what it highlights and
  * the markers it moves along relations are drawn above the scene, apart from the tiles.
+ *
+ * For a tour's transitions (ADR 0077) it copies the last frame drawn into a capture over the canvas,
+ * which the transition fades out, fades in the marks a step brings by their opacity, and says when it
+ * has drawn its next frame: none of it costs more with the number of shapes.
  */
 import {
   Application,
@@ -40,6 +44,7 @@ import {
   emphasize,
   type Emphasized,
   type Hidden,
+  type Lit,
 } from './emphasize';
 import { traceMark, type MarkTarget, type TextFactory } from './draw';
 import { MOST_NAMES_BESIDE, NamesBeside, namedBeside } from './namesBeside';
@@ -64,7 +69,7 @@ import { TileImages, type ImageView } from './images-draw';
 import { bitmapText, installFonts } from './labels';
 import { THEMES, type CanvasTheme } from '../theme/themes';
 import { DIMMED_ALPHA } from './colors';
-import { midpointOf, pointAlong, type RouteEnd } from './route';
+import { lengthOf, midpointOf, pointAlong, type RouteEnd } from './route';
 import { drawRouteOverlay, type RouteOverlay } from './routing/overlay';
 import { drawShapeEditOverlay, type ShapeEditOverlay } from './shapeEditMarks';
 import { rerouted } from './routing/scene-routes';
@@ -418,7 +423,16 @@ export class CanvasRenderer {
   private readonly hoverMark = new Graphics();
   /** What the emphasis highlights, under the hover mark, and its markers, above the selection's marks. */
   private readonly emphasisMarks = new Graphics();
+  /**
+   * What the emphasis highlights that arrives, fading in by its opacity (ADR 0077), and since when:
+   * drawn in a group of its own, so that its fade changes one value a frame, not its drawing.
+   */
+  private readonly arrivingMarks = new Graphics();
+  private readonly arriving = new Container({ isRenderGroup: true });
+  private arrivingFade: { since: number; duration: number } | undefined;
   private readonly markerMarks = new Graphics();
+  /** Told once the canvas has drawn its next frame, as a capture waits for after a cut (ADR 0077). */
+  private readonly frameListeners = new Set<() => void>();
   /** The selection's marks: those of relations and arrows, and boxes in chunks drawn a few a frame. */
   private readonly selectionMarks = new Container();
   private readonly lineMarks = new Graphics();
@@ -586,8 +600,10 @@ export class CanvasRenderer {
     this.elementShapes.addChild(this.overflowBand);
     this.rerouted.addChild(this.reroutedLines);
     this.selectionMarks.addChild(this.lineMarks);
+    this.arriving.addChild(this.arrivingMarks);
     this.marks.addChild(
       this.emphasisMarks,
+      this.arriving,
       this.hoverMark,
       this.selectionMarks,
       this.movingMarks,
@@ -662,7 +678,10 @@ export class CanvasRenderer {
         this.drawSelection();
         this.drawHover();
       }
-      if (after.highlighted !== before.highlighted) this.drawHighlights();
+      if (after.arriving !== before.arriving) this.fadeInArriving(after);
+      if (after.highlighted !== before.highlighted || after.arriving !== before.arriving) {
+        this.drawHighlights();
+      }
       if (after.markers !== before.markers) this.drawMarkers();
       this.requestRender();
     } catch (error) {
@@ -1374,6 +1393,7 @@ export class CanvasRenderer {
       clearTimeout(this.disposing);
       this.disposing = undefined;
       this.dropShadows();
+      this.frameListeners.clear();
       for (const item of this.disposal.splice(0)) destroyDisposed(item);
       for (const context of this.retired.splice(0)) context.destroy();
       this.app.destroy(true, { children: true, context: true });
@@ -3049,10 +3069,62 @@ export class CanvasRenderer {
    * each end. The corner marks and the dots tell a highlight apart without its color.
    */
   private drawHighlights(): void {
-    const marks = this.emphasisMarks;
+    const { highlighted, arriving } = this.emphasized;
+    this.arrivingMarks.clear();
+    if (countLit(arriving) === 0) {
+      this.drawLit(this.emphasisMarks, highlighted);
+      return;
+    }
+    const without = <T>(list: readonly T[], left: readonly T[]) => {
+      const out = new Set(left);
+      return list.filter((item) => !out.has(item));
+    };
+    this.drawLit(this.emphasisMarks, {
+      shapes: without(highlighted.shapes, arriving.shapes),
+      lines: without(highlighted.lines, arriving.lines),
+      notes: without(highlighted.notes, arriving.notes),
+      arrows: without(highlighted.arrows, arriving.arrows),
+    });
+    this.drawLit(this.arrivingMarks, arriving);
+  }
+
+  /**
+   * Fades in what arrives from now on, by the opacity of its marks and never their size (ADR 0077);
+   * with nothing arriving, shows at once the marks that were still fading in.
+   */
+  private fadeInArriving(emphasized: Emphasized): void {
+    if (countLit(emphasized.arriving) === 0 || !(emphasized.arrivingFor > 0)) {
+      this.finishArriving();
+      return;
+    }
+    this.arrivingFade = { since: performance.now(), duration: emphasized.arrivingFor };
+    this.arriving.alpha = 0;
+  }
+
+  /** Shows at once what arrives, as when a transition is finished. */
+  private finishArriving(): void {
+    this.arrivingFade = undefined;
+    if (this.arriving.alpha !== 1) this.arriving.alpha = 1;
+  }
+
+  /** Where the fade of what arrives is now: one value a frame, whatever it marks. */
+  private followArriving(): void {
+    const fade = this.arrivingFade;
+    if (!fade) return;
+    const part = (performance.now() - fade.since) / fade.duration;
+    if (!(part < 1)) {
+      this.finishArriving();
+      return;
+    }
+    this.arriving.alpha = Math.max(0, part);
+    this.requestRender();
+  }
+
+  /** Marks these in `marks`, as `drawHighlights` says. */
+  private drawLit(marks: Graphics, lit: Lit): void {
     marks.clear();
-    const { shapes, lines, notes, arrows } = this.emphasized.highlighted;
-    if (shapes.length + lines.length + notes.length + arrows.length === 0) return;
+    const { shapes, lines, notes, arrows } = lit;
+    if (countLit(lit) === 0) return;
     const { scale } = this.camera;
     const { highlight } = this.painter.theme;
     const halo = { color: highlight, alpha: 0.28, join: 'round', cap: 'round' } as const;
@@ -3089,18 +3161,23 @@ export class CanvasRenderer {
     if (routes.length > 0) marks.fill(highlight);
   }
 
-  /** Draws the markers travelling along relations: discs ringed in the canvas color, above the selection. */
+  /**
+   * Draws the markers travelling along relations: discs ringed in the canvas color, above the
+   * selection, each after the short trail it leaves behind it while it moves, which fades away from
+   * it and shows which way it goes (ADR 0077).
+   */
   private drawMarkers(): void {
     const marks = this.markerMarks;
     marks.clear();
     const { markers } = this.emphasized;
     if (markers.length === 0) return;
     const { scale } = this.camera;
+    const { highlight, background } = this.painter.theme;
+    for (const marker of markers) traceTrail(marks, marker, scale, highlight);
     for (const { line, along } of markers) {
       const at = pointAlong(line.route, along);
-      marks.circle(at.x, at.y, 7 / scale);
+      marks.circle(at.x, at.y, MARKER_RADIUS / scale);
     }
-    const { highlight, background } = this.painter.theme;
     marks.fill(highlight).stroke({ color: background, width: 2.5 / scale });
   }
 
@@ -3246,7 +3323,9 @@ export class CanvasRenderer {
       if (drag && drag.routed.length > 0 && drag.routedAt !== drag.delta) this.routeDrag();
       this.cull();
       this.countStale();
+      this.followArriving();
       this.app.render();
+      this.tellFrameDrawn();
       this.sendShadows();
       this.dispose(this.retired.splice(0));
       if (waitForGpu) this.waitForGpu();
@@ -3283,6 +3362,66 @@ export class CanvasRenderer {
   private waitForGpu(): void {
     const gl = (this.app.renderer as { gl?: WebGLRenderingContext }).gl;
     gl?.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, ONE_PIXEL);
+  }
+
+  /**
+   * Calls `listener` once the canvas has drawn its next frame, which it asks for; the function it
+   * returns lets it go. A capture waits for it after a cut: the frame drawn then shows where the
+   * camera went, in the view it went to (ADR 0077).
+   */
+  afterNextFrame(listener: () => void): () => void {
+    const once = () => listener();
+    this.frameListeners.add(once);
+    this.requestRender();
+    return () => {
+      this.frameListeners.delete(once);
+    };
+  }
+
+  private tellFrameDrawn(): void {
+    if (this.frameListeners.size === 0) return;
+    const told = [...this.frameListeners];
+    this.frameListeners.clear();
+    for (const listener of told) listener();
+  }
+
+  /**
+   * Copies the frame the canvas shows into a canvas of the screen's size laid over it, for a
+   * transition to fade out (ADR 0077): drawn now, with any marks still fading in shown whole, and
+   * placed under the captures taken before it, which go on fading over it. The copy costs the same
+   * whatever the canvas draws. Undefined before the canvas starts, or where the page cannot copy a
+   * frame. Whoever takes it removes it.
+   */
+  captureFrame(): HTMLCanvasElement | undefined {
+    if (this.status !== 'ready') return undefined;
+    this.finishArriving();
+    const source = this.app.canvas;
+    const copy = document.createElement('canvas');
+    copy.width = source.width;
+    copy.height = source.height;
+    const context = copy.getContext('2d');
+    if (!context) return undefined;
+    // The drawing buffer holds a frame only until the page is next painted: drawn again now, it is
+    // copied before then.
+    this.renderNow();
+    try {
+      context.drawImage(source, 0, 0);
+    } catch {
+      // A canvas the browser cannot copy, as one of no size, gives no capture: the cut is plain.
+      return undefined;
+    }
+    copy.setAttribute('aria-hidden', 'true');
+    Object.assign(copy.style, {
+      position: 'absolute',
+      left: '0',
+      top: '0',
+      width: '100%',
+      height: '100%',
+      pointerEvents: 'none',
+      opacity: '1',
+    });
+    source.after(copy);
+    return copy;
   }
 
   private requestRender(): void {
@@ -4355,14 +4494,28 @@ function keptEmphasized(before: Emphasized, after: Emphasized): Emphasized {
     after.markers.length === before.markers.length &&
     after.markers.every(
       (marker, at) =>
-        marker.line === before.markers[at]?.line && marker.along === before.markers[at]?.along,
+        marker.line === before.markers[at]?.line &&
+        marker.along === before.markers[at]?.along &&
+        marker.from === before.markers[at]?.from,
     )
       ? before.markers
       : after.markers;
+  const coming = after.arriving;
+  const wasComing = before.arriving;
+  const arriving =
+    after.arrivingFor === before.arrivingFor &&
+    sameList(coming.shapes, wasComing.shapes) &&
+    sameList(coming.lines, wasComing.lines) &&
+    sameList(coming.notes, wasComing.notes) &&
+    sameList(coming.arrows, wasComing.arrows)
+      ? wasComing
+      : coming;
   return {
     hidden: kept(before.hidden, after.hidden),
     dimmed: kept(before.dimmed, after.dimmed),
     highlighted,
+    arriving,
+    arrivingFor: after.arrivingFor,
     markers,
   };
 }
@@ -4443,6 +4596,50 @@ function traceCorners(graphics: Graphics, rect: Rect, arm: number): void {
     .moveTo(x + across, bottom)
     .lineTo(x, bottom)
     .lineTo(x, bottom - down);
+}
+
+/** How many things are marked. */
+function countLit(lit: Lit): number {
+  return lit.shapes.length + lit.lines.length + lit.notes.length + lit.arrows.length;
+}
+
+/** A travelling marker's radius, in pixels on screen. */
+const MARKER_RADIUS = 7;
+/** The longest a marker's trail runs behind it, in pixels on screen, and in how many pieces it fades. */
+const TRAIL_LENGTH = 56;
+const TRAIL_PIECES = 6;
+
+/**
+ * Traces a marker's trail along its line, from where it was a moment before to the marker, in
+ * pieces that fade and narrow away from it; nothing for a marker that stands still.
+ */
+function traceTrail(
+  graphics: Graphics,
+  marker: { line: RelationLine; along: number; from?: number },
+  scale: number,
+  color: CanvasTheme['highlight'],
+): void {
+  const { line, along, from } = marker;
+  if (from === undefined || from === along) return;
+  const length = lengthOf(line.route);
+  if (!(length > 0)) return;
+  // Never longer on screen than a short trail, however far the marker went since.
+  const most = TRAIL_LENGTH / scale / length;
+  const start = along > from ? Math.max(from, along - most) : Math.min(from, along + most);
+  for (let piece = 0; piece < TRAIL_PIECES; piece++) {
+    const a = pointAlong(line.route, start + ((along - start) * piece) / TRAIL_PIECES);
+    const b = pointAlong(line.route, start + ((along - start) * (piece + 1)) / TRAIL_PIECES);
+    const near = (piece + 1) / TRAIL_PIECES;
+    graphics
+      .moveTo(a.x, a.y)
+      .lineTo(b.x, b.y)
+      .stroke({
+        color,
+        alpha: 0.55 * near * near,
+        width: (MARKER_RADIUS * 2 * (0.35 + 0.65 * near)) / scale,
+        cap: 'round',
+      });
+  }
 }
 
 function traceRoute(graphics: Graphics, route: readonly Point[]): void {

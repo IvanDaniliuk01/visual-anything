@@ -17,12 +17,29 @@ export interface Emphasis {
   highlighted?: ReadonlySet<string>;
   /** Markers travelling along relations. */
   markers?: readonly Marker[];
+  /**
+   * Of what it highlights, what fades in by the opacity of its marks, over `duration` milliseconds
+   * from when the canvas is given it, as a tour's step brings in its marks (ADR 0077). The same
+   * object goes on fading; a new one fades in from the start.
+   */
+  arriving?: Arriving;
 }
 
-/** A marker on a relation's line: at its `from` end at 0, at its `to` end at 1. */
+/** Highlighted keys that fade in, and how long they take. */
+export interface Arriving {
+  keys: ReadonlySet<string>;
+  duration: number;
+}
+
+/**
+ * A marker on a relation's line: at its `from` end at 0, at its `to` end at 1. With `trail`, it
+ * leaves a fading trail behind it from where it was a moment before, which shows which way it goes
+ * (ADR 0077); a marker standing still has none.
+ */
 export interface Marker {
   relation: Id;
   progress: number;
+  trail?: number;
 }
 
 const NOTHING: Emphasis = {};
@@ -32,6 +49,8 @@ export class EmphasisStore {
   private readonly sources = new Map<string, Emphasis>();
   private readonly listeners = new Set<() => void>();
   private union: Emphasis = NOTHING;
+  /** What arrived last, kept while no source asks for another, so that its fade goes on. */
+  private arrived: { from: readonly Arriving[]; arriving: Arriving } | undefined;
 
   /** Sets what one source emphasizes; undefined takes it away. */
   set(source: string, emphasis: Emphasis | undefined): void {
@@ -41,7 +60,7 @@ export class EmphasisStore {
       if (this.sources.get(source) === emphasis) return;
       this.sources.set(source, emphasis);
     }
-    this.union = unionOf([...this.sources.values()]);
+    this.union = this.keepArriving(unionOf([...this.sources.values()]));
     for (const listener of this.listeners) listener();
   }
 
@@ -54,6 +73,37 @@ export class EmphasisStore {
       this.listeners.delete(listener);
     };
   };
+
+  /**
+   * The union with what arrives as it was while the sources ask for the same, so that a change of
+   * another source, such as a marker moving each frame, does not start its fade again.
+   */
+  private keepArriving(union: Emphasis): Emphasis {
+    const { arriving } = union;
+    if (arriving === undefined) {
+      this.arrived = undefined;
+      return union;
+    }
+    const from = [...this.sources.values()].flatMap((emphasis) => emphasis.arriving ?? []);
+    const was = this.arrived;
+    if (
+      was &&
+      was.from.length === from.length &&
+      was.from.every((each, at) => each === from[at]) &&
+      was.arriving.duration === arriving.duration &&
+      sameKeys(was.arriving.keys, arriving.keys)
+    ) {
+      return arriving === was.arriving ? union : { ...union, arriving: was.arriving };
+    }
+    this.arrived = { from, arriving };
+    return union;
+  }
+}
+
+function sameKeys(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const key of a) if (!b.has(key)) return false;
+  return true;
 }
 
 function unionOf(all: readonly Emphasis[]): Emphasis {
@@ -67,12 +117,40 @@ function unionOf(all: readonly Emphasis[]): Emphasis {
   const dimmed = sets((emphasis) => emphasis.dimmed);
   const highlighted = sets((emphasis) => emphasis.highlighted);
   const markers = all.flatMap((emphasis) => emphasis.markers ?? []);
+  const arriving = arrivingOf(all);
   return {
     ...(hidden ? { hidden } : {}),
     ...(dimmed ? { dimmed } : {}),
     ...(highlighted ? { highlighted } : {}),
     ...(markers.length > 0 ? { markers } : {}),
+    ...(arriving ? { arriving } : {}),
   };
+}
+
+/**
+ * What arrives among several sources: what any of them says arrives, but what another highlights
+ * without saying so, which shows already. A source's own when it is the only one and nothing else
+ * shows its keys.
+ */
+function arrivingOf(all: readonly Emphasis[]): Arriving | undefined {
+  const asking = all.filter((emphasis) => emphasis.arriving !== undefined);
+  if (asking.length === 0) return undefined;
+  const shown = new Set<string>();
+  for (const emphasis of all) {
+    for (const key of emphasis.highlighted ?? []) {
+      if (!emphasis.arriving?.keys.has(key)) shown.add(key);
+    }
+  }
+  const only = asking.length === 1 ? asking[0]?.arriving : undefined;
+  if (only && ![...only.keys].some((key) => shown.has(key))) return only;
+  const keys = new Set<string>();
+  let duration = 0;
+  for (const emphasis of asking) {
+    const each = emphasis.arriving as Arriving;
+    duration = Math.max(duration, each.duration);
+    for (const key of each.keys) if (!shown.has(key)) keys.add(key);
+  }
+  return keys.size === 0 ? undefined : { keys, duration };
 }
 
 /** The store of the open project, which the shell provides. */

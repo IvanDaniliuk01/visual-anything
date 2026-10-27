@@ -21,7 +21,7 @@ import { selectionOf, type Selectable, type Selection } from '../editor/selectio
 import { filtersOf } from '../guidance/explore';
 import type { NoticeLevel } from '../live/connection';
 import type { ScenarioSession } from '../scenarios/session';
-import type { CanvasCamera } from './canvas';
+import type { CanvasCamera, GlideOptions } from './canvas';
 import { cameraFor, focusFrom, selectionFrom } from './state';
 
 /** Where something found was brought into sight, for saying so. */
@@ -40,14 +40,18 @@ export type GoTo =
   | { kind: 'jump'; view: Id; target: Selectable; shown?: (shown: Shown) => void };
 
 /**
- * How a tour's step moves the camera to its view state (ADR 0058), in place of an address's jump:
- * with neither a camera nor a selection, it shows the whole view; and `move` says how to get there,
- * once the canvas has drawn it, from where the camera is: eased over some milliseconds, or at once
- * with 0. `sameView` says whether the step stays in the view open when it started.
+ * How a tour's step moves the camera to its view state (ADR 0058, ADR 0077), in place of an
+ * address's jump: with neither a camera nor a selection, it shows the whole view; and `move` says how
+ * to get there, once the canvas has drawn it, from where the camera is: over some milliseconds, along
+ * a path and after a delay when it gives them, or at once with 0. `sameView` says whether the step
+ * stays in the view open when it started.
  */
 export interface Travel {
-  move(from: Camera | undefined, to: Camera, viewport: Size, sameView: boolean): number;
+  move(from: Camera | undefined, to: Camera, viewport: Size, sameView: boolean): TravelGlide;
 }
+
+/** How long a tour's step's camera takes to get there, and how. */
+export type TravelGlide = { duration: number } & GlideOptions;
 
 /**
  * What the view state reads and asks of scenario playback: the app's scenario session, or the
@@ -227,8 +231,13 @@ export class ViewStateApplier {
         asked.camera !== undefined
           ? cameraFor(asked.camera, viewport)
           : canvas.targetOf(asked.key !== undefined ? { key: asked.key } : { whole: true });
-      const time = asked.travel.travel.move(canvas.camera(), to, viewport, asked.travel.sameView);
-      canvas.glideTo(to, time);
+      const { duration, ...glide } = asked.travel.travel.move(
+        canvas.camera(),
+        to,
+        viewport,
+        asked.travel.sameView,
+      );
+      canvas.glideTo(to, duration, glide);
     } else if (asked.camera !== undefined && canvas) {
       canvas.setCamera(cameraFor(asked.camera, canvas.viewport()));
     } else if (asked.key !== undefined) {

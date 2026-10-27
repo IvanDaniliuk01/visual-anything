@@ -14,7 +14,7 @@ export function TourPlaybackLayer({
   /** Whether the speaker notes window is offered: not in the read-only page, which has none. */
   notes?: boolean;
 }) {
-  const { player, playback } = tours;
+  const { player, playback, transition } = tours;
   const tour = project.tours.find((each) => each.id === playback.tour);
   if (!tour) return null;
   return (
@@ -22,6 +22,12 @@ export function TourPlaybackLayer({
       project={project}
       tour={tour}
       step={playback.step}
+      reveal={playback.reveal}
+      {...(transition.caption === undefined
+        ? {}
+        : {
+            caption: { step: transition.caption, phase: transition.phase, fade: transition.fade },
+          })}
       onAction={(action) => applyTourKey(player, action)}
       notes={notes}
     />

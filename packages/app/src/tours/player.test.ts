@@ -16,7 +16,7 @@ describe('TourPlayer', () => {
     const heard = vi.fn();
     player.subscribe(heard);
     player.start(tour, 1);
-    expect(player.getState()).toEqual({ tour: tour.id, step: 1 });
+    expect(player.getState()).toEqual({ tour: tour.id, step: 1, reveal: 0 });
     player.next();
     player.next();
     expect(player.getState().step).toBe(2);
@@ -28,8 +28,69 @@ describe('TourPlayer', () => {
     player.last();
     expect(player.getState().step).toBe(tour.steps.length - 1);
     player.end();
-    expect(player.getState()).toEqual({ tour: undefined, step: 0 });
+    expect(player.getState()).toEqual({ tour: undefined, step: 0, reveal: 0 });
     expect(heard).toHaveBeenCalledTimes(6);
+  });
+
+  // Reveals, one press at a time (ADR 0077).
+  const revealing: TourFile = {
+    ...tour,
+    steps: tour.steps.map((step, at) =>
+      at === 1
+        ? { ...step, reveal: [{ marks: ['booking-agent'] }, { marks: ['appointments-api'] }] }
+        : step,
+    ),
+  };
+
+  it('goes through a step’s reveals one press at a time, and back through them', () => {
+    const player = new TourPlayer();
+    player.start(revealing);
+    const at = () => [player.getState().step, player.getState().reveal];
+    const seen: number[][] = [];
+    for (let press = 0; press < 4; press++) {
+      player.next();
+      seen.push(at());
+    }
+    expect(seen).toEqual([
+      [1, 0],
+      [1, 1],
+      [1, 2],
+      [2, 0],
+    ]);
+    // Back into a step, it shows the step with all it reveals, then takes them away one at a time.
+    player.previous();
+    expect(at()).toEqual([1, 2]);
+    player.previous();
+    player.previous();
+    expect(at()).toEqual([1, 0]);
+    player.previous();
+    expect(at()).toEqual([0, 0]);
+  });
+
+  it('goes to a step, the first and the last at their start, and stays at the end of the last', () => {
+    const player = new TourPlayer();
+    player.start(revealing, 1);
+    player.next();
+    player.goTo(1);
+    expect(player.getState().reveal).toBe(0);
+    player.last();
+    expect(player.getState()).toEqual({ tour: tour.id, step: 2, reveal: 0 });
+    const heard = vi.fn();
+    player.subscribe(heard);
+    player.next();
+    expect(heard).not.toHaveBeenCalled();
+  });
+
+  it('keeps a reveal that a changed step still has', () => {
+    const player = new TourPlayer();
+    player.start(revealing, 1);
+    player.next();
+    player.next();
+    const fewer = revealing.steps.map((step, at) =>
+      at === 1 ? { ...step, reveal: step.reveal?.slice(0, 1) } : step,
+    );
+    player.sync({ ...sample, tours: [{ ...revealing, steps: fewer }] });
+    expect(player.getState().reveal).toBe(1);
   });
 
   it('plays no tour without steps, and moves nothing while no tour plays', () => {

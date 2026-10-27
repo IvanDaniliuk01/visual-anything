@@ -1,7 +1,8 @@
 /**
  * Sets what playback emphasizes on the canvas, as the `playback` source of the emphasis store: the
- * step it is on, highlighted, and its markers where they are. Only this renders on every frame while
- * a marker travels; it draws nothing itself.
+ * step it is on, highlighted, and its markers where they are, each with the trail it leaves while it
+ * travels (ADR 0077). Only this renders on every frame while a marker travels; it draws nothing
+ * itself.
  */
 import {
   entryOfStep,
@@ -13,7 +14,7 @@ import type { ViewFile } from '@visual-anything/schema';
 import { useMemo, useSyncExternalStore } from 'react';
 import type { Scene } from '../canvas/scene';
 import { useEmphasisSource, type Emphasis } from '../editor/emphasis';
-import { highlightOf, markersOf } from './emphasis';
+import { MARKER_TRAIL_TIME, highlightOf, markersOf } from './emphasis';
 import { useReducedMotion } from './motion';
 import type { ScenarioSession } from './session';
 
@@ -44,11 +45,16 @@ export function PlaybackEmphasis({
     [project, view, scene, entry],
   );
   const progress = markerProgress({ ...state, elapsed }, reduced);
+  // Where the marker was a moment before, while it travels: a marker standing still has no trail.
+  const trail =
+    reduced || state.mode === 'paused'
+      ? undefined
+      : markerProgress({ ...state, elapsed: Math.max(0, elapsed - MARKER_TRAIL_TIME) }, reduced);
   const emphasis = useMemo((): Emphasis | undefined => {
     if (!view || !entry || !highlighted) return undefined;
-    const markers = markersOf(project, view, entry, progress);
+    const markers = markersOf(project, view, entry, progress, trail);
     return { highlighted, ...(markers.length > 0 ? { markers } : {}) };
-  }, [project, view, entry, highlighted, progress]);
+  }, [project, view, entry, highlighted, progress, trail]);
   useEmphasisSource('playback', emphasis);
   return null;
 }
