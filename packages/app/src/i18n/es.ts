@@ -5630,16 +5630,16 @@ export const builtins: Readonly<
   process: {
     name: 'Procesos y máquinas de estados',
     description:
-      'Piletas y carriles, eventos, tareas, subprocesos, compuertas, objetos de datos y almacenes de datos, al estilo de BPMN, y los estados, las elecciones y las transiciones de las máquinas de estados.',
+      'Pools y carriles, eventos, tareas, subprocesos, compuertas, objetos de datos y almacenes de datos, al estilo de BPMN, y los estados, las elecciones y las transiciones de las máquinas de estados.',
   },
   'process.pool': {
-    name: 'Pileta',
+    name: 'Pool',
     description:
       'Un participante de un proceso, como una empresa, un área o un cliente, con los carriles y el trabajo que hace.',
   },
   'process.lane': {
     name: 'Carril',
-    description: 'Una parte de una pileta, como un rol o un equipo, con el trabajo que hace.',
+    description: 'Una parte de un pool, como un rol o un equipo, con el trabajo que hace.',
   },
   'process.start-event': {
     name: 'Evento de inicio',
@@ -5735,7 +5735,7 @@ export const builtins: Readonly<
   },
   'process.message-flow': {
     name: 'flujo de mensaje',
-    description: 'Un mensaje que un participante le envía a otro, de pileta a pileta.',
+    description: 'Un mensaje que un participante le envía a otro, de pool a pool.',
   },
   'process.association': {
     name: 'asociación',
@@ -5755,6 +5755,6 @@ export const builtins: Readonly<
   'process.is-part-of': {
     name: 'es parte de',
     description:
-      'Ubica un carril en su pileta, el trabajo en su carril o su subproceso, o un estado en el estado que lo contiene.',
+      'Ubica un carril en su pool, el trabajo en su carril o su subproceso, o un estado en el estado que lo contiene.',
   },
 };
