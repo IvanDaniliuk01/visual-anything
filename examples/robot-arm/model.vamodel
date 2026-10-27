@@ -298,7 +298,7 @@
       "name": "Robot computer",
       "description": "Sits in the arm’s cabinet.",
       "attributes": {
-        "hardware": "an embedded GPU board"
+        "hardware": "an embedded GPU module"
       }
     },
     {

@@ -83,6 +83,12 @@ const NOT_IN_THE_PAGE = [
   'node_modules/ajv/',
   // The app's own Trusted Types policy, which lets the app load its workers.
   'packages/app/src/trusted-types.ts',
+  // What makes drawings of HTML (ADR 0068): only the local program's worker holds it, with its font.
+  'packages/app/src/import/',
+  'packages/server/',
+  'node_modules/parse5/',
+  'node_modules/satori/',
+  'node_modules/harfbuzzjs/',
 ];
 
 /** What no page's script may say: the ways a page could reach a program, a session or the network. */

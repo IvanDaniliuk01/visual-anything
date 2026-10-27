@@ -1,0 +1,71 @@
+{
+  "id": "architecture",
+  "name": "Architecture",
+  "description": "What the classifier is made of: its Transformer block drawn with its parts, the layers drawn as them, and its head.",
+  "perspective": {
+    "name": "Architecture"
+  },
+  "nestingRelationTypes": [
+    "machine-learning.is-part-of"
+  ],
+  "positions": [
+    {
+      "element": "event-sequence",
+      "container": "churn-classifier",
+      "x": 24,
+      "y": 808
+    },
+    {
+      "element": "sequence-encoder",
+      "container": "churn-classifier",
+      "x": 280,
+      "y": 112
+    },
+    {
+      "element": "mean-pooling",
+      "container": "churn-classifier",
+      "x": 768,
+      "y": 48
+    },
+    {
+      "element": "classifier-head",
+      "container": "churn-classifier",
+      "x": 1024,
+      "y": 48
+    },
+    {
+      "element": "churn-probability",
+      "container": "churn-classifier",
+      "x": 1280,
+      "y": 48
+    },
+    {
+      "element": "training-split",
+      "x": 0,
+      "y": 416
+    },
+    {
+      "element": "churn-classifier",
+      "x": 256,
+      "y": 0
+    },
+    {
+      "element": "binary-cross-entropy",
+      "x": 1816,
+      "y": 416
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "include": [
+      {
+        "kind": "contents",
+        "container": "churn-classifier"
+      }
+    ],
+    "added": [
+      "binary-cross-entropy",
+      "training-split"
+    ]
+  }
+}

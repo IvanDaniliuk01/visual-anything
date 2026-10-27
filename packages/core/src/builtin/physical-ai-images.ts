@@ -171,17 +171,19 @@ export const SIX_AXIS_ARM_PARTS = [
 ] as const;
 
 /**
- * A six-axis arm seen from the side, its parts 6 units apart so that the background shows between
- * them in both themes: the base and the turntable of joint 1, the column of link 1, the upper arm and
- * the forearm between the shoulder, elbow and wrist joints, the roll joints 4 and 6 as collars, the
- * tool flange and the gripper. The joints that turn about an axis across the page show it as a hole.
+ * A six-axis arm seen from the side, reaching over to pick: the base and the turntable of joint 1,
+ * the column of link 1, the shoulder, the upper arm straight up, the elbow, the forearm out to the
+ * right with the roll collar of joint 4, the wrist, and then down: link 5, the roll collar of joint 6,
+ * the tool flange and the gripper, whose body holds its name and whose jaws open toward the part
+ * below. Its parts lie 6 units apart, so that the background shows between them in both themes, and
+ * each is large enough to write a name such as "Joint 4" whole inside itself.
  */
 export const SIX_AXIS_ARM = picture(
   'six-axis-arm',
   'Six-axis arm',
-  '<svg viewBox="0 0 544 352" xmlns="http://www.w3.org/2000/svg"><path d="M28 328H196L182 296H42Z" fill="#66727F" id="base"/><rect fill="#B06F00" height="12" id="joint-1" rx="6" width="112" x="56" y="278"/><rect fill="#4A78B0" height="70" id="link-1" rx="10" width="48" x="88" y="202"/><path d="M90 174a22 22 0 1 0 44 0a22 22 0 1 0 -44 0ZM106 174a6 6 0 1 0 12 0a6 6 0 1 0 -12 0Z" fill="#B06F00" fill-rule="evenodd" id="joint-2"/><path d="M154.43 154.2L213.62 95.01A16 16 0 0 0 190.99 72.38L131.8 131.57A16 16 0 0 0 154.43 154.2Z" fill="#4A78B0" id="link-2"/><path d="M212 54a20 20 0 1 0 40 0a20 20 0 1 0 -40 0ZM226 54a6 6 0 1 0 12 0a6 6 0 1 0 -12 0Z" fill="#B06F00" fill-rule="evenodd" id="joint-3"/><rect fill="#4A78B0" height="28" id="link-3" rx="14" width="60" x="258" y="40"/><rect fill="#B06F00" height="40" id="joint-4" rx="4" width="12" x="324" y="34"/><rect fill="#4A78B0" height="24" id="link-4" rx="8" width="40" x="342" y="42"/><path d="M388 54a14 14 0 1 0 28 0a14 14 0 1 0 -28 0ZM397 54a5 5 0 1 0 10 0a5 5 0 1 0 -10 0Z" fill="#B06F00" fill-rule="evenodd" id="joint-5"/><rect fill="#4A78B0" height="20" id="link-5" rx="4" width="16" x="422" y="44"/><rect fill="#B06F00" height="32" id="joint-6" rx="3" width="8" x="444" y="38"/><rect fill="#4A78B0" height="44" id="link-6" rx="2" width="8" x="458" y="32"/><path d="M472 24H520V44H512V36H484V72H512V64H520V84H472Z" fill="#C4511F" id="gripper"/></svg>',
+  '<svg viewBox="0 0 564 544" xmlns="http://www.w3.org/2000/svg"><path d="M40 520H200L184 480H56Z" fill="#66727F" id="base"/><rect fill="#B06F00" height="24" id="joint-1" rx="8" width="136" x="52" y="450"/><rect fill="#4A78B0" height="108" id="link-1" rx="10" width="56" x="92" y="336"/><circle cx="120" cy="294" fill="#B06F00" id="joint-2" r="36"/><rect fill="#4A78B0" height="150" id="link-2" rx="12" width="48" x="96" y="102"/><circle cx="120" cy="60" fill="#B06F00" id="joint-3" r="36"/><rect fill="#4A78B0" height="40" id="link-3" rx="12" width="160" x="162" y="40"/><rect fill="#B06F00" height="68" id="joint-4" rx="6" width="48" x="328" y="26"/><rect fill="#4A78B0" height="40" id="link-4" rx="10" width="64" x="382" y="40"/><circle cx="488" cy="60" fill="#B06F00" id="joint-5" r="36"/><rect fill="#4A78B0" height="56" id="link-5" rx="10" width="48" x="464" y="102"/><rect fill="#B06F00" height="48" id="joint-6" rx="6" width="76" x="450" y="164"/><rect fill="#4A78B0" height="32" id="link-6" rx="4" width="60" x="458" y="218"/><g fill="#C4511F" id="gripper"><rect height="40" rx="6" width="104" x="436" y="256"/><path d="M440 292H456V332H468V344H440Z"/><path d="M536 292H520V332H508V344H536Z"/></g></svg>',
+  564,
   544,
-  352,
 );
 
 /** The named parts of the mobile robot, in its picture's order. */
@@ -196,13 +198,14 @@ export const MOBILE_ROBOT_PARTS = [
 
 /**
  * A differential mobile robot seen from above, its front to the right: the chassis, with a well cut
- * around each sensor that sits on it, the LiDAR on top, the camera at the front and the IMU at the
- * back, and a wheel on each side, its left wheel at the top.
+ * 6 units around each sensor that sits on it, the LiDAR on top, the camera at the front and the IMU at
+ * the back, and a wheel on each side, its left wheel at the top. Each part is large enough to write
+ * its name, such as "Right wheel", whole inside itself.
  */
 export const MOBILE_ROBOT = picture(
   'mobile-robot',
   'Mobile robot',
-  '<svg viewBox="0 0 400 320" xmlns="http://www.w3.org/2000/svg"><path d="M96 60H304A36 36 0 0 1 340 96V224A36 36 0 0 1 304 260H96A36 36 0 0 1 60 224V96A36 36 0 0 1 96 60ZM154 160a46 46 0 1 0 92 0a46 46 0 1 0 -92 0ZM302 128H322A6 6 0 0 1 328 134V186A6 6 0 0 1 322 192H302A6 6 0 0 1 296 186V134A6 6 0 0 1 302 128ZM96 140H124A6 6 0 0 1 130 146V174A6 6 0 0 1 124 180H96A6 6 0 0 1 90 174V146A6 6 0 0 1 96 140Z" fill="#4A78B0" fill-rule="evenodd" id="chassis"/><rect fill="#66727F" height="30" id="wheel-left" rx="8" width="100" x="150" y="24"/><rect fill="#66727F" height="30" id="wheel-right" rx="8" width="100" x="150" y="266"/><path d="M160 160a40 40 0 1 0 80 0a40 40 0 1 0 -80 0ZM186 160a14 14 0 1 0 28 0a14 14 0 1 0 -28 0Z" fill="#21897C" fill-rule="evenodd" id="lidar"/><rect fill="#21897C" height="52" id="camera" rx="4" width="20" x="302" y="134"/><rect fill="#21897C" height="28" id="imu" rx="4" width="28" x="96" y="146"/></svg>',
+  '<svg viewBox="0 0 400 320" xmlns="http://www.w3.org/2000/svg"><path d="M96 60H304A36 36 0 0 1 340 96V224A36 36 0 0 1 304 260H96A36 36 0 0 1 60 224V96A36 36 0 0 1 96 60ZM142 160a48 48 0 1 0 96 0a48 48 0 1 0 -96 0ZM256 132H328A6 6 0 0 1 334 138V182A6 6 0 0 1 328 188H256A6 6 0 0 1 250 182V138A6 6 0 0 1 256 132ZM76 134H130A6 6 0 0 1 136 140V180A6 6 0 0 1 130 186H76A6 6 0 0 1 70 180V140A6 6 0 0 1 76 134Z" fill="#4A78B0" fill-rule="evenodd" id="chassis"/><rect fill="#66727F" height="36" id="wheel-left" rx="8" width="110" x="145" y="18"/><rect fill="#66727F" height="36" id="wheel-right" rx="8" width="110" x="145" y="266"/><circle cx="190" cy="160" fill="#21897C" id="lidar" r="42"/><rect fill="#21897C" height="44" id="camera" rx="4" width="72" x="256" y="138"/><rect fill="#21897C" height="40" id="imu" rx="4" width="54" x="76" y="140"/></svg>',
   400,
   320,
 );

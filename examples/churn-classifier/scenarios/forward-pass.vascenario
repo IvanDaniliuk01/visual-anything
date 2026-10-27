@@ -1,0 +1,113 @@
+{
+  "id": "forward-pass",
+  "name": "The forward pass",
+  "description": "A batch of customers goes through the classifier, from their events to the loss.",
+  "view": "architecture",
+  "steps": [
+    {
+      "id": "read-batch",
+      "description": "A batch of 32 customers’ last 90 events is read from the training split.",
+      "relations": [
+        "batch-to-sequence"
+      ],
+      "dataOut": {
+        "customers": 32,
+        "events": 90
+      }
+    },
+    {
+      "id": "embed",
+      "description": "Each event becomes a vector of 128 numbers.",
+      "relations": [
+        "sequence-to-embedding"
+      ],
+      "dataOut": {
+        "shape": "[32, 90, 128]"
+      }
+    },
+    {
+      "id": "add-position",
+      "description": "Where each event sits in the sequence is added to it.",
+      "relations": [
+        "embedding-to-position"
+      ]
+    },
+    {
+      "id": "attend",
+      "description": "Every event attends to every other, through eight heads.",
+      "relations": [
+        "position-to-attention"
+      ],
+      "dataOut": {
+        "heads": 8
+      }
+    },
+    {
+      "id": "add-and-normalize",
+      "description": "What attention found is added back to its input and normalized.",
+      "relations": [
+        "attention-to-norm-1",
+        "position-adds-to-norm-1"
+      ]
+    },
+    {
+      "id": "feed-forward",
+      "description": "A feed-forward network works on each event on its own.",
+      "relations": [
+        "norm-1-to-feed-forward"
+      ],
+      "dataOut": {
+        "units": 512
+      }
+    },
+    {
+      "id": "add-and-normalize-again",
+      "description": "Its output is added back to its input and normalized again.",
+      "relations": [
+        "feed-forward-to-norm-2",
+        "norm-1-adds-to-norm-2"
+      ]
+    },
+    {
+      "id": "encode",
+      "description": "The block gives one vector for each event, which knows the rest of the sequence.",
+      "relations": [
+        "norm-2-to-encoded"
+      ],
+      "dataOut": {
+        "shape": "[32, 90, 128]"
+      }
+    },
+    {
+      "id": "pool",
+      "description": "The vectors are averaged into one for each customer.",
+      "relations": [
+        "encoded-to-pooling"
+      ],
+      "dataOut": {
+        "shape": "[32, 128]"
+      }
+    },
+    {
+      "id": "classify",
+      "description": "The head turns each customer’s vector into a probability of cancelling.",
+      "relations": [
+        "pooling-to-head",
+        "head-to-probability"
+      ],
+      "dataOut": {
+        "shape": "[32, 1]"
+      }
+    },
+    {
+      "id": "loss",
+      "description": "The loss compares each probability with whether the customer cancelled.",
+      "relations": [
+        "probability-to-loss"
+      ],
+      "dataOut": {
+        "loss": 0.29
+      }
+    }
+  ]
+}

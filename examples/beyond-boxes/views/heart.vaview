@@ -1,0 +1,42 @@
+{
+  "id": "heart",
+  "name": "Heart",
+  "description": "The heart drawn with its parts, each chamber, valve and vessel anchored to its place in the picture, between the body and the lungs.",
+  "perspective": {
+    "name": "Anatomy"
+  },
+  "nestingRelationTypes": [
+    "heart.is-part-of"
+  ],
+  "positions": [
+    {
+      "element": "body",
+      "x": 0,
+      "y": 296
+    },
+    {
+      "element": "heart",
+      "x": 224,
+      "y": 0
+    },
+    {
+      "element": "sinoatrial-node",
+      "container": "heart",
+      "x": 24,
+      "y": 688
+    },
+    {
+      "element": "lungs",
+      "x": 856,
+      "y": 176
+    },
+    {
+      "element": "card-2914w0",
+      "x": -240,
+      "y": 0,
+      "pinned": true
+    }
+  ],
+  "freeShapes": [],
+  "routeStyle": "curved"
+}

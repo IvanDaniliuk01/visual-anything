@@ -408,8 +408,9 @@ describe('CanvasArea', () => {
     const { host, at, camera } = await started(<Harness onCommand={onCommand} />);
     const patient = at('patient');
     point('pointerdown', host, patient.x, patient.y);
-    point('pointermove', host, patient.x + 50, patient.y + 20);
-    point('pointerup', host, patient.x + 50, patient.y + 20);
+    // Ctrl turns the alignment guides off, so it moves exactly as far as the pointer (ADR 0074).
+    point('pointermove', host, patient.x + 50, patient.y + 20, { ctrlKey: true });
+    point('pointerup', host, patient.x + 50, patient.y + 20, { ctrlKey: true });
     await act(async () => Promise.resolve());
     const command = onCommand.mock.lastCall?.[0] as Command;
     expect(command).toEqual({
@@ -562,7 +563,9 @@ describe('Dragging shapes', () => {
     const overlays = vi.spyOn(CanvasRenderer.prototype, 'setOverlay');
     const { onCommand, answer } = answeredLater();
     const { host, at, camera, rerender } = await started(<Harness onCommand={onCommand} />);
-    drag(host, at('patient'), 50, 0);
+    // Ctrl turns the alignment guides off, so it moves exactly as far as the pointer (ADR 0074).
+    const patient = at('patient');
+    dragTo(host, patient, { x: patient.x + 50, y: patient.y }, { ctrlKey: true });
     expect(onCommand).toHaveBeenCalledTimes(1);
     const dropped = (onCommand.mock.lastCall?.[0] as Extract<Command, { type: 'set-positions' }>)
       .positions[0]!;
@@ -1005,7 +1008,8 @@ describe('Dropping shapes into and out of containers', () => {
       <Harness project={withNamedMembership} onCommand={onCommand} />,
       withNamedMembership,
     );
-    dragTo(host, at('clinic-booking/whatsapp'), on({ x: 100, y: 600 }));
+    // Ctrl turns the alignment guides off, so it lands exactly where it is let go (ADR 0074).
+    dragTo(host, at('clinic-booking/whatsapp'), on({ x: 100, y: 600 }), { ctrlKey: true });
     const dialog = screen.getByRole('dialog', {
       name: 'Take "WhatsApp channel" out of "Clinic booking"?',
     });

@@ -178,7 +178,10 @@ function checkedAttachment(
   which: string,
 ): EndAttachment {
   if (typeof attachment !== 'object' || attachment === null) {
-    reject('invalid-command', 'An attachment is a connection point or a place on the border.');
+    reject(
+      'invalid-command',
+      'An attachment is a connection point, a place on the border or a place inside the shape.',
+    );
   }
   if (attachment.kind === 'border') {
     if (!SIDES.includes(attachment.side)) {
@@ -198,8 +201,20 @@ function checkedAttachment(
     if (typeof attachment.name !== 'string' || attachment.name === '') {
       reject('invalid-command', 'A connection point is given by its name.');
     }
+  } else if (attachment.kind === 'inside') {
+    const x = requireNumber(attachment.x, 'Where an end attaches across its shape');
+    const y = requireNumber(attachment.y, 'Where an end attaches down its shape');
+    if (x < 0 || x > 1 || y < 0 || y > 1) {
+      reject(
+        'invalid-command',
+        `Where an end attaches inside its shape goes from 0 to 1 across and down, not ${x} and ${y}.`,
+      );
+    }
   } else {
-    reject('invalid-command', 'An attachment is a connection point or a place on the border.');
+    reject(
+      'invalid-command',
+      'An attachment is a connection point, a place on the border or a place inside the shape.',
+    );
   }
 
   const shape = context.endShape(end);
@@ -227,6 +242,7 @@ function checkedAttachment(
   if (attachment.kind === 'border') {
     return { kind: 'border', side: attachment.side, at: attachment.at };
   }
+  if (attachment.kind === 'inside') return { kind: 'inside', x: attachment.x, y: attachment.y };
   if (!shape.points.some((point) => point.name === attachment.name)) {
     reject(
       'unknown-connection-point',

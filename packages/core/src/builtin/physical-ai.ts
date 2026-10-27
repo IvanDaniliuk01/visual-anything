@@ -321,7 +321,7 @@ export const PHYSICAL_AI: PackageFile = {
           name: 'hardware',
           type: 'string',
           description:
-            'What it computes with, such as "an embedded GPU board" or "an industrial PC".',
+            'What it computes with, such as "an embedded GPU module" or "an industrial PC".',
         },
       ],
       appearance: {

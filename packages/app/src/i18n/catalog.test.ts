@@ -293,7 +293,13 @@ const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
   { word: /\bnodos?\b/i, unless: /\bnodos? de (despliegue|software)\b/i },
   { word: /\binstancias?\b/i },
   { word: /\bpropiedad(es)?\b/i },
-  { word: /\bcapas?\b/i, unless: /\bcapa semántica\b/i },
+  // Systems' "Semantic layer" is a component's name, and so are Machine learning's layers, which are
+  // layers of a neural network (P1 W62).
+  {
+    word: /\bcapas?\b/i,
+    unless:
+      /\bcapa semántica\b|\bred(es)? neuronal(es)?\b|^capa( densa| recurrente| de (convolución|atención|embedding|normalización|agrupación))?$/i,
+  },
   { word: /\bv[ií]nculos?\b/i },
   { word: /\baristas?\b/i },
   { word: /\benlaces?\b/i, unless: /\benlace simbólico\b/i },
@@ -389,6 +395,27 @@ const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
   { word: /\batributos? derivados?\b/i },
   { word: /\bconfianza\b/i },
   { word: /\blistas? blancas?\b/i },
+  // M8b W55: free geometry, named parts, drawings with parts, anchored parts and imported drawings
+  // (ADR 0066, 0067, 0068). "Contour" alone is "contorno", which is also what an outline is called,
+  // and "free shape" is "forma libre", the term for notes and arrows, so neither can be forbidden.
+  // "Overlay" is "superposición", a term of its own. A bitmap is "mapa de bits", a shape sent to the
+  // back sits "al fondo", and the read-only page is a file "para compartir, incrustar y leer".
+  { word: /\bformas? personalizadas?\b/i },
+  { word: /\best[eé]nciles?\b|\bestarcidos?\b/i },
+  { word: /\bformas? vectoriales?\b/i },
+  { word: /\bregi[oó]n(es)?\b/i },
+  { word: /\bzonas? activas?\b|\bpuntos? calientes?\b/i },
+  { word: /\bsubim[aá]gen(es)?\b/i },
+  { word: /\bl[aá]minas?\b|\bplacas?\b/i },
+  { word: /\batlas\b/i },
+  { word: /\bmapas?\b/i, unless: /\bmapas? de bits\b/i },
+  { word: /\bfondos?\b/i, unless: /\b(al|del|desde el) fondo\b/i },
+  { word: /\b[aá]reas? mapeadas?\b|\bzonas? mapeadas?\b/i },
+  { word: /\bvistas? web\b/i },
+  { word: /\bincrust/i, unless: /\bcompartir, incrustar y leer\b/i },
+  { word: /\bcomponentes? HTML\b/i },
+  { word: /\biframes?\b/i },
+  { word: /\bcapturas? de pantalla\b/i },
 ];
 
 /** Texts given to t() that Spanish writes the same: values and punctuation only. */

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "name": "Churn classifier",
+  "description": "A sample of the machine learning package beside data-science pipelines: a Transformer that reads each customer’s last 90 events to tell who will cancel, how it is trained, and the pipeline that feeds it.",
+  "packages": [
+    "data-science",
+    "machine-learning"
+  ]
+}

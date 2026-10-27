@@ -131,6 +131,11 @@ export interface ImportMessageRequest {
   map?: Record<string, string>;
   nesting?: string;
   views?: boolean;
+  /** For HTML imported as a drawing (ADR 0068): its width, and who shows it. */
+  width?: number;
+  component?: string;
+  element?: string;
+  view?: string;
 }
 
 /**
@@ -400,6 +405,10 @@ export function importMessageRequest(request: ImportRequest): ImportMessageReque
   if (request.map !== undefined) message.map = { ...request.map };
   if (request.nesting !== undefined) message.nesting = request.nesting;
   if (request.views !== undefined) message.views = request.views;
+  if (request.width !== undefined) message.width = request.width;
+  if (request.component !== undefined) message.component = request.component;
+  if (request.element !== undefined) message.element = request.element;
+  if (request.view !== undefined) message.view = request.view;
   return message;
 }
 
@@ -414,11 +423,25 @@ function readImportRequest(value: unknown): ImportMessageRequest {
   };
   if (!isRecord(value)) return refuse('has no request');
   for (const key of Object.keys(value)) {
-    if (!['name', 'bytes', 'format', 'key', 'map', 'nesting', 'views'].includes(key)) {
+    if (
+      ![
+        'name',
+        'bytes',
+        'format',
+        'key',
+        'map',
+        'nesting',
+        'views',
+        'width',
+        'component',
+        'element',
+        'view',
+      ].includes(key)
+    ) {
       refuse(`may not hold ${JSON.stringify(key)}`);
     }
   }
-  const { name, bytes, format, key, map, nesting, views } = value;
+  const { name, bytes, format, key, map, nesting, views, width, component, element, view } = value;
   if (typeof name !== 'string' || name === '' || name.length > MAX_IMPORT_NAME) {
     return refuse('has no file name');
   }
@@ -443,6 +466,7 @@ function readImportRequest(value: unknown): ImportMessageRequest {
     choices = Object.fromEntries(entries as [string, string][]);
   }
   if (views !== undefined && typeof views !== 'boolean') refuse('has an invalid views');
+  if (width !== undefined && !Number.isSafeInteger(width)) refuse('has an invalid width');
   const request: ImportMessageRequest = { name, bytes };
   const checkedFormat = text('format', format);
   const checkedKey = text('key', key);
@@ -452,6 +476,13 @@ function readImportRequest(value: unknown): ImportMessageRequest {
   if (choices !== undefined) request.map = choices;
   if (checkedNesting !== undefined) request.nesting = checkedNesting;
   if (views !== undefined) request.views = views as boolean;
+  if (width !== undefined) request.width = width as number;
+  const checkedComponent = text('component', component);
+  const checkedElement = text('element', element);
+  const checkedView = text('view', view);
+  if (checkedComponent !== undefined) request.component = checkedComponent;
+  if (checkedElement !== undefined) request.element = checkedElement;
+  if (checkedView !== undefined) request.view = checkedView;
   return request;
 }
 

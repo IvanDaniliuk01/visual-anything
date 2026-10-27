@@ -1,17 +1,22 @@
 /**
  * The physical-ai sample, "Pick-and-place arm" (ADR 0079, Track P1), as the canvas's scene draws it:
  * its arm is a drawing with parts, each of its links, joints and its gripper is drawn as the part it
- * names, and the relations that drive and sense a joint attach to that part's outline.
+ * names, the relations that drive and sense a joint attach to that part's outline, and every shape
+ * with an outline of its own writes its name whole inside itself (ADR 0066).
  */
 import {
   anchoredElements,
   builtinPackage,
   checkProject,
   cleanedImage,
+  fitOutline,
   namedPart,
+  outlineLabelArea,
+  partsOf,
 } from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
 import { loadSample } from '../test/sample';
+import { labelAreaOn, nameLinesInside, partNameLines, writesNameInside } from './outlined';
 import { shapeHolds } from './outlines';
 import { buildScene, type ElementShape, type Scene } from './scene';
 
@@ -83,13 +88,35 @@ describe('the physical-ai sample', () => {
     }
   });
 
-  it('draws the kinematic chain apart from the drawing, links by their free geometry', () => {
+  it('writes the name of every part of the arm whole inside it, and stores no place for one', () => {
+    const scene = buildScene(project, 'arm');
+    const parts = scene.shapes.filter((shape) => shape.part?.inDrawing === true);
+    expect(parts.length).toBe(14);
+    for (const shape of parts) {
+      const outline = shape.outline!;
+      const lines = partNameLines(shape.name, labelAreaOn({ rect: shape.rect, outline }));
+      expect(lines, shape.element).toBeDefined();
+    }
+    const anchored = new Set(parts.map((shape) => shape.element));
+    const view = project.views.find((each) => each.id === 'arm');
+    expect(view?.positions.filter((each) => anchored.has(each.element))).toEqual([]);
+  });
+
+  it('draws the kinematic chain apart from the drawing, each name whole inside its shape', () => {
     const scene = buildScene(project, 'kinematic-chain');
     const link = shapeOf(scene, 'link-2');
     expect(link.part).toBeUndefined();
     expect(link.outline).toBeDefined();
     expect(shapeOf(scene, 'joint-2').kind).toBe('ellipse');
     expect(scene.relations.length).toBe(14);
+    const outlined = scene.shapes.filter((shape) => shape.outline);
+    expect(outlined.map((shape) => shape.element).sort()).toEqual(
+      ['base', ...[1, 2, 3, 4, 5, 6].map((n) => `link-${n}`)].sort(),
+    );
+    for (const shape of outlined) {
+      expect(nameLinesInside({ ...shape, outline: shape.outline! }), shape.element).toBeDefined();
+      expect(writesNameInside(shape), shape.element).toBe(true);
+    }
   });
 
   it('plays a command from the policy through the controller and the motor to joint 2, and back', () => {
@@ -110,5 +137,29 @@ describe('the physical-ai sample', () => {
       'grasp-policy commands gripper',
     ]);
     expect(scenario?.view).toBe('arm');
+  });
+});
+
+describe('the mobile robot drawn with parts', () => {
+  it('leaves room in each part for its name, whole, as an element drawn as it would be named', () => {
+    const image = builtinPackage('physical-ai')?.images?.find(
+      (each) => each.id === 'physical-ai.mobile-robot',
+    );
+    const cleaned = image && cleanedImage(image);
+    if (!cleaned) throw new Error('The mobile robot’s picture is clean.');
+    const names: Record<string, string> = {
+      chassis: 'Chassis',
+      'wheel-left': 'Left wheel',
+      'wheel-right': 'Right wheel',
+      lidar: 'LiDAR',
+      camera: 'Camera',
+      imu: 'IMU',
+    };
+    const parts = partsOf(cleaned);
+    expect(parts.map((part) => part.id)).toEqual(Object.keys(names));
+    for (const part of parts) {
+      const area = outlineLabelArea(fitOutline(part.outline, cleaned.width, cleaned.height));
+      expect(partNameLines(names[part.id] ?? '', area), part.id).toBeDefined();
+    }
   });
 });

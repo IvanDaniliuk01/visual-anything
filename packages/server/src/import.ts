@@ -34,6 +34,14 @@ export interface ImportRequest {
   nesting?: Id;
   /** Whether to create the views the file brings; true by default. */
   views?: boolean;
+  /** For HTML imported as a drawing (ADR 0068): the width it is laid out at, 800 by default. */
+  width?: number;
+  /** For a drawing: the component of the new element that shows it, Box by default. */
+  component?: Id;
+  /** For a drawing: the element that shows it, instead of a new one. */
+  element?: Id;
+  /** For a drawing: the view a new element is made in. */
+  view?: Id;
 }
 
 /** What an import would do, or why it cannot be done. */

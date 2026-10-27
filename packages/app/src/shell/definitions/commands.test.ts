@@ -109,6 +109,23 @@ describe('startUsingPackageCommand', () => {
     expect(executeCommand(listed, command!).ok).toBe(true);
   });
 
+  it('starts using Machine learning with Data science pipelines, whose Model its own derives from', () => {
+    const command = startUsingPackageCommand(project, 'machine-learning', VIEW);
+    expect(command?.commands[1]).toEqual({
+      type: 'update-view',
+      id: VIEW,
+      changes: { nestingRelationTypes: ['systems.is-part-of', 'machine-learning.is-part-of'] },
+    });
+    const state = after(project, command!);
+    expect(state.project.packages).toEqual([
+      'systems',
+      'clinic',
+      'data-science',
+      'machine-learning',
+    ]);
+    expect(definitionsOf(state.packages).problems).toEqual([]);
+  });
+
   it('is undefined for a package in use, or one that is not built in', () => {
     expect(startUsingPackageCommand(project, 'systems', VIEW)).toBeUndefined();
     expect(startUsingPackageCommand(project, 'clinic', VIEW)).toBeUndefined();
@@ -122,13 +139,14 @@ describe('unusedBuiltInPackages', () => {
       'data-modeling',
       'c4',
       'data-science',
+      'machine-learning',
       'physical-ai',
     ]);
     expect(
       unusedBuiltInPackages(
         after(project, startUsingPackageCommand(project, 'data-modeling')!),
       ).map((file) => file.id),
-    ).toEqual(['c4', 'data-science', 'physical-ai']);
+    ).toEqual(['c4', 'data-science', 'machine-learning', 'physical-ai']);
   });
 });
 
