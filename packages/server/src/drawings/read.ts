@@ -49,7 +49,7 @@ export function tooLarge(message: string): never {
 /** The tokenizer's own state, which the cap on attributes reads. */
 interface TokenizerInside {
   currentToken: { attrs: unknown[] } | null;
-  _leaveAttrName(): void;
+  _leaveAttrName: (this: TokenizerInside) => void;
 }
 
 /** The read under way: what the tokenizer drops counts here. Reads are synchronous, one at a time. */

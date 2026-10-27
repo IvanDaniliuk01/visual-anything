@@ -38,17 +38,11 @@ describe('makeDrawing', () => {
 
   it('refuses a drawing too large for the core to keep, saying how to make it smaller', async () => {
     const made = await makeDrawing(`<p>${'Lorem ipsum dolor sit amet. '.repeat(60)}</p>`, 800);
-    expect(made).toEqual({
-      ok: false,
-      problems: [
-        {
-          code: 'image-too-large',
-          message: expect.stringMatching(
-            /^The drawing is too large to keep as a picture: .* Shorten the HTML, or make it narrower\.$/,
-          ) as unknown as string,
-        },
-      ],
-    });
+    if (made.ok) throw new Error('It was made.');
+    expect(made.problems.map((each) => each.code)).toEqual(['image-too-large']);
+    expect(made.problems[0]?.message).toMatch(
+      /^The drawing is too large to keep as a picture: .* Shorten the HTML, or make it narrower\.$/,
+    );
   }, 60_000);
 
   it('stops a worker that takes too long', async () => {

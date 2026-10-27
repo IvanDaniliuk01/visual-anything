@@ -15,6 +15,7 @@
  *
  * Every cost is capped (`caps.ts`): elements kept, nesting, text, and the folding steps.
  */
+import { html } from 'parse5';
 import { HTML_CAPS } from './caps';
 import type { HtmlDocument, HtmlElement, HtmlNode, HtmlText } from './read';
 import { tooLarge } from './read';
@@ -27,7 +28,7 @@ import {
   type StyleIndex,
 } from './styles';
 
-const HTML_NS = 'http://www.w3.org/1999/xhtml';
+const HTML_NS = html.NS.HTML;
 
 /** An element of the cleaned tree: what the layout step draws, its style in camel case, and its children. */
 export interface CleanElement {

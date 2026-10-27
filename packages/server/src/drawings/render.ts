@@ -6,9 +6,8 @@
  *
  * The SVG it writes is cleaned by the core afterwards, where the drawing is answered (`make.ts`).
  */
-import type { Problem } from '@visual-anything/core';
+import { DRAWING_LIMITS, type Problem } from '@visual-anything/core';
 import satori from 'satori';
-import { DRAWING_LIMITS } from '@visual-anything/core';
 import { cleanHtml } from './clean';
 import { robotoFonts } from './fonts';
 import { covers } from './glyphs';

@@ -22,7 +22,7 @@ guardNetwork();
 const port = parentPort;
 if (port !== null) {
   const work = workerData as DrawingWork;
-  renderDrawing(work.html, work.width).then(
+  void renderDrawing(work.html, work.width).then(
     (outcome) => port.postMessage({ ...outcome, attempts: networkAttempts() }),
     (error: unknown) =>
       port.postMessage({

@@ -177,7 +177,9 @@ export function prepareDrawingImport(
       { newId: generate },
     );
     if (!defined.ok) return { ok: false, problems: defined.problems.map((each) => each.message) };
-    image = defined.created[0] as Id;
+    const made = defined.created[0];
+    if (made === undefined) return refused(`The image "${name}" could not be defined.`);
+    image = made;
     commands.push({
       type: 'define-image',
       package: packageId,

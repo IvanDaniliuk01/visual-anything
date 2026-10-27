@@ -41,7 +41,7 @@ function element(clean: CleanElement): LayoutElement {
       style: { ...clean.style },
       ...(children.length === 0
         ? {}
-        : { children: children.length === 1 ? (children[0] as LayoutChild) : children }),
+        : { children: children.length === 1 ? children[0] : children }),
     },
   };
 }

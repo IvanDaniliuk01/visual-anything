@@ -52,7 +52,9 @@ async function model(): Promise<ModelFile> {
 }
 
 async function shopPackage(): Promise<PackageFile> {
-  return JSON.parse(await readFile(join(folder, 'packages', 'shop.vapackage'), 'utf8')) as PackageFile;
+  return JSON.parse(
+    await readFile(join(folder, 'packages', 'shop.vapackage'), 'utf8'),
+  ) as PackageFile;
 }
 
 describe('visual-anything import with an HTML file', () => {
@@ -132,6 +134,13 @@ describe('visual-anything import with an HTML file', () => {
     expect(other.err[0]).toBe(
       '--width, --component, --element and --view are for HTML files, which are imported as drawings.',
     );
+    const both = environment();
+    expect(
+      await runImport(['project', 'card.html', '--element', 'api', '--view', 'overview'], both.env),
+    ).toBe(2);
+    expect(both.err).toEqual([
+      'Give --element to show the drawing on an element, or --component and --view for a new one, not both.',
+    ]);
     const missing = environment();
     expect(await runImport(['project', 'card.html', '--element', 'nothing'], missing.env)).toBe(1);
     expect(missing.err).toEqual([
@@ -209,16 +218,16 @@ describe('making a drawing for an app', () => {
           width: 300,
         }),
       );
-      expect(said).toEqual([
-        {
-          type: 'drawing/made',
-          requestId: 'r1',
-          svg: expect.stringMatching(/^<svg /) as unknown as string,
-          width: 300,
-          height: expect.any(Number) as unknown as number,
-          report: ['1 event handler attribute', '1 script element'],
-        },
-      ]);
+      expect(said).toHaveLength(1);
+      const answer = said[0];
+      if (answer?.type !== 'drawing/made') throw new Error(`It answered ${answer?.type}.`);
+      expect(answer).toMatchObject({
+        requestId: 'r1',
+        width: 300,
+        report: ['1 event handler attribute', '1 script element'],
+      });
+      expect(answer.svg).toMatch(/^<svg /);
+      expect(answer.height).toBeGreaterThan(0);
       expect(session.actions).toEqual([]);
       await session.receive(
         client,

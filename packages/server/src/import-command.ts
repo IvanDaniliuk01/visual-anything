@@ -216,6 +216,15 @@ export async function runImport(
     environment.err(IMPORT_USAGE);
     return 2;
   }
+  if (
+    request.element !== undefined &&
+    (request.component !== undefined || request.view !== undefined)
+  ) {
+    environment.err(
+      'Give --element to show the drawing on an element, or --component and --view for a new one, not both.',
+    );
+    return 2;
+  }
   // A drawing is made here first, to say what it drops and for --dry-run; through a program that
   // runs, the program makes it again of the same file, and that is what lands.
   let made: Extract<MadeDrawing, { ok: true }> | undefined;

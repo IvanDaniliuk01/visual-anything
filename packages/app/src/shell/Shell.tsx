@@ -198,7 +198,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                             ? { makeDrawing: live.makeDrawing }
                             : {})}
                           {...(selection.elements.size === 1
-                            ? { selectedElement: [...selection.elements][0] as string }
+                            ? { selectedElement: [...selection.elements][0] }
                             : {})}
                         />
                         {exportTool}
