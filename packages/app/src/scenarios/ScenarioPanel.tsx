@@ -49,7 +49,6 @@ import './scenarios.css';
 import type { ScenarioSession, ScenarioState } from './session';
 import { StepDetails } from './StepDetails';
 import type { CanvasCamera } from '../view-state/canvas';
-import { MotionPreferences } from '../tours/MotionPreferences';
 
 const NOT_CONNECTED = 'Visual Anything is not connected, so nothing was changed.';
 
@@ -135,8 +134,6 @@ export function ScenarioPanel({
       ) : (
         <ScenarioList session={session} />
       )}
-      {/* They govern how its playback moves too: its markers and its camera (ADR 0077). */}
-      <MotionPreferences />
       <div aria-live="polite" className="visually-hidden">
         {announcement.text}
         {announcement.count % 2 === 1 ? ' ' : ''}
