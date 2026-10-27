@@ -130,13 +130,21 @@ function clamp(step: number, steps: number): number {
   return Math.min(Math.max(0, Math.round(step)), Math.max(0, steps - 1));
 }
 
-/** What the keys of full-screen playback do. */
-export type TourKeyAction = 'next' | 'previous' | 'first' | 'last' | 'end';
+/**
+ * What the keys and the controls of full-screen playback do (ADR 0077): move through the steps and
+ * their reveals, end the tour, open the steps' index, pause or resume the step's scenario, or else
+ * its advancing (`pause`, P), pause or resume advancing by itself (`hold`, the stage's pause
+ * control), play the scenario's range again, and go back to the step's camera.
+ */
+export type TourKeyAction =
+  'next' | 'previous' | 'first' | 'last' | 'end' | 'index' | 'pause' | 'hold' | 'replay' | 'back';
 
 /**
- * What a key does during full-screen playback: the right and down arrows, Space and Page Down go
- * forward; the left and up arrows, Shift+Space and Page Up go back; Home and End go to the first and
- * the last step; Escape ends the tour. Keys with Control, Alt or Meta are the browser's.
+ * What a key does during full-screen playback (ADR 0077): the right and down arrows, Space, Page Down
+ * and Enter go forward one press, which a wireless presenter sends as Page Down; the left and up
+ * arrows, Shift+Space, Page Up and Shift+Enter go back one; Home and End go to the first and the last
+ * step; I opens the steps' index, P pauses and resumes, R plays the scenario's range again and B goes
+ * back to the step; Escape ends the tour. Keys with Control, Alt or Meta are the browser's.
  */
 export function tourKeyAction(event: {
   key: string;
@@ -153,6 +161,7 @@ export function tourKeyAction(event: {
       return 'next';
     case ' ':
     case 'Spacebar':
+    case 'Enter':
       return event.shiftKey ? 'previous' : 'next';
     case 'ArrowLeft':
     case 'ArrowUp':
@@ -166,11 +175,21 @@ export function tourKeyAction(event: {
     case 'Esc':
       return 'end';
     default:
-      return undefined;
+      return LETTERS[event.key.toLowerCase()];
   }
 }
 
-/** Does what a key or a control asks of the player. */
+const LETTERS: Partial<Record<string, TourKeyAction>> = {
+  i: 'index',
+  p: 'pause',
+  r: 'replay',
+  b: 'back',
+};
+
+/**
+ * Does what a key or a control asks of the player: moving through the tour, or ending it. What the
+ * player does not do, as the index or a pause, its host does (`useTourPlayback`).
+ */
 export function applyTourKey(player: TourPlayer, action: TourKeyAction): void {
   switch (action) {
     case 'next':
@@ -187,6 +206,8 @@ export function applyTourKey(player: TourPlayer, action: TourKeyAction): void {
       break;
     case 'end':
       player.end();
+      break;
+    default:
       break;
   }
 }

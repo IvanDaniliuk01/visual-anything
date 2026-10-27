@@ -125,6 +125,69 @@ describe('a tour step’s move', () => {
     expect(move).toHaveBeenCalledWith(HERE, WHOLE, VIEWPORT, false);
   });
 
+  // ADR 0077: a step without a camera that plays a scenario frames everything its range plays.
+  it('frames what its travel says to frame when the step has no camera, before its selection', () => {
+    const canvas = fakeCanvas();
+    const context = contextOf(sample, canvas);
+    const frame = vi.fn(() => ({ x: 100, y: 100, width: 400, height: 200 }));
+    const move = vi.fn<Travel['move']>(() => ({ duration: 250 }));
+    const applier = new ViewStateApplier();
+    applier.goTo(
+      {
+        kind: 'address',
+        state: { view: VIEW, select: ['booking-agent'] },
+        travel: { move, frame },
+      },
+      context,
+    );
+    applier.sync({
+      ...context,
+      selection: { ...EMPTY_SELECTION, elements: new Set(['booking-agent']) },
+    });
+    expect(frame).toHaveBeenCalledWith(context.scene);
+    expect(canvas.targetOf).not.toHaveBeenCalled();
+    const [, to] = move.mock.calls[0] ?? [];
+    // All of it shows, with room around it.
+    expect(to?.scale).toBeGreaterThan(1);
+    expect(to?.x).toBeCloseTo(500 - 300 * (to?.scale ?? 0));
+    expect(to?.y).toBeCloseTo(300 - 200 * (to?.scale ?? 0));
+  });
+
+  it('keeps the step’s camera over what its travel would frame', () => {
+    const canvas = fakeCanvas();
+    const context = contextOf(sample, canvas);
+    const frame = vi.fn(() => ({ x: 100, y: 100, width: 400, height: 200 }));
+    const camera = { x: 300, y: 200, zoom: 2 };
+    const applier = new ViewStateApplier();
+    applier.goTo(
+      {
+        kind: 'address',
+        state: { view: VIEW, camera },
+        travel: { move: () => ({ duration: 0 }), frame },
+      },
+      context,
+    );
+    applier.sync(context);
+    expect(frame).not.toHaveBeenCalled();
+    expect(canvas.glideTo).toHaveBeenCalledWith(cameraFor(camera, VIEWPORT), 0, {});
+  });
+
+  it('falls back on the whole view when there is nothing to frame', () => {
+    const canvas = fakeCanvas();
+    const context = contextOf(sample, canvas);
+    const applier = new ViewStateApplier();
+    applier.goTo(
+      {
+        kind: 'address',
+        state: { view: VIEW },
+        travel: { move: () => ({ duration: 0 }), frame: () => undefined },
+      },
+      context,
+    );
+    applier.sync(context);
+    expect(canvas.targetOf).toHaveBeenCalledWith({ whole: true });
+  });
+
   it('leaves an address without a travel to jump as it did', () => {
     const canvas = fakeCanvas();
     const context = contextOf(sample, canvas);

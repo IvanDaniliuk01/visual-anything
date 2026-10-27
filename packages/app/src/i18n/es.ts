@@ -296,6 +296,8 @@ export const ui: Catalog = {
     'La aprobación del código del paquete se aplica solo a esta pestaña: Visual Anything no está conectado.',
   'Your name for comments applies to this tab only: Visual Anything is not connected.':
     'El nombre para los comentarios se aplica solo a esta pestaña: Visual Anything no está conectado.',
+  'Your Motion and Fades apply to this tab only: Visual Anything is not connected.':
+    'El movimiento y los fundidos se aplican solo a esta pestaña: Visual Anything no está conectado.',
 
   // Search and jump: the find field over the canvas.
   'Find in the project': 'Buscar en el proyecto',
@@ -2104,6 +2106,35 @@ export const ui: Catalog = {
   'Next: {title}': 'Siguiente: {title}',
   'The browser did not open the speaker notes window. Allow pop-up windows for this page, then try again.':
     'El navegador no abrió la ventana de las notas del orador. Permitir ventanas emergentes para esta página y volver a intentarlo.',
+  // The stage of a tour that moves (ADR 0077).
+  'The steps of the tour (I)': 'Los pasos del recorrido (I)',
+  'The steps of the tour': 'Los pasos del recorrido',
+  'Pause advancing': 'Pausar el avance',
+  'Resume advancing': 'Reanudar el avance',
+  'Pause advancing by itself': 'Pausar el avance automático',
+  'Resume advancing by itself': 'Reanudar el avance automático',
+  'Back to the step': 'Volver al paso',
+  'Back to the step’s camera (B)': 'Volver a la cámara del paso (B)',
+  'Plays “{name}”': 'Reproduce “{name}”',
+  Resume: 'Reanudar',
+  'Pause the scenario (P)': 'Pausar el escenario (P)',
+  'Resume the scenario (P)': 'Reanudar el escenario (P)',
+  'Play the scenario’s steps again (R)': 'Reproducir de nuevo los pasos del escenario (R)',
+  'Step {n} of {total}: {title}': 'Paso {n} de {total}: {title}',
+  'Paused on step {n} of {total} of “{name}”.': 'En pausa en el paso {n} de {total} de “{name}”.',
+  'Paused on step {n} of {total} of “{name}”: {description}':
+    'En pausa en el paso {n} de {total} de “{name}”: {description}',
+  // How tours and scenarios move: the Motion and Fades preferences (ADR 0077).
+  'How tours and scenarios move': 'Cómo se mueven los recorridos y los escenarios',
+  Motion: 'Movimiento',
+  'As the system says': 'Según el sistema',
+  'As the system says (reduced now)': 'Según el sistema (ahora reducido)',
+  'As the system says (full now)': 'Según el sistema (ahora completo)',
+  Reduced: 'Reducido',
+  Full: 'Completo',
+  Fades: 'Fundidos',
+  'Reduced motion cuts every camera move and keeps travelling markers still. Fades cross-fade where the camera cuts, and fade each step’s marks and caption.':
+    'El movimiento reducido corta cada movimiento de la cámara y deja quietos los marcadores que recorren las relaciones. Los fundidos funden la imagen donde la cámara corta, y hacen aparecer y desaparecer gradualmente las marcas y el texto de cada paso.',
   // The legend of a view's overlays, on the canvas and below an image (ADR 0055).
   Legend: 'Leyenda',
   'Fill by {attribute}': 'Relleno según {attribute}',
@@ -3887,6 +3918,9 @@ export const messages: Catalog = {
   '"recentColors" holds {n} colors, more than {limit}.':
     '"recentColors" tiene {n} colores, más de {limit}.',
   '"{name}" must be true or false, not {value}.': '"{name}" debe ser true o false, no {value}.',
+  // How tours and scenarios move (ADR 0077).
+  '"motion" must be "system", "reduced" or "full", not {value}.':
+    '"motion" debe ser "system", "reduced" o "full", no {value}.',
   // Who the person's comments are signed as (ADR 0059).
   '"author" must be null, or a name and an email.':
     '"author" debe ser null, o un nombre y un correo electrónico.',

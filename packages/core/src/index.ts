@@ -215,6 +215,7 @@ export {
 
 export type {
   AuthorPreference,
+  MotionChoice,
   PreferenceChanges,
   PreferenceName,
   Preferences,
@@ -225,6 +226,7 @@ export type {
 export {
   DEFAULT_PREFERENCES,
   MAX_RECENT_COLORS,
+  MOTION_CHOICES,
   PREFERENCES_VERSION,
   PREFERENCE_NAMES,
   THEME_CHOICES,
@@ -232,8 +234,10 @@ export {
   applyPreferenceChanges,
   checkPreferenceChanges,
   formatPreferences,
+  isMotionChoice,
   isThemeChoice,
   readPreferences,
+  reducedMotionOf,
   resolveTheme,
 } from './preferences';
 export * from './scenarios';

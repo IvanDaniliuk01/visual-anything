@@ -51,6 +51,10 @@ export const APPROVAL_NOT_CONNECTED =
 export const AUTHOR_NOT_CONNECTED =
   'Your name for comments applies to this tab only: Visual Anything is not connected.';
 
+/** What a change of how tours and scenarios move says while the tab is not connected (ADR 0077). */
+export const MOTION_NOT_CONNECTED =
+  'Your Motion and Fades apply to this tab only: Visual Anything is not connected.';
+
 /**
  * What a change says while the tab is not connected: about the language, or the grid and the rulers,
  * when it changes only that.
@@ -60,6 +64,7 @@ function notConnected(changes: PreferenceChanges): string {
   if (changes.author !== undefined) return AUTHOR_NOT_CONNECTED;
   if (changes.theme !== undefined) return NOT_CONNECTED;
   if (changes.language !== undefined) return LANGUAGE_NOT_CONNECTED;
+  if (changes.motion !== undefined || changes.fades !== undefined) return MOTION_NOT_CONNECTED;
   if (
     changes.grid !== undefined ||
     changes.snapToGrid !== undefined ||
@@ -439,6 +444,9 @@ function samePreferences(a: Preferences, b: Preferences): boolean {
     }) &&
     // Who the person's comments are signed as (ADR 0059).
     a.author?.name === b.author?.name &&
-    a.author?.email === b.author?.email
+    a.author?.email === b.author?.email &&
+    // How tours and scenarios move (ADR 0077).
+    a.motion === b.motion &&
+    a.fades === b.fades
   );
 }

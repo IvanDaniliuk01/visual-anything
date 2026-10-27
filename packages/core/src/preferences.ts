@@ -24,6 +24,14 @@ export type LanguageChoice = 'system' | 'en' | 'es';
 
 export const LANGUAGE_CHOICES: readonly LanguageChoice[] = Object.freeze(['system', 'en', 'es']);
 
+/**
+ * How tours and scenario playback move (ADR 0077): as the system says, reduced, where every camera
+ * change cuts and travelling markers stay still, or full, whatever the system says.
+ */
+export type MotionChoice = 'system' | 'reduced' | 'full';
+
+export const MOTION_CHOICES: readonly MotionChoice[] = Object.freeze(['system', 'reduced', 'full']);
+
 /** Every preference, as this build knows them. */
 export interface Preferences {
   /** The theme the app and the canvas are drawn in. */
@@ -42,6 +50,10 @@ export interface Preferences {
   codeApprovals: CodeApproval[];
   /** Who the person's comments are signed as (ADR 0059); none until they say. */
   author: AuthorPreference | null;
+  /** How tours and scenario playback move (ADR 0077). */
+  motion: MotionChoice;
+  /** Whether a tour's stages fade and its cuts cross-fade; with fades off, cuts are plain (ADR 0077). */
+  fades: boolean;
 }
 
 /** The name, and optional email, a person's comments are signed with (ADR 0059). */
@@ -63,7 +75,7 @@ export const MAX_RECENT_COLORS = 8;
 
 /**
  * Preferences nobody has chosen: match the system and the browser's language, no grid, snapping on, no
- * rulers, no recent colors.
+ * rulers, no recent colors, motion as the system says and fades on.
  */
 export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
   theme: 'system',
@@ -74,6 +86,8 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
   recentColors: Object.freeze([]) as unknown as Color[],
   codeApprovals: Object.freeze([]) as unknown as CodeApproval[],
   author: null,
+  motion: 'system',
+  fades: true,
 });
 
 /** The known names, in the order the file writes them. */
@@ -86,6 +100,8 @@ export const PREFERENCE_NAMES: readonly PreferenceName[] = Object.freeze([
   'recentColors',
   'codeApprovals',
   'author',
+  'motion',
+  'fades',
 ]);
 
 /** What the preferences file holds, read leniently. */
@@ -107,6 +123,17 @@ export interface PreferencesRead {
 export function resolveTheme(choice: ThemeChoice, systemPrefersDark: boolean): ThemeName {
   if (choice !== 'system') return choice;
   return systemPrefersDark ? 'dark' : 'light';
+}
+
+/** Whether motion is reduced: as the system says for "system", and as the person chose otherwise. */
+export function reducedMotionOf(choice: MotionChoice, systemReduces: boolean): boolean {
+  if (choice === 'system') return systemReduces;
+  return choice === 'reduced';
+}
+
+/** Whether a value is one of the motion choices. */
+export function isMotionChoice(value: unknown): value is MotionChoice {
+  return typeof value === 'string' && (MOTION_CHOICES as readonly string[]).includes(value);
 }
 
 /** Whether a value is one of the theme choices. */
@@ -248,6 +275,8 @@ const LENIENT: Record<PreferenceName, Lenient> = {
     const checked = checkAuthor(value);
     return checked.ok ? checked.value : undefined;
   },
+  motion: (value) => (isMotionChoice(value) ? value : undefined),
+  fades: booleanOrUndefined,
 };
 
 type Checked = { ok: true; value: unknown } | { ok: false; message: string };
@@ -325,6 +354,14 @@ const STRICT: Record<PreferenceName, (value: unknown) => Checked> = {
   },
   codeApprovals: checkCodeApprovals,
   author: (value) => (value === null ? { ok: true, value: null } : checkAuthor(value)),
+  motion: (value) =>
+    isMotionChoice(value)
+      ? { ok: true, value }
+      : {
+          ok: false,
+          message: `"motion" must be "system", "reduced" or "full", not ${JSON.stringify(value)}.`,
+        },
+  fades: (value) => strictBoolean('fades', value),
 };
 
 function booleanOrUndefined(value: unknown): boolean | undefined {

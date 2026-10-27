@@ -334,7 +334,7 @@ _Avoid_: log, timeline, version history
 ### Preferences
 
 **Preference**:
-A choice a person makes for themselves on this computer: the theme, the language, whether the grid, snapping and the rulers are on, the colors they picked lately, the package code they approved, the name and email their comments are signed with, and whether Claude's changes wait as a proposal for their review. The local program keeps preferences outside every project; they are never in project files or the undo history, though each comment keeps the name and email it was signed with. Claude's tools neither read nor change them, but for one answer: `read_package_code` says whether the person approved a package's code as it is now, and which capabilities they granted it, so that Claude knows whether it runs (ADR 0060). Only the person approves code.
+A choice a person makes for themselves on this computer: the theme, the language, whether the grid, snapping and the rulers are on, the colors they picked lately, the package code they approved, the name and email their comments are signed with, whether Claude's changes wait as a proposal for their review, and how tours and scenario playback move (Motion and Fades, ADR 0077). The local program keeps preferences outside every project; they are never in project files or the undo history, though each comment keeps the name and email it was signed with. Claude's tools neither read nor change them, but for one answer: `read_package_code` says whether the person approved a package's code as it is now, and which capabilities they granted it, so that Claude knows whether it runs (ADR 0060). Only the person approves code.
 _Avoid_: settings, profile
 
 **Language**:

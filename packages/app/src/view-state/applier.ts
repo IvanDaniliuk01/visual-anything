@@ -11,15 +11,16 @@
  */
 import { viewStateProblems, type ProjectSnapshot, type ViewState } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
-import type { Camera } from '../canvas/camera';
+import { fitCamera, type Camera } from '../canvas/camera';
 import { NO_FILTERS } from '../canvas/explore';
-import type { Size } from '../canvas/geometry';
+import type { Rect, Size } from '../canvas/geometry';
 import { relationLinesOf, shownBy, type Scene } from '../canvas/scene';
 import type { Explore } from '../canvas/useExplorer';
 import type { EmphasisStore } from '../editor/emphasis';
 import { selectionOf, type Selectable, type Selection } from '../editor/selection';
 import { filtersOf } from '../guidance/explore';
 import type { NoticeLevel } from '../live/connection';
+import { FOLLOW_MARGIN } from '../scenarios/follow';
 import type { ScenarioSession } from '../scenarios/session';
 import type { CanvasCamera, GlideOptions } from './canvas';
 import { cameraFor, focusFrom, selectionFrom } from './state';
@@ -48,6 +49,12 @@ export type GoTo =
  */
 export interface Travel {
   move(from: Camera | undefined, to: Camera, viewport: Size, sameView: boolean): TravelGlide;
+  /**
+   * What a step without a camera frames, in the scene of its view, in place of its selection or the
+   * whole view: everything the scenario it plays plays over its range (ADR 0077). Nothing to frame
+   * leaves it to the selection or the whole view.
+   */
+  frame?(scene: Scene): Rect | undefined;
 }
 
 /** How long a tour's step's camera takes to get there, and how. */
@@ -101,6 +108,8 @@ interface Waiting {
   key?: string;
   /** For a tour's step without a camera or a selection: the whole view shows. */
   whole?: boolean;
+  /** For a tour's step without a camera that frames what its scenario plays: all of this shows. */
+  rect?: Rect;
   glide: boolean;
   shown?: () => void;
   /** How a tour's step moves there, and whether it stays in the view open when it started. */
@@ -205,7 +214,9 @@ export class ViewStateApplier {
       sameView: pending.from === goal,
     };
     const moved = travel ? { travel } : {};
+    const framed = state.camera || !travel ? undefined : travel.travel.frame?.(scene);
     if (state.camera) this.#waiting = { view: goal, camera: state.camera, glide: false, ...moved };
+    else if (framed && travel) this.#waiting = { view: goal, rect: framed, glide: false, travel };
     else if (key !== undefined) this.#waiting = { view: goal, key, glide: false, ...moved };
     else if (travel) this.#waiting = { view: goal, whole: true, glide: false, travel };
   }
@@ -230,7 +241,9 @@ export class ViewStateApplier {
       const to =
         asked.camera !== undefined
           ? cameraFor(asked.camera, viewport)
-          : canvas.targetOf(asked.key !== undefined ? { key: asked.key } : { whole: true });
+          : asked.rect !== undefined
+            ? fitCamera(asked.rect, viewport, FOLLOW_MARGIN)
+            : canvas.targetOf(asked.key !== undefined ? { key: asked.key } : { whole: true });
       const { duration, ...glide } = asked.travel.travel.move(
         canvas.camera(),
         to,

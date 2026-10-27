@@ -260,6 +260,235 @@ describe('TourStage', () => {
   });
 });
 
+// ADR 0077: the stage of a tour that moves.
+describe('TourStage’s reveals, scenario card and controls', () => {
+  const revealing: TourFile = {
+    ...tour,
+    steps: tour.steps.map((step, at) =>
+      at === 1
+        ? {
+            ...step,
+            reveal: [
+              { marks: ['appointments-api'], text: 'Then the API answers.' },
+              { marks: ['reminder-service'] },
+              { marks: ['patient'], text: 'And the patient hears back.' },
+            ],
+          }
+        : step,
+    ),
+  };
+
+  it('adds each reveal’s text to the caption as a paragraph, and takes it away again', () => {
+    const { rerender, onAction } = stage({ tour: revealing, step: 1, reveal: 1 });
+    const card = screen.getByRole('article');
+    expect(within(card).getByText('Then the API answers.')).toBeInTheDocument();
+    expect(within(card).queryByText('And the patient hears back.')).toBeNull();
+    rerender(
+      <TourStage project={sample} tour={revealing} step={1} reveal={3} onAction={onAction} />,
+    );
+    expect(within(card).getByText('And the patient hears back.')).toBeInTheDocument();
+    rerender(
+      <TourStage project={sample} tour={revealing} step={1} reveal={0} onAction={onAction} />,
+    );
+    expect(within(card).queryByText('Then the API answers.')).toBeNull();
+  });
+
+  it('shows the reveals the step left had while its caption fades out', () => {
+    stage({
+      tour: revealing,
+      step: 2,
+      caption: { step: 1, phase: 'out', fade: 150, reveal: 3 },
+    });
+    expect(screen.getByText('And the patient hears back.')).toBeInTheDocument();
+  });
+
+  it('says which scenario plays, the step it is on and its description, and pauses it', () => {
+    const scenario = sample.scenarios[0];
+    if (!scenario) throw new Error('The sample has no scenario.');
+    const { rerender, onAction } = stage({
+      step: 2,
+      scenario: { scenario: scenario.id, step: 1, state: 'playing' },
+    });
+    const card = screen.getByRole('region', { name: `Scenario “${scenario.name}”` });
+    expect(card).toHaveTextContent(`Plays “${scenario.name}”`);
+    expect(card).toHaveTextContent(`Step 2 of ${scenario.steps.length}`);
+    expect(card).toHaveTextContent(scenario.steps[1]?.description ?? '');
+    fireEvent.click(within(card).getByRole('button', { name: 'Pause' }));
+    expect(onAction).toHaveBeenLastCalledWith('pause');
+    rerender(
+      <TourStage
+        project={sample}
+        tour={tour}
+        step={2}
+        scenario={{ scenario: scenario.id, step: 1, state: 'paused' }}
+        onAction={onAction}
+      />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Resume' }));
+    expect(onAction).toHaveBeenLastCalledWith('pause');
+    rerender(
+      <TourStage
+        project={sample}
+        tour={tour}
+        step={2}
+        scenario={{ scenario: scenario.id, step: 3, state: 'done' }}
+        onAction={onAction}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: 'Pause' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Resume' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Play again' }));
+    expect(onAction).toHaveBeenLastCalledWith('replay');
+  });
+
+  it('shows no scenario card for the caption of the step left', () => {
+    const scenario = sample.scenarios[0];
+    if (!scenario) throw new Error('The sample has no scenario.');
+    stage({
+      step: 2,
+      caption: { step: 1, phase: 'out', fade: 150 },
+      scenario: { scenario: scenario.id, step: 0, state: 'playing' },
+    });
+    expect(screen.queryByRole('region', { name: `Scenario “${scenario.name}”` })).toBeNull();
+  });
+
+  it('takes P, R, B, I and Enter, and the presenter’s Page Down and Page Up', () => {
+    const { onAction } = stage({ step: 1 });
+    for (const key of ['p', 'r', 'b', 'i', 'Enter', 'PageDown', 'PageUp']) {
+      fireEvent.keyDown(document.body, { key });
+    }
+    fireEvent.keyDown(document.body, { key: 'r', ctrlKey: true });
+    expect(onAction.mock.calls.map(([action]) => action as string)).toEqual([
+      'pause',
+      'replay',
+      'back',
+      'index',
+      'next',
+      'next',
+      'previous',
+    ]);
+  });
+
+  it('offers a pause control while the step advances by itself', () => {
+    const { rerender, onAction } = stage({ advancing: { paused: false } });
+    fireEvent.click(screen.getByRole('button', { name: 'Pause advancing' }));
+    expect(onAction).toHaveBeenLastCalledWith('hold');
+    rerender(
+      <TourStage
+        project={sample}
+        tour={tour}
+        step={0}
+        advancing={{ paused: true }}
+        onAction={onAction}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Resume advancing' })).toBeInTheDocument();
+    rerender(<TourStage project={sample} tour={tour} step={0} onAction={onAction} />);
+    expect(screen.queryByRole('button', { name: /advancing/ })).toBeNull();
+  });
+
+  it('offers Back to the step once the person looked around', () => {
+    const { rerender, onAction } = stage();
+    expect(screen.queryByRole('button', { name: 'Back to the step' })).toBeNull();
+    rerender(<TourStage project={sample} tour={tour} step={0} looked onAction={onAction} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Back to the step' }));
+    expect(onAction).toHaveBeenLastCalledWith('back');
+  });
+
+  it('opens the steps’ index, to jump to a step, and closes it with Escape', () => {
+    const onGoTo = vi.fn();
+    const { rerender, onAction } = stage({ step: 1, index: true, onGoTo });
+    const index = screen.getByRole('dialog', { name: 'The steps of the tour' });
+    const items = within(index).getAllByRole('button');
+    expect(items.map((item) => item.textContent)).toEqual(
+      tour.steps.map((step, at) => `${at + 1}${step.caption.title}`),
+    );
+    expect(items[1]).toHaveAttribute('aria-current', 'step');
+    expect(items[1]).toHaveFocus();
+    fireEvent.keyDown(items[1] as HTMLElement, { key: 'ArrowDown' });
+    expect(items[2]).toHaveFocus();
+    fireEvent.click(items[2] as HTMLElement);
+    expect(onGoTo).toHaveBeenCalledWith(2);
+    fireEvent.keyDown(items[2] as HTMLElement, { key: 'Escape' });
+    expect(onAction).toHaveBeenLastCalledWith('index');
+    // Escape outside the index closes it too, rather than ending the tour.
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(onAction).toHaveBeenLastCalledWith('index');
+    rerender(<TourStage project={sample} tour={tour} step={1} onAction={onAction} />);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(onAction).toHaveBeenLastCalledWith('end');
+  });
+
+  it('puts the card where the stage says, or in the corner its caption fixes', () => {
+    const { rerender, onAction } = stage({ place: 'top' });
+    expect(screen.getByRole('article')).toHaveAttribute('data-place', 'top');
+    const cornered: TourFile = {
+      ...tour,
+      steps: tour.steps.map((step) => ({
+        ...step,
+        caption: { ...step.caption, place: 'bottom-right' as const },
+      })),
+    };
+    rerender(
+      <TourStage project={sample} tour={cornered} step={0} place="top" onAction={onAction} />,
+    );
+    expect(screen.getByRole('article')).toHaveAttribute('data-place', 'bottom-right');
+  });
+
+  describe('what screen readers hear', () => {
+    const status = () => screen.getByRole('status');
+
+    it('says the step the person comes to, with what it marks', () => {
+      const { rerender, onAction } = stage({
+        step: 1,
+        said: { kind: 'step', step: 1, reveal: 0, count: 1 },
+      });
+      const title = tour.steps[1]?.caption.title ?? '';
+      expect(status()).toHaveTextContent(`Step 2 of 3: ${title}`);
+      expect(status()).toHaveTextContent(/Marks “.+”/);
+      // A step that comes on a timer brings no new cue: nothing new is said.
+      rerender(
+        <TourStage
+          project={sample}
+          tour={tour}
+          step={2}
+          said={{ kind: 'step', step: 1, reveal: 0, count: 1 }}
+          onAction={onAction}
+        />,
+      );
+      expect(status()).toHaveTextContent(`Step 2 of 3: ${title}`);
+    });
+
+    it('says each reveal as it comes, with its text and what it marks', () => {
+      stage({
+        tour: revealing,
+        step: 1,
+        reveal: 1,
+        said: { kind: 'reveal', step: 1, reveal: 1, count: 2 },
+      });
+      expect(status()).toHaveTextContent(/^Then the API answers\. Marks “.+”\.\s*$/);
+    });
+
+    it('says the scenario’s step when it is paused', () => {
+      const scenario = sample.scenarios[0];
+      if (!scenario) throw new Error('The sample has no scenario.');
+      stage({
+        step: 2,
+        said: { kind: 'paused', scenario: scenario.id, step: 1, count: 3 },
+      });
+      expect(status()).toHaveTextContent(
+        `Paused on step 2 of ${scenario.steps.length} of “${scenario.name}”: ${scenario.steps[1]?.description ?? ''}`,
+      );
+    });
+
+    it('says nothing until told', () => {
+      stage();
+      expect(status()).toHaveTextContent(/^\s*$/);
+    });
+  });
+});
+
 describe('the speaker notes window', () => {
   /** A window of the tab's own, as `window.open` gives one. */
   function fakeWindow() {

@@ -28,16 +28,22 @@ export interface ViewStateLink {
   current: () => ViewState | undefined;
 }
 
-/** The shell as the view state reads and changes it; whether motion is reduced it finds itself. */
+/** The shell as the view state reads and changes it. */
 export type ViewStateInput = Omit<ApplyContext, 'reduced'> & {
   /** The tab whose address it reads and writes; this one by default. */
   target?: AddressWindow;
+  /**
+   * Whether motion is reduced, as the person's Motion preference says (ADR 0077); it finds it
+   * itself unless given.
+   */
+  reducedMotion?: boolean | undefined;
 };
 
 export function useViewState(input: ViewStateInput): ViewStateLink {
   const { viewId, scene, selection, explore, scenarios, canvas } = input;
   const target = input.target ?? window;
-  const reduced = useReducedMotion();
+  const found = useReducedMotion();
+  const reduced = input.reducedMotion ?? found;
   const [follower] = useState(() => new AddressFollower(target));
   const [applier] = useState(() => new ViewStateApplier((busy) => follower.pause(busy)));
   const latest = useRef<ApplyContext>({ ...input, reduced });

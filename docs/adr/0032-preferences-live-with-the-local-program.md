@@ -43,3 +43,11 @@ This is the first file the program writes outside the project folder; tests alwa
   - It is set from the history panel.
   - Like every preference, it travels only over the live connection.
   - Claude's tools neither read nor change it. Claude learns only that a change of its own was proposed.
+
+<!-- Decided by Claude on 2026-10-27 under the user's standing delegation of design decisions. -->
+
+- 2026-10-27 (M11c's task "The stage", ADR 0077): **`motion`** and **`fades`**, how tours and scenario playback move.
+  - `motion` is `"system"`, the default, `"reduced"` or `"full"`: as the system's reduced motion setting says, reduced whatever it says, or full whatever it says. Reduced, every camera change of a tour, of playback following a step and of the view state cuts, and travelling markers stay still. `fades` is a boolean, true by default: whether a tour's stages fade and its cuts cross-fade.
+  - The file writes them after `author`, so that a file written before reads as it did and gains them with their defaults at the next change. A value this build cannot read, such as a motion added later, is kept as found, as every preference's is. A change to them is refused with `"motion" must be "system", "reduced" or "full", not …` or `"fades" must be true or false, not …`.
+  - They are set in the tours panel, under the list of tours, and apply in the tab at once; while the tab is not connected it says that they apply to this tab only.
+  - The read-only page, which has no program to keep them, follows the system's setting with fades on, and offers no choice of them.

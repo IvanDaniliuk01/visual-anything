@@ -62,7 +62,10 @@ export function ScenarioPanel({
   session: ScenarioSession;
   /** The canvas's camera, which playback moves to bring the step it plays into view. */
   canvas?: CanvasCamera | undefined;
-  /** While a tour plays, which moves the camera itself, playback leaves the camera alone. */
+  /**
+   * While a tour plays, playback leaves the camera to it: the tour moves the camera itself and
+   * brings the scenario's steps into view as its step says (ADR 0077).
+   */
   held?: boolean;
 }) {
   const t = useT();

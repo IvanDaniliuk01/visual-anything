@@ -10,6 +10,7 @@ import {
   HOLD_TIMEOUT_MS,
   LANGUAGE_NOT_CONNECTED,
   LANGUAGE_STORAGE_KEY,
+  MOTION_NOT_CONNECTED,
   NOT_CONNECTED,
   SEND_DELAY_MS,
   THEME_STORAGE_KEY,
@@ -142,6 +143,21 @@ describe('startPreferences', () => {
     changePreferences({ rulers: true });
     expect(link.notify).toHaveBeenLastCalledWith('info', GRID_NOT_CONNECTED);
     expect(appliedPreferences().preferences).toMatchObject({ grid: true, rulers: true });
+  });
+
+  it('applies Motion and Fades at once, and says while not connected that they apply to this tab only', () => {
+    startPreferences(window);
+    const listener = vi.fn();
+    subscribePreferences(listener);
+    const { link } = fakeLink({ status: 'closed' });
+    linkPreferences(link);
+    changePreferences({ motion: 'reduced' });
+    expect(appliedPreferences().preferences.motion).toBe('reduced');
+    expect(link.notify).toHaveBeenLastCalledWith('info', MOTION_NOT_CONNECTED);
+    changePreferences({ fades: false });
+    expect(appliedPreferences().preferences.fades).toBe(false);
+    expect(link.notify).toHaveBeenLastCalledWith('info', MOTION_NOT_CONNECTED);
+    expect(listener).toHaveBeenCalledTimes(2);
   });
 
   it('ignores a kept language it does not know', () => {

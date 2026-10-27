@@ -9,7 +9,7 @@ import type { Scene } from '../canvas/scene';
 import type { CanvasCamera } from '../view-state/canvas';
 import { highlightOf } from './emphasis';
 import { PlaybackFollower, stepBounds } from './follow';
-import { useReducedMotion } from './motion';
+import { useMotion } from './motion';
 import type { ScenarioSession } from './session';
 
 interface PlaybackFollowProps {
@@ -21,9 +21,16 @@ interface PlaybackFollowProps {
   timeline: Timeline | undefined;
   /** The canvas's camera, once the canvas has started. */
   canvas: CanvasCamera | undefined;
-  /** While something else moves the camera from step to step, as a tour does, playback leaves it. */
+  /**
+   * While something else moves the camera from step to step, playback leaves it: a tour brings a
+   * scenario's steps into view itself (`tours/step-camera.ts`).
+   */
   held?: boolean;
-  /** Whether a cut cross-fades (ADR 0077): it does by default. */
+  /**
+   * Whether motion is reduced, so that every move cuts, and whether a cut cross-fades (ADR 0077): as
+   * the person's Motion and Fades preferences say unless given.
+   */
+  reducedMotion?: boolean;
   fades?: boolean;
 }
 
@@ -35,10 +42,12 @@ export function PlaybackFollow({
   timeline,
   canvas,
   held = false,
-  fades = true,
+  ...given
 }: PlaybackFollowProps) {
   const state = useSyncExternalStore(session.subscribe, session.getState);
-  const reduced = useReducedMotion();
+  const chosen = useMotion();
+  const reduced = given.reducedMotion ?? chosen.reduced;
+  const fades = given.fades ?? chosen.fades;
   const motion = useRef({ reduced, fades });
   useEffect(() => {
     motion.current = { reduced, fades };

@@ -12,7 +12,6 @@ import {
   MAX_TOUR_MARKS,
   MAX_TOUR_NAME,
   isBrokenTourStep,
-  modelIndexOf,
   savedViewStateOf,
   tourStepProblems,
   type Command,
@@ -39,6 +38,8 @@ import {
   tooLargeToSend,
 } from './commands';
 import { useToursHost } from './context';
+import { describeMarks } from './describe';
+import { MotionPreferences } from './MotionPreferences';
 import './tours.css';
 
 const NOT_CONNECTED = 'Visual Anything is not connected, so nothing was changed.';
@@ -158,6 +159,7 @@ function TourList({ send, onOpen }: { send: Send; onOpen: (id: Id) => void }) {
         {t('New tour from the canvas')}
       </button>
       {!editable && <p className="panel-empty">{t(NOT_CONNECTED)}</p>}
+      <MotionPreferences />
     </>
   );
 }
@@ -386,7 +388,7 @@ function StepItem({
         />
       </details>
       <div className="tour-step-marks">
-        <span>{describeMarks(t, project, step)}</span>
+        <span>{describeMarks(t, project, step.marks ?? [])}</span>
         <button
           type="button"
           className="tour-button"
@@ -583,17 +585,4 @@ function describeShown(t: Translator, project: ProjectSnapshot, step: TourStep):
   return parts.length === 0
     ? t('Shows “{view}”', { view: name })
     : t('Shows “{view}”: {parts}', { view: name, parts: parts.join(', ') });
-}
-
-/** What a step marks, in words. */
-function describeMarks(t: Translator, project: ProjectSnapshot, step: TourStep): string {
-  const marks = step.marks ?? [];
-  if (marks.length === 0) return t('Marks nothing.');
-  const index = modelIndexOf(project);
-  const names = marks
-    .slice(0, 3)
-    .map((id) => `“${index.element(id)?.name ?? index.relation(id)?.name ?? id}”`);
-  return marks.length > 3
-    ? t('Marks {names} and {count} more.', { names: names.join(', '), count: marks.length - 3 })
-    : t('Marks {names}.', { names: names.join(', ') });
 }
