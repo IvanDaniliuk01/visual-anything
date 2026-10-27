@@ -130,6 +130,18 @@ describe('markersOf', () => {
     ]);
   });
 
+  it('gives each marker the trail it leaves, when it leaves one', () => {
+    const { view, timeline } = setUp(sample);
+    expect(markersOf(sample, view, timeline.entries[4]!, 0.5, 0.3)).toEqual([
+      { relation: 'api-writes-db', progress: 0.5, trail: 0.3 },
+      { relation: 'api-to-reminders', progress: 0.5, trail: 0.3 },
+    ]);
+    expect(markersOf(sample, view, timeline.entries[4]!, 1, 1)).toEqual([
+      { relation: 'api-writes-db', progress: 1 },
+      { relation: 'api-to-reminders', progress: 1 },
+    ]);
+  });
+
   it('puts none on an aggregated step, nor on a relation the view draws as nesting', () => {
     const project = collapsing(['scheduling']);
     const { view, timeline } = setUp(project);

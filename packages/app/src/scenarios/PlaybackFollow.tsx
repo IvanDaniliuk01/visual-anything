@@ -23,6 +23,8 @@ interface PlaybackFollowProps {
   canvas: CanvasCamera | undefined;
   /** While something else moves the camera from step to step, as a tour does, playback leaves it. */
   held?: boolean;
+  /** Whether a cut cross-fades (ADR 0077): it does by default. */
+  fades?: boolean;
 }
 
 export function PlaybackFollow({
@@ -33,17 +35,21 @@ export function PlaybackFollow({
   timeline,
   canvas,
   held = false,
+  fades = true,
 }: PlaybackFollowProps) {
   const state = useSyncExternalStore(session.subscribe, session.getState);
   const reduced = useReducedMotion();
-  const motion = useRef(reduced);
+  const motion = useRef({ reduced, fades });
   useEffect(() => {
-    motion.current = reduced;
+    motion.current = { reduced, fades };
   });
   const [follower, setFollower] = useState<PlaybackFollower>();
   useEffect(() => {
     if (!canvas) return;
-    const made = new PlaybackFollower(canvas, { reducedMotion: () => motion.current });
+    const made = new PlaybackFollower(canvas, {
+      reducedMotion: () => motion.current.reduced,
+      fades: () => motion.current.fades,
+    });
     setFollower(made);
     return () => {
       made.dispose();

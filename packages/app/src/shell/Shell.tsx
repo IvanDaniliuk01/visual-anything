@@ -154,7 +154,7 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   });
   usePackageCode({ store: code, project, viewId: view?.id, scene, canvas });
   // Tours (ADR 0058): the one the tab plays full screen, which hides the panels while it plays.
-  const tours = useTourPlayback({ project, scene, viewState, scenarios, emphasis });
+  const tours = useTourPlayback({ project, scene, viewState, scenarios, emphasis, canvas });
   // Export also writes the read-only page, which opens at the view state shown now (M6b).
   const exportTool = (
     <ExportControl

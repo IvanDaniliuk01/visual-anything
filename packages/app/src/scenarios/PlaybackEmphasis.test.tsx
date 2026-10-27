@@ -109,6 +109,26 @@ describe('PlaybackEmphasis', () => {
     expect(session.getState().mode).toBe('playing');
   });
 
+  it('leaves a trail behind a marker while it travels, from where it was a moment before', () => {
+    const { session, store, pass } = setUp();
+    act(() => session.play());
+    pass(TRAVEL_TIME / 2);
+    const [marker] = store.get().markers ?? [];
+    expect(marker?.trail).toBeGreaterThan(0);
+    expect(marker?.trail).toBeLessThan(marker?.progress ?? 0);
+    // Paused, it stands still: no trail.
+    act(() => session.pause());
+    expect(store.get().markers?.[0]?.trail).toBeUndefined();
+  });
+
+  it('leaves no trail where it stands still under reduced motion', () => {
+    reducedMotion(true);
+    const { session, store, pass } = setUp();
+    act(() => session.play());
+    pass(TRAVEL_TIME / 3);
+    expect(store.get().markers?.[0]?.trail).toBeUndefined();
+  });
+
   it('emphasizes nothing once nothing plays over the open view', () => {
     const { store, show } = setUp();
     show(undefined);

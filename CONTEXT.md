@@ -290,7 +290,7 @@ What a scenario plays, in order, over one view: its steps as that view draws the
 _Avoid_: playlist, sequence
 
 **Travelling marker**:
-The mark that moves along each relation of the step being played, from its from end to its to end; when the system asks for reduced motion it stands still at the end it travels to.
+The mark that moves along each relation of the step being played, from its from end to its to end, leaving a short fading trail behind it while it moves (ADR 0077); when the system asks for reduced motion it stands still at the end it travels to.
 _Avoid_: dot, token, pulse
 
 **Tour**:

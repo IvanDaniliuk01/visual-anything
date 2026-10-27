@@ -188,7 +188,14 @@ export function Viewer({ project: opened, made, preferences }: ViewerProps) {
     notify: (_level, message) => setNotice(message),
   });
   // Tours, played full screen as in the app (ADR 0058): the page's header and panels hide meanwhile.
-  const tours = useTourPlayback({ project, scene, viewState, scenarios: playback, emphasis });
+  const tours = useTourPlayback({
+    project,
+    scene,
+    viewState,
+    scenarios: playback,
+    emphasis,
+    canvas,
+  });
   const touring = tours.playback.tour !== undefined;
   const editor = useMemo<Editor>(
     () => ({
