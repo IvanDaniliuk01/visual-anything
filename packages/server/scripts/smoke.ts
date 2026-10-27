@@ -8,7 +8,10 @@
  * 2. `visual-anything mcp` on that project answers MCP's `initialize` and `tools/list`, and reads the
  *    project through the program that runs;
  * 3. `visual-anything mcp` on a project where none runs starts the program itself, and reads it;
- * 4. with `--browser`, started without `--no-open`, it opens the browser at a launch address. On
+ * 4. `visual-anything import` makes a drawing of an HTML file with the satori and WebAssembly the
+ *    executable holds, in its worker, and `visual-anything notices` names satori and its source
+ *    (ADR 0068);
+ * 5. with `--browser`, started without `--no-open`, it opens the browser at a launch address. On
  *    macOS and Linux a stand-in for `open` or `xdg-open`, first on the search path, records the
  *    address it was given; on Windows the system's own browser opens.
  *
@@ -88,11 +91,66 @@ try {
   const pids = await stopRecordedPrograms(aloneRuntime);
   say(`visual-anything mcp started the program itself (${pids.join(', ')}), and read the project.`);
 
+  await checkDrawing(await copySample('drawing'), env);
+  say('visual-anything import made a drawing of HTML in its worker, and notices names satori.');
+
   if (values.browser === true) await checkBrowser(await copySample('browser'), runtime);
   say(`Passed in ${((performance.now() - began) / 1000).toFixed(0)} s.`);
 } finally {
   for (const child of children) child.kill();
   await rm(temporary, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+}
+
+/** Runs the executable to its end, and gives its exit code and what it printed. */
+function runToEnd(args: string[], env: NodeJS.ProcessEnv) {
+  return new Promise<{ code: number | null; out: string; err: string }>((done, fail) => {
+    const child = spawn(executable, args, {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+    children.add(child);
+    let out = '';
+    let err = '';
+    child.stdout?.setEncoding('utf8').on('data', (text: string) => (out += text));
+    child.stderr?.setEncoding('utf8').on('data', (text: string) => (err += text));
+    const timer = setTimeout(() => {
+      child.kill();
+      fail(
+        new Error(`The executable did not end within a minute: ${args.join(' ')}\n${out}${err}`),
+      );
+    }, 60_000);
+    child.once('error', fail);
+    child.once('exit', (code) => {
+      clearTimeout(timer);
+      children.delete(child);
+      done({ code, out, err });
+    });
+  });
+}
+
+/** Makes a drawing of an HTML file into a project, as the person does on the command line. */
+async function checkDrawing(project: string, env: NodeJS.ProcessEnv): Promise<void> {
+  const page = join(temporary, 'card.html');
+  await writeFile(
+    page,
+    '<div style="padding: 12px; border: 2px solid #1D4F91"><h2>Basic</h2><p>$10 a month</p><script>x()</script></div>',
+  );
+  const imported = await runToEnd(['import', project, page], env);
+  if (imported.code !== 0 || !imported.out.includes('Done: Import "card.html" as a drawing')) {
+    throw new Error(
+      `The drawing was not imported (${imported.code}):\n${imported.out}${imported.err}`,
+    );
+  }
+  if (!imported.out.includes('1 script element')) {
+    throw new Error(`The import did not say it dropped the script:\n${imported.out}`);
+  }
+  const notices = await runToEnd(['notices'], env);
+  if (notices.code !== 0 || !/satori \d+\.\d+\.\d+\n {2}License: MPL-2\.0/.test(notices.out)) {
+    throw new Error(
+      `notices does not name satori's license and source:\n${notices.out}${notices.err}`,
+    );
+  }
 }
 
 /** The executable's environment: this one's, with another search path and folders of its own. */

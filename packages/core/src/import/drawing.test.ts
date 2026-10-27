@@ -1,3 +1,4 @@
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import type { Element, ImageDefinition } from '@visual-anything/schema';
 import { executeCommand } from '../commands';
@@ -155,6 +156,44 @@ describe('prepareDrawingImport', () => {
     const huge = `<svg ${NS} viewBox="0 0 100 100"><path d="${paths}"/></svg>`;
     const prepared = prepareDrawingImport(testProject(), { name: 'big.html', svg: huge });
     expect(prepared.ok).toBe(false);
+  });
+});
+
+describe('prepareDrawingImport, whatever it is asked', () => {
+  it('is one action that stores one picture, shows it, and whose undo gives the project back', () => {
+    const state = testProject();
+    const elements = state.model.elements.map((each) => each.id);
+    const target = fc.oneof(
+      fc.constant(undefined),
+      fc.record({ element: fc.constantFrom(...elements) }),
+      fc.record(
+        {
+          component: fc.constantFrom('test.box', 'test.service', 'systems.box', 'essence'),
+          view: fc.constant('overview'),
+        },
+        { requiredKeys: [] },
+      ),
+    );
+    fc.assert(
+      fc.property(fc.string({ minLength: 1, maxLength: 80 }), target, (name, asked) => {
+        const prepared = prepareDrawingImport(
+          state,
+          { name, svg: CARD, ...(asked === undefined ? {} : { target: asked }) },
+          sequentialIds(),
+        );
+        if (!prepared.ok) throw new Error(prepared.problems.join(' '));
+        const outcome = run(state, prepared.command);
+        expect(outcome.label).toBe(`Import "${name}" as a drawing`);
+        const images = outcome.state.packages.flatMap((each) => each.images ?? []);
+        expect(images.map((each) => each.id)).toEqual([prepared.image]);
+        const shown = outcome.state.model.elements.filter(
+          (each) => each.appearance?.image !== undefined && each.appearance.image !== 'none',
+        );
+        expect(shown).toHaveLength(1);
+        expect(applyOperations(outcome.state, outcome.inverse).state).toEqual(state);
+      }),
+      { numRuns: 40 },
+    );
   });
 });
 

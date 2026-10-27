@@ -85,6 +85,15 @@ export function noticeText(packages: readonly BundledPackage[], nodeVersion: str
       `  Source: ${each.source}`,
       '',
     );
+    // What satori's own files hold, compiled: its layout engine and its text shaping.
+    if (each.name === 'satori') {
+      lines.push(
+        '  It holds, in its own files, the WebAssembly of HarfBuzz, from harfbuzzjs (MIT,',
+        '  https://github.com/harfbuzz/harfbuzzjs), and of its layout engine, Taffy (MIT,',
+        '  https://github.com/DioxusLabs/taffy).',
+        '',
+      );
+    }
   }
   lines.push(
     `Node.js ${nodeVersion}`,

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { cleanSvg } from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
 import { robotoFonts } from './fonts';
@@ -19,6 +20,14 @@ async function rendered(html: string, width = 400) {
 }
 
 describe('Roboto', () => {
+  it('is the same Roboto the PDF export embeds, with its license beside it', () => {
+    const here = (name: string) => readFileSync(new URL(`./fonts/${name}`, import.meta.url));
+    const app = (name: string) =>
+      readFileSync(new URL(`../../../app/src/export/fonts/${name}`, import.meta.url));
+    expect(here('roboto.json').equals(app('roboto.json'))).toBe(true);
+    expect(here('LICENSE-roboto.txt').equals(app('LICENSE-roboto.txt'))).toBe(true);
+  });
+
   it('draws Latin text, and no emoji or CJK', () => {
     const { coverage } = robotoFonts();
     for (const character of 'Aé€ñ—')
