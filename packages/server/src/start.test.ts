@@ -65,6 +65,7 @@ describe('a program on a folder that holds no project yet', () => {
             name: 'Churn classifier',
             packages: ['data-science', 'machine-learning'],
           },
+          { id: 'robot-arm', name: 'Pick-and-place arm', packages: ['physical-ai'] },
         ],
         token: 'secret',
       },

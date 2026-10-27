@@ -56,6 +56,17 @@ export const DARK_SHADES: DarkShades = Object.freeze({
     'machine-learning.optimizer': { fill: '#132D1F', stroke: '#39C67B' },
     'machine-learning.metric': { fill: '#1C132D', stroke: '#B9A0E3' },
     'machine-learning.training-run': { fill: '#1A2226', stroke: '#97AEBA' },
+    // Physical AI and robotics (P1).
+    'physical-ai.robot': { fill: '#1C2026', stroke: '#A5B0BC' },
+    'physical-ai.link': { fill: '#172536', stroke: '#8DB8F2' },
+    'physical-ai.joint': { fill: '#2E2414', stroke: '#E2B45E' },
+    'physical-ai.sensor': { fill: '#132A26', stroke: '#5FC6B0' },
+    'physical-ai.actuator': { fill: '#321C16', stroke: '#F29A7A' },
+    'physical-ai.controller': { fill: '#241F38', stroke: '#B7A0F2' },
+    'physical-ai.policy': { fill: '#2E1C25', stroke: '#EE93B8' },
+    'physical-ai.compute-unit': { fill: '#1C2129', stroke: '#A9B4C2' },
+    'physical-ai.node': { fill: '#172B45', stroke: '#78A8EE' },
+    'physical-ai.topic': { fill: '#1F2A12', stroke: '#A9D16A' },
   }),
   relationTypes: Object.freeze({
     'relates-to': { stroke: '#8F9AA6' },
@@ -73,6 +84,13 @@ export const DARK_SHADES: DarkShades = Object.freeze({
     'machine-learning.is-measured-by': { stroke: '#B9A0E3' },
     'machine-learning.minimizes': { stroke: '#E09994' },
     'machine-learning.updates': { stroke: '#39C67B' },
+    // Physical AI and robotics (P1).
+    'physical-ai.is-attached-to': { stroke: '#AEB8C4' },
+    'physical-ai.drives': { stroke: '#F29A7A' },
+    'physical-ai.senses': { stroke: '#5FC6B0' },
+    'physical-ai.commands': { stroke: '#B7A0F2' },
+    'physical-ai.publishes-to': { stroke: '#8DB8F2' },
+    'physical-ai.subscribes-to': { stroke: '#8DB8F2' },
   }),
 });
 

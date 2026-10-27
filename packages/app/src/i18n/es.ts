@@ -148,6 +148,10 @@ export const ui: Catalog = {
     'Canalización de ciencia de datos: predicción de bajas',
   'The data a subscription business turns into a churn model, and the dashboards it feeds, with a scenario of the nightly run.':
     'Los datos que un negocio de suscripciones convierte en un modelo de bajas, y los paneles de indicadores que alimenta, con un escenario de la ejecución nocturna.',
+  // P1 W63: the physical-ai sample.
+  'Physical AI: a pick-and-place arm': 'IA física: un brazo que toma y coloca piezas',
+  'A six-axis arm drawn with its parts, its kinematic chain and its software, with a scenario of a command that goes from a learned policy to a joint and is read back.':
+    'Un brazo de seis ejes dibujado con sus partes, su cadena cinemática y su software, con un escenario de un comando que va de una política aprendida a una articulación y se vuelve a leer.',
   'Start from the sample “{name}”': 'Empezar a partir del proyecto de muestra “{name}”',
   'Start from this sample': 'Empezar a partir de este proyecto de muestra',
   'Starting…': 'Empezando…',
@@ -5444,5 +5448,177 @@ export const builtins: Readonly<
     name: 'actualiza',
     description:
       'Cambia los parámetros de un modelo, un bloque o una capa de red neuronal: un optimizador en cada paso, una corrida de entrenamiento en su conjunto.',
+  },
+  // P1 W63: Physical AI and robotics. "Node" is "Nodo de software", as C4's "Nodo de despliegue".
+  'physical-ai': {
+    name: 'IA física y robótica',
+    description:
+      'Robots, sus eslabones y articulaciones, los sensores, actuadores, controladores y políticas aprendidas que los mueven, y los nodos de software y los tópicos de su software.',
+  },
+  'physical-ai.robot': {
+    name: 'Robot',
+    description:
+      'Una máquina que percibe y actúa en el mundo, como un brazo, un robot móvil o un humanoide, y que contiene sus eslabones, articulaciones, sensores y actuadores.',
+    attributes: {
+      model: 'Qué es, o su marca y modelo, como "brazo de seis ejes".',
+      degreesOfFreedom:
+        'De cuántas maneras independientes se mueve: una por cada articulación que acciona.',
+    },
+  },
+  'physical-ai.link': {
+    name: 'Eslabón',
+    description:
+      'Un cuerpo rígido de un robot, como su base, un brazo o una rueda, que las articulaciones unen al siguiente.',
+    attributes: {
+      mass: 'Cuánto pesa.',
+      length: 'Cuánto mide, desde la articulación anterior hasta la siguiente.',
+    },
+  },
+  'physical-ai.joint': {
+    name: 'Articulación',
+    description:
+      'Donde dos eslabones se encuentran y se mueven uno respecto del otro, girando sobre su eje o deslizándose a lo largo de él.',
+    attributes: {
+      kind: 'Cómo se mueve: girando entre dos límites, deslizándose, sin moverse o girando sin fin.',
+      lowerLimit:
+        'La posición más baja que alcanza: un ángulo en grados si gira, una distancia en metros si se desliza.',
+      upperLimit:
+        'La posición más alta que alcanza: un ángulo en grados si gira, una distancia en metros si se desliza.',
+      axis: 'El eje sobre el que gira o a lo largo del cual se desliza, en su propio marco, como "0 0 1".',
+    },
+  },
+  'physical-ai.sensor': {
+    name: 'Sensor',
+    description: 'Algo que mide el robot o el mundo que lo rodea.',
+    attributes: {
+      rate: 'Cuántas lecturas da por segundo.',
+      frame: 'El marco en el que da sus lecturas, como "camera_link".',
+    },
+  },
+  'physical-ai.camera': {
+    name: 'Cámara',
+    description: 'Un sensor que toma imágenes de lo que tiene enfrente.',
+  },
+  'physical-ai.depth-camera': {
+    name: 'Cámara de profundidad',
+    description: 'Una cámara que además mide a qué distancia está cada punto que ve.',
+  },
+  'physical-ai.lidar': {
+    name: 'LiDAR',
+    description: 'Un sensor que mide las distancias a su alrededor con luz láser.',
+  },
+  'physical-ai.imu': {
+    name: 'IMU',
+    description: 'Una unidad de medición inercial: mide cómo acelera y gira el robot.',
+  },
+  'physical-ai.force-torque-sensor': {
+    name: 'Sensor de fuerza y torque',
+    description:
+      'Un sensor que mide las fuerzas y los torques sobre lo que sostiene, como una herramienta.',
+  },
+  'physical-ai.encoder': {
+    name: 'Codificador',
+    description:
+      'Un sensor que mide dónde está una articulación o un eje que gira, y qué tan rápido gira.',
+  },
+  'physical-ai.actuator': {
+    name: 'Actuador',
+    description: 'Algo que mueve el robot, como un motor o un cilindro.',
+  },
+  'physical-ai.motor': {
+    name: 'Motor',
+    description: 'Un actuador que hace girar un eje.',
+    attributes: { torque: 'El torque máximo que da.' },
+  },
+  'physical-ai.servo': {
+    name: 'Servomotor',
+    description:
+      'Un motor que mantiene la posición que se le indica, con su propia realimentación adentro.',
+  },
+  'physical-ai.gripper': {
+    name: 'Pinza',
+    description: 'Un actuador en el extremo de un brazo que se cierra sobre lo que toma.',
+  },
+  'physical-ai.controller': {
+    name: 'Controlador',
+    description:
+      'Lo que convierte una meta y las lecturas de los sensores en comandos para los actuadores, una y otra vez.',
+    attributes: {
+      kind: 'Cómo decide: por su error y sus ganancias, prediciendo sobre un horizonte o con una política aprendida.',
+      rate: 'Cuántas veces por segundo se ejecuta.',
+    },
+  },
+  'physical-ai.policy': {
+    name: 'Política',
+    description:
+      'Un controlador aprendido: un modelo que elige la próxima acción a partir de lo que ve.',
+    attributes: {
+      model:
+        'El modelo que ejecuta, como "una política de difusión" o "un modelo de visión, lenguaje y acción".',
+    },
+  },
+  'physical-ai.compute-unit': {
+    name: 'Unidad de cómputo',
+    description: 'Una computadora en el robot o junto a él, en la que se ejecuta su software.',
+    attributes: {
+      hardware: 'Con qué calcula, como "un módulo embebido con GPU" o "una PC industrial".',
+    },
+  },
+  'physical-ai.node': {
+    name: 'Nodo de software',
+    description:
+      'Un proceso del software del robot, como el que lee una cámara, un planificador o un controlador, que se comunica con los demás a través de tópicos.',
+    attributes: {
+      middleware: 'A través de qué se comunica con los demás, como "ROS 2", "LCM" o "ZeroMQ".',
+    },
+  },
+  'physical-ai.topic': {
+    name: 'Tópico',
+    description:
+      'Un canal de mensajes con nombre, en el que algunos nodos de software publican y al que otros se suscriben.',
+    attributes: {
+      messageType: 'El tipo de sus mensajes, como "Image" o "JointState".',
+      rate: 'Cuántos mensajes por segundo lleva.',
+    },
+  },
+  'physical-ai.is-attached-to': {
+    name: 'está unido a',
+    description:
+      'Une un eslabón a la articulación sobre la que se mueve, una articulación al eslabón en el que está, o un sensor al eslabón en el que va montado: la cadena cinemática.',
+    attributes: {
+      origin:
+        'Dónde está sobre aquello a lo que está unido, dado por una posición y una rotación, como "xyz 0 0 0.1, rpy 0 0 0".',
+    },
+  },
+  'physical-ai.is-part-of': {
+    name: 'es parte de',
+    description:
+      'Ubica un eslabón, una articulación, un sensor o un actuador en el robot al que pertenece.',
+  },
+  'physical-ai.drives': {
+    name: 'mueve',
+    description: 'Mueve una articulación: un actuador la hace girar o deslizarse.',
+  },
+  'physical-ai.senses': {
+    name: 'mide',
+    description: 'Mide algo: un eslabón, una articulación o lo que rodea al robot.',
+    attributes: { quantity: 'Qué mide, como "ángulo", "fuerza" o "distancia".' },
+  },
+  'physical-ai.commands': {
+    name: 'comanda',
+    description:
+      'Le dice a un actuador qué hacer, o a un controlador de nivel inferior qué alcanzar, como una política le da sus objetivos a un controlador de articulaciones.',
+  },
+  'physical-ai.publishes-to': {
+    name: 'publica en',
+    description: 'Envía los mensajes de un nodo de software a un tópico.',
+  },
+  'physical-ai.subscribes-to': {
+    name: 'se suscribe a',
+    description: 'Hace que un nodo de software reciba los mensajes de un tópico.',
+  },
+  'physical-ai.runs-on': {
+    name: 'se ejecuta en',
+    description: 'Ubica un nodo de software en la unidad de cómputo en la que se ejecuta.',
   },
 };

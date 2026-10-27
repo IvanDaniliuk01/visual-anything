@@ -33,13 +33,19 @@ describe('the sample projects the program holds', () => {
     ).toBe(samplesText());
   });
 
-  it('are the C4, data-science and machine learning samples, each with its starter packages', () => {
+  it('are the C4, data-science, machine learning and physical-ai samples, each with its starter packages', () => {
     expect(samples().map(({ id, packages }) => ({ id, packages }))).toEqual([
       { id: 'c4-architecture', packages: ['c4'] },
       { id: 'data-science-pipeline', packages: ['data-science'] },
       { id: 'churn-classifier', packages: ['data-science', 'machine-learning'] },
+      { id: 'robot-arm', packages: ['physical-ai'] },
     ]);
-    expect(SAMPLE_IDS).toEqual(['c4-architecture', 'data-science-pipeline', 'churn-classifier']);
+    expect(SAMPLE_IDS).toEqual([
+      'c4-architecture',
+      'data-science-pipeline',
+      'churn-classifier',
+      'robot-arm',
+    ]);
     expect(sampleOf('my-systems')).toBeUndefined();
   });
 

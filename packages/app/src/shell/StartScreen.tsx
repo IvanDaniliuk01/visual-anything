@@ -21,6 +21,11 @@ const SAMPLE_TEXTS: Readonly<Record<string, { title: string; description: string
     description:
       'A Transformer that reads each customer’s last 90 events to tell who will cancel, beside the pipeline that feeds it, with a scenario of its forward pass.',
   },
+  'robot-arm': {
+    title: 'Physical AI: a pick-and-place arm',
+    description:
+      'A six-axis arm drawn with its parts, its kinematic chain and its software, with a scenario of a command that goes from a learned policy to a joint and is read back.',
+  },
 };
 
 interface StartScreenProps {

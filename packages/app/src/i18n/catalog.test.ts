@@ -288,8 +288,9 @@ describe('translateMessage', () => {
  * is where the word means something else, as a name a built-in definition has in English too.
  */
 const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
-  // C4's "Deployment node" is a component's name, and names no element.
-  { word: /\bnodos?\b/i, unless: /\bnodos? de despliegue\b/i },
+  // C4's "Deployment node" and Physical AI's "Node", "Nodo de software", are components' names, and
+  // name no element.
+  { word: /\bnodos?\b/i, unless: /\bnodos? de (despliegue|software)\b/i },
   { word: /\binstancias?\b/i },
   { word: /\bpropiedad(es)?\b/i },
   // Systems' "Semantic layer" is a component's name, and so are Machine learning's layers, which are

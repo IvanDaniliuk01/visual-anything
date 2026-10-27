@@ -1,0 +1,65 @@
+{
+  "id": "reach-and-grasp",
+  "name": "Reach and grasp",
+  "description": "A command goes from the policy through the controller and the motor to joint 2, and the encoder reads it back.",
+  "view": "arm",
+  "steps": [
+    {
+      "id": "see",
+      "description": "The wrist camera sees the part on its tray, 30 times a second.",
+      "relations": [
+        "camera-sees-workpiece"
+      ],
+      "dataOut": {
+        "frames": 30
+      }
+    },
+    {
+      "id": "decide",
+      "description": "From the camera’s images, the policy picks the next joint targets, 10 times a second.",
+      "relations": [
+        "policy-commands-controller"
+      ],
+      "dataOut": {
+        "joint2": 35
+      }
+    },
+    {
+      "id": "control",
+      "description": "The joint controller turns the error at joint 2 into a torque, 1,000 times a second.",
+      "relations": [
+        "controller-commands-motor"
+      ],
+      "dataIn": {
+        "error": 35
+      },
+      "dataOut": {
+        "torque": 42.5
+      }
+    },
+    {
+      "id": "move",
+      "description": "The shoulder motor turns joint 2, and the upper arm swings toward the part.",
+      "relations": [
+        "motor-drives-joint-2"
+      ]
+    },
+    {
+      "id": "read-back",
+      "description": "The shoulder encoder reads joint 2’s new angle back to the controller, closing the loop.",
+      "relations": [
+        "encoder-senses-joint-2"
+      ],
+      "dataOut": {
+        "angle": 34.8
+      }
+    },
+    {
+      "id": "grasp",
+      "description": "Over the part, the policy closes the gripper.",
+      "relations": [
+        "policy-commands-gripper"
+      ]
+    }
+  ]
+}
