@@ -297,7 +297,7 @@ const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
   {
     word: /\bcapas?\b/i,
     unless:
-      /\bcapa semántica\b|\bred(es)? neuronal(es)?\b|^capa( densa| recurrente| de (convolución|atención|incrustación|normalización|agrupación))?$/i,
+      /\bcapa semántica\b|\bred(es)? neuronal(es)?\b|^capa( densa| recurrente| de (convolución|atención|embedding|normalización|agrupación))?$/i,
   },
   { word: /\bv[ií]nculos?\b/i },
   { word: /\baristas?\b/i },

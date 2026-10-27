@@ -13,36 +13,36 @@
       "element": "event-sequence",
       "container": "churn-classifier",
       "x": 24,
-      "y": 664
+      "y": 808
     },
     {
       "element": "sequence-encoder",
       "container": "churn-classifier",
-      "x": 256,
-      "y": 48
+      "x": 280,
+      "y": 112
     },
     {
       "element": "mean-pooling",
       "container": "churn-classifier",
-      "x": 720,
-      "y": 96
+      "x": 768,
+      "y": 48
     },
     {
       "element": "classifier-head",
       "container": "churn-classifier",
-      "x": 976,
-      "y": 96
+      "x": 1024,
+      "y": 48
     },
     {
       "element": "churn-probability",
       "container": "churn-classifier",
-      "x": 1232,
-      "y": 96
+      "x": 1280,
+      "y": 48
     },
     {
       "element": "training-split",
       "x": 0,
-      "y": 656
+      "y": 416
     },
     {
       "element": "churn-classifier",
@@ -51,8 +51,8 @@
     },
     {
       "element": "binary-cross-entropy",
-      "x": 1744,
-      "y": 96
+      "x": 1816,
+      "y": 416
     }
   ],
   "freeShapes": [],

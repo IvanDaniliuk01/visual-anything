@@ -131,6 +131,15 @@ describe('the built-in Machine learning package', () => {
       'machine-learning.flows-into',
       'relates-to',
     ]);
+    // A residual connection is drawn dashed, as a curve, in the stroke of what it derives from.
+    expect(definitions.relationType('machine-learning.adds-to')?.appearance).toMatchObject({
+      stroke: '#3D4651',
+      dash: 'dashed',
+      route: 'curved',
+    });
+    expect(
+      definitions.relationType('machine-learning.flows-into')?.appearance.route,
+    ).toBeUndefined();
     expect([...definitions.nestingRelationTypes]).toEqual(['machine-learning.is-part-of']);
     // A model trained by Data science pipelines' "trains" is one of Machine learning's models too.
     expect(definitions.relationType('data-science.trains')?.limits.to).toEqual([

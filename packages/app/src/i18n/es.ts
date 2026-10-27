@@ -5334,7 +5334,7 @@ export const builtins: Readonly<
     attributes: { heads: 'Cuántas cabezas atienden en paralelo.' },
   },
   'machine-learning.embedding-layer': {
-    name: 'Capa de incrustación',
+    name: 'Capa de embedding',
     description:
       'Una capa de una red neuronal que convierte cada token, palabra o categoría en un vector de números que aprende.',
     attributes: { dimensions: 'Cuántos números tiene cada vector.' },
@@ -5354,8 +5354,8 @@ export const builtins: Readonly<
   'machine-learning.pooling-layer': {
     name: 'Capa de agrupación',
     description:
-      'Una capa de una red neuronal que reduce cada región de su entrada a un solo valor, como el mayor o el promedio.',
-    attributes: { operation: 'Cómo se reduce cada región, como "max" o "average".' },
+      'Una capa de una red neuronal que reduce cada ventana de su entrada a un solo valor, como el mayor o el promedio.',
+    attributes: { operation: 'Cómo se reduce cada ventana, como "max" o "average".' },
   },
   'machine-learning.block': {
     name: 'Bloque',
