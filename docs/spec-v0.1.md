@@ -515,7 +515,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 - [x] **A sample,** `examples/beyond-boxes`: a heart drawn for Visual Anything (CC0-1.0), whose chambers and vessels are anchored to its named parts; a component with free geometry; one view drawn curved; a card imported from HTML; and a scenario of blood flowing through the heart.
   - [x] The heart, its parts, the lungs as free geometry, the Heart view drawn curved beside the Circulation view, "paces" drawn straight, the scenario, and the test that opens it through the program's loader (W59).
   - [x] The card, imported from `sources/card.html` as a drawing, credited CC0-1.0 as the heart is (W56).
-- [ ] **The benchmark:** `?geometry` and `?curves`, in work and frames modes, with the phases of the "Done when" above:
+- [x] **The benchmark:** `?geometry` and `?curves`, in work and frames modes, with the phases of the "Done when" above (W60, the harness; the measurements wait for a quiet machine):
   - pan, zoom and select, at the whole view and with names shown;
   - pointing along outlines;
   - dragging a shape with free geometry and 50 relations;
@@ -531,7 +531,7 @@ Eight milestones in build order, each ending in something you can use, and Track
   - W51's choices are kept: Alt also turns the alignment guides off in a move; a container resized from its top or left keeps its contents where they are on the canvas, storing their positions; Same width and Same height take the widest or tallest; shapes an overlay sizes show no handles; notes resize and align, arrows only align;
   - `alignActions.ts`'s copy of `movingShapes` moves into a module without the DOM that `gestures.ts` and the server share;
   - Alt+Shift with an arrow is checked on Windows, where Alt+Shift can switch the keyboard layout; if it does, the keys move;
-  - the benchmark gains a phase that resizes a shape and shows guides on the 10,000-element view.
+  - the benchmark gains a phase that resizes a shape and shows guides on the 10,000-element view (done in W60's harness, ADR 0074's clarification; measured with the rest on a quiet machine).
   - Mermaid and Structurizr carry the styles of routes where they can, rather than reporting them lost (W58): Structurizr with a `routing` style on the relationships tagged by their style, Orthogonal for the rest, and Mermaid with `linkStyle … interpolate` (`basis` curved, `linear` straight, `step` orthogonal); their outputs change for every view, so their tests change with them;
   - `command-view.test.ts` ("prints a launch address…") failed twice when run alone on the loaded machine and passes in the full run and alone on a quiet one (W56); it is watched, and fixed if it fails again;
   - `scene.incremental.test.ts` once found an incremental scene in the view beyond boxes that differed from one built from nothing, in about one run in 400, and lost the counterexample; it is hunted with more runs and its seed kept (2026-10-26).
