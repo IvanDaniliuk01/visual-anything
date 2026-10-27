@@ -45,6 +45,9 @@ export function writeOutline(project: ProjectSnapshot, viewId: Id): TextExport {
   const scene = buildScene(project, viewId);
   // Everything the view draws: filters and focus belong to an open app, and hide nothing here.
   const outline = outlineOf(scene, project, new Set());
+  const anchored = new Set(
+    scene.shapes.filter((shape) => shape.part?.inDrawing === true).map((shape) => shape.key),
+  );
   const lines: string[] = [`# ${markdownInline(view.name)}`, ''];
   const description = view.description?.trim();
   if (description) lines.push(markdownBlock(description), '');
@@ -69,11 +72,18 @@ export function writeOutline(project: ProjectSnapshot, viewId: Id): TextExport {
       case 'relation':
         shapes.push(`${indent}- ${relationLine(item)}`);
         break;
-      case 'undrawn':
+      case 'undrawn': {
+        // A row, and an anchored part of a drawing with parts (ADR 0067), draw none of what they hold.
+        const name = `**${markdownInline(item.name)}**`;
         shapes.push(
-          `${indent}- ${t('{name}, held by its row and not drawn', { name: `**${markdownInline(item.name)}**` })}`,
+          `${indent}- ${
+            anchored.has(item.row)
+              ? t('{name}, held by its anchored part and not drawn', { name })
+              : t('{name}, held by its row and not drawn', { name })
+          }`,
         );
         return;
+      }
       case 'note':
         notes.push(`- ${markdownInline(item.note.text)}`);
         return;

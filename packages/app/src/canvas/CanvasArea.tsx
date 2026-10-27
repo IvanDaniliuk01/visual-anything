@@ -54,6 +54,8 @@ import { useCanvasRecording } from '../scenarios/useCanvasRecording';
 import { THEMES } from '../theme/themes';
 import { canvasCamera, type CanvasCamera } from '../view-state/canvas';
 import { screenToWorld, type Camera } from './camera';
+import type { AlignHow } from './align';
+import { alignActions, alignCommand, alignableCount } from './alignActions';
 import {
   collapseActions,
   collapseDone,
@@ -531,6 +533,15 @@ export function CanvasArea({
     () => (indexed ? stackingActions(indexed, project, view.id, selection, editable) : undefined),
     [indexed, project, view.id, selection, editable],
   );
+  // What aligning offers for the selection, worked out only while Align's menu or the shape menu
+  // shows it, so that selecting many shapes costs nothing more (ADR 0074).
+  const aligning = indexed
+    ? () => alignActions(indexed, project, view.id, selection, editable)
+    : undefined;
+  const menuAlign =
+    menu && indexed && alignableCount(indexed, project, view.id, selection) >= 2
+      ? alignActions(indexed, project, view.id, selection, editable)
+      : undefined;
   // The target set from a menu ends once the selection changes.
   const target = addTarget && addTarget.selection === selection ? addTarget.element : undefined;
   const adding = useMemo(
@@ -635,6 +646,26 @@ export function CanvasArea({
     }
     void send(command).then((result) => {
       if (result.ok && done !== undefined) announce(done);
+    });
+  };
+
+  /**
+   * Aligns, distributes or sizes alike the selected shapes, as one action, and says what it did; a
+   * way that would change nothing says why instead (ADR 0074).
+   */
+  const align = (how: AlignHow) => {
+    if (!indexed) return;
+    if (!editable) {
+      announce(t('The project cannot be changed now.'));
+      return;
+    }
+    const aligned = alignCommand(indexed, project, view.id, selection, how);
+    if ('reason' in aligned) {
+      announce(aligned.reason);
+      return;
+    }
+    void send(aligned.command).then((result) => {
+      if (result.ok) announce(`${t.message(aligned.label)}.`);
     });
   };
 
@@ -868,6 +899,8 @@ export function CanvasArea({
         {...(adding.place ? { addPlace: adding.place } : {})}
         {...(stacking ? { stacking } : {})}
         onRestack={restack}
+        {...(aligning ? { align: aligning } : {})}
+        onAlign={align}
         addSelect={addSelect}
         onAddLeave={() => setAddTarget(undefined)}
         layout={layout.control}
@@ -941,6 +974,16 @@ export function CanvasArea({
             closeMenu();
             void sendChange(action.command, action.done);
           }}
+          {...(menuAlign
+            ? {
+                align: menuAlign,
+                onAlign: (how: AlignHow) => {
+                  // One that would change nothing says why, and leaves the menu open for another.
+                  if (menuAlign[how].enabled) closeMenu();
+                  align(how);
+                },
+              }
+            : {})}
           editable={editable}
           onRestack={(move) => {
             // A move that would change nothing says why, and leaves the menu open for another.

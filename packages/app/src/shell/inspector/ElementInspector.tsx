@@ -20,6 +20,7 @@ import { byPackage, relationLabel, relationSentence } from './describe';
 import { SelectControl, TextControl } from './controls';
 import { describedAs } from './detail';
 import { End, FirstOnes, Lineage, SelectButton, Title } from './parts';
+import { PartsSection } from './PartsSection';
 import { RowsSection } from './RowsSection';
 import { perform } from './send';
 import { sameOptionalText } from './text';
@@ -106,6 +107,7 @@ export function ElementInspector({
       <ViewSection element={element} />
       <ScopeSection element={element} />
       <RowsSection element={element} />
+      <PartsSection element={element} onSelect={onSelect} />
       <DestinationsSection item={element} definitions={component.attributes} />
       <AttributesSection
         of="element"

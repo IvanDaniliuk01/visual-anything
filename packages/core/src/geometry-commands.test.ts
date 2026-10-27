@@ -137,6 +137,53 @@ describe('free geometry in an appearance (ADR 0066)', () => {
     expect(findings.drawnAsKind.has(big[0] as FreeGeometry)).toBe(false);
     expect(findings.drawnAsKind.has(big.at(-1) as FreeGeometry)).toBe(true);
   });
+
+  it('answers large-geometry when an action leaves the model past what slows saving it, and only then', () => {
+    const state = colorProject();
+    const points = Array.from({ length: 1200 }, (_, at) => {
+      const angle = (2 * Math.PI * at) / 1200;
+      return `${(50 + 40 * Math.cos(angle)).toFixed(9)},${(50 + 40 * Math.sin(angle)).toFixed(9)}`;
+    }).join(' ');
+    const big = (): FreeGeometry => ({
+      width: 100,
+      height: 100,
+      outline: [{ kind: 'polygon', points }],
+    });
+    // About 31 KiB each: 33 of them stay under the model's 1 MiB warning, and one more passes it.
+    const elements = Array.from({ length: 33 }, (_, at) => ({
+      id: `shape-${at}`,
+      component: 'systems.service',
+      name: `Shape ${at}`,
+      appearance: { geometry: big() },
+    }));
+    const under: ProjectSnapshot = {
+      ...state,
+      model: { ...state.model, elements: [...state.model.elements, ...elements] },
+    };
+    const large = (outcome: ReturnType<typeof run>) =>
+      outcome.ok ? outcome.warnings.filter((each) => each.code === 'large-geometry') : [];
+
+    const past = run(
+      { type: 'update-element', id: 'api', changes: { appearance: { geometry: big() } } },
+      under,
+    );
+    expect(large(past).map((each) => each.message)).toEqual([
+      expect.stringMatching(/^The model holds 1,0\d\d KiB of free geometry, which slows saving it/),
+    ]);
+    if (!past.ok) throw new Error('refused');
+
+    const fill = run(
+      { type: 'update-element', id: 'desk', changes: { appearance: { fill: '#E3F2E9' } } },
+      past.state,
+    );
+    expect(fill.ok && fill.warnings.map((each) => each.code)).not.toContain('large-geometry');
+
+    const more = run(
+      { type: 'update-element', id: 'desk', changes: { appearance: { geometry: big() } } },
+      past.state,
+    );
+    expect(large(more)).toHaveLength(1);
+  });
 });
 
 describe('named parts in an appearance (ADR 0067)', () => {

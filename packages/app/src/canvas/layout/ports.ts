@@ -46,7 +46,9 @@ export function handPortsOf(line: RelationLine): { fromPort?: LayoutPort; toPort
   const route = line.hand?.route;
   if (!route) return {};
   const port = (attachment: ResolvedAttachment): LayoutPort | undefined =>
-    attachment.kind === 'automatic' ? undefined : { side: attachment.side, at: attachment.at };
+    attachment.kind === 'automatic' || attachment.kind === 'inside'
+      ? undefined
+      : { side: attachment.side, at: attachment.at };
   const fromPort = port(route.from);
   const toPort = port(route.to);
   return { ...(fromPort ? { fromPort } : {}), ...(toPort ? { toPort } : {}) };

@@ -3,6 +3,7 @@ import type { ProjectSnapshot } from '@visual-anything/core';
 import type { Overlay } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { setCurrentLanguage } from '../i18n/language';
+import { beyondBoxes } from '../test/beyond';
 import { SAMPLE_VIEW, collapsedSample } from '../test/exports';
 import { loadSample } from '../test/sample';
 import { withWovenRelations } from '../test/woven';
@@ -80,6 +81,18 @@ describe('writeOutline', () => {
       /→ 1 relations “communicates with” with \*\*Scheduling\*\*, aggregated|aggregated/,
     );
     expect(lost.join(' ')).toMatch(/collapsed containers/);
+  });
+
+  it('lists the anchored parts of a drawing with parts, and what each holds and does not draw', () => {
+    const { text } = writeOutline(beyondBoxes('anatomy'), 'anatomy');
+    expect(text).toContain('- **Body** (Organ)');
+    expect(text).toContain('  - **left** (Chamber)');
+    expect(text).toContain('    - **inner**, held by its anchored part and not drawn');
+    expect(text).not.toContain('held by its row');
+    setCurrentLanguage('es');
+    expect(writeOutline(beyondBoxes('anatomy'), 'anatomy').text).toContain(
+      '    - **inner**, que contiene su parte anclada y no se dibuja',
+    );
   });
 
   it('lists relations that end on relations under them, however they loop', () => {

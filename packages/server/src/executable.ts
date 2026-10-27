@@ -18,6 +18,18 @@ import type { AppFiles } from './static';
  */
 export const APP_ASSET_PREFIX = 'app/';
 
+/** The executable's asset that holds the notice of the code it bundles (ADR 0037, ADR 0068). */
+export const NOTICES_ASSET = 'NOTICES.txt';
+
+/**
+ * The notice of the code the executable bundles, with its licenses and where its source is; run from
+ * the sources, nothing is bundled, and it says where each package's license is instead.
+ */
+export function noticesText(executable: boolean = isExecutable()): string {
+  if (executable) return sea.getAsset(NOTICES_ASSET, 'utf8');
+  return 'This Visual Anything runs from its sources and bundles nothing: each package it uses keeps its own license in its folder under node_modules. `pnpm package` writes the notice of the code a single executable bundles beside it.';
+}
+
 /** Why `--dev` is refused by the executable. */
 export const DEV_IN_EXECUTABLE =
   '--dev serves the app from its sources, which only the repository holds: run `pnpm dev` there. This executable serves the app it was built with.';

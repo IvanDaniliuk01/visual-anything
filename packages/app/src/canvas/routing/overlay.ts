@@ -31,6 +31,8 @@ export interface RouteOverlay {
   points?: readonly { at: Point; snapped: boolean }[];
   /** Where an end snaps to a shape's border. */
   tick?: { at: Point; side: Side };
+  /** Where an end would attach inside a shape. */
+  spot?: Point;
   /** The outline of the shape an end would attach to automatically. */
   outline?: Rect;
   /** The outline of a shape an end may not be reconnected to. */
@@ -99,6 +101,12 @@ export function drawRouteOverlay(
       .moveTo(at.x - normal.x * half, at.y - normal.y * half)
       .lineTo(at.x + normal.x * half, at.y + normal.y * half)
       .stroke({ color: selection, width: px(2.5) });
+  }
+  if (overlay.spot) {
+    // A small target where the end would attach inside the shape.
+    const { x, y } = overlay.spot;
+    ring(graphics, x, y, px(TICK / 2), selection, px(2));
+    graphics.circle(x, y, px(2)).fill(selection);
   }
   for (const handle of overlay.handles) {
     const { x, y } = handle.at;

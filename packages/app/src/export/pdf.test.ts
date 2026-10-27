@@ -5,6 +5,7 @@ import { inflateSync } from 'node:zlib';
 import type { ProjectSnapshot } from '@visual-anything/core';
 import { describe, expect, it } from 'vitest';
 import { buildScene } from '../canvas/scene';
+import { beyondBoxes } from '../test/beyond';
 import { SAMPLE_VIEW, richSample } from '../test/exports';
 import { loadSample } from '../test/sample';
 import { LARGEST_PAGE_SIDE, writePdf } from './pdf';
@@ -164,6 +165,40 @@ describe('writePdf', () => {
     // The legend's title, subtitle and two entries, each set as text; its title at 13.
     expect(count(content, /\bBT\n/g)).toBeGreaterThanOrEqual(count(before, /\bBT\n/g) + 4);
     expect(count(content, /BT\n\/F\d+ 13 Tf/g)).toBe(count(before, /BT\n\/F\d+ 13 Tf/g) + 1);
+    expect(pdf.lost).toEqual([]);
+  }, 60_000);
+
+  it('draws free geometry by the even-odd rule, a drawing with parts, veils and automatic curves', async () => {
+    const base = beyondBoxes('anatomy');
+    const project: ProjectSnapshot = {
+      ...base,
+      model: {
+        ...base.model,
+        elements: base.model.elements.map((element) =>
+          element.id === 'right' ? { ...element, attributes: { state: 'cold' } } : element,
+        ),
+      },
+      views: base.views.map((view) => ({
+        ...view,
+        routeStyle: 'curved',
+        overlays: [
+          {
+            id: 'fade',
+            of: 'elements',
+            attribute: 'state',
+            channel: 'opacity',
+            mapping: { kind: 'discrete', cases: [{ value: 'cold', opacity: 0.4 }] },
+          },
+        ],
+      })),
+    };
+    const pdf = await writePdf(project, 'anatomy', { date: DATE });
+    const content = pageContent(pdf.bytes);
+    // The frame filled and stroked by the even-odd rule, its hole cut; the curves as Béziers.
+    expect(content).toMatch(/\bB\*\n/);
+    expect(content).toMatch(/ c\n/);
+    // The veil over the part, a fill only part opaque.
+    expect(latin1(pdf.bytes)).toMatch(/\/ca 0\.6\b/);
     expect(pdf.lost).toEqual([]);
   }, 60_000);
 

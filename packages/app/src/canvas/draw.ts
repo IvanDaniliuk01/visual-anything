@@ -9,6 +9,7 @@ import {
   CANVAS_BACKGROUNDS,
   evenOddHolds,
   flattenOutline,
+  simplifyOutline,
   type FlatContour,
 } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
@@ -43,7 +44,25 @@ import {
 } from './colors';
 import { COUNT_LINE_TOP, headerLines } from './collapse';
 import { drawLeavingMark, writeLeavingMark } from './leavingMark';
-import type { PlacedOutline } from './outlines';
+import {
+  DETAIL_BELOW_LINE,
+  LEAST_HEADER_WIDTH,
+  LEAST_LABEL_HEIGHT,
+  PART_NAME_LINE,
+  PART_NAME_SIZE,
+  headerStretch,
+  labelAreaOn,
+  markContours,
+  nameBelowOf,
+  nameLinesInside,
+  partNameLines,
+  placedPoints,
+  showsContents,
+  simplifiedLinesOf,
+  writesNameBelow,
+  type Outlined,
+} from './outlined';
+import { outlineAt, type PlacedOutline, type ShapeOutline } from './outlines';
 import { drawDestinationMark } from './destinationMark';
 import { patternMatrix, patternTexture } from './patterns';
 import { drawnAsCurve, drawnCurve, strokeCurve } from './routing/curves';
@@ -150,6 +169,10 @@ function needsOutline(fill: Color): boolean {
  * cost far less to draw than strokes, and all those of one colour are drawn together. The outlines
  * then come before every fill, so the shapes must not overlap; `inOrder` draws each one whole, in
  * order.
+ *
+ * A shape with its own outline (ADR 0066, ADR 0067) is its simplified outline, filled without its
+ * holes, never its box, as its silhouette is too (ADR 0055's clarification): a polygon of its fill,
+ * outlined inside by a stroke of its colour where a block would be.
  */
 export function drawShapeBlocks(
   graphics: Graphics,
@@ -159,9 +182,25 @@ export function drawShapeBlocks(
 ): void {
   const outlines = new Map<Color, Rect[]>();
   const fills = new Map<Color, Rect[]>();
+  const silhouettes = new Silhouettes();
   // An outline of plain blocks is a few canvas units wide, far less than a pixel far out.
   const hairlines = new Hairlines();
   for (const shape of shapes) {
+    if (shape.outline) {
+      const fill = fillOf(shape);
+      const outlined = isContainer(shape) || needsOutline(fill);
+      silhouettes.add(
+        { rect: shape.rect, outline: shape.outline },
+        fill,
+        outlined ? outlineColorOf(shape) : undefined,
+        hairlines,
+      );
+      if (inOrder) {
+        silhouettes.draw(graphics);
+        hairlines.stroke(graphics);
+      }
+      continue;
+    }
     // A table is its body and its header, and its rows draw nothing (ADR 0023).
     const rows = rowsBlocks(shape, BLOCK_OUTLINE, rowColors);
     if (rows) {
@@ -195,7 +234,71 @@ export function drawShapeBlocks(
   }
   for (const [color, rects] of outlines) fillRects(graphics, color, rects);
   for (const [color, rects] of fills) fillRects(graphics, color, rects);
+  silhouettes.draw(graphics);
   hairlines.stroke(graphics);
+}
+
+/**
+ * What a shape with its own outline is filled in: its fill, or for a shape drawn as a named part, the
+ * part's main color, which stands for its picture where the picture does not show (ADR 0067).
+ */
+export function fillOf(shape: { fill: Color; part?: { color: Color } }): Color {
+  return shape.part ? shape.part.color : shape.fill;
+}
+
+/**
+ * The simplified outlines of plain blocks, gathered by color: the polygons of each fill, then the
+ * rims of those outlined, a stroke inside each polygon as wide as a block's outline, then the lines
+ * a named part strokes. Polygons of one band never overlap, as their shapes' rectangles do not, so
+ * the rims may come after every fill.
+ */
+class Silhouettes {
+  private readonly fills = new Map<Color, number[][]>();
+  private readonly rims = new Map<Color, number[][]>();
+  private readonly lines: { color: Color; width: number; points: number[] }[] = [];
+
+  add(shape: Outlined, fill: Color, rim: Color | undefined, hairlines: Hairlines): void {
+    const { rect, outline } = shape;
+    const dx = rect.x + outline.x;
+    const dy = rect.y + outline.y;
+    for (const polygon of simplifyOutline(outline.fitted)) {
+      if (polygon.length < 6) continue;
+      const points = placedPoints(polygon, dx, dy);
+      append(this.fills, fill, points);
+      if (rim !== undefined) {
+        append(this.rims, rim, points);
+        hairlines.addPolygon(rim, points, true);
+      }
+    }
+    for (const line of simplifiedLinesOf(outline.fitted)) {
+      const points = placedPoints(line.points, dx, dy);
+      this.lines.push({ color: fill, width: line.width, points });
+      hairlines.addPolygon(fill, points, false);
+    }
+  }
+
+  draw(graphics: Graphics): void {
+    for (const [color, polygons] of this.fills) {
+      for (const points of polygons) graphics.poly(points, true);
+      graphics.fill(color);
+    }
+    for (const [color, polygons] of this.rims) {
+      for (const points of polygons) graphics.poly(points, true);
+      graphics.stroke({ color, width: BLOCK_OUTLINE, alignment: 1 });
+    }
+    for (const { color, width, points } of this.lines) {
+      graphics.poly(points, false).stroke({ color, width, cap: 'round', join: 'round' });
+    }
+    this.fills.clear();
+    this.rims.clear();
+    this.lines.length = 0;
+  }
+}
+
+function append<V>(byColor: Map<Color, V[]>, color: Color, value: V): void {
+  const list = byColor.get(color);
+  if (list) list.push(value);
+  else byColor.set(color, [value]);
 }
 
 function addRect(byColor: Map<Color, Rect[]>, color: Color, rect: Rect): void {
@@ -222,8 +325,8 @@ export function drawRelationLines(graphics: Graphics, lines: readonly RelationLi
 
 /**
  * Draws element shapes in full, in order, so that containers come under their contents: each body by
- * its kind, a collapsed container on a sheet that shows behind it, and on every container the toggle
- * that collapses or expands it.
+ * its kind, or by its own outline with its holes cut (ADR 0066), a collapsed container on a sheet that
+ * shows behind it, and on every container the toggle that collapses or expands it.
  */
 export function drawShapeOutlines(
   graphics: Graphics,
@@ -235,6 +338,13 @@ export function drawShapeOutlines(
     if (drawRowsShape(graphics, shape, rowColors)) {
       drawToggle(graphics, shape);
       drawLeavingMark(graphics, shape);
+      continue;
+    }
+    if (shape.outline) {
+      drawOutlinedBody(graphics, shape, shape.outline, hairlines);
+      drawToggle(graphics, shape);
+      drawLeavingMark(graphics, shape);
+      drawDestinationMark(graphics, shape);
       continue;
     }
     const colors = { fill: shape.fill, stroke: outlineColorOf(shape) };
@@ -251,6 +361,28 @@ export function drawShapeOutlines(
     drawDestinationMark(graphics, shape);
   }
   hairlines.stroke(graphics);
+}
+
+/**
+ * Draws the body of a shape with its own outline: the outline filled in its fill, or its part's main
+ * color, with its holes cut and every contour stroked, and outlined again a device pixel wide; on a
+ * collapsed container, first the sheet behind it, its outline offset as a box's sheet is. An anchored
+ * part draws no body: its drawing's picture shows it, and what changes how it looks is drawn over it.
+ */
+function drawOutlinedBody(
+  graphics: Graphics,
+  shape: ElementShape,
+  outline: ShapeOutline,
+  hairlines: Hairlines,
+): void {
+  if (shape.part?.inDrawing) return;
+  const colors = { fill: fillOf(shape), stroke: outlineColorOf(shape) };
+  const placed = outlineAt({ rect: shape.rect, outline }) as PlacedOutline;
+  if (shape.collapsed !== undefined && bodyOf(shape) !== shape.rect) {
+    drawOutline(graphics, { ...placed, x: placed.x + SHEET, y: placed.y + SHEET }, colors);
+  }
+  drawOutline(graphics, placed, colors);
+  hairlines.addOutline(colors.stroke, placed);
 }
 
 /** Whether a shape is drawn as a container: one that holds shapes, or one the view collapses. */
@@ -502,19 +634,39 @@ function traceOutline(graphics: Graphics, kind: ShapeKind, rect: Rect): void {
  * that they cost one more batch, not one per shape.
  */
 class Hairlines {
-  private readonly byColor = new Map<Color, { kind: ShapeKind | 'block'; rect: Rect }[]>();
+  private readonly byColor = new Map<
+    Color,
+    ({ kind: ShapeKind | 'block'; rect: Rect } | { points: number[]; closed: boolean })[]
+  >();
 
   add(color: Color, kind: ShapeKind | 'block', rect: Rect): void {
-    const list = this.byColor.get(color);
-    if (list) list.push({ kind, rect });
-    else this.byColor.set(color, [{ kind, rect }]);
+    append(this.byColor, color, { kind, rect });
+  }
+
+  /** A polygon or a polyline, as points on the canvas. */
+  addPolygon(color: Color, points: number[], closed: boolean): void {
+    if (points.length >= 4) append(this.byColor, color, { points, closed });
+  }
+
+  /** Every contour of an outline placed on the canvas: its fills and holes closed, its lines open. */
+  addOutline(color: Color, placed: PlacedOutline): void {
+    for (const contour of flattenOutline(placed.fitted)) {
+      this.addPolygon(
+        color,
+        placedPoints(contour.points, placed.x, placed.y),
+        contour.role !== 'line',
+      );
+    }
   }
 
   stroke(graphics: Graphics): void {
     for (const [color, outlines] of this.byColor) {
-      for (const { kind, rect } of outlines) {
-        if (kind === 'block') graphics.rect(rect.x, rect.y, rect.width, rect.height);
-        else traceOutline(graphics, kind, rect);
+      for (const outline of outlines) {
+        if ('points' in outline) graphics.poly(outline.points, outline.closed);
+        else if (outline.kind === 'block') {
+          const { rect } = outline;
+          graphics.rect(rect.x, rect.y, rect.width, rect.height);
+        } else traceOutline(graphics, outline.kind, outline.rect);
       }
       graphics.stroke({ color, width: 1, pixelLine: true });
     }
@@ -534,14 +686,7 @@ export function drawOutline(
 ): void {
   const flat = flattenOutline(outline.fitted);
   const { contours } = outline.fitted;
-  const shifted = (contour: FlatContour) => {
-    const points: number[] = new Array<number>(contour.points.length);
-    for (let at = 0; at < points.length; at += 2) {
-      points[at] = (contour.points[at] as number) + outline.x;
-      points[at + 1] = (contour.points[at + 1] as number) + outline.y;
-    }
-    return points;
-  };
+  const shifted = (contour: FlatContour) => placedPoints(contour.points, outline.x, outline.y);
   const fills = flat.filter((contour) => contour.role === 'fill');
   const holesIn = new Map<FlatContour, FlatContour[]>();
   for (const hole of flat) {
@@ -577,6 +722,36 @@ export function drawOutline(
       .poly(shifted(contour), false)
       .stroke({ color: colors.stroke, width, cap: 'round', join: 'round' });
   });
+}
+
+/** What a mark goes around: a rectangle, or a shape, by its plate, its own outline or its rectangle. */
+export type MarkTarget = Rect | { rect: Rect; outline?: ShapeOutline; plate?: Rect };
+
+/**
+ * Traces the mark around what is marked, `gap` outside it, into the current path for the caller to
+ * stroke: a box around a rectangle or a plate, and along the outline of a shape with its own (ADR
+ * 0066), each fill grown by the gap and each hole shrunk by it.
+ */
+export function traceMark(graphics: Graphics, target: MarkTarget, gap: number): void {
+  if ('rect' in target) {
+    const { outline, rect, plate } = target;
+    if (outline && !plate) {
+      const contours = markContours(outline.fitted, gap);
+      if (contours.length > 0) {
+        const dx = rect.x + outline.x;
+        const dy = rect.y + outline.y;
+        for (const contour of contours) graphics.poly(placedPoints(contour, dx, dy), true);
+        return;
+      }
+    }
+    traceBox(graphics, plate ?? rect, gap);
+    return;
+  }
+  traceBox(graphics, target, gap);
+}
+
+function traceBox(graphics: Graphics, rect: Rect, gap: number): void {
+  graphics.rect(rect.x - gap, rect.y - gap, rect.width + 2 * gap, rect.height + 2 * gap);
 }
 
 /** Draws a shape's body in a rectangle, filled and stroked, approximating each kind of shape. */
@@ -657,6 +832,14 @@ function writeShapeText(
   backdrop: (shape: ElementShape) => Color = () => CANVAS_BACKGROUND,
 ): void {
   if (writeRowsText(shape, write)) return;
+  if (writesNameBelow(shape)) {
+    writeNameBelow(shape, readableTextColors(backdrop(shape)), write);
+    return;
+  }
+  if (shape.outline) {
+    writeOutlinedText(shape, shape.outline, write);
+    return;
+  }
   const colors = readableTextColors(shape.fill);
   const rooms = labelRooms(shape);
   if (isContainer(shape)) {
@@ -745,6 +928,222 @@ function writeShapeText(
   }
 }
 
+/** The height a name takes on one line, which a shape with its own outline gives it at least. */
+const NAME_LINE = 20;
+
+/**
+ * Writes the name and detail of a shape with its own outline (ADR 0066, ADR 0067), in colours that
+ * read on its fill or its part's main color:
+ *
+ * - an expanded container in its header, as any container, along the stretch of the header line
+ *   its outline holds, right of its icon there;
+ * - any other shape centred in its label area, right of its icon there, its name whole, its words
+ *   never cut (`nameLinesInside`), with its detail under it when the area has a line left for it. A
+ *   collapsed container's detail starts with its count, so that cutting it never cuts the count.
+ *
+ * A name that does not fit there whole is written under the shape, whole, on what the shape sits on
+ * (`writesNameBelow`, ADR 0066's clarification). A container whose header has no room writes
+ * nothing, and the hover and selection marks write its name beside it.
+ */
+function writeOutlinedText(
+  shape: ElementShape,
+  outline: ShapeOutline,
+  write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
+): void {
+  const colors = readableTextColors(fillOf(shape));
+  if (shape.part?.inDrawing === true) {
+    writePartName(shape, outline, colors.name, write);
+    return;
+  }
+  const rooms = outlinedRooms(shape, outline);
+  if (showsContents(shape)) {
+    const stretch = headerStretch({ ...shape, outline });
+    if (!stretch) return;
+    const { y } = shape.rect;
+    const left = stretch.x + 2 + headerShift(shape);
+    const wrap = Math.max(1, stretch.x + stretch.width - left);
+    if (rooms.name > 0) {
+      write(
+        {
+          text: shape.name,
+          x: left,
+          y: y + 8,
+          style: textStyle(NAME_SIZE, colors.name, wrap, 'left', '600'),
+        },
+        false,
+        rooms.name,
+      );
+    }
+    const detail = detailOf(shape);
+    if (rooms.detail > 0 && detail !== '') {
+      write(
+        {
+          text: detail,
+          x: left,
+          y: y + 8 + NAME_SIZE + 6,
+          style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'left'),
+        },
+        true,
+        rooms.detail,
+      );
+    }
+    return;
+  }
+  const lines = nameLinesInside({ ...shape, outline });
+  if (!lines) return;
+  const text = besideImage(shape, labelAreaOn({ rect: shape.rect, outline }));
+  const centerX = text.x + text.width / 2;
+  const wrap = Math.max(1, text.width);
+  const detail = outlinedDetailOf(shape);
+  const nameHeight = lines.length * PART_NAME_LINE;
+  const withDetail = detail !== '' && text.height >= nameHeight + DETAIL_LINE;
+  const top = text.y + (text.height - nameHeight - (withDetail ? DETAIL_LINE : 0)) / 2;
+  write(
+    {
+      text: lines.join('\n'),
+      anchor: { x: 0.5, y: 0 },
+      x: centerX,
+      y: top,
+      style: wholeLines(colors.name, wrap),
+    },
+    false,
+    Math.max(text.height, nameHeight) + PART_NAME_LINE / 2,
+  );
+  if (withDetail) {
+    write(
+      {
+        text: detail,
+        anchor: { x: 0.5, y: 0 },
+        x: centerX,
+        y: top + nameHeight + 1,
+        style: textStyle(DETAIL_SIZE, colors.detail, wrap, 'center'),
+      },
+      true,
+      DETAIL_LINE,
+    );
+  }
+}
+
+/** How tall the detail under a name written whole inside a shape with its own outline is. */
+const DETAIL_LINE = 15;
+
+/** The style of a name written on lines already broken, each whole: bold, at the name's size. */
+function wholeLines(fill: Color, width: number): TextStyleOptions {
+  return {
+    ...textStyle(NAME_SIZE, fill, width, 'center', '600'),
+    wordWrap: false,
+    lineHeight: PART_NAME_LINE,
+  };
+}
+
+/**
+ * Writes the name of a shape that writes it under itself (`writesNameBelow`) whole, centred below
+ * its outline or its drawing, in colours that read on what the shape sits on, and its detail under
+ * the name (ADR 0066's and ADR 0067's clarifications).
+ */
+function writeNameBelow(
+  shape: ElementShape,
+  colors: { name: Color; detail: Color },
+  write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
+): void {
+  const below = nameBelowOf(shape);
+  const height = below.lines.length * PART_NAME_LINE;
+  write(
+    {
+      text: below.lines.join('\n'),
+      anchor: { x: 0.5, y: 0 },
+      x: below.x,
+      y: below.y,
+      style: wholeLines(colors.name, below.width),
+    },
+    false,
+    height + PART_NAME_LINE / 2,
+  );
+  const detail = outlinedDetailOf(shape);
+  if (detail === '') return;
+  write(
+    {
+      text: detail,
+      anchor: { x: 0.5, y: 0 },
+      x: below.x,
+      y: below.y + height + 1,
+      style: textStyle(DETAIL_SIZE, colors.detail, below.width, 'center'),
+    },
+    true,
+    DETAIL_BELOW_LINE,
+  );
+}
+
+/**
+ * Writes an anchored part's name, alone and whole, its words never cut, centred in its label area,
+ * where it fits there (`partNameLines`); never its component's name or its detail. One that does not
+ * fit is written beside the part by the hover and selection marks (namesBeside.ts, ADR 0067).
+ */
+function writePartName(
+  shape: ElementShape,
+  outline: ShapeOutline,
+  color: Color,
+  write: (options: CanvasTextOptions, detail: boolean, room: number) => void,
+): void {
+  const text = partNameText(shape, outline, color);
+  if (text) write(text.options, false, text.room);
+}
+
+/**
+ * The text of an anchored part's name, alone and whole, centred in its label area, in `color`, and the
+ * room it takes; none when it does not fit there whole (`partNameLines`). The tiles write it, and the
+ * part layer writes it again over what hides it there (`writePartNames`).
+ */
+export function partNameText(
+  shape: ElementShape,
+  outline: ShapeOutline,
+  color: Color,
+): { options: CanvasTextOptions; room: number } | undefined {
+  const area = labelAreaOn({ rect: shape.rect, outline });
+  const lines = partNameLines(shape.name, area);
+  if (!lines) return undefined;
+  return {
+    options: {
+      text: lines.join('\n'),
+      anchor: 0.5,
+      x: area.x + area.width / 2,
+      y: area.y + area.height / 2,
+      style: {
+        ...textStyle(PART_NAME_SIZE, color, area.width, 'center', '600'),
+        wordWrap: false,
+        lineHeight: PART_NAME_LINE,
+      },
+    },
+    room: Math.max(area.height, NAME_LINE),
+  };
+}
+
+/** A collapsed container's detail with its count first; any other shape's detail. */
+function outlinedDetailOf(shape: ElementShape): string {
+  if (shape.collapsed === undefined) return detailOf(shape);
+  const detail = shape.detail ?? shape.componentName;
+  const inside = t('{count} inside', { count: shape.collapsed.contents });
+  return detail === '' ? inside : `${inside} · ${detail}`;
+}
+
+/** How tall the name and detail of a shape with its own outline may be, as `writeOutlinedText` writes them. */
+function outlinedRooms(
+  shape: ElementShape,
+  outline: ShapeOutline,
+): { name: number; detail: number } {
+  const none = { name: 0, detail: 0 };
+  if (showsContents(shape)) {
+    const stretch = headerStretch({ ...shape, outline });
+    if (!stretch || stretch.width < LEAST_HEADER_WIDTH) return none;
+    const { height } = shape.rect;
+    return { name: Math.min(NAME_LINE, height - 12), detail: Math.min(16, height - 32) };
+  }
+  const { height } = labelAreaOn({ rect: shape.rect, outline });
+  if (height < LEAST_LABEL_HEIGHT) return none;
+  if (height >= 2 * NAME_LINE) return { name: height / 2, detail: height / 2 - 6 };
+  return { name: Math.max(height, NAME_LINE), detail: 0 };
+}
+
 /**
  * Writes the name and detail of a shape drawn by its picture in the band under its plate, centred
  * across the shape, in colours that read on what it sits on: no text ever sits over a picture.
@@ -793,6 +1192,9 @@ function writeBandText(
  * the component's name below it.
  */
 export function labelRooms(shape: ElementShape): { name: number; detail: number } {
+  if (shape.outline && shape.rowCount === undefined && shape.row === undefined) {
+    return outlinedRooms(shape, shape.outline);
+  }
   const band = nameBandOf(shape);
   if (band) return bandRooms(band);
   if (isContainer(shape)) {

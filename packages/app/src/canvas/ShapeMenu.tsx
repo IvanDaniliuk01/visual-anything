@@ -5,9 +5,11 @@ import {
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { Destination, Id } from '@visual-anything/schema';
-import { useEffect, useId } from 'react';
+import { Fragment, useEffect, useId } from 'react';
 import type { Selection } from '../editor/selection';
 import { useT } from '../i18n';
+import type { AlignHow } from './align';
+import { ALIGN_GROUPS, ALIGN_NAMES, type AlignAction } from './alignActions';
 import type { CollapseAction, CollapseActions } from './collapse';
 import './drop.css';
 import { putInsideCommand, putInsideTarget, takeOutCommand } from './drop';
@@ -56,6 +58,12 @@ export interface ShapeMenuProps {
   onScope?: (action: ScopeAction) => void;
   /** Follow "D", for each destination of the shape's element (ADR 0056). */
   onFollow?: (destination: Destination) => void;
+  /**
+   * Align's items' states for a selection of two shapes or more (`alignActions`, ADR 0074), and what
+   * pressing one does; absent, the menu has no aligning.
+   */
+  align?: Readonly<Record<AlignHow, AlignAction>>;
+  onAlign?: (how: AlignHow) => void;
 }
 
 /** How many of the other shapes under the pointer the menu lists. */
@@ -90,6 +98,8 @@ export function ShapeMenu({
   onCollapse,
   onScope,
   onFollow,
+  align,
+  onAlign,
 }: ShapeMenuProps) {
   const t = useT();
   const menu = useMenuInsideFrame<HTMLDivElement>(at);
@@ -166,6 +176,22 @@ export function ShapeMenu({
           onPress={() => onRestack(move)}
         />
       ))}
+      {align &&
+        onAlign &&
+        ALIGN_GROUPS.map((group) => (
+          <Fragment key={group.join()}>
+            <div role="separator" className="canvas-menu-separator" />
+            {group.map((how) => (
+              <Item
+                key={how}
+                label={t(ALIGN_NAMES[how])}
+                title={align[how].description}
+                disabled={!align[how].enabled}
+                onPress={() => onAlign(how)}
+              />
+            ))}
+          </Fragment>
+        ))}
       {onCollapse && (collapse?.collapse || collapse?.expand) && (
         <>
           <div role="separator" className="canvas-menu-separator" />

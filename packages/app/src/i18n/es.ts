@@ -26,6 +26,7 @@
  * | grid                    | cuadrícula                       |
  * | ruler                   | regla                            |
  * | snapping, snap          | ajuste, ajustar a la cuadrícula  |
+ * | alignment guide         | línea de alineación              |
  * | shape                   | forma                            |
  * | anchored shape          | forma anclada                    |
  * | free shape              | forma libre                      |
@@ -47,6 +48,8 @@
  * | component palette       | paleta de componentes            |
  * | appearance              | apariencia                       |
  * | fill, stroke            | relleno, trazo                   |
+ * | contour (free geometry) | curva cerrada                    |
+ * | imported drawing        | dibujo importado                 |
  * | dash                    | patrón de línea                  |
  * | connection point        | punto de conexión                |
  * | attach (a relation end) | conectar                         |
@@ -402,6 +405,23 @@ export const ui: Catalog = {
   },
   'One undo takes it all back.': 'Un solo deshacer lo revierte todo.',
   'Open its view': 'Abrir su vista',
+
+  // M8b W56: Import…'s drawing step, for HTML imported as a drawing (ADR 0068).
+  'An HTML file or fragment becomes a drawing: a picture of the page that Visual Anything makes without running anything in it or fetching anything it names.':
+    'Un archivo o fragmento HTML se convierte en un dibujo: una imagen de la página que Visual Anything hace sin ejecutar nada de lo que contiene ni buscar nada de lo que nombra.',
+  'HTML, as a drawing': 'HTML, como dibujo',
+  'Import “{name}” as a drawing': 'Importar “{name}” como dibujo',
+  'Imported “{name}” as a drawing': 'Se importó “{name}” como dibujo',
+  'The drawing is stored in one of the project’s own packages, and its element shows it. One undo takes it all back.':
+    'El dibujo se guarda en uno de los paquetes propios del proyecto, y su elemento lo muestra. Un solo deshacer lo revierte todo.',
+  'Width in pixels': 'Ancho en píxeles',
+  'Shown by': 'Lo muestra',
+  'The selected element “{name}”': 'El elemento seleccionado “{name}”',
+  'A new element of': 'Un elemento nuevo de',
+  'Making the drawing…': 'Haciendo el dibujo…',
+  'What making it dropped': 'Lo que se quitó al hacerlo',
+  'Nothing: the HTML held only what a drawing keeps.':
+    'Nada: el HTML tenía solo lo que un dibujo conserva.',
 
   // Export as PNG, in the header.
   'Export…': 'Exportar…',
@@ -959,6 +979,63 @@ export const ui: Catalog = {
   'The grid is hidden.': 'Se ocultó la cuadrícula.',
   'The rulers show.': 'Se muestran las reglas.',
   'The rulers are hidden.': 'Se ocultaron las reglas.',
+  // W51: resizing, aligning and distributing shapes on the canvas (ADR 0074). An alignment guide is
+  // "línea de alineación", since "guía" is Claude's guidance.
+  Align: 'Alinear',
+  'Align, distribute or size alike the selected shapes':
+    'Alinear, distribuir o igualar el tamaño de las formas seleccionadas',
+  'Align left': 'Alinear a la izquierda',
+  'Align centers': 'Alinear los centros',
+  'Align right': 'Alinear a la derecha',
+  'Align top': 'Alinear arriba',
+  'Align middles': 'Alinear al medio',
+  'Align bottom': 'Alinear abajo',
+  'Distribute horizontally': 'Distribuir horizontalmente',
+  'Distribute vertically': 'Distribuir verticalmente',
+  'Same width': 'Mismo ancho',
+  'Same height': 'Mismo alto',
+  'Lines up the left edges of the selected shapes on the leftmost one’s. Alt+Shift+←':
+    'Alinea los bordes izquierdos de las formas seleccionadas con el de la que está más a la izquierda. Alt+Mayús+←',
+  'Lines up the selected shapes’ centers, on a line down the middle of their bounds.':
+    'Alinea los centros de las formas seleccionadas sobre una línea vertical, en el medio del espacio que ocupan.',
+  'Lines up the right edges of the selected shapes on the rightmost one’s. Alt+Shift+→':
+    'Alinea los bordes derechos de las formas seleccionadas con el de la que está más a la derecha. Alt+Mayús+→',
+  'Lines up the top edges of the selected shapes on the highest one’s. Alt+Shift+↑':
+    'Alinea los bordes superiores de las formas seleccionadas con el de la que está más arriba. Alt+Mayús+↑',
+  'Lines up the selected shapes’ middles, on a line across the middle of their bounds.':
+    'Alinea los medios de las formas seleccionadas sobre una línea horizontal, en el medio del espacio que ocupan.',
+  'Lines up the bottom edges of the selected shapes on the lowest one’s. Alt+Shift+↓':
+    'Alinea los bordes inferiores de las formas seleccionadas con el de la que está más abajo. Alt+Mayús+↓',
+  'Spaces the selected shapes with equal gaps from left to right; the first and the last stay.':
+    'Distribuye las formas seleccionadas con espacios iguales de izquierda a derecha; la primera y la última no se mueven.',
+  'Spaces the selected shapes with equal gaps from top to bottom; the first and the last stay.':
+    'Distribuye las formas seleccionadas con espacios iguales de arriba abajo; la primera y la última no se mueven.',
+  'Gives the selected shapes the width of the widest of them.':
+    'Da a las formas seleccionadas el ancho de la más ancha.',
+  'Gives the selected shapes the height of the tallest of them.':
+    'Da a las formas seleccionadas el alto de la más alta.',
+  'Select two or more shapes to align them.': 'Seleccionar dos formas o más para alinearlas.',
+  'Select three or more shapes to distribute them.':
+    'Seleccionar tres formas o más para distribuirlas.',
+  'Select two or more shapes whose size can change.':
+    'Seleccionar dos formas o más cuyo tamaño pueda cambiar.',
+  'They are aligned already.': 'Ya están alineadas.',
+  'They are distributed already.': 'Ya están distribuidas.',
+  'They have that size already.': 'Ya tienen ese tamaño.',
+  'Alt+Shift+arrow keys (⌥⇧ on macOS)': 'Alt+Mayús+flechas (⌥⇧ en macOS)',
+  'Align the selected shapes to that side: left, right, top or bottom':
+    'Alinear las formas seleccionadas de ese lado: a la izquierda, a la derecha, arriba o abajo',
+  'Shift while resizing': 'Mayús mientras se cambia el tamaño',
+  'Keep the shape’s proportions; a shape whose outline keeps them changes them':
+    'Mantener las proporciones de la forma; una forma cuyo contorno las mantiene las cambia',
+  'Alt while resizing (⌥ on macOS)': 'Alt mientras se cambia el tamaño (⌥ en macOS)',
+  'Resize the shape from its middle': 'Cambiar el tamaño de la forma desde su centro',
+  'Ctrl while dragging or resizing (⌘ on macOS)':
+    'Ctrl mientras se arrastra o se cambia el tamaño (⌘ en macOS)',
+  'Turn the alignment guides off, as Alt does while dragging':
+    'Desactivar las líneas de alineación, como hace Alt mientras se arrastra',
+  'Escape while dragging or resizing': 'Esc mientras se arrastra o se cambia el tamaño',
+  'Stop, and leave the shapes as they were': 'Detener, y dejar las formas como estaban',
   // A table's columns, and any shape's rows, in the inspector.
   Columns: 'Columnas',
   Rows: 'Filas',
@@ -1178,6 +1255,11 @@ export const ui: Catalog = {
   'Apply every change, as one action': 'Aplicar todos los cambios, como una sola acción',
   'Escape, editing a route': 'Esc, al editar una ruta',
   'Cancel, and leave the route as it was': 'Cancelar y dejar la ruta como estaba',
+  // M8b W53: an end dragged onto a shape with free geometry or onto an anchored part.
+  'Attach at this point of its edge': 'Conectar en este punto de su borde',
+  'Attach at this point inside it': 'Conectar en este punto, dentro de la forma',
+  'at a place inside it': 'en un lugar dentro de la forma',
+  'At a place inside it': 'En un lugar dentro de la forma',
   // The image picker.
   Image: 'Imagen',
   'Choose an image…': 'Elegir una imagen…',
@@ -1464,8 +1546,8 @@ export const ui: Catalog = {
 
   // The component editor: what it shows of every component, relation type and package.
   'Back to the selection': 'Volver a la selección',
-  'It is built into Visual Anything, so only its colors can be changed here, for this project. Derive a {noun} from it to have one of the project’s own that you can change.':
-    'Está incorporado en Visual Anything, así que aquí solo se pueden cambiar sus colores, para este proyecto. Derivar un {noun} de él para tener uno propio del proyecto que se pueda cambiar.',
+  'It is built into Visual Anything, so only its appearance can be changed here, for this project. Derive a {noun} from it to have one of the project’s own that you can change in full.':
+    'Está incorporado en Visual Anything, así que aquí solo se puede cambiar su apariencia, para este proyecto. Derivar un {noun} de él para tener uno propio del proyecto que se pueda cambiar por completo.',
   'No package in use defines {what} any more.': 'Ningún paquete en uso define ya {what}.',
   'Remove the {noun}': 'Quitar el {noun}',
   'the component “{id}”': 'el componente “{id}”',
@@ -1862,6 +1944,23 @@ export const ui: Catalog = {
     'La vista no muestra ningún elemento del paquete Sistemas.',
   'Pictures are left out.': 'Se omiten las imágenes.',
   'Scenarios are left out.': 'Se omiten los escenarios.',
+  // M8b W58: what the text exports lose beyond boxes, and the outline's contents of anchored parts.
+  '{count} shapes drawn by their free geometry are drawn as their kinds.': {
+    one: 'Una forma dibujada por su geometría libre se dibuja según su tipo.',
+    other: '{count} formas dibujadas por su geometría libre se dibujan según su tipo.',
+  },
+  '{count} shapes drawn as named parts are drawn as their kinds, without their pictures.': {
+    one: 'Una forma dibujada como parte con nombre se dibuja según su tipo, sin su imagen.',
+    other:
+      '{count} formas dibujadas como partes con nombre se dibujan según su tipo, sin sus imágenes.',
+  },
+  '{count} relations drawn curved or straight are drawn in {tool}’s own style.': {
+    one: 'Una relación dibujada curva o recta se dibuja con el estilo propio de {tool}.',
+    other:
+      '{count} relaciones dibujadas curvas o rectas se dibujan con el estilo propio de {tool}.',
+  },
+  '{name}, held by its anchored part and not drawn':
+    '{name}, que contiene su parte anclada y no se dibuja',
   'The whole view as the canvas draws it, without the selection, filters, focus or guidance.':
     'Toda la vista como la dibuja el lienzo, sin la selección, los filtros, el foco ni la guía.',
   'The whole view on one page, without the selection, filters, focus or guidance; WebP pictures and the colors of bitmap silhouettes are left out.':
@@ -2289,9 +2388,147 @@ export const ui: Catalog = {
   '{count} threads: {about}': { one: '{count} hilo: {about}', other: '{count} hilos: {about}' },
   'Place the comment: click where it goes, or press Enter for the middle of the canvas. Escape gives up.':
     'Ubicar el comentario: hacer clic donde va, o pulsar Enter para ubicarlo en el centro del lienzo. Escape cancela.',
+  // M8b W54: the parts of a drawing with parts, Anchor parts… and Replace the picture… (ADR 0067).
+  Parts: 'Partes',
+  parts: 'partes',
+  'Its picture, “{image}”, has {count} named parts.': {
+    one: 'Su imagen, “{image}”, tiene {count} parte con nombre.',
+    other: 'Su imagen, “{image}”, tiene {count} partes con nombre.',
+  },
+  '{count} of them are drawn as contents.': {
+    one: '{count} de ellas se dibuja como un contenido.',
+    other: '{count} de ellas se dibujan como contenidos.',
+  },
+  'drawn as it': 'se dibuja como ella',
+  'Nothing is drawn as it.': 'Nada se dibuja como ella.',
+  '“{name}” names the part “{part}”, which “{other}” is drawn as already, so it sits below the picture.':
+    '“{name}” nombra la parte “{part}”, como la que ya se dibuja “{other}”, así que se ubica debajo de la imagen.',
+  'Anchor parts…': 'Anclar partes…',
+  'Anchor the parts of “{name}”': 'Anclar las partes de “{name}”',
+  'Match each part': 'Hacer coincidir cada parte',
+  'By name, to a content named alike': 'Por nombre, con un contenido de nombre parecido',
+  'By id, to the element with that id': 'Por id, con el elemento que tiene ese id',
+  'By an external identifier, read in a scheme':
+    'Por un identificador externo, leído en un catálogo',
+  'A part’s id is read as an identifier as it is, or with its first “_” as “:”; the crosswalks of the project’s packages translate it when contents use another scheme.':
+    'El id de una parte se lee como identificador tal cual, o con su primer “_” como “:”; las tablas de correspondencias de los paquetes del proyecto lo traducen cuando los contenidos usan otro catálogo.',
+  'Create an element for each part that matches nothing, named after the part':
+    'Crear un elemento por cada parte que no coincide con nada, con el nombre de la parte',
+  '{count} parts are matched to contents:': {
+    one: '{count} parte coincide con un contenido:',
+    other: '{count} partes coinciden con contenidos:',
+  },
+  '{count} parts get an element of their own:': {
+    one: '{count} parte recibe un elemento propio:',
+    other: '{count} partes reciben un elemento propio:',
+  },
+  '{count} parts match nothing.': {
+    one: '{count} parte no coincide con nada.',
+    other: '{count} partes no coinciden con nada.',
+  },
+  '{count} parts are drawn as contents already, and keep them.': {
+    one: '{count} parte ya se dibuja como un contenido, y lo conserva.',
+    other: '{count} partes ya se dibujan como contenidos, y los conservan.',
+  },
+  'Anchor {count} parts': { one: 'Anclar {count} parte', other: 'Anclar {count} partes' },
+  '…and {count} more.': { one: '…y {count} más.', other: '…y {count} más.' },
+  '“{part}” → “{name}”': '“{part}” → “{name}”',
+  '“{part}” → a new “{name}”': '“{part}” → un nuevo “{name}”',
+  'Nothing would be anchored.': 'No se anclaría nada.',
+  'Replace the picture…': 'Reemplazar la imagen…',
+  'Replace the picture of “{name}”': 'Reemplazar la imagen de “{name}”',
+  'Replace the picture of “{name}”?': '¿Reemplazar la imagen de “{name}”?',
+  'The new picture lacks {count} parts that elements are drawn as. Until a picture has them again, their elements are drawn as ordinary shapes; undoing brings them back:':
+    {
+      one: 'A la nueva imagen le falta {count} parte como la que se dibuja un elemento. Hasta que una imagen vuelva a tenerla, su elemento se dibuja como una forma común; deshacer la recupera:',
+      other:
+        'A la nueva imagen le faltan {count} partes como las que se dibujan elementos. Hasta que una imagen vuelva a tenerlas, sus elementos se dibujan como formas comunes; deshacer las recupera:',
+    },
+  '“{part}”, drawn as {elements}': '“{part}”, como la que se dibuja {elements}',
+  Replace: 'Reemplazar',
   // W43, from the review of L1: the name a picture takes when its file gives none, written in the
   // language read in as every name the app gives (ADR 0038).
   Picture: 'Imagen',
+  // M8b W55: the editors. The component editor's Shape section, with free geometry and the part
+  // shapes are drawn as; the image placement With its parts; the Route of a relation type and of a
+  // relation, a view's Lines, and the Style control's Automatic (ADR 0066, 0067, 0069, 0039).
+  'Free geometry': 'Geometría libre',
+  'Drawn as a part': 'Dibujada como una parte',
+  'While it draws rows, its shapes ignore free geometry.':
+    'Mientras dibuja filas, sus formas no usan la geometría libre.',
+  'Drawn as a named part, its shapes are the part itself: in a drawing with parts, in the part’s place; elsewhere, with the part’s outline and picture.':
+    'Dibujadas como una parte con nombre, sus formas son la parte misma: en un dibujo con partes, en el lugar de la parte; en otro lugar, con el contorno y la imagen de la parte.',
+  'Its free geometry or the part it is drawn as takes the place of this kind.':
+    'Su geometría libre, o la parte como la que se dibuja, ocupa el lugar de este tipo.',
+  'None: its shapes are drawn as their kind, whatever is inherited.':
+    'Ninguna: sus formas se dibujan según su tipo, herede lo que herede.',
+  'None: its shapes are drawn as their kind.': 'Ninguna: sus formas se dibujan según su tipo.',
+  '{count} contours in a box of {width} by {height}': {
+    one: '{count} curva cerrada en una caja de {width} por {height}',
+    other: '{count} curvas cerradas en una caja de {width} por {height}',
+  },
+  'At {width} by {height}, its outline leaves no room for a name inside: names are written under the shape.':
+    'A {width} por {height}, su contorno no deja lugar para un nombre adentro: los nombres se escriben debajo de la forma.',
+  'Preview of its free geometry, {width} by {height}':
+    'Vista previa de su geometría libre, {width} por {height}',
+  'Path data': 'Datos de trazado',
+  'SVG path data': 'Datos de trazado SVG',
+  'Box width': 'Ancho de la caja',
+  'Box height': 'Alto de la caja',
+  'Fits the path': 'Se ajusta al trazado',
+  'Use this path data': 'Usar estos datos de trazado',
+  'Take the outline of an SVG file…': 'Tomar el contorno de un archivo SVG…',
+  'Copy the outline of a named part…': 'Copiar el contorno de una parte con nombre…',
+  'Copy the outline of a named part': 'Copiar el contorno de una parte con nombre',
+  'Draw its kind instead': 'Dibujar su tipo en su lugar',
+  'This picture has no named parts.': 'Esta imagen no tiene partes con nombre.',
+  'Named part': 'Parte con nombre',
+  'Choose a part…': 'Elegir una parte…',
+  'A copy of its outline stays as it is when the picture changes; to draw the shapes as the part itself, choose it under Drawn as a part.':
+    'Una copia de su contorno queda como está cuando la imagen cambia; para dibujar las formas como la parte misma, elegirla en Dibujada como una parte.',
+  'Copy its outline': 'Copiar su contorno',
+  'Keep proportions': 'Mantener proporciones',
+  'Label area': 'Zona de la etiqueta',
+  'Label area’s x': 'x de la zona de la etiqueta',
+  'Label area’s y': 'y de la zona de la etiqueta',
+  'Label area’s width': 'Ancho de la zona de la etiqueta',
+  'Label area’s height': 'Alto de la zona de la etiqueta',
+  'Worked out: the largest rectangle around a point well inside the outline, in the box’s units.':
+    'Calculada: el rectángulo más grande alrededor de un punto bien adentro del contorno, en las unidades de la caja.',
+  'Its own, in the box’s units.': 'Propia, en las unidades de la caja.',
+  'Work the label area out': 'Calcular la zona de la etiqueta',
+  'None: drawn as its own shape, whatever is inherited.':
+    'Ninguna: se dibuja como su propia forma, herede lo que herede.',
+  'None: drawn as its own shape.': 'Ninguna: se dibuja como su propia forma.',
+  'The part “{part}” of the picture its container shows with its parts':
+    'La parte “{part}” de la imagen que su contenedor muestra con sus partes',
+  'The part “{part}” of “{picture}”': 'La parte “{part}” de “{picture}”',
+  '“{picture}” has no part “{part}”, so it is drawn as an ordinary shape.':
+    '“{picture}” no tiene ninguna parte “{part}”, así que se dibuja como una forma común.',
+  'The one its container shows with its parts': 'La que su contenedor muestra con sus partes',
+  'A part is named by its id in its picture: a letter or _ first, then letters, digits, _, . or -, 64 at most.':
+    'Una parte se nombra por su id en su imagen: primero una letra o _, luego letras, dígitos, _, . o -, 64 como máximo.',
+  'Draw it as its own shape': 'Dibujarla como su propia forma',
+  'Use the component’s part': 'Usar la parte del componente',
+  '{name}, with its parts': '{name}, con sus partes',
+  'With its parts, which its contents are drawn as':
+    'Con sus partes, como las que se dibujan sus contenidos',
+  'Automatic routes': 'Rutas automáticas',
+  'Automatic route': 'Ruta automática',
+  'How its relations’ lines run wherever they are routed automatically. Routes chosen by hand in a view keep their own style.':
+    'Cómo van las líneas de sus relaciones dondequiera que se tracen automáticamente. Las rutas elegidas a mano en una vista mantienen su propio estilo.',
+  'Inherited: as each view draws its lines': 'Heredado: como cada vista dibuja sus líneas',
+  orthogonal: 'ortogonal',
+  straight: 'recta',
+  curved: 'curva',
+  'Automatic: {style}': 'Automático: {style}',
+  'This relation has an automatic route of its own: a change here takes it back, so that it follows.':
+    'Esta relación tiene su propia ruta automática: un cambio aquí la quita, para que la siga.',
+  'Routes chosen by hand in a view keep their own style.':
+    'Las rutas elegidas a mano en una vista mantienen su propio estilo.',
+  Lines: 'Líneas',
+  'How the view draws the automatic routes of relations whose relation type or own appearance sets no style. Routes chosen by hand keep their own.':
+    'Cómo dibuja la vista las rutas automáticas de las relaciones cuyo tipo de relación o apariencia propia no fija ningún estilo. Las rutas elegidas a mano mantienen el suyo.',
 };
 
 /**
@@ -2453,6 +2690,19 @@ export const messages: Catalog = {
   '{base}, and move {n} other shapes': '{base} y mover {n} formas más',
   'Move {moved} to the end': 'Mover {moved} al final',
   'Move {moved} before "{name}"': 'Mover {moved} antes de "{name}"',
+  // W51: resizing, aligning and distributing shapes on the canvas (ADR 0074), as the history names it.
+  'Resize "{name}"': 'Cambiar el tamaño de "{name}"',
+  'Resize a note': 'Cambiar el tamaño de una nota',
+  'Align {n} shapes to the left': 'Alinear {n} formas a la izquierda',
+  'Align the centers of {n} shapes': 'Alinear los centros de {n} formas',
+  'Align {n} shapes to the right': 'Alinear {n} formas a la derecha',
+  'Align {n} shapes to the top': 'Alinear {n} formas arriba',
+  'Align the middles of {n} shapes': 'Alinear al medio {n} formas',
+  'Align {n} shapes to the bottom': 'Alinear {n} formas abajo',
+  'Distribute {n} shapes horizontally': 'Distribuir {n} formas horizontalmente',
+  'Distribute {n} shapes vertically': 'Distribuir {n} formas verticalmente',
+  'Give {n} shapes the same width': 'Dar el mismo ancho a {n} formas',
+  'Give {n} shapes the same height': 'Dar el mismo alto a {n} formas',
   'Create the package "{name}"': 'Crear el paquete "{name}"',
   'Rename the package "{old}" to "{new}"': 'Cambiar el nombre del paquete "{old}" a "{new}"',
   'Edit the package "{name}"': 'Editar el paquete "{name}"',
@@ -2680,6 +2930,28 @@ export const messages: Catalog = {
   'Step {n} activates no relation; a step needs at least one.':
     'El paso {n} no activa ninguna relación; un paso necesita al menos una.',
   'Step {n} lists the same relation twice.': 'El paso {n} incluye la misma relación dos veces.',
+  // M11c seam 2: decisions in scenarios (ADR 0078).
+  'A scenario holds at most 64 decisions.': 'Un escenario tiene como máximo 64 decisiones.',
+  'The id "{id}" is used twice in the scenario.': 'El id "{id}" se usa dos veces en el escenario.',
+  'The decision "{question}" has 2 to 8 alternatives.':
+    'La decisión "{question}" tiene de 2 a 8 alternativas.',
+  'The alternative "{label}" lists "{id}", which is not a step of the scenario.':
+    'La alternativa "{label}" incluye "{id}", que no es un paso del escenario.',
+  'The steps of the alternative "{label}" do not follow one another.':
+    'Los pasos de la alternativa "{label}" no van uno detrás de otro.',
+  'The alternatives of the decision "{question}" do not follow one another.':
+    'Las alternativas de la decisión "{question}" no van una detrás de otra.',
+  'The decision "{question}" needs an alternative with steps.':
+    'La decisión "{question}" necesita una alternativa con pasos.',
+  'The decision "{question}" names a default that is none of its alternatives.':
+    'La decisión "{question}" nombra como predeterminada una alternativa que no es suya.',
+  'The decisions "{a}" and "{b}" cross: one must sit inside an alternative of the other, or stand apart.':
+    'Las decisiones "{a}" y "{b}" se cruzan: una tiene que estar dentro de una alternativa de la otra, o aparte.',
+  'Decisions sit at most three deep.': 'Las decisiones se anidan como máximo en tres niveles.',
+  'A decision has an id, the kind "decision", a question, its alternatives and maybe a default; an alternative has an id, a label, its steps and maybe ends.':
+    'Una decisión tiene un id, el tipo "decision", una pregunta, sus alternativas y quizás una predeterminada; una alternativa tiene un id, un rótulo, sus pasos y quizás ends.',
+  'The decisions of the scenario "{name}" do not hold together: {why} It plays every step in order.':
+    'Las decisiones del escenario "{name}" no encajan: {why} Se reproducen todos sus pasos en orden.',
   'Step {n} uses "{id}", which is not a relation of the model.':
     'El paso {n} usa "{id}", que no es una relación del modelo.',
   'Step {n} needs a description.': 'El paso {n} necesita una descripción.',
@@ -3394,8 +3666,10 @@ export const messages: Catalog = {
     'Una ruta es ortogonal, recta o curva, no {style}.',
   'No relations were given to route again.': 'No se indicó ninguna relación para volver a trazar.',
   'A relation is given by its id.': 'Una relación se da por su id.',
-  'An attachment is a connection point or a place on the border.':
-    'Una conexión es un punto de conexión o un lugar del borde.',
+  'An attachment is a connection point, a place on the border or a place inside the shape.':
+    'Una conexión es un punto de conexión, un lugar del borde o un lugar dentro de la forma.',
+  'Where an end attaches inside its shape goes from 0 to 1 across and down, not {x} and {y}.':
+    'El lugar donde un extremo se conecta dentro de su forma va de 0 a 1 a lo ancho y a lo alto, no {x} y {y}.',
   'A side is top, right, bottom or left, not {side}.':
     'Un lado es top, right, bottom o left, no {side}.',
   'Where an end attaches along its side goes from 0 to 1, not {at}.':
@@ -4563,6 +4837,17 @@ export const messages: Catalog = {
     'Los atributos de un rango de tiempo son texto sin caracteres rotos.',
   'A time range reads its values as one of: {kinds}.':
     'Un rango de tiempo lee sus valores como uno de: {kinds}.',
+  // M8b W54: Anchor parts… (ADR 0067).
+  'Anchor 1 part of "{name}"': 'Anclar 1 parte de "{name}"',
+  'Anchor {count} parts of "{name}"': 'Anclar {count} partes de "{name}"',
+  'The element "{name}" is no drawing with parts: it does not show an SVG image with its parts.':
+    'El elemento "{name}" no es un dibujo con partes: no muestra una imagen SVG con sus partes.',
+  'Parts are matched by an external identifier in a scheme, a short lowercase name such as "uberon"; "{scheme}" is not one.':
+    'Las partes coinciden por un identificador externo en un catálogo, un nombre corto en minúsculas como "uberon"; "{scheme}" no lo es.',
+  'The picture of "{name}" has no part "{part}".':
+    'La imagen de "{name}" no tiene ninguna parte "{part}".',
+  'No nesting relation type can hold a new element of "{component}" inside "{name}".':
+    'Ningún tipo de relación que anida puede contener un nuevo elemento de "{component}" dentro de "{name}".',
   // M8b seam 1: free geometry, named parts and automatic route styles (ADR 0066, 0067, 0069).
   'the element "{name}"': 'el elemento "{name}"',
   'The package "{name}"': 'El paquete "{name}"',
@@ -4585,21 +4870,21 @@ export const messages: Catalog = {
   'The height of free geometry is at most 100,000.':
     'El alto de una geometría libre es como máximo 100.000.',
   'The outline of free geometry holds 1 to 64 contours.':
-    'El contorno de una geometría libre tiene de 1 a 64 trazos.',
+    'El contorno de una geometría libre tiene de 1 a 64 curvas cerradas.',
   'The outline of free geometry holds at most 64 contours, not {n}.':
-    'El contorno de una geometría libre tiene como máximo 64 trazos, no {n}.',
+    'El contorno de una geometría libre tiene como máximo 64 curvas cerradas, no {n}.',
   'Keep proportions is true or false.': 'Mantener proporciones es true o false.',
   'Free geometry holds at most 32,768 characters of path data and points, not {n}.':
     'Una geometría libre tiene como máximo 32.768 caracteres de datos de trazado y puntos, no {n}.',
   'Free geometry holds at most 2,000 segments, path commands and points.':
     'Una geometría libre tiene como máximo 2.000 segmentos, entre comandos de trazado y puntos.',
   'Contour {n} of free geometry is a path, a polygon or an ellipse.':
-    'El trazo {n} de una geometría libre es un trazado, un polígono o una elipse.',
-  'Contour {n} has no path data, d.': 'El trazo {n} no tiene datos de trazado, d.',
-  'Contour {n} has no points.': 'El trazo {n} no tiene puntos.',
-  'Contour {n}: {why}': 'Trazo {n}: {why}',
+    'La curva cerrada {n} de una geometría libre es un trazado, un polígono o una elipse.',
+  'Contour {n} has no path data, d.': 'La curva cerrada {n} no tiene datos de trazado, d.',
+  'Contour {n} has no points.': 'La curva cerrada {n} no tiene puntos.',
+  'Contour {n}: {why}': 'Curva cerrada {n}: {why}',
   'Contour {n} of free geometry draws nothing.':
-    'El trazo {n} de una geometría libre no dibuja nada.',
+    'La curva cerrada {n} de una geometría libre no dibuja nada.',
   'a polygon has three points or more.': 'un polígono tiene tres puntos o más.',
   'an ellipse has a finite cx, cy, rx and ry.': 'una elipse tiene cx, cy, rx y ry finitos.',
   "an ellipse's rx and ry are above 0.": 'los rx y ry de una elipse son mayores que 0.',
@@ -4658,9 +4943,101 @@ export const messages: Catalog = {
   'It has {count} named parts; only its first 1,024, in document order, can be drawn as parts.':
     'Tiene {count} partes con nombre; solo las primeras 1.024, en el orden del documento, pueden dibujarse como partes.',
   "Its parts' outlines leave out {count} contours of shapes with more than 256.":
-    'Los contornos de sus partes dejan afuera {count} trazos de formas que tienen más de 256.',
+    'Los contornos de sus partes dejan afuera {count} curvas cerradas de formas que tienen más de 256.',
   "Its parts' outlines leave out what its shapes draw past 100,000 segments.":
     'Los contornos de sus partes dejan afuera lo que sus formas dibujan más allá de los 100.000 segmentos.',
+  // M8b W55: the editors. Why a file or a part gives no outline, and the history's labels of the
+  // Style control's Automatic and of a view's Lines (ADR 0066, 0069, 0039).
+  'The picture draws nothing to take an outline from.':
+    'La imagen no dibuja nada de lo que tomar un contorno.',
+  'The part draws nothing to take an outline from.':
+    'La parte no dibuja nada de lo que tomar un contorno.',
+  'Draw "{relation}" in its automatic style in "{view}"':
+    'Dibujar "{relation}" en su estilo automático en "{view}"',
+  'Draw {n} relations in their automatic styles in "{view}"':
+    'Dibujar {n} relaciones en sus estilos automáticos en "{view}"',
+  'Draw the lines of "{view}" orthogonal': 'Dibujar ortogonales las líneas de "{view}"',
+  'Draw the lines of "{view}" straight': 'Dibujar rectas las líneas de "{view}"',
+  'Draw the lines of "{view}" curved': 'Dibujar curvas las líneas de "{view}"',
+
+  // M8b W56: HTML imported as a drawing (ADR 0068). What making a drawing dropped, kind by kind, as
+  // the local program counts it, then why a drawing was not made, and the history's label.
+  '1 attribute past the {limit} a tag keeps':
+    '1 atributo más allá de los {limit} que conserva una etiqueta',
+  '{n} attributes past the {limit} a tag keeps':
+    '{n} atributos más allá de los {limit} que conserva una etiqueta',
+  '1 style rule that selects by more than an element name, a class or an id':
+    '1 regla de estilo que selecciona por algo más que una clase o un nombre de elemento, o un id',
+  '{n} style rules that select by more than an element name, a class or an id':
+    '{n} reglas de estilo que seleccionan por algo más que una clase o un nombre de elemento, o un id',
+  '1 style declaration the drawing does not lay out':
+    '1 declaración de estilo que el dibujo no aplica',
+  '{n} style declarations the drawing does not lay out':
+    '{n} declaraciones de estilo que el dibujo no aplica',
+  '1 gradient background the picture cannot keep': '1 degradado que la imagen no puede conservar',
+  '{n} gradient backgrounds the picture cannot keep':
+    '{n} degradados que la imagen no puede conservar',
+  '1 box that hides its overflow inside another that does':
+    '1 caja que oculta lo que desborda dentro de otra que también lo hace',
+  '{n} boxes that hide their overflow inside another that does':
+    '{n} cajas que ocultan lo que desborda dentro de otra que también lo hace',
+  '1 table laid out as rows and columns of boxes': '1 tabla dispuesta en filas y columnas de cajas',
+  '{n} tables laid out as rows and columns of boxes':
+    '{n} tablas dispuestas en filas y columnas de cajas',
+  '1 element nested deeper than {limit} levels, with its contents':
+    '1 elemento anidado a más de {limit} niveles, con su contenido',
+  '{n} elements nested deeper than {limit} levels, with their contents':
+    '{n} elementos anidados a más de {limit} niveles, con su contenido',
+  '1 element past the {limit} a drawing keeps, with its contents':
+    '1 elemento más allá de los {limit} que conserva un dibujo, con su contenido',
+  '{n} elements past the {limit} a drawing keeps, with their contents':
+    '{n} elementos más allá de los {limit} que conserva un dibujo, con su contenido',
+  '1 character of text past the {limit} a drawing holds':
+    '1 carácter de texto más allá de los {limit} que tiene un dibujo',
+  '{n} characters of text past the {limit} a drawing holds':
+    '{n} caracteres de texto más allá de los {limit} que tiene un dibujo',
+  '1 character Roboto cannot draw, such as an emoji':
+    '1 carácter que Roboto no puede dibujar, como un emoji',
+  '{n} characters Roboto cannot draw, such as emoji':
+    '{n} caracteres que Roboto no puede dibujar, como los emoji',
+  '1 style value the layout could not read': '1 valor de estilo que el diseño no pudo leer',
+  '{n} style values the layout could not read': '{n} valores de estilo que el diseño no pudo leer',
+  'The drawing is cut at {limit} pixels high.': 'El dibujo se corta a {limit} píxeles de alto.',
+  'Cleaning the picture removed: {removed}.': 'La limpieza de la imagen quitó: {removed}.',
+  'The HTML is over {limit} KiB: shorten it, or import a part of the page.':
+    'El HTML supera los {limit} KiB: acortarlo, o importar una parte de la página.',
+  'The HTML makes over {limit} elements, texts and comments.':
+    'El HTML genera más de {limit} elementos, textos y comentarios.',
+  'The HTML nests elements over {limit} deep.': 'El HTML anida elementos a más de {limit} niveles.',
+  'The HTML has over {limit} style rules.': 'El HTML tiene más de {limit} reglas de estilo.',
+  'The HTML’s style rules match too many of its elements to fold them in.':
+    'Las reglas de estilo del HTML coinciden con demasiados de sus elementos para aplicarlas.',
+  'Making the drawing took over {n} seconds, so it was stopped. Shorten the HTML, or make it narrower.':
+    'Hacer el dibujo llevó más de {n} segundos, así que se detuvo. Acortar el HTML, o hacerlo más angosto.',
+  'Making the drawing needed over {n} MiB of memory, so it was stopped. Shorten the HTML, or make it narrower.':
+    'Hacer el dibujo necesitó más de {n} MiB de memoria, así que se detuvo. Acortar el HTML, o hacerlo más angosto.',
+  'The drawing could not be made: its worker stopped ({n}).':
+    'No se pudo hacer el dibujo: su proceso de trabajo se detuvo ({n}).',
+  'The drawing could not be made: {why}': 'No se pudo hacer el dibujo: {why}',
+  'Making the drawing tried to reach the network, which it never may, so nothing was made.':
+    'Al hacer el dibujo se intentó llegar a la red, cosa que nunca puede hacer, así que no se hizo nada.',
+  'The drawing is too large to keep as a picture: {why} Shorten the HTML, or make it narrower.':
+    'El dibujo es demasiado grande para guardarlo como imagen: {why} Acortar el HTML, o hacerlo más angosto.',
+  'The HTML draws nothing a picture can keep: {why}':
+    'El HTML no dibuja nada que una imagen pueda conservar: {why}',
+  'A drawing is laid out at a width of 64 to 2000 pixels, in whole pixels.':
+    'Un dibujo se dispone con un ancho de 64 a 2000 píxeles, en píxeles enteros.',
+  'Visual Anything is making {n} drawings already: ask again once they are made.':
+    'Visual Anything ya está haciendo {n} dibujos: volver a pedirlo cuando estén hechos.',
+  'Making a drawing names its file, in 1 to 1000 characters.':
+    'Para hacer un dibujo se nombra su archivo, con 1 a 1000 caracteres.',
+  'Making a drawing needs its HTML as text, of at most 512 KiB.':
+    'Para hacer un dibujo hace falta su HTML como texto, de 512 KiB como máximo.',
+  'The drawing Visual Anything made cannot be read.':
+    'No se puede leer el dibujo que hizo Visual Anything.',
+  'No component "{id}" is defined by the project or a built-in package.':
+    'Ni el proyecto ni un paquete incorporado definen el componente "{id}".',
+  'Import "{name}" as a drawing': 'Importar "{name}" como dibujo',
 };
 
 /**

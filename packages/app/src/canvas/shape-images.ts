@@ -10,6 +10,8 @@
  *   name and detail from x + 34.
  * - **An icon in a row**, whatever the placement asks: a 16-unit square 8 units in from the row's
  *   left, centred on it, with its name from x + 32.
+ * - **A shape with its own outline** (ADR 0066), whatever the placement asks: an icon in its label
+ *   area, or in its header along the stretch its outline holds when it shows its contents.
  * - **A drawing with parts** (ADR 0067), a container whose picture the scene places under its header:
  *   the picture there, with its anchored parts drawn over it; its name stays in its header.
  * - **A drawing** in place of the shape: the picture, its proportions kept, on a plate 4 units larger
@@ -38,6 +40,15 @@ import {
   type ShapeKind,
 } from './geometry';
 import { imageSerial } from './image-serials';
+import {
+  LEAST_HEADER_WIDTH,
+  LEAST_LABEL_HEIGHT,
+  headerStretch,
+  besideIcon,
+  labelAreaOn,
+  showsContents,
+} from './outlined';
+import type { ShapeOutline } from './outlines';
 
 /**
  * The scales images show from: drawings with the shapes' full drawings, icons with their names. Below
@@ -104,6 +115,8 @@ export interface ImageHolder {
   row?: boolean;
   /** On a drawing with parts: where the scene placed its picture (ADR 0067). */
   picture?: Rect;
+  /** Its own outline, placed from the top left of `rect`, which shows its image as an icon (ADR 0066). */
+  outline?: ShapeOutline;
 }
 
 /** A placed image, with the plate a drawing puts in place of its shape's rectangle. */
@@ -177,6 +190,12 @@ export function placeImage(
     const box = holder.picture;
     return { image: { ...base, placement: 'parts', rect: box, box } };
   }
+  if (holder.outline && !holder.rows) {
+    const image = outlinedIcon({ ...holder, outline: holder.outline }, width, height);
+    return (
+      image && { image: { ...base, placement: image.placement, rect: image.rect, box: image.box } }
+    );
+  }
   if (holder.holdsContents || holder.collapsed !== undefined || holder.rows) {
     const body = bodyOf(holder);
     const box = {
@@ -196,6 +215,49 @@ export function placeImage(
   const side = Math.min(32, Math.max(16, area.height - 20));
   const box = { x: area.x + 8, y: area.y + (area.height - side) / 2, width: side, height: side };
   return { image: { ...base, placement: 'icon', rect: fitted(width, height, box), box } };
+}
+
+/** The least side of an icon in a label area, below which a shape with its own outline shows none. */
+const LEAST_OUTLINED_ICON = 8;
+
+/**
+ * Where a shape with its own outline shows its image (ADR 0066): only ever as an icon, whatever the
+ * placement asks. An expanded container shows it in its header, at the start of the stretch of the
+ * header line its outline holds, and none when that stretch is too short for it and a name. Any other
+ * shape shows it in its label area: 8 units in, as beside any name, when the area is tall enough for
+ * its name, its side then at most a quarter of the area's width; else centred in the area. None when
+ * it would be less than 8 units a side.
+ */
+function outlinedIcon(
+  holder: ImageHolder & { outline: ShapeOutline },
+  width: number,
+  height: number,
+): Pick<ShapeImage, 'placement' | 'rect' | 'box'> | undefined {
+  if (showsContents(holder)) {
+    const stretch = headerStretch(holder);
+    if (!stretch || stretch.width < LEAST_HEADER_WIDTH + HEADER_TEXT_SHIFT) return undefined;
+    const box = {
+      x: stretch.x,
+      y: holder.rect.y + HEADER_ICON.y,
+      width: HEADER_ICON.side,
+      height: HEADER_ICON.side,
+    };
+    return { placement: 'header', rect: fitted(width, height, box), box };
+  }
+  const area = labelAreaOn(holder);
+  const named = area.height >= LEAST_LABEL_HEIGHT;
+  const side = named
+    ? Math.min(32, Math.max(16, area.height - 20), area.height, area.width / 4)
+    : Math.min(32, area.height, area.width);
+  if (!(side >= LEAST_OUTLINED_ICON)) return undefined;
+  const inset = named ? Math.min(8, side / 2) : (area.width - side) / 2;
+  const box = {
+    x: area.x + inset,
+    y: area.y + (area.height - side) / 2,
+    width: side,
+    height: side,
+  };
+  return { placement: 'icon', rect: fitted(width, height, box), box };
 }
 
 /** A drawing's picture, plate and band in a shape's rectangle; none when it leaves no room. */
@@ -333,12 +395,9 @@ export function bodyRectOf(shape: { rect: Rect; image?: ShapeImage }): Rect {
     : shape.rect;
 }
 
-/** The part of a label area left for text beside an icon: right of it. */
+/** The part of a label area left for text beside an icon: right of it (`besideIcon`). */
 export function besideImage(shape: { rect: Rect; image?: ShapeImage }, area: Rect): Rect {
-  const image = shape.image;
-  if (image?.placement !== 'icon') return area;
-  const by = image.box.x + image.box.width - area.x;
-  return { ...area, x: area.x + by, width: Math.max(1, area.width - by) };
+  return besideIcon(shape, area);
 }
 
 /** How far right a container's header text moves for the icon in its header. */

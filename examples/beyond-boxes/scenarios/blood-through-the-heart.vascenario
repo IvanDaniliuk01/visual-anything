@@ -1,0 +1,121 @@
+{
+  "id": "blood-through-the-heart",
+  "name": "Blood through the heart",
+  "description": "One heartbeat’s blood, from the venae cavae through both sides of the heart and the lungs to the aorta.",
+  "view": "heart",
+  "steps": [
+    {
+      "id": "fill-right-atrium",
+      "description": "Oxygen-poor blood from the body comes back through both venae cavae and fills the right atrium.",
+      "relations": [
+        "superior-vena-cava-to-right-atrium",
+        "inferior-vena-cava-to-right-atrium"
+      ],
+      "dataIn": {
+        "oxygenSaturation": "75%"
+      }
+    },
+    {
+      "id": "open-tricuspid-valve",
+      "description": "The right atrium contracts and pushes the blood through the tricuspid valve.",
+      "relations": [
+        "right-atrium-to-tricuspid-valve"
+      ]
+    },
+    {
+      "id": "fill-right-ventricle",
+      "description": "The blood fills the right ventricle, and the tricuspid valve closes behind it.",
+      "relations": [
+        "tricuspid-valve-to-right-ventricle"
+      ],
+      "dataOut": {
+        "volume": "120 mL"
+      }
+    },
+    {
+      "id": "open-pulmonary-valve",
+      "description": "The right ventricle contracts, and its pressure opens the pulmonary valve.",
+      "relations": [
+        "right-ventricle-to-pulmonary-valve"
+      ],
+      "dataOut": {
+        "pressure": "25 mmHg"
+      }
+    },
+    {
+      "id": "into-the-pulmonary-artery",
+      "description": "The blood leaves the heart through the pulmonary artery.",
+      "relations": [
+        "pulmonary-valve-to-pulmonary-artery"
+      ],
+      "dataOut": {
+        "strokeVolume": "70 mL"
+      }
+    },
+    {
+      "id": "through-the-lungs",
+      "description": "In the lungs the blood gives off carbon dioxide and takes up oxygen.",
+      "relations": [
+        "pulmonary-artery-to-lungs"
+      ],
+      "dataIn": {
+        "oxygenSaturation": "75%"
+      },
+      "dataOut": {
+        "oxygenSaturation": "98%"
+      }
+    },
+    {
+      "id": "back-through-the-pulmonary-veins",
+      "description": "Oxygen-rich blood comes back to the heart through the pulmonary veins.",
+      "relations": [
+        "lungs-to-pulmonary-veins"
+      ]
+    },
+    {
+      "id": "fill-left-atrium",
+      "description": "It fills the left atrium.",
+      "relations": [
+        "pulmonary-veins-to-left-atrium"
+      ]
+    },
+    {
+      "id": "open-mitral-valve",
+      "description": "The left atrium contracts and pushes the blood through the mitral valve.",
+      "relations": [
+        "left-atrium-to-mitral-valve"
+      ]
+    },
+    {
+      "id": "fill-left-ventricle",
+      "description": "The blood fills the left ventricle, and the mitral valve closes behind it.",
+      "relations": [
+        "mitral-valve-to-left-ventricle"
+      ],
+      "dataOut": {
+        "volume": "120 mL"
+      }
+    },
+    {
+      "id": "open-aortic-valve",
+      "description": "The left ventricle, the strongest chamber, contracts and opens the aortic valve.",
+      "relations": [
+        "left-ventricle-to-aortic-valve"
+      ],
+      "dataOut": {
+        "pressure": "120 mmHg"
+      }
+    },
+    {
+      "id": "into-the-aorta",
+      "description": "Oxygen-rich blood leaves the heart through the aorta, toward the whole body.",
+      "relations": [
+        "aortic-valve-to-aorta"
+      ],
+      "dataOut": {
+        "oxygenSaturation": "98%",
+        "strokeVolume": "70 mL"
+      }
+    }
+  ]
+}
