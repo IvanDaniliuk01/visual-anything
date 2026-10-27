@@ -1,0 +1,67 @@
+{
+  "id": "pipeline",
+  "name": "Pipeline",
+  "description": "Where the classifier’s data comes from: events and cancellations made into sequences, split three ways.",
+  "perspective": {
+    "name": "Data"
+  },
+  "nestingRelationTypes": [],
+  "positions": [
+    {
+      "element": "product-events",
+      "x": 0,
+      "y": 16
+    },
+    {
+      "element": "crm",
+      "x": 0,
+      "y": 128
+    },
+    {
+      "element": "build-sequences",
+      "x": 256,
+      "y": 24
+    },
+    {
+      "element": "customer-sequences",
+      "x": 512,
+      "y": 24
+    },
+    {
+      "element": "training-split",
+      "x": 768,
+      "y": 0
+    },
+    {
+      "element": "validation-split",
+      "x": 768,
+      "y": 120
+    },
+    {
+      "element": "test-split",
+      "x": 768,
+      "y": 240
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "include": [
+      {
+        "kind": "component",
+        "component": "data-science.source"
+      },
+      {
+        "kind": "component",
+        "component": "data-science.transform"
+      },
+      {
+        "kind": "component",
+        "component": "data-science.feature-store"
+      },
+      {
+        "kind": "component",
+        "component": "machine-learning.dataset"
+      }
+    ]
+  }
+}

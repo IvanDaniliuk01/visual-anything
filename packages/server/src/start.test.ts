@@ -60,6 +60,11 @@ describe('a program on a folder that holds no project yet', () => {
         samples: [
           { id: 'c4-architecture', name: 'Internet banking', packages: ['c4'] },
           { id: 'data-science-pipeline', name: 'Churn prediction', packages: ['data-science'] },
+          {
+            id: 'churn-classifier',
+            name: 'Churn classifier',
+            packages: ['data-science', 'machine-learning'],
+          },
         ],
         token: 'secret',
       },

@@ -292,7 +292,13 @@ const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
   { word: /\bnodos?\b/i, unless: /\bnodos? de despliegue\b/i },
   { word: /\binstancias?\b/i },
   { word: /\bpropiedad(es)?\b/i },
-  { word: /\bcapas?\b/i, unless: /\bcapa semántica\b/i },
+  // Systems' "Semantic layer" is a component's name, and so are Machine learning's layers, which are
+  // layers of a neural network (P1 W62).
+  {
+    word: /\bcapas?\b/i,
+    unless:
+      /\bcapa semántica\b|\bred(es)? neuronal(es)?\b|^capa( densa| recurrente| de (convolución|atención|embedding|normalización|agrupación))?$/i,
+  },
   { word: /\bv[ií]nculos?\b/i },
   { word: /\baristas?\b/i },
   { word: /\benlaces?\b/i, unless: /\benlace simbólico\b/i },
