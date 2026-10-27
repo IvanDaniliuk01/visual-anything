@@ -47,7 +47,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      # Type-aware lint holds every package's program at once, past Node's default heap on a runner.
       - run: pnpm lint
+        env:
+          NODE_OPTIONS: --max-old-space-size=4608
       # Ends with every test skipped on this system, and why.
       - run: pnpm test
       - run: pnpm build
