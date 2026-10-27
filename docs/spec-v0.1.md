@@ -433,7 +433,7 @@ Eight milestones in build order, each ending in something you can use, and Track
   - the bundle tests show that neither the app's page nor the read-only page holds the converter;
 - a relation type, a relation and a view can draw their automatic routes straight or curved, as every layout and every later move then draw them, while routes chosen by hand keep their ends, bend points and style (ADR 0069);
 - the SVG and PDF exports and the read-only page draw free geometry, drawings with parts and automatic curves as the canvas does, and the SVG test compares their bounds with the scene's;
-- the performance budget holds: the beyond-boxes benchmark (`?geometry`, alone and with `?curves`) meets these marks on the reference laptop:
+- the performance budget holds: the beyond-boxes benchmark (`?geometry`, alone and with `?curves`) meets these marks on the reference laptop: (measured once on 2026-10-27, `docs/designs/benchmark-4.md`: pointing and the pictures' memory meet their marks; the frames, the drop and the theme switch miss theirs, which the user decided that day not to hold M8b for, the laptop being slow; they are a follow-up below)
   - pan, zoom and select at the 60 frames per second target, on 10,000 elements of which:
     - 2,000 have free geometry, in 20 distinct geometries, 4 of them at the caps;
     - 1,000 are anchored parts in 20 drawings with parts, 2 of whose pictures are at the cap on parts;
@@ -534,6 +534,7 @@ Eight milestones in build order, each ending in something you can use, and Track
   - the benchmark gains a phase that resizes a shape and shows guides on the 10,000-element view (done in W60's harness, ADR 0074's clarification; measured with the rest on a quiet machine).
   - Mermaid and Structurizr carry the styles of routes where they can, rather than reporting them lost (W58): Structurizr with a `routing` style on the relationships tagged by their style, Orthogonal for the rest, and Mermaid with `linkStyle … interpolate` (`basis` curved, `linear` straight, `step` orthogonal); their outputs change for every view, so their tests change with them;
   - `command-view.test.ts` ("prints a launch address…") failed twice when run alone on the loaded machine and passes in the full run and alone on a quiet one (W56); it is watched, and fixed if it fails again;
+  - the marks `benchmark-4.md` missed: a drop and a resize's let go of a shape with 50 relations (94–209 ms at the 95th percentile, most of it redrawing tiles), the theme switch (A1), the worst frames of zooming and dragging, and selecting and panning with names shown; taken up when the user finds the app slow or on a faster machine;
   - `scene.incremental.test.ts` once found an incremental scene in the view beyond boxes that differed from one built from nothing, in about one run in 400, and lost the counterexample; it is hunted with more runs and its seed kept (2026-10-26).
 
 **M11b · Versions.** Planned for the third wave, beside M8b. The core's comparison, merge and proposals go first, in the main session, since everything else builds on them. Then two rounds of tasks run in parallel. Done when:
