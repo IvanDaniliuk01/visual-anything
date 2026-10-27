@@ -77,6 +77,11 @@ describe('cleanHtml', () => {
     ]);
   });
 
+  it('quotes at most 40 characters of an element’s name', () => {
+    const { report } = body(`<${'x'.repeat(2000)}>y</${'x'.repeat(2000)}>`);
+    expect(report).toEqual([`1 ${'x'.repeat(39)}… element`]);
+  });
+
   it('reports what the head held, and never keeps it', () => {
     const { page, report } = clean(
       '<head><title>T</title><meta http-equiv="refresh" content="0;url=x"><base href="https://example.com/"><link rel="stylesheet" href="x.css"><script src="x.js"></script><!-- note --></head><body><p>x</p></body>',

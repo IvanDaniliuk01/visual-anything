@@ -111,6 +111,14 @@ export function cleanHtml(
   return (cleaned[0] as CleanElement | undefined) ?? { tag: 'div', style: {}, children: [] };
 }
 
+/** The longest element name a report quotes, so that a page's own names never make it long. */
+const MAX_REPORTED_NAME = 40;
+
+/** An element's name as the report quotes it, cut to {@link MAX_REPORTED_NAME} characters. */
+function named(tag: string): string {
+  return tag.length <= MAX_REPORTED_NAME ? tag : `${tag.slice(0, MAX_REPORTED_NAME - 1)}…`;
+}
+
 /** Whether a node of the page is text. */
 function isText(node: HtmlNode): node is HtmlText {
   return node.nodeName === '#text';
@@ -153,7 +161,7 @@ class Cleaner {
     const { report } = this;
     const tag = element.tagName;
     if (element.namespaceURI !== HTML_NS) {
-      report.add(`${tag} element`, `${tag} elements`);
+      report.add(`${named(tag)} element`, `${named(tag)} elements`);
       return [];
     }
     if (tag === 'style') return [];
@@ -170,7 +178,7 @@ class Cleaner {
       return this.#children(element, depth - 1, false, hiding);
     }
     if (!KEPT_ELEMENTS.has(tag)) {
-      report.add(`${tag} element`, `${tag} elements`);
+      report.add(`${named(tag)} element`, `${named(tag)} elements`);
       return [];
     }
     if (depth > HTML_CAPS.depth) {
@@ -261,7 +269,7 @@ class Cleaner {
     for (const node of nodes) {
       if (node.nodeName === '#comment') this.report.add('comment');
       else if ('tagName' in node && !(node.tagName === 'style' && node.namespaceURI === HTML_NS)) {
-        this.report.add(`${node.tagName} element`, `${node.tagName} elements`);
+        this.report.add(`${named(node.tagName)} element`, `${named(node.tagName)} elements`);
       }
     }
   }

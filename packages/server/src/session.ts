@@ -604,7 +604,9 @@ export class Session implements LiveSession {
             svg: made.svg,
             width: made.width,
             height: made.height,
-            report: made.report.slice(0, MAX_DRAWING_REPORT.lines),
+            report: made.report
+              .slice(0, MAX_DRAWING_REPORT.lines)
+              .map((line) => line.slice(0, MAX_DRAWING_REPORT.length)),
           }
         : { type: 'command/rejected', requestId, problems: made.problems },
     );
