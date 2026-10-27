@@ -25,7 +25,8 @@ export async function bundleDrawingWorker(
     target: 'node22',
     metafile: true,
     logLevel: 'warning',
-    legalComments: 'none',
+    // The licenses the packages' code carries stay with it, at the script's end.
+    legalComments: 'eof',
     ...(outfile === undefined ? { write: false, outdir: 'out' } : { outfile }),
   });
   const code =
