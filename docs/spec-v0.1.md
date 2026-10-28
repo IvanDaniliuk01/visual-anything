@@ -705,7 +705,7 @@ The first three tasks are the seams, built in the main session in this order. Th
 - [x] **Tours on the canvas:** the capture and cross-fade, fades of tiles' dimming and of the emphasis marks, the three stages in `useTourPlayback`, and the travelling marker's trail.
 - [x] **The stage:** the scenario's card with pause and its range, the keys, the steps' index, Back to the step, the caption's placement, advancing by itself, the announcements, and the Motion and Fades preferences.
 - [x] **Decisions in the app:** choices in the scenario session, the decision card with its keys and announcements, the grouped steps' list, the alternatives not chosen dimmed and dashed with their preview, recording's Add an alternative here, Rejoin here and End the alternative, and the read-only page.
-- [ ] **Claude:** the tour tools' new keys and `check_tour`; `read_scenario`, `create_scenario_from_steps` with decisions, `update_scenario`'s operations, the `choose` guidance and `choices` in the playback tools; the Mermaid and PlantUML recipes.
+- [x] **Claude:** the tour tools' new keys and `check_tour`; `read_scenario`, `create_scenario_from_steps` with decisions, `update_scenario`'s operations, the `choose` guidance and `choices` in the playback tools; the Mermaid and PlantUML recipes.
 - [ ] **View states, addresses and tours' `play` with choices**, and a decision in the sample's `patient-books-appointment`.
 - [ ] **The benchmark:** a tour phase and a decision phase on the 10,000-element view.
 

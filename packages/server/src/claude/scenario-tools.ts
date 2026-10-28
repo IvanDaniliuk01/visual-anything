@@ -109,9 +109,7 @@ const label = () =>
 const ends = () =>
   z
     .boolean()
-    .describe(
-      'true when the scenario ends after this alternative, as an error path or a break does.',
-    );
+    .describe('true when the scenario ends after this alternative, as an error does, or a break.');
 
 /** An alternative of a decision in a tree of steps, holding `inner` items. */
 const givenAlternative = (inner: z.ZodType) =>
@@ -161,7 +159,7 @@ const createScenarioFromSteps = tool({
 
 Use it to turn a description of an example, or a log the person pasted, into a scenario: map each line or sentence to the relations of the model it crosses (find_relations, get_item), in order, one step per moment; lines that happen at once share a step; take data in and out from the payloads the log shows. When a line matches nothing in the model, do not guess: ask the person what it maps to, or offer to add the relation first. A relation the model does not have is refused with its id. Then offer to play it with play_scenario.
 
-Where the example can go more than one way, put a decision among its steps: { "decision": "<question>", "alternatives": [{ "label": "<answer>", "steps": [...] }, ...] }, two to eight alternatives, each with the steps that play when it is chosen, and decisions inside them up to three deep. An alternative with no steps is the way where nothing happens; one with "ends": true ends the scenario after it, as an error path does; "default" names, by its label, the alternative that plays when nothing chooses, the first otherwise. Steps are numbered in reading order, every alternative's included. The person, you (choose_alternative) or a tour choose which alternative plays; nothing in the scenario is a condition.
+Where the example can go more than one way, put a decision among its steps: { "decision": "<question>", "alternatives": [{ "label": "<answer>", "steps": [...] }, ...] }, two to eight alternatives, each with the steps that play when it is chosen, and decisions inside them up to three deep. An alternative with no steps is the way where nothing happens; one with "ends": true ends the scenario after it, as an error does; "default" names, by its label, the alternative that plays when nothing chooses, the first otherwise. Steps are numbered in reading order, every alternative's included. The person, you (choose_alternative) or a tour choose which alternative plays; nothing in the scenario is a condition.
 
 An OpenTelemetry trace, or a Mermaid or PlantUML sequence diagram, becomes a scenario the same way: one step per call between services (a CLIENT span and its SERVER span) or per message, in the order they start; calls at the same time share a step; a reply right after its request is that step's dataOut; alt and opt blocks become decisions, a break an alternative that ends. Logs of the same process that differ become one scenario with a decision where they part. Leave personal data and secrets out of descriptions and data.
 
