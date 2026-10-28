@@ -2127,6 +2127,17 @@ export const ui: Catalog = {
     'Este paso nombra algo que el proyecto ya no tiene, y se reproduce sin eso.',
   'This step’s view no longer exists, so the canvas stays where it is.':
     'La vista de este paso ya no existe, así que el lienzo se queda donde está.',
+  // M11c: what the tour's check says, under each step (ADR 0077).
+  'Read on a screen of {width} by {height} pixels: nothing to look at.':
+    'Leído en una pantalla de {width} por {height} píxeles: nada que revisar.',
+  'Read on a screen of {width} by {height} pixels: {count} things to look at, under their steps.': {
+    one: 'Leído en una pantalla de {width} por {height} píxeles: {count} cosa que revisar, bajo su paso.',
+    other:
+      'Leído en una pantalla de {width} por {height} píxeles: {count} cosas que revisar, bajo sus pasos.',
+  },
+  'What to look at in step {n}': 'Qué revisar en el paso {n}',
+  'Step {n} cuts from step {m} with a cross-fade, into another view.':
+    'El paso {n} corta desde el paso {m} con un fundido, hacia otra vista.',
   Title: 'Título',
   Caption: 'Rótulo',
   'Plain text: a blank line starts a paragraph, and lines starting with “- ” make a list.':
@@ -3456,8 +3467,12 @@ export const messages: Catalog = {
   'Step {n} of the tour marks "{id}" twice.': 'El paso {n} del recorrido marca "{id}" dos veces.',
   'Step {n} of the tour plays a scenario: an object with its id.':
     'El paso {n} del recorrido reproduce un escenario: un objeto JSON con su id.',
-  'A step plays a scenario, from a step to a step, nothing else.':
-    'Un paso reproduce un escenario, desde un paso hasta otro, nada más.',
+  'A step plays a scenario, from a step to a step, with the alternatives it chooses, nothing else.':
+    'Un paso reproduce un escenario, desde un paso hasta otro, con las alternativas que elige, nada más.',
+  // M11c: tours' steps that play a given alternative (ADR 0078).
+  'Step {n} of the tour chooses alternatives as a map from the id of each decision to the id of an alternative.':
+    'El paso {n} del recorrido elige alternativas asociando el id de cada decisión al id de una alternativa.',
+  'A step chooses at most {limit} alternatives.': 'Un paso elige como máximo {limit} alternativas.',
   'A step marks elements and relations, and "{id}" is neither.':
     'Un paso marca elementos y relaciones, y "{id}" no es ninguna de las dos cosas.',
   'The step "{from}" comes after "{to}" in the scenario "{name}".':
@@ -3575,6 +3590,25 @@ export const messages: Catalog = {
   'The scenario "{name}" plays over the view "{view}", not "{other}".':
     'El escenario "{name}" se reproduce sobre la vista "{view}", no sobre "{other}".',
   'The scenario "{name}" has no step "{id}".': 'El escenario "{name}" no tiene el paso "{id}".',
+  // M11c: the alternatives a view state, an address or a tour's step chooses (ADR 0078).
+  'Choices need their scenario: scenario=<id>.':
+    'Las alternativas elegidas necesitan su escenario: scenario=<id>.',
+  'Choices are <decision>:<alternative>, separated by commas.':
+    'Las alternativas elegidas son <decisión>:<alternativa>, separadas por comas.',
+  'The choices name the decision "{id}" twice.':
+    'Las alternativas elegidas nombran la decisión "{id}" dos veces.',
+  'A view state chooses at most {max} alternatives.':
+    'Un estado de vista elige como máximo {max} alternativas.',
+  'A view state that chooses nothing leaves choices out.':
+    'Un estado de vista que no elige nada deja fuera choices.',
+  'Choices map the id of each decision to the id of an alternative.':
+    'Las alternativas elegidas asocian el id de cada decisión al id de una alternativa.',
+  'The scenario "{name}" has no decision "{id}".':
+    'El escenario "{name}" no tiene la decisión "{id}".',
+  'The decision "{question}" has no alternative "{id}".':
+    'La decisión "{question}" no tiene la alternativa "{id}".',
+  'With the alternatives it chooses, the scenario "{name}" does not play the step "{id}".':
+    'Con las alternativas que elige, el escenario "{name}" no reproduce el paso "{id}".',
 
   // What cleaning removed from an image, kind by kind, as the core counts it.
   '1 processing instruction': '1 instrucción de procesamiento',

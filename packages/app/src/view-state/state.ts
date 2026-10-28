@@ -1,8 +1,8 @@
 /**
  * The view state (core's `ViewState`) as the app holds it: the open view, the camera, the selection,
  * the explorer's filters with their time range and focus (ADR-0025, ADR 0044's clarification of
- * W44), and the scenario session's scenario and step (ADR-0031). These functions turn the one into
- * the other, both ways, without touching anything.
+ * W44), and the scenario session's scenario, step and choices (ADR-0031, ADR 0078). These functions
+ * turn the one into the other, both ways, without touching anything.
  */
 import {
   MAX_CAMERA_DISTANCE,
@@ -13,6 +13,7 @@ import {
   MAX_VIEW_STATE_IDS,
   MIN_CAMERA_ZOOM,
   checkViewState,
+  knownChoices,
   modelIndexOf,
   type ProjectSnapshot,
   type ViewCamera,
@@ -21,7 +22,7 @@ import {
   type ViewState,
   type ViewTimeRange,
 } from '@visual-anything/core';
-import type { Id, ViewFile } from '@visual-anything/schema';
+import type { DecisionChoices, Id, ViewFile } from '@visual-anything/schema';
 import { MAX_SCALE, MIN_SCALE, screenToWorld, type Camera } from '../canvas/camera';
 import {
   ALL_DEGREES,
@@ -67,8 +68,11 @@ export interface AppViewState {
   selection: Selection;
   filters: Filters;
   focus: FocusState;
-  /** The scenario open in the scenario panel, and the index of the step it is on. */
-  scenario?: { id: Id; step: number } | undefined;
+  /**
+   * The scenario open in the scenario panel, the index of the step it is on, and the alternatives the
+   * tab chose at its decisions (ADR 0078).
+   */
+  scenario?: { id: Id; step: number; choices?: DecisionChoices } | undefined;
 }
 
 /**
@@ -90,6 +94,9 @@ export function viewStateOf(input: AppViewState): { state: ViewState; selectionL
     state.scenario = played.id;
     const step = played.steps[scenario.step];
     if (scenario.step > 0 && step) state.step = step.id;
+    // Written only when the tab chose some, so that the address opens the step in its alternative.
+    const choices = knownChoices(played, scenario.choices);
+    if (choices) state.choices = choices;
   }
   // Whatever the core would refuse is left out rather than written, part by part.
   const checked = checkViewState(state);

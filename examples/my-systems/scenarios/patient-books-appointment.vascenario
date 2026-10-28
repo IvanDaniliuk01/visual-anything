@@ -1,7 +1,7 @@
 {
   "id": "patient-books-appointment",
   "name": "Patient books an appointment",
-  "description": "A patient asks for a cardiology appointment on WhatsApp and ends up with a booked slot and a reminder.",
+  "description": "A patient asks for a cardiology appointment on WhatsApp and ends up with a booked slot and a reminder, or on the waiting list when the week is full.",
   "view": "system-overview",
   "steps": [
     {
@@ -74,6 +74,45 @@
         "appointment": "apt-5531",
         "reminderAt": "2026-10-26T10:00"
       }
+    },
+    {
+      "id": "join-waiting-list",
+      "description": "The week is full: the API puts the patient on the cardiology waiting list.",
+      "relations": [
+        "api-writes-db"
+      ],
+      "dataIn": {
+        "patient": "patient-1042",
+        "specialty": "cardiology",
+        "week": "2026-10-26"
+      },
+      "dataOut": {
+        "position": 3,
+        "waitingList": "wl-208"
+      }
+    }
+  ],
+  "blocks": [
+    {
+      "id": "free-slot",
+      "kind": "decision",
+      "question": "Is a cardiology slot free next week?",
+      "alternatives": [
+        {
+          "id": "has-slot",
+          "label": "Yes",
+          "steps": [
+            "book"
+          ]
+        },
+        {
+          "id": "week-full",
+          "label": "No, the week is full",
+          "steps": [
+            "join-waiting-list"
+          ]
+        }
+      ]
     }
   ]
 }

@@ -71,6 +71,32 @@ describe('Playback in a read-only page', () => {
     expect(session.getState().scenario).toBeUndefined();
   });
 
+  it('goes to an address’s step in the alternatives it chooses, which replace the page’s (ADR 0078)', () => {
+    const session = new PlaybackSession(testClock().clock);
+    const said: string[] = [];
+    const choices = { 'free-slot': 'week-full' };
+    const sync = () =>
+      session.sync({
+        project: sample,
+        viewId: scenario.view,
+        timeline: scenarioTimeline(sample, scenario, undefined, session.getState().choices),
+        choices: session.getState().choices,
+        announce: (message) => said.push(message),
+      });
+    session.open(scenario.id);
+    sync();
+    session.guide({ scenario: scenario.id, action: 'go-to-step', step: 5, choices });
+    sync();
+    expect(session.getState()).toMatchObject({ step: 5, choices });
+    expect(said).toContain(
+      '“No, the week is full” plays at “Is a cardiology slot free next week?”.',
+    );
+    // An address without choices plays every default again.
+    session.guide({ scenario: scenario.id, action: 'go-to-step', step: 3, choices: {} });
+    sync();
+    expect(session.getState()).toMatchObject({ step: 3, choices: {} });
+  });
+
   it('plays the alternative chosen at a decision, stops before it when asked, and says so (ADR 0078)', () => {
     const orders = loadSample('order-process');
     const order = orders.scenarios.find((each) => each.id === 'an-order')!;

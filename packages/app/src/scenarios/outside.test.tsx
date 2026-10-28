@@ -2,7 +2,12 @@
  * A step outside the view, in playback (CONTEXT.md, ADR-0040): the step panel says so, with Add to
  * this view for its ends, and no marker travels along a relation the view's scope does not show.
  */
-import { scenarioTimeline, type Command, type ProjectSnapshot } from '@visual-anything/core';
+import {
+  playedSteps,
+  scenarioTimeline,
+  type Command,
+  type ProjectSnapshot,
+} from '@visual-anything/core';
 import type { Scope } from '@visual-anything/schema';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
@@ -28,7 +33,8 @@ describe('a step outside the view', () => {
 
   it('is one of the sample scenario’s, which plays on past it', () => {
     expect(outside).toBeGreaterThanOrEqual(0);
-    expect(timeline.entries.length).toBe(scenario.steps.length);
+    // Each step that plays is an entry of its own: the step outside the view among them.
+    expect(timeline.entries.length).toBe(playedSteps(scenario).length);
   });
 
   it('says so in the step panel, and adds its ends as one command', () => {

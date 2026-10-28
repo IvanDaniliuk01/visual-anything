@@ -25,6 +25,7 @@ import type { DecisionChoices, Id, ScenarioFile } from '@visual-anything/schema'
 import {
   AFTER_STEP,
   NO_CHOICES,
+  alternativesChanged,
   choicesReaching,
   decisionAhead,
   sayChosen,
@@ -134,14 +135,32 @@ export class PlaybackSession {
   }
 
   /**
-   * Does what an address asks of playback: opens its scenario, which goes to its first step, paused,
-   * then goes to the step it names once the scenario's view is open.
+   * Does what an address or a tour's step asks of playback: opens its scenario, which goes to its
+   * first step, paused, then goes to the step it names once the scenario's view is open. The choices
+   * it gives replace the page's, a decision they do not name playing its default (ADR 0078).
    */
   guide(request: PlaybackGuidance): void {
     const opening = request.action === 'open' || this.state.scenario !== request.scenario;
     if (opening) this.open(request.scenario);
+    if (request.choices !== undefined && request.action !== 'choose') {
+      this.replaceChoices(request.choices);
+    }
     this.guided = request.action === 'open' ? undefined : request;
     if (!opening && this.timeline()) this.applyGuided();
+  }
+
+  /** Makes these the choices, and says which alternatives they change; a new timeline comes next. */
+  private replaceChoices(choices: DecisionChoices): void {
+    const scenario = this.openScenario();
+    const before = this.state.choices;
+    const changed = scenario ? alternativesChanged(scenario, before, choices) : [];
+    const same =
+      Object.keys(before).length === Object.keys(choices).length &&
+      Object.entries(choices).every(([decision, alternative]) => before[decision] === alternative);
+    if (same) return;
+    this.setChoices(Object.keys(choices).length === 0 ? NO_CHOICES : { ...choices });
+    if (scenario && changed.length > 0) this.context?.announce?.(sayReached(scenario, changed));
+    this.publish();
   }
 
   /**

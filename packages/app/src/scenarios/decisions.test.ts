@@ -6,7 +6,7 @@
 import { executeCommand, scenarioTimeline, type ProjectSnapshot } from '@visual-anything/core';
 import type { ScenarioFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
-import { loadSample } from '../test/sample';
+import { loadSample, withoutDecisions } from '../test/sample';
 import {
   choicesReaching,
   decisionAhead,
@@ -83,11 +83,10 @@ describe('the steps’ list of a scenario with decisions', () => {
   });
 
   it('lists a scenario without decisions as its timeline, as ever', () => {
-    const plain = loadSample().scenarios[0] as ScenarioFile;
+    const linear = withoutDecisions();
+    const plain = linear.scenarios[0] as ScenarioFile;
     expect(hasDecisions(plain)).toBe(false);
-    expect(listedSteps(plain, scenarioTimeline(loadSample(), plain), {}, () => false)).toBe(
-      undefined,
-    );
+    expect(listedSteps(plain, scenarioTimeline(linear, plain), {}, () => false)).toBe(undefined);
   });
 });
 

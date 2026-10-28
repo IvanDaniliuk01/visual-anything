@@ -805,6 +805,35 @@ function tourCommands(): [string, Command][] {
       play: { scenario: 'patient-books-appointment', from: 'book', to: 'ask' },
     }),
     created('step playing no scenario', { ...step, play: { scenario: 'gone' } }),
+    // Steps that play a given alternative (ADR 0078).
+    created('step choosing no decision', {
+      ...step,
+      play: { scenario: 'patient-books-appointment', choices: { gone: 'x' } },
+    }),
+    created('step choosing no alternative', {
+      ...step,
+      play: { scenario: 'patient-books-appointment', choices: { 'free-slot': 'gone' } },
+    }),
+    created('step playing what its choices do not', {
+      ...step,
+      play: { scenario: 'patient-books-appointment', from: 'join-waiting-list' },
+    }),
+    created('step choosing too much', {
+      ...step,
+      play: {
+        scenario: 'patient-books-appointment',
+        choices: Object.fromEntries(Array.from({ length: 65 }, (_, at) => [`d${at}`, 'a'])),
+      },
+    }),
+    created('step whose view state chooses nothing there', {
+      ...step,
+      viewState: {
+        view: VIEW,
+        scenario: 'patient-books-appointment',
+        step: 'book',
+        choices: { 'free-slot': 'week-full' },
+      },
+    }),
     created('step with a title too long', { ...step, caption: { title: 'x'.repeat(201) } }),
     created('step with a text too long', {
       ...step,
@@ -917,6 +946,23 @@ function tourCommands(): [string, Command][] {
         {
           type: 'create-tour',
           tour: { name: 'T', steps: [{ ...step, play: { scenario: 'x', speed: 2 } }] },
+        },
+      ],
+      [
+        'choices not a map',
+        {
+          type: 'create-tour',
+          tour: { name: 'T', steps: [{ ...step, play: { scenario: 'x', choices: 5 } }] },
+        },
+      ],
+      [
+        'view state choices not a map',
+        {
+          type: 'create-tour',
+          tour: {
+            name: 'T',
+            steps: [{ ...step, viewState: { view: VIEW, scenario: 'x', choices: ['a'] } }],
+          },
         },
       ],
     ]),

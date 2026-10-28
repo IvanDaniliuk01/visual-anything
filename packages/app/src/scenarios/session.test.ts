@@ -8,7 +8,7 @@ import {
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { describe, expect, it, vi } from 'vitest';
-import { loadSample } from '../test/sample';
+import { loadSample, withoutDecisions } from '../test/sample';
 import { ScenarioSession, type Clock, type SendScenarioCommand } from './session';
 
 const SCENARIO = 'patient-books-appointment';
@@ -53,10 +53,11 @@ function testClock() {
 }
 
 /**
- * A session over the sample, with a stand-in for the local program that applies each command and
- * answers when the test says, before or after the project shows the change.
+ * A session over the sample, its scenario without its decision unless another project is given, with
+ * a stand-in for the local program that applies each command and answers when the test says, before
+ * or after the project shows the change.
  */
-function setUp(start: ProjectSnapshot = loadSample(), view: Id = VIEW) {
+function setUp(start: ProjectSnapshot = withoutDecisions(), view: Id = VIEW) {
   const time = testClock();
   const session = new ScenarioSession(time.clock);
   let project = start;

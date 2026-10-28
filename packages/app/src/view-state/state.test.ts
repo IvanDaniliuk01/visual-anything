@@ -184,6 +184,31 @@ describe('viewStateOf', () => {
     expect(at(1, 'another-view')).toEqual({ view: 'another-view' });
   });
 
+  // ADR 0078: the alternatives the tab chose, so that the address opens the step in them.
+  it('holds the alternatives the tab chose at the scenario’s decisions, only when it chose some', () => {
+    const at = (choices: Record<string, string>) =>
+      viewStateOf({
+        project: sample,
+        viewId: VIEW,
+        selection: EMPTY_SELECTION,
+        ...UNEXPLORED,
+        scenario: { id: 'patient-books-appointment', step: 5, choices },
+      }).state;
+    expect(at({ 'free-slot': 'week-full' })).toEqual({
+      view: VIEW,
+      scenario: 'patient-books-appointment',
+      step: 'join-waiting-list',
+      choices: { 'free-slot': 'week-full' },
+    });
+    expect(at({})).toEqual({
+      view: VIEW,
+      scenario: 'patient-books-appointment',
+      step: 'join-waiting-list',
+    });
+    // A choice the scenario does not have is never written.
+    expect(at({ gone: 'x' })).not.toHaveProperty('choices');
+  });
+
   it('leaves out a selection too large for an address, and says so', () => {
     const ids = Array.from({ length: MAX_VIEW_STATE_IDS + 1 }, (_, n) => `e${n}`);
     const selection = selectionOf(ids.map((id) => ({ kind: 'element', id })));

@@ -35,6 +35,10 @@ const MALFORMED = [
   'view=v&focus=2,both,hide',
   'view=v&focus=2,both;to:a',
   'view=v&focus=2,both;from:a;from:b',
+  'view=v&choices=d:a',
+  'view=v&scenario=s&choices=d',
+  'view=v&scenario=s&choices=d:a,d:b',
+  `view=v&scenario=s&choices=${Array.from({ length: 65 }, (_, n) => `d${n}:a`).join(',')}`,
   'view=v%zz',
   `view=v&select=${'a'.repeat(600_000)}`,
 ];
@@ -63,9 +67,20 @@ describe('the messages about an address', () => {
         step: 'nothing',
       }),
       ...viewStateProblems(second, { view: 'other', scenario: 'gone' }),
+      ...viewStateProblems(second, {
+        view: 'system-overview',
+        scenario: 'patient-books-appointment',
+        step: 'book',
+        choices: { 'free-slot': 'week-full', gone: 'x' },
+      }),
+      ...viewStateProblems(second, {
+        view: 'system-overview',
+        scenario: 'patient-books-appointment',
+        choices: { 'free-slot': 'maybe' },
+      }),
       ...viewStateProblems(second, { view: 'gone' }),
     ];
-    expect(problems).toHaveLength(8);
+    expect(problems).toHaveLength(11);
     expect(untranslatedParts('es', fill(NOT_SHOWN, problems.join(' ')))).toEqual([]);
   });
 });

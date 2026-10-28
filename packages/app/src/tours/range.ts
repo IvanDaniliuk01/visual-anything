@@ -9,24 +9,33 @@
  *
  * Where playback is, is compared by the timeline's entries, not by steps: under a collapsed container
  * one aggregated entry plays several steps, and going to any of them lands on the first.
+ *
+ * A range plays the alternatives its step chooses at the scenario's decisions (ADR 0078), which the
+ * step's view state gives the session as it opens the scenario; playing it again gives them back
+ * when they changed meanwhile.
  */
-import type { Id } from '@visual-anything/schema';
+import type { DecisionChoices, Id } from '@visual-anything/schema';
+import { NO_CHOICES } from '../scenarios/choosing';
 import type { ScenarioSession } from '../scenarios/session';
 
 /** What the range needs of the scenario session. */
 export type RangeSession = Pick<
   ScenarioSession,
-  'getState' | 'play' | 'pause' | 'goToStep' | 'entryOf'
+  'getState' | 'play' | 'pause' | 'goToStep' | 'entryOf' | 'guide'
 > & {
   /** Whether playback played the scenario's last step to its end; when unknown, it did. */
   readonly finished?: boolean;
 };
 
-/** A scenario to play, by the indices of its first and last steps played. */
+/**
+ * A scenario to play, by the indices of its first and last steps played, and the alternatives it
+ * plays at its decisions; every default when it gives none.
+ */
 export interface ScenarioPlay {
   scenario: Id;
   from: number;
   to: number;
+  choices?: DecisionChoices;
 }
 
 /**
@@ -84,12 +93,23 @@ export class ScenarioRange {
     this.session.play();
   }
 
-  /** Plays the range again from its first step, whatever it did before. */
+  /**
+   * Plays the range again from its first step, whatever it did before, in the alternatives it plays:
+   * choices changed meanwhile are given back, as its step's view state gave them.
+   */
   replay(): void {
     const range = this.range;
     if (!range) return;
     this.set('opening');
-    this.session.goToStep(range.from);
+    const choices = range.choices ?? NO_CHOICES;
+    if (sameChoices(this.session.getState().choices, choices)) {
+      this.session.goToStep(range.from);
+    } else {
+      this.session.guide(
+        { scenario: range.scenario, action: 'go-to-step', step: range.from, choices },
+        { quiet: true },
+      );
+    }
     this.check();
   }
 
@@ -141,4 +161,10 @@ export class ScenarioRange {
     this.phase = phase;
     for (const listener of [...this.listeners]) listener();
   }
+}
+
+/** Whether two sets of choices choose the same alternatives at the same decisions. */
+function sameChoices(a: DecisionChoices, b: DecisionChoices): boolean {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key]);
 }

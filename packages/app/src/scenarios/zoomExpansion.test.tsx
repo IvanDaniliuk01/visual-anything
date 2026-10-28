@@ -18,7 +18,7 @@ import { buildScene, buildSceneAfresh } from '../canvas/scene';
 import { EditorContext, type Editor } from '../editor/EditorContext';
 import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
 import { EMPTY_SELECTION } from '../editor/selection';
-import { loadSample } from '../test/sample';
+import { withoutDecisions } from '../test/sample';
 import { ScenarioPanel } from './ScenarioPanel';
 import { ScenarioSession, type Clock } from './session';
 
@@ -27,7 +27,8 @@ const VIEWPORT = { width: 800, height: 600 };
 
 /** The sample with Scheduling collapsed, its System component expanding from scale 2. */
 function project(): ProjectSnapshot {
-  const sample = loadSample();
+  // The sample's scenario as it plays without its decision, which DecisionPanel.test.tsx covers.
+  const sample = withoutDecisions();
   const collapsed: ProjectSnapshot = {
     ...sample,
     views: sample.views.map((view) =>

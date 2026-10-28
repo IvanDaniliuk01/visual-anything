@@ -25,6 +25,7 @@ export {
   combinationsOf,
   decisionsAt,
   decisionsReached,
+  knownChoices,
   playedSteps,
   readBlocks,
 } from './blocks';

@@ -46,8 +46,8 @@ describe('TourStage', () => {
     ]);
     const progress = screen.getByRole('progressbar', { name: 'Progress through the tour' });
     expect(progress).toHaveAttribute('aria-valuenow', '1');
-    expect(progress).toHaveAttribute('aria-valuemax', '3');
-    expect(progress).toHaveAttribute('aria-valuetext', 'Step 1 of 3');
+    expect(progress).toHaveAttribute('aria-valuemax', '4');
+    expect(progress).toHaveAttribute('aria-valuetext', 'Step 1 of 4');
     expect(screen.getByRole('button', { name: 'Previous step' })).toBeDisabled();
   });
 
@@ -445,7 +445,7 @@ describe('TourStage’s reveals, scenario card and controls', () => {
         said: { kind: 'step', step: 1, reveal: 0, count: 1 },
       });
       const title = tour.steps[1]?.caption.title ?? '';
-      expect(status()).toHaveTextContent(`Step 2 of 3: ${title}`);
+      expect(status()).toHaveTextContent(`Step 2 of 4: ${title}`);
       expect(status()).toHaveTextContent(/Marks “.+”/);
       // A step that comes on a timer brings no new cue: nothing new is said.
       rerender(
@@ -457,7 +457,7 @@ describe('TourStage’s reveals, scenario card and controls', () => {
           onAction={onAction}
         />,
       );
-      expect(status()).toHaveTextContent(`Step 2 of 3: ${title}`);
+      expect(status()).toHaveTextContent(`Step 2 of 4: ${title}`);
     });
 
     it('says each reveal as it comes, with its text and what it marks', () => {

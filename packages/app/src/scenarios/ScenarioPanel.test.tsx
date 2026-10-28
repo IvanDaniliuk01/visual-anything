@@ -5,11 +5,12 @@ import { useEffect, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { SendCommand } from '../canvas/CanvasArea';
 import { Shell } from '../shell/Shell';
-import { loadSample } from '../test/sample';
+import { withoutDecisions } from '../test/sample';
 
 vi.mock('../canvas/CanvasArea', () => import('../test/FakeCanvasArea'));
 
-const sample = loadSample();
+// The sample's scenario as it plays without its decision, which DecisionPanel.test.tsx covers.
+const sample = withoutDecisions();
 const NAME = 'Patient books an appointment';
 
 /**

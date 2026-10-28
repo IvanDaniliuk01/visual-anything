@@ -88,13 +88,19 @@ export const STATE_PARTS = {
     .optional(),
   scenario: id().optional(),
   step: z.union([z.number().int().min(1), id()]).optional(),
+  choices: z
+    .record(id(), id())
+    .optional()
+    .describe(
+      'The alternative chosen at each decision of the scenario, by the decision’s id, as read_scenario gives them: { "<decision id>": "<alternative id>" }. A decision left out plays its default.',
+    ),
 };
 
 /** A view state's parts, as the tools take them. */
 export type StateArgs = z.infer<z.ZodObject<typeof STATE_PARTS>> & { view: string };
 
 /** What `get_view_address` and `open_app` say a view state holds, after the view. */
-export const STATE_HELP = `camera is the point of the view at the middle of the canvas, in canvas units, and the zoom (1 is 100%). select names elements, relations and free shapes of the view. filters.range is the app's time range on one date, time or number attribute, which hides what falls outside it. focus starts from the selection unless from names where it starts. step names a step of the scenario by its id or its number from 1; the scenario must play over the view.`;
+export const STATE_HELP = `camera is the point of the view at the middle of the canvas, in canvas units, and the zoom (1 is 100%). select names elements, relations and free shapes of the view. filters.range is the app's time range on one date, time or number attribute, which hides what falls outside it. focus starts from the selection unless from names where it starts. step names a step of the scenario by its id or its number from 1; the scenario must play over the view. choices opens the scenario in the alternatives it names at its decisions, so that an address can open "step 6, in the alternative No"; the step must be one they play.`;
 
 const getViewAddress = tool({
   name: 'get_view_address',
@@ -106,7 +112,8 @@ The person opens it in the browser where they have the project open: pasted into
 ${STATE_HELP}
 
 Example: { "view": "system-overview", "select": ["appointments-api"] }
-Example: { "view": "system-overview", "filters": { "components": ["systems.person"] }, "focus": { "degrees": 2, "direction": "outgoing", "from": ["booking-agent"] }, "scenario": "patient-books-appointment", "step": 3 }`,
+Example: { "view": "system-overview", "filters": { "components": ["systems.person"] }, "focus": { "degrees": 2, "direction": "outgoing", "from": ["booking-agent"] }, "scenario": "patient-books-appointment", "step": 3 }
+Example: { "view": "system-overview", "scenario": "patient-books-appointment", "step": "join-waiting-list", "choices": { "free-slot": "week-full" } }`,
   input: { view: id().describe('The view the address opens.'), ...STATE_PARTS },
   hints: READ,
   run: async (args, program) => {
@@ -206,6 +213,12 @@ export function askedState(
   }
   if (args.scenario !== undefined) asked.scenario = args.scenario;
   if (step !== undefined) asked.step = step;
+  if (args.choices && Object.keys(args.choices).length > 0) {
+    if (args.scenario === undefined) {
+      return { ok: false, message: 'Choices need their scenario: give scenario too.' };
+    }
+    asked.choices = args.choices;
+  }
   const checked = checkViewState(asked);
   if (!checked.ok) return { ok: false, message: checked.message };
   const problems = viewStateProblems(project, checked.state);

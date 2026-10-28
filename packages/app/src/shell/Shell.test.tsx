@@ -108,7 +108,7 @@ describe('Shell', () => {
     const scenarios = within(panel).getByRole('list', { name: 'Scenarios' });
     const scenario = within(scenarios).getByRole('listitem');
     expect(scenario).toHaveTextContent('Patient books an appointment');
-    expect(scenario).toHaveTextContent('5 steps');
+    expect(scenario).toHaveTextContent('6 steps');
   });
 
   it('opens the view chosen in the view list, and the first again once the open one is deleted', () => {

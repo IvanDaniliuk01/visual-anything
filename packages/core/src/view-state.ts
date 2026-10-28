@@ -27,8 +27,11 @@
  *   the selection.
  * - `scenario=<id>&step=<id>`: the scenario open and the step it is on, by the step's id, so that an
  *   address survives steps added before it.
+ * - `choices=<decision>:<alternative>,…`: the alternative chosen at each of that scenario's decisions,
+ *   by their ids, in the order of the decisions' ids, so that the same choices write the same address
+ *   (ADR 0078); a decision it does not name plays its default.
  */
-import type { Id } from '@visual-anything/schema';
+import type { DecisionChoices, Id, ScenarioFile } from '@visual-anything/schema';
 import { ESSENCE, RELATES_TO } from './builtin';
 import { isId } from './ids';
 import {
@@ -45,6 +48,7 @@ import {
   type GuidedFilters,
   type GuidedFocus,
 } from './protocol';
+import { DECISION_CAPS, knownChoices, playedSteps } from './scenarios/blocks';
 import type { ProjectSnapshot } from './snapshot';
 import { definitionsIn, modelIndexOf } from './state';
 import { RANGE_ENDS, checkTimeRange, type ViewTimeRange } from './time-range';
@@ -88,6 +92,11 @@ export interface ViewState {
   scenario?: Id;
   /** The step of the scenario playback is on, by its id; it needs `scenario`. */
   step?: Id;
+  /**
+   * The alternative chosen at each decision of that scenario, by the decision's id (ADR 0078); it
+   * needs `scenario`. A decision it does not name plays its default; absent, every one does.
+   */
+  choices?: DecisionChoices;
 }
 
 /** The parts of a view state, in the order an address writes them. */
@@ -99,7 +108,11 @@ export const VIEW_STATE_KEYS = [
   'focus',
   'scenario',
   'step',
+  'choices',
 ] as const satisfies readonly (keyof ViewState)[];
+
+/** The most alternatives a view state chooses: as many as a scenario has decisions. */
+export const MAX_VIEW_STATE_CHOICES = DECISION_CAPS.blocks;
 
 /** The most ids a view state names in its selection, and in what focus starts from. */
 export const MAX_VIEW_STATE_IDS = MAX_GUIDANCE_TARGETS;
@@ -174,6 +187,7 @@ function parseFragment(fragment: string): ViewState | undefined {
   const focus = parts.get('focus');
   const scenario = parts.get('scenario');
   const step = parts.get('step');
+  const choices = parts.get('choices');
   return checked({
     ...(view === undefined ? {} : { view }),
     ...(camera === undefined ? {} : { camera: parseCamera(camera) }),
@@ -182,6 +196,7 @@ function parseFragment(fragment: string): ViewState | undefined {
     ...(focus === undefined ? {} : { focus: parseFocus(focus) }),
     ...(scenario === undefined ? {} : { scenario }),
     ...(step === undefined ? {} : { step }),
+    ...(choices === undefined ? {} : { choices: parseChoices(choices) }),
   });
 }
 
@@ -290,6 +305,23 @@ function parseCondition(text: string): GuidedCondition {
   return checkCondition({ ...raw, value: raw.value ?? '' });
 }
 
+const CHOICES_FORM = 'Choices are <decision>:<alternative>, separated by commas.';
+
+/** The choices an address writes, as checking takes them as a value, each decision named once. */
+function parseChoices(text: string): Record<string, string> {
+  const choices: Record<string, string> = {};
+  for (const pair of text.split(',')) {
+    const items = pair.split(':');
+    if (items.length !== 2) refuse(CHOICES_FORM);
+    const [decision, alternative] = items as [string, string];
+    if (Object.hasOwn(choices, decision)) {
+      refuse(`The choices name the decision "${shortened(decision)}" twice.`);
+    }
+    choices[decision] = alternative;
+  }
+  return choices;
+}
+
 const FOCUS_FORM = 'Focus is degrees,direction, then isolate or nothing.';
 
 function parseFocus(text: string): ViewFocus {
@@ -344,7 +376,7 @@ function shortened(text: string): string {
  */
 export function writeViewState(state: ViewState): string {
   const parts = [`view=${state.view}`];
-  const { camera, select, filters, focus, scenario, step } = state;
+  const { camera, select, filters, focus, scenario, step, choices } = state;
   if (camera) {
     parts.push(
       `camera=${writeNumber(camera.x)},${writeNumber(camera.y)},${writeNumber(camera.zoom)}`,
@@ -355,6 +387,12 @@ export function writeViewState(state: ViewState): string {
   if (focus) parts.push(`focus=${writeFocus(focus)}`);
   if (scenario !== undefined) parts.push(`scenario=${scenario}`);
   if (step !== undefined) parts.push(`step=${step}`);
+  if (choices) {
+    const pairs = sortedChoices(Object.entries(choices)).map(
+      ([decision, alternative]) => `${decision}:${alternative}`,
+    );
+    parts.push(`choices=${pairs.join(',')}`);
+  }
   return parts.join('&');
 }
 
@@ -442,6 +480,9 @@ function checked(value: Record<string, unknown>): ViewState {
   if (value.step !== undefined && value.scenario === undefined) {
     refuse('A step needs its scenario: scenario=<id>.');
   }
+  if (value.choices !== undefined && value.scenario === undefined) {
+    refuse('Choices need their scenario: scenario=<id>.');
+  }
   const state: ViewState = { view: checkId(value.view) };
   if (value.camera !== undefined) state.camera = checkCamera(value.camera);
   if (value.select !== undefined) {
@@ -454,7 +495,33 @@ function checked(value: Record<string, unknown>): ViewState {
   if (value.focus !== undefined) state.focus = checkFocus(value.focus);
   if (value.scenario !== undefined) state.scenario = checkId(value.scenario);
   if (value.step !== undefined) state.step = checkId(value.step);
+  if (value.choices !== undefined) state.choices = checkChoices(value.choices);
   return state;
+}
+
+const CHOICES_MAP = 'Choices map the id of each decision to the id of an alternative.';
+
+/**
+ * Choices, each the id of a decision to the id of an alternative, at most
+ * {@link MAX_VIEW_STATE_CHOICES}, in the order of their decisions' ids.
+ */
+function checkChoices(value: unknown): DecisionChoices {
+  if (!isRecord(value)) refuse(CHOICES_MAP);
+  const entries = Object.entries(value);
+  if (entries.length === 0) refuse('A view state that chooses nothing leaves choices out.');
+  if (entries.length > MAX_VIEW_STATE_CHOICES) {
+    refuse(`A view state chooses at most ${MAX_VIEW_STATE_CHOICES} alternatives.`);
+  }
+  const checked = entries.map(([decision, alternative]): [Id, Id] => {
+    if (typeof alternative !== 'string') refuse(CHOICES_MAP);
+    return [checkId(decision), checkId(alternative)];
+  });
+  return Object.fromEntries(sortedChoices(checked));
+}
+
+/** Choices in the order of their decisions' ids, by UTF-16 code units, as project files write keys. */
+function sortedChoices(entries: readonly [Id, Id][]): [Id, Id][] {
+  return [...entries].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 function checkId(value: unknown): Id {
@@ -631,7 +698,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * What a view state names that the project does not hold, in words: a view, a selected id that is
  * not an element, a relation or a free shape of the view, focus that starts from something other than
  * elements and relations, a component or relation type no package in use defines, a scenario, one
- * that plays over another view, or a step it does not have. Empty when it names only what is there.
+ * that plays over another view, or a step it does not have; and a decision or an alternative it
+ * chooses that the scenario does not have, or a step the alternatives it chooses do not play (ADR
+ * 0078). Without choices, a step of an alternative not chosen is no problem: going there chooses
+ * what reaches it. Empty when it names only what is there.
  */
 export function viewStateProblems(project: ProjectSnapshot, state: ViewState): string[] {
   const view = project.views.find((each) => each.id === state.view);
@@ -674,10 +744,49 @@ export function viewStateProblems(project: ProjectSnapshot, state: ViewState): s
           `The scenario "${scenario.name}" plays over the view "${over?.name ?? scenario.view}", not "${view.name}".`,
         );
       }
-      if (state.step !== undefined && !scenario.steps.some((step) => step.id === state.step)) {
+      const at =
+        state.step === undefined ? -1 : scenario.steps.findIndex((step) => step.id === state.step);
+      if (state.step !== undefined && at < 0) {
         problems.push(`The scenario "${scenario.name}" has no step "${state.step}".`);
+      }
+      if (state.choices) {
+        problems.push(...choiceProblems(scenario, state.choices).map((each) => each.message));
+        if (at >= 0 && !playedSteps(scenario, knownChoices(scenario, state.choices)).includes(at)) {
+          problems.push(
+            `With the alternatives it chooses, the scenario "${scenario.name}" does not play the step "${state.step ?? ''}".`,
+          );
+        }
       }
     }
   }
   return problems;
+}
+
+/**
+ * What choices name that a scenario does not have, in words, each with the id it names: a decision,
+ * or an alternative of one of its decisions (ADR 0078). Tours' steps say the same of the choices
+ * they play.
+ */
+export function choiceProblems(
+  scenario: Pick<ScenarioFile, 'name' | 'blocks'>,
+  choices: DecisionChoices,
+): { message: string; subject: Id }[] {
+  return Object.entries(choices).flatMap(([decision, alternative]) => {
+    const block = scenario.blocks?.find((each) => each.id === decision);
+    if (!block) {
+      return [
+        {
+          message: `The scenario "${scenario.name}" has no decision "${decision}".`,
+          subject: decision,
+        },
+      ];
+    }
+    if (block.alternatives.some((each) => each.id === alternative)) return [];
+    return [
+      {
+        message: `The decision "${block.question}" has no alternative "${alternative}".`,
+        subject: alternative,
+      },
+    ];
+  });
 }

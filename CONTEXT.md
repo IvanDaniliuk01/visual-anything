@@ -134,7 +134,7 @@ _Avoid_: subset, query, filter (a filter hides shapes of what the scope shows)
 Said of a scenario step whose relations are all out of the scope of the view it plays over, or of relation types that view leaves out. It still plays, saying so, and is not a broken step, whose relation was deleted.
 
 **View state**:
-Where someone is in a project and how they read it there: the open view, where the canvas looks, what is selected, the filters, focus mode, the scenario and step played, and, while it is open, what the physical-space panel shows and where it looks, each named by id. A view address carries one; tour steps and the read-only page reuse it.
+Where someone is in a project and how they read it there: the open view, where the canvas looks, what is selected, the filters, focus mode, the scenario and step played with the alternatives chosen at its decisions (ADR 0078), and, while it is open, what the physical-space panel shows and where it looks, each named by id. A view address carries one; tour steps and the read-only page reuse it.
 _Avoid_: snapshot, bookmark
 
 **Component palette**:

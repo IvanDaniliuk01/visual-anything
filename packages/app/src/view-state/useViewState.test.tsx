@@ -81,6 +81,46 @@ describe('opening an address', () => {
     expect(current).toHaveTextContent(/^3/);
   });
 
+  // ADR 0078: an address opens a step in the alternative it chooses.
+  it('opens the scenario’s step in the alternatives it chooses, and keeps them in the address', async () => {
+    openAt(
+      '#view=system-overview&scenario=patient-books-appointment&step=join-waiting-list&choices=free-slot:week-full',
+    );
+    const alternatives = within(scenarioPanel()).getByRole('list', {
+      name: 'Is a cardiology slot free next week?',
+    });
+    await waitFor(() =>
+      expect(
+        within(alternatives).getByRole('button', { name: 'No, the week is full' }),
+      ).toHaveAttribute('aria-pressed', 'true'),
+    );
+    const current = within(scenarioPanel())
+      .getAllByRole('listitem')
+      .find((item) => item.getAttribute('aria-current') === 'step');
+    expect(current).toHaveTextContent(/^6/);
+    await waitFor(() =>
+      expect(window.location.hash).toBe(
+        '#view=system-overview&scenario=patient-books-appointment&step=join-waiting-list&choices=free-slot:week-full',
+      ),
+    );
+  });
+
+  it('leaves out, and says, a choice of a decision the scenario does not have', async () => {
+    const live = openAt(
+      '#view=system-overview&scenario=patient-books-appointment&step=read-calendar&choices=free-slot:week-full,gone:x',
+    );
+    expect(live.notify).toHaveBeenCalledWith(
+      'warning',
+      'Part of this address could not be shown: The scenario "Patient books an appointment" has no decision "gone".',
+    );
+    // The choices it could play stay, and the address keeps those alone.
+    await waitFor(() =>
+      expect(window.location.hash).toBe(
+        '#view=system-overview&scenario=patient-books-appointment&step=read-calendar&choices=free-slot:week-full',
+      ),
+    );
+  });
+
   it('says what it cannot read, and opens the project as it is', () => {
     const live = openAt('#view=system-overview&zoom=3');
     expect(openViewName()).toHaveTextContent('Ownership');
@@ -139,6 +179,25 @@ describe('the address', () => {
       `${window.location.origin}/#view=system-overview&select=patient`,
     );
     expect(await screen.findByText('Address copied.')).toBeInTheDocument();
+  });
+
+  it('is copied with the alternatives the tab chose at the scenario’s decisions', async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText },
+      configurable: true,
+    });
+    openAt('#view=system-overview&scenario=patient-books-appointment');
+    const alternatives = within(scenarioPanel()).getByRole('list', {
+      name: 'Is a cardiology slot free next week?',
+    });
+    fireEvent.click(within(alternatives).getByRole('button', { name: 'No, the week is full' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Copy address' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalled());
+    // Playback stays on its first step, which plays whichever way the decision goes.
+    expect(writeText).toHaveBeenCalledWith(
+      `${window.location.origin}/#view=system-overview&scenario=patient-books-appointment&choices=free-slot:week-full`,
+    );
   });
 
   it('is shown in a notice when the browser will not copy it', async () => {

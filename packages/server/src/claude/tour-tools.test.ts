@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { filesIn } from '../test-support';
+import type { ProjectSnapshot } from '@visual-anything/core';
+import { filesIn, testProject } from '../test-support';
 import { startToolHarness, type ToolHarness } from './tool-harness';
 
 let tools: ToolHarness;
@@ -324,6 +325,105 @@ describe('add_tour_step, update_tour_step and remove_tour_step', () => {
         title: 'X',
       }),
     ).toBe('There is no tour "gone". get_project lists the tours.');
+  });
+});
+
+describe('a step that plays a given alternative (ADR 0078)', () => {
+  /** The test project whose scenario decides whether the API reads the DB or answers from memory. */
+  function deciding(): ProjectSnapshot {
+    const project = testProject();
+    const [request] = project.scenarios;
+    if (!request) throw new Error('The test project has no scenario.');
+    return {
+      ...project,
+      scenarios: [
+        {
+          ...request,
+          steps: [
+            ...request.steps,
+            {
+              id: 'remember',
+              description: 'The API answers from memory.',
+              relations: ['customer-calls-api'],
+            },
+          ],
+          blocks: [
+            {
+              id: 'cached',
+              kind: 'decision',
+              question: 'Is it cached?',
+              alternatives: [
+                { id: 'not-cached', label: 'No', steps: ['read'] },
+                { id: 'is-cached', label: 'Yes', steps: ['remember'] },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  beforeEach(async () => {
+    await tools.close();
+    tools = await startToolHarness(deciding());
+  });
+
+  it('add_tour_step and update_tour_step take choices in play, as the file keeps them', async () => {
+    const tour = await walk();
+    await tools.value('add_tour_step', {
+      tour,
+      viewState: {
+        view: 'overview',
+        scenario: 'request',
+        step: 'remember',
+        choices: { cached: 'is-cached' },
+      },
+      title: 'From memory',
+      play: { scenario: 'request', from: 1, to: 'remember', choices: { cached: 'is-cached' } },
+    });
+    expect(tourNamed('Checkout')?.steps[2]).toMatchObject({
+      viewState: {
+        view: 'overview',
+        scenario: 'request',
+        step: 'remember',
+        choices: { cached: 'is-cached' },
+      },
+      play: { scenario: 'request', from: 'call', to: 'remember', choices: { cached: 'is-cached' } },
+    });
+    await tools.value('update_tour_step', {
+      tour,
+      step: 3,
+      play: { scenario: 'request', choices: { cached: 'not-cached' } },
+    });
+    expect(tourNamed('Checkout')?.steps[2]?.play).toEqual({
+      scenario: 'request',
+      choices: { cached: 'not-cached' },
+    });
+  });
+
+  it('refuse choices the scenario does not have, and a range they do not play, saying what would', async () => {
+    const tour = await walk();
+    expect(
+      await tools.failure('add_tour_step', {
+        tour,
+        viewState: { view: 'overview' },
+        title: 'X',
+        play: { scenario: 'request', choices: { cached: 'maybe' } },
+      }),
+    ).toBe(
+      'Not added: The decision "Is it cached?" has no alternative "maybe": its alternatives are "not-cached" (No) and "is-cached" (Yes).',
+    );
+    expect(
+      await tools.failure('add_tour_step', {
+        tour,
+        viewState: { view: 'overview' },
+        title: 'X',
+        play: { scenario: 'request', from: 'remember' },
+      }),
+    ).toBe(
+      'Not added: With every decision playing its default, the scenario "A request" does not play the step "remember". Give choices {"cached":"is-cached"}, which play it.',
+    );
+    expect(tourNamed('Checkout')?.steps).toHaveLength(2);
   });
 });
 

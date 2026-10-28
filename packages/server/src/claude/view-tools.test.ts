@@ -1,5 +1,6 @@
 import { readViewState } from '@visual-anything/core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { testProject } from '../test-support';
 import type { Program } from './bridge';
 import { startToolHarness, type ToolHarness } from './tool-harness';
 import { TOOLS, runTool } from './tools';
@@ -67,6 +68,58 @@ describe('get_view_address', () => {
       },
     });
     expect(result.address).not.toMatch(/token|launch/);
+  });
+
+  // ADR 0078: an address opens "step 6, in the alternative No".
+  it('holds the alternatives chosen at the scenario’s decisions, and refuses what it does not have', async () => {
+    await tools.close();
+    const project = testProject();
+    const [request] = project.scenarios;
+    tools = await startToolHarness({
+      ...project,
+      scenarios: [
+        {
+          ...request!,
+          steps: [
+            ...request!.steps,
+            { id: 'remember', description: 'From memory.', relations: ['customer-calls-api'] },
+          ],
+          blocks: [
+            {
+              id: 'cached',
+              kind: 'decision',
+              question: 'Is it cached?',
+              alternatives: [
+                { id: 'not-cached', label: 'No', steps: ['read'] },
+                { id: 'is-cached', label: 'Yes', steps: ['remember'] },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const result = await tools.value('get_view_address', {
+      view: 'overview',
+      scenario: 'request',
+      step: 3,
+      choices: { cached: 'is-cached' },
+    });
+    expect(result.fragment).toBe(
+      '#view=overview&scenario=request&step=remember&choices=cached:is-cached',
+    );
+    expect(
+      await tools.failure('get_view_address', {
+        view: 'overview',
+        scenario: 'request',
+        choices: { gone: 'x' },
+      }),
+    ).toBe('The scenario "A request" has no decision "gone". Use the ids the read tools give.');
+    expect(
+      await tools.failure('get_view_address', {
+        view: 'overview',
+        choices: { cached: 'is-cached' },
+      }),
+    ).toBe('Choices need their scenario: give scenario too.');
   });
 
   it('answers the fragment alone when the program’s address is not known', async () => {

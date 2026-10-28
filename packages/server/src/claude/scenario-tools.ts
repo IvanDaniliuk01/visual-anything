@@ -517,7 +517,7 @@ const goToStep = tool({
 
 Example: { "scenario": "patient-books-appointment", "step": 3 }
 Example: { "scenario": "patient-books-appointment", "step": "hold-slot" }
-Example: { "scenario": "patient-books-appointment", "step": 5, "choices": { "free-slot": "week-full" } }`,
+Example: { "scenario": "patient-books-appointment", "step": 6, "choices": { "free-slot": "week-full" } }`,
   input: {
     scenario: playedScenario(),
     step: z

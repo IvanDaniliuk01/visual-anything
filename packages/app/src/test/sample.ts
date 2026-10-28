@@ -53,3 +53,40 @@ export function loadSample(name = 'my-systems'): ProjectSnapshot {
     comments: readAll<CommentFile>(folder, 'comments', '.vacomment'),
   };
 }
+
+/**
+ * A project whose scenarios hold no decisions (ADR 0078): each keeps, in order, the steps that play
+ * by default, and the tours' steps that play what is left out are left out too. The sample's scenario
+ * is then the one it held before it decided, for the tests of scenarios without decisions.
+ */
+export function withoutDecisions(project: ProjectSnapshot = loadSample()): ProjectSnapshot {
+  const gone = new Set<string>();
+  const scenarios = project.scenarios.map((scenario): ScenarioFile => {
+    if (scenario.blocks === undefined) return scenario;
+    for (const block of scenario.blocks) {
+      const kept =
+        block.alternatives.find((each) => each.id === block.default) ?? block.alternatives[0];
+      for (const alternative of block.alternatives) {
+        if (alternative !== kept) for (const step of alternative.steps) gone.add(step);
+      }
+    }
+    const linear: ScenarioFile = {
+      ...scenario,
+      steps: scenario.steps.filter((step) => !gone.has(step.id)),
+    };
+    delete linear.blocks;
+    return linear;
+  });
+  const names = (step: TourFile['steps'][number]) =>
+    [step.viewState.step, step.play?.from, step.play?.to].some(
+      (id) => id !== undefined && gone.has(id),
+    ) || step.play?.choices !== undefined;
+  return {
+    ...project,
+    scenarios,
+    tours: project.tours.map((tour) => ({
+      ...tour,
+      steps: tour.steps.filter((step) => !names(step)),
+    })),
+  };
+}

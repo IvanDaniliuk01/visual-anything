@@ -111,6 +111,44 @@ describe('checkTour', () => {
     expect(kinds(checks)).toEqual([['long-range']]);
   });
 
+  it('counts in a range only the steps its choices play', () => {
+    const state = testProject();
+    const scenario = state.scenarios[0];
+    if (!scenario) throw new Error('The test project has no scenario.');
+    const steps = Array.from({ length: 2 * LONG_TOUR_RANGE }, (_, at) => ({
+      ...(scenario.steps[0] as (typeof scenario.steps)[number]),
+      id: `s${at}`,
+    }));
+    const ids = steps.map((each) => each.id);
+    // Two alternatives of ten steps each: whichever plays, the range plays ten.
+    const deciding = {
+      ...scenario,
+      steps,
+      blocks: [
+        {
+          id: 'which',
+          kind: 'decision' as const,
+          question: 'Which?',
+          alternatives: [
+            { id: 'first', label: 'First', steps: ids.slice(0, LONG_TOUR_RANGE) },
+            { id: 'second', label: 'Second', steps: ids.slice(LONG_TOUR_RANGE) },
+          ],
+        },
+      ],
+    };
+    const checks = checkTour(
+      { ...state, scenarios: [deciding] },
+      tour(
+        step('one', { play: { scenario: deciding.id } }),
+        step('two', {
+          viewState: { view: 'overview', select: ['api'] },
+          play: { scenario: deciding.id, choices: { which: 'second' } },
+        }),
+      ),
+    );
+    expect(kinds(checks)).toEqual([[], []]);
+  });
+
   it('flags a step that names what is gone, before the rest', () => {
     const checks = checkTour(testProject(), tour(step('gone', { marks: ['gone'] })));
     expect(checks[0]?.warnings.map((each) => [each.kind, each.subjects])).toEqual([
