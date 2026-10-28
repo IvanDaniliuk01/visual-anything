@@ -5,6 +5,7 @@
  * exactly as it was may still name what was deleted since, and stays, flagged, until it is fixed.
  */
 import type {
+  DecisionChoices,
   Id,
   TourAdvance,
   TourCaption,
@@ -29,6 +30,7 @@ import {
   tourStepProblems,
   tourTextLength,
 } from '../tours/steps';
+import { MAX_VIEW_STATE_CHOICES } from '../view-state';
 import {
   Rejection,
   compact,
@@ -396,9 +398,12 @@ function checkedPlay(value: unknown, where: string): TourPlayback | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     reject('invalid-command', `${where} plays a scenario: an object with its id.`);
   }
-  const { scenario, from, to, ...rest } = value as Record<string, unknown>;
+  const { scenario, from, to, choices, ...rest } = value as Record<string, unknown>;
   if (Object.keys(rest).length > 0) {
-    reject('invalid-command', 'A step plays a scenario, from a step to a step, nothing else.');
+    reject(
+      'invalid-command',
+      'A step plays a scenario, from a step to a step, with the alternatives it chooses, nothing else.',
+    );
   }
   for (const id of [scenario, from, to]) {
     if (id !== undefined && !isId(id)) {
@@ -411,5 +416,32 @@ function checkedPlay(value: unknown, where: string): TourPlayback | undefined {
     scenario: scenario as Id,
     from: from as Id | undefined,
     to: to as Id | undefined,
+    choices: checkedChoices(choices, where),
   });
+}
+
+/**
+ * The alternatives a step plays at its scenario's decisions (ADR 0078): a map from the id of each
+ * decision to the id of an alternative, at most {@link MAX_VIEW_STATE_CHOICES}, kept in the order of
+ * the decisions' ids, as its file writes them; left out when it chooses none.
+ */
+function checkedChoices(value: unknown, where: string): DecisionChoices | undefined {
+  if (value === undefined) return undefined;
+  const entries =
+    typeof value === 'object' && value !== null && !Array.isArray(value)
+      ? Object.entries(value)
+      : undefined;
+  if (!entries || !entries.every(([decision, alternative]) => isId(decision) && isId(alternative))) {
+    reject(
+      'invalid-command',
+      `${where} chooses alternatives as a map from the id of each decision to the id of an alternative.`,
+    );
+  }
+  if (entries.length === 0) return undefined;
+  if (entries.length > MAX_VIEW_STATE_CHOICES) {
+    reject('invalid-command', `A step chooses at most ${MAX_VIEW_STATE_CHOICES} alternatives.`);
+  }
+  return Object.fromEntries(
+    (entries as [Id, Id][]).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+  );
 }

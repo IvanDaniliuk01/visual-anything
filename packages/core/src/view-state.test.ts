@@ -12,6 +12,7 @@ import {
 import { RANGE_KINDS } from './time-range';
 import type { ProjectSnapshot } from './snapshot';
 import {
+  MAX_VIEW_STATE_CHOICES,
   MAX_VIEW_STATE_IDS,
   checkViewState,
   readViewState,
@@ -64,6 +65,7 @@ const FULL: ViewState = {
   focus: { degrees: 2, direction: 'outgoing', isolate: true, from: ['booking-api'] },
   scenario: 'patient-books-appointment',
   step: 'hold-slot',
+  choices: { 'free-slot': 'week-full', 'in-stock': 'yes' },
 };
 
 describe('writeViewState', () => {
@@ -77,8 +79,19 @@ describe('writeViewState', () => {
         'focus=2,outgoing,isolate;from:booking-api',
         'scenario=patient-books-appointment',
         'step=hold-slot',
+        'choices=free-slot:week-full,in-stock:yes',
       ].join('&'),
     );
+  });
+
+  it('writes the choices by their decisions’ ids, so that the same choices write the same address', () => {
+    const state: ViewState = {
+      view: 'v',
+      scenario: 's',
+      choices: { zeta: 'z1', alpha: 'a2', 'Mid.x': 'm' },
+    };
+    expect(writeViewState(state)).toBe('view=v&scenario=s&choices=Mid.x:m,alpha:a2,zeta:z1');
+    expect(read(writeViewState(state))).toEqual(state);
   });
 
   it('writes only the view when that is all the state holds', () => {
@@ -205,6 +218,18 @@ describe('readViewState', () => {
     ],
     ['view=v&focus=2,both,hide', 'Focus is degrees,direction, then isolate or nothing.'],
     ['view=v&focus=2,both;to:a', 'Focus starts from:<ids>, not "to".'],
+    ['view=v&choices=d:a', 'Choices need their scenario: scenario=<id>.'],
+    [
+      'view=v&scenario=s&choices=d',
+      'Choices are <decision>:<alternative>, separated by commas.',
+    ],
+    [
+      'view=v&scenario=s&choices=d:a:b',
+      'Choices are <decision>:<alternative>, separated by commas.',
+    ],
+    ['view=v&scenario=s&choices=d:', '"" is not an id.'],
+    ['view=v&scenario=s&choices=:a', '"" is not an id.'],
+    ['view=v&scenario=s&choices=d:a,d:b', 'The choices name the decision "d" twice.'],
     ['view=v%zz', 'The address is not well formed.'],
   ])('refuses %s', (fragment, message) => {
     expect(read(fragment)).toBe(message);
@@ -214,6 +239,13 @@ describe('readViewState', () => {
     const ids = Array.from({ length: MAX_VIEW_STATE_IDS + 1 }, (_, n) => `e${n}`);
     expect(read(`view=v&select=${ids.join(',')}`)).toBe(
       `A view state names at most ${MAX_VIEW_STATE_IDS} ids in select.`,
+    );
+  });
+
+  it('refuses more choices than a scenario has decisions', () => {
+    const choices = Array.from({ length: MAX_VIEW_STATE_CHOICES + 1 }, (_, n) => `d${n}:a`);
+    expect(read(`view=v&scenario=s&choices=${choices.join(',')}`)).toBe(
+      `A view state chooses at most ${MAX_VIEW_STATE_CHOICES} alternatives.`,
     );
   });
 
@@ -328,13 +360,23 @@ const viewState: fc.Arbitrary<ViewState> = fc
       focus,
       scenario: anId,
       step: anId,
+      choices: someIds(4).chain((decisions) =>
+        fc
+          .array(anId, { minLength: decisions.length, maxLength: decisions.length })
+          .map((alternatives) =>
+            Object.fromEntries(
+              decisions.map((decision, at): [Id, Id] => [decision, alternatives[at] as Id]),
+            ),
+          ),
+      ),
     },
     { requiredKeys: ['view'] },
   )
   .map((state) => {
-    if (state.scenario !== undefined || state.step === undefined) return state;
+    if (state.scenario !== undefined) return state;
     const rest = { ...state };
     delete rest.step;
+    delete rest.choices;
     return rest;
   });
 
@@ -395,6 +437,20 @@ describe('checkViewState', () => {
       'Focus that starts from the selection leaves from out.',
     ],
     [{ view: 'v', step: 's' }, 'A step needs its scenario: scenario=<id>.'],
+    [{ view: 'v', choices: { d: 'a' } }, 'Choices need their scenario: scenario=<id>.'],
+    [
+      { view: 'v', scenario: 's', choices: {} },
+      'A view state that chooses nothing leaves choices out.',
+    ],
+    [
+      { view: 'v', scenario: 's', choices: ['d', 'a'] },
+      'Choices map the id of each decision to the id of an alternative.',
+    ],
+    [
+      { view: 'v', scenario: 's', choices: { d: 5 } },
+      'Choices map the id of each decision to the id of an alternative.',
+    ],
+    [{ view: 'v', scenario: 's', choices: { 'not an id': 'a' } }, '"not an id" is not an id.'],
   ])('refuses %j', (value, message) => {
     expect(checkViewState(value)).toEqual({ ok: false, message });
   });
@@ -458,6 +514,27 @@ const project: ProjectSnapshot = {
       view: 'overview',
       steps: [{ id: 'write', description: 'Writes', relations: ['api-db'] }],
     },
+    {
+      id: 'retry',
+      name: 'Retry',
+      view: 'overview',
+      steps: [
+        { id: 'try', description: 'Tries', relations: ['api-db'] },
+        { id: 'done', description: 'Done', relations: ['api-db'] },
+        { id: 'again', description: 'Again', relations: ['api-db'] },
+      ],
+      blocks: [
+        {
+          id: 'saved',
+          kind: 'decision',
+          question: 'Did it save?',
+          alternatives: [
+            { id: 'saved-yes', label: 'Yes', steps: ['done'] },
+            { id: 'saved-no', label: 'No', steps: ['again'] },
+          ],
+        },
+      ],
+    },
   ],
   tours: [],
   comments: [],
@@ -501,6 +578,50 @@ describe('viewStateProblems', () => {
     ]);
     expect(viewStateProblems(project, { view: 'gone' })).toEqual([
       'The project has no view "gone".',
+    ]);
+  });
+
+  it('finds nothing wrong with choices of the scenario’s decisions that play its step', () => {
+    expect(
+      viewStateProblems(project, {
+        view: 'overview',
+        scenario: 'retry',
+        step: 'again',
+        choices: { saved: 'saved-no' },
+      }),
+    ).toEqual([]);
+    // Without choices, going to a step chooses what reaches it, as it always did.
+    expect(viewStateProblems(project, { view: 'overview', scenario: 'retry', step: 'again' })).toEqual(
+      [],
+    );
+  });
+
+  it('says which choices name a decision or an alternative the scenario does not have', () => {
+    expect(
+      viewStateProblems(project, {
+        view: 'overview',
+        scenario: 'retry',
+        choices: { saved: 'saved-maybe', gone: 'x' },
+      }),
+    ).toEqual([
+      'The decision "Did it save?" has no alternative "saved-maybe".',
+      'The scenario "Retry" has no decision "gone".',
+    ]);
+    expect(
+      viewStateProblems(project, { view: 'overview', scenario: 'save', choices: { saved: 'saved-no' } }),
+    ).toEqual(['The scenario "Save" has no decision "saved".']);
+  });
+
+  it('says when the step is one the alternatives chosen do not play', () => {
+    expect(
+      viewStateProblems(project, {
+        view: 'overview',
+        scenario: 'retry',
+        step: 'again',
+        choices: { saved: 'saved-yes' },
+      }),
+    ).toEqual([
+      'With the alternatives it chooses, the scenario "Retry" does not play the step "again".',
     ]);
   });
 });

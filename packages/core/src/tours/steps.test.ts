@@ -3,12 +3,15 @@ import type { SavedViewState, TourStep } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { checkViewState } from '../view-state';
 import { testProject } from '../test/fixtures';
+import { playedSteps } from '../scenarios/blocks';
+import { choicesFrom, tree, written } from '../scenarios/test/trees';
 import type { ProjectSnapshot } from '../snapshot';
 import {
   checkSavedViewState,
   idsNamedByTours,
   isBrokenTourStep,
   playableStep,
+  playedRangeOf,
   savedViewStateOf,
   tourStepProblems,
   tourTextLength,
@@ -36,6 +39,42 @@ function project(): ProjectSnapshot {
 
 function step(parts: Partial<TourStep> = {}): TourStep {
   return { id: 's', viewState: { view: 'overview' }, caption: { title: 'Here' }, ...parts };
+}
+
+/**
+ * The project with a scenario that decides (ADR 0078): after the call, the API reads the DB when it
+ * misses its cache, or answers at once when it hits it.
+ */
+function deciding(): ProjectSnapshot {
+  const state = project();
+  return {
+    ...state,
+    scenarios: [
+      ...state.scenarios,
+      {
+        id: 'cached',
+        name: 'Cached',
+        view: 'overview',
+        steps: [
+          { id: 'ask', description: 'The client calls the API.', relations: ['client-calls-api'] },
+          { id: 'miss', description: 'The API reads the DB.', relations: ['api-reads-db'] },
+          { id: 'hit', description: 'The API answers at once.', relations: ['client-calls-api'] },
+          { id: 'thanks', description: 'The client says thanks.', relations: ['client-calls-api'] },
+        ],
+        blocks: [
+          {
+            id: 'in-cache',
+            kind: 'decision',
+            question: 'Is it in the cache?',
+            alternatives: [
+              { id: 'missed', label: 'No', steps: ['miss'] },
+              { id: 'found', label: 'Yes', steps: ['hit'] },
+            ],
+          },
+        ],
+      },
+    ],
+  };
 }
 
 const FULL: SavedViewState = {
@@ -130,6 +169,22 @@ describe('the view state a step keeps', () => {
     ).toEqual({
       ok: false,
       message: 'A time range reads its values as one of: number, date, time.',
+    });
+  });
+
+  it('keeps the alternatives chosen at its scenario’s decisions, as an address does', () => {
+    const saved: SavedViewState = {
+      view: 'overview',
+      scenario: 'cached',
+      step: 'hit',
+      choices: { 'in-cache': 'found' },
+    };
+    expect(viewStateOfStep(saved)).toEqual(saved);
+    expect(savedViewStateOf(viewStateOfStep(saved))).toEqual(saved);
+    expect(checkSavedViewState(saved)).toEqual({ ok: true, state: saved });
+    expect(checkSavedViewState({ ...saved, choices: {} })).toEqual({
+      ok: false,
+      message: 'A view state that chooses nothing leaves choices out.',
     });
   });
 
@@ -278,6 +333,69 @@ describe('what a step names that the project no longer holds', () => {
     ]);
   });
 
+  it('says which choices name a decision or an alternative the scenario no longer has', () => {
+    expect(
+      tourStepProblems(
+        deciding(),
+        step({
+          viewState: { view: 'overview', scenario: 'cached', choices: { gone: 'x' } },
+          play: { scenario: 'cached', choices: { 'in-cache': 'maybe' } },
+        }),
+      ),
+    ).toEqual([
+      {
+        code: 'unknown-scenario',
+        message: 'The scenario "Cached" has no decision "gone".',
+        subject: 'gone',
+      },
+      {
+        code: 'unknown-scenario',
+        message: 'The decision "Is it in the cache?" has no alternative "maybe".',
+        subject: 'maybe',
+      },
+    ]);
+  });
+
+  it('says when it plays from or to a step its choices do not play', () => {
+    const state = deciding();
+    // Without choices, every decision plays its default, its first alternative here.
+    expect(
+      tourStepProblems(state, step({ play: { scenario: 'cached', from: 'hit', to: 'thanks' } })),
+    ).toEqual([
+      {
+        code: 'invalid-command',
+        message:
+          'With the alternatives it chooses, the scenario "Cached" does not play the step "hit".',
+        subject: 'hit',
+      },
+    ]);
+    expect(
+      tourStepProblems(
+        state,
+        step({
+          play: { scenario: 'cached', from: 'hit', to: 'thanks', choices: { 'in-cache': 'found' } },
+        }),
+      ),
+    ).toEqual([]);
+    // A view state's step is checked against its choices only when it has some, as an address's.
+    expect(
+      tourStepProblems(state, step({ viewState: { view: 'overview', scenario: 'cached', step: 'hit' } })),
+    ).toEqual([]);
+    expect(
+      tourStepProblems(
+        state,
+        step({
+          viewState: {
+            view: 'overview',
+            scenario: 'cached',
+            step: 'hit',
+            choices: { 'in-cache': 'missed' },
+          },
+        }),
+      ).map((each) => [each.code, each.subject]),
+    ).toEqual([['invalid-command', 'hit']]);
+  });
+
   it('flags a step whose element was deleted, and only such a step', () => {
     const state = project();
     const kept = step({ marks: ['api'] });
@@ -377,6 +495,97 @@ describe('how a step plays', () => {
       dimRest: true,
       advance: 900,
     });
+  });
+
+  it('plays the alternatives it chooses, and its view state keeps its own', () => {
+    const played = playableStep(
+      deciding(),
+      step({
+        viewState: {
+          view: 'overview',
+          scenario: 'cached',
+          step: 'hit',
+          choices: { 'in-cache': 'found' },
+        },
+        play: { scenario: 'cached', from: 'hit', choices: { 'in-cache': 'found' } },
+      }),
+    );
+    expect(played).toEqual({
+      viewState: {
+        view: 'overview',
+        scenario: 'cached',
+        step: 'hit',
+        choices: { 'in-cache': 'found' },
+      },
+      marks: [],
+      play: { scenario: 'cached', from: 2, to: 3, choices: { 'in-cache': 'found' } },
+    });
+  });
+
+  it('plays without the choices the scenario no longer has, from the first step that plays', () => {
+    const state = deciding();
+    const [cached] = state.scenarios.slice(-1);
+    // The decision now starts the scenario, so its first step plays only in one alternative.
+    const first = {
+      ...cached!,
+      steps: cached!.steps.slice(1),
+    };
+    const played = playableStep(
+      { ...state, scenarios: [first] },
+      step({
+        viewState: { view: 'overview', scenario: 'cached', choices: { gone: 'x' } },
+        play: { scenario: 'cached', choices: { gone: 'x', 'in-cache': 'found' } },
+      }),
+    );
+    expect(played).toEqual({
+      viewState: { view: 'overview', scenario: 'cached' },
+      marks: [],
+      play: { scenario: 'cached', from: 1, to: 2, choices: { 'in-cache': 'found' } },
+    });
+  });
+
+  it('plays a range its choices do not reach with the choices that reach it, as going there does', () => {
+    expect(
+      playableStep(deciding(), step({ play: { scenario: 'cached', from: 'hit' } }))?.play,
+    ).toEqual({ scenario: 'cached', from: 2, to: 3, choices: { 'in-cache': 'found' } });
+  });
+
+  it('plays from and to steps that its choices play, whatever the scenario decides', () => {
+    fc.assert(
+      fc.property(
+        tree,
+        fc.array(fc.nat({ max: 3 }), { maxLength: 40 }),
+        fc.nat(),
+        fc.nat(),
+        (segments, picks, first, last) => {
+          const { scenario } = written(segments);
+          const ids = scenario.steps.map((each) => each.id);
+          const from = ids[first % ids.length];
+          const to = ids[last % ids.length];
+          const range = playedRangeOf(scenario, {
+            scenario: scenario.id,
+            from,
+            to,
+            choices: choicesFrom(scenario, picks),
+          });
+          const played = playedSteps(scenario, range.choices);
+          // The step it starts on always plays with the choices it plays: every step can be reached.
+          const start = ids.indexOf(from as string);
+          expect(played).toContain(start);
+          expect([range.from, range.to]).toContain(start);
+          // A tour step that names those steps and choices is no problem, when they play together.
+          const stored = { ...scenario, view: 'overview' };
+          const problems = tourStepProblems(
+            { ...project(), scenarios: [stored] },
+            step({ play: { scenario: scenario.id, from, to, ...(range.choices ? { choices: range.choices } : {}) } }),
+          );
+          const together = played.includes(ids.indexOf(to as string));
+          const backwards = start > ids.indexOf(to as string);
+          if (together && !backwards) expect(problems).toEqual([]);
+        },
+      ),
+      { numRuns: 200 },
+    );
   });
 
   it('has nothing to show when its view is gone', () => {

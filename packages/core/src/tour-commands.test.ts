@@ -390,6 +390,158 @@ describe('create-tour', () => {
   });
 });
 
+/** The test project whose scenario decides whether the API reads the DB (ADR 0078). */
+function deciding(): ProjectSnapshot {
+  const state = testProject();
+  const [request] = state.scenarios;
+  if (!request) throw new Error('The test project has no scenario.');
+  return {
+    ...state,
+    scenarios: [
+      {
+        ...request,
+        steps: [
+          ...request.steps,
+          { id: 'skip', description: 'The API answers from memory.', relations: ['client-calls-api'] },
+        ],
+        blocks: [
+          {
+            id: 'cached',
+            kind: 'decision',
+            question: 'Is it cached?',
+            alternatives: [
+              { id: 'no', label: 'No', steps: ['read'] },
+              { id: 'yes', label: 'Yes', steps: ['skip'] },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe('a step that plays a given alternative', () => {
+  const playing = (play: unknown): Command =>
+    ({
+      type: 'create-tour',
+      tour: { name: 'T', steps: [{ ...START, play }] },
+    }) as Command;
+
+  it('keeps its choices, in the order of their decisions’ ids, and leaves out none at all', () => {
+    const made = done(
+      deciding(),
+      playing({ scenario: 'request', from: 'skip', choices: { cached: 'yes' } }),
+    );
+    expect(made.state.tours[0]?.steps[0]?.play).toEqual({
+      scenario: 'request',
+      from: 'skip',
+      choices: { cached: 'yes' },
+    });
+    const none = done(deciding(), playing({ scenario: 'request', choices: {} }));
+    expect(none.state.tours[0]?.steps[0]?.play).toEqual({ scenario: 'request' });
+    const many = {
+      ...deciding(),
+      scenarios: deciding().scenarios.map((scenario) => ({
+        ...scenario,
+        blocks: [
+          ...(scenario.blocks ?? []),
+          {
+            id: 'asked',
+            kind: 'decision' as const,
+            question: 'Asked?',
+            alternatives: [
+              { id: 'asked-yes', label: 'Yes', steps: ['call'] },
+              { id: 'asked-no', label: 'No', steps: [] },
+            ],
+          },
+        ],
+      })),
+    };
+    const sorted = done(
+      many,
+      playing({ scenario: 'request', choices: { cached: 'no', asked: 'asked-yes' } }),
+    );
+    expect(Object.keys(sorted.state.tours[0]?.steps[0]?.play?.choices ?? {})).toEqual([
+      'asked',
+      'cached',
+    ]);
+  });
+
+  it.each<[string, unknown, string, string]>([
+    [
+      'choices that are not a map',
+      { scenario: 'request', choices: ['cached', 'yes'] },
+      'invalid-command',
+      'Step 1 of the tour chooses alternatives as a map from the id of each decision to the id of an alternative.',
+    ],
+    [
+      'a choice that is not an id',
+      { scenario: 'request', choices: { cached: 5 } },
+      'invalid-command',
+      'Step 1 of the tour chooses alternatives as a map from the id of each decision to the id of an alternative.',
+    ],
+    [
+      'more choices than a scenario has decisions',
+      {
+        scenario: 'request',
+        choices: Object.fromEntries(Array.from({ length: 65 }, (_, at) => [`d${at}`, 'a'])),
+      },
+      'invalid-command',
+      'A step chooses at most 64 alternatives.',
+    ],
+    [
+      'a decision the scenario does not have',
+      { scenario: 'request', choices: { gone: 'yes' } },
+      'unknown-scenario',
+      'Step 1 of the tour: The scenario "A request" has no decision "gone".',
+    ],
+    [
+      'an alternative the decision does not have',
+      { scenario: 'request', choices: { cached: 'maybe' } },
+      'unknown-scenario',
+      'Step 1 of the tour: The decision "Is it cached?" has no alternative "maybe".',
+    ],
+    [
+      'a range its choices do not play',
+      { scenario: 'request', from: 'skip' },
+      'invalid-command',
+      'Step 1 of the tour: With the alternatives it chooses, the scenario "A request" does not play the step "skip".',
+    ],
+    [
+      'more than a scenario, its range and its choices',
+      { scenario: 'request', speed: 2 },
+      'invalid-command',
+      'A step plays a scenario, from a step to a step, with the alternatives it chooses, nothing else.',
+    ],
+  ])('refuses %s', (_, play, code, message) => {
+    expect(refusal(deciding(), playing(play))).toEqual({ code, message });
+  });
+
+  it('keeps a step whose alternative was taken away since, flagged', () => {
+    const { state } = done(
+      deciding(),
+      playing({ scenario: 'request', from: 'skip', choices: { cached: 'yes' } }),
+    );
+    const without = {
+      ...state,
+      scenarios: state.scenarios.map((scenario) => {
+        const rest = { ...scenario };
+        delete rest.blocks;
+        return rest;
+      }),
+    };
+    const [tour] = without.tours;
+    expect(isBrokenTourStep(without, tour!.steps[0]!)).toBe(true);
+    // Given back as the tour keeps it, it stays.
+    const kept = done(without, {
+      type: 'update-tour',
+      id: tour!.id,
+      changes: { steps: tour!.steps, name: 'Renamed' },
+    });
+    expect(kept.state.tours[0]?.steps).toEqual(tour!.steps);
+  });
+});
+
 describe('update-tour', () => {
   it('names each change to the steps by what it does, and undoes it exactly', () => {
     const { state, tour } = withTour();

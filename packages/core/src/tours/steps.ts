@@ -5,19 +5,22 @@
  * is pure: playing a tour never changes the project.
  */
 import type {
+  DecisionChoices,
   Id,
   SavedCondition,
   SavedFilters,
   SavedFocus,
   SavedViewState,
+  ScenarioFile,
   TourFile,
   TourStep,
 } from '@visual-anything/schema';
 import { ESSENCE_ID, RELATES_TO_ID } from '@visual-anything/schema';
 import type { ProblemCode } from '../problems';
+import { choicesToReach, knownChoices, playedSteps } from '../scenarios/blocks';
 import type { ProjectSnapshot } from '../snapshot';
 import { definitionsIn, modelIndexOf } from '../state';
-import { checkViewState, type ViewState } from '../view-state';
+import { checkViewState, choiceProblems, type ViewState } from '../view-state';
 import { advanceAfter } from './timing';
 
 /** The most steps a tour holds. */
@@ -89,6 +92,7 @@ export function viewStateOfStep(saved: SavedViewState): ViewState {
   }
   if (saved.scenario !== undefined) state.scenario = saved.scenario;
   if (saved.step !== undefined) state.step = saved.step;
+  if (saved.choices !== undefined) state.choices = { ...saved.choices };
   return state;
 }
 
@@ -126,6 +130,8 @@ export function savedViewStateOf(state: ViewState): SavedViewState {
   }
   if (state.scenario !== undefined) saved.scenario = state.scenario;
   if (state.step !== undefined) saved.step = state.step;
+  // Written only when there are some (ADR 0078): a view state without choices plays every default.
+  if (state.choices && Object.keys(state.choices).length > 0) saved.choices = { ...state.choices };
   return saved;
 }
 
@@ -267,9 +273,19 @@ export function tourStepProblems(project: ProjectSnapshot, step: TourStep): Tour
     problems.push(
       ...scenarioProblems(project, viewState.view, viewState.scenario, [viewState.step]),
     );
+    // A view state's step meets its choices only when it has some: without, going to the step
+    // chooses what reaches it, as an address does.
+    problems.push(
+      ...choicesProblems(
+        project,
+        viewState.scenario,
+        viewState.choices,
+        viewState.choices ? [viewState.step] : [],
+      ),
+    );
   }
   if (step.play) {
-    const { scenario, from, to } = step.play;
+    const { scenario, from, to, choices } = step.play;
     const found = scenarioProblems(project, viewState.view, scenario, [from, to]);
     problems.push(...found);
     const played = project.scenarios.find((each) => each.id === scenario);
@@ -283,6 +299,39 @@ export function tourStepProblems(project: ProjectSnapshot, step: TourStep): Tour
           subject: scenario,
         });
       }
+    }
+    // What it plays from and to lies on the timeline its choices give (ADR 0078).
+    problems.push(...choicesProblems(project, scenario, choices, [from, to]));
+  }
+  return problems;
+}
+
+/**
+ * What a step's choices name that its scenario does not have, and the steps named that those choices,
+ * every other decision playing its default, do not play (ADR 0078).
+ */
+function choicesProblems(
+  project: ProjectSnapshot,
+  scenarioId: Id,
+  choices: DecisionChoices | undefined,
+  steps: readonly (Id | undefined)[],
+): TourStepProblem[] {
+  const scenario = project.scenarios.find((each) => each.id === scenarioId);
+  if (scenario === undefined) return [];
+  const problems: TourStepProblem[] = choiceProblems(scenario, choices ?? {}).map(
+    ({ message, subject }) => ({ code: 'unknown-scenario', message, subject }),
+  );
+  const played = steps.some((id) => id !== undefined)
+    ? new Set(playedSteps(scenario, knownChoices(scenario, choices)))
+    : undefined;
+  for (const id of new Set(steps)) {
+    const at = id === undefined ? -1 : scenario.steps.findIndex((each) => each.id === id);
+    if (id !== undefined && at >= 0 && !played?.has(at)) {
+      problems.push({
+        code: 'invalid-command',
+        message: `With the alternatives it chooses, the scenario "${scenario.name}" does not play the step "${id}".`,
+        subject: id,
+      });
     }
   }
   return problems;
@@ -349,8 +398,11 @@ export interface PlayableStep {
   dimRest?: true;
   /** When it moves on by itself, never before its text is read (`advanceAfter`). */
   advance?: number | 'after-scenario';
-  /** The scenario it plays, by the indices of the steps it plays from and to, both included. */
-  play?: { scenario: Id; from: number; to: number };
+  /**
+   * The scenario it plays, by the indices of the steps it plays from and to, both included, and the
+   * alternatives it plays at the scenario's decisions, when it chooses some (ADR 0078).
+   */
+  play?: { scenario: Id; from: number; to: number; choices?: DecisionChoices };
 }
 
 /**
@@ -396,8 +448,15 @@ export function playableStep(project: ProjectSnapshot, step: TourStep): Playable
   if (opened === undefined) {
     delete state.scenario;
     delete state.step;
-  } else if (state.step !== undefined && !opened.steps.some((each) => each.id === state.step)) {
-    delete state.step;
+    delete state.choices;
+  } else {
+    if (state.step !== undefined && !opened.steps.some((each) => each.id === state.step)) {
+      delete state.step;
+    }
+    // Choices of decisions or alternatives the scenario no longer has are dropped.
+    const choices = knownChoices(opened, state.choices);
+    if (choices) state.choices = choices;
+    else delete state.choices;
   }
   const playable: PlayableStep = { viewState: state, marks: kept(step.marks) };
   if (step.reveal) {
@@ -411,15 +470,43 @@ export function playableStep(project: ProjectSnapshot, step: TourStep): Playable
   if (advance !== undefined) playable.advance = advance;
   const played = step.play && playedOver(project, view.id, step.play.scenario);
   if (step.play && played && played.steps.length > 0) {
-    const at = (id: Id | undefined, fallback: number) => {
-      const found = id === undefined ? -1 : played.steps.findIndex((each) => each.id === id);
-      return found < 0 ? fallback : found;
-    };
-    const from = at(step.play.from, 0);
-    const to = at(step.play.to, played.steps.length - 1);
-    playable.play = { scenario: played.id, from: Math.min(from, to), to: Math.max(from, to) };
+    playable.play = playedRangeOf(played, step.play);
   }
   return playable;
+}
+
+/**
+ * The range a step plays of a scenario, by the indices of its steps, and the choices it plays them
+ * with: those the scenario still has, and, for a step named that they do not play, those that reach
+ * it, as going to it does; a step named that is gone gives the first or the last step that plays.
+ */
+export function playedRangeOf(
+  scenario: ScenarioFile,
+  play: NonNullable<TourStep['play']>,
+): NonNullable<PlayableStep['play']> {
+  const index = (id: Id | undefined) =>
+    id === undefined ? -1 : scenario.steps.findIndex((each) => each.id === id);
+  let choices = knownChoices(scenario, play.choices);
+  // The step it starts on is reached last, so that it plays when the two cannot play together.
+  for (const id of [play.to, play.from]) {
+    const at = index(id);
+    if (id !== undefined && at >= 0 && !playedSteps(scenario, choices).includes(at)) {
+      choices = choicesToReach(scenario, id, choices) ?? choices;
+    }
+  }
+  const order = playedSteps(scenario, choices);
+  const at = (id: Id | undefined, fallback: number) => {
+    const found = index(id);
+    return found < 0 ? fallback : found;
+  };
+  const from = at(play.from, order[0] ?? 0);
+  const to = at(play.to, order.at(-1) ?? scenario.steps.length - 1);
+  return {
+    scenario: scenario.id,
+    from: Math.min(from, to),
+    to: Math.max(from, to),
+    ...(choices && Object.keys(choices).length > 0 ? { choices } : {}),
+  };
 }
 
 /** The scenario with this id when it plays over the view. */

@@ -18,6 +18,7 @@ import {
   combinationsOf,
   decisionsAt,
   decisionsReached,
+  knownChoices,
   playedSteps,
   readBlocks,
 } from './blocks';
@@ -290,6 +291,19 @@ describe('the decisions playback reaches', () => {
       blocks: [{ ...(two.blocks?.[0] as DecisionBlock), id: 'read' }],
     };
     expect(pairs(apart)).toEqual([]);
+  });
+});
+
+describe('the choices a scenario knows', () => {
+  it('keep those naming a decision and one of its alternatives, and drop the others', () => {
+    const { scenario } = withDecision();
+    const choices = { slots: 'no' };
+    expect(knownChoices(scenario, choices)).toBe(choices);
+    expect(knownChoices(scenario, { gone: 'no', slots: 'no' })).toEqual({ slots: 'no' });
+    expect(knownChoices(scenario, { slots: 'maybe' })).toBeUndefined();
+    expect(knownChoices(scenario, undefined)).toBeUndefined();
+    const base = scenarioProject().scenarios[0] as ScenarioFile;
+    expect(knownChoices(base, choices)).toBeUndefined();
   });
 });
 

@@ -9,7 +9,8 @@ import type { Id, TourFile, TourStep } from '@visual-anything/schema';
 import type { ProjectSnapshot } from '../snapshot';
 import { modelIndexOf } from '../state';
 import { tourMove, type ScreenSize } from './camera';
-import { tourStepProblems } from './steps';
+import { playedSteps } from '../scenarios/blocks';
+import { playedRangeOf, tourStepProblems } from './steps';
 import { stepReadingTime } from './timing';
 
 /** The screen a tour is read against when none is given: the reference laptop's canvas. */
@@ -167,14 +168,11 @@ export function checkTour(
     if (step.play) {
       const scenario = project.scenarios.find((each) => each.id === step.play?.scenario);
       if (scenario) {
-        const position = (id: Id | undefined, fallback: number) => {
-          const found = id === undefined ? -1 : scenario.steps.findIndex((each) => each.id === id);
-          return found < 0 ? fallback : found;
-        };
-        const length =
-          Math.abs(
-            position(step.play.to, scenario.steps.length - 1) - position(step.play.from, 0),
-          ) + 1;
+        // Only the steps its choices play count (ADR 0078).
+        const range = playedRangeOf(scenario, step.play);
+        const length = playedSteps(scenario, range.choices).filter(
+          (at) => at >= range.from && at <= range.to,
+        ).length;
         if (length > LONG_TOUR_RANGE) {
           warnings.push({
             kind: 'long-range',

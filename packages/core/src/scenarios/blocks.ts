@@ -169,6 +169,26 @@ function readUncached(steps: ScenarioFile['steps'], blocks: readonly DecisionBlo
   return { ok: true, decisions: placedSpans };
 }
 
+/**
+ * The choices that name a decision of the scenario and one of its alternatives, in their order; the
+ * others are dropped, as what a view state or a tour's step names that is gone is (ADR 0078).
+ * Undefined when none is left, or none was given.
+ */
+export function knownChoices(
+  scenario: Pick<ScenarioFile, 'blocks'>,
+  choices: DecisionChoices | undefined,
+): DecisionChoices | undefined {
+  if (choices === undefined) return undefined;
+  const kept = Object.entries(choices).filter(([decision, alternative]) =>
+    scenario.blocks?.some(
+      (block) =>
+        block.id === decision && block.alternatives.some((each) => each.id === alternative),
+    ),
+  );
+  if (kept.length === 0) return undefined;
+  return kept.length === Object.keys(choices).length ? choices : Object.fromEntries(kept);
+}
+
 /** The alternative a decision plays with these choices: the one chosen, or else its default or first. */
 export function chosenAlternative(
   decision: DecisionBlock,
