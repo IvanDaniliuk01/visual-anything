@@ -712,7 +712,7 @@ The first three tasks are the seams, built in the main session in this order. Th
 - [x] **Decisions in the app:** choices in the scenario session, the decision card with its keys and announcements, the grouped steps' list, the alternatives not chosen dimmed and dashed with their preview, recording's Add an alternative here, Rejoin here and End the alternative, and the read-only page.
 - [x] **Claude:** the tour tools' new keys and `check_tour`; `read_scenario`, `create_scenario_from_steps` with decisions, `update_scenario`'s operations, the `choose` guidance and `choices` in the playback tools; the Mermaid and PlantUML recipes.
 - [x] **View states, addresses and tours' `play` with choices**, and a decision in the sample's `patient-books-appointment`; the Tours panel says what `check_tour` says, under each step.
-- [ ] **The benchmark:** a tour phase and a decision phase on the 10,000-element view.
+- [ ] **The benchmark:** a tour phase and a decision phase on the 10,000-element view. (Not built: by the user's decision of 2026-10-27 benchmark marks do not hold a milestone back; it waits for a faster machine.)
 
 **Track P · Visual packages**, beside the milestones, from the research on visual packages (ADR 0079). Its commits start with `P<n>:`. Each package follows ADR 0051: components and relation types with appearances that pass the contrast tests in both themes, names in English and Spanish, icons that pass the cleaner as stored, its licence and attribution (ADR 0047, ADR 0079), a sample project with a scenario, and a README section saying where its pictures come from.
 
