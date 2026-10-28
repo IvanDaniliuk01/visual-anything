@@ -97,6 +97,31 @@ describe('applyGuidance for exploring and playback', () => {
     });
   });
 
+  it('keeps the choices Claude plays with, and the alternative it chooses (ADR 0078)', () => {
+    let state = applyGuidance(
+      NO_GUIDANCE,
+      { kind: 'playback', scenario: 's', action: 'play', choices: { stock: 'no' } },
+      1,
+    );
+    expect(state).toEqual({
+      playback: { scenario: 's', action: 'play', choices: { stock: 'no' }, request: 1 },
+    });
+    state = applyGuidance(
+      state,
+      { kind: 'playback', scenario: 's', action: 'choose', decision: 'stock', alternative: 'yes' },
+      2,
+    );
+    expect(state).toEqual({
+      playback: {
+        scenario: 's',
+        action: 'choose',
+        decision: 'stock',
+        alternative: 'yes',
+        request: 2,
+      },
+    });
+  });
+
   it('keeps every request while marks, moves and captions come and go', () => {
     let state = applyGuidance(NO_GUIDANCE, { kind: 'filter', filters }, 1);
     state = applyGuidance(state, { kind: 'playback', scenario: 's', action: 'play' }, 2);

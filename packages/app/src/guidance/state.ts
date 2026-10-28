@@ -52,7 +52,10 @@ export interface GuidedFocusRequest {
   request: number;
 }
 
-/** A request to open, play, pause or step a scenario in this tab's scenario session. */
+/**
+ * A request to open, play, pause or step a scenario in this tab's scenario session, or to choose an
+ * alternative at one of its decisions (ADR 0078).
+ */
 export type GuidedPlaybackRequest = GuidedPlayback & { request: number };
 
 /**
@@ -141,11 +144,14 @@ export function applyGuidance(
         focusView: { ...viewOf(guidance), request },
       };
     case 'playback': {
-      const { scenario, action, step } = guidance;
+      const { scenario, action, step, choices, decision, alternative } = guidance;
       const playback: GuidedPlaybackRequest = {
         scenario,
         action,
         ...(step === undefined ? {} : { step }),
+        ...(choices === undefined ? {} : { choices }),
+        ...(decision === undefined ? {} : { decision }),
+        ...(alternative === undefined ? {} : { alternative }),
         request,
       };
       return { ...state, playback };

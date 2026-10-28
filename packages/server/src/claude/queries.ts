@@ -2,11 +2,13 @@
  * What Claude reads of a project: a summary, the definitions in use, elements and relations found by
  * component, attribute, container or name, one element or relation with everything around it, a view
  * with its positions and the order it draws each container's shapes in, and a scenario with its
- * broken steps. Pure functions over a project, returning plain JSON for the read tools.
+ * broken steps and its decisions. Pure functions over a project, returning plain JSON for the read
+ * tools.
  */
 import {
   brokenStepsOf,
   builtinPackage,
+  combinationsOf,
   definitionsIn,
   isBrokenTourStep,
   destinationKind,
@@ -29,7 +31,11 @@ import type {
   JsonValue,
   Relation,
 } from '@visual-anything/schema';
+import { readDecisions } from './decision-edits';
 import { appearanceRead } from './geometry-brief';
+
+/** How many ways a scenario plays that read_scenario counts before it says "or more". */
+const WAYS_COUNTED = 1000;
 
 /** The most items one query returns. */
 export const MAX_RESULTS = 500;
@@ -470,11 +476,25 @@ export function readScenario(state: ProjectSnapshot, scenarioId: Id) {
   );
   const broken = brokenStepsOf(state, scenario);
   const outside = timeline.entries.filter(isOutside).map((entry) => entry.first + 1);
+  // Its decisions (ADR 0078): each alternative with the steps it holds, and where each step sits.
+  const decisions = readDecisions(scenario, new Set(broken.map((each) => each.index + 1)));
+  const within = decisions?.ok ? decisions.within : undefined;
+  const ways = combinationsOf(scenario, WAYS_COUNTED);
   return {
     id: scenario.id,
     name: scenario.name,
     ...(scenario.description === undefined ? {} : { description: scenario.description }),
     view: scenario.view,
+    ...(decisions === undefined
+      ? {}
+      : decisions.ok
+        ? {
+            decisions: decisions.decisions,
+            waysToPlay: ways >= WAYS_COUNTED ? `${WAYS_COUNTED} or more` : ways,
+          }
+        : {
+            decisionsProblem: `${decisions.message} It plays every step in order until they hold together, and every change of its steps is refused meanwhile: update_scenario's remove-decisions takes them away, keeping every step.`,
+          }),
     steps: scenario.steps.map((step, at) => {
       const relations = step.relations.map((id) => {
         const relation = index.relation(id);
@@ -494,15 +514,18 @@ export function readScenario(state: ProjectSnapshot, scenarioId: Id) {
         broken: relations.some((relation) => 'missing' in relation),
         ...(step.dataIn === undefined ? {} : { dataIn: step.dataIn }),
         ...(step.dataOut === undefined ? {} : { dataOut: step.dataOut }),
+        ...(within?.has(at) ? { within: within.get(at) } : {}),
       };
     }),
     brokenSteps: broken.map((each) => ({
       number: each.index + 1,
       step: each.step,
       missing: each.missing,
+      ...(within?.has(each.index) ? { within: within.get(each.index) } : {}),
     })),
-    // How it plays over its view now: consecutive steps inside a collapsed container play as one,
-    // and a step whose relations the view's scope shows none of plays outside the view (ADR-0040).
+    // How it plays over its view now, each decision playing its default: consecutive steps inside a
+    // collapsed container play as one, and a step whose relations the view's scope shows none of
+    // plays outside the view (ADR-0040).
     playsAs: {
       steps: timeline.entries.length,
       aggregated,

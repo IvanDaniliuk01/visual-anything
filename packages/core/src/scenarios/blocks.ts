@@ -198,6 +198,29 @@ export function playedSteps(
 }
 
 /**
+ * The decisions playback reaches with these choices, in the order it reaches them, each with the
+ * alternative it plays there: those outside every alternative and those inside the alternatives it
+ * plays, up to an alternative that ends the scenario. None when it has no decisions, or they do not
+ * hold together.
+ */
+export function decisionsReached(
+  scenario: Pick<ScenarioFile, 'steps' | 'blocks'>,
+  choices?: DecisionChoices,
+): { decision: DecisionBlock; alternative: Alternative }[] {
+  const read = readBlocks(scenario);
+  if (!read.ok || read.decisions.length === 0) return [];
+  const reached: { decision: DecisionBlock; alternative: Alternative }[] = [];
+  walk(
+    scenario.steps.length,
+    read.decisions,
+    choices,
+    () => {},
+    (span, alternative) => reached.push({ decision: span.decision, alternative }),
+  );
+  return reached;
+}
+
+/**
  * Walks what a scenario plays with these choices, in order: `step` for each step that plays, and
  * `decision` for each decision playback reaches, as it reaches it, before the steps of the
  * alternative it plays.

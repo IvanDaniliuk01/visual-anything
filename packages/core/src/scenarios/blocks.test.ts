@@ -14,8 +14,10 @@ import {
   alternativeOf,
   alternativesOf,
   choicesToReach,
+  chosenAlternative,
   combinationsOf,
   decisionsAt,
+  decisionsReached,
   playedSteps,
   readBlocks,
 } from './blocks';
@@ -223,6 +225,71 @@ describe('the decisions playback meets', () => {
     };
     expect(at(first, 1)).toEqual([['start', 'quiet', 'before']]);
     expect(at(first, 2)).toEqual([]);
+  });
+});
+
+describe('the decisions playback reaches', () => {
+  it('are those the tree reaches, in order, each with the alternative it plays', () => {
+    fc.assert(
+      fc.property(tree, fc.array(fc.nat({ max: 3 }), { maxLength: 40 }), (segments, picks) => {
+        const { scenario } = written(segments);
+        const choices = choicesFrom(scenario, picks);
+        const entered: string[] = [];
+        reference(segments, choices, (decision) => entered.push(decision));
+        const reached = decisionsReached(scenario, choices);
+        expect(reached.map((each) => each.decision.id)).toEqual(entered);
+        for (const each of reached) {
+          expect(each.alternative).toBe(chosenAlternative(each.decision, choices));
+        }
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it('stop at an alternative that ends the scenario, and are none without decisions', () => {
+    const base = scenarioProject().scenarios[0] as ScenarioFile;
+    const two: ScenarioFile = {
+      ...base,
+      blocks: [
+        {
+          id: 'first',
+          kind: 'decision',
+          question: 'First?',
+          alternatives: [
+            { id: 'go', label: 'Go', steps: ['read'] },
+            { id: 'stop', label: 'Stop', steps: ['delegate'], ends: true },
+          ],
+        },
+        {
+          id: 'second',
+          kind: 'decision',
+          question: 'Second?',
+          default: 'q',
+          alternatives: [
+            { id: 'p', label: 'P', steps: ['fetch'] },
+            { id: 'q', label: 'Q', steps: ['answer'] },
+          ],
+        },
+      ],
+    };
+    const pairs = (scenario: ScenarioFile, choices?: Record<string, string>) =>
+      decisionsReached(scenario, choices).map((each) => [each.decision.id, each.alternative.id]);
+    expect(pairs(two)).toEqual([
+      ['first', 'go'],
+      ['second', 'q'],
+    ]);
+    expect(pairs(two, { second: 'p' })).toEqual([
+      ['first', 'go'],
+      ['second', 'p'],
+    ]);
+    expect(pairs(two, { first: 'stop' })).toEqual([['first', 'stop']]);
+    expect(pairs(base)).toEqual([]);
+    // Decisions that do not hold together play every step in order, and reach none.
+    const apart: ScenarioFile = {
+      ...two,
+      blocks: [{ ...(two.blocks?.[0] as DecisionBlock), id: 'read' }],
+    };
+    expect(pairs(apart)).toEqual([]);
   });
 });
 
