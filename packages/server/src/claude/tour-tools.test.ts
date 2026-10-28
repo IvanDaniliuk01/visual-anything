@@ -327,6 +327,134 @@ describe('add_tour_step, update_tour_step and remove_tour_step', () => {
   });
 });
 
+describe('check_tour', () => {
+  /** A tour whose steps glide, cut, stay, fit and mark what their camera or filters hide. */
+  async function wandering(): Promise<string> {
+    const near = { view: 'overview', camera: { x: 0, y: 0, zoom: 1 } };
+    const created = await tools.value('create_tour', {
+      name: 'Wandering',
+      steps: [
+        { viewState: near, title: 'Near', marks: ['customer'] },
+        {
+          viewState: { view: 'overview', camera: { x: 3000, y: 0, zoom: 1 } },
+          title: 'Beside',
+          marks: ['customer', 'api'],
+        },
+        {
+          viewState: { view: 'overview', camera: { x: 30000, y: 0, zoom: 1 } },
+          title: 'Far',
+        },
+        {
+          viewState: { view: 'overview', camera: { x: 30000, y: 0, zoom: 1 } },
+          title: 'Far again',
+        },
+        {
+          viewState: { view: 'overview', filters: { components: ['systems.person'] } },
+          title: 'Without people',
+          marks: ['customer-calls-api', 'db'],
+        },
+      ],
+    });
+    return created.tour as string;
+  }
+
+  it('says step by step how the camera gets there, and what to look at', async () => {
+    const tour = await wandering();
+    const checked = await tools.value('check_tour', { tour });
+    const ids = tourNamed('Wandering')?.steps.map((step) => step.id) ?? [];
+    expect(checked).toMatchObject({
+      tour,
+      name: 'Wandering',
+      screen: { width: 1366, height: 768 },
+      warnings: 4,
+      cuts: [3],
+    });
+    expect(checked.steps).toEqual([
+      { number: 1, step: ids[0], title: 'Near', camera: 'cut' },
+      {
+        number: 2,
+        step: ids[1],
+        title: 'Beside',
+        camera: 'glide',
+        warnings: [
+          {
+            kind: 'marks-outside',
+            message: 'Step 2 marks what its camera does not show: "Customer", "API".',
+            subjects: ['customer', 'api'],
+          },
+        ],
+      },
+      {
+        number: 3,
+        step: ids[2],
+        title: 'Far',
+        camera: 'cut',
+        warnings: [
+          {
+            kind: 'cuts',
+            message:
+              'Step 3 cuts from step 2: its camera is too far, or too much zoomed, to glide to.',
+          },
+        ],
+      },
+      {
+        number: 4,
+        step: ids[3],
+        title: 'Far again',
+        camera: 'stay',
+        warnings: [
+          {
+            kind: 'could-be-reveal',
+            message:
+              'Step 4 shows the same view state as step 3: it could be a reveal of that step.',
+          },
+        ],
+      },
+      {
+        number: 5,
+        step: ids[4],
+        title: 'Without people',
+        camera: 'fit',
+        warnings: [
+          {
+            kind: 'marks-hidden',
+            message: 'Step 5 marks what its filters hide: "HTTPS".',
+            subjects: ['customer-calls-api'],
+          },
+        ],
+      },
+    ]);
+    expect(checked.note).toMatch(/where each view draws its shapes now/);
+  });
+
+  it('reads the tour against the screen given, and changes nothing', async () => {
+    const tour = await wandering();
+    const actions = tools.session.actions.length;
+    const wide = await tools.value('check_tour', { tour, screen: { width: 8000, height: 768 } });
+    expect(wide.screen).toEqual({ width: 8000, height: 768 });
+    // On a screen that wide, the camera of step 2 shows the customer and the API.
+    const second = (wide.steps as { number: number; warnings?: { kind: string }[] }[])[1];
+    expect(second?.warnings).toBeUndefined();
+    expect(tools.session.actions).toHaveLength(actions);
+  });
+
+  it('says what names what was deleted, and refuses a tour the project does not have', async () => {
+    const tour = await wandering();
+    await tools.asPerson({ type: 'delete', elements: ['db'] });
+    const checked = await tools.value('check_tour', { tour });
+    const fifth = (checked.steps as { warnings?: { kind: string; message: string }[] }[])[4];
+    expect(fifth?.warnings?.[0]).toEqual({
+      kind: 'broken',
+      message:
+        'Step 5 names what the project no longer holds, and plays without it: A step marks elements and relations, and "db" is neither.',
+      subjects: ['db'],
+    });
+    expect(await tools.failure('check_tour', { tour: 'gone' })).toBe(
+      'There is no tour "gone". get_project lists the tours.',
+    );
+  });
+});
+
 describe('read_tour', () => {
   it('reads each step with its number, and flags what names what was deleted', async () => {
     const tour = await walk();

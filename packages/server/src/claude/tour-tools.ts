@@ -1,10 +1,12 @@
 /**
- * Claude's tour tools (ADR 0058): reading a tour with what its steps name that the project no longer
- * holds; creating one, so that "walk me through checkout" can be saved as a tour and not only shown
- * once as guidance; adding, changing, moving and removing its steps; renaming and deleting it. Each
- * call is one undoable action of Claude's. A step is a view state, as get_view_address takes one, with a
- * caption, the elements and relations it marks, a scenario it plays, and speaker notes. play_tour plays
- * a tour full screen in the open apps, as guidance that records nothing.
+ * Claude's tour tools (ADR 0058, ADR 0077): reading a tour with what its steps name that the project
+ * no longer holds; creating one, so that "walk me through checkout" can be saved as a tour and not
+ * only shown once as guidance; adding, changing, moving and removing its steps; renaming and deleting
+ * it. Each call is one undoable action of Claude's. A step is a view state, as get_view_address takes
+ * one, with a caption, the elements and relations it marks, reveals that bring in more one press at a
+ * time, dimming of the rest, a scenario it plays, advancing by itself, and speaker notes. check_tour
+ * says how a tour plays, step by step, reading marks outside a camera from the app's own scene.
+ * play_tour plays a tour full screen in the open apps, as guidance that records nothing.
  */
 import {
   MAX_CAPTION_TEXT,
@@ -16,11 +18,14 @@ import {
   MAX_TOUR_NAME,
   MAX_TOUR_REVEALS,
   TOUR_ADVANCE,
+  TOUR_CHECK_SCREEN,
   checkTour,
+  modelIndexOf,
   savedViewStateOf,
   tourStepProblems,
   type NewTourStep,
   type ProjectSnapshot,
+  type TourRect,
 } from '@visual-anything/core';
 import type {
   Id,
@@ -424,6 +429,61 @@ Example: { "tour": "how-booking-works" }`,
   run: async (args, program) => act(program, { type: 'delete-tour', id: args.tour }),
 });
 
+// ——— Check ———
+
+const checkTourTool = tool({
+  name: 'check_tour',
+  title: 'Check a tour',
+  description: `Checks a tour as the stage plays it, step by step, on a screen of 1,366 by 768 pixels unless you give another, and changes nothing. For each step it says how the camera gets there from the step before:
+- glide: along the smooth zoom-and-pan path, in at most 800 ms;
+- cut: too far, or too much zoomed, to glide to, or into another view, so it cuts with a cross-fade; the first step with a camera always cuts;
+- stay: the same view state as the step before, so only the marks and the caption change;
+- fit: the step keeps no camera, so the canvas frames its selection, or else the whole view.
+Then what to look at, as warnings by kind: marks-outside, what it marks that its camera does not show, read from where its view draws each shape now; marks-hidden, what it marks that its filters hide; caption-too-long, a text longer than its advance lets one read, which the stage waits for; could-be-reveal, a step showing the same view state as the one before, which could be a reveal of it; long-range, a scenario range of more than ten steps; cuts, a step that cuts within its view; broken, a step that names what the project no longer holds. cuts lists the steps after the first that cut, whatever the reason.
+
+Use it after building or changing a tour, and fix what it says with update_tour_step: give a step a camera that shows its marks, or none so that it frames its selection; turn steps that could be reveals into one step's reveals; bring a far camera nearer, or let it cut.
+
+Example: { "tour": "how-booking-works" }
+Example: { "tour": "how-booking-works", "screen": { "width": 1920, "height": 1080 } }`,
+  input: {
+    tour: tourId(),
+    screen: z
+      .object({
+        width: z.number().int().min(320).max(16384),
+        height: z.number().int().min(240).max(16384),
+      })
+      .optional()
+      .describe('The screen it is played on, in pixels; 1,366 by 768 when left out.'),
+  },
+  hints: READ,
+  run: async (args, program) => {
+    const state = await program.project();
+    const tour = state.tours.find((each) => each.id === args.tour);
+    if (!tour) return fail(`There is no tour "${args.tour}". get_project lists the tours.`);
+    const screen = args.screen ?? TOUR_CHECK_SCREEN;
+    const boundsOf = await drawnBounds(state);
+    const checked = checkTour(state, tour, { screen, boundsOf });
+    const steps = checked.map((each, at) =>
+      withoutUndefined({
+        number: each.n,
+        step: each.step,
+        title: tour.steps[at]?.caption.title,
+        camera: each.camera,
+        warnings: each.warnings.length > 0 ? each.warnings : undefined,
+      }),
+    );
+    return ok({
+      tour: tour.id,
+      name: tour.name,
+      screen,
+      steps,
+      warnings: checked.reduce((total, each) => total + each.warnings.length, 0),
+      cuts: checked.filter((each) => each.n > 1 && each.camera === 'cut').map((each) => each.n),
+      note: 'Marks outside a camera are read from where each view draws its shapes now, with its collapsed containers collapsed: an element inside one is where the container is drawn.',
+    });
+  },
+});
+
 // ——— Play, as guidance ———
 
 const playTour = tool({
@@ -589,6 +649,65 @@ function describeTour(state: ProjectSnapshot, tour: TourFile) {
   };
 }
 
+/**
+ * Where each view draws an element or a relation now, for check_tour's marks outside a camera, from
+ * the app's own scene: the rectangle around every shape of an element, or around the shape of the
+ * outermost collapsed container that holds it; around a relation's line, or the aggregated line that
+ * stands for it, or else the shapes of its ends. None for what the view does not draw. Each view's
+ * scene is built once, the first time a step of it asks.
+ */
+async function drawnBounds(
+  project: ProjectSnapshot,
+): Promise<(view: Id, id: Id) => TourRect | undefined> {
+  const { buildSceneAfresh, relationLinesOf, shownBy } =
+    await import('@visual-anything/app/src/canvas/scene');
+  type Scene = ReturnType<typeof buildSceneAfresh>;
+  type Shape = Scene['shapes'][number];
+  const index = modelIndexOf(project);
+  const scenes = new Map<Id, { scene: Scene; shapes: Map<Id, Shape[]> } | undefined>();
+  const drawn = (view: Id) => {
+    if (!scenes.has(view)) {
+      const scene = project.views.some((each) => each.id === view)
+        ? buildSceneAfresh(project, view)
+        : undefined;
+      const shapes = new Map<Id, Shape[]>();
+      for (const shape of scene?.shapes ?? []) {
+        shapes.set(shape.element, [...(shapes.get(shape.element) ?? []), shape]);
+      }
+      scenes.set(view, scene && { scene, shapes });
+    }
+    return scenes.get(view);
+  };
+  return (view, id) => {
+    const found = drawn(view);
+    if (!found) return undefined;
+    const { scene, shapes } = found;
+    const corners: { x: number; y: number }[] = [];
+    const around = (shape: Shape | undefined) => {
+      if (!shape) return;
+      const { x, y, width, height } = shape.rect;
+      corners.push({ x, y }, { x: x + width, y: y + height });
+    };
+    const own = shapes.get(id);
+    if (own) own.forEach(around);
+    else if (index.element(id)) around(shownBy(scene, id));
+    else {
+      const line = relationLinesOf(scene).get(id);
+      if (line) corners.push(...line.route);
+      else {
+        const relation = index.relation(id);
+        if (relation) [relation.from, relation.to].forEach((end) => around(shownBy(scene, end)));
+      }
+    }
+    if (corners.length === 0) return undefined;
+    const xs = corners.map((each) => each.x);
+    const ys = corners.map((each) => each.y);
+    const x = Math.min(...xs);
+    const y = Math.min(...ys);
+    return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+  };
+}
+
 /** The tour tools, in the order Claude reads them. */
 export const TOUR_TOOLS: readonly Tool[] = [
   readTour,
@@ -598,5 +717,6 @@ export const TOUR_TOOLS: readonly Tool[] = [
   removeTourStep,
   updateTour,
   deleteTour,
+  checkTourTool,
   playTour,
 ];

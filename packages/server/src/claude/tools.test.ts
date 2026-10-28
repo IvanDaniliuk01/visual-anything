@@ -84,15 +84,21 @@ describe('the tools', () => {
     }
   });
 
-  it('say which only read: those that get, list, find, read, preview or export', () => {
+  it('say which only read: those that get, list, find, read, preview, export or check', () => {
     const readOnly = TOOLS.filter((each) => each.hints.readOnlyHint).map((each) => each.name);
     expect(readOnly).toEqual(
       TOOLS.map((each) => each.name).filter((name) =>
-        /^(get|list|find|read|preview|export)_/.test(name),
+        /^(get|list|find|read|preview|export|check)_/.test(name),
       ),
     );
     expect(readOnly).toEqual(
-      expect.arrayContaining(['get_project', 'read_scenario', 'list_images', 'get_view_address']),
+      expect.arrayContaining([
+        'get_project',
+        'read_scenario',
+        'list_images',
+        'get_view_address',
+        'check_tour',
+      ]),
     );
   });
 
