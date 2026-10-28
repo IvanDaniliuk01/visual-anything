@@ -51,11 +51,13 @@ export interface TourStepCheck {
   /** Its place in the tour, from 1. */
   n: number;
   /**
-   * How the camera gets there from the step before: it glides, cuts, stays for a step that shows
-   * the same view state, or fits, when a step keeps no camera and the canvas frames it. The first
-   * step always fits or cuts.
+   * How the camera gets there from the step before: it glides; cuts; stays, for a step that shows
+   * the same view state, or whose camera is where the step before left it; fits, when a step keeps no
+   * camera and the canvas frames it; or follows, when the step before kept none, so that the move
+   * starts wherever the canvas framed it, gliding when that is near enough. The first step always
+   * fits or cuts.
    */
-  camera: 'glide' | 'cut' | 'stay' | 'fit';
+  camera: 'glide' | 'cut' | 'stay' | 'fit' | 'follows';
   warnings: TourWarning[];
 }
 
@@ -197,10 +199,20 @@ function cameraOf(
   const to = step.viewState.camera;
   if (to === undefined) return 'fit';
   if (before === undefined) return 'cut';
-  const move = tourMove(before.viewState.camera, to, screen, {
-    reducedMotion: false,
-    sameView: before.viewState.view === step.viewState.view,
-  });
+  const sameView = before.viewState.view === step.viewState.view;
+  if (!sameView) return 'cut';
+  const from = before.viewState.camera;
+  if (from === undefined) return 'follows';
+  // Where the canvas already looks, within half a pixel and a thousandth of the zoom, as the stage
+  // reads it: the camera stays.
+  if (
+    Math.abs(from.x - to.x) * to.zoom < 0.5 &&
+    Math.abs(from.y - to.y) * to.zoom < 0.5 &&
+    Math.abs(from.zoom / to.zoom - 1) < 1e-3
+  ) {
+    return 'stay';
+  }
+  const move = tourMove(from, to, screen, { reducedMotion: false, sameView });
   return move.kind === 'ease' ? 'glide' : 'cut';
 }
 

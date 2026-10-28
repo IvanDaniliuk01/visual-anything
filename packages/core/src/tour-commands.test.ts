@@ -181,6 +181,16 @@ describe('create-tour', () => {
       'A reveal holds its marks and a text, nothing else.',
     ],
     [
+      'a reveal of what the step marks',
+      { marks: ['api'], reveal: [{ marks: ['db'] }, { marks: ['api'] }] },
+      'Reveal 2 of step 1 of the tour marks "api", which the step marks already.',
+    ],
+    [
+      'two reveals of one id',
+      { reveal: [{ marks: ['db'] }, { marks: ['db'] }] },
+      'Reveal 2 of step 1 of the tour marks "db", which the step marks already.',
+    ],
+    [
       'too many reveals',
       { reveal: Array.from({ length: 51 }, () => ({ marks: ['api'] })) },
       'at most 50 reveals',

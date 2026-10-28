@@ -232,7 +232,7 @@ function checkedStep(given: NewTourStep, n: number): Omit<TourStep, 'id'> {
   const caption = checkedCaption(given.caption, where);
   const marks = checkedMarks(given.marks, where);
   const play = checkedPlay(given.play, where);
-  const reveal = checkedReveals(given.reveal, where, marks?.length ?? 0);
+  const reveal = checkedReveals(given.reveal, where, marks ?? []);
   const dimRest = checkedDimRest(given.dimRest);
   const advance = checkedAdvance(given.advance, where, play !== undefined);
   const notes = checkedText(given.notes, MAX_SPEAKER_NOTES, {
@@ -294,17 +294,22 @@ function checkedPlace(value: unknown): TourCaption['place'] {
 
 /**
  * A step's reveals (ADR 0077): at most {@link MAX_TOUR_REVEALS}, each marking one element or
- * relation at least, each once, with an optional text; the step's marks and its reveals' together at
+ * relation at least, each id once in the whole step, its own marks included, with an optional text; the step's marks and its reveals' together at
  * most {@link MAX_TOUR_MARKS}.
  */
-function checkedReveals(value: unknown, where: string, marked: number): TourReveal[] | undefined {
+function checkedReveals(
+  value: unknown,
+  where: string,
+  marked: readonly Id[],
+): TourReveal[] | undefined {
   if (value === undefined) return undefined;
   if (!Array.isArray(value)) reject('invalid-command', `${where} reveals a list of marks.`);
   if (value.length === 0) return undefined;
   if (value.length > MAX_TOUR_REVEALS) {
     reject('invalid-command', `A step brings in at most ${MAX_TOUR_REVEALS} reveals.`);
   }
-  let total = marked;
+  let total = marked.length;
+  const seen = new Set<Id>(marked);
   const reveals = value.map((given: unknown, at: number): TourReveal => {
     const which = `Reveal ${at + 1} of ${where.charAt(0).toLowerCase()}${where.slice(1)}`;
     if (typeof given !== 'object' || given === null || Array.isArray(given)) {
@@ -320,6 +325,12 @@ function checkedReveals(value: unknown, where: string, marked: number): TourReve
         'invalid-command',
         `${which} marks nothing: a reveal marks one element or relation at least.`,
       );
+    }
+    for (const id of checked) {
+      if (seen.has(id)) {
+        reject('invalid-command', `${which} marks "${id}", which the step marks already.`);
+      }
+      seen.add(id);
     }
     total += checked.length;
     const said = checkedText(text, MAX_CAPTION_TEXT, {

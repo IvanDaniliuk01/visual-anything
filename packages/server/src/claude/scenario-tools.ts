@@ -147,7 +147,7 @@ const choicesInput = () =>
   z
     .record(id(), id())
     .describe(
-      'The alternative to play at each decision, by the decision’s id, as read_scenario gives them: { "<decision id>": "<alternative id>" }. They replace the tab’s choices: a decision you do not name plays its default, so {} plays every default. Left out, the tab’s choices stay.',
+      'The alternative to play at each decision, by the decision’s id, as read_scenario gives them: { "<decision id>": "<alternative id>" }. They replace the tab’s choices: a decision you do not name plays its default, so {} plays every default. Left out, opening a scenario plays every default, and playing or going to a step keeps the tab’s choices.',
     );
 
 // ——— Create, edit and delete ———

@@ -16,14 +16,14 @@ export type Segment =
 const steps = (count: number): fc.Arbitrary<Segment> =>
   fc.constant({ kind: 'steps' as const, count });
 
-function segmentOf(depth: number): fc.Arbitrary<Segment> {
+function segmentOf(depth: number, anyEnds = false): fc.Arbitrary<Segment> {
   const plain = fc.integer({ min: 1, max: 3 }).chain(steps);
   if (depth >= 3) return plain;
   const decision = fc
     .record({
       alternatives: fc.array(
         fc.record({
-          segments: fc.array(segmentOf(depth + 1), { maxLength: 2 }),
+          segments: fc.array(segmentOf(depth + 1, anyEnds), { maxLength: 2 }),
           ends: fc.boolean(),
         }),
         { minLength: 2, maxLength: 4 },
@@ -37,7 +37,7 @@ function segmentOf(depth: number): fc.Arbitrary<Segment> {
           at === 0 && each.segments.length === 0
             ? [{ kind: 'steps' as const, count: 1 }]
             : each.segments,
-        ends: at === 0 ? false : each.ends,
+        ends: at === 0 && !anyEnds ? false : each.ends,
       }));
       return {
         kind: 'decision',
@@ -50,6 +50,9 @@ function segmentOf(depth: number): fc.Arbitrary<Segment> {
 
 /** A scenario's structure: one to five segments, decisions at most three deep. */
 export const tree = fc.array(segmentOf(1), { minLength: 1, maxLength: 5 });
+
+/** As `tree`, but any alternative may end, all of a decision's alternatives included. */
+export const anyTree = fc.array(segmentOf(1, true), { minLength: 1, maxLength: 5 });
 
 export interface Written {
   scenario: ScenarioFile;

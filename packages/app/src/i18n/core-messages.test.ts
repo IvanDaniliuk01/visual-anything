@@ -853,6 +853,11 @@ function tourCommands(): [string, Command][] {
     }),
     created('reveal marking nothing', { ...step, reveal: [{ marks: [] }] }),
     created('reveal marking twice', { ...step, reveal: [{ marks: ['patient', 'patient'] }] }),
+    created('reveal marking what the step marks', {
+      ...step,
+      marks: ['patient'],
+      reveal: [{ marks: ['patient'] }],
+    }),
     created('reveal with a text too long', {
       ...step,
       reveal: [{ marks: ['patient'], text: 'x'.repeat(4001) }],

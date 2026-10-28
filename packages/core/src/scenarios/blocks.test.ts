@@ -23,7 +23,7 @@ import {
   readBlocks,
 } from './blocks';
 import { scenarioProject } from './test/fixtures';
-import { choicesFrom, reference, tree, written } from './test/trees';
+import { anyTree, choicesFrom, reference, tree, written } from './test/trees';
 import { brokenStepsOf, entryOfStep, scenarioTimeline } from './timeline';
 
 describe('decisions over a scenario’s steps', () => {
@@ -85,6 +85,49 @@ describe('decisions over a scenario’s steps', () => {
       }),
       { numRuns: 300 },
     );
+  });
+
+  it('hold together only when every step can be reached, whatever alternatives end', () => {
+    fc.assert(
+      fc.property(anyTree, (segments) => {
+        const { scenario } = written(segments);
+        const read = readBlocks(scenario);
+        const reached = scenario.steps.every((step, at) => {
+          const choices = choicesToReach(scenario, step.id);
+          return choices !== undefined && playedSteps(scenario, choices).includes(at);
+        });
+        if (read.ok) expect(reached).toBe(true);
+        else
+          expect(read.message).toContain('ends the scenario, so the steps after it can never play');
+      }),
+      { numRuns: 400 },
+    );
+  });
+
+  it('refuse a decision whose every alternative ends, with steps after it, and keep one at the end', () => {
+    const step = (id: string): Step => ({ id, description: id, relations: ['api-reads-db'] });
+    const ending: DecisionBlock = {
+      id: 'fails',
+      kind: 'decision',
+      question: 'Does it fail?',
+      alternatives: [
+        { id: 'one', label: 'One way', steps: ['a'], ends: true },
+        { id: 'other', label: 'Another', steps: ['b'], ends: true },
+      ],
+    };
+    const after: ScenarioFile = {
+      id: 'x',
+      name: 'X',
+      view: 'overview',
+      steps: [step('a'), step('b'), step('c')],
+      blocks: [ending],
+    };
+    const read = readBlocks(after);
+    expect(read.ok).toBe(false);
+    expect(!read.ok && read.message).toBe(
+      'Every alternative of the decision "Does it fail?" ends the scenario, so the steps after it can never play.',
+    );
+    expect(readBlocks({ ...after, steps: after.steps.slice(0, 2) }).ok).toBe(true);
   });
 
   it('play every step in order without decisions, as the timeline always has', () => {
@@ -435,6 +478,48 @@ describe('scenario commands with decisions', () => {
       fetch,
       delegate,
     ]);
+  });
+
+  it('never delete a broken step, in any alternative, and say where each is, first in the preview', () => {
+    const relations = [
+      'client-calls-api',
+      'api-reads-db',
+      'api-calls-worker',
+      'worker-reads-blob',
+      'worker-reads-cache',
+    ];
+    fc.assert(
+      fc.property(tree, fc.subarray(relations, { minLength: 1 }), (segments, gone) => {
+        const written_ = written(segments).scenario;
+        // Each step over one of the project's relations, in turn, and the scenario over its view.
+        const scenario: ScenarioFile = {
+          ...written_,
+          view: 'overview',
+          steps: written_.steps.map((each, at) => ({
+            ...each,
+            relations: [relations[at % relations.length] as string],
+          })),
+        };
+        const project = { ...scenarioProject(), scenarios: [scenario] };
+        const preview = previewDelete(project, { relations: gone });
+        const deleted = run(project, { type: 'delete', relations: gone });
+        if (!deleted.ok) throw new Error(deleted.problems.map((each) => each.message).join(' '));
+        const kept = deleted.state.scenarios[0] as ScenarioFile;
+        expect(kept.steps).toEqual(scenario.steps);
+        expect(kept.blocks).toEqual(scenario.blocks);
+        const broken = brokenStepsOf(deleted.state, kept);
+        for (const each of broken) {
+          expect(each.within).toEqual(alternativeOf(kept, each.step));
+          const choices = choicesToReach(kept, each.step);
+          expect(choices).toBeDefined();
+          expect(playedSteps(kept, choices)).toContain(each.index);
+        }
+        expect(preview.brokenSteps.map((each) => each.step).sort()).toEqual(
+          broken.map((each) => each.step).sort(),
+        );
+      }),
+      { numRuns: 150 },
+    );
   });
 
   it('keep a broken step in its alternative, which says where it is', () => {

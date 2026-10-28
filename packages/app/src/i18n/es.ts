@@ -48,6 +48,10 @@
  * | component palette       | paleta de componentes            |
  * | appearance              | apariencia                       |
  * | fill, stroke            | relleno, trazo                   |
+ * | decision, alternative   | decisión, alternativa            |
+ * | an alternative's label  | etiqueta                         |
+ * | reveal                  | revelación                       |
+ * | Motion, Fades (prefs.)  | Movimiento, Fundidos             |
  * | contour (free geometry) | curva cerrada                    |
  * | imported drawing        | dibujo importado                 |
  * | dash                    | patrón de línea                  |
@@ -810,8 +814,8 @@ export const ui: Catalog = {
     '“{question}” ya tiene 8 alternativas, todas las que admite una decisión.',
   Question: 'Pregunta',
   'Is every item in stock?': '¿Están todos los artículos en stock?',
-  'Label of the steps that follow': 'Rótulo de los pasos que siguen',
-  'Label of the new alternative': 'Rótulo de la alternativa nueva',
+  'Label of the steps that follow': 'Etiqueta de los pasos que siguen',
+  'Label of the new alternative': 'Etiqueta de la alternativa nueva',
   'Record the alternative': 'Grabar la alternativa',
   'This step and the ones after it in its alternative follow the decision, whichever way it goes.':
     'Este paso y los que lo siguen en su alternativa pasan a seguir a la decisión, vaya por donde vaya.',
@@ -3069,8 +3073,10 @@ export const messages: Catalog = {
   'The decisions "{a}" and "{b}" cross: one must sit inside an alternative of the other, or stand apart.':
     'Las decisiones "{a}" y "{b}" se cruzan: una tiene que estar dentro de una alternativa de la otra, o aparte.',
   'Decisions sit at most three deep.': 'Las decisiones se anidan como máximo en tres niveles.',
+  'Every alternative of the decision "{question}" ends the scenario, so the steps after it can never play.':
+    'Todas las alternativas de la decisión "{question}" terminan el escenario, así que los pasos que siguen nunca se reproducen.',
   'A decision has an id, the kind "decision", a question, its alternatives and maybe a default; an alternative has an id, a label, its steps and maybe ends.':
-    'Una decisión tiene un id, el tipo "decision", una pregunta, sus alternativas y quizás una predeterminada; una alternativa tiene un id, un rótulo, sus pasos y quizás ends.',
+    'Una decisión tiene un id, el tipo "decision", una pregunta, sus alternativas y quizás una predeterminada; una alternativa tiene un id, una etiqueta, sus pasos y quizás ends.',
   'The decisions of the scenario "{name}" do not hold together: {why} It plays every step in order.':
     'Las decisiones del escenario "{name}" no encajan: {why} Se reproducen todos sus pasos en orden.',
   'Step {n} uses "{id}", which is not a relation of the model.':
@@ -3426,6 +3432,8 @@ export const messages: Catalog = {
   'Reveal {r} of step {n} of the tour marks nothing: a reveal marks one element or relation at least.':
     'La revelación {r} del paso {n} del recorrido no marca nada: una revelación marca al menos un elemento o una relación.',
   "A reveal's text is text.": 'El texto de una revelación es texto.',
+  'Reveal {r} of step {n} of the tour marks "{id}", which the step marks already.':
+    'La revelación {r} del paso {n} del recorrido marca "{id}", que el paso ya marca.',
   "A reveal's text holds at most {limit} characters.":
     'El texto de una revelación tiene como máximo {limit} caracteres.',
   "A step marks at most {limit} elements and relations, its reveals' included.":

@@ -38,7 +38,7 @@ export const PLANTUML: Recipe = {
   material: 'PlantUML diagrams',
   title: 'Build from PlantUML',
   description:
-    'Build a model, views and scenarios from PlantUML: component, deployment and C4 diagrams, sequence diagrams as scenarios, and activity diagrams as processes, their branches as decisions.',
+    'Build a model, views and scenarios from PlantUML: component, deployment and C4 diagrams, sequence diagrams as scenarios, and activity diagrams as processes, their `if`s as decisions.',
   read: [
     'PlantUML is in `.puml`, `.plantuml` and `.pu` files, or in ```` ```plantuml ```` blocks, each diagram between `@startuml` and `@enduml`.',
     '`!include` names another file: read it when the material has it, and ask for it otherwise. The C4-PlantUML library, included by its name or its web address, needs no reading: its macros are mapped below.',

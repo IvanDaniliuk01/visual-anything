@@ -51,6 +51,24 @@ describe('checkTour', () => {
     expect(kinds(checks)).toEqual([[], ['cuts'], []]);
   });
 
+  it('says a step stays when its camera is where the step before left it, and claims no cut after a step that fits', () => {
+    const camera = { x: 0, y: 0, zoom: 1 };
+    const checks = checkTour(
+      testProject(),
+      tour(
+        step('one', { viewState: { view: 'overview', camera } }),
+        // The same camera, another selection: only the marks change.
+        step('two', { viewState: { view: 'overview', camera, select: ['api'] } }),
+        step('fit', { viewState: { view: 'overview', select: ['db'] } }),
+        // After a step that keeps no camera, the move starts wherever the canvas framed it.
+        step('after', { viewState: { view: 'overview', camera: { x: 100, y: 0, zoom: 1 } } }),
+      ),
+      { screen: SCREEN },
+    );
+    expect(checks.map((check) => check.camera)).toEqual(['cut', 'stay', 'fit', 'follows']);
+    expect(kinds(checks)).toEqual([[], [], [], []]);
+  });
+
   it('says when two steps in a row show the same view state, and could be one with a reveal', () => {
     const checks = checkTour(testProject(), tour(step('one'), step('again', { marks: ['db'] })));
     expect(checks[1]?.camera).toBe('stay');

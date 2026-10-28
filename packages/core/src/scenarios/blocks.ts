@@ -166,6 +166,24 @@ function readUncached(steps: ScenarioFile['steps'], blocks: readonly DecisionBlo
     if (depth > DECISION_CAPS.depth) return fail('Decisions sit at most three deep.');
     placedSpans.push({ ...span, depth, ...(within ? { within } : {}) });
   }
+
+  // Every step is reached by some choices: no step may follow, in its stretch, a decision whose every
+  // alternative ends the scenario, by itself or through a decision inside it that always ends.
+  const ending = endingOf(placedSpans);
+  for (const span of placedSpans) {
+    if (!ending.decision(span.decision.id)) continue;
+    const holder =
+      span.within &&
+      placedSpans
+        .find((outer) => outer.decision.id === span.within?.decision)
+        ?.alternatives.find((each) => each.alternative.id === span.within?.alternative);
+    const stretchEnd = holder ? (holder.last as number) : steps.length - 1;
+    if (span.last < stretchEnd) {
+      return fail(
+        `Every alternative of the decision "${span.decision.question}" ends the scenario, so the steps after it can never play.`,
+      );
+    }
+  }
   return { ok: true, decisions: placedSpans };
 }
 
@@ -381,6 +399,33 @@ export function alternativeOf(
 }
 
 /**
+ * What always ends a scenario, its decisions read: an alternative that ends it, or that holds a
+ * decision whose every alternative always ends it; and such a decision.
+ */
+function endingOf(decisions: readonly DecisionSpan[]): {
+  alternative(decision: Id, alternative: Alternative): boolean;
+  decision(decision: Id): boolean;
+} {
+  const always = new Map<Id, boolean>();
+  const alternative = (decision: Id, chosen: Alternative): boolean =>
+    chosen.ends === true ||
+    decisions.some(
+      (inner) =>
+        inner.within?.decision === decision &&
+        inner.within.alternative === chosen.id &&
+        always.get(inner.decision.id) === true,
+    );
+  // The deepest first, so that a decision reads what those inside its alternatives do.
+  for (const span of [...decisions].sort((a, b) => b.depth - a.depth)) {
+    always.set(
+      span.decision.id,
+      span.alternatives.every((each) => alternative(span.decision.id, each.alternative)),
+    );
+  }
+  return { alternative, decision: (decision) => always.get(decision) === true };
+}
+
+/**
  * The choices that make a scenario play a step: `choices` with, at every decision holding the step,
  * the alternative that holds it. Undefined for a step no choices reach, as one after an alternative
  * that ends the scenario whatever is chosen there, or one the scenario does not have.
@@ -403,12 +448,13 @@ export function choicesToReach(
   // The decisions that hold the step keep the alternatives that hold it, which end only after it.
   const read = readBlocks(scenario);
   if (!read.ok) return undefined;
+  const ending = endingOf(read.decisions);
   for (const span of read.decisions) {
     if (span.first > at || holding.has(span.decision.id)) continue;
-    const playing = chosenAlternative(span.decision, reached);
-    if (!playing.ends) continue;
-    const other = span.decision.alternatives.find((each) => !each.ends);
-    if (other) reached[span.decision.id] = other.id;
+    const id = span.decision.id;
+    if (!ending.alternative(id, chosenAlternative(span.decision, reached))) continue;
+    const other = span.decision.alternatives.find((each) => !ending.alternative(id, each));
+    if (other) reached[id] = other.id;
   }
   return playedSteps(scenario, reached).includes(at) ? reached : undefined;
 }

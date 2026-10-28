@@ -458,7 +458,7 @@ function OpenScenario({
           <p>
             {t(
               'Its decisions do not hold together, so it plays every step in order and its steps cannot change: {why}',
-              { why: blocks.message },
+              { why: t.message(blocks.message) },
             )}
           </p>
           <div className="scenario-actions">

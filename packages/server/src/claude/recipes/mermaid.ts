@@ -1,6 +1,6 @@
 /**
  * The recipe for Mermaid: flowcharts, C4 and ER diagrams become the model, sequence diagrams
- * scenarios, and their branches (`alt`, `opt`, `break`, a flowchart's rhombuses) decisions.
+ * scenarios, and their `alt`, `opt` and `break` blocks and a flowchart's rhombuses decisions.
  */
 import type { Recipe } from './recipe';
 
@@ -50,7 +50,7 @@ export const MERMAID: Recipe = {
   material: 'Mermaid diagrams',
   title: 'Build from Mermaid',
   description:
-    'Build a model, views and scenarios from Mermaid diagrams: flowcharts, C4 and ER diagrams, and sequence diagrams as scenarios, their branches as decisions.',
+    'Build a model, views and scenarios from Mermaid diagrams: flowcharts, C4 and ER diagrams, and sequence diagrams as scenarios, their `alt`, `opt` and `break` blocks and rhombuses as decisions.',
   read: [
     'Mermaid diagrams are in `.mmd` files, or in ```` ```mermaid ```` blocks of Markdown files (READMEs, `docs/`), wikis and issues the person pastes.',
     'Each diagram starts with its kind: `flowchart` or `graph`, `sequenceDiagram`, `C4Context`, `C4Container` or `C4Component`, `erDiagram`, `classDiagram`, `stateDiagram` and others. Read every diagram of the material before you build: a sequence diagram’s participants are usually a flowchart’s boxes.',

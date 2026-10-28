@@ -186,7 +186,7 @@ const newStep = () =>
 
 type NewStepArgs = z.infer<ReturnType<typeof newStep>>;
 
-const STEP_HELP = `A step's viewState is a view state as get_view_address takes it: ${STATE_HELP} Its caption has a title and a text, and place puts its card in a corner; marks highlight elements and relations; reveal brings in more marks one press at a time, each with a sentence for the caption; dimRest dims the rest; play plays a scenario over the step's view from one of its steps to another, and its choices the alternative to play at each of the scenario's decisions (read_scenario gives their ids), every other decision playing its default; advance moves on by itself; notes are the speaker's. The answer says how the camera gets to the step (glide, cut, stay or fit, as check_tour says) and what check_tour warns about it, but for marks outside its camera, which only check_tour reads.`;
+const STEP_HELP = `A step's viewState is a view state as get_view_address takes it: ${STATE_HELP} Its caption has a title and a text, and place puts its card in a corner; marks highlight elements and relations; reveal brings in more marks one press at a time, each with a sentence for the caption; dimRest dims the rest; play plays a scenario over the step's view from one of its steps to another, and its choices the alternative to play at each of the scenario's decisions (read_scenario gives their ids), every other decision playing its default; advance moves on by itself; notes are the speaker's. The answer says how the camera gets to the step (glide, cut, stay, fit or follows, as check_tour says) and what check_tour warns about it, but for marks outside its camera, which only check_tour reads.`;
 
 // ——— Read ———
 
@@ -449,7 +449,8 @@ const checkTourTool = tool({
 - glide: along the smooth zoom-and-pan path, in at most 800 ms;
 - cut: too far, or too much zoomed, to glide to, or into another view, so it cuts with a cross-fade; the first step with a camera always cuts;
 - stay: the same view state as the step before, so only the marks and the caption change;
-- fit: the step keeps no camera, so the canvas frames its selection, or else the whole view.
+- fit: the step keeps no camera, so the canvas frames its selection, or else the whole view;
+- follows: the step before keeps no camera, so the move starts wherever the canvas framed it, gliding when that is near enough.
 Then what to look at, as warnings by kind: marks-outside, what it marks that its camera does not show, read from where its view draws each shape now; marks-hidden, what it marks that its filters hide; caption-too-long, a text longer than its advance lets one read, which the stage waits for; could-be-reveal, a step showing the same view state as the one before, which could be a reveal of it; long-range, a scenario range of more than ten steps; cuts, a step that cuts within its view; broken, a step that names what the project no longer holds. cuts lists the steps after the first that cut, whatever the reason.
 
 Use it after building or changing a tour, and fix what it says with update_tour_step: give a step a camera that shows its marks, or none so that it frames its selection; turn steps that could be reveals into one step's reveals; bring a far camera nearer, or let it cut.

@@ -537,6 +537,11 @@ Eight milestones in build order, each ending in something you can use, and Track
   - the marks `benchmark-4.md` missed: a drop and a resize's let go of a shape with 50 relations (94–209 ms at the 95th percentile, most of it redrawing tiles), the theme switch (A1), the worst frames of zooming and dragging, and selecting and panning with names shown; taken up when the user finds the app slow or on a faster machine;
   - `drawings/bundle.test.ts` matches esbuild's paths relative to the working directory, so it fails when the server's tests run from `packages/server` and passes from the root, as `pnpm test` runs them (W63, W64); it resolves them from the repository instead;
   - name tags (2026-10-27): a container grows to hold its contents' tags; a route set by hand that turns around its own shape's side goes around the tag; layout places a tagged shape's ports on its rectangle's sides, not on the box that holds its tag;
+  - M11c's review (2026-10-28):
+    - while a scenario plays, a markers-only change of the emphasis skips the union of its sources and the pass over every shape, so that a `dimRest` step that plays a scenario keeps the frame budget at 10,000 elements;
+    - the Tours panel's check builds its scenes off the main thread or when idle, reusing the canvas's scene for the open view;
+    - the steps' index gives the focus back to the stage after a jump, and is a modal dialog that holds the focus while open;
+    - the person edits a decision's question, labels, default and `ends`, and removes one decision, in the app, as Claude can;
   - `scene.incremental.test.ts` once found an incremental scene in the view beyond boxes that differed from one built from nothing, in about one run in 400, and lost the counterexample; it is hunted with more runs and its seed kept (2026-10-26).
 
 **M11b · Versions.** Planned for the third wave, beside M8b. The core's comparison, merge and proposals go first, in the main session, since everything else builds on them. Then two rounds of tasks run in parallel. Done when:
