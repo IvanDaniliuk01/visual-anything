@@ -402,7 +402,11 @@ function deciding(): ProjectSnapshot {
         ...request,
         steps: [
           ...request.steps,
-          { id: 'skip', description: 'The API answers from memory.', relations: ['client-calls-api'] },
+          {
+            id: 'skip',
+            description: 'The API answers from memory.',
+            relations: ['client-calls-api'],
+          },
         ],
         blocks: [
           {

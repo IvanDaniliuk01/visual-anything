@@ -84,3 +84,9 @@ The second benchmark's R26 asks for addresses that open a project at a view stat
 
 - **Tabs share the session.** A tab with neither a launch code nor a token asks the other tabs of its browser for the token over this origin's `BroadcastChannel`, and a tab whose live connection is open gives it (ADR-0043). The token still goes into no address and no log, and nothing outside this origin hears it.
 - **One program per project.** `visual-anything open <folder> --view …` while a program runs on that folder asks that program to open a tab at the view state, through the Claude endpoint's `open-app`, and starts no second program; with `--no-open` it prints the running program's view address (ADR-0044).
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-28 under the user's standing delegation of design decisions. -->
+
+- 2026-10-28 (M11c, ADR 0078): **a view address carries the alternatives chosen** at the decisions of its scenario, last, as `choices=<decision>:<alternative>,…` in the order of the decisions' ids: `#view=system-overview&scenario=patient-books-appointment&step=join-waiting-list&choices=free-slot:week-full` opens step 6 in the alternative "No, the week is full". Ids hold neither `:` nor `,`, so nothing more is encoded. Choices need `scenario` and are left out when there are none; an address written before them reads as it did. A launch address carries them as it carries the rest, and what they name that the scenario no longer has is left out and said, as other missing ids are.

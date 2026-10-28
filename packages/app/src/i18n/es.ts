@@ -3471,9 +3471,8 @@ export const messages: Catalog = {
     'Un paso reproduce un escenario, desde un paso hasta otro, con las alternativas que elige, nada más.',
   // M11c: tours' steps that play a given alternative (ADR 0078).
   'Step {n} of the tour chooses alternatives as a map from the id of each decision to the id of an alternative.':
-    'El paso {n} del recorrido elige alternativas como un mapa del id de cada decisión al id de una alternativa.',
-  'A step chooses at most {limit} alternatives.':
-    'Un paso elige como máximo {limit} alternativas.',
+    'El paso {n} del recorrido elige alternativas asociando el id de cada decisión al id de una alternativa.',
+  'A step chooses at most {limit} alternatives.': 'Un paso elige como máximo {limit} alternativas.',
   'A step marks elements and relations, and "{id}" is neither.':
     'Un paso marca elementos y relaciones, y "{id}" no es ninguna de las dos cosas.',
   'The step "{from}" comes after "{to}" in the scenario "{name}".':

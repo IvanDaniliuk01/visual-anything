@@ -379,7 +379,10 @@ describe('what a step names that the project no longer holds', () => {
     ).toEqual([]);
     // A view state's step is checked against its choices only when it has some, as an address's.
     expect(
-      tourStepProblems(state, step({ viewState: { view: 'overview', scenario: 'cached', step: 'hit' } })),
+      tourStepProblems(
+        state,
+        step({ viewState: { view: 'overview', scenario: 'cached', step: 'hit' } }),
+      ),
     ).toEqual([]);
     expect(
       tourStepProblems(
@@ -577,7 +580,14 @@ describe('how a step plays', () => {
           const stored = { ...scenario, view: 'overview' };
           const problems = tourStepProblems(
             { ...project(), scenarios: [stored] },
-            step({ play: { scenario: scenario.id, from, to, ...(range.choices ? { choices: range.choices } : {}) } }),
+            step({
+              play: {
+                scenario: scenario.id,
+                from,
+                to,
+                ...(range.choices ? { choices: range.choices } : {}),
+              },
+            }),
           );
           const together = played.includes(ids.indexOf(to as string));
           const backwards = start > ids.indexOf(to as string);

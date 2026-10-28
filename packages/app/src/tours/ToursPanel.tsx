@@ -88,12 +88,7 @@ export function ToursPanel({ active }: { active: boolean }) {
   return (
     <div className="tours-panel" hidden={!active}>
       {tour ? (
-        <OpenTour
-          tour={tour}
-          send={send}
-          active={active}
-          onClose={() => setOpenId(undefined)}
-        />
+        <OpenTour tour={tour} send={send} active={active} onClose={() => setOpenId(undefined)} />
       ) : (
         <TourList send={send} onOpen={setOpenId} />
       )}
@@ -218,8 +213,7 @@ function OpenTour({
   const [deleting, setDeleting] = useState(false);
   const view = project.views.find((each) => each.id === viewId);
   const checks = useMemo(
-    () =>
-      active ? checkTour(project, tour, { boundsOf: drawnBounds(project) }) : undefined,
+    () => (active ? checkTour(project, tour, { boundsOf: drawnBounds(project) }) : undefined),
     [active, project, tour],
   );
   const warnings = checks?.reduce((sum, check) => sum + check.warnings.length, 0) ?? 0;

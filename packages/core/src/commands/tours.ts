@@ -431,7 +431,10 @@ function checkedChoices(value: unknown, where: string): DecisionChoices | undefi
     typeof value === 'object' && value !== null && !Array.isArray(value)
       ? Object.entries(value)
       : undefined;
-  if (!entries || !entries.every(([decision, alternative]) => isId(decision) && isId(alternative))) {
+  if (
+    !entries ||
+    !entries.every(([decision, alternative]) => isId(decision) && isId(alternative))
+  ) {
     reject(
       'invalid-command',
       `${where} chooses alternatives as a map from the id of each decision to the id of an alternative.`,

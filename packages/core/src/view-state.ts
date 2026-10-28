@@ -775,7 +775,10 @@ export function choiceProblems(
     const block = scenario.blocks?.find((each) => each.id === decision);
     if (!block) {
       return [
-        { message: `The scenario "${scenario.name}" has no decision "${decision}".`, subject: decision },
+        {
+          message: `The scenario "${scenario.name}" has no decision "${decision}".`,
+          subject: decision,
+        },
       ];
     }
     if (block.alternatives.some((each) => each.id === alternative)) return [];

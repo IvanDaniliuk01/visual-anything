@@ -219,10 +219,7 @@ describe('readViewState', () => {
     ['view=v&focus=2,both,hide', 'Focus is degrees,direction, then isolate or nothing.'],
     ['view=v&focus=2,both;to:a', 'Focus starts from:<ids>, not "to".'],
     ['view=v&choices=d:a', 'Choices need their scenario: scenario=<id>.'],
-    [
-      'view=v&scenario=s&choices=d',
-      'Choices are <decision>:<alternative>, separated by commas.',
-    ],
+    ['view=v&scenario=s&choices=d', 'Choices are <decision>:<alternative>, separated by commas.'],
     [
       'view=v&scenario=s&choices=d:a:b',
       'Choices are <decision>:<alternative>, separated by commas.',
@@ -591,9 +588,9 @@ describe('viewStateProblems', () => {
       }),
     ).toEqual([]);
     // Without choices, going to a step chooses what reaches it, as it always did.
-    expect(viewStateProblems(project, { view: 'overview', scenario: 'retry', step: 'again' })).toEqual(
-      [],
-    );
+    expect(
+      viewStateProblems(project, { view: 'overview', scenario: 'retry', step: 'again' }),
+    ).toEqual([]);
   });
 
   it('says which choices name a decision or an alternative the scenario does not have', () => {
@@ -608,7 +605,11 @@ describe('viewStateProblems', () => {
       'The scenario "Retry" has no decision "gone".',
     ]);
     expect(
-      viewStateProblems(project, { view: 'overview', scenario: 'save', choices: { saved: 'saved-no' } }),
+      viewStateProblems(project, {
+        view: 'overview',
+        scenario: 'save',
+        choices: { saved: 'saved-no' },
+      }),
     ).toEqual(['The scenario "Save" has no decision "saved".']);
   });
 

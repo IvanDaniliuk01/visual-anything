@@ -626,7 +626,8 @@ function playFrom(
       message: `The scenario "${scenario.name}" has ${counted(scenario.steps.length, 'step')}.`,
     };
   }
-  const choices = given.choices && Object.keys(given.choices).length > 0 ? given.choices : undefined;
+  const choices =
+    given.choices && Object.keys(given.choices).length > 0 ? given.choices : undefined;
   if (choices) {
     const problem = choicesProblem(scenario, choices);
     if (problem) return { ok: false, message: problem };
