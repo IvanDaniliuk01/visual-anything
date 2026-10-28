@@ -289,7 +289,9 @@ Example: { "view": "system-overview" }`,
 const readScenarioTool = tool({
   name: 'read_scenario',
   title: 'Read a scenario',
-  description: `Reads a scenario: the view it plays over and its steps in order, each with its number, description, the relations it activates (with their ends), its data in and out, and whether it is broken because a relation it uses was deleted; then its broken steps, and how it plays over its view now, where steps inside a collapsed container play as one aggregated step.
+  description: `Reads a scenario: the view it plays over and its steps in order, each with its number, description, the relations it activates (with their ends), its data in and out, whether it is broken because a relation it uses was deleted, and, in a scenario with decisions, the innermost alternative it is in (within); then its broken steps, each with its alternative, and how it plays over its view now, each decision playing its default, where steps inside a collapsed container play as one aggregated step.
+
+A scenario with decisions also gives them, in reading order: each with its id, question, the alternative it plays by default (playsByDefault), the alternative it sits in when it is nested, and its alternatives, each with its id, label, the numbers of the steps it holds (none for the way where nothing happens), whether it ends the scenario and its broken steps; and waysToPlay, how many ways the scenario can play. Use these ids with update_scenario, choose_alternative and the choices of play_scenario and go_to_step. Decisions that do not hold together are said in decisionsProblem.
 
 Example: { "scenario": "patient-books-appointment" }`,
   input: { scenario: id() },
