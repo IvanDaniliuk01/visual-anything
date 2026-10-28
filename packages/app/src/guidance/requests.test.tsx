@@ -238,7 +238,7 @@ describe('Claude’s tour', () => {
     const shell = renderShell({ tour: { tour: TOUR, step: 1, request: 1 } });
     expect(shellOf()).toHaveClass('tour-playing');
     expect(screen.getByRole('article')).toHaveTextContent('The booking agent');
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Step 2 of 3');
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Step 2 of 4');
     // The person moves through it by keys, as through any tour.
     fireEvent.keyDown(document.body, { key: 'ArrowRight' });
     expect(screen.getByRole('article')).toHaveTextContent('One request, step by step');
@@ -255,7 +255,7 @@ describe('Claude’s tour', () => {
     expect(screen.getByRole('article')).toHaveTextContent('Clinic booking');
     fireEvent.keyDown(document.body, { key: 'Escape' });
     shell.rerender({ tour: { tour: TOUR, step: 2, request: 2 } });
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Step 3 of 3');
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Step 3 of 4');
   });
 
   it('ignores a tour the project does not have', () => {

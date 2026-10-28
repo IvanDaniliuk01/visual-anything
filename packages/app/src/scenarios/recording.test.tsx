@@ -11,7 +11,7 @@ import { fitCamera, worldToScreen } from '../canvas/camera';
 import { buildScene } from '../canvas/scene';
 import { Shell } from '../shell/Shell';
 import { FakeApplication, FakeResizeObserver } from '../test/FakeApplication';
-import { loadSample } from '../test/sample';
+import { withoutDecisions } from '../test/sample';
 
 vi.mock('pixi.js', async (importOriginal) => {
   const pixi = await importOriginal<typeof import('pixi.js')>();
@@ -19,7 +19,8 @@ vi.mock('pixi.js', async (importOriginal) => {
   return { ...pixi, Application };
 });
 
-const sample = loadSample();
+// The sample's scenario as it plays without its decision, which DecisionPanel.test.tsx covers.
+const sample = withoutDecisions();
 const view = sample.views[0]!;
 const SIZE = { width: 1000, height: 600 };
 const NAME = 'Patient books an appointment';

@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { SendCommand } from '../canvas/CanvasArea';
 import { Shell } from '../shell/Shell';
-import { loadSample } from '../test/sample';
+import { loadSample, withoutDecisions } from '../test/sample';
 
 vi.mock('../canvas/CanvasArea', () => import('../test/FakeCanvasArea'));
 
@@ -232,7 +232,7 @@ describe('a scenario with a decision, in the panel', () => {
 
 describe('a scenario without decisions, in the panel', () => {
   it('shows no decision card, no option and no alternatives', () => {
-    render(<Shell project={loadSample()} />);
+    render(<Shell project={withoutDecisions()} />);
     fireEvent.click(within(panel()).getByRole('button', { name: /^Patient books an appointment/ }));
     expect(within(panel()).queryByRole('checkbox', { name: 'Stop at each decision' })).toBeNull();
     expect(panel().querySelector('.scenario-decision')).toBeNull();
