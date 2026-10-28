@@ -190,7 +190,9 @@ export type Edited =
 
 /**
  * Applies one decision operation to the steps and decisions as the edits before it left them, with
- * the core's helpers. `stepAt` finds a step by its id or its number from 1 among those steps.
+ * the core's helpers. It names steps by their id, or by their number from 1 among those steps, and
+ * decisions and alternatives by their id; each new step, decision and alternative gets an id of its
+ * own from `ids`.
  */
 export function applyDecisionEdit(
   scenario: ScenarioFile,
