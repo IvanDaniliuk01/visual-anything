@@ -180,6 +180,54 @@ describe('Claude’s playback', () => {
     renderShell({ playback: { scenario: 'nothing', action: 'open', request: 1 } });
     expect(within(panel()).getByRole('list', { name: 'Scenarios of the project' })).toBeVisible();
   });
+
+  describe('at a decision (ADR 0078)', () => {
+    const order = loadSample('order-process');
+    const QUESTION = 'Is every item in stock?';
+    const current = () =>
+      panel().querySelector('[aria-current="step"] .scenario-step-head')?.textContent;
+
+    it('chooses the alternative Claude names, opening the scenario first', () => {
+      renderShell(
+        {
+          playback: {
+            scenario: 'an-order',
+            action: 'choose',
+            decision: 'stock-check',
+            alternative: 'out-of-stock',
+            request: 1,
+          },
+        },
+        order,
+      );
+      const alternatives = within(panel()).getByRole('list', { name: QUESTION });
+      expect(within(alternatives).getByRole('button', { name: 'No' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+    });
+
+    it('goes to a step with the choices Claude gives', () => {
+      renderShell(
+        {
+          playback: {
+            scenario: 'an-order',
+            action: 'go-to-step',
+            step: 9,
+            choices: { 'stock-check': 'out-of-stock' },
+            request: 1,
+          },
+        },
+        order,
+      );
+      expect(current()).toMatch(/^10An item is out of stock/);
+      const alternatives = within(panel()).getByRole('list', { name: QUESTION });
+      expect(within(alternatives).getByRole('button', { name: 'No' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+    });
+  });
 });
 
 describe('Claude’s tour', () => {

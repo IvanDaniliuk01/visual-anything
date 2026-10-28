@@ -96,10 +96,14 @@ export function useGuidedRequests(
     if (!scenario) return;
     // Over another view, only in the tab the person used last, which opens it.
     if (!forThisTab(playback, editor.viewId, scenario.view)) return;
+    const { step, choices, decision, alternative } = playback;
     const asked: PlaybackGuidance = {
       scenario: playback.scenario,
       action: playback.action,
-      ...(playback.step === undefined ? {} : { step: playback.step }),
+      ...(step === undefined ? {} : { step }),
+      ...(choices === undefined ? {} : { choices }),
+      ...(decision === undefined ? {} : { decision }),
+      ...(alternative === undefined ? {} : { alternative }),
     };
     // Both at once, so that the session's next sync brings the scenario's timeline over its view.
     scenarios.guide(asked);

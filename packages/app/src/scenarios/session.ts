@@ -37,6 +37,7 @@ import { t } from '../i18n';
 import {
   AFTER_STEP,
   NO_CHOICES,
+  alternativesChanged,
   choicesReaching,
   decisionAhead,
   hasDecisions,
@@ -61,7 +62,9 @@ export type SendScenarioCommand = (command: Command) => Promise<{ ok: boolean; c
 
 /**
  * What Claude's guidance asks of playback: to open a scenario, play or pause it, or move it to a
- * step, by the step's index among the scenario's steps, or to the next or the previous one.
+ * step, by the step's index among the scenario's steps, or to the next or the previous one; to open,
+ * play or go to a step with the alternatives to play at its decisions, which replace the tab's
+ * choices; or to choose an alternative at one decision (ADR 0078).
  */
 export type PlaybackGuidance = Omit<Extract<Guidance, { kind: 'playback' }>, 'kind'>;
 
@@ -255,9 +258,30 @@ export class ScenarioSession {
     this.quietly(quiet, () => {
       if (opening) this.open(request.scenario);
     });
+    // Choices Claude gives replace the tab's, from opening on (ADR 0078).
+    if (request.choices !== undefined && request.action !== 'choose') {
+      this.replaceChoices(request.choices);
+    }
     this.guided = request.action === 'open' ? undefined : request;
     this.guidedQuietly = quiet;
     if (!opening && this.timeline()) this.applyGuided();
+  }
+
+  /**
+   * Makes these the choices at the open scenario's decisions, as Claude's guidance asks, and says
+   * which alternatives they change; a new timeline comes with the next sync.
+   */
+  private replaceChoices(choices: DecisionChoices): void {
+    const scenario = this.openScenario();
+    const before = this.state.choices;
+    const same =
+      Object.keys(before).length === Object.keys(choices).length &&
+      Object.entries(choices).every(([decision, alternative]) => before[decision] === alternative);
+    if (same) return;
+    const changed = scenario ? alternativesChanged(scenario, before, choices) : [];
+    this.setChoices(Object.keys(choices).length === 0 ? NO_CHOICES : { ...choices });
+    if (scenario && changed.length > 0) this.context?.announce(sayReached(scenario, changed));
+    this.publish();
   }
 
   /**
@@ -541,6 +565,11 @@ export class ScenarioSession {
         return;
       case 'previous-step':
         this.previous();
+        return;
+      case 'choose':
+        if (guided.decision !== undefined && guided.alternative !== undefined) {
+          this.choose({ decision: guided.decision, alternative: guided.alternative });
+        }
         return;
     }
   }

@@ -585,6 +585,63 @@ describe('ScenarioSession, with decisions (ADR 0078)', () => {
     expect(setup.said.at(-1)).toBe('“No” plays at “Is every item in stock?”.');
   });
 
+  it('chooses as Claude asks, opening the scenario first, and says so', () => {
+    const setup = setUp(loadSample('order-process'), 'order-process');
+    const { session } = setup;
+    session.guide({ scenario: ORDER, action: 'choose', ...NO });
+    expect(session.getState()).toMatchObject({ scenario: ORDER, choices: {} });
+    setup.sync();
+    expect(session.getState()).toMatchObject({
+      scenario: ORDER,
+      choices: { [STOCK]: 'out-of-stock' },
+      step: 0,
+    });
+    expect(setup.said.at(-1)).toBe('“No” plays at “Is every item in stock?”.');
+    expect(setup.send).not.toHaveBeenCalled();
+  });
+
+  it('plays and goes to a step with the choices Claude gives, in place of the tab’s', () => {
+    const setup = setUpOrder();
+    const { session } = setup;
+    session.choose(NO);
+    setup.sync();
+    session.guide({ scenario: ORDER, action: 'play', choices: {} });
+    expect(session.getState().choices).toEqual({});
+    expect(setup.said.at(-1)).toBe('“Yes” plays at “Is every item in stock?”.');
+    setup.sync();
+    expect(session.getState().mode).toBe('playing');
+    session.guide({
+      scenario: ORDER,
+      action: 'go-to-step',
+      step: 9,
+      choices: { [STOCK]: 'out-of-stock' },
+    });
+    setup.sync();
+    expect(session.getState()).toMatchObject({
+      step: 9,
+      choices: { [STOCK]: 'out-of-stock' },
+    });
+  });
+
+  it('opens with the choices Claude gives, and keeps the tab’s when it gives none', () => {
+    const setup = setUp(loadSample('order-process'), 'order-process');
+    const { session } = setup;
+    session.guide({ scenario: ORDER, action: 'open', choices: { [STOCK]: 'out-of-stock' } });
+    expect(session.getState()).toMatchObject({
+      scenario: ORDER,
+      step: 0,
+      mode: 'paused',
+      choices: { [STOCK]: 'out-of-stock' },
+    });
+    setup.sync();
+    session.guide({ scenario: ORDER, action: 'play' });
+    setup.sync();
+    expect(session.getState()).toMatchObject({
+      mode: 'playing',
+      choices: { [STOCK]: 'out-of-stock' },
+    });
+  });
+
   it('forgets the choices when another scenario opens, and never sends them', () => {
     const setup = setUpOrder();
     setup.session.choose(NO);

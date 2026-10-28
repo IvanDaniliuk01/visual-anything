@@ -97,13 +97,23 @@ export function choicesReaching(
   const id = scenario.steps[step]?.id;
   const reached = id === undefined ? undefined : choicesToReach(scenario, id, choices);
   if (!reached) return undefined;
-  // What plays at a decision is its choice, or else its default: only a change of that says anything.
-  const changed = (scenario.blocks ?? []).flatMap((block) => {
-    const now = chosenAlternative(block, choices).id;
-    const then = chosenAlternative(block, reached).id;
+  return { choices: reached, changed: alternativesChanged(scenario, choices, reached) };
+}
+
+/**
+ * The alternatives that play once `after` replaces `before`, at each decision where they differ:
+ * what plays at a decision is its choice, or else its default, so only a change of that counts.
+ */
+export function alternativesChanged(
+  scenario: Pick<ScenarioFile, 'blocks'>,
+  before: DecisionChoices,
+  after: DecisionChoices,
+): Chosen[] {
+  return (scenario.blocks ?? []).flatMap((block) => {
+    const now = chosenAlternative(block, before).id;
+    const then = chosenAlternative(block, after).id;
     return now === then ? [] : [{ decision: block.id, alternative: then }];
   });
-  return { choices: reached, changed };
 }
 
 /** The question and the label of a chosen alternative, as the scenario holds them. */
