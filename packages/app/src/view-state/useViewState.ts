@@ -123,7 +123,9 @@ function composed(now: ApplyContext): ReturnType<typeof viewStateOf> | undefined
     filters: now.explore.filters,
     focus: now.explore.focus,
     scenario:
-      playing.scenario === undefined ? undefined : { id: playing.scenario, step: playing.step },
+      playing.scenario === undefined
+        ? undefined
+        : { id: playing.scenario, step: playing.step, choices: playing.choices },
   });
 }
 

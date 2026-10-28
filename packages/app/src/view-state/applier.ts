@@ -9,7 +9,12 @@
  * It lives outside React's state, like the scenario session: the shell tells it how things are after
  * each render that matters (`sync`), and it does the next step it can.
  */
-import { viewStateProblems, type ProjectSnapshot, type ViewState } from '@visual-anything/core';
+import {
+  knownChoices,
+  viewStateProblems,
+  type ProjectSnapshot,
+  type ViewState,
+} from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { fitCamera, type Camera } from '../canvas/camera';
 import { NO_FILTERS } from '../canvas/explore';
@@ -20,6 +25,7 @@ import type { EmphasisStore } from '../editor/emphasis';
 import { selectionOf, type Selectable, type Selection } from '../editor/selection';
 import { filtersOf } from '../guidance/explore';
 import type { NoticeLevel } from '../live/connection';
+import { NO_CHOICES } from '../scenarios/choosing';
 import { FOLLOW_MARGIN } from '../scenarios/follow';
 import type { ScenarioSession } from '../scenarios/session';
 import type { CanvasCamera, GlideOptions } from './canvas';
@@ -261,7 +267,12 @@ export class ViewStateApplier {
   }
 }
 
-/** Opens the address's scenario at its step, or closes the one open when the address has none. */
+/**
+ * Opens the address's scenario at its step, in the alternatives it chooses, or closes the one open
+ * when the address has none. Its choices replace the tab's, a decision it does not name playing its
+ * default (ADR 0078); those the scenario no longer has are left out, as `viewStateProblems` said.
+ * A step its choices do not play is gone to as the panel goes to one, choosing what reaches it.
+ */
 function playScenario(
   scenarios: PlaybackControl,
   project: ProjectSnapshot,
@@ -274,11 +285,12 @@ function playScenario(
   }
   const step =
     state.step === undefined ? -1 : scenario.steps.findIndex((each) => each.id === state.step);
+  const choices = knownChoices(scenario, state.choices) ?? NO_CHOICES;
   // Quietly: the address places the camera itself, so playback does not bring the step into view.
   scenarios.guide(
     step > 0
-      ? { scenario: scenario.id, action: 'go-to-step', step }
-      : { scenario: scenario.id, action: 'open' },
+      ? { scenario: scenario.id, action: 'go-to-step', step, choices }
+      : { scenario: scenario.id, action: 'open', choices },
     { quiet: true },
   );
 }

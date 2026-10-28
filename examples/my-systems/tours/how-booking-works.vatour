@@ -52,6 +52,29 @@
         "from": "ask",
         "to": "book"
       }
+    },
+    {
+      "id": "the-week-is-full",
+      "viewState": {
+        "view": "system-overview",
+        "scenario": "patient-books-appointment",
+        "step": "read-calendar",
+        "choices": {
+          "free-slot": "week-full"
+        }
+      },
+      "caption": {
+        "title": "When the week is full",
+        "text": "When no slot is free next week, the API does not book: it puts the patient on the waiting list."
+      },
+      "play": {
+        "scenario": "patient-books-appointment",
+        "from": "read-calendar",
+        "to": "join-waiting-list",
+        "choices": {
+          "free-slot": "week-full"
+        }
+      }
     }
   ]
 }

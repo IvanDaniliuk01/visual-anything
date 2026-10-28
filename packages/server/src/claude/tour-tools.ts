@@ -20,7 +20,8 @@ import {
   TOUR_ADVANCE,
   TOUR_CHECK_SCREEN,
   checkTour,
-  modelIndexOf,
+  choicesToReach,
+  playedSteps,
   savedViewStateOf,
   tourStepProblems,
   type NewTourStep,
@@ -36,6 +37,7 @@ import type {
   TourStep,
 } from '@visual-anything/schema';
 import { z } from 'zod';
+import { choicesProblem } from './decision-edits';
 import {
   DELETE,
   GUIDE,
@@ -100,8 +102,16 @@ const play = () =>
       to: scenarioStepRef()
         .optional()
         .describe('The step it stops on, by id or number from 1; its last when left out.'),
+      choices: z
+        .record(id(), id())
+        .optional()
+        .describe(
+          'The alternative it plays at each decision of the scenario, by the decision’s id, as read_scenario gives them: { "<decision id>": "<alternative id>" }. A decision left out plays its default. from and to must be steps these choices play.',
+        ),
     })
-    .describe('A scenario played, step by step, while the step shows.');
+    .describe(
+      'A scenario played, step by step, while the step shows, in the alternatives you choose at its decisions.',
+    );
 
 const notes = () =>
   z
@@ -176,7 +186,7 @@ const newStep = () =>
 
 type NewStepArgs = z.infer<ReturnType<typeof newStep>>;
 
-const STEP_HELP = `A step's viewState is a view state as get_view_address takes it: ${STATE_HELP} Its caption has a title and a text, and place puts its card in a corner; marks highlight elements and relations; reveal brings in more marks one press at a time, each with a sentence for the caption; dimRest dims the rest; play plays a scenario over the step's view from one of its steps to another; advance moves on by itself; notes are the speaker's. The answer says how the camera gets to the step (glide, cut, stay or fit, as check_tour says) and what check_tour warns about it, but for marks outside its camera, which only check_tour reads.`;
+const STEP_HELP = `A step's viewState is a view state as get_view_address takes it: ${STATE_HELP} Its caption has a title and a text, and place puts its card in a corner; marks highlight elements and relations; reveal brings in more marks one press at a time, each with a sentence for the caption; dimRest dims the rest; play plays a scenario over the step's view from one of its steps to another, and its choices the alternative to play at each of the scenario's decisions (read_scenario gives their ids), every other decision playing its default; advance moves on by itself; notes are the speaker's. The answer says how the camera gets to the step (glide, cut, stay or fit, as check_tour says) and what check_tour warns about it, but for marks outside its camera, which only check_tour reads.`;
 
 // ——— Read ———
 
@@ -254,6 +264,7 @@ ${STEP_HELP}
 
 Example: { "tour": "how-booking-works", "viewState": { "view": "system-overview", "select": ["appointments-db"] }, "title": "Where bookings live", "text": "The API reads and writes the calendar here.", "marks": ["api-reads-db", "api-writes-db"] }
 Example: { "tour": "how-booking-works", "at": 1, "viewState": { "view": "system-overview" }, "title": "Start here" }
+Example, playing an alternative of a decision: { "tour": "how-booking-works", "viewState": { "view": "system-overview" }, "title": "When the week is full", "play": { "scenario": "patient-books-appointment", "from": "read-calendar", "to": "join-waiting-list", "choices": { "free-slot": "week-full" } } }
 Example, building one picture up: { "tour": "how-booking-works", "viewState": { "view": "system-overview", "camera": { "x": 400, "y": 300, "zoom": 1 } }, "title": "Who takes part", "text": "First, the patient.", "marks": ["patient"], "reveal": [{ "marks": ["booking-agent", "patient-to-agent"], "text": "The agent answers on WhatsApp." }, { "marks": ["appointments-api"], "text": "It books through the API." }], "dimRest": true, "place": "top-right", "advance": 9000 }`,
   input: {
     tour: tourId(),
@@ -300,7 +311,8 @@ Example: { "tour": "how-booking-works", "step": 2, "text": "It answers in a seco
 Example: { "tour": "how-booking-works", "step": "the-agent", "viewState": { "view": "system-overview", "select": ["booking-agent"] }, "marks": null, "moveTo": 1 }
 Example, turning steps 3 and 4, which showed the same view state, into one step with a reveal: { "tour": "how-booking-works", "step": 3, "reveal": [{ "marks": ["api-writes-db"], "text": "Then it writes the booking." }], "dimRest": true } and then remove_tour_step { "tour": "how-booking-works", "step": 4 }
 Example: { "tour": "how-booking-works", "step": 5, "advance": "after-scenario", "place": "bottom-left" }
-Example: { "tour": "how-booking-works", "step": 5, "reveal": null, "dimRest": false, "advance": null, "place": "auto" }`,
+Example: { "tour": "how-booking-works", "step": 5, "reveal": null, "dimRest": false, "advance": null, "place": "auto" }
+Example, playing the other alternative: { "tour": "how-booking-works", "step": 4, "play": { "scenario": "patient-books-appointment", "from": 4, "to": 5, "choices": { "free-slot": "has-slot" } } }`,
   input: {
     tour: tourId(),
     step: stepRef(),
@@ -614,7 +626,25 @@ function playFrom(
       message: `The scenario "${scenario.name}" has ${counted(scenario.steps.length, 'step')}.`,
     };
   }
-  return { ok: true, play: withoutUndefined({ scenario: scenario.id, from, to }) };
+  const choices = given.choices && Object.keys(given.choices).length > 0 ? given.choices : undefined;
+  if (choices) {
+    const problem = choicesProblem(scenario, choices);
+    if (problem) return { ok: false, message: problem };
+  }
+  // A range its choices do not play is refused, with the choices that would play it.
+  for (const id of [from, to]) {
+    const at = id === undefined ? -1 : scenario.steps.findIndex((each) => each.id === id);
+    if (id === undefined || at < 0 || playedSteps(scenario, choices).includes(at)) continue;
+    const reaching = choicesToReach(scenario, id, choices);
+    const hint = reaching
+      ? ` Give choices ${JSON.stringify(reaching)}, which play it.`
+      : ' No choices play it.';
+    return {
+      ok: false,
+      message: `With ${choices ? 'the choices given' : 'every decision playing its default'}, the scenario "${scenario.name}" does not play the step "${id}".${hint}`,
+    };
+  }
+  return { ok: true, play: withoutUndefined({ scenario: scenario.id, from, to, choices }) };
 }
 
 /** Where a step is in its tour, by id or number from 1. */
@@ -650,61 +680,13 @@ function describeTour(state: ProjectSnapshot, tour: TourFile) {
 
 /**
  * Where each view draws an element or a relation now, for check_tour's marks outside a camera, from
- * the app's own scene: the rectangle around every shape of an element, or around the shape of the
- * outermost collapsed container that holds it; around a relation's line, or the aggregated line that
- * stands for it, or else the shapes of its ends. None for what the view does not draw. Each view's
- * scene is built once, the first time a step of it asks.
+ * the app's own scene, as the Tours panel reads them (`app/src/tours/drawn-bounds.ts`).
  */
 async function drawnBounds(
   project: ProjectSnapshot,
 ): Promise<(view: Id, id: Id) => TourRect | undefined> {
-  const { buildSceneAfresh, relationLinesOf, shownBy } =
-    await import('@visual-anything/app/src/canvas/scene');
-  type Scene = ReturnType<typeof buildSceneAfresh>;
-  type Shape = Scene['shapes'][number];
-  const index = modelIndexOf(project);
-  const scenes = new Map<Id, { scene: Scene; shapes: Map<Id, Shape[]> } | undefined>();
-  const drawn = (view: Id) => {
-    if (!scenes.has(view)) {
-      const scene = project.views.some((each) => each.id === view)
-        ? buildSceneAfresh(project, view)
-        : undefined;
-      const shapes = new Map<Id, Shape[]>();
-      for (const shape of scene?.shapes ?? []) {
-        shapes.set(shape.element, [...(shapes.get(shape.element) ?? []), shape]);
-      }
-      scenes.set(view, scene && { scene, shapes });
-    }
-    return scenes.get(view);
-  };
-  return (view, id) => {
-    const found = drawn(view);
-    if (!found) return undefined;
-    const { scene, shapes } = found;
-    const corners: { x: number; y: number }[] = [];
-    const around = (shape: Shape | undefined) => {
-      if (!shape) return;
-      const { x, y, width, height } = shape.rect;
-      corners.push({ x, y }, { x: x + width, y: y + height });
-    };
-    const own = shapes.get(id);
-    if (own) own.forEach(around);
-    else if (index.element(id)) around(shownBy(scene, id));
-    else {
-      const line = relationLinesOf(scene).get(id);
-      if (line) corners.push(...line.route);
-      else {
-        const relation = index.relation(id);
-        if (relation) [relation.from, relation.to].forEach((end) => around(shownBy(scene, end)));
-      }
-    }
-    if (corners.length === 0) return undefined;
-    const xs = corners.map((each) => each.x);
-    const ys = corners.map((each) => each.y);
-    const x = Math.min(...xs);
-    const y = Math.min(...ys);
-    return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
-  };
+  const { drawnBounds: of } = await import('@visual-anything/app/src/tours/drawn-bounds');
+  return of(project);
 }
 
 /** The tour tools, in the order Claude reads them. */

@@ -206,14 +206,18 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
       const scenario = play && project.scenarios.find((each) => each.id === play.scenario);
       let frame: Travel['frame'];
       if (play && scenario) {
-        // The scenario opens at the step it plays from, and plays from there.
+        // The scenario opens at the step it plays from, in the alternatives it plays (ADR 0078),
+        // and plays from there.
         state.scenario = scenario.id;
         const from = scenario.steps[play.from]?.id;
         if (from !== undefined && play.from > 0) state.step = from;
         else delete state.step;
+        if (play.choices) state.choices = play.choices;
+        else delete state.choices;
         // Without a camera, the step frames everything its range plays (ADR 0077).
         if (!state.camera) {
-          frame = (drawn) => playedBounds(project, drawn, scenario, play.from, play.to);
+          frame = (drawn) =>
+            playedBounds(project, drawn, scenario, play.from, play.to, play.choices);
         }
       }
       viewState.goTo({ kind: 'address', state, travel: frame ? { ...travel, frame } : travel });
@@ -380,8 +384,11 @@ export function useTourPlayback(input: TourPlaybackInput): TourPlaybackOutput {
     const played = now.playable?.play;
     const scenario = played && now.project.scenarios.find((each) => each.id === played.scenario);
     if (!scenario || !now.scene) return;
-    const at = scenarios.getState().step;
-    stepCamera.follow(scenarioStepBounds(now.project, now.scene, scenario, at), settings.current);
+    const { step: at, choices } = scenarios.getState();
+    stepCamera.follow(
+      scenarioStepBounds(now.project, now.scene, scenario, at, choices),
+      settings.current,
+    );
   }, [followed, scenarios, stepCamera]);
 
   // The caption takes the side farthest from the marks once the camera stops (ADR 0077): afresh

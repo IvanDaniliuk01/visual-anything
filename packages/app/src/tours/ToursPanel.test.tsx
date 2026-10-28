@@ -42,7 +42,7 @@ describe('the tours panel', () => {
     const { tab, sent } = openTours();
     const list = within(tab).getByRole('list', { name: 'Tours of the project' });
     expect(within(list).getByRole('button', { name: /^How booking works/ })).toHaveTextContent(
-      '3 steps',
+      '4 steps',
     );
     fireEvent.click(within(tab).getByRole('button', { name: 'New tour from the canvas' }));
     await vi.waitFor(() => expect(sent).toHaveLength(1));
@@ -68,6 +68,7 @@ describe('the tours panel', () => {
       'The clinic',
       'The booking agent',
       'One request, step by step',
+      'When the week is full',
     ]);
     const [command] = sent;
     expect(command?.type === 'update-tour' && command.changes.steps?.[1]).toBe(tour.steps[1]);
@@ -86,23 +87,30 @@ describe('the tours panel', () => {
       'Clinic booking',
       'The booking agent',
       'One request, step by step',
+      'When the week is full',
       'System overview',
     ]);
     expect(titlesIn(sent[1])).toEqual([
       'The booking agent',
       'Clinic booking',
       'One request, step by step',
+      'When the week is full',
     ]);
     expect(titlesIn(sent[2])).toEqual([
       'Clinic booking',
       'The booking agent',
       'The booking agent',
       'One request, step by step',
+      'When the week is full',
     ]);
     // The copy has no id of its own yet: the core gives it one.
     const copy = sent[2]?.type === 'update-tour' ? sent[2].changes.steps?.[2] : undefined;
     expect(copy?.id).toBeUndefined();
-    expect(titlesIn(sent[3])).toEqual(['Clinic booking', 'One request, step by step']);
+    expect(titlesIn(sent[3])).toEqual([
+      'Clinic booking',
+      'One request, step by step',
+      'When the week is full',
+    ]);
   });
 
   it('marks the selection only when something is selected', () => {
@@ -134,6 +142,66 @@ describe('the tours panel', () => {
   });
 });
 
+// ADR 0077: the Tours panel says what check_tour says, under each step.
+describe('the tour’s check in the panel', () => {
+  const far = { x: 100_000, y: 100_000, zoom: 1 };
+  const checked: TourFile = {
+    id: 'checked',
+    name: 'Checked',
+    steps: [
+      {
+        id: 'away',
+        viewState: { view: 'system-overview', camera: far },
+        caption: { title: 'Away' },
+        marks: ['patient'],
+      },
+      {
+        id: 'again',
+        viewState: { view: 'system-overview', camera: far },
+        caption: { title: 'Again' },
+      },
+      {
+        id: 'back',
+        viewState: { view: 'system-overview', camera: { x: 0, y: 0, zoom: 1 } },
+        caption: { title: 'Back' },
+      },
+      {
+        id: 'quick',
+        viewState: { view: 'system-overview' },
+        caption: { title: 'Quick', text: Array.from({ length: 40 }, () => 'word').join(' ') },
+        advance: 1000,
+      },
+    ],
+  };
+
+  it('says where a step cuts, what its marks miss, what could be a reveal and a caption read too fast', () => {
+    const { tab } = openTours({ ...sample, tours: [checked] });
+    fireEvent.click(within(tab).getByRole('button', { name: /^Checked/ }));
+    expect(tab).toHaveTextContent(
+      'Read on a screen of 1366 by 768 pixels: 4 things to look at, under their steps.',
+    );
+    const look = (n: number) =>
+      within(tab)
+        .queryByRole('list', { name: `What to look at in step ${n}` })
+        ?.textContent?.trim();
+    expect(look(1)).toBe('Step 1 marks what its camera does not show: "Patient".');
+    expect(look(2)).toBe(
+      'Step 2 shows the same view state as step 1: it could be a reveal of that step.',
+    );
+    expect(look(3)).toBe(
+      'Step 3 cuts from step 2: its camera is too far, or too much zoomed, to glide to.',
+    );
+    expect(look(4)).toMatch(/^Step 4 moves on after 1 s, but its text takes .+ to read/);
+  });
+
+  it('says nothing to look at in a tour that plays as written', () => {
+    const { tab } = openTours();
+    fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));
+    expect(tab).toHaveTextContent('Read on a screen of 1366 by 768 pixels: nothing to look at.');
+    expect(within(tab).queryByRole('list', { name: /^What to look at/ })).toBeNull();
+  });
+});
+
 describe('full-screen playback', () => {
   it('hides the panels, shows the caption card and moves through the steps by keys, until Escape', () => {
     const { tab, container } = openTours();
@@ -145,7 +213,7 @@ describe('full-screen playback', () => {
     expect(screen.getByRole('article')).toHaveTextContent('Clinic booking');
     fireEvent.keyDown(document.body, { key: 'ArrowRight' });
     expect(screen.getByRole('article')).toHaveTextContent('The booking agent');
-    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Step 2 of 3');
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuetext', 'Step 2 of 4');
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(screen.queryByRole('article')).toBeNull();
     expect(shell).not.toHaveClass('tour-playing');
@@ -154,15 +222,23 @@ describe('full-screen playback', () => {
   it('plays from a step, and changes nothing in the project', async () => {
     const { tab, sent } = openTours();
     fireEvent.click(within(tab).getByRole('button', { name: /^How booking works/ }));
-    fireEvent.click(within(tab).getByRole('button', { name: 'Play full screen from step 3' }));
-    expect(screen.getByRole('article')).toHaveTextContent('One request, step by step');
+    fireEvent.click(within(tab).getByRole('button', { name: 'Play full screen from step 4' }));
+    expect(screen.getByRole('article')).toHaveTextContent('When the week is full');
     expect(screen.getByRole('button', { name: 'Next step' })).toBeDisabled();
-    // Once the canvas fills the window, the step opens its scenario, which plays from its first step.
+    // Once the canvas fills the window, the step opens its scenario, in the alternative it plays.
     const scenarios = screen.getByRole('complementary', { name: 'Scenarios' });
     await waitFor(() =>
       expect(
         within(scenarios).getByRole('heading', { name: 'Patient books an appointment' }),
       ).toBeInTheDocument(),
+    );
+    const alternatives = within(scenarios).getByRole('list', {
+      name: 'Is a cardiology slot free next week?',
+    });
+    await waitFor(() =>
+      expect(
+        within(alternatives).getByRole('button', { name: 'No, the week is full' }),
+      ).toHaveAttribute('aria-pressed', 'true'),
     );
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(sent).toEqual([]);

@@ -3,7 +3,8 @@
  * from here; and the open tour's steps, each a view state with its caption, marks and speaker notes.
  * Add step takes the canvas as it is now; captions and marks are edited in place; steps are moved,
  * duplicated and deleted, each one action. A step that names what the project no longer holds is
- * kept and flagged, and plays without it.
+ * kept and flagged, and plays without it. Under each step, the tour's check says where it cuts, what
+ * its marks miss and whether it could be a reveal of the step before (ADR 0077), as `check_tour` does.
  */
 import {
   MAX_CAPTION_TEXT,
@@ -11,14 +12,17 @@ import {
   MAX_SPEAKER_NOTES,
   MAX_TOUR_MARKS,
   MAX_TOUR_NAME,
+  TOUR_CHECK_SCREEN,
+  checkTour,
   isBrokenTourStep,
   savedViewStateOf,
   tourStepProblems,
   type Command,
   type ProjectSnapshot,
+  type TourStepCheck,
 } from '@visual-anything/core';
 import type { Id, TourFile, TourStep } from '@visual-anything/schema';
-import { useCallback, useContext, useId, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useId, useMemo, useState, type ReactNode } from 'react';
 import { useEditor } from '../editor/EditorContext';
 import { useT, type Translator } from '../i18n';
 import { LIVE_MESSAGE_LIMIT } from '../import/importing';
@@ -39,6 +43,7 @@ import {
 } from './commands';
 import { useToursHost } from './context';
 import { describeMarks } from './describe';
+import { drawnBounds } from './drawn-bounds';
 import { MotionPreferences } from './MotionPreferences';
 import './tours.css';
 
@@ -83,7 +88,12 @@ export function ToursPanel({ active }: { active: boolean }) {
   return (
     <div className="tours-panel" hidden={!active}>
       {tour ? (
-        <OpenTour tour={tour} send={send} onClose={() => setOpenId(undefined)} />
+        <OpenTour
+          tour={tour}
+          send={send}
+          active={active}
+          onClose={() => setOpenId(undefined)}
+        />
       ) : (
         <TourList send={send} onOpen={setOpenId} />
       )}
@@ -183,8 +193,22 @@ function PlayButton({ tour, step = 0, label }: { tour: TourFile; step?: number; 
   );
 }
 
-/** The open tour: its name, playing and deleting it, and its steps. */
-function OpenTour({ tour, send, onClose }: { tour: TourFile; send: Send; onClose: () => void }) {
+/**
+ * The open tour: its name, playing and deleting it, its steps, and what `checkTour` says of each
+ * (ADR 0077), read on the reference screen from the views' scenes as `check_tour` reads them. The
+ * check is worked out once for each tour and project while the panel shows, never per frame.
+ */
+function OpenTour({
+  tour,
+  send,
+  active,
+  onClose,
+}: {
+  tour: TourFile;
+  send: Send;
+  active: boolean;
+  onClose: () => void;
+}) {
   const t = useT();
   const editor = useEditor();
   const { project, viewId } = editor;
@@ -193,6 +217,12 @@ function OpenTour({ tour, send, onClose }: { tour: TourFile; send: Send; onClose
   const nameId = useId();
   const [deleting, setDeleting] = useState(false);
   const view = project.views.find((each) => each.id === viewId);
+  const checks = useMemo(
+    () =>
+      active ? checkTour(project, tour, { boundsOf: drawnBounds(project) }) : undefined,
+    [active, project, tour],
+  );
+  const warnings = checks?.reduce((sum, check) => sum + check.warnings.length, 0) ?? 0;
 
   const add = async () => {
     const current = host?.current();
@@ -231,6 +261,20 @@ function OpenTour({ tour, send, onClose }: { tour: TourFile; send: Send; onClose
           void send(renameTourCommand(tour, name), t('Renamed to “{name}”.', { name }))
         }
       />
+      {checks && tour.steps.length > 0 && (
+        <p className="tour-check-summary">
+          {warnings === 0
+            ? t('Read on a screen of {width} by {height} pixels: nothing to look at.', SCREEN)
+            : t(
+                {
+                  one: 'Read on a screen of {width} by {height} pixels: {count} thing to look at, under its step.',
+                  other:
+                    'Read on a screen of {width} by {height} pixels: {count} things to look at, under their steps.',
+                },
+                { count: warnings, ...SCREEN },
+              )}
+        </p>
+      )}
       {tour.steps.length > 0 ? (
         <ol className="tour-steps" aria-label={t('Steps of “{name}”', { name: tour.name })}>
           {tour.steps.map((step, at) => (
@@ -241,6 +285,7 @@ function OpenTour({ tour, send, onClose }: { tour: TourFile; send: Send; onClose
               at={at}
               send={send}
               editable={editable}
+              check={checks?.[at]}
             />
           ))}
         </ol>
@@ -283,19 +328,24 @@ function OpenTour({ tour, send, onClose }: { tour: TourFile; send: Send; onClose
   );
 }
 
-/** One step: its caption, marks and notes edited in place, and what can be done with it. */
+/**
+ * One step: its caption, marks and notes edited in place, what can be done with it, and what the
+ * tour's check says of it.
+ */
 function StepItem({
   tour,
   step,
   at,
   send,
   editable,
+  check,
 }: {
   tour: TourFile;
   step: TourStep;
   at: number;
   send: Send;
   editable: boolean;
+  check: TourStepCheck | undefined;
 }) {
   const t = useT();
   const editor = useEditor();
@@ -304,6 +354,7 @@ function StepItem({
   const ids = { title: useId(), text: useId(), notes: useId() };
   const n = at + 1;
   const problems = tourStepProblems(project, step);
+  const looks = check ? whatToLookAt(t, tour, check) : [];
   const selected = [...selection.elements, ...selection.relations].slice(0, MAX_TOUR_MARKS);
   const change = (update: (step: TourStep) => TourStep, done: string) =>
     void send(changeStep(tour, step.id, update), done);
@@ -329,6 +380,15 @@ function StepItem({
             ))}
           </ul>
         </div>
+      )}
+      {looks.length > 0 && (
+        <ul className="tour-step-checks" aria-label={t('What to look at in step {n}', { n })}>
+          {looks.map((look, index) => (
+            <li key={index} className={look.warning ? 'tour-step-warning' : undefined}>
+              {look.text}
+            </li>
+          ))}
+        </ul>
       )}
       <Field
         id={ids.title}
@@ -565,6 +625,35 @@ function Field({
       )}
     </div>
   );
+}
+
+/** The screen a tour is read on, as `check_tour` reads it unless told otherwise. */
+const SCREEN = { width: TOUR_CHECK_SCREEN.width, height: TOUR_CHECK_SCREEN.height };
+
+/**
+ * What the check says of a step, in the language read in: its warnings but that it is broken, which
+ * the step's problems already say in full, and where it cuts into another view, which is no warning.
+ */
+function whatToLookAt(
+  t: Translator,
+  tour: TourFile,
+  check: TourStepCheck,
+): { text: string; warning: boolean }[] {
+  const looks = check.warnings
+    .filter((warning) => warning.kind !== 'broken')
+    .map((warning) => ({ text: t.message(warning.message), warning: true }));
+  const before = tour.steps[check.n - 2];
+  const step = tour.steps[check.n - 1];
+  if (check.camera === 'cut' && before && step && before.viewState.view !== step.viewState.view) {
+    looks.push({
+      text: t('Step {n} cuts from step {m} with a cross-fade, into another view.', {
+        n: check.n,
+        m: check.n - 1,
+      }),
+      warning: false,
+    });
+  }
+  return looks;
 }
 
 /** What a step shows, in brief: its view, and what else its view state sets. */

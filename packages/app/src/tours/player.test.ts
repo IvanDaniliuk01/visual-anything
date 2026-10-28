@@ -15,11 +15,12 @@ describe('TourPlayer', () => {
     const player = new TourPlayer();
     const heard = vi.fn();
     player.subscribe(heard);
-    player.start(tour, 1);
-    expect(player.getState()).toEqual({ tour: tour.id, step: 1, reveal: 0 });
+    const last = tour.steps.length - 1;
+    player.start(tour, last - 1);
+    expect(player.getState()).toEqual({ tour: tour.id, step: last - 1, reveal: 0 });
     player.next();
     player.next();
-    expect(player.getState().step).toBe(2);
+    expect(player.getState().step).toBe(last);
     player.previous();
     player.first();
     expect(player.getState().step).toBe(0);
@@ -74,7 +75,7 @@ describe('TourPlayer', () => {
     player.goTo(1);
     expect(player.getState().reveal).toBe(0);
     player.last();
-    expect(player.getState()).toEqual({ tour: tour.id, step: 2, reveal: 0 });
+    expect(player.getState()).toEqual({ tour: tour.id, step: tour.steps.length - 1, reveal: 0 });
     const heard = vi.fn();
     player.subscribe(heard);
     player.next();
@@ -187,6 +188,13 @@ describe('ScenarioRange', () => {
       goToStep: vi.fn((step: number) => {
         state = { ...state, step };
       }),
+      guide: vi.fn((request: Parameters<RangeSession['guide']>[0]) => {
+        state = {
+          ...state,
+          step: request.step ?? state.step,
+          choices: request.choices ?? state.choices,
+        };
+      }),
       // One entry of the timeline for each step, as when no container is collapsed.
       entryOf: (step: number) => (state.scenario === undefined ? undefined : step),
       set: (next) => {
@@ -279,6 +287,29 @@ describe('ScenarioRange', () => {
     expect(session.goToStep).toHaveBeenLastCalledWith(1);
     expect(range.getState()).toBe('playing');
     expect(session.getState()).toMatchObject({ step: 1, mode: 'playing' });
+  });
+
+  // ADR 0078: a range plays the alternatives its step chooses.
+  it('plays its range again in the alternatives it plays, when they changed meanwhile', () => {
+    const session = fakeSession(PAUSED);
+    const range = new ScenarioRange(session);
+    range.start({ scenario: 'booking', from: 1, to: 2, choices: { slot: 'full' } });
+    session.set({ scenario: 'booking', step: 1, choices: { slot: 'full' } });
+    range.check();
+    session.set({ step: 3 });
+    range.check();
+    // The same choices: it goes to the first step, as before.
+    range.replay();
+    expect(session.goToStep).toHaveBeenLastCalledWith(1);
+    expect(session.guide).not.toHaveBeenCalled();
+    // Choices changed, as by Claude's guidance: they are given back with the step.
+    session.set({ choices: {}, step: 3, mode: 'paused' });
+    range.replay();
+    expect(session.guide).toHaveBeenCalledWith(
+      { scenario: 'booking', action: 'go-to-step', step: 1, choices: { slot: 'full' } },
+      { quiet: true },
+    );
+    expect(range.getState()).toBe('playing');
   });
 
   it('ends when the scenario itself stops on the range’s last step', () => {
