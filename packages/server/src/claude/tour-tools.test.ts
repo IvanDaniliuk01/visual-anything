@@ -188,6 +188,123 @@ describe('add_tour_step, update_tour_step and remove_tour_step', () => {
     expect(tourNamed('Checkout')?.steps[0]?.play).toBeUndefined();
   });
 
+  it('add a step that reveals, dims the rest, places its caption and advances, as the file keeps it', async () => {
+    const tour = await walk();
+    const added = await tools.value('add_tour_step', {
+      tour,
+      viewState: { view: 'overview' },
+      title: 'Who reads',
+      text: 'First the customer.',
+      marks: ['customer'],
+      reveal: [
+        { marks: ['api'], text: 'Then the API.' },
+        { marks: ['db', 'api-reads-db'], text: '' },
+      ],
+      dimRest: true,
+      place: 'top-right',
+      advance: 4000,
+    });
+    expect(added).toMatchObject({
+      done: 'Add a step to the tour "Checkout"',
+      number: 3,
+      check: { camera: 'fit' },
+    });
+    expect(tourNamed('Checkout')?.steps[2]).toEqual({
+      id: added.step,
+      viewState: { view: 'overview' },
+      caption: { title: 'Who reads', text: 'First the customer.', place: 'top-right' },
+      marks: ['customer'],
+      reveal: [{ marks: ['api'], text: 'Then the API.' }, { marks: ['db', 'api-reads-db'] }],
+      dimRest: true,
+      advance: 4000,
+    });
+  });
+
+  it('write none of the new keys with their defaults, so a step that uses none stays as it was', async () => {
+    const tour = await walk();
+    await tools.value('add_tour_step', {
+      tour,
+      viewState: { view: 'overview' },
+      title: 'Plain',
+      reveal: [],
+      dimRest: false,
+      place: 'auto',
+    });
+    expect(tourNamed('Checkout')?.steps[2]).toEqual({
+      id: tourNamed('Checkout')?.steps[2]?.id,
+      viewState: { view: 'overview' },
+      caption: { title: 'Plain' },
+    });
+  });
+
+  it('change reveals, dimming, the caption’s place and advancing, and take each away', async () => {
+    const tour = await walk();
+    await tools.value('update_tour_step', {
+      tour,
+      step: 2,
+      reveal: [{ marks: ['db'] }],
+      dimRest: true,
+      place: 'bottom-left',
+      advance: 'after-scenario',
+    });
+    expect(tourNamed('Checkout')?.steps[1]).toMatchObject({
+      caption: { title: 'The API', place: 'bottom-left' },
+      reveal: [{ marks: ['db'] }],
+      dimRest: true,
+      advance: 'after-scenario',
+    });
+    const changed = await tools.value('update_tour_step', {
+      tour,
+      step: 2,
+      reveal: null,
+      dimRest: false,
+      place: 'auto',
+      advance: null,
+    });
+    expect(changed).toMatchObject({ check: { camera: 'fit' } });
+    const step = tourNamed('Checkout')?.steps[1];
+    expect(step?.caption).toEqual({ title: 'The API', text: 'It answers the customer.' });
+    expect(step).not.toHaveProperty('reveal');
+    expect(step).not.toHaveProperty('dimRest');
+    expect(step).not.toHaveProperty('advance');
+  });
+
+  it('refuse what the core refuses, in its words, and say what the step’s check warns about', async () => {
+    const tour = await walk();
+    expect(
+      await tools.failure('update_tour_step', {
+        tour,
+        step: 2,
+        play: null,
+        advance: 'after-scenario',
+      }),
+    ).toBe(
+      'Refused, so nothing changed: Step 2 of the tour moves on after its scenario, but plays none. (invalid-command)',
+    );
+    expect(
+      await tools.failure('add_tour_step', {
+        tour,
+        viewState: { view: 'overview' },
+        title: 'X',
+        reveal: [{ marks: ['nothing'] }],
+      }),
+    ).toBe(
+      'Refused, so nothing changed: Step 3 of the tour: Reveal 1 of the step marks elements and relations, and "nothing" is neither. (unknown-element)',
+    );
+    const quick = await tools.value('update_tour_step', {
+      tour,
+      step: 1,
+      text: 'A long caption that takes far longer to read than half a second does, word after word after word.',
+      advance: 500,
+    });
+    expect(quick.check).toEqual({
+      camera: 'fit',
+      warnings: [
+        'Step 1 moves on after 0.5 s, but its text takes 6.3 s to read: it waits until then.',
+      ],
+    });
+  });
+
   it('remove a step, and say which steps a tour has when one is not there', async () => {
     const tour = await walk();
     expect(await tools.value('remove_tour_step', { tour, step: 1 })).toMatchObject({

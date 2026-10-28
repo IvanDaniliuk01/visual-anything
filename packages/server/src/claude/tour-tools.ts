@@ -12,13 +12,25 @@ import {
   MAX_GUIDANCE_TARGETS,
   MAX_SPEAKER_NOTES,
   MAX_TOUR_DESCRIPTION,
+  MAX_TOUR_MARKS,
   MAX_TOUR_NAME,
+  MAX_TOUR_REVEALS,
+  TOUR_ADVANCE,
+  checkTour,
   savedViewStateOf,
   tourStepProblems,
   type NewTourStep,
   type ProjectSnapshot,
 } from '@visual-anything/core';
-import type { Id, TourFile, TourPlayback, TourStep } from '@visual-anything/schema';
+import type {
+  Id,
+  TourAdvance,
+  TourCaption,
+  TourFile,
+  TourPlayback,
+  TourReveal,
+  TourStep,
+} from '@visual-anything/schema';
 import { z } from 'zod';
 import {
   DELETE,
@@ -95,25 +107,79 @@ const notes = () =>
       'Speaker notes: what the person presenting says while the step shows, in the notes window only. Plain text, as the caption.',
     );
 
+const reveal = () =>
+  z
+    .array(
+      z.object({
+        marks: z
+          .array(id())
+          .min(1)
+          .max(MAX_TOUR_MARKS)
+          .describe('The elements and relations this reveal brings in, each once.'),
+        text: z
+          .string()
+          .max(MAX_CAPTION_TEXT)
+          .optional()
+          .describe(
+            'A paragraph added to the caption as it comes in: plain text, as the caption’s text.',
+          ),
+      }),
+    )
+    .max(MAX_TOUR_REVEALS)
+    .describe(
+      'Reveals: marks brought in one press forward at a time, after the step’s own marks, each fading in with its text added to the caption; a press back takes the last one away. Use them to build one picture up, rather than steps that repeat the same view state.',
+    );
+
+const dimRest = () =>
+  z
+    .boolean()
+    .describe(
+      'true dims everything the step does not mark, but the ends of the relations it marks, so that its marks and reveals stand out; false, as left out, dims nothing.',
+    );
+
+/** Where a caption card sits; `auto` is never written. */
+const CAPTION_PLACES = ['auto', 'top-left', 'top-right', 'bottom-left', 'bottom-right'] as const;
+
+const place = () =>
+  z
+    .enum(CAPTION_PLACES)
+    .describe(
+      'Where the caption card sits: auto, as left out, takes the side of the screen farthest from the step’s marks once the camera stops; a corner fixes it there.',
+    );
+
+const advance = () =>
+  z
+    .union([
+      z.number().int().min(TOUR_ADVANCE.least).max(TOUR_ADVANCE.most),
+      z.literal('after-scenario'),
+    ])
+    .describe(
+      'Moves on by itself: after this many milliseconds, 500 to 600,000, spread evenly over its reveals, though never sooner than its text takes to read at 200 words a minute; or after-scenario, once the scenario it plays ends. Left out, the step waits for the person. The stage shows a pause control.',
+    );
+
 const newStep = () =>
   z.object({
     viewState: viewState(),
     ...caption(),
+    place: place().optional(),
     marks: marks().optional(),
+    reveal: reveal().optional(),
+    dimRest: dimRest().optional(),
     play: play().optional(),
+    advance: advance().optional(),
     notes: notes().optional(),
   });
 
 type NewStepArgs = z.infer<ReturnType<typeof newStep>>;
 
-const STEP_HELP = `A step's viewState is a view state as get_view_address takes it: ${STATE_HELP} Its caption has a title and a text; marks highlight elements and relations; play plays a scenario over the step's view from one of its steps to another; notes are the speaker's.`;
+const STEP_HELP = `A step's viewState is a view state as get_view_address takes it: ${STATE_HELP} Its caption has a title and a text, and place puts its card in a corner; marks highlight elements and relations; reveal brings in more marks one press at a time, each with a sentence for the caption; dimRest dims the rest; play plays a scenario over the step's view from one of its steps to another; advance moves on by itself; notes are the speaker's. The answer says how the camera gets to the step (glide, cut, stay or fit, as check_tour says) and what check_tour warns about it, but for marks outside its camera, which only check_tour reads.`;
 
 // ——— Read ———
 
 const readTour = tool({
   name: 'read_tour',
   title: 'Read a tour',
-  description: `Reads a tour: its steps in order, each with its number, id, view state, caption, marks, the scenario it plays and its speaker notes, and what it names that the project no longer holds: such a step is kept and flagged as broken, and plays without it. Read it before changing a tour's steps.
+  description: `Reads a tour: its steps in order, each with its number, id, view state, caption (and its place, when fixed in a corner), marks, reveals, dimRest, the scenario it plays, advance and its speaker notes, and what it names that the project no longer holds: such a step is kept and flagged as broken, and plays without it. Read it before changing a tour's steps; check_tour says how it plays.
 
 Example: { "tour": "how-booking-works" }`,
   input: { tour: tourId() },
@@ -183,7 +249,8 @@ const addTourStep = tool({
 ${STEP_HELP}
 
 Example: { "tour": "how-booking-works", "viewState": { "view": "system-overview", "select": ["appointments-db"] }, "title": "Where bookings live", "text": "The API reads and writes the calendar here.", "marks": ["api-reads-db", "api-writes-db"] }
-Example: { "tour": "how-booking-works", "at": 1, "viewState": { "view": "system-overview" }, "title": "Start here" }`,
+Example: { "tour": "how-booking-works", "at": 1, "viewState": { "view": "system-overview" }, "title": "Start here" }
+Example, building one picture up: { "tour": "how-booking-works", "viewState": { "view": "system-overview", "camera": { "x": 400, "y": 300, "zoom": 1 } }, "title": "Who takes part", "text": "First, the patient.", "marks": ["patient"], "reveal": [{ "marks": ["booking-agent", "patient-to-agent"], "text": "The agent answers on WhatsApp." }, { "marks": ["appointments-api"], "text": "It books through the API." }], "dimRest": true, "place": "top-right", "advance": 9000 }`,
   input: {
     tour: tourId(),
     at: z
@@ -202,12 +269,18 @@ Example: { "tour": "how-booking-works", "at": 1, "viewState": { "view": "system-
     if (!tour) return fail(`There is no tour "${tourArg}". get_project lists the tours.`);
     const made = stepFrom(state, given);
     if (!made.ok) return fail(`Not added: ${made.message}`);
-    const place = Math.min(tour.steps.length, (at ?? tour.steps.length + 1) - 1);
+    const where = Math.min(tour.steps.length, (at ?? tour.steps.length + 1) - 1);
     const steps: NewTourStep[] = [...tour.steps];
-    steps.splice(place, 0, made.step);
+    steps.splice(where, 0, made.step);
     return act(program, { type: 'update-tour', id: tour.id, changes: { steps } }, async () => {
-      const after = (await program.project()).tours.find((each) => each.id === tour.id);
-      return { step: after?.steps[place]?.id, number: place + 1, of: after?.steps.length };
+      const project = await program.project();
+      const after = project.tours.find((each) => each.id === tour.id);
+      return {
+        step: after?.steps[where]?.id,
+        number: where + 1,
+        of: after?.steps.length,
+        ...checkOfStep(project, after, where),
+      };
     });
   },
 });
@@ -215,20 +288,27 @@ Example: { "tour": "how-booking-works", "at": 1, "viewState": { "view": "system-
 const updateTourStep = tool({
   name: 'update_tour_step',
   title: 'Change a step of a tour',
-  description: `Changes one step of a tour, as one undoable action: what you give replaces what the step has, and what you leave out stays. viewState replaces the step's view state as a whole; null takes the text, marks, play or notes away. moveTo moves the step to another number. Fixing a broken step means giving it back what it names without what was deleted.
+  description: `Changes one step of a tour, as one undoable action: what you give replaces what the step has, and what you leave out stays. viewState replaces the step's view state as a whole, and reveal its reveals as a whole; null takes the text, marks, reveals, play, advance or notes away, dimRest false stops dimming, and place auto lets the caption find its side again. moveTo moves the step to another number. Fixing a broken step means giving it back what it names without what was deleted.
 
 ${STEP_HELP}
 
 Example: { "tour": "how-booking-works", "step": 2, "text": "It answers in a second." }
-Example: { "tour": "how-booking-works", "step": "the-agent", "viewState": { "view": "system-overview", "select": ["booking-agent"] }, "marks": null, "moveTo": 1 }`,
+Example: { "tour": "how-booking-works", "step": "the-agent", "viewState": { "view": "system-overview", "select": ["booking-agent"] }, "marks": null, "moveTo": 1 }
+Example, turning steps 3 and 4, which showed the same view state, into one step with a reveal: { "tour": "how-booking-works", "step": 3, "reveal": [{ "marks": ["api-writes-db"], "text": "Then it writes the booking." }], "dimRest": true } and then remove_tour_step { "tour": "how-booking-works", "step": 4 }
+Example: { "tour": "how-booking-works", "step": 5, "advance": "after-scenario", "place": "bottom-left" }
+Example: { "tour": "how-booking-works", "step": 5, "reveal": null, "dimRest": false, "advance": null, "place": "auto" }`,
   input: {
     tour: tourId(),
     step: stepRef(),
     viewState: viewState().optional(),
     title: caption().title.optional(),
     text: caption().text.unwrap().nullable().optional(),
+    place: place().optional(),
     marks: marks().nullable().optional(),
+    reveal: reveal().nullable().optional(),
+    dimRest: dimRest().optional(),
     play: play().nullable().optional(),
+    advance: advance().nullable().optional(),
     notes: notes().nullable().optional(),
     moveTo: z.number().int().min(1).optional().describe('The number the step moves to, from 1.'),
   },
@@ -249,14 +329,28 @@ Example: { "tour": "how-booking-works", "step": "the-agent", "viewState": { "vie
     if (args.title !== undefined) next.caption.title = args.title;
     if (args.text === null || args.text === '') delete next.caption.text;
     else if (args.text !== undefined) next.caption.text = args.text;
+    if (args.place !== undefined) {
+      const corner = placeOf(args.place);
+      if (corner === undefined) delete next.caption.place;
+      else next.caption.place = corner;
+    }
     if (args.marks === null || args.marks?.length === 0) delete next.marks;
     else if (args.marks !== undefined) next.marks = args.marks;
+    if (args.reveal !== undefined) {
+      const reveals = revealsOf(args.reveal);
+      if (reveals === undefined) delete next.reveal;
+      else next.reveal = reveals;
+    }
+    if (args.dimRest === false) delete next.dimRest;
+    else if (args.dimRest === true) next.dimRest = true;
     if (args.play === null) delete next.play;
     else if (args.play !== undefined) {
       const played = playFrom(state, args.play);
       if (!played.ok) return fail(`Not changed: ${played.message}`);
       next.play = played.play;
     }
+    if (args.advance === null) delete next.advance;
+    else if (args.advance !== undefined) next.advance = args.advance;
     if (args.notes === null || args.notes === '') delete next.notes;
     else if (args.notes !== undefined) next.notes = args.notes;
     const steps = tour.steps.map((step, index) => (index === at ? next : step));
@@ -264,10 +358,16 @@ Example: { "tour": "how-booking-works", "step": "the-agent", "viewState": { "vie
       args.moveTo === undefined
         ? steps
         : steps.toSpliced(at, 1).toSpliced(Math.min(steps.length - 1, args.moveTo - 1), 0, next);
-    return act(program, { type: 'update-tour', id: tour.id, changes: { steps: moved } }, () => ({
-      step: next.id,
-      number: moved.indexOf(next) + 1,
-    }));
+    return act(
+      program,
+      { type: 'update-tour', id: tour.id, changes: { steps: moved } },
+      async () => {
+        const project = await program.project();
+        const after = project.tours.find((each) => each.id === tour.id);
+        const number = moved.indexOf(next) + 1;
+        return { step: next.id, number, ...checkOfStep(project, after, number - 1) };
+      },
+    );
   },
 });
 
@@ -378,15 +478,56 @@ function stepFrom(
     if (!checked.ok) return checked;
     played = checked.play;
   }
+  const caption: TourCaption = withoutUndefined({
+    title: given.title,
+    text: given.text || undefined,
+    place: placeOf(given.place),
+  });
   return {
     ok: true,
     step: withoutUndefined({
       viewState: savedViewStateOf(asked.state),
-      caption: withoutUndefined({ title: given.title, text: given.text || undefined }),
+      caption,
       marks: given.marks && given.marks.length > 0 ? given.marks : undefined,
       play: played,
+      reveal: revealsOf(given.reveal),
+      dimRest: given.dimRest === true ? (true as const) : undefined,
+      advance: given.advance as TourAdvance | undefined,
       notes: given.notes || undefined,
     }),
+  };
+}
+
+/** A caption's corner as the file keeps it: none for `auto`, which is never written. */
+function placeOf(
+  given: (typeof CAPTION_PLACES)[number] | undefined,
+): TourCaption['place'] | undefined {
+  return given === undefined || given === 'auto' ? undefined : given;
+}
+
+/** Reveals as the file keeps them: none for an empty list, and no empty text. */
+function revealsOf(
+  given: readonly { marks: Id[]; text?: string | undefined }[] | null | undefined,
+): TourReveal[] | undefined {
+  if (!given || given.length === 0) return undefined;
+  return given.map((each) => withoutUndefined({ marks: each.marks, text: each.text || undefined }));
+}
+
+/**
+ * What check_tour says of one step of a tour as it is now, without reading marks outside its camera:
+ * how the camera gets there, and its warnings' words when it has any.
+ */
+function checkOfStep(
+  project: ProjectSnapshot,
+  tour: TourFile | undefined,
+  at: number,
+): { check?: { camera: string; warnings?: string[] } } {
+  if (!tour?.steps[at]) return {};
+  const checked = checkTour(project, tour)[at];
+  if (!checked) return {};
+  const warnings = checked.warnings.map((each) => each.message);
+  return {
+    check: { camera: checked.camera, ...(warnings.length > 0 ? { warnings } : {}) },
   };
 }
 
