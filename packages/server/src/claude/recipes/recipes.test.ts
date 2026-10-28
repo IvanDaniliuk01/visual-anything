@@ -12,6 +12,7 @@ import { TOOLS } from '../tools';
 import { DOCKER_COMPOSE } from './docker-compose';
 import { RECIPES } from './index';
 import { MERMAID } from './mermaid';
+import { PLANTUML } from './plantuml';
 import { ID_STAND_IN, type Recipe } from './recipe';
 import { SQL_DDL } from './sql-ddl';
 
@@ -202,9 +203,66 @@ describe('the Mermaid recipe', () => {
       'Orders API → Payments provider',
       'Orders API → Orders DB',
       'Web app → Orders API',
+      'Web app → Orders API',
     ]);
     expect(scenario?.steps[2]?.dataOut).toEqual({ result: 'Approved' });
     expect(scenario?.steps[4]?.dataOut).toEqual({ status: '201 Created' });
+    expect(scenario?.steps[5]?.dataOut).toEqual({ status: '503 Try again later' });
+    // The alt block is a decision between its branches, each holding its answer.
+    const [stored] = scenario?.blocks ?? [];
+    expect(stored?.question).toBe('Is the order stored?');
+    expect(
+      stored?.alternatives.map((each) => [
+        each.label,
+        each.steps.map((id) => scenario?.steps.findIndex((step) => step.id === id)),
+      ]),
+    ).toEqual([
+      ['Order stored', [4]],
+      ['Database unavailable', [5]],
+    ]);
+  });
+});
+
+describe('the PlantUML recipe', () => {
+  it('builds the activity diagram as a process, and its scenario with a decision at the if', async () => {
+    const { snapshot } = (await runExample(PLANTUML)).session;
+    expect(snapshot.project.packages).toEqual(['systems', 'process']);
+    const lines = modelLines(snapshot);
+    expect(lines.elements.slice(5)).toEqual([
+      'Start: process.start-event',
+      'Draft the invoice: process.task',
+      "Is the customer's address known?: process.exclusive-gateway",
+      'Send the invoice: process.task',
+      'Ask for the address: process.task',
+      'End: process.end-event',
+      'Record that it was sent: process.task',
+      'End: process.end-event',
+    ]);
+    expect(lines.relations).toContain(
+      'Is the customer\'s address known? -process.sequence-flow-> Ask for the address {"condition":"no"}',
+    );
+    const scenario = snapshot.scenarios.find((each) => each.name === 'An invoice is sent');
+    expect(stepLines(snapshot, 'An invoice is sent')).toEqual([
+      'Start → Draft the invoice',
+      "Draft the invoice → Is the customer's address known?",
+      "Is the customer's address known? → Send the invoice",
+      "Is the customer's address known? → Ask for the address",
+      'Ask for the address → End',
+      'Send the invoice → Record that it was sent',
+      'Record that it was sent → End',
+    ]);
+    const [known] = scenario?.blocks ?? [];
+    expect(known?.question).toBe("Is the customer's address known?");
+    expect(
+      known?.alternatives.map((each) => [
+        each.label,
+        each.steps.map((id) => scenario?.steps.findIndex((step) => step.id === id)),
+        each.ends ?? false,
+      ]),
+    ).toEqual([
+      ['yes', [2], false],
+      ['no', [3, 4], true],
+    ]);
   });
 });
 

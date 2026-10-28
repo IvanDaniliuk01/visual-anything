@@ -86,7 +86,7 @@ export const LOGS_AND_TRACES: Recipe = {
     'One request, a trace or a request id’s lines, becomes one scenario over the view that shows its services, named for what the request did.',
     'One step per call between services, in the order they start (`startTimeUnixNano`), activating the relation it crosses; calls that overlap in time under the same parent share a step; a call that repeats (retries, a loop) is one step whose description says how many times.',
     'Each step’s description says what happened in a short sentence; dataIn and dataOut take what the span or line shows (`http.route`, `http.response.status_code`, a message’s key), never a personal value. An error (`STATUS_CODE_ERROR`, a 5xx, an `ERROR` line) is said in the description and the dataOut.',
-    'With several requests of the same kind, make one scenario of a typical one, and offer the others.',
+    'With several requests of the same kind, make one scenario of a typical one, and offer the others. Requests of the same kind that part ways, as a cache hit and a miss, or a payment approved and one declined, can be one scenario with a decision where they part (create_scenario_from_steps takes it in place of a step): an alternative for each way, labelled by what happened, holding its steps, the one seen most often first; the steps they share after it follow the decision, and a way that stops there, as an error does, ends the scenario.',
   ],
   unmatched: [
     'Health checks and readiness probes.',

@@ -30,6 +30,10 @@ sequenceDiagram
   api->>payments: Charge card
   payments-->>api: Approved
   api->>db: INSERT order
-  api-->>web: 201 Created
+  alt Order stored
+    api-->>web: 201 Created
+  else Database unavailable
+    api-->>web: 503 Try again later
+  end
   Note right of customer: Sees the confirmation
 ```

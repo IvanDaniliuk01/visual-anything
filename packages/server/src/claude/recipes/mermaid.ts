@@ -1,4 +1,7 @@
-/** The recipe for Mermaid: flowcharts, C4 and ER diagrams become the model, sequence diagrams scenarios. */
+/**
+ * The recipe for Mermaid: flowcharts, C4 and ER diagrams become the model, sequence diagrams
+ * scenarios, and their branches (`alt`, `opt`, `break`, a flowchart's rhombuses) decisions.
+ */
 import type { Recipe } from './recipe';
 
 const INPUT = `# Shop architecture
@@ -33,7 +36,11 @@ sequenceDiagram
   api->>payments: Charge card
   payments-->>api: Approved
   api->>db: INSERT order
-  api-->>web: 201 Created
+  alt Order stored
+    api-->>web: 201 Created
+  else Database unavailable
+    api-->>web: 503 Try again later
+  end
   Note right of customer: Sees the confirmation
 \`\`\`
 `;
@@ -43,7 +50,7 @@ export const MERMAID: Recipe = {
   material: 'Mermaid diagrams',
   title: 'Build from Mermaid',
   description:
-    'Build a model, views and scenarios from Mermaid diagrams: flowcharts, C4 and ER diagrams, and sequence diagrams as scenarios.',
+    'Build a model, views and scenarios from Mermaid diagrams: flowcharts, C4 and ER diagrams, and sequence diagrams as scenarios, their branches as decisions.',
   read: [
     'Mermaid diagrams are in `.mmd` files, or in ```` ```mermaid ```` blocks of Markdown files (READMEs, `docs/`), wikis and issues the person pastes.',
     'Each diagram starts with its kind: `flowchart` or `graph`, `sequenceDiagram`, `C4Context`, `C4Container` or `C4Component`, `erDiagram`, `classDiagram`, `stateDiagram` and others. Read every diagram of the material before you build: a sequence diagram’s participants are usually a flowchart’s boxes.',
@@ -66,6 +73,10 @@ export const MERMAID: Recipe = {
     {
       from: 'An arrow, `A --> B` or `A -->|label| B`',
       to: 'a relation from A to B: `systems.writes-to` or `systems.reads-from` when B is a database and the label says writes or reads, otherwise `systems.communicates-with`. A label that names a protocol (HTTPS, gRPC, AMQP) becomes its `protocol` attribute, any other its name. `A --- B` is a relation from A to B too, `A <--> B` is two, and `A --> B & C` is one to each',
+    },
+    {
+      from: 'A rhombus, `id{Question?}`, and the labelled arrows out of it (`id -->|Yes| B`)',
+      to: 'a point where the flow decides, which is no part of the system: no element, and each arrow out of it runs from the box before it. In a flowchart of a process, when the project uses the process package, it is a `process.exclusive-gateway` named by its question, the boxes are `process.task`s, start and end circles `process.start-event` and `process.end-event`, and the arrows `process.sequence-flow`s, each label after the gateway the flow’s `condition`. Either way, a scenario that follows the flowchart decides there (below)',
     },
     {
       from: '`classDef name fill:#…,stroke:#…` with `class ids name`, or `style id fill:#…`',
@@ -100,7 +111,9 @@ export const MERMAID: Recipe = {
   scenarios: [
     'A `sequenceDiagram` becomes a scenario over the view that shows its participants: one step per message (`A->>B: text`), in order, activating the relation from A to B (add it with the model when there is none), described in a short sentence from the message, with what the message carries in dataIn.',
     'A reply (a dashed arrow back, `B-->>A: text`) adds no relation: right after its request, it is that step’s dataOut; with other messages between, it is a step of its own over the request’s relation, whose description says it answers.',
-    'Messages in a `par … and … end` block share one step. A `loop` is played once, its description saying it repeats. `alt` and `opt` are branches, which a scenario has none of: follow the main path, and offer each other path as a scenario of its own.',
+    'Messages in a `par … and … end` block share one step. A `loop` is played once, its description saying it repeats.',
+    '`alt text … else text … end` becomes a decision among the steps (create_scenario_from_steps takes it in place of a step): its question from the `alt`’s text, asked as a question (`alt Order stored` asks “Is the order stored?”), and one alternative for each branch, labelled by its text (“Otherwise” for an `else` with none), holding the steps of that branch’s messages. The first branch plays by default. `opt text … end` is a decision whose first alternative, labelled by its text, holds its messages, and whose second, “Otherwise”, has no steps. `break text … end` is a decision whose first alternative, “Otherwise”, has no steps and plays by default, and whose second, labelled by its text, holds its messages and ends the scenario (`ends: true`). Blocks inside blocks are decisions inside alternatives, up to three deep; deeper ones follow their first branch, and you say so.',
+    'A flowchart that shows how something flows, with rhombuses, can become a scenario too, when the person asks for one or the flowchart is a process: one step per arrow, in the order the flow takes them, activating the relation the arrow became; at each rhombus, a decision whose question is the rhombus’s text and whose alternatives are its arrows out, each labelled by the arrow’s label and holding the steps along that branch until the branches meet again. The steps after they meet follow the decision; a branch that reaches an end, or goes nowhere further, ends the scenario. Each branch is played once, even one that loops back.',
   ],
   unmatched: [
     '`click` lines: web addresses and callbacks are never kept.',
@@ -179,7 +192,7 @@ export const MERMAID: Recipe = {
       },
       {
         tool: 'create_scenario_from_steps',
-        why: 'The sequence diagram, as a scenario. "Approved" comes right after its request, so it is that step’s dataOut; "201 Created" comes after other messages, so it is a step of its own.',
+        why: 'The sequence diagram, as a scenario. "Approved" comes right after its request, so it is that step’s dataOut; each answer to the web app comes after other messages, so it is a step of its own. The alt block is a decision between its two branches, the first playing by default.',
         args: {
           name: 'A customer places an order',
           description: 'From the sequence diagram in docs/architecture.md.',
@@ -205,9 +218,29 @@ export const MERMAID: Recipe = {
               dataIn: { statement: 'INSERT order' },
             },
             {
-              description: 'The Orders API answers the web app.',
-              relations: ['<id of web-calls-api>'],
-              dataOut: { status: '201 Created' },
+              decision: 'Is the order stored?',
+              alternatives: [
+                {
+                  label: 'Order stored',
+                  steps: [
+                    {
+                      description: 'The Orders API answers the web app.',
+                      relations: ['<id of web-calls-api>'],
+                      dataOut: { status: '201 Created' },
+                    },
+                  ],
+                },
+                {
+                  label: 'Database unavailable',
+                  steps: [
+                    {
+                      description: 'The Orders API tells the web app to try again later.',
+                      relations: ['<id of web-calls-api>'],
+                      dataOut: { status: '503 Try again later' },
+                    },
+                  ],
+                },
+              ],
             },
           ],
         },
