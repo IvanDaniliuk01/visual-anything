@@ -40,6 +40,7 @@ import { createScenario, deleteScenario, updateScenario } from './scenarios';
 import { addComment, createThread, deleteThread, editComment, resolveThread } from './comments';
 import type { Author } from '../history';
 import { createTour, deleteTour, updateTour } from './tours';
+import { resolveConflicts } from './conflicts';
 import type { Command } from './types';
 import {
   createFreeShape,
@@ -263,6 +264,9 @@ function dispatch(draft: Draft, command: Command): string {
       return resolveThread(draft, command);
     case 'delete-thread':
       return deleteThread(draft, command);
+    // Merges (ADR 0072).
+    case 'resolve-conflicts':
+      return resolveConflicts(draft, command);
     case 'batch': {
       const label = requireName(command.label, 'A batch');
       const commands = requireList(command.commands, 'commands');

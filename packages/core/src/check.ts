@@ -50,6 +50,8 @@ export function checkProject(state: ProjectSnapshot): ProjectCheck {
   warnings.push(...geometryFindings(state).warnings);
   // Package code that cannot run (ADR 0054).
   warnings.push(...codeWarnings(state));
+  // Conflicts a merge left in files, which the person resolves (ADR 0072).
+  warnings.push(...conflictWarnings(state));
   for (const file of state.packages) {
     if (RESERVED_PACKAGE_IDS.has(file.id) && builtinPackage(file.id) !== file) {
       warnings.push(
@@ -391,6 +393,33 @@ function capitalized(text: string): string {
  * shape that cannot draw them (drawn as a rectangle), limits naming no definition, and values outside
  * their choices, at most 20 of those and a summary.
  */
+/** One warning for each file that holds conflicts from a merge. */
+function conflictWarnings(state: ProjectSnapshot): Problem[] {
+  const warnings: Problem[] = [];
+  const warn = (what: string, file: unknown, subject?: Id) => {
+    const count = (file as { conflicts?: unknown[] }).conflicts?.length ?? 0;
+    if (count === 0) return;
+    warnings.push(
+      problem(
+        'merge-conflict',
+        count === 1
+          ? `A merge left a conflict in ${what}: resolve it in the Changes tab, then add the file with git add.`
+          : `A merge left ${count} conflicts in ${what}: resolve them in the Changes tab, then add the file with git add.`,
+        subject === undefined ? [] : [subject],
+      ),
+    );
+  };
+  warn('the project file', state.project);
+  warn('the model', state.model);
+  for (const file of state.packages) warn(`the package "${file.name}"`, file, file.id);
+  for (const view of state.views) warn(`the view "${view.name}"`, view, view.id);
+  for (const scenario of state.scenarios)
+    warn(`the scenario "${scenario.name}"`, scenario, scenario.id);
+  for (const tour of state.tours) warn(`the tour "${tour.name}"`, tour, tour.id);
+  for (const thread of state.comments) warn(`the thread "${thread.id}"`, thread, thread.id);
+  return warnings;
+}
+
 function appearanceWarnings(state: ProjectSnapshot, definitions: Definitions): Problem[] {
   const warnings: Problem[] = [];
   const check = (

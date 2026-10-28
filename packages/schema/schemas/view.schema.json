@@ -70,6 +70,15 @@
     "overlays": {
       "$ref": "#/definitions/Overlays",
       "description": "How this view colors, sizes, marks or fades its shapes by their attributes, in order (ADR 0055): each channel of a shape is set by the first overlay that sets it. Left out when it has none."
+    },
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/FileConflict"
+      },
+      "description": "What a merge could not join, as data (ADR 0072): each conflict says which item it is about, what the file keeps in place, and the other choice. Written only by a merge; the person resolves them.",
+      "minItems": 1,
+      "maxItems": 10000
     }
   },
   "required": [
@@ -1710,6 +1719,119 @@
       ],
       "additionalProperties": false,
       "description": "A number and its opacity."
+    },
+    "FileConflict": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/Id",
+          "description": "Unique within its file."
+        },
+        "item": {
+          "type": "string",
+          "description": "The item, by a key local to its file: `world`, `element:<id>`, `relation:<id>` or `order` in the model file; `package`, `component:<id>`, `relation-type:<id>` or `image:<id>` in a package file; `view`, `position:<element>`, `position:<element> in <container>`, `free-shape:<id>`, `stacking:<container>` or `route:<relation>` in a view file; `scenario`, `step:<id>`, `tour`, `tour-step:<id>`, `thread` or `comment:<id>` in theirs; `project` in the project file.",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "path": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Where the value lies inside the item, as a list of keys; empty for the whole item.",
+          "maxItems": 16
+        },
+        "why": {
+          "$ref": "#/definitions/ConflictReason"
+        },
+        "kept": {
+          "type": "string",
+          "enum": [
+            "ours",
+            "theirs"
+          ],
+          "description": "Whose value the file holds in place."
+        },
+        "other": {
+          "$ref": "#/definitions/JsonValue",
+          "description": "The other side's value; left out when that side removed the item."
+        },
+        "base": {
+          "$ref": "#/definitions/JsonValue",
+          "description": "The common ancestor's value; left out when it had none."
+        },
+        "sides": {
+          "$ref": "#/definitions/ConflictSides",
+          "description": "The names git gave the two sides, when it gave them."
+        }
+      },
+      "required": [
+        "id",
+        "item",
+        "path",
+        "why",
+        "kept"
+      ],
+      "additionalProperties": false,
+      "description": "What a merge of one project file could not join (ADR 0072). The file in place is a valid file of its kind; `other` and `base` are JSON as that kind of file holds the item, checked only when chosen."
+    },
+    "ConflictReason": {
+      "type": "string",
+      "enum": [
+        "both-changed",
+        "removed-and-changed",
+        "both-added",
+        "needs-removed",
+        "cycle",
+        "order"
+      ],
+      "description": "Why a merge could not join: both sides changed a value differently; one removed what the other changed; both added an id with different values; a removal meets what needs what it removes; two additions close a containment cycle; or both sides reordered a list differently."
+    },
+    "JsonValue": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/JsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/JsonValue"
+          }
+        }
+      ],
+      "description": "Any JSON value."
+    },
+    "ConflictSides": {
+      "type": "object",
+      "properties": {
+        "ours": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "theirs": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "additionalProperties": false,
+      "description": "The names of a merge's two sides, as git gave them."
     }
   }
 }

@@ -4,6 +4,7 @@ import {
   type Operation,
   type ProjectSnapshot,
 } from '@visual-anything/core';
+import type { FileConflict } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { affectedFiles, contentOf, liveFiles } from './file-plan';
 import { testProject } from './test-support';
@@ -225,6 +226,39 @@ describe('affectedFiles', () => {
       { op: 'set-world', world: { ...before.model.world, name: 'All' } },
     ];
     expect(affectedFiles(operations, before, after)).toEqual(['model', 'tour:walk', 'comment:why']);
+  });
+
+  // A file's conflicts from a merge change through set-conflicts alone (ADR 0072).
+  it('saves the file whose conflicts a resolution takes away', () => {
+    const state = testProject();
+    const conflicts: FileConflict[] = [
+      {
+        id: 'conflict-1',
+        item: 'view',
+        path: ['name'],
+        why: 'both-changed',
+        kept: 'ours',
+        other: 'Map',
+      },
+    ];
+    const [view] = state.views;
+    if (view === undefined) throw new Error('The fixture has no view.');
+    const conflicted: ProjectSnapshot = {
+      ...state,
+      model: { ...state.model, conflicts: conflicts.map((each) => ({ ...each, item: 'world' })) },
+      views: [{ ...view, conflicts }],
+    };
+    const resolve = (file: { kind: 'model' } | { kind: 'view'; id: string }) =>
+      affected(
+        {
+          type: 'resolve-conflicts',
+          file,
+          resolutions: [{ conflict: 'conflict-1', take: 'other' }],
+        },
+        conflicted,
+      ).files;
+    expect(resolve({ kind: 'model' })).toEqual(['model']);
+    expect(resolve({ kind: 'view', id: view.id })).toEqual([`view:${view.id}`]);
   });
 });
 

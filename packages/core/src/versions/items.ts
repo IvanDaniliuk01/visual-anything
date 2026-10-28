@@ -169,7 +169,7 @@ export function projectItems(state: ProjectSnapshot): ReadonlyMap<string, Projec
   if (kept) return kept;
   const items = new Map<string, ProjectItem>();
   const add = (ref: ItemRef, value: unknown) =>
-    items.set(itemKey(ref), { ref, value: value as JsonValue });
+    items.set(itemKey(ref), { ref, value: withoutConflicts(value) as JsonValue });
   add({ kind: 'project' }, state.project);
   add({ kind: 'world' }, state.model.world);
   for (const element of state.model.elements) add({ kind: 'element', id: element.id }, element);
@@ -221,6 +221,29 @@ export function projectItems(state: ProjectSnapshot): ReadonlyMap<string, Projec
   for (const thread of state.comments) add({ kind: 'thread', id: thread.id }, thread);
   itemsByState.set(state, items);
   return items;
+}
+
+/** A file's value without the conflicts a merge left in it, which are not part of the project. */
+function withoutConflicts(value: unknown): unknown {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    Array.isArray(value) ||
+    !('conflicts' in value)
+  ) {
+    return value;
+  }
+  return withoutKeys(value as Record<string, unknown>, 'conflicts');
+}
+
+/** A copy of an object without some of its keys. */
+export function withoutKeys<T extends object, K extends keyof T>(
+  value: T,
+  ...keys: K[]
+): Omit<T, K> {
+  const copy: Partial<T> = { ...value };
+  for (const key of keys) delete copy[key];
+  return copy as Omit<T, K>;
 }
 
 /**

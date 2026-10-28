@@ -3,6 +3,8 @@ import type { Id } from '@visual-anything/schema';
 /** What kind of problem a command or a project has. Stable, so programs and Claude can act on it. */
 export type ProblemCode =
   | 'invalid-command'
+  /** A file holds conflicts from a merge (ADR 0072). */
+  | 'merge-conflict'
   | 'invalid-id'
   | 'id-taken'
   | 'empty-name'

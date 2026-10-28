@@ -14,3 +14,5 @@ export type {
 } from './compare';
 export { compareProjects, compareView, differencesOf, recompare } from './compare';
 export { operationsBetween } from './operations-between';
+export type { FileMergeOptions, ItemConflict, MergedFile, MergedItem, MergePolicy } from './merge';
+export { mergeFile, mergeItem } from './merge';

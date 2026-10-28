@@ -590,10 +590,10 @@ The first three tasks are the seams, built in the main session in this order. Th
     - the other way round, added and removed swap, and the rest stays;
     - after random commands, `recompare` equals `compareProjects`;
     - `applyOperations(a, operationsBetween(a, b))` gives `b`, and its inverse gives `a` back.
-- [ ] **The merge and conflicts in the core** (main session, test-first; `schema/src/files.ts`, `core/src/versions/merge.ts`, `core/src/commands/conflicts.ts`; ADR 0072):
+- [x] **The merge and conflicts in the core** (main session, test-first; `schema/src/files.ts`, `core/src/versions/merge.ts`, `core/src/commands/conflicts.ts`; ADR 0072):
   - `conflicts` (`FileConflict`) in the seven file kinds, and the JSON Schema regenerated;
-  - `mergeItem`, the three-way merge of one item, with a policy for whose value stays in place, which proposals share;
-  - `mergeFile(kind, base, ours, theirs, { sides })`, which returns `{ file, conflicts }` and is built on `mergeItem`;
+  - `mergeItem`, the three-way merge of one item, with a policy for whose value stays in place and how its lists merge, which proposals share;
+  - `mergeFile(kind, base, ours, theirs, { sides, kept, nesting })`, which returns `{ file, conflicts }` and is built on `mergeItem`;
   - the operation `set-conflicts`, the command `resolve-conflicts` (`{ file, resolutions: { conflict, take: 'kept' | 'other' }[] }`), and the warning `merge-conflict`;
   - property tests:
     - a file merged with an unchanged side gives the other side;

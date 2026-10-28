@@ -7,11 +7,7 @@ import type { FileKind, Id } from '@visual-anything/schema';
 import { validateFile } from '@visual-anything/schema/validate';
 import { describe, expect, it } from 'vitest';
 import { checkProject } from './check';
-import {
-  executeCommand,
-  previewChangeContainer,
-  type ContainerChangePreview,
-} from './commands';
+import { executeCommand, previewChangeContainer, type ContainerChangePreview } from './commands';
 import { EMPTY_HISTORY, record, redo, undo, type History } from './history';
 import { randomIds } from './ids';
 import { containmentCycles, previewDelete } from './rules';

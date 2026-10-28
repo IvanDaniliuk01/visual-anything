@@ -5,8 +5,14 @@
  * whole list where its order changed. Applied to the first version, they give the second exactly, and
  * their inverses give the first back.
  */
-import type { Id } from '@visual-anything/schema';
-import { keyOf, type Collection, type Item, type Operation } from '../operations';
+import type { FileConflict, Id } from '@visual-anything/schema';
+import {
+  keyOf,
+  type Collection,
+  type ConflictFile,
+  type Item,
+  type Operation,
+} from '../operations';
 import type { ProjectSnapshot } from '../snapshot';
 
 /** The operations that turn `from` into `to`. */
@@ -86,6 +92,37 @@ export function operationsBetween(from: ProjectSnapshot, to: ProjectSnapshot): O
   between(operations, { name: 'scenarios' }, from.scenarios, to.scenarios);
   between(operations, { name: 'tours' }, from.tours, to.tours);
   between(operations, { name: 'comments' }, from.comments, to.comments);
+
+  // The conflicts of each file in both versions, which the operations above keep as they were.
+  const conflicts = (file: ConflictFile, was: unknown, is: unknown) => {
+    const before = (was as { conflicts?: FileConflict[] } | undefined)?.conflicts;
+    const after = (is as { conflicts?: FileConflict[] } | undefined)?.conflicts;
+    if (was === undefined || is === undefined || sameExactly(before, after)) return;
+    operations.push({
+      op: 'set-conflicts',
+      file,
+      ...(after === undefined ? {} : { conflicts: after }),
+    });
+  };
+  conflicts({ kind: 'project' }, from.project, to.project);
+  conflicts({ kind: 'model' }, from.model, to.model);
+  const pairs = <T extends { id: Id }>(older: readonly T[], newer: readonly T[]) => {
+    const byId = new Map(older.map((each) => [each.id, each]));
+    return newer.flatMap((each) => {
+      const was = byId.get(each.id);
+      return was ? [[was, each] as const] : [];
+    });
+  };
+  for (const [was, is] of pairs(from.packages, to.packages))
+    conflicts({ kind: 'package', id: is.id }, was, is);
+  for (const [was, is] of pairs(from.views, to.views))
+    conflicts({ kind: 'view', id: is.id }, was, is);
+  for (const [was, is] of pairs(from.scenarios, to.scenarios))
+    conflicts({ kind: 'scenario', id: is.id }, was, is);
+  for (const [was, is] of pairs(from.tours, to.tours))
+    conflicts({ kind: 'tour', id: is.id }, was, is);
+  for (const [was, is] of pairs(from.comments, to.comments))
+    conflicts({ kind: 'comment', id: is.id }, was, is);
   return operations;
 }
 

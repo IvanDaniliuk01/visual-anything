@@ -64,6 +64,14 @@ export interface ProjectFile {
    * built-in packages, Essence and "relates to". Absent when it gives none an appearance.
    */
   appearances?: ProjectAppearances;
+  /**
+   * What a merge could not join, as data (ADR 0072): each conflict says which item it is about, what
+   * the file keeps in place, and the other choice. Written only by a merge; the person resolves them.
+   *
+   * @minItems 1
+   * @maxItems 10000
+   */
+  conflicts?: FileConflict[];
 }
 
 /**
@@ -109,6 +117,14 @@ export interface ModelFile {
   /** Every element except World. */
   elements: Element[];
   relations: Relation[];
+  /**
+   * What a merge could not join, as data (ADR 0072): each conflict says which item it is about, what
+   * the file keeps in place, and the other choice. Written only by a merge; the person resolves them.
+   *
+   * @minItems 1
+   * @maxItems 10000
+   */
+  conflicts?: FileConflict[];
 }
 
 /** A thing in the model with its own identity, created from a component. */
@@ -209,6 +225,14 @@ export interface PackageFile {
    * @uniqueItems true
    */
   capabilities?: Capability[];
+  /**
+   * What a merge could not join, as data (ADR 0072): each conflict says which item it is about, what
+   * the file keeps in place, and the other choice. Written only by a merge; the person resolves them.
+   *
+   * @minItems 1
+   * @maxItems 10000
+   */
+  conflicts?: FileConflict[];
 }
 
 /**
@@ -648,6 +672,14 @@ export interface ViewFile {
    * each channel of a shape is set by the first overlay that sets it. Left out when it has none.
    */
   overlays?: Overlays;
+  /**
+   * What a merge could not join, as data (ADR 0072): each conflict says which item it is about, what
+   * the file keeps in place, and the other choice. Written only by a merge; the person resolves them.
+   *
+   * @minItems 1
+   * @maxItems 10000
+   */
+  conflicts?: FileConflict[];
 }
 
 /**
@@ -999,6 +1031,14 @@ export interface ScenarioFile {
    * @maxItems 64
    */
   blocks?: ScenarioBlock[];
+  /**
+   * What a merge could not join, as data (ADR 0072): each conflict says which item it is about, what
+   * the file keeps in place, and the other choice. Written only by a merge; the person resolves them.
+   *
+   * @minItems 1
+   * @maxItems 10000
+   */
+  conflicts?: FileConflict[];
 }
 
 /** A structure over a stretch of a scenario's steps. Decisions only, for now (ADR 0078). */
@@ -1499,6 +1539,14 @@ export interface TourFile {
    * @maxItems 1000
    */
   steps: TourStep[];
+  /**
+   * What a merge could not join, as data (ADR 0072): each conflict says which item it is about, what
+   * the file keeps in place, and the other choice. Written only by a merge; the person resolves them.
+   *
+   * @minItems 1
+   * @maxItems 10000
+   */
+  conflicts?: FileConflict[];
 }
 
 /** One step of a tour: where it takes the canvas, what it says there, and what it marks. */
@@ -1777,6 +1825,14 @@ export interface CommentFile {
    * @maxItems 1000
    */
   comments: ThreadComment[];
+  /**
+   * What a merge could not join, as data (ADR 0072): each conflict says which item it is about, what
+   * the file keeps in place, and the other choice. Written only by a merge; the person resolves them.
+   *
+   * @minItems 1
+   * @maxItems 10000
+   */
+  conflicts?: FileConflict[];
 }
 
 /**
@@ -1870,4 +1926,61 @@ export interface PersonAuthor {
 /** Claude. */
 export interface ClaudeAuthor {
   kind: 'claude';
+}
+
+/**
+ * What a merge of one project file could not join (ADR 0072). The file in place is a valid file of
+ * its kind; `other` and `base` are JSON as that kind of file holds the item, checked only when chosen.
+ */
+export interface FileConflict {
+  /** Unique within its file. */
+  id: Id;
+  /**
+   * The item, by a key local to its file: `world`, `element:<id>`, `relation:<id>` or `order` in
+   * the model file; `package`, `component:<id>`, `relation-type:<id>` or `image:<id>` in a package
+   * file; `view`, `position:<element>`, `position:<element> in <container>`, `free-shape:<id>`,
+   * `stacking:<container>` or `route:<relation>` in a view file; `scenario`, `step:<id>`, `tour`,
+   * `tour-step:<id>`, `thread` or `comment:<id>` in theirs; `project` in the project file.
+   *
+   * @minLength 1
+   * @maxLength 300
+   */
+  item: string;
+  /**
+   * Where the value lies inside the item, as a list of keys; empty for the whole item.
+   *
+   * @maxItems 16
+   */
+  path: string[];
+  why: ConflictReason;
+  /** Whose value the file holds in place. */
+  kept: 'ours' | 'theirs';
+  /** The other side's value; left out when that side removed the item. */
+  other?: JsonValue;
+  /** The common ancestor's value; left out when it had none. */
+  base?: JsonValue;
+  /** The names git gave the two sides, when it gave them. */
+  sides?: ConflictSides;
+}
+
+/**
+ * Why a merge could not join: both sides changed a value differently; one removed what the other
+ * changed; both added an id with different values; a removal meets what needs what it removes; two
+ * additions close a containment cycle; or both sides reordered a list differently.
+ */
+export type ConflictReason =
+  'both-changed' | 'removed-and-changed' | 'both-added' | 'needs-removed' | 'cycle' | 'order';
+
+/** The names of a merge's two sides, as git gave them. */
+export interface ConflictSides {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  ours?: string;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  theirs?: string;
 }

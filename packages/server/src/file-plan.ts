@@ -62,6 +62,13 @@ export function affectedFiles(
       case 'set-package':
         ofPackage(operation.package);
         break;
+      case 'set-conflicts': {
+        const { file } = operation;
+        if (file.kind === 'project' || file.kind === 'model') keys.add(file.kind);
+        else if (file.kind === 'package') ofPackage(file.id);
+        else keys.add(`${file.kind}:${file.id}`);
+        break;
+      }
       default: {
         const { collection } = operation;
         switch (collection.name) {

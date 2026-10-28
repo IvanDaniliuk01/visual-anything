@@ -745,6 +745,9 @@ function touchedKeys(
         return 'all';
       case 'replace-all':
         return 'all';
+      // A file's conflicts are not part of what a comparison reads.
+      case 'set-conflicts':
+        break;
       default: {
         const { collection } = operation;
         if (collection.name === 'packages' || collection.name === 'relationTypes') return 'all';

@@ -2,6 +2,7 @@
  * Commands: every change to a project is one. The core checks the rules, turns the command into
  * operations and records it as one action in the undo history, whoever sent it.
  */
+import type { ConflictFile } from '../operations';
 import type {
   Appearance,
   AppearanceImage,
@@ -100,7 +101,18 @@ export type Command =
   | EditCommentCommand
   | ResolveThreadCommand
   | DeleteThreadCommand
+  | ResolveConflictsCommand
   | BatchCommand;
+
+/**
+ * Resolves conflicts a merge left in one file (ADR 0072): each one kept as the file holds it, or its
+ * other choice taken. With the file's last conflict, its `conflicts` list goes.
+ */
+export interface ResolveConflictsCommand {
+  type: 'resolve-conflicts';
+  file: ConflictFile;
+  resolutions: { conflict: Id; take: 'kept' | 'other' }[];
+}
 
 /** The kinds of command. */
 export type CommandType = Command['type'];

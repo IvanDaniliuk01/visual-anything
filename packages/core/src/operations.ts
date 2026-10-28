@@ -7,6 +7,7 @@ import type {
   CommentFile,
   Component,
   Element,
+  FileConflict,
   FreeShape,
   Id,
   ImageDefinition,
@@ -82,6 +83,15 @@ export type ViewProperties = Omit<
 /** A package without its definitions and images: what `set-package` changes. */
 export type PackageProperties = Omit<PackageFile, 'components' | 'relationTypes' | 'images'>;
 
+/**
+ * A project file that holds conflicts from a merge (ADR 0072): the project file, the model file, or the
+ * file of a package, view, scenario, tour or thread of comments.
+ */
+export type ConflictFile =
+  | { kind: 'project' }
+  | { kind: 'model' }
+  | { kind: 'package' | 'view' | 'scenario' | 'tour' | 'comment'; id: Id };
+
 /** One change to a project. Each has an inverse that undoes it exactly. */
 export type Operation =
   /** Inserts an item at an index of a list. */
@@ -95,7 +105,13 @@ export type Operation =
   | { op: 'set-world'; world: Element }
   | { op: 'set-project'; project: ProjectFile }
   | { op: 'set-view'; view: Id; properties: ViewProperties }
-  | { op: 'set-package'; package: Id; properties: PackageProperties };
+  | { op: 'set-package'; package: Id; properties: PackageProperties }
+  /**
+   * Sets the conflicts a file holds, or takes them away. A file's conflicts change through this
+   * alone: every other operation keeps those the file holds, as routes change only through their own
+   * list.
+   */
+  | { op: 'set-conflicts'; file: ConflictFile; conflicts?: FileConflict[] };
 
 /** Above this many changes to one list, a command replaces the whole list in one operation. */
 export const BULK = 200;
@@ -154,7 +170,7 @@ export function applyOperation(
       const items = itemsOf(state, collection);
       const index = indexOfKey(items, collection, keyOf(collection, item));
       const previous = items[index] as Item;
-      const next = items.with(index, item);
+      const next = items.with(index, withConflictsOf(previous, item));
       movePlaces(items, next);
       return {
         state: withItems(state, collection, next),
@@ -188,9 +204,21 @@ export function applyOperation(
       };
     case 'set-project':
       return {
-        state: { ...state, project: operation.project },
+        state: { ...state, project: withConflictsOf(state.project, operation.project) },
         inverse: { op: 'set-project', project: state.project },
       };
+    case 'set-conflicts': {
+      const { file, conflicts } = operation;
+      const previous = conflictsOf(state, file);
+      return {
+        state: withConflicts(state, file, conflicts),
+        inverse: {
+          op: 'set-conflicts',
+          file,
+          ...(previous === undefined ? {} : { conflicts: previous }),
+        },
+      };
+    }
     case 'set-view': {
       const view = findView(state, operation.view);
       const { positions, freeShapes, stackingOrder, routes, ...previous } = view;
@@ -207,6 +235,9 @@ export function applyOperation(
       // copy of them, which is ignored, so that the view keeps the routes it has.
       if (routes === undefined) delete next.routes;
       else next.routes = routes;
+      // So do its conflicts, which change through set-conflicts alone.
+      if (view.conflicts === undefined) delete next.conflicts;
+      else next.conflicts = view.conflicts;
       return {
         state: { ...state, views: state.views.map((each) => (each === view ? next : each)) },
         inverse: { op: 'set-view', view: view.id, properties: previous },
@@ -218,15 +249,114 @@ export function applyOperation(
       if (operation.properties.id !== file.id) {
         throw new OperationError(`A package cannot change its id ("${file.id}").`);
       }
-      const next: PackageFile = {
+      const next: PackageFile = withConflictsOf(file, {
         ...operation.properties,
         components,
         relationTypes,
         ...(images === undefined ? {} : { images }),
-      };
+      });
       return {
         state: { ...state, packages: state.packages.map((each) => (each === file ? next : each)) },
         inverse: { op: 'set-package', package: file.id, properties: previous },
+      };
+    }
+  }
+}
+
+/** `next` with the conflicts `previous` holds, whatever `next` holds: they change through set-conflicts alone. */
+function withConflictsOf<T>(previous: T, next: T): T {
+  if (
+    typeof previous !== 'object' ||
+    previous === null ||
+    typeof next !== 'object' ||
+    next === null
+  ) {
+    return next;
+  }
+  const held = (previous as { conflicts?: FileConflict[] }).conflicts;
+  const given = (next as { conflicts?: FileConflict[] }).conflicts;
+  if (held === given) return next;
+  const copy = { ...next } as T & { conflicts?: FileConflict[] };
+  if (held === undefined) delete copy.conflicts;
+  else copy.conflicts = held;
+  return copy;
+}
+
+/** The file a conflict list belongs to, as the project holds it. */
+function conflictsOf(state: ProjectSnapshot, file: ConflictFile): FileConflict[] | undefined {
+  return (fileOf(state, file) as { conflicts?: FileConflict[] }).conflicts;
+}
+
+function fileOf(state: ProjectSnapshot, file: ConflictFile): object {
+  switch (file.kind) {
+    case 'project':
+      return state.project;
+    case 'model':
+      return state.model;
+    case 'package':
+      return findPackage(state, file.id);
+    case 'view':
+      return findView(state, file.id);
+    case 'scenario':
+    case 'tour':
+    case 'comment': {
+      const list =
+        file.kind === 'scenario'
+          ? state.scenarios
+          : file.kind === 'tour'
+            ? state.tours
+            : state.comments;
+      const found = (list as readonly { id: Id }[]).find((each) => each.id === file.id);
+      if (!found) throw new OperationError(`The project has no ${file.kind} "${file.id}".`);
+      return found;
+    }
+  }
+}
+
+/** The project with a file's conflicts set, or taken away. */
+function withConflicts(
+  state: ProjectSnapshot,
+  file: ConflictFile,
+  conflicts: FileConflict[] | undefined,
+): ProjectSnapshot {
+  const set = <T extends object>(value: T): T => {
+    const copy = { ...value } as T & { conflicts?: FileConflict[] };
+    if (conflicts === undefined || conflicts.length === 0) delete copy.conflicts;
+    else copy.conflicts = conflicts;
+    return copy;
+  };
+  switch (file.kind) {
+    case 'project':
+      return { ...state, project: set(state.project) };
+    case 'model':
+      return { ...state, model: set(state.model) };
+    case 'package': {
+      const found = findPackage(state, file.id);
+      return {
+        ...state,
+        packages: state.packages.map((each) => (each === found ? set(each) : each)),
+      };
+    }
+    case 'view': {
+      const found = findView(state, file.id);
+      return { ...state, views: state.views.map((each) => (each === found ? set(each) : each)) };
+    }
+    case 'scenario':
+    case 'tour':
+    case 'comment': {
+      const found = fileOf(state, file);
+      if (file.kind === 'scenario') {
+        return {
+          ...state,
+          scenarios: state.scenarios.map((each) => (each === found ? set(each) : each)),
+        };
+      }
+      if (file.kind === 'tour') {
+        return { ...state, tours: state.tours.map((each) => (each === found ? set(each) : each)) };
+      }
+      return {
+        ...state,
+        comments: state.comments.map((each) => (each === found ? set(each) : each)),
       };
     }
   }

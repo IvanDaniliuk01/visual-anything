@@ -5234,6 +5234,31 @@ export const messages: Catalog = {
   'No component "{id}" is defined by the project or a built-in package.':
     'Ni el proyecto ni un paquete incorporado definen el componente "{id}".',
   'Import "{name}" as a drawing': 'Importar "{name}" como dibujo',
+
+  // Conflicts a merge left in files (ADR 0072): the files they are in, the warning, the history's
+  // labels, and why the core refuses a resolution.
+  'the project file': 'el archivo del proyecto',
+  'the model': 'el modelo',
+  'the scenario "{name}"': 'el escenario "{name}"',
+  'the tour "{name}"': 'el recorrido "{name}"',
+  'the thread "{id}"': 'el hilo "{id}"',
+  'A merge left a conflict in {of}: resolve it in the Changes tab, then add the file with git add.':
+    'Una unión dejó un conflicto en {of}: resolverlo en la pestaña Cambios y después agregar el archivo con git add.',
+  'A merge left {n} conflicts in {of}: resolve them in the Changes tab, then add the file with git add.':
+    'Una unión dejó {n} conflictos en {of}: resolverlos en la pestaña Cambios y después agregar el archivo con git add.',
+  'Resolve a conflict in {of}': 'Resolver un conflicto en {of}',
+  'Resolve {n} conflicts in {of}': 'Resolver {n} conflictos en {of}',
+  'There is no conflict in {of}.': 'No hay ningún conflicto en {of}.',
+  'There is no conflict "{id}" in {of}.': 'No hay ningún conflicto "{id}" en {of}.',
+  'The resolutions must be a list.': 'Las resoluciones deben ser una lista.',
+  'Resolving takes one conflict at least.': 'Para resolver hace falta un conflicto como mínimo.',
+  'A resolution names a conflict and what to take: kept or other.':
+    'Una resolución nombra un conflicto y qué tomar: lo que se conserva (kept) o la otra opción (other).',
+  'The conflict "{id}" is resolved twice.': 'El conflicto "{id}" se resuelve dos veces.',
+  'A conflict is resolved by taking what is kept, or the other choice.':
+    'Un conflicto se resuelve tomando lo que se conserva, o la otra opción.',
+  'A file is named by its kind, and its id for a file in a folder.':
+    'Un archivo se nombra por su tipo, y por su id si es un archivo de una carpeta.',
 };
 
 /**

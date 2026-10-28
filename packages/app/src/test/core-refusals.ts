@@ -19,6 +19,7 @@ import {
 } from '@visual-anything/core';
 import type {
   Element,
+  FileConflict,
   PackageFile,
   Relation,
   ScenarioFile,
@@ -1925,6 +1926,101 @@ function decisionsOnOpening(sample: ProjectSnapshot): [string, ProjectSnapshot][
   ];
 }
 
+// M11b: conflicts a merge left in files (ADR 0072) -----------------------------------------------------
+
+/** A conflict as a merge leaves it in a file: the item's value at a path that both sides changed. */
+function conflict(id: string, item: string, path: string[], other: string): FileConflict {
+  return { id, item, path, why: 'both-changed', kept: 'ours', other };
+}
+
+/**
+ * The sample with conflicts in each kind of file, one and several, as a merge leaves them; what it
+ * warns as it opens; and what resolving them says, and refuses.
+ */
+function mergeConflicts(sample: ProjectSnapshot): Said[] {
+  const two = (item: string, path: string[]) => [
+    conflict('conflict-1', item, path, 'One'),
+    conflict('conflict-2', item, path, 'Two'),
+  ];
+  const own = sample.packages.find((each) => each.id === 'clinic');
+  const [view] = sample.views;
+  const [scenario] = sample.scenarios;
+  const [tour] = sample.tours;
+  const [thread] = sample.comments;
+  if (!own || !view || !scenario || !tour || !thread) throw new Error('The sample lacks a file.');
+  const conflicted: ProjectSnapshot = {
+    ...sample,
+    project: { ...sample.project, conflicts: [conflict('conflict-1', 'project', ['name'], 'One')] },
+    model: { ...sample.model, conflicts: two('world', ['name']) },
+    packages: sample.packages.map((each) =>
+      each === own ? { ...each, conflicts: two('package', ['name']) } : each,
+    ),
+    views: sample.views.map((each) =>
+      each === view ? { ...each, conflicts: two('view', ['name']) } : each,
+    ),
+    scenarios: sample.scenarios.map((each) =>
+      each === scenario ? { ...each, conflicts: two('scenario', ['name']) } : each,
+    ),
+    tours: sample.tours.map((each) =>
+      each === tour
+        ? { ...each, conflicts: [conflict('conflict-1', 'tour', ['name'], 'One')] }
+        : each,
+    ),
+    comments: sample.comments.map((each) =>
+      each === thread
+        ? {
+            ...each,
+            conflicts: [
+              conflict('conflict-1', `comment:${thread.comments[0]?.id ?? ''}`, ['text'], 'One'),
+            ],
+          }
+        : each,
+    ),
+  };
+  const said = checked('files holding conflicts from a merge', conflicted);
+  const resolve = (file: unknown, resolutions: unknown) => ({
+    type: 'resolve-conflicts',
+    file,
+    resolutions,
+  });
+  const one = [{ conflict: 'conflict-1', take: 'kept' }];
+  const both = [
+    { conflict: 'conflict-1', take: 'kept' },
+    { conflict: 'conflict-2', take: 'other' },
+  ];
+  const resolving: [string, unknown][] = [
+    ['a conflict of the project file resolved', resolve({ kind: 'project' }, one)],
+    ['conflicts of the model resolved', resolve({ kind: 'model' }, both)],
+    ['a conflict of a package resolved', resolve({ kind: 'package', id: own.id }, one)],
+    ['conflicts of a view resolved', resolve({ kind: 'view', id: view.id }, both)],
+    ['a conflict of a scenario resolved', resolve({ kind: 'scenario', id: scenario.id }, one)],
+    ['a conflict of a tour resolved', resolve({ kind: 'tour', id: tour.id }, one)],
+    ['a conflict of a thread resolved', resolve({ kind: 'comment', id: thread.id }, one)],
+    ['conflicts resolved in a file without any', resolve({ kind: 'project' }, one)],
+    [
+      'a conflict resolved that the file lacks',
+      resolve({ kind: 'model' }, [{ conflict: 'conflict-9', take: 'kept' }]),
+    ],
+    ['a conflict resolved twice', resolve({ kind: 'model' }, [...one, ...one])],
+    [
+      'a conflict resolved by taking neither',
+      resolve({ kind: 'model' }, [{ conflict: 'conflict-1', take: 'both' }]),
+    ],
+    ['a resolution that is not one', resolve({ kind: 'model' }, ['conflict-1'])],
+    ['no resolutions', resolve({ kind: 'model' }, [])],
+    ['resolutions that are not a list', resolve({ kind: 'model' }, 'conflict-1')],
+    ['conflicts resolved in a file named by no kind', resolve({ kind: 'folder' }, one)],
+  ];
+  for (const [name, command] of resolving.slice(0, 7)) {
+    said.push(...runInOrder(conflicted, name, [command]));
+  }
+  for (const [name, command] of resolving.slice(7)) {
+    const state = name === 'conflicts resolved in a file without any' ? sample : conflicted;
+    said.push(...runInOrder(state, name, [command]));
+  }
+  return said;
+}
+
 // M8b W56: HTML imported as a drawing (ADR 0068) ------------------------------------------------------
 
 /** What preparing a drawing's one action says, and the action's label as it runs. */
@@ -1970,5 +2066,6 @@ export function coreRefusals(): Said[] {
   for (const [name, state] of decisionsOnOpening(sample)) said.push(...checked(name, state));
   said.push(...cleaningRefusals());
   said.push(...drawings(sample));
+  said.push(...mergeConflicts(sample));
   return said;
 }
