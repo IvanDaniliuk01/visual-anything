@@ -165,3 +165,15 @@ The Export dialog offers these while a comparison shows. `visual-anything compar
 - The app gains Compare with…, the three drawings with their marks and legend, the Changes tab, and the comparison's exports.
 - The theme gains four tokens per theme for the marks, with contrast tests.
 - CONTEXT.md gains **Version**, **Comparison** and **Change**.
+
+## Clarifications
+
+- 2026-10-28 (M11b's first seam, in the main session):
+  - **Keys.** An item's key names it in the whole project: `element:<id>`, `position:<view>:<element> in <container>`, `component:<package>:<id>`, `route:<view>:<relation>` and so on (`itemKey`). The key a conflict keeps in its file drops what the file already says (`fileItemKey`, ADR 0072). A scenario's steps, a tour's steps and a thread's comments have keys of their own, `step:`, `tour-step:` and `comment:`, for merges. A comparison reads each scenario, tour and thread as one item, its differences named `steps.<id>` or `comments.<id>`.
+  - **One item, two changes.** A shape that moved and also changed size, pin or anything else is two changes, one moved and one changed, both about it; a view's state still says changed first.
+  - **Another container is a move.** A shape that sits in another container of its view, its element in both versions, is one move from its older place, paired by key when an element has several shapes there; its differences give the container and the place. What is left over is a shape added or removed, as a scope or the nesting takes it in or leaves it out.
+  - **Restacks.** A stacking list is read without the elements added and removed, so an element added or removed takes its entries, and what is left is a restack. The model's order is read the same way, among the elements in both versions.
+  - **Sizes and places** compare in whole canvas units, a free arrow's ends included.
+  - **Following an action.** `recompare` works out again the changes whose items an action's operations reach, with what those take with them, until nothing more is reached, and keeps the rest as they were. An action that changes which relation types nest, through the project's packages, a package, or a relation type, compares afresh, since it changes what every element added or removed takes with it; so does one that replaces a whole list.
+  - **Between two versions.** `operationsBetween` changes a list item by item while the items in both keep their order, and replaces the whole list otherwise; packages and views in both versions change through `set-package` and `set-view` and their own lists.
+  - **Measured once,** on the reference laptop at 10,000 elements and as many relations, with 100 changes: comparing takes about 110 ms against this ADR's 100 ms, and following an action about 24 ms against 5 ms, since each action reads the newer version's items again. By the user's decision of 2026-10-27 the marks do not hold M11b back; reading the newer version incrementally is a follow-up in the spec.

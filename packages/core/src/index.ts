@@ -286,6 +286,7 @@ export { MAX_FILTER_CONDITIONS, MAX_FILTER_TEXT } from './protocol';
 export * from './code';
 // Tours (ADR 0058), and the plain text with paragraphs and lists their captions hold.
 export * from './tours';
+export * from './versions';
 export type { TextBlock } from './plain-text';
 export { textBlocks } from './plain-text';
 // Overlays, their legend, and levels of detail (ADR 0055).

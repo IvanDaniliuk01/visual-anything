@@ -542,6 +542,7 @@ Eight milestones in build order, each ending in something you can use, and Track
     - the Tours panel's check builds its scenes off the main thread or when idle, reusing the canvas's scene for the open view;
     - the steps' index gives the focus back to the stage after a jump, and is a modal dialog that holds the focus while open;
     - the person edits a decision's question, labels, default and `ends`, and removes one decision, in the app, as Claude can;
+  - M11b (2026-10-28): `recompare` reads the newer version incrementally, rather than its items again each action, to follow an action within 5 ms at 10,000 elements (about 24 ms now); comparing afresh takes about 110 ms against 100 ms (ADR 0070's clarification);
   - `scene.incremental.test.ts` once found an incremental scene in the view beyond boxes that differed from one built from nothing, in about one run in 400, and lost the counterexample; it is hunted with more runs and its seed kept (2026-10-26).
 
 **M11b · Versions.** Planned for the third wave, beside M8b. The core's comparison, merge and proposals go first, in the main session, since everything else builds on them. Then two rounds of tasks run in parallel. Done when:
@@ -575,7 +576,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 
 The first three tasks are the seams, built in the main session in this order. The next four run in parallel once they are merged, and the last six once those are.
 
-- [ ] **The comparison in the core** (main session, test-first; `core/src/versions/`: `items.ts`, `compare.ts`, `operations-between.ts`; ADR 0070):
+- [x] **The comparison in the core** (main session, test-first; `core/src/versions/`: `items.ts`, `compare.ts`, `operations-between.ts`; ADR 0070):
   - `ItemRef`, the items of ADR 0070, with `itemKey(ref)`, such as `element:<id>` or `position:<view>:<element> in <container>`, and `fileItemKey(ref)`, the key a conflict keeps in its file (ADR 0072);
   - `compareProjects(older, newer): Comparison`:
     - `changes`, grouped as ADR 0070 groups them, each with its `status`, its main `ref`, the `items` it covers and its `differences`;
