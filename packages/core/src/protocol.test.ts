@@ -333,6 +333,63 @@ describe('readGuidance for playing a scenario', () => {
     ).toEqual({ kind: 'playback', scenario: 's', action: 'go-to-step', step: 0 });
   });
 
+  it('reads the alternatives chosen at the scenario’s decisions where it opens, plays or goes to a step', () => {
+    const choices = { stock: 'no', 'pay.method': 'card' };
+    for (const action of ['open', 'play'] as const) {
+      expect(readGuidance({ kind: 'playback', scenario: 's', action, choices })).toEqual({
+        kind: 'playback',
+        scenario: 's',
+        action,
+        choices,
+      });
+    }
+    const read = readGuidance({
+      kind: 'playback',
+      scenario: 's',
+      action: 'go-to-step',
+      step: 4,
+      choices: { stock: 'no' },
+    });
+    expect(read).toEqual({
+      kind: 'playback',
+      scenario: 's',
+      action: 'go-to-step',
+      step: 4,
+      choices: { stock: 'no' },
+    });
+    // An empty map plays every decision's default.
+    expect(readGuidance({ kind: 'playback', scenario: 's', action: 'play', choices: {} })).toEqual({
+      kind: 'playback',
+      scenario: 's',
+      action: 'play',
+      choices: {},
+    });
+    // Pausing and stepping keep the choices the tab has.
+    expect(readGuidance({ kind: 'playback', scenario: 's', action: 'next-step', choices })).toEqual(
+      { kind: 'playback', scenario: 's', action: 'next-step' },
+    );
+  });
+
+  it('reads choosing an alternative at a decision, and nothing else', () => {
+    expect(
+      readGuidance({
+        kind: 'playback',
+        scenario: 's',
+        action: 'choose',
+        decision: 'stock',
+        alternative: 'no',
+        step: 2,
+        choices: { stock: 'yes' },
+      }),
+    ).toEqual({
+      kind: 'playback',
+      scenario: 's',
+      action: 'choose',
+      decision: 'stock',
+      alternative: 'no',
+    });
+  });
+
   it.each([
     ['no scenario', { kind: 'playback', action: 'play' }],
     ['an unknown action', { kind: 'playback', scenario: 's', action: 'rewind' }],
@@ -342,6 +399,32 @@ describe('readGuidance for playing a scenario', () => {
       { kind: 'playback', scenario: 's', action: 'go-to-step', step: -1 },
     ],
     ['going to half a step', { kind: 'playback', scenario: 's', action: 'go-to-step', step: 0.5 }],
+    ['choices that are a list', { kind: 'playback', scenario: 's', action: 'play', choices: [] }],
+    [
+      'a choice that is no id',
+      { kind: 'playback', scenario: 's', action: 'play', choices: { stock: 3 } },
+    ],
+    [
+      'a choice at a decision that is no id',
+      { kind: 'playback', scenario: 's', action: 'open', choices: { 'Is it?': 'no' } },
+    ],
+    [
+      'more choices than a scenario has decisions',
+      {
+        kind: 'playback',
+        scenario: 's',
+        action: 'play',
+        choices: Object.fromEntries(Array.from({ length: 65 }, (_, at) => [`d${at}`, 'a'])),
+      },
+    ],
+    [
+      'choosing at no decision',
+      { kind: 'playback', scenario: 's', action: 'choose', alternative: 'no' },
+    ],
+    [
+      'choosing no alternative',
+      { kind: 'playback', scenario: 's', action: 'choose', decision: 'stock' },
+    ],
   ])('refuses %s', (_case, value) => {
     expect(() => readGuidance(value)).toThrow(ProtocolError);
   });

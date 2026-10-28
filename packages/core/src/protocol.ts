@@ -5,7 +5,7 @@
  * resulting operations to every open app. It also sends Claude's guidance, which marks and moves the
  * open view without changing the model.
  */
-import type { Id } from '@visual-anything/schema';
+import type { DecisionChoices, Id } from '@visual-anything/schema';
 import type { Command } from './commands';
 import {
   readDrawingMade,
@@ -52,7 +52,8 @@ import { checkTimeRange, type ViewTimeRange } from './time-range';
  * 7: free geometry, named parts and automatic route styles in the project's files (M8b, ADR 0066,
  *    ADR 0067, ADR 0069), which an app of version 6 would draw without; and making a drawing of
  *    HTML (ADR 0068), `drawing/make` and its answer `drawing/made`, in 7 too, since no build of 7
- *    shipped.
+ *    shipped. Playback guidance that chooses an alternative at a decision, and that opens, plays or
+ *    goes to a step with choices (ADR 0078), came in 7 as well, for the same reason.
  */
 export const PROTOCOL_VERSION = 7;
 
@@ -228,10 +229,26 @@ export type Guidance =
   | { kind: 'clear-explore'; view?: Id }
   /**
    * Opens a scenario in the app's scenario panel, and its view, and plays, pauses or steps it there,
-   * as the person would; playing changes nothing. `step`, for `go-to-step` only, is the index of a
-   * step among the scenario's steps, from 0.
+   * or chooses an alternative at one of its decisions, as the person would; playing and choosing
+   * change nothing (ADR 0078).
    */
-  | { kind: 'playback'; scenario: Id; action: PlaybackAction; step?: number }
+  | {
+      kind: 'playback';
+      scenario: Id;
+      action: PlaybackAction;
+      /** For `go-to-step` only: the index of a step among the scenario's steps, from 0. */
+      step?: number;
+      /**
+       * For `open`, `play` and `go-to-step` only: the alternatives to play at the scenario's
+       * decisions, which replace the tab's choices; a decision not named plays its default, so an
+       * empty map plays every default. Left out, the tab's choices stay.
+       */
+      choices?: DecisionChoices;
+      /** For `choose` only: the decision, by id. */
+      decision?: Id;
+      /** For `choose` only: the alternative of that decision to play, by id. */
+      alternative?: Id;
+    }
   /**
    * Lays out the open view as the toolbar's Layout does, in the app's layout worker: every shape that
    * is not pinned, or, with `containers`, every shape inside each of them that is not pinned. The
@@ -296,8 +313,15 @@ export const PLAYBACK_ACTIONS = [
   'go-to-step',
   'next-step',
   'previous-step',
+  'choose',
 ] as const;
 export type PlaybackAction = (typeof PLAYBACK_ACTIONS)[number];
+
+/** The playback actions that may carry choices: those that open, play or go to a step. */
+const ACTIONS_WITH_CHOICES: readonly PlaybackAction[] = ['open', 'play', 'go-to-step'];
+
+/** The most choices one playback guidance carries: as many as a scenario has decisions. */
+export const MAX_GUIDED_CHOICES = 64;
 
 /** The longest caption, in UTF-16 code units. */
 export const MAX_CAPTION_LENGTH = 280;
@@ -481,13 +505,38 @@ function readPlayback(value: Record<string, unknown>): Guidance {
   if (!PLAYBACK_ACTIONS.some((each) => each === action)) {
     throw new ProtocolError(`Playback does one of: ${PLAYBACK_ACTIONS.join(', ')}.`);
   }
-  if (action !== 'go-to-step') {
-    return { kind: 'playback', scenario: value.scenario, action: action as PlaybackAction };
+  const scenario = value.scenario;
+  if (action === 'choose') {
+    const { decision, alternative } = value;
+    if (!isId(decision) || !isId(alternative)) {
+      throw new ProtocolError('Choosing names a decision and one of its alternatives, by id.');
+    }
+    return { kind: 'playback', scenario, action, decision, alternative };
   }
+  const played = action as PlaybackAction;
+  const choices = ACTIONS_WITH_CHOICES.includes(played) ? readChoices(value.choices) : undefined;
+  const chosen = choices === undefined ? {} : { choices };
+  if (played !== 'go-to-step') return { kind: 'playback', scenario, action: played, ...chosen };
   if (!Number.isSafeInteger(step) || (step as number) < 0) {
     throw new ProtocolError('Going to a step needs the index of the step, from 0.');
   }
-  return { kind: 'playback', scenario: value.scenario, action, step: step as number };
+  return { kind: 'playback', scenario, action: played, step: step as number, ...chosen };
+}
+
+/** Reads the alternatives chosen at a scenario's decisions, by the decisions' ids, copied. */
+function readChoices(value: unknown): DecisionChoices | undefined {
+  if (value === undefined) return undefined;
+  if (!isRecord(value)) {
+    throw new ProtocolError('Choices map the id of each decision to the id of an alternative.');
+  }
+  const entries = Object.entries(value);
+  if (entries.length > MAX_GUIDED_CHOICES) {
+    throw new ProtocolError(`Playback carries at most ${MAX_GUIDED_CHOICES} choices.`);
+  }
+  if (!entries.every(([decision, alternative]) => isId(decision) && isId(alternative))) {
+    throw new ProtocolError('Choices map the id of each decision to the id of an alternative.');
+  }
+  return Object.fromEntries(entries) as DecisionChoices;
 }
 
 /**
