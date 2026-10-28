@@ -74,7 +74,12 @@ describe('routes in a view file', () => {
     [
       'an attachment of an unknown kind',
       routing({ from: { kind: 'anywhere' } }),
-      [{ path: '/routes/calls/from/kind', message: 'must be one of "connection-point", "border"' }],
+      [
+        {
+          path: '/routes/calls/from/kind',
+          message: 'must be one of "connection-point", "border", "inside"',
+        },
+      ],
     ],
     [
       'an attachment without its kind',
