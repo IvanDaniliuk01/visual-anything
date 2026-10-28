@@ -674,7 +674,9 @@ export function readDecisions(
     };
   });
   const plain = new Map<number, Within>();
-  for (const [at, { depth: _depth, ...where }] of within) plain.set(at, where);
+  for (const [at, { decision, question, alternative, label }] of within) {
+    plain.set(at, { decision, question, alternative, label });
+  }
   return { ok: true, decisions, within: plain };
 }
 

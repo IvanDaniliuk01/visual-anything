@@ -1004,7 +1004,7 @@ function decisionEditOf(change: DecisionArgs): DecisionEdit {
         steps: (change.steps ?? []).map(stepOf),
       });
     default:
-      return withoutUndefined(change) as DecisionEdit;
+      return withoutUndefined(change);
   }
 }
 

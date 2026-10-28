@@ -29,7 +29,6 @@ import {
 } from '@visual-anything/core';
 import type {
   Id,
-  TourAdvance,
   TourCaption,
   TourFile,
   TourPlayback,
@@ -552,7 +551,7 @@ function stepFrom(
       play: played,
       reveal: revealsOf(given.reveal),
       dimRest: given.dimRest === true ? (true as const) : undefined,
-      advance: given.advance as TourAdvance | undefined,
+      advance: given.advance,
       notes: given.notes || undefined,
     }),
   };
