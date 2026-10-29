@@ -659,7 +659,7 @@ The first three tasks are the seams, built in the main session in this order. Th
   - `--stop-when-idle` waiting for a proposal, for at most an hour;
   - the bridge's proposed copy for Claude's reads;
   - every write tool's answer saying when it was proposed, `run_commands`' `propose`, `read_proposal` and `withdraw_proposal`.
-- [ ] **Compare with… in the app** (`app/src/versions/`, the header, the Export dialog):
+- [x] **Compare with… in the app** (`app/src/versions/`, the header, the Export dialog):
   - the dialog: the version as opened, `HEAD`, branches, tags and recent commits, as the program lists them, with why when git cannot list any;
   - asking the program for the version chosen, then opening the comparison mode and the Changes tab on it;
   - the Export dialog's comparison: SVG and PDF of each drawing, and the summary;
@@ -686,6 +686,7 @@ The first three tasks are the seams, built in the main session in this order. Th
   - the note that the file can now be added with git;
   - Claude's `list_conflicts` and `resolve_conflicts`.
 - [ ] **Claude and versions** (`server/src/claude/version-tools.ts`):
+  - the commits a version may name are those of the program's last five listings within ten minutes, from an app or from Claude (ADR 0071's clarification of 2026-10-29);
   - `list_versions`;
   - `compare_versions`, with counts and changes, at most 200 per call with an offset, for one view if asked;
   - `show_comparison`, which sends the guidance;
