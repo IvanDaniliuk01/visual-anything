@@ -10,7 +10,13 @@ import { ChangeNames, changeSentence, countsText, differencesText } from './desc
 import type { OpenedChanges } from './store';
 
 const { older, newer, comparison } = comparedSample();
-const opened: OpenedChanges = { kind: 'comparison', title: 'Compared with HEAD', older, newer, comparison };
+const opened: OpenedChanges = {
+  kind: 'comparison',
+  title: 'Compared with HEAD',
+  older,
+  newer,
+  comparison,
+};
 
 function rows(): string[] {
   return within(screen.getByRole('tree'))
@@ -64,7 +70,12 @@ describe('ChangesList', () => {
   it('shows a change chosen with Enter, and lists every difference of it', () => {
     const onShow = vi.fn();
     render(
-      <ChangesList changes={opened} openViewId={VIEW} selection={EMPTY_SELECTION} onShow={onShow} />,
+      <ChangesList
+        changes={opened}
+        openViewId={VIEW}
+        selection={EMPTY_SELECTION}
+        onShow={onShow}
+      />,
     );
     const row = screen.getByRole('treeitem', { name: /^Changed: WhatsApp Business/ });
     fireEvent.keyDown(row, { key: 'Enter' });
@@ -98,7 +109,7 @@ describe('ChangesList', () => {
   });
 
   it('ticks changes where a proposal asks, with Space or a click, and a whole kind at once', () => {
-    const onTick = vi.fn();
+    const onTick = vi.fn<(keys: readonly string[], ticked: boolean) => void>();
     const ticked = new Set([changeKey(comparison.changes[0] ?? comparison.changes[1]!)]);
     render(
       <ChangesList

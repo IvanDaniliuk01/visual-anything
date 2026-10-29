@@ -261,7 +261,12 @@ class Marking {
     const mark = lineMarkOf(line, this.states);
     const drawnMark = mark !== undefined && this.drawn.includes(mark) ? mark : undefined;
     const first = standsFor(line)[0] ?? line.relation;
-    const rect = boundsOf([], line.route) ?? { x: line.middle.x, y: line.middle.y, width: 0, height: 0 };
+    const rect = boundsOf([], line.route) ?? {
+      x: line.middle.x,
+      y: line.middle.y,
+      width: 0,
+      height: 0,
+    };
     this.place(line.relation, drawnMark, ghost, 'relation', first, rect, this.lines);
     if (drawnMark === 'removed') this.dashed.add(line.relation);
   }
@@ -374,11 +379,7 @@ interface Ghosts {
   arrows: ArrowShape[];
 }
 
-function ghostsOf(
-  older: Scene,
-  states: ReadonlyMap<string, ViewItemState>,
-  newer: Scene,
-): Ghosts {
+function ghostsOf(older: Scene, states: ReadonlyMap<string, ViewItemState>, newer: Scene): Ghosts {
   const removed = (key: string) => markOf(states.get(key)) === 'removed';
   const kept = new Set<string>();
   const newerKeys = new Set(newer.shapes.map((shape) => shape.key));
@@ -409,19 +410,18 @@ function ghostsOf(
  */
 function ghostShape(shape: ElementShape, ghosts: ReadonlySet<string>): ElementShape {
   if (shape.containerShape !== undefined && ghosts.has(shape.containerShape)) return shape;
-  const {
-    container: _container,
-    containerShape: _containerShape,
-    row: _row,
-    rowCount: _rowCount,
-    ...alone
-  } = shape;
-  return { ...alone, offset: { x: shape.rect.x, y: shape.rect.y } };
+  const alone: ElementShape = { ...shape, offset: { x: shape.rect.x, y: shape.rect.y } };
+  delete alone.container;
+  delete alone.containerShape;
+  delete alone.row;
+  delete alone.rowCount;
+  return alone;
 }
 
 /** A removed relation's line at its older route, drawn to no shape, since its ends may be gone. */
 function ghostLine(line: RelationLine): RelationLine {
-  const { ends: _ends, ...alone } = line;
+  const alone: RelationLine = { ...line };
+  delete alone.ends;
   return alone;
 }
 
@@ -449,7 +449,14 @@ function withGhosts(scene: Scene, ghosts: Ghosts): Scene {
     ],
     ghosts.relations.flatMap((line) => line.route),
   );
-  return { shapes, drawing, relations: [...scene.relations, ...ghosts.relations], notes, arrows, bounds };
+  return {
+    shapes,
+    drawing,
+    relations: [...scene.relations, ...ghosts.relations],
+    notes,
+    arrows,
+    bounds,
+  };
 }
 
 /**
@@ -495,7 +502,12 @@ function movesOf(
     const was = olderArrows.get(arrow.id);
     if (!was || !moved(`free-shape:${arrow.id}`)) continue;
     if (samePoint(was.from, arrow.from) && samePoint(was.to, arrow.to)) continue;
-    moves.push({ key: arrow.id, was: arrowBox(was), is: arrowBox(arrow), line: [was.from, was.to] });
+    moves.push({
+      key: arrow.id,
+      was: arrowBox(was),
+      is: arrowBox(arrow),
+      line: [was.from, was.to],
+    });
   }
   return moves;
 }

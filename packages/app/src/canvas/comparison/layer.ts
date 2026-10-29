@@ -188,10 +188,13 @@ function badge(
   theme: CanvasTheme,
 ): void {
   const radius = BADGE_RADIUS * unit;
-  graphics.circle(at.x, at.y, radius).fill(color).stroke({
-    color: theme.background,
-    width: 1.5 * unit,
-  });
+  graphics
+    .circle(at.x, at.y, radius)
+    .fill(color)
+    .stroke({
+      color: theme.background,
+      width: 1.5 * unit,
+    });
   glyph(graphics, at, mark, radius);
   graphics.stroke({ color: theme.background, width: GLYPH * unit, cap: 'round', join: 'round' });
 }
@@ -251,7 +254,12 @@ function drawMove(graphics: Graphics, move: MovedPlace, unit: number, theme: Can
 }
 
 function grown(rect: Rect, by: number): Rect {
-  return { x: rect.x - by, y: rect.y - by, width: rect.width + 2 * by, height: rect.height + 2 * by };
+  return {
+    x: rect.x - by,
+    y: rect.y - by,
+    width: rect.width + 2 * by,
+    height: rect.height + 2 * by,
+  };
 }
 
 function boxOf(a: Point, b: Point): Rect {
@@ -389,7 +397,9 @@ export class ComparisonLayer {
     const shown = this.shown;
     this.counts = [];
     if (!shown || shown.hidden.size === 0) return;
-    const byKey = new Map<string, ElementShape>(shown.scene.shapes.map((shape) => [shape.key, shape]));
+    const byKey = new Map<string, ElementShape>(
+      shown.scene.shapes.map((shape) => [shape.key, shape]),
+    );
     for (const [key, count] of shown.hidden) {
       const shape = byKey.get(key);
       if (!shape) continue;
@@ -411,7 +421,10 @@ export class ComparisonLayer {
       if (!text) continue;
       text.scale.set((unit * COUNT_SIZE) / 11);
       text.tint = this.theme.background;
-      text.position.set(count.at.x + COUNT_PADDING.x * unit, count.at.y - (COUNT_SIZE + COUNT_PADDING.y * 2) * unit / 2);
+      text.position.set(
+        count.at.x + COUNT_PADDING.x * unit,
+        count.at.y - ((COUNT_SIZE + COUNT_PADDING.y * 2) * unit) / 2,
+      );
     }
     this.drawPills();
   }
@@ -426,7 +439,10 @@ export class ComparisonLayer {
     for (const count of this.counts) {
       if (hidden.has(count.key)) continue;
       const height = (COUNT_SIZE + COUNT_PADDING.y * 2) * unit;
-      const width = Math.max(height, (String(count.count).length * COUNT_SIZE * 0.62 + COUNT_PADDING.x * 2) * unit);
+      const width = Math.max(
+        height,
+        (String(count.count).length * COUNT_SIZE * 0.62 + COUNT_PADDING.x * 2) * unit,
+      );
       pills.roundRect(count.at.x, count.at.y - height / 2, width, height, height / 2);
     }
     pills.fill(color).stroke({ color: this.theme.background, width: 1.5 * unit });

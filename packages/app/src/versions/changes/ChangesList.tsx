@@ -169,7 +169,10 @@ export function ChangesList({ changes, openViewId, selection, onShow }: ChangesL
 
   const labelOf = (row: TreeRow<Item>) => {
     if (row.item.kind === 'group') {
-      return t('{kind}: {count}', { kind: kindHeading(t, row.item.group), count: row.item.changes.length });
+      return t('{kind}: {count}', {
+        kind: kindHeading(t, row.item.group),
+        count: row.item.changes.length,
+      });
     }
     const sentence = changeSentence(t, row.item.change, names);
     if (!ticks) return sentence;
@@ -199,9 +202,7 @@ export function ChangesList({ changes, openViewId, selection, onShow }: ChangesL
     const differs = differencesText(t, change, names);
     return (
       <span className="changes-row">
-        {ticks && (
-          <TickBox checked={ticks.ticked.has(item.key)} onToggle={() => tick(row)} />
-        )}
+        {ticks && <TickBox checked={ticks.ticked.has(item.key)} onToggle={() => tick(row)} />}
         <StatusBadge status={change.status} />
         <span className="changes-row-title">{changeTitle(t, change, names)}</span>
         {differs !== '' && <span className="changes-row-differs">{differs}</span>}

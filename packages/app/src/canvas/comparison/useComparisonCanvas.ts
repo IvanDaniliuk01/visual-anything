@@ -6,11 +6,7 @@
  * It follows the project now, before the browser paints, so that every action, whoever makes it,
  * shows in the comparison at once; and it gives the emphasis what is drawn faintly and dashed.
  */
-import {
-  compareView,
-  type ProjectSnapshot,
-  type ViewComparison,
-} from '@visual-anything/core';
+import { compareView, type ProjectSnapshot, type ViewComparison } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
 import { useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import type { EmphasisStore } from '../../editor/emphasis';
@@ -62,11 +58,13 @@ export function useComparisonCanvas({
       shown && viewId !== undefined
         ? compareView(shown.comparison, shown.older, shown.newer, viewId)
         : undefined,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- worked out again only when the versions or their comparison change, not the drawing
     [shown?.comparison, shown?.older, shown?.newer, viewId],
   );
   const drawing = shown?.drawing;
   const drawn = useMemo(() => {
-    if (!shown || !viewComparison || viewId === undefined || drawing === undefined) return undefined;
+    if (!shown || !viewComparison || viewId === undefined || drawing === undefined)
+      return undefined;
     const newerScene = shown.newer === project ? scene : undefined;
     return comparisonScene(shown.older, shown.newer, viewId, viewComparison, drawing, {
       expanded,

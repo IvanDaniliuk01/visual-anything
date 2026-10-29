@@ -3,31 +3,13 @@
  * proposal or the project's conflicts. While nothing is opened in it and a comparison shows on the
  * canvas, it lists that comparison, which follows the project.
  */
-import { useContext, useMemo } from 'react';
-import { useShownComparison } from '../../canvas/comparison/mode';
+import { useContext } from 'react';
 import { EditorContext } from '../../editor/EditorContext';
 import { EMPTY_SELECTION } from '../../editor/selection';
 import { useT } from '../../i18n';
 import { ChangesList } from './ChangesList';
-import { ChangesContext, useOpenedChanges, type OpenedChanges } from './store';
-
-/** What the Changes tab lists now, if anything. */
-export function useListedChanges(): OpenedChanges | undefined {
-  const { opened } = useOpenedChanges();
-  const comparison = useShownComparison();
-  return useMemo(
-    () =>
-      opened ??
-      (comparison && {
-        kind: 'comparison',
-        title: comparison.title,
-        older: comparison.older,
-        newer: comparison.newer,
-        comparison: comparison.comparison,
-      }),
-    [opened, comparison],
-  );
-}
+import { ChangesContext, useOpenedChanges } from './store';
+import { useListedChanges } from './useListedChanges';
 
 /** The tab's content, kept while another tab shows, so that its filters and place stay. */
 export function ChangesTab() {

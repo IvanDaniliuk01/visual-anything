@@ -419,6 +419,13 @@ const AVOIDED: readonly { word: RegExp; unless?: RegExp }[] = [
   { word: /\bcomponentes? HTML\b/i },
   { word: /\biframes?\b/i },
   { word: /\bcapturas? de pantalla\b/i },
+  // M11b: versions, comparisons and their changes (ADR 0070), proposals and conflicts.
+  { word: /\bdiffs?\b/i },
+  { word: /\bdeltas?\b/i },
+  { word: /\bparches?\b/i },
+  { word: /\bsugerencias?\b/i },
+  { word: /\bborrador(es)?\b/i },
+  { word: /\bmarcadores? de fusi[oó]n\b/i },
 ];
 
 /** Texts given to t() that Spanish writes the same: values and punctuation only. */

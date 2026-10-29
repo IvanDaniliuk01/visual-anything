@@ -59,7 +59,10 @@ import { useCommentsStore } from '../comments/store';
 import { ComparisonBar } from '../canvas/comparison/ComparisonBar';
 import { ComparisonContext, ComparisonStore } from '../canvas/comparison/mode';
 import { drawingName } from '../canvas/comparison/text';
-import { useComparisonCanvas, type ComparisonCanvas } from '../canvas/comparison/useComparisonCanvas';
+import {
+  useComparisonCanvas,
+  type ComparisonCanvas,
+} from '../canvas/comparison/useComparisonCanvas';
 import { countsText } from '../versions/changes/describe';
 import { showChange } from '../versions/changes/show';
 import { ChangesContext, ChangesStore, type ChangesHost } from '../versions/changes/store';
@@ -266,135 +269,137 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
 
   return (
     <ComparisonContext value={comparisons}>
-    <ChangesContext value={changesHost}>
-    <EditorContext.Provider value={editor}>
-      <AttributeLookupContext value={lookup}>
-        <DefinitionProvider>
-          <EmphasisContext.Provider value={emphasis}>
-            <MotionContext value={motionChoice}>
-              <ToursContext.Provider value={tours.host}>
-                <ZoomExpansionContext value={zoom}>
-                  <div
-                    className={tours.playback.tour === undefined ? 'shell' : 'shell tour-playing'}
-                  >
-                    <Header
-                      projectName={project.project.name}
-                      viewName={view?.name}
-                      actions={
-                        <>
-                          {view && <CopyAddress link={viewState} />}
-                          <ImportControl
+      <ChangesContext value={changesHost}>
+        <EditorContext.Provider value={editor}>
+          <AttributeLookupContext value={lookup}>
+            <DefinitionProvider>
+              <EmphasisContext.Provider value={emphasis}>
+                <MotionContext value={motionChoice}>
+                  <ToursContext.Provider value={tours.host}>
+                    <ZoomExpansionContext value={zoom}>
+                      <div
+                        className={
+                          tours.playback.tour === undefined ? 'shell' : 'shell tour-playing'
+                        }
+                      >
+                        <Header
+                          projectName={project.project.name}
+                          viewName={view?.name}
+                          actions={
+                            <>
+                              {view && <CopyAddress link={viewState} />}
+                              <ImportControl
+                                project={project}
+                                viewId={view?.id}
+                                send={live?.status === 'open' ? live.send : undefined}
+                                openView={setOpenViewId}
+                                {...(live?.status === 'open' && live.makeDrawing !== undefined
+                                  ? { makeDrawing: live.makeDrawing }
+                                  : {})}
+                                {...(selection.elements.size === 1
+                                  ? { selectedElement: [...selection.elements][0] }
+                                  : {})}
+                              />
+                              {exportTool}
+                              <ElementListToggle store={elementList} />
+                            </>
+                          }
+                        />
+                        {notice !== undefined && (
+                          <p className="shell-notice" role="alert">
+                            {notice}
+                          </p>
+                        )}
+                        <ModelPanel
+                          project={project}
+                          definitions={definitions}
+                          openViewId={view?.id}
+                          comments={comments}
+                        />
+                        <main className="canvas-area" aria-labelledby={canvasHeading}>
+                          <h2 id={canvasHeading} className="visually-hidden">
+                            {view ? view.name : t('Canvas')}
+                          </h2>
+                          {view && scene && comparing ? (
+                            <ImageSourceContext value={images}>
+                              <CanvasArea
+                                project={comparing.project}
+                                view={comparing.view}
+                                scene={comparing.drawn.scene}
+                                label={describeComparison(t, comparing)}
+                                selection={selection}
+                                onSelect={setSelection}
+                                {...(revealed ? { revealed } : {})}
+                                theme={theme}
+                                onThemeShown={onThemeShown}
+                                onCanvas={setCanvas}
+                                comparison={comparing.drawn}
+                              />
+                              <ComparisonBar
+                                store={comparisons}
+                                shown={comparing.shown}
+                                drawn={comparing.drawn}
+                                viewChanges={comparing.viewComparison.changes}
+                                canvas={canvas}
+                                selection={selection}
+                                select={setSelection}
+                                reducedMotion={reducedMotion}
+                              />
+                            </ImageSourceContext>
+                          ) : view && scene ? (
+                            <ImageSourceContext value={images}>
+                              <CanvasArea
+                                project={project}
+                                view={view}
+                                scene={canvasScene ?? scene}
+                                label={describeDrawing(t, view, scene)}
+                                selection={selection}
+                                onSelect={setSelection}
+                                {...(onCommand ? { onCommand } : {})}
+                                {...(revealed ? { revealed } : {})}
+                                scenarios={scenarios}
+                                theme={theme}
+                                onThemeShown={onThemeShown}
+                                onCanvas={setCanvas}
+                              />
+                            </ImageSourceContext>
+                          ) : (
+                            <p className="canvas-message">{t('There is no view to draw.')}</p>
+                          )}
+                          <CommentPins store={comments} canvas={canvas} />
+                          <GuidanceLayer scenarios={scenarios} />
+                          <FindBar
                             project={project}
+                            definitions={definitions}
                             viewId={view?.id}
-                            send={live?.status === 'open' ? live.send : undefined}
-                            openView={setOpenViewId}
-                            {...(live?.status === 'open' && live.makeDrawing !== undefined
-                              ? { makeDrawing: live.makeDrawing }
-                              : {})}
-                            {...(selection.elements.size === 1
-                              ? { selectedElement: [...selection.elements][0] }
-                              : {})}
+                            goTo={viewState.goTo}
                           />
-                          {exportTool}
-                          <ElementListToggle store={elementList} />
-                        </>
-                      }
-                    />
-                    {notice !== undefined && (
-                      <p className="shell-notice" role="alert">
-                        {notice}
-                      </p>
-                    )}
-                    <ModelPanel
-                      project={project}
-                      definitions={definitions}
-                      openViewId={view?.id}
-                      comments={comments}
-                    />
-                    <main className="canvas-area" aria-labelledby={canvasHeading}>
-                      <h2 id={canvasHeading} className="visually-hidden">
-                        {view ? view.name : t('Canvas')}
-                      </h2>
-                      {view && scene && comparing ? (
-                        <ImageSourceContext value={images}>
-                          <CanvasArea
-                            project={comparing.project}
-                            view={comparing.view}
-                            scene={comparing.drawn.scene}
-                            label={describeComparison(t, comparing)}
-                            selection={selection}
-                            onSelect={setSelection}
-                            {...(revealed ? { revealed } : {})}
-                            theme={theme}
-                            onThemeShown={onThemeShown}
-                            onCanvas={setCanvas}
-                            comparison={comparing.drawn}
+                          <TourPlaybackLayer project={project} tours={tours} />
+                        </main>
+                        <Inspector view={view} scene={scene} definitions={definitions} />
+                        <ScenarioPanel
+                          session={scenarios}
+                          canvas={canvas}
+                          held={tours.playback.tour !== undefined}
+                        />
+                        <CodeApproval />
+                        <ElementListPanel store={elementList} />
+                        {asking && (
+                          <FollowDialog
+                            plan={asking.plan}
+                            onConfirm={asking.confirm}
+                            onCancel={asking.cancel}
                           />
-                          <ComparisonBar
-                            store={comparisons}
-                            shown={comparing.shown}
-                            drawn={comparing.drawn}
-                            viewChanges={comparing.viewComparison.changes}
-                            canvas={canvas}
-                            selection={selection}
-                            select={setSelection}
-                            reducedMotion={reducedMotion}
-                          />
-                        </ImageSourceContext>
-                      ) : view && scene ? (
-                        <ImageSourceContext value={images}>
-                          <CanvasArea
-                            project={project}
-                            view={view}
-                            scene={canvasScene ?? scene}
-                            label={describeDrawing(t, view, scene)}
-                            selection={selection}
-                            onSelect={setSelection}
-                            {...(onCommand ? { onCommand } : {})}
-                            {...(revealed ? { revealed } : {})}
-                            scenarios={scenarios}
-                            theme={theme}
-                            onThemeShown={onThemeShown}
-                            onCanvas={setCanvas}
-                          />
-                        </ImageSourceContext>
-                      ) : (
-                        <p className="canvas-message">{t('There is no view to draw.')}</p>
-                      )}
-                      <CommentPins store={comments} canvas={canvas} />
-                      <GuidanceLayer scenarios={scenarios} />
-                      <FindBar
-                        project={project}
-                        definitions={definitions}
-                        viewId={view?.id}
-                        goTo={viewState.goTo}
-                      />
-                      <TourPlaybackLayer project={project} tours={tours} />
-                    </main>
-                    <Inspector view={view} scene={scene} definitions={definitions} />
-                    <ScenarioPanel
-                      session={scenarios}
-                      canvas={canvas}
-                      held={tours.playback.tour !== undefined}
-                    />
-                    <CodeApproval />
-                    <ElementListPanel store={elementList} />
-                    {asking && (
-                      <FollowDialog
-                        plan={asking.plan}
-                        onConfirm={asking.confirm}
-                        onCancel={asking.cancel}
-                      />
-                    )}
-                  </div>
-                </ZoomExpansionContext>
-              </ToursContext.Provider>
-            </MotionContext>
-          </EmphasisContext.Provider>
-        </DefinitionProvider>
-      </AttributeLookupContext>
-    </EditorContext.Provider>
-    </ChangesContext>
+                        )}
+                      </div>
+                    </ZoomExpansionContext>
+                  </ToursContext.Provider>
+                </MotionContext>
+              </EmphasisContext.Provider>
+            </DefinitionProvider>
+          </AttributeLookupContext>
+        </EditorContext.Provider>
+      </ChangesContext>
     </ComparisonContext>
   );
 }

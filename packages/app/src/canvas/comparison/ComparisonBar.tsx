@@ -91,7 +91,7 @@ export function ComparisonBar({
   );
   const { targets } = drawn;
 
-  const step = useEffectEvent((by: 1 | -1) => {
+  const step = (by: 1 | -1) => {
     if (targets.length === 0) {
       say(t('This drawing marks no change.'));
       return;
@@ -119,7 +119,8 @@ export function ComparisonBar({
         sentence,
       }),
     );
-  });
+  };
+  const stepFromKeys = useEffectEvent((by: 1 | -1) => step(by));
   const end = useEffectEvent(() => store.end());
 
   // The keys work wherever the focus is, but where people type and in dialogs and menus.
@@ -132,7 +133,7 @@ export function ComparisonBar({
       if (event.key === ']' || event.key === '[') {
         event.preventDefault();
         event.stopPropagation();
-        step(event.key === ']' ? 1 : -1);
+        stepFromKeys(event.key === ']' ? 1 : -1);
       } else if (event.key === 'Escape') {
         event.preventDefault();
         event.stopPropagation();
@@ -226,9 +227,15 @@ export function ComparisonLegend({ drawn }: { drawn: ComparisonScene }) {
       <div className="canvas-legend-body">
         <ul className="canvas-legend-entries">
           {CHANGE_MARKS.map((mark) => (
-            <li key={mark} className={drawnMarks.includes(mark) ? undefined : 'comparison-not-drawn'}>
+            <li
+              key={mark}
+              className={drawnMarks.includes(mark) ? undefined : 'comparison-not-drawn'}
+            >
               <StatusBadge status={mark} />
-              <span className={`comparison-pattern comparison-pattern-${mark}`} aria-hidden="true" />
+              <span
+                className={`comparison-pattern comparison-pattern-${mark}`}
+                aria-hidden="true"
+              />
               <span>{statusName(t, mark)}</span>
               <span className="canvas-legend-amount">{drawn.counts[mark]}</span>
             </li>

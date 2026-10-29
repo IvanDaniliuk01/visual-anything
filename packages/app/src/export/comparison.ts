@@ -87,7 +87,8 @@ export function svgOfComparison(
   const from = drawing === 'before' ? older : newer;
   const view =
     from.views.find((each) => each.id === viewId) ??
-    (older.views.find((each) => each.id === viewId) || newer.views.find((each) => each.id === viewId));
+    (older.views.find((each) => each.id === viewId) ||
+      newer.views.find((each) => each.id === viewId));
   if (!view) throw new RangeError(`Neither version has the view "${viewId}".`);
   // What was removed is dashed, as the canvas's emphasis dashes it.
   const scene = {
@@ -99,7 +100,9 @@ export function svgOfComparison(
   const faint =
     options.faint === false ? shown.removed : new Set([...shown.unchanged, ...shown.removed]);
   const legend = comparisonLegend(t, shown, options.title, theme);
-  const { drawing: _drawing, faint: _faint, title: _title, ...svgOptions } = options;
+  const svgOptions: SvgOptions = { ...options };
+  for (const own of ['drawing', 'faint', 'title'] as const)
+    delete (svgOptions as ComparisonSvgOptions)[own];
   return svgOfScene(from, view, scene, {
     ...svgOptions,
     comparison: {
@@ -115,7 +118,9 @@ export function svgOfComparison(
 /** The marks of a comparison's scene as SVG, as the canvas's layer draws them at 100%. */
 export function comparisonMarkParts(shown: ComparisonScene, theme: CanvasTheme): string[] {
   const parts = markItems(shown).map((item) => markPart(item, theme));
-  const byKey = new Map<string, ElementShape>(shown.scene.shapes.map((shape) => [shape.key, shape]));
+  const byKey = new Map<string, ElementShape>(
+    shown.scene.shapes.map((shape) => [shape.key, shape]),
+  );
   for (const [key, count] of shown.hidden) {
     const shape = byKey.get(key);
     if (shape) parts.push(countPart(shape.rect, count, theme));
@@ -165,7 +170,10 @@ function rectPath(rect: Rect, by: number): string {
 
 /** A shape's outline: solid, dashed for what was removed, double for what changed. */
 function outlinePart(rect: Rect, mark: ChangeMark, color: string): string {
-  const d = mark === 'changed' ? rectPath(rect, GAP) + rectPath(rect, GAP + DOUBLE_GAP) : rectPath(rect, GAP);
+  const d =
+    mark === 'changed'
+      ? rectPath(rect, GAP) + rectPath(rect, GAP + DOUBLE_GAP)
+      : rectPath(rect, GAP);
   return empty('path', {
     d,
     fill: 'none',
@@ -176,11 +184,18 @@ function outlinePart(rect: Rect, mark: ChangeMark, color: string): string {
 }
 
 function pathThrough(points: readonly Point[]): string {
-  return points.map((point, at) => `${at === 0 ? 'M' : 'L'}${num(point.x)} ${num(point.y)}`).join('');
+  return points
+    .map((point, at) => `${at === 0 ? 'M' : 'L'}${num(point.x)} ${num(point.y)}`)
+    .join('');
 }
 
 /** Marks along a route: over it, dashed for what was removed, a double line beside it for what changed. */
-function alongPart(route: readonly Point[], mark: ChangeMark, width: number, color: string): string {
+function alongPart(
+  route: readonly Point[],
+  mark: ChangeMark,
+  width: number,
+  color: string,
+): string {
   if (route.length < 2) return '';
   if (mark === 'changed') {
     const away = width / 2 + DOUBLE_GAP;
@@ -361,7 +376,8 @@ export function comparisonLegend(
   const entryWidth = (text: string) =>
     2 * BADGE_RADIUS + 6 + SWATCH.width + 6 + textWidth(text, ENTRY_SIZE);
   const rowWidth =
-    entries.reduce((sum, entry) => sum + entryWidth(entry.text), 0) + ENTRY_GAP * (entries.length - 1);
+    entries.reduce((sum, entry) => sum + entryWidth(entry.text), 0) +
+    ENTRY_GAP * (entries.length - 1);
   const width =
     2 * LEGEND_PADDING +
     Math.max(

@@ -77,10 +77,10 @@ export function borderPoint(rect: Rect, inside: Point, toward: Point): Point {
   const dx = toward.x - inside.x;
   const dy = toward.y - inside.y;
   if (dx === 0 && dy === 0) return inside;
-  const tx = dx === 0 ? Infinity : (dx > 0 ? rect.x + rect.width - inside.x : rect.x - inside.x) / dx;
+  const tx =
+    dx === 0 ? Infinity : (dx > 0 ? rect.x + rect.width - inside.x : rect.x - inside.x) / dx;
   const ty =
     dy === 0 ? Infinity : (dy > 0 ? rect.y + rect.height - inside.y : rect.y - inside.y) / dy;
   const t = Math.max(0, Math.min(tx, ty, 1));
   return { x: inside.x + dx * t, y: inside.y + dy * t };
 }
-

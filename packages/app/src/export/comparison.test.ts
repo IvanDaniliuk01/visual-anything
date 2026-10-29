@@ -19,18 +19,24 @@ function parsed(svg: string): Document {
 
 describe('svgOfComparison', () => {
   it('draws the comparison with its marks, what was removed faintly, and its legend', () => {
-    const drawing = svgOfComparison(older, newer, VIEW, comparison, { title: 'Compared with HEAD' });
+    const drawing = svgOfComparison(older, newer, VIEW, comparison, {
+      title: 'Compared with HEAD',
+    });
     const document = parsed(drawing.text);
     const marks = document.querySelector('[data-part="comparison"]');
     const states = new Set(
-      [...(marks?.querySelectorAll('[data-mark]') ?? [])].map((each) => each.getAttribute('data-mark')),
+      [...(marks?.querySelectorAll('[data-mark]') ?? [])].map((each) =>
+        each.getAttribute('data-mark'),
+      ),
     );
     expect(states).toEqual(new Set(['added', 'removed', 'changed', 'moved', 'moved-from']));
     // The reminder service, deleted, is drawn at its older place, faintly.
     const removed = document.querySelector('[data-element="reminder-service"]');
     expect(removed?.getAttribute('opacity')).not.toBeNull();
     // What is unchanged is faint too; what changed is not.
-    expect(document.querySelector('[data-element="booking-agent"]')?.getAttribute('opacity')).not.toBeNull();
+    expect(
+      document.querySelector('[data-element="booking-agent"]')?.getAttribute('opacity'),
+    ).not.toBeNull();
     expect(document.querySelector('[data-element="whatsapp"]')?.getAttribute('opacity')).toBeNull();
     // The legend names the four marks, with the comparison's title.
     const legend = document.querySelector('[data-part="comparison-legend"]');
@@ -41,10 +47,14 @@ describe('svgOfComparison', () => {
   });
 
   it('draws the older version before, and the newer after', () => {
-    const before = parsed(svgOfComparison(older, newer, VIEW, comparison, { drawing: 'before' }).text);
+    const before = parsed(
+      svgOfComparison(older, newer, VIEW, comparison, { drawing: 'before' }).text,
+    );
     expect(before.querySelector('[data-element="reminder-service"]')).not.toBeNull();
     expect(before.querySelector('[data-element="sms"]')).toBeNull();
-    const after = parsed(svgOfComparison(older, newer, VIEW, comparison, { drawing: 'after' }).text);
+    const after = parsed(
+      svgOfComparison(older, newer, VIEW, comparison, { drawing: 'after' }).text,
+    );
     expect(after.querySelector('[data-element="reminder-service"]')).toBeNull();
     expect(after.querySelector('[data-element="sms"]')).not.toBeNull();
     expect(after.querySelector('[data-mark="removed"]')).toBeNull();
@@ -70,7 +80,9 @@ describe('svgOfComparison', () => {
   it('keeps what is unchanged at full strength when asked', () => {
     const drawing = svgOfComparison(older, newer, VIEW, comparison, { faint: false });
     const document = parsed(drawing.text);
-    expect(document.querySelector('[data-element="booking-agent"]')?.getAttribute('opacity')).toBeNull();
+    expect(
+      document.querySelector('[data-element="booking-agent"]')?.getAttribute('opacity'),
+    ).toBeNull();
   });
 });
 
@@ -81,7 +93,9 @@ describe('writeComparisonSummary', () => {
         older: { name: 'main', commit: 'a1b2c3d4e5f6a7b8c9d0', date: Date.UTC(2026, 9, 28) },
         newer: { name: 'the files on disk' },
       },
-      drawings: { [VIEW]: { before: 'system-overview.before.svg', comparison: 'system overview.svg' } },
+      drawings: {
+        [VIEW]: { before: 'system-overview.before.svg', comparison: 'system overview.svg' },
+      },
     });
     expect(summary).toContain('- Older version: main · `a1b2c3d4e5f6` · 2026-10-28');
     expect(summary).toContain('## View “System overview”');
@@ -96,7 +110,11 @@ describe('writeComparisonSummary', () => {
   it('escapes every text of the project, so that it makes no link, image, heading or HTML', () => {
     const hostile =
       '# [x](http://evil.example) ![i](y.png) <img src=x onerror=alert(1)> www.evil.example a@b.co **b**';
-    const renamed = done(newer, { type: 'update-element', id: 'whatsapp', changes: { name: hostile } });
+    const renamed = done(newer, {
+      type: 'update-element',
+      id: 'whatsapp',
+      changes: { name: hostile },
+    });
     const summary = writeComparisonSummary(older, renamed, compareProjects(older, renamed));
     for (const markup of ['[x](', '![i]', 'http://', 'www.evil', 'a@b', '**b**']) {
       expect(summary).not.toContain(markup);

@@ -529,7 +529,7 @@ function OverlayForm({ draft, onChange, onSave, onCancel, attributes, values }: 
         </datalist>
       </div>
       <div className="inspector-control">
-        <label htmlFor={`${id}-channel`}>{t('Changes')}</label>
+        <label htmlFor={`${id}-channel`}>{t('What it changes')}</label>
         <select
           id={`${id}-channel`}
           value={draft.channel}

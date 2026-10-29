@@ -95,18 +95,18 @@ export class ComparisonStore {
       drawing: request.drawing ?? 'comparison',
       faint: true,
     });
-    const store = this;
+    const showing = () => this.shown?.serial === serial;
     return {
-      update(next) {
-        const shown = store.shown;
+      update: (next) => {
+        const shown = this.shown;
         if (shown?.serial !== serial) return;
-        store.set({ ...shown, ...next });
+        this.set({ ...shown, ...next });
       },
-      end() {
-        if (store.shown?.serial === serial) store.end();
+      end: () => {
+        if (showing()) this.end();
       },
       get showing() {
-        return store.shown?.serial === serial;
+        return showing();
       },
     };
   };

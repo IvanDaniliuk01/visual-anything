@@ -78,20 +78,20 @@ export class ChangesStore {
     this.opened = { ...changes, serial };
     this.forward += 1;
     this.changed();
-    const store = this;
+    const open = () => this.opened?.serial === serial;
     return {
-      update(next) {
-        if (store.opened?.serial !== serial) return;
-        store.opened = { ...store.opened, ...next, serial };
-        store.changed();
+      update: (next) => {
+        if (!this.opened || !open()) return;
+        this.opened = { ...this.opened, ...next, serial };
+        this.changed();
       },
-      close() {
-        if (store.opened?.serial !== serial) return;
-        store.opened = undefined;
-        store.changed();
+      close: () => {
+        if (!open()) return;
+        this.opened = undefined;
+        this.changed();
       },
       get open() {
-        return store.opened?.serial === serial;
+        return open();
       },
     };
   };

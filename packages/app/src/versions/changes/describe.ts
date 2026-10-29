@@ -125,9 +125,7 @@ export class ChangeNames {
   /** Its name before and after, when it was renamed. */
   renamed(id: Id): { before: string; after: string } | undefined {
     const named = Object.hasOwn(this.comparison.names, id) ? this.comparison.names[id] : undefined;
-    return named?.before !== undefined &&
-      named.after !== undefined &&
-      named.before !== named.after
+    return named?.before !== undefined && named.after !== undefined && named.before !== named.after
       ? { before: named.before, after: named.after }
       : undefined;
   }
@@ -202,7 +200,10 @@ export function changeTitle(t: Translator, change: Change, names: ChangeNames): 
     case 'view':
       return names.view(ref.view);
     case 'position':
-      return t('{element} in “{view}”', { element: names.of(ref.element), view: names.view(ref.view) });
+      return t('{element} in “{view}”', {
+        element: names.of(ref.element),
+        view: names.view(ref.view),
+      });
     case 'free-shape':
       return t('A free shape in “{view}”', { view: names.view(ref.view) });
     case 'stacking':
@@ -307,7 +308,8 @@ export function differencesText(
   if (differences.length === 0) return '';
   const shown = differences.slice(0, most).map((each) => differenceText(t, each, names));
   const more = differences.length - shown.length;
-  if (more > 0) shown.push(t({ one: 'and {count} more', other: 'and {count} more' }, { count: more }));
+  if (more > 0)
+    shown.push(t({ one: 'and {count} more', other: 'and {count} more' }, { count: more }));
   return shown.join('; ');
 }
 

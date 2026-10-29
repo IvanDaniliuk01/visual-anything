@@ -162,7 +162,9 @@ function groupedByView(
 ): { view: Id | undefined; changes: Change[] }[] {
   const views = [
     ...newer.views.map((view) => view.id),
-    ...older.views.map((view) => view.id).filter((id) => !newer.views.some((view) => view.id === id)),
+    ...older.views
+      .map((view) => view.id)
+      .filter((id) => !newer.views.some((view) => view.id === id)),
   ];
   const byView = new Map<Id | undefined, Change[]>();
   const add = (view: Id | undefined, change: Change) => {
