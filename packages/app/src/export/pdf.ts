@@ -25,7 +25,7 @@ import type { ProjectSnapshot, ThemeName } from '@visual-anything/core';
 import { decodeBase64, encodeBase64 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { t, type PluralText } from '../i18n';
-import { svgPieces, writeSvg } from './svg';
+import { svgPieces, writeSvg, type SvgDrawing } from './svg';
 
 /** Points to a canvas unit: a CSS pixel is three quarters of a point. */
 const POINTS_PER_UNIT = 0.75;
@@ -168,10 +168,31 @@ export async function writePdf(
   const drawing = writeSvg(project, viewId, {
     ...(options.theme === undefined ? {} : { theme: options.theme }),
     ...(options.outline === undefined ? {} : { outlineFile: options.outline.file }),
-    bitmaps: ['png', 'jpeg'],
-    filters: false,
+    ...PDF_PICTURES,
   });
   const view = project.views.find((each) => each.id === viewId);
+  const subject = view?.description?.trim();
+  return pdfOfSvg(
+    drawing,
+    { title: view?.name ?? viewId, ...(subject ? { subject } : {}) },
+    options,
+  );
+}
+
+/** What a drawing a PDF takes must leave out: bitmaps PDF cannot hold, and filters. */
+export const PDF_PICTURES = { bitmaps: ['png', 'jpeg'], filters: false } as const;
+
+/**
+ * Makes a PDF of a drawing the SVG writer wrote, as it is, such as a comparison's (ADR 0070): its
+ * pictures written as `PDF_PICTURES` says. Rejects with the signal's reason once stopped.
+ */
+export async function pdfOfSvg(
+  drawing: SvgDrawing,
+  about: { title: string; subject?: string },
+  options: PdfOptions = {},
+): Promise<PdfFile> {
+  const { signal } = options;
+  signal?.throwIfAborted();
   const { PDFDocument, svgToPdf, regular, bold } = await libraries();
   signal?.throwIfAborted();
 
@@ -191,12 +212,11 @@ export async function writePdf(
   }
 
   const info: Record<string, unknown> = {
-    Title: view?.name ?? viewId,
+    Title: about.title,
     Creator: 'Visual Anything',
     CreationDate: options.date ?? new Date(),
   };
-  const subject = view?.description?.trim();
-  if (subject) info.Subject = subject;
+  if (about.subject) info.Subject = about.subject;
   if (drawing.attribution.length > 0) info.Attribution = drawing.attribution.join('\n');
 
   const document = new PDFDocument({

@@ -1,6 +1,9 @@
 import type { Definitions, ProjectSnapshot } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { useCallback, useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useShownComparison } from '../canvas/comparison/mode';
+import { ChangesTab, useListedChanges } from '../versions/changes/ChangesTab';
+import { useOpenedChanges } from '../versions/changes/store';
 import { CommentsTab } from '../comments/CommentsTab';
 import { CommentsContext, useWhenCommentsShown, type CommentsStore } from '../comments/store';
 import { HistoryPanel } from '../history/HistoryPanel';
@@ -20,7 +23,7 @@ interface ModelPanelProps {
   comments?: CommentsStore | undefined;
 }
 
-type Tab = 'outline' | 'model' | 'components' | 'history' | 'comments' | 'tours';
+type Tab = 'outline' | 'model' | 'components' | 'history' | 'comments' | 'tours' | 'changes';
 
 const TABS: readonly { tab: Tab; name: string }[] = [
   { tab: 'outline', name: 'Outline' },
@@ -31,6 +34,8 @@ const TABS: readonly { tab: Tab; name: string }[] = [
   { tab: 'comments', name: 'Comments' },
   // Tours (ADR 0058).
   { tab: 'tours', name: 'Tours' },
+  // The changes of a comparison, a proposal or the conflicts, while one is open (ADR 0070).
+  { tab: 'changes', name: 'Changes' },
 ];
 
 /**
@@ -42,7 +47,18 @@ const TABS: readonly { tab: Tab; name: string }[] = [
  */
 export function ModelPanel({ project, definitions, openViewId, comments }: ModelPanelProps) {
   const t = useT();
-  const [tab, setTab] = useState<Tab>('outline');
+  const [chosenTab, setTab] = useState<Tab>('outline');
+  // The Changes tab is there while something is open in it, and comes forward when it opens.
+  const listed = useListedChanges();
+  const tabs = listed ? TABS : TABS.filter((each) => each.tab !== 'changes');
+  const tab = chosenTab === 'changes' && !listed ? 'outline' : chosenTab;
+  const { forward } = useOpenedChanges();
+  const comparison = useShownComparison()?.serial;
+  const [cameForward, setCameForward] = useState({ forward, comparison });
+  if (cameForward.forward !== forward || cameForward.comparison !== comparison) {
+    setCameForward({ forward, comparison });
+    if (forward > cameForward.forward || comparison !== undefined) setTab('changes');
+  }
   const heading = useId();
   const ids = {
     outline: useId(),
@@ -51,6 +67,7 @@ export function ModelPanel({ project, definitions, openViewId, comments }: Model
     history: useId(),
     comments: useId(),
     tours: useId(),
+    changes: useId(),
   };
   const buttons = useRef(new Map<Tab, HTMLButtonElement>());
   // A pin chosen on the canvas brings the comments tab forward.
@@ -60,16 +77,16 @@ export function ModelPanel({ project, definitions, openViewId, comments }: Model
   );
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const at = TABS.findIndex((each) => each.tab === tab);
+    const at = tabs.findIndex((each) => each.tab === tab);
     const next =
       event.key === 'ArrowRight'
-        ? TABS[(at + 1) % TABS.length]
+        ? tabs[(at + 1) % tabs.length]
         : event.key === 'ArrowLeft'
-          ? TABS[(at - 1 + TABS.length) % TABS.length]
+          ? tabs[(at - 1 + tabs.length) % tabs.length]
           : event.key === 'Home'
-            ? TABS[0]
+            ? tabs[0]
             : event.key === 'End'
-              ? TABS.at(-1)
+              ? tabs.at(-1)
               : undefined;
     if (!next) return;
     event.preventDefault();
@@ -83,7 +100,7 @@ export function ModelPanel({ project, definitions, openViewId, comments }: Model
         {t('Outline and model')}
       </h2>
       <div role="tablist" aria-labelledby={heading} className="panel-tabs" onKeyDown={onKeyDown}>
-        {TABS.map((each) => (
+        {tabs.map((each) => (
           <button
             key={each.tab}
             ref={(element) => {
@@ -163,6 +180,17 @@ export function ModelPanel({ project, definitions, openViewId, comments }: Model
       >
         <ToursPanel active={tab === 'tours'} />
       </div>
+      {listed && (
+        <div
+          role="tabpanel"
+          id={`${ids.changes}-panel`}
+          aria-labelledby={`${ids.changes}-tab`}
+          hidden={tab !== 'changes'}
+          className="panel-tab-content"
+        >
+          <ChangesTab />
+        </div>
+      )}
     </aside>
   );
 }

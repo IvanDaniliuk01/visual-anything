@@ -56,6 +56,13 @@ import { AttributeLookupContext } from '../live-values/context';
 import { useLiveScene, useLookup } from '../live-values/useLiveValues';
 import { CommentPins } from '../comments/CommentPins';
 import { useCommentsStore } from '../comments/store';
+import { ComparisonBar } from '../canvas/comparison/ComparisonBar';
+import { ComparisonContext, ComparisonStore } from '../canvas/comparison/mode';
+import { drawingName } from '../canvas/comparison/text';
+import { useComparisonCanvas, type ComparisonCanvas } from '../canvas/comparison/useComparisonCanvas';
+import { countsText } from '../versions/changes/describe';
+import { showChange } from '../versions/changes/show';
+import { ChangesContext, ChangesStore, type ChangesHost } from '../versions/changes/store';
 
 interface ShellProps {
   project: ProjectSnapshot;
@@ -63,6 +70,8 @@ interface ShellProps {
   notice?: string;
   /** Sends commands to the local program; absent while the project cannot be changed. */
   onCommand?: SendCommand;
+  /** The tab's comparison mode (ADR 0070): the shell's own unless given, as tests give one. */
+  comparisons?: ComparisonStore;
 }
 
 /**
@@ -70,12 +79,12 @@ interface ShellProps {
  * open view: the project's first one until another is opened, and the first again when the open one
  * is deleted.
  */
-export function Shell({ project, notice, onCommand }: ShellProps) {
+export function Shell({ project, notice, onCommand, comparisons: given }: ShellProps) {
   const t = useT();
   const [openViewId, setOpenViewId] = useState<Id>();
   const view = project.views.find((each) => each.id === openViewId) ?? project.views[0];
   // What an edit removed, from here or elsewhere, drops out of the selection.
-  const [selection, setSelection] = useSelection(project, view);
+  const [editSelection, setEditSelection] = useSelection(project, view);
   const definitions = useMemo(
     () => definitionsIn(project),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the definitions follow the packages and the project appearances only
@@ -96,6 +105,21 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   }, []);
   // What filters, focus, playback and guidance emphasize on the canvas, each as its own source.
   const [emphasis] = useState(() => new EmphasisStore());
+  // The comparison the canvas shows, if any, and the Changes tab (ADR 0070). While a comparison
+  // shows, the canvas draws it read-only, with a selection of its own.
+  const [own] = useState(() => new ComparisonStore());
+  const comparisons = given ?? own;
+  const [changes] = useState(() => new ChangesStore());
+  const comparing = useComparisonCanvas({
+    store: comparisons,
+    project,
+    view,
+    scene,
+    expanded,
+    emphasis,
+  });
+  const selection = comparing ? comparing.selection : editSelection;
+  const setSelection = comparing ? comparing.select : setEditSelection;
   // Package code (ADR 0054): its store, which the editor carries, filled below.
   const [code] = useState(() => new CodeStore());
   // Following destinations (ADR 0056): it goes to a view through the view state, set below.
@@ -165,9 +189,10 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   const [canvas, setCanvas] = useState<CanvasCamera>();
   useFollowZoom(zoom, project, view, scene, canvas);
   const viewState = useViewState({
-    project,
+    // While a comparison shows, what search and the Changes tab go to is what the canvas draws.
+    project: comparing?.project ?? project,
     viewId: view?.id,
-    scene,
+    scene: comparing?.drawn.scene ?? scene,
     selection,
     select: setSelection,
     explore,
@@ -210,8 +235,38 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
   const [elementList] = useState(() => new ElementListStore());
   // Threads of comments (ADR 0059): what the tab does with them, lent the view state's goTo.
   const comments = useCommentsStore(viewState.goTo);
+  // Choosing a change in the Changes tab shows it as search shows what it found (ADR 0070).
+  const changesHost = useMemo<ChangesHost>(
+    () => ({
+      store: changes,
+      show: (change, listed) => {
+        const shown = comparisons.get();
+        const sameComparison =
+          shown !== undefined && shown.older === listed.older && shown.newer === listed.newer;
+        showChange(change, listed, {
+          t,
+          project,
+          openViewId: view?.id,
+          ...(sameComparison
+            ? {
+                mode: {
+                  drawing: shown.drawing,
+                  setDrawing: (drawing) => comparisons.setDrawing(drawing),
+                },
+              }
+            : {}),
+          goTo: viewState.goTo,
+          openView: setOpenViewId,
+          say: (text) => changes.say(text),
+        });
+      },
+    }),
+    [changes, comparisons, t, project, view?.id, viewState.goTo],
+  );
 
   return (
+    <ComparisonContext value={comparisons}>
+    <ChangesContext value={changesHost}>
     <EditorContext.Provider value={editor}>
       <AttributeLookupContext value={lookup}>
         <DefinitionProvider>
@@ -260,7 +315,33 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
                       <h2 id={canvasHeading} className="visually-hidden">
                         {view ? view.name : t('Canvas')}
                       </h2>
-                      {view && scene ? (
+                      {view && scene && comparing ? (
+                        <ImageSourceContext value={images}>
+                          <CanvasArea
+                            project={comparing.project}
+                            view={comparing.view}
+                            scene={comparing.drawn.scene}
+                            label={describeComparison(t, comparing)}
+                            selection={selection}
+                            onSelect={setSelection}
+                            {...(revealed ? { revealed } : {})}
+                            theme={theme}
+                            onThemeShown={onThemeShown}
+                            onCanvas={setCanvas}
+                            comparison={comparing.drawn}
+                          />
+                          <ComparisonBar
+                            store={comparisons}
+                            shown={comparing.shown}
+                            drawn={comparing.drawn}
+                            viewChanges={comparing.viewComparison.changes}
+                            canvas={canvas}
+                            selection={selection}
+                            select={setSelection}
+                            reducedMotion={reducedMotion}
+                          />
+                        </ImageSourceContext>
+                      ) : view && scene ? (
                         <ImageSourceContext value={images}>
                           <CanvasArea
                             project={project}
@@ -313,7 +394,19 @@ export function Shell({ project, notice, onCommand }: ShellProps) {
         </DefinitionProvider>
       </AttributeLookupContext>
     </EditorContext.Provider>
+    </ChangesContext>
+    </ComparisonContext>
   );
+}
+
+/** The canvas's text alternative while a comparison shows: which, which drawing, and its counts. */
+function describeComparison(t: Translator, comparing: ComparisonCanvas): string {
+  return t('{title}: “{view}”, {drawing}. {counts}.', {
+    title: comparing.shown.title,
+    view: comparing.view.name,
+    drawing: drawingName(t, comparing.shown.drawing),
+    counts: countsText(t, comparing.drawn.counts),
+  });
 }
 
 /** The canvas's text alternative: the view, its perspective and how much it draws. */

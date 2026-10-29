@@ -1,0 +1,108 @@
+/*
+ * What the canvas shows around a comparison (ADR 0070): the bar at its top, and the legend of the
+ * marks in its bottom left corner, clear of the overlays' legend in the bottom right.
+ */
+
+.comparison-bar {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: var(--z-toolbar);
+  display: grid;
+  gap: 0.35rem;
+  max-width: min(36rem, calc(100% - 1.2rem));
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-1);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+.comparison-title {
+  margin: 0;
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+
+.comparison-view-changes {
+  margin: 0;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.comparison-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.comparison-drawings {
+  display: inline-flex;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-sm);
+}
+
+.comparison-drawing {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+}
+
+.comparison-drawing[aria-checked='true'] {
+  background: var(--surface-pressed);
+  font-weight: var(--weight-strong);
+}
+
+.comparison-faint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.comparison-legend {
+  right: auto;
+  left: 0.6rem;
+  align-items: flex-start;
+}
+
+.comparison-legend .canvas-legend-entries > li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.comparison-not-drawn {
+  color: var(--text-muted);
+}
+
+/* Each mark's line pattern, as the canvas draws it: removed dashed, changed double. */
+.comparison-pattern {
+  flex: none;
+  width: 1.4rem;
+  height: 0.8rem;
+  border: 2px solid var(--text);
+  border-radius: 2px;
+}
+
+.comparison-pattern-added {
+  border-color: var(--change-added);
+}
+
+.comparison-pattern-removed {
+  border-style: dashed;
+  border-color: var(--change-removed);
+}
+
+.comparison-pattern-changed {
+  border-width: 4px;
+  border-style: double;
+  border-color: var(--change-changed);
+}
+
+.comparison-pattern-moved {
+  border-color: var(--change-moved);
+}

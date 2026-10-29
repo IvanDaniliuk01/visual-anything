@@ -8,14 +8,8 @@ import { THEMES } from '../../theme/themes';
 import type { TextFactory } from '../draw';
 import { indexScene } from '../hit';
 import { CanvasRenderer } from '../renderer';
-import {
-  ComparisonLayer,
-  MARKS_PER_CHUNK,
-  borderPoint,
-  drawMarkItem,
-  markColor,
-  markItems,
-} from './layer';
+import { ComparisonLayer, MARKS_PER_CHUNK, drawMarkItem } from './layer';
+import { borderPoint, markColor, markItems } from './marks';
 import { CHANGE_MARKS, comparisonScene } from './scene';
 
 vi.mock('pixi.js', async (importOriginal) => {
