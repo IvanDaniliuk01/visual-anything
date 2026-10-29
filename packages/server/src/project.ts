@@ -100,37 +100,81 @@ interface Read<K extends FileKind> {
 }
 
 /**
+ * A project file's bytes, or why they could not be read, by its path relative to the project folder,
+ * written with forward slashes.
+ */
+export type SourceFile = { path: string; bytes: Buffer } | { path: string; unread: string };
+
+/**
+ * One kind's folder, as a project folder or a commit holds it: the files in it, or why they could
+ * not be listed, such as a folder that is a link. `undefined` when there is no such folder, which
+ * holds no file.
+ */
+export type SourceFolder =
+  | { files: readonly SourceFile[] }
+  | { problem: string; /** Its name, as the problem is reported against it. */ name: string }
+  | undefined;
+
+/**
+ * The bytes of a project, wherever they come from (ADR 0071): the files directly in its folder, and
+ * the folder of each kind. Only names with a project file's extension count: the `.vaproject` and
+ * `.vamodel` files at the top, and in each folder the files of its kind; any other is passed over.
+ */
+export interface ProjectSource {
+  top: readonly SourceFile[];
+  folders: Readonly<Record<FolderKind, SourceFolder>>;
+}
+
+/**
  * Opens the project in a folder. The folder holds exactly one `.vaproject` and one `.vamodel` file;
  * packages, views, scenarios, tours and threads of comments sit in its `packages/`, `views/`,
  * `scenarios/`, `tours/` and `comments/` folders. Every problem is collected before returning; the
- * core's rules are checked once every file is valid.
+ * core's rules are checked once every file is valid. It reads the files, then opens them through
+ * {@link loadProjectFrom}, as a version from git does.
  */
 export async function loadProject(folder: string): Promise<LoadProjectResult> {
   const given = resolve(folder);
-  const problems = new Problems();
 
   const names = await listFiles(given);
   if (!names.ok) {
-    problems.add('folder', {
-      file: '.',
-      pointer: '',
-      message: describeFolderFailure(given, names),
-    });
-    return { ok: false, errors: problems.list() };
+    return {
+      ok: false,
+      errors: [{ file: '.', pointer: '', message: describeFolderFailure(given, names) }],
+    };
   }
   // Every file is read through the folder's real path, worked out once, so that a link on the way to
   // the folder that changes meanwhile cannot send one read somewhere else.
   const projectFolder = await realFolder(given);
 
-  const [project, model, packages, views, scenarios, tours, comments] = await Promise.all([
-    readTopLevelFile(projectFolder, names.names, 'project', problems),
-    readTopLevelFile(projectFolder, names.names, 'model', problems),
-    readSubfolder(projectFolder, 'package', problems),
-    readSubfolder(projectFolder, 'view', problems),
-    readSubfolder(projectFolder, 'scenario', problems),
-    readSubfolder(projectFolder, 'tour', problems),
-    readSubfolder(projectFolder, 'comment', problems),
+  const [project, model, ...folders] = await Promise.all([
+    readTopLevelFiles(projectFolder, names.names, 'project'),
+    readTopLevelFiles(projectFolder, names.names, 'model'),
+    ...FOLDER_KINDS.map((kind) => readSubfolder(projectFolder, kind)),
   ]);
+  return loadProjectFrom({
+    top: [...project, ...model],
+    folders: Object.fromEntries(FOLDER_KINDS.map((kind, i) => [kind, folders[i]])) as Record<
+      FolderKind,
+      SourceFolder
+    >,
+  });
+}
+
+/**
+ * Opens a project from its files' bytes, with the checks of opening a folder: exactly one `.vaproject`
+ * and one `.vamodel` file, each file valid UTF-8 and valid against its kind's schema, the ids of each
+ * kind once each, the packages the project lists found, and the core's rules. It reads nothing itself:
+ * the bytes come from a folder ({@link loadProject}) or from a commit (ADR 0071).
+ */
+export function loadProjectFrom(source: ProjectSource): LoadProjectResult {
+  const problems = new Problems();
+  const project = topLevelFile(source.top, 'project', problems);
+  const model = topLevelFile(source.top, 'model', problems);
+  const packages = folderFiles(source.folders.package, 'package', problems);
+  const views = folderFiles(source.folders.view, 'view', problems);
+  const scenarios = folderFiles(source.folders.scenario, 'scenario', problems);
+  const tours = folderFiles(source.folders.tour, 'tour', problems);
+  const comments = folderFiles(source.folders.comment, 'comment', problems);
 
   requireUniqueIds(packages, 'package', problems);
   requireUniqueIds(views, 'view', problems);
@@ -353,21 +397,33 @@ function describeFolderFailure(
   return `The folder ${folder} could not be read: ${listing.reason}`;
 }
 
-/** Reads the one file of a kind that sits directly in the project folder. */
-async function readTopLevelFile<K extends 'project' | 'model'>(
+/** Reads the files of a kind that sit directly in the project folder. */
+function readTopLevelFiles(
   projectFolder: string,
   names: string[],
+  kind: 'project' | 'model',
+): Promise<SourceFile[]> {
+  return Promise.all(
+    topLevelFilesOf(names, kind).map((file) => readSourceFile(projectFolder, file, kind)),
+  );
+}
+
+/** The one file of a kind that sits directly in the project folder, read and validated. */
+function topLevelFile<K extends 'project' | 'model'>(
+  top: readonly SourceFile[],
   kind: K,
   problems: Problems,
-): Promise<Read<K> | undefined> {
+): Read<K> | undefined {
   const extension = FILE_EXTENSIONS[kind];
-  const files = topLevelFilesOf(names, kind);
-  const [file, ...others] = files;
-  if (file === undefined || others.length > 0) {
+  const sources = top
+    .filter((each) => fileKindOf(each.path) === kind)
+    .sort((a, b) => compareText(a.path, b.path));
+  const [source, ...others] = sources;
+  if (source === undefined || others.length > 0) {
     const found =
-      file === undefined
+      source === undefined
         ? `no ${extension} file`
-        : `${files.length} ${extension} files (${files.join(', ')})`;
+        : `${sources.length} ${extension} files (${sources.map((each) => each.path).join(', ')})`;
     problems.add('folder', {
       file: '.',
       pointer: '',
@@ -375,58 +431,76 @@ async function readTopLevelFile<K extends 'project' | 'model'>(
     });
     return undefined;
   }
-  return readProjectFile(projectFolder, file, kind, problems);
+  return parseProjectFile(source, kind, problems);
 }
 
-/** Reads every file of a kind in its folder, sorted by path. A missing folder holds none. */
-async function readSubfolder<K extends FolderKind>(
-  projectFolder: string,
-  kind: K,
-  problems: Problems,
-): Promise<Read<K>[]> {
+/** Reads every file of a kind in its folder. A missing folder holds none. */
+async function readSubfolder(projectFolder: string, kind: FolderKind): Promise<SourceFolder> {
   const subfolder = FOLDERS[kind];
   const listing = await listSubfolder(projectFolder, subfolder);
   if (!listing.ok) {
-    if (listing.code !== 'ENOENT') {
-      const message =
-        listing.code === 'ENOTDIR'
-          ? `${subfolder} is not a folder; ${FILE_EXTENSIONS[kind]} files go in ${subfolder}/.`
-          : listing.code === 'ELINK'
-            ? `${subfolder} is a link; Visual Anything opens only real folders and regular files inside the project folder.`
-            : `The folder ${subfolder}/ could not be read: ${listing.reason}`;
-      problems.add(kind, { file: subfolder, pointer: '', message });
-    }
-    return [];
+    if (listing.code === 'ENOENT') return undefined;
+    const problem =
+      listing.code === 'ENOTDIR'
+        ? `${subfolder} is not a folder; ${FILE_EXTENSIONS[kind]} files go in ${subfolder}/.`
+        : listing.code === 'ELINK'
+          ? `${subfolder} is a link; Visual Anything opens only real folders and regular files inside the project folder.`
+          : `The folder ${subfolder}/ could not be read: ${listing.reason}`;
+    return { problem, name: subfolder };
   }
-  const read = await Promise.all(
-    folderFilesOf(listing.names, kind).map((file) =>
-      readProjectFile(projectFolder, file, kind, problems),
+  return {
+    files: await Promise.all(
+      folderFilesOf(listing.names, kind).map((file) => readSourceFile(projectFolder, file, kind)),
     ),
-  );
-  return read.filter((file) => file !== undefined);
+  };
 }
 
-/**
- * Reads a project file, which must be a regular file within its kind's cap, as UTF-8, then parses and
- * validates it as its kind.
- */
-async function readProjectFile<K extends FileKind>(
-  projectFolder: string,
-  file: string,
+/** The files of a kind in its folder, each read and validated, sorted by path. */
+function folderFiles<K extends FolderKind>(
+  folder: SourceFolder,
   kind: K,
   problems: Problems,
-): Promise<Read<K> | undefined> {
+): Read<K>[] {
+  if (folder === undefined) return [];
+  if ('problem' in folder) {
+    problems.add(kind, { file: folder.name, pointer: '', message: folder.problem });
+    return [];
+  }
+  return folder.files
+    .filter((each) => fileKindOf(each.path) === kind)
+    .sort((a, b) => compareText(a.path, b.path))
+    .flatMap((each) => parseProjectFile(each, kind, problems) ?? []);
+}
+
+/** Reads a project file, which must be a regular file within its kind's cap. */
+async function readSourceFile(
+  projectFolder: string,
+  file: string,
+  kind: FileKind,
+): Promise<SourceFile> {
+  const read = await readRegularFile(join(projectFolder, file), capOf(kind), {
+    inside: projectFolder,
+  });
+  if (read.ok) return { path: file, bytes: read.bytes };
+  return {
+    path: file,
+    unread: read.reason === 'missing' ? 'The file could not be read: ENOENT' : read.message,
+  };
+}
+
+/** Parses and validates a project file's bytes as its kind, which must be UTF-8. */
+function parseProjectFile<K extends FileKind>(
+  source: SourceFile,
+  kind: K,
+  problems: Problems,
+): Read<K> | undefined {
+  const file = source.path;
   const fail = (message: string): undefined => {
     problems.add(kind, { file, pointer: '', message });
     return undefined;
   };
-  const read = await readRegularFile(join(projectFolder, file), capOf(kind), {
-    inside: projectFolder,
-  });
-  if (!read.ok) {
-    return fail(read.reason === 'missing' ? 'The file could not be read: ENOENT' : read.message);
-  }
-  const { bytes } = read;
+  if ('unread' in source) return fail(source.unread);
+  const { bytes } = source;
   let text: string;
   try {
     text = UTF8.decode(bytes);
