@@ -95,7 +95,7 @@ An element drawn as one line of its container's shape, because the container's a
 _Avoid_: line item
 
 **Detail**:
-The smaller text a shape writes with its element's name, as its appearance says: its component's name, the values of chosen attributes and badges.
+The smaller text a shape writes with its element's name, as its appearance says: its component's name, the values of chosen attributes and badges. It wraps to the lines its appearance gives, three unless it says otherwise, and the whole of it shows on hover (ADR 0082).
 _Avoid_: subtitle
 
 **Badge**:
@@ -158,6 +158,14 @@ _Avoid_: plugin, widget, template, class
 **Appearance**:
 How the shapes of a component's elements, or of one element, look: their shape (rectangle, rounded rectangle, ellipse, cylinder or person, or free geometry of their own) or the named part they are drawn as, their fill, stroke and size, the image or solid and the detail they show, where relations attach and whether they draw their contents as rows; for a relation type's relations, or one relation, their stroke, width and dash and the style of their automatic routes. Whatever an appearance leaves out is inherited. An element or a relation can have an appearance of its own, which is a particularity, and a project can give one to a definition it cannot change, which is a project appearance. Colors are written #RRGGBB.
 _Avoid_: look and style (for this data), skin
+
+**Face**:
+What a component's shapes show inside their body, laid out from a subset of HTML and CSS that its appearance holds: boxes, texts filled from the element's name and attributes, its detail and badges, and where its rows or contents go. Visual Anything reads, lays out and draws it itself, and nothing in it runs. It is inherited part by part, and may differ by level and when a container is collapsed (ADR 0083).
+_Avoid_: template, card, skin
+
+**Text emphasis**:
+Bold, italic, strikethrough, inline code, highlight and underline in a text, written as a small Markdown subset (`**bold**`, `*italic*`, `~~struck~~`, `` `code` ``, `==highlight==`, `++underline++`) and stored as typed. Notes, captions and descriptions always take it; a text attribute takes it when its definition says so (ADR 0082). Not the canvas's emphasis of a shape.
+_Avoid_: rich text, formatting, markup
 
 **Project appearance**:
 The appearance a project gives to a component or relation type it uses but cannot change, such as Service from the built-in Systems package, Essence or "relates to". It is kept in the project file and reaches whatever derives from that definition without setting the same trait; an element's or relation's own appearance still comes first.

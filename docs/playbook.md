@@ -15,7 +15,7 @@ Every milestone runs the same five steps:
 
 1. **Plan.** In plan mode, Claude proposes the order of the milestone's tasks, which ones go to `task-builder` subagents, and how it will check "Done when". You approve or adjust.
 2. **Build.** The main session builds what everything else in the milestone depends on. Tasks whose interfaces are then fixed go to `task-builder` subagents, each in its own git worktree. Commit before launching them: their worktrees branch from the last commit, because `.claude/settings.json` sets `worktree.baseRef` to `head`.
-3. **Merge.** The main session merges the subagents' branches and runs typecheck, lint and tests.
+3. **Merge.** The main session merges the subagents' branches and runs typecheck and lint. The next task starts right away. Meanwhile the whole test suite runs once in the background on the merged branch, and a red suite is fixed before the next merge. Builders run only the tests of what they touched (`.claude/agents/task-builder.md`).
 4. **Review.** The `spec-reviewer` subagent checks the milestone against the spec, the ADRs, `CONTEXT.md` and the rules in `CLAUDE.md`. Fix what it finds.
 5. **Close.** Check the milestone's "Done when" line yourself, then commit and tag `m<N>`.
 

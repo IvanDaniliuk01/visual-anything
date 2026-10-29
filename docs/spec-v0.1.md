@@ -784,7 +784,7 @@ Its tasks run one at a time, after M3c's Stage 0b, in this order:
   - The recipes say how to send a large model in batches that refer to one another by those ids.
   - For a file the import reads (Mermaid, CSV, JSON), the tools' descriptions name `visual-anything import <folder> <file>`, which goes through the running program. The program never reads a path Claude names: that would let Claude read any file the program can.
 - [ ] **Claude sees the view** (ADR 0081): `capture_view`, the capture messages, the off-screen render at a given size, and Claude's instructions.
-- [ ] **Text that takes emphasis** (an ADR first): bold, italic, strikethrough and inline code, written as a Markdown subset and drawn on the canvas, the read-only page and the exports, in:
+- [ ] **Text that takes emphasis** (ADR 0082): bold, italic, strikethrough and inline code, written as a Markdown subset and drawn on the canvas, the read-only page and the exports, in:
   - notes;
   - tour captions;
   - descriptions;
@@ -795,12 +795,30 @@ Its tasks run one at a time, after M3c's Stage 0b, in this order:
   - how text in a file stays plain text a person can read;
   - escaping;
   - what Mermaid and Structurizr exports keep.
-- [ ] **Component templates, researched** (a research agent, then an ADR): HTML and CSS templates per component, filled with its attributes, per level of zoom and for collapsed and expanded containers, with optional code in package code's sandbox. The research weighs:
+- [x] **Component templates, researched** (ADR 0083; built as M3e): HTML and CSS templates per component, filled with its attributes, per level of zoom and for collapsed and expanded containers, with optional code in package code's sandbox. The research weighs:
   - rendering to a texture;
   - an HTML layer over the canvas;
   - compiling a subset to the canvas's drawing, on ADR 0068's HTML-as-drawing engine.
 
   It is measured against the 10,000-element budget, and it says which part of "Text that takes emphasis" templates would supersede. Building it is a milestone of its own, planned from the ADR.
+
+**M3e · Faces.** Planned on 2026-10-29 from the research on component templates (ADR 0083), after M3d's text emphasis (ADR 0082), which it builds on. Done when:
+
+- a component's face, in a subset of HTML and CSS, lays out what its shapes show, filled from the element's name and attributes, with `<rows/>` and `<contents/>`, per level and collapsed;
+- the canvas, the SVG, the PDF and the read-only page draw the same face;
+- the component editor and Claude (`set_face`, `preview_face`) edit faces with a preview;
+- Data modeling's Table and Column ship built-in faces;
+- nothing in a face runs, and hostile faces are refused with their line and column;
+- the 10,000-element view with faces is measured (recorded, not held).
+
+Its tasks run in this order:
+
+- [ ] **F0, Roboto on the canvas:** bitmap fonts made from the Roboto files the app ships, loaded with `FontFace` from bytes, and the width tables, with italic, bold italic and mono, moved to the core.
+- [ ] **F1, faces in the core:** the strict reader, the CSS subset, `compileFace` and `layOutFace`, contrast, caps and problem codes, with property tests (never draws past its width, the same in Node and the browser, hostile input refused); `Appearance.face` in the schema and its trait command.
+- [ ] **F2, faces on the canvas:** the drawing by tile, `content` sizes before layout, `<rows/>` and `<contents/>`, the variants by level and collapsed.
+- [ ] **F3, the exports:** SVG, PDF and the page as the canvas draws, with the limits test extended; the text exports say what they lose.
+- [ ] **F4, editing:** the Face section with its preview, `set_face` and `preview_face`, and Data modeling's built-in faces for Table and Column.
+- [ ] **F5, checking:** the 10,000-shape benchmark with faces, recorded, and a check on a fixture shaped like the user's PostgreSQL model.
 
 **Track P · Visual packages**, beside the milestones, from the research on visual packages (ADR 0079). Its commits start with `P<n>:`. Each package follows ADR 0051: components and relation types with appearances that pass the contrast tests in both themes, names in English and Spanish, icons that pass the cleaner as stored, its licence and attribution (ADR 0047, ADR 0079), a sample project with a scenario, and a README section saying where its pictures come from.
 
