@@ -11,7 +11,7 @@ import {
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { ESSENCE_ID } from '@visual-anything/schema';
-import { boundsOf, type Rect } from '../geometry';
+import { boundsOf, type Rect, type Size } from '../geometry';
 import { nameTagOn } from '../nameTags';
 import { outlineAt } from '../outlines';
 import { headerMiddle } from '../rows';
@@ -36,11 +36,24 @@ import {
  *   these keys sits without a position. Every shape with a position stays where it is, unless a
  *   container beside it grows with what layout placed: then an unpinned one moves aside, right or
  *   down, so that nothing overlaps.
+ * - `expand`: the shapes inside containers that are expanding, at every depth, that are not pinned,
+ *   laid out inside them; every other shape with a position stays where it is, unless an expanding
+ *   container now comes near it: then an unpinned one moves aside, right or down (ADR 0080, section
+ *   4). `containers` holds the keys of the expanding containers' shapes, and `collapsed` the size each
+ *   was drawn at while collapsed; without one, the size its appearance gives it.
+ *
+ * The view and a container's contents are laid out in one pass while they fit its budget (ADR 0080,
+ * section 1); so are the contents of expanding containers.
  */
 export type LayoutScope =
   | { kind: 'view' }
   | { kind: 'contents'; container: Id }
-  | { kind: 'new'; keys: ReadonlySet<string> };
+  | { kind: 'new'; keys: ReadonlySet<string> }
+  | {
+      kind: 'expand';
+      containers: ReadonlySet<string>;
+      collapsed?: ReadonlyMap<string, Size>;
+    };
 
 const IN_WORLD = '';
 
@@ -87,6 +100,13 @@ export function layoutInput(
       }
       if (levels.size === 0) return undefined;
       free = (shape) => shape.positioned === 'placed' && levels.has(shape.container ?? IN_WORLD);
+      break;
+    }
+    case 'expand': {
+      const prefixes = [...scope.containers].map((key) => `${key}/`);
+      if (prefixes.length === 0) return undefined;
+      free = (shape) =>
+        shape.positioned !== 'pinned' && prefixes.some((prefix) => shape.key.startsWith(prefix));
       break;
     }
   }
@@ -146,6 +166,14 @@ export function layoutInput(
       }
       if (isFree && own.points) laidShape.points = own.points;
     }
+    // An expanding container moves aside what it comes near from the size it was drawn at collapsed.
+    if (scope.kind === 'expand' && scope.containers.has(shape.key)) {
+      const own = looksOf(shape.element);
+      laidShape.grewFrom = scope.collapsed?.get(shape.key) ?? {
+        width: own.width,
+        height: own.height,
+      };
+    }
     // Rows and the shapes that draw them attach relations beside them, at their middles.
     if (shape.row !== undefined) laidShape.rowAt = shape.offset.y + shape.rect.height / 2;
     if (shape.rowCount !== undefined) laidShape.headerAt = headerMiddle(shape.rect) - shape.rect.y;
@@ -158,7 +186,8 @@ export function layoutInput(
     }
     return laidShape;
   });
-  if (!anyFree) return undefined;
+  // An expanding container whose contents are all pinned still moves aside what it now covers.
+  if (!anyFree && scope.kind !== 'expand') return undefined;
 
   const relations: LayoutRelation[] = [];
   for (const line of scene.relations) {
@@ -171,7 +200,12 @@ export function layoutInput(
   }
 
   const obstacles: Rect[] = scope.kind === 'contents' ? [] : worldObstacles(scene);
-  return { shapes: laid, relations, obstacles };
+  return {
+    shapes: laid,
+    relations,
+    obstacles,
+    ...(scope.kind === 'new' ? {} : { onePass: true as const }),
+  };
 }
 
 const NO_REACH = { left: 0, right: 0, bottom: 0 } as const;

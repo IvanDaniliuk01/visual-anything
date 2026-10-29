@@ -25,6 +25,7 @@ import {
   takeOutCommand,
 } from '../../canvas/drop';
 import { createInsideCommand } from '../../canvas/gestures';
+import { inPlaceFor } from '../../canvas/layout/expand';
 import { ZoomExpansionContext, withoutZoomExpanded } from '../../canvas/overlays/useZoomExpansion';
 import { indexScene, type IndexedScene } from '../../canvas/hit';
 import type { ElementShape } from '../../canvas/scene';
@@ -231,8 +232,15 @@ export function ViewSection({ element }: { element: Element }) {
               const elements = collapsedNow
                 ? collapsing.elements
                 : withoutZoomExpanded(zoom, view.id, collapsing.elements);
+              // As the canvas showing the view does: in place (ADR 0080, section 4).
+              const inPlace = send ? inPlaceFor(view.id) : undefined;
               if (elements.length === 0) say(collapseDone(collapsing, true));
-              else {
+              else if (inPlace) {
+                const act = collapsedNow ? inPlace.expand : inPlace.collapse;
+                void act(elements, collapsing.label).then((done) => {
+                  if (done) say(collapseDone(collapsing, !collapsedNow));
+                });
+              } else {
                 void perform(
                   setCollapsedCommand(view.id, elements, !collapsedNow),
                   collapseDone(collapsing, !collapsedNow),

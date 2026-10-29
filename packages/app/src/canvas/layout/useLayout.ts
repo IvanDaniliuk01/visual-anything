@@ -18,22 +18,17 @@ import {
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import type { Id, ViewFile } from '@visual-anything/schema';
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { sizeOf, type Selection } from '../../editor/selection';
 import type { GuidedLayoutRequest } from '../../guidance/state';
 import { t } from '../../i18n';
 import type { Scene } from '../scene';
-import { LayoutStopped, sharedRunner, type LayoutRunner } from './client';
+import { setCollapsedCommand } from '../collapse';
+import { LayoutStopped } from './client';
 import { layoutCommand } from './command';
+import { expansionCommand, expansionMemory, planExpansion } from './expand';
+import { keepRoutes, type KeptRoutes } from './keptRoutes';
+import { useLayoutRunner } from './runnerContext';
 import { layoutInput, waitsForLayout, type LayoutScope } from './input';
 import {
   frameAt,
@@ -43,14 +38,10 @@ import {
   transitionBetween,
   type Transition,
 } from './transition';
-import type { LayoutProgress } from './types';
+import type { LaidOutRoute, LayoutProgress } from './types';
 import { useReducedMotion } from '../../scenarios/motion';
 
-/**
- * What runs the canvas's layouts: by default (null) the layout worker every canvas shares; tests give
- * a runner of their own, and undefined turns layout off.
- */
-export const LayoutRunnerContext = createContext<LayoutRunner | null | undefined>(null);
+export { LayoutRunnerContext } from './runnerContext';
 
 /** How long automatic layout waits for more new shapes before it runs, in milliseconds. */
 export const AUTO_DELAY = 120;
@@ -109,6 +100,8 @@ interface Armed {
   project: ProjectSnapshot;
   view: Id;
   animate: boolean;
+  /** The routes ELK gave, kept once the change is drawn (ADR 0080, section 2). */
+  routes?: readonly LaidOutRoute[] | undefined;
 }
 
 /**
@@ -138,10 +131,20 @@ export function useLayout({
 }: LayoutOptions): {
   scene: Scene;
   control: LayoutControl;
+  /** ELK's routes from the last layout in one pass of this view, while some of them hold. */
+  routes: KeptRoutes | undefined;
+  /**
+   * Expands containers in place by hand (ADR 0080, section 4), in one undoable action under `label`,
+   * after the layouts asked for before; `zoomExpanded` are those the zoom shows expanded. Says
+   * whether it was done.
+   */
+  expand: (
+    elements: readonly Id[],
+    label: string,
+    zoomExpanded?: ReadonlySet<Id>,
+  ) => Promise<boolean>;
 } {
-  const given = useContext(LayoutRunnerContext);
-  const [shared] = useState(() => (given === null ? sharedRunner() : undefined));
-  const runner = given === null ? shared : given;
+  const runner = useLayoutRunner();
   const editable = send !== undefined;
 
   // Moving shapes into place follows the person's Motion preference (ADR 0077, ADR 0032).
@@ -154,11 +157,16 @@ export function useLayout({
   const [running, setRunning] = useState<Running>();
   const [armed, setArmed] = useState<Armed>();
   const [moving, setMoving] = useState<Moving>();
+  const [kept, setKept] = useState<{ view: Id; routes: KeptRoutes | undefined }>();
   const queue = useRef<Promise<void>>(Promise.resolve());
 
   // Once a layout's change is drawn, it moves in from the scene it was made from.
   if (armed && (armed.view !== view.id || (project !== armed.project && scene !== armed.before))) {
     setArmed(undefined);
+    // A layout in one pass brings ELK's routes, which hold from the scene it made (ADR 0080).
+    if (armed.view === view.id && armed.routes) {
+      setKept({ view: view.id, routes: keepRoutes(scene, armed.routes) });
+    }
     const transition =
       armed.animate && armed.view === view.id ? transitionBetween(armed.before, scene) : undefined;
     setMoving(transition && { transition, progress: 0, started: transition });
@@ -252,6 +260,7 @@ export function useLayout({
         project: now.project,
         view: now.view.id,
         animate: typeof requestAnimationFrame === 'function' && !now.reducedMotion,
+        routes: laidOut.routes,
       });
       // Placing new shapes asks to join the newest action, which may be what added them (ADR 0065).
       const joins = automatic ? newestDone(now.actions) : undefined;
@@ -382,7 +391,58 @@ export function useLayout({
     };
   }
 
-  return { scene: drawn, control };
+  const expand = (
+    elements: readonly Id[],
+    label: string,
+    zoomExpanded?: ReadonlySet<Id>,
+  ): Promise<boolean> => {
+    const run = queue.current.then(async () => {
+      const asked = latest.current;
+      const sendNow = asked.send;
+      if (!sendNow) return false;
+      const plainly = async () =>
+        (await sendNow(setCollapsedCommand(asked.view.id, elements, false))).ok;
+      const plan = runner
+        ? planExpansion(asked.project, asked.view.id, asked.scene, elements, zoomExpanded)
+        : undefined;
+      if (!runner || !plan?.input) return plainly();
+      let laidOut;
+      try {
+        laidOut = await runner.layOut(plan.input);
+      } catch {
+        // Without its layout, the container still expands, where its contents are.
+        return plainly();
+      }
+      const now = latest.current;
+      if (now.view.id !== asked.view.id || !now.send) return false;
+      const made = expansionCommand(asked.view.id, elements, plan, laidOut.shapes, label);
+      setArmed({
+        before: now.scene,
+        project: now.project,
+        view: now.view.id,
+        animate: typeof requestAnimationFrame === 'function' && !now.reducedMotion,
+      });
+      const sent = await now.send(made.command);
+      if (!sent.ok) {
+        setArmed(undefined);
+        return false;
+      }
+      expansionMemory.remember(asked.view.id, elements, made.moved);
+      return true;
+    });
+    queue.current = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  };
+
+  return {
+    scene: drawn,
+    control,
+    routes: kept?.view === view.id ? kept.routes : undefined,
+    expand,
+  };
 }
 
 /**

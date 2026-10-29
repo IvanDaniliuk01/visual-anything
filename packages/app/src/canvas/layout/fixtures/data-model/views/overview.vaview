@@ -1,0 +1,751 @@
+{
+  "id": "overview",
+  "name": "Overview",
+  "nestingRelationTypes": [
+    "systems.is-part-of",
+    "data-modeling.is-column-of"
+  ],
+  "positions": [
+    {
+      "element": "schema-a",
+      "container": "database-01",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "schema-b",
+      "container": "database-01",
+      "x": 352,
+      "y": 280
+    },
+    {
+      "element": "schema-c",
+      "container": "database-01",
+      "x": 440,
+      "y": 2088,
+      "pinned": true
+    },
+    {
+      "element": "schema-d",
+      "container": "database-01",
+      "x": 2504,
+      "y": 216
+    },
+    {
+      "element": "schema-e",
+      "container": "database-01",
+      "x": 2504,
+      "y": 2496
+    },
+    {
+      "element": "schema-f",
+      "container": "database-01",
+      "x": 2504,
+      "y": 2608
+    },
+    {
+      "element": "schema-g",
+      "container": "database-01",
+      "x": 4496,
+      "y": 328
+    },
+    {
+      "element": "schema-h",
+      "container": "database-01",
+      "x": 24,
+      "y": 2920
+    },
+    {
+      "element": "schema-i",
+      "container": "database-01",
+      "x": 4496,
+      "y": 440
+    },
+    {
+      "element": "database-01",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "table-01",
+      "container": "schema-a",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "dbview-06",
+      "container": "schema-h",
+      "x": 544,
+      "y": 48,
+      "pinned": true
+    },
+    {
+      "element": "dbview-07",
+      "container": "schema-h",
+      "x": 152,
+      "y": 48,
+      "pinned": true
+    },
+    {
+      "element": "dbview-08",
+      "container": "schema-h",
+      "x": 384,
+      "y": 128,
+      "pinned": true
+    },
+    {
+      "element": "dbview-09",
+      "container": "schema-h",
+      "x": 24,
+      "y": 128,
+      "pinned": true
+    },
+    {
+      "element": "dbview-10",
+      "container": "schema-h",
+      "x": 896,
+      "y": 48,
+      "pinned": true
+    },
+    {
+      "element": "dbview-11",
+      "container": "schema-h",
+      "x": 24,
+      "y": 208,
+      "pinned": true
+    },
+    {
+      "element": "dbview-12",
+      "container": "schema-h",
+      "x": 736,
+      "y": 128,
+      "pinned": true
+    },
+    {
+      "element": "dbview-13",
+      "container": "schema-h",
+      "x": 400,
+      "y": 208,
+      "pinned": true
+    },
+    {
+      "element": "dbview-14",
+      "container": "schema-h",
+      "x": 760,
+      "y": 208,
+      "pinned": true
+    },
+    {
+      "element": "dbview-15",
+      "container": "schema-h",
+      "x": 384,
+      "y": 345,
+      "pinned": true
+    },
+    {
+      "element": "dbview-16",
+      "container": "schema-h",
+      "x": 24,
+      "y": 304,
+      "pinned": true
+    },
+    {
+      "element": "dbview-17",
+      "container": "schema-h",
+      "x": 808,
+      "y": 366,
+      "pinned": true
+    },
+    {
+      "element": "dbview-18",
+      "container": "schema-h",
+      "x": 64,
+      "y": 472,
+      "pinned": true
+    },
+    {
+      "element": "dbview-19",
+      "container": "schema-h",
+      "x": 776,
+      "y": 284,
+      "pinned": true
+    },
+    {
+      "element": "table-65",
+      "container": "schema-b",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "table-66",
+      "container": "schema-b",
+      "x": 344,
+      "y": 392
+    },
+    {
+      "element": "table-67",
+      "container": "schema-b",
+      "x": 24,
+      "y": 392
+    },
+    {
+      "element": "table-68",
+      "container": "schema-b",
+      "x": 664,
+      "y": 416
+    },
+    {
+      "element": "dbview-04",
+      "container": "schema-b",
+      "x": 304,
+      "y": 48
+    },
+    {
+      "element": "table-69",
+      "container": "schema-b",
+      "x": 344,
+      "y": 928
+    },
+    {
+      "element": "dbview-05",
+      "container": "schema-b",
+      "x": 584,
+      "y": 48
+    },
+    {
+      "element": "table-70",
+      "container": "schema-b",
+      "x": 344,
+      "y": 1176
+    },
+    {
+      "element": "table-71",
+      "container": "schema-b",
+      "x": 24,
+      "y": 792
+    },
+    {
+      "element": "table-72",
+      "container": "schema-b",
+      "x": 984,
+      "y": 512
+    },
+    {
+      "element": "table-73",
+      "container": "schema-b",
+      "x": 664,
+      "y": 1208
+    },
+    {
+      "element": "function-01",
+      "container": "schema-b",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "function-02",
+      "container": "schema-b",
+      "x": 1208,
+      "y": 48
+    },
+    {
+      "element": "trigger-01",
+      "container": "schema-b",
+      "x": 908,
+      "y": 8,
+      "pinned": true
+    },
+    {
+      "element": "trigger-02",
+      "container": "schema-b",
+      "x": 656,
+      "y": 20,
+      "pinned": true
+    },
+    {
+      "element": "table-02",
+      "container": "schema-c",
+      "x": 864,
+      "y": 320
+    },
+    {
+      "element": "table-03",
+      "container": "schema-c",
+      "x": 584,
+      "y": 64
+    },
+    {
+      "element": "table-04",
+      "container": "schema-c",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "table-05",
+      "container": "schema-c",
+      "x": 304,
+      "y": 328
+    },
+    {
+      "element": "table-06",
+      "container": "schema-c",
+      "x": 864,
+      "y": 712
+    },
+    {
+      "element": "function-03",
+      "container": "schema-c",
+      "x": 864,
+      "y": 608
+    },
+    {
+      "element": "trigger-03",
+      "container": "schema-c",
+      "x": 584,
+      "y": 320
+    },
+    {
+      "element": "trigger-04",
+      "container": "schema-c",
+      "x": 584,
+      "y": 592
+    },
+    {
+      "element": "trigger-05",
+      "container": "schema-c",
+      "x": 304,
+      "y": 48
+    },
+    {
+      "element": "trigger-06",
+      "container": "schema-c",
+      "x": 24,
+      "y": 320
+    },
+    {
+      "element": "trigger-07",
+      "container": "schema-c",
+      "x": 584,
+      "y": 688
+    },
+    {
+      "element": "trigger-08",
+      "container": "schema-c",
+      "x": 584,
+      "y": 784
+    },
+    {
+      "element": "table-11",
+      "container": "schema-d",
+      "x": 544,
+      "y": 48
+    },
+    {
+      "element": "table-12",
+      "container": "schema-d",
+      "x": 1368,
+      "y": 1840
+    },
+    {
+      "element": "table-13",
+      "container": "schema-d",
+      "x": 1688,
+      "y": 1840
+    },
+    {
+      "element": "table-14",
+      "container": "schema-d",
+      "x": 1048,
+      "y": 1488
+    },
+    {
+      "element": "table-15",
+      "container": "schema-d",
+      "x": 824,
+      "y": 48
+    },
+    {
+      "element": "table-16",
+      "container": "schema-d",
+      "x": 1048,
+      "y": 1984
+    },
+    {
+      "element": "table-17",
+      "container": "schema-d",
+      "x": 664,
+      "y": 1840
+    },
+    {
+      "element": "table-18",
+      "container": "schema-d",
+      "x": 1048,
+      "y": 1048
+    },
+    {
+      "element": "dbview-01",
+      "container": "schema-d",
+      "x": 24,
+      "y": 800
+    },
+    {
+      "element": "table-19",
+      "container": "schema-d",
+      "x": 664,
+      "y": 800
+    },
+    {
+      "element": "dbview-02",
+      "container": "schema-d",
+      "x": 344,
+      "y": 800
+    },
+    {
+      "element": "table-20",
+      "container": "schema-d",
+      "x": 664,
+      "y": 432
+    },
+    {
+      "element": "table-21",
+      "container": "schema-d",
+      "x": 1384,
+      "y": 48
+    },
+    {
+      "element": "dbview-03",
+      "container": "schema-d",
+      "x": 24,
+      "y": 1488
+    },
+    {
+      "element": "table-22",
+      "container": "schema-d",
+      "x": 664,
+      "y": 1488
+    },
+    {
+      "element": "function-04",
+      "container": "schema-d",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "function-05",
+      "container": "schema-d",
+      "x": 1384,
+      "y": 296
+    },
+    {
+      "element": "function-06",
+      "container": "schema-d",
+      "x": 672,
+      "y": 696
+    },
+    {
+      "element": "function-07",
+      "container": "schema-d",
+      "x": 1048,
+      "y": 1832
+    },
+    {
+      "element": "function-08",
+      "container": "schema-d",
+      "x": 288,
+      "y": 48
+    },
+    {
+      "element": "function-09",
+      "container": "schema-d",
+      "x": 360,
+      "y": 608
+    },
+    {
+      "element": "trigger-09",
+      "container": "schema-d",
+      "x": 64,
+      "y": 584
+    },
+    {
+      "element": "trigger-10",
+      "container": "schema-d",
+      "x": 64,
+      "y": 1392
+    },
+    {
+      "element": "trigger-11",
+      "container": "schema-d",
+      "x": 704,
+      "y": 1040
+    },
+    {
+      "element": "trigger-12",
+      "container": "schema-d",
+      "x": 384,
+      "y": 704
+    },
+    {
+      "element": "trigger-13",
+      "container": "schema-d",
+      "x": 1104,
+      "y": 280
+    },
+    {
+      "element": "trigger-14",
+      "container": "schema-d",
+      "x": 384,
+      "y": 1352
+    },
+    {
+      "element": "schema-a",
+      "x": -208,
+      "y": -912,
+      "pinned": true
+    },
+    {
+      "element": "schema-b",
+      "x": 248,
+      "y": -240,
+      "pinned": true
+    },
+    {
+      "element": "schema-c",
+      "x": 752,
+      "y": 3752
+    },
+    {
+      "element": "schema-d",
+      "x": 1176,
+      "y": 376,
+      "pinned": true
+    },
+    {
+      "element": "schema-e",
+      "x": -5200,
+      "y": 308,
+      "pinned": true
+    },
+    {
+      "element": "schema-f",
+      "x": 752,
+      "y": 3864
+    },
+    {
+      "element": "schema-g",
+      "x": 4360,
+      "y": 192
+    },
+    {
+      "element": "schema-h",
+      "x": -208,
+      "y": -1032,
+      "pinned": true
+    },
+    {
+      "element": "schema-i",
+      "x": 512,
+      "y": 3752
+    },
+    {
+      "element": "table-23",
+      "container": "schema-e",
+      "x": 3464,
+      "y": 1464
+    },
+    {
+      "element": "table-24",
+      "container": "schema-e",
+      "x": 1104,
+      "y": 48
+    },
+    {
+      "element": "table-25",
+      "container": "schema-e",
+      "x": 1504,
+      "y": 48
+    },
+    {
+      "element": "table-26",
+      "container": "schema-e",
+      "x": 1104,
+      "y": 296
+    },
+    {
+      "element": "table-27",
+      "container": "schema-e",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "table-28",
+      "container": "schema-e",
+      "x": 3064,
+      "y": 2704
+    },
+    {
+      "element": "table-29",
+      "container": "schema-e",
+      "x": 3064,
+      "y": 2336
+    },
+    {
+      "element": "table-30",
+      "container": "schema-e",
+      "x": 3064,
+      "y": 272
+    },
+    {
+      "element": "table-31",
+      "container": "schema-e",
+      "x": 384,
+      "y": 48
+    },
+    {
+      "element": "table-32",
+      "container": "schema-e",
+      "x": 3464,
+      "y": 48
+    },
+    {
+      "element": "table-33",
+      "container": "schema-e",
+      "x": 4264,
+      "y": 1160
+    },
+    {
+      "element": "table-34",
+      "container": "schema-e",
+      "x": 744,
+      "y": 48
+    },
+    {
+      "element": "table-35",
+      "container": "schema-e",
+      "x": 2264,
+      "y": 1296
+    },
+    {
+      "element": "table-36",
+      "container": "schema-e",
+      "x": 1864,
+      "y": 1296
+    },
+    {
+      "element": "table-37",
+      "container": "schema-e",
+      "x": 1864,
+      "y": 1616
+    },
+    {
+      "element": "table-38",
+      "container": "schema-e",
+      "x": 3064,
+      "y": 1320
+    },
+    {
+      "element": "table-39",
+      "container": "schema-e",
+      "x": 2664,
+      "y": 3136
+    },
+    {
+      "element": "table-40",
+      "container": "schema-e",
+      "x": 3464,
+      "y": 3256
+    },
+    {
+      "element": "table-41",
+      "container": "schema-e",
+      "x": 3064,
+      "y": 3232
+    },
+    {
+      "element": "table-42",
+      "container": "schema-e",
+      "x": 3064,
+      "y": 2000
+    },
+    {
+      "element": "table-43",
+      "container": "schema-e",
+      "x": 3464,
+      "y": 1112
+    },
+    {
+      "element": "table-44",
+      "container": "schema-e",
+      "x": 3864,
+      "y": 1112
+    },
+    {
+      "element": "table-45",
+      "container": "schema-e",
+      "x": 3464,
+      "y": 320
+    },
+    {
+      "element": "table-46",
+      "container": "schema-e",
+      "x": 4264,
+      "y": 416
+    }
+  ],
+  "freeShapes": [],
+  "collapsed": [
+    "schema-a",
+    "schema-b",
+    "schema-c",
+    "schema-d",
+    "schema-f",
+    "schema-g",
+    "schema-h",
+    "schema-i",
+    "dbview-06",
+    "dbview-07",
+    "dbview-08",
+    "dbview-09",
+    "dbview-10",
+    "dbview-11",
+    "dbview-12",
+    "dbview-13",
+    "dbview-14",
+    "dbview-15",
+    "dbview-16",
+    "dbview-17",
+    "dbview-18",
+    "dbview-19"
+  ],
+  "scope": {
+    "exclude": [
+      {
+        "kind": "component",
+        "component": "sql.trigger"
+      },
+      {
+        "kind": "component",
+        "component": "sql.function"
+      }
+    ],
+    "leftOut": [
+      "database-01"
+    ]
+  },
+  "relationTypesLeftOut": [
+    {
+      "relationType": "sql.runs"
+    },
+    {
+      "relationType": "sql.writes"
+    },
+    {
+      "relationType": "sql.reads"
+    },
+    {
+      "relationType": "sql.reads-from"
+    },
+    {
+      "relationType": "sql.fires-on"
+    }
+  ]
+}

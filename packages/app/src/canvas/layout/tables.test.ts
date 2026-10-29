@@ -67,17 +67,24 @@ describe('the layout of tables', () => {
     const input = layoutInput(scene, project, { kind: 'view' });
     if (!input) throw new Error('Nothing to lay out.');
     const graphs: ElkNode[] = [];
+    const laid: ElkNode[] = [];
     const watching: ElkEngine = {
-      layout: (graph) => {
-        graphs.push(...(graph.children ?? []));
-        return elk.layout(graph);
+      layout: async (graph) => {
+        // ELK writes its places into the graph it is given: what it was given is kept as it was.
+        graphs.push(structuredClone(graph));
+        const result = await elk.layout(graph);
+        laid.push(result);
+        return result;
       },
     };
-    await layOut(input, watching);
-    const [world] = graphs;
-    const orders = world?.children?.find(
-      (node) => input.shapes[Number(node.id.slice(1))]?.key === 'orders',
-    );
+    const result = await layOut(input, watching);
+    // The view goes to ELK in one pass, twice: first to place each table in the flow...
+    expect(result.stats.onePass).toBe(true);
+    expect(graphs).toHaveLength(2);
+    const [first, second] = graphs;
+    const nodeOf = (graph: ElkNode | undefined, key: string) =>
+      graph?.children?.find((node) => input.shapes[Number(node.id.slice(1))]?.key === key);
+    const orders = nodeOf(first, 'orders');
     // Orders refers to the other two: its related rows leave on its east side, at their middles.
     expect(orders?.layoutOptions?.['elk.portConstraints']).toBe('FIXED_POS');
     expect(orders?.ports?.map((port) => [(port.x ?? 0) + 0, (port.y ?? 0) + 0])).toEqual([
@@ -85,10 +92,24 @@ describe('the layout of tables', () => {
       [240, 92],
     ]);
     expect(orders?.children ?? []).toEqual([]);
-    const users = world?.children?.find(
-      (node) => input.shapes[Number(node.id.slice(1))]?.key === 'users',
-    );
+    const users = nodeOf(first, 'users');
     expect(users?.ports?.map((port) => [(port.x ?? 0) + 0, (port.y ?? 0) + 0])).toEqual([[0, 44]]);
+    // ...then with each port on the side of its table that faces the other end, in the same order.
+    expect(second?.layoutOptions?.['elk.layered.crossingMinimization.semiInteractive']).toBe(
+      'true',
+    );
+    const placed = (key: string) => nodeOf(laid[0], key);
+    for (const [from, to, row] of [
+      ['orders', 'users', 68],
+      ['orders', 'products', 92],
+    ] as const) {
+      const a = placed(from);
+      const b = placed(to);
+      const right = (b?.x ?? 0) + (b?.width ?? 0) / 2 >= (a?.x ?? 0) + (a?.width ?? 0) / 2;
+      const side = right ? 'EAST' : 'WEST';
+      const port = nodeOf(second, from)?.ports?.find((each) => each.y === row);
+      expect(port?.layoutOptions?.['elk.port.side'], `${from} toward ${to}`).toBe(side);
+    }
   });
 
   it('writes no row position, and the reference still attaches beside the rows it joins after layout', async () => {

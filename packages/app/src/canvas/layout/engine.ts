@@ -1,5 +1,9 @@
 /**
- * The layout itself, run in the layout worker. Each container, and World, arranges its own contents,
+ * The layout itself, run in the layout worker. Layout of a view or of a container's contents goes in
+ * one pass while it fits `WHOLE_SHAPES` and `WHOLE_RELATIONS` (ADR 0080, section 1, `whole.ts`): ELK
+ * arranges everything related at once, what no relation reaches is packed in rows beside or below
+ * it, and the routes ELK found come back with the places (`arrangeWhole`). Otherwise, as for new
+ * shapes and beyond the budget, each container, and World, arranges its own contents,
  * innermost first, so that a container's size is known before it is arranged among its neighbours:
  *
  * 1. At each level, the free shapes form one block. ELK's layered algorithm arranges the block from
@@ -17,13 +21,24 @@
  */
 import type { ElkExtendedEdge, ElkNode, ElkPort, LayoutOptions } from 'elkjs/lib/elk-api';
 import { boundsOf, type Point, type Rect, type Size } from '../geometry';
-import { ceilToStep, measuredSize, packInRows, placeBlock, roundToStep } from './place';
-import { ELK_SIDES, pointOnBorder, pointToward } from './ports';
+import { CONTENTS_ORIGIN } from '../scene';
+import {
+  ceilToStep,
+  measuredSize,
+  packInRows,
+  placeBlock,
+  ROWS_ASPECT,
+  roundToStep,
+} from './place';
+import { ELK_SIDES, partPort, pointOnBorder, pointToward } from './ports';
+import { segmentThrough } from './quality';
 import {
   ELK_TIME_LIMIT,
   ELK_WORK_BUDGET,
   LAYER_GAP,
+  LAYOUT_STEP,
   NODE_GAP,
+  type LaidOutRoute,
   type LaidOutShape,
   type LayoutConnectionPoint,
   type LayoutInput,
@@ -31,7 +46,19 @@ import {
   type LayoutProgress,
   type LayoutRelation,
   type LayoutResult,
+  type LayoutStats,
 } from './types';
+import {
+  COMPOUND_PADDING,
+  runWhole,
+  WHOLE_RELATIONS,
+  WHOLE_SHAPES,
+  type Padding,
+  type WholeEdge,
+  type WholeEnd,
+  type WholeLaidOut,
+  type WholeNode,
+} from './whole';
 
 /** What the layout needs of ELK: elkjs's `layout`, in the worker or, in tests, in the same thread. */
 export interface ElkEngine {
@@ -140,7 +167,7 @@ export async function layOut(
   let outOfTime = false;
   const engines = Array.isArray(elk) ? (elk as readonly ElkEngine[]) : [elk as ElkEngine];
   const tree = new Tree(input);
-  const stats = {
+  const stats: LayoutStats = {
     levels: 0,
     shapes: 0,
     relations: 0,
@@ -252,6 +279,77 @@ export async function layOut(
   };
 
   /**
+   * Where a container that expands keeps its corner (ADR 0080, section 4): its top left, unless its
+   * own container has more free room to its left, or above it, than to its right, or below it, and
+   * room enough there for what it grew; it then keeps its top right, or its bottom left. In World,
+   * which has no sides, and when it may not move, it keeps its top left.
+   */
+  const growToward = (level: number, node: number, before: Rect) => {
+    const shape = input.shapes[node];
+    if (level === WORLD || shape?.aside !== true) return;
+    const now = tree.rectOf(node);
+    const grew = { x: now.width - before.width, y: now.height - before.height };
+    const holder = tree.keptSizeOf(level);
+    const inner = {
+      left: CONTENTS_ORIGIN.x,
+      top: CONTENTS_ORIGIN.y,
+      right: holder.width - CONTENTS_ORIGIN.x,
+      bottom: holder.height - CONTENTS_ORIGIN.x,
+    };
+    const others = tree
+      .childrenOf(level)
+      .filter((child) => child !== node)
+      .map((child) => tree.rectOf(child));
+    const across = others.filter((r) => r.y < before.y + now.height && before.y < r.y + r.height);
+    const along = others.filter((r) => r.x < before.x + now.width && before.x < r.x + r.width);
+    const roomLeft =
+      before.x -
+      Math.max(
+        inner.left,
+        ...across.filter((r) => r.x + r.width <= before.x).map((r) => r.x + r.width),
+      );
+    const roomRight =
+      Math.min(
+        inner.right,
+        ...across.filter((r) => r.x >= before.x + before.width).map((r) => r.x),
+      ) -
+      (before.x + before.width);
+    const roomAbove =
+      before.y -
+      Math.max(
+        inner.top,
+        ...along.filter((r) => r.y + r.height <= before.y).map((r) => r.y + r.height),
+      );
+    const roomBelow =
+      Math.min(
+        inner.bottom,
+        ...along.filter((r) => r.y >= before.y + before.height).map((r) => r.y),
+      ) -
+      (before.y + before.height);
+    const place = { x: now.x, y: now.y };
+    if (grew.x > 0 && roomLeft > roomRight && roomLeft >= grew.x + NODE_GAP) {
+      place.x = Math.floor((before.x - grew.x) / LAYOUT_STEP) * LAYOUT_STEP;
+    }
+    if (grew.y > 0 && roomAbove > roomBelow && roomAbove >= grew.y + NODE_GAP) {
+      place.y = Math.floor((before.y - grew.y) / LAYOUT_STEP) * LAYOUT_STEP;
+    }
+    if (place.x === now.x && place.y === now.y) return;
+    tree.moveTo(node, place);
+    tree.markChanged(level);
+    const container = input.shapes[level]?.element;
+    const entry: LaidOutShape = {
+      key: shape.key,
+      element: shape.element,
+      ...(container === undefined ? {} : { container }),
+      ...place,
+      aside: true,
+    };
+    const at = placed.findIndex((each) => each.key === shape.key);
+    if (at === -1) placed.push(entry);
+    else placed[at] = entry;
+  };
+
+  /**
    * Moves aside, right or down, the shapes of a level that may move aside and that a container of the
    * level now covers, since it grew with what layout placed in it; and those that the moved ones then
    * cover, in turn. Shapes that may not move stay, and a shape moved aside goes past them. Says whether
@@ -266,12 +364,19 @@ export async function layOut(
       // The scene may draw a container grown already around a new shape it put somewhere: what it
       // grew from is its size around what it kept.
       const before = { x: shape.x, y: shape.y, ...tree.keptSizeOf(child) };
+      // A container that expands grows toward the free room in its container (ADR 0080, section 4).
+      if (shape.grewFrom) growToward(level, child, before);
       const now = tree.rectOf(child);
       if (now.width > before.width || now.height > before.height) {
         waiting.push({ node: child, before });
       }
     }
     if (waiting.length === 0) return false;
+    // What holds a container that expanded grew with it, whether or not anything moved aside: it is
+    // measured again, from where it was drawn before around what it keeps.
+    if (level !== WORLD && waiting.some(({ node }) => input.shapes[node]?.grewFrom !== undefined)) {
+      tree.markChanged(level);
+    }
     const movable = (node: number) => input.shapes[node]?.aside === true;
     const stays = children
       .filter((child) => !input.shapes[child]?.free && !movable(child))
@@ -308,8 +413,17 @@ export async function layOut(
     return moved;
   };
 
-  /** Moves a block clear of what its level keeps, on the step, and records where its shapes go. */
-  const placeAt = (level: number, nodes: readonly number[], places: ReadonlyMap<number, Point>) => {
+  /**
+   * Moves a block clear of what its level keeps, on the step, and records where its shapes go. With
+   * `inPlace`, a block in a container that keeps nothing stays where its places put it, as the one
+   * pass over the view put it in its container, so that the routes ELK gave still meet it.
+   */
+  const placeAt = (
+    level: number,
+    nodes: readonly number[],
+    places: ReadonlyMap<number, Point>,
+    inPlace = false,
+  ) => {
     const rects = nodes.map((node) => ({
       ...(places.get(node) ?? { x: 0, y: 0 }),
       ...tree.sizeOf(node),
@@ -326,14 +440,20 @@ export async function layOut(
       kept.push({ x: 0, y: 0, width: 1, height: pictureBottom });
     }
     const flow = pictureBottom === undefined ? tree.flowAt(level) : { into: 0, out: 0 };
-    const origin = placeBlock(
-      bounds,
-      level === WORLD
-        ? { kind: 'world', now: boundsOf(nodes.map((node) => tree.currentRectOf(node))) }
-        : { kind: 'container' },
-      kept,
-      flow,
-    );
+    const origin =
+      inPlace && level !== WORLD && kept.length === 0
+        ? {
+            x: Math.max(CONTENTS_ORIGIN.x, roundToStep(bounds.x)),
+            y: Math.max(CONTENTS_ORIGIN.y, roundToStep(bounds.y)),
+          }
+        : placeBlock(
+            bounds,
+            level === WORLD
+              ? { kind: 'world', now: boundsOf(nodes.map((node) => tree.currentRectOf(node))) }
+              : { kind: 'container' },
+            kept,
+            flow,
+          );
     const container = level === WORLD ? undefined : input.shapes[level]?.element;
     nodes.forEach((node, at) => {
       const shape = input.shapes[node];
@@ -353,12 +473,479 @@ export async function layOut(
     if (level !== WORLD) tree.markChanged(level);
   };
 
-  // Innermost first: every container of one depth in one run, then World.
-  for (const levels of tree.levelsByHeight()) await arrange(levels);
-  await arrange([WORLD]);
+  /** The free shapes directly in a level. */
+  const freeAt = (level: number) =>
+    tree.childrenOf(level).filter((child) => input.shapes[child]?.free === true);
+
+  /** Moves aside what grew at a level, and places its free shapes where `placesOf` puts them. */
+  const settle = (level: number, placesOf: (nodes: readonly number[]) => Map<number, Point>) => {
+    const roomMade = makeRoom(level);
+    const nodes = freeAt(level);
+    if (nodes.length === 0) {
+      if (roomMade && level !== WORLD) tree.markChanged(level);
+      return;
+    }
+    stats.levels += 1;
+    stats.shapes += nodes.length;
+    placeAt(level, nodes, placesOf(nodes), true);
+    untangle(level);
+  };
+
+  /** Places in rows, from (0, 0), in the order given. */
+  const rowsOf = (nodes: readonly number[]): Map<number, Point> => {
+    const rows = packInRows(nodes.map((node) => tree.sizeOf(node)));
+    return new Map(nodes.map((node, at) => [node, rows[at] as Point]));
+  };
+
+  /**
+   * Moves right or down, by the least, the free shapes of a level that cover another of its shapes,
+   * in their order across and down; those kept stay. ELK's arrangement covers nothing, so this moves
+   * a shape only where a size the scene gives differs from the one ELK was given, as a container
+   * copied elsewhere in the view that grew.
+   */
+  const untangle = (level: number) => {
+    const children = tree.childrenOf(level);
+    const settled = children
+      .filter((child) => !input.shapes[child]?.free)
+      .map((child) => tree.rectOf(child));
+    const free = freeAt(level).sort((a, b) => {
+      const ra = tree.rectOf(a);
+      const rb = tree.rectOf(b);
+      return ra.x - rb.x || ra.y - rb.y;
+    });
+    const container = level === WORLD ? undefined : input.shapes[level]?.element;
+    let moved = false;
+    for (const node of free) {
+      let rect = tree.rectOf(node);
+      for (let tries = settled.length; tries >= 0; tries -= 1) {
+        const covered = settled.find((each) => overlapping(rect, each));
+        if (!covered) break;
+        const right = ceilToStep(covered.x + covered.width + NODE_GAP) - rect.x;
+        const down = ceilToStep(covered.y + covered.height + NODE_GAP) - rect.y;
+        rect = right <= down ? { ...rect, x: rect.x + right } : { ...rect, y: rect.y + down };
+      }
+      settled.push(rect);
+      const shape = input.shapes[node];
+      const before = tree.rectOf(node);
+      if (!shape || (rect.x === before.x && rect.y === before.y)) continue;
+      tree.moveTo(node, { x: rect.x, y: rect.y });
+      moved = true;
+      const at = placed.findIndex((each) => each.key === shape.key);
+      const entry: LaidOutShape = {
+        key: shape.key,
+        element: shape.element,
+        ...(container === undefined ? {} : { container }),
+        x: rect.x,
+        y: rect.y,
+      };
+      if (at === -1) placed.push(entry);
+      else placed[at] = entry;
+    }
+    if (moved && level !== WORLD) tree.markChanged(level);
+  };
+
+  /**
+   * The one pass over the view (ADR 0080, section 1): the levels the run does not reach are packed in
+   * rows, innermost first; then ELK arranges everything related at once, in two passes; then each
+   * level it reached takes its places, innermost first, what the run left out packed beside or below
+   * what it arranged. Gives the routes ELK found that still fit where their ends landed.
+   */
+  const arrangeWhole = async (plan: WholePlan): Promise<LaidOutRoute[] | undefined> => {
+    stats.onePass = true;
+    const groups = [...tree.levelsByHeight(), [WORLD]];
+    for (const group of groups) {
+      for (const level of group) {
+        if (plan.levels.has(level)) continue;
+        settle(level, rowsOf);
+        if (freeAt(level).length > 0) report(1);
+      }
+    }
+
+    // What each level the run reaches leaves out, packed in rows into one block.
+    const loose = new Map<number, { nodes: number[]; places: Point[]; size: Size }>();
+    for (const level of plan.levels) {
+      const nodes = freeAt(level).filter((node) => !plan.related.has(node));
+      if (nodes.length === 0) continue;
+      const places = packInRows(nodes.map((node) => tree.sizeOf(node)));
+      const size = boundsOf(
+        nodes.map((node, at) => ({ ...(places[at] as Point), ...tree.sizeOf(node) })),
+      ) as Rect;
+      loose.set(level, { nodes, places, size: { width: size.width, height: size.height } });
+    }
+    const beside = new Map<number, boolean>();
+    const paddingOf = (first: ReadonlyMap<number, Rect>): Map<number, Padding> => {
+      const padding = new Map<number, Padding>();
+      for (const level of plan.levels) {
+        if (level === WORLD) continue;
+        const rect = first.get(level);
+        const shape = input.shapes[level];
+        if (!rect || !shape) continue;
+        const room = { ...COMPOUND_PADDING };
+        const width = rect.width - room.left - room.right;
+        const height = rect.height - room.top - room.bottom;
+        const block = loose.get(level);
+        if (block) {
+          const side = besideIsNearer({ width, height }, block.size);
+          beside.set(level, side);
+          if (side) {
+            room.right += NODE_GAP + block.size.width;
+            room.bottom += Math.max(0, block.size.height - height);
+          } else {
+            room.bottom += NODE_GAP + block.size.height;
+            room.right += Math.max(0, block.size.width - width);
+          }
+        }
+        // A container is never smaller than its appearance, nor than the size the view stores.
+        const least = {
+          width: Math.max(shape.baseWidth ?? 0, shape.storedWidth ?? 0),
+          height: Math.max(shape.baseHeight ?? 0, shape.storedHeight ?? 0),
+        };
+        room.right += Math.max(0, least.width - (room.left + width + room.right));
+        room.bottom += Math.max(0, least.height - (room.top + height + room.bottom));
+        padding.set(level, room);
+      }
+      return padding;
+    };
+    const nodes = plan.nodes.map((node): WholeNode =>
+      node.compound ? node : { ...node, size: tree.sizeOf(node.shape) },
+    );
+    const engine = engines[0] as ElkEngine;
+    const runOnce = async (graph: ElkNode): Promise<ElkNode | undefined> => {
+      const left = ends - now();
+      if (outOfTime || left <= 0) return undefined;
+      stats.elkRuns += 1;
+      const runStarted = now();
+      const result = await within(engine.layout(graph), left);
+      stats.elkMs += now() - runStarted;
+      if (result === undefined) {
+        outOfTime = true;
+        engine.stop?.();
+      }
+      return result;
+    };
+    stats.relations += plan.edges.length;
+    const ran = await runWhole(nodes, plan.edges, runOnce, paddingOf);
+    const laid = ran?.laid;
+
+    for (const group of groups) {
+      for (const level of group) {
+        if (!plan.levels.has(level)) continue;
+        settle(level, (free) => {
+          if (!laid) {
+            stats.packedForTime += 1;
+            return rowsOf(free);
+          }
+          const origin = level === WORLD ? { x: 0, y: 0 } : (laid.rects.get(level) ?? undefined);
+          const places = new Map<number, Point>();
+          const arranged: Rect[] = [];
+          for (const node of free) {
+            const rect = laid.rects.get(node);
+            if (!rect || !origin || !plan.related.has(node)) continue;
+            const place = { x: rect.x - origin.x, y: rect.y - origin.y };
+            places.set(node, place);
+            arranged.push({ ...place, ...tree.sizeOf(node) });
+          }
+          const block = loose.get(level);
+          if (block) {
+            const around = boundsOf(arranged);
+            const start = !around
+              ? { x: 0, y: 0 }
+              : (beside.get(level) ?? besideIsNearer(around, block.size))
+                ? { x: around.x + around.width + NODE_GAP, y: around.y }
+                : { x: around.x, y: around.y + around.height + NODE_GAP };
+            block.nodes.forEach((node, at) => {
+              const offset = block.places[at] as Point;
+              places.set(node, { x: start.x + offset.x, y: start.y + offset.y });
+            });
+          }
+          return places;
+        });
+      }
+    }
+    report(Math.max(0, progress.total - progress.done));
+    return laid ? carriedRoutes(input, tree, plan, laid) : undefined;
+  };
+
+  const plan = input.onePass ? planWhole(input, tree) : undefined;
+  let routes: LaidOutRoute[] | undefined;
+  if (plan) {
+    routes = await arrangeWhole(plan);
+  } else {
+    // Innermost first: every container of one depth in one run, then World.
+    for (const levels of tree.levelsByHeight()) await arrange(levels);
+    await arrange([WORLD]);
+  }
 
   stats.totalMs = now() - started;
-  return { shapes: withoutTagRoom(input, placed), stats };
+  return {
+    shapes: withoutTagRoom(input, placed),
+    ...(routes && routes.length > 0 ? { routes } : {}),
+    stats,
+  };
+}
+
+/**
+ * Whether a block left out of the run goes beside what the run arranged, rather than below it: the
+ * way that keeps the two nearer 1.6 times wider than tall, as rows are packed (ADR 0080).
+ */
+function besideIsNearer(arranged: Size, block: Size): boolean {
+  const off = (width: number, height: number) =>
+    Math.abs(Math.log(width / Math.max(1, height) / ROWS_ASPECT));
+  const beside = off(
+    arranged.width + NODE_GAP + block.width,
+    Math.max(arranged.height, block.height),
+  );
+  const below = off(
+    Math.max(arranged.width, block.width),
+    arranged.height + NODE_GAP + block.height,
+  );
+  return beside < below;
+}
+
+/** What one pass over the view runs: see `planWhole`. */
+interface WholePlan {
+  nodes: WholeNode[];
+  edges: WholeEdge[];
+  /** For each of `edges`, the relation of the input it stands for. */
+  relationOf: number[];
+  /** Whether each of `edges` runs between the shapes its relation's line is drawn between. */
+  exact: boolean[];
+  /** The shapes the run holds: those related, and the containers that hold them. */
+  related: Set<number>;
+  /** The levels whose contents the run arranges: World and the containers it holds. */
+  levels: Set<number>;
+}
+
+/**
+ * What one pass over the view gives ELK, or undefined when it should arrange the view level by level
+ * instead: beyond `WHOLE_SHAPES` or `WHOLE_RELATIONS`, with no relation to order anything, or when a
+ * drawing with parts holds shapes to arrange, whose contents go below its picture.
+ *
+ * Every copy of a container shares its contents' places, so the run holds each container's contents
+ * once, in its first copy, and its other copies as shapes of their present size. A relation of the
+ * run ends on the shapes of the first copies that stand for its ends: on a shape that draws rows,
+ * beside the row; on a drawing with parts, at the part; on a container whose contents layout does not
+ * arrange, on it. A relation to a shape layout keeps, inside a container it arranges, orders nothing.
+ */
+function planWhole(input: LayoutInput, tree: Tree): WholePlan | undefined {
+  const { shapes } = input;
+  const count = shapes.length;
+  // The shape of the first copy that stands for each shape.
+  const canon = new Int32Array(count);
+  for (let at = 0; at < count; at++) {
+    const parent = tree.parentOf(at);
+    if (parent === WORLD) {
+      canon[at] = at;
+      continue;
+    }
+    const container = canon[parent] as number;
+    const first = tree.firstCopyOf(shapes[container]?.element as string) ?? container;
+    canon[at] =
+      first === parent ? at : (tree.contentOf(first, shapes[at]?.element as string) ?? at);
+  }
+  const canonical = (at: number) => canon[at] === at;
+  // Whether a shape holds, at some depth, shapes layout moves.
+  const holdsFree = new Uint8Array(count);
+  for (let at = count - 1; at >= 0; at--) {
+    if (!canonical(at)) continue;
+    if (shapes[at]?.free || holdsFree[at]) {
+      const parent = tree.parentOf(at);
+      if (parent !== WORLD) holdsFree[parent] = 1;
+    }
+  }
+  const compound = (at: number) => {
+    const shape = shapes[at];
+    return (
+      shape !== undefined &&
+      canonical(at) &&
+      holdsFree[at] === 1 &&
+      tree.firstCopyOf(shape.element) === at &&
+      shape.headerAt === undefined
+    );
+  };
+  for (let at = 0; at < count; at++) {
+    if (compound(at) && shapes[at]?.pictureBottom !== undefined) return undefined;
+  }
+  const inRun = (at: number) => canonical(at) && (compound(at) || shapes[at]?.free === true);
+
+  const endOf = (end: number, port: LayoutPort | undefined): WholeEnd | undefined => {
+    const at = canon[end] as number;
+    const shape = shapes[at];
+    if (!shape) return undefined;
+    const holder = tree.parentOf(at);
+    const leafHolder = holder !== WORLD && inRun(holder) && !compound(holder);
+    if (shape.rowAt !== undefined) {
+      return leafHolder ? { node: holder, direct: false, at: shape.rowAt } : undefined;
+    }
+    if (shape.partAt !== undefined) {
+      return leafHolder ? { node: holder, direct: false, part: shape.partAt } : undefined;
+    }
+    if (inRun(at)) {
+      return {
+        node: at,
+        direct: true,
+        ...(shape.headerAt === undefined ? {} : { at: shape.headerAt }),
+        ...(port ? { port } : {}),
+      };
+    }
+    let up = holder;
+    while (up !== WORLD && !inRun(up)) up = tree.parentOf(up);
+    if (up === WORLD || compound(up)) return undefined;
+    return { node: up, direct: false };
+  };
+  const holds = (outer: number, inner: number) => {
+    for (let up = tree.parentOf(inner); up !== WORLD; up = tree.parentOf(up)) {
+      if (up === outer) return true;
+    }
+    return false;
+  };
+
+  const edges: WholeEdge[] = [];
+  const relationOf: number[] = [];
+  const exact: boolean[] = [];
+  input.relations.forEach((relation, at) => {
+    const from = endOf(relation.from, relation.fromPort);
+    const to = endOf(relation.to, relation.toPort);
+    if (!from || !to || from.node === to.node) return;
+    if (holds(from.node, to.node) || holds(to.node, from.node)) return;
+    edges.push({ from, to });
+    relationOf.push(at);
+    exact.push(canonical(relation.from) && canonical(relation.to));
+  });
+  if (edges.length === 0 || edges.length > WHOLE_RELATIONS) return undefined;
+
+  const related = new Set<number>();
+  const levels = new Set<number>([WORLD]);
+  for (const edge of edges) {
+    for (const node of [edge.from.node, edge.to.node]) {
+      for (let up = node; up !== WORLD && !related.has(up); up = tree.parentOf(up)) {
+        related.add(up);
+        if (compound(up)) levels.add(up);
+      }
+    }
+  }
+  if (related.size > WHOLE_SHAPES) return undefined;
+  const nodes: WholeNode[] = [];
+  for (let at = 0; at < count; at++) {
+    if (!related.has(at)) continue;
+    const shape = shapes[at] as LayoutInput['shapes'][number];
+    const parent = tree.parentOf(at);
+    nodes.push({
+      shape: at,
+      parent: parent === WORLD ? undefined : parent,
+      compound: compound(at),
+      size: { width: shape.width, height: shape.height },
+      ...(shape.points ? { points: shape.points } : {}),
+    });
+  }
+  return { nodes, edges, relationOf, exact, related, levels };
+}
+
+/** How far the two ends of a route may have landed apart from where ELK put them, each way. */
+const CARRY_REACH = 24;
+
+/**
+ * The routes ELK gave the relations of one pass, where their ends landed: moved with the end they
+ * leave, and carried at the other end by the rounding of its place, its last two bends moved with it.
+ * A route is left out when its ends landed further apart than rounding moves them, as when one sits
+ * in a container layout kept where it was; when it runs through a shape that is not one of its ends;
+ * and for a relation drawn between other copies of its ends.
+ */
+function carriedRoutes(
+  input: LayoutInput,
+  tree: Tree,
+  plan: WholePlan,
+  laid: WholeLaidOut,
+): LaidOutRoute[] {
+  const { shapes } = input;
+  // Where each shape's box lies now relative to World, as the scene will draw it.
+  const boxes = new Map<number, Rect>();
+  const boxOf = (at: number): Rect => {
+    const known = boxes.get(at);
+    if (known) return known;
+    const parent = tree.parentOf(at);
+    const rect = tree.rectOf(at);
+    let x = rect.x;
+    let y = rect.y;
+    if (parent !== WORLD) {
+      const holder = boxOf(parent);
+      x += holder.x + (shapes[parent]?.tagLeft ?? 0);
+      y += holder.y;
+    }
+    const box = { x, y, width: rect.width, height: rect.height };
+    boxes.set(at, box);
+    return box;
+  };
+  const blocks: { at: number; rect: Rect }[] = [];
+  shapes.forEach((shape, at) => {
+    if (shape.rowAt !== undefined || shape.partAt !== undefined) return;
+    if (tree.childrenOf(at).length > 0 && shape.headerAt === undefined) return;
+    const box = boxOf(at);
+    blocks.push({ at, rect: { ...box, x: box.x + (shape.tagLeft ?? 0) } });
+  });
+  const obstacles = input.obstacles;
+  const routes: LaidOutRoute[] = [];
+  plan.edges.forEach((edge, at) => {
+    const route = laid.routes.get(at);
+    const relation = input.relations[plan.relationOf[at] as number];
+    if (!route || !relation || plan.exact[at] !== true || route.length < 2) return;
+    const shift = (node: number): Point | undefined => {
+      const was = laid.rects.get(node);
+      if (!was || shapes[node]?.tagLeft !== undefined) return undefined;
+      const now = boxOf(node);
+      return { x: now.x - was.x, y: now.y - was.y };
+    };
+    const start = shift(edge.from.node);
+    const end = shift(edge.to.node);
+    if (!start || !end) return;
+    const apart = { x: end.x - start.x, y: end.y - start.y };
+    if (Math.abs(apart.x) > CARRY_REACH || Math.abs(apart.y) > CARRY_REACH) return;
+    const points = carried(
+      route.map((point) => ({ x: point.x + start.x, y: point.y + start.y })),
+      apart,
+    );
+    // Through nothing but its ends, and what holds them.
+    const ends = new Set<number>();
+    for (const node of [relation.from, relation.to, edge.from.node, edge.to.node]) {
+      for (let up = node; up !== WORLD; up = tree.parentOf(up)) ends.add(up);
+    }
+    for (let next = 1; next < points.length; next++) {
+      const a = points[next - 1] as Point;
+      const b = points[next] as Point;
+      if (blocks.some((block) => !ends.has(block.at) && segmentThrough(a, b, block.rect))) return;
+      if (obstacles.some((rect) => segmentThrough(a, b, rect))) return;
+    }
+    routes.push({ relation: relation.relation, points });
+  });
+  return routes;
+}
+
+/**
+ * An orthogonal route with its last point moved by `by`: the bend before it moves along with it
+ * across the last segment, so that every segment stays horizontal or vertical. A route of one
+ * segment gets a jog in its middle.
+ */
+export function carried(route: readonly Point[], by: Point): Point[] {
+  const points = route.map((point) => ({ ...point }));
+  if (by.x === 0 && by.y === 0) return points;
+  const last = points[points.length - 1] as Point;
+  const before = points[points.length - 2] as Point;
+  const horizontal = Math.abs(last.y - before.y) < Math.abs(last.x - before.x);
+  if (points.length === 2 && (horizontal ? by.y !== 0 : by.x !== 0)) {
+    const first = points[0] as Point;
+    const end = { x: last.x + by.x, y: last.y + by.y };
+    if (horizontal) {
+      const middle = (first.x + end.x) / 2;
+      return [first, { x: middle, y: first.y }, { x: middle, y: end.y }, end];
+    }
+    const middle = (first.y + end.y) / 2;
+    return [first, { x: first.x, y: middle }, { x: end.x, y: middle }, end];
+  }
+  last.x += by.x;
+  last.y += by.y;
+  if (horizontal) before.y += by.y;
+  else before.x += by.x;
+  return points;
 }
 
 /**
@@ -576,42 +1163,6 @@ export function blockGraph(
     }),
     edges,
   };
-}
-
-/**
- * Where a drawing with parts takes the relations of one of its parts (ADR 0015's clarification): on
- * its side nearest the part's inner point, at the place along that side nearest it, rounded to a
- * unit so that parts close together share a port.
- */
-export function partPort(
-  part: Point,
-  size: Size,
-): { side: LayoutConnectionPoint['side']; along: number; x: number; y: number } {
-  const x = Math.min(size.width, Math.max(0, part.x));
-  const y = Math.min(size.height, Math.max(0, part.y));
-  const away: [LayoutConnectionPoint['side'], number][] = [
-    ['left', x],
-    ['right', size.width - x],
-    ['top', y],
-    ['bottom', size.height - y],
-  ];
-  let [side, nearest] = away[0] as [LayoutConnectionPoint['side'], number];
-  for (const [each, distance] of away) {
-    if (distance < nearest) {
-      side = each;
-      nearest = distance;
-    }
-  }
-  switch (side) {
-    case 'left':
-      return { side, along: Math.round(y), x: 0, y: Math.round(y) };
-    case 'right':
-      return { side, along: Math.round(y), x: size.width, y: Math.round(y) };
-    case 'top':
-      return { side, along: Math.round(x), x: Math.round(x), y: 0 };
-    case 'bottom':
-      return { side, along: Math.round(x), x: Math.round(x), y: size.height };
-  }
 }
 
 /**
@@ -845,6 +1396,8 @@ class Tree {
   keptSizeOf(node: number): Size {
     const shape = this.input.shapes[node];
     if (!shape) return { width: 1, height: 1 };
+    // A container that expands was drawn collapsed, at this size.
+    if (shape.grewFrom) return { ...shape.grewFrom };
     const first = this.firstCopy.get(shape.element);
     if (first === undefined || !this.changed.has(shape.element)) {
       return { width: shape.width, height: shape.height };
@@ -899,7 +1452,13 @@ class Tree {
     }
   }
 
-  private parentOf(node: number): number {
+  /** The first copy of an element that holds contents, which arranges them for every copy. */
+  firstCopyOf(element: string): number | undefined {
+    return this.firstCopy.get(element);
+  }
+
+  /** The shape a shape sits in, or World. */
+  parentOf(node: number): number {
     const parent = this.input.shapes[node]?.parent ?? WORLD;
     return parent >= 0 && parent < node ? parent : WORLD;
   }
@@ -994,7 +1553,7 @@ class Tree {
   private readonly contents = new Map<number, Map<string, number>>();
 
   /** The content of a level's first copy that is a shape of this element. */
-  private contentOf(level: number, element: string): number | undefined {
+  contentOf(level: number, element: string): number | undefined {
     let byElement = this.contents.get(level);
     if (!byElement) {
       byElement = new Map();

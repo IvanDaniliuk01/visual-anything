@@ -5,7 +5,7 @@
  * `set-positions`, unpinned (ADR-0009, ADR-0015).
  */
 import type { Id } from '@visual-anything/schema';
-import type { Rect } from '../geometry';
+import type { Point, Rect, Size } from '../geometry';
 
 /** A named place on the border of a shape where relations attach, as an appearance sets it. */
 export interface LayoutConnectionPoint {
@@ -48,6 +48,12 @@ export interface LayoutShape {
   /** The size the view stores for it, which a shape that holds contents grows beyond to hold them. */
   storedWidth?: number;
   storedHeight?: number;
+  /**
+   * On a container that is expanding (ADR 0080, section 4): the size it was drawn at while collapsed.
+   * The shapes beside it move aside from that size to the one it takes around its contents, and it
+   * may grow toward the free room in its container.
+   */
+  grewFrom?: Size;
   /** For a shape that holds contents: the size its appearance gives it, before it grows to hold them. */
   baseWidth?: number;
   baseHeight?: number;
@@ -96,6 +102,12 @@ export interface LayoutInput {
   relations: LayoutRelation[];
   /** What else sits directly in World and must not be covered: notes and arrows. */
   obstacles: Rect[];
+  /**
+   * Present when layout arranges the view, or a container's contents, in one ELK run while they fit
+   * `WHOLE_SHAPES` and `WHOLE_RELATIONS` (ADR 0080, section 1); absent, as for new shapes, it
+   * arranges each container on its own.
+   */
+  onePass?: true;
 }
 
 /** Where one shape that layout moved goes. */
@@ -112,9 +124,22 @@ export interface LaidOutShape {
   aside?: true;
 }
 
+/**
+ * The route ELK gave a relation's line in one pass over the view, relative to World and carried by
+ * the rounding of its ends' places (ADR 0080, section 2): drawn until a shape it passes, or one of
+ * its ends, moves, and never stored.
+ */
+export interface LaidOutRoute {
+  /** The line's relation, or its key for an aggregated relation, as `LayoutRelation.relation`. */
+  relation: Id;
+  points: Point[];
+}
+
 /** What one layout gives back. */
 export interface LayoutResult {
   shapes: LaidOutShape[];
+  /** The routes ELK gave, when it arranged the view in one pass. */
+  routes?: LaidOutRoute[];
   stats: LayoutStats;
 }
 
@@ -138,6 +163,8 @@ export interface LayoutStats {
   elkMs: number;
   /** How long the whole layout took in the worker. */
   totalMs: number;
+  /** Present when ELK arranged the view in one pass (ADR 0080, section 1). */
+  onePass?: true;
 }
 
 /** How far a layout has come: how many of the containers it arranges, World included, are done. */

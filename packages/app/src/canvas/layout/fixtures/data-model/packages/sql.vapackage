@@ -1,0 +1,187 @@
+{
+  "id": "sql",
+  "name": "SQL fixture",
+  "description": "The components and relation types of the layout fixture.",
+  "version": "1.0.0",
+  "components": [
+    {
+      "id": "sql.schema",
+      "name": "Schema",
+      "derivesFrom": "systems.system"
+    },
+    {
+      "id": "sql.table",
+      "name": "Table",
+      "derivesFrom": "data-modeling.table"
+    },
+    {
+      "id": "sql.view",
+      "name": "Database view",
+      "derivesFrom": "data-modeling.table",
+      "appearance": {
+        "fill": "#E6F4EA",
+        "stroke": "#1E6B43"
+      }
+    },
+    {
+      "id": "sql.materialized-view",
+      "name": "Materialized view",
+      "derivesFrom": "sql.view",
+      "appearance": {
+        "fill": "#D4ECDC"
+      }
+    },
+    {
+      "id": "sql.enum",
+      "name": "Enum",
+      "derivesFrom": "essence",
+      "appearance": {
+        "shape": "rectangle",
+        "fill": "#FFF3C9",
+        "stroke": "#7A5C00",
+        "width": 200,
+        "height": 56
+      }
+    },
+    {
+      "id": "sql.function",
+      "name": "Function",
+      "derivesFrom": "essence",
+      "appearance": {
+        "shape": "rounded-rectangle",
+        "fill": "#EDE4FF",
+        "stroke": "#5B3A9E",
+        "width": 220,
+        "height": 56
+      }
+    },
+    {
+      "id": "sql.trigger",
+      "name": "Trigger",
+      "derivesFrom": "essence",
+      "appearance": {
+        "shape": "ellipse",
+        "fill": "#FBE3EC",
+        "stroke": "#8A1F4C",
+        "width": 200,
+        "height": 56
+      }
+    }
+  ],
+  "relationTypes": [
+    {
+      "id": "sql.reads-from",
+      "name": "reads from",
+      "derivesFrom": "relates-to",
+      "direction": "directed",
+      "appearance": {
+        "stroke": "#1E6B43",
+        "width": 1.5,
+        "dash": "dashed"
+      },
+      "limits": {
+        "from": [
+          "sql.view"
+        ],
+        "to": [
+          "data-modeling.table"
+        ]
+      }
+    },
+    {
+      "id": "sql.fires-on",
+      "name": "fires on",
+      "derivesFrom": "relates-to",
+      "direction": "directed",
+      "appearance": {
+        "stroke": "#8A1F4C",
+        "width": 1.5,
+        "dash": "solid"
+      },
+      "limits": {
+        "from": [
+          "sql.trigger"
+        ],
+        "to": [
+          "data-modeling.table"
+        ]
+      }
+    },
+    {
+      "id": "sql.runs",
+      "name": "runs",
+      "derivesFrom": "relates-to",
+      "direction": "directed",
+      "appearance": {
+        "stroke": "#5B3A9E",
+        "width": 1.5,
+        "dash": "solid"
+      },
+      "limits": {
+        "from": [
+          "sql.trigger"
+        ],
+        "to": [
+          "sql.function"
+        ]
+      }
+    },
+    {
+      "id": "sql.uses-type",
+      "name": "uses type",
+      "derivesFrom": "relates-to",
+      "direction": "directed",
+      "appearance": {
+        "stroke": "#7A5C00",
+        "width": 1.5,
+        "dash": "dotted"
+      },
+      "limits": {
+        "from": [
+          "data-modeling.column"
+        ],
+        "to": [
+          "sql.enum"
+        ]
+      }
+    },
+    {
+      "id": "sql.reads",
+      "name": "reads",
+      "derivesFrom": "relates-to",
+      "direction": "directed",
+      "appearance": {
+        "stroke": "#5B3A9E",
+        "width": 1.5,
+        "dash": "dashed"
+      },
+      "limits": {
+        "from": [
+          "sql.function"
+        ],
+        "to": [
+          "data-modeling.table"
+        ]
+      }
+    },
+    {
+      "id": "sql.writes",
+      "name": "writes",
+      "derivesFrom": "relates-to",
+      "direction": "directed",
+      "appearance": {
+        "stroke": "#5B3A9E",
+        "width": 2,
+        "dash": "solid"
+      },
+      "limits": {
+        "from": [
+          "sql.function"
+        ],
+        "to": [
+          "data-modeling.table"
+        ]
+      }
+    }
+  ]
+}

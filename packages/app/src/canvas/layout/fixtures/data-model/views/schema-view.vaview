@@ -1,0 +1,333 @@
+{
+  "id": "schema-view",
+  "name": "Schema view",
+  "nestingRelationTypes": [
+    "systems.is-part-of",
+    "data-modeling.is-column-of"
+  ],
+  "positions": [
+    {
+      "element": "database-01",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "table-23",
+      "container": "schema-e",
+      "x": 1624,
+      "y": 2200
+    },
+    {
+      "element": "table-24",
+      "container": "schema-e",
+      "x": 384,
+      "y": 48
+    },
+    {
+      "element": "table-25",
+      "container": "schema-e",
+      "x": 3008,
+      "y": 272
+    },
+    {
+      "element": "table-26",
+      "container": "schema-e",
+      "x": 3008,
+      "y": 48
+    },
+    {
+      "element": "table-27",
+      "container": "schema-e",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "table-28",
+      "container": "schema-e",
+      "x": 824,
+      "y": 472
+    },
+    {
+      "element": "table-29",
+      "container": "schema-e",
+      "x": 824,
+      "y": 1368
+    },
+    {
+      "element": "table-30",
+      "container": "schema-e",
+      "x": 824,
+      "y": 928
+    },
+    {
+      "element": "table-31",
+      "container": "schema-e",
+      "x": 1464,
+      "y": 48
+    },
+    {
+      "element": "table-32",
+      "container": "schema-e",
+      "x": 1104,
+      "y": 48
+    },
+    {
+      "element": "table-33",
+      "container": "schema-e",
+      "x": 1824,
+      "y": 48
+    },
+    {
+      "element": "table-34",
+      "container": "schema-e",
+      "x": 2184,
+      "y": 48
+    },
+    {
+      "element": "table-35",
+      "container": "schema-e",
+      "x": 424,
+      "y": 2056
+    },
+    {
+      "element": "table-36",
+      "container": "schema-e",
+      "x": 24,
+      "y": 2056
+    },
+    {
+      "element": "table-37",
+      "container": "schema-e",
+      "x": 2544,
+      "y": 48
+    },
+    {
+      "element": "table-38",
+      "container": "schema-e",
+      "x": 1224,
+      "y": 2080
+    },
+    {
+      "element": "table-39",
+      "container": "schema-e",
+      "x": 824,
+      "y": 2584
+    },
+    {
+      "element": "table-40",
+      "container": "schema-e",
+      "x": 744,
+      "y": 48
+    },
+    {
+      "element": "table-41",
+      "container": "schema-e",
+      "x": 1224,
+      "y": 2680
+    },
+    {
+      "element": "table-42",
+      "container": "schema-e",
+      "x": 824,
+      "y": 1872
+    },
+    {
+      "element": "table-43",
+      "container": "schema-e",
+      "x": 1224,
+      "y": 1712
+    },
+    {
+      "element": "table-44",
+      "container": "schema-e",
+      "x": 1624,
+      "y": 1712
+    },
+    {
+      "element": "table-45",
+      "container": "schema-e",
+      "x": 1224,
+      "y": 976
+    },
+    {
+      "element": "table-46",
+      "container": "schema-e",
+      "x": 2024,
+      "y": 1712
+    },
+    {
+      "element": "function-10",
+      "container": "schema-e",
+      "x": 2984,
+      "y": 976
+    },
+    {
+      "element": "trigger-15",
+      "container": "schema-e",
+      "x": 2704,
+      "y": 3544
+    },
+    {
+      "element": "trigger-16",
+      "container": "schema-e",
+      "x": 2704,
+      "y": 464
+    },
+    {
+      "element": "trigger-17",
+      "container": "schema-e",
+      "x": 3024,
+      "y": 48
+    },
+    {
+      "element": "trigger-18",
+      "container": "schema-e",
+      "x": 2704,
+      "y": 704
+    },
+    {
+      "element": "trigger-19",
+      "container": "schema-e",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "trigger-20",
+      "container": "schema-e",
+      "x": 584,
+      "y": 48
+    },
+    {
+      "element": "trigger-21",
+      "container": "schema-e",
+      "x": 1144,
+      "y": 48
+    },
+    {
+      "element": "trigger-22",
+      "container": "schema-e",
+      "x": 2384,
+      "y": 112
+    },
+    {
+      "element": "trigger-23",
+      "container": "schema-e",
+      "x": 2704,
+      "y": 1088
+    },
+    {
+      "element": "trigger-24",
+      "container": "schema-e",
+      "x": 2704,
+      "y": 992
+    },
+    {
+      "element": "trigger-25",
+      "container": "schema-e",
+      "x": 3344,
+      "y": 368
+    },
+    {
+      "element": "schema-e",
+      "container": "database-01",
+      "x": 24,
+      "y": 48
+    }
+  ],
+  "freeShapes": [],
+  "scope": {
+    "include": [
+      {
+        "kind": "contents",
+        "container": "schema-e"
+      }
+    ],
+    "exclude": [
+      {
+        "kind": "component",
+        "component": "sql.trigger"
+      },
+      {
+        "kind": "component",
+        "component": "sql.function"
+      }
+    ],
+    "added": [
+      "database-01"
+    ],
+    "leftOut": [
+      "column-0222",
+      "column-0224",
+      "column-0223",
+      "column-0231",
+      "column-0233",
+      "column-0232",
+      "column-0236",
+      "column-0238",
+      "column-0237",
+      "column-0246",
+      "column-0248",
+      "column-0247",
+      "column-0252",
+      "column-0254",
+      "column-0253",
+      "column-0269",
+      "column-0271",
+      "column-0270",
+      "column-0282",
+      "column-0284",
+      "column-0283",
+      "column-0301",
+      "column-0303",
+      "column-0302",
+      "column-0309",
+      "column-0311",
+      "column-0310",
+      "column-0318",
+      "column-0320",
+      "column-0319",
+      "column-0327",
+      "column-0329",
+      "column-0328",
+      "column-0333",
+      "column-0335",
+      "column-0334",
+      "column-0348",
+      "column-0350",
+      "column-0349",
+      "column-0357",
+      "column-0359",
+      "column-0358",
+      "column-0368",
+      "column-0370",
+      "column-0369",
+      "column-0391",
+      "column-0393",
+      "column-0392",
+      "column-0405",
+      "column-0407",
+      "column-0406",
+      "column-0412",
+      "column-0414",
+      "column-0413",
+      "column-0423",
+      "column-0425",
+      "column-0424",
+      "column-0432",
+      "column-0434",
+      "column-0433",
+      "column-0444",
+      "column-0446",
+      "column-0445",
+      "column-0453",
+      "column-0455",
+      "column-0454",
+      "column-0471",
+      "column-0473",
+      "column-0472",
+      "column-0491",
+      "column-0493",
+      "column-0492"
+    ]
+  }
+}

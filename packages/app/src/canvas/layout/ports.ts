@@ -91,3 +91,39 @@ export function pointToward(
   });
   return best;
 }
+
+/**
+ * Where a drawing with parts takes the relations of one of its parts (ADR 0015's clarification): on
+ * its side nearest the part's inner point, at the place along that side nearest it, rounded to a
+ * unit so that parts close together share a port.
+ */
+export function partPort(
+  part: Point,
+  size: Size,
+): { side: LayoutConnectionPoint['side']; along: number; x: number; y: number } {
+  const x = Math.min(size.width, Math.max(0, part.x));
+  const y = Math.min(size.height, Math.max(0, part.y));
+  const away: [LayoutConnectionPoint['side'], number][] = [
+    ['left', x],
+    ['right', size.width - x],
+    ['top', y],
+    ['bottom', size.height - y],
+  ];
+  let [side, nearest] = away[0] as [LayoutConnectionPoint['side'], number];
+  for (const [each, distance] of away) {
+    if (distance < nearest) {
+      side = each;
+      nearest = distance;
+    }
+  }
+  switch (side) {
+    case 'left':
+      return { side, along: Math.round(y), x: 0, y: Math.round(y) };
+    case 'right':
+      return { side, along: Math.round(y), x: size.width, y: Math.round(y) };
+    case 'top':
+      return { side, along: Math.round(x), x: Math.round(x), y: 0 };
+    case 'bottom':
+      return { side, along: Math.round(x), x: Math.round(x), y: size.height };
+  }
+}
