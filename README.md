@@ -112,6 +112,30 @@ my-metrics-script | visual-anything live <folder> [--fresh-for <seconds>]
 
 A running system's numbers, such as a service's latency now, can show over the attributes they name while the project is open (ADR 0057): in the detail of shapes, in filters and in the inspector, each with a live mark (● on the canvas) and its age, fading (○, with how old it is) once older than its freshness, one minute by default. They are never saved and never enter the history; the inspector's Keep as attribute turns one into an ordinary, undoable edit. `visual-anything live` reads them from standard input, one JSON object a line, `{"target": "api", "attribute": "latency", "value": 120}`, with `"measuredAt"` when known, and sends them to the Visual Anything running on the folder. Claude sends them with `set_live_values`, and package code granted an origin makes them of what the local program fetched for it from that origin (ADR 0063).
 
+## Merging project files with git
+
+Git merges JSON line by line: two branches that each add elements to one model file meet in a conflict, and the markers git writes break the file. The merge driver merges the project files by id instead (ADR 0072). Changes to different elements, or to different values of one, join; what both sides changed differently stays in the file as conflicts, kept as data, and the file still opens. Install it once in each repository, in a terminal at its top:
+
+```sh
+visual-anything merge-driver --install [--global] [--no-attributes]
+```
+
+From a checkout of Visual Anything, run `<checkout>/node_modules/.bin/tsx <checkout>/packages/server/src/cli.ts merge-driver --install` in the repository to install it in, or `pnpm exec tsx packages/server/src/cli.ts merge-driver --install` for the checkout itself. It defines the driver in the repository's git configuration (`merge.visual-anything.name` and `merge.visual-anything.driver`), or in your own with `--global` for every repository, and adds the seven lines that name it to the repository's `.gitattributes` where they are missing, unless `--no-attributes`:
+
+```gitattributes
+*.vaproject merge=visual-anything
+*.vamodel merge=visual-anything
+*.vapackage merge=visual-anything
+*.vaview merge=visual-anything
+*.vascenario merge=visual-anything
+*.vatour merge=visual-anything
+*.vacomment merge=visual-anything
+```
+
+Commit `.gitattributes`, so that everyone who installs the driver merges the same way. Those lines alone do nothing: git runs a merge driver only when your own configuration defines it, so a repository you clone can never make git run anything through them. Nothing in Visual Anything installs the driver but this command.
+
+The driver's command names this very program by its absolute path: the executable, or Node with the loaders it was started with and the program's entry. Install it again after you move or update the executable, or after the checkout's dependencies change. Git then runs it on its own as `merge-driver %O %A %B %P %X %Y` for each project file both branches changed; it reads only the three versions git gives it, writes only the merged file, and runs no program. When conflicts remain, git stops the merge with that file unmerged: open the project, resolve the conflicts in the Changes tab, then `git add` the file. A version that does not read, such as one that is not valid JSON, is not merged: ours stays as it was, and `git checkout --theirs -- <path>` takes theirs instead. `visual-anything merge-driver --uninstall [--global]` takes the definition out again and leaves `.gitattributes` as it is.
+
 ## Claude through MCP
 
 Claude works on the project Visual Anything has open through an MCP server that Claude Code or Claude Desktop starts. It attaches to the Visual Anything running on the project, and starts one in the background when none runs, which stops by itself once nothing has been connected to it for a minute. Every change Claude makes is one action in your undo history, labelled Claude, and you undo it in the app like your own. Claude's guidance (highlights, focus, moves of the canvas and captions) shows while the app is open; ask Claude to open it.

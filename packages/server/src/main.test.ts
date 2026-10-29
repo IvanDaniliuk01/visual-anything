@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MCP_USAGE } from './claude/mcp';
 import { DEV_IN_EXECUTABLE } from './executable';
-import { browserOpener, entryOf, runMcp, runProgram } from './main';
+import { browserOpener, entryOf, MERGE_DRIVER_COMMAND, runMcp, runProgram } from './main';
+import { MERGE_DRIVER_COMMAND as DRIVER_SUBCOMMAND } from './merge-driver';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -31,6 +32,24 @@ describe('entryOf', () => {
       kind: 'mcp',
       argv: ['C:/projects/shop'],
     });
+  });
+
+  it('runs the merge driver for the merge-driver subcommand, with every argument after it', () => {
+    expect(
+      entryOf(['merge-driver', '.merge_file_a', '.merge_file_b', '.merge_file_c', 'm.vamodel']),
+    ).toEqual({
+      kind: 'merge-driver',
+      argv: ['.merge_file_a', '.merge_file_b', '.merge_file_c', 'm.vamodel'],
+    });
+    expect(entryOf(['merge-driver', '--install', '--global'])).toEqual({
+      kind: 'merge-driver',
+      argv: ['--install', '--global'],
+    });
+    expect(entryOf(['./merge-driver'])).toEqual({ kind: 'program', argv: ['./merge-driver'] });
+  });
+
+  it('names the merge driver in its command as main dispatches it', () => {
+    expect(MERGE_DRIVER_COMMAND).toBe(DRIVER_SUBCOMMAND);
   });
 
   it('opens a folder named mcp when it is written as a path', () => {
