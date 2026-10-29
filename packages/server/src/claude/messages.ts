@@ -4,14 +4,17 @@
  * and it accepts only these messages: commands, which always run with Claude as their author;
  * guidance for the open apps; a request to open the app in the browser; a question about which
  * package code the person approved, which Claude can never approve itself (ADR 0054); live values,
- * set, cleared and read back, which are never saved (ADR 0057); and an import the person ran on the
- * command line, which carries a file, never a command, and runs as the person's (ADR-0049). Undo, redo
- * and preferences are the person's, and are refused.
+ * set, cleared and read back, which are never saved (ADR 0057); an import the person ran on the
+ * command line, which carries a file, never a command, and runs as the person's (ADR-0049); the
+ * versions the program lists, and the comparison of one with the project now (ADR 0071); and the
+ * withdrawal of Claude's own proposal (ADR 0073). Undo, redo, preferences, and accepting or refusing
+ * a proposal are the person's, and are refused.
  *
  * The program answers with the live protocol's own messages (`project/opened`, `project/changed`,
- * `command/rejected`, `project/reloaded`, `live/kept`), so the MCP entry point keeps its copy of the
- * project in step exactly as an app does, plus answers of its own: `guidance/shown`, `app/opened`,
- * `code/approvals`, `live/cleared` and `live/listed`.
+ * `command/rejected`, `project/reloaded`, `live/kept`, `versions/listed`, `version/compared`,
+ * `version/refused`, `proposal/shown`, `proposal/closed`), so the MCP entry point keeps its copy of
+ * the project in step exactly as an app does, plus answers of its own: `guidance/shown`,
+ * `app/opened`, `code/approvals`, `live/cleared`, `live/listed` and `proposal/made`.
  */
 import {
   FRESHNESS,
@@ -21,6 +24,7 @@ import {
   checkViewState,
   decodeServerMessage,
   isId,
+  readVersionRef,
   isLiveAttributeName,
   readCodeApprovals,
   readFreshFor,
@@ -30,7 +34,9 @@ import {
   type Command,
   type Guidance,
   type LiveValue,
+  type Problem,
   type ServerMessage,
+  type VersionRef,
   type ViewState,
 } from '@visual-anything/core';
 import type { ImportRequest } from '../import';
@@ -48,8 +54,20 @@ const MAX_REQUEST_ID = 100;
 
 /** A message Claude may send. */
 export type ClaudeMessage =
-  /** Runs a command with Claude as its author: one undoable action. */
-  | { type: 'command'; requestId: string; command: Command }
+  /**
+   * Runs a command with Claude as its author: one undoable action, or, while the person reviews
+   * Claude's changes or with `propose`, a change that joins Claude's proposal (ADR 0073).
+   */
+  | { type: 'command'; requestId: string; command: Command; propose?: boolean }
+  /** Closes Claude's own proposal, if one waits; answered with `proposal/closed`. */
+  | { type: 'proposal/withdraw'; requestId: string }
+  /** Asks for the versions the program lists (ADR 0071); answered with `versions/listed`. */
+  | { type: 'versions/list'; requestId: string }
+  /**
+   * Asks to compare a version, as the program listed it, with the project now; answered with
+   * `version/compared` or `version/refused`.
+   */
+  | { type: 'version/compare'; requestId: string; version: VersionRef; view?: Id }
   /** Shows guidance in every open app. */
   | { type: 'guidance'; requestId: string; guidance: Guidance }
   /**
@@ -161,6 +179,25 @@ export interface AppOpenedMessage {
   requestId: string;
 }
 
+/**
+ * The answer to a command that joined Claude's proposal rather than applying (ADR 0073): the call
+ * answers at once, and never waits for the person.
+ */
+export interface ProposalMadeMessage {
+  type: 'proposal/made';
+  requestId: string;
+  proposal: Id;
+  /** The command's label, as the history would name it. */
+  label: string;
+  /** The keys of the proposal's changes so far. */
+  changes: string[];
+  /** The ids the command would create, which accepting keeps. */
+  created: Id[];
+  warnings: Problem[];
+  /** How many apps are open to review it; none means `open_app` opens one. */
+  apps: number;
+}
+
 /** A message the program sends to Claude. */
 export type ProgramMessage =
   | ServerMessage
@@ -168,7 +205,8 @@ export type ProgramMessage =
   | AppOpenedMessage
   | CodeApprovalsMessage
   | LiveClearedMessage
-  | LiveListedMessage;
+  | LiveListedMessage
+  | ProposalMadeMessage;
 
 /** Writes a message for the Claude endpoint. */
 export function encodeClaudeMessage(message: ClaudeMessage | ProgramMessage): string {
@@ -188,7 +226,32 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
       if (!isRecord(message.command) || typeof message.command.type !== 'string') {
         throw new ProtocolError('The message has no command.');
       }
-      return { type: 'command', requestId, command: message.command as unknown as Command };
+      if (message.propose !== undefined && typeof message.propose !== 'boolean') {
+        throw new ProtocolError('Whether a command is proposed is true or false.');
+      }
+      return {
+        type: 'command',
+        requestId,
+        command: message.command as unknown as Command,
+        ...(message.propose === true ? { propose: true } : {}),
+      };
+    case 'proposal/withdraw':
+      return { type: 'proposal/withdraw', requestId };
+    case 'versions/list':
+      return { type: 'versions/list', requestId };
+    case 'version/compare': {
+      const version = readVersionRef(message.version);
+      if (!version.ok) throw new ProtocolError(version.reason);
+      if (message.view !== undefined && !isId(message.view)) {
+        throw new ProtocolError('The view to compare is named by its id.');
+      }
+      return {
+        type: 'version/compare',
+        requestId,
+        version: version.message,
+        ...(message.view === undefined ? {} : { view: message.view }),
+      };
+    }
     case 'guidance':
       return { type: 'guidance', requestId, guidance: readGuidance(message.guidance) };
     case 'import':
@@ -209,7 +272,7 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
       return readLiveList(message, requestId);
     default:
       throw new ProtocolError(
-        `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance, opening the app, asking which package code is approved, live values and imports from the command line. Undo, redo and preferences are the person's, in the app.`,
+        `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance, opening the app, asking which package code is approved, live values, versions, withdrawing a proposal and imports from the command line. Undo, redo, preferences, and accepting or refusing a proposal are the person's, in the app.`,
       );
   }
 }
@@ -248,6 +311,8 @@ export function decodeProgramMessage(text: string): ProgramMessage {
     }
     case 'live/listed':
       return readLiveListed(message);
+    case 'proposal/made':
+      return readProposalMade(message);
     default:
       return decodeServerMessage(text);
   }
@@ -371,6 +436,35 @@ function readLiveSummary(value: unknown): LiveSummary {
     stale,
     attributes: counts,
     ...(otherAttributes === undefined ? {} : { otherAttributes }),
+  };
+}
+
+/** Reads the answer to a proposed command strictly. */
+function readProposalMade(message: Record<string, unknown>): ProposalMadeMessage {
+  const requestId = requestIdOf(message);
+  const { proposal, label, changes, created, warnings, apps } = message;
+  if (
+    requestId === undefined ||
+    !isId(proposal) ||
+    typeof label !== 'string' ||
+    !Array.isArray(changes) ||
+    !changes.every((each) => typeof each === 'string') ||
+    !Array.isArray(created) ||
+    !created.every(isId) ||
+    !Array.isArray(warnings) ||
+    !isCount(apps)
+  ) {
+    throw new ProtocolError('The answer to a proposed command is not valid.');
+  }
+  return {
+    type: 'proposal/made',
+    requestId,
+    proposal,
+    label,
+    changes: [...changes],
+    created: [...created],
+    warnings: warnings as Problem[],
+    apps,
   };
 }
 

@@ -53,6 +53,12 @@ export interface MergePolicy {
   kept: 'ours' | 'theirs';
   /** How the list at this path, inside the item, merges, where it is not a list of things with ids. */
   lists?: (path: readonly string[]) => ListRule | undefined;
+  /**
+   * Whether the kept side's removal stays where the other side changed what it removed, as in a
+   * proposal, whose removals wait for the person's choice like its other changes (ADR 0073). Without
+   * it, the change stays, which loses least.
+   */
+  keptWins?: boolean;
 }
 
 /** An item merged: its value, absent when it was removed, and what could not be joined. */
@@ -95,9 +101,16 @@ function mergeValue(
     });
     return kept === 'ours' ? ours : theirs;
   };
-  // Removed on one side and changed on the other: the change stays.
-  if (ours === undefined) return conflict('removed-and-changed', 'theirs');
-  if (theirs === undefined) return conflict('removed-and-changed', 'ours');
+  // Removed on one side and changed on the other: the change stays, unless the kept side removed it
+  // and wins.
+  const removalStays = (side: 'ours' | 'theirs') =>
+    policy.keptWins === true && policy.kept === side;
+  if (ours === undefined) {
+    return conflict('removed-and-changed', removalStays('ours') ? 'ours' : 'theirs');
+  }
+  if (theirs === undefined) {
+    return conflict('removed-and-changed', removalStays('theirs') ? 'theirs' : 'ours');
+  }
   // Both added the item, differently.
   if (base === undefined && path.length === 0) return conflict('both-added', policy.kept);
   if (isObject(ours) && isObject(theirs) && (base === undefined || isObject(base))) {
@@ -262,6 +275,8 @@ export interface FileMergeOptions {
   sides?: ConflictSides;
   /** Whose value stays in place in a conflict; ours unless said. */
   kept?: 'ours' | 'theirs';
+  /** Whether the kept side's removals stay over the other side's changes too, as in a proposal. */
+  keptWins?: boolean;
   /**
    * The relation types that nest, which a model's merge reads to keep containment without a cycle.
    * A model file alone does not say which nest, so without them no cycle is looked for.
@@ -286,7 +301,11 @@ export function mergeFile<K extends FileKind>(
   theirs: FileContentByKind[K],
   options: FileMergeOptions = {},
 ): MergedFile<K> {
-  const policy: MergePolicy = { kept: options.kept ?? 'ours', lists: listsOf(kind) };
+  const policy: MergePolicy = {
+    kept: options.kept ?? 'ours',
+    lists: listsOf(kind),
+    ...(options.keptWins === true ? { keptWins: true } : {}),
+  };
   const found: { item: string; conflict: ItemConflict }[] = [];
   const add = (item: string) => (conflict: ItemConflict) => found.push({ item, conflict });
   let file: unknown;
@@ -756,6 +775,12 @@ function mergeModel(
   const restored = new Set<Id>();
   const needed = new Set<Id>();
   const worldId = ((world.value ?? ours.world) as unknown as Element).id;
+  const keptSide = policy.kept === 'ours' ? ours : theirs;
+  const keptIds = new Set([
+    keptSide.world.id,
+    ...keptSide.elements.map(byId),
+    ...keptSide.relations.map(byId),
+  ]);
   for (;;) {
     const ids = new Set([worldId, ...merged.elements.map(byId), ...merged.relations.map(byId)]);
     let changed = false;
@@ -768,7 +793,10 @@ function mergeModel(
       }
       const unchanged =
         !needed.has(relation.id) && sameValue(olderRelations.get(relation.id), relation);
-      if (unchanged) {
+      // Where the kept side wins, what it removed takes the other side's relations that end on it
+      // too, as delete takes them.
+      const takenByKept = policy.keptWins === true && missing.some((end) => !keptIds.has(end));
+      if (unchanged || takenByKept) {
         changed = true;
         continue;
       }
@@ -849,7 +877,10 @@ function mergeModel(
             !(policy.kept === 'ours' ? ours : theirs).relations.some(
               (each) => each.id === relation.id,
             ),
-        ) ?? cycle[cycle.length - 1];
+        ) ??
+        // Where the kept side wins, none of its relations goes: a cycle that the other side closed
+        // by another change, such as of a definition, stays for its check to refuse.
+        (policy.keptWins === true ? undefined : cycle[cycle.length - 1]);
       if (!added) break;
       relations = relations.filter((each) => each.id !== added.id);
       add(`relation:${added.id}`)({

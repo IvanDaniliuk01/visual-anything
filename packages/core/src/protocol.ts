@@ -34,6 +34,24 @@ import type { PreferenceChanges, Preferences } from './preferences';
 import type { Problem } from './problems';
 import type { ProjectSnapshot } from './snapshot';
 import { checkTimeRange, type ViewTimeRange } from './time-range';
+import {
+  readListedVersions,
+  readProposalAccept,
+  readProposalRefuse,
+  readVersionCompare,
+  readVersionRef,
+  type ProposalAcceptMessage,
+  type ProposalClosedMessage,
+  type ProposalRefuseMessage,
+  type ProposalShownMessage,
+  type VersionCompareMessage,
+  type VersionComparedMessage,
+  type VersionMessageRead,
+  type VersionRef,
+  type VersionRefusedMessage,
+  type VersionsListMessage,
+  type VersionsListedMessage,
+} from './versions/messages';
 
 /**
  * The version of the live protocol; the app and the local program must agree on it, so that one from
@@ -53,7 +71,9 @@ import { checkTimeRange, type ViewTimeRange } from './time-range';
  *    ADR 0067, ADR 0069), which an app of version 6 would draw without; and making a drawing of
  *    HTML (ADR 0068), `drawing/make` and its answer `drawing/made`, in 7 too, since no build of 7
  *    shipped. Playback guidance that chooses an alternative at a decision, and that opens, plays or
- *    goes to a step with choices (ADR 0078), came in 7 as well, for the same reason.
+ *    goes to a step with choices (ADR 0078), came in 7 as well, for the same reason. So did versions
+ *    and proposals (M11b, ADR 0071, ADR 0073): `versions/list` and `version/compare` with their
+ *    answers, the proposal shown, accepted, refused and closed, and the guidance `comparison`.
  */
 export const PROTOCOL_VERSION = 7;
 
@@ -96,7 +116,12 @@ export type ServerMessage =
   | LiveValuesMessage
   | LiveKeptMessage
   | LiveFetchedMessage
-  | DrawingMadeMessage;
+  | DrawingMadeMessage
+  | VersionsListedMessage
+  | VersionComparedMessage
+  | VersionRefusedMessage
+  | ProposalShownMessage
+  | ProposalClosedMessage;
 
 /**
  * Sent in place of `project/opened` while the local program runs on a folder that holds no project yet
@@ -261,7 +286,21 @@ export type Guidance =
    * step at `step`, an index among the tour's steps from 0, or from its first. The person moves
    * through it and ends it with Escape, as always; playing it changes nothing.
    */
-  | { kind: 'tour'; tour: Id; step?: number };
+  | { kind: 'tour'; tour: Id; step?: number }
+  /**
+   * Compares a version with the project now, as if the person had chosen it in Compare with… (ADR
+   * 0070): the app asks the program for it, then draws the open view, or `view`, as `show` says,
+   * the comparison by default. The version is named only as the program listed it (ADR 0071).
+   */
+  | {
+      kind: 'comparison';
+      version: VersionRef;
+      view?: Id;
+      show?: (typeof COMPARISON_DRAWINGS)[number];
+    };
+
+/** How a comparison is drawn: the older version, the newer one, or the two with what changed. */
+export const COMPARISON_DRAWINGS = ['before', 'after', 'comparison'] as const;
 
 /** What filters hide in a view, as the app's explorer holds them (ADR-0025), in lists. */
 export interface GuidedFilters {
@@ -409,6 +448,20 @@ export function readGuidance(value: unknown): Guidance {
         throw new ProtocolError('A tour plays from the index of one of its steps, from 0.');
       }
       return { kind: 'tour', tour: value.tour, step: step as number };
+    }
+    case 'comparison': {
+      const version = readVersionRef(value.version);
+      if (!version.ok) throw new ProtocolError(version.reason);
+      const { show } = value;
+      if (show !== undefined && !COMPARISON_DRAWINGS.some((each) => each === show)) {
+        throw new ProtocolError(`A comparison shows one of: ${COMPARISON_DRAWINGS.join(', ')}.`);
+      }
+      return {
+        kind: 'comparison',
+        version: version.message,
+        ...view(),
+        ...(show === undefined ? {} : { show: show as (typeof COMPARISON_DRAWINGS)[number] }),
+      };
     }
     default:
       throw new ProtocolError(`Unknown kind of guidance: ${JSON.stringify(value.kind)}.`);
@@ -616,7 +669,11 @@ export type AppMessage =
   | OpenOtherProjectMessage
   | LiveFetchMessage
   | LiveSetMessage
-  | DrawingMakeMessage;
+  | DrawingMakeMessage
+  | VersionsListMessage
+  | VersionCompareMessage
+  | ProposalAcceptMessage
+  | ProposalRefuseMessage;
 
 /** The longest name the start screen may give a new project or its first view. */
 export const MAX_START_NAME = 200;
@@ -700,6 +757,11 @@ const SERVER_TYPES = new Set<string>([
   'live/kept',
   'live/fetched',
   'drawing/made',
+  'versions/listed',
+  'version/compared',
+  'version/refused',
+  'proposal/shown',
+  'proposal/closed',
 ]);
 
 /**
@@ -757,6 +819,12 @@ export function decodeServerMessage(text: string): ServerMessage {
       }
       return readDrawing(readDrawingMade(message, requestId));
     }
+    case 'versions/listed':
+    case 'version/compared':
+    case 'version/refused':
+    case 'proposal/shown':
+    case 'proposal/closed':
+      return readVersionsAnswer(message, message.type);
   }
   return message as unknown as ServerMessage;
 }
@@ -828,9 +896,98 @@ export function decodeAppMessage(text: string): AppMessage {
       return asProtocolError(() => readLiveSetMessage(message, message.requestId as string));
     case 'drawing/make':
       return readDrawing(readDrawingMake(message, message.requestId));
+    case 'versions/list':
+      return { type: 'versions/list', requestId: message.requestId };
+    case 'version/compare':
+      return readVersion(readVersionCompare(message, message.requestId));
+    case 'proposal/accept':
+      return readVersion(readProposalAccept(message, message.requestId));
+    case 'proposal/refuse':
+      return readVersion(readProposalRefuse(message, message.requestId));
     default:
       throw new ProtocolError(`Unknown message type: ${JSON.stringify(message.type)}.`);
   }
+}
+
+/** A message about versions or proposals, or the {@link ProtocolError} of why it cannot be read. */
+function readVersion<T>(read: VersionMessageRead<T>): T {
+  if (!read.ok) throw new ProtocolError(read.reason);
+  return read.message;
+}
+
+/**
+ * Reads what the program sends about versions and proposals by its envelope: the program worked out
+ * the projects, comparisons and operations it carries. The versions listed, shown as text, are read
+ * strictly.
+ */
+function readVersionsAnswer(
+  message: Record<string, unknown>,
+  type:
+    | 'versions/listed'
+    | 'version/compared'
+    | 'version/refused'
+    | 'proposal/shown'
+    | 'proposal/closed',
+): ServerMessage {
+  const { requestId } = message;
+  const answers =
+    typeof requestId === 'string' && requestId !== '' && requestId.length <= MAX_REQUEST_ID;
+  switch (type) {
+    case 'versions/listed': {
+      if (!answers) throw new ProtocolError('The answer has no valid request id.');
+      const versions = readVersion(readListedVersions(message.versions));
+      if (message.why !== undefined && typeof message.why !== 'string') {
+        throw new ProtocolError('Why no version was listed is said in words.');
+      }
+      return {
+        type,
+        requestId,
+        versions,
+        ...(message.why === undefined ? {} : { why: message.why }),
+      };
+    }
+    case 'version/compared': {
+      if (!answers) throw new ProtocolError('The answer has no valid request id.');
+      const version = readVersion(readVersionRef(message.version));
+      if (
+        !isRecord(message.comparison) ||
+        !Array.isArray(message.comparison.changes) ||
+        (message.project !== undefined && !isRecord(message.project))
+      ) {
+        throw new ProtocolError('The comparison has no changes, or a project that is not one.');
+      }
+      return { ...(message as unknown as VersionComparedMessage), version };
+    }
+    case 'version/refused':
+      if (!answers || !Array.isArray(message.problems)) {
+        throw new ProtocolError('The refusal names its request and its problems.');
+      }
+      break;
+    case 'proposal/shown': {
+      const proposal = message.proposal;
+      if (
+        !isRecord(proposal) ||
+        !isId(proposal.id) ||
+        !Array.isArray(proposal.operations) ||
+        !Array.isArray(proposal.changes) ||
+        !Array.isArray(proposal.labels)
+      ) {
+        throw new ProtocolError('The proposal shown has its id, labels, operations and changes.');
+      }
+      break;
+    }
+    case 'proposal/closed': {
+      const { how } = message;
+      if (
+        !isId(message.proposal) ||
+        (how !== 'accepted' && how !== 'refused' && how !== 'withdrawn' && how !== 'dropped')
+      ) {
+        throw new ProtocolError('The proposal closed is named, with how it closed.');
+      }
+      break;
+    }
+  }
+  return message as unknown as ServerMessage;
 }
 
 /** Reads a message about live values (version 6) strictly. */

@@ -54,6 +54,11 @@ export interface Preferences {
   motion: MotionChoice;
   /** Whether a tour's stages fade and its cuts cross-fade; with fades off, cuts are plain (ADR 0077). */
   fades: boolean;
+  /**
+   * Review Claude's changes: whether Claude's changes wait in a proposal for the person to accept,
+   * rather than apply at once (ADR 0073). Claude's tools never read or change it.
+   */
+  reviewClaude: boolean;
 }
 
 /** The name, and optional email, a person's comments are signed with (ADR 0059). */
@@ -75,7 +80,7 @@ export const MAX_RECENT_COLORS = 8;
 
 /**
  * Preferences nobody has chosen: match the system and the browser's language, no grid, snapping on, no
- * rulers, no recent colors, motion as the system says and fades on.
+ * rulers, no recent colors, motion as the system says, fades on, and Claude's changes applied at once.
  */
 export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
   theme: 'system',
@@ -88,6 +93,7 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
   author: null,
   motion: 'system',
   fades: true,
+  reviewClaude: false,
 });
 
 /** The known names, in the order the file writes them. */
@@ -102,6 +108,7 @@ export const PREFERENCE_NAMES: readonly PreferenceName[] = Object.freeze([
   'author',
   'motion',
   'fades',
+  'reviewClaude',
 ]);
 
 /** What the preferences file holds, read leniently. */
@@ -277,6 +284,7 @@ const LENIENT: Record<PreferenceName, Lenient> = {
   },
   motion: (value) => (isMotionChoice(value) ? value : undefined),
   fades: booleanOrUndefined,
+  reviewClaude: booleanOrUndefined,
 };
 
 type Checked = { ok: true; value: unknown } | { ok: false; message: string };
@@ -362,6 +370,7 @@ const STRICT: Record<PreferenceName, (value: unknown) => Checked> = {
           message: `"motion" must be "system", "reduced" or "full", not ${JSON.stringify(value)}.`,
         },
   fades: (value) => strictBoolean('fades', value),
+  reviewClaude: (value) => strictBoolean('reviewClaude', value),
 };
 
 function booleanOrUndefined(value: unknown): boolean | undefined {

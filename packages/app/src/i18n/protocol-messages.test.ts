@@ -136,6 +136,48 @@ const UNREADABLE: readonly [string, () => unknown][] = [
   ['action of no author', action({ author: 'robot' })],
   ['action of no time', action({ time: 'now' })],
   ['action not saying whether undone', action({ undone: 'no' })],
+  // Versions and proposals (ADR 0071, ADR 0073).
+  [
+    'a version named otherwise',
+    app({ type: 'version/compare', version: { kind: 'commit', commit: 'HEAD' } }),
+  ],
+  [
+    'a view to compare that is not an id',
+    app({ type: 'version/compare', version: { kind: 'opened' }, view: 1 }),
+  ],
+  ['a proposal not named', app({ type: 'proposal/refuse' })],
+  [
+    'changes accepted not by their keys',
+    app({ type: 'proposal/accept', proposal: 'p', changes: [1] }),
+  ],
+  ['versions listed not a list', server({ type: 'versions/listed', requestId: 'r1', versions: 1 })],
+  [
+    'a version listed not an object',
+    server({ type: 'versions/listed', requestId: 'r1', versions: [1] }),
+  ],
+  [
+    'a version listed without its commit',
+    server({ type: 'versions/listed', requestId: 'r1', versions: [{ kind: 'head' }] }),
+  ],
+  [
+    'why no version was listed not in words',
+    server({ type: 'versions/listed', requestId: 'r1', versions: [], why: 1 }),
+  ],
+  ['versions listed for no request', server({ type: 'versions/listed', versions: [] })],
+  [
+    'a comparison without its project',
+    server({ type: 'version/compared', requestId: 'r1', version: { kind: 'opened' } }),
+  ],
+  [
+    'a refusal of a version without its problems',
+    server({ type: 'version/refused', requestId: 'r1' }),
+  ],
+  ['a proposal shown without its parts', server({ type: 'proposal/shown', proposal: { id: 'p' } })],
+  ['a proposal closed no way', server({ type: 'proposal/closed', proposal: 'p', how: 'lost' })],
+  [
+    'a comparison shown no way',
+    guidance({ kind: 'comparison', version: { kind: 'opened' }, show: 'side' }),
+  ],
   ['live values not lists', values({ values: 1 })],
   ['live value not an object', values({ values: [1] })],
   ['live value of no target', values({ values: [{ ...liveValue, target: 1 }] })],

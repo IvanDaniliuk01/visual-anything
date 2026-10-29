@@ -5,7 +5,7 @@
  * the project itself: a layout it asks for is run and recorded by the tab as any layout is. Each
  * message replaces what it concerns, and the person can dismiss all of it.
  */
-import type { Guidance } from '@visual-anything/core';
+import type { Guidance, VersionRef } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 
 /** Claude's marks: the targets highlighted, or focused on with everything else dimmed. */
@@ -81,6 +81,17 @@ export interface GuidedTourRequest {
   request: number;
 }
 
+/**
+ * A request to compare a version with the project now, as if the person had chosen it in Compare
+ * with… (ADR 0070): the version as the program listed it, the view to draw, and how.
+ */
+export interface GuidedComparisonRequest {
+  version: VersionRef;
+  view?: Id;
+  show?: 'before' | 'after' | 'comparison';
+  request: number;
+}
+
 /** Everything Claude's guidance shows now, and what it asks of the tab. */
 export interface GuidanceState {
   marks?: GuidanceMarks;
@@ -92,6 +103,7 @@ export interface GuidanceState {
   playback?: GuidedPlaybackRequest;
   layout?: GuidedLayoutRequest;
   tour?: GuidedTourRequest;
+  comparison?: GuidedComparisonRequest;
 }
 
 /** No guidance at all. */
@@ -176,6 +188,15 @@ export function applyGuidance(
       delete next.panTo;
       delete next.caption;
       return next;
+    }
+    case 'comparison': {
+      const comparison: GuidedComparisonRequest = {
+        version: guidance.version,
+        ...viewOf(guidance),
+        ...(guidance.show === undefined ? {} : { show: guidance.show }),
+        request,
+      };
+      return { ...state, comparison };
     }
   }
 }

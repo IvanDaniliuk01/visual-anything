@@ -600,13 +600,13 @@ The first three tasks are the seams, built in the main session in this order. Th
     - changes to different items, or to different keys of one item, always join, whichever side each is on;
     - every merged file validates against its schema and keeps the rules one file can tell;
     - resolving every conflict leaves a file without `conflicts`.
-- [ ] **Proposals in the core, and protocol 7** (main session, test-first; `core/src/versions/proposals.ts`, `core/src/protocol.ts`, `core/src/preferences.ts`, `server/src/claude/messages.ts`; ADR 0073):
+- [x] **Proposals in the core, and protocol 7** (main session, test-first; `core/src/versions/proposals.ts`, `core/src/protocol.ts`, `core/src/preferences.ts`, `server/src/claude/messages.ts`; ADR 0073):
   - `propose(proposal | undefined, project, command, context)`;
   - `rebaseProposal(proposal, project, operations?)`;
   - `proposalChanges(proposal)`, with what each change needs, and whether the person changed it too;
   - `acceptProposal(proposal, project, changes, context)`, which returns what `executeCommand` returns;
   - the preference `reviewClaude`;
-  - protocol 7's messages, with their decoders: `versions/list`, `versions/listed`, `version/compare`, `version/compared`, `version/refused`, `proposal/shown`, `proposal/accept`, `proposal/refuse` and `proposal/closed`, and the guidance `comparison`. It is 7, or the next free version if another milestone takes 7 first;
+  - protocol 7's messages, in `core/src/versions/messages.ts`, with their decoders: `versions/list`, `versions/listed`, `version/compare`, `version/compared`, `version/refused`, `proposal/shown`, `proposal/accept`, `proposal/refuse` and `proposal/closed`, and the guidance `comparison`. It is 7, or the next free version if another milestone takes 7 first;
   - the Claude endpoint's messages: `command`'s `propose`, `proposal/made`, `proposal/withdraw`, `versions/list` and `version/compare`;
   - property tests:
     - accepting every change gives the proposed project, and accepting none changes nothing;

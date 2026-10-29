@@ -5,6 +5,8 @@ export type ProblemCode =
   | 'invalid-command'
   /** A file holds conflicts from a merge (ADR 0072). */
   | 'merge-conflict'
+  /** A proposal of Claude's holds as much as one can (ADR 0073). */
+  | 'proposal-full'
   | 'invalid-id'
   | 'id-taken'
   | 'empty-name'

@@ -58,6 +58,7 @@ const preferences: fc.Arbitrary<Preferences> = fc.record({
   // How tours and scenario playback move (ADR 0077).
   motion: fc.constantFrom(...MOTION_CHOICES),
   fades: fc.boolean(),
+  reviewClaude: fc.boolean(),
 });
 
 /** Any JSON value, as it reads back from its text (so without -0). */
@@ -93,6 +94,7 @@ describe('DEFAULT_PREFERENCES', () => {
       author: null,
       motion: 'system',
       fades: true,
+      reviewClaude: false,
     });
     expect(PREFERENCE_NAMES).toEqual(Object.keys(DEFAULT_PREFERENCES));
   });
@@ -157,6 +159,7 @@ describe('readPreferences', () => {
       author: { name: ' Ana ', email: 'ana@example.com' },
       motion: 'reduced',
       fades: false,
+      reviewClaude: true,
     });
     expect(read.preferences).toEqual({
       theme: 'light',
@@ -169,6 +172,7 @@ describe('readPreferences', () => {
       author: { name: 'Ana', email: 'ana@example.com' },
       motion: 'reduced',
       fades: false,
+      reviewClaude: true,
     });
     expect(read.unread).toEqual([]);
   });
@@ -276,6 +280,7 @@ describe('formatPreferences', () => {
         '  "author": null,',
         '  "motion": "system",',
         '  "fades": true,',
+        '  "reviewClaude": false,',
         '  "apple": [',
         '    1,',
         '    2',

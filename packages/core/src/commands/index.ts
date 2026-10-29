@@ -1,7 +1,8 @@
 /** Running commands: each one is checked against the rules and turned into operations. */
 import type { Id } from '@visual-anything/schema';
+import { checkProject } from '../check';
 import { randomIds, type IdGenerator } from '../ids';
-import type { Operation } from '../operations';
+import { OperationError, type Operation } from '../operations';
 import { problem, type Problem } from '../problems';
 import type { ProjectSnapshot } from '../snapshot';
 import {
@@ -131,6 +132,52 @@ export function executeCommand(
         ok: false,
         problems: [problem('invalid-command', `The command is not well formed: ${error.message}`)],
       };
+    }
+    throw error;
+  }
+}
+
+/**
+ * Applies operations worked out elsewhere, such as the changes of a proposal the person accepts (ADR
+ * 0073), as one action checked as a command's is: the views' routes kept true to what they change,
+ * the images they show, and no error that `checkProject` finds and the project did not have. Its
+ * warnings are those the result has and the project did not.
+ */
+export function executeOperations(
+  state: ProjectSnapshot,
+  operations: readonly Operation[],
+  label: string,
+  context: CommandContext = {},
+): CommandOutcome {
+  const draft = new Draft(state, context.newId ?? randomIds(), {
+    ...(context.author === undefined ? {} : { author: context.author }),
+    ...(context.now === undefined ? {} : { now: context.now }),
+  });
+  try {
+    for (const operation of operations) draft.apply(operation);
+    settleRoutes(draft, state, 0);
+    checkImageReferences(state, draft.state, draft.operations);
+    draft.seal();
+    const before = checkProject(state);
+    const after = checkProject(draft.state);
+    const known = (list: readonly Problem[]) => new Set(list.map((each) => each.message));
+    const errors = known(before.errors);
+    const broken = after.errors.filter((each) => !errors.has(each.message));
+    if (broken.length > 0) return { ok: false, problems: broken };
+    const warned = known(before.warnings);
+    return {
+      ok: true,
+      state: draft.state,
+      operations: draft.operations,
+      inverse: draft.inverse(),
+      label,
+      warnings: after.warnings.filter((each) => !warned.has(each.message)),
+      created: draft.created,
+    };
+  } catch (error) {
+    if (error instanceof Rejection) return { ok: false, problems: error.problems };
+    if (error instanceof OperationError) {
+      return { ok: false, problems: [problem('invalid-command', error.message)] };
     }
     throw error;
   }

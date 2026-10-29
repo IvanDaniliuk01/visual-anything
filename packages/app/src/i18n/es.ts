@@ -4910,6 +4910,27 @@ export const messages: Catalog = {
     'Una acción del historial dice si está deshecha.',
   'The message has no valid request id.': 'El mensaje no tiene un id de pedido válido.',
   'The answer has no valid request id.': 'La respuesta no tiene un id de pedido válido.',
+  // Versions and proposals (ADR 0071, ADR 0073).
+  'A version is the project as opened, or a commit the program listed, by its id.':
+    'Una versión es el proyecto tal como se abrió, o un commit que el programa listó, por su id.',
+  'The view to compare is named by its id.': 'La vista que se compara se nombra por su id.',
+  'A proposal is named by its id.': 'Una propuesta se nombra por su id.',
+  'Accepting names "all" the changes, or at most {n} of them by their keys.':
+    'Para aceptar se nombran todos los cambios ("all"), o como máximo {n} por sus claves.',
+  'The versions listed are a list.': 'Las versiones listadas son una lista.',
+  'A version listed is an object.': 'Una versión listada es un objeto JSON.',
+  'A version listed has its kind, its commit, its subject, author and time.':
+    'Una versión listada tiene su tipo, su commit, su asunto, su autor y su momento.',
+  'Why no version was listed is said in words.':
+    'Por qué no se listó ninguna versión se dice con palabras.',
+  'The comparison has no changes, or a project that is not one.':
+    'A la comparación le faltan los cambios, o su proyecto no es uno.',
+  'The refusal names its request and its problems.': 'El rechazo nombra su pedido y sus problemas.',
+  'The proposal shown has its id, labels, operations and changes.':
+    'La propuesta que se muestra tiene su id, sus etiquetas, sus operaciones y sus cambios.',
+  'The proposal closed is named, with how it closed.':
+    'La propuesta cerrada se nombra, con cómo se cerró.',
+  'A comparison shows one of: {drawings}.': 'Una comparación muestra uno de: {drawings}.',
   'The message has no command.': 'El mensaje no tiene ningún comando.',
   'The action to undo up to is named by its id.':
     'La acción hasta la que deshacer se nombra por su id.',
@@ -5259,6 +5280,22 @@ export const messages: Catalog = {
     'Un conflicto se resuelve tomando lo que se conserva, o la otra opción.',
   'A file is named by its kind, and its id for a file in a folder.':
     'Un archivo se nombra por su tipo, y por su id si es un archivo de una carpeta.',
+
+  // Claude's proposals (ADR 0073): the history's label of what the person accepted, and why the core
+  // refuses a proposed command or an acceptance.
+  '{of} and {n} more': '{of} y {n} más',
+  '{of} ({n} of {m} changes)': '{of} ({n} de {m} cambios)',
+  'The proposal holds no change "{key}".': 'La propuesta no tiene ningún cambio "{key}".',
+  'The change "{key}" needs the change "{need}", which is not accepted.':
+    'El cambio "{key}" necesita el cambio "{need}", que no se acepta.',
+  'A comment never joins a proposal: it is added to the project now, signed as Claude.':
+    'Un comentario nunca se suma a una propuesta: se agrega al proyecto ahora, firmado como Claude.',
+  'Conflicts are never resolved in a proposal: they are resolved in the project now, with the review of Claude’s changes off.':
+    'Los conflictos nunca se resuelven en una propuesta: se resuelven en el proyecto ahora, con la revisión de los cambios de Claude desactivada.',
+  'The proposal holds {n} changes, as many as one holds: ask the person to review the changes it holds first.':
+    'La propuesta tiene {n} cambios, tantos como puede tener una: pedirle a la persona que revise primero los cambios que tiene.',
+  'The proposal would hold more than one can: ask the person to review the changes it holds first.':
+    'La propuesta tendría más de lo que puede tener una: pedirle a la persona que revise primero los cambios que tiene.',
 };
 
 /**

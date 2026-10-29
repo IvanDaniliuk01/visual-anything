@@ -6,10 +6,15 @@
  * core adds needs a fixture here or in that run.
  */
 import {
+  HISTORY_WEIGHT_LIMIT,
+  PROPOSAL_LIMIT,
+  acceptProposal,
   anchoringCommand,
   checkProject,
   cleanSvg,
   executeCommand,
+  propose,
+  type Proposal,
   planAnchoring,
   prepareDrawingImport,
   readBitmap,
@@ -2021,6 +2026,78 @@ function mergeConflicts(sample: ProjectSnapshot): Said[] {
   return said;
 }
 
+// M11b: Claude's proposals (ADR 0073) ---------------------------------------------------------------
+
+/** What proposing Claude's commands says, and accepting some or all of what they propose. */
+function proposals(sample: ProjectSnapshot): Said[] {
+  const said: Said[] = [];
+  let made = 0;
+  const context = { newId: (base: string) => `${base}-${(made += 1)}` };
+  let proposal: Proposal | undefined;
+  for (const command of [
+    { type: 'update-element', id: 'patient', changes: { name: 'Client' } },
+    {
+      type: 'create-element',
+      element: { id: 'kiosk', component: 'systems.service', name: 'Kiosk' },
+    },
+    {
+      type: 'create-relation',
+      relation: {
+        id: 'kiosk-to-patient',
+        relationType: 'systems.communicates-with',
+        from: 'kiosk',
+        to: 'patient',
+      },
+    },
+  ]) {
+    const outcome = propose(proposal, sample, command as Command, context);
+    if (outcome.ok) proposal = outcome.proposal;
+    else
+      for (const each of outcome.problems)
+        said.push({ command: 'a proposed command', message: each.message });
+  }
+  if (!proposal) throw new Error('Nothing was proposed.');
+  const accepted = (name: string, changes: string[] | 'all') => {
+    const outcome = acceptProposal(proposal, sample, changes, context);
+    if (outcome.ok) said.push({ command: name, message: outcome.label });
+    else for (const each of outcome.problems) said.push({ command: name, message: each.message });
+  };
+  accepted('a proposal accepted whole', 'all');
+  accepted('a proposal accepted in part', ['element:patient changed']);
+  accepted('a change accepted that the proposal lacks', ['element:nobody added']);
+  accepted('a change accepted without what it needs', ['relation:kiosk-to-patient added']);
+  const refused = (name: string, open: Proposal | undefined, command: unknown) => {
+    const outcome = propose(open, sample, command as Command, context);
+    if (!outcome.ok)
+      for (const each of outcome.problems) said.push({ command: name, message: each.message });
+  };
+  refused('a comment proposed', undefined, {
+    type: 'create-thread',
+    anchor: { kind: 'element', element: 'patient' },
+    text: 'Why?',
+  });
+  refused('conflicts resolved in a proposal', undefined, {
+    type: 'resolve-conflicts',
+    file: { kind: 'model' },
+    resolutions: [{ conflict: 'conflict-1', take: 'kept' }],
+  });
+  const rename = { type: 'update-element', id: 'patient', changes: { name: 'Guest' } };
+  refused(
+    'a proposal of as many changes as one holds',
+    {
+      ...proposal,
+      labels: Array.from({ length: PROPOSAL_LIMIT }, () => 'Change'),
+    },
+    rename,
+  );
+  refused(
+    'a proposal that would hold too much',
+    { ...proposal, weight: HISTORY_WEIGHT_LIMIT },
+    rename,
+  );
+  return said;
+}
+
 // M8b W56: HTML imported as a drawing (ADR 0068) ------------------------------------------------------
 
 /** What preparing a drawing's one action says, and the action's label as it runs. */
@@ -2067,5 +2144,6 @@ export function coreRefusals(): Said[] {
   said.push(...cleaningRefusals());
   said.push(...drawings(sample));
   said.push(...mergeConflicts(sample));
+  said.push(...proposals(sample));
   return said;
 }

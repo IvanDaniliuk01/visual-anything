@@ -122,3 +122,25 @@ It amends ADR-0029, ADR-0028 and ADR-0032 by the clarifications of this date.
   - sends Claude the proposal's changes and how it ended.
 - The app gains the review, and the preference's toggle in the history panel.
 - CONTEXT.md gains **Proposal**, and **Preference** names the new one.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-29 under the user's standing delegation of design decisions. -->
+- 2026-10-29 (M11b's third seam): proposals in the core, as built (`core/src/versions/proposals.ts`).
+  - **What a proposal holds:** its id; the project when it opened, which tells what the person changed since; the project now it sits on; the proposed project; the labels of Claude's commands; the ids they made; and what their operations weigh. A command that changes nothing opens no proposal and joins none.
+  - **What is never proposed** is refused by `propose`, whatever the preference says: comments, signed as Claude, which go to the project now as before; and `resolve-conflicts`, since a file's conflicts are no item a comparison lists, so that a proposal could not show their resolution. Claude resolves conflicts with the review off; the person always can.
+  - **A change's key** is its item's key and what happened to it, as `element:<id> added`. Two changes of one item, such as a shape's move and its resize, need each other, since accepting takes items whole.
+  - **What a change needs**, worked out from the ids each item names in either project, free text left out:
+    - the change that adds or redefines what it names: a relation's ends or type, an element's component, the view a scenario plays over;
+    - for a removal, the changes of what named what it removes, such as the removals of the relations that end on a removed element;
+    - for a definition changed, the changes of what named it or what derives from it, such as the removal of a relation whose type, or whose type's parent, now nests;
+    - for a nesting relation added, or made to nest by its type, the removals of nesting relations on a path back that would close a cycle with it;
+    - for a package added or removed, the project's change of its list of packages, and the other way round.
+
+    An acceptance whose changes lack what they need is refused, naming the change and what it needs. The app ticks what is needed, so it never sends one.
+  - **Rebasing** merges each file the person's operations reached, by the item merge with Claude's side kept and winning (ADR 0072's `keptWins`); a file one side alone changed is that side's. Claude's removal stays over the person's change, and takes the person's relations that end on what Claude removed, as `delete` takes them; those changes start unticked, marked changed by you too. What the person removed that Claude's change needs comes back. The model merges with the relation types that nest in the rebased packages. A cycle the person closed by changing a definition, rather than by adding a relation, stays in the proposed project, and accepting the change that closes it is refused with the core's error; nothing of Claude's is dropped to break it.
+  - **Changed by you too** is any change one of whose items differs between the project when the proposal opened and the project now.
+  - **Accepting** takes, for the chosen changes, each item as the proposed project holds it, and every other as the project now holds it. Lists keep the project's order, with what comes from the proposal after what precedes it there; the model's order is the proposal's when its change is chosen; a stacking list holds the elements the result has. Accepting every change gives the proposed project exactly, and none changes nothing. The operations between the project now and the result run as one action of Claude's through `executeOperations`, checked as a command is: routes kept true, the images shown, and no error `checkProject` finds that the project did not have. A file's conflicts stay as the project now holds them.
+  - **The label** is Claude's one label, or the first's "and N more"; a partial acceptance adds "(k of m changes)".
+  - **The protocol stays 7.** No build of 7 shipped, as with M8b and M11c. Its messages are in `core/src/versions/messages.ts`: `versions/list`, `versions/listed`, `version/compare`, `version/compared`, `version/refused`, `proposal/shown`, `proposal/accept`, `proposal/refuse`, `proposal/closed`, and the guidance `comparison`, which also takes `show`: before, after or the comparison. A version is named as `{ kind: 'opened' }` or `{ kind: 'commit', commit }`, the commit a listed id of 40 or 64 lower-case hexadecimal digits. `version/compared` carries the version's project for an app, and leaves it out for Claude (ADR-0029). `proposal/shown` carries the operations from the project now to the proposed one, each change with its key, what it needs and whether the person changed it too, and the names the changes mention.
+  - **Time.** The changes are read through two comparisons (ADR 0070); the rebase merges only the files an action reached, and a file one side did not change costs no merge. The benchmark task measures them at 10,000 elements.
