@@ -43,8 +43,9 @@ const TABS: readonly { tab: Tab; name: string }[] = [
  * The panel left of the canvas, in five tabs: the outline of the open view, which mirrors what the
  * canvas draws; the model's contents with the project's views and scenarios; the components,
  * relation types and packages, which open in the component editor; the history, the actions that
- * undo and redo go through; and the threads of comments (ADR 0059). Each tab keeps its rows open or
- * closed while another one shows.
+ * undo and redo go through; the threads of comments (ADR 0059); the tours (ADR 0058); and, while a
+ * comparison, a proposal or the conflicts are open, their changes (ADR 0070). Each tab keeps its rows
+ * open or closed while another one shows.
  */
 export function ModelPanel({ project, definitions, openViewId, comments }: ModelPanelProps) {
   const t = useT();
