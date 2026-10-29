@@ -5055,6 +5055,8 @@ export const messages: Catalog = {
     'Se pidió otra versión, así que se dejó de leer esta.',
   'Reading the version took longer than {n} s, so it was stopped.':
     'Leer la versión tardó más de {n} s, así que se detuvo.',
+  'Listing the versions took longer than {n} s, so it was stopped.':
+    'Listar las versiones tardó más de {n} s, así que se detuvo.',
   'That commit is not one the program listed in its latest listing of versions: list them again, then choose one.':
     'Ese commit no es uno de los que el programa listó en su última lista de versiones: listarlas de nuevo y después elegir una.',
   'A version is a commit the program listed, by its id.':

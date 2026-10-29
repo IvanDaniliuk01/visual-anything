@@ -210,6 +210,7 @@ describe('what the program says about versions, in Spanish', () => {
       'The version could not be compared: A newer request stopped this one.',
       'Another version was asked for, so reading this one stopped.',
       'Reading the version took longer than 120 s, so it was stopped.',
+      'Listing the versions took longer than 120 s, so it was stopped.',
       'The repository has no commits yet.',
       'This Visual Anything reads no versions.',
       new GitError('stopped', 'A newer request stopped this one.').message,

@@ -178,3 +178,5 @@ The rule throughout: git runs with arguments, never through a shell, and never o
   - in the runner's environment, with `GIT_CONFIG_GLOBAL` and `GIT_CONFIG_NOSYSTEM` kept besides, so that `--global` writes where the person's git reads its configuration, and within 30 s a call.
 
   The local program, the MCP entry point and the app never make these calls.
+
+- 2026-10-29 (M11b, after merging the merge driver): **a listing has its own deadline.** The 120 s limit covers reading one version, as above. Listing the versions is stopped after its own 120 s, with its own reason ("Listing the versions took longer than…"), so a shorter limit given to reads never empties the listing.

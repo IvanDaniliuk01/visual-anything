@@ -78,7 +78,8 @@ export class Versions {
 
   /** Lists the versions, and keeps their commits as the only ones a version may name. */
   async list(): Promise<VersionsListing> {
-    const timeout = this.#deadline();
+    // A listing is not a read of a version: it keeps the whole limit, whatever a read is given.
+    const timeout = this.#deadline(GIT_LIMITS.readMs, 'Listing the versions');
     try {
       const opened = await this.#repository(timeout.signal);
       if (!opened.ok) {
@@ -108,7 +109,10 @@ export class Versions {
     this.#reading?.abort(
       new GitError('stopped', 'Another version was asked for, so reading this one stopped.'),
     );
-    const timeout = this.#deadline();
+    const timeout = this.#deadline(
+      this.#options.limits?.readMs ?? GIT_LIMITS.readMs,
+      'Reading the version',
+    );
     this.#reading = timeout.controller;
     try {
       const opened = await this.#repository(timeout.signal);
@@ -163,17 +167,16 @@ export class Versions {
     });
   }
 
-  /** A read's whole time, after which it is stopped. */
-  #deadline(): { controller: AbortController; signal: AbortSignal; done: () => void } {
+  /** A read's or a listing's whole time, after which it is stopped. */
+  #deadline(
+    ms: number,
+    what: string,
+  ): { controller: AbortController; signal: AbortSignal; done: () => void } {
     const controller = new AbortController();
-    const ms = this.#options.limits?.readMs ?? GIT_LIMITS.readMs;
     const timer = setTimeout(
       () =>
         controller.abort(
-          new GitError(
-            'timeout',
-            `Reading the version took longer than ${ms / 1000} s, so it was stopped.`,
-          ),
+          new GitError('timeout', `${what} took longer than ${ms / 1000} s, so it was stopped.`),
         ),
       ms,
     );
