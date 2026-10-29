@@ -63,7 +63,9 @@ import {
 import type { IndexedScene, Skipped } from './hit';
 import { GridMarks } from './gridMarks';
 import { watchResolution } from './resolution';
-import { ScreenMarks, selectionBounds } from './screenMarks';
+import { ScreenMarks, bitmapMarkText, selectionBounds } from './screenMarks';
+import { ComparisonLayer } from './comparison/layer';
+import type { ComparisonScene } from './comparison/scene';
 import { browserImagePlatform, type ImagePlatform } from './images';
 import { CodeDrawingLayer } from './code-drawings';
 import type { Drawing as CodeDrawing } from '@visual-anything/core';
@@ -581,6 +583,8 @@ export class CanvasRenderer {
   private readonly codeDrawings: CodeDrawingLayer;
   /** What is drawn over anchored parts (ADR 0067), above the shapes and under package code's drawings. */
   private readonly partLayer: PartLayer;
+  /** A comparison's marks (ADR 0070), above the scene and under the selection's marks. */
+  private readonly comparison: ComparisonLayer;
 
   constructor(
     private readonly host: HTMLElement,
@@ -596,6 +600,11 @@ export class CanvasRenderer {
     this.codeDrawings = new CodeDrawingLayer(this.text, () => this.requestRender());
     this.codeDrawings.setDark(this.painter.theme.name === 'dark');
     this.partLayer = new PartLayer(this.pictures.store, () => this.requestRender(), this.text);
+    this.comparison = new ComparisonLayer(
+      bitmapMarkText,
+      () => this.requestRender(),
+      this.painter.theme,
+    );
     this.partLayer.setTheme(this.painter.name);
     this.pictures.keep(PARTS_PICTURES);
     this.tintMarks();
@@ -621,6 +630,7 @@ export class CanvasRenderer {
       this.codeDrawings.container,
       this.relations.container,
       this.freeShapes,
+      this.comparison.container,
       this.rerouted,
       this.dragged,
       this.marks,
@@ -724,6 +734,8 @@ export class CanvasRenderer {
     if (was?.scene === scene && was.emphasis === this.emphasis) return this.emphasized;
     this.emphasized = keptEmphasized(this.emphasized, emphasize(scene, this.emphasis));
     this.emphasizedFor = { scene, emphasis: this.emphasis };
+    // What a filter hides shows no comparison mark either.
+    this.comparison.setHidden(this.emphasized.hidden);
     return this.emphasized;
   }
 
@@ -964,6 +976,7 @@ export class CanvasRenderer {
       this.drawEmphasis();
       this.drawRouteMarks();
       this.drawShapeEditMarks();
+      this.comparison.setScale(camera.scale, false);
     }
     this.settled = false;
     clearTimeout(this.settleTimer);
@@ -971,6 +984,7 @@ export class CanvasRenderer {
       this.settled = true;
       this.sharpen();
       if (this.marksStale) this.drawSelection();
+      this.comparison.setScale(this.camera.scale, true);
       this.followGrid(true);
       this.requestRender();
     }, SETTLE_AFTER);
@@ -1333,6 +1347,22 @@ export class CanvasRenderer {
     return toPng(
       legend ? withLegendBand(canvas, legend, t, this.painter.name, request.scale) : canvas,
     );
+  }
+
+  /**
+   * Marks a comparison's scene from now on (ADR 0070), or nothing: the scene shown is that one's, which
+   * `show` draws as any other.
+   */
+  setComparison(shown: ComparisonScene | undefined): void {
+    this.comparison.setScale(this.camera.scale, true);
+    this.comparison.set(shown);
+    this.requestRender();
+  }
+
+  /** What the comparison's layer marks, for tests and the benchmark. */
+  get comparisonMarks(): { size: number; pending: boolean; counts: string[] } {
+    const layer = this.comparison;
+    return { size: layer.size, pending: layer.pending, counts: layer.countTexts };
   }
 
   /** The legend of the open view's overlays, which an image draws in a band below it (ADR 0055). */
@@ -3325,6 +3355,7 @@ export class CanvasRenderer {
       // What comes near the screen is planned from the scene as it is, before anything draws it.
       this.planNear();
       if (this.marksDrawn < this.markRects.length) this.drawChunks();
+      if (this.comparison.pending) this.comparison.frame();
       this.updateDetail();
       // Pictures within what is left of the frame's budget; the store asks for frames as they arrive.
       if (this.pictures.frame(this.tiles.values(), this.imageView(performance.now() - began))) {
@@ -3979,6 +4010,7 @@ export class CanvasRenderer {
   private tintMarks(): void {
     this.selectionMarks.tint = this.painter.theme.selected;
     this.movingMarks.tint = this.painter.theme.selected;
+    this.comparison.setTheme(this.painter.theme);
     this.themeGrid(this.painter.theme);
     this.showNamesBeside();
   }
