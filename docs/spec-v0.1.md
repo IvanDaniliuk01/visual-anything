@@ -642,7 +642,7 @@ The first three tasks are the seams, built in the main session in this order. Th
   - `svgOfComparison(…)`: the SVG writer draws the same scene and legend, and PDF takes it as it is;
   - `writeComparisonSummary(older, newer, comparison, options)`: the Markdown summary, with every text of the project escaped;
   - its text in English and Spanish.
-- [ ] **The merge driver** (`server/src/merge-driver.ts`, `main.ts`, `.gitattributes`, the README; ADR 0072):
+- [x] **The merge driver** (`server/src/merge-driver.ts`, `main.ts`, `.gitattributes`, the README; ADR 0072):
   - `visual-anything merge-driver <ancestor> <ours> <theirs> <path> [<ours' name> <theirs' name>]`:
     - its inputs are read as regular files within their cap;
     - `%A` is written atomically;

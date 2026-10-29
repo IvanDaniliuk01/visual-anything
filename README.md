@@ -176,8 +176,10 @@ The server is `packages/server/src/mcp-cli.ts`, run with the `tsx` that `pnpm in
 **Claude Code**, from any folder:
 
 ```sh
-claude mcp add visual-anything -- node <repo>/node_modules/tsx/dist/cli.mjs <repo>/packages/server/src/mcp-cli.ts <project>
+claude mcp add visual-anything -e TSX_TSCONFIG_PATH=<repo>/packages/server/tsconfig.json -- node <repo>/node_modules/tsx/dist/cli.mjs <repo>/packages/server/src/mcp-cli.ts <project>
 ```
+
+`TSX_TSCONFIG_PATH` keeps the TypeScript loader on the program's own configuration: otherwise it reads the `tsconfig.json` of the folder Claude runs in, whose `paths` could send the program's own imports to a file of that folder (ADR 0072's clarification of 2026-10-29). The executable has no loader, and needs none of this.
 
 Add `--scope user` after `add` to have it in every folder. `claude mcp list` shows whether it connects.
 
@@ -192,7 +194,8 @@ Add `--scope user` after `add` to have it in every folder. `claude mcp list` sho
         "<repo>/node_modules/tsx/dist/cli.mjs",
         "<repo>/packages/server/src/mcp-cli.ts",
         "<project>"
-      ]
+      ],
+      "env": { "TSX_TSCONFIG_PATH": "<repo>/packages/server/tsconfig.json" }
     }
   }
 }
