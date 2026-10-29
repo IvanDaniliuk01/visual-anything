@@ -39,6 +39,8 @@ import { formatProjectProblem } from './project';
 import { startServer, type AppSource, type RunningServer } from './server';
 import { openSession, type Session } from './session';
 import { ProgramLog } from './program-log';
+import { PROPOSAL_IDLE_LIMIT } from './proposals';
+
 import { StartingSession, startingOn } from './start';
 import { AppNotBuiltError } from './static';
 
@@ -72,7 +74,8 @@ opened as ./open, ./new, ./mcp, ./export, ./import, ./live or ./notices.
   --dev             Serve the app from its sources through Vite, with hot reload; only from the
                     repository, not from the executable.
   --stop-when-idle  Stop once no app and no Claude has been connected for a minute, as when
-                    Claude started the program.
+                    Claude started the program; while Claude's proposal waits for review, not
+                    before an hour after its last change.
   --log <file>      Append one JSON line to file for each action done, undone or redone, each
                     command refused, each app or Claude attached or gone, and each file of the
                     project changed on disk. It never holds a token, a launch code, a credential,
@@ -131,6 +134,11 @@ export interface CommandEnvironment {
   runtimeFolder?: string | null;
   /** How long `--stop-when-idle` waits with nothing connected, in milliseconds; a minute by default. */
   idleStopDelay?: number;
+  /**
+   * How long `--stop-when-idle` keeps running for Claude's proposal that waits, after its last change
+   * joined it (ADR 0073), in milliseconds; an hour by default.
+   */
+  proposalIdleLimit?: number;
   /** Where the app comes from: by default the app package, built or in dev mode its sources. */
   appSource?: (dev: boolean) => AppSource;
   /**
@@ -285,7 +293,26 @@ async function runWithLog(
   if (warning !== undefined) environment.err(`Warning: ${warning}`);
 
   const folder = resolve(environment.cwd, options.folder);
+  const stopper = new Stopper();
+  const idle = options.stopWhenIdle
+    ? new IdleStop(
+        environment.idleStopDelay ?? IDLE_STOP_DELAY,
+        environment.proposalIdleLimit ?? PROPOSAL_IDLE_LIMIT,
+        (proposal) => {
+          environment.out(
+            proposal
+              ? 'Nothing has been connected for a while, and Claude’s proposal has waited an hour since its last change, so Visual Anything stops.'
+              : 'Nothing has been connected for a while, so Visual Anything stops.',
+          );
+          stopper.stop();
+        },
+      )
+    : undefined;
   const sessionOptions = {
+    // While Claude's proposal waits, --stop-when-idle waits for the person to review it (ADR 0073).
+    ...(idle === undefined
+      ? {}
+      : { onProposal: (lastJoined: number | undefined) => idle.proposal(lastJoined) }),
     out: (line: string) => environment.out(line),
     err: (line: string) => environment.err(line),
     preferences,
@@ -333,14 +360,6 @@ async function runWithLog(
     await preferences.close();
     return 2;
   }
-
-  const stopper = new Stopper();
-  const idle = options.stopWhenIdle
-    ? new IdleStop(environment.idleStopDelay ?? IDLE_STOP_DELAY, () => {
-        environment.out('Nothing has been connected for a while, so Visual Anything stops.');
-        stopper.stop();
-      })
-    : undefined;
 
   const openBrowser = async (url: string) => {
     try {
@@ -585,16 +604,24 @@ class Stopper {
   }
 }
 
-/** Calls `onIdle` once nothing has been connected for `delay` milliseconds, counted from the start. */
+/**
+ * Calls `onIdle` once nothing has been connected for `delay` milliseconds, counted from the start or
+ * from the last change it heard of. While Claude's proposal waits, it waits on, until `limit`
+ * milliseconds after the proposal's last change, and then tells `onIdle` that a proposal waited.
+ */
 class IdleStop {
   readonly #delay: number;
-  readonly #onIdle: () => void;
+  readonly #limit: number;
+  readonly #onIdle: (proposal: boolean) => void;
   #count = 0;
   #started = false;
+  /** When the last change joined the proposal that waits; undefined when none waits. */
+  #proposal: number | undefined;
   #timer: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(delay: number, onIdle: () => void) {
+  constructor(delay: number, limit: number, onIdle: (proposal: boolean) => void) {
     this.#delay = delay;
+    this.#limit = limit;
     this.#onIdle = onIdle;
   }
 
@@ -608,6 +635,12 @@ class IdleStop {
     this.#schedule();
   }
 
+  /** Hears when the last change joined Claude's proposal, or that none waits. */
+  proposal(lastJoined: number | undefined): void {
+    this.#proposal = lastJoined;
+    this.#schedule();
+  }
+
   cancel(): void {
     clearTimeout(this.#timer);
     this.#timer = undefined;
@@ -618,10 +651,20 @@ class IdleStop {
     clearTimeout(this.#timer);
     this.#timer = undefined;
     if (!this.#started || this.#count > 0) return;
-    this.#timer = setTimeout(() => {
-      this.#timer = undefined;
-      this.#onIdle();
-    }, this.#delay);
+    this.#timer = setTimeout(() => this.#fire(), this.#delay);
+  }
+
+  /** Stops, unless a proposal waits that has not waited its limit yet. */
+  #fire(): void {
+    this.#timer = undefined;
+    if (this.#proposal !== undefined) {
+      const left = this.#proposal + this.#limit - Date.now();
+      if (left > 0) {
+        this.#timer = setTimeout(() => this.#fire(), left);
+        return;
+      }
+    }
+    this.#onIdle(this.#proposal !== undefined);
   }
 }
 

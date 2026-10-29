@@ -5092,8 +5092,10 @@ export const messages: Catalog = {
   'The comparison has no changes, or a project that is not one.':
     'A la comparación le faltan los cambios, o su proyecto no es uno.',
   'The refusal names its request and its problems.': 'El rechazo nombra su pedido y sus problemas.',
-  'The proposal shown has its id, labels, operations and changes.':
-    'La propuesta que se muestra tiene su id, sus etiquetas, sus operaciones y sus cambios.',
+  'The proposal shown has its id, revision, labels, operations and changes.':
+    'La propuesta que se muestra tiene su id, su revisión, sus etiquetas, sus operaciones y sus cambios.',
+  'Accepting names the revision of the proposal shown.':
+    'Para aceptar hay que nombrar la revisión de la propuesta que se muestra.',
   'The proposal closed is named, with how it closed.':
     'La propuesta cerrada se nombra, con cómo se cerró.',
   'A comparison shows one of: {drawings}.': 'Una comparación muestra uno de: {drawings}.',
@@ -5462,6 +5464,13 @@ export const messages: Catalog = {
     'La propuesta tiene {n} cambios, tantos como puede tener una: pedirle a la persona que revise primero los cambios que tiene.',
   'The proposal would hold more than one can: ask the person to review the changes it holds first.':
     'La propuesta tendría más de lo que puede tener una: pedirle a la persona que revise primero los cambios que tiene.',
+  // Why the program refuses what an app decided about a proposal (ADR 0073).
+  'No proposal of Claude’s waits, so nothing was decided.':
+    'No espera ninguna propuesta de Claude, así que no se decidió nada.',
+  'The proposal "{id}" is no longer the one that waits, so nothing was decided.':
+    'La propuesta "{id}" ya no es la que espera, así que no se decidió nada.',
+  'The proposal changed since it was shown: review it again.':
+    'La propuesta cambió desde que se mostró: revisarla de nuevo.',
 };
 
 /**

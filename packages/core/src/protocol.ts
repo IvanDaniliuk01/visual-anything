@@ -35,6 +35,7 @@ import type { Problem } from './problems';
 import type { ProjectSnapshot } from './snapshot';
 import { checkTimeRange, type ViewTimeRange } from './time-range';
 import {
+  isRevision,
   readListedVersions,
   readProposalAccept,
   readProposalRefuse,
@@ -968,11 +969,14 @@ function readVersionsAnswer(
       if (
         !isRecord(proposal) ||
         !isId(proposal.id) ||
+        !isRevision(proposal.revision) ||
         !Array.isArray(proposal.operations) ||
         !Array.isArray(proposal.changes) ||
         !Array.isArray(proposal.labels)
       ) {
-        throw new ProtocolError('The proposal shown has its id, labels, operations and changes.');
+        throw new ProtocolError(
+          'The proposal shown has its id, revision, labels, operations and changes.',
+        );
       }
       break;
     }

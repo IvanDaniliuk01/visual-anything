@@ -12,6 +12,7 @@ import {
   decodeServerMessage,
 } from '@visual-anything/core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ProgramBridge } from './claude/bridge';
 import { listProgramRecords } from './claude/discovery';
 import {
   USAGE,
@@ -21,6 +22,7 @@ import {
   type KeyInput,
 } from './command';
 import type { AppSource } from './server';
+import { openSession } from './session';
 import { openLive, send, testProject, writeProjectFolder } from './test-support';
 
 const REPOSITORY = fileURLToPath(new URL('../../..', import.meta.url));
@@ -338,6 +340,48 @@ describe('runCommand', { timeout: 20_000 }, () => {
 
     await expect(exit).resolves.toBe(0);
     expect(out).toContain('Nothing has been connected for a while, so Visual Anything stops.');
+  });
+
+  it('with --stop-when-idle, waits for Claude’s proposal, then drops it and says so', async () => {
+    const runtime = join(folder, 'runtime-proposal');
+    const project = join(folder, 'proposal-project');
+    await writeProjectFolder(project, testProject());
+    const { out, environment, printedUrl } = harness({
+      runtimeFolder: runtime,
+      idleStopDelay: 100,
+      proposalIdleLimit: 1500,
+    });
+    const exit = runCommand([project, '--no-open', '--stop-when-idle'], environment);
+    await printedUrl();
+    let stopped = false;
+    void exit.then(() => {
+      stopped = true;
+    });
+
+    // Claude proposes a change, then goes: nothing is connected, but the proposal waits.
+    const bridge = new ProgramBridge({ folder: project, runtime, attachOnly: true });
+    const answer = await bridge.execute(
+      { type: 'update-element', id: 'api', changes: { name: 'Gateway' } },
+      { propose: true },
+    );
+    expect(answer).toMatchObject({ ok: true, proposed: { changes: ['element:api changed'] } });
+    const proposedAt = Date.now();
+    bridge.close();
+    await new Promise((resolve) => setTimeout(resolve, 700));
+    expect(stopped).toBe(false);
+
+    await expect(exit).resolves.toBe(0);
+    expect(Date.now() - proposedAt).toBeGreaterThanOrEqual(1400);
+    expect(out).toContain(
+      'Nothing has been connected for a while, and Claude’s proposal has waited an hour since its last change, so Visual Anything stops.',
+    );
+    expect(
+      out.some((line) => /proposal of 1 change was never accepted, so it is dropped/.test(line)),
+    ).toBe(true);
+    // Nothing of it reached the files.
+    const reopened = await openSession(project, { watch: false, out: () => {}, err: () => {} });
+    expect(reopened.ok && reopened.session.snapshot).toEqual(testProject());
+    if (reopened.ok) await reopened.session.close();
   });
 
   it('listens on the port given with --port', async () => {

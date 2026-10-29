@@ -1,7 +1,8 @@
 /**
- * Claude's tools. Read and query tools answer from the bridge's copy of the project. Each write tool
- * call sends one command, or one batch, so it is one undoable action labelled Claude in the person's
- * history. Guidance tools mark and move the open app's view without changing anything. Descriptions
+ * Claude's tools. Read and query tools answer from the bridge's copy of the project, the proposed one
+ * while Claude's proposal waits, and then say so. Each write tool call sends one command, or one
+ * batch, so it is one undoable action labelled Claude in the person's history, or, while the person
+ * reviews Claude's changes, one change that joins Claude's proposal (ADR 0073), which its answer says. Guidance tools mark and move the open app's view without changing anything. Descriptions
  * are how Claude learns the tools, so each one says when to use it and gives an example.
  */
 import {
@@ -42,6 +43,7 @@ import { EXPORT_TOOLS } from './export-tools';
 import { fullGeometry } from './geometry-brief';
 import { IMAGE_TOOLS } from './image-tools';
 import { PART_TOOLS } from './part-tools';
+import { PROPOSAL_TOOLS, proposalNoteOf } from './proposal-tools';
 import { OVERLAY_TOOLS } from './overlay-tools';
 import { IMPORT_TOOLS } from './import-tools';
 import { DRAWING_TOOLS } from './drawing-tools';
@@ -1301,7 +1303,11 @@ A delete, or a change-container, that would take more than it names (relations e
 
 When you import material again, change the elements and relations already there with one run_commands call, one update-element or update-relation each, so that the whole update is one action; and define what an import needs (create-package, then define-component and define-relation-type) as one action, once the person agrees.
 
-Example: { "label": "Move the reminders into Scheduling", "commands": [{ "type": "update-element", "id": "reminder-service", "changes": { "name": "Reminders" } }, { "type": "set-positions", "view": "system-overview", "positions": [{ "element": "reminder-service", "container": "scheduling", "x": 40, "y": 260 }] }] }`,
+With propose true, the commands wait in your proposal for the person's review instead of applying, as every change does while the person reviews your changes: the answer says so, and the person accepts them, change by change, or refuses them in the app.
+
+Example: { "label": "Move the reminders into Scheduling", "commands": [{ "type": "update-element", "id": "reminder-service", "changes": { "name": "Reminders" } }, { "type": "set-positions", "view": "system-overview", "positions": [{ "element": "reminder-service", "container": "scheduling", "x": 40, "y": 260 }] }] }
+
+Example, proposed for review: { "label": "Split the API", "propose": true, "commands": [{ "type": "create-element", "element": { "component": "systems.service", "name": "Orders API" } }, { "type": "update-element", "id": "api", "changes": { "name": "Accounts API" } }] }`,
   input: {
     label: z.string().min(1).max(200),
     commands: z.array(z.object({ type: z.string().min(1) }).catchall(z.unknown())).min(1),
@@ -1310,6 +1316,12 @@ Example: { "label": "Move the reminders into Scheduling", "commands": [{ "type":
       .optional()
       .describe(
         'Allow the deletes and changes of container to take more than they name, and to break scenario steps.',
+      ),
+    propose: z
+      .boolean()
+      .optional()
+      .describe(
+        'Propose the commands rather than apply them: they wait in your proposal until the person accepts or refuses them in the app, even when the person does not review your changes. Use it for a large or uncertain change the person should see first. Nothing you send makes a change apply while the person reviews your changes.',
       ),
   },
   hints: WRITE,
@@ -1323,7 +1335,7 @@ Example: { "label": "Move the reminders into Scheduling", "commands": [{ "type":
     if (!args.cascade && takesMore(cascade)) {
       return fail(cascadeRefusal(cascade, 'Nothing was done', 'what the commands delete'));
     }
-    return act(program, command);
+    return act(program, command, undefined, [], args.propose === true ? { propose: true } : {});
   },
 });
 
@@ -1509,6 +1521,8 @@ export const TOOLS: readonly Tool[] = [
   ...OVERLAY_TOOLS,
   // Live values, never saved (ADR 0057).
   ...LIVE_TOOLS,
+  // Claude's proposal, which the person reviews (ADR 0073).
+  ...PROPOSAL_TOOLS,
 ];
 
 /** Runs a tool, turning a program that cannot be reached into an outcome Claude reads. */
@@ -1518,11 +1532,29 @@ export async function runTool(
   program: Program,
 ): Promise<ToolOutcome> {
   try {
-    return await definition.run(args as never, program);
+    const outcome = await definition.run(args as never, program);
+    // While Claude's proposal waits, what a read tool answers includes it (ADR 0073), and says so.
+    if (
+      outcome.ok &&
+      definition.hints.readOnlyHint &&
+      !OWN_PROPOSAL_NOTE.has(definition.name) &&
+      isRecord(outcome.value)
+    ) {
+      const note = await proposalNoteOf(program);
+      if (note !== undefined) return ok({ ...outcome.value, proposed: note });
+    }
+    return outcome;
   } catch (error) {
     if (error instanceof ProgramUnavailableError) return fail(error.message);
     return fail(`The tool failed: ${error instanceof Error ? error.message : String(error)}`);
   }
+}
+
+/** The read tools that say themselves what the proposal holds. */
+const OWN_PROPOSAL_NOTE: ReadonlySet<string> = new Set(['read_proposal']);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 // ——— Helpers ———

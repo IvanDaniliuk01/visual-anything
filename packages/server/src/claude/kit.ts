@@ -11,7 +11,7 @@ import {
   type Problem,
 } from '@visual-anything/core';
 import { z } from 'zod';
-import type { CommandAnswer, Program } from './bridge';
+import type { CommandAnswer, ExecuteOptions, Program } from './bridge';
 import type { Tool, ToolHints, ToolOutcome } from './tools';
 
 export function tool<Shape extends z.ZodRawShape>(definition: Tool<Shape>): Tool<Shape> {
@@ -81,8 +81,9 @@ export async function act(
   more: (answer: Done) => More | Promise<More> = (answer) =>
     answer.created.length > 0 ? { created: answer.created } : {},
   saidByMore: readonly Problem['code'][] = [],
+  how: ExecuteOptions = {},
 ): Promise<ToolOutcome> {
-  const answer = await program.execute(command);
+  const answer = await program.execute(command, how);
   if (!answer.ok) {
     return fail(
       `Refused, so nothing changed: ${sentences(answer.problems)} (${[...new Set(answer.problems.map((each) => each.code))].join(', ')})`,
@@ -95,12 +96,47 @@ export async function act(
       .map((each) => each.message),
     ...added,
   ];
+  if (answer.proposed !== undefined) {
+    return ok({
+      ...proposedAnswer(answer.label, answer.proposed),
+      ...extra,
+      ...(warnings.length > 0 ? { warnings } : {}),
+    });
+  }
   return ok({
     done: answer.changed ? answer.label : 'Nothing changed, so nothing was recorded.',
     ...(answer.changed ? { undo: 'The person can undo it in the app.' } : {}),
     ...extra,
     ...(warnings.length > 0 ? { warnings } : {}),
   });
+}
+
+/** The most change keys a write tool's answer lists; read_proposal lists them all. */
+export const MAX_PROPOSED_LISTED = 50;
+
+/**
+ * What a write tool answers when its change joined Claude's proposal (ADR 0073): that it was proposed
+ * and not applied, the proposal, its changes so far, and whether an app is open to review it.
+ */
+export function proposedAnswer(
+  label: string,
+  proposed: { proposal: string; changes: readonly string[]; apps: number },
+): Record<string, unknown> {
+  const { proposal, changes, apps } = proposed;
+  return {
+    proposed: label,
+    applied: false,
+    proposal,
+    note: 'Proposed, not applied: this change waits in your proposal for the person to review, and nothing of it is saved or in the history yet. Your reads include it, marked as not yet applied, and your next changes join it. Only the person accepts or refuses it, in the app; read_proposal says whether it still waits, and how it ended.',
+    changes: changes.slice(0, MAX_PROPOSED_LISTED),
+    ...(changes.length > MAX_PROPOSED_LISTED
+      ? { moreChanges: changes.length - MAX_PROPOSED_LISTED }
+      : {}),
+    review:
+      apps > 0
+        ? `${apps === 1 ? 'An app is' : `${apps} apps are`} open to review it: tell the person the proposal waits there.`
+        : 'No app is open to review it: open_app opens one, or ask the person to open the project.',
+  };
 }
 
 /**

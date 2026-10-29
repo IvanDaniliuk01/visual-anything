@@ -5,7 +5,8 @@
  *   label, how many operations it applied and the ids it created;
  * - a command, an undo or a redo refused, with its problems' codes, never their words;
  * - an app or Claude attached or gone, with how many of each are attached then;
- * - files of the project changed on disk, by path, and whether the project was reloaded from them.
+ * - files of the project changed on disk, by path, and whether the project was reloaded from them;
+ * - Claude's proposal opened, joined, accepted, refused, withdrawn or dropped, with how many changes.
  *
  * It never writes a token, a launch code, a credential, a preference or anything a file holds: each
  * event is built here from the few fields above, never from a message or a file. Without the option
@@ -32,12 +33,25 @@ export type ProgramEvent =
     }
   | {
       event: 'refused';
-      /** What was refused: a command, an undo, a redo, or a message that was not one. */
-      request: 'command' | 'undo' | 'redo' | 'message';
+      /**
+       * What was refused: a command, an undo, a redo, the person's decision about Claude's
+       * proposal, or a message that was not one.
+       */
+      request: 'command' | 'undo' | 'redo' | 'proposal' | 'message';
       author: Author;
       /** The kind of command refused, as its `type` says. */
       command?: string;
       codes: ProblemCode[];
+    }
+  | {
+      event: 'proposal';
+      /**
+       * What happened to Claude's proposal (ADR 0073): opened, joined by a change, accepted,
+       * refused, withdrawn by Claude, or dropped, as when the program stops.
+       */
+      kind: 'opened' | 'joined' | 'accepted' | 'refused' | 'withdrawn' | 'dropped';
+      /** How many changes it holds, or how many were accepted. */
+      changes: number;
     }
   | { event: 'attached' | 'gone'; who: 'app' | 'claude'; apps: number; claudes: number }
   | { event: 'files-changed'; files: string[]; reloaded: boolean }
