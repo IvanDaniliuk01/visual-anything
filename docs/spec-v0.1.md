@@ -746,9 +746,61 @@ Its tasks run one at a time, in this order:
   - the quality thresholds on routing, on the fixture;
   - curves past 24 in a container drawn orthogonal with rounded corners through the router, the view's inspector saying so (ADR 0080 section 3, moved forward from Stage 2);
   - pinned shapes that stay overlapped, or that keep the one-pass layout from placing what they hold, outlined, with the inspector's offer to unpin them.
-- [ ] **Stage 1: libavoid behind the fallback, trunks, and the full pipeline** (ADR 0080 section 2): libavoid in the routing worker, incremental by container, with the program's router as the fallback; container ports beyond the budget; communities for large containers without groups.
+- [ ] **Stage 1: libavoid behind the fallback, trunks, and the full pipeline** (ADR 0080 section 2): collapsing a container that has no places to give back closes the room it leaves, moving the shapes it freed back left or up by the least, in their order, pinned ones never (ADR 0080's clarification of 2026-10-29); libavoid in the routing worker, incremental by container, with the program's router as the fallback; container ports beyond the budget; communities for large containers without groups.
 - [ ] **Stage 2: reading many lines** (ADR 0080 section 5): names readable far out; `rows: "keys"`; the selection's relations, with the rest faint.
 - [ ] **Stage 3: stability**: Layout twice moves nothing; adding a table moves at most 10% of the others; the numbers at 10,000 elements, recorded.
+
+**M3d · What the first real model asked for.** Planned on 2026-10-29 from the notes the user's modeling session kept while building a real PostgreSQL model with Claude (73 tables, 19 views, 17 functions, 32 triggers, 9 schemas). The layout notes (lines through shapes, empty containers, collapsing that leaves holes) belong to M3c. Done when:
+
+- several `lay_out_view` calls in a row lay out every view they name, and Claude hears when one is interrupted;
+- no layout or move ever stores a route as if the person had drawn it;
+- a tour step marks and reveals notes and arrows;
+- `data-modeling` holds a database's schemas, views, enums, functions, triggers and sequences, with what reads, fires on and runs what, and the SQL recipe uses them;
+- Claude creates elements with ids of its own in `add_to_model`, and imports a large file without its whole content travelling twice;
+- Claude sees a view as the app draws it (ADR 0081);
+- notes, captions, descriptions and text attributes take bold, italic, strikethrough and code, and a component's detail wraps;
+- the design of component templates is researched and decided.
+
+Its tasks run one at a time, after M3c's Stage 0b, in this order:
+
+- [ ] **Fixes from use** (`server/src/claude/`, the app's layout guidance, `core/src/tours/`):
+  - **`lay_out_view` waits.** It answers once the app's layout of that view is done, with what it moved. Layouts asked for one after another run in turn, never one over another, and one that is stopped or replaced says so.
+  - **Layout never stores routes.** Reproduce the routes found stored as hand routes after `lay_out_view`, `set_positions` and a switch to `routeStyle: curved`, and fix their cause:
+    - a layout and a move write no `routes`;
+    - a hand route whose ends move is carried along, as today;
+    - `get_item` and `read_view` say which routes are by hand, so Claude can `reset_route` them.
+  - **Tour steps mark free shapes.** A step's `marks` and `reveal` take the ids of the notes and arrows its view holds, as `highlight` and the selection do (ADR 0077's clarification).
+  - **Undefined attributes.** Claude's answers name the attributes an element carries that its component does not define. They stay particularities, never refused.
+- [ ] **Data modeling for whole databases** (`core/src/builtin/data-modeling.ts`, the SQL recipe, ADR 0023's clarification):
+  - **The column** gains `default` and `check`.
+  - **New components:** Schema (a container inside a database), View, Materialized view, Enum, Function, Trigger and Sequence.
+  - **New relation types:** "reads from", "writes to", "fires on" and "runs", with "is part of" for schemas.
+  - Their names are in English and Spanish, with appearances that pass the contrast tests.
+  - **The SQL recipe** maps `CREATE SCHEMA` to a Schema inside one database, and views, functions and triggers to their components as structure (what reads, fires on and runs what), never their code.
+  - **Built-in packages stay closed** (`define_component` names only the project's own packages). Its refusal says to derive in a package of the project's own, with an example.
+  - **The user's project keeps working.** Its own `postgres` package stays valid. A note in the README says how to move such a model onto the built-in components with `update_element`.
+- [ ] **Large models from Claude** (`server/src/claude/`, the recipes):
+  - `add_to_model` takes an `id` of Claude's own for each element and relation, checked as `create-element` checks it.
+  - The recipes say how to send a large model in batches that refer to one another by those ids.
+  - For a file the import reads (Mermaid, CSV, JSON), the tools' descriptions name `visual-anything import <folder> <file>`, which goes through the running program. The program never reads a path Claude names: that would let Claude read any file the program can.
+- [ ] **Claude sees the view** (ADR 0081): `capture_view`, the capture messages, the off-screen render at a given size, and Claude's instructions.
+- [ ] **Text that takes emphasis** (an ADR first): bold, italic, strikethrough and inline code, written as a Markdown subset and drawn on the canvas, the read-only page and the exports, in:
+  - notes;
+  - tour captions;
+  - descriptions;
+  - text attributes shown as detail.
+
+  Plus: a component's detail wraps to at most three lines, with the whole text on hover; and the vertical place of a shape's name and detail block (top, middle, bottom) as an appearance trait. The ADR decides:
+  - the subset;
+  - how text in a file stays plain text a person can read;
+  - escaping;
+  - what Mermaid and Structurizr exports keep.
+- [ ] **Component templates, researched** (a research agent, then an ADR): HTML and CSS templates per component, filled with its attributes, per level of zoom and for collapsed and expanded containers, with optional code in package code's sandbox. The research weighs:
+  - rendering to a texture;
+  - an HTML layer over the canvas;
+  - compiling a subset to the canvas's drawing, on ADR 0068's HTML-as-drawing engine.
+
+  It is measured against the 10,000-element budget, and it says which part of "Text that takes emphasis" templates would supersede. Building it is a milestone of its own, planned from the ADR.
 
 **Track P · Visual packages**, beside the milestones, from the research on visual packages (ADR 0079). Its commits start with `P<n>:`. Each package follows ADR 0051: components and relation types with appearances that pass the contrast tests in both themes, names in English and Spanish, icons that pass the cleaner as stored, its licence and attribution (ADR 0047, ADR 0079), a sample project with a scenario, and a README section saying where its pictures come from.
 
