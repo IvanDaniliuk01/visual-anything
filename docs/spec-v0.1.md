@@ -622,7 +622,7 @@ The first three tasks are the seams, built in the main session in this order. Th
   - `loadProjectFrom(files)`: the loader's checks from bytes, which `loadProject` now reads through;
   - the session keeps the version as opened, and answers `versions/list` and `version/compare` from the app and from Claude's endpoint, with the comparison worked out;
   - the hostile-repository tests.
-- [ ] **The comparison on the canvas and in exports** (`app/src/canvas/comparison/`, `app/src/versions/changes/`, the renderer, `app/src/export/`, the theme tokens; ADR 0070). Compare with…, proposals and conflicts all open what it builds.
+- [x] **The comparison on the canvas and in exports** (`app/src/canvas/comparison/`, `app/src/versions/changes/`, the renderer, `app/src/export/`, the theme tokens; ADR 0070). Compare with…, proposals and conflicts all open what it builds.
   - `comparisonScene(older, newer, view, viewComparison, drawing)` for `before`, `after` and `comparison`:
     - the scene, with each shape's state;
     - removed shapes at their older places, and moved shapes' older places;
