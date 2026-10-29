@@ -23,8 +23,24 @@
  */
 import { centerOf, type Point, type Rect } from '../geometry';
 import type { PlacedOutline } from '../outlines';
-import { isSideEnd, routeWithSides, sideStart, type AnyEnd } from '../rowRoutes';
-import { routeByHand, type Attach, type HandEnd, type HandRoute, type RouteStyle } from './hand';
+import {
+  SELF_REACH,
+  isSideEnd,
+  routeWithSides,
+  selfReference,
+  sideStart,
+  type AnyEnd,
+} from '../rowRoutes';
+import {
+  flattenedSegments,
+  pointOnSpan,
+  routeByHand,
+  type Attach,
+  type CurveSpan,
+  type HandEnd,
+  type HandRoute,
+  type RouteStyle,
+} from './hand';
 import {
   carriedIn,
   carriedOrthogonal,
@@ -198,6 +214,9 @@ function outlinedOf(end: AutomaticEnd): OutlinedEnd | undefined {
 
 /** A curve between the places the orthogonal route attaches at, along their sides' directions. */
 function curvedRoute(a: AutomaticEnd, b: AutomaticEnd, offset: number, sibling: number): HandRoute {
+  if (isSideEnd(a.end) && isSideEnd(b.end) && selfReference(a.end, b.end)) {
+    return selfArc(sideStart(a.end), sideStart(b.end), a.end.side === 'right' ? 1 : -1);
+  }
   const pointed = a.points !== undefined || b.points !== undefined;
   // Where the orthogonal route attaches on the boxes, before it is carried on to any outline.
   const box = pointed
@@ -212,6 +231,25 @@ function curvedRoute(a: AutomaticEnd, b: AutomaticEnd, offset: number, sibling: 
   const start = curveEnd(a, box[0] as Point, box[1] as Point);
   const end = curveEnd(b, box.at(-1) as Point, box.at(-2) as Point);
   return routeByHand(start, end, [], 'curved', 0);
+}
+
+/**
+ * A relation from a row to its own table, curved: one arc out of the table's side and back, which
+ * reaches `SELF_REACH` out at its furthest, as the orthogonal C does, never a loop round the table
+ * (ADR 0080, section 2). A cubic span reaches three quarters of the way to its control points.
+ */
+function selfArc(start: Point, end: Point, way: 1 | -1): HandRoute {
+  const reach = (SELF_REACH * 4) / 3;
+  const span: CurveSpan = {
+    from: start,
+    c1: { x: start.x + way * reach, y: start.y },
+    c2: { x: end.x + way * reach, y: end.y },
+    to: end,
+  };
+  const steps = flattenedSegments(Math.abs(end.y - start.y) + 2 * SELF_REACH);
+  const route: Point[] = [start];
+  for (let step = 1; step <= steps; step++) route.push(pointOnSpan(span, step / steps));
+  return { route, curve: [span] };
 }
 
 /**

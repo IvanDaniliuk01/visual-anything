@@ -75,6 +75,13 @@ export interface SceneRouting {
   plan(ends: LineEnds): LinePlan | undefined;
   /** The style a relation's automatic route takes in the view, or an aggregated one's by its type. */
   automaticStyle(relation: DrawnRelation): RouteStyle;
+  /** Whether the view keeps a route for the relation, which keeps its own style (ADR 0039). */
+  byHand(relation: Id): boolean;
+  /**
+   * Whether any automatic route of the view may be curved: by the view's style, or a relation's or
+   * relation type's appearance. False lets the scene skip counting curves (ADR 0080, section 3).
+   */
+  mayCurve(): boolean;
   /** The relations whose route the view keeps changed since `before`: given, changed or taken away. */
   changedSince(before: ViewFile): Id[];
   /** The indexes of the shapes whose connection points differ between two lists with the same keys. */
@@ -103,6 +110,43 @@ function shapeIndexOf(shapes: readonly ElementShape[]): ShapeIndex {
     shapeIndexes.set(shapes, index);
   }
   return index;
+}
+
+const curving = new WeakMap<
+  readonly unknown[],
+  { routeStyle: RouteStyle | undefined; packages: unknown; appearances: unknown; may: boolean }
+>();
+
+/**
+ * Whether any automatic route of a view may be curved, worked out once for each set of relations,
+ * packages and project appearances, and the view's style.
+ */
+function mayCurveIn(project: ProjectSnapshot, view: ViewFile): boolean {
+  if (view.routeStyle === 'curved') return true;
+  const { relations } = project.model;
+  const known = curving.get(relations);
+  if (
+    known &&
+    known.routeStyle === view.routeStyle &&
+    known.packages === project.packages &&
+    known.appearances === project.project.appearances
+  ) {
+    return known.may;
+  }
+  let may = false;
+  for (const relation of relations) {
+    if (automaticRouteStyleOf(project, view, relation) === 'curved') {
+      may = true;
+      break;
+    }
+  }
+  curving.set(relations, {
+    routeStyle: view.routeStyle,
+    packages: project.packages,
+    appearances: project.project.appearances,
+    may,
+  });
+  return may;
 }
 
 /** The routing of one build of a view, with the shapes it placed. */
@@ -148,6 +192,12 @@ export function sceneRouting(
     },
     automaticStyle(relation) {
       return automaticRouteStyleOf(project, view, relation);
+    },
+    byHand(relation) {
+      return routes !== undefined && Object.hasOwn(routes, relation);
+    },
+    mayCurve() {
+      return mayCurveIn(project, view);
     },
     changedSince(before) {
       return changedRoutes(before.routes, routes);

@@ -5,7 +5,8 @@
  * its stub, as one trunk; each row with relations on a side has a lane of its own, so their vertical
  * runs stay apart.
  *
- * - Two side ends on the same side join in a C, at the lane further out.
+ * - Two side ends on the same side join in a C, at the lane further out; two on the same table, as
+ *   a relation from a row to its own table, in a short C `SELF_REACH` out (ADR 0080).
  * - Two stubs facing each other join in a Z, through the middle of the gap between the two sides.
  * - Toward a shape within the container's span, above or below it, the route turns vertical first,
  *   at its lane; toward one beside it, it enters it from the side facing the lane.
@@ -92,6 +93,11 @@ function laneOf(end: SideEnd, offset: number): number {
 function betweenSides(a: SideEnd, b: SideEnd, offset: number): Route {
   const start = sideStart(a);
   const end = sideStart(b);
+  if (selfReference(a, b)) {
+    // A relation from a row to its own table: a short C, out `SELF_REACH` and back (ADR 0080).
+    const x = start.x + outward(a.side) * SELF_REACH;
+    return [start, { x, y: start.y }, { x, y: end.y }, end];
+  }
   if (a.side === b.side) {
     // A C at the lane further out.
     const sign = outward(a.side);
@@ -229,6 +235,18 @@ function gapBetween(a: Rect, b: Rect): number | undefined {
   if (bottomOf(a) <= b.y) return (bottomOf(a) + b.y) / 2;
   if (bottomOf(b) <= a.y) return (bottomOf(b) + a.y) / 2;
   return undefined;
+}
+
+/** How far out of its table's side a relation from a row to its own table runs, in its C. */
+export const SELF_REACH = 16;
+
+function sameRect(a: Rect, b: Rect): boolean {
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+}
+
+/** Whether two side ends leave the same table on the same side: a relation to its own table. */
+export function selfReference(a: SideEnd, b: SideEnd): boolean {
+  return a.side === b.side && sameRect(a.container, b.container);
 }
 
 function clamp(value: number, low: number, high: number): number {

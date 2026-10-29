@@ -33,6 +33,28 @@ export interface AvoidShapes {
    * detail; 0 for one that holds no shapes, whose name is inside it.
    */
   plates: Float64Array;
+  /**
+   * 1 for each shape drawn inside another as a part of it, as a row is inside its table: routes go
+   * around its container, never around it alone, so the index leaves it out. Absent: none is.
+   */
+  inside?: Uint8Array;
+  /**
+   * 1 for each container drawn open, its contents drawn: a route beside a row runs through it,
+   * between what it holds and clear of its name plate, as libavoid is given only blocks and plates
+   * (ADR 0080, section 2). Absent: routes go around every container but their ends'.
+   */
+  open?: Uint8Array;
+}
+
+/**
+ * An end beside a row, or on a shape that draws rows (ADR 0023, ADR 0080 section 2): the shape whose
+ * side it leaves, the way it leaves, 1 to the right and -1 to the left, and the height it leaves at,
+ * its row's middle.
+ */
+export interface AvoidSide {
+  shape: number;
+  way: 1 | -1;
+  y: number;
 }
 
 /** A line to route: the indexes of its ends' shapes, how far it runs beside its siblings, its route. */
@@ -42,6 +64,10 @@ export interface AvoidLine {
   offset: number;
   /** Its stand-in route, as x and y pairs. */
   route: Float64Array;
+  /** Present when its `from` end leaves beside a row: it leaves there, with a stub of `STUB`. */
+  fromSide?: AvoidSide;
+  /** Present when its `to` end leaves beside a row. */
+  toSide?: AvoidSide;
 }
 
 /** What routing one line gave: a route around what was in its way, and where it looked. */
@@ -60,12 +86,41 @@ export interface Avoided {
 
 /** How far clear of the shapes a route runs, in canvas units. */
 export const CLEARANCE = 16;
+/**
+ * How far clear of the shapes a route with an end beside a row runs, as libavoid's buffer is set
+ * (ADR 0080, section 2): less than the stub, so that a stub's tip lies clear of its own shape.
+ */
+export const SIDE_CLEARANCE = 12;
+/** How far a route with an end beside a row runs straight out of its side before it turns. */
+export const STUB = 16;
+/**
+ * What running along another line's run costs a route beside a row, per unit of length, where the two
+ * share no end: so that lines take corridors of their own, as the research's grid router did, and the
+ * channel pass has room to spread what still runs together (ADR 0080, section 2).
+ */
+const SHARE = 2;
+/** How near another line's run counts as running along it. */
+const NEAR_RUN = 8;
+/** What crossing another line's run costs a route beside a row, in canvas units of length. */
+const CROSS = 128;
+/** The clearances a route with an end beside a row tries, in turn, before it gives up. */
+const BESIDE_CLEARANCES = [SIDE_CLEARANCE, 4, 1] as const;
 /** How tall a container's name plate is: its name and its detail, at its top. */
 export const PLATE_HEIGHT = 44;
 /** The most shapes a route goes around; with more near its ends, it keeps its stand-in route. */
 export const MAX_OBSTACLES = 60;
+/**
+ * The most shapes a route beside a row goes around, which runs between the tables of the containers
+ * it crosses rather than around those containers.
+ */
+export const MAX_BESIDE_OBSTACLES = 160;
 /** What a turn costs, in canvas units of length, so that a route prefers fewer of them. */
 const TURN = 48;
+/**
+ * What a turn costs a route with an end beside a row, which runs far across a data model: more, so
+ * that it bends at most twice on average (ADR 0080's quality thresholds).
+ */
+const BESIDE_TURN = 240;
 /** How far the region a route looks in reaches beyond its ends. */
 const REACH = 3 * CLEARANCE;
 /** How much of a shape a segment must cross to count, so that lines along a border do not. */
@@ -150,7 +205,7 @@ class ShapeGrid {
     const spans = new Int32Array(count * 4).fill(-1);
     let entries = 0;
     for (let at = 0; at < count; at++) {
-      if (!finiteAt(shapes, at)) continue;
+      if (!finiteAt(shapes, at) || shapes.inside?.[at] === 1) continue;
       const base = at * 4;
       const x0 = this.column(rects[base] as number);
       const y0 = this.row(rects[base + 1] as number);
@@ -369,10 +424,33 @@ function plateAt(shapes: AvoidShapes, at: number): Rect | undefined {
 export class Avoider {
   private readonly grid: ShapeGrid;
   private readonly nesting: Nesting;
+  /** The routes lines beside rows run along, which a route beside a row prefers not to share. */
+  private readonly tracks = new Tracks();
 
-  constructor(private readonly shapes: AvoidShapes) {
+  /**
+   * `existing` are lines already drawn that this avoider does not route, as the canvas's other
+   * routes are while some are routed again: routes beside rows keep apart from them too.
+   */
+  constructor(
+    private readonly shapes: AvoidShapes,
+    existing: readonly AvoidLine[] = [],
+  ) {
     this.grid = new ShapeGrid(shapes);
     this.nesting = new Nesting(shapes.parents);
+    if (!this.grid.overloaded) {
+      for (const line of existing) this.tracks.add(line.route, line.from, line.to);
+    }
+  }
+
+  /**
+   * Routes one line, as `route` does, and keeps the route of a line beside a row for the routes
+   * beside rows after it, which are the only ones that read them.
+   */
+  avoid(line: AvoidLine): Avoided {
+    const avoided = this.route(line);
+    if (line.fromSide || line.toSide)
+      this.tracks.add(avoided.route ?? line.route, line.from, line.to);
+    return avoided;
   }
 
   /** Whether the shapes are more than the index holds: then every line keeps its stand-in route. */
@@ -381,62 +459,92 @@ export class Avoider {
   }
 
   /** Routes one line: a route around what its stand-in route crosses, or nothing when it crosses none. */
-  avoid(line: AvoidLine): Avoided {
+  private route(line: AvoidLine): Avoided {
     const { shapes, nesting } = this;
     const stand = pointsOf(line.route);
     const spanned = boundsOf(stand);
     const nowhere: Avoided = { region: grow(spanned, CLEARANCE) };
-    if (line.from === line.to || stand.length < 2) return nowhere;
+    // An end beside a row counts by the shape whose side it leaves: its table.
+    const from = line.fromSide?.shape ?? line.from;
+    const to = line.toSide?.shape ?? line.to;
+    if (from === to || stand.length < 2) return nowhere;
     const count = shapes.parents.length;
     const known = (at: number) => Number.isInteger(at) && at >= 0 && at < count;
-    if (!known(line.from) || !known(line.to)) return nowhere;
+    if (!known(from) || !known(to)) return nowhere;
     // Past the index's limits, an end nested too deep, or an end of no finite size: as built.
     if (
       this.grid.overloaded ||
-      (nesting.depths[line.from] as number) > MAX_DEPTH ||
-      (nesting.depths[line.to] as number) > MAX_DEPTH ||
-      !finiteAt(shapes, line.from) ||
-      !finiteAt(shapes, line.to)
+      (nesting.depths[from] as number) > MAX_DEPTH ||
+      (nesting.depths[to] as number) > MAX_DEPTH ||
+      !finiteAt(shapes, from) ||
+      !finiteAt(shapes, to)
     ) {
       return { ...nowhere, gaveUp: true };
     }
-    const a = rectAt(shapes, line.from);
-    const b = rectAt(shapes, line.to);
-    const aboveA = ancestorsOf(shapes, line.from);
-    const aboveB = ancestorsOf(shapes, line.to);
+    const a = rectAt(shapes, from);
+    const b = rectAt(shapes, to);
+    const aboveA = ancestorsOf(shapes, from);
+    const aboveB = ancestorsOf(shapes, to);
     // A line between a container and what it holds runs inside it, as the stand-in draws it.
-    if (aboveA.has(line.to) || aboveB.has(line.from)) return nowhere;
+    if (aboveA.has(to) || aboveB.has(from)) return nowhere;
+    const beside = line.fromSide !== undefined || line.toSide !== undefined;
+    const open = (at: number) => beside && shapes.open?.[at] === 1;
+    // Beside rows, a shape that covers an end's table, as pinned shapes may, cannot be gone around:
+    // the line runs over it, and around what it holds. A container drawn open is run through.
     const excluded = (at: number) =>
-      at === line.from ||
-      at === line.to ||
+      at === from ||
+      at === to ||
       aboveA.has(at) ||
       aboveB.has(at) ||
-      nesting.holds(line.from, at) ||
-      nesting.holds(line.to, at);
-    // The name plates of the containers the line runs in, which it may not cross either.
+      nesting.holds(from, at) ||
+      nesting.holds(to, at) ||
+      open(at) ||
+      (beside && (covers(rectAt(shapes, at), a) || covers(rectAt(shapes, at), b)));
+    // The name plates of the containers the line runs in, which it may not cross either: beside
+    // rows, those of every container drawn open it runs through.
     const plates: Rect[] = [];
     for (const at of new Set([...aboveA, ...aboveB])) {
       const plate = plateAt(shapes, at);
       if (plate) plates.push(plate);
     }
-    const crossing = this.crosses(stand, excluded, plates);
+    const near = beside ? this.openIn(grow(spanned, CLEARANCE), aboveA, aboveB) : [];
+    if (!near) return { ...nowhere, gaveUp: true };
+    const crossing = this.crosses(stand, excluded, [...plates, ...near]);
     if (crossing === undefined) return { ...nowhere, gaveUp: true };
-    if (!crossing) return nowhere;
+    // Beside rows, a stand-in route that crosses nothing is still routed when it runs along another
+    // line's run, as the stand-ins through the middle of one gap do.
+    if (!crossing && !(beside && this.tracks.shares(line.route, line.from, line.to)))
+      return nowhere;
 
     // Where to look: around both ends, and around the shapes in the way, inside the container that
     // holds both ends.
-    const holder = lowestCommon(shapes, aboveA, line.from, line.to);
+    const holder = lowestCommon(shapes, aboveA, from, to);
     const inside = holder === -1 ? undefined : rectAt(shapes, holder);
     let region = clip(grow(union(a, b), REACH), inside);
-    const first = this.obstaclesIn(region, excluded);
+    const most = beside ? MAX_BESIDE_OBSTACLES : MAX_OBSTACLES;
+    const first = this.obstaclesIn(region, excluded, most);
     if (!first) return { region, gaveUp: true };
     for (const at of first) region = union(region, rectAt(shapes, at));
     region = clip(grow(region, REACH), inside);
-    const obstacles = this.obstaclesIn(region, excluded);
+    const obstacles = this.obstaclesIn(region, excluded, most);
     const kept: Avoided = { region, gaveUp: true };
-    if (!obstacles || obstacles.length > MAX_OBSTACLES) return kept;
+    if (!obstacles || obstacles.length > most) return kept;
     const rects = obstacles.map((at) => rectAt(shapes, at));
-    for (const plate of plates) if (meets(plate, region)) rects.push(plate);
+    const all = beside ? this.openIn(region, aboveA, aboveB) : [];
+    if (!all) return kept;
+    for (const plate of [...plates, ...all]) if (meets(plate, region)) rects.push(plate);
+    if (beside) {
+      const ports: EndPorts = {};
+      if (line.fromSide) ports.from = portBeside(a, line.fromSide);
+      if (line.toSide) ports.to = portBeside(b, line.toSide);
+      // Where a neighbour stands closer than a stub and the clearance, the route keeps less clear.
+      const along = this.tracks.near(region, line.from, line.to);
+      for (const clearance of BESIDE_CLEARANCES) {
+        const route = routeAround(a, b, line.offset, rects, region, stand, ports, clearance, along);
+        if (route) return { route: flatten(route), region };
+      }
+      return kept;
+    }
     const route = routeAround(a, b, line.offset, rects, region, stand);
     if (!route) return { region };
     return { route: flatten(route), region };
@@ -472,12 +580,16 @@ export class Avoider {
    * The shapes in a region that are not excluded, the outermost of each nest only; undefined past a
    * limit, beyond which there is no use looking further: the line keeps its stand-in route.
    */
-  private obstaclesIn(region: Rect, excluded: (at: number) => boolean): number[] | undefined {
+  private obstaclesIn(
+    region: Rect,
+    excluded: (at: number) => boolean,
+    most = MAX_OBSTACLES,
+  ): number[] | undefined {
     const found = new Set<number>();
     let crowded = false;
     const looked = this.grid.query(region, (at) => {
       if (!excluded(at) && meets(rectAt(this.shapes, at), region)) found.add(at);
-      crowded = found.size > MAX_OBSTACLES * 4;
+      crowded = found.size > most * 4;
       return crowded;
     });
     if (crowded || !looked) return undefined;
@@ -497,11 +609,35 @@ export class Avoider {
     }
     return outermost;
   }
+
+  /**
+   * The name plates of the containers drawn open in a region, but for those `aboveA` and `aboveB`
+   * hold, which the caller has; undefined past a limit of the index.
+   */
+  private openIn(
+    region: Rect,
+    aboveA: ReadonlySet<number>,
+    aboveB: ReadonlySet<number>,
+  ): Rect[] | undefined {
+    const { shapes } = this;
+    if (!shapes.open) return [];
+    const plates: Rect[] = [];
+    const looked = this.grid.query(region, (at) => {
+      if (shapes.open?.[at] !== 1 || aboveA.has(at) || aboveB.has(at)) return;
+      const plate = plateAt(shapes, at);
+      if (plate && meets(plate, region)) plates.push(plate);
+    });
+    return looked ? plates : undefined;
+  }
 }
 
 /** Routes every line, as a worker or the exports do; see `Avoider`. */
-export function avoidRoutes(shapes: AvoidShapes, lines: readonly AvoidLine[]): Avoided[] {
-  const avoider = new Avoider(shapes);
+export function avoidRoutes(
+  shapes: AvoidShapes,
+  lines: readonly AvoidLine[],
+  existing: readonly AvoidLine[] = [],
+): Avoided[] {
+  const avoider = new Avoider(shapes, existing);
   return lines.map((line) => avoider.avoid(line));
 }
 
@@ -532,10 +668,137 @@ function lowestCommon(
   return -1;
 }
 
+/** The runs of the lines routed so far, by the cells of a grid they cover, with their ends. */
+class Tracks {
+  private readonly cells = new Map<number, number[]>();
+  /** Four numbers a run, and its line's two ends after them. */
+  private readonly runs: number[] = [];
+
+  /** Keeps the runs of a route between ends `from` and `to`. */
+  add(route: Float64Array, from: number, to: number): void {
+    for (let at = 2; at + 1 < route.length; at += 2) {
+      const x0 = route[at - 2] as number;
+      const y0 = route[at - 1] as number;
+      const x1 = route[at] as number;
+      const y1 = route[at + 1] as number;
+      if (x0 !== x1 && y0 !== y1) continue;
+      if (x0 === x1 && y0 === y1) continue;
+      const index = this.runs.length;
+      this.runs.push(x0, y0, x1, y1, from, to);
+      const cx0 = Math.floor(Math.min(x0, x1) / CELL);
+      const cx1 = Math.floor(Math.max(x0, x1) / CELL);
+      const cy0 = Math.floor(Math.min(y0, y1) / CELL);
+      const cy1 = Math.floor(Math.max(y0, y1) / CELL);
+      if ((cx1 - cx0 + 1) * (cy1 - cy0 + 1) > MAX_QUERY_CELLS) continue;
+      for (let cy = cy0; cy <= cy1; cy++) {
+        for (let cx = cx0; cx <= cx1; cx++) {
+          const key = (cx + 0x8000) * 0x10000 + (cy + 0x8000);
+          const list = this.cells.get(key);
+          if (list) list.push(index);
+          else this.cells.set(key, [index]);
+        }
+      }
+    }
+  }
+
+  /**
+   * Whether a route runs along a run of a line that shares no end with `from` and `to`: on the same
+   * line, overlapping by more than a few units.
+   */
+  shares(route: Float64Array, from: number, to: number): boolean {
+    for (let at = 2; at + 1 < route.length; at += 2) {
+      const x0 = route[at - 2] as number;
+      const y0 = route[at - 1] as number;
+      const x1 = route[at] as number;
+      const y1 = route[at + 1] as number;
+      if (x0 !== x1 && y0 !== y1) continue;
+      const box = boundsOf([
+        { x: x0, y: y0 },
+        { x: x1, y: y1 },
+      ]);
+      const runs = this.near(grow(box, 1), from, to);
+      for (let run = 0; run + 3 < runs.length; run += 4) {
+        const a0 = runs[run] as number;
+        const b0 = runs[run + 1] as number;
+        const a1 = runs[run + 2] as number;
+        const b1 = runs[run + 3] as number;
+        const together =
+          x0 === x1
+            ? a0 === a1 && Math.abs(a0 - x0) < 0.5 && overlapOf(y0, y1, b0, b1) > 4
+            : b0 === b1 && Math.abs(b0 - y0) < 0.5 && overlapOf(x0, x1, a0, a1) > 4;
+        if (together) return true;
+      }
+    }
+    return false;
+  }
+
+  /** The runs in a region of lines that share no end with `from` and `to`, four numbers each. */
+  near(region: Rect, from: number, to: number): number[] {
+    const found: number[] = [];
+    const seen = new Set<number>();
+    const cx0 = Math.floor(region.x / CELL);
+    const cx1 = Math.floor((region.x + region.width) / CELL);
+    const cy0 = Math.floor(region.y / CELL);
+    const cy1 = Math.floor((region.y + region.height) / CELL);
+    if ((cx1 - cx0 + 1) * (cy1 - cy0 + 1) > MAX_QUERY_CELLS) return found;
+    const { runs } = this;
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        for (const index of this.cells.get((cx + 0x8000) * 0x10000 + (cy + 0x8000)) ?? []) {
+          if (seen.has(index)) continue;
+          seen.add(index);
+          const a = runs[index + 4] as number;
+          const b = runs[index + 5] as number;
+          if (a === from || a === to || b === from || b === to) continue;
+          found.push(
+            runs[index] as number,
+            runs[index + 1] as number,
+            runs[index + 2] as number,
+            runs[index + 3] as number,
+          );
+        }
+      }
+    }
+    return found;
+  }
+}
+
+/** How far two spans along one line overlap; negative when they lie apart. */
+function overlapOf(a0: number, a1: number, b0: number, b1: number): number {
+  return (
+    Math.min(Math.max(a0, a1), Math.max(b0, b1)) - Math.max(Math.min(a0, a1), Math.min(b0, b1))
+  );
+}
+
+/** Where a route leaves a shape beside a row: on its side at the row's middle, the way it faces. */
+export interface EndPort {
+  x: number;
+  y: number;
+  way: 1 | -1;
+}
+
+/** The ports of a route's ends that leave beside rows; an end without one leaves through a side's middle. */
+export interface EndPorts {
+  from?: EndPort;
+  to?: EndPort;
+}
+
+/** The port of an end beside a row, on the side of `rect` it leaves. */
+function portBeside(rect: Rect, side: AvoidSide): EndPort {
+  return { x: side.way > 0 ? rect.x + rect.width : rect.x, y: side.y, way: side.way };
+}
+
+/** Where a port's stub ends, `STUB` out of its side. */
+function tipOf(port: EndPort): Point {
+  return { x: port.x + port.way * STUB, y: port.y };
+}
+
 /**
  * The route between two shapes around `obstacles`, inside `region`, or undefined when there is none:
  * it leaves `a` and enters `b` through the middle of a side, moved by `offset`, a clearance away from
- * every obstacle, and turns as little as it can.
+ * every obstacle, and turns as little as it can. An end with a port in `ports` leaves at the port
+ * instead, straight out of its side for `STUB` before it turns, and its shape is gone around like
+ * any other.
  */
 export function routeAround(
   a: Rect,
@@ -544,18 +807,26 @@ export function routeAround(
   obstacles: readonly Rect[],
   region: Rect,
   stand?: readonly Point[],
+  ports: EndPorts = {},
+  besideClearance = SIDE_CLEARANCE,
+  along: readonly number[] = [],
 ): Point[] | undefined {
+  const beside = ports.from !== undefined || ports.to !== undefined;
   // Siblings run in lanes of their own around what is in their way.
-  const clearance = Math.max(CLEARANCE / 2, CLEARANCE + offset / 2);
+  const clearance = beside ? besideClearance : Math.max(CLEARANCE / 2, CLEARANCE + offset / 2);
   const blocks = obstacles.map((rect) => grow(rect, clearance));
   // The stand-in route's own shape, its middle run moved to a free channel, when that is enough.
-  const moved = stand && movedRun(stand, blocks, a, b, region);
+  const moved = stand && movedRun(stand, blocks, a, b, region, ports);
   if (moved) return moved;
-  const start = portOf(a, offset);
-  const end = portOf(b, offset);
+  const start = ports.from ? tipOf(ports.from) : portOf(a, offset);
+  const end = ports.to ? tipOf(ports.to) : portOf(b, offset);
   const xs = new Set<number>([start.x, end.x, region.x, region.x + region.width]);
   const ys = new Set<number>([start.y, end.y, region.y, region.y + region.height]);
-  for (const block of [...blocks, grow(a, clearance), grow(b, clearance)]) {
+  // A shape left beside a row is gone around a little less than its stub, so its tip lies clear.
+  const ownA = ports.from ? grow(a, STUB - 4) : undefined;
+  const ownB = ports.to ? grow(b, STUB - 4) : undefined;
+  for (const block of [...blocks, grow(a, clearance), grow(b, clearance), ownA, ownB]) {
+    if (!block) continue;
     xs.add(block.x).add(block.x + block.width);
     ys.add(block.y).add(block.y + block.height);
   }
@@ -566,19 +837,37 @@ export function routeAround(
   const grid = new VisibilityGrid(gx, gy);
   for (const block of blocks) grid.block(block);
   // Inside its ends' shapes, a route runs only along the lines through its ports.
-  grid.blockAllBut(a, start);
-  grid.blockAllBut(b, end);
-  const found = grid.shortest(start, end);
+  if (ownA) grid.block(ownA);
+  else grid.blockAllBut(a, start);
+  if (ownB) grid.block(ownB);
+  else grid.blockAllBut(b, end);
+  if (along.length > 0) grid.markUsed(along);
+  // A stub's tip is left the way the stub runs, never back along it.
+  const found = grid.shortest(
+    start,
+    end,
+    ports.from ? wayOf(ports.from.way) : undefined,
+    beside ? BESIDE_TURN : TURN,
+  );
   if (!found) return undefined;
-  const route = simplify(clipEnds(found, a, b));
+  let route = found;
+  route = ports.from ? [{ x: ports.from.x, y: ports.from.y }, ...route] : clipStart(route, a);
+  route = ports.to ? [...route, { x: ports.to.x, y: ports.to.y }] : clipEnd(route, b);
+  route = simplify(route);
   return route.length >= 2 ? route : undefined;
+}
+
+/** The index in `STEPS` of a horizontal way: 0 to the right, 1 to the left. */
+function wayOf(way: 1 | -1): number {
+  return way > 0 ? 0 : 1;
 }
 
 /**
  * The stand-in route with its middle run moved, when that clears every block: a straight route moved
  * along the sides its ends share, or the middle of a route that turns twice moved across, to the
  * middle of the free channel nearest where it was. Most routes in the way of a shape or two clear it
- * so, at a fraction of the cost of a search.
+ * so, at a fraction of the cost of a search. An end beside a row stays at its row's middle, and its
+ * stub keeps `STUB` at least.
  */
 function movedRun(
   stand: readonly Point[],
@@ -586,11 +875,15 @@ function movedRun(
   a: Rect,
   b: Rect,
   region: Rect,
+  ports: EndPorts,
 ): Point[] | undefined {
   const clear = (route: Point[]) => !hitsAny(route, blocks) && within(route, region);
   const tops = blocks.flatMap((block) => [block.y, block.y + block.height]);
   const sides = blocks.flatMap((block) => [block.x, block.x + block.width]);
+  const beside = ports.from !== undefined || ports.to !== undefined;
   if (stand.length === 2) {
+    // A straight line between rows runs at their middles, which it may not leave.
+    if (beside) return undefined;
     const [p, q] = stand as [Point, Point];
     if (p.y === q.y) {
       const low = Math.max(a.y, b.y) + 6;
@@ -618,11 +911,23 @@ function movedRun(
   if (stand.length !== 4) return undefined;
   const [p, m, n, q] = stand as [Point, Point, Point, Point];
   if (p.y === m.y && m.x === n.x && n.y === q.y) {
-    for (const x of channels(sides, Math.min(p.x, q.x), Math.max(p.x, q.x), m.x)) {
+    // Each stub out of a row runs `STUB` at least before the middle run.
+    let low = Math.min(p.x, q.x);
+    let high = Math.max(p.x, q.x);
+    for (const [port, at] of [
+      [ports.from, p],
+      [ports.to, q],
+    ] as const) {
+      if (!port) continue;
+      if (port.way > 0 && at.x === low) low += STUB;
+      else if (port.way < 0 && at.x === high) high -= STUB;
+      else return undefined;
+    }
+    for (const x of channels(sides, low, high, m.x)) {
       const route = [p, { x, y: p.y }, { x, y: q.y }, q];
       if (clear(route)) return route;
     }
-  } else if (p.x === m.x && m.y === n.y && n.x === q.x) {
+  } else if (!beside && p.x === m.x && m.y === n.y && n.x === q.x) {
     for (const y of channels(tops, Math.min(p.y, q.y), Math.max(p.y, q.y), m.y)) {
       const route = [p, { x: p.x, y }, { x: q.x, y }, q];
       if (clear(route)) return route;
@@ -692,6 +997,12 @@ class VisibilityGrid {
   /** Blocked segments to the right of each point, and below it. */
   private readonly right: Uint8Array;
   private readonly down: Uint8Array;
+  /** How many other lines run along the segment to the right of each point, and below it. */
+  private usedRight: Uint16Array | undefined;
+  private usedDown: Uint16Array | undefined;
+  /** How many other lines' runs the segment to the right of each point, and below it, crosses. */
+  private crossRight: Uint16Array | undefined;
+  private crossDown: Uint16Array | undefined;
 
   constructor(
     private readonly xs: number[],
@@ -701,6 +1012,58 @@ class VisibilityGrid {
     this.nodes = new Uint8Array(count);
     this.right = new Uint8Array(count);
     this.down = new Uint8Array(count);
+  }
+
+  /**
+   * Marks the segments of the grid that run along other lines' runs, within `NEAR_RUN` of them:
+   * `runs` holds four numbers a run, its two points.
+   */
+  markUsed(runs: readonly number[]): void {
+    const { xs, ys } = this;
+    const nx = xs.length;
+    const usedRight = (this.usedRight ??= new Uint16Array(nx * ys.length));
+    const usedDown = (this.usedDown ??= new Uint16Array(nx * ys.length));
+    const crossRight = (this.crossRight ??= new Uint16Array(nx * ys.length));
+    const crossDown = (this.crossDown ??= new Uint16Array(nx * ys.length));
+    for (let at = 0; at + 3 < runs.length; at += 4) {
+      const x0 = runs[at] as number;
+      const y0 = runs[at + 1] as number;
+      const x1 = runs[at + 2] as number;
+      const y1 = runs[at + 3] as number;
+      const horizontal = y0 === y1;
+      if (!horizontal && x0 !== x1) continue;
+      const [lines, steps] = horizontal ? [ys, xs] : [xs, ys];
+      const place = horizontal ? y0 : x0;
+      const low = Math.min(horizontal ? x0 : y0, horizontal ? x1 : y1);
+      const high = Math.max(horizontal ? x0 : y0, horizontal ? x1 : y1);
+      const [first, last] = span(lines, place - NEAR_RUN, place + NEAR_RUN);
+      const [from, to] = span(steps, low, high);
+      // The grid's segments across the run, between the lines either side of it.
+      const [below] = span(lines, place, place);
+      if ((lines[below] as number) < place && below + 1 < lines.length) {
+        for (let step = from; step <= to; step++) {
+          const value = steps[step] as number;
+          if (value <= low || value >= high) continue;
+          if (horizontal)
+            crossDown[below * nx + step] = (crossDown[below * nx + step] as number) + 1;
+          else crossRight[step * nx + below] = (crossRight[step * nx + below] as number) + 1;
+        }
+      }
+      for (let line = first; line <= last; line++) {
+        const value = lines[line] as number;
+        if (Math.abs(value - place) >= NEAR_RUN) continue;
+        for (let step = from; step < to; step++) {
+          if (
+            (steps[step] as number) < low - EPSILON ||
+            (steps[step + 1] as number) > high + EPSILON
+          ) {
+            continue;
+          }
+          if (horizontal) usedRight[line * nx + step] = (usedRight[line * nx + step] as number) + 1;
+          else usedDown[step * nx + line] = (usedDown[step * nx + line] as number) + 1;
+        }
+      }
+    }
   }
 
   /** Blocks what lies strictly inside `rect`: its points, and the segments through its inside. */
@@ -776,8 +1139,11 @@ class VisibilityGrid {
     }
   }
 
-  /** The shortest route from one point of the grid to another, with the fewest turns; or none. */
-  shortest(from: Point, to: Point): Point[] | undefined {
+  /**
+   * The shortest route from one point of the grid to another, with the fewest turns; or none. With
+   * `leaving`, an index of `STEPS`, it leaves `from` that way; each turn costs `turn`.
+   */
+  shortest(from: Point, to: Point, leaving?: number, turn = TURN): Point[] | undefined {
     const { xs, ys } = this;
     const nx = xs.length;
     const fi = xs.indexOf(from.x);
@@ -796,9 +1162,10 @@ class VisibilityGrid {
     const guess = (i: number, j: number) =>
       Math.abs((xs[i] as number) - to.x) + Math.abs((ys[j] as number) - to.y);
     const start = fj * nx + fi;
-    for (let way = 0; way < 4; way++) {
-      reach(start * 4 + way, 0, -1);
-      heap.push(start * 4 + way, guess(fi, fj));
+    for (let each = 0; each < 4; each++) {
+      if (leaving !== undefined && each !== leaving) continue;
+      reach(start * 4 + each, 0, -1);
+      heap.push(start * 4 + each, guess(fi, fj));
     }
     const goal = tj * nx + ti;
     while (heap.size > 0) {
@@ -823,8 +1190,10 @@ class VisibilityGrid {
         const length =
           Math.abs((xs[ni] as number) - (xs[i] as number)) +
           Math.abs((ys[nj] as number) - (ys[j] as number));
-        const turned = next === way || node === start ? 0 : TURN;
-        const reached = here + length + turned;
+        const turned = next === way || node === start ? 0 : turn;
+        const used = (di !== 0 ? this.usedRight : this.usedDown)?.[crossing] ?? 0;
+        const crossed = (di !== 0 ? this.crossRight : this.crossDown)?.[crossing] ?? 0;
+        const reached = here + length * (1 + used * SHARE) + crossed * CROSS + turned;
         const nextState = target * 4 + next;
         if (reached >= costOf(nextState)) continue;
         reach(nextState, reached, state);
@@ -939,20 +1308,18 @@ class StateHeap {
   }
 }
 
-/**
- * The route cut at its ends' borders: from where it leaves `a` to where it enters `b`, as a line is
- * drawn from border to border.
- */
-function clipEnds(found: Point[], a: Rect, b: Rect): Point[] {
-  const points = [...found];
-  // From the start, the last point still inside `a`, and where its segment leaves it.
+/** The route cut where it leaves `a`, as a line is drawn from border to border. */
+function clipStart(found: Point[], a: Rect): Point[] {
   let first = 0;
-  while (first + 1 < points.length && strictlyInside(points[first + 1] as Point, a)) first++;
-  const leaving = exitPoint(points[first] as Point, points[first + 1] as Point, a);
-  let last = points.length - 1;
-  while (last - 1 > first && strictlyInside(points[last - 1] as Point, b)) last--;
-  const entering = exitPoint(points[last] as Point, points[last - 1] as Point, b);
-  return [leaving, ...points.slice(first + 1, last), entering];
+  while (first + 1 < found.length && strictlyInside(found[first + 1] as Point, a)) first++;
+  if (first + 1 >= found.length) return found;
+  const leaving = exitPoint(found[first] as Point, found[first + 1] as Point, a);
+  return [leaving, ...found.slice(first + 1)];
+}
+
+/** The route cut where it enters `b`. */
+function clipEnd(found: Point[], b: Rect): Point[] {
+  return clipStart([...found].reverse(), b).reverse();
 }
 
 /** Where the segment from `inside`, a point in `rect`, to `outside` crosses the border of `rect`. */
@@ -1077,6 +1444,16 @@ function clip(rect: Rect, inside: Rect | undefined): Rect {
   const right = Math.min(rect.x + rect.width, inside.x + inside.width);
   const bottom = Math.min(rect.y + rect.height, inside.y + inside.height);
   return { x, y, width: Math.max(0, right - x), height: Math.max(0, bottom - y) };
+}
+
+/** Whether two rectangles cover each other by more than a unit each way. */
+function covers(a: Rect, b: Rect): boolean {
+  return (
+    a.x < b.x + b.width - 1 &&
+    b.x < a.x + a.width - 1 &&
+    a.y < b.y + b.height - 1 &&
+    b.y < a.y + a.height - 1
+  );
 }
 
 function meets(a: Rect, b: Rect): boolean {

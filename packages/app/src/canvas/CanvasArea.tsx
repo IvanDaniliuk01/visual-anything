@@ -86,7 +86,6 @@ import { CANVAS_KEYS_HINT } from './keys';
 import { forThisTab } from '../guidance/tabs';
 import type { LayoutScope } from './layout/input';
 import { EXPAND_CAMERA_MS, cameraToShow, collapseCommand, showInPlace } from './layout/expand';
-import { withKeptRoutes } from './layout/keptRoutes';
 import { laidOutBounds } from './layout/laidOut';
 import { useLayout } from './layout/useLayout';
 import { useReducedMotion } from '../scenarios/motion';
@@ -299,16 +298,22 @@ export function CanvasArea({
   // Lines go around the shapes in their way, as the routing worker routes them, once a layout's move
   // is drawn (ADR 0039): what the canvas draws is a frame of the move, or the scene so routed.
   const settled = layout.scene === scene ? scene : undefined;
-  const routed = useAvoidedRoutes(settled, view.id, () => {
-    const now = controllerRef.current;
-    if (!now) return undefined;
-    const { width, height } = now.renderer.viewport;
-    return screenToWorld(now.camera, { x: width / 2, y: height / 2 });
-  });
+  // Right after a layout in one pass, lines keep ELK's routes until what they pass moves, and the
+  // lines drawn are spread into channels (ADR 0080).
+  const routed = useAvoidedRoutes(
+    settled,
+    view.id,
+    () => {
+      const now = controllerRef.current;
+      if (!now) return undefined;
+      const { width, height } = now.renderer.viewport;
+      return screenToWorld(now.camera, { x: width / 2, y: height / 2 });
+    },
+    settled ? layout.routes : undefined,
+  );
   // A scene that cannot be indexed cannot be drawn either: the canvas area says so, and the rest of
-  // the app keeps working. Right after a layout in one pass, lines keep ELK's routes until what they
-  // pass moves (ADR 0080).
-  const drawn = withKeptRoutes(routed ?? layout.scene, settled ? layout.routes : undefined);
+  // the app keeps working.
+  const drawn = routed ?? layout.scene;
   const indexing = useMemo(() => {
     try {
       return { indexed: indexScene(drawn) };

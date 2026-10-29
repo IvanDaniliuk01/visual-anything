@@ -1,10 +1,12 @@
 /**
  * What the app and the routing worker say to each other (`avoid.worker.ts`): the shapes of a scene and
  * the lines to route around them, and the routes that come back, a few at a time, nearest the middle
- * of the screen first. Everything is numbers, so that it is copied quickly.
+ * of the screen first; then the channel pass over every line drawn (ADR 0080, section 2), which comes
+ * back whole. Everything is numbers, so that it is copied quickly.
  */
 import type { Point } from '../geometry';
 import type { Avoided, AvoidLine, AvoidShapes } from './avoid';
+import type { ChannelInput, ChannelOutput } from './channels';
 
 /** Routes these lines around these shapes; a newer request stops any older one. */
 export interface AvoidRequest {
@@ -14,6 +16,15 @@ export interface AvoidRequest {
   lines: AvoidLine[];
   /** Where the middle of the screen is, in the scene: the lines nearest it are routed first. */
   center?: Point;
+  /** The lines drawn already, which routes beside rows keep apart from. */
+  existing?: AvoidLine[];
+}
+
+/** Spreads the lines drawn into channels; a newer request stops any older one. */
+export interface ChannelRequest {
+  type: 'channels';
+  id: number;
+  input: ChannelInput;
 }
 
 /** Stops a request: nothing more comes back for it. */
@@ -22,16 +33,28 @@ export interface AvoidCancel {
   id: number;
 }
 
-export type AvoidMessage = AvoidRequest | AvoidCancel;
+export type AvoidMessage = AvoidRequest | ChannelRequest | AvoidCancel;
 
 /** Some of a request's routes, by the indexes of their lines in it; the last reply says it is done. */
-export interface AvoidReply {
+export interface RoutesReply {
+  type?: 'routes';
   id: number;
   results: { line: number; avoided: Avoided }[];
   done: boolean;
   /** How long the worker routed them, in milliseconds. */
   took: number;
 }
+
+/** The routes the channel pass gave. */
+export interface ChannelReply {
+  type: 'channels';
+  id: number;
+  output: ChannelOutput;
+  /** How long the pass took, in milliseconds. */
+  took: number;
+}
+
+export type AvoidReply = RoutesReply | ChannelReply;
 
 /** How long the worker routes before it sends what it has, in milliseconds. */
 export const AVOID_CHUNK_MS = 20;
