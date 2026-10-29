@@ -56,6 +56,16 @@ export interface ShellColors {
   warningSoft: Color;
   /** Reserved for Claude's live guidance (M4) and scenario playback (M5), always with a cue that is not color. */
   highlight: Color;
+  /**
+   * The marks of a comparison (ADR 0070): what was added, removed, changed and moved. Okabe–Ito hues,
+   * made darker on the light canvas and lighter on the dark one, each at 3:1 or more on the canvas
+   * and the panels; each state also has a glyph and a line pattern, so that none is told by color
+   * alone.
+   */
+  changeAdded: Color;
+  changeRemoved: Color;
+  changeChanged: Color;
+  changeMoved: Color;
 }
 
 /** The tokens of a theme's shell colors with their values, in the order ShellColors lists them. */
@@ -117,6 +127,11 @@ export interface CanvasTheme {
   rowsBody: Color;
   /** The line between two rows (M3). */
   rowSeparator: Color;
+  /** The marks of a comparison (ADR 0070), the panels' own: added, removed, changed and moved. */
+  changeAdded: Color;
+  changeRemoved: Color;
+  changeChanged: Color;
+  changeMoved: Color;
 }
 
 const LIGHT: ShellTheme = {
@@ -145,6 +160,11 @@ const LIGHT: ShellTheme = {
     warning: '#6B4E00',
     warningSoft: '#FFF4D6',
     highlight: '#C2410C',
+    // Okabe–Ito bluish green, vermillion, orange and reddish purple, darkened for the white canvas.
+    changeAdded: '#007A5A',
+    changeRemoved: '#C44D00',
+    changeChanged: '#946200',
+    changeMoved: '#A8467F',
   },
   backdrop: 'rgb(16 24 40 / 35%)',
   shadows: [
@@ -180,6 +200,11 @@ const DARK: ShellTheme = {
     warning: '#F2C14E',
     warningSoft: '#3A2E10',
     highlight: '#FB923C',
+    // The same hues, lightened for the dark canvas.
+    changeAdded: '#2DC59A',
+    changeRemoved: '#F07A3A',
+    changeChanged: '#E6A817',
+    changeMoved: '#E08DBE',
   },
   backdrop: 'rgb(0 0 0 / 55%)',
   shadows: [
@@ -220,6 +245,10 @@ function canvasTheme(
     relationLabelText: colors.text,
     relationLabelBack: colors.canvas,
     rowsBody: colors.canvas,
+    changeAdded: colors.changeAdded,
+    changeRemoved: colors.changeRemoved,
+    changeChanged: colors.changeChanged,
+    changeMoved: colors.changeMoved,
     ...own,
   };
 }

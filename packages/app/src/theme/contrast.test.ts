@@ -61,6 +61,15 @@ const PAIRS: readonly { color: Token; on: Token; minimum: number; where: string 
   { color: 'warning', on: 'warningSoft', minimum: MARK, where: '.notice-warning bar' },
   { color: 'selected', on: 'canvas', minimum: MARK, where: 'selection on the canvas' },
   { color: 'highlight', on: 'canvas', minimum: MARK, where: 'guidance and playback (M4, M5)' },
+  // A comparison's marks (ADR 0070): on the canvas, and as swatches in the legend and the Changes tab.
+  ...(['changeAdded', 'changeRemoved', 'changeChanged', 'changeMoved'] as const).flatMap((color) =>
+    (['canvas', 'panel', 'surfaceRaised', 'surfaceHover', 'accentSoft'] as const).map((on) => ({
+      color,
+      on,
+      minimum: MARK,
+      where: 'a comparison’s marks, the legend and the Changes tab',
+    })),
+  ),
 ];
 
 describe.each(THEME_NAMES)('the %s theme', (name) => {
