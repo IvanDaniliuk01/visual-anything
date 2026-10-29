@@ -732,7 +732,7 @@ The first three tasks are the seams, built in the main session in this order. Th
 
 Its tasks run one at a time, in this order:
 
-- [ ] **Stage 0a: one layout pass and expanding in place** (`app/src/canvas/layout/`, the collapse code, ADR 0080 sections 1 and 4):
+- [x] **Stage 0a: one layout pass and expanding in place** (`app/src/canvas/layout/`, the collapse code, ADR 0080 sections 1 and 4):
   - one hierarchical ELK run with row ports on the facing side, in two passes, within the budget, the per-container arrangement beyond it;
   - unrelated contents packed in rows beside the related block;
   - ELK's routes kept until a shape they pass moves;
@@ -743,9 +743,11 @@ Its tasks run one at a time, in this order:
   - a channel pass spreads collinear segments of different lines at least 8 units apart, lines from one row staying one trunk;
   - routing stays in the worker and incremental;
   - the validated overlay palette, and the short C of a self-reference;
-  - the quality thresholds on routing, on the fixture.
+  - the quality thresholds on routing, on the fixture;
+  - curves past 24 in a container drawn orthogonal with rounded corners through the router, the view's inspector saying so (ADR 0080 section 3, moved forward from Stage 2);
+  - pinned shapes that stay overlapped, or that keep the one-pass layout from placing what they hold, outlined, with the inspector's offer to unpin them.
 - [ ] **Stage 1: libavoid behind the fallback, trunks, and the full pipeline** (ADR 0080 section 2): libavoid in the routing worker, incremental by container, with the program's router as the fallback; container ports beyond the budget; communities for large containers without groups.
-- [ ] **Stage 2: reading many lines** (ADR 0080 sections 3 and 5): curves degrade to rounded corners beyond 24 in a container; names readable far out; `rows: "keys"`; the selection's relations, with the rest faint.
+- [ ] **Stage 2: reading many lines** (ADR 0080 section 5): names readable far out; `rows: "keys"`; the selection's relations, with the rest faint.
 - [ ] **Stage 3: stability**: Layout twice moves nothing; adding a table moves at most 10% of the others; the numbers at 10,000 elements, recorded.
 
 **Track P · Visual packages**, beside the milestones, from the research on visual packages (ADR 0079). Its commits start with `P<n>:`. Each package follows ADR 0051: components and relation types with appearances that pass the contrast tests in both themes, names in English and Spanish, icons that pass the cleaner as stored, its licence and attribution (ADR 0047, ADR 0079), a sample project with a scenario, and a README section saying where its pictures come from.

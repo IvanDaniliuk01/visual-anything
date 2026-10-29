@@ -191,3 +191,11 @@ When an overlay's colors are generated, they come from a palette validated to st
   - **Expanding by zoom** draws the view from a copy of its positions holding the places the expansion gives, worked out in the layout worker from the stored places and the whole set the zoom expands. A container shows expanded once its places are worked out, so that it never covers its neighbours meanwhile; a place is drawn only while the shape's stored place is still the one it was worked out from. Layout and drops then read the drawn places.
   - **The camera** follows an expansion by hand only. Expanding by zoom follows the person's zoom: easing the camera out to show a box larger than the screen would take the zoom below where the box expands, and collapse it again.
   - **Overlapping siblings**, as `quality.ts` counts them, are pairs of which at least one is not pinned. Pinned shapes that cover each other are counted apart, since layout moves neither.
+
+<!-- Decided by Claude on 2026-10-29 under the user's standing delegation of design decisions. -->
+
+- 2026-10-29 (merging Stage 0a): **the answers to the stage's questions, and two items moved forward to Stage 0b.**
+  - **A curved view keeps its curves after Layout.** ELK's routes replace only automatic orthogonal lines, since the curved style is the view's choice. What makes a curved view with many lines readable is section 3: past 24 curved lines in a container, they draw orthogonal with rounded corners through the router. It moves forward from Stage 2 to Stage 0b, since it shares 0b's router and the user's `procesamiento` view needs it.
+  - **The camera follows only expansions by hand.** Fitting a box opened by zoom would zoom out below the scale it opens at, and close it again.
+  - **While an expansion by zoom is drawn,** dragging and Layout read the places as drawn. A drag stores what the person sees.
+  - **Pinned shapes that stay overlapped, or that keep a one-pass layout from placing what they hold, are outlined, and the view's inspector offers to unpin them,** as the Consequences say. It moves forward to Stage 0b. In the user's model, four pinned schemas leave most of `overview`'s lines outside ELK's run.
