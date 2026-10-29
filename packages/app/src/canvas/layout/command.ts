@@ -101,6 +101,8 @@ function labelOf(
       return `Lay out "${viewName}"`;
     case 'contents':
       return `Lay out the contents of "${nameOf(scope.container)}"`;
+    case 'expand':
+      return `Lay out what expanded in "${viewName}"`;
     case 'new': {
       const [first] = positions;
       return positions.length === 1 && first

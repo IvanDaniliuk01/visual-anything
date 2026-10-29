@@ -8,6 +8,7 @@ import {
   type CollapseAction,
   type CollapseActions,
 } from '../canvas/collapse';
+import { inPlaceFor } from '../canvas/layout/expand';
 import { ZoomExpansionContext, withoutZoomExpanded } from '../canvas/overlays/useZoomExpansion';
 import { scopeActions, type ScopeAction } from '../canvas/scopeActions';
 import { useEditor } from '../editor/EditorContext';
@@ -59,6 +60,14 @@ export function Outline({ active }: OutlineProps) {
     }
     if (!editor.send) {
       say(translateNow('The project cannot be changed now.'));
+      return;
+    }
+    // As the canvas showing the view does: in place (ADR 0080, section 4).
+    const inPlace = inPlaceFor(viewId);
+    if (inPlace) {
+      void (collapsed ? inPlace.collapse : inPlace.expand)(elements, action.label).then((done) => {
+        if (done) say(collapseDone(action, collapsed));
+      });
       return;
     }
     void editor.send(setCollapsedCommand(viewId, elements, collapsed)).then((result) => {

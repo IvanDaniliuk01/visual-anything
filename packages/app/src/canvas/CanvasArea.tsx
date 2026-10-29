@@ -85,8 +85,11 @@ import { KeyboardHelp } from './KeyboardHelp';
 import { CANVAS_KEYS_HINT } from './keys';
 import { forThisTab } from '../guidance/tabs';
 import type { LayoutScope } from './layout/input';
+import { EXPAND_CAMERA_MS, cameraToShow, collapseCommand, showInPlace } from './layout/expand';
+import { withKeptRoutes } from './layout/keptRoutes';
 import { laidOutBounds } from './layout/laidOut';
 import { useLayout } from './layout/useLayout';
+import { useReducedMotion } from '../scenarios/motion';
 import { useAvoidedRoutes } from './routing/useAvoidedRoutes';
 import { RelationMenu } from './RelationMenu';
 import { onRouteEditingRequest } from './routing/requests';
@@ -303,8 +306,9 @@ export function CanvasArea({
     return screenToWorld(now.camera, { x: width / 2, y: height / 2 });
   });
   // A scene that cannot be indexed cannot be drawn either: the canvas area says so, and the rest of
-  // the app keeps working.
-  const drawn = routed ?? layout.scene;
+  // the app keeps working. Right after a layout in one pass, lines keep ELK's routes until what they
+  // pass moves (ADR 0080).
+  const drawn = withKeptRoutes(routed ?? layout.scene, settled ? layout.routes : undefined);
   const indexing = useMemo(() => {
     try {
       return { indexed: indexScene(drawn) };
@@ -340,22 +344,59 @@ export function CanvasArea({
     return sendNow(command);
   };
 
-  /** Collapses or expands containers with I1's command, and says what it did once it is done. */
+  /**
+   * Collapses or expands containers with I1's command, and says what it did once it is done.
+   * Expanding opens them in place, in one action with what it lays out and moves aside, and the camera
+   * then keeps the box on screen; collapsing again gives back the places expanding moved shapes from,
+   * while they have not moved since (ADR 0080, section 4).
+   */
   const collapse = (action: CollapseAction, collapsed: boolean) => {
+    const viewId = latest.current.view.id;
     // A container the zoom expanded is collapsed in the view already: only the zoom lets it go.
     const elements = collapsed
-      ? withoutZoomExpanded(zoom, latest.current.view.id, action.elements)
+      ? withoutZoomExpanded(zoom, viewId, action.elements)
       : action.elements;
     if (elements.length === 0) {
       announce(collapseDone(action, collapsed));
       return;
     }
-    void send(setCollapsedCommand(latest.current.view.id, elements, collapsed)).then((result) => {
-      if (result.ok) announce(collapseDone(action, collapsed));
+    if (!latest.current.onCommand) {
+      void send(setCollapsedCommand(viewId, elements, collapsed));
+      return;
+    }
+    void (collapsed ? collapseInPlace : expandInPlace)(elements, action.label).then((done) => {
+      if (done) announce(collapseDone(action, collapsed));
     });
   };
+  /** Expands containers in place by hand; the camera then keeps the first on screen. */
+  const expandInPlace = async (elements: readonly Id[], label: string): Promise<boolean> => {
+    const viewId = latest.current.view.id;
+    const done = await layout.expand(elements, label, zoom?.expandedIn(viewId));
+    if (done) showExpanded.current = elements;
+    return done;
+  };
+  /** Collapses containers by hand, giving back what expanding them moved aside. */
+  const collapseInPlace = async (elements: readonly Id[], label: string): Promise<boolean> => {
+    const { project: now, view: open } = latest.current;
+    return (await send(collapseCommand(now, open.id, elements, label))).ok;
+  };
+  // The containers just expanded by hand, which the camera keeps on screen once they are drawn.
+  const showExpanded = useRef<readonly Id[] | undefined>(undefined);
+  const reducedMotion = useReducedMotion();
   // The toggle and the keys, from the controller, which lives as long as the canvas area.
   const collapseFromCanvas = useEffectEvent(collapse);
+  // The outline and the inspector expand and collapse the open view as the canvas does.
+  const expandFromElsewhere = useEffectEvent(expandInPlace);
+  const collapseFromElsewhere = useEffectEvent(collapseInPlace);
+  const shownView = view.id;
+  useEffect(
+    () =>
+      showInPlace(shownView, {
+        expand: (elements, label) => expandFromElsewhere(elements, label),
+        collapse: (elements, label) => collapseFromElsewhere(elements, label),
+      }),
+    [shownView],
+  );
 
   /**
    * Adds a row to a shape that draws rows, below `below` or at the end, and edits its name in place
@@ -515,6 +556,24 @@ export function CanvasArea({
     revealKey.current = undefined;
     controllerRef.current?.reveal(key);
   }, [indexed]);
+
+  // Once the containers just expanded are drawn and settled, the camera eases to keep the first whole
+  // on screen, 48 pixels inside it, or pans by the least; it cuts under reduced motion (ADR 0080).
+  const layoutSettled = settled !== undefined;
+  useEffect(() => {
+    const elements = showExpanded.current;
+    const controller = controllerRef.current;
+    if (!elements || !controller || !layoutSettled || !indexed) return;
+    const first = elements
+      .map((id) => indexed.byElement.get(id)?.[0])
+      .find((shape) => shape !== undefined && shape.collapsed === undefined);
+    if (!first) return;
+    showExpanded.current = undefined;
+    const target = cameraToShow(controller.camera, controller.renderer.viewport, first.extent);
+    if (target) {
+      canvasCamera(controller, cameras).glideTo(target, reducedMotion ? 0 : EXPAND_CAMERA_MS);
+    }
+  }, [indexed, layoutSettled, reducedMotion, cameras]);
 
   // Once the element just added is drawn, the camera brings its first shape into sight.
   useEffect(() => {

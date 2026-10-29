@@ -13,7 +13,7 @@ import { GAP_BELOW, GAP_BESIDE, LAYOUT_STEP, NODE_GAP } from './types';
  */
 const CONTENTS_PADDING = CONTENTS_ORIGIN.x;
 /** How much wider than tall shapes packed in rows are, about. */
-const ROWS_ASPECT = 1.6;
+export const ROWS_ASPECT = 1.6;
 
 /** The nearest multiple of the layout step. */
 export function roundToStep(value: number): number {

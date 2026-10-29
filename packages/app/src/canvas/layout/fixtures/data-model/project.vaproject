@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "name": "data-model-fixture",
+  "packages": [
+    "systems",
+    "data-modeling",
+    "sql"
+  ],
+  "appearances": {
+    "components": {
+      "data-modeling.table": {
+        "width": 320
+      }
+    }
+  }
+}

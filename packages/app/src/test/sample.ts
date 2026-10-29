@@ -36,7 +36,11 @@ function readAll<T>(sample: string, folder: string, extension: string): T[] {
  * local program sends it: the packages it lists, from its packages/ folder or built in.
  */
 export function loadSample(name = 'my-systems'): ProjectSnapshot {
-  const folder = join(EXAMPLES, name);
+  return loadProjectFolder(join(EXAMPLES, name));
+}
+
+/** A project read from its folder, as `loadSample` reads a sample's. */
+export function loadProjectFolder(folder: string): ProjectSnapshot {
   const project = readJson<ProjectFile>(join(folder, 'project.vaproject'));
   const own = readAll<PackageFile>(folder, 'packages', '.vapackage');
   return {

@@ -20,6 +20,7 @@ import { DefinitionProvider } from './definitions/DefinitionProvider';
 import { EmphasisContext, EmphasisStore } from '../editor/emphasis';
 import { GuidanceLayer } from '../guidance/GuidanceLayer';
 import { useSelection } from '../editor/useSelection';
+import { useExpandedInPlace } from '../canvas/layout/expand';
 import { buildScene, type Scene } from '../canvas/scene';
 import {
   ZoomExpansion,
@@ -98,12 +99,16 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
   );
   // The collapsed containers the canvas shows expanded as it zooms into them (ADR 0055).
   const [zoom] = useState(() => new ZoomExpansion());
-  const expanded = useExpandedByZoom(zoom, view?.id);
+  const zoomed = useExpandedByZoom(zoom, view?.id);
+  // Expanding by zoom opens in place: the scene draws what it moved aside where it moved it, and
+  // nothing is stored (ADR 0080, section 4).
+  const inPlace = useExpandedInPlace(project, view, zoomed);
+  const expanded = inPlace.expanded;
   const scene = useMemo(
-    () => (view ? buildScene(project, view.id, expanded) : undefined),
+    () => (view ? buildScene(inPlace.project, view.id, expanded) : undefined),
     // The canvas writes built-in names and its own words in the language read in (ADR-0038).
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the language is read by buildScene
-    [project, view, t.language, expanded],
+    [inPlace.project, view, t.language, expanded],
   );
   const [revealed, setRevealed] = useState<{ key: string; request: number }>();
   const reveal = useCallback((key: string) => {

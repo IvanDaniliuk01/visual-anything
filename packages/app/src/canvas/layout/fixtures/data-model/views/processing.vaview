@@ -1,0 +1,608 @@
+{
+  "id": "processing",
+  "name": "Processing",
+  "nestingRelationTypes": [
+    "systems.is-part-of",
+    "data-modeling.is-column-of"
+  ],
+  "positions": [
+    {
+      "element": "table-65",
+      "container": "schema-b",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "table-66",
+      "container": "schema-b",
+      "x": 424,
+      "y": 128
+    },
+    {
+      "element": "table-67",
+      "container": "schema-b",
+      "x": 384,
+      "y": 48
+    },
+    {
+      "element": "table-68",
+      "container": "schema-b",
+      "x": 824,
+      "y": 208
+    },
+    {
+      "element": "table-69",
+      "container": "schema-b",
+      "x": 424,
+      "y": 208
+    },
+    {
+      "element": "table-70",
+      "container": "schema-b",
+      "x": 424,
+      "y": 288
+    },
+    {
+      "element": "table-71",
+      "container": "schema-b",
+      "x": 24,
+      "y": 288
+    },
+    {
+      "element": "table-72",
+      "container": "schema-b",
+      "x": 1224,
+      "y": 208
+    },
+    {
+      "element": "table-73",
+      "container": "schema-b",
+      "x": 824,
+      "y": 288
+    },
+    {
+      "element": "table-28",
+      "container": "schema-e",
+      "x": 1224,
+      "y": 48
+    },
+    {
+      "element": "table-29",
+      "container": "schema-e",
+      "x": 1224,
+      "y": 128
+    },
+    {
+      "element": "table-30",
+      "container": "schema-e",
+      "x": 1224,
+      "y": 208
+    },
+    {
+      "element": "table-35",
+      "container": "schema-e",
+      "x": 424,
+      "y": 288
+    },
+    {
+      "element": "table-36",
+      "container": "schema-e",
+      "x": 24,
+      "y": 288
+    },
+    {
+      "element": "table-37",
+      "container": "schema-e",
+      "x": 24,
+      "y": 376
+    },
+    {
+      "element": "table-38",
+      "container": "schema-e",
+      "x": 1224,
+      "y": 288
+    },
+    {
+      "element": "table-39",
+      "container": "schema-e",
+      "x": 824,
+      "y": 288
+    },
+    {
+      "element": "table-42",
+      "container": "schema-e",
+      "x": 1224,
+      "y": 376
+    },
+    {
+      "element": "table-45",
+      "container": "schema-e",
+      "x": 1624,
+      "y": 208
+    },
+    {
+      "element": "table-52",
+      "container": "schema-f",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "table-53",
+      "container": "schema-f",
+      "x": 424,
+      "y": 48
+    },
+    {
+      "element": "table-61",
+      "container": "schema-g",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "table-62",
+      "container": "schema-g",
+      "x": 424,
+      "y": 48
+    },
+    {
+      "element": "table-07",
+      "container": "schema-i",
+      "x": 24,
+      "y": 48
+    },
+    {
+      "element": "table-08",
+      "container": "schema-i",
+      "x": 24,
+      "y": 128
+    },
+    {
+      "element": "table-09",
+      "container": "schema-i",
+      "x": 424,
+      "y": 128
+    },
+    {
+      "element": "schema-b",
+      "container": "database-01",
+      "x": 712,
+      "y": 488
+    },
+    {
+      "element": "schema-e",
+      "container": "database-01",
+      "x": 2320,
+      "y": 256
+    },
+    {
+      "element": "schema-f",
+      "container": "database-01",
+      "x": 24,
+      "y": 768
+    },
+    {
+      "element": "schema-g",
+      "container": "database-01",
+      "x": 3968,
+      "y": 1232
+    },
+    {
+      "element": "schema-i",
+      "container": "database-01",
+      "x": 3968,
+      "y": 48
+    },
+    {
+      "element": "database-01",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "element": "schema-b",
+      "x": 5080,
+      "y": 1024
+    },
+    {
+      "element": "schema-e",
+      "x": 2792,
+      "y": 808,
+      "pinned": true
+    },
+    {
+      "element": "schema-f",
+      "x": 4840,
+      "y": 1024
+    },
+    {
+      "element": "schema-g",
+      "x": 4840,
+      "y": 808
+    },
+    {
+      "element": "schema-i",
+      "x": 5320,
+      "y": 960
+    }
+  ],
+  "freeShapes": [],
+  "collapsed": [
+    "schema-b",
+    "schema-f",
+    "table-65",
+    "table-66",
+    "table-67",
+    "table-68",
+    "table-69",
+    "table-70",
+    "table-71",
+    "table-72",
+    "table-73",
+    "table-28",
+    "table-29",
+    "table-30",
+    "table-35",
+    "table-36",
+    "table-37",
+    "table-38",
+    "table-39",
+    "table-42",
+    "table-45",
+    "table-52",
+    "table-61",
+    "table-62",
+    "table-07",
+    "table-08",
+    "table-09"
+  ],
+  "scope": {
+    "include": [
+      {
+        "kind": "contents",
+        "container": "table-28"
+      },
+      {
+        "kind": "contents",
+        "container": "table-29"
+      },
+      {
+        "kind": "contents",
+        "container": "table-30"
+      },
+      {
+        "kind": "contents",
+        "container": "table-35"
+      },
+      {
+        "kind": "contents",
+        "container": "table-36"
+      },
+      {
+        "kind": "contents",
+        "container": "table-37"
+      },
+      {
+        "kind": "contents",
+        "container": "table-38"
+      },
+      {
+        "kind": "contents",
+        "container": "table-39"
+      },
+      {
+        "kind": "contents",
+        "container": "table-42"
+      },
+      {
+        "kind": "contents",
+        "container": "table-45"
+      },
+      {
+        "kind": "contents",
+        "container": "table-52"
+      },
+      {
+        "kind": "contents",
+        "container": "table-53"
+      },
+      {
+        "kind": "contents",
+        "container": "table-61"
+      },
+      {
+        "kind": "contents",
+        "container": "table-62"
+      },
+      {
+        "kind": "contents",
+        "container": "table-07"
+      },
+      {
+        "kind": "contents",
+        "container": "table-08"
+      },
+      {
+        "kind": "contents",
+        "container": "table-09"
+      },
+      {
+        "kind": "contents",
+        "container": "table-65"
+      },
+      {
+        "kind": "contents",
+        "container": "table-66"
+      },
+      {
+        "kind": "contents",
+        "container": "table-67"
+      },
+      {
+        "kind": "contents",
+        "container": "table-68"
+      },
+      {
+        "kind": "contents",
+        "container": "table-69"
+      },
+      {
+        "kind": "contents",
+        "container": "table-70"
+      },
+      {
+        "kind": "contents",
+        "container": "table-71"
+      },
+      {
+        "kind": "contents",
+        "container": "table-72"
+      },
+      {
+        "kind": "contents",
+        "container": "table-73"
+      }
+    ],
+    "exclude": [
+      {
+        "kind": "component",
+        "component": "sql.trigger"
+      },
+      {
+        "kind": "component",
+        "component": "sql.function"
+      }
+    ],
+    "added": [
+      "schema-b",
+      "schema-e",
+      "schema-f",
+      "schema-g",
+      "schema-i"
+    ],
+    "leftOut": [
+      "database-01",
+      "column-0724",
+      "column-0726",
+      "column-0725",
+      "column-0740",
+      "column-0742",
+      "column-0741",
+      "column-0751",
+      "column-0753",
+      "column-0752",
+      "column-0768",
+      "column-0770",
+      "column-0769",
+      "column-0799",
+      "column-0801",
+      "column-0800",
+      "column-0822",
+      "column-0824",
+      "column-0823",
+      "column-0835",
+      "column-0837",
+      "column-0836",
+      "column-0849",
+      "column-0851",
+      "column-0850",
+      "column-0863",
+      "column-0865",
+      "column-0864",
+      "column-0018",
+      "column-0020",
+      "column-0019",
+      "column-0024",
+      "column-0026",
+      "column-0025",
+      "column-0032",
+      "column-0034",
+      "column-0033",
+      "column-0041",
+      "column-0043",
+      "column-0042",
+      "column-0048",
+      "column-0050",
+      "column-0049",
+      "column-0096",
+      "column-0098",
+      "column-0097",
+      "column-0104",
+      "column-0106",
+      "column-0105",
+      "column-0109",
+      "column-0111",
+      "column-0110",
+      "column-0119",
+      "column-0122",
+      "column-0121",
+      "column-0127",
+      "column-0129",
+      "column-0128",
+      "column-0133",
+      "column-0135",
+      "column-0134",
+      "column-0145",
+      "column-0147",
+      "column-0146",
+      "column-0158",
+      "column-0162",
+      "column-0161",
+      "column-0173",
+      "column-0175",
+      "column-0174",
+      "column-0180",
+      "column-0182",
+      "column-0181",
+      "column-0186",
+      "column-0188",
+      "column-0187",
+      "column-0193",
+      "column-0195",
+      "column-0194",
+      "column-0202",
+      "column-0204",
+      "column-0203",
+      "column-0211",
+      "column-0213",
+      "column-0212",
+      "column-0222",
+      "column-0224",
+      "column-0223",
+      "column-0231",
+      "column-0233",
+      "column-0232",
+      "column-0236",
+      "column-0238",
+      "column-0237",
+      "column-0246",
+      "column-0248",
+      "column-0247",
+      "column-0252",
+      "column-0254",
+      "column-0253",
+      "column-0269",
+      "column-0271",
+      "column-0270",
+      "column-0282",
+      "column-0284",
+      "column-0283",
+      "column-0301",
+      "column-0303",
+      "column-0302",
+      "column-0309",
+      "column-0311",
+      "column-0310",
+      "column-0318",
+      "column-0320",
+      "column-0319",
+      "column-0327",
+      "column-0329",
+      "column-0328",
+      "column-0333",
+      "column-0335",
+      "column-0334",
+      "column-0348",
+      "column-0350",
+      "column-0349",
+      "column-0357",
+      "column-0359",
+      "column-0358",
+      "column-0368",
+      "column-0370",
+      "column-0369",
+      "column-0391",
+      "column-0393",
+      "column-0392",
+      "column-0405",
+      "column-0407",
+      "column-0406",
+      "column-0412",
+      "column-0414",
+      "column-0413",
+      "column-0423",
+      "column-0425",
+      "column-0424",
+      "column-0432",
+      "column-0434",
+      "column-0433",
+      "column-0444",
+      "column-0446",
+      "column-0445",
+      "column-0453",
+      "column-0455",
+      "column-0454",
+      "column-0471",
+      "column-0473",
+      "column-0472",
+      "column-0491",
+      "column-0493",
+      "column-0492",
+      "column-0503",
+      "column-0505",
+      "column-0504",
+      "column-0513",
+      "column-0515",
+      "column-0514",
+      "column-0519",
+      "column-0521",
+      "column-0520",
+      "column-0525",
+      "column-0527",
+      "column-0526",
+      "column-0537",
+      "column-0539",
+      "column-0538",
+      "column-0550",
+      "column-0552",
+      "column-0551",
+      "column-0567",
+      "column-0569",
+      "column-0568",
+      "column-0576",
+      "column-0578",
+      "column-0577",
+      "column-0586",
+      "column-0588",
+      "column-0587",
+      "column-0601",
+      "column-0603",
+      "column-0602",
+      "column-0610",
+      "column-0612",
+      "column-0611",
+      "column-0618",
+      "column-0620",
+      "column-0619",
+      "column-0627",
+      "column-0629",
+      "column-0628",
+      "column-0645",
+      "column-0647",
+      "column-0646",
+      "column-0661",
+      "column-0663",
+      "column-0662",
+      "column-0683",
+      "column-0685",
+      "column-0684",
+      "column-0709",
+      "column-0711",
+      "column-0710",
+      "column-0716",
+      "column-0718",
+      "column-0717",
+      "column-0057",
+      "column-0059",
+      "column-0058",
+      "column-0064",
+      "column-0066",
+      "column-0065",
+      "column-0079",
+      "column-0081",
+      "column-0080",
+      "column-0091",
+      "column-0093",
+      "column-0092"
+    ]
+  },
+  "routeStyle": "curved"
+}

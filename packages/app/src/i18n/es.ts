@@ -3058,6 +3058,7 @@ export const messages: Catalog = {
   'Lay out the contents of "{name}"': 'Organizar el contenido de "{name}"',
   'Lay out "{element}" in "{view}"': 'Organizar "{element}" en "{view}"',
   'Lay out {n} new shapes in "{view}"': 'Organizar {n} formas nuevas en "{view}"',
+  'Lay out what expanded in "{view}"': 'Organizar lo que se expandió en "{view}"',
 
   // The labels of what the inspector changes.
   'Change the appearance of {of}': 'Cambiar la apariencia de {of}',
