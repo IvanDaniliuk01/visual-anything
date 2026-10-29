@@ -1,8 +1,8 @@
 /*
  * The header in narrow windows (W26): it keeps to fewer lines, so that the canvas keeps its height.
- * Undo and redo first leave out the action they name, then Copy address, Export, Undo and Redo show
- * only their icons. Each keeps its name for screen readers, and undo and redo say the action in their
- * tooltips.
+ * Undo and redo first leave out the action they name, then Copy address, Compare with…, Export, Undo
+ * and Redo show only their icons. Each keeps its name for screen readers, and undo and redo say the
+ * action in their tooltips.
  *
  * At every width it keeps one row (A4), so that the canvas never moves down while you work: the
  * project's and the view's names and the action Undo and Redo name give up their width first, cut
@@ -77,7 +77,7 @@
 }
 
 @media (max-width: 1100px) {
-  .shell-header :is(.copy-address > span, .export-label, .history-verb) {
+  .shell-header :is(.copy-address > span, .compare-label, .export-label, .history-verb) {
     position: absolute;
     width: 1px;
     height: 1px;

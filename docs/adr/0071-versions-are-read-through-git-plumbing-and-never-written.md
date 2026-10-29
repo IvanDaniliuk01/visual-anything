@@ -180,3 +180,5 @@ The rule throughout: git runs with arguments, never through a shell, and never o
   The local program, the MCP entry point and the app never make these calls.
 
 - 2026-10-29 (M11b, after merging the merge driver): **a listing has its own deadline.** The 120 s limit covers reading one version, as above. Listing the versions is stopped after its own 120 s, with its own reason ("Listing the versions took longer than…"), so a shorter limit given to reads never empties the listing.
+
+- 2026-10-29 (M11b's task "Compare with… in the app", decided by Claude under the user's standing delegation): **the app lists when the person asks.** Compare with… asks for a listing each time its dialog opens, and that listing becomes the program's latest, as any listing does. A commit Claude listed before then and names afterwards in its guidance can be refused as not listed, when the new listing no longer holds it; the notice says why, and Claude lists again. The app keeps the versions it heard listed only to name a commit Claude asks for, and names a version to the program only as `{ kind: 'opened' }` or by a commit id from a listing.

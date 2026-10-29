@@ -45,6 +45,12 @@
   letter-spacing: 0.05em;
 }
 
+/* A comparison's title names branches and commits as git writes them, so its case stays. */
+.export-comparison legend {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .export-choice {
   display: flex;
   flex-wrap: wrap;

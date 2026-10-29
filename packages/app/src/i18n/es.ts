@@ -2732,6 +2732,60 @@ export const ui: Catalog = {
   '{what}: {before} → {after}': '{what}: {before} → {after}',
   '{what} is not drawn in any view.': '{what} no se dibuja en ninguna vista.',
   'Showing {what}.': 'Se muestra {what}.',
+
+  // M11b: Compare with… in the header, its dialog, and the comparison's exports (ADR 0070, ADR 0071).
+  // Git's own words, HEAD, commit and tag, stay as git writes them, as the program's messages keep
+  // "commit"; a tag is never "etiqueta", which is an alternative's label.
+  'Compare with…': 'Comparar con…',
+  'Comparing…': 'Comparando…',
+  Compare: 'Comparar',
+  'Compare the project now with another version of it':
+    'Comparar el proyecto actual con otra versión de él',
+  'Compare the project now with another version of it: the open view is drawn before, after and as the comparison, read-only, with the Changes list. Nothing is written.':
+    'Comparar el proyecto actual con otra versión de él: la vista abierta se dibuja antes, después y como comparación, de solo lectura, con la lista de Cambios. No se escribe nada.',
+  'Find a version': 'Buscar una versión',
+  'Branch, tag, commit, subject or author': 'Rama, tag, commit, asunto o autor',
+  Versions: 'Versiones',
+  'No version holds “{text}”.': 'Ninguna versión contiene “{text}”.',
+  '{count} more versions are not listed here: type to find them.': {
+    one: '{count} versión más no se lista aquí: escribir para encontrarla.',
+    other: '{count} versiones más no se listan aquí: escribir para encontrarlas.',
+  },
+  'Reading {version} to compare it with the project now…':
+    'Leyendo {version}, para comparar con el proyecto actual…',
+  'Listing the versions…': 'Listando las versiones…',
+  'The versions could not be listed: {why}': 'No se pudieron listar las versiones: {why}',
+  'Could not compare with {version}: {why}': 'No se pudo comparar con {version}: {why}',
+  'List again': 'Listar de nuevo',
+  'As Visual Anything opened it, or last read it from disk; it needs no git.':
+    'Como Visual Anything lo abrió, o lo leyó del disco por última vez; no necesita git.',
+  '{author}, {time}': '{author}, {time}',
+  'As opened': 'Tal como se abrió',
+  HEAD: 'HEAD',
+  Branch: 'Rama',
+  'Remote branch': 'Rama remota',
+  Tag: 'Tag',
+  Commit: 'Commit',
+  'The project as opened': 'El proyecto tal como se abrió',
+  'the project as opened': 'el proyecto tal como se abrió',
+  'The project now': 'El proyecto actual',
+  'commit {short}': 'el commit {short}',
+  'HEAD ({short})': 'HEAD ({short})',
+  '{name} ({short})': '{name} ({short})',
+  'Compared with {version}': 'Comparado con {version}',
+  '{drawing}, as SVG': '{drawing}, como SVG',
+  '{drawing}, as PDF': '{drawing}, como PDF',
+  'The older version’s view, with what was removed, changed and moved marked':
+    'La vista de la versión anterior, con lo que se quitó, cambió y movió marcado',
+  'The view now, with what was added, changed and moved marked':
+    'La vista actual, con lo que se agregó, cambió y movió marcado',
+  'The view now, with every change marked and what was removed drawn faintly':
+    'La vista actual, con cada cambio marcado y lo que se quitó dibujado atenuado',
+  'Summary of the changes, in Markdown': 'Resumen de los cambios, en Markdown',
+  'Both versions, the counts and every change with what differs, for a pull request':
+    'Las dos versiones, las cantidades y cada cambio con lo que difiere, para un pull request',
+  'The drawings, which are saved one by one; the summary does not link them.':
+    'Los dibujos, que se guardan uno por uno; el resumen no los incluye.',
 };
 
 /**
@@ -2747,6 +2801,10 @@ export const messages: Catalog = {
   'This tab’s copy of the project fell out of step with Visual Anything again: {why}':
     'La copia del proyecto de esta pestaña volvió a desfasarse con Visual Anything: {why}',
   'Could not change your preferences: {why}': 'No se pudieron cambiar las preferencias: {why}',
+  'Could not compare with the version Claude named: {why}':
+    'No se pudo comparar con la versión que nombró Claude: {why}',
+  'Visual Anything sent the comparison without the version to draw.':
+    'Visual Anything envió la comparación sin la versión que se dibuja.',
   'This is not JSON: {detail}': 'Esto no es JSON: {detail}',
   'step {n} of “{scenario}”': 'el paso {n} de “{scenario}”',
   'Record {step}': 'Grabar {step}',

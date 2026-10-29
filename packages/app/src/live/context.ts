@@ -5,10 +5,13 @@ import type {
   DrawingMadeMessage,
   LiveFetchedMessage,
   LiveKeptMessage,
+  VersionRef,
+  VersionsListedMessage,
 } from '@visual-anything/core';
 import type { LiveValueBook } from '../live-values/book';
 import type {
   CommandResult,
+  ComparedResult,
   LiveResult,
   LiveState,
   NoticeLevel,
@@ -85,6 +88,16 @@ export interface Live extends LiveState {
     values: unknown[],
     freshFor?: number,
   ) => Promise<LiveResult<LiveKeptMessage>>;
+  /**
+   * Asks the local program for the versions it can list (ADR 0071); absent where there is no live
+   * session to ask.
+   */
+  listVersions?: () => Promise<LiveResult<VersionsListedMessage>>;
+  /**
+   * Asks the local program to compare a version it listed, or the project as opened, with the project
+   * now (ADR 0070); absent where there is no live session to ask.
+   */
+  compareVersion?: (version: VersionRef, view?: Id) => Promise<ComparedResult>;
 }
 
 /**
