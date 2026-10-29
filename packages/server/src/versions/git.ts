@@ -70,7 +70,10 @@ export interface GitVersion {
 
 /** Whether a git is at least a version. */
 export function atLeast(version: GitVersion, wanted: { major: number; minor: number }): boolean {
-  return version.major > wanted.major || (version.major === wanted.major && version.minor >= wanted.minor);
+  return (
+    version.major > wanted.major ||
+    (version.major === wanted.major && version.minor >= wanted.minor)
+  );
 }
 
 /**
@@ -115,7 +118,17 @@ export function refusedCall(args: readonly string[]): string | undefined {
 }
 
 /** The variables git gets from the program's environment; every other one is dropped. */
-const KEPT = ['PATH', 'HOME', 'USERPROFILE', 'HOMEDRIVE', 'HOMEPATH', 'XDG_CONFIG_HOME', 'TMPDIR', 'TMP', 'TEMP'];
+const KEPT = [
+  'PATH',
+  'HOME',
+  'USERPROFILE',
+  'HOMEDRIVE',
+  'HOMEPATH',
+  'XDG_CONFIG_HOME',
+  'TMPDIR',
+  'TMP',
+  'TEMP',
+];
 const KEPT_ON_WINDOWS = ['SystemRoot', 'windir'];
 
 /**
@@ -230,7 +243,7 @@ export class Git {
     this.#options = options;
     this.limits = { ...GIT_LIMITS, ...options.limits };
     this.#env = gitEnvironment(options.env ?? process.env, options.platform);
-    this.#spawn = options.spawn ?? (nodeSpawn as unknown as Spawn);
+    this.#spawn = options.spawn ?? nodeSpawn;
   }
 
   /** Whether this git keeps a read from fetching what a partial clone lacks. */

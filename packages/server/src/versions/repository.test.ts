@@ -22,6 +22,7 @@ import {
 import {
   GIT,
   NO_GIT,
+  matching,
   commitProject,
   expectAllowedCalls,
   git,
@@ -118,7 +119,12 @@ describe.skipIf(NO_GIT)('the versions listed', () => {
 
     const { repository, calls } = await repositoryOf(join(root, 'shop'));
     const versions = await listVersions(repository);
-    const brief = versions.map(({ kind, name, commit, subject }) => ({ kind, name, commit, subject }));
+    const brief = versions.map(({ kind, name, commit, subject }) => ({
+      kind,
+      name,
+      commit,
+      subject,
+    }));
     // The tags may have been made in different seconds, which orders them newest first.
     const tags = brief.filter((each) => each.kind === 'tag');
     tags.sort((a, b) => ((a.name ?? '') < (b.name ?? '') ? -1 : 1));
@@ -193,7 +199,11 @@ describe.skipIf(NO_GIT)('reading a commit', () => {
     );
     // The blobs are read by their ids, in one batch for each commit.
     expect(calls.filter((call) => call.args.includes('cat-file'))).toHaveLength(2);
-    expectAllowedCalls(calls, { git: GIT ?? '', cwd: root, noLazyFetch: repository.git.hasNoLazyFetch });
+    expectAllowedCalls(calls, {
+      git: GIT ?? '',
+      cwd: root,
+      noLazyFetch: repository.git.hasNoLazyFetch,
+    });
   });
 
   it('reads a project in a folder of the repository, its kind folders matched without case', async () => {
@@ -247,12 +257,12 @@ describe.skipIf(NO_GIT)('reading a commit', () => {
     const few = await repositoryOf(root, { files: 2 });
     expect(await readCommit(few.repository, commit)).toMatchObject({
       ok: false,
-      problems: [{ message: expect.stringMatching(/more than 2 project files/) }],
+      problems: [{ message: matching(/more than 2 project files/) }],
     });
     const small = await repositoryOf(root, { totalBytes: 100 });
     expect(await readCommit(small.repository, commit)).toMatchObject({
       ok: false,
-      problems: [{ message: expect.stringMatching(/more than 100 bytes in all/) }],
+      problems: [{ message: matching(/more than 100 bytes in all/) }],
     });
     for (const { calls } of [few, small]) {
       expect(calls.some((call) => call.args.includes('cat-file'))).toBe(false);
@@ -278,7 +288,17 @@ describe.skipIf(NO_GIT)('a ref typed on the command line', () => {
     expect(await resolveRef(repository, 'v1')).toEqual({ ok: true, commit });
     expect(await resolveRef(repository, 'main~0')).toEqual({ ok: true, commit });
     expect(await resolveRef(repository, 'nothing')).toMatchObject({ ok: false });
-    for (const text of ['', '-n', '--output=x', 'a b', 'a:b', 'a\\b', 'a..b', 'x'.repeat(256), 'a\u0001']) {
+    for (const text of [
+      '',
+      '-n',
+      '--output=x',
+      'a b',
+      'a:b',
+      'a\\b',
+      'a..b',
+      'x'.repeat(256),
+      'a\u0001',
+    ]) {
       expect(refusedRef(text), JSON.stringify(text)).toBeDefined();
       expect(await resolveRef(repository, text)).toMatchObject({ ok: false });
     }

@@ -21,7 +21,7 @@ export function isObjectId(text: string, format: ObjectFormat): boolean {
 const TEXT = new TextDecoder('utf-8');
 
 function unreadable(what: string): GitError {
-  return new GitError('output', `Git's answer about ${what} did not read.`);
+  return new GitError('output', `Git’s answer about ${what} did not read.`);
 }
 
 /** Where the project folder sits: its repository's top, its prefix in it, and the object format. */
@@ -221,6 +221,7 @@ function splitEnded(output: Uint8Array, end: number, what: string): Uint8Array[]
 }
 
 /** Control characters, and the line and paragraph separators. */
+// eslint-disable-next-line no-control-regex -- control characters are what it finds.
 const CONTROL = new RegExp('[\\u0000-\\u001f\\u007f-\\u009f\\u2028\\u2029]', 'g');
 
 /**

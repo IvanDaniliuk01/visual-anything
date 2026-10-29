@@ -11,6 +11,7 @@ import { testProject } from '../test-support';
 import type { GitProcess, Spawn } from './git';
 import {
   NO_GIT,
+  matching,
   commitProject,
   recordingSpawn,
   removeFolder,
@@ -40,7 +41,7 @@ function hangingProcess(): GitProcess {
       return true;
     },
   });
-  return process as unknown as GitProcess;
+  return process;
 }
 
 /** Starts git as the program does, but holds every `cat-file` while `hold` says so. */
@@ -142,7 +143,7 @@ describe.skipIf(NO_GIT)('reading versions', () => {
     const versions = new Versions(root, { warn: () => {} });
     expect(await versions.list()).toEqual({
       versions: [],
-      why: expect.stringMatching(/not in a git repository/),
+      why: matching(/not in a git repository/),
     });
     versions.close();
   });
@@ -156,7 +157,7 @@ describe('without git', () => {
     });
     expect(await versions.list()).toEqual({
       versions: [],
-      why: expect.stringMatching(/needs git 2\.36 or later, and none was found/),
+      why: matching(/needs git 2\.36 or later, and none was found/),
     });
     versions.close();
   });
@@ -183,7 +184,9 @@ describe('a comparison kept to one view', () => {
     const view = comparisonOfView(whole, older, newer, 'overview');
     expect(view.changes.length).toBeGreaterThan(0);
     expect(view.changes.every((change) => whole.changes.includes(change))).toBe(true);
-    expect(view.counts.changed).toBe(view.changes.filter((each) => each.status === 'changed').length);
+    expect(view.counts.changed).toBe(
+      view.changes.filter((each) => each.status === 'changed').length,
+    );
     for (const id of Object.keys(view.names)) expect(whole.names[id]).toEqual(view.names[id]);
   });
 

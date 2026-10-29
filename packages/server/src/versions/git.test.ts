@@ -15,9 +15,9 @@ import {
   refusedCall,
   startGit,
   type FinderFs,
-  type GitProcess,
   type Spawn,
 } from './git';
+import { matching } from './test-repositories';
 
 const VERSION = { major: 2, minor: 49, patch: 0, text: '2.49.0' };
 const OLD = { major: 2, minor: 40, patch: 0, text: '2.40.0' };
@@ -65,7 +65,7 @@ function fakeSpawn(script: (started: Started) => void = (each) => each.process.a
     const each = { file, args, options, process };
     started.push(each);
     script(each);
-    return process as unknown as GitProcess;
+    return process;
   };
   return { spawn, started };
 }
@@ -252,7 +252,7 @@ describe('the limits of a call', () => {
     const git = gitWith(spawn, { limits: { callMs: 20 } });
     await expect(git.run({ args: ['log'] })).rejects.toMatchObject({
       failure: 'timeout',
-      message: expect.stringMatching(/took longer than 0\.02 s/),
+      message: matching(/took longer than 0\.02 s/),
     });
     expect(started[0]?.process.killed).toBe(true);
   });
@@ -285,9 +285,9 @@ describe('the limits of a call', () => {
     controller.abort(new GitError('stopped', 'A newer request stopped this one.'));
     await expect(running).rejects.toMatchObject({ failure: 'stopped' });
     expect(started[0]?.process.killed).toBe(true);
-    await expect(gitWith(spawn).run({ args: ['log'], signal: controller.signal })).rejects.toMatchObject(
-      { failure: 'stopped' },
-    );
+    await expect(
+      gitWith(spawn).run({ args: ['log'], signal: controller.signal }),
+    ).rejects.toMatchObject({ failure: 'stopped' });
     expect(started).toHaveLength(1);
   });
 
@@ -308,7 +308,7 @@ describe('the limits of a call', () => {
     const spawn: Spawn = () => {
       const process = new FakeProcess();
       setImmediate(() => process.emit('error', new Error('spawn ENOENT')));
-      return process as unknown as GitProcess;
+      return process;
     };
     await expect(gitWith(spawn).run({ args: ['version'] })).rejects.toMatchObject({
       failure: 'spawn',
@@ -431,7 +431,7 @@ describe('finding git', () => {
       platform: 'linux',
       fs: filesystem([]),
     });
-    expect(found).toMatchObject({ ok: false, why: expect.stringMatching(/needs git 2\.36/) });
+    expect(found).toMatchObject({ ok: false, why: matching(/needs git 2\.36/) });
   });
 
   it('reads the version git says, and refuses one older than 2.36', async () => {
@@ -447,7 +447,7 @@ describe('finding git', () => {
     const old = fakeSpawn((each) => each.process.answer('git version 2.30.1\n'));
     expect(await startGit('/usr/bin/git', { cwd: '/w', spawn: old.spawn, env: {} })).toMatchObject({
       ok: false,
-      why: expect.stringMatching(/needs git 2\.36 or later, and the git found is 2\.30\.1/),
+      why: matching(/needs git 2\.36 or later, and the git found is 2\.30\.1/),
     });
     const recent = fakeSpawn((each) => each.process.answer('git version 2.45.2\n'));
     const started = await startGit('/usr/bin/git', { cwd: '/w', spawn: recent.spawn, env: {} });

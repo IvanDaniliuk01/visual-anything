@@ -1,5 +1,5 @@
 /**
- * What the program runs on the project's repository (ADR 0071): where the project folder sits in it,
+ * What the program runs on the project’s repository (ADR 0071): where the project folder sits in it,
  * the versions it lists, a ref the person typed resolved to its commit, and a commit's project files
  * read by their tree and blob ids. Every argument comes from git's own answers or from fixed text:
  * the prefix `rev-parse` gives, the ids it lists, and the commit ids the program listed. Paths go
@@ -27,7 +27,7 @@ import {
   type TreeEntry,
 } from './parse';
 
-/** The project folder's repository, as git found it from the folder alone. */
+/** The project folder’s repository, as git found it from the folder alone. */
 export interface Repository {
   git: Git;
   place: RepositoryPlace;
@@ -38,7 +38,7 @@ export const NOT_A_REPOSITORY =
   'The project folder is not in a git repository, so it has no commits to compare with. Comparing with the project as opened works without one.';
 
 /**
- * Finds the project folder's repository with `rev-parse`, run in the project folder: its top, the
+ * Finds the project folder’s repository with `rev-parse`, run in the project folder: its top, the
  * folder's prefix in it, and its object format. A repository git does not trust is refused with
  * git's reason; the program never adds a `safe.directory`. With a git older than 2.44, a partial
  * clone is refused, since that git cannot keep a read from fetching what the clone lacks.
@@ -64,23 +64,26 @@ export async function openRepository(
       if (/dubious ownership|unsafe repository/i.test(error.stderr)) {
         return {
           ok: false,
-          why: `Git does not trust the project folder's repository, so its commits are not read: ${firstLines(error.stderr)}`,
+          why: `Git does not trust the project folder’s repository, so its commits are not read: ${firstLines(error.stderr)}`,
         };
       }
     }
-    return { ok: false, why: `Git could not read the project folder's repository: ${reasonOf(error)}` };
+    return {
+      ok: false,
+      why: `Git could not read the project folder’s repository: ${reasonOf(error)}`,
+    };
   }
   if (isInsidePath(place.top, git.path)) {
     return {
       ok: false,
-      why: `The git found, ${git.path}, lies inside the project's repository, so Visual Anything does not run it.`,
+      why: `The git found, ${git.path}, lies inside the project’s repository, so Visual Anything does not run it.`,
     };
   }
   const repository = { git, place };
   if (!git.hasNoLazyFetch && (await isPartialClone(repository, signal))) {
     return {
       ok: false,
-      why: `The project's repository is a partial clone, which lacks objects: reading its commits needs git 2.44 or later, which can keep a read from fetching them, and the git found is ${git.version.text}.`,
+      why: `The project’s repository is a partial clone, which lacks objects: reading its commits needs git 2.44 or later, which can keep a read from fetching them, and the git found is ${git.version.text}.`,
     };
   }
   return { ok: true, repository };
@@ -134,7 +137,7 @@ export async function listVersions(
       place.format,
     );
     if (info === undefined || info.commit !== head) {
-      throw new GitError('output', "Git's answer about HEAD did not read.");
+      throw new GitError('output', 'Git’s answer about HEAD did not read.');
     }
     versions.push(listed('head', info));
   }
@@ -177,7 +180,10 @@ export async function listVersions(
 }
 
 /** HEAD's commit, or `undefined` for a repository with no commits yet. */
-async function headCommit(repository: Repository, signal?: AbortSignal): Promise<string | undefined> {
+async function headCommit(
+  repository: Repository,
+  signal?: AbortSignal,
+): Promise<string | undefined> {
   try {
     return parseCommitId(
       await repository.git.run({
@@ -237,7 +243,7 @@ export async function resolveRef(
     return { ok: true, commit };
   } catch (error) {
     if (error instanceof GitError && error.failure === 'exit') {
-      return { ok: false, why: `${text} names no commit of the project's repository.` };
+      return { ok: false, why: `${text} names no commit of the project’s repository.` };
     }
     return { ok: false, why: reasonOf(error) };
   }
@@ -259,9 +265,10 @@ const NOT_READ: Record<string, string> = {
   '120000': 'In this commit, the file is a link; Visual Anything reads only regular files.',
   '160000': 'In this commit, the file is a submodule; Visual Anything reads only regular files.',
 };
-const NOT_REGULAR = 'In this commit, the file is not a regular file; Visual Anything reads only regular files.';
+const NOT_REGULAR =
+  'In this commit, the file is not a regular file; Visual Anything reads only regular files.';
 const MISSING =
-  "This commit's copy of the file is not in the repository, which is a partial clone: fetch it with git, then compare again.";
+  'This commit’s copy of the file is not in the repository, which is a partial clone: fetch it with git, then compare again.';
 
 const REGULAR = new Set(['100644', '100755']);
 
@@ -309,7 +316,9 @@ export async function readCommit(
       );
     }
     if (tree.type !== 'tree') {
-      return refusedWhole(`In this commit, ${folder} is not a folder, so it holds no project.`);
+      return refusedWhole(
+        `In this commit, ${folder} is a file, a link or a submodule, so it holds no project.`,
+      );
     }
     entries = await lsTree(['--end-of-options', tree.id]);
   }
@@ -363,7 +372,7 @@ export async function readCommit(
   for (const size of blobs.values()) total += size;
   if (total > git.limits.totalBytes) {
     return refusedWhole(
-      `This version's project files hold more than ${describeBytes(git.limits.totalBytes)} in all, the most Visual Anything reads of one version.`,
+      `This version’s project files hold more than ${describeBytes(git.limits.totalBytes)} in all, the most Visual Anything reads of one version.`,
     );
   }
 
@@ -383,7 +392,7 @@ export async function readCommit(
 }
 
 function treeUnreadable(): GitError {
-  return new GitError('output', "Git's answer about a tree did not read.");
+  return new GitError('output', 'Git’s answer about a tree did not read.');
 }
 
 /** Why a kind folder of a commit is not read, or `undefined` when it is a tree to list. */
@@ -405,7 +414,13 @@ function folderProblem(entry: TreeEntry, kind: FolderKind, twice: boolean): stri
 }
 
 function extensionOf(kind: FolderKind): string {
-  return { package: '.vapackage', view: '.vaview', scenario: '.vascenario', tour: '.vatour', comment: '.vacomment' }[kind];
+  return {
+    package: '.vapackage',
+    view: '.vaview',
+    scenario: '.vascenario',
+    tour: '.vatour',
+    comment: '.vacomment',
+  }[kind];
 }
 
 /**
@@ -508,7 +523,12 @@ export class BatchReader {
 
   /** Checks that every blob asked for was answered, and nothing more. */
   end(): void {
-    if (this.#next !== this.blobs.length || this.#body !== undefined || this.#newline || this.#headerBytes > 0) {
+    if (
+      this.#next !== this.blobs.length ||
+      this.#body !== undefined ||
+      this.#newline ||
+      this.#headerBytes > 0
+    ) {
       throw batchUnreadable();
     }
   }
@@ -530,7 +550,7 @@ export class BatchReader {
 }
 
 function batchUnreadable(): GitError {
-  return new GitError('output', "Git's answer with the files' contents did not read.");
+  return new GitError('output', 'Git’s answer with the files’ contents did not read.');
 }
 
 function refusedWhole(message: string): CommitRead {

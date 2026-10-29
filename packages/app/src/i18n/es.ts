@@ -4921,6 +4921,86 @@ export const messages: Catalog = {
   'A version listed is an object.': 'Una versión listada es un objeto JSON.',
   'A version listed has its kind, its commit, its subject, author and time.':
     'Una versión listada tiene su tipo, su commit, su asunto, su autor y su momento.',
+  // M11b: versions read from git, and why they cannot be (ADR 0071).
+  'The project folder is not in a git repository, so it has no commits to compare with. Comparing with the project as opened works without one.':
+    'La carpeta del proyecto no está en un repositorio de git, así que no tiene commits con los que comparar. Comparar con el proyecto tal como se abrió funciona sin uno.',
+  'Comparing with a commit needs git 2.36 or later, and none was found: install git, or name it with VISUAL_ANYTHING_GIT. Comparing with the project as opened works without it.':
+    'Comparar con un commit necesita git 2.36 o posterior, y no se encontró ninguno: instalar git, o nombrarlo con VISUAL_ANYTHING_GIT. Comparar con el proyecto tal como se abrió funciona sin él.',
+  'Comparing with a commit needs git 2.36 or later, and the git found is {version}. Comparing with the project as opened works without it.':
+    'Comparar con un commit necesita git 2.36 o posterior, y el git encontrado es {version}. Comparar con el proyecto tal como se abrió funciona sin él.',
+  'The git found, {git}, does not run: {why}': 'El git encontrado, {git}, no se ejecuta: {why}',
+  'The git found, {git}, does not say its version.':
+    'El git encontrado, {git}, no dice su versión.',
+  'VISUAL_ANYTHING_GIT names {git}, which is not a regular file that can be run.':
+    'VISUAL_ANYTHING_GIT nombra {git}, que no es un archivo común que se pueda ejecutar.',
+  'The git found, {git}, lies inside the project’s repository, so Visual Anything does not run it.':
+    'El git encontrado, {git}, está dentro del repositorio del proyecto, así que Visual Anything no lo ejecuta.',
+  'Git does not trust the project folder’s repository, so its commits are not read: {reason}':
+    'Git no confía en el repositorio de la carpeta del proyecto, así que sus commits no se leen: {reason}',
+  'Git could not read the project folder’s repository: {why}':
+    'Git no pudo leer el repositorio de la carpeta del proyecto: {why}',
+  'The project’s repository is a partial clone, which lacks objects: reading its commits needs git 2.44 or later, which can keep a read from fetching them, and the git found is {version}.':
+    'El repositorio del proyecto es un clon parcial, al que le faltan contenidos: leer sus commits necesita git 2.44 o posterior, que puede evitar que una lectura los traiga, y el git encontrado es {version}.',
+  'The repository has no commits yet.': 'El repositorio todavía no tiene commits.',
+  'git {command} is not one of the commands Visual Anything runs, which only read.':
+    'git {command} no es uno de los comandos que ejecuta Visual Anything, que solo leen.',
+  'git config runs only with --get or --get-regexp, which read.':
+    'git config solo se ejecuta con --get o --get-regexp, que leen.',
+  'Git could not be started: {reason}': 'No se pudo iniciar git: {reason}',
+  'git {command} failed.': 'git {command} falló.',
+  'git {command} took longer than {n} s, so it was stopped.':
+    'git {command} tardó más de {n} s, así que se detuvo.',
+  'git {command} said more than {size}, the most Visual Anything reads of it.':
+    'git {command} dijo más de {size}, lo máximo que Visual Anything lee de él.',
+  'What git said did not read: {reason}': 'No se pudo leer lo que dijo git: {reason}',
+  'Git’s answer about the repository did not read.':
+    'No se pudo leer la respuesta de git sobre el repositorio.',
+  'Git’s answer about a commit did not read.':
+    'No se pudo leer la respuesta de git sobre un commit.',
+  'Git’s answer about a tree did not read.':
+    'No se pudo leer la respuesta de git sobre el contenido de una carpeta.',
+  'Git’s answer about commits did not read.':
+    'No se pudo leer la respuesta de git sobre los commits.',
+  'Git’s answer about refs did not read.':
+    'No se pudo leer la respuesta de git sobre las ramas y las etiquetas.',
+  'Git’s answer about HEAD did not read.': 'No se pudo leer la respuesta de git sobre HEAD.',
+  'Git’s answer with the files’ contents did not read.':
+    'No se pudo leer la respuesta de git con el contenido de los archivos.',
+  'A newer request stopped this one.': 'Un pedido más nuevo detuvo este.',
+  'Another version was asked for, so reading this one stopped.':
+    'Se pidió otra versión, así que se dejó de leer esta.',
+  'Reading the version took longer than {n} s, so it was stopped.':
+    'Leer la versión tardó más de {n} s, así que se detuvo.',
+  'That commit is not one the program listed in its latest listing of versions: list them again, then choose one.':
+    'Ese commit no es uno de los que el programa listó en su última lista de versiones: listarlas de nuevo y después elegir una.',
+  'A version is a commit the program listed, by its id.':
+    'Una versión es un commit que el programa listó, por su id.',
+  'This commit has no folder {folder}: the project folder may have had another name then.':
+    'Este commit no tiene la carpeta {folder}: puede que la carpeta del proyecto tuviera otro nombre entonces.',
+  'In this commit, {folder} is a file, a link or a submodule, so it holds no project.':
+    'En este commit, {folder} es un archivo, un enlace simbólico o un submódulo, así que no tiene ningún proyecto.',
+  'This version holds more than {n} project files, the most Visual Anything reads of one version.':
+    'Esta versión tiene más de {n} archivos de proyecto, lo máximo que Visual Anything lee de una versión.',
+  'This version’s project files hold more than {size} in all, the most Visual Anything reads of one version.':
+    'Los archivos de proyecto de esta versión ocupan más de {size} en total, lo máximo que Visual Anything lee de una versión.',
+  'In this commit, the file is a link; Visual Anything reads only regular files.':
+    'En este commit, el archivo es un enlace simbólico; Visual Anything solo lee archivos comunes.',
+  'In this commit, the file is a submodule; Visual Anything reads only regular files.':
+    'En este commit, el archivo es un submódulo; Visual Anything solo lee archivos comunes.',
+  'In this commit, the file is not a regular file; Visual Anything reads only regular files.':
+    'En este commit, el archivo no es un archivo común; Visual Anything solo lee archivos comunes.',
+  'This commit’s copy of the file is not in the repository, which is a partial clone: fetch it with git, then compare again.':
+    'La copia del archivo de este commit no está en el repositorio, que es un clon parcial: traerla con git y después volver a comparar.',
+  'In this commit, more than one folder is named {folder} but for case; Visual Anything reads only one.':
+    'En este commit, más de una carpeta se llama {folder} salvo por mayúsculas y minúsculas; Visual Anything solo lee una.',
+  'In this commit, {folder} is a link; Visual Anything reads only real folders and regular files.':
+    'En este commit, {folder} es un enlace simbólico; Visual Anything solo lee carpetas reales y archivos comunes.',
+  'In this commit, {folder} is a submodule; Visual Anything reads only real folders and regular files.':
+    'En este commit, {folder} es un submódulo; Visual Anything solo lee carpetas reales y archivos comunes.',
+  'Neither the version nor the project now has the view "{view}".':
+    'Ni la versión ni el proyecto actual tienen la vista "{view}".',
+  'The version could not be compared: {why}': 'No se pudo comparar la versión: {why}',
+  'This Visual Anything reads no versions.': 'Este Visual Anything no lee versiones.',
   'Why no version was listed is said in words.':
     'Por qué no se listó ninguna versión se dice con palabras.',
   'The comparison has no changes, or a project that is not one.':

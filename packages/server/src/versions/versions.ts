@@ -15,7 +15,15 @@ import {
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { formatProjectProblem, loadProjectFrom } from '../project';
-import { findGit, GitError, GIT_LIMITS, startGit, type Git, type GitLimits, type Spawn } from './git';
+import {
+  findGit,
+  GitError,
+  GIT_LIMITS,
+  startGit,
+  type Git,
+  type GitLimits,
+  type Spawn,
+} from './git';
 import { listVersions, openRepository, readCommit, type Repository } from './repository';
 
 /** How the program finds and runs git; tests give their own. */
@@ -38,7 +46,8 @@ export interface VersionsListing {
 }
 
 /** A version read: its project, or why it cannot be compared. */
-export type VersionRead = { ok: true; project: ProjectSnapshot } | { ok: false; problems: Problem[] };
+export type VersionRead =
+  { ok: true; project: ProjectSnapshot } | { ok: false; problems: Problem[] };
 
 /** Why a commit is refused before git hears of it. */
 export const NOT_LISTED =
@@ -96,7 +105,9 @@ export class Versions {
   async read(commit: string): Promise<VersionRead> {
     if (!this.#listed.has(commit)) return refused('invalid-command', NOT_LISTED);
     if (this.#last?.commit === commit) return { ok: true, project: this.#last.project };
-    this.#reading?.abort(new GitError('stopped', 'Another version was asked for, so reading this one stopped.'));
+    this.#reading?.abort(
+      new GitError('stopped', 'Another version was asked for, so reading this one stopped.'),
+    );
     const timeout = this.#deadline();
     this.#reading = timeout.controller;
     try {
@@ -122,7 +133,7 @@ export class Versions {
     this.#reading?.abort(new GitError('stopped', 'The project is closed.'));
   }
 
-  /** The project folder's repository, with git found and started once. */
+  /** The project folder’s repository, with git found and started once. */
   async #repository(
     signal: AbortSignal,
   ): Promise<{ ok: true; repository: Repository } | { ok: false; why: string }> {
@@ -159,7 +170,10 @@ export class Versions {
     const timer = setTimeout(
       () =>
         controller.abort(
-          new GitError('timeout', `Reading the version took longer than ${ms / 1000} s, so it was stopped.`),
+          new GitError(
+            'timeout',
+            `Reading the version took longer than ${ms / 1000} s, so it was stopped.`,
+          ),
         ),
       ms,
     );

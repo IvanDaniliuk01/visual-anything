@@ -11,7 +11,12 @@ import { join, relative } from 'node:path';
 import type { ProjectSnapshot } from '@visual-anything/core';
 import { expect } from 'vitest';
 import { writeProjectFolder } from '../test-support';
-import { findGit, fixedOptions, GIT_SUBCOMMANDS, type GitProcess, type Spawn } from './git';
+import { findGit, fixedOptions, GIT_SUBCOMMANDS, type Spawn } from './git';
+
+/** Text that matches a pattern, as an expectation within an object. */
+export function matching(pattern: RegExp): string {
+  return expect.stringMatching(pattern) as string;
+}
 
 /** The person's git, found as the program finds it, or `undefined` where there is none. */
 export const GIT: string | undefined = await (async () => {
@@ -109,7 +114,7 @@ export function recordingSpawn(): { spawn: Spawn; calls: RecordedCall[] } {
         return (end as (...each: unknown[]) => unknown)(chunk, ...rest);
       }) as typeof child.stdin.end;
     }
-    return child as unknown as GitProcess;
+    return child;
   };
   return { spawn, calls };
 }

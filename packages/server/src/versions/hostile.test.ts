@@ -16,6 +16,7 @@ import { BatchReader, openRepository } from './repository';
 import {
   GIT,
   NO_GIT,
+  matching,
   commitProject,
   expectAllowedCalls,
   fingerprint,
@@ -188,7 +189,13 @@ describe.skipIf(NO_GIT)('a hostile repository', () => {
   it('reads no link and no submodule, where project files or kind folders belong', async () => {
     const project = testProject();
     const commit = await commitProject(repo, project);
-    const link = gitWithInput(repo, '../../outside/secret.vaview', 'hash-object', '-w', '--stdin').trim();
+    const link = gitWithInput(
+      repo,
+      '../../outside/secret.vaview',
+      'hash-object',
+      '-w',
+      '--stdin',
+    ).trim();
     const folderLink = gitWithInput(repo, '../outside', 'hash-object', '-w', '--stdin').trim();
     git(repo, 'rm', '-q', '-r', '--cached', 'packages', 'scenarios', 'model.vamodel');
     for (const [mode, id, path] of [
@@ -244,7 +251,15 @@ describe.skipIf(NO_GIT)('a hostile repository', () => {
     await commitProject(source, testProject());
     git(source, 'config', 'uploadpack.allowFilter', 'true');
     const clone = join(root, 'clone');
-    git(root, 'clone', '-q', '--no-checkout', '--filter=blob:none', pathToFileURL(source).href, clone);
+    git(
+      root,
+      'clone',
+      '-q',
+      '--no-checkout',
+      '--filter=blob:none',
+      pathToFileURL(source).href,
+      clone,
+    );
     const missing = git(clone, 'rev-parse', 'HEAD:project.vaproject').trim();
     // Its remote now starts a program on a fetch, which it is allowed to.
     git(clone, 'config', 'remote.origin.url', `ext::sh ${mark} ext`);
@@ -258,7 +273,7 @@ describe.skipIf(NO_GIT)('a hostile repository', () => {
     const { listing, read } = await listAndRead(clone);
     expect(listing.why).toBeUndefined();
     expect(messagesOf(read)).toContain(
-      "project.vaproject: This commit's copy of the file is not in the repository, which is a partial clone: fetch it with git, then compare again.",
+      'project.vaproject: This commit’s copy of the file is not in the repository, which is a partial clone: fetch it with git, then compare again.',
     );
     expect(await ran()).toEqual([]);
     expect(await fingerprint(clone)).toEqual(before);
@@ -277,11 +292,23 @@ describe.skipIf(NO_GIT)('a hostile repository', () => {
     await commitProject(source, testProject());
     git(source, 'config', 'uploadpack.allowFilter', 'true');
     const clone = join(root, 'clone');
-    git(root, 'clone', '-q', '--no-checkout', '--filter=blob:none', pathToFileURL(source).href, clone);
-    const older = new Git(GIT ?? '', { major: 2, minor: 40, patch: 0, text: '2.40.0' }, { cwd: clone });
+    git(
+      root,
+      'clone',
+      '-q',
+      '--no-checkout',
+      '--filter=blob:none',
+      pathToFileURL(source).href,
+      clone,
+    );
+    const older = new Git(
+      GIT ?? '',
+      { major: 2, minor: 40, patch: 0, text: '2.40.0' },
+      { cwd: clone },
+    );
     expect(await openRepository(older)).toMatchObject({
       ok: false,
-      why: expect.stringMatching(/partial clone.*needs git 2\.44 or later/),
+      why: matching(/partial clone.*needs git 2\.44 or later/),
     });
   });
 
@@ -335,7 +362,12 @@ describe('the batch’s answer', () => {
   });
 
   it('stops at a header that names another blob, another type or another size', () => {
-    for (const header of [`${other} blob 5\n`, `${id} tree 5\n`, `${id} blob 6\n`, `${id} ambiguous\n`]) {
+    for (const header of [
+      `${other} blob 5\n`,
+      `${id} tree 5\n`,
+      `${id} blob 6\n`,
+      `${id} ambiguous\n`,
+    ]) {
       expect(() => readBatch([[id, 5]], header), header).toThrow(GitError);
     }
   });
