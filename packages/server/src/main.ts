@@ -9,6 +9,8 @@
  *   visual-anything import <folder> <file> [--map <kind>=<id>]... [--dry-run]
  *   visual-anything live <folder> [--fresh-for <seconds>] < values.jsonl
  *   visual-anything notices
+ *   visual-anything merge-driver <ancestor> <ours> <theirs> <path> [<ours' name> <theirs' name>]
+ *   visual-anything merge-driver --install [--global] [--no-attributes] | --uninstall [--global]
  *
  * The first opens the project folder, serves the app on 127.0.0.1 and opens the browser on it, at
  * the view and selection asked for; `open` says so and changes nothing. The second is Claude's MCP
@@ -16,8 +18,10 @@
  * stdin and stdout, so it writes nothing else there, and every line of its own goes to stderr. `new`
  * starts a new project; `export` writes a view as a file, reading the project itself
  * (`export-command.ts`); `import` imports a file into a project as one action of the person's
- * (ADR-0042); and `live` pipes live values into the program running on the folder
- * (`live-command.ts`, ADR 0057).
+ * (ADR-0042); `live` pipes live values into the program running on the folder
+ * (`live-command.ts`, ADR 0057); and `merge-driver` is what git runs to merge two edits of a project
+ * file by id, once `merge-driver --install` defines it in the person's git configuration
+ * (`merge-driver.ts`, ADR 0072).
  */
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
@@ -54,17 +58,21 @@ export const LIVE_COMMAND = 'live';
 /** The subcommand that prints the notice of the code the executable bundles (ADR 0037, ADR 0068). */
 export const NOTICES_COMMAND = 'notices';
 
+/** The subcommand git runs to merge a project file by id, and that installs it (ADR 0072). */
+export const MERGE_DRIVER_COMMAND = 'merge-driver';
+
 /** Which entry point a command line runs, with the arguments that entry point reads. */
 export interface Entry {
-  kind: 'program' | 'mcp' | 'new' | 'export' | 'import' | 'live' | 'notices';
+  kind: 'program' | 'mcp' | 'new' | 'export' | 'import' | 'live' | 'notices' | 'merge-driver';
   argv: string[];
 }
 
 /**
  * Which entry point a command line runs: the MCP entry point when its first argument is `mcp`, the
  * export when it is `export`, the import when it is `import`, a new project when it is `new`, the
- * local program otherwise, with `open` before its folder left out. A folder named `mcp`, `export`,
- * `import`, `new` or `open` is opened as `./mcp`, `./export`, `./import`, `./new` or `./open`.
+ * merge driver when it is `merge-driver`, the local program otherwise, with `open` before its folder
+ * left out. A folder named like a subcommand, such as `mcp` or `open`, is opened as `./mcp` or
+ * `./open`.
  */
 export function entryOf(argv: readonly string[]): Entry {
   if (argv[0] === MCP_COMMAND) return { kind: 'mcp', argv: argv.slice(1) };
@@ -74,6 +82,7 @@ export function entryOf(argv: readonly string[]): Entry {
   if (argv[0] === NEW_COMMAND) return { kind: 'new', argv: argv.slice(1) };
   if (argv[0] === LIVE_COMMAND) return { kind: 'live', argv: argv.slice(1) };
   if (argv[0] === NOTICES_COMMAND) return { kind: 'notices', argv: argv.slice(1) };
+  if (argv[0] === MERGE_DRIVER_COMMAND) return { kind: 'merge-driver', argv: argv.slice(1) };
   return { kind: 'program', argv: [...argv] };
 }
 
@@ -98,11 +107,13 @@ export function main(argv: readonly string[]): void {
             ? runLiveCommand(entry.argv)
             : entry.kind === 'notices'
               ? Promise.resolve(printNotices())
-              : runProgram(
-                  entry.argv,
-                  isExecutable(),
-                  entry.kind === 'new' ? runNewCommand : runCommand,
-                );
+              : entry.kind === 'merge-driver'
+                ? runMergeDriverCommand(entry.argv)
+                : runProgram(
+                    entry.argv,
+                    isExecutable(),
+                    entry.kind === 'new' ? runNewCommand : runCommand,
+                  );
   void run.then((code) => {
     if (code !== undefined) process.exitCode = code;
   });
@@ -118,6 +129,19 @@ export async function runExportCommand(argv: readonly string[]): Promise<number>
     cwd: process.cwd(),
     stdout: (data) => process.stdout.write(data),
     stdoutIsTerminal: process.stdout.isTTY === true,
+    err: (line) => console.error(line),
+  });
+}
+
+/**
+ * Runs the merge driver, or installs it, on the process's own streams. Git shows what the driver says
+ * on stderr; what installing says goes to stdout.
+ */
+export async function runMergeDriverCommand(argv: readonly string[]): Promise<number> {
+  const { runMergeDriver } = await import('./merge-driver');
+  return runMergeDriver(argv, {
+    cwd: process.cwd(),
+    out: (line) => console.log(line),
     err: (line) => console.error(line),
   });
 }

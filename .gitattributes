@@ -6,3 +6,12 @@
 *.vapackage linguist-language=JSON
 *.vaview linguist-language=JSON
 *.vascenario linguist-language=JSON
+
+# Project files merge by id, once each person runs `visual-anything merge-driver --install` (ADR 0072).
+*.vaproject merge=visual-anything
+*.vamodel merge=visual-anything
+*.vapackage merge=visual-anything
+*.vaview merge=visual-anything
+*.vascenario merge=visual-anything
+*.vatour merge=visual-anything
+*.vacomment merge=visual-anything

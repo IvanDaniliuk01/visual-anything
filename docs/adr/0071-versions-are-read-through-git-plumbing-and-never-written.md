@@ -172,3 +172,9 @@ The rule throughout: git runs with arguments, never through a shell, and never o
     The messages are in English, and the app reads them through `es.ts`.
   - **One view.** `version/compare` with a view keeps the changes of that view's own items and of the elements and relations it draws in either version, with their counts and names (`comparisonOfView`). A view neither version has is refused. Without a view, the comparison is whole.
   - **When it is worked out.** Reading a version never waits behind the project's work. The comparison is worked out against the project as every app last heard of it, and sent in the same turn, so that an app follows each later action with `recompare`. The version as opened is the project as the program last opened or reloaded it.
+- 2026-10-29 (M11b's task "The merge driver", ADR 0072): **installing the merge driver is not the runner's.** The runner still refuses every call that writes, `git config` without `--get` among them. `merge-driver --install` and `--uninstall`, which only the person runs, make their own calls in `server/src/merge-driver.ts`, as narrowly:
+  - git found as `findGit` finds it, from the current folder, and run by its absolute path, with arguments and never a shell, behind the runner's fixed options;
+  - only `rev-parse --show-toplevel`, and `git config --local` or `--global` setting or unsetting `merge.visual-anything.name` or `merge.visual-anything.driver`, and nothing else (`refusedInstallCall`);
+  - in the runner's environment, with `GIT_CONFIG_GLOBAL` and `GIT_CONFIG_NOSYSTEM` kept besides, so that `--global` writes where the person's git reads its configuration, and within 30 s a call.
+
+  The local program, the MCP entry point and the app never make these calls.
