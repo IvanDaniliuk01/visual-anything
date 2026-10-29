@@ -45,3 +45,11 @@ A view that does not nest by the relation type holding a container's rows shows 
   - **Where it lands.** At the place under the pointer: before the row whose upper half it is over, after one whose lower half it is over, first over the header, last under the rows or on a collapsed one. A bar across the container shows the place, and the caption says it: `Make it a row of "users"`, then `Before "email"`, `After its last row` or `As its first row`, the relation type when the view nests by several or starts nesting by it, and `Alt: move only`. Snapping keeps the frame the shapes sit in, since a row has no position.
   - **One action, named as a change of container** (`Put "phone" inside "users"`): the view starts nesting by the relation type when it does not yet; the nesting relations that placed the elements where they were are deleted, with what cascades, after the same question a change of container asks; one relation of the chosen type puts each inside, unless one already does; and a `reorder-elements` puts them at their place in the model's order, just before the row after it or just after the last row, and only when they are not there already. It does not use `change-container`, whose bringing to the front would write a stacking list for a container whose rows have none, as `reorder-elements` already leaves such containers out; whatever else is selected moves along in the same action.
 - 2026-10-25: `change-container` into a shape that draws its contents as rows makes what enters a row in the model's order. It writes no stacking list for that container, as `reorder-elements` already does not, since rows have no stacking order.
+
+- 2026-10-29: **ADR 0080 supersedes part of this ADR**, stage by stage as milestone M3c builds it:
+  - one hierarchical layout pass with rows as ports;
+  - lines beside rows routed like any other, in channels of their own;
+  - curves drawn with rounded corners beyond a few lines;
+  - every expansion opens in place.
+
+  Read ADR 0080's Consequences for exactly which clarifications it replaces.

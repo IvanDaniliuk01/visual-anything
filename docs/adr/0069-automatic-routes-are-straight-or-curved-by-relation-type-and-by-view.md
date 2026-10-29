@@ -92,3 +92,11 @@ Each change is one undoable action.
 - 2026-10-26 (M8b, the benchmark): **`?curves`.**
   - It sets every view's `routeStyle` to `curved`, with `?geometry` or without it, so that the canvas benchmark's other phases can be measured with every automatic route curved too.
   - On the beyond-boxes project, the 1,000 relations on outlines that are curved automatically take their style from their relation type's appearance (`route: curved`), and stay curved without `?curves`. The other 1,000 inherit no route, and are orthogonal unless `?curves` curves them with the rest.
+
+- 2026-10-29: **ADR 0080 supersedes part of this ADR**, stage by stage as milestone M3c builds it:
+  - one hierarchical layout pass with rows as ports;
+  - lines beside rows routed like any other, in channels of their own;
+  - curves drawn with rounded corners beyond a few lines;
+  - every expansion opens in place.
+
+  Read ADR 0080's Consequences for exactly which clarifications it replaces.

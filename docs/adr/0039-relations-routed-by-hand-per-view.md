@@ -70,3 +70,11 @@ A view can route any relation it draws as a line by hand, and keeps only what di
   - It names the automatic style it stands for, as `Automatic: curved`; in the menu, only while every relation chosen shares that style.
   - It is the choice while a route stores no style, and a style is the choice only while the route stores it. Choosing Curved for a line that its view draws curved sends nothing, so the line stays Automatic, as `set-route` keeps only what differs.
   - Choosing it sends, for each relation whose route stores a style, `set-route` with the relation's automatic style, which the core then drops, in a batch labelled `Draw "Client → API" in its automatic style in "Overview"`, or `Draw 3 relations in their automatic styles in "Overview"`. A route left with nothing else goes. Relations whose routes store no style send nothing.
+
+- 2026-10-29: **ADR 0080 supersedes part of this ADR**, stage by stage as milestone M3c builds it:
+  - one hierarchical layout pass with rows as ports;
+  - lines beside rows routed like any other, in channels of their own;
+  - curves drawn with rounded corners beyond a few lines;
+  - every expansion opens in place.
+
+  Read ADR 0080's Consequences for exactly which clarifications it replaces.

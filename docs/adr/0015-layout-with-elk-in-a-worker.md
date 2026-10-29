@@ -59,3 +59,11 @@ ELK is a large dependency and layout results arrive asynchronously, so the canva
   - **A drawing with parts** is given its picture's bottom, and takes as its size before it grows around its contents its appearance's size or its picture with 24 units of room to its right and below, whichever is larger, as the scene sizes it.
   - **Its other contents** are placed 40 units below its picture, whatever its parts relate to: the picture is kept as what stays at that level.
   - **Its ports.** A relation lifted to the drawing from one of its anchored parts ends on a port on the drawing's side nearest the part's inner point, at the place along it nearest it, rounded to a unit; parts at the same place share a port. Ports keep to the side they are nearest, whichever way the flow runs, and ELK turns around those it must. A part of a drawing that sits deeper in the level's content gets no port, as a row deeper in one gets none.
+
+- 2026-10-29: **ADR 0080 supersedes part of this ADR**, stage by stage as milestone M3c builds it:
+  - one hierarchical layout pass with rows as ports;
+  - lines beside rows routed like any other, in channels of their own;
+  - curves drawn with rounded corners beyond a few lines;
+  - every expansion opens in place.
+
+  Read ADR 0080's Consequences for exactly which clarifications it replaces.

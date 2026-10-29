@@ -122,6 +122,14 @@ _Avoid_: folded group, closed group
 A single relation drawn in place of many relations of the same type between the contents of a collapsed container and another element, labeled with how many it stands for and drawn with a thicker line.
 _Avoid_: bundle, summary edge
 
+**Expand in place**:
+How a collapsed container opens: it keeps its corner and grows toward the free room. The shapes it now covers move aside by the least that clears it, in their order. Pinned shapes never move. Collapsing it again gives the moved shapes their places back (ADR 0080).
+_Avoid_: unfold, explode
+
+**Trunk**:
+The shared first run of the lines that leave one row or one shape toward several ends, drawn as one line until they part (ADR 0080). It is a way of drawing lines, not a relation of its own.
+_Avoid_: bundle (an aggregated relation stands for many relations; a trunk only draws several together)
+
 **View**:
 A projection of the model onto the canvas, seen from exactly one perspective and keeping its own positions. It shows the whole model, or the part its scope gives. It can also leave out relation types, each with the relation types derived from it unless exactly that one: their relations it draws as no line, aggregates into no collapsed container and counts as leaving nothing, though they stay in the model; a relation type it nests by is never left out (ADR 0064).
 _Avoid_: page, diagram, layer

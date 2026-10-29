@@ -717,6 +717,36 @@ The first three tasks are the seams, built in the main session in this order. Th
 - [x] **View states, addresses and tours' `play` with choices**, and a decision in the sample's `patient-books-appointment`; the Tours panel says what `check_tour` says, under each step.
 - [ ] **The benchmark:** a tour phase and a decision phase on the 10,000-element view. (Not built: by the user's decision of 2026-10-27 benchmark marks do not hold a milestone back; it waits for a faster machine.)
 
+**M3c · Layout that reads.** Planned on 2026-10-29, ahead of M11b's remaining tasks, from the layout research and benchmark on the user's PostgreSQL model (73 tables, 1,088 columns, 163 references in 9 schemas), which no view drew readably (ADR 0080). Done when:
+
+- after Layout, a fixture shaped like that model (same counts and structure, generated names) meets ADR 0080's quality thresholds on its `esquema-engine`, `overview` expanded and `procesamiento` with its tables open:
+  - no segment shared by two lines without a common end;
+  - no automatic line through a shape that is not one of its ends;
+  - no overlapping siblings;
+  - every end on a row at that row's middle;
+  - crossings no more than before;
+- expanding a container, by hand or by zoom, keeps its corner, moves only what it covers by the least, overlaps nothing, and keeps the box on screen, and undo puts everything back;
+- the generated overlay colors stay 3:1 apart, and a relation from a row to its own table draws a short C;
+- the 10,000-element view still lays out and routes without blocking the main thread (numbers recorded, not held).
+
+Its tasks run one at a time, in this order:
+
+- [ ] **Stage 0a: one layout pass and expanding in place** (`app/src/canvas/layout/`, the collapse code, ADR 0080 sections 1 and 4):
+  - one hierarchical ELK run with row ports on the facing side, in two passes, within the budget, the per-container arrangement beyond it;
+  - unrelated contents packed in rows beside the related block;
+  - ELK's routes kept until a shape they pass moves;
+  - every expansion makes room (`makeRoom` for every expansion, zoom included, drawn only for zoom), and the camera follows;
+  - `canvas/layout/quality.ts` and the fixture shaped like the user's model, with the thresholds that this stage can hold.
+- [ ] **Stage 0b: lines beside rows routed in channels, the palette and the self-reference** (`app/src/canvas/routing/`, the overlays' colors, ADR 0080 sections 2 and 6):
+  - lines beside rows and on shapes that draw rows go through the program's own router, leaving at their row's middle on the facing side;
+  - a channel pass spreads collinear segments of different lines at least 8 units apart, lines from one row staying one trunk;
+  - routing stays in the worker and incremental;
+  - the validated overlay palette, and the short C of a self-reference;
+  - the quality thresholds on routing, on the fixture.
+- [ ] **Stage 1: libavoid behind the fallback, trunks, and the full pipeline** (ADR 0080 section 2): libavoid in the routing worker, incremental by container, with the program's router as the fallback; container ports beyond the budget; communities for large containers without groups.
+- [ ] **Stage 2: reading many lines** (ADR 0080 sections 3 and 5): curves degrade to rounded corners beyond 24 in a container; names readable far out; `rows: "keys"`; the selection's relations, with the rest faint.
+- [ ] **Stage 3: stability**: Layout twice moves nothing; adding a table moves at most 10% of the others; the numbers at 10,000 elements, recorded.
+
 **Track P · Visual packages**, beside the milestones, from the research on visual packages (ADR 0079). Its commits start with `P<n>:`. Each package follows ADR 0051: components and relation types with appearances that pass the contrast tests in both themes, names in English and Spanish, icons that pass the cleaner as stored, its licence and attribution (ADR 0047, ADR 0079), a sample project with a scenario, and a README section saying where its pictures come from.
 
 **P1 · Machine learning, physical AI and processes.** Done when the three packages ship built in and their samples open with no warnings:
