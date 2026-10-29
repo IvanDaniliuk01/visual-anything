@@ -148,7 +148,11 @@ const UNREADABLE: readonly [string, () => unknown][] = [
   ['a proposal not named', app({ type: 'proposal/refuse' })],
   [
     'changes accepted not by their keys',
-    app({ type: 'proposal/accept', proposal: 'p', changes: [1] }),
+    app({ type: 'proposal/accept', proposal: 'p', revision: 1, changes: [1] }),
+  ],
+  [
+    'an acceptance without the revision shown',
+    app({ type: 'proposal/accept', proposal: 'p', changes: 'all' }),
   ],
   ['versions listed not a list', server({ type: 'versions/listed', requestId: 'r1', versions: 1 })],
   [

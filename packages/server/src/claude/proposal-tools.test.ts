@@ -4,6 +4,7 @@
  * proposed copy and say so, `read_proposal` says what waits or how it ended, and `withdraw_proposal`
  * takes it back. The whole way goes from an MCP client through the bridge to a running program.
  */
+import type { Command } from '@visual-anything/core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openPreferences } from '../preferences';
 import type { LiveClient } from '../test-support';
@@ -17,11 +18,19 @@ afterEach(async () => {
   tools = undefined;
 });
 
-async function harness(review: boolean): Promise<ToolHarness> {
+/** A program on the test project, the person reviewing Claude's changes or not, and its tools. */
+async function harness(review: boolean) {
   const { store } = await openPreferences(null);
   if (review) await store.set({ reviewClaude: true });
-  tools = await startToolHarness(undefined, { preferences: store });
-  return tools;
+  const started = await startToolHarness(undefined, { preferences: store });
+  tools = started;
+  return {
+    session: started.session,
+    value: (name: string, args?: Record<string, unknown>) => started.value(name, args),
+    failure: (name: string, args?: Record<string, unknown>) => started.failure(name, args),
+    openApp: () => started.openApp(),
+    asPerson: (command: Command) => started.asPerson(command),
+  };
 }
 
 const SERVICES = { component: 'systems.service', exactComponent: true };
@@ -43,9 +52,9 @@ describe('a write tool while the person reviews Claude’s changes', () => {
     expect(answer).toMatchObject({
       proposed: 'Create "Worker"',
       applied: false,
-      proposal: expect.any(String),
+      proposal: expect.any(String) as unknown,
       changes: [expect.stringMatching(/^element:.* added$/)],
-      review: expect.stringContaining('open_app'),
+      review: expect.stringContaining('open_app') as unknown,
     });
     expect(answer.note).toMatch(/^Proposed, not applied/);
     expect(answer).not.toHaveProperty('done');
@@ -70,7 +79,10 @@ describe('the read tools while a proposal waits', () => {
     const made = await value('add_to_model', WORKER);
 
     const found = await value('find_elements', SERVICES);
-    expect(found).toMatchObject({ total: 2, proposed: expect.stringContaining(String(made.proposal)) });
+    expect(found).toMatchObject({
+      total: 2,
+      proposed: expect.stringContaining(String(made.proposal)) as unknown,
+    });
     const brief = await value('get_project');
     expect(brief.proposed).toMatch(/not yet applied/);
 
@@ -167,6 +179,7 @@ describe('read_proposal', () => {
       type: 'proposal/accept',
       requestId: 'accept',
       proposal: shown.proposal.id,
+      revision: shown.proposal.revision,
       changes: [first?.key],
     });
     const closed = await lastOf(app, 'proposal/closed');
@@ -207,7 +220,7 @@ describe('withdraw_proposal', () => {
     const made = await value('add_to_model', WORKER);
     expect(await value('withdraw_proposal')).toEqual({
       withdrawn: made.proposal,
-      note: expect.any(String),
+      note: expect.any(String) as unknown,
     });
     const closed = await lastOf(app, 'proposal/closed');
     expect(closed).toMatchObject({ how: 'withdrawn', proposal: made.proposal });

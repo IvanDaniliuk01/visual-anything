@@ -411,7 +411,8 @@ export class ProgramBridge implements Program {
    * proposal waits, the program shows the proposal rebased on it at once, and a read waits for that.
    */
   async #settled(attached: Attached): Promise<Attached> {
-    if (attached.proposal === undefined || attached.proposal.proposed !== undefined) return attached;
+    if (attached.proposal === undefined || attached.proposal.proposed !== undefined)
+      return attached;
     await new Promise<void>((resolve) => {
       const timer = setTimeout(resolve, PROPOSAL_SETTLE);
       attached.settled.push(() => {
@@ -419,7 +420,8 @@ export class ProgramBridge implements Program {
         resolve();
       });
     });
-    if (attached.proposal === undefined || attached.proposal.proposed !== undefined) return attached;
+    if (attached.proposal === undefined || attached.proposal.proposed !== undefined)
+      return attached;
     throw new ProgramUnavailableError(
       'Visual Anything did not show your proposal on the latest change in time. Read the project again before going on.',
     );

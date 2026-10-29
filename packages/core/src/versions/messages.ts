@@ -102,6 +102,11 @@ export interface ProposalShownMessage {
   type: 'proposal/shown';
   proposal: {
     id: Id;
+    /**
+     * Raised each time the program shows the proposal anew, after Claude's commands and the rebases
+     * that follow the person's actions: an acceptance names the revision the person saw.
+     */
+    revision: number;
     /** The labels of Claude's commands that joined it, oldest first. */
     labels: string[];
     operations: Operation[];
@@ -111,11 +116,16 @@ export interface ProposalShownMessage {
   };
 }
 
-/** Accepts some of a proposal's changes, by their keys, or all of them. */
+/**
+ * Accepts some of a proposal's changes, by their keys, or all of them, as the revision the person saw
+ * holds them: an acceptance of another revision is refused, so that nothing Claude proposed since is
+ * accepted unseen.
+ */
 export interface ProposalAcceptMessage {
   type: 'proposal/accept';
   requestId: string;
   proposal: Id;
+  revision: number;
   changes: string[] | 'all';
 }
 
@@ -188,11 +198,20 @@ export function readProposalAccept(
   requestId: string,
 ): VersionMessageRead<ProposalAcceptMessage> {
   if (!isId(message.proposal)) return { ok: false, reason: 'A proposal is named by its id.' };
-  const { changes } = message;
+  const { changes, revision } = message;
+  if (!isRevision(revision)) {
+    return { ok: false, reason: 'Accepting names the revision of the proposal shown.' };
+  }
   if (changes === 'all') {
     return {
       ok: true,
-      message: { type: 'proposal/accept', requestId, proposal: message.proposal, changes: 'all' },
+      message: {
+        type: 'proposal/accept',
+        requestId,
+        proposal: message.proposal,
+        revision,
+        changes: 'all',
+      },
     };
   }
   if (
@@ -213,9 +232,15 @@ export function readProposalAccept(
       type: 'proposal/accept',
       requestId,
       proposal: message.proposal,
+      revision,
       changes: [...(changes as string[])],
     },
   };
+}
+
+/** Whether a value is a proposal's revision: a whole number, 0 or more. */
+export function isRevision(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 0;
 }
 
 /** Reads an app's refusal of a proposal. */

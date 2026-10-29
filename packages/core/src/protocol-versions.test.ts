@@ -127,20 +127,30 @@ describe('versions over the live connection (ADR 0071)', () => {
 
 describe('proposals over the live connection (ADR 0073)', () => {
   it('reads an acceptance of all changes, or of some by their keys, and a refusal', () => {
-    expect(app({ type: 'proposal/accept', proposal: 'p1', changes: 'all' })()).toEqual({
-      type: 'proposal/accept',
-      requestId: 'r1',
-      proposal: 'p1',
-      changes: 'all',
-    });
+    expect(app({ type: 'proposal/accept', proposal: 'p1', revision: 3, changes: 'all' })()).toEqual(
+      {
+        type: 'proposal/accept',
+        requestId: 'r1',
+        proposal: 'p1',
+        revision: 3,
+        changes: 'all',
+      },
+    );
     expect(
-      app({ type: 'proposal/accept', proposal: 'p1', changes: ['element:a added'] })(),
+      app({
+        type: 'proposal/accept',
+        proposal: 'p1',
+        revision: 0,
+        changes: ['element:a added'],
+      })(),
     ).toEqual({
       type: 'proposal/accept',
       requestId: 'r1',
       proposal: 'p1',
+      revision: 0,
       changes: ['element:a added'],
     });
+    // Refusing needs no revision: whatever the proposal holds, nothing of it applies.
     expect(app({ type: 'proposal/refuse', proposal: 'p1' })()).toEqual({
       type: 'proposal/refuse',
       requestId: 'r1',
@@ -148,19 +158,32 @@ describe('proposals over the live connection (ADR 0073)', () => {
     });
   });
 
-  it('refuses an acceptance of no proposal, or of changes not named by their keys', () => {
-    expect(reason(app({ type: 'proposal/accept', proposal: 1, changes: 'all' }))).toBe(
+  it('refuses an acceptance of no proposal, of no revision, or of changes not named by their keys', () => {
+    expect(reason(app({ type: 'proposal/accept', proposal: 1, revision: 1, changes: 'all' }))).toBe(
       'A proposal is named by its id.',
     );
-    expect(reason(app({ type: 'proposal/accept', proposal: 'p1', changes: [1] }))).toBe(
-      'Accepting names "all" the changes, or at most 100000 of them by their keys.',
-    );
+    for (const revision of [undefined, 1.5, -1, '2', null]) {
+      expect(
+        reason(app({ type: 'proposal/accept', proposal: 'p1', revision, changes: 'all' })),
+      ).toBe('Accepting names the revision of the proposal shown.');
+    }
+    expect(
+      reason(app({ type: 'proposal/accept', proposal: 'p1', revision: 1, changes: [1] })),
+    ).toBe('Accepting names "all" the changes, or at most 100000 of them by their keys.');
     expect(reason(app({ type: 'proposal/refuse' }))).toBe('A proposal is named by its id.');
   });
 
   it('reads the proposal shown and closed by their envelopes', () => {
     expect(reason(server({ type: 'proposal/shown', proposal: { id: 'p1' } }))).toBe(
-      'The proposal shown has its id, labels, operations and changes.',
+      'The proposal shown has its id, revision, labels, operations and changes.',
+    );
+    const shown = {
+      type: 'proposal/shown',
+      proposal: { id: 'p1', revision: 2, labels: [], operations: [], changes: [], names: {} },
+    };
+    expect(server(shown)()).toEqual(shown);
+    expect(reason(server({ ...shown, proposal: { ...shown.proposal, revision: 0.5 } }))).toBe(
+      'The proposal shown has its id, revision, labels, operations and changes.',
     );
     expect(reason(server({ type: 'proposal/closed', proposal: 'p1', how: 'lost' }))).toBe(
       'The proposal closed is named, with how it closed.',

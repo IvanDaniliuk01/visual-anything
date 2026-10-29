@@ -15,6 +15,7 @@ import {
   type ProjectSnapshot,
   type ServerMessage,
 } from '@visual-anything/core';
+import { untranslatedParts } from '@visual-anything/app/src/i18n/translate';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { attachClaude } from './claude/endpoint';
 import type { ProgramMessage } from './claude/messages';
@@ -103,18 +104,36 @@ function shownTo(messages: readonly (ServerMessage | ProgramMessage)[]) {
   });
 }
 
-/** Sends a message from an app, and gives back what answers it. */
+/**
+ * Sends a message from an app, and gives back what answers it. An acceptance names the revision the
+ * app was shown last, unless it names one itself.
+ */
 async function fromApp(
   session: Session,
   app: FakeClient,
   message: Record<string, unknown>,
 ): Promise<ServerMessage[]> {
-  await session.receive(app, JSON.stringify({ requestId: 'a1', ...message }));
-  return app.messages.filter((each) => 'requestId' in each && each.requestId === 'a1');
+  const revision =
+    message.type === 'proposal/accept' ? (shownTo(app.messages).at(-1)?.revision ?? 0) : undefined;
+  const before = app.messages.length;
+  await session.receive(
+    app,
+    JSON.stringify({
+      requestId: 'a1',
+      ...(revision === undefined ? {} : { revision }),
+      ...message,
+    }),
+  );
+  return app.messages
+    .slice(before)
+    .filter((each) => 'requestId' in each && each.requestId === 'a1');
 }
 
 /** The proposed project, as an app builds it from what it was shown. */
-function proposedFor(project: ProjectSnapshot, messages: readonly ServerMessage[]): ProjectSnapshot {
+function proposedFor(
+  project: ProjectSnapshot,
+  messages: readonly ServerMessage[],
+): ProjectSnapshot {
   const last = shownTo(messages).at(-1);
   if (last === undefined) throw new Error('No proposal was shown.');
   return applyOperations(project, last.operations).state;
@@ -133,7 +152,7 @@ describe('Claude’s commands while the person reviews them', () => {
     const [made] = answers;
     expect(made).toMatchObject({
       type: 'proposal/made',
-      label: expect.any(String),
+      label: expect.any(String) as unknown,
       changes: ['element:api changed'],
       created: [],
       apps: 1,
@@ -241,7 +260,7 @@ describe('Claude’s commands while the person reviews them', () => {
       type: 'batch',
       label: 'Both',
       commands: [RENAME_API, { ...thread, thread: { ...thread.thread, id: 'again' } }],
-    } as Command);
+    });
     expect(mixed?.type).toBe('command/rejected');
 
     // A thread about what only the proposal holds waits for the person to accept it.
@@ -305,10 +324,7 @@ describe('the person’s actions while a proposal waits', () => {
     session.connect(app);
     const claude = claudeOn(session);
     await claude.command(RENAME_API);
-    await session.execute(
-      { type: 'update-element', id: 'api', changes: { name: 'Edge' } },
-      'user',
-    );
+    await session.execute({ type: 'update-element', id: 'api', changes: { name: 'Edge' } }, 'user');
     const [change] = shownTo(app.messages).at(-1)?.changes ?? [];
     expect(change).toMatchObject({ key: 'element:api changed', changedByYou: true });
     expect(
@@ -324,7 +340,9 @@ describe('the person’s actions while a proposal waits', () => {
     await session.execute(RENAME_DB, 'user');
     const claude = claudeOn(session);
     await claude.command(CREATE_CACHE);
-    const keys = shownTo(app.messages).at(-1)?.changes.map((each) => each.key);
+    const keys = shownTo(app.messages)
+      .at(-1)
+      ?.changes.map((each) => each.key);
 
     const undone = await session.undo();
     expect(undone.ok).toBe(true);
@@ -337,7 +355,11 @@ describe('the person’s actions while a proposal waits', () => {
     expect(redone.ok).toBe(true);
     proposed = proposedFor(session.snapshot, app.messages);
     expect(proposed.model.elements.find((each) => each.id === 'db')?.name).toBe('Store');
-    expect(shownTo(app.messages).at(-1)?.changes.map((each) => each.key)).toEqual(keys);
+    expect(
+      shownTo(app.messages)
+        .at(-1)
+        ?.changes.map((each) => each.key),
+    ).toEqual(keys);
     // Undo and redo are the person's: the proposal never entered the history.
     expect(session.actions.map((each) => each.author)).toEqual(['user']);
   });
@@ -360,7 +382,122 @@ describe('the person’s actions while a proposal waits', () => {
   });
 });
 
+describe('resolving conflicts', () => {
+  /** The test project with one conflict in its model file, from a merge (ADR 0072). */
+  async function withConflict(): Promise<void> {
+    const project = testProject();
+    await writeProjectFolder(folder, {
+      ...project,
+      model: {
+        ...project.model,
+        conflicts: [
+          {
+            id: 'conflict-1',
+            item: 'element:api',
+            path: ['name'],
+            why: 'both-changed',
+            kept: 'ours',
+            other: 'Edge',
+          },
+        ],
+      },
+    });
+  }
+  const RESOLVE: Command = {
+    type: 'resolve-conflicts',
+    file: { kind: 'model' },
+    resolutions: [{ conflict: 'conflict-1', take: 'other' }],
+  };
+  const NEVER = /Conflicts are never resolved in a proposal/;
+
+  it('runs as before with the review off and no proposal waiting', async () => {
+    await withConflict();
+    const { session } = await open({}, false);
+    const claude = claudeOn(session);
+    const [answer] = await claude.command(RESOLVE);
+    expect(answer?.type).toBe('project/changed');
+    expect(session.snapshot.model.conflicts ?? []).toEqual([]);
+  });
+
+  it('is refused, never applied, while the person reviews Claude’s changes', async () => {
+    await withConflict();
+    const { session } = await open();
+    const claude = claudeOn(session);
+    for (const command of [RESOLVE, { type: 'batch', label: 'Resolve', commands: [RESOLVE] }]) {
+      const [answer] = await claude.command(command as Command);
+      expect(answer?.type).toBe('command/rejected');
+      expect(answer?.type === 'command/rejected' && answer.problems[0]?.message).toMatch(NEVER);
+    }
+    expect(session.snapshot.model.conflicts).toHaveLength(1);
+    expect(session.proposalWaiting).toBeUndefined();
+  });
+
+  it('is refused when the command asks to be proposed, or while a proposal waits', async () => {
+    await withConflict();
+    const { session } = await open({}, false);
+    const claude = claudeOn(session);
+    const [asked] = await claude.command(RESOLVE, true);
+    expect(asked?.type === 'command/rejected' && asked.problems[0]?.message).toMatch(NEVER);
+
+    await claude.command(CREATE_CACHE, true);
+    const [waiting] = await claude.command(RESOLVE);
+    expect(waiting?.type === 'command/rejected' && waiting.problems[0]?.message).toMatch(NEVER);
+    expect(session.snapshot.model.conflicts).toHaveLength(1);
+  });
+});
+
 describe('deciding about a proposal', () => {
+  it('refuses an acceptance of a revision Claude changed since, and shows it again', async () => {
+    const { session } = await open();
+    const app = new FakeClient();
+    session.connect(app);
+    const claude = claudeOn(session);
+    const [made] = await claude.command(CREATE_CACHE);
+    const id = made?.type === 'proposal/made' ? made.proposal : '';
+    const seen = shownTo(app.messages).at(-1)?.revision ?? -1;
+    await claude.command(CREATE_QUEUE);
+    const now = shownTo(app.messages).at(-1)?.revision ?? -1;
+    expect(now).toBe(seen + 1);
+
+    for (const changes of ['all', ['element:cache added']]) {
+      const shownBefore = shownTo(app.messages).length;
+      const [refused] = await fromApp(session, app, {
+        type: 'proposal/accept',
+        proposal: id,
+        revision: seen,
+        changes,
+      });
+      expect(refused).toMatchObject({
+        type: 'command/rejected',
+        problems: [{ message: 'The proposal changed since it was shown: review it again.' }],
+      });
+      // The app is shown the proposal as it is now, at the same revision.
+      expect(shownTo(app.messages)).toHaveLength(shownBefore + 1);
+      expect(shownTo(app.messages).at(-1)?.revision).toBe(now);
+    }
+    expect(session.snapshot).toEqual(testProject());
+    expect(session.actions).toEqual([]);
+    expect(session.proposalWaiting).toBeDefined();
+
+    // A rebase after the person's action is a new revision too.
+    await session.execute(RENAME_DB, 'user');
+    expect(shownTo(app.messages).at(-1)?.revision).toBe(now + 1);
+    const [stale] = await fromApp(session, app, {
+      type: 'proposal/accept',
+      proposal: id,
+      revision: now,
+      changes: 'all',
+    });
+    expect(stale?.type).toBe('command/rejected');
+
+    const [accepted] = await fromApp(session, app, {
+      type: 'proposal/accept',
+      proposal: id,
+      changes: 'all',
+    });
+    expect(accepted).toMatchObject({ type: 'proposal/closed', how: 'accepted' });
+  });
+
   it('accepts every change as one action of Claude’s, saved and announced', async () => {
     const { session, log } = await open();
     const app = new FakeClient();
@@ -392,8 +529,8 @@ describe('deciding about a proposal', () => {
     expect(session.snapshot).toEqual(proposed);
     expect(session.snapshot.model.elements.find((each) => each.id === 'db')?.name).toBe('Store');
     expect(session.actions.map(({ label, author }) => ({ label, author }))).toEqual([
-      { label: expect.any(String), author: 'user' },
-      { label: expect.stringContaining('and 1 more'), author: 'claude' },
+      { label: expect.any(String) as unknown, author: 'user' },
+      { label: expect.stringContaining('and 1 more') as unknown, author: 'claude' },
     ]);
     // On disk too, as the files of the project now.
     const reopened = await openSession(folder, { watch: false, out: () => {}, err: () => {} });
@@ -408,7 +545,7 @@ describe('deciding about a proposal', () => {
       type: 'proposal/closed',
       proposal: id,
       how: 'accepted',
-      accepted: expect.any(Array),
+      accepted: expect.any(Array) as unknown,
     });
     expect(claude.messages.slice(-2).map((each) => each.type)).toEqual([
       'project/changed',
@@ -437,7 +574,9 @@ describe('deciding about a proposal', () => {
     const [made] = await claude.command(CREATE_CACHE);
     await claude.command(CREATE_QUEUE);
     const id = made?.type === 'proposal/made' ? made.proposal : '';
-    const changes = shownTo(app.messages).at(-1)?.changes.map((each) => each.key);
+    const changes = shownTo(app.messages)
+      .at(-1)
+      ?.changes.map((each) => each.key);
     expect(changes).toEqual(['element:cache added', 'element:queue added']);
 
     const [closed] = await fromApp(session, app, {
@@ -452,7 +591,7 @@ describe('deciding about a proposal', () => {
     expect(ids).not.toContain('cache');
     expect(session.actions.at(-1)).toMatchObject({
       author: 'claude',
-      label: expect.stringContaining('(1 of 2 changes)'),
+      label: expect.stringContaining('(1 of 2 changes)') as unknown,
     });
   });
 
@@ -501,7 +640,11 @@ describe('deciding about a proposal', () => {
     expect(answers).toEqual([
       { type: 'proposal/closed', proposal: id, how: 'refused', requestId: 'a1' },
     ]);
-    expect(other.messages.at(-1)).toEqual({ type: 'proposal/closed', proposal: id, how: 'refused' });
+    expect(other.messages.at(-1)).toEqual({
+      type: 'proposal/closed',
+      proposal: id,
+      how: 'refused',
+    });
     expect(claude.messages.at(-1)).toEqual({
       type: 'proposal/closed',
       proposal: id,
@@ -551,8 +694,17 @@ describe('deciding about a proposal', () => {
     expect(session.proposalWaiting).toBeDefined();
 
     const [withdrawn] = await claude.send({ type: 'proposal/withdraw' });
-    expect(withdrawn).toEqual({ type: 'proposal/closed', proposal: id, how: 'withdrawn', requestId: 'c4' });
-    expect(app.messages.at(-1)).toEqual({ type: 'proposal/closed', proposal: id, how: 'withdrawn' });
+    expect(withdrawn).toEqual({
+      type: 'proposal/closed',
+      proposal: id,
+      how: 'withdrawn',
+      requestId: 'c4',
+    });
+    expect(app.messages.at(-1)).toEqual({
+      type: 'proposal/closed',
+      proposal: id,
+      how: 'withdrawn',
+    });
     expect(session.snapshot).toEqual(testProject());
 
     const [again] = await claude.send({ type: 'proposal/withdraw' });
@@ -598,5 +750,44 @@ describe('when the program stops', () => {
       proposal: made?.type === 'proposal/made' ? made.proposal : '',
     });
     expect(heard).toEqual([1000, 2000, undefined]);
+  });
+});
+
+describe('what the program says to an app about a proposal, in Spanish', () => {
+  it('reads every reason it refuses a decision for in Spanish', async () => {
+    const { session } = await open();
+    const app = new FakeClient();
+    session.connect(app);
+    const said: string[] = [];
+    const refusalOf = async (message: Record<string, unknown>) => {
+      const answers = await fromApp(session, app, message);
+      for (const answer of answers) {
+        if (answer.type === 'command/rejected')
+          said.push(...answer.problems.map((each) => each.message));
+      }
+    };
+    await refusalOf({ type: 'proposal/refuse', proposal: 'proposal-9' });
+    const claude = claudeOn(session);
+    await claude.command(CREATE_CACHE);
+    await claude.command({
+      type: 'create-relation',
+      relation: {
+        id: 'api-reads-cache',
+        relationType: 'systems.reads-from',
+        from: 'api',
+        to: 'cache',
+      },
+    });
+    const id = shownTo(app.messages).at(-1)?.id ?? '';
+    const relation = shownTo(app.messages)
+      .at(-1)
+      ?.changes.find((each) => each.key.startsWith('relation:'))?.key;
+    await refusalOf({ type: 'proposal/refuse', proposal: 'not-it' });
+    await refusalOf({ type: 'proposal/accept', proposal: id, revision: 0, changes: 'all' });
+    await refusalOf({ type: 'proposal/accept', proposal: id, changes: [relation] });
+    await refusalOf({ type: 'proposal/accept', proposal: id, changes: ['element:nothing added'] });
+
+    expect(said).toHaveLength(5);
+    expect(said.flatMap((message) => untranslatedParts('es', message))).toEqual([]);
   });
 });

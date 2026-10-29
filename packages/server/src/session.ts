@@ -87,7 +87,7 @@ import {
   type ProjectFileProblem,
   type ProjectFiles,
 } from './project';
-import { SessionProposal, neverProposed } from './proposals';
+import { STALE_PROPOSAL, SessionProposal, goesToProjectNow } from './proposals';
 import { capOf, describeCap, readRegularFile } from './regular-files';
 import { comparisonOfView, Versions, type VersionsOptions } from './versions/versions';
 import { watchProject, type ProjectWatcher, type WatchMode } from './watcher';
@@ -737,10 +737,11 @@ export class Session implements LiveSession {
   /**
    * Whether a command of Claude's joins its proposal: while the person reviews Claude's changes, when
    * the command asks to, or while a proposal waits, since Claude's later commands build on what it
-   * proposed. Comments and resolving conflicts never do.
+   * proposed. Comments never do: they go to the project now. Resolving conflicts does, and the core
+   * refuses it there, since conflicts are resolved with the review off.
    */
   #proposes(command: Command, propose: boolean): boolean {
-    if (neverProposed(command)) return false;
+    if (goesToProjectNow(command)) return false;
     return (
       propose ||
       this.#proposal.open !== undefined ||
@@ -801,6 +802,15 @@ export class Session implements LiveSession {
       this.#guarded(origin, async () => {
         const wrong = this.#proposal.check(message.proposal);
         if (wrong !== undefined) return this.#refuseDecision(origin, [wrong]);
+        if (message.revision !== this.#proposal.revision) {
+          // Claude, or a rebase, changed it after the app drew it: nothing is accepted unseen, and
+          // the app is shown the proposal as it is now.
+          const refused = this.#refuseDecision(origin, [
+            refusal('invalid-command', STALE_PROPOSAL),
+          ]);
+          this.#greetWithProposal(origin.client);
+          return refused;
+        }
         const total = this.#proposal.changeKeys().length;
         const accepted = this.#proposal.accept(this.#state, message.changes, {
           ...(this.#options.newId === undefined ? {} : { newId: this.#options.newId }),
@@ -828,7 +838,10 @@ export class Session implements LiveSession {
         if (!saved.ok) return this.#refuseDecision(origin, saved.problems);
         this.#state = state;
         const closed = this.#proposal.close('accepted', accepted.accepted);
-        const action = this.#recordAction({ label, author: 'claude', operations, inverse }, undefined);
+        const action = this.#recordAction(
+          { label, author: 'claude', operations, inverse },
+          undefined,
+        );
         const announced = this.#announce(
           { kind: 'do', ...action, operations, warnings, created },
           undefined,
@@ -929,7 +942,7 @@ export class Session implements LiveSession {
     if (this.#proposal.open === undefined) return;
     let shown;
     try {
-      shown = this.#proposal.shown();
+      shown = this.#proposal.shown(true);
     } catch (error) {
       this.#err(`Could not show Claude’s proposal: ${reasonOf(error)}`);
       this.#dropProposal();
@@ -943,7 +956,7 @@ export class Session implements LiveSession {
   #greetWithProposal(client: SessionClient): void {
     if (this.#proposal.open === undefined) return;
     try {
-      const shown = this.#proposal.shown();
+      const shown = this.#proposal.shown(false);
       if (shown !== undefined) this.#send(client, shown);
     } catch (error) {
       this.#err(`Could not show Claude’s proposal: ${reasonOf(error)}`);
@@ -961,7 +974,11 @@ export class Session implements LiveSession {
    * Tells every app and Claude how the proposal closed, the one that asked with its request id, and
    * logs it with how many changes it held, or were accepted.
    */
-  #closedProposal(closed: ProposalClosedMessage, origin: Origin | undefined, changes: number): void {
+  #closedProposal(
+    closed: ProposalClosedMessage,
+    origin: Origin | undefined,
+    changes: number,
+  ): void {
     for (const client of [...this.#clients, ...this.#claudes]) {
       this.#send(
         client,
@@ -1969,7 +1986,6 @@ function onlyInProposal(problems: readonly Problem[]): Problem[] {
     },
   ];
 }
-
 
 function refusal(code: ProblemCode, message: string): Problem {
   return { code, message };

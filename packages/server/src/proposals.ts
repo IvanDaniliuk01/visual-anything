@@ -29,35 +29,37 @@ import {
 import type { Id } from '@visual-anything/schema';
 
 /**
- * The commands that never join a proposal, as the core's `propose` refuses them (ADR 0073's
- * clarification of 2026-10-29): comments, which are Claude's own words, and resolving conflicts. They
- * go to the project now, even while a proposal waits.
+ * The commands of Claude's that go to the project now even while the person reviews Claude's changes
+ * or a proposal waits: comments, which are Claude's own words, signed as Claude (ADR 0073). The core's
+ * `propose` refuses them, and `resolve-conflicts` too; but resolving conflicts is not here, since
+ * conflicts are resolved with the review off (ADR 0073's clarification of 2026-10-29): while the
+ * person reviews, a proposal waits or the command asks to be proposed, it goes to `propose`, which
+ * refuses it.
  */
-export const NEVER_PROPOSED: ReadonlySet<string> = new Set([
+export const COMMENT_COMMANDS: ReadonlySet<string> = new Set([
   'create-thread',
   'add-comment',
   'edit-comment',
   'resolve-thread',
   'delete-thread',
-  'resolve-conflicts',
 ]);
 
 /**
- * Whether a command goes to the project now whatever the review says: every command it holds, a
- * batch's included, is one that is never proposed. A batch that mixes them with other commands is
- * proposed, and `propose` refuses it, so that Claude sends its comments on their own.
+ * Whether a command of Claude's goes to the project now whatever the review says: every command it
+ * holds, a batch's included, is a comment's. A batch that mixes them with other commands is proposed,
+ * and `propose` refuses it, so that Claude sends its comments on their own.
  */
-export function neverProposed(command: Command): boolean {
+export function goesToProjectNow(command: Command): boolean {
   if (typeof command !== 'object' || command === null) return false;
   if (command.type === 'batch') {
     const { commands } = command as { commands?: unknown };
     return (
       Array.isArray(commands) &&
       commands.length > 0 &&
-      commands.every((each) => neverProposed(each as Command))
+      commands.every((each) => goesToProjectNow(each as Command))
     );
   }
-  return NEVER_PROPOSED.has(command.type);
+  return COMMENT_COMMANDS.has(command.type);
 }
 
 /** How long a program started with `--stop-when-idle` keeps a waiting proposal after its last change. */
@@ -81,6 +83,9 @@ export type Accepted =
 /** Why nothing was decided: no proposal waits. */
 export const NO_PROPOSAL = 'No proposal of Claude’s waits, so nothing was decided.';
 
+/** Why an acceptance of a revision the proposal no longer is was refused. */
+export const STALE_PROPOSAL = 'The proposal changed since it was shown: review it again.';
+
 /** The session's proposal: at most one, which grows until the person decides. */
 export class SessionProposal {
   #open: Proposal | undefined;
@@ -89,6 +94,8 @@ export class SessionProposal {
   /** When the last change joined it, in milliseconds since 1970. */
   #lastJoined: number | undefined;
   #ended: ProposalEnding | undefined;
+  /** Raised each time the proposal is shown anew; it goes on counting from one proposal to the next. */
+  #revision = 0;
   readonly #now: () => number;
 
   constructor(now: () => number = Date.now) {
@@ -152,15 +159,26 @@ export class SessionProposal {
     return this.changes()?.changes.map((each) => each.key) ?? [];
   }
 
-  /** What every app and Claude are shown of the proposal that waits; undefined when none waits. */
-  shown(): ProposalShownMessage | undefined {
+  /** The revision of the proposal last shown, which an acceptance must name. */
+  get revision(): number {
+    return this.#revision;
+  }
+
+  /**
+   * What every app and Claude are shown of the proposal that waits; undefined when none waits. With
+   * `anew`, after the proposal changed or was rebased, it gets the next revision; without, as when an
+   * app connects, it is shown at the revision last shown.
+   */
+  shown(anew: boolean): ProposalShownMessage | undefined {
     const open = this.#open;
     const listed = this.changes();
     if (open === undefined || listed === undefined) return undefined;
+    if (anew) this.#revision += 1;
     return {
       type: 'proposal/shown',
       proposal: {
         id: open.id,
+        revision: this.#revision,
         labels: [...open.labels],
         operations: operationsBetween(open.base, open.proposed),
         changes: listed.changes.map(({ key, change, needs, changedByYou }) => ({

@@ -103,7 +103,8 @@ Example: {}`,
           'The person accepted these changes, as one action of yours in their history; any others were left out. Your reads show the project as it is now.',
         refused: 'The person refused it: nothing of it was applied.',
         withdrawn: 'You withdrew it: nothing of it was applied.',
-        dropped: 'Visual Anything stopped, or could not keep it, before the person decided: nothing of it was applied.',
+        dropped:
+          'Visual Anything stopped, or could not keep it, before the person decided: nothing of it was applied.',
       }[ended.how],
     });
   },
