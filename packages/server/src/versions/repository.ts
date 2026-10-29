@@ -416,9 +416,8 @@ function fileOf(entry: TreeEntry, path: string, kind: FileKind): Found | undefin
   if (entry.type === 'tree') return undefined;
   const notRead = NOT_READ[entry.mode];
   if (notRead !== undefined) return { path, unread: notRead };
-  if (entry.type !== 'blob' || !REGULAR.has(entry.mode) || entry.size === undefined) {
-    return { path, unread: NOT_REGULAR };
-  }
+  if (entry.type !== 'blob' || !REGULAR.has(entry.mode)) return { path, unread: NOT_REGULAR };
+  if (entry.size === undefined) return { path, unread: MISSING };
   if (entry.size > capOf(kind)) {
     return {
       path,

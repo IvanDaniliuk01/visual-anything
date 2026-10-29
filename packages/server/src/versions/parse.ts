@@ -64,7 +64,7 @@ export interface TreeEntry {
   mode: string;
   type: 'blob' | 'tree' | 'commit';
   id: string;
-  /** Its size in bytes, for a blob. */
+  /** Its size in bytes, for a blob the repository holds. */
   size?: number;
   /** Its name, or its path from the top with `--full-tree` and a path. */
   path: string;
@@ -75,19 +75,20 @@ export function parseTree(output: Buffer, format: ObjectFormat): TreeEntry[] {
   const records = splitEnded(output, 0, 'a tree');
   const length = idLength(format);
   const entry = new RegExp(
-    `^([0-7]{6}) (blob|tree|commit) ([0-9a-f]{${length}}) +(\\d+|-)\\t([^\\0]+)$`,
+    `^([0-7]{6}) (blob|tree|commit) ([0-9a-f]{${length}}) +(\\d{1,15}|-|BAD)\\t([^\\0]+)$`,
     's',
   );
   return records.map((record) => {
     const match = entry.exec(TEXT.decode(record));
     if (match === null) throw unreadable('a tree');
     const [, mode = '', type = '', id = '', size = '', path = ''] = match;
-    if ((type === 'blob') !== (size !== '-')) throw unreadable('a tree');
+    // A tree or a submodule has no size; a blob a partial clone lacks has one git cannot say: BAD.
+    if ((type === 'blob') === (size === '-')) throw unreadable('a tree');
     return {
       mode,
       type: type as TreeEntry['type'],
       id,
-      ...(size === '-' ? {} : { size: Number(size) }),
+      ...(/^\d+$/.test(size) ? { size: Number(size) } : {}),
       path,
     };
   });

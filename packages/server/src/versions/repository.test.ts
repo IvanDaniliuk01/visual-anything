@@ -119,6 +119,10 @@ describe.skipIf(NO_GIT)('the versions listed', () => {
     const { repository, calls } = await repositoryOf(join(root, 'shop'));
     const versions = await listVersions(repository);
     const brief = versions.map(({ kind, name, commit, subject }) => ({ kind, name, commit, subject }));
+    // The tags may have been made in different seconds, which orders them newest first.
+    const tags = brief.filter((each) => each.kind === 'tag');
+    tags.sort((a, b) => ((a.name ?? '') < (b.name ?? '') ? -1 : 1));
+    brief.splice(brief.indexOf(brief.find((each) => each.kind === 'tag')!), 2, ...tags);
     expect(brief).toEqual([
       { kind: 'head', name: undefined, commit: third, subject: 'Rename the shop' },
       ...[
