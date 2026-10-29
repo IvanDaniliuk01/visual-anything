@@ -138,3 +138,37 @@ The rule throughout: git runs with arguments, never through a shell, and never o
   - a partial clone missing a blob;
   - a `GIT_DIR` set in the program's environment.
 - CLAUDE.md's security rules should gain the line "git runs only through the program's runner: an absolute path, arguments and never a shell, read commands only, on ids it listed". The main session makes that edit with the user's agreement.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-29 under the user's standing delegation of design decisions. -->
+- 2026-10-29 (M11b's task "Versions in the program"): how the program reads versions, as built in `server/src/versions/`.
+  - **Two more fixed options.** Every call also starts with `-c log.showSignature=false`, since a person's or a repository's `log.showSignature` makes `log` start gpg, and `-c log.mailmap=false`, since `mailmap.file` may name a file anywhere. The tests check the whole list on every call.
+  - **The environment's home folders** are `HOME`, `USERPROFILE`, `HOMEDRIVE`, `HOMEPATH` and `XDG_CONFIG_HOME`, so that git finds the person's own configuration, `safe.directory` included, on every platform. The temporary folder is `TMPDIR`, `TMP` and `TEMP`. Windows' variables are read without case.
+  - **Paths, from where git runs.** Git runs in the project folder and reads a path from there, so `log -- .` names the prefix `rev-parse` gave. `ls-tree` runs with `--full-tree`, which reads paths from the top and lists a tree, named by its id, whole. Without it, git would cut each listing down to the folder it runs in.
+  - **Finding git.**
+    - Before git has said where the repository is, its top is taken as the nearest folder at or above the project folder that holds `.git`, and PATH entries inside it are skipped. Once `rev-parse` has answered, a git inside that top is refused.
+    - A `VISUAL_ANYTHING_GIT` the person set is taken as named, once it is a regular file that can be run. Quotes around a Windows PATH entry are dropped.
+    - Git is found once for each program. If none is found, the program says so until it is started again.
+  - **What a listing holds.**
+    - HEAD is found with `rev-parse --verify --quiet`, so that a repository with no commits yet lists none and says so.
+    - Symbolic refs, such as `origin/HEAD`, and refs that name no commit, such as a tag of a tree, are left out.
+    - Each kind is sorted by `creatordate`, newest first. A version's time is its committer's time, the time that sorting reads.
+    - Subjects, authors' names and refs' names are cut at 200, 200 and 1,000 characters, never inside a character, and their control characters become spaces.
+  - **The latest listing is the program's,** whoever asked for it, an app or Claude: Claude's `comparison` guidance names a commit that Claude listed, and the app then asks for it. A listing that fails leaves no commit to name.
+  - **One read at a time** holds for commits. A listing, and the version as opened, never stop a read. The version read last stays in memory, so that comparing with it again reads nothing: with the project as opened, the program keeps two versions at most. The 120 s apply to a listing too.
+  - **What reads as a problem of a file.**
+    - A blob a partial clone lacks, whose size `ls-tree` gives as `BAD` or which `cat-file` answers `missing`, says that it is not in the repository.
+    - A blob with a mode other than `100644` and `100755` is not a regular file.
+    - A tree with a project file's name is passed over, as a folder is on disk.
+    - Two kind folders whose names differ only in case are a problem of the folder, since on Windows and macOS they would be one.
+    - With a git older than 2.44, a repository with `extensions.partialClone` or a promisor remote is refused before any commit is read.
+  - **Refusals keep the core's codes,** since protocol 7 fixed them:
+    - `invalid-command` for a commit not in the latest listing;
+    - `invalid-file` for each problem of a version's files, written `<file> <pointer>: <message>` as opening a folder writes them;
+    - `unknown-view` for a view neither version has;
+    - `program-failed` for git missing, failing, too slow or stopped.
+
+    The messages are in English, and the app reads them through `es.ts`.
+  - **One view.** `version/compare` with a view keeps the changes of that view's own items and of the elements and relations it draws in either version, with their counts and names (`comparisonOfView`). A view neither version has is refused. Without a view, the comparison is whole.
+  - **When it is worked out.** Reading a version never waits behind the project's work. The comparison is worked out against the project as every app last heard of it, and sent in the same turn, so that an app follows each later action with `recompare`. The version as opened is the project as the program last opened or reloaded it.
