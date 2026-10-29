@@ -92,6 +92,7 @@ import { RelationMenu } from './RelationMenu';
 import { onRouteEditingRequest } from './routing/requests';
 import { RouteMenu } from './routing/RouteMenu';
 import { relationLinesOf, type ElementShape, type Scene } from './scene';
+import type { ComparisonScene } from './comparison/scene';
 import { ShapeMenu } from './ShapeMenu';
 import { LegendPanel } from './overlays/LegendPanel';
 import { ZoomExpansionContext, withoutZoomExpanded } from './overlays/useZoomExpansion';
@@ -130,6 +131,11 @@ interface CanvasAreaProps {
    * state can follow and move it (W21).
    */
   onCanvas?: (canvas: CanvasCamera | undefined) => void;
+  /**
+   * The comparison the canvas shows (ADR 0070), whose marks it draws over `scene`, which is then the
+   * comparison's: read-only, as `onCommand` is absent while it shows.
+   */
+  comparison?: ComparisonScene;
 }
 
 /**
@@ -205,6 +211,7 @@ export function CanvasArea({
   theme = 'light',
   onThemeShown,
   onCanvas,
+  comparison,
 }: CanvasAreaProps) {
   const t = useT();
   const frameRef = useRef<HTMLDivElement>(null);
@@ -475,6 +482,10 @@ export function CanvasArea({
   useEffect(() => {
     controllerRef.current?.renderer.setLegend(legend.overlays.length > 0 ? legend : undefined);
   }, [legend]);
+  // A comparison's marks, over the scene it draws (ADR 0070).
+  useEffect(() => {
+    controllerRef.current?.renderer.setComparison(comparison);
+  }, [comparison]);
 
   // The view state follows and moves the camera through this.
   useEffect(() => {

@@ -47,6 +47,29 @@ describe.each(THEME_NAMES)('the %s canvas', (name: ThemeName) => {
     },
   );
 
+  it.each(['changeAdded', 'changeRemoved', 'changeChanged', 'changeMoved'] as const)(
+    'draws the comparison’s %s mark at 3:1 or more on the canvas, and its glyph on it (ADR 0070)',
+    (mark) => {
+      expect(contrastRatio(canvas[mark], canvas.background)).toBeGreaterThanOrEqual(3);
+      // A badge's glyph is written in the canvas's color on the mark's.
+      expect(contrastRatio(canvas.background, canvas[mark])).toBeGreaterThanOrEqual(3);
+      // The legend and the Changes tab draw the same color.
+      expect(canvas[mark]).toBe(shell[mark]);
+    },
+  );
+
+  it('gives the comparison four marks of four hues, none the selection’s or the highlight’s', () => {
+    const marks = [
+      canvas.changeAdded,
+      canvas.changeRemoved,
+      canvas.changeChanged,
+      canvas.changeMoved,
+    ];
+    expect(new Set(marks).size).toBe(4);
+    expect(marks).not.toContain(canvas.selected);
+    expect(marks).not.toContain(canvas.highlight);
+  });
+
   it('draws the relate handle’s ring at 3:1 or more on its inside', () => {
     expect(contrastRatio(canvas.selected, canvas.handleFill)).toBeGreaterThanOrEqual(3);
   });

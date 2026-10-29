@@ -158,6 +158,25 @@ export interface SvgOptions {
   bitmaps?: readonly BitmapFormat[];
   /** Whether its reader draws SVG filters, which silhouettes of bitmaps need; true by default. */
   filters?: boolean;
+  /** What a comparison adds to the drawing (ADR 0070); `svgOfComparison` gives it. */
+  comparison?: SvgComparisonParts;
+}
+
+/**
+ * What a comparison adds to a view's drawing (ADR 0070): what it draws faintly, its marks over the
+ * relations and free shapes, and its legend, below the drawing and the overlays' legend.
+ */
+export interface SvgComparisonParts {
+  /** What is drawn faintly, by the keys the scene names it by: a shape's key, a line's, a free shape's id. */
+  faint: ReadonlySet<string>;
+  /** How faint, as an opacity. */
+  opacity: number;
+  /** The marks, as SVG, in the order they are drawn. */
+  marks: readonly string[];
+  /** The legend: its size, and its parts at a place, as wide as the drawing. */
+  legend: { width: number; height: number; parts(at: Rect, width: number): string[] };
+  /** Every text the marks and the legend write, for a reader that checks its font holds them. */
+  texts: readonly string[];
 }
 
 /** A drawing written as SVG. */
@@ -172,6 +191,8 @@ export interface SvgDrawing {
   bounds: Rect | undefined;
   /** Where the legend of the view's overlays lies, below the drawing; none while no overlay is on. */
   legend?: Rect;
+  /** Where a comparison's legend lies, below that; none but for a comparison's drawing. */
+  comparisonLegend?: Rect;
   /** What the drawing could not show, in the language the app reads in. */
   lost: string[];
   /** Every text it writes, in order, for a reader that has to check its font holds them. */
@@ -605,6 +626,10 @@ export function svgOfScene(
     : { x: 0, y: 0, width: 2 * SVG_MARGIN, height: 2 * SVG_MARGIN };
   if (!bounds) writer.lost.add(t('The view draws nothing.'));
 
+  // A comparison draws what is unchanged, and what was removed, faintly (ADR 0070).
+  const compared = options.comparison;
+  const faintly = (key: string): number | undefined =>
+    compared?.faint.has(key) ? compared.opacity : undefined;
   const order = scene.drawing ?? scene.shapes.map((_shape, at) => at);
   const shapes = order
     .map((at) => scene.shapes[at])
@@ -616,22 +641,37 @@ export function svgOfScene(
           'data-element': shape.element,
           'data-shape': shape.key,
           'data-component': index.element(shape.element)?.component,
+          opacity: faintly(shape.key),
         },
         shapeParts(writer, shape),
       ),
     );
 
   const lines = scene.relations.map((line) => ({ line, stroke: lineStroke(line, theme.name) }));
-  const casings = lines.map(({ line }) => casingOf(line, theme.background));
-  const routes = lines.map(({ line, stroke }) => element('g', partOf(line), routeOf(line, stroke)));
+  const casings = lines.map(({ line }) => {
+    const casing = casingOf(line, theme.background);
+    const opacity = faintly(line.relation);
+    return opacity === undefined || casing === '' ? casing : element('g', { opacity }, casing);
+  });
+  const routes = lines.map(({ line, stroke }) =>
+    element('g', { ...partOf(line), opacity: faintly(line.relation) }, routeOf(line, stroke)),
+  );
   const labels = lines.map(({ line }) => {
     const label = relationLabel(writer, line);
-    return label === '' ? '' : element('g', partOf(line), label);
+    return label === ''
+      ? ''
+      : element('g', { ...partOf(line), opacity: faintly(line.relation) }, label);
   });
 
+  const faintFree = (id: string, parts: string) => {
+    const opacity = faintly(id);
+    return opacity === undefined ? parts : element('g', { opacity }, parts);
+  };
   const free = [
-    ...scene.notes.map((note) => noteParts(writer, note)),
-    ...scene.arrows.map((arrow) => arrowParts(arrow, arrowStroke(arrow, theme), theme)),
+    ...scene.notes.map((note) => faintFree(note.id, noteParts(writer, note))),
+    ...scene.arrows.map((arrow) =>
+      faintFree(arrow.id, arrowParts(arrow, arrowStroke(arrow, theme), theme)),
+    ),
   ];
 
   // The legend of the view's overlays goes below the drawing, so that it never covers it (ADR 0055).
@@ -643,13 +683,28 @@ export function svgOfScene(
     band === undefined
       ? undefined
       : { x: drawn.x, y: drawn.y + drawn.height, width: band.width, height: band.height };
-  const viewBox = legendRect
+  const overlaid = legendRect
     ? {
         ...drawn,
         width: Math.max(drawn.width, legendRect.width),
         height: drawn.height + legendRect.height,
       }
     : drawn;
+  // A comparison's legend goes below the drawing and the overlays' legend (ADR 0070).
+  const comparisonLegend = compared && {
+    x: overlaid.x,
+    y: overlaid.y + overlaid.height,
+    width: compared.legend.width,
+    height: compared.legend.height,
+  };
+  const viewBox = comparisonLegend
+    ? {
+        ...overlaid,
+        width: Math.max(overlaid.width, comparisonLegend.width),
+        height: overlaid.height + comparisonLegend.height,
+      }
+    : overlaid;
+  if (compared) writer.texts.push(...compared.texts);
 
   // What changes how anchored parts look lies over every shape and under the relations, as the
   // canvas's part layer draws it (ADR 0067); a view without drawings with parts writes no such layer.
@@ -662,10 +717,17 @@ export function svgOfScene(
     { values: { 'data-part': 'relation-names' }, parts: labels },
     { values: { 'data-part': 'free-shapes' }, parts: free },
   ];
+  if (compared) layers.push({ values: { 'data-part': 'comparison' }, parts: compared.marks });
   if (band && legendRect) {
     layers.push({
       values: { 'data-part': 'legend' },
       parts: legendParts(writer, band, legendRect, viewBox.width),
+    });
+  }
+  if (compared && comparisonLegend) {
+    layers.push({
+      values: { 'data-part': 'comparison-legend' },
+      parts: compared.legend.parts(comparisonLegend, viewBox.width),
     });
   }
 
@@ -706,6 +768,7 @@ export function svgOfScene(
     viewBox,
     bounds,
     ...(legendRect ? { legend: legendRect } : {}),
+    ...(comparisonLegend ? { comparisonLegend } : {}),
     lost: [...writer.lost],
     texts: writer.texts,
     attribution,

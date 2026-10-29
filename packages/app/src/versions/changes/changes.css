@@ -1,0 +1,132 @@
+/* The Changes tab (ADR 0070): counts, filters, the list of changes, and the change chosen. */
+
+.changes-tab {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.changes-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.changes-title {
+  margin: 0.25rem 1rem 0.4rem;
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+
+.changes-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin: 0 1rem 0.4rem;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+}
+
+.changes-counts li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.changes-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.75rem;
+  margin: 0 1rem 0.5rem;
+  padding: 0;
+  border: 0;
+}
+
+.changes-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.changes-group,
+.changes-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.changes-group {
+  font-weight: var(--weight-strong);
+}
+
+.changes-group-count,
+.changes-row-differs {
+  color: var(--text-muted);
+}
+
+.changes-row-title,
+.changes-row-differs {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.changes-tick {
+  margin: 0;
+}
+
+/* A state's glyph on its color: the text beside it always names the state too. */
+.change-badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  color: var(--canvas);
+  font-weight: var(--weight-heading);
+  line-height: 1;
+}
+
+.change-added {
+  background: var(--change-added);
+}
+
+.change-removed {
+  background: var(--change-removed);
+}
+
+.change-changed {
+  background: var(--change-changed);
+}
+
+.change-moved {
+  background: var(--change-moved);
+}
+
+.changes-chosen {
+  flex: none;
+  max-height: 40%;
+  overflow: auto;
+  padding: 0.5rem 1rem 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.changes-chosen-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.3rem;
+  font-weight: var(--weight-strong);
+  overflow-wrap: anywhere;
+}
+
+.changes-differences {
+  margin: 0;
+  padding-left: 1.2rem;
+  overflow-wrap: anywhere;
+}

@@ -34,3 +34,31 @@ describe('the exports in the browser', () => {
     );
   }, 180_000);
 });
+
+describe('a comparison’s exports in the browser', () => {
+  it('bundle with neither PixiJS nor React DOM, and PDFKit only when a PDF is made', async () => {
+    const result = await build({
+      entryPoints: ['comparison.ts', 'comparison-summary.ts'].map((file) =>
+        join(import.meta.dirname, file),
+      ),
+      bundle: true,
+      platform: 'browser',
+      format: 'esm',
+      splitting: true,
+      outdir: 'out',
+      write: false,
+      metafile: true,
+      logLevel: 'silent',
+    });
+    expect(result.errors).toEqual([]);
+    const inputs = Object.keys(result.metafile.inputs);
+    expect(inputs.filter((input) => /node_modules\/(pixi\.js|react-dom)\//.test(input))).toEqual(
+      [],
+    );
+    for (const output of Object.values(result.metafile.outputs)) {
+      // The chunks PDFKit loads in are entry points of their own, which the files import when needed.
+      if (!/comparison(-summary)?\.ts$/.test(output.entryPoint ?? '')) continue;
+      expect(Object.keys(output.inputs).filter((input) => input.includes('pdfkit'))).toEqual([]);
+    }
+  }, 180_000);
+});

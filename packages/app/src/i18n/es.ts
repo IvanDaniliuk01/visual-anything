@@ -124,6 +124,13 @@
  * | comment                 | comentario                       |
  * | detached (thread)       | desvinculado                     |
  * | resolve, reopen         | resolver, reabrir                |
+ * | version                 | versión                          |
+ * | comparison              | comparación                      |
+ * | change (of a comparison)| cambio                           |
+ * | added, removed          | agregado, quitado                |
+ * | changed, moved          | cambiado, movido                 |
+ * | proposal                | propuesta                        |
+ * | conflict                | conflicto                        |
  *
  * The words CONTEXT.md avoids are not used for its terms either: no "nodo", "objeto" or "instancia"
  * for an element, "propiedad" or "campo" for an attribute, "capa" for the stacking order, "enlace" or
@@ -2237,7 +2244,7 @@ export const ui: Catalog = {
   Edit: 'Editar',
   'Name in the legend': 'Nombre en la leyenda',
   'Reads the attributes of': 'Lee los atributos de',
-  Changes: 'Cambia',
+  'What it changes': 'Qué cambia',
   Maps: 'Asigna',
   'Value by value': 'Valor por valor',
   'Along a range of numbers': 'A lo largo de un rango de números',
@@ -2648,6 +2655,83 @@ export const ui: Catalog = {
   'Machine learning: churn classifier': 'Aprendizaje automático: clasificador de bajas',
   'A Transformer that reads each customer’s last 90 events to tell who will cancel, beside the pipeline that feeds it, with a scenario of its forward pass.':
     'Un Transformer que lee los últimos 90 eventos de cada cliente para saber quién va a cancelar, junto a la canalización que lo alimenta, con un escenario de su paso hacia adelante.',
+
+  // M11b: a comparison on the canvas, in the Changes tab and in its exports (ADR 0070).
+  Changes: 'Cambios',
+  Before: 'Antes',
+  After: 'Después',
+  Comparison: 'Comparación',
+  Added: 'Agregado',
+  Removed: 'Quitado',
+  Changed: 'Cambiado',
+  Moved: 'Movido',
+  '{count} added': { one: '{count} agregado', other: '{count} agregados' },
+  '{count} removed': { one: '{count} quitado', other: '{count} quitados' },
+  '{count} changed': { one: '{count} cambiado', other: '{count} cambiados' },
+  '{count} moved': { one: '{count} movido', other: '{count} movidos' },
+  'This drawing marks no change.': 'Este dibujo no marca ningún cambio.',
+  '{status}: {what}.': '{status}: {what}.',
+  'Change {place} of {count}. {sentence}': 'Cambio {place} de {count}. {sentence}',
+  'This view changed: {what}': 'Esta vista cambió: {what}',
+  Drawing: 'Dibujo',
+  'Fade what is unchanged': 'Atenuar lo que no cambió',
+  'Previous change ([)': 'Cambio anterior ([)',
+  'Next change (])': 'Cambio siguiente (])',
+  'End the comparison (Escape)': 'Terminar la comparación (Escape)',
+  'End comparison': 'Terminar la comparación',
+  'Legend of the comparison': 'Leyenda de la comparación',
+  'A count on a collapsed container says how many changes it hides: {count} in all.': {
+    one: 'Un número sobre un contenedor contraído dice cuántos cambios oculta: {count} en total.',
+    other: 'Un número sobre un contenedor contraído dice cuántos cambios oculta: {count} en total.',
+  },
+  'Before: the older version, which cannot show what was added.':
+    'Antes: la versión anterior, que no puede mostrar lo que se agregó.',
+  'After: the newer version, which cannot show what was removed.':
+    'Después: la versión más reciente, que no puede mostrar lo que se quitó.',
+  'Comparison: the newer version, with what was removed faint at its older place, and a dashed outline where each moved shape was.':
+    'Comparación: la versión más reciente, con lo que se quitó atenuado en su lugar anterior, y un contorno de trazos donde estaba cada forma movida.',
+  '{title}: {drawing}': '{title}: {drawing}',
+  '{title}: “{view}”, {drawing}. {counts}.': '{title}: “{view}”, {drawing}. {counts}.',
+  'Changes to {project}': 'Cambios en {project}',
+  'Older version: {version}': 'Versión anterior: {version}',
+  'Newer version: {version}': 'Versión más reciente: {version}',
+  'Counts: {counts}': 'Cantidades: {counts}',
+  'No changes.': 'No hay cambios.',
+  'The rest of the project': 'El resto del proyecto',
+  'View “{view}”': 'Vista “{view}”',
+  Drawings: 'Dibujos',
+  'And {count} more changes, which this summary does not list.': {
+    one: 'Y {count} cambio más, que este resumen no enumera.',
+    other: 'Y {count} cambios más, que este resumen no enumera.',
+  },
+  unnamed: 'sin nombre',
+  '{kind}: {count}': '{kind}: {count}',
+  'Ticked.': 'Marcado.',
+  'Not ticked.': 'Sin marcar.',
+  'Changes by state': 'Cambios por estado',
+  'Which changes to list': 'Qué cambios enumerar',
+  'Only the open view': 'Solo la vista abierta',
+  'No change matches the filters.': 'Ningún cambio coincide con los filtros.',
+  'Nothing is being compared.': 'No se está comparando nada.',
+  'The project': 'El proyecto',
+  'The order of elements': 'El orden de los elementos',
+  'Shapes’ places': 'Lugares de las formas',
+  'Stacking orders': 'Órdenes de apilado',
+  Routes: 'Rutas',
+  'Tour steps': 'Pasos de recorridos',
+  Threads: 'Hilos',
+  '{element} in “{view}”': '{element} en “{view}”',
+  'A free shape in “{view}”': 'Una forma libre en “{view}”',
+  'What sits in {container}, in “{view}”': 'Lo que está en {container}, en “{view}”',
+  'The route of {relation}, in “{view}”': 'La ruta de {relation}, en “{view}”',
+  Pinned: 'Fijada',
+  'Attribute “{name}”': 'Atributo “{name}”',
+  'Appearance: {trait}': 'Apariencia: {trait}',
+  'Step “{name}”': 'Paso “{name}”',
+  'A comment': 'Un comentario',
+  '{what}: {before} → {after}': '{what}: {before} → {after}',
+  '{what} is not drawn in any view.': '{what} no se dibuja en ninguna vista.',
+  'Showing {what}.': 'Se muestra {what}.',
 };
 
 /**
