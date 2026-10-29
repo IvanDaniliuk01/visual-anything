@@ -18,6 +18,7 @@ import {
   checkPreferenceChanges,
   checkProject,
   codePackagesOn,
+  compareProjects,
   decodeAppMessage,
   executeCommand,
   extendNewest,
@@ -52,6 +53,7 @@ import {
   type ProjectChangedMessage,
   type ProjectSnapshot,
   type ServerMessage,
+  type VersionRef,
 } from '@visual-anything/core';
 import type { FileKind, Id } from '@visual-anything/schema';
 import { formatFile } from '@visual-anything/schema/format';
@@ -84,6 +86,7 @@ import {
   type ProjectFiles,
 } from './project';
 import { capOf, describeCap, readRegularFile } from './regular-files';
+import { comparisonOfView, Versions, type VersionsOptions } from './versions/versions';
 import { watchProject, type ProjectWatcher, type WatchMode } from './watcher';
 import { removeFile, writeFileAtomic, type WriteOptions } from './writer';
 
@@ -151,6 +154,17 @@ export interface LiveSession {
    * changes nothing. Absent where the program makes none.
    */
   makeDrawing?(html: string, width: number): Promise<MadeDrawing>;
+  /**
+   * Lists the versions of the project's repository (ADR 0071) and answers through the origin's client
+   * with them, or with why none can be listed. Absent where the program reads no versions.
+   */
+  listVersions?(origin: Origin): Promise<void>;
+  /**
+   * Compares a version, the project as opened or a commit of the latest listing, with the project now
+   * (ADR 0070), for every view or for one, and answers through the origin's client with the
+   * comparison, or with why it cannot be made. Absent where the program reads no versions.
+   */
+  compareVersion?(origin: Origin, version: VersionRef, view?: Id): Promise<void>;
 }
 
 /**
@@ -218,6 +232,8 @@ export interface SessionOptions {
   log?: LogEvent;
   /** What makes drawings of HTML (ADR 0068); the drawing's own worker by default. Tests give their own. */
   makeDrawing?: DrawingMaker;
+  /** How the program finds and runs git to read versions (ADR 0071); tests give their own. */
+  versions?: VersionsOptions;
 }
 
 /** The outcome of opening a session: the session, or every problem that keeps the project closed. */
@@ -295,11 +311,19 @@ export class Session implements LiveSession {
   readonly #fetcher: PackageFetcher;
   /** The drawings of HTML the apps and the command line ask for, made one at a time (ADR 0068). */
   readonly #drawings: DrawingQueue;
+  /**
+   * The project as the program opened it, or last read it again from disk: the version as opened
+   * (ADR 0070), which needs no git.
+   */
+  #opened: ProjectSnapshot;
+  /** The versions read from git (ADR 0071), one at a time. */
+  readonly #versions: Versions;
 
   private constructor(folder: string, loaded: LoadedProject, options: SessionOptions) {
     this.folder = folder;
     this.#options = options;
     this.#state = loaded.project;
+    this.#opened = loaded.project;
     this.#adopt(loaded);
     this.#live = new LiveValues({
       now: () => this.#now(),
@@ -309,6 +333,10 @@ export class Session implements LiveSession {
     });
     this.#fetcher = new PackageFetcher(options.fetcher);
     this.#drawings = new DrawingQueue(options.makeDrawing);
+    this.#versions = new Versions(folder, {
+      ...options.versions,
+      warn: options.versions?.warn ?? ((line) => this.#err(line)),
+    });
   }
 
   /** Opens the project in a folder; see {@link openSession}. */
@@ -581,7 +609,75 @@ export class Session implements LiveSession {
       case 'drawing/make':
         await this.#makeDrawing(client, message);
         return;
+      case 'versions/list':
+        await this.listVersions(origin);
+        return;
+      case 'version/compare':
+        await this.compareVersion(origin, message.version, message.view);
+        return;
     }
+  }
+
+  /**
+   * Lists the versions of the project's repository (ADR 0071) and answers with them, newest first in
+   * each kind, or with why none can be listed. It only reads, and never waits behind the project's own
+   * work. Its commits are, from then on, the only ones a version may name.
+   */
+  async listVersions(origin: Origin): Promise<void> {
+    const listing = await this.#versions.list();
+    this.#send(origin.client, {
+      type: 'versions/listed',
+      requestId: origin.requestId,
+      versions: listing.versions,
+      ...(listing.why === undefined ? {} : { why: listing.why }),
+    });
+  }
+
+  /**
+   * Compares a version with the project now (ADR 0070): the version is the older, the project now
+   * the newer. An app gets the version's project too, to draw it; Claude does not (ADR-0029). A
+   * commit not in the latest listing is refused before git hears of it, and one version is read at a
+   * time: a newer request stops the one under way. Like a listing, it never waits behind the project's
+   * own work. The comparison is worked out against the project as every app last heard of it, and
+   * sent at once, so that an app follows every later action with `recompare`.
+   */
+  async compareVersion(origin: Origin, version: VersionRef, view?: Id): Promise<void> {
+    const refuse = (problems: Problem[]) =>
+      this.#send(origin.client, { type: 'version/refused', requestId: origin.requestId, problems });
+    let older: ProjectSnapshot;
+    if (version.kind === 'opened') {
+      older = this.#opened;
+    } else {
+      const read = await this.#versions.read(version.commit);
+      if (!read.ok) return refuse(read.problems);
+      older = read.project;
+    }
+    if (this.#closed) return refuse([CLOSED]);
+    // From here to the answer nothing waits, so no change comes between the comparison and it.
+    const newer = this.#state;
+    const hasView = (state: ProjectSnapshot) => state.views.some((each) => each.id === view);
+    if (view !== undefined && !hasView(older) && !hasView(newer)) {
+      return refuse([
+        refusal('unknown-view', `Neither the version nor the project now has the view "${view}".`),
+      ]);
+    }
+    let comparison;
+    try {
+      comparison = compareProjects(older, newer);
+      if (view !== undefined) comparison = comparisonOfView(comparison, older, newer, view);
+    } catch (error) {
+      this.#err(`Could not compare the version: ${reasonOf(error)}`);
+      return refuse([
+        refusal('program-failed', `The version could not be compared: ${reasonOf(error)}`),
+      ]);
+    }
+    this.#send(origin.client, {
+      type: 'version/compared',
+      requestId: origin.requestId,
+      version,
+      ...(this.#claudes.has(origin.client) ? {} : { project: older }),
+      comparison,
+    });
   }
 
   makeDrawing(html: string, width: number): Promise<MadeDrawing> {
@@ -911,6 +1007,7 @@ export class Session implements LiveSession {
       this.#watcher?.close();
       this.#watcher = undefined;
       this.#live.close();
+      this.#versions.close();
       await this.#queue;
     })();
     return this.#closing;
@@ -1442,6 +1539,7 @@ export class Session implements LiveSession {
   #adopt(loaded: LoadedProject): void {
     const { project: state, files, contents } = loaded;
     this.#state = state;
+    this.#opened = state;
     this.#history = EMPTY_HISTORY;
     this.#paths = new Map<FileKey, string>([
       ['project', files.project],

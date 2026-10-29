@@ -3,8 +3,9 @@
  * runs its commands with Claude as their author, and an import from the command line, which it reads
  * and maps itself, with the person as its author (ADR-0049); it shows its guidance in the open apps,
  * keeps, clears and reads back live values (ADR 0057), says which package code the person approved
- * (ADR 0054) and opens the app when asked. It never answers with the session token, and refuses every
- * other message.
+ * (ADR 0054) and opens the app when asked. It lists the project's versions and compares one with the
+ * project now, as the program listed it, without the version's project (ADR 0071, ADR-0029). It never
+ * answers with the session token, and refuses every other message.
  */
 import {
   DRAWING_LIMITS,
@@ -27,6 +28,9 @@ import {
   type ClaudeMessage,
   type ProgramMessage,
 } from './messages';
+
+/** Why a program without versions answers that it has none. */
+const NO_VERSIONS = 'This Visual Anything reads no versions.';
 
 /** What the program does for Claude beyond the session. */
 export interface ClaudeActions {
@@ -136,6 +140,35 @@ export function attachClaude(
         );
         return;
       }
+      case 'versions/list':
+        // The session answers through the client: Claude's copy of a comparison never holds the
+        // version's project (ADR-0029).
+        if (session.listVersions === undefined) {
+          send({
+            type: 'versions/listed',
+            requestId: message.requestId,
+            versions: [],
+            why: NO_VERSIONS,
+          });
+          return;
+        }
+        await session.listVersions({ client, requestId: message.requestId });
+        return;
+      case 'version/compare':
+        if (session.compareVersion === undefined) {
+          send({
+            type: 'version/refused',
+            requestId: message.requestId,
+            problems: [{ code: 'program-failed', message: NO_VERSIONS }],
+          });
+          return;
+        }
+        await session.compareVersion(
+          { client, requestId: message.requestId },
+          message.version,
+          message.view,
+        );
+        return;
       case 'guidance': {
         const apps = await session.guide(message.guidance);
         send({ type: 'guidance/shown', requestId: message.requestId, apps });
