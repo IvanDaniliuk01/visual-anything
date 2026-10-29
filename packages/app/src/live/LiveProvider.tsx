@@ -73,6 +73,8 @@ export function LiveProvider({
       fetchForPackage: connection.fetchForPackage,
       sendLiveValues: connection.sendLiveValues,
       makeDrawing: connection.makeDrawing,
+      listVersions: connection.listVersions,
+      compareVersion: connection.compareVersion,
     }),
     [state, connection],
   );

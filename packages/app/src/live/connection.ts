@@ -27,6 +27,9 @@ import {
   type ProjectChangedMessage,
   type ProjectSnapshot,
   type ServerMessage,
+  type Comparison,
+  type VersionRef,
+  type VersionsListedMessage,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
 import { NO_GUIDANCE, applyGuidance, type GuidanceState } from '../guidance/state';
@@ -167,6 +170,21 @@ export type PreferencesResult =
 /** How the local program answered a request about live values: its answer, or why it refused. */
 export type LiveResult<T> = { ok: true; answer: T } | { ok: false; problems: RequestProblem[] };
 
+/**
+ * How the local program answered a request to compare a version with the project now (ADR 0070): the
+ * version's project, the older, and the project as this tab knew it when the answer came, the newer,
+ * which the comparison was worked out against; or why it could not be compared.
+ */
+export type ComparedResult =
+  | {
+      ok: true;
+      version: VersionRef;
+      older: ProjectSnapshot;
+      newer: ProjectSnapshot;
+      comparison: Comparison;
+    }
+  | { ok: false; problems: RequestProblem[] };
+
 /** How many notices are shown at most; the oldest make way for newer ones. */
 export const MAX_NOTICES = 5;
 
@@ -185,7 +203,15 @@ type Waiting =
   | { kind: 'other-project'; resolve: (result: OtherProjectResult) => void }
   | { kind: 'live-fetch'; resolve: (result: LiveResult<LiveFetchedMessage>) => void }
   | { kind: 'live-set'; resolve: (result: LiveResult<LiveKeptMessage>) => void }
-  | { kind: 'drawing'; resolve: (result: LiveResult<DrawingMadeMessage>) => void };
+  | { kind: 'drawing'; resolve: (result: LiveResult<DrawingMadeMessage>) => void }
+  | { kind: 'versions'; resolve: (result: LiveResult<VersionsListedMessage>) => void }
+  | { kind: 'compare'; resolve: (result: ComparedResult) => void };
+
+/** What each request about versions resolves with. */
+interface VersionAnswers {
+  versions: LiveResult<VersionsListedMessage>;
+  compare: ComparedResult;
+}
 
 /** Answers go back to the socket that asked, so request ids only need to be unique in the tab. */
 let requestCount = 0;
@@ -197,6 +223,7 @@ function nextRequestId(): string {
 
 const NOT_CONNECTED = 'Visual Anything is not connected, so nothing was changed.';
 const CLOSED_BEFORE_ANSWER = 'The connection to Visual Anything closed before it answered.';
+const NO_VERSION_DRAWN = 'Visual Anything sent the comparison without the version to draw.';
 const DRIFTED =
   'This tab’s copy of the project fell out of step with Visual Anything, so it is getting the project again.';
 
@@ -494,6 +521,43 @@ export class LiveConnection {
     });
   }
 
+  /**
+   * Asks the local program for the versions it can list (ADR 0071): resolves with them, newest first
+   * in each kind, and with why it could list no commit, if it could not.
+   */
+  readonly listVersions = (): Promise<LiveResult<VersionsListedMessage>> =>
+    this.ask('versions', (requestId) => ({ type: 'versions/list', requestId }));
+
+  /**
+   * Asks the local program to compare a version, as it listed it, with the project now (ADR 0070):
+   * resolves with the version's project and the comparison, or with why it could not compare them.
+   * With `view`, the comparison holds that view's changes only.
+   */
+  readonly compareVersion = (version: VersionRef, view?: Id): Promise<ComparedResult> =>
+    this.ask('compare', (requestId) => ({
+      type: 'version/compare',
+      requestId,
+      version,
+      ...(view === undefined ? {} : { view }),
+    }));
+
+  /** Sends a request and waits for the answer of its kind, or says it is not connected. */
+  private ask<K extends keyof VersionAnswers>(
+    kind: K,
+    message: (requestId: string) => AppMessage,
+  ): Promise<VersionAnswers[K]> {
+    const socket = this.socket;
+    if (socket === undefined || this.state.status !== 'open') {
+      return Promise.resolve(closedResult(NOT_CONNECTED));
+    }
+    const requestId = nextRequestId();
+    const text = encodeMessage(message(requestId));
+    return new Promise((resolve) => {
+      this.waiting.set(requestId, { kind, resolve } as Waiting);
+      this.sendOn(socket, text, requestId, () => resolve(closedResult(NOT_CONNECTED)));
+    });
+  }
+
   /** Shows a notice. The same message at the same level is shown once, as the newest. */
   readonly notify = (level: NoticeLevel, message: string): void => {
     this.noticeCount += 1;
@@ -679,6 +743,34 @@ export class LiveConnection {
         if (answered?.kind === 'live-set') answered.resolve({ ok: true, answer: message });
         break;
       }
+      case 'versions/listed': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'versions') answered.resolve({ ok: true, answer: message });
+        break;
+      }
+      case 'version/compared': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind !== 'compare') break;
+        const newer = this.state.project;
+        answered.resolve(
+          message.project === undefined || newer === undefined
+            ? { ok: false, problems: [{ code: 'program-failed', message: NO_VERSION_DRAWN }] }
+            : {
+                ok: true,
+                version: message.version,
+                older: message.project,
+                newer,
+                comparison: message.comparison,
+              },
+        );
+        break;
+      }
+      case 'version/refused': {
+        const answered = this.take(message.requestId);
+        if (answered?.kind === 'compare')
+          answered.resolve({ ok: false, problems: message.problems });
+        break;
+      }
       case 'guidance':
         this.guidanceCount += 1;
         this.update({
@@ -705,7 +797,9 @@ export class LiveConnection {
       taken.kind === 'other-project' ||
       taken.kind === 'live-fetch' ||
       taken.kind === 'live-set' ||
-      taken.kind === 'drawing'
+      taken.kind === 'drawing' ||
+      taken.kind === 'versions' ||
+      taken.kind === 'compare'
         ? undefined
         : taken;
     let next: ProjectSnapshot;

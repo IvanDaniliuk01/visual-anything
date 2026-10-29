@@ -66,6 +66,9 @@ import {
 import { countsText } from '../versions/changes/describe';
 import { showChange } from '../versions/changes/show';
 import { ChangesContext, ChangesStore, type ChangesHost } from '../versions/changes/store';
+import { CompareControl } from '../versions/CompareControl';
+import { comparisonExports } from '../versions/exports';
+import { CompareSession } from '../versions/session';
 
 interface ShellProps {
   project: ProjectSnapshot;
@@ -219,9 +222,27 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
     reducedMotion,
     fades: motionChoice.fades,
   });
+  // Compare with… (ADR 0070): what it asks the program for, and the version each comparison came from.
+  const [versions] = useState(() => new CompareSession());
+  // While a comparison shows, Export also writes its drawings and its summary.
+  const shownComparison = comparing?.shown;
+  const comparedView = comparing?.view.id;
+  const comparisonFiles = useMemo(
+    () =>
+      shownComparison && comparedView !== undefined
+        ? {
+            title: shownComparison.title,
+            files: comparisonExports(shownComparison, comparedView, () =>
+              versions.versionsOf(shownComparison, t),
+            ),
+          }
+        : undefined,
+    [shownComparison, comparedView, versions, t],
+  );
   // Export also writes the read-only page, which opens at the view state shown now (M6b).
   const exportTool = (
     <ExportControl
+      {...(comparisonFiles ? { comparison: comparisonFiles } : {})}
       source={images}
       projectName={project.project.name}
       viewName={view?.name}
@@ -300,6 +321,7 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                                   ? { selectedElement: [...selection.elements][0] }
                                   : {})}
                               />
+                              <CompareControl session={versions} />
                               {exportTool}
                               <ElementListToggle store={elementList} />
                             </>

@@ -4,7 +4,9 @@
  * - a PNG, of what is visible or the whole view, at 1× or 2×, which the canvas's renderer draws;
  * - the SVG, PDF and text files whose writers are listed in `formats.ts`;
  * - the read-only page (ADR 0041): one HTML file of the whole project, which opens at what the canvas
- *   shows now, and which says so before saving when it is past 25 MB.
+ *   shows now, and which says so before saving when it is past 25 MB;
+ * - while a comparison shows (ADR 0070), its drawings of the view, before, after and the comparison,
+ *   as SVG and PDF, and its summary in Markdown, as `versions/exports.ts` makes them.
  * The browser saves each file, so the local program writes nothing.
  */
 import type { ProjectSnapshot, ThemeName } from '@visual-anything/core';
@@ -65,6 +67,8 @@ interface ExportControlProps {
   drawn?: { view: ViewFile; scene: Scene; theme: ThemeName } | undefined;
   /** The formats besides the PNG and the page; the writers of `formats.ts` by default. */
   files?: readonly FileExport[];
+  /** The files of the comparison the canvas shows, if one shows, under its title. */
+  comparison?: { title: string; files: readonly FileExport[] } | undefined;
 }
 
 /** The header's Export button, and the dialog it opens. */
@@ -78,6 +82,7 @@ export function ExportControl({
   page,
   drawn,
   files = FILE_EXPORTS,
+  comparison,
 }: ExportControlProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -116,6 +121,17 @@ export function ExportControl({
               ? files.map((format) => ({ format, context: { project, ...drawn } }))
               : []
           }
+          {...(drawn && project && comparison
+            ? {
+                comparison: {
+                  title: comparison.title,
+                  files: comparison.files.map((format) => ({
+                    format,
+                    context: { project, ...drawn },
+                  })),
+                },
+              }
+            : {})}
           onClose={close}
         />
       )}
@@ -133,8 +149,16 @@ interface ExportDialogProps {
   bounds: Rect | undefined;
   save: (blob: Blob, name: string) => void;
   page?: PageOf;
-  files: readonly { format: FileExport; context: FileExportContext }[];
+  files: readonly OfferedFile[];
+  /** The comparison's files, offered under its title. */
+  comparison?: { title: string; files: readonly OfferedFile[] };
   onClose: () => void;
+}
+
+/** A writer's format, with what it writes. */
+interface OfferedFile {
+  format: FileExport;
+  context: FileExportContext;
 }
 
 const AREAS: readonly { area: ImageArea; name: string; hint: string }[] = [
@@ -160,7 +184,8 @@ function ExportDialog({
   bounds,
   save,
   page,
-  files,
+  files: viewFiles,
+  comparison,
   onClose,
 }: ExportDialogProps) {
   const t = useT();
@@ -195,6 +220,11 @@ function ExportDialog({
   const [madeFiles, setMadeFiles] = useState<Record<string, Made<MadeFile>>>({});
   const [openAtNow, setOpenAtNow] = useState(true);
   const [madePage, setMadePage] = useState<Made<WrittenPage> & { openAtNow: boolean }>();
+  // Every writer's file, the view's and the comparison's, found by its format's id.
+  const files = useMemo(
+    () => [...viewFiles, ...(comparison?.files ?? [])],
+    [viewFiles, comparison?.files],
+  );
   const offered = files.length > 0 || page !== undefined;
 
   useEffect(() => {
@@ -398,6 +428,21 @@ function ExportDialog({
     } else if (next.kind === 'page') writePageAt(openAtNow);
   };
   const formatGroup = `${titleId}-format`;
+  const fileChoice = ({ format, context }: OfferedFile) => {
+    const made = madeFiles[format.id];
+    const why = format.unavailable(context);
+    return (
+      <FormatChoice
+        key={format.id}
+        name={format.name(t)}
+        hint={why ?? (made?.state === 'made' ? sizeText(t.language, made.bytes) : format.hint(t))}
+        checked={chosen.kind === 'file' && chosen.id === format.id}
+        disabled={busy || why !== undefined}
+        onChoose={() => choose({ kind: 'file', id: format.id })}
+        group={formatGroup}
+      />
+    );
+  };
 
   return (
     <div className="dialog-backdrop">
@@ -427,24 +472,7 @@ function ExportDialog({
               onChoose={() => choose({ kind: 'png' })}
               group={formatGroup}
             />
-            {files.map(({ format, context }) => {
-              const made = madeFiles[format.id];
-              const why = format.unavailable(context);
-              return (
-                <FormatChoice
-                  key={format.id}
-                  name={format.name(t)}
-                  hint={
-                    why ??
-                    (made?.state === 'made' ? sizeText(t.language, made.bytes) : format.hint(t))
-                  }
-                  checked={chosen.kind === 'file' && chosen.id === format.id}
-                  disabled={busy || why !== undefined}
-                  onChoose={() => choose({ kind: 'file', id: format.id })}
-                  group={formatGroup}
-                />
-              );
-            })}
+            {viewFiles.map(fileChoice)}
             {page && (
               <FormatChoice
                 name={t('Read-only page')}
@@ -459,6 +487,12 @@ function ExportDialog({
                 group={formatGroup}
               />
             )}
+          </fieldset>
+        )}
+        {comparison && comparison.files.length > 0 && (
+          <fieldset className="export-choices export-comparison">
+            <legend>{comparison.title}</legend>
+            {comparison.files.map(fileChoice)}
           </fieldset>
         )}
         {chosen.kind === 'png' && (
