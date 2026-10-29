@@ -613,7 +613,7 @@ The first three tasks are the seams, built in the main session in this order. Th
     - any choice closed under what its changes need keeps every rule;
     - undoing the accepted action gives back the project before it;
     - a rebase after any action of the person's keeps every change of Claude's that the action does not touch.
-- [ ] **Versions in the program** (`server/src/versions/`, `server/src/project.ts`, hooks in `session.ts` and `server/src/claude/endpoint.ts`; ADR 0071):
+- [x] **Versions in the program** (`server/src/versions/`, `server/src/project.ts`, hooks in `session.ts` and `server/src/claude/endpoint.ts`; ADR 0071):
   - the git runner:
     - git found once, by its absolute path;
     - `spawn` with arguments, the allowed subcommands, the options and the cleaned environment;
