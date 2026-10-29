@@ -10,7 +10,7 @@
 import { spawn as nodeSpawn, type SpawnOptions } from 'node:child_process';
 import { constants } from 'node:fs';
 import * as fsp from 'node:fs/promises';
-import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { Readable, Writable } from 'node:stream';
 import { isInside } from '../paths';
 
@@ -460,7 +460,7 @@ export async function findGit(options: FindGitOptions): Promise<FoundGit> {
   const isAvoided = (path: string) =>
     avoided.some((folder) => samePath(folder, path, platform) || isInside(folder, path));
   const name = platform === 'win32' ? 'git.exe' : 'git';
-  const separator = platform === 'win32' ? ';' : delimiter;
+  const separator = platform === 'win32' ? ';' : ':';
   for (const entry of (valueOf(env, 'PATH', platform) ?? '').split(separator)) {
     const folder = platform === 'win32' ? entry.replace(/^"(.*)"$/, '$1') : entry;
     if (folder === '' || !isAbsoluteOn(folder, platform) || isAvoided(folder)) continue;
