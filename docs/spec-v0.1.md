@@ -651,7 +651,7 @@ The first three tasks are the seams, built in the main session in this order. Th
   - the seven lines in this repository's `.gitattributes`, and the README's section on installing it;
   - the hostile-input tests;
   - a test that runs a real `git merge` in a temporary repository, with the driver given through `-c`, never through the person's configuration.
-- [ ] **Proposals in the program** (`server/src/proposals.ts`, hooks in `session.ts` and `server/src/claude/endpoint.ts`, `server/src/claude/bridge.ts`, `server/src/claude/tools.ts`; ADR 0073):
+- [x] **Proposals in the program** (`server/src/proposals.ts`, hooks in `session.ts` and `server/src/claude/endpoint.ts`, `server/src/claude/bridge.ts`, `server/src/claude/tools.ts`; ADR 0073):
   - the session's one proposal, kept on top of the project;
   - Claude's commands proposed while `reviewClaude` is on, or with `propose`;
   - `proposal/shown` to every app and to Claude after each change;
@@ -677,6 +677,8 @@ The first three tasks are the seams, built in the main session in this order. Th
   - the notice that Claude proposes changes, and the review drawn as a comparison;
   - the changes with their ticks, what each needs, and those the person changed too;
   - Accept, Accept the ticked changes and Refuse, and what the other tabs see;
+  - a proposal that the person's actions leave with no change closes by itself as `dropped`, on the server, with a notice in the app (ADR 0073's clarification of 2026-10-29);
+  - every acceptance names the revision shown, and a stale one shows the proposal again;
   - English and Spanish.
 - [ ] **Conflicts in the app, and for Claude** (`app/src/versions/conflicts/`, `server/src/claude/conflict-tools.ts`):
   - the conflicts of every file in the Changes tab whenever the project holds any, each drawn as a comparison between what is kept and the other choice;
