@@ -39,6 +39,7 @@ import {
 import type {
   CommandPlan,
   ConnectOptions,
+  ExecuteOptions,
   LiveSession,
   OpenSessionResult,
   Origin,
@@ -171,9 +172,27 @@ export class StartingSession implements LiveSession {
     };
   }
 
-  execute(command: Command, author: Author, origin?: Origin): Promise<SessionOutcome> {
-    if (this.#session !== undefined) return this.#session.execute(command, author, origin);
+  execute(
+    command: Command,
+    author: Author,
+    origin?: Origin,
+    how?: ExecuteOptions,
+  ): Promise<SessionOutcome> {
+    if (this.#session !== undefined) return this.#session.execute(command, author, origin, how);
     return Promise.resolve({ ok: false, problems: [refusal('not-saved', NOT_STARTED)] });
+  }
+
+  /** Withdraws Claude's proposal from the project's session; before it starts, none waits. */
+  async withdrawProposal(origin: Origin): Promise<void> {
+    if (this.#session !== undefined) {
+      await this.#session.withdrawProposal(origin);
+      return;
+    }
+    origin.client.send({
+      type: 'command/rejected',
+      requestId: origin.requestId,
+      problems: [refusal('not-saved', NOT_STARTED)],
+    });
   }
 
   executePlanned(plan: CommandPlan, author: Author, origin?: Origin): Promise<SessionOutcome> {

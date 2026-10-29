@@ -49,6 +49,8 @@ import {
   type Operation,
   type PreferencesSetMessage,
   type Problem,
+  type ProposalAcceptMessage,
+  type ProposalClosedMessage,
   type ProblemCode,
   type ProjectChangedMessage,
   type ProjectSnapshot,
@@ -85,6 +87,7 @@ import {
   type ProjectFileProblem,
   type ProjectFiles,
 } from './project';
+import { SessionProposal, neverProposed } from './proposals';
 import { capOf, describeCap, readRegularFile } from './regular-files';
 import { comparisonOfView, Versions, type VersionsOptions } from './versions/versions';
 import { watchProject, type ProjectWatcher, type WatchMode } from './watcher';
@@ -124,7 +127,12 @@ export interface LiveSession {
    */
   attachClaude(client: SessionClient): () => void;
   /** Runs a command, as {@link Session.execute} does. */
-  execute(command: Command, author: Author, origin?: Origin): Promise<SessionOutcome>;
+  execute(
+    command: Command,
+    author: Author,
+    origin?: Origin,
+    how?: ExecuteOptions,
+  ): Promise<SessionOutcome>;
   /** Plans a command and runs it in one turn of the queue, as {@link Session.executePlanned} does. */
   executePlanned(plan: CommandPlan, author: Author, origin?: Origin): Promise<SessionOutcome>;
   /**
@@ -165,6 +173,26 @@ export interface LiveSession {
    * comparison, or with why it cannot be made. Absent where the program reads no versions.
    */
   compareVersion?(origin: Origin, version: VersionRef, view?: Id): Promise<void>;
+  /**
+   * Closes Claude's proposal that waits (ADR 0073), and answers through the origin's client with
+   * `proposal/closed`, or with why none waits. Absent where the program keeps no proposal.
+   */
+  withdrawProposal?(origin: Origin): Promise<void>;
+}
+
+/** How a command of Claude's runs: `propose` makes it join Claude's proposal (ADR 0073). */
+export interface ExecuteOptions {
+  propose?: boolean;
+}
+
+/**
+ * What a command of Claude's that joined its proposal came to (ADR 0073): the proposal, the keys of
+ * its changes so far, and how many apps show it. Whoever asked answers with it: nothing was applied.
+ */
+export interface ProposedOutcome {
+  id: Id;
+  changes: string[];
+  apps: number;
 }
 
 /**
@@ -194,6 +222,11 @@ export type SessionOutcome =
       warnings: Problem[];
       created: Id[];
       history: HistorySummary;
+      /**
+       * Present when the command joined Claude's proposal rather than applying: nothing was saved
+       * or recorded, and nobody was answered yet.
+       */
+      proposal?: ProposedOutcome;
     }
   | { ok: false; problems: Problem[] };
 
@@ -234,6 +267,11 @@ export interface SessionOptions {
   makeDrawing?: DrawingMaker;
   /** How the program finds and runs git to read versions (ADR 0071); tests give their own. */
   versions?: VersionsOptions;
+  /**
+   * Hears whenever Claude's proposal opens, grows or closes (ADR 0073): with when its last change
+   * joined it, or undefined once none waits. `--stop-when-idle` keeps the program running for it.
+   */
+  onProposal?: (lastJoined: number | undefined) => void;
 }
 
 /** The outcome of opening a session: the session, or every problem that keeps the project closed. */
@@ -318,6 +356,11 @@ export class Session implements LiveSession {
   #opened: ProjectSnapshot;
   /** The versions read from git (ADR 0071), one at a time. */
   readonly #versions: Versions;
+  /**
+   * Claude's proposal (ADR 0073), on top of the project now, in memory only: nothing of it reaches a
+   * file, the history or the repository before it is accepted.
+   */
+  readonly #proposal: SessionProposal;
 
   private constructor(folder: string, loaded: LoadedProject, options: SessionOptions) {
     this.folder = folder;
@@ -337,6 +380,7 @@ export class Session implements LiveSession {
       ...options.versions,
       warn: options.versions?.warn ?? ((line) => this.#err(line)),
     });
+    this.#proposal = new SessionProposal(() => this.#now());
   }
 
   /** Opens the project in a folder; see {@link openSession}. */
@@ -470,6 +514,7 @@ export class Session implements LiveSession {
       this.#send(client, { type: 'preferences/changed', preferences: preferences.current() });
     }
     for (const message of this.#live.greeting()) this.#send(client, message);
+    this.#greetWithProposal(client);
     this.#logAttached('attached', 'app');
     return () => {
       if (this.#clients.delete(client)) this.#logAttached('gone', 'app');
@@ -485,6 +530,7 @@ export class Session implements LiveSession {
       project: this.#state,
       history: this.history,
     });
+    this.#greetWithProposal(client);
     this.#logAttached('attached', 'claude');
     return () => {
       if (this.#claudes.delete(client)) this.#logAttached('gone', 'claude');
@@ -615,6 +661,12 @@ export class Session implements LiveSession {
       case 'version/compare':
         await this.compareVersion(origin, message.version, message.view);
         return;
+      case 'proposal/accept':
+        await this.#acceptProposal(origin, message);
+        return;
+      case 'proposal/refuse':
+        await this.#decideProposal(origin, message.proposal, 'refused');
+        return;
     }
   }
 
@@ -678,6 +730,255 @@ export class Session implements LiveSession {
       ...(this.#claudes.has(origin.client) ? {} : { project: older }),
       comparison,
     });
+  }
+
+  // ——— Claude's proposal (ADR 0073) ———
+
+  /**
+   * Whether a command of Claude's joins its proposal: while the person reviews Claude's changes, when
+   * the command asks to, or while a proposal waits, since Claude's later commands build on what it
+   * proposed. Comments and resolving conflicts never do.
+   */
+  #proposes(command: Command, propose: boolean): boolean {
+    if (neverProposed(command)) return false;
+    return (
+      propose ||
+      this.#proposal.open !== undefined ||
+      this.#options.preferences?.current().reviewClaude === true
+    );
+  }
+
+  /**
+   * Runs a command of Claude's on the proposed project; only from inside a turn of the queue. Nothing
+   * is saved or recorded: every app and Claude are shown the proposal, and whoever asked answers with
+   * the outcome's `proposal`. A refused command is answered as any other.
+   */
+  #runProposed(command: Command, origin: Origin | undefined): SessionOutcome {
+    const opened = this.#proposal.open === undefined;
+    let ran;
+    try {
+      ran = this.#proposal.propose(this.#state, command, {
+        ...(this.#options.newId === undefined ? {} : { newId: this.#options.newId }),
+        author: 'claude',
+        now: () => this.#now(),
+      });
+    } catch (error) {
+      return this.#refuse(origin, [
+        refusal('program-failed', `The command could not be proposed: ${reasonOf(error)}`),
+      ]);
+    }
+    const { outcome, joined } = ran;
+    if (!outcome.ok) return this.#refuse(origin, outcome.problems);
+    const { label, warnings, created, operations } = outcome;
+    if (!joined) return this.#answerUnchanged(origin, label, 'claude', warnings);
+    const id = this.#proposal.open?.id ?? '';
+    this.#showProposal();
+    const changes = this.#proposal.changeKeys();
+    this.#log({ event: 'proposal', kind: opened ? 'opened' : 'joined', changes: changes.length });
+    this.#proposalChanged();
+    return {
+      ok: true,
+      recorded: false,
+      label,
+      author: 'claude',
+      operations,
+      warnings,
+      created,
+      history: this.history,
+      proposal: { id, changes, apps: this.#clients.size },
+    };
+  }
+
+  /**
+   * Accepts some of the proposal's changes, or all of them, as an app asks: one action of Claude's on
+   * the project now, saved, recorded and announced as any other, which keeps what the person did
+   * meanwhile; then the proposal closes, and the app that decided hears of it with its request id. An
+   * acceptance the core refuses, or that cannot be saved, changes nothing, and the proposal waits on.
+   */
+  #acceptProposal(origin: Origin, message: ProposalAcceptMessage): Promise<SessionOutcome> {
+    if (this.#closed) return Promise.resolve(this.#refuse(origin, [CLOSED]));
+    return this.#enqueue(() =>
+      this.#guarded(origin, async () => {
+        const wrong = this.#proposal.check(message.proposal);
+        if (wrong !== undefined) return this.#refuseDecision(origin, [wrong]);
+        const total = this.#proposal.changeKeys().length;
+        const accepted = this.#proposal.accept(this.#state, message.changes, {
+          ...(this.#options.newId === undefined ? {} : { newId: this.#options.newId }),
+          author: 'claude',
+          now: () => this.#now(),
+        });
+        if (!accepted.ok) return this.#refuseDecision(origin, accepted.problems);
+        const { state, operations, inverse, label, warnings, created } = accepted.outcome;
+        if (operations.length === 0 || isDeepStrictEqual(state, this.#state)) {
+          // Nothing of it differs from the project now: it closes, and nothing is recorded.
+          const closed = this.#proposal.close('accepted', accepted.accepted);
+          if (closed !== undefined) this.#closedProposal(closed, origin, total);
+          return {
+            ok: true,
+            recorded: false,
+            label,
+            author: 'claude',
+            operations: [],
+            warnings,
+            created: [],
+            history: this.history,
+          };
+        }
+        const saved = await this.#save(state, operations);
+        if (!saved.ok) return this.#refuseDecision(origin, saved.problems);
+        this.#state = state;
+        const closed = this.#proposal.close('accepted', accepted.accepted);
+        const action = this.#recordAction({ label, author: 'claude', operations, inverse }, undefined);
+        const announced = this.#announce(
+          { kind: 'do', ...action, operations, warnings, created },
+          undefined,
+        );
+        this.#log({
+          event: 'action',
+          kind: 'done',
+          id: this.#lastAction,
+          author: 'claude',
+          label: action.label,
+          operations: operations.length,
+          created,
+        });
+        if (closed !== undefined) this.#closedProposal(closed, origin, accepted.accepted.length);
+        this.#listHistory();
+        return announced;
+      }),
+    );
+  }
+
+  /** Refuses the proposal whole, as an app asks: nothing changes, and it closes. */
+  #decideProposal(origin: Origin, proposal: Id, how: 'refused'): Promise<SessionOutcome> {
+    if (this.#closed) return Promise.resolve(this.#refuse(origin, [CLOSED]));
+    return this.#enqueue(() =>
+      this.#guarded(origin, () => {
+        const wrong = this.#proposal.check(proposal);
+        if (wrong !== undefined) return Promise.resolve(this.#refuseDecision(origin, [wrong]));
+        const total = this.#proposal.changeKeys().length;
+        const closed = this.#proposal.close(how);
+        if (closed !== undefined) this.#closedProposal(closed, origin, total);
+        return Promise.resolve(this.#unchanged());
+      }),
+    );
+  }
+
+  /**
+   * Closes Claude's own proposal, as Claude asks: nothing changes, every app and Claude hear that it
+   * was withdrawn, and Claude with its request id. With none waiting, Claude hears why.
+   */
+  async withdrawProposal(origin: Origin): Promise<void> {
+    if (this.#closed) {
+      this.#refuse(origin, [CLOSED]);
+      return;
+    }
+    await this.#enqueue(() => {
+      const total = this.#proposal.changeKeys().length;
+      const closed = this.#proposal.close('withdrawn');
+      if (closed === undefined) {
+        this.#refuse(origin, [refusal('invalid-command', NO_PROPOSAL_TO_WITHDRAW)]);
+      } else {
+        this.#closedProposal(closed, origin, total);
+      }
+      return Promise.resolve();
+    });
+  }
+
+  /** Refuses what an app decided about the proposal, and logs it by its problems' codes. */
+  #refuseDecision(origin: Origin, problems: Problem[]): SessionOutcome {
+    this.#log({
+      event: 'refused',
+      request: 'proposal',
+      author: 'user',
+      codes: problems.map((each) => each.code),
+    });
+    return this.#refuse(origin, problems);
+  }
+
+  /** An outcome that changed nothing, which nobody hears of. */
+  #unchanged(): SessionOutcome {
+    return {
+      ok: true,
+      recorded: false,
+      label: '',
+      author: 'user',
+      operations: [],
+      warnings: [],
+      created: [],
+      history: this.history,
+    };
+  }
+
+  /**
+   * Rebases the proposal that waits on the project now, after the operations that changed it, or
+   * after a reload. A rebase that fails drops the proposal, and every app and Claude hear of it.
+   */
+  #rebaseProposal(operations?: readonly Operation[]): void {
+    if (this.#proposal.open === undefined) return;
+    try {
+      this.#proposal.rebase(this.#state, operations);
+    } catch (error) {
+      this.#err(`Could not keep Claude’s proposal on the change: ${reasonOf(error)}`);
+      this.#dropProposal();
+    }
+  }
+
+  /** Shows every app and Claude the proposal that waits, after it opened or changed. */
+  #showProposal(): void {
+    if (this.#proposal.open === undefined) return;
+    let shown;
+    try {
+      shown = this.#proposal.shown();
+    } catch (error) {
+      this.#err(`Could not show Claude’s proposal: ${reasonOf(error)}`);
+      this.#dropProposal();
+      return;
+    }
+    if (shown === undefined) return;
+    for (const client of [...this.#clients, ...this.#claudes]) this.#send(client, shown);
+  }
+
+  /** Shows an app, or Claude, that connects the proposal that waits. */
+  #greetWithProposal(client: SessionClient): void {
+    if (this.#proposal.open === undefined) return;
+    try {
+      const shown = this.#proposal.shown();
+      if (shown !== undefined) this.#send(client, shown);
+    } catch (error) {
+      this.#err(`Could not show Claude’s proposal: ${reasonOf(error)}`);
+    }
+  }
+
+  /** Drops the proposal that waits, when it can no longer be kept. */
+  #dropProposal(): void {
+    const changes = this.#proposal.open === undefined ? 0 : this.#proposal.changeKeys().length;
+    const closed = this.#proposal.close('dropped');
+    if (closed !== undefined) this.#closedProposal(closed, undefined, changes);
+  }
+
+  /**
+   * Tells every app and Claude how the proposal closed, the one that asked with its request id, and
+   * logs it with how many changes it held, or were accepted.
+   */
+  #closedProposal(closed: ProposalClosedMessage, origin: Origin | undefined, changes: number): void {
+    for (const client of [...this.#clients, ...this.#claudes]) {
+      this.#send(
+        client,
+        origin?.client === client ? { ...closed, requestId: origin.requestId } : closed,
+      );
+    }
+    this.#log({ event: 'proposal', kind: closed.how, changes });
+    this.#proposalChanged();
+  }
+
+  /** Says when the last change joined the proposal, or that none waits, to whoever listens. */
+  #proposalChanged(): void {
+    try {
+      this.#options.onProposal?.(this.#proposal.lastJoined);
+    } catch (error) {
+      this.#err(`Could not tell of Claude’s proposal: ${reasonOf(error)}`);
+    }
   }
 
   makeDrawing(html: string, width: number): Promise<MadeDrawing> {
@@ -849,20 +1150,35 @@ export class Session implements LiveSession {
    * not recorded. Otherwise the action is recorded, the files it affects are saved, and every open app
    * is told, the one that asked with its request id.
    */
-  execute(command: Command, author: Author, origin?: Origin): Promise<SessionOutcome> {
-    return this.#execute(command, author, origin);
+  execute(
+    command: Command,
+    author: Author,
+    origin?: Origin,
+    how: ExecuteOptions = {},
+  ): Promise<SessionOutcome> {
+    return this.#execute(command, author, origin, undefined, how.propose === true);
   }
 
-  /** Runs a command as `execute` does; an app's may join the newest action (ADR 0065). */
+  /**
+   * Runs a command as `execute` does; an app's may join the newest action (ADR 0065), and Claude's
+   * may join its proposal (ADR 0073).
+   */
   #execute(
     command: Command,
     author: Author,
     origin: Origin | undefined,
     joins?: number,
+    propose = false,
   ): Promise<SessionOutcome> {
     const outcome = this.#closed
       ? Promise.resolve(this.#refuse(origin, [CLOSED]))
-      : this.#enqueue(() => this.#guarded(origin, () => this.#run(command, author, origin, joins)));
+      : this.#enqueue(() =>
+          this.#guarded(origin, () =>
+            author === 'claude' && this.#proposes(command, propose)
+              ? Promise.resolve(this.#runProposed(command, origin))
+              : this.#run(command, author, origin, joins),
+          ),
+        );
     return this.#logRefusal(outcome, 'command', author, () => command);
   }
 
@@ -913,7 +1229,14 @@ export class Session implements LiveSession {
         refusal('program-failed', `The command could not be run: ${reasonOf(error)}`),
       ]);
     }
-    if (!outcome.ok) return this.#refuse(origin, outcome.problems);
+    if (!outcome.ok) {
+      return this.#refuse(
+        origin,
+        author === 'claude' && this.#proposal.open !== undefined
+          ? onlyInProposal(outcome.problems)
+          : outcome.problems,
+      );
+    }
     const { state, operations, inverse, label, warnings, created } = outcome;
     if (operations.length === 0 || isDeepStrictEqual(state, this.#state)) {
       return this.#answerUnchanged(origin, label, author, warnings);
@@ -1000,7 +1323,23 @@ export class Session implements LiveSession {
     return this.#queue;
   }
 
-  /** Stops watching and resolves once the work already asked for is done. Later commands are refused. */
+  /**
+   * When the last change joined Claude's proposal, in milliseconds since 1970, while one waits; undefined
+   * when none waits.
+   */
+  get proposalWaiting(): number | undefined {
+    return this.#proposal.lastJoined;
+  }
+
+  /** The proposed project, the project now with every change of Claude's, while a proposal waits. */
+  get proposed(): ProjectSnapshot | undefined {
+    return this.#proposal.open?.proposed;
+  }
+
+  /**
+   * Stops watching and resolves once the work already asked for is done. Later commands are refused.
+   * Claude's proposal, if one waits, is dropped, and the program's output and log say so.
+   */
   close(): Promise<void> {
     this.#closing ??= (async () => {
       this.#closed = true;
@@ -1009,6 +1348,14 @@ export class Session implements LiveSession {
       this.#live.close();
       this.#versions.close();
       await this.#queue;
+      const changes = this.#proposal.changeKeys().length;
+      const dropped = this.#proposal.close('dropped');
+      if (dropped !== undefined) {
+        this.#out(
+          `Claude’s proposal of ${changes} change${changes === 1 ? '' : 's'} was never accepted, so it is dropped: nothing of it was applied.`,
+        );
+        this.#closedProposal(dropped, undefined, changes);
+      }
     })();
     return this.#closing;
   }
@@ -1204,7 +1551,11 @@ export class Session implements LiveSession {
     }
   }
 
-  /** Tells every app and Claude about a change, the one that asked with its request id. */
+  /**
+   * Tells every app and Claude about a change, the one that asked with its request id. Claude's
+   * proposal, if one waits, is rebased on the project now before they hear of it, and shown again
+   * after.
+   */
   #announce(
     change: Pick<
       ProjectChangedMessage,
@@ -1212,6 +1563,7 @@ export class Session implements LiveSession {
     >,
     origin: Origin | undefined,
   ): SessionOutcome {
+    this.#rebaseProposal(change.operations);
     const history = this.history;
     const message: ProjectChangedMessage = { type: 'project/changed', ...change, history };
     // The live values of what the change took away go, once every app has heard of the change.
@@ -1222,6 +1574,7 @@ export class Session implements LiveSession {
         origin?.client === client ? { ...message, requestId: origin.requestId } : message,
       );
     }
+    this.#showProposal();
     return { ok: true, recorded: true, ...change, history };
   }
 
@@ -1518,6 +1871,8 @@ export class Session implements LiveSession {
     const reloaded = differences(this.#known, loaded.contents);
     if (reloaded.size === 0) return;
     this.#adopt(loaded);
+    // Claude's proposal stays, rebased on what was read (ADR 0073).
+    this.#rebaseProposal();
     this.#log({ event: 'files-changed', files: sortedPaths(reloaded), reloaded: true });
     const reason = `${listOf([...reloaded.keys()])} changed on disk.`;
     this.#out(`Reloaded the project: ${reason}`);
@@ -1529,7 +1884,9 @@ export class Session implements LiveSession {
     };
     this.#broadcast(announcement);
     for (const client of this.#claudes) this.#send(client, announcement);
+    this.#showProposal();
     this.#pruneLive();
+
     this.#listHistory();
     const warnings = this.warnings();
     if (warnings.length > 0) this.#broadcast(warningNotice(warnings));
@@ -1593,6 +1950,26 @@ function watchFolder(
 }
 
 const CLOSED: Problem = { code: 'project-closed', message: 'The project is closed.' };
+
+/** Why Claude withdrew nothing. */
+const NO_PROPOSAL_TO_WITHDRAW = 'No proposal of yours waits, so nothing was withdrawn.';
+
+/**
+ * A refusal of Claude's command that goes to the project now while a proposal waits, such as a
+ * comment: what it names may be only in the proposal, which the project now does not hold yet.
+ */
+function onlyInProposal(problems: readonly Problem[]): Problem[] {
+  const last = problems.at(-1);
+  if (last === undefined) return [...problems];
+  return [
+    ...problems.slice(0, -1),
+    {
+      ...last,
+      message: `${last.message} Comments go to the project now, not to your proposal: what only the proposal holds takes a thread once the person accepts it.`,
+    },
+  ];
+}
+
 
 function refusal(code: ProblemCode, message: string): Problem {
   return { code, message };

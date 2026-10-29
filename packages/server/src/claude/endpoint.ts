@@ -4,8 +4,10 @@
  * and maps itself, with the person as its author (ADR-0049); it shows its guidance in the open apps,
  * keeps, clears and reads back live values (ADR 0057), says which package code the person approved
  * (ADR 0054) and opens the app when asked. It lists the project's versions and compares one with the
- * project now, as the program listed it, without the version's project (ADR 0071, ADR-0029). It never
- * answers with the session token, and refuses every other message.
+ * project now, as the program listed it, without the version's project (ADR 0071, ADR-0029). While the
+ * person reviews Claude's changes, or when a command asks to, Claude's commands join its proposal and
+ * are answered with `proposal/made`; Claude may withdraw its proposal, but never accepts or refuses it
+ * (ADR 0073). It never answers with the session token, and refuses every other message.
  */
 import {
   DRAWING_LIMITS,
@@ -105,12 +107,38 @@ export function attachClaude(
 
   const handle = async (message: ClaudeMessage): Promise<void> => {
     switch (message.type) {
-      case 'command':
-        // The session answers through the client: the change, or why it was refused.
-        await session.execute(message.command, 'claude', {
-          client,
-          requestId: message.requestId,
-        });
+      case 'command': {
+        // The session answers through the client: the change, or why it was refused. A command that
+        // joined Claude's proposal is answered here, at once, and never waits for the person
+        // (ADR 0073): the session has shown every app and Claude the proposal by then.
+        const outcome = await session.execute(
+          message.command,
+          'claude',
+          { client, requestId: message.requestId },
+          message.propose === true ? { propose: true } : {},
+        );
+        if (outcome.ok && outcome.proposal !== undefined) {
+          send({
+            type: 'proposal/made',
+            requestId: message.requestId,
+            proposal: outcome.proposal.id,
+            label: outcome.label,
+            changes: outcome.proposal.changes,
+            created: outcome.created,
+            warnings: outcome.warnings,
+            apps: outcome.proposal.apps,
+          });
+        }
+        return;
+      }
+      case 'proposal/withdraw':
+        if (session.withdrawProposal === undefined) {
+          refuse(message.requestId, [
+            { code: 'invalid-command', message: 'This Visual Anything keeps no proposals.' },
+          ]);
+          return;
+        }
+        await session.withdrawProposal({ client, requestId: message.requestId });
         return;
       case 'import': {
         // The person ran it on the command line, so it is the person's action (ADR-0049). The message

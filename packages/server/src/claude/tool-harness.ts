@@ -15,6 +15,7 @@ import {
   type Guidance,
   type ProjectSnapshot,
 } from '@visual-anything/core';
+import type { PreferencesStore } from '../preferences';
 import { startServer, type RunningServer } from '../server';
 import { openSession, type Session } from '../session';
 import { openLiveClient, testProject, writeProjectFolder, type LiveClient } from '../test-support';
@@ -57,6 +58,8 @@ export async function startToolHarness(
   options: {
     /** The person's approvals of package code, as their preferences hold them (ADR 0054). */
     codeApprovals?: () => readonly CodeApproval[];
+    /** The person's preferences (ADR-0032), such as whether they review Claude's changes. */
+    preferences?: PreferencesStore;
   } = {},
 ): Promise<ToolHarness> {
   const profile = await realpath(await mkdtemp(join(tmpdir(), 'va-tools-')));
@@ -65,7 +68,12 @@ export async function startToolHarness(
   const appDir = join(profile, 'dist');
   await mkdir(appDir);
   await writeFile(join(appDir, 'index.html'), '<!doctype html><title>Visual Anything</title>');
-  const result = await openSession(folder, { watch: false, out: () => {}, err: () => {} });
+  const result = await openSession(folder, {
+    watch: false,
+    out: () => {},
+    err: () => {},
+    ...(options.preferences === undefined ? {} : { preferences: options.preferences }),
+  });
   if (!result.ok) throw new Error('The test project does not open.');
   const { session } = result;
   const opened: string[] = [];
@@ -142,7 +150,8 @@ export async function startToolHarness(
     asPerson: async (command) => {
       const outcome = await session.execute(command, 'user');
       if (!outcome.ok) throw new Error(outcome.problems.map((each) => each.message).join(' '));
-      const wanted = canonical(session.snapshot);
+      // While Claude's proposal waits, Claude reads the proposed project, rebased on the change.
+      const wanted = canonical(session.proposed ?? session.snapshot);
       for (let tries = 0; canonical(await bridge.project()) !== wanted; tries++) {
         if (tries > 200) throw new Error('The bridge never saw the person’s change.');
         await new Promise((resolve) => setTimeout(resolve, 10));
