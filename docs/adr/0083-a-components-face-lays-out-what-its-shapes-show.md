@@ -276,3 +276,14 @@ The layout is block, flex and a simple grid: a small engine, not a browser's.
 
   The subset, its storage, its escaping and what the text exports keep stand.
 - **Building it is a milestone of its own,** after text emphasis, staged as the research report plans.
+
+<!-- Decided by Claude on 2026-10-29 under the user's standing delegation of design decisions, after the user confirmed what they need: "mientras que yo pueda injectar HTML y css para que las figuras sean propias y pueda poner los N atributos que quiera". -->
+
+- 2026-10-29: **a face can list the element's attributes without naming each one.**
+  - `<each of="attributes">` repeats its content for every attribute the element has, with `{{key}}`, the attribute's name, and `{{value}}`, its value, written as a slot writes it.
+  - **Order:** the attributes come in the component's order of definition, then the element's own particularities in the order they were added.
+  - **Filters:** `only="a b c"` keeps those attributes, in that order; `except="a b"` leaves them out; `if` and `else` work inside, as anywhere.
+  - **Limits:** it repeats at most 64 times, and says how many more there are through `{{more}}` after the loop.
+  - `each` is the one element that takes attributes beyond `class`, `style`, `if` and `else`: its `of`, `only` and `except`.
+
+  Naming attributes one by one with `{{…}}` stays as it is, with no limit on how many a face names but the face's caps.
