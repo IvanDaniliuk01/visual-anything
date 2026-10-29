@@ -9,15 +9,7 @@ import { PassThrough } from 'node:stream';
 import { untranslatedParts } from '@visual-anything/app/src/i18n/translate';
 import { describe, expect, it } from 'vitest';
 import { formatProjectProblem, loadProjectFrom } from '../project';
-import {
-  findGit,
-  Git,
-  GitError,
-  NO_GIT,
-  refusedCall,
-  startGit,
-  type Spawn,
-} from './git';
+import { findGit, Git, GitError, NO_GIT, refusedCall, startGit, type Spawn } from './git';
 import { parseCommitId, parseLog, parseRefs, parseRepositoryPlace, parseTree } from './parse';
 import { BatchReader, NOT_A_REPOSITORY, openRepository, readCommit } from './repository';
 import { NOT_LISTED } from './versions';
