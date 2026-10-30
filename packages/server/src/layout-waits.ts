@@ -24,6 +24,13 @@ export interface LayoutWait {
 
 export const LAYOUT_WAIT_PER_LAYOUT = 20_000;
 export const LAYOUT_WAIT_MARGIN = 10_000;
+/** The most one layout guidance waits, however many containers it names: five minutes. */
+export const LAYOUT_WAIT_MOST = 300_000;
+
+/** How long one layout guidance waits: per layout it asks for, and a margin, within the most. */
+export function layoutWait(containers: number, perLayout: number, margin: number): number {
+  return Math.min(LAYOUT_WAIT_MOST, perLayout * Math.max(1, containers) + margin);
+}
 
 /** Layout guidance, as `lay_out_view` sends it. */
 export type LayoutGuidance = Extract<Guidance, { kind: 'layout' }>;
@@ -84,7 +91,7 @@ export class LayoutWaits {
       return { apps: apps.length, ...(apps.length === 0 ? {} : { unanswered: 'gone' as const }) };
     }
     for (const app of apps) waiting.pending.add(app);
-    const waited = this.#perLayout * (guidance.containers?.length ?? 1) + this.#margin;
+    const waited = layoutWait(guidance.containers?.length ?? 1, this.#perLayout, this.#margin);
     const timer = setTimeout(() => {
       this.#end(answer, { apps: waiting.apps, unanswered: 'timed-out', waited });
     }, waited);

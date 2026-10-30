@@ -41,7 +41,7 @@ import {
   type ProgramRecord,
   type RuntimeContext,
 } from './discovery';
-import { LAYOUT_WAIT_MARGIN, LAYOUT_WAIT_PER_LAYOUT } from '../layout-waits';
+import { LAYOUT_WAIT_MARGIN, LAYOUT_WAIT_PER_LAYOUT, layoutWait } from '../layout-waits';
 import type { LiveKept, LiveListing } from '../live';
 import type { ProposalEnding } from '../proposals';
 import {
@@ -231,7 +231,7 @@ const PROPOSAL_SETTLE = 10_000;
 
 /** How long the program waits for one layout guidance: per layout it asks for, and a margin. */
 function layoutBound(guidance: Extract<Guidance, { kind: 'layout' }>): number {
-  return LAYOUT_WAIT_PER_LAYOUT * (guidance.containers?.length ?? 1) + LAYOUT_WAIT_MARGIN;
+  return layoutWait(guidance.containers?.length ?? 1, LAYOUT_WAIT_PER_LAYOUT, LAYOUT_WAIT_MARGIN);
 }
 
 /** The program's command line, run with the same Node.js and loaders as this process. */
