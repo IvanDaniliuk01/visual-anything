@@ -103,6 +103,7 @@ export const DARK_SHADES: DarkShades = Object.freeze({
     'data-modeling.writes-to': { stroke: '#AEB8C4' },
     'data-modeling.fires-on': { stroke: '#EC8FB3' },
     'data-modeling.runs': { stroke: '#B39CF0' },
+    'data-modeling.has-type': { stroke: '#EBA65E' },
     'c4.uses': { stroke: '#AEB8C4' },
     'c4.delivers-to': { stroke: '#AEB8C4' },
     'data-science.feeds': { stroke: '#AEB8C4' },

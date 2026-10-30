@@ -5634,7 +5634,7 @@ export const builtins: Readonly<
   'data-modeling': {
     name: 'Modelado de datos',
     description:
-      'Tablas y sus columnas, y las referencias entre columnas; los esquemas, vistas, enums, funciones, triggers y secuencias de una base de datos, y qué lee de qué, escribe en qué, se dispara en qué y ejecuta qué.',
+      'Tablas y sus columnas, y las referencias entre columnas; los esquemas, vistas, enums, funciones, triggers y secuencias de una base de datos, qué lee de qué, escribe en qué, se dispara en qué y ejecuta qué, y el enum que nombra el tipo de cada columna.',
   },
   'data-modeling.table': {
     name: 'Tabla',
@@ -5738,6 +5738,10 @@ export const builtins: Readonly<
   'data-modeling.runs': {
     name: 'ejecuta',
     description: 'Un trigger ejecuta esta función cada vez que se dispara.',
+  },
+  'data-modeling.has-type': {
+    name: 'tiene tipo',
+    description: 'Una columna toma los valores de este enum: el enum que nombra su tipo.',
   },
   c4: {
     name: 'Arquitectura C4',

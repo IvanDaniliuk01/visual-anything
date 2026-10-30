@@ -1,9 +1,9 @@
 /**
  * The built-in "Data modeling" package: what a database holds, as structure. Tables and their
  * columns, and the references between columns; the schemas a database is divided into; views and
- * materialized views, enums, functions, triggers and sequences; and what reads from, writes to, fires
- * on and runs what. A column is an element, so a relation such as a foreign key can end on it. A
- * table, a view and a materialized view draw their columns as their rows.
+ * materialized views, enums, functions, triggers and sequences; what reads from, writes to, fires on
+ * and runs what; and the enum a column's type names. A column is an element, so a relation such as a
+ * foreign key can end on it. A table, a view and a materialized view draw their columns as their rows.
  *
  * Code is never held: a view's query, a function's body and a trigger's condition stay in the
  * database. Their attributes are text a person reads, such as a function's arguments as written.
@@ -86,7 +86,7 @@ export const DATA_MODELING: PackageFile = {
   id: 'data-modeling',
   name: 'Data modeling',
   description:
-    'Tables and their columns, and the references between columns; the schemas, views, enums, functions, triggers and sequences of a database, and what reads from, writes to, fires on and runs what.',
+    'Tables and their columns, and the references between columns; the schemas, views, enums, functions, triggers and sequences of a database, what reads from, writes to, fires on and runs what, and the enum each column’s type names.',
   ...OWN_CREDITS,
   components: [
     {
@@ -391,6 +391,16 @@ export const DATA_MODELING: PackageFile = {
       direction: 'directed',
       appearance: { stroke: '#5B3A9E', width: 1.5 },
       limits: { from: ['data-modeling.trigger'], to: ['data-modeling.function'] },
+    },
+    {
+      id: 'data-modeling.has-type',
+      name: 'has type',
+      derivesFrom: 'relates-to',
+      description:
+        'A column takes the values of this enum: the enum its type names.',
+      direction: 'directed',
+      appearance: { stroke: '#8A4B0F', width: 1.5, dash: 'dotted' },
+      limits: { from: ['data-modeling.column'], to: ['data-modeling.enum'] },
     },
   ],
   images: [

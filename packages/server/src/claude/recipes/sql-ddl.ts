@@ -1,7 +1,8 @@
 /**
  * The recipe for SQL DDL: one database, its schemas, its tables with their columns as rows and its
  * foreign keys as references, and its views, enums, functions, triggers and sequences as structure:
- * what reads from, writes to, fires on and runs what, never their code.
+ * what reads from, writes to, fires on and runs what, never their code, and the enum each column of
+ * an enum's type has.
  */
 import { MAX_ADDITIONS } from '../batches';
 import type { Recipe } from './recipe';
@@ -129,7 +130,7 @@ export const SQL_DDL: Recipe = {
     },
     {
       from: '`CREATE TYPE name AS ENUM (…)`',
-      to: 'a `data-modeling.enum` whose `values` are its labels in order, separated by commas (`placed, paid, shipped`); the columns of that type name it in their `type`',
+      to: 'a `data-modeling.enum` whose `values` are its labels in order, separated by commas (`placed, paid, shipped`); the columns of that type name it in their `type`, as written, and each has a `data-modeling.has-type` to it',
     },
     {
       from: '`CREATE FUNCTION` and `CREATE PROCEDURE`',
@@ -142,6 +143,10 @@ export const SQL_DDL: Recipe = {
     {
       from: '`CREATE SEQUENCE name`',
       to: 'a `data-modeling.sequence` with `type`, `start` and `increment` when given. A `serial` or identity column keeps its type and default as written, and makes no sequence of its own',
+    },
+    {
+      from: 'A column whose type names an enum the material creates (`status shop.order_status`, or `order_status` within its schema)',
+      to: 'a `data-modeling.has-type` from the column to that enum, besides its `type` as written. A type the material does not create as an enum, such as a domain or a type of an extension, gets none',
     },
     {
       from: 'A reference to a table the material does not create',
@@ -164,7 +169,7 @@ export const SQL_DDL: Recipe = {
     `A database past ${MAX_ADDITIONS} elements and relations, such as 73 tables with about 1,300 columns and their foreign keys, goes in batches of at most ${MAX_ADDITIONS}, as the rule says: four or five add_to_model calls, each one action.`,
     'Give everything an id from its names as the material writes them, so that every batch can name what the others made: `db.<database>` for the database, `s.<schema>` for a schema, `t.<schema>.<table>` for a table, `v.<schema>.<view>` for a view or a materialized view, `c.<schema>.<table>.<column>` for a column of a table or a view, `e.<schema>.<enum>`, `f.<schema>.<function>` (with `.2`, `.3` for overloads), `tr.<schema>.<table>.<trigger>` and `seq.<schema>.<sequence>`. Without schemas, leave `<schema>.` out. Give a foreign key the id `fk.<schema>.<table>.<column>`, of the column that references; the other relations can leave their id to the program.',
     `First the database and its schemas, then whole tables, each with all its columns in order, as many as fit in ${MAX_ADDITIONS}; the next batches go on with the next tables. A table goes in one batch, unless it alone has more columns than a batch takes.`,
-    'Then the views with their columns, the enums, functions, triggers and sequences; then the relations, references, reads from, writes to, fires on and runs, each naming its ends by those ids. A foreign key can go with its table instead, once the table it references was sent in an earlier batch or comes in the same one.',
+    'Then the views with their columns, the enums, functions, triggers and sequences; then the relations, references, reads from, writes to, fires on, runs and has type, each naming its ends by those ids. A foreign key can go with its table instead, once the table it references was sent in an earlier batch or comes in the same one.',
     'Label each batch with the database, its number and what it holds, such as `Import the audit database (2 of 5): billing tables`.',
   ],
   example: {
@@ -184,7 +189,7 @@ export const SQL_DDL: Recipe = {
       },
       {
         tool: 'add_to_model',
-        why: 'The database with its one schema, every table and view with its columns in order, the enum, the function and the trigger, and what references, reads from, fires on and runs what, as one action. The index, the view’s query and the function’s body are left out.',
+        why: 'The database with its one schema, every table and view with its columns in order, the enum, the function and the trigger, and what references, reads from, fires on, runs and has type what, as one action. The index, the view’s query and the function’s body are left out.',
         args: {
           label: 'Import the orders database from db/shop.sql',
           elements: [
@@ -280,6 +285,7 @@ export const SQL_DDL: Recipe = {
             { relationType: 'data-modeling.reads-from', from: 'unshipped-orders', to: 'customers' },
             { relationType: 'data-modeling.fires-on', from: 'orders-touch', to: 'orders' },
             { relationType: 'data-modeling.runs', from: 'orders-touch', to: 'touch-updated-at' },
+            { relationType: 'data-modeling.has-type', from: 'orders-status', to: 'order-status' },
           ],
         },
       },
