@@ -11,7 +11,9 @@
  * those (`sceneWithValues`). Each shape's detail is worked out again only when what it reads changed.
  */
 import {
+  componentOrEssence,
   detailParts,
+  detailText,
   liveAge,
   startedTypesByElement,
   type AttributeReading,
@@ -20,6 +22,8 @@ import {
   type ProjectSnapshot,
 } from '@visual-anything/core';
 import { modelIndexOf } from '@visual-anything/core';
+import type { DetailPart, EmphasisRun } from '@visual-anything/core';
+import { detailRunsOf } from '../text/detail';
 import type { Element, Id, Relation } from '@visual-anything/schema';
 import { fitHeader, fitRow } from '../canvas/fit';
 import { sceneWithValues, type ElementShape, type Scene, type SceneValues } from '../canvas/scene';
@@ -42,6 +46,8 @@ interface Worked {
   /** How each live value reads by the clock: fresh, or the age a stale one says. */
   ages: string;
   detail: string;
+  /** Its runs, when a value in it takes text emphasis (ADR 0082). */
+  runs: EmphasisRun[] | undefined;
 }
 
 /** The detail last worked out for each element. */
@@ -49,7 +55,10 @@ const worked = new Map<Id, Worked>();
 /** The most details kept before they are all let go. */
 const MOST_WORKED = 50_000;
 /** The shape last made from each shape of a scene, by its detail. */
-const made = new WeakMap<ElementShape, { detail: string; shape: ElementShape }>();
+const made = new WeakMap<
+  ElementShape,
+  { detail: string; runs: EmphasisRun[] | undefined; shape: ElementShape }
+>();
 const startedMaps = new WeakMap<readonly Relation[], Map<Id, Set<Id>>>();
 const NO_TYPES: ReadonlySet<Id> = new Set();
 
@@ -79,8 +88,14 @@ export function liveSceneOf(
       if (!lookup.overrides(shape.element)) return shape;
       const element = index.element(shape.element);
       if (element === undefined) return shape;
-      const detail = detailOf(element, definitions, lookup, t, started.get(element.id) ?? NO_TYPES);
-      return shapeWith(shape, detail);
+      const { detail, runs } = detailOf(
+        element,
+        definitions,
+        lookup,
+        t,
+        started.get(element.id) ?? NO_TYPES,
+      );
+      return shapeWith(shape, detail, runs);
     },
     // What may read otherwise: what the lookup says changed, while the words and definitions are
     // the same; otherwise everything.
@@ -109,7 +124,7 @@ function detailOf(
   lookup: AttributeLookup,
   t: Translator,
   started: ReadonlySet<Id>,
-): string {
+): { detail: string; runs: EmphasisRun[] | undefined } {
   const live = lookup.liveOf(element.id);
   const computed = lookup.computed.get(element.id);
   const ages = agesOf(live, lookup.now, t);
@@ -123,7 +138,7 @@ function detailOf(
     known.translator === t &&
     known.ages === ages
   ) {
-    return known.detail;
+    return known;
   }
   const item = { kind: 'element', element } as const;
   // Each attribute is read once, for the parts and for their marks.
@@ -138,16 +153,32 @@ function detailOf(
     return reading;
   };
   const parts = detailParts(element, definitions, started, (name) => readingOf(name)?.value);
-  const detail = parts
-    .map((part) => {
-      if (part.kind === 'component-name') return t.definition(element.component, part.text);
-      if (part.kind !== 'attribute') return part.text;
-      return markedText(t, readingOf(part.attribute), part.text, lookup.now);
-    })
-    .join(' · ');
+  const marked = parts.map((part): DetailPart => {
+    if (part.kind === 'component-name') {
+      return { ...part, text: t.definition(element.component, part.text) };
+    }
+    if (part.kind !== 'attribute') return part;
+    return { ...part, text: markedText(t, readingOf(part.attribute), part.text, lookup.now) };
+  });
+  const detail = detailText(marked);
+  const attributes = componentOrEssence(definitions, element.component).attributes;
+  // A value that takes text emphasis is drawn with it, after its mark (ADR 0082).
+  const runs = detailRunsOf(
+    marked,
+    (name) => attributes.find((each) => each.name === name)?.format === 'emphasis',
+  );
   if (worked.size >= MOST_WORKED) worked.clear();
-  worked.set(element.id, { element, live, computed, definitions, translator: t, ages, detail });
-  return detail;
+  worked.set(element.id, {
+    element,
+    live,
+    computed,
+    definitions,
+    translator: t,
+    ages,
+    detail,
+    runs,
+  });
+  return { detail, runs };
 }
 
 /**
@@ -183,14 +214,19 @@ function agesOf(
 }
 
 /** A shape that writes this detail: itself when it does already. */
-function shapeWith(shape: ElementShape, detail: string): ElementShape {
+function shapeWith(
+  shape: ElementShape,
+  detail: string,
+  runs: EmphasisRun[] | undefined,
+): ElementShape {
   if ((shape.detail ?? '') === detail) return shape;
   const before = made.get(shape);
   if (before?.detail === detail) return before.shape;
+  const drawnRuns = withRuns(shape, runs);
   let drawn: ElementShape;
   if (shape.row !== undefined) {
     drawn = {
-      ...shape,
+      ...drawnRuns,
       detail,
       fitted: fitRow(shape.name, detail, shape.rect.width, { icon: shape.image !== undefined }),
     };
@@ -198,7 +234,7 @@ function shapeWith(shape: ElementShape, detail: string): ElementShape {
     // A collapsed header also says what it holds, which only the scene knows: it keeps its detail.
     if (shape.collapsed !== undefined) return shape;
     drawn = {
-      ...shape,
+      ...drawnRuns,
       detail,
       fitted: fitHeader(shape.name, detail, shape.rect.width, {
         toggle: shape.holdsContents,
@@ -206,8 +242,17 @@ function shapeWith(shape: ElementShape, detail: string): ElementShape {
       }),
     };
   } else {
-    drawn = { ...shape, detail };
+    drawn = { ...drawnRuns, detail };
   }
-  made.set(shape, { detail, shape: drawn });
+  made.set(shape, { detail, runs, shape: drawn });
   return drawn;
+}
+
+/** A shape with these runs for its detail, or with none. */
+function withRuns(shape: ElementShape, runs: EmphasisRun[] | undefined): ElementShape {
+  if (runs) return { ...shape, detailRuns: runs };
+  if (!shape.detailRuns) return shape;
+  const copy = { ...shape };
+  delete copy.detailRuns;
+  return copy;
 }

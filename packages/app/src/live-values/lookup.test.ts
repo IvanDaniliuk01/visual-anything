@@ -173,6 +173,47 @@ describe('the detail on the canvas', () => {
     );
   });
 
+  it('draws a live value that takes text emphasis with it, after its mark (ADR 0082)', () => {
+    const emphasised: ProjectSnapshot = {
+      ...state,
+      packages: state.packages.map((each) =>
+        each.id !== 'ops'
+          ? each
+          : {
+              ...each,
+              components: (each.components ?? []).map((component) => ({
+                ...component,
+                attributes: (component.attributes ?? []).map((attribute) =>
+                  attribute.name === 'tier'
+                    ? { ...attribute, format: 'emphasis' as const }
+                    : attribute,
+                ),
+              })),
+            },
+      ),
+    };
+    const base = buildScene(emphasised, 'v');
+    const drawn = liveSceneOf(
+      base,
+      emphasised,
+      definitionsIn(emphasised),
+      new AttributeLookup(viewOf([live('api', 'tier', '**gold**')], 20_000)),
+      t,
+    );
+    const api = drawn.shapes.find((shape) => shape.element === 'api');
+    expect(api?.detail).toBe('Service · 120 ms · ● **gold**');
+    expect(api?.detailRuns?.find((run) => run.bold)?.text).toBe('gold');
+    // Back to stored values, the runs go with the live value.
+    const stored = liveSceneOf(
+      base,
+      emphasised,
+      definitionsIn(emphasised),
+      new AttributeLookup(viewOf([live('api', 'latency', 95)], 20_000)),
+      t,
+    );
+    expect(stored.shapes.find((shape) => shape.element === 'api')?.detailRuns).toBeUndefined();
+  });
+
   it('writes a live value with its mark, and a stale one faded with its age', () => {
     const fresh = liveSceneOf(
       scene,
