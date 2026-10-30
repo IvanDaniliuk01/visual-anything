@@ -4,11 +4,18 @@
  * the canvas's panel, the PNG's band and the SVG and PDF writers each draw it their own way, and
  * Claude's tools read it as it is.
  *
- * The legend says when two colors of one overlay are under 3:1 apart, or a color is under 3:1 against
- * the canvas of the theme shown: such colors are hard to tell apart, and their labels have to.
+ * The legend says when two colors of one overlay differ by less than 20 in CIELAB, or a color is under
+ * 3:1 against the canvas of the theme shown: such colors are hard to tell apart, and their labels have
+ * to (ADR 0080's clarification of 2026-10-30).
  */
 import type { Color, Id, Overlay, ViewFile } from '@visual-anything/schema';
-import { CANVAS_BACKGROUNDS, MINIMUM_MARK_CONTRAST, contrastRatio } from '../colors';
+import {
+  CANVAS_BACKGROUNDS,
+  MINIMUM_COLOR_DIFFERENCE,
+  MINIMUM_MARK_CONTRAST,
+  colorDifference,
+  contrastRatio,
+} from '../colors';
 import type { Definitions } from '../definitions';
 import type { ThemeName } from '../preferences';
 import { sortedStops, type OverlayChannel, type OverlayTarget } from './evaluate';
@@ -172,8 +179,8 @@ function ratioText(ratio: number): string {
 }
 
 /**
- * What the legend says about an overlay's colors: two of them under 3:1 apart, and any under 3:1
- * against the canvas of the theme shown; at most a few, and how many more.
+ * What the legend says about an overlay's colors: two of them that differ by less than 20, and any
+ * under 3:1 against the canvas of the theme shown; at most a few, and how many more.
  */
 function colorWarnings(title: string, entries: readonly LegendEntry[], theme: ThemeName): string[] {
   const colored = entries.filter(
@@ -196,14 +203,15 @@ function colorWarnings(title: string, entries: readonly LegendEntry[], theme: Th
     for (let second = first + 1; second < colored.length; second++) {
       const a = colored[first] as LegendEntry & { color: Color };
       const b = colored[second] as LegendEntry & { color: Color };
-      const ratio = contrastRatio(a.color, b.color);
-      if (ratio >= MINIMUM_MARK_CONTRAST) continue;
+      const difference = colorDifference(a.color, b.color);
+      if (difference >= MINIMUM_COLOR_DIFFERENCE) continue;
       const left = named(a);
       const right = named(b);
+      const by = Math.floor(difference);
       warnings.push(
         left === undefined || right === undefined
-          ? `"${left ?? right ?? ''}" and any other value of "${title}" are ${ratioText(ratio)}:1 apart, under 3:1.`
-          : `"${left}" and "${right}" of "${title}" are ${ratioText(ratio)}:1 apart, under 3:1.`,
+          ? `"${left ?? right ?? ''}" and any other value of "${title}" differ by ${by}, under ${MINIMUM_COLOR_DIFFERENCE}: hard to tell apart.`
+          : `"${left}" and "${right}" of "${title}" differ by ${by}, under ${MINIMUM_COLOR_DIFFERENCE}: hard to tell apart.`,
       );
     }
   }

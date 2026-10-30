@@ -257,14 +257,14 @@ describe('legendOf', () => {
     expect(part?.entries.map((entry) => entry.label)).toEqual(['0 ms', '100 ms']);
   });
 
-  it('warns about colors under 3:1 apart, or under 3:1 against the canvas shown', () => {
+  it('warns about colors that differ by less than 20, or under 3:1 against the canvas shown', () => {
     const close: Overlay = {
       ...owner,
       mapping: {
         kind: 'discrete',
         cases: [
           { value: 'a', color: '#FFFF00' },
-          { value: 'b', color: '#FFFF66' },
+          { value: 'b', color: '#FFFF33' },
         ],
         otherwise: '#000000',
       },
@@ -274,12 +274,12 @@ describe('legendOf', () => {
     expect(light.overlays[0]?.warnings).toEqual([
       '"a" of "owner" is 1.0:1 against the light canvas, under 3:1.',
       '"b" of "owner" is 1.0:1 against the light canvas, under 3:1.',
-      '"a" and "b" of "owner" are 1.0:1 apart, under 3:1.',
+      '"a" and "b" of "owner" differ by 6, under 20: hard to tell apart.',
     ]);
     const dark = legendOf(state.views[0] as ViewFile, definitionsIn(state), 'dark');
     expect(dark.overlays[0]?.warnings).toEqual([
       'Any other value of "owner" is 1.1:1 against the dark canvas, under 3:1.',
-      '"a" and "b" of "owner" are 1.0:1 apart, under 3:1.',
+      '"a" and "b" of "owner" differ by 6, under 20: hard to tell apart.',
     ]);
   });
 
