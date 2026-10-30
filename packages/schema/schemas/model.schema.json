@@ -699,10 +699,14 @@
           "items": {
             "$ref": "#/definitions/LevelPart"
           },
-          "description": "What shows from it: a silhouette only, or any of the name, the detail (its attributes and badges, written under the name), the contents or rows, and the image.",
+          "description": "What shows from it: a silhouette only, or any of the name, the detail (its attributes and badges, written under the name), the contents or rows, the image, and the face (ADR 0083), which a shape with a face draws in place of its name and detail.",
           "minItems": 1,
-          "maxItems": 5,
+          "maxItems": 6,
           "uniqueItems": true
+        },
+        "face": {
+          "$ref": "#/definitions/FaceVariantId",
+          "description": "The variant of the face it shows, by its id; absent, the face's own markup (ADR 0083)."
         }
       },
       "required": [
@@ -719,9 +723,15 @@
         "name",
         "detail",
         "contents",
-        "image"
+        "image",
+        "face"
       ],
       "description": "One thing a shape shows at a level of detail."
+    },
+    "FaceVariantId": {
+      "type": "string",
+      "description": "The id of a face's variant.",
+      "pattern": "^[a-z][a-z0-9-]{0,31}$"
     },
     "Face": {
       "type": "object",
@@ -789,11 +799,6 @@
       ],
       "additionalProperties": false,
       "description": "Another markup of a face, sharing the face's style."
-    },
-    "FaceVariantId": {
-      "type": "string",
-      "description": "The id of a face's variant.",
-      "pattern": "^[a-z][a-z0-9-]{0,31}$"
     },
     "Relation": {
       "type": "object",

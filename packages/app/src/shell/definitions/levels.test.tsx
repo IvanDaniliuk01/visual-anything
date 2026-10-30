@@ -4,7 +4,7 @@
  * container expands from, each one `set-component-appearance`; and where each comes from.
  */
 import { executeCommand, type Command, type ProjectSnapshot } from '@visual-anything/core';
-import type { LevelOfDetail } from '@visual-anything/schema';
+import type { Face, LevelOfDetail } from '@visual-anything/schema';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi, type Mock } from 'vitest';
 import type { SendCommand } from '../../canvas/CanvasArea';
@@ -76,7 +76,11 @@ async function editService() {
 }
 
 /** The sample with Calendar's own levels, as its file holds them, in that order. */
-function withCalendarLevels(levels: LevelOfDetail[], expandFrom?: number): ProjectSnapshot {
+function withCalendarLevels(
+  levels: LevelOfDetail[],
+  expandFrom?: number,
+  face?: Face,
+): ProjectSnapshot {
   return {
     ...sample,
     packages: sample.packages.map((file) => ({
@@ -89,6 +93,7 @@ function withCalendarLevels(levels: LevelOfDetail[], expandFrom?: number): Proje
                 ...component.appearance,
                 levels,
                 ...(expandFrom === undefined ? {} : { expandFrom }),
+                ...(face === undefined ? {} : { face }),
               },
             }
           : component,
@@ -165,6 +170,35 @@ describe('levels of detail in the component editor', () => {
           { from: 0.9, shows: ['name', 'detail'] },
         ],
       },
+    });
+  });
+
+  it('shows the face, and the variant of it a level names (ADR 0083)', async () => {
+    const face: Face = {
+      markup: ['<b>{{name}}</b>'],
+      variants: [{ id: 'far', markup: ['<b>{{name}}</b>'] }],
+    };
+    const project = withCalendarLevels([{ from: 0.5, shows: ['name'] }], undefined, face);
+    const { send, inspector } = await editComponentOf({ project });
+    const level = () => levelsIn(inspector)[0]!;
+    // No variant to choose until the level shows the face.
+    expect(within(level()).queryByRole('combobox', { name: 'Its face shows' })).toBeNull();
+    await settle(() => fireEvent.click(within(level()).getByRole('checkbox', { name: 'Face' })));
+    expect(sent(send).at(-1)).toMatchObject({
+      appearanceTraits: { levels: [{ from: 0.5, shows: ['name', 'face'] }] },
+    });
+    const variant = within(level()).getByRole('combobox', { name: 'Its face shows' });
+    expect(variant).toHaveValue('');
+    await settle(() => fireEvent.change(variant, { target: { value: 'far' } }));
+    expect(sent(send).at(-1)).toMatchObject({
+      appearanceTraits: { levels: [{ from: 0.5, shows: ['name', 'face'], face: 'far' }] },
+    });
+    // Unchecking the face lets its variant go.
+    await settle(() => fireEvent.click(within(level()).getByRole('checkbox', { name: 'Face' })));
+    expect(sent(send).at(-1)).toEqual({
+      type: 'set-component-appearance',
+      component: CALENDAR,
+      appearanceTraits: { levels: [{ from: 0.5, shows: ['name'] }] },
     });
   });
 

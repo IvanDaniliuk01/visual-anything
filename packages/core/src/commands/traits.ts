@@ -267,8 +267,12 @@ function capitalized(text: string): string {
 /**
  * The levels of detail an appearance declares (ADR 0055), stored in increasing order of the scale
  * each starts at: at most 8, each at a scale of its own from 0 to 8, showing a silhouette only or
- * some of the other parts, each once.
+ * some of the other parts, each once, and, when it shows the face, the variant of it, by id
+ * (ADR 0083).
  */
+/** The id of a face's variant, as the schema says it (`FaceVariantId`). */
+const FACE_VARIANT_ID = /^[a-z][a-z0-9-]{0,31}$/;
+
 function checkedLevels(value: unknown, of: string): LevelOfDetail[] {
   if (!Array.isArray(value)) invalid(`The levels of ${of} must be a list.`);
   if (value.length > MAX_LEVELS) {
@@ -277,8 +281,10 @@ function checkedLevels(value: unknown, of: string): LevelOfDetail[] {
   const starts = new Set<number>();
   const levels = value.map((level: unknown): LevelOfDetail => {
     if (!isRecord(level)) invalid(`A level of ${of} must be an object.`);
-    onlyKeys(level, ['from', 'shows'], (key) => invalid(`A level of ${of} has no "${key}".`));
-    const { from, shows } = level;
+    onlyKeys(level, ['from', 'shows', 'face'], (key) =>
+      invalid(`A level of ${of} has no "${key}".`),
+    );
+    const { from, shows, face } = level;
     if (typeof from !== 'number' || !Number.isFinite(from) || from < 0 || from > MAX_LEVEL_SCALE) {
       invalid(`A level of ${of} starts at a scale from 0 to ${MAX_LEVEL_SCALE}.`);
     }
@@ -291,7 +297,7 @@ function checkedLevels(value: unknown, of: string): LevelOfDetail[] {
       !shows.every((part) => parts.includes(part))
     ) {
       invalid(
-        `The level at ${from} of ${of} shows a silhouette, or some of the name, the detail, the contents and the image.`,
+        `The level at ${from} of ${of} shows a silhouette, or some of the name, the detail, the contents, the image and the face.`,
       );
     }
     const seen = new Set<unknown>();
@@ -302,7 +308,19 @@ function checkedLevels(value: unknown, of: string): LevelOfDetail[] {
     if (seen.has('silhouette') && seen.size > 1) {
       invalid(`The level at ${from} of ${of} shows a silhouette only, with nothing else.`);
     }
-    return { from, shows: [...(shows as LevelPart[])] };
+    if (face !== undefined) {
+      if (typeof face !== 'string' || !FACE_VARIANT_ID.test(face)) {
+        invalid(`The level at ${from} of ${of} names a face's variant by its id.`);
+      }
+      if (!seen.has('face')) {
+        invalid(`The level at ${from} of ${of} names a face's variant but does not show the face.`);
+      }
+    }
+    return {
+      from,
+      shows: [...(shows as LevelPart[])],
+      ...(face === undefined ? {} : { face }),
+    };
   });
   return levels.sort((a, b) => a.from - b.from);
 }
