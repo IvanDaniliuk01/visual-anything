@@ -25,6 +25,7 @@ import { ExternalIdsSection } from '../../destinations/ExternalIdsSection';
 import { perform } from '../inspector/send';
 import { componentImageAction } from './imageCommands';
 import { ImageControl } from './ImageControl';
+import { FaceSection } from './FaceSection';
 import { LevelsSection } from './LevelsSection';
 import { BuiltInNote, Gone, RemoveDefinition } from './parts';
 import { ShapeSection } from './ShapeSection';
@@ -109,6 +110,8 @@ export function ComponentEditor({ id, titleRef }: ComponentEditorProps) {
       <ConnectionPointsSection id={id} readOnly={readOnly} update={appearance} />
       {/* Levels change at the level the project can change, so a built-in component's too. */}
       <LevelsSection id={id} />
+      {/* A face changes at the level the project can change too (ADR 0083). */}
+      <FaceSection id={id} />
       <AttributeDefinitionsSection
         kind="component"
         id={id}

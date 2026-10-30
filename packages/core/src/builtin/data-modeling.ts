@@ -16,7 +16,7 @@
  * Once projects use these ids, they change only by additions: built-in packages have no versions yet
  * (ADR 0018).
  */
-import type { PackageFile, SvgImage } from '@visual-anything/schema';
+import type { Face, PackageFile, SvgImage } from '@visual-anything/schema';
 import { OWN_CREDITS, OWN_LICENSE, OWN_SOURCE } from './credits';
 
 /** An icon of this package, drawn for Visual Anything, in the cleaned SVG text given. */
@@ -82,6 +82,52 @@ export const DATA_MODELING_ICONS = {
   ),
 } as const;
 
+/**
+ * A table's face (ADR 0083): a header as tall as the canvas's own, with its name on the left, as the
+ * canvas writes it, and its schema on the right, left of the toggle, then its rows. Its colors are
+ * the theme's tokens, so it reads on the table's fill in both themes.
+ */
+export const TABLE_FACE: Face = {
+  markup: [
+    '<header>',
+    '  <b>{{name}}</b>',
+    '  <small if="schema">{{schema}}</small>',
+    '</header>',
+    '<rows/>',
+  ],
+  style: [
+    'header { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 30px 0 12px; }',
+    'b { flex: 1; font-size: 14px; line-clamp: 1; }',
+    'small { font-size: 11px; color: var(--text-muted); white-space: nowrap; }',
+  ],
+};
+
+/**
+ * A column's face, which its table draws on its row: its name, its type in monospace, the badges its
+ * detail gives (PK, and FK while it references another column), then NOT NULL and UNIQUE from its
+ * attributes. Keys are drawn on the theme's highlight, the other flags on its code back.
+ */
+export const COLUMN_FACE: Face = {
+  markup: [
+    '<div class="column">',
+    '  <span class="name">{{name}}</span>',
+    '  <span class="type" if="type">{{type}}</span>',
+    '  <badges/>',
+    '  <span class="flag" if="notNull">NOT NULL</span>',
+    '  <span class="flag" if="unique">UNIQUE</span>',
+    '</div>',
+  ],
+  style: [
+    'face { justify-content: center; }',
+    '.column { display: flex; align-items: center; gap: 4px; padding: 0 10px; }',
+    '.name { flex: 1; font-size: 12px; line-clamp: 1; }',
+    '.type { font-family: mono; font-size: 11px; color: var(--text-muted); white-space: nowrap; }',
+    'badges, .flag { padding: 0 3px; border-radius: 3px; font-size: 9px; font-weight: 700; white-space: nowrap; }',
+    'badges { background: var(--highlight); }',
+    '.flag { background: var(--code-back); }',
+  ],
+};
+
 export const DATA_MODELING: PackageFile = {
   id: 'data-modeling',
   name: 'Data modeling',
@@ -94,6 +140,14 @@ export const DATA_MODELING: PackageFile = {
       name: 'Table',
       derivesFrom: 'essence',
       description: 'A table of a database. It draws its columns as its rows.',
+      attributes: [
+        {
+          name: 'schema',
+          type: 'string',
+          description:
+            'The schema it belongs to, such as "billing", which its face writes beside its name.',
+        },
+      ],
       appearance: {
         shape: 'rectangle',
         fill: '#E3ECFA',
@@ -101,6 +155,7 @@ export const DATA_MODELING: PackageFile = {
         width: 240,
         detail: { componentName: false },
         contentsAsRows: true,
+        face: TABLE_FACE,
       },
     },
     {
@@ -153,6 +208,7 @@ export const DATA_MODELING: PackageFile = {
             { when: 'from-end', text: 'FK', relationType: 'data-modeling.references' },
           ],
         },
+        face: COLUMN_FACE,
       },
     },
     {

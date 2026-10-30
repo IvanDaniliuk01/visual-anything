@@ -1374,9 +1374,10 @@ describe('Inspector', () => {
         selected: [element('appointments-db')],
         editable: false,
       });
-      // Where the appearance controls make their changes is no change to the project.
+      // Where the appearance controls make their changes is no change to the project, and neither
+      // is what a face's preview shows nor which of its markups is read (ADR 0083).
       const controls = inspector.querySelectorAll(
-        'input:not([type="radio"]), textarea, select, .inspector-swatch',
+        'input:not([type="radio"]):not([data-changes-nothing]), textarea, select:not([data-changes-nothing]), .inspector-swatch',
       );
       expect(controls.length).toBeGreaterThan(10);
       for (const control of controls) expect(control).toBeDisabled();

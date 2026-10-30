@@ -16,6 +16,7 @@ import { useEditor } from '../../editor/EditorContext';
 import { useT } from '../../i18n';
 import { ElementImageTrait } from '../definitions/ElementImageTrait';
 import { ElementPartTrait } from '../definitions/ElementPartTrait';
+import { ElementFaceTrait } from '../definitions/FaceSection';
 import { TraitRow } from '../definitions/TraitRow';
 import { drawnOnlyAsRows } from './asRow';
 import { ColorHints, ScopeChoice } from './colorParts';
@@ -217,6 +218,7 @@ function OwnTraits({
         {colorRow('stroke', t('Stroke'))}
         <ElementImageTrait element={element} disabled={disabled} />
         <ElementPartTrait element={element} disabled={disabled} />
+        <ElementFaceTrait element={element} disabled={disabled} />
       </ul>
       <ColorHints id={hintId} hints={hints} />
       {(own.width !== undefined || own.height !== undefined) && (

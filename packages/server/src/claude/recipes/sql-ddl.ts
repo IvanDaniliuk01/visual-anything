@@ -102,7 +102,7 @@ export const SQL_DDL: Recipe = {
     },
     {
       from: '`CREATE TABLE name`',
-      to: 'a `data-modeling.table` named as the table is (`order_items` stays `order_items`), described by its `COMMENT ON TABLE`',
+      to: 'a `data-modeling.table` named as the table is (`order_items` stays `order_items`), described by its `COMMENT ON TABLE`, with `schema`, its schema’s name, when the material has schemas: its face writes it beside its name',
     },
     {
       from: 'Each column',
@@ -154,7 +154,7 @@ export const SQL_DDL: Recipe = {
     },
   ],
   views: [
-    'One view of the database, perspective "Data structure", arranged by `systems.is-part-of` and `data-modeling.is-column-of`, so that the database holds its schemas, each schema what it holds, and each table and view draws its columns as rows, with PK and FK badges.',
+    'One view of the database, perspective "Data structure", arranged by `systems.is-part-of` and `data-modeling.is-column-of`, so that the database holds its schemas, each schema what it holds, and each table and view draws its columns as rows, with PK and FK badges. A table’s face writes its name and schema in its header, and a column’s its name, type and PK, FK, NOT NULL and UNIQUE badges on its row; when the person wants them otherwise, set_face changes the faces of Table and Column, and preview_face checks a change on a real table first.',
     'With many tables, more than about thirty, offer one view per schema or per area the person names.',
   ],
   scenarios: [
@@ -209,7 +209,7 @@ export const SQL_DDL: Recipe = {
             inSchema('order-status', 'data-modeling.enum', 'order_status', {
               values: 'placed, paid, shipped',
             }),
-            inSchema('customers', 'data-modeling.table', 'customers'),
+            inSchema('customers', 'data-modeling.table', 'customers', { schema: 'shop' }),
             column('customers-id', 'customers', 'id', { type: 'uuid', primaryKey: true }),
             column('customers-email', 'customers', 'email', {
               type: 'varchar(255)',
@@ -217,7 +217,7 @@ export const SQL_DDL: Recipe = {
               unique: true,
             }),
             column('customers-name', 'customers', 'name', { type: 'text', notNull: true }),
-            inSchema('orders', 'data-modeling.table', 'orders'),
+            inSchema('orders', 'data-modeling.table', 'orders', { schema: 'shop' }),
             column('orders-id', 'orders', 'id', { type: 'uuid', primaryKey: true }),
             column('orders-customer-id', 'orders', 'customer_id', { type: 'uuid', notNull: true }),
             column('orders-status', 'orders', 'status', {
@@ -236,7 +236,7 @@ export const SQL_DDL: Recipe = {
               notNull: true,
               check: 'total_cents >= 0',
             }),
-            inSchema('order-items', 'data-modeling.table', 'order_items'),
+            inSchema('order-items', 'data-modeling.table', 'order_items', { schema: 'shop' }),
             column('order-items-order-id', 'order-items', 'order_id', {
               type: 'uuid',
               notNull: true,
