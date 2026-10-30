@@ -887,7 +887,7 @@ Its tasks run in this order:
   - turning a solid of 200,000 triangles keeps its frames at the target, and one at the caps at 30 frames per second at least, while the canvas's own frames keep the target;
   - its theme switch keeps A1's rule (every frame within 33 ms and 95% within 16.7 ms), and its runs with the image store cleared hold the target.
 
-- [ ] **Seam 1, in the main session: solids in the schema and the core**, test-first with property tests (ADR 0075).
+- [x] **Seam 1, in the main session: solids in the schema and the core**, test-first with property tests (ADR 0075). Done 2026-10-30; the protocol messages are read in the core and join the live protocol's lists in Seam 2 (ADR 0075's clarification).
   - **Schema:**
     - `schema/src/solids.ts`: `SolidDefinition` (`id`, `name`, `description`, `source`, `license`, `hash`, `bytes`, `bounds`, `counts`, `parts`, `camera`, `animations`), `SolidPart`, `SolidCamera`, `SpacePoint` and `AppearanceSolid` (`solid`, `placement`, `camera`, `lighting`);
     - `PackageFile.solids`, `Appearance.solid` (also `none`) and `PartReference.solid`;

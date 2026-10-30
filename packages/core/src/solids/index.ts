@@ -11,6 +11,7 @@ export * from './caps';
 export * from './camera';
 export * from './catalog';
 export { checkSolids } from './check';
+export * from './messages';
 export { describeSolid, roundLength, type SolidDescription } from './describe';
 export type { SolidDocument } from './glb';
 

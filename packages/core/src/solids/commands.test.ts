@@ -6,7 +6,16 @@ import type { ProjectSnapshot } from '../snapshot';
 import { sequentialIds } from '../test/fixtures';
 import { boxMesh, writeTestSolid } from '../test/solids';
 import { imageProject } from '../images/test/project';
-import { checkSolids, readSolid, solidPartsLostByReplacing, solidUsers, solidsIn } from './index';
+import {
+  MAX_SOLID_PIECE_TEXT,
+  checkSolids,
+  readSolid,
+  readSolidGet,
+  readSolidPrepare,
+  solidPartsLostByReplacing,
+  solidUsers,
+  solidsIn,
+} from './index';
 
 /** A solid's definition, as the local program would send it for the arm it cleaned. */
 function definition(id = 'clinic.arm-k3f9q2'): SolidDefinition {
@@ -235,5 +244,56 @@ describe('checkSolids', () => {
     expect(checkSolids(unknown).warnings.map((each) => each.code)).toEqual(['unknown-solid']);
     const lacking = named('booking', { part: { part: 'wrist', solid: 'clinic.arm-k3f9q2' } });
     expect(checkSolids(lacking).warnings.map((each) => each.code)).toEqual(['unknown-part']);
+  });
+});
+
+describe('the messages about solids', () => {
+  it('read a piece of a file to import, with its options in the first piece only', () => {
+    const read = readSolidPrepare({
+      type: 'solid/prepare',
+      requestId: 'r1',
+      fileName: 'arm.glb',
+      piece: { index: 0, count: 2, data: 'AAAA' },
+      options: { units: 'mm', up: 'z', simplify: true },
+    });
+    expect(read.ok).toBe(true);
+    const later = readSolidPrepare({
+      type: 'solid/prepare',
+      requestId: 'r1',
+      fileName: 'arm.glb',
+      piece: { index: 1, count: 2, data: 'AAAA' },
+      options: { units: 'mm' },
+    });
+    expect(later.ok).toBe(false);
+  });
+
+  it.each<[string, Record<string, unknown>]>([
+    ['a folder in the name', { fileName: '../arm.glb' }],
+    ['a piece past its count', { piece: { index: 2, count: 2, data: 'AAAA' } }],
+    ['too many pieces', { piece: { index: 0, count: 257, data: 'AAAA' } }],
+    [
+      'a piece past 1 MiB',
+      { piece: { index: 0, count: 1, data: 'A'.repeat(MAX_SOLID_PIECE_TEXT + 4) } },
+    ],
+    ['text that is not base64', { piece: { index: 0, count: 1, data: 'AA!A' } }],
+    ['a key it has none of', { url: 'http://x' }],
+  ])('refuse %s', (_, change) => {
+    expect(
+      readSolidPrepare({
+        type: 'solid/prepare',
+        requestId: 'r1',
+        fileName: 'arm.glb',
+        piece: { index: 0, count: 1, data: 'AAAA' },
+        ...change,
+      }).ok,
+    ).toBe(false);
+  });
+
+  it('ask for a file only by its hash', () => {
+    expect(readSolidGet({ type: 'solid/get', requestId: 'r', hash: 'a'.repeat(64) }).ok).toBe(true);
+    expect(readSolidGet({ type: 'solid/get', requestId: 'r', hash: '../x' }).ok).toBe(false);
+    expect(
+      readSolidGet({ type: 'solid/get', requestId: 'r', hash: 'a'.repeat(64), path: 'x' }).ok,
+    ).toBe(false);
   });
 });

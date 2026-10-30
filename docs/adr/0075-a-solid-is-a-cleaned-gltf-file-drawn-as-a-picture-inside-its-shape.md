@@ -237,3 +237,19 @@ The canvas keeps ADR 0014's budget with solids in it, because the page's thread 
 - Merges (ADR 0072) merge `solids` by id as they merge images, and solid files never conflict, since equal bytes have one name. Comparisons (ADR 0070) show a solid added, removed or replaced as a change of its definition, and read a version's solid files (ADR 0071) only when a drawing of that version needs one.
 - CLAUDE.md's file rule needs a line for solid files, which the user changes.
 - CONTEXT.md gains **Solid** and **Turning**, and **Named part**, **Drawing with parts**, **Anchored part**, **Appearance** and **Explore** say how solids change them.
+
+## Clarifications
+
+<!-- Decided by Claude on 2026-10-30 under the user's standing delegation of design decisions, while building M9's first seam. -->
+
+- 2026-10-30 (M9, Seam 1): **how the first seam builds the schema and the core.**
+  - **The protocol stays at version 7,** as every other message added since 7 has, since no build of 7 has shipped. The five messages and their strict readers are in `core/src/solids/messages.ts`. Seam 2 adds them to the live protocol's lists, with the program's and the app's handling.
+  - **The canonical form is written down** at the top of `core/src/solids/glb.ts`, and `core/src/test/solids.ts` writes it for the tests. The cleaner writes exactly that form. One addition to the caps: a mesh drawn by several nodes counts once for each against the caps on vertices and triangles, so that reusing a heavy mesh cannot multiply the work past them. This answers a security review.
+  - **`SpaceBounds`** names the box of `min` and `max` that a definition's `bounds` holds.
+  - **Codes.**
+    - A camera or definition a command refuses is `invalid-solid`. The appearance's own camera is `invalid-appearance`, as every other trait is.
+    - A part that names both an image and a solid is `invalid-appearance`.
+  - **A part's point** is the vertex of its own geometry nearest the middle of that geometry's bounds. Its own geometry is its node's mesh and its unnamed descendants'. A part that draws nothing of its own has no point.
+  - **The fitted camera** fits the sphere around its target that holds every corner of the bounds, 4% wider. A perspective camera fits it in the narrower of its two fields. An orthographic camera stands 5 radii off and fits the sphere's height, or its width in a tall picture.
+  - **`solidPartsLostByReplacing`** reads the elements whose `part` names the solid. Elements anchored without naming it, through their container's solid, are counted once the anchoring task reads containers per view.
+  - **Comparisons and merges** gain the item kind `solid`. The Changes tab calls them "Solids", and Spanish "Sólidos".
