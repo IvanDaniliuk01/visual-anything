@@ -143,7 +143,7 @@ import {
 } from './rowShapes';
 import {
   imageLookOf,
-  movedImage,
+  placedAgain,
   placeImage,
   sameRect as sameImageRect,
   sameShapeImage,
@@ -1165,12 +1165,15 @@ function layOut(
     arrows: free.arrows,
     bounds: before && sameRect(bounds, before.layout.bounds) ? before.layout.bounds : bounds,
   };
-  // Which contents are anchored parts, and in which order, can change while the keys stay.
+  // Which contents are anchored parts, and in which order, can change while the keys stay; and a
+  // drawing that loses its picture, as when resized too small for it, orders its contents again.
+  const drawsPicture = (shape: ElementShape) => shape.picture !== undefined;
   const orderKept =
     before !== undefined &&
     placed.keysKept &&
     before.view.stackingOrder === view.stackingOrder &&
-    (before.layout.shapes === shapes || !shapes.some((shape) => shape.picture !== undefined));
+    (before.layout.shapes === shapes ||
+      (!shapes.some(drawsPicture) && !before.layout.shapes.some(drawsPicture)));
   const drawing =
     orderKept && before
       ? (before.scene.drawing ?? before.layout.identity)
@@ -1913,29 +1916,37 @@ function replaceShapes(
     else if (!sameRect(before.extent, shape.extent)) extentChanged = true;
   };
   const current = (at: number) => (shapes ?? old)[at] as ElementShape;
-  // Moves a shape kept as it was, with everything inside it.
-  const translate = (at: number, dx: number, dy: number, offset: Point | undefined) => {
+  /**
+   * Moves a shape kept as it was, with everything inside it, to (x, y). Its contents are placed from
+   * it by their offsets, its extent is worked out from theirs, and its image is placed again, each
+   * with the sums `shapeFor` does: adding the distance moved to each number instead would make them
+   * differ from a build from nothing in their last bits.
+   */
+  const translate = (at: number, x: number, y: number, offset: Point | undefined) => {
     const shape = old[at] as ElementShape;
+    const inside = contents[at] as number[];
+    for (const inner of inside) {
+      const content = old[inner] as ElementShape;
+      translate(inner, x + content.offset.x, y + content.offset.y, undefined);
+    }
+    const { width, height } = shape.rect;
+    const rect = { x, y, width, height };
+    const picture = shape.picture && {
+      ...shape.picture,
+      rect: {
+        ...shape.picture.rect,
+        x: shape.picture.rect.x + (x - shape.rect.x),
+        y: shape.picture.rect.y + (y - shape.rect.y),
+      },
+    };
     write(at, {
       ...shape,
       ...(offset && !samePoint(offset, shape.offset) ? { offset } : {}),
-      rect: { ...shape.rect, x: shape.rect.x + dx, y: shape.rect.y + dy },
-      extent: { ...shape.extent, x: shape.extent.x + dx, y: shape.extent.y + dy },
-      ...movedImage(shape, dx, dy),
-      ...(shape.picture
-        ? {
-            picture: {
-              ...shape.picture,
-              rect: {
-                ...shape.picture.rect,
-                x: shape.picture.rect.x + dx,
-                y: shape.picture.rect.y + dy,
-              },
-            },
-          }
-        : {}),
+      rect,
+      extent: extentAround(rect, inside, current),
+      ...(shape.image ? placedAgain(shape, rect, picture?.rect) : {}),
+      ...(picture ? { picture } : {}),
     });
-    for (const inner of contents[at] as number[]) translate(inner, dx, dy, undefined);
   };
   const placeAt = (
     at: number,
@@ -1949,9 +1960,9 @@ function replaceShapes(
     const x = originX + offset.x;
     const y = originY + offset.y;
     if (!box.measured) {
-      const dx = x - shape.rect.x;
-      const dy = y - shape.rect.y;
-      if (dx !== 0 || dy !== 0 || !samePoint(offset, shape.offset)) translate(at, dx, dy, offset);
+      if (x !== shape.rect.x || y !== shape.rect.y || !samePoint(offset, shape.offset)) {
+        translate(at, x, y, offset);
+      }
       return;
     }
     const inside = contents[at] as number[];
@@ -2019,6 +2030,31 @@ function positionsAfter(
   for (const [key, position] of positions) if (baseMap.get(key) !== position) changed.push(key);
   for (const key of baseMap.keys()) if (!positions.has(key)) changed.push(key);
   return { positions, changed };
+}
+
+/**
+ * The extent of a shape at `rect` holding the shapes at `inside`, worked out as `shapeFor` works it
+ * out: `rect` itself when nothing inside sticks out of it.
+ */
+function extentAround(
+  rect: Rect,
+  inside: readonly number[],
+  at: (at: number) => ElementShape,
+): Rect {
+  const { x, y, width, height } = rect;
+  let x1 = x;
+  let y1 = y;
+  let x2 = x + width;
+  let y2 = y + height;
+  for (const each of inside) {
+    const extent = at(each).extent;
+    if (extent.x < x1) x1 = extent.x;
+    if (extent.y < y1) y1 = extent.y;
+    if (extent.x + extent.width > x2) x2 = extent.x + extent.width;
+    if (extent.y + extent.height > y2) y2 = extent.y + extent.height;
+  }
+  const holdsOnlyItself = x1 === x && y1 === y && x2 === x + width && y2 === y + height;
+  return holdsOnlyItself ? rect : { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
 }
 
 /**

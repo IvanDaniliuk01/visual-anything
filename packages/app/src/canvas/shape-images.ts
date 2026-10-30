@@ -361,6 +361,53 @@ export function movedImage(
   };
 }
 
+/**
+ * A shape's image and plate placed again on its rectangle moved to `rect`, as `placeImage` places
+ * them on a shape built from nothing there: the same sums in the same order, so that a shape moved
+ * as it was and one built afresh hold equal numbers, which adding the distance to each would not
+ * (`0.1 + 0.2` is not `0.3` in floating point).
+ */
+export function placedAgain(
+  shape: {
+    kind: ShapeKind;
+    image?: ShapeImage;
+    holdsContents: boolean;
+    collapsed?: unknown;
+    rowCount?: number;
+    row?: number;
+    outline?: ShapeOutline;
+    detail?: string;
+  },
+  rect: Rect,
+  picture: Rect | undefined,
+): { image?: ShapeImage; plate?: Rect } {
+  const { image } = shape;
+  if (!image) return {};
+  const look: ImageLook = {
+    id: image.id,
+    image: image.image,
+    serial: image.serial,
+    placement:
+      image.placement === 'drawing' || image.placement === 'parts' ? image.placement : 'icon',
+    ...(image.tint === undefined ? {} : { tint: image.tint }),
+  };
+  const placed = placeImage(
+    look,
+    {
+      kind: shape.kind,
+      rect,
+      holdsContents: shape.holdsContents,
+      ...(shape.collapsed === undefined ? {} : { collapsed: true }),
+      rows: shape.rowCount !== undefined,
+      ...(shape.row === undefined ? {} : { row: true }),
+      ...(picture ? { picture } : {}),
+      ...(shape.outline ? { outline: shape.outline } : {}),
+    },
+    (shape.detail ?? '') !== '',
+  );
+  return placed ? { image: placed.image, ...(placed.plate ? { plate: placed.plate } : {}) } : {};
+}
+
 /** Everything about a shape's image that its drawing shows, for its tile's signature. */
 export function imageSignature(shape: { image?: ShapeImage }): string {
   const { image } = shape;
