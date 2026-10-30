@@ -135,7 +135,7 @@ The shared first run of the lines that leave one row or one shape toward several
 _Avoid_: bundle (an aggregated relation stands for many relations; a trunk only draws several together)
 
 **View**:
-A projection of the model onto the canvas, seen from exactly one perspective and keeping its own positions. It shows the whole model, or the part its scope gives. It can also leave out relation types, each with the relation types derived from it unless exactly that one: their relations it draws as no line, aggregates into no collapsed container and counts as leaving nothing, though they stay in the model; a relation type it nests by is never left out (ADR 0064). Not the View component of Data modeling, which is a view of a database; the app names that one "View (database)" where both could be read as one.
+A projection of the model onto the canvas, seen from exactly one perspective and keeping its own positions. It shows the whole model, or the part its scope gives. It can also leave out relation types, each with the relation types derived from it unless exactly that one: their relations it draws as no line, aggregates into no collapsed container and counts as leaving nothing, though they stay in the model; a relation type it nests by is never left out (ADR 0064). Not the View component of Data modeling, which is a view of a database; its component's description says it is a view of a database (ADR 0023's clarification).
 _Avoid_: page, diagram, layer
 
 **Scope**:
@@ -165,7 +165,7 @@ _Avoid_: look and style (for this data), skin
 
 **Face**:
 What a component's shapes show inside their body, laid out from a subset of HTML and CSS that its appearance holds: boxes, texts filled from the element's name and attributes, its detail and badges, and where its rows or contents go. Visual Anything reads, lays out and draws it itself, and nothing in it runs. It is inherited part by part, and may differ by level and when a container is collapsed (ADR 0083).
-_Avoid_: template, card, skin
+_Avoid_: template, card (the Hover card is not a face), skin
 
 **Text emphasis**:
 Bold, italic, strikethrough, inline code, highlight and underline in a text, written as a small Markdown subset (`**bold**`, `*italic*`, `~~struck~~`, `` `code` ``, `==highlight==`, `++underline++`) and stored as typed. Notes, captions, reveals, speaker notes and descriptions always take it, and with it Markdown's blocks: headings, lists, task lists, quotes, rules, fenced code, tables and links to `http:`, `https:` and `mailto:` addresses. A text attribute takes the inline part when its definition's format is `emphasis`; names never do (ADR 0082). Not the canvas's emphasis of a shape.
@@ -311,11 +311,11 @@ _Avoid_: orphan step, dead step
 
 **Timeline**:
 What a scenario plays, in order, over one view: its steps as that view draws them, consecutive steps inside a collapsed container played as one aggregated step, and broken steps kept in their places. It is worked out from the scenario, the view and the tab's choices at its decisions, never stored (ADR 0031, ADR 0078). The word names this alone, which is why History and Time range avoid it.
-_Avoid_: playlist, sequence
+_Avoid_: playlist, sequence (Sequence names only Data modeling's component)
 
 **Travelling marker**:
 The mark that moves along each relation of the step being played, from its from end to its to end, leaving a short fading trail behind it while it moves (ADR 0077); when the system asks for reduced motion it stands still at the end it travels to.
-_Avoid_: dot, token, pulse
+_Avoid_: dot, token, pulse (a Pulse is a tour step's, not a scenario's)
 
 **Tour**:
 A saved sequence of steps, each a view state with an explanation, that is played to walk someone through a concept. A step can play a scenario. Created by a person or by Claude.
@@ -346,7 +346,7 @@ The marks and moves Claude makes live on the open view while it explains: highli
 _Avoid_: spotlight
 
 **Caption**:
-A short plain text shown over the canvas: the one Claude shows as part of its guidance, until it shows another, clears it, or the person dismisses it; and a tour step's title and text, shown in a card while the step plays (ADR 0058).
+A short text, with its text emphasis (ADR 0082), shown over the canvas: the one Claude shows as part of its guidance, until it shows another, clears it, or the person dismisses it; and a tour step's title and text, shown in a card while the step plays (ADR 0058).
 _Avoid_: toast
 
 **Simulate**:
@@ -366,7 +366,7 @@ _Avoid_: log, timeline, version history
 ### Preferences
 
 **Preference**:
-A choice a person makes for themselves on this computer: the theme, the language, whether the grid, snapping and the rulers are on, the colors they picked lately, the package code they approved, the name and email their comments are signed with, whether Claude's changes wait as a proposal for their review, and how tours and scenario playback move (Motion and Fades, ADR 0077). The local program keeps preferences outside every project; they are never in project files or the undo history, though each comment keeps the name and email it was signed with. Claude's tools neither read nor change them, but for one answer: `read_package_code` says whether the person approved a package's code as it is now, and which capabilities they granted it, so that Claude knows whether it runs (ADR 0060). Only the person approves code.
+A choice a person makes for themselves on this computer: the theme, the language, whether the grid, snapping and the rulers are on, the colors they picked lately, the package code they approved, the name and email their comments are signed with, whether Claude's changes wait as a proposal for their review, how tours and scenario playback move (Motion and Fades, ADR 0077), and the widths of the side panels and whether each is collapsed (ADR 0032). The local program keeps preferences outside every project; they are never in project files or the undo history, though each comment keeps the name and email it was signed with. Claude's tools neither read nor change them, but for one answer: `read_package_code` says whether the person approved a package's code as it is now, and which capabilities they granted it, so that Claude knows whether it runs (ADR 0060). Only the person approves code.
 _Avoid_: settings, profile
 
 **Language**:
