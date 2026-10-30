@@ -64,7 +64,8 @@ import {
   type ResolvedAppearance,
 } from '@visual-anything/core';
 import { currentLanguage, t, type Language } from '../i18n';
-import { collapsedIn } from './collapse';
+import { collapsedHeaderWrap, collapsedHeight, collapsedIn } from './collapse';
+import { keyRowsOf, sameKeyRows } from './keyRows';
 import {
   decorateLine,
   decorateLines,
@@ -238,6 +239,11 @@ export interface ElementShape {
    * one, which keeps the height of one empty row, and for a collapsed one, which keeps its header.
    */
   rowCount?: number;
+  /**
+   * On a shape that draws rows, in a view that draws only key rows (ADR 0080, section 5): how many
+   * of its rows it leaves out, which its header counts; absent when it leaves none out.
+   */
+  rowsLeft?: number;
   /** On a row: its place among its container's rows, from 0, in the model's order. */
   row?: number;
   /** On a row: the elements it holds, which a row does not draw; the outline lists them. */
@@ -246,7 +252,7 @@ export interface ElementShape {
    * On a row, and on a shape that draws rows: its name and what its header or line writes after it,
    * cut to one line each, ending in "…" when cut. `name` stays whole, for the editor and the outline.
    */
-  fitted?: { name: string; detail: string };
+  fitted?: { name: string; detail: string; detailCut?: boolean };
   /** The image its appearance shows, placed on it (`shape-images.ts`). */
   image?: ShapeImage;
   /**
@@ -888,6 +894,8 @@ interface Built {
   /** The relations that leave the view from each element it shows (`scope.ts`). */
   leaving: ReadonlyMap<Id, readonly Id[]>;
   collapsed: ReadonlySet<Id>;
+  /** In a view that draws only key rows, the elements it draws as rows (ADR 0080, section 5). */
+  keyRows: ReadonlySet<Id> | undefined;
   /**
    * For each element that only collapsed containers hold, the index of the shape of the outermost
    * one that holds its first copy.
@@ -1082,13 +1090,19 @@ function layOut(
   // The containers the open app expands as the canvas zooms into them are drawn expanded (ADR 0055).
   const collapsed = collapsedWithout(collapsedIn(view), expanded);
   const free = freeShapesOf(view, before);
+  // The rows a view of key rows draws (ADR 0080, section 5), the same set while they are the same.
+  const keyRowsNow = keyRowsOf(project, view, nesting);
+  const keyRows = before && sameKeyRows(before.keyRows, keyRowsNow) ? before.keyRows : keyRowsNow;
 
   const base =
     keep &&
     before !== undefined &&
     before.tree === tree &&
     before.collapsed === collapsed &&
-    before.definitions === definitions
+    before.definitions === definitions &&
+    // Which rows a view of key rows draws changes with the relations, so it is placed afresh.
+    view.rows !== 'keys' &&
+    before.view.rows !== 'keys'
       ? before
       : undefined;
   const replaced = base && replaceShapes(project, view, definitions, tree, free, base, leaving);
@@ -1104,6 +1118,7 @@ function layOut(
       keep ? before : undefined,
       keep,
       leaving,
+      keyRows,
     );
   // The view's overlays and the levels of detail, before relations are routed to the shapes they make.
   const decorated = decorateShapes(
@@ -1212,6 +1227,7 @@ function layOut(
     shown,
     leaving,
     collapsed,
+    keyRows,
     hiddenIn: placed.hiddenIn,
     layout,
     scene,
@@ -1505,24 +1521,45 @@ function measured(
   contentsOf: (modeOf: (at: number) => ContentMode) => Box[],
   mode: ContentMode,
   shaping: Shaping,
+  keyRows?: ReadonlySet<Id>,
 ): Box {
   // A row, and a shape that draws its contents as rows, are measured by their rows (ADR 0023).
   if (mode === 'row') return rowBox(placement, element, look, detail);
   // An anchored part takes its part's place and size (ADR 0067).
   if (mode !== undefined) return partBox(placement, element, look, detail, mode);
   if (look.appearance.contentsAsRows) {
-    return rowsBox(placement, element, look, detail, position, collapsed, () =>
-      contentsOf(() => 'row'),
+    return rowsBox(
+      placement,
+      element,
+      look,
+      detail,
+      position,
+      collapsed,
+      () => contentsOf(() => 'row'),
+      keyRows,
     );
   }
   const { appearance } = look;
   const offset = position ? { x: position.x, y: position.y } : undefined;
   const folding = collapsed && placement.contents.length > 0;
   if (folding) {
+    // Tall enough for the lines its header wraps its detail to (ADR 0082).
+    const runs = look.detailRuns.get(detail);
+    const lines = linesOf(appearance);
+    const height = collapsedHeight(
+      {
+        detail,
+        componentName: look.componentName,
+        ...(runs ? { detailRuns: runs } : {}),
+        ...(lines === undefined ? {} : { detailLines: lines }),
+      },
+      appearance.height,
+      collapsedHeaderWrap(appearance.width, look.image !== undefined),
+    );
     return {
       placement,
       width: appearance.width,
-      height: appearance.height,
+      height,
       offset,
       stored: position !== undefined,
       measured: {
@@ -1638,6 +1675,7 @@ function placeShapes(
   before: Built | undefined,
   keep: boolean,
   leaving: ReadonlyMap<Id, readonly Id[]>,
+  keyRows?: ReadonlySet<Id>,
 ): Placed {
   const { model } = project;
   const elements = elementsById(model.elements);
@@ -1658,6 +1696,7 @@ function placeShapes(
         (each) => placement.contents.map((content, at) => measure(content, each(at))),
         mode,
         shaping,
+        keyRows,
       ),
       leaving,
     );
@@ -1722,6 +1761,13 @@ function placeShapes(
       (parts.anchored?.undrawn.length ?? 0) > 0
     ) {
       hide(box.placement, at);
+    }
+    // The rows a view of key rows leaves out are shown by their table (ADR 0080, section 5).
+    if (parts.rows?.kind === 'rows') {
+      for (const content of parts.rows.leftOut ?? []) {
+        if (!hiddenIn.has(content.element)) hiddenIn.set(content.element, at);
+        hide(content, at);
+      }
     }
     return at;
   };

@@ -66,6 +66,7 @@ import {
   withLatencyOverlay,
   withLiveDetail,
 } from './live';
+import { withEmphasisDetail } from './emphasis';
 import '../theme/tokens.css';
 import { THEMES } from '../theme/themes';
 import { measureLevelCrossing, measureOverlays, type OverlayBench } from './overlays';
@@ -352,6 +353,24 @@ async function run(): Promise<void> {
       mark: LIVE_UPDATE_MARK,
       note: 'From the values to the frame drawn: the book’s publish, the canvas’s scene, its index and the frame.',
     });
+    indexed = indexScene(buildScene(project, VIEW));
+    controller.update(project, VIEW, indexed, false);
+    await settle(300);
+  }
+
+  // With `?emphasis`, every shape's detail takes text emphasis, drawn by its glyph quads (ADR 0082,
+  // M3c Stage 2), panned where details show.
+  if (search.has('emphasis')) {
+    const emphasized = withEmphasisDetail(project);
+    indexed = indexScene(buildScene(emphasized, VIEW));
+    controller.update(emphasized, VIEW, indexed, false);
+    move(cameraAt(DETAILS_FROM * 1.15));
+    await settle(300);
+    phases.push(
+      await measure('Pan, details shown, text emphasis in every detail', 180, (frame) =>
+        move(panBy(controller.camera, frame < 90 ? -8 : 8, frame < 90 ? -4 : 4)),
+      ),
+    );
     indexed = indexScene(buildScene(project, VIEW));
     controller.update(project, VIEW, indexed, false);
     await settle(300);

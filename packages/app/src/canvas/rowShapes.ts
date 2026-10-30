@@ -8,7 +8,7 @@ import type { Element, Id, ShapePosition } from '@visual-anything/schema';
 import type { Placement } from '@visual-anything/core';
 import { t } from '../i18n';
 import { centerOf, type Point, type Rect, type ShapeKind } from './geometry';
-import { fitHeader, fitRow } from './fit';
+import { fitHeader, fitRow, type FittedLine } from './fit';
 import { overlapHorizontally, sideToward, type AnyEnd, type SideEnd } from './rowRoutes';
 import type { RouteEnd } from './route';
 import {
@@ -31,6 +31,11 @@ export type RowParts =
       count: number;
       /** For a collapsed one, what its header says it holds: "12 × Column". */
       holding?: string;
+      /**
+       * In a view that draws only key rows (ADR 0080, section 5): the rows it leaves out, which its
+       * header counts and which its shape shows.
+       */
+      leftOut?: readonly Placement[];
     }
   | { kind: 'row'; index: number; undrawn: readonly Id[] };
 
@@ -76,6 +81,7 @@ export function rowsBox(
   position: ShapePosition | undefined,
   collapsed: boolean,
   rowsOf: () => Box[],
+  keyRows?: ReadonlySet<Id>,
 ): Box {
   const { appearance } = look;
   const offset = position ? { x: position.x, y: position.y } : undefined;
@@ -99,7 +105,13 @@ export function rowsBox(
       },
     };
   }
-  const rows = rowsOf();
+  const every = rowsOf();
+  // In a view that draws only key rows, the others are left out and counted (ADR 0080, section 5).
+  const rows = keyRows ? every.filter((row) => keyRows.has(row.placement.element)) : every;
+  const leftOut =
+    rows.length < every.length
+      ? every.filter((row) => !keyRows?.has(row.placement.element)).map((row) => row.placement)
+      : undefined;
   rows.forEach((row, index) => {
     row.offset = { x: 0, y: ROWS_HEADER + index * ROW_HEIGHT };
     row.width = width;
@@ -120,7 +132,7 @@ export function rowsBox(
       detail,
       position,
       contents: rows,
-      rows: { kind: 'rows', count: rows.length },
+      rows: { kind: 'rows', count: rows.length, ...(leftOut ? { leftOut } : {}) },
     },
   };
 }
@@ -152,9 +164,10 @@ export function rowsChanged(before: ElementShape, look: Look): boolean {
 export interface RowFields {
   kind: ShapeKind;
   rowCount?: number;
+  rowsLeft?: number;
   row?: number;
   undrawn?: readonly Id[];
-  fitted?: { name: string; detail: string };
+  fitted?: FittedLine;
 }
 
 /** The fields a measured box gives its shape: its kind, and on rows and their containers, the rest. */
@@ -172,22 +185,21 @@ export function rowFieldsOf(parts: Measured, width: number, holdsContents: boole
     };
   }
   const collapsed = parts.folded !== undefined;
-  const said =
-    rows.holding === undefined
-      ? detail
-      : detail === ''
-        ? rows.holding
-        : `${detail} · ${rows.holding}`;
+  const left = rows.leftOut?.length ?? 0;
+  // What its header says after its detail: what a collapsed one holds, or how many rows it leaves out.
+  const after = rows.holding ?? (left > 0 ? t('{count} more', { count: left }) : undefined);
+  const said = after === undefined ? detail : detail === '' ? after : `${detail} · ${after}`;
   // A shape that draws rows always has room for its toggle, which it shows once it holds any.
   return {
     kind: rowsShapeKind(look.appearance.shape),
     rowCount: rows.count,
+    ...(left > 0 ? { rowsLeft: left } : {}),
     fitted: fittedOnce('header', element.name, said, width, holdsContents || collapsed, icon),
   };
 }
 
 /** Texts fitted before, by what they were fitted from: a table that moves fits none of its rows again. */
-const fittedTexts = new Map<string, { name: string; detail: string }>();
+const fittedTexts = new Map<string, FittedLine>();
 /** How many fitted texts are kept before they are all let go. */
 const MOST_FITTED = 50_000;
 
@@ -198,7 +210,7 @@ function fittedOnce(
   width: number,
   toggle: boolean,
   icon: boolean,
-): { name: string; detail: string } {
+): FittedLine {
   const key = `${kind}\u0000${width}\u0000${toggle ? 1 : 0}${icon ? 1 : 0}\u0000${name}\u0000${detail}`;
   let fitted = fittedTexts.get(key);
   if (!fitted) {
@@ -216,16 +228,19 @@ function fittedOnce(
 export function sameRowFields(before: ElementShape, fields: RowFields): boolean {
   return (
     before.rowCount === fields.rowCount &&
+    before.rowsLeft === fields.rowsLeft &&
     before.row === fields.row &&
     sameIds(before.undrawn, fields.undrawn) &&
     before.fitted?.name === fields.fitted?.name &&
-    before.fitted?.detail === fields.fitted?.detail
+    before.fitted?.detail === fields.fitted?.detail &&
+    before.fitted?.detailCut === fields.fitted?.detailCut
   );
 }
 
 /** Puts the fields its rows give a shape on it, leaving out those it does not have. */
 export function withRowFields(shape: ElementShape, fields: RowFields): void {
   if (fields.rowCount !== undefined) shape.rowCount = fields.rowCount;
+  if (fields.rowsLeft !== undefined) shape.rowsLeft = fields.rowsLeft;
   if (fields.row !== undefined) shape.row = fields.row;
   if (fields.undrawn !== undefined) shape.undrawn = fields.undrawn;
   if (fields.fitted !== undefined) shape.fitted = fields.fitted;

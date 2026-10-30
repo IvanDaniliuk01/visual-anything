@@ -57,6 +57,7 @@ import {
 } from './emphasize';
 import { traceMark, type MarkTarget, type TextFactory } from './draw';
 import { MOST_NAMES_BESIDE, NamesBeside, namedBeside } from './namesBeside';
+import { FarNames, farNameOrder, farOut, placeFarNames } from './farNames';
 import {
   arrowheadAt,
   boundsOf,
@@ -613,6 +614,21 @@ export class CanvasRenderer {
   /** The grid over the canvas and on one container, and the rulers and the readout (A3). */
   private readonly gridMarks = new GridMarks();
   private readonly screenMarks = new ScreenMarks();
+  /** The names of tables and containers written far out, at 12 pixels on screen (ADR 0080, section 5). */
+  private readonly farNames = new FarNames();
+  /** What the names far out were placed for, so that a frame places them again only when it changed. */
+  private farNamesFor:
+    | {
+        scene: Scene;
+        x: number;
+        y: number;
+        scale: number;
+        width: number;
+        height: number;
+        hidden: ReadonlySet<string>;
+        dark: boolean;
+      }
+    | undefined;
   private grid: GridOptions = { grid: false, snapToGrid: true, rulers: false };
   /** The container under the pointer, whose grid shows while the camera rests, and a drag's frame. */
   private gridHover: string | undefined;
@@ -1599,6 +1615,7 @@ export class CanvasRenderer {
     this.status = 'ready';
     this.resolution = this.app.renderer.resolution;
     this.app.stage.addChild(this.world);
+    this.app.stage.addChild(this.farNames.container);
     this.app.stage.addChild(this.screenMarks.container);
     this.followResolution();
     this.app.canvas.style.display = 'block';
@@ -3478,6 +3495,7 @@ export class CanvasRenderer {
       this.cull();
       this.countStale();
       this.followArriving();
+      this.followFarNames();
       this.app.render();
       this.tellFrameDrawn();
       this.sendShadows();
@@ -3486,6 +3504,42 @@ export class CanvasRenderer {
     } catch (error) {
       this.callbacks.onFailure(error);
     }
+  }
+
+  /**
+   * Places the names written far out again when the camera, the canvas's size, the scene, what the
+   * emphasis hides or the theme changed since they were placed (ADR 0080, section 5); none while the
+   * camera is not far out.
+   */
+  private followFarNames(): void {
+    const scene = this.indexed?.scene;
+    const { x, y, scale } = this.camera;
+    const { width, height } = this.viewport;
+    const hidden = this.emphasized.hidden.shapes;
+    const dark = this.painter.name === 'dark';
+    const was = this.farNamesFor;
+    if (
+      was !== undefined &&
+      was.scene === scene &&
+      was.x === x &&
+      was.y === y &&
+      was.scale === scale &&
+      was.width === width &&
+      was.height === height &&
+      was.hidden === hidden &&
+      was.dark === dark
+    ) {
+      return;
+    }
+    if (!scene || !farOut(scale)) {
+      this.farNamesFor = undefined;
+      if (this.farNames.shown > 0) this.farNames.show([]);
+      return;
+    }
+    this.farNamesFor = { scene, x, y, scale, width, height, hidden, dark };
+    this.farNames.show(
+      placeFarNames(farNameOrder(scene.shapes), this.camera, { width, height }, { hidden, dark }),
+    );
   }
 
   /**

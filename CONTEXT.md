@@ -94,6 +94,10 @@ _Avoid_: smart guide, snap line
 An element drawn as one line of its container's shape, because the container's appearance draws its contents as rows, as a table draws its columns. Rows follow the model's order, have no positions of their own in a view and move with their container.
 _Avoid_: line item
 
+**Key row**:
+A row whose element is part of its table's primary key, or that a relation the view draws ends on. A view can draw only key rows (`rows: "keys"`), each table counting the rows it leaves out in its header and showing them when one is looked for (ADR 0080).
+_Avoid_: key column (alone), index row
+
 **Detail**:
 The smaller text a shape writes with its element's name, as its appearance says: its component's name, the values of chosen attributes and badges. It wraps to the lines its appearance gives, three unless it says otherwise, and the whole of it shows in the shape's hover card. The name and the detail are one block that the appearance's text placement puts at the top, in the middle or at the bottom of the shape (ADR 0082).
 _Avoid_: subtitle

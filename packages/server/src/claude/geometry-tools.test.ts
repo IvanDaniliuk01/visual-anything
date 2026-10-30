@@ -309,6 +309,34 @@ describe('update_view with routeStyle', () => {
   });
 });
 
+describe('update_view with rows and selectionFadesLines (ADR 0080, section 5)', () => {
+  it('draws only key rows, turns the fading of lines off, and read_view says both', async () => {
+    const done = await tools.value('update_view', {
+      id: 'overview',
+      rows: 'keys',
+      selectionFadesLines: false,
+    });
+    expect(done).toMatchObject({ done: 'Edit the view "Overview"' });
+    expect(overview()).toMatchObject({ rows: 'keys', selectionFadesLines: false });
+    expect(await tools.value('read_view', { view: 'overview' })).toMatchObject({
+      rows: 'keys',
+      selectionFadesLines: false,
+    });
+    await tools.value('update_view', { id: 'overview', rows: 'all', selectionFadesLines: null });
+    expect(overview()).not.toHaveProperty('rows');
+    expect(overview()).not.toHaveProperty('selectionFadesLines');
+    const read = await tools.value('read_view', { view: 'overview' });
+    expect(read).not.toHaveProperty('rows');
+    expect(read).not.toHaveProperty('selectionFadesLines');
+  });
+
+  it('names both in its description', () => {
+    const described = (name: string) => TOOLS.find((each) => each.name === name)?.description ?? '';
+    expect(described('update_view')).toContain('"rows": "keys"');
+    expect(described('update_view')).toContain('selectionFadesLines');
+  });
+});
+
 describe('set_route and the automatic style', () => {
   it('stores orthogonal against a curved automatic style, and no style equal to it', async () => {
     await tools.value('update_view', { id: 'overview', routeStyle: 'curved' });

@@ -310,7 +310,7 @@ Example: { "id": "booking-agent" }`,
 const readViewTool = tool({
   name: 'read_view',
   title: 'Read a view',
-  description: `Reads a view: its perspective, the nesting relation types that arrange it, the positions it stores (each relative to the container shape it sits in; pinned ones were set by hand), its free shapes (notes and arrows), the containers it shows collapsed, the routes chosen by hand for its relations (every other relation is routed automatically), and routedByHand naming those relations, its routeStyle when it draws its automatic routes straight or curved, and, for World and every container, the order it draws the shapes directly inside, back to front. An element without a position is placed by layout. It also says how many elements and relations the view shows out of the model's (shows), and its scope when it has one: get_scope says more.
+  description: `Reads a view: its perspective, the nesting relation types that arrange it, the positions it stores (each relative to the container shape it sits in; pinned ones were set by hand), its free shapes (notes and arrows), the containers it shows collapsed, the routes chosen by hand for its relations (every other relation is routed automatically), and routedByHand naming those relations, its routeStyle when it draws its automatic routes straight or curved, rows "keys" when its tables draw only their key rows, selectionFadesLines false when selecting leaves every line as it is, and, for World and every container, the order it draws the shapes directly inside, back to front. An element without a position is placed by layout. It also says how many elements and relations the view shows out of the model's (shows), and its scope when it has one: get_scope says more.
 
 Example: { "view": "system-overview" }`,
   input: { view: id() },
@@ -1004,12 +1004,15 @@ Example: { "name": "Who owns what", "perspective": { "name": "Ownership", "descr
 const updateView = tool({
   name: 'update_view',
   title: 'Change a view',
-  description: `Changes a view's name, description, perspective, nesting relation types or route style, as one undoable action. A description of null removes it.
+  description: `Changes a view's name, description, perspective, nesting relation types, route style or how it reads many lines, as one undoable action. A description of null removes it.
 
 routeStyle draws the view's automatic routes straight or curved, after every layout and move; null draws them orthogonal again. It is for the relations whose appearances set no route (set_appearance's route comes first); a route chosen by hand keeps a style it stores.
 
+rows "keys" makes every table, or other shape that draws its contents as rows, draw only its key rows: those part of a primary key and those a relation the view draws ends on, with a count of the rest; "all" or null draws every row again. Use it for large data models, where a whole table's columns hide its references. selectionFadesLines false keeps every line as it is when the person selects; left out, selecting in a view with more than 40 lines draws the lines that do not touch the selection faintly.
+
 Example: { "id": "system-overview", "perspective": { "name": "Data flow" }, "nestingRelationTypes": ["systems.is-part-of"] }
-Example, a view drawn curved: { "id": "signal-flow", "routeStyle": "curved" }`,
+Example, a view drawn curved: { "id": "signal-flow", "routeStyle": "curved" }
+Example, a data model's key rows only: { "id": "billing-tables", "rows": "keys" }`,
   input: {
     id: id(),
     name: z.string().min(1).optional(),
@@ -1023,6 +1026,16 @@ Example, a view drawn curved: { "id": "signal-flow", "routeStyle": "curved" }`,
       .nullable()
       .optional()
       .describe('Its automatic routes straight or curved; null for orthogonal.'),
+    rows: z
+      .enum(['all', 'keys'])
+      .nullable()
+      .optional()
+      .describe('Only key rows with "keys"; every row with "all" or null.'),
+    selectionFadesLines: z
+      .boolean()
+      .nullable()
+      .optional()
+      .describe('false keeps every line as it is when selecting; true or null fades the others.'),
     escapeText: escapeTextInput(),
   },
   hints: WRITE,

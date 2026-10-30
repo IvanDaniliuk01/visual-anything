@@ -451,6 +451,11 @@ export function readView(state: ProjectSnapshot, viewId: Id) {
     ...routedByHandAnswer(state, view),
     // The style of the automatic routes its relations' appearances leave to it (ADR 0069).
     ...(routeStyle === undefined ? {} : { routeStyle }),
+    // How it reads many lines, when not as by default (ADR 0080, section 5).
+    ...(view.rows === undefined ? {} : { rows: view.rows }),
+    ...(view.selectionFadesLines === undefined
+      ? {}
+      : { selectionFadesLines: view.selectionFadesLines }),
   };
 }
 
