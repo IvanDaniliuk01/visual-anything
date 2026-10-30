@@ -14,7 +14,7 @@ import type {
   ShapePosition,
 } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
-import { cpuNow } from '../../test/cpu';
+import { stopwatch } from '../../test/cpu';
 import { TRIANGLE, beyondBoxes } from '../../test/beyond';
 import type { Point } from '../geometry';
 import { outlineAt, type PlacedOutline } from '../outlines';
@@ -388,25 +388,27 @@ describe('the incremental scene, on outlines', () => {
     expect(after).toEqual(buildSceneAfresh(curved, VIEW));
   });
 
-  it('applies a move of a shape with free geometry and 50 relations within 100 ms', () => {
+  it('applies a move of a shape with free geometry and 50 relations within 50 ms', () => {
     const state = hub(50);
     buildScene(state, VIEW);
     let worst = 0;
     let current = state;
     for (let step = 1; step <= 5; step++) {
-      const started = cpuNow();
+      const elapsed = stopwatch();
       current = run(current, {
         type: 'set-positions',
         view: VIEW,
         positions: [{ element: 'hub', x: 400 + step * 8, y: 400 + step * 8 }],
       });
       const scene = buildScene(current, VIEW);
-      worst = Math.max(worst, cpuNow() - started);
+      worst = Math.max(worst, elapsed());
       expect(scene.relations).toHaveLength(50);
     }
-    // The mark was 50 ms. With M3c's channels and curves checked on every move it measured 57 to
-    // 79 ms alone on the reference laptop (2026-10-30); bringing it back is M3c Stage 1's.
-    expect(worst).toBeLessThan(100);
+    // Measured on the reference laptop on 2026-10-30 (M3c Stage 1): the move takes 2 to 13 ms on the
+    // clock, 1.7 ms on average over 200 moves, 0.14 ms of it the curves' checks Stage 0b added. The
+    // 57 to 79 ms read after Stage 0b were the process's time, which counts the garbage collector's
+    // helper threads in steps of 15.6 ms: a stopwatch now reads the least of it and the clock.
+    expect(worst).toBeLessThan(50);
     const scene = buildScene(current, VIEW);
     for (const line of scene.relations) {
       const end =

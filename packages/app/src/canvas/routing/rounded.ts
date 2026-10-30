@@ -127,14 +127,20 @@ class Blocks {
     }
   }
 
-  /** The blocks near a point, and the large ones. */
+  /** The blocks in the cell of a point; the large ones are `large`, read for every point. */
   near(point: Point): readonly ElementShape[] {
     const key =
       (Math.floor(point.x / CELL) + 0x8000) * 0x10000 + (Math.floor(point.y / CELL) + 0x8000);
-    const list = this.cells.get(key);
-    return list ? [...list, ...this.large] : this.large;
+    return this.cells.get(key) ?? NONE;
+  }
+
+  /** The blocks too large to file by cell. */
+  get largeOnes(): readonly ElementShape[] {
+    return this.large;
   }
 }
+
+const NONE: readonly ElementShape[] = [];
 
 const CELL = 256;
 const blockIndexes = new WeakMap<readonly ElementShape[], Blocks>();
@@ -156,8 +162,8 @@ export function curveCrosses(
   }
   const holds = (key: string) =>
     ends.some((end) => end === key || end.startsWith(`${key}/`) || key.startsWith(`${end}/`));
-  for (const point of route) {
-    for (const shape of blocks.near(point)) {
+  const crosses = (point: Point, shapes: readonly ElementShape[]) => {
+    for (const shape of shapes) {
       const rect = shape.plate ?? shape.rect;
       const inside =
         point.x > rect.x + 2 &&
@@ -166,6 +172,10 @@ export function curveCrosses(
         point.y < rect.y + rect.height - 2;
       if (inside && !holds(shape.key)) return true;
     }
+    return false;
+  };
+  for (const point of route) {
+    if (crosses(point, blocks.near(point)) || crosses(point, blocks.largeOnes)) return true;
   }
   return false;
 }
