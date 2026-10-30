@@ -665,6 +665,8 @@ export const ui: Catalog = {
     '{name}, {component}, fila {position} de {count} en {container}, {relations}.',
   '{name}, {component}, {detail}, row {position} of {count} in {container}, {relations}.':
     '{name}, {component}, {detail}, fila {position} de {count} en {container}, {relations}.',
+  '{name}, {component}, {detail}, {where}, {relations}.':
+    '{name}, {component}, {detail}, {where}, {relations}.',
   '{count} other containers': { one: '{count} contenedor más', other: '{count} contenedores más' },
   'no relations': 'ninguna relación',
   'A relation that no longer exists.': 'Una relación que ya no existe.',

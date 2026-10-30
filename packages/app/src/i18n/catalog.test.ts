@@ -433,6 +433,7 @@ const SAME_IN_SPANISH: ReadonlySet<string> = new Set([
   '{name} ({shortcut})',
   'Claude: {caption}',
   '{name}, {component}, {where}, {relations}.',
+  '{name}, {component}, {detail}, {where}, {relations}.',
   '{count} × {component}',
   'Enter',
   'F2',

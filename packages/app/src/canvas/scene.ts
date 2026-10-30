@@ -25,6 +25,7 @@ import {
   overlaysApply,
   relationTypesLeftOutBy,
   shownByScope,
+  type EmphasisRun,
   type LeftOutTypes,
   type ProjectSnapshot,
   type RouteStyle,
@@ -118,6 +119,7 @@ import {
   type SceneRouting,
 } from './routing/scene-routes';
 import { isSideEnd, routeWithSides, type AnyEnd } from './rowRoutes';
+import { detailRunsOf } from '../text/detail';
 import {
   MOST_CURVES,
   curveCrosses,
@@ -198,6 +200,15 @@ export interface ElementShape {
    * nothing. Absent, as on a shape made by hand, its component's name.
    */
   detail?: string;
+  /**
+   * The runs its detail is drawn with, when a value in it takes text emphasis and draws differently
+   * from its source (ADR 0082, `text/detail.ts`); absent, the detail is drawn as written.
+   */
+  detailRuns?: readonly EmphasisRun[];
+  /** The most lines its detail wraps to, when not 3 (ADR 0082). */
+  detailLines?: number;
+  /** Where it places its name and detail, when not in the middle (ADR 0082). */
+  textPlacement?: 'top' | 'bottom';
   kind: ShapeKind;
   fill: Color;
   stroke: Color;
@@ -1262,6 +1273,8 @@ export interface Look {
   dark?: { fill: Color; stroke: Color };
   componentName: string;
   details: Map<string, string>;
+  /** The runs of those details that take text emphasis, by their text (`detailRunsOf`). */
+  detailRuns: Map<string, EmphasisRun[]>;
   /** The image its shapes show, if any. */
   image: ImageLook | undefined;
   /** How many destinations its element has, which its shapes mark (ADR 0056). */
@@ -1296,14 +1309,19 @@ function detailFor(
   const key = `${language} ${types.size === 0 ? '' : [...types].sort().join(' ')}`;
   let detail = look.details.get(key);
   if (detail === undefined) {
-    detail = detailText(
-      detailParts(element, definitions, types).map((part) =>
-        part.kind === 'component-name'
-          ? { ...part, text: t.definition(element.component, part.text) }
-          : part,
-      ),
+    const parts = detailParts(element, definitions, types).map((part) =>
+      part.kind === 'component-name'
+        ? { ...part, text: t.definition(element.component, part.text) }
+        : part,
     );
+    detail = detailText(parts);
     look.details.set(key, detail);
+    const attributes = componentOrEssence(definitions, element.component).attributes;
+    const runs = detailRunsOf(
+      parts,
+      (name) => attributes.find((each) => each.name === name)?.format === 'emphasis',
+    );
+    if (runs) look.detailRuns.set(detail, runs);
   }
   return detail;
 }
@@ -1348,6 +1366,7 @@ function lookOf(element: Element, definitions: Definitions, kept: WeakMap<Elemen
       appearance: appearanceOf(element, definitions),
       componentName: componentOrEssence(definitions, element.component).name,
       details: new Map(),
+      detailRuns: new Map(),
       image: imageLookOf(element, definitions),
       destinations: destinationCount(element, definitions),
     };
@@ -2032,6 +2051,16 @@ function positionsAfter(
   return { positions, changed };
 }
 
+/** The lines a detail wraps to, when not the 3 most shapes take (ADR 0082). */
+function linesOf(appearance: ResolvedAppearance): number | undefined {
+  return appearance.detail.lines === 3 ? undefined : appearance.detail.lines;
+}
+
+/** Where a shape places its name and detail, when not in the middle (ADR 0082). */
+function placementOf(appearance: ResolvedAppearance): 'top' | 'bottom' | undefined {
+  return appearance.textPlacement === 'middle' ? undefined : appearance.textPlacement;
+}
+
 /**
  * The extent of a shape at `rect` holding the shapes at `inside`, worked out as `shapeFor` works it
  * out: `rect` itself when nothing inside sticks out of it.
@@ -2149,6 +2178,9 @@ function shapeFor(
     before.name === element.name &&
     before.componentName === look.componentName &&
     before.detail === detail &&
+    before.detailRuns === look.detailRuns.get(detail) &&
+    before.detailLines === linesOf(appearance) &&
+    before.textPlacement === placementOf(appearance) &&
     before.kind === rowish.kind &&
     before.fill === appearance.fill &&
     before.stroke === appearance.stroke &&
@@ -2203,6 +2235,12 @@ function shapeFor(
   if (look.dark) shape.dark = look.dark;
   if (points) shape.points = points;
   if (placed) shape.image = placed.image;
+  const detailRuns = look.detailRuns.get(detail);
+  if (detailRuns) shape.detailRuns = detailRuns;
+  const detailLines = linesOf(appearance);
+  if (detailLines !== undefined) shape.detailLines = detailLines;
+  const textPlacement = placementOf(appearance);
+  if (textPlacement !== undefined) shape.textPlacement = textPlacement;
   if (placed?.plate) shape.plate = placed.plate;
   if (leaving !== undefined && leaving.length > 0) shape.leaving = leaving;
   if (look.destinations > 0) shape.destinations = look.destinations;

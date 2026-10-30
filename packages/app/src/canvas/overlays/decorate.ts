@@ -57,6 +57,7 @@ import { arrowheadAt, bodyOf, type Point, type Rect } from '../geometry';
 import { outlineIn } from '../outlines';
 import type { ElementShape, RelationLine } from '../scene';
 import { imageLookOf, placeImage, sameShapeImage } from '../shape-images';
+import { runsWithPart } from '../../text/detail';
 
 /** The rectangle layout gave a shape: the one an overlay of size leaves it, or its own. */
 export function laidOutRect(shape: { rect: Rect; laidOut?: Rect }): Rect {
@@ -630,6 +631,8 @@ function paint(shape: ElementShape, look: OverlayLook, backdrop: { light: Color;
 function badge(shape: ElementShape, text: string): void {
   const detail = shape.detail ?? shape.componentName;
   shape.detail = joined(detail, text);
+  // A detail drawn with text emphasis draws the badge after its runs, as written (ADR 0082).
+  if (shape.detailRuns) shape.detailRuns = runsWithPart(shape.detailRuns, text);
   const fitted = shape.fitted;
   if (!fitted) return;
   const icon = shape.image !== undefined;

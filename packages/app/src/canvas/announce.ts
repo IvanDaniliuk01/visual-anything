@@ -18,6 +18,7 @@ import { t, type PluralText } from '../i18n';
 import type { IndexedScene } from './hit';
 import { drawnRelations } from './navigation';
 import type { ElementShape } from './scene';
+import { detailPlainText } from '../text/detail';
 
 /** Where a relation is among the relations of the element the keys step through. */
 export interface RelationStep {
@@ -56,7 +57,8 @@ export function describeShape(
         component === undefined
           ? shape.componentName
           : t.definition(component, shape.componentName),
-      detail: shape.detail ?? '',
+      // By its plain text, without the markers of its text emphasis (ADR 0082).
+      detail: shape.detail === undefined ? '' : detailPlainText(shape),
       position: shape.row + 1,
       count: container.rowCount,
       container: container.name,
@@ -72,17 +74,20 @@ export function describeShape(
           ),
     );
   }
+  const values = {
+    name: shape.name,
+    component:
+      component === undefined ? shape.componentName : t.definition(component, shape.componentName),
+    // The whole detail, which the shape may cut, by its plain text (ADR 0082).
+    detail: shape.detail === undefined ? '' : detailPlainText(shape),
+    where,
+    relations: relations === 0 ? t('no relations') : t(RELATIONS, { count: relations }),
+  };
   return withLeaving(
     shape,
-    t('{name}, {component}, {where}, {relations}.', {
-      name: shape.name,
-      component:
-        component === undefined
-          ? shape.componentName
-          : t.definition(component, shape.componentName),
-      where,
-      relations: relations === 0 ? t('no relations') : t(RELATIONS, { count: relations }),
-    }),
+    values.detail === '' || values.detail === values.component
+      ? t('{name}, {component}, {where}, {relations}.', values)
+      : t('{name}, {component}, {detail}, {where}, {relations}.', values),
   );
 }
 
