@@ -84,11 +84,11 @@ describe('the tools', () => {
     }
   });
 
-  it('say which only read: those that get, list, find, read, preview, export or check', () => {
+  it('say which only read: those that get, list, find, read, preview, export, check or capture', () => {
     const readOnly = TOOLS.filter((each) => each.hints.readOnlyHint).map((each) => each.name);
     expect(readOnly).toEqual(
       TOOLS.map((each) => each.name).filter((name) =>
-        /^(get|list|find|read|preview|export|check)_/.test(name),
+        /^(get|list|find|read|preview|export|check|capture)_/.test(name),
       ),
     );
     expect(readOnly).toEqual(
@@ -98,6 +98,7 @@ describe('the tools', () => {
         'list_images',
         'get_view_address',
         'check_tour',
+        'capture_view',
       ]),
     );
   });

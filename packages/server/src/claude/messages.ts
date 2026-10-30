@@ -2,7 +2,7 @@
  * The Claude endpoint: the WebSocket through which the MCP entry point, started by Claude Code or
  * Claude Desktop, attaches to the running local program. It has a path and a credential of its own,
  * and it accepts only these messages: commands, which always run with Claude as their author;
- * guidance for the open apps; a request to open the app in the browser; a question about which
+ * guidance for the open apps; a picture of a view as the app draws it (ADR 0081); a request to open the app in the browser; a question about which
  * package code the person approved, which Claude can never approve itself (ADR 0054); live values,
  * set, cleared and read back, which are never saved (ADR 0057); an import the person ran on the
  * command line, which carries a file, never a command, and runs as the person's (ADR-0049); the
@@ -14,7 +14,7 @@
  * `command/rejected`, `project/reloaded`, `live/kept`, `versions/listed`, `version/compared`,
  * `version/refused`, `proposal/shown`, `proposal/closed`), so the MCP entry point keeps its copy of
  * the project in step exactly as an app does, plus answers of its own: `guidance/shown`,
- * `app/opened`, `code/approvals`, `live/cleared`, `live/listed` and `proposal/made`.
+ * `capture/taken`, `app/opened`, `code/approvals`, `live/cleared`, `live/listed` and `proposal/made`.
  */
 import {
   FRESHNESS,
@@ -34,6 +34,11 @@ import {
   type Command,
   type Guidance,
   type LayoutReport,
+  type CaptureAsk,
+  type CaptureReport,
+  readCaptureAsk,
+  readCaptureFailure,
+  readCapturePicture,
   type LiveValue,
   type Problem,
   type ServerMessage,
@@ -71,6 +76,11 @@ export type ClaudeMessage =
   | { type: 'version/compare'; requestId: string; version: VersionRef; view?: Id }
   /** Shows guidance in every open app. */
   | { type: 'guidance'; requestId: string; guidance: Guidance }
+  /**
+   * Asks the tab the person used last for a picture of a view as its canvas draws it (ADR 0081);
+   * answered with `capture/taken`. It changes nothing.
+   */
+  | { type: 'capture'; requestId: string; ask: CaptureAsk }
   /**
    * Opens the app in the browser, at an address that works once; with a view state, the address
    * carries it, and the tab opens the project there (ADR-0044).
@@ -178,6 +188,16 @@ export interface GuidanceShownMessage {
   layout?: Omit<LayoutReport, 'apps'>;
 }
 
+/**
+ * The answer to `capture`: how many open apps were asked, and the picture or the failure of the tab
+ * that answered, or why none did (ADR 0081).
+ */
+export interface CaptureTakenMessage {
+  type: 'capture/taken';
+  requestId: string;
+  report: CaptureReport;
+}
+
 /** The answer to `open-app`: the browser was asked to open the app. */
 export interface AppOpenedMessage {
   type: 'app/opened';
@@ -207,6 +227,7 @@ export interface ProposalMadeMessage {
 export type ProgramMessage =
   | ServerMessage
   | GuidanceShownMessage
+  | CaptureTakenMessage
   | AppOpenedMessage
   | CodeApprovalsMessage
   | LiveClearedMessage
@@ -259,6 +280,12 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
     }
     case 'guidance':
       return { type: 'guidance', requestId, guidance: readGuidance(message.guidance) };
+    case 'capture': {
+      const ask = isRecord(message.ask) ? readCaptureAsk(message.ask) : undefined;
+      if (ask === undefined) throw new ProtocolError('A capture says what to picture.');
+      if (!ask.ok) throw new ProtocolError(ask.reason);
+      return { type: 'capture', requestId, ask: ask.value };
+    }
     case 'import':
       return { type: 'import', requestId, request: readImportRequest(message.request) };
     case 'open-app': {
@@ -277,7 +304,7 @@ export function decodeClaudeMessage(text: string): ClaudeMessage {
       return readLiveList(message, requestId);
     default:
       throw new ProtocolError(
-        `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance, opening the app, asking which package code is approved, live values, versions, withdrawing a proposal and imports from the command line. Undo, redo, preferences, and accepting or refusing a proposal are the person's, in the app.`,
+        `Claude may not send ${JSON.stringify(message.type)} messages: only commands, guidance, pictures of a view, opening the app, asking which package code is approved, live values, versions, withdrawing a proposal and imports from the command line. Undo, redo, preferences, and accepting or refusing a proposal are the person's, in the app.`,
       );
   }
 }
@@ -303,6 +330,8 @@ export function decodeProgramMessage(text: string): ProgramMessage {
         ...(message.layout === undefined ? {} : { layout: message.layout }),
       };
     }
+    case 'capture/taken':
+      return readCaptureTaken(message);
     case 'app/opened': {
       const requestId = requestIdOf(message);
       if (requestId === undefined) throw new ProtocolError('The answer is not valid.');
@@ -331,6 +360,45 @@ export function decodeProgramMessage(text: string): ProgramMessage {
     default:
       return decodeServerMessage(text);
   }
+}
+
+/** Reads the answer to `capture` strictly, its picture as the app's answer is read. */
+function readCaptureTaken(message: Record<string, unknown>): CaptureTakenMessage {
+  const requestId = requestIdOf(message);
+  const report = message.report;
+  if (requestId === undefined || !isRecord(report)) {
+    throw new ProtocolError('The answer to a capture is not valid.');
+  }
+  const { apps, picture, failure, unanswered, waited } = report;
+  if (!Number.isSafeInteger(apps) || (apps as number) < 0) {
+    throw new ProtocolError('The answer to a capture says how many apps it asked.');
+  }
+  const read: CaptureReport = { apps: apps as number };
+  if (picture !== undefined) {
+    const shown = readCapturePicture(picture);
+    if (!shown.ok) throw new ProtocolError(shown.reason);
+    read.picture = shown.value;
+  }
+  if (failure !== undefined) {
+    const failed = isRecord(failure) ? readCaptureFailure(failure) : undefined;
+    if (failed === undefined || !failed.ok) {
+      throw new ProtocolError(failed?.reason ?? 'Why a capture failed is an object.');
+    }
+    read.failure = failed.value;
+  }
+  if (unanswered !== undefined) {
+    if (unanswered !== 'passed' && unanswered !== 'timed-out' && unanswered !== 'gone') {
+      throw new ProtocolError('Why no app answered a capture is passed, timed-out or gone.');
+    }
+    read.unanswered = unanswered;
+  }
+  if (waited !== undefined) {
+    if (!Number.isSafeInteger(waited) || (waited as number) < 0) {
+      throw new ProtocolError('How long a capture waited is a whole number of milliseconds.');
+    }
+    read.waited = waited as number;
+  }
+  return { type: 'capture/taken', requestId, report: read };
 }
 
 /** The most targets, or attributes, one clear of live values names. */

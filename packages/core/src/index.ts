@@ -253,6 +253,36 @@ export type {
   LayoutResult,
 } from './layout-answer';
 export { LAYOUT_ENDINGS, LAYOUT_PASSES, MAX_LAYOUT_WHY } from './layout-answer';
+// A picture of a view as the app draws it, for Claude (ADR 0081).
+export type {
+  CaptureAnswerMessage,
+  CaptureAsk,
+  CaptureFailure,
+  CaptureFailureKind,
+  CapturePass,
+  CapturePicture,
+  CaptureRead,
+  CaptureRegion,
+  CaptureReport,
+  CaptureRequestMessage,
+} from './capture';
+export {
+  CAPTURE_FAILURES,
+  CAPTURE_PASSES,
+  CAPTURE_WAIT,
+  CAPTURE_WIDTH,
+  MAX_CAPTURE_BYTES,
+  MAX_CAPTURE_ELEMENTS,
+  MAX_CAPTURE_HEIGHT,
+  MAX_CAPTURE_SIDE,
+  MAX_CAPTURE_WHY,
+  base64Length,
+  readCaptureAnswer,
+  readCaptureAsk,
+  readCaptureFailure,
+  readCapturePicture,
+  readCaptureRequest,
+} from './capture';
 // Relations routed by hand, per view (ADR 0039).
 export type { ResolvedAttachment, ResolvedRoute, RouteLookups, RouteShapes, Side } from './routes';
 export { MAX_BEND_POINTS, automaticRouteStyleOf, routeOf, storedRoute } from './routes';

@@ -16,10 +16,11 @@ import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { isInside } from './paths';
 
 /**
- * The largest message the live connection takes from an app, in bytes. A larger one closes the
- * connection with code 1009; ws's own default would be 100 MiB.
+ * The largest message the live connection takes from an app, in bytes: 5 MiB, so that a picture of
+ * a view for Claude, at most 4 MiB in base64, fits with its message (ADR 0081). A larger one closes
+ * the connection with code 1009; ws's own default would be 100 MiB.
  */
-export const LIVE_MAX_PAYLOAD = 4 * 1024 * 1024;
+export const LIVE_MAX_PAYLOAD = 5 * 1024 * 1024;
 
 /**
  * The policy of every JavaScript response. A policy on a script's response applies only when the script

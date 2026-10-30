@@ -19,6 +19,7 @@ import type {
   OtherProjectResult,
   SendOptions,
   StartChoice,
+  TakeCapture,
 } from './connection';
 
 /** How the local program answered a change of preferences: what it holds now, or why it refused. */
@@ -57,6 +58,11 @@ export interface Live extends LiveState {
    * this tab ran none (M3d); absent where there is no live session to tell.
    */
   answerLayout?: (answer: string, outcome: GuidedLayoutAnswer) => void;
+  /**
+   * Lends the live session what takes Claude's pictures with this tab's canvas (ADR 0081); returns
+   * what takes it back. Absent where there is no live session to answer.
+   */
+  lendCapture?: (capture: TakeCapture) => () => void;
   /**
    * Asks the local program to change some of the person's preferences; absent where there is no live
    * session to carry them, as in tests that give components a session of their own.

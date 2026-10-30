@@ -50,7 +50,7 @@ async function promptText(name: string, args: Record<string, string> = {}): Prom
 const TOOL_NAMES = new Set(TOOLS.map((each) => each.name));
 /** Words written like a tool's name: a verb the tools start with, then snake_case. */
 const TOOL_LIKE =
-  /\b(?:get|list|find|read|preview|add|update|delete|change|create|define|remove|reorder|set|forget|restack|reset|run|open|play|pause|go|next|previous|filter|focus|clear|show|highlight|pan)_[a-z_]+\b/g;
+  /\b(?:get|list|find|read|preview|capture|add|update|delete|change|create|define|remove|reorder|set|forget|restack|reset|run|open|play|pause|go|next|previous|filter|focus|clear|show|highlight|pan)_[a-z_]+\b/g;
 
 describe('the recipes as prompts', () => {
   it('has one for each material the spec names', () => {

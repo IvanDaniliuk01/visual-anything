@@ -41,6 +41,7 @@ import { ProgramUnavailableError, type Program } from './bridge';
 import { cascadeOf, cascadeRefusal, takesMore } from './cascade';
 import { EXPLORE_TOOLS } from './explore-tools';
 import { CODE_TOOLS } from './code-tools';
+import { CAPTURE_TOOLS } from './capture-tools';
 import { COMMENT_TOOLS } from './comment-tools';
 import { EXPORT_TOOLS } from './export-tools';
 import { fullGeometry } from './geometry-brief';
@@ -90,8 +91,18 @@ import {
   summarizeProject,
 } from './queries';
 
-/** What a tool call comes to: a value to show Claude as JSON, or why it failed. */
-export type ToolOutcome = { ok: true; value: unknown } | { ok: false; message: string };
+/**
+ * What a tool call comes to: a value to show Claude as JSON, or why it failed. With `image`, Claude
+ * sees a picture too, and a value that is text is shown as it is (ADR 0081).
+ */
+export type ToolOutcome =
+  { ok: true; value: unknown; image?: ToolImage } | { ok: false; message: string };
+
+/** A picture a tool answers with: a PNG, in base64. */
+export interface ToolImage {
+  data: string;
+  mimeType: 'image/png';
+}
 
 /** Hints for the client about what a tool does. */
 export interface ToolHints {
@@ -1595,6 +1606,8 @@ export const TOOLS: readonly Tool[] = [
   showCaption,
   clearGuidance,
   layOutView,
+  // A picture of a view as the app draws it (ADR 0081).
+  ...CAPTURE_TOOLS,
   openApp,
   ...SCENARIO_TOOLS,
   // Tours (ADR 0058).

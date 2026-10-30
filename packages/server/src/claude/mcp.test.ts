@@ -83,6 +83,10 @@ describe('the MCP server', () => {
       /^- Before you say how a running system is doing now, read its live values: .*get_live_values/m,
     );
     expect(INSTRUCTIONS).toMatch(/^- When the person asks to see a tour, play it with play_tour/m);
+    // Checking a view by its picture after building or laying it out (ADR 0081).
+    expect(INSTRUCTIONS).toMatch(
+      /^- After you build a view or lay it out, check it with capture_view/m,
+    );
   });
 
   it('lists every tool with its description, input schema and hints', async () => {

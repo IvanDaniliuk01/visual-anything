@@ -54,6 +54,12 @@ import {
   type VersionsListedMessage,
 } from './versions/messages';
 import { readLayoutDone, type LayoutDoneMessage } from './layout-answer';
+import {
+  readCaptureAnswer,
+  readCaptureRequest,
+  type CaptureAnswerMessage,
+  type CaptureRequestMessage,
+} from './capture';
 
 /**
  * The version of the live protocol; the app and the local program must agree on it, so that one from
@@ -76,7 +82,8 @@ import { readLayoutDone, type LayoutDoneMessage } from './layout-answer';
  *    goes to a step with choices (ADR 0078), came in 7 as well, for the same reason. So did versions
  *    and proposals (M11b, ADR 0071, ADR 0073): `versions/list` and `version/compare` with their
  *    answers, the proposal shown, accepted, refused and closed, and the guidance `comparison`. And
- *    layout guidance with an `answer`, which the app answers with `layout/done` (M3d).
+ *    layout guidance with an `answer`, which the app answers with `layout/done` (M3d). And a
+ *    picture of a view for Claude (ADR 0081), `capture/request` and its answer `capture/answer`.
  */
 export const PROTOCOL_VERSION = 7;
 
@@ -124,7 +131,8 @@ export type ServerMessage =
   | VersionComparedMessage
   | VersionRefusedMessage
   | ProposalShownMessage
-  | ProposalClosedMessage;
+  | ProposalClosedMessage
+  | CaptureRequestMessage;
 
 /**
  * Sent in place of `project/opened` while the local program runs on a folder that holds no project yet
@@ -683,7 +691,8 @@ export type AppMessage =
   | VersionCompareMessage
   | ProposalAcceptMessage
   | ProposalRefuseMessage
-  | LayoutDoneMessage;
+  | LayoutDoneMessage
+  | CaptureAnswerMessage;
 
 /** The longest name the start screen may give a new project or its first view. */
 export const MAX_START_NAME = 200;
@@ -772,6 +781,7 @@ const SERVER_TYPES = new Set<string>([
   'version/refused',
   'proposal/shown',
   'proposal/closed',
+  'capture/request',
 ]);
 
 /**
@@ -842,6 +852,15 @@ export function decodeServerMessage(text: string): ServerMessage {
     case 'proposal/shown':
     case 'proposal/closed':
       return readVersionsAnswer(message, message.type);
+    case 'capture/request': {
+      const { requestId } = message;
+      if (typeof requestId !== 'string' || requestId === '' || requestId.length > MAX_REQUEST_ID) {
+        throw new ProtocolError('The request has no valid id.');
+      }
+      const read = readCaptureRequest(message, requestId);
+      if (!read.ok) throw new ProtocolError(read.reason);
+      return read.value;
+    }
   }
   return message as unknown as ServerMessage;
 }
@@ -923,6 +942,11 @@ export function decodeAppMessage(text: string): AppMessage {
       return readVersion(readProposalRefuse(message, message.requestId));
     case 'layout/done': {
       const read = readLayoutDone(message, message.requestId, MAX_GUIDANCE_TARGETS);
+      if (!read.ok) throw new ProtocolError(read.reason);
+      return read.value;
+    }
+    case 'capture/answer': {
+      const read = readCaptureAnswer(message, message.requestId);
       if (!read.ok) throw new ProtocolError(read.reason);
       return read.value;
     }
