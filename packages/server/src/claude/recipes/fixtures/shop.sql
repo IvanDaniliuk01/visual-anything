@@ -28,7 +28,7 @@ CREATE TABLE shop.order_items (
 
 CREATE INDEX orders_by_customer ON shop.orders (customer_id);
 
-CREATE VIEW shop.open_orders AS
+CREATE VIEW shop.unshipped_orders AS
   SELECT o.id, c.email, o.total_cents
   FROM shop.orders o JOIN shop.customers c ON c.id = o.customer_id
   WHERE o.status <> 'shipped';

@@ -35,7 +35,7 @@ CREATE TABLE shop.order_items (
 
 CREATE INDEX orders_by_customer ON shop.orders (customer_id);
 
-CREATE VIEW shop.open_orders AS
+CREATE VIEW shop.unshipped_orders AS
   SELECT o.id, c.email, o.total_cents
   FROM shop.orders o JOIN shop.customers c ON c.id = o.customer_id
   WHERE o.status <> 'shipped';
@@ -239,10 +239,10 @@ export const SQL_DDL: Recipe = {
               notNull: true,
               default: '1',
             }),
-            inSchema('open-orders', 'data-modeling.view', 'open_orders'),
-            column('open-orders-id', 'open-orders', 'id', { type: 'uuid' }),
-            column('open-orders-email', 'open-orders', 'email', { type: 'varchar(255)' }),
-            column('open-orders-total-cents', 'open-orders', 'total_cents', {
+            inSchema('unshipped-orders', 'data-modeling.view', 'unshipped_orders'),
+            column('unshipped-orders-id', 'unshipped-orders', 'id', { type: 'uuid' }),
+            column('unshipped-orders-email', 'unshipped-orders', 'email', { type: 'varchar(255)' }),
+            column('unshipped-orders-total-cents', 'unshipped-orders', 'total_cents', {
               type: 'integer',
             }),
             inSchema('touch-updated-at', 'data-modeling.function', 'touch_updated_at', {
@@ -268,8 +268,8 @@ export const SQL_DDL: Recipe = {
               to: 'orders-id',
               attributes: { onDelete: 'cascade' },
             },
-            { relationType: 'data-modeling.reads-from', from: 'open-orders', to: 'orders' },
-            { relationType: 'data-modeling.reads-from', from: 'open-orders', to: 'customers' },
+            { relationType: 'data-modeling.reads-from', from: 'unshipped-orders', to: 'orders' },
+            { relationType: 'data-modeling.reads-from', from: 'unshipped-orders', to: 'customers' },
             { relationType: 'data-modeling.fires-on', from: 'orders-touch', to: 'orders' },
             { relationType: 'data-modeling.runs', from: 'orders-touch', to: 'touch-updated-at' },
           ],
