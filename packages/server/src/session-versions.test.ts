@@ -159,7 +159,7 @@ describe('the version as opened', () => {
 });
 
 describe('a commit named by an app', () => {
-  it('is refused before git hears of it unless the latest listing has it', async () => {
+  it('is refused before git hears of it unless a recent listing has it', async () => {
     await writeProjectFolder(root, testProject());
     const spawn = recordingSpawn();
     const session = await open(root, spawn);

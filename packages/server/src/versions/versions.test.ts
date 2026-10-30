@@ -1,5 +1,6 @@
 /**
- * The versions the program reads (ADR 0071): only commits of its latest listing, one read at a time,
+ * The versions the program reads (ADR 0071): only commits of its last five listings within ten minutes,
+ * from an app or from Claude alike, one read at a time,
  * a newer request stopping the one under way, within the time a read has; and a comparison kept to one
  * view.
  */
@@ -13,12 +14,19 @@ import {
   NO_GIT,
   matching,
   commitProject,
+  git,
   recordingSpawn,
   removeFolder,
   temporaryFolder,
   type RecordedCall,
 } from './test-repositories';
-import { NOT_LISTED, Versions, comparisonOfView } from './versions';
+import {
+  LISTING_KEPT_MS,
+  NOT_LISTED,
+  RECENT_LISTINGS,
+  Versions,
+  comparisonOfView,
+} from './versions';
 
 let root: string;
 
@@ -77,6 +85,66 @@ describe.skipIf(NO_GIT)('reading versions', () => {
     const before = calls.length;
     expect(await versions.read(second)).toMatchObject({ ok: false });
     expect(calls).toHaveLength(before);
+    versions.close();
+  });
+
+  it('keeps the commits of its last five listings, so a later listing never refuses an earlier one', async () => {
+    const first = await commitProject(root, testProject());
+    const second = await commitProject(
+      root,
+      { ...testProject(), project: { ...testProject().project, name: 'Second' } },
+      { init: false },
+    );
+    const versions = new Versions(root, { warn: () => {} });
+    await versions.list();
+    // The second commit leaves the repository's listing: HEAD goes back to the first.
+    git(root, 'reset', '-q', '--hard', first);
+    const later = await versions.list();
+    expect(later.versions.map((each) => each.commit)).not.toContain(second);
+    expect(versions.isListed(second)).toBe(true);
+    expect(await versions.read(second)).toMatchObject({ ok: true });
+    // Four listings more make five without it, and it goes.
+    for (let count = 2; count <= RECENT_LISTINGS; count += 1) {
+      expect(versions.isListed(second)).toBe(true);
+      await versions.list();
+    }
+    expect(versions.isListed(second)).toBe(false);
+    expect(await versions.read(second)).toEqual({
+      ok: false,
+      problems: [{ code: 'invalid-command', message: NOT_LISTED }],
+    });
+    expect(versions.isListed(first)).toBe(true);
+    versions.close();
+  });
+
+  it('keeps a listing’s commits for ten minutes', async () => {
+    const commit = await commitProject(root, testProject());
+    let now = 1_000_000;
+    const versions = new Versions(root, { warn: () => {}, now: () => now });
+    await versions.list();
+    now += LISTING_KEPT_MS;
+    expect(versions.isListed(commit)).toBe(true);
+    now += 1;
+    expect(versions.isListed(commit)).toBe(false);
+    expect(await versions.read(commit)).toMatchObject({ ok: false });
+    await versions.list();
+    expect(versions.isListed(commit)).toBe(true);
+    versions.close();
+  });
+
+  it('keeps the earlier listings when one fails', async () => {
+    const commit = await commitProject(root, testProject());
+    let failing = false;
+    const recording = recordingSpawn();
+    const spawn: Spawn = (file, args, options) =>
+      failing && args.includes('for-each-ref')
+        ? recording.spawn(file, ['--no-such-option'], options)
+        : recording.spawn(file, args, options);
+    const versions = new Versions(root, { spawn, warn: () => {} });
+    await versions.list();
+    failing = true;
+    expect((await versions.list()).why).toBeDefined();
+    expect(versions.isListed(commit)).toBe(true);
     versions.close();
   });
 

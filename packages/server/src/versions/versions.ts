@@ -1,7 +1,8 @@
 /**
  * The versions of the open project that the program reads from git (ADR 0071), for the apps and for
- * Claude: it finds git once, lists the versions, keeps the commits of its latest listing, and reads
- * one of them at a time, a new read stopping the one under way. A version lives only in memory.
+ * Claude: it finds git once, lists the versions, keeps the commits of its last five listings within ten
+ * minutes, whoever asked for them, and reads one of them at a time, a new read stopping the one under
+ * way. A version lives only in memory.
  */
 import {
   compareView,
@@ -37,7 +38,15 @@ export interface VersionsOptions {
   limits?: Partial<GitLimits>;
   /** Prints a warning, such as about a relative `VISUAL_ANYTHING_GIT`. */
   warn?: (line: string) => void;
+  /** The time now, in milliseconds since 1970, which tells how old a listing is; tests give their own. */
+  now?: () => number;
 }
+
+/** How many of the program's latest listings name the commits a version may name (ADR 0071). */
+export const RECENT_LISTINGS = 5;
+
+/** How long a listing's commits may be named after it was made: ten minutes. */
+export const LISTING_KEPT_MS = 10 * 60_000;
 
 /** The versions listed, or why none could be. */
 export interface VersionsListing {
@@ -51,14 +60,18 @@ export type VersionRead =
 
 /** Why a commit is refused before git hears of it. */
 export const NOT_LISTED =
-  'That commit is not one the program listed in its latest listing of versions: list them again, then choose one.';
+  'That commit is not one the program listed in its recent listings of versions: list them again, then choose one.';
 
 export class Versions {
   readonly #folder: string;
   readonly #options: VersionsOptions;
   #git: Promise<{ ok: true; git: Git } | { ok: false; why: string }> | undefined;
-  /** The commits of the latest listing: the only ones a version may name. */
-  #listed: ReadonlySet<string> = new Set();
+  /**
+   * The commits of the recent listings, oldest first, with when each was made: the only ones a version
+   * may name, while their listing is one of the last {@link RECENT_LISTINGS} and younger than
+   * {@link LISTING_KEPT_MS}.
+   */
+  #listings: { commits: ReadonlySet<string>; at: number }[] = [];
   /** The read under way, which a newer one stops. */
   #reading: AbortController | undefined;
   /** The version read last, kept to compare with again. */
@@ -71,28 +84,33 @@ export class Versions {
     this.#options = options;
   }
 
-  /** Whether a commit is one of the latest listing. */
+  /**
+   * Whether a commit is one a version may name: one of the program's last five listings, made within
+   * ten minutes, holds it, whether an app or Claude asked for that listing.
+   */
   isListed(commit: string): boolean {
-    return this.#listed.has(commit);
+    return this.#recent().some((listing) => listing.commits.has(commit));
   }
 
-  /** Lists the versions, and keeps their commits as the only ones a version may name. */
+  /**
+   * Lists the versions, and keeps their commits among those a version may name. A listing that fails
+   * keeps none, and leaves the earlier ones as they were.
+   */
   async list(): Promise<VersionsListing> {
     // A listing is not a read of a version: it keeps the whole limit, whatever a read is given.
     const timeout = this.#deadline(GIT_LIMITS.readMs, 'Listing the versions');
     try {
       const opened = await this.#repository(timeout.signal);
-      if (!opened.ok) {
-        this.#listed = new Set();
-        return { versions: [], why: opened.why };
-      }
+      if (!opened.ok) return { versions: [], why: opened.why };
       const versions = await listVersions(opened.repository, timeout.signal);
-      this.#listed = new Set(versions.map((each) => each.commit));
+      this.#listings = [
+        ...this.#recent(),
+        { commits: new Set(versions.map((each) => each.commit)), at: this.#now() },
+      ].slice(-RECENT_LISTINGS);
       return versions.length === 0
         ? { versions, why: 'The repository has no commits yet.' }
         : { versions };
     } catch (error) {
-      this.#listed = new Set();
       return { versions: [], why: reasonOf(error) };
     } finally {
       timeout.done();
@@ -100,11 +118,11 @@ export class Versions {
   }
 
   /**
-   * Reads a commit of the latest listing, through the same checks as opening a folder. Any other
+   * Reads a commit of the recent listings, through the same checks as opening a folder. Any other
    * commit is refused before git hears of it. A newer read stops this one.
    */
   async read(commit: string): Promise<VersionRead> {
-    if (!this.#listed.has(commit)) return refused('invalid-command', NOT_LISTED);
+    if (!this.isListed(commit)) return refused('invalid-command', NOT_LISTED);
     if (this.#last?.commit === commit) return { ok: true, project: this.#last.project };
     this.#reading?.abort(
       new GitError('stopped', 'Another version was asked for, so reading this one stopped.'),
@@ -135,6 +153,18 @@ export class Versions {
   close(): void {
     this.#closed = true;
     this.#reading?.abort(new GitError('stopped', 'The project is closed.'));
+  }
+
+  /** The listings whose commits may still be named: the last five, made within ten minutes. */
+  #recent(): { commits: ReadonlySet<string>; at: number }[] {
+    const now = this.#now();
+    return this.#listings
+      .filter((listing) => now - listing.at <= LISTING_KEPT_MS)
+      .slice(-RECENT_LISTINGS);
+  }
+
+  #now(): number {
+    return (this.#options.now ?? Date.now)();
   }
 
   /** The project folder’s repository, with git found and started once. */
