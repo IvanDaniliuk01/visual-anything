@@ -14,7 +14,8 @@ import {
   type Point,
 } from '@visual-anything/schema';
 import { Draft } from '../commands/draft';
-import { componentOrEssence } from '../definitions';
+import { componentOrEssence, relationTypeOrRelatesTo } from '../definitions';
+import { escapeEmphasis } from '../text/emphasis';
 import type { BatchCommand, Command } from '../commands/types';
 import { freshId, isId, randomIds, slug, type IdGenerator } from '../ids';
 import type { ProjectSnapshot } from '../snapshot';
@@ -228,6 +229,40 @@ export function planToCommand(
         : index.element(element.existing)?.component;
     if (component !== undefined) componentOfKey.set(element.key, component);
   }
+  // Outside text is written as text (ADR 0082): a description, and the value of an attribute that
+  // takes text emphasis, are escaped so that they read back as the file wrote them.
+  const text = (description: string | undefined) =>
+    description === undefined ? {} : { description: escapeEmphasis(description) };
+  const valuesAsText = (
+    attributes: Attributes | undefined,
+    defined: readonly { name: string; format?: 'plain' | 'emphasis' }[],
+  ): { attributes?: Attributes } => {
+    if (!attributes) return {};
+    const emphasised = new Set(
+      defined.filter((each) => each.format === 'emphasis').map((each) => each.name),
+    );
+    if (emphasised.size === 0) return { attributes };
+    return {
+      attributes: Object.fromEntries(
+        Object.entries(attributes).map(([name, value]) => [
+          name,
+          emphasised.has(name) && typeof value === 'string' ? escapeEmphasis(value) : value,
+        ]),
+      ),
+    };
+  };
+  const elementValues = (component: Id | undefined, attributes: Attributes | undefined) =>
+    valuesAsText(
+      attributes,
+      component === undefined ? [] : componentOrEssence(definitions, component).attributes,
+    );
+  const relationValues = (relationType: Id | undefined, attributes: Attributes | undefined) =>
+    valuesAsText(
+      attributes,
+      relationType === undefined
+        ? []
+        : relationTypeOrRelatesTo(definitions, relationType).attributes,
+    );
   const drawsRows = (key: string | undefined) => {
     const component = key === undefined ? undefined : componentOfKey.get(key);
     return (
@@ -241,7 +276,7 @@ export function planToCommand(
       view: {
         id: idOf(view.key),
         name: view.name,
-        ...(view.description === undefined ? {} : { description: view.description }),
+        ...text(view.description),
         perspective: { name: view.name },
         ...(nesting === undefined ? {} : { nestingRelationTypes: [nesting] }),
       },
@@ -254,7 +289,7 @@ export function planToCommand(
         id: element.existing,
         changes: {
           name: element.name,
-          ...(element.attributes ? { attributes: element.attributes } : {}),
+          ...elementValues(componentOfKey.get(element.key), element.attributes),
           ...(element.ids ? { ids: element.ids } : {}),
         },
       });
@@ -266,8 +301,8 @@ export function planToCommand(
         id: idOf(element.key),
         component: chosen(mapping.elements, element.kind) as Id,
         name: element.name,
-        ...(element.description === undefined ? {} : { description: element.description }),
-        ...(element.attributes ? { attributes: element.attributes } : {}),
+        ...text(element.description),
+        ...elementValues(componentOfKey.get(element.key), element.attributes),
         ...(element.ids ? { ids: element.ids } : {}),
       },
     });
@@ -287,8 +322,8 @@ export function planToCommand(
         id: relation.existing,
         changes: {
           ...(relation.name === undefined ? {} : { name: relation.name }),
-          ...(relation.description === undefined ? {} : { description: relation.description }),
-          ...(relation.attributes ? { attributes: relation.attributes } : {}),
+          ...text(relation.description),
+          ...relationValues(index.relation(relation.existing)?.relationType, relation.attributes),
         },
       });
       continue;
@@ -301,8 +336,8 @@ export function planToCommand(
         from: idOf(relation.from),
         to: idOf(relation.to),
         ...(relation.name === undefined ? {} : { name: relation.name }),
-        ...(relation.description === undefined ? {} : { description: relation.description }),
-        ...(relation.attributes ? { attributes: relation.attributes } : {}),
+        ...text(relation.description),
+        ...relationValues(chosen(mapping.relations, relation.kind), relation.attributes),
       },
     });
   }

@@ -48,6 +48,60 @@ const MAPPING: ImportMapping = {
   nesting: 'test.inside',
 };
 
+describe('planToCommand and text emphasis (ADR 0082)', () => {
+  it('writes outside text as text: descriptions, and the values of attributes that take emphasis', () => {
+    const base = testProject();
+    const state = {
+      ...base,
+      packages: base.packages.map((file) => ({
+        ...file,
+        components: file.components.map((component) =>
+          component.id === 'test.database'
+            ? {
+                ...component,
+                attributes: [
+                  ...(component.attributes ?? []),
+                  { name: 'notes', type: 'string' as const, format: 'emphasis' as const },
+                ],
+              }
+            : component,
+        ),
+      })),
+    };
+    const planned = planToCommand(
+      state,
+      {
+        ...plan(),
+        elements: plan().elements.map((element) =>
+          element.key === 'orders'
+            ? {
+                ...element,
+                description: 'The **orders** [table](https://x.example)',
+                attributes: { engine: 'Post_gres*', notes: '`a` ==b==' },
+              }
+            : element,
+        ),
+        relations: plan().relations.map((relation) => ({ ...relation, description: '# h' })),
+      },
+      MAPPING,
+      sequentialIds(),
+    );
+    if (!planned.ok) throw new Error(planned.problems.join(' '));
+    const outcome = executeCommand(state, planned.command, { newId: sequentialIds() });
+    if (!outcome.ok) throw new Error(outcome.problems.map((each) => each.message).join(' '));
+    const orders = outcome.state.model.elements.find(
+      (element) => element.id === planned.ids.get('orders'),
+    );
+    expect(orders?.description).toBe('The \\*\\*orders\\*\\* \\[table](https://x.example)');
+    // A plain attribute keeps its value as it is; one that takes emphasis has it escaped.
+    expect(orders?.attributes).toEqual({ engine: 'Post_gres*', notes: '\\`a\\` \\==b\\==' });
+    const relation = outcome.state.model.relations.find(
+      (each) => each.id === planned.ids.get('e1'),
+    );
+    expect(relation?.description).toBe('\\# h');
+  });
+});
+
 describe('planToCommand', () => {
   it('makes one batch, named after the file, that applies cleanly and undoes exactly', () => {
     const state = testProject();

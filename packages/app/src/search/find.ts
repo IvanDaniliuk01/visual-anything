@@ -14,6 +14,7 @@
  */
 import {
   componentOrEssence,
+  plainText,
   relationTypeOrRelatesTo,
   type Definitions,
   type ProjectSnapshot,
@@ -326,30 +327,55 @@ function externalIdMatched(entry: Entry, words: readonly string[]): Matched {
   return { field: 'external-id', scheme, identifier };
 }
 
+/** What find reads of a definition: its names and its attributes' defaults and formats. */
+interface DefinitionKeys {
+  names: string;
+  defaults: ReadonlyMap<string, JsonValue>;
+  /** The attributes that take text emphasis (ADR 0082), matched by their plain text. */
+  emphasised: ReadonlySet<string>;
+}
+
 /** The names of definitions, normalized in both languages, and their attributes' defaults. */
 class DefinitionNames {
   readonly #definitions: Definitions;
   readonly #names = new Map<Id, string>();
   readonly #defaults = new Map<Id, ReadonlyMap<string, JsonValue>>();
+  readonly #emphasised = new Map<Id, ReadonlySet<string>>();
 
   constructor(definitions: Definitions) {
     this.#definitions = definitions;
   }
 
-  component(id: Id): { names: string; defaults: ReadonlyMap<string, JsonValue> } {
+  component(id: Id): DefinitionKeys {
     const component = componentOrEssence(this.#definitions, id);
     return {
       names: this.#namesOf(id, component.id, component.name),
       defaults: this.#defaultsOf(id, component.attributes),
+      emphasised: this.#emphasisedOf(id, component.attributes),
     };
   }
 
-  relationType(id: Id): { names: string; defaults: ReadonlyMap<string, JsonValue> } {
+  relationType(id: Id): DefinitionKeys {
     const type = relationTypeOrRelatesTo(this.#definitions, id);
     return {
       names: this.#namesOf(id, type.id, type.name),
       defaults: this.#defaultsOf(id, type.attributes),
+      emphasised: this.#emphasisedOf(id, type.attributes),
     };
+  }
+
+  #emphasisedOf(
+    asked: Id,
+    attributes: readonly AttributeDefinition[] | undefined,
+  ): ReadonlySet<string> {
+    let names = this.#emphasised.get(asked);
+    if (!names) {
+      names = new Set(
+        (attributes ?? []).filter((each) => each.format === 'emphasis').map((each) => each.name),
+      );
+      this.#emphasised.set(asked, names);
+    }
+    return names;
   }
 
   #namesOf(asked: Id, id: Id, name: string): string {
@@ -381,7 +407,7 @@ class DefinitionNames {
 }
 
 function elementEntry(element: Element, names: DefinitionNames): Entry {
-  const { names: definition, defaults } = names.component(element.component);
+  const { names: definition, defaults, emphasised } = names.component(element.component);
   const externalIds = Object.entries(element.ids ?? {});
   return {
     kind: 'element',
@@ -393,26 +419,32 @@ function elementEntry(element: Element, names: DefinitionNames): Entry {
       element.name,
       element.id,
       definition,
-      attributesOf(element.attributes, defaults),
+      attributesOf(element.attributes, defaults, emphasised),
       externalIds,
     ),
   };
 }
 
 function relationEntry(relation: Relation, names: DefinitionNames): Entry {
-  const { names: definition, defaults } = names.relationType(relation.relationType);
+  const { names: definition, defaults, emphasised } = names.relationType(relation.relationType);
   const name = relation.name ?? '';
   return {
     kind: 'relation',
     id: relation.id,
     name,
     definition: relation.relationType,
-    ...keysOf(name, relation.id, definition, attributesOf(relation.attributes, defaults)),
+    ...keysOf(
+      name,
+      relation.id,
+      definition,
+      attributesOf(relation.attributes, defaults, emphasised),
+    ),
   };
 }
 
 function freeShapeEntry(shape: FreeShape, view: Id): Entry {
-  const text = shape.kind === 'note' ? shape.text : '';
+  // A note's text takes text emphasis (ADR 0082): find reads it without its markers.
+  const text = shape.kind === 'note' ? plainText(shape.text) : '';
   return {
     kind: 'free-shape',
     id: shape.id,
@@ -455,11 +487,17 @@ function keysOf(
 function attributesOf(
   own: Attributes | undefined,
   defaults: ReadonlyMap<string, JsonValue>,
+  emphasised: ReadonlySet<string>,
 ): Entry['keys']['attributes'] {
   const values: { name: string; value: string; key: string }[] = [];
   const add = (name: string, value: JsonValue) => {
     if (value === null || value === '') return;
-    const text = typeof value === 'string' ? value : JSON.stringify(value);
+    const text =
+      typeof value !== 'string'
+        ? JSON.stringify(value)
+        : emphasised.has(name)
+          ? plainText(value, { blocks: false })
+          : value;
     values.push({ name, value: text, key: normalized(text) });
   };
   for (const [name, value] of Object.entries(own ?? {})) add(name, value);

@@ -4,16 +4,24 @@
  */
 import type { JsonValue } from '@visual-anything/schema';
 import type { FILTER_TESTS } from './protocol';
+import { plainText } from './text/emphasis';
 
 /** How a condition tests an attribute's value. */
 export type AttributeTest = (typeof FILTER_TESTS)[number];
 
-/** Whether a value meets a test: text without minding case or the spaces around it, numbers as numbers. */
+/**
+ * Whether a value meets a test: text without minding case or the spaces around it, numbers as
+ * numbers. The value of an attribute that takes text emphasis (ADR 0082) is tested by its plain
+ * text, so that "**orders**" is "orders".
+ */
 export function meetsCondition(
-  value: JsonValue | undefined,
+  raw: JsonValue | undefined,
   test: AttributeTest,
   wanted: string,
+  format: 'plain' | 'emphasis' = 'plain',
 ): boolean {
+  const value =
+    format === 'emphasis' && typeof raw === 'string' ? plainText(raw, { blocks: false }) : raw;
   const present = value !== undefined && value !== null && value !== '';
   switch (test) {
     case 'set':

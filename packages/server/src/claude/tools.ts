@@ -57,6 +57,7 @@ import { PROPOSAL_TOOLS, proposalNoteOf } from './proposal-tools';
 import { OVERLAY_TOOLS } from './overlay-tools';
 import { IMPORT_TOOLS } from './import-tools';
 import { DRAWING_TOOLS } from './drawing-tools';
+import { TAKES_MARKDOWN } from './emphasis';
 import {
   DELETE,
   GUIDE,
@@ -391,7 +392,7 @@ Example, a later call whose foreign key references a column an earlier call made
           id: ownId(),
           component: id(),
           name: z.string().min(1),
-          description: z.string().optional(),
+          description: z.string().optional().describe(TAKES_MARKDOWN),
           ids: externalIds().optional(),
           attributes: attributes().optional(),
           appearance: appearance().optional(),
@@ -424,7 +425,7 @@ Example, a later call whose foreign key references a column an earlier call made
           from: z.string().min(1).describe('A ref or an id: an element or a relation.'),
           to: z.string().min(1).describe('A ref or an id: an element or a relation.'),
           name: z.string().optional(),
-          description: z.string().optional(),
+          description: z.string().optional().describe(TAKES_MARKDOWN),
           attributes: attributes().optional(),
           appearance: relationAppearance()
             .optional()
@@ -488,7 +489,7 @@ Example: { "id": "billing-api", "attributes": { "details": { "project": "../bill
   input: {
     id: id(),
     name: z.string().min(1).optional(),
-    description: z.string().nullable().optional(),
+    description: z.string().nullable().optional().describe(TAKES_MARKDOWN),
     component: id().optional(),
     attributes: attributes().optional(),
     removeAttributes: z.array(z.string()).optional(),
@@ -533,7 +534,7 @@ Example: { "id": "api-reads-db", "appearance": null }`,
     from: id().optional(),
     to: id().optional(),
     name: z.string().nullable().optional(),
-    description: z.string().nullable().optional(),
+    description: z.string().nullable().optional().describe(TAKES_MARKDOWN),
     attributes: attributes().optional(),
     removeAttributes: z.array(z.string()).optional(),
     appearance: relationAppearance().nullable().optional(),
@@ -662,7 +663,7 @@ Example: { "id": "clinic", "name": "Clinic", "description": "What a clinic needs
   input: {
     id: id(),
     name: z.string().min(1),
-    description: z.string().optional(),
+    description: z.string().optional().describe(TAKES_MARKDOWN),
     version: z.string().optional(),
     license: z.string().optional(),
     attribution: z.string().optional(),
@@ -685,7 +686,7 @@ Example: { "package": "clinic", "createOnly": true, "component": { "name": "Cale
       .object({ id: id().optional(), name: z.string().min(1), derivesFrom: id() })
       .catchall(z.unknown())
       .describe(
-        'name, derivesFrom, and optionally id, description, ids (external identifiers by scheme), attributes and appearance. An attribute may be of type "destination".',
+        'name, derivesFrom, and optionally id, description, ids (external identifiers by scheme), attributes and appearance. An attribute may be of type "destination". A string attribute whose values take text emphasis (**bold**, *italic*, ~~struck~~, `code`, ==highlight==, ++underline++) sets "format": "emphasis"; left out, its values are plain, as identifiers and code must be.',
       ),
   },
   hints: WRITE,
@@ -796,7 +797,7 @@ const attributeChanges = () =>
       order: z.array(z.string()).optional(),
     })
     .describe(
-      'Changes to the attributes it defines itself, applied in this order: rename, set, remove, order. A rename moves the values elements hold.',
+      'Changes to the attributes it defines itself, applied in this order: rename, set, remove, order. A rename moves the values elements hold. A set definition may give a string attribute "format": "emphasis", so that its values take text emphasis.',
     );
 
 const updateComponent = tool({
@@ -808,7 +809,7 @@ Example: { "id": "clinic.calendar", "name": "Calendar", "appearance": { "fill": 
   input: {
     id: id(),
     name: z.string().min(1).optional(),
-    description: z.string().nullable().optional(),
+    description: z.string().nullable().optional().describe(TAKES_MARKDOWN),
     derivesFrom: id().optional(),
     appearance: z.record(z.string(), z.unknown()).optional(),
     attributes: attributeChanges().optional(),
@@ -841,7 +842,7 @@ Example: { "id": "clinic.books", "direction": "directed", "limits": { "to": ["cl
   input: {
     id: id(),
     name: z.string().min(1).optional(),
-    description: z.string().nullable().optional(),
+    description: z.string().nullable().optional().describe(TAKES_MARKDOWN),
     derivesFrom: id().optional(),
     direction: z.enum(['directed', 'undirected']).nullable().optional(),
     nests: z.boolean().nullable().optional(),
@@ -888,7 +889,7 @@ Example: { "id": "clinic", "name": "Clinic", "description": "What a clinic needs
   input: {
     id: id(),
     name: z.string().min(1).optional(),
-    description: z.string().nullable().optional(),
+    description: z.string().nullable().optional().describe(TAKES_MARKDOWN),
     version: z.string().nullable().optional(),
     license: z.string().nullable().optional(),
     attribution: z.string().nullable().optional(),
@@ -922,8 +923,11 @@ A new view shows the whole model, so what an import adds shows in the views with
 Example: { "name": "Who owns what", "perspective": { "name": "Ownership", "description": "Which team runs each service." }, "nestingRelationTypes": ["systems.is-part-of"] }`,
   input: {
     name: z.string().min(1),
-    description: z.string().optional(),
-    perspective: z.object({ name: z.string().min(1), description: z.string().optional() }),
+    description: z.string().optional().describe(TAKES_MARKDOWN),
+    perspective: z.object({
+      name: z.string().min(1),
+      description: z.string().optional().describe(TAKES_MARKDOWN),
+    }),
     nestingRelationTypes: z.array(id()).optional(),
   },
   hints: WRITE,
@@ -953,7 +957,7 @@ Example, a view drawn curved: { "id": "signal-flow", "routeStyle": "curved" }`,
   input: {
     id: id(),
     name: z.string().min(1).optional(),
-    description: z.string().nullable().optional(),
+    description: z.string().nullable().optional().describe(TAKES_MARKDOWN),
     perspective: z
       .object({ name: z.string().min(1), description: z.string().optional() })
       .optional(),
@@ -1230,7 +1234,7 @@ const freeShape = () =>
         y: z.number(),
         width: z.number().positive(),
         height: z.number().positive(),
-        text: z.string(),
+        text: z.string().describe(`The note’s text. ${TAKES_MARKDOWN}`),
         fill: noteFill().optional(),
         stroke: freeStroke().optional(),
       })
@@ -1316,7 +1320,7 @@ Example: { "view": "system-overview", "shape": { "id": "note-k3f9q2", "fill": "#
       y: z.number().optional(),
       width: z.number().positive().optional(),
       height: z.number().positive().optional(),
-      text: z.string().optional(),
+      text: z.string().optional().describe(`A note’s text. ${TAKES_MARKDOWN}`),
       from: point().optional(),
       to: point().optional(),
       fill: noteFill().nullable().optional(),
@@ -1380,7 +1384,7 @@ Example: { "name": "Clinic systems" }
 Example: { "packages": ["systems", "data-modeling"] }`,
   input: {
     name: z.string().min(1).optional(),
-    description: z.string().nullable().optional(),
+    description: z.string().nullable().optional().describe(TAKES_MARKDOWN),
     packages: z.array(id()).optional(),
   },
   hints: WRITE,

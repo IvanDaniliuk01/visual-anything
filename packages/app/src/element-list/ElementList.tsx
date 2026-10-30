@@ -54,6 +54,7 @@ import {
   type ShownCell,
   type SortDirection,
 } from './rows';
+import { EmphasisRuns } from '../text/EmphasisText';
 import './elementList.css';
 
 /** How tall a row is, in CSS pixels; rows are placed by it, so it is the same for every row. */
@@ -715,6 +716,8 @@ export function ElementList({ onClose }: { onClose: () => void }) {
                                 focusWanted.current = true;
                               }}
                             />
+                          ) : shown.emphasis !== undefined ? (
+                            <EmphasisRuns text={shown.emphasis} />
                           ) : (
                             shown.text
                           )}
