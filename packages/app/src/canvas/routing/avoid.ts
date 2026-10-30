@@ -49,12 +49,17 @@ export interface AvoidShapes {
 /**
  * An end beside a row, or on a shape that draws rows (ADR 0023, ADR 0080 section 2): the shape whose
  * side it leaves, the way it leaves, 1 to the right and -1 to the left, and the height it leaves at,
- * its row's middle.
+ * its row's middle. An end at a connection point (ADR 0080's clarification of 2026-10-30) leaves so
+ * from a left or right side, at the point's height; from a top or bottom side it is `vertical`, its
+ * way 1 down and -1 up, and leaves at `x`.
  */
 export interface AvoidSide {
   shape: number;
   way: 1 | -1;
   y: number;
+  /** Present for an end that leaves a top or bottom side: then it leaves at this `x`. */
+  vertical?: true;
+  x?: number;
 }
 
 /** A line to route: the indexes of its ends' shapes, how far it runs beside its siblings, its route. */
@@ -770,11 +775,15 @@ function overlapOf(a0: number, a1: number, b0: number, b1: number): number {
   );
 }
 
-/** Where a route leaves a shape beside a row: on its side at the row's middle, the way it faces. */
+/**
+ * Where a route leaves a shape beside a row, or at a connection point: on its side, the way it faces,
+ * right or left, or down or up when `vertical`.
+ */
 export interface EndPort {
   x: number;
   y: number;
   way: 1 | -1;
+  vertical?: true;
 }
 
 /** The ports of a route's ends that leave beside rows; an end without one leaves through a side's middle. */
@@ -783,14 +792,24 @@ export interface EndPorts {
   to?: EndPort;
 }
 
-/** The port of an end beside a row, on the side of `rect` it leaves. */
+/** The port of an end beside a row, or at a connection point, on the side of `rect` it leaves. */
 function portBeside(rect: Rect, side: AvoidSide): EndPort {
+  if (side.vertical) {
+    return {
+      x: side.x ?? rect.x + rect.width / 2,
+      y: side.way > 0 ? rect.y + rect.height : rect.y,
+      way: side.way,
+      vertical: true,
+    };
+  }
   return { x: side.way > 0 ? rect.x + rect.width : rect.x, y: side.y, way: side.way };
 }
 
 /** Where a port's stub ends, `STUB` out of its side. */
 function tipOf(port: EndPort): Point {
-  return { x: port.x + port.way * STUB, y: port.y };
+  return port.vertical
+    ? { x: port.x, y: port.y + port.way * STUB }
+    : { x: port.x + port.way * STUB, y: port.y };
 }
 
 /**
@@ -846,7 +865,7 @@ export function routeAround(
   const found = grid.shortest(
     start,
     end,
-    ports.from ? wayOf(ports.from.way) : undefined,
+    ports.from ? wayOf(ports.from) : undefined,
     beside ? BESIDE_TURN : TURN,
   );
   if (!found) return undefined;
@@ -857,9 +876,10 @@ export function routeAround(
   return route.length >= 2 ? route : undefined;
 }
 
-/** The index in `STEPS` of a horizontal way: 0 to the right, 1 to the left. */
-function wayOf(way: 1 | -1): number {
-  return way > 0 ? 0 : 1;
+/** The index in `STEPS` of the way a port faces: 0 to the right, 1 to the left, 2 down, 3 up. */
+function wayOf(port: EndPort): number {
+  if (port.vertical) return port.way > 0 ? 2 : 3;
+  return port.way > 0 ? 0 : 1;
 }
 
 /**
@@ -910,25 +930,37 @@ function movedRun(
   }
   if (stand.length !== 4) return undefined;
   const [p, m, n, q] = stand as [Point, Point, Point, Point];
-  if (p.y === m.y && m.x === n.x && n.y === q.y) {
-    // Each stub out of a row runs `STUB` at least before the middle run.
-    let low = Math.min(p.x, q.x);
-    let high = Math.max(p.x, q.x);
+  const portsAlong = (vertical: boolean) =>
+    [ports.from, ports.to].every((port) => !port || (port.vertical === true) === vertical);
+  /**
+   * Where the middle run may go along `key`, between the ends, each stub out of a port running
+   * `STUB` at least before it; undefined when a port leaves the other way.
+   */
+  const span = (key: 'x' | 'y'): [number, number] | undefined => {
+    let low = Math.min(p[key], q[key]);
+    let high = Math.max(p[key], q[key]);
     for (const [port, at] of [
       [ports.from, p],
       [ports.to, q],
     ] as const) {
       if (!port) continue;
-      if (port.way > 0 && at.x === low) low += STUB;
-      else if (port.way < 0 && at.x === high) high -= STUB;
+      if (port.way > 0 && at[key] === low) low += STUB;
+      else if (port.way < 0 && at[key] === high) high -= STUB;
       else return undefined;
     }
-    for (const x of channels(sides, low, high, m.x)) {
+    return [low, high];
+  };
+  if (p.y === m.y && m.x === n.x && n.y === q.y && portsAlong(false)) {
+    const along = span('x');
+    if (!along) return undefined;
+    for (const x of channels(sides, along[0], along[1], m.x)) {
       const route = [p, { x, y: p.y }, { x, y: q.y }, q];
       if (clear(route)) return route;
     }
-  } else if (!beside && p.x === m.x && m.y === n.y && n.x === q.x) {
-    for (const y of channels(tops, Math.min(p.y, q.y), Math.max(p.y, q.y), m.y)) {
+  } else if (p.x === m.x && m.y === n.y && n.x === q.x && portsAlong(true)) {
+    const along = span('y');
+    if (!along) return undefined;
+    for (const y of channels(tops, along[0], along[1], m.y)) {
       const route = [p, { x: p.x, y }, { x: q.x, y }, q];
       if (clear(route)) return route;
     }
