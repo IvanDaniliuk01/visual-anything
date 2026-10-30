@@ -406,6 +406,62 @@ describe('blockGraph', () => {
     ]);
   });
 
+  it("makes a port on the container's side for each relation that leaves it, beyond the budget", () => {
+    // 0 and 1 relate inside; 2 relates to a shape outside, to the east; 1 is related from the west.
+    const graph = blockGraph(
+      'level 7',
+      [0, 1, 2],
+      sizes,
+      () => undefined,
+      [{ u: 0, v: 1, uDirect: true, vDirect: true }],
+      [
+        { node: 2, toward: 'east', direct: true },
+        { node: 1, toward: 'west', direct: true },
+      ],
+    );
+    expect(graph.layoutOptions?.['elk.portConstraints']).toBe('FIXED_SIDE');
+    expect(graph.ports).toEqual([
+      {
+        id: 'level 7:east',
+        width: 0,
+        height: 0,
+        layoutOptions: { 'elk.port.side': 'EAST' },
+      },
+      {
+        id: 'level 7:west',
+        width: 0,
+        height: 0,
+        layoutOptions: { 'elk.port.side': 'WEST' },
+      },
+    ]);
+    expect(graph.edges).toEqual([
+      { id: 'e0', sources: ['s0'], targets: ['s1'] },
+      { id: 'e1', sources: ['s2'], targets: ['level 7:east'] },
+      { id: 'e2', sources: ['level 7:west'], targets: ['s1'] },
+    ]);
+  });
+
+  it('leans a shape related out of its container toward the side its relation leaves by', async () => {
+    const graph = blockGraph(
+      'level 7',
+      [0, 1, 2],
+      sizes,
+      () => undefined,
+      [{ u: 0, v: 1, uDirect: true, vDirect: true }],
+      [{ node: 2, toward: 'east', direct: true }],
+    );
+    const laid = await elk.layout({
+      id: 'run',
+      layoutOptions: {
+        'elk.algorithm': 'org.eclipse.elk.fixed',
+        'elk.hierarchyHandling': 'SEPARATE_CHILDREN',
+      },
+      children: [graph],
+    });
+    const xs = new Map(laid.children?.[0]?.children?.map((child) => [child.id, child.x ?? 0]));
+    expect(xs.get('s2')).toBeGreaterThan(xs.get('s1') ?? Infinity);
+  });
+
   it('gives ELK each relation between the same ends and points once', () => {
     const graph = blockGraph('level', [0, 1], sizes, () => undefined, [
       { u: 0, v: 1, uDirect: true, vDirect: true },
