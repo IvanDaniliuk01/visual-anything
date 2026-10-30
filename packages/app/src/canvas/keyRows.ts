@@ -1,7 +1,7 @@
 /**
  * Key rows (ADR 0080, section 5): a view whose `rows` is `keys` draws, in each shape that draws its
  * contents as rows, only the rows whose element is part of a primary key, its `primaryKey` attribute
- * true as Data modeling's column says, or that a relation the view draws ends on: so the foreign keys,
+ * true as Data modeling's column says, or that a relation the view can draw ends on, whatever its scope: so the foreign keys,
  * which reference other tables, and the columns they reference. The rest are counted in the header.
  * Pure, as the scene is.
  */

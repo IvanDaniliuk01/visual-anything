@@ -122,6 +122,14 @@ const TODAY: Record<
  * `measureScene`: ELK's kept routes, and every other line beside a row on its lane route. Stage 0b
  * routes those lines and spreads them into channels (ADR 0080, section 2).
  */
+/** Crossings per line and fill after Layout, measured on 2026-10-30 at M3c's review. */
+const REACHED: Record<string, Pick<LayoutQuality, 'crossingsPerLine' | 'fill'>> = {
+  'schema-view': { crossingsPerLine: 0.67, fill: 0.24 },
+  'overview expanded': { crossingsPerLine: 11.17, fill: 0.15 },
+  'overview expanded, unpinned': { crossingsPerLine: 10.31, fill: 0.15 },
+  'processing with its tables open': { crossingsPerLine: 1.36, fill: 0.13 },
+};
+
 const STAGE_0A: Record<
   string,
   Pick<LayoutQuality, 'crossings' | 'linesThroughShapes' | 'sharedSegments' | 'bendsPerLine'>
@@ -180,10 +188,14 @@ describe("Layout on a view shaped like the user's data model (ADR 0080)", () => 
     expect(quality.overlappingSiblings).toBe(0);
     expect(quality.rowEnds).toBeGreaterThan(0);
     expect(quality.rowEndsAtMiddle).toBe(quality.rowEnds);
-    // Crossings: no more than before ADR 0080, but on processing, whose 13 curves that crossed
-    // tables now go around them (ADR 0080, section 3), crossing 2 more lines.
-    const allowance = each.name === 'processing with its tables open' ? 2 : 0;
-    expect(quality.crossings).toBeLessThanOrEqual((TODAY[each.name]?.crossings ?? 0) + allowance);
+    // Crossings: no more than before ADR 0080.
+    expect(quality.crossings).toBeLessThanOrEqual(TODAY[each.name]?.crossings ?? 0);
+    // Crossings per line (at most 0.6) and fill (at least 0.25) are not held: a whole database's
+    // lines cross the view, and tables with their rows leave room ELK's layers do not fill (ADR
+    // 0080, "Not held, and why"). The numbers reached on 2026-10-30 are held instead.
+    const reached = REACHED[each.name] as (typeof REACHED)[string];
+    expect(quality.crossingsPerLine).toBeLessThanOrEqual(reached.crossingsPerLine + 0.05);
+    expect(quality.fill).toBeGreaterThanOrEqual(reached.fill - 0.01);
     // Pinned shapes never move.
     const pinned = before.shapes.filter((shape) => shape.positioned === 'pinned');
     const now = new Map(scene.shapes.map((shape) => [shape.key, shape]));
@@ -254,10 +266,8 @@ describe('Routing beside rows on the fixture (ADR 0080, section 2, Stage 0b)', (
     if (each.name === 'overview expanded') expect(quality.sharedSegments).toBeLessThanOrEqual(16);
     else expect(quality.sharedSegments).toBe(0);
     // Crossings no more than after Stage 0a, but for the short C of the schema view's relation from
-    // a row to its own table, which crosses one line that leaves between its rows, and for the curves
-    // of processing that now go around the tables they crossed.
-    const extra =
-      each.name === 'schema-view' ? 1 : each.name === 'processing with its tables open' ? 2 : 0;
+    // a row to its own table, which crosses one line that leaves between its rows.
+    const extra = each.name === 'schema-view' ? 1 : 0;
     expect(quality.crossings).toBeLessThanOrEqual(before.crossings + extra);
     // At most 2 bends a line on average; overview's routes cross the whole view, and ELK's own
     // routes there bend 3.3 times a line, as the research measured (3.17).

@@ -7,6 +7,9 @@ import {
   CANVAS_BACKGROUNDS,
   THEME_NAMES,
   definitionsIn,
+  MINIMUM_COLOR_DIFFERENCE,
+  colorDifference,
+  labOf,
   legendOf,
   type ProjectSnapshot,
 } from '@visual-anything/core';
@@ -14,13 +17,7 @@ import type { ViewFile } from '@visual-anything/schema';
 import { describe, expect, it } from 'vitest';
 import { contrastRatio } from '../../canvas/colors';
 import { loadSample } from '../../test/sample';
-import {
-  LEAST_DIFFERENCE,
-  OVERLAY_PALETTE,
-  colorDifference,
-  labOf,
-  paletteColor,
-} from './overlayPalette';
+import { OVERLAY_PALETTE, paletteColor } from './overlayPalette';
 
 const MARK = 3;
 
@@ -36,7 +33,9 @@ describe('the overlay palette', () => {
       for (let second = first + 1; second < OVERLAY_PALETTE.length; second++) {
         const a = OVERLAY_PALETTE[first] as string;
         const b = OVERLAY_PALETTE[second] as string;
-        expect(colorDifference(a, b), `${a} and ${b}`).toBeGreaterThanOrEqual(LEAST_DIFFERENCE);
+        expect(colorDifference(a, b), `${a} and ${b}`).toBeGreaterThanOrEqual(
+          MINIMUM_COLOR_DIFFERENCE,
+        );
       }
     }
   });
