@@ -24,6 +24,7 @@ import { buildScene, type ElementShape, type RelationLine } from '../canvas/scen
 import { lineStroke, shapeColors } from '../canvas/theme/paint';
 import { t, type PluralText } from '../i18n';
 import { lostBeyondBoxes } from './beyond-lost';
+import { plainTexts } from './plain-texts';
 import type { TextExport } from './outline';
 
 const COPIES: PluralText = {
@@ -226,6 +227,9 @@ export function writeMermaid(
   }
 
   const free = scene.notes.length + scene.arrows.length;
+  // The view's description takes text emphasis (ADR 0082); Mermaid gets its plain text.
+  const texts = plainTexts();
+  const description = oneLine(texts.plain(view.description));
   const lost = [
     t('Mermaid lays the chart out itself: positions, sizes, routes and bend points are left out.'),
     t('Details under names, badges among them, are left out.'),
@@ -236,6 +240,7 @@ export function writeMermaid(
     // Free geometry, named parts and the styles of routes (M8b).
     ...lostBeyondBoxes(first.values(), drawnLines, 'Mermaid'),
     ...(free > 0 ? [t(FREE, { count: free })] : []),
+    ...texts.lost(),
     // Mermaid draws no legend, though its colors are the overlays' (ADR 0055).
     ...(legendShows(legendOf(view, definitions, theme))
       ? [
@@ -248,7 +253,6 @@ export function writeMermaid(
 
   const bounds = scene.bounds;
   const direction = bounds && bounds.width > bounds.height ? 'LR' : 'TB';
-  const description = oneLine(view.description ?? '');
   const text = [
     `%% ${oneLine(t('The view “{view}” of the project “{project}”, from Visual Anything.', { view: view.name, project: project.project.name }))}`,
     ...lost.map((each) => `%% ${oneLine(t('Lost: {what}', { what: each }))}`),
