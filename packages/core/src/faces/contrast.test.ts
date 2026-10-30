@@ -70,9 +70,9 @@ describe("a face's contrast", () => {
 
   it('matches a class made from values in time linear in the class', () => {
     const slots = '{{a}}x{{b}}{{c}}'.repeat(60);
-    const template = compileFace(face(`<p class="${slots}y">z</p>`)).markup!.nodes[0];
-    expect(template?.kind).toBe('element');
-    const pattern = classPattern(template?.kind === 'element' ? template.classes[0]! : []);
+    const node = compileFace(face(`<p class="${slots}y">z</p>`)).markup!.nodes[0];
+    expect(node?.kind).toBe('element');
+    const pattern = classPattern(node?.kind === 'element' ? node.classes[0]! : []);
     // Adjacent slots count as one.
     expect(pattern.filter((each) => each === '')).toHaveLength(1);
     const long = 'x'.repeat(50_000);

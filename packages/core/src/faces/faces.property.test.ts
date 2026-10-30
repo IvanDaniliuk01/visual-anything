@@ -379,17 +379,16 @@ describe('hostile faces', () => {
         const compiled = compileFace(face(lines));
         for (const problem of compiled.problems) {
           expect(['invalid-face', 'face-too-large']).toContain(problem.code);
-          expect(problem.line).toBeGreaterThanOrEqual(0);
+          // Every refusal carries a place in the text it refuses.
+          expect(problem.line).toBeGreaterThanOrEqual(1);
           expect(problem.line).toBeLessThanOrEqual(lines.length);
-          if (problem.line > 0)
-            expect(problem.column).toBeLessThanOrEqual(lines[problem.line - 1]!.length + 1);
+          expect(problem.column).toBeGreaterThanOrEqual(1);
+          expect(problem.column).toBeLessThanOrEqual(lines[problem.line - 1]!.length + 1);
         }
         // An event handler is refused as an attribute, inside a tag; outside one, " onb=" is text.
         if (/<(script|img|a|svg|iframe|template|object)\b|<[^<>]*\son\w+=|<!|<\?/.test(markup)) {
           expect(compiled.ok).toBe(false);
-          expect(compiled.problems.some((each) => each.severity === 'error' && each.line > 0)).toBe(
-            true,
-          );
+          expect(compiled.problems.some((each) => each.severity === 'error')).toBe(true);
         }
         // Whatever it holds, laying it out answers data, and the name stands in for a face that fails.
         const drawing = layOutFace(compiled, input(), { width: 120, height: 60 });
@@ -397,6 +396,41 @@ describe('hostile faces', () => {
         expect(JSON.parse(JSON.stringify(drawing))).toEqual(drawing);
       }),
       { numRuns: 400 },
+    );
+  });
+
+  it('are refused past their caps at a line and a column of the part that passes them', () => {
+    const part = fc
+      .array(fc.oneof(fc.integer({ min: 0, max: 40 }), fc.integer({ min: 1_990, max: 2_010 })), {
+        maxLength: 260,
+      })
+      .map((lengths) => lengths.map((length) => `<p>${'x'.repeat(length)}`.slice(0, length)));
+    fc.assert(
+      fc.property(
+        part,
+        part,
+        fc.array(part, { maxLength: 10 }),
+        (markup, style, variantMarkups) => {
+          const variants = variantMarkups.map((each, at) => ({ id: `v${at}`, markup: each }));
+          const compiled = compileFace(face(markup, style, { variants }));
+          for (const problem of compiled.problems) {
+            if (problem.severity !== 'error') continue;
+            const text =
+              problem.part.kind === 'markup'
+                ? markup
+                : problem.part.kind === 'style'
+                  ? style
+                  : variants.find((each) => each.id === (problem.part as { id: string }).id)!
+                      .markup;
+            expect(problem.line, problem.reason).toBeGreaterThanOrEqual(1);
+            expect(problem.column, problem.reason).toBeGreaterThanOrEqual(1);
+            // A variant's own first line, for its count, may be its only and empty line.
+            expect(problem.line).toBeLessThanOrEqual(Math.max(1, text.length));
+            expect(problem.column).toBeLessThanOrEqual((text[problem.line - 1] ?? '').length + 1);
+          }
+        },
+      ),
+      { numRuns: 60 },
     );
   });
 

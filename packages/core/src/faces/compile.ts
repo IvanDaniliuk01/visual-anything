@@ -1,20 +1,20 @@
 /**
  * Compiling a face (ADR 0083): its markup read by the strict reader and checked against the subset,
- * its slots and conditions read, and its style read, into templates `layOutFace` fills. Compiled faces
+ * its slots and conditions read, and its style read, into the nodes `layOutFace` fills. Compiled faces
  * are kept by their text, so that a face shared by many shapes is compiled once.
  */
 import type { FaceVariant } from '@visual-anything/schema';
-import { sha256, utf8 } from '../code/hash';
+import { sha256 } from '../code/hash';
 import { FACE_CAPS } from './limits';
 import { faceMessage, type FacePart, type FaceProblem } from './problems';
 import { readMarkup, type MarkupElement, type MarkupNode, type Position } from './reader';
 import {
   hasSlots,
   parseCondition,
-  parseTemplate,
+  parseSlots,
   type Condition,
   type Reference,
-  type TextTemplate,
+  type SlotText,
 } from './slots';
 import { readDeclarations, readStyle, type Assignment, type StyleRule } from './style';
 
@@ -137,49 +137,49 @@ export const INLINE_TAGS: ReadonlySet<string> = new Set([
 ]);
 
 /** A class of an element: literal text and slots, whose values are reduced to `[a-z0-9-]`. */
-export type ClassTemplate = TextTemplate;
+export type ClassSlots = SlotText;
 
-export interface TemplateElement {
+export interface FaceElement {
   kind: 'element';
   tag: FaceTag;
-  classes: readonly ClassTemplate[];
+  classes: readonly ClassSlots[];
   /** Whether a class holds a slot, so that its style is worked out for each element. */
   dynamicClasses: boolean;
   /** Its `style`, read. */
   inline: readonly Assignment[];
-  children: readonly TemplateNode[];
+  children: readonly FaceNode[];
   /** For `<image ref="…"/>`: the image's id. */
   ref?: string;
   at: Position;
 }
 
-export interface TemplateText {
+export interface FaceText {
   kind: 'text';
-  template: TextTemplate;
+  text: SlotText;
   at: Position;
 }
 
 /** `<each>`: what it repeats over, and its content. */
-export interface TemplateEach {
+export interface FaceEach {
   kind: 'each';
   of:
     | { kind: 'attributes'; only?: readonly string[]; except?: readonly string[] }
     | { kind: 'list'; ref: Reference };
-  children: readonly TemplateNode[];
+  children: readonly FaceNode[];
   at: Position;
 }
 
 /** An element with `if`, and the elements with `else` that follow it: the first that holds shows. */
-export interface TemplateChoice {
+export interface FaceChoice {
   kind: 'choice';
-  branches: readonly { condition?: Condition; node: TemplateElement | TemplateEach }[];
+  branches: readonly { condition?: Condition; node: FaceElement | FaceEach }[];
 }
 
-export type TemplateNode = TemplateElement | TemplateText | TemplateEach | TemplateChoice;
+export type FaceNode = FaceElement | FaceText | FaceEach | FaceChoice;
 
 /** A markup compiled: its nodes, and the face's own elements it holds. */
 export interface CompiledMarkup {
-  nodes: readonly TemplateNode[];
+  nodes: readonly FaceNode[];
   part: FacePart;
   /** The face's own elements it holds. */
   holds: ReadonlySet<string>;
@@ -213,6 +213,9 @@ const CACHE_SIZE = 512;
 
 /** A face compiled, from the cache when the same face was compiled before. */
 export function compileFace(face: ResolvedFace): CompiledFace {
+  // A face past its caps is refused before anything reads the whole of it, its cache key included.
+  const tooLarge = capProblems(face);
+  if (tooLarge.length > 0) return refusedAsTooLarge(face, tooLarge);
   const key = JSON.stringify([face.size, face.markup, face.style, face.variants, face.collapsed]);
   const known = cache.get(key);
   if (known !== undefined) return known;
@@ -222,27 +225,28 @@ export function compileFace(face: ResolvedFace): CompiledFace {
   return compiled;
 }
 
+/** A face past its caps: refused with nothing of it read, and hashed by its size and problems. */
+function refusedAsTooLarge(face: ResolvedFace, problems: readonly FaceProblem[]): CompiledFace {
+  return {
+    hash: sha256(JSON.stringify(['face-too-large', face.size, problems])),
+    size: face.size,
+    rules: [],
+    variants: new Map(),
+    ok: false,
+    problems,
+    attributes: [],
+  };
+}
+
 function compileUncached(face: ResolvedFace, key: string): CompiledFace {
   const problems: FaceProblem[] = [];
   const attributes: NamedAttribute[] = [];
-  const error = (
-    part: FacePart,
-    at: Position | undefined,
-    reason: string,
-    code: FaceProblem['code'] = 'invalid-face',
-  ) =>
-    problems.push({
-      code,
-      severity: 'error',
-      part,
-      line: at?.line ?? 0,
-      column: at?.column ?? 0,
-      reason,
-    });
+  const error: ErrorSink = (part, at, reason, code = 'invalid-face') =>
+    problems.push({ code, severity: 'error', part, line: at.line, column: at.column, reason });
   const warn = (part: FacePart, at: Position, reason: string) =>
     problems.push({ code: 'invalid-face', severity: 'warning', part, ...at, reason });
 
-  checkSizes(face, error);
+  checkLines(face, error);
 
   const style = face.style.join('\n');
   const read = readStyle(style);
@@ -262,16 +266,17 @@ function compileUncached(face: ResolvedFace, key: string): CompiledFace {
   for (const variant of face.variants) {
     const part: FacePart = { kind: 'variant', id: variant.id };
     if (variants.has(variant.id)) {
-      error(part, undefined, `Two variants are named "${variant.id}".`);
+      error(part, START, `Two variants are named "${variant.id}".`);
       continue;
     }
     const compiled = compileMarkup(variant.markup, part, error, warn, attributes);
     if (compiled !== undefined) variants.set(variant.id, compiled);
   }
   if (face.collapsed !== undefined && !face.variants.some((each) => each.id === face.collapsed)) {
+    // The variant a collapsed container shows is a setting of the face, in none of its texts.
     error(
       { kind: 'markup' },
-      undefined,
+      WHOLE_FACE,
       `A collapsed container shows the variant "${face.collapsed}", which the face does not have.`,
     );
   }
@@ -288,46 +293,126 @@ function compileUncached(face: ResolvedFace, key: string): CompiledFace {
   };
 }
 
-/** The caps a face's text is held to before it is read. */
-function checkSizes(
-  face: ResolvedFace,
-  error: (
-    part: FacePart,
-    at: Position | undefined,
-    reason: string,
-    code?: FaceProblem['code'],
-  ) => void,
-): void {
-  const tooLarge = (part: FacePart, reason: string) =>
-    error(part, undefined, reason, 'face-too-large');
-  if (face.variants.length > FACE_CAPS.variants) {
-    tooLarge({ kind: 'markup' }, `A face has at most ${FACE_CAPS.variants} variants.`);
-  }
-  const markups = [face.markup, ...face.variants.map((each) => each.markup)];
-  const lines = markups.reduce((sum, each) => sum + each.length, 0);
-  if (lines > FACE_CAPS.markupLines) {
+/** The first line and column of a text. */
+const START: Position = { line: 1, column: 1 };
+/** Where a problem with a setting of the face, rather than with a place in one of its texts, is. */
+const WHOLE_FACE: Position = { line: 0, column: 0 };
+
+/**
+ * The caps a face's text is held to before it is read (`face-too-large`), each at the first line
+ * and column past it. Nothing is read past a cap: lines are counted by their number, and bytes only
+ * until the cap is passed.
+ */
+function capProblems(face: ResolvedFace): FaceProblem[] {
+  const problems: FaceProblem[] = [];
+  const tooLarge = (part: FacePart, at: Position, reason: string) =>
+    problems.push({
+      code: 'face-too-large',
+      severity: 'error',
+      part,
+      line: at.line,
+      column: at.column,
+      reason,
+    });
+  const markups: { part: FacePart; lines: readonly string[] }[] = [
+    { part: { kind: 'markup' }, lines: face.markup },
+    ...face.variants.map((each) => ({
+      part: { kind: 'variant' as const, id: each.id },
+      lines: each.markup,
+    })),
+  ];
+  const past = face.variants[FACE_CAPS.variants];
+  if (past !== undefined) {
     tooLarge(
-      { kind: 'markup' },
-      `A face's markup, its variants' included, holds at most ${FACE_CAPS.markupLines} lines.`,
+      { kind: 'variant', id: past.id },
+      START,
+      `A face has at most ${FACE_CAPS.variants} variants.`,
     );
   }
-  const bytes = markups.reduce((sum, each) => sum + utf8(each.join('\n')).length, 0);
-  if (bytes > FACE_CAPS.markupBytes) {
-    tooLarge({ kind: 'markup' }, `A face's markup, its variants' included, holds at most 16 KiB.`);
-  }
-  if (utf8(face.style.join('\n')).length > FACE_CAPS.styleBytes) {
-    tooLarge({ kind: 'style' }, `A face's style holds at most 16 KiB.`);
-  }
-  const long = (lines: readonly string[], part: FacePart) => {
-    const at = lines.findIndex(
-      (line) => line.length > FACE_CAPS.lineCharacters || /[\r\n]/.test(line),
-    );
-    if (at !== -1) {
-      error(
-        part,
-        { line: at + 1, column: 0 },
-        'A line holds at most 2,000 characters and no line break.',
+  let counted = 0;
+  for (const markup of markups) {
+    if (counted + markup.lines.length > FACE_CAPS.markupLines) {
+      tooLarge(
+        markup.part,
+        { line: FACE_CAPS.markupLines - counted + 1, column: 1 },
+        `A face's markup, its variants' included, holds at most ${FACE_CAPS.markupLines} lines.`,
       );
+      break;
+    }
+    counted += markup.lines.length;
+  }
+  let bytes = 0;
+  for (const markup of markups) {
+    const found = bytesWithin(markup.lines, FACE_CAPS.markupBytes - bytes);
+    if (typeof found !== 'number') {
+      tooLarge(
+        markup.part,
+        found,
+        `A face's markup, its variants' included, holds at most 16 KiB.`,
+      );
+      break;
+    }
+    bytes += found;
+  }
+  const style = bytesWithin(face.style, FACE_CAPS.styleBytes);
+  if (typeof style !== 'number') {
+    tooLarge({ kind: 'style' }, style, `A face's style holds at most 16 KiB.`);
+  }
+  return problems;
+}
+
+/**
+ * The UTF-8 bytes of lines joined by line feeds, when they are at most `room`; otherwise where the
+ * first byte past it is: at the character it belongs to, or past the end of the line whose line feed
+ * it is. It reads no further than that byte.
+ */
+function bytesWithin(lines: readonly string[], room: number): number | Position {
+  let bytes = 0;
+  for (let line = 0; line < lines.length; line += 1) {
+    const text = lines[line]!;
+    if (line > 0) {
+      bytes += 1;
+      if (bytes > room) return { line, column: lines[line - 1]!.length + 1 };
+    }
+    for (let at = 0; at < text.length; at += 1) {
+      const pair = surrogatePairAt(text, at);
+      const code = text.charCodeAt(at);
+      // A lone surrogate is written as U+FFFD, three bytes, as `utf8` writes it.
+      bytes += pair ? 4 : code < 0x80 ? 1 : code < 0x800 ? 2 : 3;
+      if (bytes > room) return { line: line + 1, column: at + 1 };
+      if (pair) at += 1;
+    }
+  }
+  return bytes;
+}
+
+function surrogatePairAt(text: string, at: number): boolean {
+  const code = text.charCodeAt(at);
+  if (code < 0xd800 || code > 0xdbff || at + 1 >= text.length) return false;
+  const next = text.charCodeAt(at + 1);
+  return next >= 0xdc00 && next <= 0xdfff;
+}
+
+/** Each line of a face's texts is at most 2,000 characters and holds no line break. */
+function checkLines(face: ResolvedFace, error: ErrorSink): void {
+  const long = (lines: readonly string[], part: FacePart) => {
+    for (let at = 0; at < lines.length; at += 1) {
+      const line = lines[at]!;
+      const broken = line.search(/[\r\n]/);
+      const column =
+        broken !== -1 && broken < FACE_CAPS.lineCharacters
+          ? broken + 1
+          : line.length > FACE_CAPS.lineCharacters
+            ? FACE_CAPS.lineCharacters + 1
+            : -1;
+      if (column !== -1) {
+        error(
+          part,
+          { line: at + 1, column },
+          'A line holds at most 2,000 characters and no line break.',
+        );
+        return;
+      }
     }
   };
   long(face.markup, { kind: 'markup' });
@@ -335,12 +420,7 @@ function checkSizes(
   for (const variant of face.variants) long(variant.markup, { kind: 'variant', id: variant.id });
 }
 
-type ErrorSink = (
-  part: FacePart,
-  at: Position | undefined,
-  reason: string,
-  code?: FaceProblem['code'],
-) => void;
+type ErrorSink = (part: FacePart, at: Position, reason: string, code?: FaceProblem['code']) => void;
 
 /** Compiles one markup; `undefined` when it cannot be read. */
 function compileMarkup(
@@ -382,14 +462,14 @@ class Compiler {
     this.sink(this.part, at, reason);
   }
 
-  nodes(nodes: readonly MarkupNode[], depth: number, top: boolean): TemplateNode[] {
-    const out: TemplateNode[] = [];
+  nodes(nodes: readonly MarkupNode[], depth: number, top: boolean): FaceNode[] {
+    const out: FaceNode[] = [];
     const elements = nodes.filter((node): node is MarkupElement => node.kind === 'element');
     const last = elements.at(-1);
     for (const node of nodes) {
       if (node.kind === 'text') {
-        const template = this.template(node.text, node);
-        if (template !== undefined) out.push({ kind: 'text', template, at: node });
+        const text = this.slotText(node.text, node);
+        if (text !== undefined) out.push({ kind: 'text', text, at: node });
         continue;
       }
       if (node.name === 'rows' || node.name === 'contents') {
@@ -410,7 +490,7 @@ class Compiler {
           (each) =>
             !(
               each.kind === 'text' &&
-              each.template.every((part) => typeof part === 'string' && part.trim() === '')
+              each.text.every((part) => typeof part === 'string' && part.trim() === '')
             ),
         );
         const condition =
@@ -431,9 +511,7 @@ class Compiler {
             '"else" follows an element with "if", or one with "else" and a condition.',
           );
         } else {
-          (
-            previous.branches as { condition?: Condition; node: TemplateElement | TemplateEach }[]
-          ).push({
+          (previous.branches as { condition?: Condition; node: FaceElement | FaceEach }[]).push({
             ...(condition === undefined ? {} : { condition }),
             node: compiled,
           });
@@ -451,8 +529,8 @@ class Compiler {
     return out;
   }
 
-  private template(text: string, at: Position): TextTemplate | undefined {
-    const parsed = parseTemplate(text);
+  private slotText(text: string, at: Position): SlotText | undefined {
+    const parsed = parseSlots(text);
     if (!parsed.ok) {
       this.error(shifted(at, text, parsed.offset), parsed.reason);
       return undefined;
@@ -477,7 +555,7 @@ class Compiler {
     return parsed.value;
   }
 
-  private element(node: MarkupElement, depth: number): TemplateElement | TemplateEach | undefined {
+  private element(node: MarkupElement, depth: number): FaceElement | FaceEach | undefined {
     const name = node.name;
     if (name === 'each') return this.each(node, depth);
     if (!TAGS.has(name)) {
@@ -515,7 +593,7 @@ class Compiler {
     if (EMPTY.has(name) && node.children.length > 0) {
       this.error(node, `<${name}/> holds nothing: write it "<${name}/>".`);
     }
-    let classes: ClassTemplate[] = [];
+    let classes: ClassSlots[] = [];
     let inline: Assignment[] = [];
     let ref: string | undefined;
     for (const attribute of node.attributes) {
@@ -586,12 +664,12 @@ class Compiler {
     };
   }
 
-  private classes(value: string, at: Position): ClassTemplate[] | undefined {
-    const template = this.template(value, at);
-    if (template === undefined) return undefined;
+  private classes(value: string, at: Position): ClassSlots[] | undefined {
+    const text = this.slotText(value, at);
+    if (text === undefined) return undefined;
     // Split into classes at spaces in the literal parts; a slot belongs to the class it touches.
-    const classes: (string | TextTemplate[number])[][] = [[]];
-    for (const part of template) {
+    const classes: (string | SlotText[number])[][] = [[]];
+    for (const part of text) {
       if (typeof part !== 'string') {
         classes.at(-1)!.push(part);
         continue;
@@ -605,8 +683,8 @@ class Compiler {
     return classes.filter((each) => each.length > 0);
   }
 
-  private each(node: MarkupElement, depth: number): TemplateEach | undefined {
-    let of: TemplateEach['of'] | undefined;
+  private each(node: MarkupElement, depth: number): FaceEach | undefined {
+    let of: FaceEach['of'] | undefined;
     let only: string[] | undefined;
     let except: string[] | undefined;
     for (const attribute of node.attributes) {

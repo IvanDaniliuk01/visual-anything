@@ -23,9 +23,13 @@ export interface FaceProblem {
   /** Errors keep a command from setting the face; warnings only report. */
   severity: 'error' | 'warning';
   part: FacePart;
-  /** From 1; 0 when the problem is about the whole face. */
+  /**
+   * From 1. A problem in a face's text always has one, a cap's at the first line past it; 0 only
+   * for what is about the face as a whole rather than a place in its text: a `collapsed` variant it
+   * lacks, a fill past its caps found while laying out, or contrast checked only in part.
+   */
   line: number;
-  /** From 1; 0 when the problem is about the whole face or a whole line. */
+  /** From 1, a cap's at the first character past it; 0 when `line` is. */
   column: number;
   /** What is wrong, in a sentence that starts with a capital and ends with a period. */
   reason: string;

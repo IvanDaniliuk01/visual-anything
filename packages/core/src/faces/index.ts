@@ -14,8 +14,8 @@ export type {
   Position,
 } from './reader';
 export { readMarkup } from './reader';
-export type { Condition, Reference, Slot, TextTemplate } from './slots';
-export { parseCondition, parseSlot, parseTemplate } from './slots';
+export type { Condition, Reference, Slot, SlotText } from './slots';
+export { parseCondition, parseSlot, parseSlots } from './slots';
 export type {
   Align,
   Border,
