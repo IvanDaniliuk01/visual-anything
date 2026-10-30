@@ -10,6 +10,11 @@
  * never moves past the runs it joins, so a route keeps its shape. Lines that may not move, as routes
  * by hand or ELK's kept routes, keep their places, and the runs that move keep clear of theirs.
  *
+ * Before spreading, lines that leave one place of one end the same way and turn the same way are
+ * gathered into a trunk (`gatherTrunks`, ADR 0080's clarification of Stage 1b): their first turns
+ * move onto one place, so that they share their first run until they part, whether the program's
+ * router or libavoid routed them.
+ *
  * It works on numbers alone, so that it runs in the routing worker as it runs in the page or in Node.
  */
 
@@ -115,15 +120,16 @@ function straightened(input: ChannelInput, index: ObstacleIndex): ChannelOutput 
   const { starts, movable } = input;
   const lines = starts.length - 1;
   const routes: number[][] = [];
-  let total = 0;
   for (let line = 0; line < lines; line++) {
     const from = starts[line] as number;
     const to = starts[line + 1] as number;
     const route = Array.from(input.points.subarray(2 * from, 2 * to));
     if (movable[line] === 1) straighten(route, index);
     routes.push(route);
-    total += route.length;
   }
+  gatherTrunks(routes, input, index);
+  let total = 0;
+  for (const route of routes) total += route.length;
   const points = new Float64Array(total);
   const out = new Int32Array(lines + 1);
   let at = 0;
@@ -134,6 +140,165 @@ function straightened(input: ChannelInput, index: ObstacleIndex): ChannelOutput 
   });
   out[lines] = at / 2;
   return { points, starts: out };
+}
+
+/**
+ * Gathers trunks, in place (ADR 0080, section 2): the movable lines that leave one place of one end
+ * the same way, and turn the same way at their first turn, move that turn onto one place, so that
+ * they run together from their end until they part, as a trunk the spreading then keeps whole. The
+ * place is the one most of them can take, nearest the end where as many can: a line takes it when
+ * its first run keeps its stub, the run after its turn keeps its way, and nothing it would sweep over
+ * stands in the way. It works at both ends of each line, its `from` end, then its `to` end.
+ */
+function gatherTrunks(routes: number[][], input: ChannelInput, index: ObstacleIndex): void {
+  const { movable, ends, stubs } = input;
+  const gathered = new Set<number>();
+  for (const side of [0, 1] as const) {
+    // The lines by their end, the point they leave and the way their first run goes.
+    const groups = new Map<string, number[]>();
+    routes.forEach((route, line) => {
+      const count = route.length / 2;
+      // A first turn onto an inner run: four points at least.
+      if (movable[line] !== 1 || count < 4) return;
+      // A line of four points has one inner run: gathered at its `from` end, it stays there.
+      if (side === 1 && count === 4 && gathered.has(line)) return;
+      const p0 = pointOf(route, side, 0);
+      const p1 = pointOf(route, side, 1);
+      const p2 = pointOf(route, side, 2);
+      const horizontal = p0.y === p1.y && p0.x !== p1.x;
+      const vertical = p0.x === p1.x && p0.y !== p1.y;
+      if (horizontal === vertical) return;
+      const along = horizontal ? Math.sign(p1.x - p0.x) : Math.sign(p1.y - p0.y);
+      const turn = horizontal ? Math.sign(p2.y - p1.y) : Math.sign(p2.x - p1.x);
+      if (turn === 0) return;
+      const key = `${ends[2 * line + side] ?? -1}|${p0.x}|${p0.y}|${horizontal ? 'h' : 'v'}${along}|${turn}`;
+      const group = groups.get(key);
+      if (group) group.push(line);
+      else groups.set(key, [line]);
+    });
+    for (const group of groups.values()) {
+      if (group.length < 2) continue;
+      for (const line of gatherOne(routes, group, side, stubs, index)) gathered.add(line);
+    }
+  }
+}
+
+/** Gathers one group of `gatherTrunks` onto the place most of it can take. */
+function gatherOne(
+  routes: number[][],
+  group: readonly number[],
+  side: 0 | 1,
+  stubs: Float64Array,
+  index: ObstacleIndex,
+): number[] {
+  const first = routes[group[0] as number] as number[];
+  const p0 = pointOf(first, side, 0);
+  const p1 = pointOf(first, side, 1);
+  const horizontal = p0.y === p1.y;
+  // Across is the coordinate the first turn's run lies at: x after a horizontal first run.
+  const across = horizontal ? 'x' : 'y';
+  const start = p0[across];
+  const placeOf = (line: number) => pointOf(routes[line] as number[], side, 1)[across];
+  const candidates = [...new Set(group.map(placeOf))].sort(
+    (a, b) => Math.abs(a - start) - Math.abs(b - start),
+  );
+  /** Whether a line's first turn may move to `to`. */
+  const takes = (line: number, to: number): boolean => {
+    const route = routes[line] as number[];
+    const count = route.length / 2;
+    const was = placeOf(line);
+    if (was === to) return true;
+    // Its first run keeps its stub and its way.
+    const stub = stubs[2 * line + side] as number;
+    if (Math.sign(to - start) !== Math.sign(was - start) || Math.abs(to - start) < stub) {
+      return false;
+    }
+    // The run after its turn keeps its way, and its stub when it is the last.
+    const p3 = pointOf(route, side, 3)[across];
+    const least = count === 4 ? (stubs[2 * line + 1 - side] as number) : 1;
+    if (Math.sign(p3 - to) !== Math.sign(p3 - was) || Math.abs(p3 - to) < least) return false;
+    // Nothing stands where it would sweep.
+    const a = pointOf(route, side, 1)[across === 'x' ? 'y' : 'x'];
+    const b = pointOf(route, side, 2)[across === 'x' ? 'y' : 'x'];
+    return (
+      index.clearAlong(across, was, to, Math.min(a, b), Math.max(a, b)) &&
+      index.clearAcross(across, was, to, a) &&
+      index.clearAcross(across, was, to, b)
+    );
+  };
+  let best: { to: number; lines: number[] } | undefined;
+  for (const to of candidates) {
+    const lines = group.filter((line) => takes(line, to));
+    if (!best || lines.length > best.lines.length) best = { to, lines };
+  }
+  if (!best || best.lines.length < 2) return [];
+  const gathered: number[] = [];
+  const originals = new Map<number, number[]>();
+  for (const line of best.lines) {
+    const route = routes[line] as number[];
+    const was = route.slice();
+    originals.set(line, was);
+    const before = crossingsOf(was, routes, line);
+    const offset = across === 'x' ? 0 : 1;
+    for (const point of [1, 2]) {
+      const at = side === 0 ? point : route.length / 2 - 1 - point;
+      route[2 * at + offset] = best.to;
+    }
+    dropStraight(route);
+    // A line joins the trunk only when it crosses no more lines for it.
+    if (crossingsOf(route, routes, line) > before) {
+      route.length = 0;
+      route.push(...was);
+    } else gathered.push(line);
+  }
+  if (gathered.length < 2) {
+    // Alone at the place, a line is no trunk: it keeps its route.
+    for (const line of gathered) {
+      const route = routes[line] as number[];
+      route.length = 0;
+      route.push(...(originals.get(line) as number[]));
+    }
+    return [];
+  }
+  return gathered;
+}
+
+/** How many runs of the other routes a route crosses properly. */
+function crossingsOf(route: readonly number[], routes: readonly number[][], own: number): number {
+  let count = 0;
+  for (let at = 2; at + 1 < route.length; at += 2) {
+    const ax = route[at - 2] as number;
+    const ay = route[at - 1] as number;
+    const bx = route[at] as number;
+    const by = route[at + 1] as number;
+    const vertical = ax === bx;
+    if (vertical === (ay === by)) continue;
+    const lo = vertical ? Math.min(ay, by) : Math.min(ax, bx);
+    const hi = vertical ? Math.max(ay, by) : Math.max(ax, bx);
+    const c = vertical ? ax : ay;
+    routes.forEach((other, line) => {
+      if (line === own) return;
+      for (let each = 2; each + 1 < other.length; each += 2) {
+        const px = other[each - 2] as number;
+        const py = other[each - 1] as number;
+        const qx = other[each] as number;
+        const qy = other[each + 1] as number;
+        // A run across this one: horizontal against vertical, or vertical against horizontal.
+        if (vertical ? py !== qy : px !== qx) continue;
+        const d = vertical ? py : px;
+        const from = vertical ? Math.min(px, qx) : Math.min(py, qy);
+        const to = vertical ? Math.max(px, qx) : Math.max(py, qy);
+        if (d > lo && d < hi && c > from && c < to) count += 1;
+      }
+    });
+  }
+  return count;
+}
+
+/** The point `at` of a route counted from its `from` end (side 0) or its `to` end (side 1). */
+function pointOf(route: readonly number[], side: 0 | 1, at: number): { x: number; y: number } {
+  const index = side === 0 ? at : route.length / 2 - 1 - at;
+  return { x: route[2 * index] as number, y: route[2 * index + 1] as number };
 }
 
 /** Straightens the jogs of one route, as x and y pairs, in place: see `straightened`. */

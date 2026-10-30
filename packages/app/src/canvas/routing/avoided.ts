@@ -20,25 +20,23 @@
  * around the box that holds the shape and its tag, and reach it there (ADR 0066's clarification of
  * 2026-10-27).
  */
+import type { Side } from '@visual-anything/core';
 import { estimateWidth } from '../fit';
 import { arrowheadAt, type Point, type Rect } from '../geometry';
+import type { PlacedOutline } from '../outlines';
 import { midpointOf, routeBetweenEnds } from '../route';
 import { withRelations, type ElementShape, type RelationLine, type Scene } from '../scene';
 import { headerShift } from '../shape-images';
-import {
-  PLATE_HEIGHT,
-  STUB,
-  avoidRoutes,
-  type AvoidLine,
-  type AvoidShapes,
-  type AvoidSide,
-} from './avoid';
+import { PLATE_HEIGHT, STUB, type AvoidLine, type AvoidShapes, type AvoidSide } from './avoid';
+import { routeLines, type LibavoidRouter } from './libavoid';
 import { withRoundedCorners } from './rounded';
 import { spreadChannels, type ChannelInput, type ChannelOutput } from './channels';
 import {
+  carriedIn,
   carriedOrthogonal,
   endOutline,
   onlyStrokes,
+  placeOn,
   routeBoxOf,
   type OutlinedEnd,
 } from './outline-ends';
@@ -68,17 +66,14 @@ function routedEnd(shape: ElementShape | undefined): shape is ElementShape {
 }
 
 /**
- * Whether lines leave a shape at its connection points through the router: a shape drawn as its box,
- * whose points lie on the sides the router goes around. On an outline of its own, or drawn by its
- * picture, a line to a connection point keeps the route the scene gives it.
+ * Whether lines leave a shape at its connection points through the router: any shape with points but
+ * one beside whose rows lines leave. On a shape drawn as its box, the points lie on the sides the
+ * router goes around; on an outline of its own or a picture, the router leaves the point's place on
+ * the box, and the route is carried in to the outline from there, as the scene carries the point in
+ * (ADR 0080's clarification of Stage 1b).
  */
 function atPoints(shape: ElementShape): boolean {
-  return (
-    shape.points !== undefined &&
-    shape.outline === undefined &&
-    shape.plate === undefined &&
-    !besideRows(shape)
-  );
+  return shape.points !== undefined && !besideRows(shape);
 }
 
 /** Whether lines leave a shape beside it, as a row and a shape that draws rows (ADR 0023). */
@@ -420,17 +415,23 @@ export function avoidBatchOf(scene: Scene, only?: ReadonlySet<RelationLine>): Av
     const offset = line.ends?.offset ?? 0;
     const from = scene.shapes[ends.from];
     const to = scene.shapes[ends.to];
-    // A line on an outline is routed around by its stand-in route between the boxes.
+    // Where its ends leave, read from where the scene draws them: at a connection point on an
+    // outline, the point of the box it was carried in from.
+    const fromSide =
+      sideOf(batch, ends.from, line.route[0] as Point) ??
+      pointSideOf(from, ends.from, line.route[0]);
+    const toSide =
+      sideOf(batch, ends.to, line.route.at(-1) as Point) ??
+      pointSideOf(to, ends.to, line.route.at(-1));
+    // A line on an outline is routed around by its stand-in route between the boxes, or by its
+    // own route when it ends at a connection point.
     const onOutline = outlinedEnd(from) !== undefined || outlinedEnd(to) !== undefined;
+    const atPoint = fromSide?.point === true || toSide?.point === true;
     const route =
-      onOutline && from && to
+      onOutline && !atPoint && from && to
         ? routeBetweenEnds({ rect: avoidedBoxOf(from) }, { rect: avoidedBoxOf(to) }, offset)
         : line.route;
     const avoided: AvoidLine = { from: ends.from, to: ends.to, offset, route: flatRoute(route) };
-    const fromSide =
-      sideOf(batch, ends.from, route[0] as Point) ?? pointSideOf(from, ends.from, route[0]);
-    const toSide =
-      sideOf(batch, ends.to, route.at(-1) as Point) ?? pointSideOf(to, ends.to, route.at(-1));
     if (fromSide) avoided.fromSide = fromSide;
     if (toSide) avoided.toSide = toSide;
     lines.push(avoided);
@@ -464,6 +465,25 @@ function pointSideOf(
   point: Point | undefined,
 ): AvoidSide | undefined {
   if (!shape || !point || !atPoints(shape)) return undefined;
+  const box = shape.plate ?? shape.rect;
+  const outline = endOutline(shape, box);
+  if (outline || shape.plate) {
+    // The connection point the end lies at, carried in to the outline: it leaves its box's place.
+    const found = connectionPlaceAt(shape.points ?? [], box, outline, point);
+    if (!found) return undefined;
+    const place = placeOn(box, found.side, found.at);
+    if (found.side === 'left' || found.side === 'right') {
+      return { shape: at, way: found.side === 'left' ? -1 : 1, y: place.y, point: true };
+    }
+    return {
+      shape: at,
+      way: found.side === 'top' ? -1 : 1,
+      y: place.y,
+      vertical: true,
+      x: place.x,
+      point: true,
+    };
+  }
   const { x, y, width, height } = shape.rect;
   const away = [
     Math.abs(point.x - x),
@@ -472,9 +492,44 @@ function pointSideOf(
     Math.abs(point.y - (y + height)),
   ];
   const nearest = away.indexOf(Math.min(...away));
-  if (nearest === 0) return { shape: at, way: -1, y: point.y };
-  if (nearest === 1) return { shape: at, way: 1, y: point.y };
-  return { shape: at, way: nearest === 2 ? -1 : 1, y: point.y, vertical: true, x: point.x };
+  if (nearest === 0) return { shape: at, way: -1, y: point.y, point: true };
+  if (nearest === 1) return { shape: at, way: 1, y: point.y, point: true };
+  return {
+    shape: at,
+    way: nearest === 2 ? -1 : 1,
+    y: point.y,
+    vertical: true,
+    x: point.x,
+    point: true,
+  };
+}
+
+/** How far from where a connection point is drawn an end may lie and still be at it. */
+const AT_POINT = 1;
+
+/**
+ * The connection point of a shape that an end lies at: the one whose place on `box`, carried in to
+ * `outline` when the shape has one, is nearest `point`, within `AT_POINT`.
+ */
+function connectionPlaceAt(
+  points: readonly { side: Side; at: number }[],
+  box: Rect,
+  outline: PlacedOutline | undefined,
+  point: Point,
+): { side: Side; at: number } | undefined {
+  let best: { side: Side; at: number } | undefined;
+  let nearest = AT_POINT;
+  for (const each of points) {
+    const drawn = outline
+      ? carriedIn(outline, box, each.side, each.at).point
+      : placeOn(box, each.side, each.at);
+    const away = Math.hypot(drawn.x - point.x, drawn.y - point.y);
+    if (away <= nearest) {
+      nearest = away;
+      best = each;
+    }
+  }
+  return best;
 }
 
 function flatRoute(route: readonly Point[]): Float64Array {
@@ -698,6 +753,7 @@ export function avoidedScene(scene: Scene): Scene {
 export function routedAroundScene(
   scene: Scene,
   kept?: ReadonlyMap<string, readonly Point[]>,
+  libavoid?: LibavoidRouter,
 ): Scene {
   const all = avoidBatchOf(scene);
   if (all.lines.length === 0) return scene;
@@ -714,7 +770,7 @@ export function routedAroundScene(
       batch.drawn.push(drawn);
     }
   });
-  const results = avoidRoutes(batch.shapes, batch.lines, existing);
+  const { results } = routeLines(batch.shapes, batch.lines, existing, libavoid);
   const routes = new Map<RelationLine, Float64Array>();
   results.forEach((result, at) => {
     if (result.route) routes.set(batch.drawn[at] as RelationLine, result.route);
@@ -898,14 +954,21 @@ function samePoints(a: readonly Point[], b: readonly Point[]): boolean {
  * The lines of `drawn` that routing around may route, but those of `skip`, by relation, as the
  * avoider is given lines drawn already: their ends, and their routes as drawn.
  */
-export function existingLinesOf(drawn: Scene, base: Scene, skip: ReadonlySet<string>): AvoidLine[] {
+export function existingLinesOf(
+  drawn: Scene,
+  base: Scene,
+  skip: ReadonlySet<string>,
+  /** Filled with the relation of each line given, in the same order. */
+  relations?: string[],
+): AvoidLine[] {
   const flags = routedFlagsOf(base);
   const routed = new Set<string>();
   base.relations.forEach((line, at) => {
     if (flags[at] === 1 && !skip.has(line.relation)) routed.add(line.relation);
   });
   if (routed.size === 0) return [];
-  const { indexes } = avoidShapesOf(base.shapes);
+  const batch = avoidShapesOf(base.shapes);
+  const { indexes } = batch;
   const lines: AvoidLine[] = [];
   for (const line of drawn.relations) {
     if (!routed.has(line.relation)) continue;
@@ -914,7 +977,17 @@ export function existingLinesOf(drawn: Scene, base: Scene, skip: ReadonlySet<str
     const from = indexes.get(ends.from.key);
     const to = indexes.get(ends.to.key);
     if (from === undefined || to === undefined) continue;
-    lines.push({ from, to, offset: ends.offset, route: flatRoute(line.route) });
+    const existing: AvoidLine = { from, to, offset: ends.offset, route: flatRoute(line.route) };
+    // Where its ends leave, as for a line asked for, so that libavoid can route it again too.
+    const first = line.route[0];
+    const last = line.route.at(-1);
+    const fromSide =
+      (first && sideOf(batch, from, first)) ?? pointSideOf(base.shapes[from], from, first);
+    const toSide = (last && sideOf(batch, to, last)) ?? pointSideOf(base.shapes[to], to, last);
+    if (fromSide) existing.fromSide = fromSide;
+    if (toSide) existing.toSide = toSide;
+    lines.push(existing);
+    relations?.push(line.relation);
   }
   return lines;
 }

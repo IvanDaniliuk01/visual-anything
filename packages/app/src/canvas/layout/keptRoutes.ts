@@ -12,6 +12,7 @@ import type { Id } from '@visual-anything/schema';
 import { arrowheadAt, type Point, type Rect } from '../geometry';
 import { midpointOf } from '../route';
 import { channelledScene, routedAroundScene } from '../routing/avoided';
+import type { LibavoidRouter } from '../routing/libavoid';
 import { shapeChanges, type ShapeChange } from '../routing/useAvoidedRoutes';
 import { withRelations, type ElementShape, type RelationLine, type Scene } from '../scene';
 import type { LaidOutRoute } from './types';
@@ -97,13 +98,17 @@ export function withKeptRoutes(scene: Scene, kept: KeptRoutes | undefined): Scen
  * the channel pass over both, which leaves ELK's routes where they are. For the exports and tests;
  * the canvas does the same in the routing worker.
  */
-export function routedWithKept(scene: Scene, kept: KeptRoutes | undefined): Scene {
+export function routedWithKept(
+  scene: Scene,
+  kept: KeptRoutes | undefined,
+  libavoid?: LibavoidRouter,
+): Scene {
   const held = withKeptRoutes(scene, kept);
   const along = new Map<Id, readonly Point[]>();
   for (const line of held.relations) {
     if (alongKeptRoute(kept, line)) along.set(line.relation, line.route);
   }
-  const routed = withKeptRoutes(routedAroundScene(scene, along), kept);
+  const routed = withKeptRoutes(routedAroundScene(scene, along, libavoid), kept);
   return channelledScene(routed, scene, (line) => alongKeptRoute(kept, line));
 }
 

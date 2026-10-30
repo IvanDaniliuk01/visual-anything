@@ -60,6 +60,11 @@ export interface AvoidSide {
   /** Present for an end that leaves a top or bottom side: then it leaves at this `x`. */
   vertical?: true;
   x?: number;
+  /**
+   * Present for an end at a connection point, which leaves by its own side alone; a row's end may
+   * leave by either side of its table, as libavoid chooses (`libavoid.ts`).
+   */
+  point?: true;
 }
 
 /** A line to route: the indexes of its ends' shapes, how far it runs beside its siblings, its route. */
