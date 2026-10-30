@@ -138,8 +138,11 @@ describe('checkAgainstSchema', () => {
             ) as unknown;
           }
         }
-        const ours = checkAgainstSchema(modelSchema, data);
-        const theirs = validateFile('model', data);
+        // What is checked always comes from parsed JSON, which has no holes: an array built by
+        // index above may skip one, which the round trip writes as null.
+        const parsed = JSON.parse(JSON.stringify(data)) as unknown;
+        const ours = checkAgainstSchema(modelSchema, parsed);
+        const theirs = validateFile('model', parsed);
         expect(ours.length === 0).toBe(theirs.ok);
       }),
       { numRuns: 400 },
