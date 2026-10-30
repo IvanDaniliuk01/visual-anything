@@ -33,6 +33,7 @@ import type {
 } from '@visual-anything/schema';
 import { readDecisions } from './decision-edits';
 import { appearanceRead } from './geometry-brief';
+import { UNDEFINED_ATTRIBUTES_NOTE, undefinedAttributesOf } from './undefined-attributes';
 
 /** How many ways a scenario plays that read_scenario counts before it says "or more". */
 const WAYS_COUNTED = 1000;
@@ -322,6 +323,8 @@ export function describeItem(
       ...(element.ids === undefined ? {} : { ids: element.ids }),
       attributes: element.attributes ?? {},
       attributeDefinitions: [...(component?.attributes ?? [])],
+      // What it carries that its component does not define: particularities, kept (M3d).
+      ...undefinedOf(state, element),
       ...describedDestinations(element, component?.attributes ?? []),
       ...(element.appearance === undefined
         ? {}
@@ -374,6 +377,14 @@ export function describeItem(
     };
   }
   return undefined;
+}
+
+/** The attributes an element carries that its component does not define, with what they mean. */
+function undefinedOf(state: ProjectSnapshot, element: Element) {
+  const names = undefinedAttributesOf(state, element);
+  return names.length === 0
+    ? {}
+    : { undefinedAttributes: names, undefinedAttributesNote: UNDEFINED_ATTRIBUTES_NOTE };
 }
 
 /**

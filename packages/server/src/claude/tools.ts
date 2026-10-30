@@ -268,7 +268,7 @@ Example: { "relationType": "systems.writes-to", "to": "appointments-db" }`,
 const getItem = tool({
   name: 'get_item',
   title: 'Read an element or a relation',
-  description: `Reads one element or relation by id, with everything around it. For an element: its component, attributes and the definitions of the attributes it can have, its own appearance (free geometry in brief unless fullGeometry), its containers (with the nesting relation that places it in each), its contents, the relations from and to it, and the views that place it. For a relation: its type, ends, attributes, its own appearance, the relations that end on it, and the scenario steps that use it. ${LIVE_VALUES_BESIDE}
+  description: `Reads one element or relation by id, with everything around it. For an element: its component, attributes and the definitions of the attributes it can have (undefinedAttributes names those it carries that its component does not define: kept, as particularities), its own appearance (free geometry in brief unless fullGeometry), its containers (with the nesting relation that places it in each), its contents, the relations from and to it, and the views that place it. For a relation: its type, ends, attributes, its own appearance, the relations that end on it, and the scenario steps that use it. ${LIVE_VALUES_BESIDE}
 
 Example: { "id": "booking-agent" }`,
   input: { id: id(), fullGeometry: fullGeometry() },

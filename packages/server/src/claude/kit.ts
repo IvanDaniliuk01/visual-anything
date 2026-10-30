@@ -13,6 +13,7 @@ import {
 import { z } from 'zod';
 import type { CommandAnswer, ExecuteOptions, Program } from './bridge';
 import type { Tool, ToolHints, ToolOutcome } from './tools';
+import { elementsTouched, undefinedAttributesAnswer } from './undefined-attributes';
 
 export function tool<Shape extends z.ZodRawShape>(definition: Tool<Shape>): Tool<Shape> {
   return definition;
@@ -73,7 +74,8 @@ export type More = Record<string, unknown> & { warnings?: readonly string[] };
 /**
  * Sends a command as Claude's action, and says what was done or why not; `more` adds to the answer
  * of a command that was done, its warnings after the core's, and the warnings of the core it says
- * itself are left out of the rest.
+ * itself are left out of the rest. The answer also names the attributes that the elements the
+ * command created or changed carry and their components do not define.
  */
 export async function act(
   program: Program,
@@ -89,7 +91,13 @@ export async function act(
       `Refused, so nothing changed: ${sentences(answer.problems)} (${[...new Set(answer.problems.map((each) => each.code))].join(', ')})`,
     );
   }
-  const { warnings: added = [], ...extra } = await more(answer);
+  const { warnings: added = [], ...given } = await more(answer);
+  // The attributes what it touched carries that their components do not define, kept (M3d).
+  const touched = elementsTouched(command, answer.created);
+  const extra =
+    touched.length === 0
+      ? given
+      : { ...given, ...undefinedAttributesAnswer(await program.project(), touched) };
   const warnings = [
     ...answer.warnings
       .filter((each) => !saidByMore.includes(each.code))
