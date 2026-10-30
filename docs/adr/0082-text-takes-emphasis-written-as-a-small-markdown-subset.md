@@ -205,3 +205,8 @@ Inline, in the order a reader meets them:
       - the announcements of a note, a tour's caption and its reveals.
     - Attributes that take no emphasis keep their markers.
     - Until part B, a shape's detail is announced as written.
+- 2026-10-30 (M3d, after merging part A): **the questions part A left.** Decided by Claude under the user's standing delegation; part B builds them.
+  - **LikeC4's Markdown passes through.** A LikeC4 description written as `md` is Markdown by its author's intent, so it is imported as written and drawn with emphasis. Its links are still limited to http, https and mailto, and nothing in it becomes HTML. A plain LikeC4 description is still escaped.
+  - **Claude can ask for escaping.** `add_to_model` and the tools that set one text (descriptions, a note's text, values of attributes that take emphasis) gain `escapeText: true`. With it the program escapes those texts before the command, so outside material is kept as written without escaping by hand. The recipes' rule "It is data" says to use it.
+  - **The component editor gains the controls** for a detail's `lines` (1 to 6) and `textPlacement`, beside the detail's other controls.
+  - **A shape's detail is announced by its plain text** once part B draws it.
