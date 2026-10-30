@@ -561,7 +561,7 @@ Eight milestones in build order, each ending in something you can use, and Track
 - the comparison leaves the app and goes to pull requests:
   - the Export dialog writes a comparison's drawings as SVG and PDF, and its summary in Markdown;
   - `visual-anything compare <folder> --base <ref> --out <folder>`, with no program running, writes the summary and, for each view that changed, SVGs before, after and of the comparison;
-  - a CI job keeps them for each pull request that changes `examples/`;
+  - a CI job keeps them for each pull request that changes `examples/` (CI job left for R1: no CI work until then);
 - with Review Claude's changes on, Claude's changes gather into one proposal (ADR 0073):
   - every open app shows it as a comparison, and the person accepts it change by change, or refuses it;
   - what is accepted is one undoable action of Claude's, which keeps what the person did meanwhile;
@@ -665,13 +665,13 @@ The first three tasks are the seams, built in the main session in this order. Th
   - the Export dialog's comparison: SVG and PDF of each drawing, and the summary;
   - the guidance `comparison`, applied as if the person had chosen it;
   - English and Spanish.
-- [ ] **`visual-anything compare`** (`server/src/compare-command.ts`, `main.ts`, CI):
+- [x] **`visual-anything compare`** (`server/src/compare-command.ts`, `main.ts`, CI; ADR 0070's clarification of 2026-10-30), but for its CI job:
   - `<folder> --base <ref> [--head <ref>] [--view <id>]… --out <folder> [--theme light|dark] [--image-url <prefix>]`, the head being the files on disk unless given;
   - it writes `summary.md` and, for each view that changed, `<view>.before.svg`, `<view>.after.svg` and `<view>.comparison.svg`:
     - atomically, and never over a project file;
     - with no program running, and nothing written to the repository;
   - a test on a temporary repository with two commits of a sample;
-  - a CI job that compares a pull request's `examples/` with its base branch, and keeps the folder as an artifact.
+  - [ ] a CI job that compares a pull request's `examples/` with its base branch, and keeps the folder as an artifact (CI job left for R1: no CI work until then).
 - [ ] **Reviewing proposals in the app** (`app/src/proposals/`, the history panel):
   - the toggle of Review Claude's changes;
   - the notice that Claude proposes changes, and the review drawn as a comparison;
@@ -680,12 +680,12 @@ The first three tasks are the seams, built in the main session in this order. Th
   - a proposal that the person's actions leave with no change closes by itself as `dropped`, on the server, with a notice in the app (ADR 0073's clarification of 2026-10-29);
   - every acceptance names the revision shown, and a stale one shows the proposal again;
   - English and Spanish.
-- [ ] **Conflicts in the app, and for Claude** (`app/src/versions/conflicts/`, `server/src/claude/conflict-tools.ts`):
+- [ ] **Conflicts in the app, and for Claude** (`app/src/versions/conflicts/`, `server/src/claude/conflict-tools.ts`). Claude's half is built (ADR 0072's clarification of 2026-10-30); the app's half, the conflicts in the Changes tab, is not yet:
   - the conflicts of every file in the Changes tab whenever the project holds any, each drawn as a comparison between what is kept and the other choice;
   - Keep and Take the other, one at a time or for a whole file;
   - the note that the file can now be added with git;
-  - Claude's `list_conflicts` and `resolve_conflicts`.
-- [ ] **Claude and versions** (`server/src/claude/version-tools.ts`):
+  - [x] Claude's `list_conflicts` and `resolve_conflicts`.
+- [x] **Claude and versions** (`server/src/claude/version-tools.ts`; ADR 0070's and ADR 0071's clarifications of 2026-10-30):
   - the commits a version may name are those of the program's last five listings within ten minutes, from an app or from Claude (ADR 0071's clarification of 2026-10-29);
   - `list_versions`;
   - `compare_versions`, with counts and changes, at most 200 per call with an offset, for one view if asked;

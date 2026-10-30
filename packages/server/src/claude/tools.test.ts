@@ -84,11 +84,11 @@ describe('the tools', () => {
     }
   });
 
-  it('say which only read: those that get, list, find, read, preview, export, check or capture', () => {
+  it('say which only read: those that get, list, find, read, preview, export, check, capture or compare', () => {
     const readOnly = TOOLS.filter((each) => each.hints.readOnlyHint).map((each) => each.name);
     expect(readOnly).toEqual(
       TOOLS.map((each) => each.name).filter((name) =>
-        /^(get|list|find|read|preview|export|check|capture)_/.test(name),
+        /^(get|list|find|read|preview|export|check|capture|compare)_/.test(name),
       ),
     );
     expect(readOnly).toEqual(
@@ -99,6 +99,9 @@ describe('the tools', () => {
         'get_view_address',
         'check_tour',
         'capture_view',
+        'list_versions',
+        'compare_versions',
+        'list_conflicts',
       ]),
     );
   });

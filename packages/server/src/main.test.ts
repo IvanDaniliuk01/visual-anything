@@ -48,6 +48,14 @@ describe('entryOf', () => {
     expect(entryOf(['./merge-driver'])).toEqual({ kind: 'program', argv: ['./merge-driver'] });
   });
 
+  it('runs the comparison for the compare subcommand, with every argument after it', () => {
+    expect(entryOf(['compare', 'examples/my-systems', '--base', 'main', '--out', 'out'])).toEqual({
+      kind: 'compare',
+      argv: ['examples/my-systems', '--base', 'main', '--out', 'out'],
+    });
+    expect(entryOf(['./compare'])).toEqual({ kind: 'program', argv: ['./compare'] });
+  });
+
   it('names the merge driver in its command as main dispatches it', () => {
     expect(MERGE_DRIVER_COMMAND).toBe(DRIVER_SUBCOMMAND);
   });

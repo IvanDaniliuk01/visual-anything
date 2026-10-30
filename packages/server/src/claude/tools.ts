@@ -56,6 +56,8 @@ import {
 import { IMAGE_TOOLS } from './image-tools';
 import { PART_TOOLS } from './part-tools';
 import { PROPOSAL_TOOLS, proposalNoteOf } from './proposal-tools';
+import { VERSION_TOOLS } from './version-tools';
+import { CONFLICT_TOOLS } from './conflict-tools';
 import { OVERLAY_TOOLS } from './overlay-tools';
 import { IMPORT_TOOLS } from './import-tools';
 import { DRAWING_TOOLS } from './drawing-tools';
@@ -1716,6 +1718,10 @@ export const TOOLS: readonly Tool[] = [
   ...LIVE_TOOLS,
   // Claude's proposal, which the person reviews (ADR 0073).
   ...PROPOSAL_TOOLS,
+  // Versions of the project read from git, compared with the project now (ADR 0070, ADR 0071).
+  ...VERSION_TOOLS,
+  // The conflicts a merge left in the project's files (ADR 0072).
+  ...CONFLICT_TOOLS,
 ];
 
 /** Runs a tool, turning a program that cannot be reached into an outcome Claude reads. */
@@ -1743,8 +1749,15 @@ export async function runTool(
   }
 }
 
-/** The read tools that say themselves what the proposal holds. */
-const OWN_PROPOSAL_NOTE: ReadonlySet<string> = new Set(['read_proposal']);
+/**
+ * The read tools that say themselves what the proposal holds, or read no project: the versions are
+ * compared with the project now, which the proposal is not part of.
+ */
+const OWN_PROPOSAL_NOTE: ReadonlySet<string> = new Set([
+  'read_proposal',
+  'list_versions',
+  'compare_versions',
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

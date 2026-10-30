@@ -211,7 +211,7 @@ describe('Compare with…', () => {
         {
           code: 'invalid-command',
           message:
-            'That commit is not one the program listed in its latest listing of versions: list them again, then choose one.',
+            'That commit is not one the program listed in its recent listings of versions: list them again, then choose one.',
         },
       ],
     });

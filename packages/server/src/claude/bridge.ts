@@ -24,9 +24,12 @@ import {
   CAPTURE_WAIT,
   type CaptureAsk,
   type CaptureReport,
+  type Comparison,
+  type ListedVersion,
   type Problem,
   type ProjectSnapshot,
   type ProposalShownMessage,
+  type VersionRef,
   type ViewState,
 } from '@visual-anything/core';
 import type { Id } from '@visual-anything/schema';
@@ -47,6 +50,7 @@ import {
 import { LAYOUT_WAIT_MARGIN, LAYOUT_WAIT_PER_LAYOUT, layoutWait } from '../layout-waits';
 import type { LiveKept, LiveListing } from '../live';
 import type { ProposalEnding } from '../proposals';
+import { GIT_LIMITS } from '../versions/git';
 import {
   CLAUDE_PATH,
   decodeProgramMessage,
@@ -88,6 +92,19 @@ export interface ProposalState {
 /** How a withdrawal went: the proposal withdrawn, or why none was. */
 export type WithdrawAnswer = { ok: true; proposal: Id } | { ok: false; problems: Problem[] };
 
+/** The versions the program listed (ADR 0071), newest first in each kind, or why it could list none. */
+export interface VersionsAnswer {
+  versions: ListedVersion[];
+  why?: string;
+}
+
+/**
+ * A version compared with the project now (ADR 0070), the version the older: the comparison, without
+ * the version's project (ADR-0029); or why it could not be.
+ */
+export type ComparedAnswer =
+  { ok: true; comparison: Comparison } | { ok: false; problems: Problem[] };
+
 /** How a command of Claude's runs: `propose` makes it join Claude's proposal (ADR 0073). */
 export interface ExecuteOptions {
   propose?: boolean;
@@ -109,6 +126,16 @@ export interface Program {
   proposal?(): Promise<ProposalState>;
   /** Withdraws Claude's proposal that waits. Absent where it cannot. */
   withdrawProposal?(): Promise<WithdrawAnswer>;
+  /**
+   * Lists the versions of the project's repository (ADR 0071); their commits join those a version may
+   * name. Absent where it cannot.
+   */
+  listVersions?(): Promise<VersionsAnswer>;
+  /**
+   * Compares a version, the project as opened or a commit the program listed, with the project now,
+   * for every view or for one (ADR 0070). Absent where it cannot.
+   */
+  compareVersion?(version: VersionRef, view?: Id): Promise<ComparedAnswer>;
   /** Shows guidance in the open apps; resolves with how many it reached. */
   guide(guidance: Guidance): Promise<number>;
   /**
@@ -332,6 +359,42 @@ export class ProgramBridge implements Program {
       };
     }
     if (answer.type === 'command/rejected') return { ok: false, problems: answer.problems };
+    throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  async listVersions(): Promise<VersionsAnswer> {
+    // A listing has its own deadline in the program; this one waits as long, and its usual time.
+    const answer = await this.#request(
+      (requestId) => ({ type: 'versions/list', requestId }),
+      GIT_LIMITS.readMs + (this.#options.requestTimeout ?? REQUEST_TIMEOUT),
+    );
+    if (answer.type === 'versions/listed') {
+      return {
+        versions: answer.versions,
+        ...(answer.why === undefined ? {} : { why: answer.why }),
+      };
+    }
+    if (answer.type === 'command/rejected') {
+      throw new ProgramUnavailableError(answer.problems.map((each) => each.message).join(' '));
+    }
+    throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
+  }
+
+  async compareVersion(version: VersionRef, view?: Id): Promise<ComparedAnswer> {
+    // Reading a version has 120 s in the program; this one waits as long, and its usual time.
+    const answer = await this.#request(
+      (requestId) => ({
+        type: 'version/compare',
+        requestId,
+        version,
+        ...(view === undefined ? {} : { view }),
+      }),
+      GIT_LIMITS.readMs + (this.#options.requestTimeout ?? REQUEST_TIMEOUT),
+    );
+    if (answer.type === 'version/compared') return { ok: true, comparison: answer.comparison };
+    if (answer.type === 'version/refused' || answer.type === 'command/rejected') {
+      return { ok: false, problems: answer.problems };
+    }
     throw new ProgramUnavailableError(`Visual Anything answered with ${answer.type}.`);
   }
 

@@ -186,7 +186,7 @@ export interface LiveSession {
    */
   listVersions?(origin: Origin): Promise<void>;
   /**
-   * Compares a version, the project as opened or a commit of the latest listing, with the project now
+   * Compares a version, the project as opened or a commit of the recent listings, with the project now
    * (ADR 0070), for every view or for one, and answers through the origin's client with the
    * comparison, or with why it cannot be made. Absent where the program reads no versions.
    */
@@ -741,7 +741,8 @@ export class Session implements LiveSession {
   /**
    * Lists the versions of the project's repository (ADR 0071) and answers with them, newest first in
    * each kind, or with why none can be listed. It only reads, and never waits behind the project's own
-   * work. Its commits are, from then on, the only ones a version may name.
+   * work. Its commits join those a version may name: the commits of the program's last five
+   * listings within ten minutes, from an app or from Claude (ADR 0071's clarification of 2026-10-29).
    */
   async listVersions(origin: Origin): Promise<void> {
     const listing = await this.#versions.list();
@@ -756,7 +757,7 @@ export class Session implements LiveSession {
   /**
    * Compares a version with the project now (ADR 0070): the version is the older, the project now
    * the newer. An app gets the version's project too, to draw it; Claude does not (ADR-0029). A
-   * commit not in the latest listing is refused before git hears of it, and one version is read at a
+   * commit not in the recent listings is refused before git hears of it, and one version is read at a
    * time: a newer request stops the one under way. Like a listing, it never waits behind the project's
    * own work. The comparison is worked out against the project as every app last heard of it, and
    * sent at once, so that an app follows every later action with `recompare`.
