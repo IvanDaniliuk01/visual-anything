@@ -164,7 +164,7 @@ What a component's shapes show inside their body, laid out from a subset of HTML
 _Avoid_: template, card, skin
 
 **Text emphasis**:
-Bold, italic, strikethrough, inline code, highlight and underline in a text, written as a small Markdown subset (`**bold**`, `*italic*`, `~~struck~~`, `` `code` ``, `==highlight==`, `++underline++`) and stored as typed. Notes, captions and descriptions always take it; a text attribute takes it when its definition says so (ADR 0082). Not the canvas's emphasis of a shape.
+Bold, italic, strikethrough, inline code, highlight and underline in a text, written as a small Markdown subset (`**bold**`, `*italic*`, `~~struck~~`, `` `code` ``, `==highlight==`, `++underline++`) and stored as typed. Notes, captions, reveals, speaker notes and descriptions always take it, and with it Markdown's blocks: headings, lists, task lists, quotes, rules, fenced code, tables and links to `http:`, `https:` and `mailto:` addresses. A text attribute takes the inline part when its definition's format is `emphasis`; names never do (ADR 0082). Not the canvas's emphasis of a shape.
 _Avoid_: rich text, formatting, markup
 
 **Project appearance**:

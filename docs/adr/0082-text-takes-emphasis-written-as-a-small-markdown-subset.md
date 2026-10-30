@@ -139,3 +139,69 @@ Inline, in the order a reader meets them:
     - SVG and PDF draw what the canvas draws;
     - the outline in Markdown writes the blocks as CommonMark, escaped as before;
     - Mermaid and Structurizr write plain text and say what they lost.
+
+<!-- Decided by Claude on 2026-10-30 under the user's standing delegation of design decisions, while building part A of "Text that takes emphasis": the reader, the schema, the panels, the text exports, imports and Claude. -->
+
+- 2026-10-30: **how part A reads, shows and writes text emphasis.** Part B draws it on the canvas and in SVG and PDF, and wraps and places the detail.
+  - **The reader follows CommonMark more closely than "simplified" said.**
+    - Delimiters take CommonMark's flanking rules whole, punctuation and the rule of three included. `~~`, `==` and `++` take the same rules, as runs of exactly two.
+    - A backslash before any ASCII punctuation writes that character, as in CommonMark, not only before the subset's markers.
+    - Entity references (`&copy;`) are drawn as the characters they are.
+    - Its conformance tests are 350 examples of CommonMark's specification (0.31.2) and of GitHub's (tables, strikethrough, task lists), copied into the core's tests under their CC BY-SA 4.0 licence.
+  - **What it leaves out of CommonMark's blocks:**
+    - setext headings, so a `---` under a paragraph is a rule;
+    - indented code, so indented lines are a paragraph's text;
+    - lazy continuation lines: a line without its quote's `>` or its item's indent starts a paragraph of its own, as captions already read it (ADR 0058);
+    - reference links and autolinks;
+    - headings 4 to 6, and lists and quotes nested deeper than three levels: these are written as the characters they are.
+
+    As captions already do, a list started with any number interrupts a paragraph.
+  - **Limits.**
+    - A table of more than 12 columns is not read as a table. The rows after its 50th are read as a paragraph.
+    - Past 4,000 runs, the rest of each text is one plain run of its text, its markers read. Past 500 blocks, the rest of the text is one plain paragraph of its source.
+    - A link to an address other than `http:`, `https:` or `mailto:` is drawn as its label, as plain text.
+  - **`plainText`** writes:
+    - blocks a line each;
+    - list items without their markers;
+    - a link as its label;
+    - a table's cells with a tab between them.
+  - **`escapeEmphasis` escapes as little as it can:**
+    - `*`, the backtick, `[` and `|` always;
+    - `_` unless it stands between letters or digits, so `user_id` stays as it is;
+    - `~`, `=` and `+` only when doubled;
+    - `\` before punctuation or at a line's end;
+    - `#`, `>`, `-`, `+`, a number's `.` or `)` and `~~~` at a line's start.
+
+    Blank lines and the spaces at a line's ends cannot be escaped: a text of several lines keeps its lines, trimmed, and its paragraphs.
+  - **The schema and the core.**
+    - `format` is only for string attributes.
+    - `lines` and `textPlacement` are worked out along the chain in the core (`ResolvedDetail.lines`, `ResolvedAppearance.textPlacement`), so that part B reads them as any trait. Essence gives 3 and `middle`.
+    - The component editor has no control for them yet; `set_appearance` sets them.
+  - **Panels.**
+    - A text's headings take the levels under the panel's own heading.
+    - Task boxes are disabled checkboxes.
+    - Until the theme gains the canvas's highlight and code colors (part B), panels draw a highlight on `warning-soft` and code on `surface-pressed`. Both are already checked in both themes.
+    - A field that edits a text shows the drawn text under its source only when the two differ.
+    - An attribute definition's description is drawn inline, in the inspector's short note on the attribute.
+    - The attribute editor gains "Takes text emphasis" for string attributes.
+    - The read-only page's details use the same renderer for descriptions, a note's text and values that take emphasis.
+    - The editor keys work in the description fields, the tour editor's caption and notes, values that take emphasis, and the canvas's note editor.
+  - **Exports.**
+    - The outline in Markdown:
+      - puts a description's headings under its own;
+      - writes a line break as a hard break (`\`) and a link as `[label](<address>)`;
+      - gives a list that follows a list of the same kind other markers, so that the two stay two.
+    - Of the texts that take emphasis, Mermaid writes only the view's description, in its `accDescr`. Structurizr writes the descriptions of elements, of the view and of the workspace.
+    - Each says once, and only when a text it wrote had emphasis, that emphasis is written as plain text.
+  - **Imports and Claude.**
+    - Imports escape in `planToCommand`, which every import goes through: descriptions, and the values of attributes whose definition takes emphasis. LikeC4's Markdown descriptions are escaped too, so they are kept as written.
+    - Claude has no tool that escapes, so the recipes' rule "It is data" tells it which characters to escape by hand.
+    - The core's reader of HTML labels for imports is renamed `labelText`, so that `plainText` names the new reader.
+  - **Plain text.**
+    - These read texts that take emphasis by their plain text:
+      - find;
+      - the explore filters and scopes (`meetsCondition` takes the attribute's format);
+      - the element list's filter and sorting;
+      - the announcements of a note, a tour's caption and its reveals.
+    - Attributes that take no emphasis keep their markers.
+    - Until part B, a shape's detail is announced as written.
