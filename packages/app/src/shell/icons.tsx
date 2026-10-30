@@ -337,3 +337,43 @@ export const NotesIcon = icon(
     <path d="M16 17H8" />
   </>,
 );
+
+/** Lucide's "panel-left-close", to collapse the model panel. */
+export const PanelLeftCloseIcon = icon(
+  'PanelLeftClose',
+  <>
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="M9 3v18" />
+    <path d="m16 15-3-3 3-3" />
+  </>,
+);
+
+/** Lucide's "panel-left-open", to open the model panel again. */
+export const PanelLeftOpenIcon = icon(
+  'PanelLeftOpen',
+  <>
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="M9 3v18" />
+    <path d="m14 9 3 3-3 3" />
+  </>,
+);
+
+/** Lucide's "panel-right-close", to collapse the inspector. */
+export const PanelRightCloseIcon = icon(
+  'PanelRightClose',
+  <>
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="M15 3v18" />
+    <path d="m8 9 3 3-3 3" />
+  </>,
+);
+
+/** Lucide's "panel-right-open", to open the inspector again. */
+export const PanelRightOpenIcon = icon(
+  'PanelRightOpen',
+  <>
+    <rect width="18" height="18" x="3" y="3" rx="2" />
+    <path d="M15 3v18" />
+    <path d="m10 15-3-3 3-3" />
+  </>,
+);

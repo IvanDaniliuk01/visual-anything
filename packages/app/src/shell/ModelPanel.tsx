@@ -22,6 +22,10 @@ interface ModelPanelProps {
   openViewId: Id | undefined;
   /** The tab's comments (ADR 0059), which the shell keeps; absent, the Comments tab keeps its own. */
   comments?: CommentsStore | undefined;
+  /** The panel's id, which its edge and strip name as what they control. */
+  id?: string;
+  /** Whether the panel is collapsed to its strip: then it is not shown, and keeps its tabs as they are. */
+  hidden?: boolean;
 }
 
 type Tab = 'outline' | 'model' | 'components' | 'history' | 'comments' | 'tours' | 'changes';
@@ -47,7 +51,14 @@ const TABS: readonly { tab: Tab; name: string }[] = [
  * comparison, a proposal or the conflicts are open, their changes (ADR 0070). Each tab keeps its rows
  * open or closed while another one shows.
  */
-export function ModelPanel({ project, definitions, openViewId, comments }: ModelPanelProps) {
+export function ModelPanel({
+  project,
+  definitions,
+  openViewId,
+  comments,
+  id,
+  hidden,
+}: ModelPanelProps) {
   const t = useT();
   const [chosenTab, setTab] = useState<Tab>('outline');
   // The Changes tab is there while something is open in it, and comes forward when it opens.
@@ -97,7 +108,12 @@ export function ModelPanel({ project, definitions, openViewId, comments }: Model
   };
 
   return (
-    <aside className="panel model-panel side-panel" aria-labelledby={heading}>
+    <aside
+      id={id}
+      hidden={hidden}
+      className="panel model-panel side-panel"
+      aria-labelledby={heading}
+    >
       <h2 id={heading} className="visually-hidden">
         {t('Outline and model')}
       </h2>

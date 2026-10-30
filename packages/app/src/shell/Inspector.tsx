@@ -24,6 +24,10 @@ interface InspectorProps {
   view: ViewFile | undefined;
   scene: Scene | undefined;
   definitions: Definitions;
+  /** The panel's id, which its edge and strip name as what they control. */
+  id?: string;
+  /** Whether the inspector is collapsed to its strip: then it is not shown. */
+  hidden?: boolean;
 }
 
 /**
@@ -32,7 +36,7 @@ interface InspectorProps {
  * selected it details the open view; with several things selected it counts them. While the project
  * cannot be changed, every control is read-only.
  */
-export function Inspector({ view, scene, definitions }: InspectorProps) {
+export function Inspector({ view, scene, definitions, id, hidden }: InspectorProps) {
   const t = useT();
   const editor = useEditor();
   const { project, selection } = editor;
@@ -56,7 +60,7 @@ export function Inspector({ view, scene, definitions }: InspectorProps) {
   };
 
   return (
-    <aside className="panel inspector" aria-labelledby={heading}>
+    <aside id={id} hidden={hidden} className="panel inspector" aria-labelledby={heading}>
       <h2 id={heading}>{t('Inspector')}</h2>
       {/* A component, relation type or package opened for editing shows in place of the selection. */}
       <DefinitionInspector>

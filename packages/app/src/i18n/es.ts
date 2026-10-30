@@ -1337,6 +1337,35 @@ export const ui: Catalog = {
   'Apply every change, as one action': 'Aplicar todos los cambios, como una sola acción',
   'Escape, editing a route': 'Esc, al editar una ruta',
   'Cancel, and leave the route as it was': 'Cancelar y dejar la ruta como estaba',
+  // The side panels' keys, after the canvas's own (M3d).
+  'Alt+Shift+M (⌥⇧M on macOS)': 'Alt+Mayús+M (⌥⇧M en macOS)',
+  'Collapse the model panel, or open it again; these keys work wherever the focus is, except while typing':
+    'Contraer el panel del modelo, o abrirlo de nuevo; estas teclas funcionan dondequiera que esté el foco, salvo mientras se escribe',
+  'Alt+Shift+N (⌥⇧N on macOS)': 'Alt+Mayús+N (⌥⇧N en macOS)',
+  'Collapse the inspector, or open it again': 'Contraer el inspector, o abrirlo de nuevo',
+  'Left and Right arrows, on the edge of a panel':
+    'Flechas izquierda y derecha, en el borde de un panel',
+  'Move the edge by 16 pixels, making the panel wider or narrower; double-clicking the edge gives back its default width':
+    'Mover el borde 16 píxeles, para ensanchar o estrechar el panel; hacer doble clic en el borde le devuelve su ancho predeterminado',
+  'Home and End, on the edge of a panel': 'Inicio y Fin, en el borde de un panel',
+  'Make the panel as narrow or as wide as it goes: from 200 pixels to half the window':
+    'Dejar el panel tan estrecho o tan ancho como puede ser: de 200 píxeles a la mitad de la ventana',
+  'Enter, on the edge of a panel': 'Enter, en el borde de un panel',
+  'Collapse the panel': 'Contraer el panel',
+  // The side panels' edges and strips (M3d).
+  'Width of the model panel': 'Ancho del panel del modelo',
+  'Width of the inspector': 'Ancho del inspector',
+  '{width} pixels': '{width} píxeles',
+  'Drag to change the width; double-click for the default width':
+    'Arrastrar para cambiar el ancho; hacer doble clic para el ancho predeterminado',
+  'Collapse the model panel': 'Contraer el panel del modelo',
+  'Collapse the inspector': 'Contraer el inspector',
+  'Open the model panel': 'Abrir el panel del modelo',
+  'Open the inspector': 'Abrir el inspector',
+  'The model panel is collapsed.': 'El panel del modelo está contraído.',
+  'The model panel is open.': 'El panel del modelo está abierto.',
+  'The inspector is collapsed.': 'El inspector está contraído.',
+  'The inspector is open.': 'El inspector está abierto.',
   // M8b W53: an end dragged onto a shape with free geometry or onto an anchored part.
   'Attach at this point of its edge': 'Conectar en este punto de su borde',
   'Attach at this point inside it': 'Conectar en este punto, dentro de la forma',
@@ -4194,6 +4223,13 @@ export const messages: Catalog = {
   '"recentColors" holds {n} colors, more than {limit}.':
     '"recentColors" tiene {n} colores, más de {limit}.',
   '"{name}" must be true or false, not {value}.': '"{name}" debe ser true o false, no {value}.',
+  // The side panels' widths and strips (ADR 0032's clarification of 2026-10-30).
+  '"sidePanels" must hold "model" and "inspector", and nothing else.':
+    '"sidePanels" debe tener "model" e "inspector", y nada más.',
+  '"{name}" must hold "width" and "collapsed", and nothing else.':
+    '"{name}" debe tener "width" y "collapsed", y nada más.',
+  '"{name}" must be a whole number of pixels from 200 to 2000, not {value}.':
+    '"{name}" debe ser un número entero de píxeles de 200 a 2000, no {value}.',
   // How tours and scenarios move (ADR 0077).
   '"motion" must be "system", "reduced" or "full", not {value}.':
     '"motion" debe ser "system", "reduced" o "full", no {value}.',

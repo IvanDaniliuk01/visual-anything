@@ -9,6 +9,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react';
 import { CanvasArea, type SendCommand } from '../canvas/CanvasArea';
 import { EditorContext, type Editor } from '../editor/EditorContext';
@@ -47,6 +48,10 @@ import { useViewState } from '../view-state/useViewState';
 import { Header } from './Header';
 import { Inspector } from './Inspector';
 import { ModelPanel } from './ModelPanel';
+import { OpenWhenShown } from './panels/OpenWhenShown';
+import { PanelAnnouncer, PanelEdge } from './panels/PanelEdge';
+import { PanelLayoutStore } from './panels/store';
+import { usePanelShortcuts } from './panels/usePanelShortcuts';
 import { CodeStore } from '../code/context';
 import { usePackageCode } from '../code/usePackageCode';
 import { CodeApproval } from '../code/ApprovalDialog';
@@ -82,7 +87,8 @@ interface ShellProps {
 }
 
 /**
- * The app shell: the header, the model panel, the canvas area and the inspector. The canvas draws the
+ * The app shell: the header, the model panel, the canvas area and the inspector, whose edges resize
+ * them and collapse them to strips (`panels/`). The canvas draws the
  * open view: the project's first one until another is opened, and the first again when the open one
  * is deleted.
  */
@@ -265,6 +271,28 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
   // Threads of comments (ADR 0059): what the tab does with them, lent the view state's goTo.
   const comments = useCommentsStore(viewState.goTo);
   // Choosing a change in the Changes tab shows it as search shows what it found (ADR 0070).
+  // The side panels' widths and strips, the person's preference (ADR 0032's clarification of
+  // 2026-10-30); resizing one draws only its edge and the canvas, which keeps its middle in place.
+  const [panels] = useState(() => new PanelLayoutStore());
+  const modelCollapsed = useSyncExternalStore(
+    panels.subscribe,
+    () => panels.snapshot().layout.model.collapsed,
+  );
+  const inspectorCollapsed = useSyncExternalStore(
+    panels.subscribe,
+    () => panels.snapshot().layout.inspector.collapsed,
+  );
+  const shellElement = useRef<HTMLDivElement>(null);
+  // Before the first paint, so that the panels show at their widths from the first frame.
+  useLayoutEffect(() => {
+    panels.attach(shellElement.current);
+    return () => panels.attach(null);
+  }, [panels]);
+  useEffect(() => panels.watch(window), [panels]);
+  useEffect(() => panels.setCanvas(canvas), [panels, canvas]);
+  usePanelShortcuts(panels, tours.playback.tour !== undefined);
+  const modelPanelId = useId();
+  const inspectorId = useId();
   const changesHost = useMemo<ChangesHost>(
     () => ({
       store: changes,
@@ -304,6 +332,7 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                   <ToursContext.Provider value={tours.host}>
                     <ZoomExpansionContext value={zoom}>
                       <div
+                        ref={shellElement}
                         className={
                           tours.playback.tour === undefined ? 'shell' : 'shell tour-playing'
                         }
@@ -338,11 +367,14 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                           </p>
                         )}
                         <ModelPanel
+                          id={modelPanelId}
+                          hidden={modelCollapsed}
                           project={project}
                           definitions={definitions}
                           openViewId={view?.id}
                           comments={comments}
                         />
+                        <PanelEdge store={panels} side="model" controls={modelPanelId} />
                         <main className="canvas-area" aria-labelledby={canvasHeading}>
                           <h2 id={canvasHeading} className="visually-hidden">
                             {view ? view.name : t('Canvas')}
@@ -403,7 +435,21 @@ export function Shell({ project, notice, onCommand, comparisons: given }: ShellP
                           />
                           <TourPlaybackLayer project={project} tours={tours} />
                         </main>
-                        <Inspector view={view} scene={scene} definitions={definitions} />
+                        <PanelEdge store={panels} side="inspector" controls={inspectorId} />
+                        <Inspector
+                          id={inspectorId}
+                          hidden={inspectorCollapsed}
+                          view={view}
+                          scene={scene}
+                          definitions={definitions}
+                        />
+                        <PanelAnnouncer store={panels} />
+                        <OpenWhenShown
+                          panels={panels}
+                          changes={changes}
+                          comparisons={comparisons}
+                          comments={comments}
+                        />
                         <ScenarioPanel
                           session={scenarios}
                           canvas={canvas}
