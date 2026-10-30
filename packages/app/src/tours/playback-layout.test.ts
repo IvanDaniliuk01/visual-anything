@@ -15,9 +15,11 @@ function rules(): { path: string; selector: string; body: string }[] {
     .filter((path) => path.endsWith('.css'))
     .map((path) => relative(SOURCE_FOLDER, join(SOURCE_FOLDER, path)).replaceAll('\\', '/'))
     .flatMap((path) =>
-      [...readSource(path).replace(/\/\*.*?\*\//gs, '').matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(
-        (match) => ({ path, selector: (match[1] ?? '').trim(), body: match[2] ?? '' }),
-      ),
+      [
+        ...readSource(path)
+          .replace(/\/\*.*?\*\//gs, '')
+          .matchAll(/([^{}]+)\{([^{}]*)\}/g),
+      ].map((match) => ({ path, selector: (match[1] ?? '').trim(), body: match[2] ?? '' })),
     );
 }
 
