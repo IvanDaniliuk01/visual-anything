@@ -270,6 +270,73 @@ describe('add_tour_step, update_tour_step and remove_tour_step', () => {
     expect(step).not.toHaveProperty('advance');
   });
 
+  it('add and change a caption that points, a pulse and a cut, never writing their defaults (ADR 0084)', async () => {
+    const tour = await walk();
+    const added = await tools.value('add_tour_step', {
+      tour,
+      viewState: { view: 'overview' },
+      title: 'Who reads',
+      marks: ['api', 'api-reads-db'],
+      pointTo: 'api-reads-db',
+      pulse: { relations: ['customer-calls-api', 'api-reads-db'], repeat: 2 },
+      transition: 'cut',
+    });
+    expect(tourNamed('Checkout')?.steps[2]).toEqual({
+      id: added.step,
+      viewState: { view: 'overview' },
+      caption: { title: 'Who reads', pointTo: 'api-reads-db' },
+      marks: ['api', 'api-reads-db'],
+      transition: 'cut',
+      pulse: { relations: ['customer-calls-api', 'api-reads-db'], repeat: 2 },
+    });
+    await tools.value('update_tour_step', {
+      tour,
+      step: 3,
+      pulse: { relations: ['api-reads-db'], repeat: 1 },
+      transition: 'glide',
+    });
+    expect(tourNamed('Checkout')?.steps[2]).toMatchObject({
+      pulse: { relations: ['api-reads-db'] },
+    });
+    expect(tourNamed('Checkout')?.steps[2]).not.toHaveProperty('transition');
+    await tools.value('update_tour_step', { tour, step: 3, pointTo: null, pulse: null });
+    const step = tourNamed('Checkout')?.steps[2];
+    expect(step?.caption).toEqual({ title: 'Who reads' });
+    expect(step).not.toHaveProperty('pulse');
+    expect(
+      await tools.failure('update_tour_step', {
+        tour,
+        step: 3,
+        pulse: { relations: ['api-reads-db', 'customer-calls-api', 'db-in-system'] },
+      }),
+    ).toContain('does not draw as a line');
+  });
+
+  it('write captions, reveals and speaker notes as the characters they are with escapeText', async () => {
+    const tour = await walk();
+    await tools.value('add_tour_step', {
+      tour,
+      viewState: { view: 'overview' },
+      title: 'The *_id columns',
+      text: 'Columns named *_id are keys',
+      marks: ['api'],
+      reveal: [{ marks: ['db'], text: '**not bold**' }],
+      notes: '# not a heading',
+      escapeText: true,
+    });
+    const step = tourNamed('Checkout')?.steps[2];
+    expect(step?.caption).toEqual({
+      title: 'The *_id columns',
+      text: 'Columns named \\*\\_id are keys',
+    });
+    expect(step?.reveal).toEqual([{ marks: ['db'], text: '\\*\\*not bold\\*\\*' }]);
+    expect(step?.notes).toBe('\\# not a heading');
+    await tools.value('update_tour_step', { tour, step: 3, text: '_a_', escapeText: true });
+    expect(tourNamed('Checkout')?.steps[2]?.caption.text).toBe('\\_a\\_');
+    await tools.value('update_tour_step', { tour, step: 3, text: '*mine*' });
+    expect(tourNamed('Checkout')?.steps[2]?.caption.text).toBe('*mine*');
+  });
+
   it('refuse what the core refuses, in its words, and say what the step’s check warns about', async () => {
     const tour = await walk();
     expect(
@@ -525,6 +592,33 @@ describe('check_tour', () => {
       },
     ]);
     expect(checked.note).toMatch(/where each view draws its shapes now/);
+    expect(checked.glides).toEqual([]);
+  });
+
+  it('says which steps into another view glide and which cut, a pointing that misses and a broken pulse (ADR 0084)', async () => {
+    const made = await tools.value('create_view', {
+      name: 'Again',
+      perspective: { name: 'Data flow' },
+      nestingRelationTypes: ['systems.is-part-of'],
+    });
+    const again = { id: made.view as string };
+    const created = await tools.value('create_tour', {
+      name: 'Across',
+      steps: [
+        { viewState: { view: 'overview' }, title: 'Here' },
+        { viewState: { view: again.id }, title: 'There', marks: ['api'], pointTo: 'db' },
+        { viewState: { view: 'overview' }, title: 'Back', transition: 'cut' },
+      ],
+    });
+    const checked = await tools.value('check_tour', { tour: created.tour });
+    const steps = checked.steps as { shapes?: unknown; warnings?: { kind: string }[] }[];
+    expect(steps.map((step) => step.shapes)).toEqual([
+      undefined,
+      // The two views draw the same five elements.
+      { kind: 'glide', shared: 5 },
+      { kind: 'cut', reason: 'opted-out', shared: 0 },
+    ]);
+    expect(steps[1]?.warnings?.map((each) => each.kind)).toEqual(['point-to-not-mark']);
   });
 
   it('reads the tour against the screen given, and changes nothing', async () => {

@@ -1,7 +1,8 @@
 /**
- * Tours (ADR 0058, ADR 0077): steps that each take the canvas to a view state with a caption, played
- * full screen, moving in stages along a bounded camera path and revealing their marks. All pure;
- * playing a tour never changes a file.
+ * Tours (ADR 0058, ADR 0077, ADR 0084): steps that each take the canvas to a view state with a
+ * caption, played full screen, moving in stages along a bounded camera path, gliding the shapes they
+ * share, revealing their marks, pointing at one and pulsing along chains. All pure; playing a tour
+ * never changes a file.
  */
 export type { PlayableStep, SavedViewStateCheck, TourStepProblem } from './steps';
 export {
@@ -18,6 +19,7 @@ export {
   checkSavedViewState,
   idsNamedByTours,
   isBrokenTourStep,
+  marksOf,
   playableStep,
   savedViewStateOf,
   tourStepProblems,
@@ -49,3 +51,17 @@ export {
   stepReadingTime,
   tourTransition,
 } from './timing';
+export type { GlideCutReason, GlidePair, GlidePlan, GlideRect, GlideShape } from './glide';
+export { MAX_GLIDE_SHAPES, MIN_GLIDE_SHARED, glideRectAt, matchShapes, planGlide } from './glide';
+export type { ChainLink, PulseLeg, PulseProblem } from './pulse';
+export {
+  MAX_PULSE_RELATIONS,
+  PULSE_REDUCED_STEP,
+  PULSE_REPEAT,
+  PULSE_TIME_PER_RELATION,
+  chainBreak,
+  chainOrder,
+  pulseLegs,
+  pulseProblems,
+  pulseTimes,
+} from './pulse';

@@ -865,6 +865,40 @@ function tourCommands(): [string, Command][] {
     created('step advancing too soon', { ...step, advance: 100 }),
     created('step advancing after no scenario', { ...step, advance: 'after-scenario' }),
     created('caption in no corner', { ...step, caption: { title: 'T', place: 'middle' } }),
+    // A caption that points, a step that always cuts, and a pulse (ADR 0084).
+    created('caption pointing at no id', {
+      ...step,
+      caption: { title: 'T', pointTo: 'not an id' },
+    }),
+    created('caption pointing at nothing there', {
+      ...step,
+      caption: { title: 'T', pointTo: 'gone' },
+    }),
+    created('step with another transition', { ...step, transition: 'fade' }),
+    created('pulse not an object', { ...step, pulse: 5 }),
+    created('pulse with more', { ...step, pulse: { relations: ['api-reads-db'], at: 1 } }),
+    created('pulse of nothing', { ...step, pulse: { relations: [] } }),
+    created('pulse too long', {
+      ...step,
+      pulse: { relations: Array.from({ length: 13 }, (_, at) => `r${at}`) },
+    }),
+    created('pulse twice along one', {
+      ...step,
+      pulse: { relations: ['api-reads-db', 'api-reads-db'] },
+    }),
+    created('pulse repeated too often', {
+      ...step,
+      pulse: { relations: ['api-reads-db'], repeat: 4 },
+    }),
+    created('pulse along nothing there', { ...step, pulse: { relations: ['gone'] } }),
+    created('pulse along a nesting relation', {
+      ...step,
+      pulse: { relations: ['api-in-scheduling'] },
+    }),
+    created('pulse that is no chain', {
+      ...step,
+      pulse: { relations: ['patient-to-whatsapp', 'api-reads-db'] },
+    }),
     ...malformed([
       ['tour not an object', { type: 'create-tour', tour: 5 }],
       ['tour changes not an object', { type: 'update-tour', id: tour, changes: 5 }],

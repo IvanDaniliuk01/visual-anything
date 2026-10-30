@@ -21,6 +21,7 @@ import { choicesToReach, knownChoices, playedSteps } from '../scenarios/blocks';
 import type { ProjectSnapshot } from '../snapshot';
 import { definitionsIn, modelIndexOf } from '../state';
 import { checkViewState, choiceProblems, type ViewState } from '../view-state';
+import { chainBreak, pulseLegs, type ChainLink, type PulseLeg, pulseProblems } from './pulse';
 import { advanceAfter } from './timing';
 
 /** The most steps a tour holds. */
@@ -178,6 +179,8 @@ export interface TourStepProblem {
   subject: Id;
   /** The reveal that names it, counted from 0, when one does (ADR 0077). */
   reveal?: number;
+  /** Present when it is about the step's pulse (ADR 0084) or the mark its caption points at. */
+  part?: 'pulse' | 'point-to';
 }
 
 /**
@@ -235,6 +238,25 @@ export function tourStepProblems(project: ProjectSnapshot, step: TourStep): Tour
       }
     }
   });
+  // The mark the caption points at, when it is none of the step's marks: a mark that is gone is said
+  // once, as a mark (ADR 0084).
+  const pointTo = step.caption.pointTo;
+  if (pointTo !== undefined && !markable(pointTo) && !marksOf(step).includes(pointTo)) {
+    problems.push({
+      code: 'unknown-element',
+      message: `The caption points at "${pointTo}", which is no element, relation, note or arrow of its view.`,
+      subject: pointTo,
+      part: 'point-to',
+    });
+  }
+  for (const each of pulseProblems(project, step)) {
+    problems.push({
+      code: index.relation(each.subject) ? 'invalid-command' : 'unknown-relation',
+      message: each.message,
+      subject: each.subject,
+      part: 'pulse',
+    });
+  }
   for (const id of viewState.focus?.from ?? []) {
     if (!inModel(id)) {
       problems.push({
@@ -379,6 +401,11 @@ function scenarioProblems(
   return problems;
 }
 
+/** Every id a step marks, its own marks and its reveals', in order. */
+export function marksOf(step: Pick<TourStep, 'marks' | 'reveal'>): Id[] {
+  return [...(step.marks ?? []), ...(step.reveal ?? []).flatMap((reveal) => reveal.marks)];
+}
+
 /** Whether a step names something the project no longer holds: it is kept and flagged. */
 export function isBrokenTourStep(project: ProjectSnapshot, step: TourStep): boolean {
   return tourStepProblems(project, step).length > 0;
@@ -406,6 +433,18 @@ export interface PlayableStep {
    * alternatives it plays at the scenario's decisions, when it chooses some (ADR 0078).
    */
   play?: { scenario: Id; from: number; to: number; choices?: DecisionChoices };
+  /** Present when the step always cuts (ADR 0084). */
+  transition?: 'cut';
+  /**
+   * The mark its caption points at, while it is one of the step's marks and the project holds it,
+   * and the reveal that brings it in, counted from 1, or 0 for the step's own marks (ADR 0084).
+   */
+  pointTo?: { id: Id; reveal: number };
+  /**
+   * The chain its pulse runs along, each relation the way the marker runs it, and how many times;
+   * only while the chain still joins and the view draws every relation of it (ADR 0084).
+   */
+  pulse?: { legs: PulseLeg[]; repeat: number };
 }
 
 /**
@@ -469,6 +508,26 @@ export function playableStep(project: ProjectSnapshot, step: TourStep): Playable
     }));
   }
   if (step.dimRest) playable.dimRest = true;
+  if (step.transition === 'cut') playable.transition = 'cut';
+  const pointTo = step.caption.pointTo;
+  if (pointTo !== undefined && !missing.has(pointTo)) {
+    const reveal = (step.marks ?? []).includes(pointTo)
+      ? 0
+      : (step.reveal ?? []).findIndex((each) => each.marks.includes(pointTo)) + 1;
+    if (reveal > 0 || (step.marks ?? []).includes(pointTo)) {
+      playable.pointTo = { id: pointTo, reveal };
+    }
+  }
+  if (step.pulse && pulseProblems(project, step).length === 0) {
+    const index = modelIndexOf(project);
+    const links = step.pulse.relations.map((id): ChainLink => {
+      const relation = index.relation(id);
+      return { id, from: relation?.from ?? '', to: relation?.to ?? '' };
+    });
+    if (chainBreak(links) < 0) {
+      playable.pulse = { legs: pulseLegs(links), repeat: step.pulse.repeat ?? 1 };
+    }
+  }
   const advance = advanceAfter(step);
   if (advance !== undefined) playable.advance = advance;
   const played = step.play && playedOver(project, view.id, step.play.scenario);
@@ -523,8 +582,8 @@ function playedOver(project: ProjectSnapshot, view: Id, scenario: Id) {
 const named = new WeakMap<readonly TourFile[], ReadonlySet<Id>>();
 
 /**
- * The ids the steps of the tours name as what they select, mark, reveal or focus from, and the tours'
- * own ids.
+ * The ids the steps of the tours name as what they select, mark, reveal, point at, pulse along or
+ * focus from, and the tours' own ids.
  * No new element or relation takes one of them, so that a step whose element was deleted never comes
  * to mean another.
  */
@@ -538,6 +597,8 @@ export function idsNamedByTours(tours: readonly TourFile[]): ReadonlySet<Id> {
         for (const id of step.viewState.select ?? []) set.add(id);
         for (const id of step.marks ?? []) set.add(id);
         for (const reveal of step.reveal ?? []) for (const id of reveal.marks) set.add(id);
+        if (step.caption.pointTo !== undefined) set.add(step.caption.pointTo);
+        for (const id of step.pulse?.relations ?? []) set.add(id);
         for (const id of step.viewState.focus?.from ?? []) set.add(id);
       }
     }

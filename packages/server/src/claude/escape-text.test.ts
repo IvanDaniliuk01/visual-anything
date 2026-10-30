@@ -85,7 +85,7 @@ async function defineTable(): Promise<void> {
 }
 
 describe('escapeText', () => {
-  it('is taken by every tool that sets a description or a note’s text', () => {
+  it('is taken by every tool that sets a description, a note’s text or a tour step’s texts', () => {
     const taking = TOOLS.filter((each) => 'escapeText' in each.input).map((each) => each.name);
     expect(taking.sort()).toEqual(
       [
@@ -108,6 +108,8 @@ describe('escapeText', () => {
         'update_scenario',
         'create_tour',
         'update_tour',
+        'add_tour_step',
+        'update_tour_step',
       ].sort(),
     );
   });
@@ -280,7 +282,7 @@ describe('escapeText', () => {
     expect(session.snapshot.project.description).toBe(ESCAPED);
   });
 
-  it('escapes the descriptions of scenarios and tours, and leaves steps and captions as given', async () => {
+  it('escapes the descriptions of scenarios and tours and the texts of tour steps, and leaves scenario steps as given', async () => {
     const scenario = await value('create_scenario_from_steps', {
       name: 'Read',
       description: OUTSIDE,
@@ -306,7 +308,11 @@ describe('escapeText', () => {
     });
     const walk = () => session.snapshot.tours.find((each) => each.id === tour.tour);
     expect(walk()?.description).toBe(ESCAPED);
-    expect(walk()?.steps[0]).toMatchObject({ caption: { text: '**Look**' } });
+    // A tour step's caption text is escaped too (ADR 0082's clarification after part B); its
+    // title is plain text, written as given.
+    expect(walk()?.steps[0]).toMatchObject({
+      caption: { title: 'Start', text: '\\*\\*Look\\*\\*' },
+    });
     await value('update_tour', { tour: tour.tour, description: '*i*', escapeText: true });
     expect(walk()?.description).toBe('\\*i\\*');
   });

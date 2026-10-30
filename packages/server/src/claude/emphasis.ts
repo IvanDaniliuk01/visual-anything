@@ -26,7 +26,7 @@ export const TAKES_MARKDOWN = `Takes ${MARKDOWN_SUBSET}`;
 
 /** What the texts `escapeText` escapes are, as the tools and the instructions name them. */
 const ESCAPED_TEXTS =
-  'the descriptions this call sets (of elements, relations, components, relation types and their attributes, views and their perspectives, scenarios, tours, packages and the project), a note’s text, and the values of attributes whose definition has "format": "emphasis"';
+  'the descriptions this call sets (of elements, relations, components, relation types and their attributes, views and their perspectives, scenarios, tours, packages and the project), a note’s text, a tour step’s caption text, its reveals’ texts and its speaker notes, and the values of attributes whose definition has "format": "emphasis"';
 
 /** The `escapeText` input of the tools that set a text that takes Markdown. */
 export const escapeTextInput = () =>
@@ -38,7 +38,7 @@ export const escapeTextInput = () =>
     );
 
 /** What the instructions say of text emphasis. */
-export const EMPHASIS_INSTRUCTIONS = `Descriptions (of elements, relations, components, relation types, attributes, views, scenarios, tours, packages and the project), a note's text, a tour step's caption text, its reveals' text and its speaker notes take ${MARKDOWN_SUBSET} A string attribute takes the inline part of it (bold, italic, strikethrough, code, highlight, underline) only when its definition sets "format": "emphasis" (define_component, update_component); every other attribute, and every name, is plain, so that identifiers such as col_*_id and SQL such as '**'::text stay as written. Use emphasis to point at what matters, sparingly. When you put the text of outside material into a text that takes it, give escapeText: true to the tool that writes it (add_to_model, update_element, run_commands and the others that set a description or a note), and the program writes it as text; do not escape it by hand. A tour step's caption, reveals and speaker notes take no escapeText: there, write a backslash before each *, _, backtick, [ and |, and before a #, >, - or a number's . that starts a line. Find, filters and sorting read texts without their markers.`;
+export const EMPHASIS_INSTRUCTIONS = `Descriptions (of elements, relations, components, relation types, attributes, views, scenarios, tours, packages and the project), a note's text, a tour step's caption text, its reveals' text and its speaker notes take ${MARKDOWN_SUBSET} A string attribute takes the inline part of it (bold, italic, strikethrough, code, highlight, underline) only when its definition sets "format": "emphasis" (define_component, update_component); every other attribute, and every name, is plain, so that identifiers such as col_*_id and SQL such as '**'::text stay as written. Use emphasis to point at what matters, sparingly. When you put the text of outside material into a text that takes it, give escapeText: true to the tool that writes it (add_to_model, update_element, run_commands, create_tour, add_tour_step, update_tour_step and the others that set a description, a note, a caption's text, a reveal's text or speaker notes), and the program writes it as text; do not escape it by hand. Find, filters and sorting read texts without their markers.`;
 
 /** A text escaped, or what is not a text as it is: `null` takes a text out, and stays `null`. */
 function escaped<T>(value: T): T {

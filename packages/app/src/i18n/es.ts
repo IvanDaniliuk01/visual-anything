@@ -3643,8 +3643,32 @@ export const messages: Catalog = {
   'A view state is an object.': 'Un estado de vista es un objeto JSON.',
   'Step {n} of the tour needs a caption with a title.':
     'El paso {n} del recorrido necesita un rótulo con un título.',
-  'A caption holds a title, a text and a place, nothing else.':
-    'Un rótulo tiene un título, un texto y un lugar, nada más.',
+  'A caption holds a title, a text, a place and the mark it points at, nothing else.':
+    'Un rótulo tiene un título, un texto, un lugar y la marca a la que apunta, nada más.',
+  // M11d: a caption that points, a step that always cuts, and a pulse (ADR 0084).
+  'A caption points at one of its step\'s marks by its id, and "{id}" is not one.':
+    'Un rótulo apunta a una de las marcas de su paso por su id, y "{id}" no es un id.',
+  'The caption points at "{id}", which is no element, relation, note or arrow of its view.':
+    'El rótulo apunta a "{id}", que no es ningún elemento, relación, nota ni flecha de su vista.',
+  'A step\'s transition is "cut", to always cut, or "glide", to glide when it can.':
+    'La transición de un paso es "cut", para cortar siempre, o "glide", para deslizarse cuando puede.',
+  'Step {n} of the tour sends a pulse: an object with its relations.':
+    'El paso {n} del recorrido envía un pulso: un objeto JSON con sus relaciones.',
+  'A pulse holds its relations and how many times it runs, nothing else.':
+    'Un pulso tiene sus relaciones y cuántas veces corre, nada más.',
+  'Step {n} of the tour sends a pulse along one relation at least.':
+    'El paso {n} del recorrido envía un pulso por al menos una relación.',
+  'A pulse runs along at most {limit} relations.':
+    'Un pulso corre por como máximo {limit} relaciones.',
+  'The pulse of step {n} of the tour runs along "{id}" twice.':
+    'El pulso del paso {n} del recorrido corre por "{id}" dos veces.',
+  'A pulse runs 1 to 3 times.': 'Un pulso corre de 1 a 3 veces.',
+  'Relation {r} of the pulse, "{id}", is not a relation the project holds.':
+    'La relación {r} del pulso, "{id}", no es una relación que el proyecto tenga.',
+  'The pulse runs along "{name}", which the view "{view}" does not draw as a line.':
+    'El pulso corre por "{name}", que la vista "{view}" no dibuja como una línea.',
+  'The pulse is not a chain: relation {r}, "{name}", shares no end with relation {before}, "{other}".':
+    'El pulso no es una cadena: la relación {r}, "{name}", no comparte ningún extremo con la relación {before}, "{other}".',
   'A caption sits in a corner, top-left, top-right, bottom-left or bottom-right, or where it reads best, auto.':
     'Un rótulo va en una esquina, top-left, top-right, bottom-left o bottom-right, o donde mejor se lee, auto.',
   'Step {n} of the tour reveals a list of marks.':
@@ -3682,6 +3706,11 @@ export const messages: Catalog = {
     'El paso {n} marca lo que su cámara no muestra: {names}.',
   'Step {n} marks what its filters hide: {names}.':
     'El paso {n} marca lo que sus filtros ocultan: {names}.',
+  'Step {n}\'s caption points at "{name}", which is not one of the step\'s marks: no leader line shows.':
+    'El rótulo del paso {n} apunta a "{name}", que no es una de las marcas del paso: no se muestra ninguna línea guía.',
+  "Step {n}'s pulse does not play: {why}": 'El pulso del paso {n} no se reproduce: {why}',
+  'Step {n} shares {count} shapes with step {m}, more than the {limit} that glide: it cuts with a cross-fade.':
+    'El paso {n} comparte {count} formas con el paso {m}, más que las {limit} que se deslizan: corta con un fundido.',
   'Step {n} moves on after {after}, but its text takes {reading} to read: it waits until then.':
     'El paso {n} avanza después de {after}, pero su texto se lee en {reading}: espera hasta entonces.',
   'Step {n} plays {count} steps of the scenario "{name}": a range of more than {limit} is hard to follow in one step.':

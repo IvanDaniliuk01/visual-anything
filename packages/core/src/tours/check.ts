@@ -10,7 +10,8 @@ import type { ProjectSnapshot } from '../snapshot';
 import { modelIndexOf } from '../state';
 import { tourMove, type ScreenSize } from './camera';
 import { playedSteps } from '../scenarios/blocks';
-import { playedRangeOf, tourStepProblems } from './steps';
+import { marksOf, playedRangeOf, tourStepProblems } from './steps';
+import { MAX_GLIDE_SHAPES, planGlide, type GlideCutReason, type GlideShape } from './glide';
 import { stepReadingTime } from './timing';
 
 /** The screen a tour is read against when none is given: the reference laptop's canvas. */
@@ -35,7 +36,10 @@ export type TourWarningKind =
   | 'marks-hidden'
   | 'caption-too-long'
   | 'could-be-reveal'
-  | 'long-range';
+  | 'long-range'
+  | 'glide-too-many'
+  | 'point-to-not-mark'
+  | 'pulse-not-chain';
 
 /** One thing to look at in a step. */
 export interface TourWarning {
@@ -58,6 +62,16 @@ export interface TourStepCheck {
    * fits or cuts.
    */
   camera: 'glide' | 'cut' | 'stay' | 'fit' | 'follows';
+  /**
+   * For a step into another view than the step before (ADR 0084): whether the shapes the two share
+   * glide, and how many, or why the step cuts with a cross-fade: it asks to, it shares fewer than 3
+   * shapes, or more than 400. Absent for the first step, a step in the same view, whose camera's move
+   * carries every shape, and where the caller gives no shapes to compare and the step does not ask
+   * to cut. Under reduced motion every step cuts, whatever this says.
+   */
+  shapes?:
+    | { kind: 'glide'; shared: number }
+    | { kind: 'cut'; reason: Exclude<GlideCutReason, 'reduced-motion'>; shared: number };
   warnings: TourWarning[];
 }
 
@@ -72,6 +86,11 @@ export function checkTour(
   options: {
     screen?: ScreenSize;
     boundsOf?: (view: Id, id: Id) => TourRect | undefined;
+    /**
+     * The shapes of elements a view draws, with their container paths, to tell which steps into
+     * another view glide (ADR 0084); without it, only a step that asks to cut is said to.
+     */
+    shapesOf?: (view: Id) => readonly GlideShape[] | undefined;
   } = {},
 ): TourStepCheck[] {
   const screen = options.screen ?? TOUR_CHECK_SCREEN;
@@ -85,7 +104,8 @@ export function checkTour(
     const warnings: TourWarning[] = [];
     const { viewState } = step;
 
-    const problems = tourStepProblems(project, step);
+    const all = tourStepProblems(project, step);
+    const problems = all.filter((each) => each.part === undefined);
     if (problems.length > 0) {
       warnings.push({
         kind: 'broken',
@@ -96,7 +116,12 @@ export function checkTour(
 
     const same = before !== undefined && sameViewState(before, step);
     const camera = cameraOf(before, step, screen, same);
-    if (camera === 'cut' && before?.viewState.view === viewState.view) {
+    // A step that asks to cut cuts on purpose: nothing to look at (ADR 0084).
+    if (
+      camera === 'cut' &&
+      before?.viewState.view === viewState.view &&
+      step.transition !== 'cut'
+    ) {
       warnings.push({
         kind: 'cuts',
         message: `Step ${n} cuts from step ${n - 1}: its camera is too far, or too much zoomed, to glide to.`,
@@ -109,7 +134,30 @@ export function checkTour(
       });
     }
 
-    const marked = [...(step.marks ?? []), ...(step.reveal ?? []).flatMap((each) => each.marks)];
+    const marked = marksOf(step);
+    const pointTo = step.caption.pointTo;
+    if (pointTo !== undefined && !marked.includes(pointTo)) {
+      warnings.push({
+        kind: 'point-to-not-mark',
+        message: `Step ${n}'s caption points at "${nameOf(pointTo)}", which is not one of the step's marks: no leader line shows.`,
+        subjects: [pointTo],
+      });
+    }
+    const pulse = all.filter((each) => each.part === 'pulse');
+    if (pulse.length > 0) {
+      warnings.push({
+        kind: 'pulse-not-chain',
+        message: `Step ${n}'s pulse does not play: ${pulse.map((each) => each.message).join(' ')}`,
+        subjects: pulse.map((each) => each.subject),
+      });
+    }
+    const shapes = shapesOf(before, step, screen, options.shapesOf, project);
+    if (shapes?.kind === 'cut' && shapes.reason === 'too-many') {
+      warnings.push({
+        kind: 'glide-too-many',
+        message: `Step ${n} shares ${shapes.shared} shapes with step ${n - 1}, more than the ${MAX_GLIDE_SHAPES} that glide: it cuts with a cross-fade.`,
+      });
+    }
     const there = marked.filter((id) => index.element(id) ?? index.relation(id));
     const saved = viewState.camera;
     if (saved && options.boundsOf) {
@@ -184,8 +232,37 @@ export function checkTour(
       }
     }
 
-    return { step: step.id, n, camera, warnings };
+    return { step: step.id, n, camera, ...(shapes ? { shapes } : {}), warnings };
   });
+}
+
+/** How a step's shapes get there from the step before in another view (ADR 0084). */
+function shapesOf(
+  before: TourStep | undefined,
+  step: TourStep,
+  screen: ScreenSize,
+  drawn: ((view: Id) => readonly GlideShape[] | undefined) | undefined,
+  project: ProjectSnapshot,
+): TourStepCheck['shapes'] {
+  if (before === undefined || before.viewState.view === step.viewState.view) return undefined;
+  if (step.transition === 'cut') return { kind: 'cut', reason: 'opted-out', shared: 0 };
+  const one = drawn?.(before.viewState.view);
+  const two = drawn?.(step.viewState.view);
+  if (one === undefined || two === undefined) return undefined;
+  const index = modelIndexOf(project);
+  // What a step's filters hide is not there to glide.
+  const shown = (shapes: readonly GlideShape[], of: TourStep) => {
+    const hidden = new Set(of.viewState.filters?.components ?? []);
+    if (hidden.size === 0) return shapes;
+    return shapes.filter((shape) => {
+      const component = index.element(shape.element)?.component;
+      return component === undefined || !hidden.has(component);
+    });
+  };
+  const plan = planGlide(shown(one, before), shown(two, step), { screen, reducedMotion: false });
+  if (plan.kind === 'glide') return { kind: 'glide', shared: plan.pairs.length };
+  if (plan.reason === 'reduced-motion') return undefined;
+  return { kind: 'cut', reason: plan.reason, shared: plan.shared };
 }
 
 /** How the camera gets to a step from the one before, as the stage plays it on this screen. */
@@ -198,6 +275,11 @@ function cameraOf(
   if (same) return 'stay';
   const to = step.viewState.camera;
   if (to === undefined) return 'fit';
+  // A step that asks to cut always cuts where its camera would move (ADR 0084).
+  if (step.transition === 'cut' && before !== undefined) {
+    const moved = cameraOf(before, { ...step, transition: undefined }, screen, same);
+    return moved === 'glide' || moved === 'follows' ? 'cut' : moved;
+  }
   if (before === undefined) return 'cut';
   const sameView = before.viewState.view === step.viewState.view;
   if (!sameView) return 'cut';
