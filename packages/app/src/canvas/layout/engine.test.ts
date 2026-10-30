@@ -36,6 +36,39 @@ function overlaps(a: Rect, b: Rect): boolean {
   return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 }
 
+describe('the automatic layout of new shapes (ADR 0080, Stage 1b)', () => {
+  it("gives a relation that leaves a container a port on the container's side, as beyond the budget", async () => {
+    // b refers to c inside a; d refers out of a, to e in World. No one pass: new shapes.
+    const shapes = [
+      shape('a', -1, container),
+      shape('a/b', 0),
+      shape('a/c', 0),
+      shape('a/d', 0),
+      shape('e', -1),
+    ];
+    const graphs: ElkNode[] = [];
+    const watching: ElkEngine = {
+      layout: (graph) => {
+        graphs.push(...(graph.children ?? []));
+        return elk.layout(graph);
+      },
+    };
+    const result = await layOut(
+      input(shapes, [
+        [1, 2],
+        [3, 4],
+      ]),
+      watching,
+    );
+    expect(result.stats.onePass).toBeUndefined();
+    const inside = graphs.find((graph) => graph.id === 'level 0');
+    expect(inside?.ports?.map((port) => port.id)).toEqual(['level 0:east']);
+    // d leans toward the side its relation leaves by: after b, which comes first in the flow.
+    const placed = byElement(result.shapes);
+    expect(placed.get('d in a')?.x ?? 0).toBeGreaterThan(placed.get('b in a')?.x ?? Infinity);
+  });
+});
+
 describe('layOut', () => {
   it('arranges every free shape on the step of 8, containers growing around their contents', async () => {
     const shapes = [

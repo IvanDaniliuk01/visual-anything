@@ -16,6 +16,7 @@
  */
 import type { ElkExtendedEdge, ElkNode, ElkPort, LayoutOptions } from 'elkjs/lib/elk-api';
 import type { Point, Rect, Size } from '../geometry';
+import { COMMUNITY_PADDING } from './communities';
 import { ELK_SIDES, partPort, pointOnBorder, pointToward } from './ports';
 import type { LayoutConnectionPoint, LayoutPort } from './types';
 
@@ -75,6 +76,8 @@ export interface WholeNode {
   size: Size;
   /** Where relations attach to a leaf, as its appearance sets them. */
   points?: readonly LayoutConnectionPoint[];
+  /** A community of references, a layout aid that holds some of a container's contents (`communities.ts`). */
+  community?: true;
 }
 
 /** One end of a relation of the run. */
@@ -244,7 +247,9 @@ export function wholeGraph(
     const hint = hints?.get(node.shape);
     const placed = hint ? { x: hint.x, y: hint.y } : {};
     if (node.compound) {
-      const room = padding.get(node.shape) ?? COMPOUND_PADDING;
+      const room = node.community
+        ? COMMUNITY_PADDING
+        : (padding.get(node.shape) ?? COMPOUND_PADDING);
       return {
         id: `s${node.shape}`,
         ...placed,

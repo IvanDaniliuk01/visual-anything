@@ -30,6 +30,7 @@ import {
   ROWS_ASPECT,
   roundToStep,
 } from './place';
+import { withCommunities } from './communities';
 import { ELK_SIDES, partPort, pointOnBorder, pointToward } from './ports';
 import { segmentThrough } from './quality';
 import {
@@ -234,7 +235,8 @@ export async function layOut(
     return laid;
   };
 
-  // Beyond the one-pass budget, each relation that leaves a container is a port on its side.
+  // Container by container, beyond the one-pass budget and for new shapes alike, each relation that
+  // leaves a container is a port on its side (ADR 0080, section 1, and its clarification of Stage 1b).
   let containerPorts = false;
 
   /** Arranges the levels given, in ELK at once, and records their contents' new places. */
@@ -631,8 +633,12 @@ export async function layOut(
       }
       return padding;
     };
-    const nodes = plan.nodes.map((node): WholeNode =>
-      node.compound ? node : { ...node, size: tree.sizeOf(node.shape) },
+    // A large container without containers is arranged as blocks of its communities.
+    const nodes = withCommunities(
+      plan.nodes.map((node): WholeNode =>
+        node.compound ? node : { ...node, size: tree.sizeOf(node.shape) },
+      ),
+      plan.edges,
     );
     const engine = engines[0] as ElkEngine;
     const runOnce = async (graph: ElkNode): Promise<ElkNode | undefined> => {
@@ -696,7 +702,7 @@ export async function layOut(
   if (plan) {
     routes = await arrangeWhole(plan);
   } else {
-    containerPorts = input.onePass === true;
+    containerPorts = true;
     // Innermost first: every container of one depth in one run, then World.
     for (const levels of tree.levelsByHeight()) await arrange(levels);
     await arrange([WORLD]);
