@@ -34,6 +34,7 @@ import {
   strokeWarnings,
 } from './appearance-tools';
 import { ALIGN_TOOLS } from './align-tools';
+import { IN_BATCHES, MAX_ADDITIONS } from './batches';
 import { builtInPackageRefusal } from './builtin-refusal';
 import { ProgramUnavailableError, type Program } from './bridge';
 import { cascadeOf, cascadeRefusal, takesMore } from './cascade';
@@ -107,6 +108,17 @@ const attributes = () =>
     .record(z.string(), z.unknown())
     .describe(
       'Attribute values by attribute name: strings, numbers, booleans or JSON. An attribute of type destination holds { "view": id, "focus": [ids] }, { "project": "../folder", "view": id } or { "url": "https://…" }, and nothing else.',
+    );
+/**
+ * An id Claude chooses for something `add_to_model` creates. The core checks it as it checks any id
+ * a command asks for, so its pattern is left to the core's words.
+ */
+const ownId = () =>
+  z
+    .string()
+    .optional()
+    .describe(
+      'An id of your own, kept, that later calls can name: letters, digits, ".", "_" and "-", at most 128 characters, such as "c.shop.orders.customer_id". Left out, the program makes one.',
     );
 /** External identifiers by scheme, as a new element takes them (ADR 0056). */
 const externalIds = () =>
@@ -323,7 +335,12 @@ Example: { "elements": ["reminder-service"] }`,
 const addToModel = tool({
   name: 'add_to_model',
   title: 'Add elements and relations',
-  description: `Creates elements and relations as one undoable action. Give each new element a ref, a short name of your own such as "api", to use in this same call: in another element's inside, in a position's inside, or as a relation's from or to. Anything that is not a ref is taken as the id of something already in the project. Put an element inside containers with inside; the nesting relation type is chosen by its limits unless you give nestingRelationType. Give positions only when you want shapes at given places; without them, layout places the shapes. The answer maps each ref to the id the program made.
+  description: `Creates elements and relations as one undoable action. Name a new element or relation in one of two ways, to use it in this same call: in another element's inside, in a position's inside, or as a relation's from or to.
+- A ref, a short name of your own such as "api", which holds only in this call; the program makes the id.
+- An id of your own, such as "t.shop.orders", which it keeps, so that later calls can name it too. It is checked as create-element and create-relation check an id: it matches ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$, nothing in the project uses it yet, and no element and relation share it.
+Anything that is neither is taken as the id of something already in the project. Put an element inside containers with inside; the nesting relation type is chosen by its limits unless you give nestingRelationType. Give positions only when you want shapes at given places; without them, layout places the shapes. The answer gives every id used: ids maps each ref to the id made for it, elements and relations give the id of each one you gave, in your order, and nesting the nesting relations inside made.
+
+At most ${MAX_ADDITIONS} elements and relations in all per call. ${IN_BATCHES}
 
 ${RECIPES_IN_BRIEF} For instance, a SQL table becomes a data-modeling.table with each column a data-modeling.column inside it, given nestingRelationType "data-modeling.is-column-of"; docker-compose's depends_on becomes systems.communicates-with; a C4 container becomes a systems.service, or a systems.database, inside the systems.system it belongs to.
 
@@ -337,12 +354,33 @@ Example: {
     { "relationType": "systems.writes-to", "from": "api", "to": "db" },
     { "relationType": "systems.communicates-with", "from": "patient", "to": "api", "name": "HTTPS" }
   ]
+}
+
+Example, ids of your own, a column naming its table in the same call: {
+  "label": "Import the shop database (1 of 3): schema and customers",
+  "elements": [
+    { "id": "s.shop", "component": "data-modeling.schema", "name": "shop", "inside": ["orders-db"], "nestingRelationType": "systems.is-part-of" },
+    { "id": "t.shop.customers", "component": "data-modeling.table", "name": "customers", "inside": ["s.shop"], "nestingRelationType": "systems.is-part-of" },
+    { "id": "c.shop.customers.id", "component": "data-modeling.column", "name": "id", "inside": ["t.shop.customers"], "nestingRelationType": "data-modeling.is-column-of", "attributes": { "type": "uuid", "primaryKey": true } }
+  ]
+}
+
+Example, a later call whose foreign key references a column an earlier call made: {
+  "label": "Import the shop database (2 of 3): orders",
+  "elements": [
+    { "id": "t.shop.orders", "component": "data-modeling.table", "name": "orders", "inside": ["s.shop"], "nestingRelationType": "systems.is-part-of" },
+    { "id": "c.shop.orders.customer_id", "component": "data-modeling.column", "name": "customer_id", "inside": ["t.shop.orders"], "nestingRelationType": "data-modeling.is-column-of", "attributes": { "type": "uuid", "notNull": true } }
+  ],
+  "relations": [
+    { "id": "fk.shop.orders.customer_id", "relationType": "data-modeling.references", "from": "c.shop.orders.customer_id", "to": "c.shop.customers.id", "attributes": { "onDelete": "cascade" } }
+  ]
 }`,
   input: {
     elements: z
       .array(
         z.object({
           ref: z.string().min(1).max(64).optional(),
+          id: ownId(),
           component: id(),
           name: z.string().min(1),
           description: z.string().optional(),
@@ -373,6 +411,7 @@ Example: {
       .array(
         z.object({
           ref: z.string().min(1).max(64).optional(),
+          id: ownId(),
           relationType: id(),
           from: z.string().min(1).describe('A ref or an id: an element or a relation.'),
           to: z.string().min(1).describe('A ref or an id: an element or a relation.'),
@@ -411,9 +450,14 @@ Example: {
           ? elementColorWarnings(state, made, colorsSet(given))
           : relationColorWarnings(state, made, colorsSet(given).stroke),
       );
+      // What the core made besides what Claude gave: the nesting relations of inside.
+      const given = new Set([...built.elements, ...built.relations]);
+      const nesting = answer.created.filter((each) => !given.has(each));
       return {
         ids: Object.fromEntries(built.refs),
-        created: answer.created,
+        elements: built.elements,
+        relations: built.relations,
+        ...(nesting.length > 0 ? { nesting } : {}),
         ...(warnings.length > 0 ? { warnings } : {}),
       };
     });
@@ -1602,24 +1646,51 @@ interface Colored {
   appearance: unknown;
 }
 
-/** The additions of `add_to_model` as one command, with the id made for each ref. */
+/**
+ * The additions of `add_to_model` as one command, with the id of each element and relation in the
+ * order given, and the id made for each ref. An id Claude gives is passed to the core as it is, which
+ * checks it as `create-element` and `create-relation` check any id they are asked for; this only
+ * refuses what the core cannot see, such as a name given to two of them in the call.
+ */
 function buildAdditions(
   state: ProjectSnapshot,
   args: z.infer<z.ZodObject<(typeof addToModel)['input']>>,
 ):
-  | { ok: true; command: Command; refs: Map<string, Id>; colored: Colored[] }
+  | {
+      ok: true;
+      command: Command;
+      refs: Map<string, Id>;
+      elements: Id[];
+      relations: Id[];
+      colored: Colored[];
+    }
   | { ok: false; message: string } {
   const elements = args.elements ?? [];
   const relations = args.relations ?? [];
   if (elements.length === 0 && relations.length === 0) {
     return { ok: false, message: 'Give at least one element or relation.' };
   }
+  const items = elements.length + relations.length;
+  if (items > MAX_ADDITIONS) {
+    return {
+      ok: false,
+      message: `This call gives ${items} elements and relations; one call takes at most ${MAX_ADDITIONS}. Send them in batches of at most ${MAX_ADDITIONS}, which name what earlier batches made by ids of your own (id), as this tool's description says. Nothing changed.`,
+    };
+  }
   const index = modelIndexOf(state);
   const definitions = definitionsIn(state);
   const generate = randomIds();
   const refs = new Map<string, Id>();
+  // The ids Claude gives, which nothing the program makes may take.
+  const own = new Set<Id>();
+  for (const each of [...elements, ...relations]) {
+    if (each.id === undefined) continue;
+    if (own.has(each.id)) return { ok: false, message: `The id "${each.id}" is given twice.` };
+    own.add(each.id);
+  }
   const assigned = new Set<Id>();
-  const taken = (candidate: Id) => index.has(candidate) || assigned.has(candidate);
+  const taken = (candidate: Id) =>
+    index.has(candidate) || assigned.has(candidate) || own.has(candidate);
   const newId = (name: string, fallback: string) => {
     const made = freshId(generate, slug(name, fallback), taken);
     assigned.add(made);
@@ -1629,36 +1700,44 @@ function buildAdditions(
   for (const each of [...elements, ...relations]) {
     if (each.ref === undefined) continue;
     if (seen.has(each.ref)) return { ok: false, message: `The ref "${each.ref}" is given twice.` };
+    if (own.has(each.ref) && each.ref !== each.id) {
+      return {
+        ok: false,
+        message: `The ref "${each.ref}" is the id given to another element or relation.`,
+      };
+    }
     seen.add(each.ref);
   }
   // The id the program will create each new element and relation with.
   const idOf = new Map<object, Id>();
-  const componentOfRef = new Map<string, Id>();
+  // What a name in the call, a ref or an id given, stands for.
+  const componentOfName = new Map<string, Id>();
+  const byName = new Map<string, (typeof elements)[number]>();
   for (const element of elements) {
-    const made = newId(element.name, 'element');
+    const made = element.id ?? newId(element.name, 'element');
     idOf.set(element, made);
-    if (element.ref !== undefined) {
-      refs.set(element.ref, made);
-      componentOfRef.set(element.ref, element.component);
+    for (const name of [element.ref, element.id]) {
+      if (name === undefined) continue;
+      componentOfName.set(name, element.component);
+      byName.set(name, element);
     }
+    if (element.ref !== undefined) refs.set(element.ref, made);
   }
   for (const relation of relations) {
     const base = relation.name ?? relation.relationType.split('.').at(-1) ?? 'relation';
-    const made = newId(base, 'relation');
+    const made = relation.id ?? newId(base, 'relation');
     idOf.set(relation, made);
     if (relation.ref !== undefined) refs.set(relation.ref, made);
   }
+  // An id given stands for itself, as the id of something already in the project does.
   const resolve = (value: string) => refs.get(value) ?? value;
   const componentOf = (value: string) =>
-    componentOfRef.get(value) ?? index.element(value)?.component;
+    componentOfName.get(value) ?? index.element(value)?.component;
 
   // Containers before their contents, so each container exists when its contents are created.
   const ordered: typeof elements = [];
   const placed = new Set<(typeof elements)[number]>();
   const visiting = new Set<(typeof elements)[number]>();
-  const byRef = new Map(
-    elements.flatMap((each) => (each.ref === undefined ? [] : [[each.ref, each] as const])),
-  );
   const visit = (element: (typeof elements)[number]): string | undefined => {
     if (placed.has(element)) return undefined;
     if (visiting.has(element))
@@ -1668,7 +1747,7 @@ function buildAdditions(
       ...(element.inside ?? []),
       ...(element.positions ?? []).flatMap((position) => position.inside ?? []),
     ]) {
-      const inner = byRef.get(container);
+      const inner = byName.get(container);
       if (inner !== undefined) {
         const problem = visit(inner);
         if (problem !== undefined) return problem;
@@ -1760,7 +1839,14 @@ function buildAdditions(
           label: args.label ?? additionsLabel(elements.length, relations.length),
           commands,
         };
-  return { ok: true, command, refs, colored };
+  return {
+    ok: true,
+    command,
+    refs,
+    elements: elements.map((each) => idOf.get(each) as Id),
+    relations: relations.map((each) => idOf.get(each) as Id),
+    colored,
+  };
 }
 
 /**

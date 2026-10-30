@@ -224,7 +224,7 @@ A Mermaid diagram (flowchart, C4, ER or class), a spreadsheet (CSV or TSV) or JS
 
 - **In the app**, Import… in the header reads a file or pasted text in the tab. It shows what the file will create, maps each kind of thing in it to a component or relation type, with suggestions chosen at first, and lists what matched nothing.
 - **From the command line**, `visual-anything import <folder> <file>` imports it. Use `--map <kind>=<id>` to map a kind yourself, and `--dry-run` to see the mapping first. When Visual Anything runs on the project, the import goes through it.
-- **With Claude**, ask it to import a file: it shows you the mapping with `preview_import`, then imports with `import_file`.
+- **With Claude**, ask it to import a file: it shows you the mapping with `preview_import`, then imports with `import_file`. Claude passes what it read itself: Visual Anything never reads a path Claude names, since text that steers Claude could then have it read any file the program can. For a large file, Claude may ask you to run `visual-anything import <folder> <file>` instead.
 
 **HTML as a drawing.** A static HTML file or fragment, such as a card, a legend or a short table, comes in as a picture of the page instead, shown by the selected element or a new one (ADR 0068). Visual Anything lays the page out itself, from an allow-list of elements and styles, with its text in Roboto: nothing in it runs, nothing it names is fetched, and the import lists what it dropped. In the app, Import… shows the drawing before anything changes; from the command line, `visual-anything import <folder> card.html [--width <px>] [--element <id>]`; with Claude, `import_drawing`. A drawing holds about fifty words: shorten the page, or make it narrower, when it is refused as too large.
 
@@ -257,7 +257,7 @@ Every recipe holds Claude to the same rules:
 
 - **Claude reads the material itself.** Visual Anything fetches nothing: no web address, no cloud and no tracing service. When the material points somewhere it does not hold, Claude asks you for it.
 - **Nothing is made up.** Claude maps only what the material says, reuses what the project already has, and ends with a list of everything that matched nothing, asking what each should become.
-- **One action per call.** An import is one action in your history, labelled Claude, that you undo in the app. An import only adds: before any delete, Claude shows you what it would take with it (`preview_delete`) and waits for your yes.
+- **One action per call.** An import is one action in your history, labelled Claude, that you undo in the app. A large one, past 500 elements and relations, such as a database of 70 tables, comes in batches of at most 500, each one action you undo on its own, which name one another by ids Claude chooses from the material's names, such as `t.billing.invoices` for a table. An import only adds: before any delete, Claude shows you what it would take with it (`preview_delete`) and waits for your yes.
 - **Secrets stay out.** Passwords, tokens and keys, such as the password in a connection string, and personal data in logs are never copied into the project.
 - **Layout places the shapes,** except where the material has positions of its own, as draw.io does.
 

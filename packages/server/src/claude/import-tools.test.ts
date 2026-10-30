@@ -4,6 +4,7 @@
  * created and what matched nothing.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { FILES_ON_DISK, IMPORT_TOOLS } from './import-tools';
 import { startToolHarness, type ToolHarness } from './tool-harness';
 
 let tools: ToolHarness;
@@ -17,6 +18,18 @@ afterEach(async () => {
 });
 
 const FLOWCHART = 'flowchart LR\n  shop[Shop] --> db[(Orders)]\n  click shop "https://example.com"';
+
+describe('a file on the person’s disk', () => {
+  it('is never read by a path Claude names: the tools say to pass it, or to run the import command', () => {
+    for (const each of IMPORT_TOOLS) {
+      expect(each.description).toContain(FILES_ON_DISK);
+      // Content, never a path: nothing the tools take names a file.
+      expect(Object.keys(each.input).filter((key) => /path|file|url/i.test(key))).toEqual([]);
+    }
+    expect(FILES_ON_DISK).toContain('visual-anything import <folder> <file>');
+    expect(FILES_ON_DISK).toMatch(/never reads a path you name/);
+  });
+});
 
 describe('preview_import', () => {
   it('says what an import would do, with the kinds and the mapping, and changes nothing', async () => {

@@ -251,6 +251,165 @@ describe('add_to_model', () => {
   });
 });
 
+describe('add_to_model with ids of Claude’s own', () => {
+  const table = (id: string, name: string) => ({
+    id,
+    component: 'systems.database',
+    name,
+    inside: ['system'],
+  });
+
+  it('keeps them, nests and relates by them in the same call, and answers every id used', async () => {
+    const result = await value('add_to_model', {
+      elements: [
+        // Contents before their container, which only its id names.
+        {
+          id: 'svc.shop.worker',
+          component: 'systems.service',
+          name: 'Worker',
+          inside: ['sys.shop'],
+        },
+        { id: 'sys.shop', component: 'systems.system', name: 'Shop' },
+        { ref: 'cache', component: 'systems.database', name: 'Cache', inside: ['sys.shop'] },
+      ],
+      relations: [
+        {
+          id: 'r.worker-writes-cache',
+          relationType: 'systems.writes-to',
+          from: 'svc.shop.worker',
+          to: 'cache',
+        },
+        { relationType: 'systems.communicates-with', from: 'api', to: 'svc.shop.worker' },
+      ],
+    });
+    const ids = result.ids as Record<string, string>;
+    expect(Object.keys(ids)).toEqual(['cache']);
+    expect(result.elements).toEqual(['svc.shop.worker', 'sys.shop', ids.cache]);
+    const relations = result.relations as string[];
+    expect(relations[0]).toBe('r.worker-writes-cache');
+    expect(relations[1]).toMatch(/^communicates-with-[0-9a-z]{6}$/);
+    // The nesting relations inside made, which the call names nowhere.
+    const nesting = result.nesting as string[];
+    expect(nesting).toHaveLength(2);
+    expect(session.history.undo).toEqual({
+      label: 'Create 3 elements and 2 relations',
+      author: 'claude',
+    });
+    const model = session.snapshot.model;
+    expect(model.relations).toContainEqual(
+      expect.objectContaining({
+        id: nesting[0],
+        relationType: 'systems.is-part-of',
+        from: 'svc.shop.worker',
+        to: 'sys.shop',
+      }),
+    );
+    expect(model.relations).toContainEqual(
+      expect.objectContaining({
+        id: 'r.worker-writes-cache',
+        from: 'svc.shop.worker',
+        to: ids.cache,
+      }),
+    );
+  });
+
+  it('lets a later call relate to them: a foreign key across calls', async () => {
+    await value('add_to_model', {
+      label: 'Import the shop database (1 of 2)',
+      elements: [table('t.shop.customers', 'customers')],
+    });
+    const second = await value('add_to_model', {
+      label: 'Import the shop database (2 of 2)',
+      elements: [table('t.shop.orders', 'orders')],
+      relations: [
+        {
+          id: 'fk.shop.orders.customer_id',
+          relationType: 'systems.reads-from',
+          from: 't.shop.orders',
+          to: 't.shop.customers',
+        },
+      ],
+    });
+    expect(second).toMatchObject({
+      done: 'Import the shop database (2 of 2)',
+      elements: ['t.shop.orders'],
+      relations: ['fk.shop.orders.customer_id'],
+    });
+    expect(session.snapshot.model.relations).toContainEqual(
+      expect.objectContaining({
+        id: 'fk.shop.orders.customer_id',
+        from: 't.shop.orders',
+        to: 't.shop.customers',
+      }),
+    );
+  });
+
+  it.each([
+    [
+      'an id given twice',
+      { elements: [table('t.a', 'A'), table('t.a', 'B')] },
+      'The id "t.a" is given twice.',
+    ],
+    [
+      'an element and a relation sharing an id',
+      {
+        elements: [table('t.a', 'A')],
+        relations: [{ id: 't.a', relationType: 'systems.reads-from', from: 'api', to: 't.a' }],
+      },
+      'The id "t.a" is given twice.',
+    ],
+    [
+      'a ref that is the id of another',
+      {
+        elements: [table('t.a', 'A'), { ...table('t.b', 'B'), id: undefined, ref: 't.a' }],
+      },
+      'The ref "t.a" is the id given to another element or relation.',
+    ],
+    [
+      'more than one call takes',
+      {
+        elements: Array.from({ length: 400 }, (_, at) => table(`t.${at}`, `T${at}`)),
+        relations: Array.from({ length: 101 }, (_, at) => ({
+          relationType: 'systems.reads-from',
+          from: 'api',
+          to: `t.${at}`,
+        })),
+      },
+      'This call gives 501 elements and relations; one call takes at most 500. Send them in batches',
+    ],
+  ])('refuses %s and changes nothing', async (_case, args, message) => {
+    expect(await failure('add_to_model', args)).toContain(message);
+    expect(session.history).toEqual({});
+  });
+
+  it.each([
+    [
+      'an id the pattern refuses',
+      [table('t a', 'A')],
+      [],
+      /"t a" is not a valid id\..*\(invalid-id\)$/,
+    ],
+    [
+      'an element’s id the project has',
+      [table('api', 'A')],
+      [],
+      /The id "api" is already taken\..*\(id-taken\)$/,
+    ],
+    [
+      'a relation’s id an element of the project has',
+      [],
+      [{ id: 'system', relationType: 'systems.reads-from', from: 'api', to: 'system' }],
+      /The id "system" is already taken\..*\(id-taken\)$/,
+    ],
+  ])(
+    'checks %s as create-element and create-relation do',
+    async (_case, elements, relations, message) => {
+      expect(await failure('add_to_model', { elements, relations })).toMatch(message);
+      expect(session.history).toEqual({});
+    },
+  );
+});
+
 describe('other write tools', () => {
   it('change an element, and say when nothing changed', async () => {
     expect(await value('update_element', { id: 'api', name: 'Gateway' })).toMatchObject({

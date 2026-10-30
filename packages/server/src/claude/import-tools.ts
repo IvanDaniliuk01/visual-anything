@@ -57,6 +57,14 @@ const input = {
 
 type Args = z.infer<z.ZodObject<typeof input>>;
 
+/**
+ * A file on the person's disk: Claude passes what it read, or asks the person to run the import
+ * command, which goes through the running program as the person's action (ADR-0049). The program
+ * never reads a path Claude names: a project's text, which can come from a cloned repository, could
+ * then have Claude copy any file the program can read into the model.
+ */
+export const FILES_ON_DISK = `Pass the file's content, as you read it yourself: the program never reads a path you name, since that would let you, or text in a project or a file that steers you, read any file the program can and copy it into a model others share. For a Mermaid, CSV or JSON file on the person's disk, above all a large one, you can instead ask the person to run visual-anything import <folder> <file> in a terminal (--dry-run shows the mapping first, --map <kind>=<id> maps a kind): it goes through the Visual Anything that runs on the project, as the person's action, and reads only the file the person names.`;
+
 function requestOf(args: Args): ImportRequest {
   const bytes =
     args.contentBase64 === undefined
@@ -105,6 +113,8 @@ const previewImportTool = tool({
 
 Show the person the mapping, and change what they want with map and nesting, then call import_file with the same arguments. Nothing in the file runs: links and callbacks are reported, never followed.
 
+${FILES_ON_DISK}
+
 Example: { "name": "checkout.mmd", "content": "flowchart LR\\n  shop[Shop] --> db[(Orders)]" }`,
   input,
   hints: READ,
@@ -123,6 +133,8 @@ const importFileTool = tool({
 
 It answers what it created and what matched nothing, which you tell the person.
 
+${FILES_ON_DISK}
+
 Example: { "name": "services.csv", "content": "name,component\\nBilling,Service", "map": { "Service": "systems.service" } }`,
   input,
   hints: WRITE,
@@ -136,7 +148,7 @@ Example: { "name": "services.csv", "content": "name,component\\nBilling,Service"
     );
     if (size > CLAUDE_MAX_PAYLOAD) {
       return fail(
-        `Not imported: the import is too large to send (${(size / 1024 / 1024).toFixed(1)} MiB; at most ${CLAUDE_MAX_PAYLOAD / 1024 / 1024} MiB). Ask the person to import it from the app, or with visual-anything import.`,
+        `Not imported: the import is too large to send (${(size / 1024 / 1024).toFixed(1)} MiB; at most ${CLAUDE_MAX_PAYLOAD / 1024 / 1024} MiB). Ask the person to import it from the app, or to run visual-anything import <folder> <file>.`,
       );
     }
     return act(program, command, () => {

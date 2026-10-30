@@ -59,6 +59,11 @@ export interface Recipe {
   readonly scenarios: readonly string[];
   /** What usually matches nothing, to report and ask about. */
   readonly unmatched: readonly string[];
+  /**
+   * How a large input of this material goes in batches, beyond the rule every recipe gives: the ids
+   * to choose and what each batch holds. Left out where the rule says enough.
+   */
+  readonly batches?: readonly string[];
   /** A small input worked through, call by call. */
   readonly example: WorkedExample;
 }
