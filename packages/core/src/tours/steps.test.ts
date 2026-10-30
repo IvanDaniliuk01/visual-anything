@@ -279,8 +279,21 @@ describe('what a step names that the project no longer holds', () => {
       ['unknown-scenario', 'gone-scenario'],
     ]);
     expect(problems.map((each) => each.message)).toContain(
-      'A step marks elements and relations, and "gone-mark" is neither.',
+      'A step marks elements, relations, notes and arrows of its view, and "gone-mark" is none of them.',
     );
+  });
+
+  it('takes the notes and arrows of the step’s view as marks, and only those of its view', () => {
+    expect(
+      tourStepProblems(project(), step({ marks: ['api', 'note'], reveal: [{ marks: ['note'] }] })),
+    ).toEqual([]);
+    const elsewhere = tourStepProblems(
+      project(),
+      step({ viewState: { view: 'other' }, marks: ['note'] }),
+    );
+    expect(elsewhere.map((each) => [each.code, each.subject])).toEqual([
+      ['unknown-element', 'note'],
+    ]);
   });
 
   it('counts what a reveal marks as it counts the step’s marks, saying which reveal names it', () => {
@@ -294,7 +307,8 @@ describe('what a step names that the project no longer holds', () => {
     expect(problems).toEqual([
       {
         code: 'unknown-element',
-        message: 'Reveal 2 of the step marks elements and relations, and "gone-reveal" is neither.',
+        message:
+          'Reveal 2 of the step marks elements, relations, notes and arrows of its view, and "gone-reveal" is none of them.',
         subject: 'gone-reveal',
         reveal: 1,
       },

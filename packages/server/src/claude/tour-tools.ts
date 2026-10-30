@@ -90,7 +90,9 @@ const marks = () =>
   z
     .array(id())
     .max(MAX_GUIDANCE_TARGETS)
-    .describe('The elements and relations the step highlights, as highlight does, each once.');
+    .describe(
+      'The elements, relations, notes and arrows the step highlights, as highlight does, each once: a note that explains a table can be marked with it.',
+    );
 
 const play = () =>
   z
@@ -129,7 +131,7 @@ const reveal = () =>
           .array(id())
           .min(1)
           .max(MAX_TOUR_MARKS)
-          .describe('The elements and relations this reveal brings in, each once.'),
+          .describe('The elements, relations, notes and arrows this reveal brings in, each once.'),
         text: z
           .string()
           .max(MAX_CAPTION_TEXT)
@@ -186,7 +188,7 @@ const newStep = () =>
 
 type NewStepArgs = z.infer<ReturnType<typeof newStep>>;
 
-const STEP_HELP = `A step's viewState is a view state as get_view_address takes it: ${STATE_HELP} Its caption has a title and a text, and place puts its card in a corner; marks highlight elements and relations; reveal brings in more marks one press at a time, each with a sentence for the caption; dimRest dims the rest; play plays a scenario over the step's view from one of its steps to another, and its choices the alternative to play at each of the scenario's decisions (read_scenario gives their ids), every other decision playing its default; advance moves on by itself; notes are the speaker's. The answer says how the camera gets to the step (glide, cut, stay, fit or follows, as check_tour says) and what check_tour warns about it, but for marks outside its camera, which only check_tour reads.`;
+const STEP_HELP = `A step's viewState is a view state as get_view_address takes it: ${STATE_HELP} Its caption has a title and a text, and place puts its card in a corner; marks highlight elements, relations, notes and arrows; reveal brings in more marks one press at a time, each with a sentence for the caption; dimRest dims the rest; play plays a scenario over the step's view from one of its steps to another, and its choices the alternative to play at each of the scenario's decisions (read_scenario gives their ids), every other decision playing its default; advance moves on by itself; notes are the speaker's. The answer says how the camera gets to the step (glide, cut, stay, fit or follows, as check_tour says) and what check_tour warns about it, but for marks outside its camera, which only check_tour reads.`;
 
 // ——— Read ———
 

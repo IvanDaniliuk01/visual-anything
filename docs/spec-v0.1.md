@@ -759,6 +759,7 @@ Its tasks run one at a time, in this order:
 - Claude creates elements with ids of its own in `add_to_model`, and imports a large file without its whole content travelling twice;
 - Claude sees a view as the app draws it (ADR 0081);
 - notes, captions, descriptions and text attributes take bold, italic, strikethrough and code, and a component's detail wraps;
+- the side panels collapse and take the width the person gives them;
 - the design of component templates is researched and decided.
 
 Its tasks run one at a time, after M3c's Stage 0b, in this order:
@@ -783,6 +784,12 @@ Its tasks run one at a time, after M3c's Stage 0b, in this order:
   - `add_to_model` takes an `id` of Claude's own for each element and relation, checked as `create-element` checks it.
   - The recipes say how to send a large model in batches that refer to one another by those ids.
   - For a file the import reads (Mermaid, CSV, JSON), the tools' descriptions name `visual-anything import <folder> <file>`, which goes through the running program. The program never reads a path Claude names: that would let Claude read any file the program can.
+- [ ] **Side panels that collapse and resize** (`app/src/shell/`, asked by the user on 2026-10-29):
+  - the model panel on the left and the inspector on the right each collapse to a thin strip, from a button on their edge and from the keyboard, and open again from it;
+  - each takes the width the person drags its inner edge to, between 200 px and half the window, with the keyboard too (a focusable separator, arrows by 16 px, Home and End), and a double click gives back its default width;
+  - the canvas takes the room they leave, and keeps the same point of the view in its middle;
+  - widths and collapsed states are kept per browser in local storage, never in the project;
+  - announcements and labels in English and Spanish.
 - [ ] **Claude sees the view** (ADR 0081): `capture_view`, the capture messages, the off-screen render at a given size, and Claude's instructions.
 - [ ] **Text that takes emphasis** (ADR 0082): bold, italic, strikethrough and inline code, written as a Markdown subset and drawn on the canvas, the read-only page and the exports, in:
   - notes;

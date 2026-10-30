@@ -3600,8 +3600,8 @@ export const messages: Catalog = {
     'El paso {n} avanza después de {after}, pero su texto se lee en {reading}: espera hasta entonces.',
   'Step {n} plays {count} steps of the scenario "{name}": a range of more than {limit} is hard to follow in one step.':
     'El paso {n} reproduce {count} pasos del escenario "{name}": un tramo de más de {limit} cuesta seguirlo en un solo paso.',
-  'Reveal {r} of the step marks elements and relations, and "{id}" is neither.':
-    'La revelación {r} del paso marca elementos y relaciones, y "{id}" no es ninguna de las dos cosas.',
+  'Reveal {r} of the step marks elements, relations, notes and arrows of its view, and "{id}" is none of them.':
+    'La revelación {r} del paso marca elementos, relaciones, notas y flechas de su vista, y "{id}" no es ninguno de ellos.',
   "A caption's title holds at most {limit} characters.":
     'El título de un rótulo tiene como máximo {limit} caracteres.',
   "A caption's text is text.": 'El texto de un rótulo es texto.',
@@ -3624,8 +3624,8 @@ export const messages: Catalog = {
   'Step {n} of the tour chooses alternatives as a map from the id of each decision to the id of an alternative.':
     'El paso {n} del recorrido elige alternativas asociando el id de cada decisión al id de una alternativa.',
   'A step chooses at most {limit} alternatives.': 'Un paso elige como máximo {limit} alternativas.',
-  'A step marks elements and relations, and "{id}" is neither.':
-    'Un paso marca elementos y relaciones, y "{id}" no es ninguna de las dos cosas.',
+  'A step marks elements, relations, notes and arrows of its view, and "{id}" is none of them.':
+    'Un paso marca elementos, relaciones, notas y flechas de su vista, y "{id}" no es ninguno de ellos.',
   'The step "{from}" comes after "{to}" in the scenario "{name}".':
     'El paso "{from}" viene después de "{to}" en el escenario "{name}".',
   'More than one tour has the id "{key}".': 'Más de un recorrido tiene el id "{key}".',

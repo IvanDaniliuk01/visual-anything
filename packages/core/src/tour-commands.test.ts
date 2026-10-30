@@ -163,7 +163,7 @@ describe('create-tour', () => {
     [
       'a reveal of something gone',
       { reveal: [{ marks: ['gone'] }] },
-      'Reveal 1 of the step marks elements and relations, and "gone" is neither.',
+      'Reveal 1 of the step marks elements, relations, notes and arrows of its view, and "gone" is none of them.',
     ],
     [
       'a reveal of nothing',
@@ -300,7 +300,7 @@ describe('create-tour', () => {
         tour: { name: 'T', steps: [START, { ...START, marks: ['nothing'] }] },
       },
       'unknown-element',
-      'Step 2 of the tour: A step marks elements and relations, and "nothing" is neither.',
+      'Step 2 of the tour: A step marks elements, relations, notes and arrows of its view, and "nothing" is none of them.',
     ],
     [
       'a scenario played over another view than the step’s',

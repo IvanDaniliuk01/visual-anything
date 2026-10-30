@@ -146,3 +146,7 @@ The stages come from a pure function of the core, `tourTransition(from, to, trav
   - **Never per frame.** The check is worked out once for each tour and project, and only while the Tours tab shows; a scene is built only for a view that a step with a camera and marks names.
   - **Long ranges** count only the steps that play with the step's choices (ADR 0078).
 - 2026-10-28 (M11c's review): **`tourTransition(move, { fades })`** is the core's signature, the camera's move given as `tourMove` makes it or `stay`, rather than the `(from, to, travel, reduced)` this ADR first named. **`checkTour` reads a step's camera as the stage plays it:** it stays when it is where the step before left it, within half a pixel and a thousandth of the zoom; after a step that keeps no camera it `follows`, starting wherever the canvas framed that step, and says no cut. **Each id is marked once in a step**, by its marks or by one of its reveals, so that a reveal always brings in something new.
+
+<!-- Decided by Claude on 2026-10-29 under the user's standing delegation of design decisions. -->
+
+- 2026-10-29 (M3d, from the user's notes on their first real model): **a step marks and reveals notes and arrows too.** Its `marks` and its reveals' `marks` take the ids of the notes and arrows the step's view holds, besides elements and relations, as Claude's highlight and the selection do. The app already draws them marked, and `dimRest` keeps them at full strength. A note's id that the view no longer holds is a step problem, as an element's is.

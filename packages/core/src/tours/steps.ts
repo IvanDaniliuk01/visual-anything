@@ -211,21 +211,24 @@ export function tourStepProblems(project: ProjectSnapshot, step: TourStep): Tour
       });
     }
   }
+  // A step marks what Claude's highlight marks: the model's elements and relations, and the view's
+  // notes and arrows, which the app draws and keeps at full strength the same way.
+  const markable = (id: Id) => inModel(id) || freeShapes.has(id);
   for (const id of step.marks ?? []) {
-    if (!inModel(id)) {
+    if (!markable(id)) {
       problems.push({
         code: 'unknown-element',
-        message: `A step marks elements and relations, and "${id}" is neither.`,
+        message: `A step marks elements, relations, notes and arrows of its view, and "${id}" is none of them.`,
         subject: id,
       });
     }
   }
   (step.reveal ?? []).forEach((reveal, at) => {
     for (const id of reveal.marks) {
-      if (!inModel(id)) {
+      if (!markable(id)) {
         problems.push({
           code: 'unknown-element',
-          message: `Reveal ${at + 1} of the step marks elements and relations, and "${id}" is neither.`,
+          message: `Reveal ${at + 1} of the step marks elements, relations, notes and arrows of its view, and "${id}" is none of them.`,
           subject: id,
           reveal: at,
         });

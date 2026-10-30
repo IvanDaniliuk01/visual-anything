@@ -115,7 +115,7 @@ describe('create_tour', () => {
         steps: [{ viewState: { view: 'overview' }, title: 'T', marks: ['nothing'] }],
       }),
     ).toBe(
-      'Refused, so nothing changed: Step 1 of the tour: A step marks elements and relations, and "nothing" is neither. (unknown-element)',
+      'Refused, so nothing changed: Step 1 of the tour: A step marks elements, relations, notes and arrows of its view, and "nothing" is none of them. (unknown-element)',
     );
     expect(
       await tools.failure('create_tour', {
@@ -290,7 +290,7 @@ describe('add_tour_step, update_tour_step and remove_tour_step', () => {
         reveal: [{ marks: ['nothing'] }],
       }),
     ).toBe(
-      'Refused, so nothing changed: Step 3 of the tour: Reveal 1 of the step marks elements and relations, and "nothing" is neither. (unknown-element)',
+      'Refused, so nothing changed: Step 3 of the tour: Reveal 1 of the step marks elements, relations, notes and arrows of its view, and "nothing" is none of them. (unknown-element)',
     );
     const quick = await tools.value('update_tour_step', {
       tour,
@@ -546,7 +546,7 @@ describe('check_tour', () => {
     expect(fifth?.warnings?.[0]).toEqual({
       kind: 'broken',
       message:
-        'Step 5 names what the project no longer holds, and plays without it: A step marks elements and relations, and "db" is neither.',
+        'Step 5 names what the project no longer holds, and plays without it: A step marks elements, relations, notes and arrows of its view, and "db" is none of them.',
       subjects: ['db'],
     });
     expect(await tools.failure('check_tour', { tour: 'gone' })).toBe(
@@ -568,7 +568,9 @@ describe('read_tour', () => {
           number: 2,
           caption: { title: 'The API' },
           broken: true,
-          problems: ['A step marks elements and relations, and "api-reads-db" is neither.'],
+          problems: [
+            'A step marks elements, relations, notes and arrows of its view, and "api-reads-db" is none of them.',
+          ],
         },
       ],
       brokenSteps: [2],
