@@ -4,12 +4,13 @@
  * shared out in order: the name first, wrapped, then the detail, wrapped to its `lines` (3 unless
  * the appearance says otherwise) and to what the area holds, its last line ending in "…".
  *
- * It is pure, and measures with the function it is given: the canvas with its bitmap fonts, the
- * exports with Roboto's widths. Containers, rows, name tags and shapes drawn by their picture write
- * their text as they always have, elsewhere.
+ * It is pure, and measures with the function it is given: the canvas and the exports both in
+ * Roboto's widths, the exports with a margin for the system fonts an SVG may be drawn in.
+ * Containers, rows, name tags and shapes drawn by their picture write their text as they always
+ * have, elsewhere.
  */
-import type { EmphasisRun } from '@visual-anything/core';
-import { textWidth } from '../export/measure';
+import { robotoWidth, type EmphasisRun } from '@visual-anything/core';
+import { SYSTEM_FONT_MARGIN } from '../export/measure';
 import { LINE_HEIGHT, layOutRuns, type LaidText, type Measure } from '../text/layout';
 import type { Rect } from './geometry';
 
@@ -29,13 +30,20 @@ const GAP = 2;
 export const DEFAULT_DETAIL_LINES = 3;
 
 /**
- * How wide a text is, in Roboto's widths, the font the exports write in; the canvas measures with
- * its own fonts once they are installed. Italic is as wide as upright, and code is monospaced.
+ * How wide a text is in the exports: in Roboto's widths, which the core holds (ADR 0083), its real
+ * italic and bold italic widths included, with the margin the exports keep for the system fonts a
+ * browser may draw an SVG in. Code is Roboto Mono, 0.6 em a character, with no margin.
  */
 export const robotoMeasure: Measure = (text, variant, size) =>
   variant === 'mono'
-    ? [...text].length * size * 0.6
-    : textWidth(text, size, variant === 'bold' || variant === 'boldItalic');
+    ? robotoWidth(text, 'mono', size)
+    : robotoWidth(text, variant, size) * SYSTEM_FONT_MARGIN;
+
+/**
+ * How wide a text is on the canvas: exactly in Roboto's widths, the fonts the canvas draws in
+ * (`robotoFonts.ts`), as faces are laid out, so that what is measured is what is drawn.
+ */
+export const canvasMeasure: Measure = (text, variant, size) => robotoWidth(text, variant, size);
 
 /** A shape's text, as the block places it. */
 export interface TextBlock {

@@ -79,6 +79,7 @@ import { CodeDrawingLayer } from './code-drawings';
 import type { Drawing as CodeDrawing } from '@visual-anything/core';
 import { TileImages, type ImageView } from './images-draw';
 import { bitmapText, installFonts } from './labels';
+import { loadRobotoFonts } from './robotoFonts';
 import { THEMES, type CanvasTheme } from '../theme/themes';
 import { DIMMED_ALPHA } from './colors';
 import { lengthOf, midpointOf, pointAlong, type RouteEnd } from './route';
@@ -1590,6 +1591,9 @@ export class CanvasRenderer {
 
   private async start(): Promise<void> {
     try {
+      // Roboto loads from the app's own bytes while PixiJS starts, so that the label fonts are drawn
+      // in it from the first label (ADR 0083); it never fails, and the system's fonts stand in.
+      const fonts = loadRobotoFonts();
       await this.app.init({
         preference: 'webgl',
         background: this.painter.theme.background,
@@ -1602,6 +1606,7 @@ export class CanvasRenderer {
         width: Math.max(1, this.host.clientWidth),
         height: Math.max(1, this.host.clientHeight),
       });
+      await fonts;
     } catch (error) {
       if (this.status === 'destroyed') return;
       this.status = 'failed';

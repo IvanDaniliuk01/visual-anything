@@ -95,12 +95,17 @@ import type { EmphasisRun } from '@visual-anything/core';
 import type { Measure } from '../text/layout';
 import { outlinedTextBlock } from './outlinedText';
 import { DETAIL_SIZE, NAME_SIZE, placeTextBlock, type TextBlock } from './textBlock';
+import { ROBOTO } from './robotoFonts';
 
 /** How big a note's text is written. */
 const NOTE_SIZE = 13;
 
-/** The fonts text is drawn in, first available first. */
+/**
+ * The fonts text is drawn in, first available first: Roboto, loaded from the app's own bytes
+ * (`robotoFonts.ts`, ADR 0083), then the system's until it is.
+ */
 export const FONT_FAMILY = [
+  ROBOTO,
   'system-ui',
   'Segoe UI',
   'Roboto',

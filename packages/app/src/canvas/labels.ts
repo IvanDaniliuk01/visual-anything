@@ -1,6 +1,8 @@
 /**
  * Labels drawn from bitmap fonts: each glyph is drawn once into a shared texture, so that showing
- * thousands of names costs little more than showing one. Every font is drawn in white and tinted: a
+ * thousands of names costs little more than showing one. The fonts are drawn in Roboto once it is
+ * loaded from the app's own bytes (`robotoFonts.ts`, ADR 0083), and texts are measured in the core's
+ * tables of it. Every font is drawn in white and tinted: a
  * shape's labels to the color that reads on its fill, a relation's name to the theme's text over a
  * back tinted to the canvas, so that a new theme or a new fill only tints labels again.
  */
@@ -9,8 +11,8 @@ import type { CanvasTextOptions, TextStyleOptions } from 'pixi.js';
 import { parseEmphasis, type EmphasisRun } from '@visual-anything/core';
 import type { Color } from '@visual-anything/schema';
 import { FONT_FAMILY, fitText, noteTextPlace, type LabelKind, type TextFactory } from './draw';
-import { emphasisLabel, glyphMeasure, noteLabel } from './emphasisLabels';
-import { robotoMeasure } from './textBlock';
+import { emphasisLabel, noteLabel } from './emphasisLabels';
+import { canvasMeasure } from './textBlock';
 import { RELATION_LABEL_HALO, RELATION_LABEL_TEXT } from './colors';
 
 const FONTS: Record<LabelKind, string> = {
@@ -112,8 +114,9 @@ export const bitmapText: TextFactory = (options, kind, room, runs) => {
   }
   return relationLabel(text, style);
 };
-bitmapText.measure = glyphMeasure;
-bitmapText.measureName = nameMeasure;
+// Measured in Roboto's widths in the core, the fonts the labels are drawn in (ADR 0083).
+bitmapText.measure = canvasMeasure;
+bitmapText.measureName = (text) => canvasMeasure(text, 'bold', 14);
 bitmapText.note = (note, color) =>
   noteLabel(note.text, () => parseEmphasis(note.text, { blocks: true }), {
     ...noteTextPlace(note),
@@ -144,24 +147,6 @@ function detailWithEmphasis(
     room,
     fill: typeof style.fill === 'string' ? style.fill : '#000000',
   });
-}
-
-/** How wide a name is in the name's own font, once installed; in Roboto's widths until then. */
-function nameMeasure(text: string): number {
-  const font = Cache.has(CACHED[0])
-    ? Cache.get<{
-        chars?: BitmapFont['chars'];
-        fontMetrics?: { fontSize: number };
-        ensureCharacters?: (chars: string) => void;
-      }>(CACHED[0])
-    : undefined;
-  const chars = font?.chars;
-  const drawn = font?.fontMetrics?.fontSize;
-  if (!chars || !drawn) return robotoMeasure(text, 'bold', 14);
-  font.ensureCharacters?.(text);
-  let width = 0;
-  for (const character of text) width += chars[character]?.xAdvance ?? 0;
-  return (width * 14) / drawn;
 }
 
 /** A relation's name over its back, both centered where the text was placed. */
